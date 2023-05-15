@@ -120,7 +120,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ischar(new_value) && ~isempty(new_value) ,
         % all is well
       else
-        error('APT:invalid_value', 'Invalid value for the Docker image specification');
+        error('APT:invalidValue', 'Invalid value for the Docker image specification');
       end        
       % The full image spec should be of the form '<root>:<tag>' or just '<root>'
       % Parse the given string to find the parts
@@ -135,7 +135,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         root = parts{1} ;
         tag = parts{2} ;
       else
-        error('APT:invalid_value', '"%s" is a not valid value for the Docker image specification', new_value);
+        error('APT:invalidValue', '"%s" is a not valid value for the Docker image specification', new_value);
       end
       % Actually set the values
       obj.dockerimgroot = root ;
@@ -155,7 +155,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj.does_have_special_singularity_detection_image_path_ = false ;
         obj.singularity_detection_image_path_ = '' ;
       else
-        error('APT:invalid_value', 'Invalid value for the Singularity image path');
+        error('APT:invalidValue', 'Invalid value for the Singularity image path');
       end        
     end
 
@@ -168,7 +168,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ischar(new_value) ,
         % all is well
       else
-        error('APT:invalid_value', 'Invalid value for the JRC addition bsub arguments');
+        error('APT:invalidValue', 'Invalid value for the JRC addition bsub arguments');
       end        
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
@@ -178,7 +178,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ischar(new_value) && ~isempty(new_value) ,
         % all is well
       else
-        error('APT:invalid_value', '"%s" is a not valid value for the conda environment', new_value);
+        error('APT:invalidValue', '"%s" is a not valid value for the conda environment', new_value);
       end        
       % Actually set the value
       obj.condaEnv = new_value ;
@@ -1464,12 +1464,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % intended to be used for encoding/decoding.  The trailing underscore is there
   % to remind you that these methods are only intended for "special case" uses.
   methods
-    function result = get_property_value_(self, name)
-      result = self.(name) ;
+    function result = get_property_value_(obj, name)
+      result = obj.(name) ;
     end  % function
     
-    function set_property_value_(self, name, value)
-      self.(name) = value ;
+    function set_property_value_(obj, name, value)
+      obj.(name) = value ;
     end  % function
   end
 

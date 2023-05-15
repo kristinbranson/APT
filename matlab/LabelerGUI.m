@@ -62,9 +62,9 @@ if handles.labelerObj.isgui,
   hfigsplash = splashScreen(handles);
 end
 
-handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
-handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
-handles.RefreshStatusFun = @(varargin) fprintf('\n');
+% handles.SetStatusFun = @(~,s,varargin) fprintf([s,'...\n']);
+% handles.ClearStatusFun = @(varargin) fprintf('Done.\n');
+% handles.RefreshStatusFun = @(varargin) fprintf('\n');
 
 hObject.Name = 'APT';
 hObject.HandleVisibility = 'on';
@@ -89,18 +89,13 @@ set(handles.edit_frame,'String','');
 set(handles.popupmenu_prevmode,'Visible','off');
 set(handles.pushbutton_freezetemplate,'Visible','off');
 set(handles.txStatus,'String','Ready.');
-try
-  handles.jtxStatus = findjobj_modern(handles.txStatus);
-catch
-  handles.jtxStatus = [];
-end
 
 % somehow this got corrupted in .figs
 set(handles.tblFrames,'Data',[]);
 % Correct this, outdated in .figs
 set(handles.tblFrames,'ColumnName',{'Frame' 'Tgts' 'Pts'});
 
-syncStatusBarTextWhenClear(handles);
+%syncStatusBarTextWhenClear(handles);
 set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
 %set(handles.pnlSusp,'Visible','off');
@@ -108,8 +103,8 @@ set(handles.txLblCoreAux,'Visible','off');
 % color of status bar when GUI is busy vs idle
 handles.idlestatuscolor = [0,1,0];
 handles.busystatuscolor = [1,0,1];
-setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
-setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
+% setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
+% setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
 
 % set location of background training status
 pos1 = handles.txStatus.Position;
@@ -122,11 +117,11 @@ handles.txBGTrain.Position = pos2;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.FontSize = handles.txStatus.FontSize;
 
-SetStatus(handles,'Initializing APT...');
-handles.SetStatusFun = @SetStatus;
-handles.ClearStatusFun = @ClearStatus;
-handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
-handles.RefreshStatusFun = @refreshStatus;
+handles.labelerObj.setStatus('Initializing APT...');
+% handles.SetStatusFun = @SetStatus;
+% handles.ClearStatusFun = @ClearStatus;
+% handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
+% handles.RefreshStatusFun = @refreshStatus;
 
 %handles.pnlSusp.Visible = 'off';
 
@@ -818,20 +813,18 @@ listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoo
 listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
 listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
-listeners{end+1,1} = addlistener(lObj,'projname','PostSet',@cbkProjNameChanged);
-%listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@cbkCurrFrameChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
 listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
-listeners{end+1,1} = addlistener(lObj,'labelMode','PostSet',@cbkLabelModeChanged);
-listeners{end+1,1} = addlistener(lObj,'labels2Hide','PostSet',@cbkLabels2HideChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLabels2Hide',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'labels2ShowCurrTargetOnly','PostSet',@cbkLabels2ShowCurrTargetOnlyChanged);
-listeners{end+1,1} = addlistener(lObj,'projFSInfo','PostSet',@cbkProjFSInfoChanged);
-listeners{end+1,1} = addlistener(lObj,'showTrx','PostSet',@cbkShowTrxChanged);
-listeners{end+1,1} = addlistener(lObj,'showOccludedBox','PostSet',@cbkShowOccludedBoxChanged);
-listeners{end+1,1} = addlistener(lObj,'showTrxCurrTargetOnly','PostSet',@cbkShowTrxCurrTargetOnlyChanged);
-% listeners{end+1,1} = addlistener(lObj,'showPredTxtLbl','PostSet',@cbkShowPredTxtLblChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetProjFSInfo',@cbkProjFSInfoChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowTrx',@cbkShowTrxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowOccludedBox',@cbkShowOccludedBoxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowTrxCurrTargetOnly',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PreSet',@cbkCurrTrackerPreChanged);
 listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
@@ -839,11 +832,11 @@ listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxC
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
-listeners{end+1,1} = addlistener(lObj,'movieCenterOnTarget','PostSet',@cbkMovieCenterOnTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'movieRotateTargetUp','PostSet',@cbkMovieRotateTargetUpChanged);
-listeners{end+1,1} = addlistener(lObj,'movieForceGrayscale','PostSet',@cbkMovieForceGrayscaleChanged);
-listeners{end+1,1} = addlistener(lObj,'movieInvert','PostSet',@cbkMovieInvertChanged);
-listeners{end+1,1} = addlistener(lObj,'movieViewBGsubbed','PostSet',@cbkMovieViewBGsubbedChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieCenterOnTarget',@cbkMovieCenterOnTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotateTargetUpChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieForceGrayscale',@cbkMovieForceGrayscaleChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieInvert',@cbkMovieInvertChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetMovieViewBGsubbed',@cbkMovieViewBGsubbedChanged);
 listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropModeChanged);
@@ -861,9 +854,9 @@ listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
 listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'dataImported',@cbkDataImported);
-listeners{end+1,1} = addlistener(lObj,'showSkeleton','PostSet',@cbkShowSkeletonChanged);
-listeners{end+1,1} = addlistener(lObj,'showMaRoi','PostSet',@cbkShowMaRoiChanged);
-listeners{end+1,1} = addlistener(lObj,'showMaRoiAux','PostSet',@cbkShowMaRoiAuxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowSkeleton',@cbkShowSkeletonChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoi',@cbkShowMaRoiChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoiAux',@cbkShowMaRoiAuxChanged);
 
 handles.listeners = listeners;
 handles.listenersTracker = cell(0,1); % listeners added in cbkCurrTrackerChanged
@@ -983,7 +976,7 @@ for i = 1:numel(h),
   end
 end
 
-ClearStatus(handles);
+lObj.clearStatus();
 EnableControls(handles,'noproject');
 
 if ismac % Change color of buttons 
@@ -1205,43 +1198,17 @@ end
 function handles = initTblTrx(handles)
 tbl0 = handles.tblTrx;
 COLNAMES = {'Index' 'Labeled'};
-if 1
-  set(tbl0,...
-    'ColumnWidth',{100 100},...
-    'ColumnName',COLNAMES,...
-    'Data',cell(0,numel(COLNAMES)),...
-    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt),...
-    'FontUnits','points',...
-    'FontSize',9.75,... % matches .tblTrx
-    'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
-  % AL 20210209: jtable performance is too painful for larger projs (more 
-  % labels in any single movie). As of 2020x only cost to using regular 
-  % table is inability to set selected/hilite row.
-  
-else
-  jt = uiextras.jTable.Table(...
-    'parent',tbl0.Parent,...
-    'Position',tbl0.Position,...
-    'SelectionMode','discontiguous',...
-    'Editable','off',...
-    'ColumnPreferredWidth',[100 100],...
-    'ColumnName',COLNAMES,... %  'ColumnFormat',{'integer' 'integer' 'integer'},...  'ColumnEditable',[false false false],...
-    'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt));
-  set(jt,'Data',cell(0,numel(COLNAMES)));
-  cr = aptjava.StripedIntegerTableCellRenderer;
-  cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
-  crCB = aptjava.StripedCheckBoxTableCellRenderer;
-  jt.JColumnModel.getColumn(0).setCellRenderer(cr);
-  jt.JColumnModel.getColumn(1).setCellRenderer(crCB);
-  jt.JTable.Foreground = java.awt.Color.WHITE;
-  jt.hPanel.BackgroundColor = [0.3 0.3 0.3];
-  h = jt.JTable.getTableHeader;
-  h.setPreferredSize(java.awt.Dimension(225,22));
-  jt.JTable.repaint;
-
-  delete(tbl0);  
-  handles.tblTrx = jt;
-end
+set(tbl0,...
+  'ColumnWidth',{100 100},...
+  'ColumnName',COLNAMES,...
+  'Data',cell(0,numel(COLNAMES)),...
+  'CellSelectionCallback',@(src,evt)cbkTblTrxCellSelection(src,evt),...
+  'FontUnits','points',...
+  'FontSize',9.75,... % matches .tblTrx
+  'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
+% AL 20210209: jtable performance is too painful for larger projs (more 
+% labels in any single movie). As of 2020x only cost to using regular 
+% table is inability to set selected/hilite row.
 
 function handles = initTblFrames(handles,isMA)
 tbl0 = handles.tblFrames;
@@ -1674,7 +1641,7 @@ handles = addDepHandle(handles,handles.GTMgr);
 
 guidata(handles.figure,handles);
 
-%ClearStatus(handles);
+%handles.labelerObj.clearStatus();
 
 function setGUIMainFigureName(lObj)
 
@@ -1702,7 +1669,7 @@ for i=2:lObj.nview,
     str = sprintf('View: %s',vname);
   end
   if numel(lObj.movieInvert) >= i && lObj.movieInvert(i),
-    str = [str,' (inverted)'];
+    str = [str,' (inverted)'];  %#ok<AGROW> 
   end  
   figs(i).Name = str;
   figs(i).NumberTitle = 'off';
@@ -1901,24 +1868,24 @@ if ~isempty(mname)
 end
 
 function cbkAddMovie(src,evt)
-lObj=src;
-handles = lObj.gdata;
-
-if strcmp(evt.EventName,'startAddMovie')
-    %SetStatus(handles,'Adding movie',true); 
-elseif strcmp(evt.EventName,'finishAddMovie')
-    %ClearStatus(handles);        
-end
+% lObj=src;
+% %handles = lObj.gdata;
+% 
+% if strcmp(evt.EventName,'startAddMovie')
+%     %SetStatus(handles,'Adding movie',true); 
+% elseif strcmp(evt.EventName,'finishAddMovie')
+%     %handles.labelerObj.clearStatus();        
+% end
 
 function cbkSetMovie(src,evt)
-lObj=src;
-handles = lObj.gdata;
-
-if strcmp(evt.EventName,'startSetMovie')
-    %SetStatus(handles,'Setting first movie',true); 
-elseif strcmp(evt.EventName,'finishSetMovie')
-    %ClearStatus(handles);        
-end
+% lObj=src;
+% handles = lObj.gdata;
+% 
+% if strcmp(evt.EventName,'startSetMovie')
+%     %SetStatus(handles,'Setting first movie',true); 
+% elseif strcmp(evt.EventName,'finishSetMovie')
+%     %handles.labelerObj.clearStatus();        
+% end
 
 function cbkProjLoaded(src,evt)
 lObj = src;
@@ -1996,7 +1963,7 @@ try
     assert(numel(i) == 1);
     lObj.gdata.tblTrx.SelectedRows = i;
   end
-catch ME
+catch ME  %#ok<NASGU> 
   warningNoTrace('Error caught updating highlight row in Targets Table.');
 end
 
@@ -2016,7 +1983,7 @@ function cbkLabeledPosNeedsSaveChanged(src,evt)
 lObj = evt.AffectedObject;
 val = lObj.labeledposNeedsSave;
 %cbkSaveNeeded(lObj,val,'Unsaved labels');
-lObj.set_does_need_save(val, 'Unsaved labels') ;
+lObj.setDoesNeedSave(val, 'Unsaved labels') ;
 
 
 % function cbkSaveNeeded(lObj,val,str)
@@ -2057,7 +2024,7 @@ hMenu = handles.labelMode2SetupMenu.(char(labelMode));
 hMenu.Checked = 'on';
 
 function cbkLabelModeChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 lblMode = lObj.labelMode;
 menuSetupLabelModeHelp(handles,lblMode);
@@ -2145,8 +2112,8 @@ switch lblMode
     handles.menu_view_showhide_maroiaux.Visible = 'off'; 
 end
 
-lc = lObj.lblCore;
-tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
+%lc = lObj.lblCore;
+%tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 % handles.menu_view_show_3D_axes.Enable = onIff(tfShow3DAxes);
 
 % function hlpUpdateTxProjectName(lObj)
@@ -2162,36 +2129,38 @@ tfShow3DAxes = ~isempty(lc) && lc.supportsMultiView && lc.supportsCalibration;
 % hTX.String = str;
 
 function cbkProjNameChanged(src,evt)
-lObj = evt.AffectedObject;
-handles = lObj.gdata;
-pname = lObj.projname;
+lObj = src ;
+%handles = lObj.gdata;
+%pname = lObj.projname;
 str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now,16));
-setStatusBarTextWhenClear(handles,str);
+%setStatusBarTextWhenClear(handles,str);
+lObj.setRawStatusStringWhenClear_(str) ;
 %SetStatus(handles,str,false);
 % set(handles.txStatus,'String',str);
 %hlpUpdateTxProjectName(lObj);
 setGUIMainFigureName(lObj);
 
 function cbkProjFSInfoChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 info = lObj.projFSInfo;
 if ~isempty(info)  
   str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16));
   %set(lObj.gdata.txStatus,'String',str);
-  setStatusBarTextWhenClear(lObj.gdata,str);
+  %setStatusBarTextWhenClear(lObj.gdata,str);
+  lObj.setRawStatusStringWhenClear_(str) ;
   %SetStatus(lObj.gdata,str,false);
 end
 %hlpUpdateTxProjectName(lObj);
 setGUIMainFigureName(lObj);
 
 function cbkMovieForceGrayscaleChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 tf = lObj.movieForceGrayscale;
 mnu = lObj.gdata.menu_view_converttograyscale;
 mnu.Checked = onIff(tf);
 
 function cbkMovieInvertChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 figs = lObj.gdata.figs_all;
 setGUIFigureNames(lObj.gdata,lObj,figs);
 setMainAxesName(lObj.gdata,lObj);
@@ -2212,7 +2181,7 @@ setMainAxesName(lObj.gdata,lObj);
 % end
 
 function cbkMovieViewBGsubbedChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 tf = lObj.movieViewBGsubbed;
 mnu = lObj.gdata.menu_view_show_bgsubbed_frames;
 mnu.Checked = onIff(tf);
@@ -2617,7 +2586,7 @@ assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
 % aws = be.awsec2;
 % if ~isempty(aws)
   %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
-  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance();
+  [tfsucc,~,~,~] = lObj.trackDLBackEnd.awsec2.selectInstance();
 % else
 %   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
 % end
@@ -2694,7 +2663,7 @@ new_value = dialog_result{1};
 try
   lObj.set_backend_property('jrcAdditionalBsubArgs', new_value) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2735,7 +2704,7 @@ if ischange,
   res = questdlg('Test new Docker configuration now?','Test Docker configuration','Yes','No','Yes');
   if strcmpi(res,'Yes'),
     try
-      [tfsucc,hedit] = lObj.trackDLBackEnd.testDockerConfig();
+      tfsucc = lObj.trackDLBackEnd.testDockerConfig();
     catch ME,
       tfsucc = false;
       disp(getReport(ME));
@@ -2762,7 +2731,7 @@ new_full_image_spec = dialog_result{1};
 try
   lObj.set_backend_property('dockerimgfull', new_full_image_spec) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2782,7 +2751,7 @@ new_value = dialog_result{1};
 try
   lObj.set_backend_property('condaEnv', new_value) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2804,7 +2773,7 @@ new_value = fullfile(path_name, file_name) ;
 try
   lObj.set_backend_property('singularity_image_path', new_value) ;
 catch exception
-  if strcmp(exception.identifier, 'APT:invalid_value') ,
+  if strcmp(exception.identifier, 'APT:invalidValue') ,
     uiwait(errordlg(exception.message));
   else
     rethrow(exception);
@@ -2911,8 +2880,8 @@ idx = handles.pumTrack.Value;
 mfts = MFTSetEnum.TrackingMenuTrx;
 mftset = mfts(idx);
 
-function cbkMovieCenterOnTargetChanged(src,evt)
-lObj = evt.AffectedObject;
+function cbkMovieCenterOnTargetChanged(src,~)
+lObj = src ;
 tf = lObj.movieCenterOnTarget;
 mnu = lObj.gdata.menu_view_trajectories_centervideoontarget;
 mnu.Checked = onIff(tf);
@@ -2921,7 +2890,7 @@ if tf,
 end
 
 function cbkMovieRotateTargetUpChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 tf = lObj.movieRotateTargetUp;
 if tf
   ax = lObj.gdata.axes_curr;
@@ -2949,7 +2918,7 @@ function slider_frame_Callback(hObject,evt,varargin)
 
 debugtiming = false;
 if debugtiming,
-  starttime = tic;
+  starttime = tic() ;
 end
 
 handles = guidata(hObject);
@@ -3031,7 +3000,7 @@ function pbTrain_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-if handles.labelerObj.does_need_save ,
+if handles.labelerObj.doesNeedSave ,
   res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
   if strcmp(res,'Cancel')
     return
@@ -3040,19 +3009,19 @@ if handles.labelerObj.does_need_save ,
   end    
 end
 
-SetStatus(handles,'Training...');
+handles.labelerObj.setStatus('Training...');
 drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
   errordlg(['Error training tracker: ',reason],'Error training tracker');
-  ClearStatus(handles);
+  lObj.clearStatus();
   return;
 end
 
 %handles.labelerObj.trackSetAutoParams();
 
 fprintf('Training started at %s...\n',datestr(now));
-oc1 = onCleanup(@()ClearStatus(handles));
+oc1 = onCleanup(@()(handles.labelerObj.clearStatus()));
 wbObj = WaitBarWithCancel('Training');
 oc2 = onCleanup(@()delete(wbObj));
 centerOnParentFigure(wbObj.hWB,handles.figure);
@@ -3072,18 +3041,18 @@ function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
 end
-SetStatus(handles,'Tracking...');
+handles.labelerObj.setStatus('Tracking...');
 tm = getTrackMode(handles);
 tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
 if isempty(tblMFT),
   msgbox('All frames tracked.','Track');
-  ClearStatus(handles);
+  handles.labelerObj.clearStatus() ;
   return;
 end
 [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
 if ~tfCanTrack,
   errordlg(['Error tracking: ',reason],'Error tracking');
-  ClearStatus(handles);
+  handles.labelerObj.clearStatus();
   return;
 end
 fprintf('Tracking started at %s...\n',datestr(now));
@@ -3099,7 +3068,7 @@ if wbObj.isCancel
   msg = wbObj.cancelMessage('Tracking canceled');
   msgbox(msg,'Track');
 end
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function pbClear_Callback(hObject, eventdata, handles)
 
@@ -3110,10 +3079,10 @@ handles.labelerObj.lblCore.clearLabels();
 handles.labelerObj.CheckPrevAxesTemplate();
 
 function tbAccept_Callback(hObject, eventdata, handles)
-debugtiming = false;
-if debugtiming,
-  starttime = tic;
-end
+% debugtiming = false;
+% if debugtiming,
+%   starttime = tic;
+% end
 
 if ~checkProjAndMovieExist(handles)
   return;
@@ -3145,7 +3114,7 @@ end
 
 rows = evt.Indices;
 rows = rows(:,1); % AL20210514: rows is nx2; columns are {rowidxs,colidxs} at least in 2020b
-rowsprev = src.UserData;
+%rowsprev = src.UserData;
 src.UserData = rows;
 dat = get(src,'Data');
 
@@ -3427,7 +3396,7 @@ handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 function menu_file_quick_open_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 controller = handles.controller ;
-if controller.raise_unsaved_changes_dialog_if_needed() ,
+if controller.raiseUnsavedChangesDialogIfNeeded() ,
   [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
   if ~tfsucc
     return;
@@ -3457,41 +3426,42 @@ if controller.raise_unsaved_changes_dialog_if_needed() ,
 end
 % 
 function menu_file_new_Callback(hObject, eventdata, handles)
-SetStatus(handles,'Starting New Project',true);
 lObj = handles.labelerObj;
+lObj.setStatus('Starting New Project');
 controller = handles.controller ;
-if controller.raise_unsaved_changes_dialog_if_needed() ,
+if controller.raiseUnsavedChangesDialogIfNeeded() ,
   cfg = ProjectSetup(handles.figure);
   if ~isempty(cfg)    
-    SetStatus(handles,'Configuring New Project',true)
+    lObj.setStatus('Configuring New Project') ;
     lObj.initFromConfig(cfg);
     lObj.projNew(cfg.ProjectName);
-    SetStatus(handles,'Adding Movies',true);
+    lObj.setStatus('Adding Movies') ;
     handles = lObj.gdata; % initFromConfig, projNew have updated handles
     menu_file_managemovies_Callback([],[],handles);  %all this does is make the movie manager visible
   end  
 end
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_file_save_Callback(hObject, eventdata, handles)
-SetStatus(handles,'Saving project...');
+lObj = handles.labelerObj ;
+lObj.setStatus('Saving project...');
 handles.labelerObj.projSaveSmart();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
-ClearStatus(handles)
+handles.labelerObj.clearStatus()
 
 function menu_file_saveas_Callback(hObject, eventdata, handles)
-SetStatus(handles,'Saving project...');
+handles.labelerObj.setStatus('Saving project...');
 handles.labelerObj.projSaveAs();
 handles.labelerObj.projAssignProjNameFromProjFileIfAppropriate();
-ClearStatus(handles)
+handles.labelerObj.clearStatus()
 
 function menu_file_load_Callback(hObject, eventdata, handles)
 
-SetStatus(handles,'Loading Project...',true);
+handles.labelerObj.setStatus('Loading Project...') ;
 %EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 controller = handles.controller ;
-if controller.raise_unsaved_changes_dialog_if_needed() ,
+if controller.raiseUnsavedChangesDialogIfNeeded() ,
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
     handles = lObj.gdata; % projLoad updated stuff
@@ -3501,7 +3471,7 @@ if controller.raise_unsaved_changes_dialog_if_needed() ,
     warndlg(wstr,'Movie not found','modal');
   end
 end
-ClearStatus(handles)
+handles.labelerObj.clearStatus()
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
@@ -3513,7 +3483,7 @@ end
 OPTION_SAVE = 'Save first';
 OPTION_PROC = 'Proceed without saving';
 OPTION_CANC = 'Cancel';
-if labelerObj.does_need_save ,
+if labelerObj.doesNeedSave ,
   res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
   switch res
@@ -3568,9 +3538,9 @@ if ~lObj.hasMovie
   handles.labelerObj.lerror('LabelerGUI:noMovie','No movie is loaded.');
 end
 iMov = lObj.currMovie; % gt-aware
-SetStatus(handles,'Importing tracking results...');
+handles.labelerObj.setStatus('Importing tracking results...');
 lObj.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3578,9 +3548,9 @@ lObj = handles.labelerObj;
 if ~tfok
   return;
 end
-SetStatus(handles,'Exporting tracking results...');
+handles.labelerObj.setStatus('Exporting tracking results...');
 lObj.labelExportTrk(1:lObj.nmoviesGTaware,'rawtrkname',rawtrkname);
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_file_export_labels_table_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3619,10 +3589,10 @@ if isequal(f,0)
   return;
 end
 fname = fullfile(p,f);
-SetStatus(handles,sprintf('Exporting training data to %s',fname));
+handles.labelerObj.setStatus(sprintf('Exporting training data to %s',fname));
 lObj.projExportTrainData(fname)
 fprintf('Saved training data to file ''%s''.\n',fname);
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_file_crop_mode_Callback(hObject,evtdata,handles)
 
@@ -3635,20 +3605,20 @@ if ~isempty(lObj.tracker) && ~lObj.gtIsGTMode && lObj.labelPosMovieHasLabels(lOb
   end
 end
 
-SetStatus(handles,'Switching crop mode...');
+handles.labelerObj.setStatus('Switching crop mode...');
 lObj.cropSetCropMode(~lObj.cropIsCropMode);
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_file_clean_tempdir_Callback(hObject,evtdata,handles)
 
-SetStatus(handles,'Deleting temp directories...');
+handles.labelerObj.setStatus('Deleting temp directories...');
 handles.labelerObj.projRemoveOtherTempDirs();
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_file_bundle_tempdir_Callback(hObject,evtdata,handles)
-SetStatus(handles,'Bundling the temp directory...');
+handles.labelerObj.setStatus('Bundling the temp directory...');
 handles.labelerObj.projBundleTempDir();
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 
 function menu_help_Callback(hObject, eventdata, handles)
@@ -3682,7 +3652,7 @@ lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
 handles.labelerObj.labelingInit('labelMode',lblMode);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
-SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
+handles.labelerObj.setStatus('Plotting all labels on one axes to visualize label distribution...');
 lObj = handles.labelerObj;
 if lObj.hasTrx
   lObj.labelOverlayMontage();
@@ -3701,11 +3671,11 @@ else % lObj.maIsMA, or SA-non-trx
     end
   end
 end
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 % function menu_setup_label_overlay_montage_trx_centered_Callback(hObject,evtdata,handles)
 % 
-% SetStatus(handles,'Plotting all labels on one axes to visualize label distribution...');
+% handles.labelerObj.setStatus('Plotting all labels on one axes to visualize label distribution...');
 % lObj = handles.labelerObj;
 % hFig(1) = lObj.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','none'); 
 % try
@@ -3717,7 +3687,7 @@ ClearStatus(handles);
 % end
 % hFig(3) = lObj.labelOverlayMontage('ctrMeth','trx',...
 %   'rotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
-% ClearStatus(handles);
+% handles.labelerObj.clearStatus();
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3934,7 +3904,7 @@ ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
 		
 function menu_file_quit_Callback(hObject, eventdata, handles)
 controller = handles.controller ;
-controller.quit_requested() ;
+controller.quitRequested() ;
 %CloseGUI(handles);
 
 % function cbkShowPredTxtLblChanged(src,evt)
@@ -3944,38 +3914,38 @@ controller.quit_requested() ;
 % handles.menu_view_showhide_advanced_hidepredtxtlbls.Checked = onOff;
 
 function cbkShowSkeletonChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showSkeleton);
 handles.menu_view_showhide_skeleton.Checked = onOff;
 
 function cbkShowMaRoiChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showMaRoi);
 handles.menu_view_showhide_maroi.Checked = onOff;
 
 function cbkShowMaRoiAuxChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showMaRoiAux);
 handles.menu_view_showhide_maroiaux.Checked = onOff;
 
 function cbkShowTrxChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(~lObj.showTrx);
 handles.menu_view_hide_trajectories.Checked = onOff;
 
 function cbkShowOccludedBoxChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showOccludedBox);
 handles.menu_view_occluded_points_box.Checked = onOff;
 set([handles.text_occludedpoints,handles.axes_occ],'Visible',onOff);
 
 function cbkShowTrxCurrTargetOnlyChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 onOff = onIff(lObj.showTrxCurrTargetOnly);
 handles.menu_view_plot_trajectories_current_target_only.Checked = onOff;
@@ -4117,7 +4087,7 @@ val = true;
 str = 'Tracker trained';
 %lObj.needsSave = true;
 %cbkSaveNeeded(lObj,val,str);
-lObj.set_does_need_save(val, str) ;
+lObj.setDoesNeedSave(val, str) ;
 
 function cbkTrackerStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -4139,7 +4109,7 @@ val = true;
 str = 'New frames tracked';
 %lObj.needsSave = true;
 %cbkSaveNeeded(lObj,val,str);
-lObj.set_does_need_save(val, str) ;
+lObj.setDoesNeedSave(val, str) ;
 
 function cbkTrackerBackEndChanged(hObject, eventdata, handles)
 lObj = eventdata.AffectedObject;
@@ -4157,7 +4127,7 @@ end
 tObj.showVizReplicates = vsrnew;
 
 function cbkLabels2HideChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 handles.menu_view_hide_imported_predictions.Checked = onIff(lObj.labels2Hide);
 
@@ -4314,7 +4284,7 @@ if any(lObj.trackBGTrnIsRunning),
   warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
   return;
 end
-SetStatus(handles,'Setting training parameters...');
+handles.labelerObj.setStatus('Setting training parameters...');
 
 
 % tObj = lObj.tracker;
@@ -4339,22 +4309,22 @@ if isempty(sPrmNew)
   if do_update
     RC.saveprop('lastCPRAPTParams',sPrmNew);
     %cbkSaveNeeded(lObj,true,'Parameters changed');
-    lObj.set_does_need_save(true,'Parameters changed') ;
+    lObj.setDoesNeedSave(true,'Parameters changed') ;
   end
   % user canceled; none
 else
   lObj.trackSetParams(sPrmNew);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
   %cbkSaveNeeded(lObj,true,'Parameters changed');
-  lObj.set_does_need_save(true,'Parameters changed') ;
+  lObj.setDoesNeedSave(true,'Parameters changed') ;
 end
 
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_track_settrackparams_Callback(hObject, eventdata, handles)
 
 lObj = handles.labelerObj;
-SetStatus(handles,'Setting tracking parameters...');
+handles.labelerObj.setStatus('Setting tracking parameters...');
 
 [tPrm] = lObj.trackGetTrackParams();
 
@@ -4364,10 +4334,10 @@ if ~isempty(sPrmTrack),
   sPrmNew = lObj.trackSetTrackParams(sPrmTrack);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
   %cbkSaveNeeded(lObj,true,'Parameters changed');
-  lObj.set_does_need_save(true,'Parameters changed') ;
+  lObj.setDoesNeedSave(true,'Parameters changed') ;
 end
 
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 
 function menu_track_auto_params_update_Callback(hObject,eventdata,handles)
@@ -4415,7 +4385,7 @@ tObj.trnDataUseAll();
 % tObj.trnDataSelect();
 
 % function menu_track_set_landmark_matches_Callback(hObject,eventdata,handles)
-% SetStatus(handles,'Defining landmark matches...');
+% handles.labelerObj.setStatus('Defining landmark matches...');
 % lObj = handles.labelerObj;
 % instructions = ['These part matches are used for data augmentation when training using deep learning. ' ...
 %                 'To create more training data, we can flip the original images. This requires knowing ' ...
@@ -4425,13 +4395,13 @@ tObj.trnDataUseAll();
 %                 'mid-line of the animal should not have a mate.'];
 % matches = defineLandmarkMatches(lObj,'edges',lObj.flipLandmarkMatches,'instructions',instructions);
 % lObj.setFlipLandmarkMatches(matches);
-% ClearStatus(handles);
+% handles.labelerObj.clearStatus();
 
 function menu_track_training_data_montage_Callback(hObject,eventdata,handles)
-SetStatus(handles,'Plotting training examples...');
+handles.labelerObj.setStatus('Plotting training examples...');
 lObj = handles.labelerObj;
 lObj.tracker.trainingDataMontage();
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_track_trainincremental_Callback(hObject, eventdata, handles)
 handles.labelerObj.trackTrain();
@@ -4510,10 +4480,10 @@ res = questdlg('Are you sure you want to clear tracking results?');
 if ~strcmpi(res,'yes'),
   return;
 end
-SetStatus(handles,'Clearing tracking results...');
+handles.labelerObj.setStatus('Clearing tracking results...');
 tObj = lObj.tracker;
 tObj.clearTrackingResults();
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 %msgbox('Tracking results cleared.','Done');
 
 function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
@@ -4523,13 +4493,13 @@ res = questdlg('Clear current tracker or all trackers? This will clear your trai
 if strcmpi(res,'Cancel'),
   return;
 elseif strcmpi(res,'Current only'),
-  SetStatus(handles,'Clearing current trained tracker and all tracking results...');
+  handles.labelerObj.setStatus('Clearing current trained tracker and all tracking results...');
   lObj.clearCurrentTracker();
-  ClearStatus(handles);
+  handles.labelerObj.clearStatus();
 elseif strcmpi(res,'All'),
-  SetStatus(handles,'Clearing trained trackers and all tracking results...');
+  handles.labelerObj.setStatus('Clearing trained trackers and all tracking results...');
   lObj.clearAllTrackers();
-  ClearStatus(handles);
+  handles.labelerObj.clearStatus();
 end
 
 
@@ -4588,15 +4558,15 @@ tm = getTrackMode(handles);
 if ~tfok
   return;
 end
-SetStatus(handles,'Tracking...');
+handles.labelerObj.setStatus('Tracking...');
 handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_track_batch_track_Callback(hObject,eventdata,handles)
 
 lObj = handles.labelerObj;
 tbobj = TrackBatchGUI(lObj);
-[toTrack] = tbobj.run();
+tbobj.run();
 
 % 
 % persistent jsonfile;
@@ -4614,9 +4584,9 @@ tbobj = TrackBatchGUI(lObj);
 %   return;
 % end
 % jsonfile = jsonfile1;
-% SetStatus(handles,'Tracking a batch of videos...');
+% handles.labelerObj.setStatus('Tracking a batch of videos...');
 % trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
-% ClearStatus(handles);
+% handles.labelerObj.clearStatus();
 
 function menu_track_all_movies_Callback(hObject,eventdata,handles)
 
@@ -4728,7 +4698,7 @@ else
       if isnan(iTgtImp)
         useImported = false;
       else
-        [tfhaspred,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);
+        [tfhaspred,~,~] = s.getPTrkFrame(frm,'collapse',true);
         if ~tfhaspred(iTgtImp)
           useImported = false;
         end
@@ -4766,7 +4736,7 @@ else
       [~,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);      
     else
       iTgt = tObj.trkVizer.currTrklet;
-      [~,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+      [~,xy,tfocc] = tObj.getTrackingResultsCurrFrm();
     end
     xy = xy(:,:,iTgt); % "targets" treatment differs from below
     occ = tfocc(:,iTgt);
@@ -4825,7 +4795,7 @@ end
 function menu_evaluate_gtmode_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 
-SetStatus(handles,'Switching between Labeling and Ground Truth Mode...');
+handles.labelerObj.setStatus('Switching between Labeling and Ground Truth Mode...');
 
 gt = lObj.gtIsGTMode;
 gtNew = ~gt;
@@ -4836,7 +4806,7 @@ if gtNew
   hMovMgr.setVisible(true);
   figure(hMovMgr.hFig);
 end
-ClearStatus(handles);
+handles.labelerObj.clearStatus();
 
 function menu_evaluate_gtloadsuggestions_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -4899,7 +4869,7 @@ hlpGTUpdateAxHilite(lObj);
 function figure_CloseRequestFcn(hObject, eventdata, handles)
 %CloseGUI(handles);
 controller = handles.controller ;
-controller.quit_requested() ;
+controller.quitRequested() ;
 
 % function CloseGUI(handles)
 % if hlpSave(handles.labelerObj)
@@ -4974,7 +4944,7 @@ tfok = true;
 function handles = cropInitImRects(handles)
 deleteValidHandles(handles.cropHRect);
 handles.cropHRect = ...
-  arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all,'uni',0);
+  arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all,'uni',0); %#ok<IMRECT> 
 handles.cropHRect = cat(1,handles.cropHRect{:}); % ML 2016a ish can't concat imrects in arrayfun output
 arrayfun(@(x)set(x,'Visible','off','PickableParts','none','UserData',true),...
   handles.cropHRect); % userdata: see cropImRectSetPosnNoPosnCallback
@@ -4985,12 +4955,12 @@ end
 
 function cbkCropIsCropModeChanged(src,evt)
 lObj = src;
-lObj.SetStatus('Switching crop mode...');
+lObj.setStatus('Switching crop mode...');
 cropReactNewCropMode(lObj.gdata,lObj.cropIsCropMode);
 if lObj.hasMovie
   lObj.setFrame(lObj.currFrame,'tfforcereadmovie',true);
 end
-lObj.ClearStatus();
+lObj.clearStatus();
 
 function cbkUpdateCropGUITools(src,evt)
 lObj = src;
@@ -5002,12 +4972,12 @@ cropUpdateCropHRects(lObj.gdata);
 
 function cropReactNewCropMode(handles,tf)
 
-CROPCONTROLS = {
-  'pushbutton_exitcropmode'
-  'tbAdjustCropSize'
-  'pbClearAllCrops'
-  'txCropMode'
-  };
+% CROPCONTROLS = {
+%   'pushbutton_exitcropmode'
+%   'tbAdjustCropSize'
+%   'pbClearAllCrops'
+%   'txCropMode'
+%   };
 REGCONTROLS = {
   'pbClear'
   'tbAccept'
@@ -5122,125 +5092,123 @@ end
 function pbClearAllCrops_Callback(hObject, eventdata, handles)
 handles.labelerObj.cropClearAllCrops();
 
-% -------------------------------------------------------------------------
-function SetStatus(handles,str,isbusy,istemp)
-
-if nargin < 3
-  isbusy = true;
-end
-if nargin < 4
-  istemp = false;
-end
-if isempty(isbusy)
-  color = get(handles.txStatus,'ForegroundColor');
-elseif isbusy
-  color = handles.busystatuscolor;
-  if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
-    set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','watch');
-  else
-    set(handles.figure,'Pointer','watch');
-  end
-else
-  color = handles.idlestatuscolor;
-  if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
-    set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
-  else
-    set(handles.figure,'Pointer','arrow');
-  end
-end
-set(handles.txStatus,'ForegroundColor',color);
-SetStatusText(handles,str);
-drawnow('limitrate');
-if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
-end
-
-function RefreshStatus(handles)
-
-s = getappdata(handles.txStatus,'InputString');
-if ischar(s),
-  SetStatusText(handles,s);
-end
-
-function SetStatusText(handles,s)
-
-setappdata(handles.txStatus,'InputString',s);
-isprojname = contains(s,'$PROJECTNAME');
-if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
-  if ~ischar(handles.labelerObj.projectfile),
-    projfile = '';
-  else
-    projfile = handles.labelerObj.projectfile;
-    if numel(projfile) > 100,
-      projfile = ['..',projfile(end-97:end)];
-    end
-  end
-  s1 = strrep(s,'$PROJECTNAME',projfile);
-  [~,n,ext] = fileparts(projfile);
-  n = [n,ext];
-  s2 = strrep(s,'$PROJECTNAME',n);
-  if ~isempty(handles.jtxStatus),
-    set(handles.txStatus,'String',s1);
-    drawnow;
-    pos1 = get(handles.jtxStatus,'PreferredSize');
-    w = get(handles.jtxStatus,'Width');
-    %fprintf('width = %f, preferredwidth = %f\n',w,pos1.width);
-    if pos1.width > w*.95,
-      set(handles.txStatus,'String',s2);
-    end
-  else
-    set(handles.txStatus,'String',s2);
-  end
-else
-  set(handles.txStatus,'String',s);
-end
-
-% -------------------------------------------------------------------------
-function ClearStatus(handles)
-
-cleartext = getStatusBarTextWhenClear(handles);
-set(handles.txStatus, ...
-    'ForegroundColor',handles.idlestatuscolor);
-SetStatusText(handles,cleartext);
-if isfield(handles,'figs_all') && any(ishandle(handles.figs_all))
-  set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
-else
-  set(handles.figure,'Pointer','arrow');
-end
-drawnow('limitrate');
-
-function syncStatusBarTextWhenClear(handles,s)
-
-try
-  s = getappdata(handles.txStatus,'InputString');
-  if isempty(s),
-    s = get(handles.txStatus,'string');
-  end
-  setStatusBarTextWhenClear(handles,s);
-catch
-end
-
-function setStatusBarTextWhenClear(handles,s)
-
-try
-  setappdata(handles.txStatus,'text_when_clear',s);
-catch
-end
-
-function s = getStatusBarTextWhenClear(handles)
-
-try
-  s = getappdata(handles.txStatus,'text_when_clear');
-catch
-  warning('Could not get text_when_clear appdata for status bar');
-  s = '';
-end
-
-function refreshStatus(handles)
-s = getappdata(handles.txStatus,'InputString');
-if isempty(s),
-  s = get(handles.txStatus,'string');
-end
-SetStatusText(handles,s);
+% % -------------------------------------------------------------------------
+% function SetStatus(handles, str, isbusy)
+% 
+% if nargin<3 ,
+%   isbusy = true;
+% end
+% istemp = false;
+% if isempty(isbusy)
+%   color = get(handles.txStatus,'ForegroundColor');
+% elseif isbusy
+%   color = handles.busystatuscolor;
+%   if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
+%     set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','watch');
+%   else
+%     set(handles.figure,'Pointer','watch');
+%   end
+% else
+%   color = handles.idlestatuscolor;
+%   if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
+%     set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
+%   else
+%     set(handles.figure,'Pointer','arrow');
+%   end
+% end
+% set(handles.txStatus,'ForegroundColor',color);
+% SetStatusText(handles,str);
+% drawnow('limitrate');
+% if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
+% end
+% 
+% function RefreshStatus(handles)
+% 
+% s = getappdata(handles.txStatus,'InputString');
+% if ischar(s),
+%   SetStatusText(handles,s);
+% end
+% 
+% function SetStatusText(handles,s)
+% 
+% setappdata(handles.txStatus,'InputString',s);
+% isprojname = contains(s,'$PROJECTNAME');
+% if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
+%   if ~ischar(handles.labelerObj.projectfile),
+%     projfile = '';
+%   else
+%     projfile = handles.labelerObj.projectfile;
+%     if numel(projfile) > 100,
+%       projfile = ['..',projfile(end-97:end)];
+%     end
+%   end
+%   s1 = strrep(s,'$PROJECTNAME',projfile);
+%   [~,n,ext] = fileparts(projfile);
+%   n = [n,ext];
+%   s2 = strrep(s,'$PROJECTNAME',n);
+%   if ~isempty(handles.jtxStatus),
+%     set(handles.txStatus,'String',s1);
+%     drawnow;
+%     pos1 = get(handles.jtxStatus,'PreferredSize');
+%     w = get(handles.jtxStatus,'Width');
+%     %fprintf('width = %f, preferredwidth = %f\n',w,pos1.width);
+%     if pos1.width > w*.95,
+%       set(handles.txStatus,'String',s2);
+%     end
+%   else
+%     set(handles.txStatus,'String',s2);
+%   end
+% else
+%   set(handles.txStatus,'String',s);
+% end
+% 
+% % -------------------------------------------------------------------------
+% function ClearStatus(handles)
+% 
+% cleartext = getStatusBarTextWhenClear(handles);
+% set(handles.txStatus, ...
+%     'ForegroundColor',handles.idlestatuscolor);
+% SetStatusText(handles,cleartext);
+% if isfield(handles,'figs_all') && any(ishandle(handles.figs_all))
+%   set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
+% else
+%   set(handles.figure,'Pointer','arrow');
+% end
+% drawnow('limitrate');
+% 
+% function syncStatusBarTextWhenClear(handles,s)
+% 
+% try
+%   s = getappdata(handles.txStatus,'InputString');
+%   if isempty(s),
+%     s = get(handles.txStatus,'string');
+%   end
+%   setStatusBarTextWhenClear(handles,s);
+% catch
+% end
+% 
+% function setStatusBarTextWhenClear(handles,s)
+% 
+% try
+%   setappdata(handles.txStatus,'text_when_clear',s);
+% catch
+% end
+% 
+% function s = getStatusBarTextWhenClear(handles)
+% 
+% try
+%   s = getappdata(handles.txStatus,'text_when_clear');
+% catch
+%   warning('Could not get text_when_clear appdata for status bar');
+%   s = '';
+% end
+% 
+% function refreshStatus(handles)
+% s = getappdata(handles.txStatus,'InputString');
+% if isempty(s),
+%   s = get(handles.txStatus,'string');
+% end
+% SetStatusText(handles,s);
 
 % --------------------------------------------------------------------
 function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
@@ -5277,7 +5245,7 @@ function menu_view_landmark_colors_Callback(hObject, eventdata)
 handles = guidata(hObject);
 lObj = handles.labelerObj;
 cbkApply = @(varargin)hlpApplyCosmetics(lObj,varargin{:});
-[ischange,savedres] = LandmarkColors(lObj,cbkApply);
+LandmarkColors(lObj,cbkApply);
 % AL 20220217: changes now applied immediately
 % if ischange
 %   cbkApply(savedres.colorSpecs,savedres.markerSpecs,savedres.skelSpecs);
@@ -5422,15 +5390,15 @@ pos1 = [center-r,2*r];
 
 hfig = figure('Name','Starting APT...','Color','k','Units','pixels','Position',pos1,'ToolBar','none','NumberTitle','off','MenuBar','none','Pointer','watch');%'Visible','off',
 hax = axes('Parent',hfig,'Units','pixels','Position',[border,border,w0,h0]);
-him = image(im,'Parent',hax,'Tag','image_SplashScreen'); axis(hax,'image','off');
+him = image(im,'Parent',hax,'Tag','image_SplashScreen'); axis(hax,'image','off');  %#ok<NASGU> 
 htext = uicontrol('Style','text','String',s{1},'Units','pixels','Position',[border,h-border-texth1,w0,texth1],...
   'BackgroundColor','k','HorizontalAlignment','center',...
   'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',texth1*.9,'FontWeight','b',...
-  'Tag','text1_SplashScreen');
+  'Tag','text1_SplashScreen'); %#ok<NASGU> 
 htext = uicontrol('Style','text','String',s(2:end),'Units','pixels','Position',[border,border+h0+border,w0,texth2],...
   'BackgroundColor','k','HorizontalAlignment','center',...
   'Parent',hfig,'ForegroundColor','c','FontUnits','pixels','FontSize',14,...
-  'Tag','text2_SplashScreen');
+  'Tag','text2_SplashScreen'); %#ok<NASGU> 
 set(hfig,'Visible','on');
 drawnow;
 
@@ -5533,7 +5501,7 @@ while true,
     return;
   end  
 end
-oldShortcuts = lObj.projPrefs.Shortcuts;
+%oldShortcuts = lObj.projPrefs.Shortcuts;
 lObj.projPrefs.Shortcuts = newShortcuts;
 handles = setShortcuts(handles);
 guidata(hObject,handles);

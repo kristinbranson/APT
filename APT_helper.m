@@ -10,46 +10,49 @@ classdef APT_helper
       lObj = Labeler('projfile',lblfile,'replace_path',replace_path);      
     end
     
-    
-    function quick_train(lObj,varargin)
-          [net_type,backend,niters,test_tracking,block,serial2stgtrain, ...
-        batch_size, params, aws_params] = myparse(varargin,...
-            'net_type','grone','backend','docker',...
-            'niters',1000,'test_tracking',true,'block',true,...
-            'serial2stgtrain',true,...
-            'batch_size',8,...
-            'params',[],... % optional, struct; see structsetleaf
-            'aws_params',struct());
-          
-      if ~isempty(net_type)
-        self.setup_alg(net_type)
-      end
-      self.set_params_base(self.info.has_trx,niters,self.info.sz, batch_size);
-      if ~isempty(params)
-        sPrm = self.lObj.trackGetParams();
-        sPrm = structsetleaf(sPrm,params,'verbose',true);
-        self.lObj.trackSetParams(sPrm);
-      end
-      self.set_backend(backend,aws_params);
 
-      lObj = self.lObj;
-      handles = lObj.gdata;
-      %oc1 = onCleanup(@()ClearStatus(handles));
-      wbObj = WaitBarWithCancel('Training');
-      oc2 = onCleanup(@()delete(wbObj));
-      centerOnParentFigure(wbObj.hWB,handles.figure);
-      tObj = lObj.tracker;
-      tObj.skip_dlgs = true;
-      if lObj.trackerIsTwoStage && ~strcmp(backend,'bsub')
-        tObj.forceSerial = serial2stgtrain;
-      end      
-      lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
-      if wbObj.isCancel
-        msg = wbObj.cancelMessage('Training canceled');
-        msgbox(msg,'Train');
-      end      
-
-    end
+    % quick_train() seems messed up, b/c it refers to a variable "self", which is
+    % never set, and this is static method.  So commenting out for now.  
+    % -- ALT, 2023-05-14
+%     function quick_train(lObj,varargin)
+%           [net_type,backend,niters,test_tracking,block,serial2stgtrain, ...
+%         batch_size, params, aws_params] = myparse(varargin,...
+%             'net_type','grone','backend','docker',...
+%             'niters',1000,'test_tracking',true,'block',true,...
+%             'serial2stgtrain',true,...
+%             'batch_size',8,...
+%             'params',[],... % optional, struct; see structsetleaf
+%             'aws_params',struct());
+%           
+%       if ~isempty(net_type)
+%         self.setup_alg(net_type)
+%       end
+%       self.set_params_base(self.info.has_trx,niters,self.info.sz, batch_size);
+%       if ~isempty(params)
+%         sPrm = self.lObj.trackGetParams();
+%         sPrm = structsetleaf(sPrm,params,'verbose',true);
+%         self.lObj.trackSetParams(sPrm);
+%       end
+%       self.set_backend(backend,aws_params);
+% 
+%       lObj = self.lObj;
+%       handles = lObj.gdata;
+%       %oc1 = onCleanup(@()ClearStatus(handles));
+%       wbObj = WaitBarWithCancel('Training');
+%       oc2 = onCleanup(@()delete(wbObj));
+%       centerOnParentFigure(wbObj.hWB,handles.figure);
+%       tObj = lObj.tracker;
+%       tObj.skip_dlgs = true;
+%       if lObj.trackerIsTwoStage && ~strcmp(backend,'bsub')
+%         tObj.forceSerial = serial2stgtrain;
+%       end      
+%       lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+%       if wbObj.isCancel
+%         msg = wbObj.cancelMessage('Training canceled');
+%         msgbox(msg,'Train');
+%       end      
+% 
+%     end
     
     
     function check_track(lObj,varargin)
