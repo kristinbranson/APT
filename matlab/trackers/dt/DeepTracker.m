@@ -3369,7 +3369,8 @@ classdef DeepTracker < LabelTracker
     end
     
     function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,varargin)
-      assert(false,'Need to give a movie list for correct correspondence to idx')
+      warning('Pay attention!!!')
+      warning('Need to give a movie list for correct correspondence to idx!!!!!')
       
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
@@ -3757,6 +3758,26 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitor = trkMonitorObj;
       obj.bgTrkMonBGWorkerObj = trkWorkerObj;
     end
+
+    function createTrkfilesFromListout(obj)
+      njobs = obj.trkSysInfo.n;
+      for i = 1:njobs
+        curj = obj.trkSysInfo.ttis(i);
+        outfile = curj.listoutfiles{1};
+        S = load(outfile);
+        for view = curj.views(:)'
+          movies = curj.getMovfiles('view',view);
+          trkfiles = curj.getTrkfiles('view',view);
+          nMovies = numel(movies);
+          for midx = 1:nMovies
+            K = TrkFile;
+            K.movfile = movies{midx};
+            K.initFromTableFull(S);
+            K.save(trkfiles{midx});
+          end          
+        end
+      end
+    end
     
     function trkCompleteCbk(obj,res)
 
@@ -3766,6 +3787,11 @@ classdef DeepTracker < LabelTracker
         nMovies = obj.trkSysInfo.nmovies;
         stages = obj.trkSysInfo.stages;
         views = obj.trkSysInfo.views;
+        islistjob = obj.trkSysInfo.islistjob;
+
+        if islistjob
+          obj.createTrkfilesFromListout();
+        end
 
         for movi = 1:nMovies,
           movfiles = obj.trkSysInfo.getMovfiles('movie',movi,'stage',stages(end));

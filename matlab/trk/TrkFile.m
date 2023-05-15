@@ -367,10 +367,10 @@ classdef TrkFile < dynamicprops
         isma = false;
       end
 
-      npts = size(pred_locs,ndim-2);
+      npts = size(pred_locs,ndim-1);
       d = size(pred_locs,ndim);
       if isma
-        nanimals = size(pred_locs,ndim-3);
+        nanimals = size(pred_locs,ndim-2);
       else
         nanimals = 1;
       end
@@ -384,18 +384,14 @@ classdef TrkFile < dynamicprops
       assert(numel(movi)==1);
       nexttgt = 1;
       pTrk = nan(n,npts,d);
-      pTrkTS = nan(n,npts);
+      pTrkTS = ones(n,npts)*now;
       pTrkTag = nan(n,npts);
       ists = isfield(s,'pred_ts');
       istag = isfield(s.pred_locs,'occ');
 
-      for i = 1:numel(s.toTrack*nanimals)
+      for i = 1:numel(s.toTrack)
         
         x = s.toTrack{i};
-        if double(x{1}) ~= movi,
-          continue;
-        end
-        
         frm0 = x{3};
         if iscell(frm0),
           frm0 = frm0{1};
@@ -412,39 +408,40 @@ classdef TrkFile < dynamicprops
           frm1 = frm0;
         end
         nfrm = frm1-frm0+1;
-        if isma
-          % all predictions are new animals
-          for fndx = 1:nfrm
-            for andx = 1:nanimals
-              curndx = off+(fndx-1)*animals+andx;
-              frm(curndx) = frm0+fndx-1;
-              curp = pred_locs(off+fndx,andx,:,:);
-              if ~all(isnan(curp))
-                iTgt(curndx) = nexttgt;
-                nexttgt = nexttgt+1;
-                movidx(curndx) = true;
-                pTrk(curndx,:,:) = curp;
-                if ists
-                  pTrkTS(curndx,:) = s.pred_locs.pred_ts(off+fndx,andx,:);
+
+        if double(x{1}) == movi,
+          if isma
+            % all predictions are new animals
+            for fndx = 1:nfrm
+              for andx = 1:nanimals
+                curndx = (off+fndx-1)*nanimals+andx;
+                frm(curndx) = frm0+fndx-1;
+                curp = permute(pred_locs(off+fndx,andx,:,:),[3,4,1,2]);
+                if ~all(isnan(curp))
+                  iTgt(curndx) = nexttgt;
+                  nexttgt = nexttgt+1;
+                  movidx(curndx) = true;
+                  pTrk(curndx,:,:) = curp;
+                  if ists
+                    pTrkTS(curndx,:) = permute(s.pred_locs.pred_ts(off+fndx,andx,:),[2,3,1]);
+                  end
+                  if istag
+                    pTrkTag(curndx,:) = permute(s.pred_locs.occ(off+fndx,andx,:),[2,3,1]);
+                  end
                 end
-                if istag
-                  pTrkTag(curndx,:) = s.pred_locs.occ(off+fndx,andx,:);
-                end
-              else
-                iTgt(curndx) = -1;
               end
             end
-          end
-        else
-          iTgt(off+1:off+nfrm) = double(x{2});
-          movidx(off+1:off+nfrm) = true;
-          frm(off+1:off+nfrm) = frm0:frm1;
-          pTrk(end+1:end+nfrm) = pred_locs(frm0:frm1,:,:);
-          if ists
-            pTrkTag(end+1:end+nfrm) = S.pred_locs.pred_ts(frm0:frm1,:,:);
-          end
-          if istag
-            pTrkTS(end+1:end+nfrm) = S.pred_locs.occ(frm0:frm1,:,:);
+          else
+            iTgt(off+1:off+nfrm) = double(x{2});
+            movidx(off+1:off+nfrm) = true;
+            frm(off+1:off+nfrm) = frm0:frm1;
+            pTrk(end+1:end+nfrm) = pred_locs(frm0:frm1,:,:);
+            if ists
+              pTrkTag(end+1:end+nfrm) = S.pred_locs.pred_ts(frm0:frm1,:,:);
+            end
+            if istag
+              pTrkTS(end+1:end+nfrm) = S.pred_locs.occ(frm0:frm1,:,:);
+            end
           end
         end
         off = off + nfrm;
@@ -455,43 +452,45 @@ classdef TrkFile < dynamicprops
       % pred_locs is n x npts x 2
       
       nidx = nnz(movidx);
+      [obj.pTrkiTgt,~,tgtidx] = unique(iTgt(movidx));
+      frm = frm(movidx);
+      pTrk = pTrk(movidx,:,:);
+      pTrkTS = pTrkTS(movidx,:);
+      if istag
+        pTrkTag = pTrkTag(movidx,:);
+      end
       nfrm = max(frm);
-      [obj.pTrkiTgt,~,tgtidx] = unique(iTgt(iTgt>0.5));
       ntgt = numel(obj.pTrkiTgt);
       
       obj.pTrk = cell(1,ntgt);
-      if ists
-        obj.pTrkTS = cell(1,ntgt);
-      end
+      obj.pTrkTS = cell(1,ntgt);
       if istag
         obj.pTrkTag = cell(1,ntgt);
       end
 
-      startframes = zeros(1,ntgts);
-      endframes = zeros(1,ntgts);
+      startframes = zeros(1,ntgt);
+      endframes = zeros(1,ntgt);
       for i = 1:ntgt
         curfr = frm(tgtidx==i);
         startframes(i) = min(curfr);
         endframes(i) = max(curfr);
         nfr = endframes(i) - startframes(i)+1;
         obj.pTrk{i} = nan(npts,d,nfr);
-        if ists
-          obj.pTrkTS{i} = nan(npts,nfr);
-        end
+        obj.pTrkTS{i} = nan(npts,nfr);
         if istag
-          obj.pTrk{i} = nan(npts,nfr);
+          obj.pTrkTag{i} = false(npts,nfr);
         end
       end
+      obj.startframes = startframes;
+      obj.endframes = endframes;
 
       for i = 1:nidx
-        fndx = frm(i)-startframes(tgtidx(i));
+        fndx = frm(i)-startframes(tgtidx(i))+1;
         curt = tgtidx(i);
-        obj.pTrk{curt}(:,:,fndx) = pTrk(i,:,:);
-        if ists,
-          obj.pTrkTS{curt}(:,frm(i)) = pTrkTS(i,:);
-        end
-        if istag,
-          obj.pTrkTag{curt}(:,frm(i)) = pTrkTag(i,:);
+        obj.pTrk{curt}(:,:,fndx) = permute(pTrk(i,:,:),[2,3,1]);
+        obj.pTrkTS{curt}(:,fndx) = permute(pTrkTS(i,:),[2,1]);
+        if istag
+          obj.pTrkTag{curt}(:,fndx) = permute(pTrkTag(i,:),[2,1])<0.5;
         end
       end
       

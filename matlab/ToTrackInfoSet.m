@@ -164,6 +164,14 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       v = numel(obj.ttis);
     end
 
+    function v = islistjob(obj)
+      if numel(obj.ttis) == 0
+        v = false;
+      else
+        v = obj.ttis(1).islistjob;
+      end
+    end
+
   end
 
 

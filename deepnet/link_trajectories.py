@@ -222,7 +222,7 @@ def assign_ids(trk, params, T=np.inf):
     idxnext = trk.real_idx(pnext)
     pnext = pnext[:, :, idxnext]
     idsnext, lastid, costs[t-1-trk.T0], _ = \
-      match_frame(pcurr, pnext, idscurr, params, lastid,t=t)
+      match_frame(pcurr, pnext, idscurr, params, lastid) #,t=t)
     ids.settargetframe(idsnext, np.where(idxnext.flatten())[0], t-trk.T0)
     # ids[t,idxnext] = idsnext
     pcurr = pnext
