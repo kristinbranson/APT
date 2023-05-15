@@ -287,10 +287,8 @@ classdef Labeler < handle
   end
   properties
     movieForceGrayscale = false  % scalar logical. In future could make [1xnview].
-  end
-  properties (SetObservable)
-    movieFrameStepBig; % scalar positive int
-    movieShiftArrowNavMode; % scalar ShiftArrowMovieNavMode
+    movieFrameStepBig  % scalar positive int
+    movieShiftArrowNavMode  % scalar ShiftArrowMovieNavMode
   end
   properties (SetAccess=private)
     movieShiftArrowNavModeThresh; % scalar double. This is separate prop from the ShiftArrowMode so it persists even if the ShiftArrowMode changes.
@@ -299,7 +297,8 @@ classdef Labeler < handle
     movieShiftArrowNavModeThreshCmp; % char, eg '<' or '>='
     moviePlaySegRadius; % scalar int
     moviePlayFPS; 
-    movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted on platform A wrt platform B
+    movieInvert; % [1xnview] logical. If true, movie should be inverted when read. This is to compensate for codec issues where movies can be read inverted 
+                 % on platform A wrt platform B
       % Not much care is taken wrt interactions with cropInfo. If you 
       % change your .movieInvert, then your crops will likely be wrong.
       % A warning is thrown but nothing else
