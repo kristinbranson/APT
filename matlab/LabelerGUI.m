@@ -826,7 +826,7 @@ listeners{end+1,1} = addlistener(lObj,'didSetShowOccludedBox',@cbkShowOccludedBo
 listeners{end+1,1} = addlistener(lObj,'didSetShowTrxCurrTargetOnly',@cbkShowTrxCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetTrackersAll',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetCurrTracker',@cbkCurrTrackerChanged);
-listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackModeIdx',@cbkTrackModeIdxChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
 listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
@@ -2763,9 +2763,9 @@ handles.labelTLInfo.setTracker(tObj);
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end
 hPUM = lObj.gdata.pumTrack;
 hPUM.Value = lObj.trackModeIdx;

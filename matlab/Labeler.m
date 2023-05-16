@@ -176,6 +176,8 @@ classdef Labeler < handle
     didSetTrackersAll
     didSetCurrTracker
     didSetCurrTarget
+
+    didSetTrackModeIdx
   end  
 
   %% Project
@@ -585,20 +587,22 @@ classdef Labeler < handle
     trackDLParams % scalar struct, common DL params
     DLCacheDir % string, location of DL cache dir
   end
-  properties (SetObservable)
-    trackModeIdx % index into MFTSetEnum.TrackingMenu* for current trackmode. 
+  properties
+    trackModeIdx  % index into MFTSetEnum.TrackingMenu* for current trackmode. 
      %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
      %Values of trackModeIdx 1..K apply to either the NoTrx or Trx cases; 
      %larger values apply only the Trx case.
      
-    trackDLBackEnd % scalar DLBackEndClass
+  end
+  properties (SetObservable)
+    trackDLBackEnd  % scalar DLBackEndClass
     
-    trackNFramesSmall % small/fine frame increment for tracking. init: C
-    trackNFramesLarge % big/coarse ". init: C
-    trackNFramesNear % neighborhood radius. init: C
-    trackParams; % all tracking parameters. init: C
-    trackAutoSetParams = true;
-    trackPrevModelInit = true;
+    trackNFramesSmall  % small/fine frame increment for tracking. init: C
+    trackNFramesLarge  % big/coarse ". init: C
+    trackNFramesNear  % neighborhood radius. init: C
+    trackParams  % all tracking parameters. init: C
+    trackAutoSetParams = true
+    trackPrevModelInit = true
   end
   properties
     trkResIDs % [nTR x 1] cellstr unique IDs
@@ -16026,5 +16030,10 @@ classdef Labeler < handle
       obj.notify('didSetCurrTarget') ;
     end
 
+    function set.trackModeIdx(obj, newValue)
+      obj.trackModeIdx = newValue ;
+      obj.notify('didSetTrackModeIdx') ;
+    end
+      
   end
 end
