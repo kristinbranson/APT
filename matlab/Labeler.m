@@ -167,6 +167,18 @@ classdef Labeler < handle
     didSetLabels2ShowCurrTargetOnly
     didSetLastLabelChangeTS
     didSetLblCore
+
+    % Instead of making gtSuggMFTable* SetObservable, we use these next four
+    % events. The two variables are coupled (number of rows must be equal, so
+    % updating them is a nonatomic (2-step) process. Listeners directly listening
+    % to property sets will sometimes see inconsistent state.
+    gtIsGTModeChanged 
+    gtSuggUpdated  % general update occurred of gtSuggMFTable*
+    gtSuggMFTableLbledUpdated  % incremental update of gtSuggMFTableLbled occurred
+    gtResUpdated  % update of GT performance results occurred
+    
+    didSetTrackersAll
+    didSetCurrTracker
   end
 
   %% Project
@@ -531,18 +543,6 @@ classdef Labeler < handle
   properties (Dependent)
     gtNumSugg % height(gtSuggMFTable)
   end
-  events
-    % Instead of making gtSuggMFTable* SetObservable, we use these events.
-    % The two variables are coupled (number of rows must be equal,
-    % so updating them is a nonatomic (2-step) process. Listeners directly
-    % listening to property sets will sometimes see inconsistent state.
-    
-    gtIsGTModeChanged 
-    gtSuggUpdated % general update occurred of gtSuggMFTable*
-    gtSuggMFTableLbledUpdated % incremental update of gtSuggMFTableLbled occurred
-    gtResUpdated % update of GT performance results occurred
-  end
-  
   
   %% Suspiciousness
   properties (SetAccess=private)
@@ -573,9 +573,9 @@ classdef Labeler < handle
     preProcParams % struct - KB 20190214 -- made this a dependent property, derived from trackParams
   end  
   %% Tracking
-  properties (SetObservable)
-    trackersAll % cell vec of concrete LabelTracker objects. init: PNPL
-    currTracker % scalar int, either 0 for "no tracker" or index into trackersAll
+  properties
+    trackersAll  % cell vec of concrete LabelTracker objects. init: PNPL
+    currTracker  % scalar int, either 0 for "no tracker" or index into trackersAll
   end
   properties (Dependent)
     tracker % The current tracker, or []
@@ -16002,6 +16002,27 @@ classdef Labeler < handle
     function set.lblCore(obj, newValue)
       obj.lblCore = newValue ;
       obj.notify('didSetLblCore') ;
+    end
+
+    function set.trackersAll(obj, newValue)
+      obj.trackersAll = newValue ;
+      obj.notify('didSetTrackersAll') ;
+    end
+
+    function set.currTracker(obj, newValue)
+      % Want to do some stuff before the set, apparently
+      if ~obj.isinit ,
+        tObj = obj.tracker ;
+        if ~isempty(tObj) ,
+          tObj.deactivate() ;
+        end
+      end
+    
+      % Set the value
+      obj.trackersCurr = newValue ;
+
+      % Send the notification
+      obj.notify('didSetCurrTracker') ;
     end
 
   end

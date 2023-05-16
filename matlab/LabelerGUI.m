@@ -824,9 +824,8 @@ listeners{end+1,1} = addlistener(lObj,'didSetProjFSInfo',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowTrx',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowOccludedBox',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowTrxCurrTargetOnly',@cbkShowTrxCurrTargetOnlyChanged);
-listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
-listeners{end+1,1} = addlistener(lObj,'currTracker','PreSet',@cbkCurrTrackerPreChanged);
-listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackersAll',@cbkTrackersAllChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetCurrTracker',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
@@ -2757,39 +2756,37 @@ catch exception
 end
 
 
-function cbkTrackersAllChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+function cbkTrackersAllChanged(src, evt)
+lObj = src ;
+if ~lObj.isinit
+  handles = lObj.gdata;
+  handles = setupAvailTrackersMenu(handles, lObj.trackersAll) ;
+  guidata(handles.figure, handles) ;
+  cellfun(@deactivate, lObj.trackersAll) ;
+  cbkCurrTrackerChanged([], evt) ;  % current tracker object depends on lObj.trackersAll
 end
 
-handles = lObj.gdata;
-handles = setupAvailTrackersMenu(handles,lObj.trackersAll);
-guidata(handles.figure,handles);
-cellfun(@deactivate,lObj.trackersAll);
-cbkCurrTrackerChanged([],evt); % current tracker object depends on lObj.trackersAll
 
 function cbkCurrTrackerPreChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end 
-tObj = lObj.tracker;
-if ~isempty(tObj)
-  tObj.deactivate();
+tObj = lObj.tracker ;
+if ~isempty(tObj) ,
+  tObj.deactivate() ;
 end
 
+
 function cbkCurrTrackerChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end 
-handles = lObj.gdata;
-
-tObj = lObj.tracker;
-iTrker = lObj.currTracker;
-
-handles = setupTrackerMenusListeners(handles,tObj,iTrker);
+handles = lObj.gdata ;
+tObj = lObj.tracker ;
+iTrker = lObj.currTracker ;
+handles = setupTrackerMenusListeners(handles, tObj, iTrker) ;
 % tracker changed, update tracker info
 if ~isempty(tObj),
   tObj.activate();
