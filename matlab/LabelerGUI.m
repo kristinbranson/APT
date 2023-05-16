@@ -816,7 +816,7 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetCurrTarget',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
-listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackParams',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2Hide',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2ShowCurrTargetOnly',@cbkLabels2ShowCurrTargetOnlyChanged);
@@ -827,9 +827,9 @@ listeners{end+1,1} = addlistener(lObj,'didSetShowTrxCurrTargetOnly',@cbkShowTrxC
 listeners{end+1,1} = addlistener(lObj,'didSetTrackersAll',@cbkTrackersAllChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetCurrTracker',@cbkCurrTrackerChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetTrackModeIdx',@cbkTrackModeIdxChanged);
-listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
-listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
-listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackNFramesSmall',@cbkTrackerNFramesChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackNFramesLarge',@cbkTrackerNFramesChanged);    
+listeners{end+1,1} = addlistener(lObj,'didSetTrackNFramesNear',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieCenterOnTarget',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieForceGrayscale',@cbkMovieForceGrayscaleChanged);
@@ -2408,8 +2408,7 @@ if tfTracker
         @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trainEnd',...
         @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
-      listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
-        @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
+      listenersNew{end+1,1} = tObj.lObj.addlistener('didSetTrackDLBackEnd', @(src,evt) (cbkTrackerBackEndChanged(src,evt,handles)) );      
       listenersNew{end+1,1} = tObj.addlistener('trackStart',...
         @(src1,evt1) cbkTrackerStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trackEnd',...
@@ -2780,11 +2779,11 @@ end
 % updated, this should resolve.
 
 function cbkTrackerNFramesChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end
-setPUMTrackStrs(lObj);
+setPUMTrackStrs(lObj) ;
 
 function setPUMTrackStrs(lObj)
 if lObj.hasTrx
@@ -4052,9 +4051,9 @@ str = 'New frames tracked';
 %cbkSaveNeeded(lObj,val,str);
 lObj.setDoesNeedSave(val, str) ;
 
-function cbkTrackerBackEndChanged(hObject, eventdata, handles)
-lObj = eventdata.AffectedObject;
-updateTrackBackendConfigMenuChecked(handles,lObj);
+function cbkTrackerBackEndChanged(src, evt, handles)
+lObj = src ;
+updateTrackBackendConfigMenuChecked(handles, lObj) ;
 
 function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
@@ -4091,13 +4090,12 @@ if ~isempty(lObj.trackersAll) && ~isempty(lObj.tracker),
   lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
 end
 
-function cbkParameterChange(src,evt)
-
-lObj = evt.AffectedObject;
-if isempty(lObj.trackersAll) || isempty(lObj.tracker),
-  return;
+function cbkParameterChange(src, evt)
+lObj = src ;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker) ,
+  return
 end
-lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state

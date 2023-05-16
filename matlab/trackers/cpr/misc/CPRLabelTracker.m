@@ -52,7 +52,7 @@ classdef CPRLabelTracker < LabelTracker
   
   
   %% Training Data Selection
-  properties (SetObservable,SetAccess=private)
+  properties (SetObservable, SetAccess=private)
     trnDataDownSamp = false; % scalar logical.
   end
   properties

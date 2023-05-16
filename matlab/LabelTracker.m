@@ -46,7 +46,7 @@ classdef LabelTracker < handle
     hListeners; % cell vec of Labeler listeners
   end  
   
-  properties (SetObservable,SetAccess=protected)
+  properties (SetObservable, SetAccess=protected)
     hideViz = false; % scalar logical. If true, hide visualizations
     showPredsCurrTargetOnly = false;
   end

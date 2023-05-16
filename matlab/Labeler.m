@@ -178,6 +178,11 @@ classdef Labeler < handle
     didSetCurrTarget
 
     didSetTrackModeIdx
+    didSetTrackDLBackEnd
+    didSetTrackNFramesSmall
+    didSetTrackNFramesLarge
+    didSetTrackNFramesNear
+    didSetTrackParams
   end  
 
   %% Project
@@ -593,8 +598,6 @@ classdef Labeler < handle
      %Values of trackModeIdx 1..K apply to either the NoTrx or Trx cases; 
      %larger values apply only the Trx case.
      
-  end
-  properties (SetObservable)
     trackDLBackEnd  % scalar DLBackEndClass
     
     trackNFramesSmall  % small/fine frame increment for tracking. init: C
@@ -602,14 +605,13 @@ classdef Labeler < handle
     trackNFramesNear  % neighborhood radius. init: C
     trackParams  % all tracking parameters. init: C
     trackAutoSetParams = true
-    trackPrevModelInit = true
   end
   properties
-    trkResIDs % [nTR x 1] cellstr unique IDs
-    trkRes % [nMov x nview x nTR] cell. cell array of TrkFile objs
-    trkResGT % [nMovGT x nview x nTR] cell. etc
-    trkResViz % [nTR x 1] cell. TrackingVisualizer vector
-    track_id = false;
+    trkResIDs  % [nTR x 1] cellstr unique IDs
+    trkRes  % [nMov x nview x nTR] cell. cell array of TrkFile objs
+    trkResGT  % [nMovGT x nview x nTR] cell. etc
+    trkResViz  % [nTR x 1] cell. TrackingVisualizer vector
+    track_id = false
   end
   properties (Dependent)
     trkResGTaware
@@ -16035,5 +16037,30 @@ classdef Labeler < handle
       obj.notify('didSetTrackModeIdx') ;
     end
       
+    function set.trackDLBackEnd(obj, newValue)
+      obj.trackDLBackEnd = newValue ;
+      obj.notify('didSetTrackDLBackEnd') ;
+    end
+      
+    function set.trackNFramesSmall(obj, newValue)
+      obj.trackNFramesSmall = newValue ;
+      obj.notify('didSetTrackNFramesSmall') ;
+    end
+      
+    function set.trackNFramesLarge(obj, newValue)
+      obj.trackNFramesLarge = newValue ;
+      obj.notify('didSetTrackNFramesLarge') ;
+    end
+
+    function set.trackNFramesNear(obj, newValue)
+      obj.trackNFramesNear = newValue ;
+      obj.notify('didSetTrackNFramesNear') ;
+    end
+
+    function set.trackParams(obj, newValue)
+      obj.trackParams = newValue ;
+      obj.notify('didSetTrackParams') ;
+    end
+
   end
 end
