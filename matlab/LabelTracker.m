@@ -73,7 +73,7 @@ classdef LabelTracker < handle
       listeners = { ...
         addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
         %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-        addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
+        addlistener(labelerObj,'didSetCurrTarget',@(s,e)(obj.newLabelerTarget()));
         addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
         addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
         };

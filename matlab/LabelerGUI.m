@@ -814,7 +814,7 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
-listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetCurrTarget',@cbkCurrTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
 listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
@@ -1361,11 +1361,11 @@ if isarrow && ismember(src,lObj.gdata.h_ignore_arrows),
 end
 
 % first try user-defined KeyPressHandlers
-kph = lObj.keyPressHandlers;
-for i=1:numel(kph)
-  tfKPused = kph(i).handleKeyPress(evt,lObj);
-  if tfKPused
-    return;
+kph = lObj.keyPressHandlers ;
+for i = 1:numel(kph) ,
+  tfKPused = kph(i).handleKeyPress(evt, lObj) ;
+  if tfKPused ,
+    return
   end
 end
 
@@ -1943,9 +1943,10 @@ catch ME  %#ok<NASGU>
   warningNoTrace('Error caught updating highlight row in Targets Table.');
 end
 
-function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
-lObj = evt.AffectedObject;
-if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
+
+function cbkCurrTargetChanged(src, ~)
+lObj = src ;
+if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit ,
   iTgt = lObj.currTarget;
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
@@ -1954,40 +1955,6 @@ if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   %hlpUpdateTblTrxHilite(lObj);
 end
 
-% function cbkLabeledPosNeedsSaveChanged(src,evt)
-% 
-% lObj = src ;
-% val = lObj.labeledposNeedsSave ;
-% lObj.setDoesNeedSave(val, 'Unsaved labels') ;
-
-
-% function cbkSaveNeeded(lObj,val,str)
-% 
-% if nargin < 2 || isempty(val),
-%   val = true;
-% end
-% 
-% hTx = lObj.gdata.txUnsavedChanges;
-% if val
-%   set(hTx,'Visible','on');
-% else
-%   set(hTx,'Visible','off');
-% end
-% 
-% if val,
-%   info = lObj.projFSInfo;
-%   if nargin < 3 || ~ischar(str),
-%     str = 'Save needed ';
-%   end
-%   if isempty(info),
-%     str = sprintf('%s since $PROJECTNAME saved.',str);
-%   else
-%     str = sprintf('%s since $PROJECTNAME %s at %s',str,info.action,datestr(info.timestamp,16));
-%   end
-%   SetStatus(lObj.gdata,str,false);
-% end
-% 
-% lObj.needsSave = val;
 
 function menuSetupLabelModeHelp(handles,labelMode)
 % Set .Checked for menu_setup_<variousLabelModes> based on labelMode

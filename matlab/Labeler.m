@@ -168,10 +168,6 @@ classdef Labeler < handle
     didSetLastLabelChangeTS
     didSetLblCore
 
-    % Instead of making gtSuggMFTable* SetObservable, we use these next four
-    % events. The two variables are coupled (number of rows must be equal, so
-    % updating them is a nonatomic (2-step) process. Listeners directly listening
-    % to property sets will sometimes see inconsistent state.
     gtIsGTModeChanged 
     gtSuggUpdated  % general update occurred of gtSuggMFTable*
     gtSuggMFTableLbledUpdated  % incremental update of gtSuggMFTableLbled occurred
@@ -179,7 +175,8 @@ classdef Labeler < handle
     
     didSetTrackersAll
     didSetCurrTracker
-  end
+    didSetCurrTarget
+  end  
 
   %% Project
   properties
@@ -633,14 +630,15 @@ classdef Labeler < handle
   end
   
   %% Misc
-  properties (SetObservable, AbortSet)
-    prevFrame = nan;      % last previously VISITED frame
-    currTarget = 1;     % always 1 if proj doesn't have trx
-    
-    currImHud; % scalar AxisHUD object TODO: move to LabelerGUI. init: C
+  properties
+    prevFrame = nan       % last previously VISITED frame
+    currTarget = 1      % always 1 if proj doesn't have trx    
   end
-  properties (SetObservable)
-    keyPressHandlers; % [nhandlerx1] cell array of LabelerKeyEventHandlers.
+  properties (SetObservable, AbortSet)
+    currImHud  % scalar AxisHUD object TODO: move to LabelerGUI. init: C
+  end
+  properties
+    keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
   end
   properties (AbortSet)
     currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
@@ -16023,6 +16021,11 @@ classdef Labeler < handle
 
       % Send the notification
       obj.notify('didSetCurrTracker') ;
+    end
+
+    function set.currTarget(obj, newValue)
+      obj.currTarget = newValue ;
+      obj.notify('didSetCurrTarget') ;
     end
 
   end
