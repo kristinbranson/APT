@@ -2724,12 +2724,12 @@ end
 
 function cbkTrackersAllChanged(src, evt)
 lObj = src ;
-if ~lObj.isinit
-  handles = lObj.gdata;
+if ~lObj.isinit ,
+  handles = lObj.gdata ;
   handles = setupAvailTrackersMenu(handles, lObj.trackersAll) ;
   guidata(handles.figure, handles) ;
   cellfun(@deactivate, lObj.trackersAll) ;
-  cbkCurrTrackerChanged([], evt) ;  % current tracker object depends on lObj.trackersAll
+  cbkCurrTrackerChanged(src, evt) ;  % current tracker object depends on lObj.trackersAll
 end
 
 
@@ -2744,7 +2744,7 @@ if ~isempty(tObj) ,
 end
 
 
-function cbkCurrTrackerChanged(src,evt)
+function cbkCurrTrackerChanged(src, evt)
 lObj = src ;
 if lObj.isinit ,
   return

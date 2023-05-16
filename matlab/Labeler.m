@@ -16021,7 +16021,7 @@ classdef Labeler < handle
       end
     
       % Set the value
-      obj.trackersCurr = newValue ;
+      obj.currTracker = newValue ;
 
       % Send the notification
       obj.notify('didSetCurrTracker') ;
