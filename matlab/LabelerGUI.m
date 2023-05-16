@@ -1360,14 +1360,14 @@ if isarrow && ismember(src,lObj.gdata.h_ignore_arrows),
   return;
 end
 
-% first try user-defined KeyPressHandlers
-kph = lObj.keyPressHandlers ;
-for i = 1:numel(kph) ,
-  tfKPused = kph(i).handleKeyPress(evt, lObj) ;
-  if tfKPused ,
-    return
-  end
-end
+% % first try user-defined KeyPressHandlers
+% kph = lObj.keyPressHandlers ;
+% for i = 1:numel(kph) ,
+%   tfKPused = kph(i).handleKeyPress(evt, lObj) ;
+%   if tfKPused ,
+%     return
+%   end
+% end
 
 tfShift = any(strcmp('shift',evt.Modifier));
 tfCtrl = any(strcmp('control',evt.Modifier));

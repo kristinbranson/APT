@@ -615,9 +615,9 @@ classdef Labeler < handle
     currTarget = 1      % always 1 if proj doesn't have trx    
     currImHud  % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
-  properties
-    keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
-  end
+%   properties
+%     keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
+%   end
   properties
     currMovie  % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
   end
