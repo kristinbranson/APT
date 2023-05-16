@@ -516,7 +516,7 @@ classdef Labeler < handle
   end
   
   %% GT mode
-  properties (SetObservable, SetAccess=private)
+  properties (SetAccess=private)
     gtIsGTMode % scalar logical
   end
   properties
@@ -545,19 +545,17 @@ classdef Labeler < handle
   
   
   %% Suspiciousness
-  properties (SetObservable, SetAccess=private)
-    suspScore; % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
-    suspSelectedMFT; % MFT table of selected suspicous frames.
-    suspComputeFcn; 
-    % Function with sig [score,tblMFT,diagstr]=fcn(labelerObj) that 
-    % computes suspScore, suspSelectedMFT.
-    % See .suspScore for required size/dims of suspScore and contents.
-    % diagstr is arbitrary diagnostic info (assumed char for now).
-     
-    suspDiag; % Transient "userdata", diagnostic output from suspComputeFcn
-    
-%     currSusp; % suspScore for current mov/frm/tgt. Can be [] indicating 'N/A'
-    %     suspNotes; % column cell vec same size as labeledpos. suspNotes{iMov} is a nFrm x nTrx column cellstr
+  properties (SetAccess=private)
+    suspScore  % column cell vec same size as labeledpos. suspScore{iMov} is nFrm(iMov) x nTrx(iMov)
+    suspSelectedMFT  % MFT table of selected suspicous frames.
+    suspComputeFcn  
+      % Function with sig [score,tblMFT,diagstr]=fcn(labelerObj) that 
+      % computes suspScore, suspSelectedMFT.
+      % See .suspScore for required size/dims of suspScore and contents.
+      % diagstr is arbitrary diagnostic info (assumed char for now).     
+  end
+  properties (SetAccess=private, Transient)
+    suspDia  % Transient "userdata", diagnostic output from suspComputeFcn    
   end
   
   %% PreProc
