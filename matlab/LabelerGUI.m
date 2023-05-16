@@ -3060,7 +3060,7 @@ dat = get(src,'Data');
 if isscalar(rows)
   idx = dat{rows(1),1};
   lObj.setTarget(idx);
-  lObj.labelsOtherTargetHideAll();
+  %lObj.labelsOtherTargetHideAll();
 else
   % 20210514 Skipping this for now; possible performance hit
   

@@ -124,7 +124,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     function rectPos = getRectPos(obj,lObj,sPrm)
       % rectPos: [c x 2] col1 is [x1;x2;x3;x4;x5]; col2 is [y1;y2; etc].
       
-      rad = lObj.maGetTgtCropRad(sPrm);
+      rad = maGetTgtCropRad(sPrm);
       if obj.isMA
         xyc = nanmean(obj.xyLbl,1);
         xc = xyc(1);
