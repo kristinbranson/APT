@@ -633,8 +633,6 @@ classdef Labeler < handle
   properties
     prevFrame = nan       % last previously VISITED frame
     currTarget = 1      % always 1 if proj doesn't have trx    
-  end
-  properties (SetObservable, AbortSet)
     currImHud  % scalar AxisHUD object TODO: move to LabelerGUI. init: C
   end
   properties
