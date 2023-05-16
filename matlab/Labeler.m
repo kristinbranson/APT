@@ -1,7 +1,7 @@
 classdef Labeler < handle
 % Bransonlab Animal Video Labeler/Tracker
 
-  properties (Constant,Hidden)
+  properties (Constant, Hidden)
     VERSION = '3.1';
     DEFAULT_LBLFILENAME = '%s.lbl';
     DEFAULT_CFG_FILENAME = 'config.default.yaml';
@@ -41,23 +41,6 @@ classdef Labeler < handle
     MOVIEPROPS = {'movieFilesAll' 'trxFilesAll' 'projMacros' ...
       'movieFilesAllGT' 'trxFilesAllGT' }
     
-%     SAVEPROPS_LPOS = {... %      'labeledpos' 'nan'      'labeledposGT' 'nan'
-%       %'labeledpos2' 'nan'
-%       %'labeledpos2GT' 'nan' %      'labeledposTS' 'ts'      'labeledposTSGT' 'ts'  'labeledpostag' 'log' %      'labeledposMarked' 'log'      'labeledpostagGT' 'log'
-%       };
-%    SAVEPROPS_GTCLASSIFY = { ... % these props are resaved into stripped lbls pre gt-classify
-%      'movieFilesAllGT'
-%      'movieInfoAllGT'
-%      'movieFilesAllGTCropInfo'
-%      'movieFilesAllGTHistEqLUT'
-%      'trxFilesAllGT'
-%      'viewCalibrationDataGT' 
-%      };
-%       'labeledposGT'
-%       'labeledpostagGT'
-%       'labeledposTSGT'
-%       'labeledpos2GT'};
-    
     SAVEBUTNOTLOADPROPS = { ...
        'VERSION' 'currFrame' 'currMovie' 'currTarget'};     
      
@@ -65,13 +48,7 @@ classdef Labeler < handle
     
     NEIGHBORING_FRAME_MAXRADIUS = 10;
     DEFAULT_RAW_LABEL_FILENAME = 'label_file.lbl';
-  end
-%   properties (Hidden)
-%     % Don't compute as a Constant prop, requires APT path initialization
-%     % before loading class
-%     NEIGHBORING_FRAME_OFFSETS;    
-%   end
-  properties (Constant,Hidden)
+
     PROPS_GTSHARED = struct('reg',...
       struct('MFA','movieFilesAll',...
              'MFAF','movieFilesAllFull',...
@@ -192,10 +169,10 @@ classdef Labeler < handle
     projTempDir           % temp dir name to save the raw label file
   end
   properties
-    projTempDirDontClearOnDestructor = false; % transient. set to true for eg CI testing
+    projTempDirDontClearOnDestructor = false  % transient. set to true for eg CI testing
   end
   properties (SetAccess=private)
-    projMacros = struct(); % scalar struct, filesys macros. init: PN
+    projMacros = struct()  % scalar struct, filesys macros. init: PN
   end
   properties
     % TODO: rename this to "initialConfig" or similar. This is now a
@@ -233,21 +210,21 @@ classdef Labeler < handle
     % structure which now has listeners attached.
     % * The most important configuration params can still have their own
     % props.
-    projPrefs; % init: C
+    projPrefs  % init: C
     
-    projVerbose = 0; % transient, unmanaged
+    projVerbose = 0  % transient, unmanaged
     
-    isgui = false; % whether there is a GUI
-    unTarLoc = ''; % location that project has most recently been untarred to
+    isgui = false  % whether there is a GUI
+    unTarLoc = ''  % location that project has most recently been untarred to
     
-    projRngSeed = 17;
+    projRngSeed = 17 
     
-    saveVersionInfo; % info about versions of stuff when proj last saved
+    saveVersionInfo  % info about versions of stuff when proj last saved
   end
   properties (Dependent)
     hasProject            % scalar logical
-    projectfile;          % Full path to current project 
-    projectroot;          % Parent dir of projectfile, if it exists
+    projectfile           % Full path to current project 
+    projectroot           % Parent dir of projectfile, if it exists
   end
 
   %% Movie/Video
@@ -256,8 +233,8 @@ classdef Labeler < handle
   % referred to visual details, display, playback, etc. But I sort of
   % forgot and mixed them up so that Movie sometimes applies to the latter.
   properties (SetAccess=private)
-    nview; % number of views. init: C
-    viewNames % [nview] cellstr. init: C
+    nview  % number of views. init: C
+    viewNames  % [nview] cellstr. init: C
     
     % States of viewCalProjWide/viewCalData:
     % .viewCalProjWide=[], .vCD=any. Here .vcPW is uninitted and .vCD is unset/immaterial.
@@ -265,25 +242,25 @@ classdef Labeler < handle
     % .viewCalProjWide=false, .vCD=[nMovSet] cell array of calRigs. .vCD
     % applies element-wise to movies. .vCD{i} can be empty indicating unset
     % calibration object for that movie.
-    viewCalProjWide % [], true, or false. init: PN
-    viewCalibrationData % Opaque calibration 'useradata' for multiview. init: PN
-    viewCalibrationDataGT % etc. 
+    viewCalProjWide  % [], true, or false. init: PN
+    viewCalibrationData  % Opaque calibration 'useradata' for multiview. init: PN
+    viewCalibrationDataGT  % etc. 
     
-    movieReadPreLoadMovies = false; % scalar logical. Set .preload property on any MovieReaders per this prop
-    movieReader = []; % [1xnview] MovieReader objects. init: C
-    movieInfoAll = {}; % cell-of-structs, same size as movieFilesAll
-    movieInfoAllGT = {}; % same as .movieInfoAll but for GT mode
-    movieDontAskRmMovieWithLabels = false; % If true, won't warn about removing-movies-with-labels    
-    projectHasTrx = false; % whether there are trx files for any movie
+    movieReadPreLoadMovies = false  % scalar logical. Set .preload property on any MovieReaders per this prop
+    movieReader = []  % [1xnview] MovieReader objects. init: C
+    movieInfoAll = {}  % cell-of-structs, same size as movieFilesAll
+    movieInfoAllGT = {}  % same as .movieInfoAll but for GT mode
+    movieDontAskRmMovieWithLabels = false  % If true, won't warn about removing-movies-with-labels    
+    projectHasTrx = false  % whether there are trx files for any movie
   end
   properties (Dependent)
-    movieInfoAllGTaware; 
-    viewCalibrationDataGTaware % Either viewCalData or viewCalDataGT
-    viewCalibrationDataCurrent % view calibration data applicable to current movie (gt aware)
+    movieInfoAllGTaware  
+    viewCalibrationDataGTaware  % Either viewCalData or viewCalDataGT
+    viewCalibrationDataCurrent  % view calibration data applicable to current movie (gt aware)
   end
   properties
-    movieFilesAll = {}; % [nmovset x nview] column cellstr, full paths to movies; can include macros 
-    movieFilesAllGT = {}; % same as .movieFilesAll but for GT mode
+    movieFilesAll = {}  % [nmovset x nview] column cellstr, full paths to movies; can include macros 
+    movieFilesAllGT = {}  % same as .movieFilesAll but for GT mode
   end
   properties
     % Using cells here so movies do not have to all have the same bitDepth
@@ -291,13 +268,13 @@ classdef Labeler < handle
     %
     % These should prob be called "preProcMovieFilesAllHistEqLUT" since
     % they are preproc-parameter dependent etc
-    movieFilesAllHistEqLUT % [nmovset x nview] cell. Each el is a scalar struct containing lut + related info, or [] 
-    movieFilesAllGTHistEqLUT % [nmovsetGT x nview] "
-    cmax_auto = nan(0,1);
-    clim_manual = zeros(0,2);
+    movieFilesAllHistEqLUT  % [nmovset x nview] cell. Each el is a scalar struct containing lut + related info, or [] 
+    movieFilesAllGTHistEqLUT  % [nmovsetGT x nview] "
+    cmax_auto = nan(0,1) 
+    clim_manual = zeros(0,2) 
   end
   properties
-    movieFilesAllHaveLbls = zeros(0,1); % [nmovsetx1] double; actually, "numLbledTgts"
+    movieFilesAllHaveLbls = zeros(0,1)  % [nmovsetx1] double; actually, "numLbledTgts"
         % How MFAHL is maintained
         % - At project load, it is updated fully.
         % - Trivial update on movieRm/movieAdd.
@@ -308,7 +285,7 @@ classdef Labeler < handle
         %
         % For MultiView, MFAHL is true if any movie in a movieset has
         % labels.
-    movieFilesAllGTHaveLbls = false(0,1); % etc
+    movieFilesAllGTHaveLbls = false(0,1)  % etc
   end
   properties
     moviename  % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
@@ -342,41 +319,41 @@ classdef Labeler < handle
     movieViewBGsubbed = false
   end
   properties (Dependent)
-    isMultiView;
-    movieFilesAllGTaware;
-    movieFilesAllFull; % like movieFilesAll, but macro-replaced and platformized
-    movieFilesAllGTFull; % etc
-    movieFilesAllFullGTaware;
-    movieFilesAllHaveLblsGTaware;
-    hasMovie;
-    moviefile;
-    nframes;
-    movierawnr; % [nview]. numRows in original/raw movies
-    movierawnc; % [nview]. numCols in original/raw movies
-    movienr; % [nview]. always equal to numRows in .movieroi
-    movienc; % [nview]. always equal to numCols in .movieroi
-    movieroi; % [nview x 4]. Each row is [xlo xhi ylo yhi]. If no crop present, then this is just [1 nc 1 nr].
-    movieroictr; % [nview x 2]. Each row is [xc yc] center of current roi in that view.
-    nmovies;
-    nmoviesGT;
-    nmoviesGTaware;
-    moviesSelected; % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
+    isMultiView 
+    movieFilesAllGTaware 
+    movieFilesAllFull  % like movieFilesAll, but macro-replaced and platformized
+    movieFilesAllGTFull  % etc
+    movieFilesAllFullGTaware 
+    movieFilesAllHaveLblsGTaware 
+    hasMovie 
+    moviefile 
+    nframes 
+    movierawnr  % [nview]. numRows in original/raw movies
+    movierawnc  % [nview]. numCols in original/raw movies
+    movienr  % [nview]. always equal to numRows in .movieroi
+    movienc  % [nview]. always equal to numCols in .movieroi
+    movieroi  % [nview x 4]. Each row is [xlo xhi ylo yhi]. If no crop present, then this is just [1 nc 1 nr].
+    movieroictr  % [nview x 2]. Each row is [xc yc] center of current roi in that view.
+    nmovies 
+    nmoviesGT 
+    nmoviesGTaware 
+    moviesSelected  % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
     doesNeedSave
   end
   
   %% Crop
   properties
-    movieFilesAllCropInfo % [nmovset x 1] cell. Each el is a [nview] array of cropInfos, or [] if no crop info 
-    movieFilesAllGTCropInfo % [nmovsetGT x 1] "
-    cropIsCropMode % scalar logical
+    movieFilesAllCropInfo  % [nmovset x 1] cell. Each el is a [nview] array of cropInfos, or [] if no crop info 
+    movieFilesAllGTCropInfo  % [nmovsetGT x 1] "
+    cropIsCropMode  % scalar logical
   end
   properties (Dependent)
     movieFilesAllCropInfoGTaware
-    cropProjHasCrops % scalar logical. If true, all elements of movieFilesAll*CropInfo are populated. If false, all elements of " are []
+    cropProjHasCrops  % scalar logical. If true, all elements of movieFilesAll*CropInfo are populated. If false, all elements of " are []
   end
   events
-    cropIsCropModeChanged % cropIsCropMode mutated
-    cropCropsChanged % something in .movieFilesAll*CropInfo mutated
+    cropIsCropModeChanged  % cropIsCropMode mutated
+    cropCropsChanged  % something in .movieFilesAll*CropInfo mutated
     cropUpdateCropGUITools
   end
   
@@ -388,23 +365,23 @@ classdef Labeler < handle
     trxInfoAllGT = {}
   end
   properties (SetAccess=private)
-    trxCache = [];            % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
-    trx = [];                 % trx object
-    frm2trx = [];             % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
-    tblTrxData = [];          % last-used data in tblTrx
+    trxCache = []             % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
+    trx = []                  % trx object
+    frm2trx = []              % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
+    tblTrxData = []           % last-used data in tblTrx
   end
   properties (Dependent)
     targetZoomRadiusDefault
   end
   properties (Dependent)
-    trxFilesAllFull % like .movieFilesAllFull, but for .trxFilesAll
-    trxFilesAllGTFull % etc
+    trxFilesAllFull  % like .movieFilesAllFull, but for .trxFilesAll
+    trxFilesAllGTFull  % etc
     trxFilesAllFullGTaware
     trxInfoAllGTaware
     hasTrx
     currTrx
     nTrx
-    nTargets % nTrx, or 1 if no Trx
+    nTargets  % nTrx, or 1 if no Trx
   end
   
   %% ShowTrx
@@ -445,21 +422,21 @@ classdef Labeler < handle
                  % used to be labeledposSetNames
     flipLandmarkMatches = zeros(0,2)  % nPairs x 2 matrix containing indices of vertex landmarks    
   end
-  properties % make public setaccess
-    labelPointsPlotInfo;  % struct containing cosmetic info for labelPoints. init: C
-    predPointsPlotInfo;  % " predicted points. init: C
-    impPointsPlotInfo;
-    isTwoClickAlign = true; % KB 20220506 store the state of whether two-click alignment is selected
+  properties  
+    labelPointsPlotInfo   % struct containing cosmetic info for labelPoints. init: C
+    predPointsPlotInfo   % " predicted points. init: C
+    impPointsPlotInfo 
+    isTwoClickAlign = true  % KB 20220506 store the state of whether two-click alignment is selected
   end
   properties (SetAccess=private)
-    nLabelPoints;         % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
-    labelTemplate;
-    nLabelPointsAdd = 0; % scalar integer. This is set when projAddLandmarks is called
+    nLabelPoints          % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
+    labelTemplate 
+    nLabelPointsAdd = 0   % scalar integer. This is set when projAddLandmarks is called
     
-    labeledposIPtSetMap;  % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
+    labeledposIPtSetMap   % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
-    labeledposIPt2View;   % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap. init: C
-    labeledposIPt2Set;    % [npts] vector of set indices for each point. Convenience prop. init: C
+    labeledposIPt2View    % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap. init: C
+    labeledposIPt2Set     % [npts] vector of set indices for each point. Convenience prop. init: C
   end
   properties
     labeledposNeedsSave   % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
@@ -484,68 +461,65 @@ classdef Labeler < handle
     rawStatusString
     %rawStatusStringWhenClear
   end
-  properties (Dependent,Hidden)
-    labeledpos;           % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
-    labeledposTS;         % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
-%     labeledposMarked;     % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
-    labeledpostag;        % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. ("tag" for legacy reasons) init: PN
+  properties (Dependent, Hidden)
+    labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
+    labeledposTS          % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
+%     labeledposMarked      % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
+    labeledpostag         % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. ("tag" for legacy reasons) init: PN
     labeledposGT          % like .labeledpos    
     labeledposTSGT        % like .labeledposTS
     labeledpostagGT       % like .labeledpostag
     labeledpos2GT         % like .labeledpos2
-    labeledpos2;          % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
+    labeledpos2           % identical size/shape with labeledpos. aux labels (eg predicted, 2nd set, etc). init: PN
 
-    labeledposGTaware;
-    labeledposTSGTaware;
-    labeledpostagGTaware;
-    labelsGTaware;
+    labeledposGTaware 
+    labeledposTSGTaware 
+    labeledpostagGTaware 
+    labelsGTaware 
 
-    labeledpos2GTaware;
-    labels2GTaware;
+    labeledpos2GTaware 
+    labels2GTaware 
     
-    labeledposCurrMovie;
-    labeledpos2CurrMovie;
-    labeledpostagCurrMovie;
+    labeledposCurrMovie 
+    labeledpos2CurrMovie 
+    labeledpostagCurrMovie 
     
-    labelsCurrMovie;
-    labels2CurrMovie;
+    labelsCurrMovie 
+    labels2CurrMovie 
     
-    nPhysPoints; % number of physical/3D points
+    nPhysPoints  % number of physical/3D points
   end
   properties
     lblCore  % init: L
   end
   properties
-    labeledpos2trkViz % scalar TrackingVisualizer*, or [] if no imported results for currMovie
+    labeledpos2trkViz  % scalar TrackingVisualizer*, or [] if no imported results for currMovie
   end
   
   properties
-    fgEmpiricalPDF % struct containing empirical FG pdf and metadata
+    fgEmpiricalPDF  % struct containing empirical FG pdf and metadata
   end
   
   %% MA
   properties
     maIsMA
-    %maPtNames % [npt] cellstr; not just MA
-    %maPtHeadTail  % [npt] int
-    %maRoiRad = 40; % px
   end
   
   %% GT mode
   properties (SetAccess=private)
-    gtIsGTMode % scalar logical
+    gtIsGTMode  % scalar logical
   end
   properties
-    gtSuggMFTable % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
-    gtSuggMFTableLbled % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
+    gtSuggMFTable  % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
+    gtSuggMFTableLbled  % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
 
-    gtTblRes % [nGTcomp x ncol] table, or []. Most recent GT performance results. 
+    gtTblRes  % [nGTcomp x ncol] table, or []. Most recent GT performance results. 
       % gtTblRes(:,MFTable.FLDSID) need not match
       % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be 
       % computed even if some suggested frames are not be labeled.
   end
   properties (Dependent)
-    gtNumSugg % height(gtSuggMFTable)
+    gtNumSugg  % height(gtSuggMFTable)
   end
   
   %% Suspiciousness
@@ -564,17 +538,17 @@ classdef Labeler < handle
   
   %% PreProc
   properties
-    preProcH0 % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
-    preProcData % scalar CPRData, preproc Data cache for CPR
-    preProcDataTS % scalar timestamp  
-    preProcSaveData % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
-    copyPreProcData = false; % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData
+    preProcH0  % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
+    preProcData  % scalar CPRData, preproc Data cache for CPR
+    preProcDataTS  % scalar timestamp  
+    preProcSaveData  % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
+    copyPreProcData = false  % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData
     
-    ppdb % PreProcDB for DL
+    ppdb  % PreProcDB for DL
   end
 
   properties (Dependent)    
-    preProcParams % struct - KB 20190214 -- made this a dependent property, derived from trackParams
+    preProcParams  % struct - KB 20190214 -- made this a dependent property, derived from trackParams
   end  
   %% Tracking
   properties
@@ -582,15 +556,15 @@ classdef Labeler < handle
     currTracker  % scalar int, either 0 for "no tracker" or index into trackersAll
   end
   properties (Dependent)
-    tracker % The current tracker, or []
-    trackerAlgo % The current tracker algorithm, or ''
-    trackerNetsUsed % cellstr
+    tracker  % The current tracker, or []
+    trackerAlgo  % The current tracker algorithm, or ''
+    trackerNetsUsed  % cellstr
     trackerIsDL
     trackerIsTwoStage
     trackerIsBotUp
     trackerIsObjDet
-    trackDLParams % scalar struct, common DL params
-    DLCacheDir % string, location of DL cache dir
+    trackDLParams  % scalar struct, common DL params
+    DLCacheDir  % string, location of DL cache dir
   end
   properties
     trackModeIdx  % index into MFTSetEnum.TrackingMenu* for current trackmode. 
@@ -619,20 +593,20 @@ classdef Labeler < handle
   
   %% CrossValidation
   properties
-    xvResults % table of most recent cross-validation results. This table
+    xvResults  % table of most recent cross-validation results. This table
       % has a row for every labeled frame present at the time xvalidation 
       % was run. So it should be fairly explicit if/when it is out-of-date 
       % relative to the project (eg when labels are added or removed)
-    xvResultsTS % timestamp for xvResults
+    xvResultsTS  % timestamp for xvResults
   end
   
   %% Prev
   properties
-    prevIm = struct('CData',0,'XData',0,'YData',0); % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
-    prevAxesMode; % scalar PrevAxesMode
-    prevAxesModeInfo; % "userdata" for .prevAxesMode
-    lblPrev_ptsH; % [npts] gobjects. init: L
-    lblPrev_ptsTxtH; % [npts] etc. init: L
+    prevIm = struct('CData',0,'XData',0,'YData',0)  % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
+    prevAxesMode  % scalar PrevAxesMode
+    prevAxesModeInfo  % "userdata" for .prevAxesMode
+    lblPrev_ptsH  % [npts] gobjects. init: L
+    lblPrev_ptsTxtH  % [npts] etc. init: L
   end
   
   %% Misc
@@ -644,27 +618,25 @@ classdef Labeler < handle
   properties
     keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
   end
-  properties (AbortSet)
-    currMovie; % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
-    % Don't observe this, listen to 'newMovie'
+  properties
+    currMovie  % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
   end
   properties (Dependent)
-    currMovIdx; % scalar MovieIndex
+    currMovIdx  % scalar MovieIndex
   end
   properties 
-    currFrame = 1; % current frame
-    currIm = [];            % [nview] cell vec of image data. init: C
-    selectedFrames = [];    % vector of frames currently selected frames; typically t0:t1
-    %hFig; % handle to main LabelerGUI figure
-    drag = false;
-    drag_pt = [];
-    silent = false; % Don't open dialogs. Use defaults. For testing and debugging
+    currFrame = 1  % current frame
+    currIm = []             % [nview] cell vec of image data. init: C
+    selectedFrames = []     % vector of frames currently selected frames; typically t0:t1
+    drag = false 
+    drag_pt = [] 
+    silent = false  % Don't open dialogs. Use defaults. For testing and debugging
   end
   properties (SetAccess=private)
-    isinit = false;         % scalar logical; true during initialization, when some invariants not respected
+    isinit = false          % scalar logical; true during initialization, when some invariants not respected
   end
   properties (Dependent)
-    gdata; % handles structure for LabelerGUI
+    gdata  % handles structure for LabelerGUI
   end
 
   
@@ -1516,7 +1488,7 @@ classdef Labeler < handle
     end
 
     function set.movieRotateTargetUp(obj,v)
-      if obj.maIsMA && (obj.currTarget==0)
+      if obj.maIsMA && obj.currTarget==0 ,
         warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
       else
         if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
