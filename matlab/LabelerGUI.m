@@ -1348,16 +1348,16 @@ function cbkTrackerShowPredsCurrTargetOnlyChanged(src,evt,hmenu)
 tracker = evt.AffectedObject;
 hmenu.Checked = onIff(tracker.showPredsCurrTargetOnly);
 
-function tfKPused = cbkKPF(src,evt,lObj)
 
-if ~lObj.isReady,
-  return;
+function tfKPused = cbkKPF(src,evt,lObj)
+if ~lObj.isReady ,
+  return
 end
 
 tfKPused = false;
 isarrow = ismember(evt.Key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'});
 if isarrow && ismember(src,lObj.gdata.h_ignore_arrows),
-  return;
+  return
 end
 
 % % first try user-defined KeyPressHandlers
@@ -1399,14 +1399,14 @@ if ~isMA && all(isfield(handles,{'shortcutkeys','shortcutfns'}))
   end  
 end
 if tfKPused
-  return;
+  return
 end
 
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
   if tfKPused
-    return;
+    return
   end
 end
 
@@ -1440,15 +1440,14 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
       end
       tfKPused = true;
   end
-  return;
+  return
 end
 
 if lObj.gtIsGTMode && strcmp(evt.Key,{'r'})
   lObj.gtNextUnlabeledUI();
-  return;
+  return
 end
 
-% timeline?
       
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
