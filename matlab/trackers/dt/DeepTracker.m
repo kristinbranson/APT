@@ -3336,41 +3336,15 @@ classdef DeepTracker < LabelTracker
       [tfSucc,msg] = obj.track2_spawn(tj);
     end
     
-    function cbkTrackGTComplete(obj,res)
-      gtmatfiles = {res.trkfile}';
-      tblGT = obj.trackGTgtmat2tbl(gtmatfiles);
+    function gtComplete(obj)      
+      gtmatfiles = obj.trkSysInfo.getListOutfiles;
+      gtmovs = obj.lObj.movieFilesAllGT;
+      tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
       obj.trkGTtrkTbl = tblGT;
-      obj.trackGTcompute(tblGT);
+      obj.lObj.showGTResults('gtResultTbl',tblGT);
     end
-    
-    function trackGTcompute(obj,tblGT,varargin)
-      reportargs = myparse(varargin,...
-        'reportargs',{'nmontage',24});
-      
-      tblMFT_SuggAndLbled = obj.lObj.gtGetTblSuggAndLbled();
-      
-      lObj = obj.lObj;
-      
-      % only for check below. this pLbl is read from gtmatfiles which is 
-      % produced by the Py
-      tblGTpLbl = tblGT.pLbl; 
-      tblGT(:,'pLbl') = [];
-      lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblGT); % also sets obj.lObj.gtTblRes
-      d = tblGTpLbl-lObj.gtTblRes.pLbl;
-      GTLBL_THRESH_PX = 1e-2;
-      if max(abs(d(:))) > GTLBL_THRESH_PX
-        % In cases with trx, crops etc the gtlbls from gtTblRes have been
-        % round-tripped thru i) crop/rotate into gt cache and ii) invert
-        % back into absolute coords.
-        warningNoTrace('Discrepancy encountered in GT labels read from deepnet mat-files.');
-      end
-      lObj.gtReport(reportargs{:});
-      msgbox('GT results available in Labeler property ''gtTblRes''.');
-    end
-    
-    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,varargin)
-      warning('Pay attention!!!')
-      warning('Need to give a movie list for correct correspondence to idx!!!!!')
+        
+    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,gtmovs,varargin)
       
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
@@ -3386,27 +3360,28 @@ classdef DeepTracker < LabelTracker
 
       mft = gtmats(1).list; % should already be 1based from deepnet
       assert(size(mft,2)==3);
-      mIdx = MovieIndex(-mft(:,1)); 
+      [~,gt_mov_match] = ismember(gtmats.movieFiles,gtmovs);
+      new_mov_ndx = gt_mov_match(mft(:,1));
+      mIdx = MovieIndex(-new_mov_ndx'); 
 
-      ndim_locs = ndims(gtmats(1).labeled_locs);
+      preds = gtmats(1).pred_locs.(GTMATLOCFLD);
+      ndim_locs = ndims(preds);
       isma = ndim_locs==4;
       pts_dim=ndim_locs-1;
-      % labeled/pred_locs are [nfrmtrk x nphyspt x 2]
-      plbl = cat(pts_dim,gtmats.labeled_locs); % now [nfrmtrk x npt x 2]      
-      out_sz = size(plbl);
+      % labeled/pred_locs are [nfrmtrk x nphyspt x 2] for single animal.
+      % [nfrmtrk x nanimals x npyspt x 2] for ma
+      out_sz = size(preds);
       out_sz = num2cell(out_sz(1:ndim_locs-2));
       out_sz{end+1} = [];
-      plbl = reshape(plbl,out_sz{:}); % now [nfrmtrk x (npt*2)] where col order is (all x-coords, then all y-)
       gt_pred = [gtmats.pred_locs];
       ptrk = cat(pts_dim,gt_pred.(GTMATLOCFLD));
       nfrmtrk = size(ptrk,1);
       ptrk = reshape(ptrk,out_sz{:});
-      assert(isequal(size(plbl),size(ptrk)));
       
-      tbltrkMFT = table(mIdx,mft(:,2),mft(:,3),...
+      tbltrkMFT = table(mIdx,uint32(mft(:,2)),uint32(mft(:,3)),...
         'VariableNames',{'mov' 'frm' 'iTgt'});
       
-      sz_occ = size(plbl);
+      sz_occ = size(ptrk);
       sz_occ(end) = sz_occ(end)/2;
       if isfield(gt_pred,GTMATOCCFLD)
         ptrkocc = cat(pts_dim,gt_pred.(GTMATOCCFLD));
@@ -3418,6 +3393,7 @@ classdef DeepTracker < LabelTracker
       tablevars = {ptrk,ptrkocc};
       tablevarnames = {'pTrk' 'pTrkocc'};      
       tblGT = [tbltrkMFT table(tablevars{:},'VariableNames',tablevarnames)];
+
     end
         
     function [tfCanTrack,reason] = canTrack(obj)
@@ -3566,8 +3542,12 @@ classdef DeepTracker < LabelTracker
       % KB 20190115: adding trkviz
       nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
       nFramesTrackSum = sum(nFramesTrack);
-      fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
+      if totrackinfo.islistjob
+        fprintf('Tracking %d frames.\n',nFramesTrackSum);
+      else
+        fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
         numel(nFramesTrack));
+      end
 
       trkVizObj = feval(obj.bgTrkMonitorVizClass,totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
       bgTrkMonitorObj = BgTrackMonitor;
@@ -3830,6 +3810,11 @@ classdef DeepTracker < LabelTracker
       
       catch ME,
         warning('Error gathering tracking results:\n%s',getReport(ME));
+        return
+      end
+
+      if obj.trkSysInfo.ttis(1).isgtjob
+        obj.gtComplete();
       end
       
     end

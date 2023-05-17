@@ -127,9 +127,10 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       end
     end
     function listoutfiles = getListOutfiles(obj)
-      listoutfiles = {};
+      listoutfiles = cell(1,obj.n);
       for i = 1:numel(obj.ttis)
-        listoutfiles = [listoutfiles obj.ttis(i).getListOutfiles()];
+        j = obj.ttis(i).getListOutfiles();
+        listoutfiles{i} = j{1};
       end
 
     end

@@ -407,10 +407,9 @@ classdef TrackMonitorViz < handle
       if obj.isKilled,
         status = 'Tracking process killed.';
         tfSucc = false;
-      elseif isTrackComplete,
+      elseif isTrackComplete
         status = 'Tracking complete.';
-        handles = guidata(obj.hfig);
-        TrackMonitorViz.updateStartStopButton(handles,false,true);
+        obj.updateStatusFinal(nJobs)
       elseif ~isRunning,
         if isErr,
           status = 'Error while tracking.';
@@ -471,6 +470,24 @@ classdef TrackMonitorViz < handle
       handles.text_clusterinfo.ForegroundColor = 'r';
       TrackMonitorViz.updateStartStopButton(handles,false,false);
       drawnow;
+    end
+
+    function updateStatusFinal(obj,nJobs)
+      handles = guidata(obj.hfig);
+      if nJobs > 1,
+        sview = obj.jobDescs{ijob};
+      else
+        sview = '';
+      end
+
+      for ijob = 1:nJobs
+        set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',...
+          obj.nFramesToTrack(ijob),obj.nFramesToTrack(ijob),sview));
+      end
+      set(obj.hline,'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED,'XData',[0,0,1,1,0]);
+      obj.bulkMovTracked(:) = true;
+      TrackMonitorViz.updateStartStopButton(handles,false,true);
+
     end
         
     function stopTracking(obj)

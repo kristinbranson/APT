@@ -268,6 +268,23 @@ classdef Labels
       tf = s.frm==frm;
       itgts = s.tgt(tf);
     end
+    function [tf,p,occ,ts] = isLabeledFMA(s,frm)
+      % Could get "getLabelsFT"
+      %
+      % p, occ, ts have appropriate size/vals even if tf==false
+      
+      i = find(s.frm==frm);
+      tf = ~isempty(i);
+      if tf
+        p = s.p(:,i);
+        occ = s.occ(:,i);
+        ts = s.ts(:,i);
+      else
+        p = nan(2*s.npts,1);
+        occ = zeros(s.npts,1,Labels.CLS_OCC);
+        ts = -inf(s.npts,1);
+      end
+    end
     function [frms,tgts] = isPartiallyLabeledT(s,itgt,nold)
       if isnan(itgt) || isempty(itgt),
         istgt = true(size(s.tgt));
@@ -790,10 +807,12 @@ classdef Labels
       %
       % lbls: cell array of Labels structs. 
       
-      [trxFilesAllFull,trxCache,wbObj] = myparse(varargin,...
+      [trxFilesAllFull,trxCache,wbObj,isma,maxanimals] = myparse(varargin,...
         'trxFilesAllFull',[],... % cellstr, indexed by tblMV.mov. if supplied, tblMF will contain .pTrx field
         'trxCache',[],... % must be supplied if trxFilesAllFull is supplied
-        'wbObj',[]... % optional WaitBarWithCancel. If cancel, tblMF (output) indeterminate
+        'wbObj',[],... % optional WaitBarWithCancel. If cancel, tblMF (output) indeterminate
+        'isma',false, ...
+        'maxanimals',1 ...
         );      
       tfWB = ~isempty(wbObj);
       
@@ -828,9 +847,15 @@ classdef Labels
       % Could also leverage Labels.totable and then do joins.
       
       npts = lbls{1}.npts;
-      pAcc = nan(nrow,npts*2);
-      pTSAcc = -inf(nrow,npts);
-      tfoccAcc = false(nrow,npts);
+      if isma
+        pAcc = nan(nrow,maxanimals,npts*2);
+        pTSAcc = -inf(nrow,maxanimals,npts);
+        tfoccAcc = false(nrow,maxanimals,npts);
+      else
+        pAcc = nan(nrow,npts*2);
+        pTSAcc = -inf(nrow,npts);
+        tfoccAcc = false(nrow,npts);
+      end
       pTrxAcc = nan(nrow,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
       thetaTrxAcc = nan(nrow,nView);
       aTrxAcc = nan(nrow,nView);
@@ -893,12 +918,22 @@ classdef Labels
             %assert(iTgt==1);
           end
           
-          [~,p,occ,ts] = Labels.isLabeledFT(s,frm,iTgt);
-          % p and occ have appropriate size/vals even if tf 
-          % (first out arg) is false
-          pAcc(irow,:) = p;
-          pTSAcc(irow,:) = ts;
-          tfoccAcc(irow,:) = occ; 
+          if isma
+            [~,p,occ,ts] = Labels.isLabeledFMA(s,frm);
+            % p and occ have appropriate size/vals even if tf 
+            % (first out arg) is false
+            nl = size(p,2);
+            pAcc(irow,1:nl,:) = p';
+            pTSAcc(irow,1:nl,:) = ts';
+            tfoccAcc(irow,1:nl,:) = occ'; 
+          else
+            [~,p,occ,ts] = Labels.isLabeledFT(s,frm,iTgt);
+            % p and occ have appropriate size/vals even if tf 
+            % (first out arg) is false
+            pAcc(irow,:) = p;
+            pTSAcc(irow,:) = ts;
+            tfoccAcc(irow,:) = occ; 
+          end
           
           if tfTrx && tfMovHasTrx(iMov)
             %xtrxs = cellfun(@(xx)xx(iTgt).x(frm+xx(iTgt).off),trxI);

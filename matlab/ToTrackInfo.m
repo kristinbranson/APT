@@ -44,8 +44,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     killfile = ''; % char
     trackconfigfile = ''; % char
     trkfiles = {}; % nmovies x nviews x nstages
+
     listoutfiles = {}; % nviews . Output of list classifications
     islistjob = false; % whether we are tracking list or not
+    isgtjob = false; % whether we should call gt reporting stuff at the end
     
   end
 
@@ -654,9 +656,6 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       assert(~isequal(obj.tblMFT,'unset'),'No table has been set')
       if nargin<2
         isgt = false;
-      end
-      if obj.isma
-        obj.tblMFT = MFTable.unsetTgt(obj.tblMFT);
       end
 
       trnstr = obj.trainDMC.getTrainID{1};
@@ -1304,6 +1303,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function nframestrack = getNFramesTrack(obj,lObj)
+      if obj.islistjob
+        nframestrack = obj.getNFramesTrackList(lObj);
+      else
+        nframestrack = obj.getNFramesTrackMovie(lObj);
+      end
+    end
+
+    function nframestrack = getNFramesTrackMovie(obj,lObj)
 
       % nmovies x 1 - should be the same across views and stages
       nframestrack = zeros(obj.nmovies,1);
@@ -1333,6 +1340,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         nframestrack(movi) = sum(efs(ffs<=efs)-ffs(ffs<=efs)+1);
       end
 
+    end
+
+    function nframestrack = getNFramesTrackList(obj,lObj)
+      nframestrack = size(obj.tblMFT,1);
     end
 
   end
