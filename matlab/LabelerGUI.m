@@ -814,30 +814,28 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
-listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@cbkCurrTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'labeledposNeedsSave','PostSet',@cbkLabeledPosNeedsSaveChanged);
-listeners{end+1,1} = addlistener(lObj,'lastLabelChangeTS','PostSet',@cbkLastLabelChangeTS);
-listeners{end+1,1} = addlistener(lObj,'trackParams','PostSet',@cbkParameterChange);
+listeners{end+1,1} = addlistener(lObj,'didSetCurrTarget',@cbkCurrTargetChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackParams',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2Hide',@cbkLabels2HideChanged);
-listeners{end+1,1} = addlistener(lObj,'labels2ShowCurrTargetOnly','PostSet',@cbkLabels2ShowCurrTargetOnlyChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLabels2ShowCurrTargetOnly',@cbkLabels2ShowCurrTargetOnlyChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetProjFSInfo',@cbkProjFSInfoChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowTrx',@cbkShowTrxChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowOccludedBox',@cbkShowOccludedBoxChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowTrxCurrTargetOnly',@cbkShowTrxCurrTargetOnlyChanged);
-listeners{end+1,1} = addlistener(lObj,'trackersAll','PostSet',@cbkTrackersAllChanged);
-listeners{end+1,1} = addlistener(lObj,'currTracker','PreSet',@cbkCurrTrackerPreChanged);
-listeners{end+1,1} = addlistener(lObj,'currTracker','PostSet',@cbkCurrTrackerChanged);
-listeners{end+1,1} = addlistener(lObj,'trackModeIdx','PostSet',@cbkTrackModeIdxChanged);
-listeners{end+1,1} = addlistener(lObj,'trackNFramesSmall','PostSet',@cbkTrackerNFramesChanged);
-listeners{end+1,1} = addlistener(lObj,'trackNFramesLarge','PostSet',@cbkTrackerNFramesChanged);    
-listeners{end+1,1} = addlistener(lObj,'trackNFramesNear','PostSet',@cbkTrackerNFramesChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackersAll',@cbkTrackersAllChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetCurrTracker',@cbkCurrTrackerChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackModeIdx',@cbkTrackModeIdxChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackNFramesSmall',@cbkTrackerNFramesChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetTrackNFramesLarge',@cbkTrackerNFramesChanged);    
+listeners{end+1,1} = addlistener(lObj,'didSetTrackNFramesNear',@cbkTrackerNFramesChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieCenterOnTarget',@cbkMovieCenterOnTargetChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieRotateTargetUp',@cbkMovieRotateTargetUpChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieForceGrayscale',@cbkMovieForceGrayscaleChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieInvert',@cbkMovieInvertChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetMovieViewBGsubbed',@cbkMovieViewBGsubbedChanged);
-listeners{end+1,1} = addlistener(lObj,'lblCore','PostSet',@cbkLblCoreChanged);
+listeners{end+1,1} = addlistener(lObj,'didSetLblCore',@(src,evt)(handles.controller.didSetLblCore()));
 listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropUpdateCropGUITools',@cbkUpdateCropGUITools);
@@ -1343,28 +1341,6 @@ switch sel
     delete(gcf)
 end
 
-function cbkLblCoreChanged(src,evt)
-lObj = evt.AffectedObject;
-lblCore = lObj.lblCore;
-if ~isempty(lblCore)
-  lblCore.addlistener('hideLabels','PostSet',@cbkLblCoreHideLabelsChanged);
-  cbkLblCoreHideLabelsChanged([],struct('AffectedObject',lblCore));
-  if isprop(lblCore,'streamlined')
-    lblCore.addlistener('streamlined','PostSet',@cbkLblCoreStreamlinedChanged);
-    cbkLblCoreStreamlinedChanged([],struct('AffectedObject',lblCore));
-  end
-end
-
-function cbkLblCoreHideLabelsChanged(src,evt)
-lblCore = evt.AffectedObject;
-handles = lblCore.labeler.gdata;
-handles.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels);
-
-function cbkLblCoreStreamlinedChanged(src,evt)
-lblCore = evt.AffectedObject;
-handles = lblCore.labeler.gdata;
-handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined);
-
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;
 hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
@@ -1372,26 +1348,26 @@ function cbkTrackerShowPredsCurrTargetOnlyChanged(src,evt,hmenu)
 tracker = evt.AffectedObject;
 hmenu.Checked = onIff(tracker.showPredsCurrTargetOnly);
 
-function tfKPused = cbkKPF(src,evt,lObj)
 
-if ~lObj.isReady,
-  return;
+function tfKPused = cbkKPF(src,evt,lObj)
+if ~lObj.isReady ,
+  return
 end
 
 tfKPused = false;
 isarrow = ismember(evt.Key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'});
 if isarrow && ismember(src,lObj.gdata.h_ignore_arrows),
-  return;
+  return
 end
 
-% first try user-defined KeyPressHandlers
-kph = lObj.keyPressHandlers;
-for i=1:numel(kph)
-  tfKPused = kph(i).handleKeyPress(evt,lObj);
-  if tfKPused
-    return;
-  end
-end
+% % first try user-defined KeyPressHandlers
+% kph = lObj.keyPressHandlers ;
+% for i = 1:numel(kph) ,
+%   tfKPused = kph(i).handleKeyPress(evt, lObj) ;
+%   if tfKPused ,
+%     return
+%   end
+% end
 
 tfShift = any(strcmp('shift',evt.Modifier));
 tfCtrl = any(strcmp('control',evt.Modifier));
@@ -1423,14 +1399,14 @@ if ~isMA && all(isfield(handles,{'shortcutkeys','shortcutfns'}))
   end  
 end
 if tfKPused
-  return;
+  return
 end
 
 lcore = lObj.lblCore;
 if ~isempty(lcore)
   tfKPused = lcore.kpf(src,evt);
   if tfKPused
-    return;
+    return
   end
 end
 
@@ -1464,15 +1440,14 @@ if any(strcmp(evt.Key,{'leftarrow' 'rightarrow'}))
       end
       tfKPused = true;
   end
-  return;
+  return
 end
 
 if lObj.gtIsGTMode && strcmp(evt.Key,{'r'})
   lObj.gtNextUnlabeledUI();
-  return;
+  return
 end
 
-% timeline?
       
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
@@ -1967,9 +1942,10 @@ catch ME  %#ok<NASGU>
   warningNoTrace('Error caught updating highlight row in Targets Table.');
 end
 
-function cbkCurrTargetChanged(src,evt) %#ok<*INUSD>
-lObj = evt.AffectedObject;
-if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
+
+function cbkCurrTargetChanged(src, ~)
+lObj = src ;
+if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit ,
   iTgt = lObj.currTarget;
   lObj.currImHud.updateTarget(iTgt);
   lObj.gdata.labelTLInfo.newTarget();
@@ -1978,41 +1954,6 @@ if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit
   %hlpUpdateTblTrxHilite(lObj);
 end
 
-function cbkLabeledPosNeedsSaveChanged(src,evt)
-
-lObj = evt.AffectedObject;
-val = lObj.labeledposNeedsSave;
-%cbkSaveNeeded(lObj,val,'Unsaved labels');
-lObj.setDoesNeedSave(val, 'Unsaved labels') ;
-
-
-% function cbkSaveNeeded(lObj,val,str)
-% 
-% if nargin < 2 || isempty(val),
-%   val = true;
-% end
-% 
-% hTx = lObj.gdata.txUnsavedChanges;
-% if val
-%   set(hTx,'Visible','on');
-% else
-%   set(hTx,'Visible','off');
-% end
-% 
-% if val,
-%   info = lObj.projFSInfo;
-%   if nargin < 3 || ~ischar(str),
-%     str = 'Save needed ';
-%   end
-%   if isempty(info),
-%     str = sprintf('%s since $PROJECTNAME saved.',str);
-%   else
-%     str = sprintf('%s since $PROJECTNAME %s at %s',str,info.action,datestr(info.timestamp,16));
-%   end
-%   SetStatus(lObj.gdata,str,false);
-% end
-% 
-% lObj.needsSave = val;
 
 function menuSetupLabelModeHelp(handles,labelMode)
 % Set .Checked for menu_setup_<variousLabelModes> based on labelMode
@@ -2466,8 +2407,7 @@ if tfTracker
         @(src1,evt1) cbkTrackerTrainStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trainEnd',...
         @(src1,evt1) cbkTrackerTrainEnd(src1,evt1,handles));
-      listenersNew{end+1,1} = tObj.lObj.addlistener('trackDLBackEnd','PostSet',...
-        @(src1,evt1) cbkTrackerBackEndChanged(src1,evt1,handles));      
+      listenersNew{end+1,1} = tObj.lObj.addlistener('didSetTrackDLBackEnd', @(src,evt) (cbkTrackerBackEndChanged(src,evt,handles)) );      
       listenersNew{end+1,1} = tObj.addlistener('trackStart',...
         @(src1,evt1) cbkTrackerStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trackEnd',...
@@ -2781,39 +2721,37 @@ catch exception
 end
 
 
-function cbkTrackersAllChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+function cbkTrackersAllChanged(src, evt)
+lObj = src ;
+if ~lObj.isinit ,
+  handles = lObj.gdata ;
+  handles = setupAvailTrackersMenu(handles, lObj.trackersAll) ;
+  guidata(handles.figure, handles) ;
+  cellfun(@deactivate, lObj.trackersAll) ;
+  cbkCurrTrackerChanged(src, evt) ;  % current tracker object depends on lObj.trackersAll
 end
 
-handles = lObj.gdata;
-handles = setupAvailTrackersMenu(handles,lObj.trackersAll);
-guidata(handles.figure,handles);
-cellfun(@deactivate,lObj.trackersAll);
-cbkCurrTrackerChanged([],evt); % current tracker object depends on lObj.trackersAll
 
 function cbkCurrTrackerPreChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end 
-tObj = lObj.tracker;
-if ~isempty(tObj)
-  tObj.deactivate();
+tObj = lObj.tracker ;
+if ~isempty(tObj) ,
+  tObj.deactivate() ;
 end
 
-function cbkCurrTrackerChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+
+function cbkCurrTrackerChanged(src, evt)
+lObj = src ;
+if lObj.isinit ,
+  return
 end 
-handles = lObj.gdata;
-
-tObj = lObj.tracker;
-iTrker = lObj.currTracker;
-
-handles = setupTrackerMenusListeners(handles,tObj,iTrker);
+handles = lObj.gdata ;
+tObj = lObj.tracker ;
+iTrker = lObj.currTracker ;
+handles = setupTrackerMenusListeners(handles, tObj, iTrker) ;
 % tracker changed, update tracker info
 if ~isempty(tObj),
   tObj.activate();
@@ -2823,9 +2761,9 @@ handles.labelTLInfo.setTracker(tObj);
 guidata(handles.figure,handles);
 
 function cbkTrackModeIdxChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end
 hPUM = lObj.gdata.pumTrack;
 hPUM.Value = lObj.trackModeIdx;
@@ -2840,11 +2778,11 @@ end
 % updated, this should resolve.
 
 function cbkTrackerNFramesChanged(src,evt)
-lObj = evt.AffectedObject;
-if lObj.isinit
-  return;
+lObj = src ;
+if lObj.isinit ,
+  return
 end
-setPUMTrackStrs(lObj);
+setPUMTrackStrs(lObj) ;
 
 function setPUMTrackStrs(lObj)
 if lObj.hasTrx
@@ -3121,7 +3059,7 @@ dat = get(src,'Data');
 if isscalar(rows)
   idx = dat{rows(1),1};
   lObj.setTarget(idx);
-  lObj.labelsOtherTargetHideAll();
+  %lObj.labelsOtherTargetHideAll();
 else
   % 20210514 Skipping this for now; possible performance hit
   
@@ -3916,8 +3854,9 @@ controller.quitRequested() ;
 function cbkShowSkeletonChanged(src,evt)
 lObj = src ;
 handles = lObj.gdata;
-onOff = onIff(lObj.showSkeleton);
-handles.menu_view_showhide_skeleton.Checked = onOff;
+hasSkeleton = ~isempty(lObj.skeletonEdges) ;
+isChecked = onIff(hasSkeleton && lObj.showSkeleton) ;
+set(handles.menu_view_showhide_skeleton, 'Enable', hasSkeleton, 'Checked', isChecked) ;
 
 function cbkShowMaRoiChanged(src,evt)
 lObj = src ;
@@ -4111,9 +4050,9 @@ str = 'New frames tracked';
 %cbkSaveNeeded(lObj,val,str);
 lObj.setDoesNeedSave(val, str) ;
 
-function cbkTrackerBackEndChanged(hObject, eventdata, handles)
-lObj = eventdata.AffectedObject;
-updateTrackBackendConfigMenuChecked(handles,lObj);
+function cbkTrackerBackEndChanged(src, evt, handles)
+lObj = src ;
+updateTrackBackendConfigMenuChecked(handles, lObj) ;
 
 function menu_track_cpr_show_replicates_Callback(hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
@@ -4132,7 +4071,7 @@ handles = lObj.gdata;
 handles.menu_view_hide_imported_predictions.Checked = onIff(lObj.labels2Hide);
 
 function cbkLabels2ShowCurrTargetOnlyChanged(src,evt)
-lObj = evt.AffectedObject;
+lObj = src ;
 handles = lObj.gdata;
 handles.menu_view_show_imported_preds_curr_target_only.Checked = ...
     onIff(lObj.labels2ShowCurrTargetOnly);
@@ -4144,21 +4083,18 @@ tObj = evt.AffectedObject;
 tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
 
 % when lastLabelChangeTS is updated, update the tracker info text in the main APT window
-function cbkLastLabelChangeTS(src,evt)
-
-lObj = evt.AffectedObject;
-if isempty(lObj.trackersAll) || isempty(lObj.tracker),
-  return;
+function cbkLastLabelChangeTS(src, evt)
+lObj = src ;
+if ~isempty(lObj.trackersAll) && ~isempty(lObj.tracker),
+  lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
 end
-lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
 
-function cbkParameterChange(src,evt)
-
-lObj = evt.AffectedObject;
-if isempty(lObj.trackersAll) || isempty(lObj.tracker),
-  return;
+function cbkParameterChange(src, evt)
+lObj = src ;
+if isempty(lObj.trackersAll) || isempty(lObj.tracker) ,
+  return
 end
-lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString();
+lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state
@@ -5257,31 +5193,10 @@ lObj.updateLandmarkCosmetics(mrkrSpecs);
 lObj.updateSkeletonCosmetics(skelSpecs);
 
 function menu_track_edit_skeleton_Callback(hObject, eventdata, handles)
-
-% persistent viewSelected;
-% 
-% if handles.labelerObj.nview > 1,
-%   if isempty(viewSelected) || viewSelected > handles.labelerObj.nview,
-%     viewSelected = 1;
-%   end
-%   views = cellstr(num2str((1:handles.labelerObj.nview)'));
-%   res = questdlg('View in which to label skeleton:','Select view',...
-%     views{:},num2str(viewSelected));
-%   if isempty(res),
-%     return;
-%   end
-%   viewSelected = str2double(res);
-% end
-% template only for view 1... 
-
 lObj = handles.labelerObj;
 landmark_specs('lObj',lObj);
-if isempty(lObj.skeletonEdges),
-  set(handles.menu_view_showhide_skeleton,'Enable','off','Checked','off');
-else
-  set(handles.menu_view_showhide_skeleton,'Enable','on','Checked','on');
-  lObj.setShowSkeleton(true);
-end
+%hasSkeleton = ~isempty(lObj.skeletonEdges) ;
+%lObj.setShowSkeleton(hasSkeleton) ;
 
 function menu_track_viz_dataaug_Callback(hObject,evtdata,handles)
 lObj = handles.labelerObj;

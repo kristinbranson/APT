@@ -119,7 +119,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
         %cropRadius = sPrm.ROOT.MultiAnimal.TargetCrop.Radius;
         prmsTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
-        cropRadius = lObj.maGetTgtCropRad(prmsTgtCrop);
+        cropRadius = maGetTgtCropRad(prmsTgtCrop);
         [roixlo,roixhi,roiylo,roiyhi] = xyRad2roi(xTrx,yTrx,cropRadius);
         axis(hAx,[roixlo roixhi roiylo roiyhi]);
       end

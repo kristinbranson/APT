@@ -174,5 +174,37 @@ classdef LabelerController < handle
       tv.updateTrx(tfShow);
     end
     
+    function didSetLblCore(obj)
+      labeler = obj.labeler_ ;
+      lblCore = labeler.lblCore ;
+      if ~isempty(lblCore) ,
+        % Add listeners for setting lblCore props.  (At some point, these too will
+        % feel the holy fire.)
+        lblCore.addlistener('hideLabels', 'PostSet', @(src,evt)(obj.lblCoreHideLabelsChanged())) ;
+        if isprop(lblCore,'streamlined')
+          lblCore.addlistener('streamlined', 'PostSet', @(src,evt)(obj.lblCoreStreamlinedChanged())) ;
+        end
+        % Trigger the callbacks 'manually' to update UI elements right now
+        obj.lblCoreHideLabelsChanged() ;
+        if isprop(lblCore,'streamlined')
+          obj.lblCoreStreamlinedChanged() ;
+        end
+      end      
+    end
+
+    function lblCoreHideLabelsChanged(obj)
+      labeler = obj.labeler_ ;
+      lblCore = labeler.lblCore ;
+      handles = guidata(obj.mainFigure_) ;
+      handles.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels) ;
+    end
+    
+    function lblCoreStreamlinedChanged(obj)
+      labeler = obj.labeler_ ;
+      lblCore = labeler.lblCore ;
+      handles = guidata(obj.mainFigure_) ;
+      handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
+    end
+    
   end
 end

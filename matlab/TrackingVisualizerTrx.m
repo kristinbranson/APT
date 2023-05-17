@@ -60,7 +60,7 @@ classdef TrackingVisualizerTrx < handle
       
       if islogical(click2nav)
         if click2nav
-          obj.trxSelectCbk = @(iTrx)lObj.clickTarget([],[],iTrx);
+          obj.trxSelectCbk = @(iTrx)(lObj.clickTarget(iTrx)) ;
           bdf = @(src,evt)obj.bdfTrx(src,evt);
         else
           obj.trxSelectCbk = [];

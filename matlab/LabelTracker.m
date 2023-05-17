@@ -46,7 +46,7 @@ classdef LabelTracker < handle
     hListeners; % cell vec of Labeler listeners
   end  
   
-  properties (SetObservable,SetAccess=protected)
+  properties (SetObservable, SetAccess=protected)
     hideViz = false; % scalar logical. If true, hide visualizations
     showPredsCurrTargetOnly = false;
   end
@@ -73,7 +73,7 @@ classdef LabelTracker < handle
       listeners = { ...
         addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
         %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-        addlistener(labelerObj,'currTarget','PostSet',@(s,e)obj.newLabelerTarget());
+        addlistener(labelerObj,'didSetCurrTarget',@(s,e)(obj.newLabelerTarget()));
         addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
         addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
         };

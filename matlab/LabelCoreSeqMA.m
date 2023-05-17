@@ -60,7 +60,7 @@ classdef LabelCoreSeqMA < LabelCore
                    % values 1, 11, 21, ...
                    
   end
-  properties (SetObservable=true)                   
+  properties (SetObservable)
     % two-click align
     % alt to using <shift>-a and <shift>-d for camroll
     tcOn = false; % scalar logical, true => two-click is on

@@ -30,7 +30,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       imsz = [];
       if lObj.hasTrx || (is_ma && is2stage && (stage==2))
         prmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
-        cropRad = lObj.maGetTgtCropRad(prmTgtCrop);
+        cropRad = maGetTgtCropRad(prmTgtCrop);
         imsz = cropRad*2+[1,1];
       elseif lObj.maIsMA
         if sPrm.ROOT.MultiAnimal.multi_crop_ims
