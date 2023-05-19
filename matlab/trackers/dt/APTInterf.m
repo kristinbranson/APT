@@ -167,7 +167,7 @@ classdef APTInterf
 
       % construct and concatenate multiple commands if tracking both
       % multiple views and multiple movies
-      if nviews > 1 && totrackinfo.nmovies > 1,
+      if nviews > 1 && totrackinfo.nmovies > 1 && ~totrackinfo.islistjob,
         code = cell(totrackinfo.nmovies,1);
         for i = 1:totrackinfo.nmovies,
           tticurr = totrackinfo.selectSubset('movie',i);
@@ -337,8 +337,12 @@ classdef APTInterf
            end
         end
       end
-      if totrackinfo.hasCroprois,
-        croproi = round(totrackinfo.getCroprois('movie',movidx));
+      if totrackinfo.hasCroprois && ~totrackinfo.islistjob,
+        croproi = totrackinfo.getCroprois('movie',movidx);
+        if iscell(croproi)
+          croproi = cell2mat(croproi');
+        end
+        croproi = round(croproi);
         if ~isempty(croproi) && ~all(any(isnan(croproi),2),1),
           croproirowvec = croproi';
           croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode

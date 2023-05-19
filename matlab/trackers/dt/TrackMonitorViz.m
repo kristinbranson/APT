@@ -474,13 +474,13 @@ classdef TrackMonitorViz < handle
 
     function updateStatusFinal(obj,nJobs)
       handles = guidata(obj.hfig);
-      if nJobs > 1,
-        sview = obj.jobDescs{ijob};
-      else
-        sview = '';
-      end
-
       for ijob = 1:nJobs
+        if nJobs > 1,
+          sview = obj.jobDescs{ijob};
+        else
+          sview = '';
+        end
+
         set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',...
           obj.nFramesToTrack(ijob),obj.nFramesToTrack(ijob),sview));
       end

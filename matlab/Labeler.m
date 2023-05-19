@@ -8986,7 +8986,7 @@ classdef Labeler < handle
         hIms(ivw) = imshow(ims{ivw});
         hIms(ivw).PickableParts = 'none';
         set(hIms(ivw),'Tag',sprintf('image_LabelOverlayMontage_vw%d',ivw));
-        clim('auto') ;
+%         clim('auto') ;
         hold on;
 %         axis xy;
         set(hAxs(ivw),'XTick',[],'YTick',[],'Visible','on');
@@ -10016,7 +10016,7 @@ classdef Labeler < handle
         movidx = movidx_new;
         tblMFT.mov = newmov;
 
-        movfiles = obj.movieFilesAllFullGTaware(movidx);
+        movfiles = obj.movieFilesAllFullGTaware(movidx,:);
         if obj.hasTrx
           trxfiles = obj.trxFilesAllFullGTaware;
           trxfiles = trxfiles(movidx,:);
@@ -10025,8 +10025,8 @@ classdef Labeler < handle
         end
         if obj.cropProjHasCrops
           cropInfo = obj.getMovieFilesAllCropInfoGTAware();
-          croprois = cell([numel(movfiles),obj.nview]);
-          for i = 1:numel(movfiles)
+          croprois = cell([size(movfiles,1),obj.nview]);
+          for i = 1:size(movfiles,1)
             for j = 1:obj.nview
               croprois{i,j} = cropInfo{movidx(i)}(j).roi;
             end
@@ -10210,25 +10210,26 @@ classdef Labeler < handle
       end
 %%
       nviews = obj.nview;
+      nphyspt = npts/nviews;
       prc_vals = [50,75,90,95,98];
-      prcs = prctile(l2err,prc_vals,nviews);
-      prcs = reshape(prcs,[],npts,nviews);
+      prcs = prctile(l2err,prc_vals,1);
+      prcs = reshape(prcs,[],nphyspt,nviews);
       lpos = t(1,:).pLbl;
       if ndims(lpos)==3
         lpos = squeeze(lpos(1,1,:));
       else
         lpos = squeeze(lpos(1,:));
       end
-      lpos = reshape(lpos,nviews*npts,2);
+      lpos = reshape(lpos,npts,2);
 %       [tf,lpos] = obj.labelPosIsLabeled(t.frm(1),t.iTgt(1),'iMov',abs(t.mov(1)),'gtmode',true);
       allims = cell(1,nviews);
-      allpos = zeros([npts,2,nviews]);
+      allpos = zeros([nphyspt,2,nviews]);
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
       for view = 1:nviews
-        curl = lpos( ((view-1)*npts+1):view*npts,:);
+        curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
         [im,isrotated,xdata,ydata,A,tform] = obj.getTargetIm(t.mov(1),t.frm(1),t.iTgt(1),view,true);
         if isrotated
-          curl = [curl,ones(npts,1)]*A;
+          curl = [curl,ones(nphyspt,1)]*A;
           curl = curl(:,1:2);
         end
         minpos = min(curl,[],1);
@@ -10249,7 +10250,7 @@ classdef Labeler < handle
       end
       
       h = figure('Name','GT err percentiles');
-      plotPercentileHist(allims,prcs,allpos,prc_vals,h)
+      plotPercentileHist(allims,prcs,allpos,prc_vals,h,txtOffset)
 %%      
 
       % Err by landmark
@@ -10258,6 +10259,19 @@ classdef Labeler < handle
       boxplot(l2err,'colors',clrs,'boxstyle','filled');
       args = {'fontweight' 'bold' 'interpreter' 'none'};
       xlabel(ax,'Landmark/point',args{:});
+      if nviews>1
+        xtick_str = {};
+        for view = 1:nviews
+          for n = 1:nphyspt
+            if n==1
+              xtick_str{end+1} = sprintf('View %d -- %d',view,n);
+            else
+              xtick_str{end+1} = sprintf('%d',n);
+            end
+          end
+        end
+        xticklabels(xtick_str)
+      end
       ylabel(ax,'L2 err (px)',args{:});
       title(ax,'GT err by landmark',args{:});
       ax.YGrid = 'on';

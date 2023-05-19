@@ -1357,7 +1357,7 @@ class list_loader(torch.utils.data.Dataset):
             cap = self.cap
 
         if self.has_crop:
-            crop_loc = self.cropLocs[mov][conf.view]
+            crop_loc = self.cropLocs[cur_i[0]-1][conf.view]
         else:
             crop_loc = None
         if conf.has_trx_file:

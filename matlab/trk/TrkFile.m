@@ -336,7 +336,7 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function initFromTableFull(obj,s,varargin)
+    function initFromTableFull(obj,s,view,varargin)
       %
       % Note: init* methods do not clear old state that is already set
       % 
@@ -435,12 +435,12 @@ classdef TrkFile < dynamicprops
             iTgt(off+1:off+nfrm) = double(x{2});
             movidx(off+1:off+nfrm) = true;
             frm(off+1:off+nfrm) = frm0:frm1;
-            pTrk(end+1:end+nfrm) = pred_locs(frm0:frm1,:,:);
+            pTrk(end+1:end+nfrm,:,:) = pred_locs(off+1:off+nfrm,:,:);
             if ists
-              pTrkTag(end+1:end+nfrm) = S.pred_locs.pred_ts(frm0:frm1,:,:);
+              pTrkTag(end+1:end+nfrm,:) = s.pred_locs.pred_ts(off+1:off+nfrm,:);
             end
             if istag
-              pTrkTS(end+1:end+nfrm) = S.pred_locs.occ(frm0:frm1,:,:);
+              pTrkTS(end+1:end+nfrm,:) = s.pred_locs.occ(off+1:off+nfrm,:);
             end
           end
         end

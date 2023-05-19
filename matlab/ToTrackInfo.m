@@ -681,7 +681,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         args = {};
       end
       if ~isempty(obj.croprois)
-        args = [args {'croprois',obj,croprois}];
+        args = [args {'croprois',obj.croprois}];
       end
       mov_rem = obj.movfiles;
       % this should be changed if we want to do it on AWS or other remote

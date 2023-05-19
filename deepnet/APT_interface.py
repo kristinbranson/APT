@@ -1168,7 +1168,12 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
         conf.imsz = (width, width)
     elif has_crops:
-        crops = A['MovieCropRois'][0]
+        crops = np.array(A['MovieCropRois']).transpose()
+        if conf.nviews>1:
+            crops = crops[view]
+        if crops.ndim==2:
+            crops = crops[:,0]
+
         xlo, xhi, ylo, yhi = crops
         conf.imsz = (int(yhi - ylo + 1), int(xhi - xlo + 1))
     else:
@@ -4809,6 +4814,15 @@ def run(args):
             out_dict = {'pred_locs': preds, 'labeled_locs': locs, 'list': info}
             if db_file.endswith('.json'):
                 V = PoseTools.json_load(db_file)
+                if isinstance(V['movieFiles'][0],list) and len(V['movieFiles'][0])>1:
+                    mf = V['movieFiles']
+                    mf = [m[view_ndx] for m in mf]
+                    V['movieFiles'] = mf
+                if np.array(V['cropLocs']).ndim==3:
+                    cl = V['cropLocs']
+                    cl = [c[view_ndx] for c in cl]
+                    V['cropLocs'] = cl
+
                 out_dict.update(V)
 
             hdf5storage.savemat(out_file, out_dict, appendmat=False,

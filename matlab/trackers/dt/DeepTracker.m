@@ -3360,7 +3360,9 @@ classdef DeepTracker < LabelTracker
 
       mft = gtmats(1).list; % should already be 1based from deepnet
       assert(size(mft,2)==3);
-      [~,gt_mov_match] = ismember(gtmats.movieFiles,gtmovs);
+      smovs = gtmats(1).movieFiles;
+      gtmovs =gtmovs(:,1);
+      [~,gt_mov_match] = ismember(smovs,gtmovs);
       new_mov_ndx = gt_mov_match(mft(:,1));
       mIdx = MovieIndex(-new_mov_ndx'); 
 
@@ -3743,16 +3745,16 @@ classdef DeepTracker < LabelTracker
       njobs = obj.trkSysInfo.n;
       for i = 1:njobs
         curj = obj.trkSysInfo.ttis(i);
-        outfile = curj.listoutfiles{1};
-        S = load(outfile);
         for view = curj.views(:)'
+          outfile = curj.listoutfiles{view};
+          S = load(outfile);
           movies = curj.getMovfiles('view',view);
           trkfiles = curj.getTrkfiles('view',view);
           nMovies = numel(movies);
           for midx = 1:nMovies
             K = TrkFile;
             K.movfile = movies{midx};
-            K.initFromTableFull(S);
+            K.initFromTableFull(S,view);
             K.save(trkfiles{midx});
           end          
         end
@@ -4689,7 +4691,7 @@ classdef DeepTracker < LabelTracker
           listinfo.trxFiles{i} = trxfileRem(i,:);
         end
         listinfo.cropLocs = cell(size(croprois,1),1);
-        for i = 1:size(trxfileRem,1),
+        for i = 1:size(movfileRem,1),
           listinfo.cropLocs{i} = croprois(i,:);
         end
       else
