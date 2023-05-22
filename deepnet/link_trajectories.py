@@ -712,7 +712,12 @@ def estimate_maxcost_ind(trk, params, nsample=1000, nframes_skip=1):
   Returns threshold on cost.
   """
 
-  nsample = np.minimum(trk.T, nsample)
+  allcosts = np.zeros((trk.ntargets, nsample))
+  allcosts[:] = np.nan
+  if trk.T<=(nframes_skip+1):
+    return np.zeros([0])
+
+  nsample = np.minimum(trk.T, nsample-nframes_skip-1)
   tsample = np.round(np.linspace(trk.T0, trk.T1-nframes_skip-1, nsample)).astype(int)
   minv, maxv = trk.get_min_max_val()
   minv = np.min(minv, axis=0)
@@ -721,9 +726,6 @@ def estimate_maxcost_ind(trk, params, nsample=1000, nframes_skip=1):
     return np.zeros(0)
   bignumber = np.sum(maxv-minv) * 2.1
   # bignumber = np.sum(np.nanmax(p,axis=(1,2,3))-np.nanmin(p,axis=(1,2,3)))*2.1
-  allcosts = np.zeros((trk.ntargets, nsample))
-  allcosts[:] = np.nan
-
   for i in range(nsample):
     t = tsample[i]
     pcurr = trk.getframe(t)

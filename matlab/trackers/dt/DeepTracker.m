@@ -5204,7 +5204,7 @@ classdef DeepTracker < LabelTracker
           else
             tObj = trkfilesIobj{1};
             if numel(trkfilesIobj)>1
-              tObj = tObj.merge(trkfilesIobj{2:end});
+              tObj = tObj.merge(trkfilesIobj(2:end),'new_ids',lObj.maIsMA);
             end
             trkfileObjs{i,ivw} = tObj;
             tfHasRes(i) = true;
