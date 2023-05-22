@@ -1348,7 +1348,7 @@ class list_loader(torch.utils.data.Dataset):
             self.cap = cap
             self.prev_item = cur_i
             if conf.has_trx_file:
-                trx_file = self.trx_files[mov]
+                trx_file = self.trx_files[cur_i[0]-1]
                 trx = apt.get_trx_info(trx_file,conf,n_frames)['trx']
             else:
                 trx = None

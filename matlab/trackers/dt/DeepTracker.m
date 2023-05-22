@@ -3338,7 +3338,7 @@ classdef DeepTracker < LabelTracker
     
     function gtComplete(obj)      
       gtmatfiles = obj.trkSysInfo.getListOutfiles;
-      gtmovs = obj.lObj.movieFilesAllGT;
+      gtmovs = obj.lObj.movieFilesAllGTFull;
       tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
       obj.trkGTtrkTbl = tblGT;
       obj.lObj.showGTResults('gtResultTbl',tblGT);
@@ -3754,7 +3754,7 @@ classdef DeepTracker < LabelTracker
           for midx = 1:nMovies
             K = TrkFile;
             K.movfile = movies{midx};
-            K.initFromTableFull(S,view);
+            K.initFromTableFull(S,view,midx);
             K.save(trkfiles{midx});
           end          
         end

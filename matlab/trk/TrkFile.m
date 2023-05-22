@@ -336,7 +336,7 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function initFromTableFull(obj,s,view,varargin)
+    function initFromTableFull(obj,s,view,movi,varargin)
       %
       % Note: init* methods do not clear old state that is already set
       % 
@@ -380,8 +380,8 @@ classdef TrkFile < dynamicprops
       frm = nan(n,1);
       movidx = false(n,1);
       off = 0;
-      movi = find(strcmp(obj.movfile,movfiles));
-      assert(numel(movi)==1);
+%       movi = find(strcmp(obj.movfile,movfiles));
+%       assert(numel(movi)==1);      
       nexttgt = 1;
       pTrk = nan(n,npts,d);
       pTrkTS = ones(n,npts)*now;

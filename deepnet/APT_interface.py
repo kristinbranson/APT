@@ -2467,26 +2467,6 @@ def get_augmented_images(conf, out_file, distort=True, on_gt=False, nsamples=Non
     logging.info('Augmented data saved to %s' % out_file)
 
 
-def convert_to_orig_list(conf, preds, locs, in_list, view, on_gt=False):
-    '''convert predicted locs back to original image co-ordinates.
-    INCOMPLETE/UNUSED
-    '''
-    lbl = h5py.File(conf.labelfile, 'r')
-    if on_gt:
-        local_dirs, _ = multiResData.find_gt_dirs(conf)
-    else:
-        local_dirs, _ = multiResData.find_local_dirs(conf)
-
-    if conf.has_trx_file:
-        trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
-    else:
-        trx_files = [None, ] * len(local_dirs)
-
-    for ndx, dir_name in enumerate(local_dirs):
-        cur_list = [[l[1], l[2]] for l in in_list if l[0] == (ndx)]
-        cur_idx = [i for i, l in enumerate(in_list) if l[0] == (ndx)]
-        crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
-
 
 def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_file=None):
     '''
@@ -3040,6 +3020,28 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
             db_len = tf_iterator.N
 
     return read_fn,db_len
+
+def convert_to_orig_list(preds, info, list_file, conf):
+    jlist = PoseTools.json_load(list_file)
+    pkeys = preds.keys()
+    pkeys = [p for p in pkeys if p.startswith('locs')]
+    if conf.has_trx_file:
+        trxfiles = jlist['trxFiles']
+        prev_trx_file = None
+        trx = None
+        for ndx,curi in enumerate(info):
+            if prev_trx_file != trxfiles[curi[0]]:
+                prev_trx_file = trxfiles[curi[0]]
+                trx = get_trx_info(prev_trx_file,conf,None)['trx']
+            for p in pkeys:
+                preds[p][ndx] = convert_to_orig(preds[p][ndx],conf,curi[1],trx[curi[2]],None)
+    elif conf.has_crop:
+        cropLocs = to_py(jlist['cropLocs'])
+        for ndx,curi in enumerate(info):
+            for p in pkeys:
+                preds[p][ndx] = convert_to_orig(preds[p][ndx],conf,curi[1],None,cropLocs[curi[0]])
+
+    return preds
 
 
 def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, **kwargs):
@@ -4801,6 +4803,9 @@ def run(args):
                 db_file = os.path.join(conf.cachedir, val_filename)
 
             preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            if cmd=='track':
+                preds = convert_to_orig_list(preds, info, db_file, conf)
+
             info = np.array(info)
             # A = convert_to_orig_list(conf,preds,locs, info)
             info = to_mat(info)

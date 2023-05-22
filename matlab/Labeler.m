@@ -9999,6 +9999,7 @@ classdef Labeler < handle
         % Pretty questionable. .labelGet* could accept GT flag
       end
 
+      obj.setStatus('Compiling list of Ground Truth Labels frames and tracking them...');
       tObj = obj.tracker;
       tblMFT = obj.gtGetTblSuggAndLbled();
 
@@ -10017,6 +10018,7 @@ classdef Labeler < handle
         tblMFT.mov = newmov;
 
         movfiles = obj.movieFilesAllFullGTaware(movidx,:);
+
         if obj.hasTrx
           trxfiles = obj.trxFilesAllFullGTaware;
           trxfiles = trxfiles(movidx,:);
@@ -10060,6 +10062,7 @@ classdef Labeler < handle
       else
         showGTResults('lblTbl',tblMFT,'useLabels2',true,'doreport',doreport,'doui',doui);
       end
+      obj.clearStatus;
 
     end
     
@@ -10227,7 +10230,7 @@ classdef Labeler < handle
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
       for view = 1:nviews
         curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
-        [im,isrotated,xdata,ydata,A,tform] = obj.getTargetIm(t.mov(1),t.frm(1),t.iTgt(1),view,true);
+        [im,isrotated,xdata,ydata,A,tform] = obj.getTargetIm(abs(t.mov(1)),t.frm(1),t.iTgt(1),view,true);
         if isrotated
           curl = [curl,ones(nphyspt,1)]*A;
           curl = curl(:,1:2);
@@ -14976,23 +14979,14 @@ classdef Labeler < handle
         tform = [];
 
       else
-          ydir = get(obj.gdata.axes_prev,'YDir');
-          if strcmpi(ydir,'normal'),
-            pi2sign = -1;
-          else
-            pi2sign = 1;
-          end
-          
-          [x,y,th] = obj.targetLoc(ModeInfo.iMov,ModeInfo.iTgt,ModeInfo.frm);
-          if isnan(th),
-            th = -pi/2;
-          end
-          ModeInfo.A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
-          ModeInfo.tform = maketform('affine',ModeInfo.A);  %#ok<MTFA1> 
-          [ModeInfo.im,ModeInfo.xdata,ModeInfo.ydata] = imtransform(ModeInfo.im,ModeInfo.tform,'bicubic');  %#ok<DIMTRNS> 
-          ModeInfo.isrotated = true;
-        
-        [x,y,th] = obj.targetLoc(mov,tgt,frm);
+        ydir = get(obj.gdata.axes_prev,'YDir');
+        if strcmpi(ydir,'normal'),
+          pi2sign = -1;
+        else
+          pi2sign = 1;
+        end
+      
+        [x,y,th] = obj.targetLoc(abs(mov),tgt,frm);
         if isnan(th),
           th = -pi/2;
         end

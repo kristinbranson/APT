@@ -559,7 +559,11 @@ classdef ToTrackInfo < matlab.mixin.Copyable
             end
             mov = DeepModelChainOnDisk.getCheckSingle(obj.getMovfiles('movie',imov,'view',view,'stage',stage));
             [~,movS] = fileparts(mov);
-            trkfilestr = [movS '_' trnstr '_' obj.trackid '.trk'];
+            % add hash of movie path because sometimes all the movies have
+            % the same name! Eg. Alice's projects
+            shash = string2hash(mov);
+            shash = shash(1:6);
+            trkfilestr = [movS '_' shash '_' trnstr '_' obj.trackid '.trk'];
             obj.trkfiles{imov,ivw,istage} = [trkoutdir,obj.trainDMC.filesep,trkfilestr];
           end
         end
