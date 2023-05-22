@@ -2736,8 +2736,8 @@ classdef DeepTracker < LabelTracker
     % - When tracking is done for a view, movIdx2trkfile is updated.
     % - When tracking is done for all views, we stop the bgMonitor and we
     % are done.
-    
-    function track(obj,varargin)
+
+    function checkSetupTrack(obj,totrackinfo,backend)
 
        if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
@@ -2754,14 +2754,8 @@ classdef DeepTracker < LabelTracker
         error('No trained tracker found.');
       end
 
-      % do_linking: when in multi-animal mode, should we train an id 
-      % recognizer to link trajectories. 
-      [totrackinfo,track_type,wbObj,isexternal] = ...
-        myparse(varargin,'totrackinfo',[],'track_type','track',...
-        'wbObj',[],'isexternal',false);
-      assert(~isempty(totrackinfo));
-
       % nothing to track?
+      assert(~isempty(totrackinfo));
       if totrackinfo.isempty(),
         warning('Nothing to track. Should probably catch this earlier.');
         return;
@@ -2799,18 +2793,28 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      % get info about current tracker
+            % get info about current tracker
       dmc = obj.trnLastDMC;
-      be = obj.lObj.trackDLBackEnd;
-      if be.type==DLBackEnd.AWS
-        setStatusFcn = @(varargin)(obj.lObj.setStatus(varargin{:}));
-        be.awsPretrack(dmc,setStatusFcn);
+%       backend = obj.lObj.trackDLBackEnd;
+      if backend.type==DLBackEnd.AWS
+        setStatusFcn = @(varargin)(obj.lObj.SetStatus(varargin{:}));
+        backend.awsPretrack(dmc,setStatusFcn);
       end
       obj.updateTrackerInfo();
       if ~dmc.canTrack(),
         warndlg('Tracker is invalid.','Tracker invalid','modal');
         return;
       end
+
+    end
+    
+    function track(obj,varargin)
+
+      [totrackinfo,track_type,wbObj,isexternal,backend] = ...
+        myparse(varargin,'totrackinfo',[],'track_type','track',...
+        'wbObj',[],'isexternal',false,'backend',obj.lObj.trackDLBackEnd);
+
+      obj.checkSetupTrack(totrackinfo,backend);
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
@@ -2888,14 +2892,36 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawn(totrackinfo,be,'track_type',track_type);
-      if ~tfSuccess,
+      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type);
+      if ~tfSuccess
         obj.bgTrkReset();
         return;
       end
 
     end
     
+
+    function tfSuccess = trackList(obj,varargin)
+      [totrackinfo,backend] = ...
+        myparse(varargin,'totrackinfo',[],'backend',obj.lObj.trackDLBackEnd);
+      obj.checkSetupTrack(totrackinfo,backend);
+
+      % nothing to track?
+      if totrackinfo.isempty(),
+        fprintf('All requested frames have been tracked already.\n');
+        return;
+      end
+
+      obj.bgTrkReset();
+      tfSuccess = obj.trkSpawnList(totrackinfo,backend);
+
+      if ~tfSuccess
+        obj.bgTrkReset();
+        return;
+      end
+
+    end
+
     % AL20191220 GT classification
     % track2() is an alternate codepath that is refactored relative to 
     % track(). Over time we may be able to migrate track() over to 
@@ -3310,39 +3336,15 @@ classdef DeepTracker < LabelTracker
       [tfSucc,msg] = obj.track2_spawn(tj);
     end
     
-    function cbkTrackGTComplete(obj,res)
-      gtmatfiles = {res.trkfile}';
-      tblGT = obj.trackGTgtmat2tbl(gtmatfiles);
+    function gtComplete(obj)      
+      gtmatfiles = obj.trkSysInfo.getListOutfiles;
+      gtmovs = obj.lObj.movieFilesAllGTFull;
+      tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
       obj.trkGTtrkTbl = tblGT;
-      obj.trackGTcompute(tblGT);
+      obj.lObj.showGTResults('gtResultTbl',tblGT);
     end
-    
-    function trackGTcompute(obj,tblGT,varargin)
-      reportargs = myparse(varargin,...
-        'reportargs',{'nmontage',24});
-      
-      tblMFT_SuggAndLbled = obj.lObj.gtGetTblSuggAndLbled();
-      
-      lObj = obj.lObj;
-      
-      % only for check below. this pLbl is read from gtmatfiles which is 
-      % produced by the Py
-      tblGTpLbl = tblGT.pLbl; 
-      tblGT(:,'pLbl') = [];
-      lObj.gtComputeGTPerformanceTable(tblMFT_SuggAndLbled,tblGT); % also sets obj.lObj.gtTblRes
-      d = tblGTpLbl-lObj.gtTblRes.pLbl;
-      GTLBL_THRESH_PX = 1e-2;
-      if max(abs(d(:))) > GTLBL_THRESH_PX
-        % In cases with trx, crops etc the gtlbls from gtTblRes have been
-        % round-tripped thru i) crop/rotate into gt cache and ii) invert
-        % back into absolute coords.
-        warningNoTrace('Discrepancy encountered in GT labels read from deepnet mat-files.');
-      end
-      lObj.gtReport(reportargs{:});
-      msgbox('GT results available in Labeler property ''gtTblRes''.');
-    end
-    
-    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,varargin)
+        
+    function tblGT = trackGTgtmat2tbl(obj,gtmatfiles,gtmovs,varargin)
       
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
@@ -3354,52 +3356,46 @@ classdef DeepTracker < LabelTracker
       if numel(gtmats)>1
         assert(isequal(gtmats.list)); % all mft/metadata tables should match
       end
-      
+
+
       mft = gtmats(1).list; % should already be 1based from deepnet
       assert(size(mft,2)==3);
-      mIdx = MovieIndex(-mft(:,1)); 
-      % labeled/pred_locs are [nfrmtrk x nphyspt x 2]
-      plbl = cat(2,gtmats.locs_labeled); % now [nfrmtrk x npt x 2]      
-      nfrmtrk = size(plbl,1);
-      plbl = reshape(plbl,nfrmtrk,[]); % now [nfrmtrk x (npt*2)] where col order is (all x-coords, then all y-)
-      ptrk = cat(2,gtmats.(GTMATLOCFLD));
+      smovs = gtmats(1).movieFiles;
+      gtmovs =gtmovs(:,1);
+      [~,gt_mov_match] = ismember(smovs,gtmovs);
+      new_mov_ndx = gt_mov_match(mft(:,1));
+      mIdx = MovieIndex(-new_mov_ndx'); 
+
+      preds = gtmats(1).pred_locs.(GTMATLOCFLD);
+      ndim_locs = ndims(preds);
+      isma = ndim_locs==4;
+      pts_dim=ndim_locs-1;
+      % labeled/pred_locs are [nfrmtrk x nphyspt x 2] for single animal.
+      % [nfrmtrk x nanimals x npyspt x 2] for ma
+      out_sz = size(preds);
+      out_sz = num2cell(out_sz(1:ndim_locs-2));
+      out_sz{end+1} = [];
+      gt_pred = [gtmats.pred_locs];
+      ptrk = cat(pts_dim,gt_pred.(GTMATLOCFLD));
       nfrmtrk = size(ptrk,1);
-      ptrk = reshape(ptrk,nfrmtrk,[]);
-      assert(isequal(size(plbl),size(ptrk)));
+      ptrk = reshape(ptrk,out_sz{:});
       
-      tbltrkMFT = table(mIdx,mft(:,2),mft(:,3),...
+      tbltrkMFT = table(mIdx,uint32(mft(:,2)),uint32(mft(:,3)),...
         'VariableNames',{'mov' 'frm' 'iTgt'});
-      lObj = obj.lObj;
-      ppdb = lObj.ppdb;
-      nphyspts = lObj.nPhysPoints;
-      nvw = lObj.nview;
-      sz = [nfrmtrk nphyspts nvw 2];
-      pbig = cat(5,reshape(plbl,sz),reshape(ptrk,sz));
-      pbig = ppdb.invtform(tbltrkMFT,pbig);
-      plblabs = reshape(pbig(:,:,:,:,1),nfrmtrk,[]);
-      ptrkabs = reshape(pbig(:,:,:,:,2),nfrmtrk,[]);      
       
-      szplbl = size(plbl);
-      if isfield(gtmats,GTMATOCCFLD)
-        ptrkocc = cat(2,gtmats.(GTMATOCCFLD));
-        assert(isequal(size(ptrkocc),[szplbl(1) szplbl(2)/2]));
+      sz_occ = size(ptrk);
+      sz_occ(end) = sz_occ(end)/2;
+      if isfield(gt_pred,GTMATOCCFLD)
+        ptrkocc = cat(pts_dim,gt_pred.(GTMATOCCFLD));
+        assert(isequal(size(ptrkocc),sz_occ));
       else
-        ptrkocc = nan(szplbl(1),szplbl(2)/2);
+        ptrkocc = nan(sz_occ);
       end
       
-      %tfcroplocs = arrayfun(@(x)~isempty(x.crop_locs) && any(~isnan(x.crop_locs(:))),...
-      %  gtmats);
-      %assert(all(tfcroplocs==tfcroplocs(1)));
-      tfcroplocs = false;
-      
-      tablevars = {plblabs,ptrkabs,ptrkocc};
-      tablevarnames = {'pLbl' 'pTrk' 'pTrkocc'};      
-      if tfcroplocs(1)
-        rois = cat(2,gtmats.crop_locs); % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...]
-        tablevars{end+1} = rois; 
-        tablevarnames{end+1} = 'roi'; 
-      end            
+      tablevars = {ptrk,ptrkocc};
+      tablevarnames = {'pTrk' 'pTrkocc'};      
       tblGT = [tbltrkMFT table(tablevars{:},'VariableNames',tablevarnames)];
+
     end
         
     function [tfCanTrack,reason] = canTrack(obj)
@@ -3525,6 +3521,13 @@ classdef DeepTracker < LabelTracker
         end
       end
 
+      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend);
+      %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
+    end
+
+    function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,varargin)
+      [track_type] = myparse(varargin,'track_type','movie');
+
       if obj.dryRunOnly
         fprintf(1,'Dry run, not tracking:\n');
         fprintf('%s\n',syscmds{:});
@@ -3534,7 +3537,6 @@ classdef DeepTracker < LabelTracker
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
 
-      %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
       bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       bgTrkWorkerObj.initFiles(obj.trkSysInfo);
@@ -3542,12 +3544,16 @@ classdef DeepTracker < LabelTracker
       % KB 20190115: adding trkviz
       nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
       nFramesTrackSum = sum(nFramesTrack);
-      fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
+      if totrackinfo.islistjob
+        fprintf('Tracking %d frames.\n',nFramesTrackSum);
+      else
+        fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
         numel(nFramesTrack));
+      end
 
       trkVizObj = feval(obj.bgTrkMonitorVizClass,totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
       bgTrkMonitorObj = BgTrackMonitor;
-      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk);
+      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk,'track_type',track_type);
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
       addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
@@ -3562,6 +3568,46 @@ classdef DeepTracker < LabelTracker
         jobID = cell2mat(jobID);
       end
       bgTrkWorkerObj.jobID = jobID;
+
+    end
+
+    function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
+      [isgt] = myparse(varargin,'isgt',false);
+      tfSuccess = false;
+
+      cacheDir = obj.lObj.DLCacheDir;
+      aptroot = obj.setupBackEndTrain(backend,cacheDir);
+      nowstr = datestr(now,'yyyymmddTHHMMSS');
+
+      totrackinfo.setTrainDMC(obj.trnLastDMC);
+      totrackinfo.setTrackid(nowstr);
+      if isgt
+        totrackinfo.setJobid('gt');
+      else
+        totrackinfo.setJobid('list');
+      end        
+      totrackinfo.setDefaultFiles();
+
+      totrackinfo.makeListFile(isgt);
+      gpuid =nan;
+
+      basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
+      backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
+      syscmds = backend.wrapBaseCommand(basecmd,backendArgs{:});
+      cmdfiles = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
+
+      if backend.type == DLBackEnd.Docker
+        containerName = totrackinfo.containerName;
+        logfile = totrackinfo.logfile;
+        logcmds = {backend.logCommand(containerName,logfile)}; 
+      else
+        logcmds = [];
+      end
+
+      totrackinfo.prepareFiles();
+      obj.trkCreateConfig(totrackinfo.trackconfigfile);
+
+      tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,{syscmds},{cmdfiles},logcmds,backend,'track_type','list');
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
@@ -3694,6 +3740,26 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitor = trkMonitorObj;
       obj.bgTrkMonBGWorkerObj = trkWorkerObj;
     end
+
+    function createTrkfilesFromListout(obj)
+      njobs = obj.trkSysInfo.n;
+      for i = 1:njobs
+        curj = obj.trkSysInfo.ttis(i);
+        for view = curj.views(:)'
+          outfile = curj.listoutfiles{view};
+          S = load(outfile);
+          movies = curj.getMovfiles('view',view);
+          trkfiles = curj.getTrkfiles('view',view);
+          nMovies = numel(movies);
+          for midx = 1:nMovies
+            K = TrkFile;
+            K.movfile = movies{midx};
+            K.initFromTableFull(S,view,midx);
+            K.save(trkfiles{midx});
+          end          
+        end
+      end
+    end
     
     function trkCompleteCbk(obj,res)
 
@@ -3703,6 +3769,11 @@ classdef DeepTracker < LabelTracker
         nMovies = obj.trkSysInfo.nmovies;
         stages = obj.trkSysInfo.stages;
         views = obj.trkSysInfo.views;
+        islistjob = obj.trkSysInfo.islistjob;
+
+        if islistjob
+          obj.createTrkfilesFromListout();
+        end
 
         for movi = 1:nMovies,
           movfiles = obj.trkSysInfo.getMovfiles('movie',movi,'stage',stages(end));
@@ -3741,6 +3812,11 @@ classdef DeepTracker < LabelTracker
       
       catch ME,
         warning('Error gathering tracking results:\n%s',getReport(ME));
+        return
+      end
+
+      if obj.trkSysInfo.ttis(1).isgtjob
+        obj.gtComplete();
       end
       
     end
@@ -4595,9 +4671,10 @@ classdef DeepTracker < LabelTracker
     end
     function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
       
-      [trxfileRem,isWinBackend] = myparse(varargin,...
+      [trxfileRem,isWinBackend,croprois] = myparse(varargin,...
         'trxFiles',{},...
-        'isWinBackend',false ...
+        'isWinBackend',false, ...
+        'croprois',[] ...
         );
       
       nviews = size(movfileRem,2);
@@ -4613,9 +4690,14 @@ classdef DeepTracker < LabelTracker
         for i = 1:size(trxfileRem,1),
           listinfo.trxFiles{i} = trxfileRem(i,:);
         end
+        listinfo.cropLocs = cell(size(croprois,1),1);
+        for i = 1:size(movfileRem,1),
+          listinfo.cropLocs{i} = croprois(i,:);
+        end
       else
         listinfo.movieFiles = movfileRem;
         listinfo.trxFiles = trxfileRem;
+        listinfo.cropLocs = croprois;
       end
 
       % which movie index does each row correspond to?
@@ -5219,6 +5301,7 @@ classdef DeepTracker < LabelTracker
   methods (Static)
     
     function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
+      % why in the world is this here and not TrkFile? MK 20230509
       [rawload,movfile,movnframes] = myparse(varargin,...
         'rawload',false,...
         'movfile','',...

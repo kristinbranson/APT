@@ -191,7 +191,7 @@ classdef MovieManagerController < handle
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
-      lObj.set_status(sprintf('Switching to movie %d...\n',iMov));
+      lObj.setStatus(sprintf('Switching to movie %d...\n',iMov));
       if obj.selectedTabMatchesLabelerGTMode
         lObj.movieSet(iMov);
       else
@@ -213,12 +213,12 @@ classdef MovieManagerController < handle
       
       switch src.Tag
         case 'pbAdd'
-          lObj.set_status('Adding new movie...');
+          lObj.setStatus('Adding new movie...');
           oc = onCleanup(@()(lObj.clearStatus()));
           obj.addLabelerMovie(); % can throw
           %lObj.ClearStatus();
         case 'pbRm'
-          lObj.set_status('Removing movie...');
+          lObj.setStatus('Removing movie...');
           obj.rmLabelerMovie();
           lObj.clearStatus();
         case 'pbSwitch' 
@@ -233,7 +233,7 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
-            lObj.set_status(sprintf('Switching to unlabeled movie %d',iMov));
+            lObj.setStatus(sprintf('Switching to unlabeled movie %d',iMov));
             lObj.movieSet(iMov);
             lObj.clearStatus();
           end
@@ -302,11 +302,11 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
-      lObj.set_status(sprintf('Adding movies from file %s...',fname));
+      lObj.setStatus(sprintf('Adding movies from file %s...',fname));
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.set_status('Switching to movie 1...');
+        lObj.setStatus('Switching to movie 1...');
         lObj.movieSet(1);
       end
       lObj.clearStatus();

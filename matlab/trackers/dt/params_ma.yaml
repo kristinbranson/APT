@@ -79,7 +79,7 @@ ROOT:
           - link_maxframes_delete: ['Minimum Trajectory Length',unsigned,true,'Delete trajectories of length shorter than this.',10,'','Beginner',['ma'],true]
           - link_maxframes_missed: ['Max gap length to link',unsigned,true,'Maximum gap length in trajectory across which to link trajectory.',10,'','Advanced',['ma'],true]
           - link_strict_match_thres: ['Matching Threshold',float,true,'Match a prediction only if the distance to closest match is smaller than the distance to the next closest match by this factor.',2,'','Advanced',['ma'],true]
-          - link_id_training_iters: ['Identity Tracker Training iterations',unsigned,true,'Number of steps to training the identity tracker for.',40000,'','Beginner',['ma'],true]
+          - link_id_training_iters: ['Identity Tracker Training iterations',unsigned,true,'Number of steps to training the identity tracker for.',100000,'','Beginner',['ma'],true]
           - link_id_tracklet_samples: ['Tracklet Samples',unsigned,true,'Number of examples to sample from a tracklet when assigning identity.',25,'','Advanced',['ma'],true]
           - link_id_rescale: ['Identity tracker downsampling factor',float,true,'Amount to downsample the cropped animal images for identity tracking.',1,'','Important',['ma'],true]
           - link_id_batch_size: ['Identity tracker batch size',unsigned,true,'Batch size to use for training identity network.',16,'','Beginner',['ma'],true]

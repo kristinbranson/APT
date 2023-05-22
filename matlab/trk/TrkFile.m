@@ -336,7 +336,7 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function initFromTableFull(obj,s,varargin)
+    function initFromTableFull(obj,s,view,movi,varargin)
       %
       % Note: init* methods do not clear old state that is already set
       % 
@@ -355,27 +355,43 @@ classdef TrkFile < dynamicprops
         obj.(prop) = val;
       end
       
-      [movfiles,nviewstrack] = ...
-        TrkFile.convertJSONCellMatrix(s.to_track.movieFiles);
+%       [movfiles,nviewstrack] = ...
+%         TrkFile.convertJSONCellMatrix(s.movieFiles);
+      movfiles = s.movieFiles;
 
-      n = size(s.pred_locs,1);
-      npts = size(s.pred_locs,2);
-      d = size(s.pred_locs,3);
+      pred_locs = s.pred_locs.locs;
+      ndim = ndims(pred_locs);
+      if ndim ==4
+        isma = true;
+      else
+        isma = false;
+      end
+
+      npts = size(pred_locs,ndim-1);
+      d = size(pred_locs,ndim);
+      if isma
+        nanimals = size(pred_locs,ndim-2);
+      else
+        nanimals = 1;
+      end
       assert(d == 2);
-
+      n = size(pred_locs,1)*nanimals;
       iTgt = nan(n,1);
       frm = nan(n,1);
       movidx = false(n,1);
       off = 0;
-      movi = find(strcmp(obj.movfile,movfiles));
-      assert(numel(movi)==1);
-      for i = 1:numel(s.to_track.toTrack),
+%       movi = find(strcmp(obj.movfile,movfiles));
+%       assert(numel(movi)==1);      
+      nexttgt = 1;
+      pTrk = nan(n,npts,d);
+      pTrkTS = ones(n,npts)*now;
+      pTrkTag = nan(n,npts);
+      ists = isfield(s,'pred_ts');
+      istag = isfield(s.pred_locs,'occ');
+
+      for i = 1:numel(s.toTrack)
         
-        x = s.to_track.toTrack{i};
-        if double(x{1}) ~= movi,
-          continue;
-        end
-        
+        x = s.toTrack{i};
         frm0 = x{3};
         if iscell(frm0),
           frm0 = frm0{1};
@@ -392,9 +408,42 @@ classdef TrkFile < dynamicprops
           frm1 = frm0;
         end
         nfrm = frm1-frm0+1;
-        frm(off+1:off+nfrm) = frm0:frm1;
-        iTgt(off+1:off+nfrm) = double(x{2});
-        movidx(off+1:off+nfrm) = true;
+
+        if double(x{1}) == movi,
+          if isma
+            % all predictions are new animals
+            for fndx = 1:nfrm
+              for andx = 1:nanimals
+                curndx = (off+fndx-1)*nanimals+andx;
+                frm(curndx) = frm0+fndx-1;
+                curp = permute(pred_locs(off+fndx,andx,:,:),[3,4,1,2]);
+                if ~all(isnan(curp))
+                  iTgt(curndx) = nexttgt;
+                  nexttgt = nexttgt+1;
+                  movidx(curndx) = true;
+                  pTrk(curndx,:,:) = curp;
+                  if ists
+                    pTrkTS(curndx,:) = permute(s.pred_locs.pred_ts(off+fndx,andx,:),[2,3,1]);
+                  end
+                  if istag
+                    pTrkTag(curndx,:) = permute(s.pred_locs.occ(off+fndx,andx,:),[2,3,1]);
+                  end
+                end
+              end
+            end
+          else
+            iTgt(off+1:off+nfrm) = double(x{2});
+            movidx(off+1:off+nfrm) = true;
+            frm(off+1:off+nfrm) = frm0:frm1;
+            pTrk(end+1:end+nfrm,:,:) = pred_locs(off+1:off+nfrm,:,:);
+            if ists
+              pTrkTag(end+1:end+nfrm,:) = s.pred_locs.pred_ts(off+1:off+nfrm,:);
+            end
+            if istag
+              pTrkTS(end+1:end+nfrm,:) = s.pred_locs.occ(off+1:off+nfrm,:);
+            end
+          end
+        end
         off = off + nfrm;
       end
       % pTrk is [npttrked x 2 x nfrm x ntgt]
@@ -403,32 +452,49 @@ classdef TrkFile < dynamicprops
       % pred_locs is n x npts x 2
       
       nidx = nnz(movidx);
-      nfrm = max(frm);
-      [obj.pTrkiTgt,~,tgtidx] = unique(iTgt);
-      ntgt = numel(obj.pTrkiTgt);
-      pTrk = s.pred_locs(movidx,:,:); %#ok<PROPLC>
-      obj.pTrk = nan([npts,2,nfrm,ntgt]);
-      ists = isfield(s,'pred_ts');
-      istag = isfield(s,'pred_tag');
-      if ists,
-        obj.pTrkTS = zeros(npttrk,nfrm,ntgt);
+      [obj.pTrkiTgt,~,tgtidx] = unique(iTgt(movidx));
+      frm = frm(movidx);
+      pTrk = pTrk(movidx,:,:);
+      pTrkTS = pTrkTS(movidx,:);
+      if istag
+        pTrkTag = pTrkTag(movidx,:);
       end
-      if istag,
-        obj.pTrkTag = false(npttrk,nfrm,ntgt);
+      nfrm = max(frm);
+      ntgt = numel(obj.pTrkiTgt);
+      
+      obj.pTrk = cell(1,ntgt);
+      obj.pTrkTS = cell(1,ntgt);
+      if istag
+        obj.pTrkTag = cell(1,ntgt);
       end
 
-      for i = 1:nidx,
-        obj.pTrk(:,:,frm(i),tgtidx(i)) = permute(pTrk(i,:,:),[2,3,1]); %#ok<PROPLC>
-        if ists,
-          obj.pTrkTS(:,frm(i),tgtidx(i)) = s.pred_ts(:,i);
+      startframes = zeros(1,ntgt);
+      endframes = zeros(1,ntgt);
+      for i = 1:ntgt
+        curfr = frm(tgtidx==i);
+        startframes(i) = min(curfr);
+        endframes(i) = max(curfr);
+        nfr = endframes(i) - startframes(i)+1;
+        obj.pTrk{i} = nan(npts,d,nfr);
+        obj.pTrkTS{i} = nan(npts,nfr);
+        if istag
+          obj.pTrkTag{i} = false(npts,nfr);
         end
-        if istag,
-          obj.pTrkTag(:,frm(i),tgtidx(i)) = s.pred_tag(:,i);
+      end
+      obj.startframes = startframes;
+      obj.endframes = endframes;
+
+      for i = 1:nidx
+        fndx = frm(i)-startframes(tgtidx(i))+1;
+        curt = tgtidx(i);
+        obj.pTrk{curt}(:,:,fndx) = permute(pTrk(i,:,:),[2,3,1]);
+        obj.pTrkTS{curt}(:,fndx) = permute(pTrkTS(i,:),[2,1]);
+        if istag
+          obj.pTrkTag{curt}(:,fndx) = permute(pTrkTag(i,:),[2,1])<0.5;
         end
       end
       
-      obj.isfull = true;
-      obj.initUnsetFull();      
+      obj.isfull = false;
     end    
     
     function initFromTracklet(obj,s)

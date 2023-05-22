@@ -126,6 +126,14 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         killFiles{i} = obj.ttis(i).getKillfile();
       end
     end
+    function listoutfiles = getListOutfiles(obj)
+      listoutfiles = {};
+      for i = 1:numel(obj.ttis)        
+        j = obj.ttis(i).getListOutfiles();
+        listoutfiles = [listoutfiles j];
+      end
+
+    end
 
     function v = views(obj)
       if numel(obj.ttis) == 0,
@@ -155,6 +163,14 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
 
     function v = n(obj)
       v = numel(obj.ttis);
+    end
+
+    function v = islistjob(obj)
+      if numel(obj.ttis) == 0
+        v = false;
+      else
+        v = obj.ttis(1).islistjob;
+      end
     end
 
   end

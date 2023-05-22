@@ -261,9 +261,11 @@ classdef TrackMonitorViz < handle
       
       TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
       res = sRes.result;      
-            
-      TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
-      TrackMonitorViz.debugfprintf('N. frames tracked: ');
+       
+      if isfield(res(1),'parttrkfile')
+        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
+        TrackMonitorViz.debugfprintf('N. frames tracked: ');
+      end
       TrackMonitorViz.debugfprintf('tfcompete: %s\n',mat2str([res.tfComplete]));
       nJobs = numel(res); 
       
@@ -280,10 +282,15 @@ classdef TrackMonitorViz < handle
       tic;
       for ijob=1:nJobs,
         isdone = res(ijob).tfComplete;
-        partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
-        isupdate = ...
+        if isfield(res(ijob),'parttrkfileTimestamp'),
+          partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+          isupdate = ...
           (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
            || isdone;
+        else
+          partFileExists = false;
+          isupdate =false;
+        end
 
         if isupdate,
           if obj.bulkAxsIsBulkMode
@@ -400,10 +407,9 @@ classdef TrackMonitorViz < handle
       if obj.isKilled,
         status = 'Tracking process killed.';
         tfSucc = false;
-      elseif isTrackComplete,
+      elseif isTrackComplete
         status = 'Tracking complete.';
-        handles = guidata(obj.hfig);
-        TrackMonitorViz.updateStartStopButton(handles,false,true);
+        obj.updateStatusFinal(nJobs)
       elseif ~isRunning,
         if isErr,
           status = 'Error while tracking.';
@@ -464,6 +470,24 @@ classdef TrackMonitorViz < handle
       handles.text_clusterinfo.ForegroundColor = 'r';
       TrackMonitorViz.updateStartStopButton(handles,false,false);
       drawnow;
+    end
+
+    function updateStatusFinal(obj,nJobs)
+      handles = guidata(obj.hfig);
+      for ijob = 1:nJobs
+        if nJobs > 1,
+          sview = obj.jobDescs{ijob};
+        else
+          sview = '';
+        end
+
+        set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',...
+          obj.nFramesToTrack(ijob),obj.nFramesToTrack(ijob),sview));
+      end
+      set(obj.hline,'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED,'XData',[0,0,1,1,0]);
+      obj.bulkMovTracked(:) = true;
+      TrackMonitorViz.updateStartStopButton(handles,false,true);
+
     end
         
     function stopTracking(obj)

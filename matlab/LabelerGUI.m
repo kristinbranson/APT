@@ -3037,9 +3037,9 @@ switch lc.state
     assert(false);
 end
 
-if debugtiming,
-  fprintf('toggleAccept took %f seconds\n',toc(starttime));
-end
+% if debugtiming,
+%   fprintf('toggleAccept took %f seconds\n',toc(starttime));
+% end
 
 function cbkTblTrxCellSelection(src,evt) %#ok<*DEFNU>
 % Current/last row selection is maintained in hObject.UserData

@@ -335,8 +335,9 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         try:
             envs = multiResData.create_envs(conf, split)
         except IOError:
-            logging.exception('DB_WRITE: Could not write to tfrecord database')
-            exit(1)
+            estr = 'DB_WRITE: Could not write to tfrecord database'
+            logging.exception(estr)
+            raise ValueError(str)
 
     out_fns = [lambda data: envs[0].write(tf_serialize(data)),
                lambda data: envs[1].write(tf_serialize(data))]
@@ -479,10 +480,11 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
 
     out_fns = [lambda data: convert_to_coco(train_info, train_ann, data, conf),
                lambda data: convert_to_coco(val_info, val_ann, data, conf)]
-    if use_cache:
-        splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt, trnpack_val_split=trnpack_val_split)
-    else:
-        splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
+
+    splits, __ = db_from_cached_lbl(conf, out_fns, split, split_file, on_gt, trnpack_val_split=trnpack_val_split)
+    # if use_cache:
+    # else:
+    #     splits = db_from_lbl(conf, out_fns, split, split_file, on_gt, max_nsamples=max_nsamples, db_dict=db_dict)
 
     logging.info('Rewriting training labels...')
     with open(train_filename + '.json', 'w') as f:
@@ -1166,7 +1168,12 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
         conf.imsz = (width, width)
     elif has_crops:
-        crops = A['MovieCropRois'][0]
+        crops = np.array(A['MovieCropRois']).transpose()
+        if conf.nviews>1:
+            crops = crops[view]
+        if crops.ndim==2:
+            crops = crops[:,0]
+
         xlo, xhi, ylo, yhi = crops
         conf.imsz = (int(yhi - ylo + 1), int(xhi - xlo + 1))
     else:
@@ -1430,7 +1437,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
             cap = movies.Movie(dir_name)
         except ValueError:
             logging.exception('MOVIE_READ: ' + local_dirs[ndx] + ' is missing')
-            sys.exit(1)
+            raise ValueError('MOVIE_READ: ' + local_dirs[ndx] + ' is missing')
 
         if from_list:
             n_trx = n_trx_list
@@ -2460,26 +2467,6 @@ def get_augmented_images(conf, out_file, distort=True, on_gt=False, nsamples=Non
     logging.info('Augmented data saved to %s' % out_file)
 
 
-def convert_to_orig_list(conf, preds, locs, in_list, view, on_gt=False):
-    '''convert predicted locs back to original image co-ordinates.
-    INCOMPLETE/UNUSED
-    '''
-    lbl = h5py.File(conf.labelfile, 'r')
-    if on_gt:
-        local_dirs, _ = multiResData.find_gt_dirs(conf)
-    else:
-        local_dirs, _ = multiResData.find_local_dirs(conf)
-
-    if conf.has_trx_file:
-        trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
-    else:
-        trx_files = [None, ] * len(local_dirs)
-
-    for ndx, dir_name in enumerate(local_dirs):
-        cur_list = [[l[1], l[2]] for l in in_list if l[0] == (ndx)]
-        cur_idx = [i for i, l in enumerate(in_list) if l[0] == (ndx)]
-        crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
-
 
 def classify_list(conf, pred_fn, cap, to_do_list, trx, crop_loc, n_done=0, part_file=None):
     '''
@@ -2613,12 +2600,11 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     return pred_fn, close_fn, model_file
 
 
-def classify_list_all(model_type, conf, in_list, on_gt, model_file,
-                      movie_files=None, trx_files=None, crop_locs=None,
+def classify_list_all(model_type, conf, in_list_file, on_gt, model_file,
                       part_file=None,  # If specified, save intermediate "part" files
                       ):
     '''
-    Classifies a list of examples.
+    Classifies a list in json format.
 
     in_list should be of list of type [mov_file, frame_num, trx_ndx]
     everything is 0-indexed
@@ -2631,52 +2617,14 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
     and crop_locs (if appropriate) must be provided.
     '''
 
-    # Possible refactor: factor into i) marshall movs/trxs/crops and ii) track the
-    #  'external' list
-
-    is_external_movies = movie_files is not None
-    if is_external_movies:
-        local_dirs = movie_files
-
-        assert (trx_files is not None and len(trx_files) > 0) == conf.has_trx_file, \
-            "Unexpected trx_files specification (length {}), conf.has_trx_file={}.".format(
-                len(trx_files), conf.has_trx_file)
-
-        is_external_crop = (crop_locs is not None) and (len(crop_locs) > 0)
-        if is_external_crop:
-            assert len(crop_locs) == len(local_dirs), \
-                "Number of crop_locs ({}) does not match number of movies ({})".format(len(crop_locs), len(local_dirs))
-    elif on_gt:
-        local_dirs, _ = multiResData.find_gt_dirs(conf)
-        # crops fetched from lbl below
-    else:
-        local_dirs, _ = multiResData.find_local_dirs(conf)
-        # crops fetched from lbl below
-
-    lbl = h5py.File(conf.labelfile, 'r')
     view = conf.view
-
-    if conf.has_trx_file:
-        if is_external_movies:
-            pass  # trx_files provided
-        else:
-            trx_files = multiResData.get_trx_files(lbl, local_dirs, on_gt)
-    else:
-        trx_files = [None, ] * len(local_dirs)
-
-    assert len(trx_files) == len(local_dirs), \
-        "Number of trx_files ({}) does not match number of movies ({})".format(len(trx_files), len(local_dirs))
 
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file)
 
-    # pred_locs = np.zeros([len(in_list), conf.n_classes, 2])
-    # pred_locs[:] = np.nan
-    # pred_conf = np.zeros([len(in_list), conf.n_classes])
-    # pred_conf[:] = np.nan
-    # pred_crop_locs = np.zeros([len(in_list), 4])
-    # pred_crop_locs[:] = np.nan
+    in_list = PoseTools.json_load(in_list_file)
 
-    nlist = len(in_list)
+    nmov = len(in_list['movieFiles'])
+    nlist = len(in_list['toTrack'])
     ret_dict_all = {}
     ret_dict_all['crop_locs'] = np.zeros([nlist, 4])
     ret_dict_all['crop_locs'][:] = np.nan
@@ -2684,24 +2632,27 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
     logging.info('Tracking {} rows...'.format(nlist))
     n_done = 0
     start_time = time.time()
-    for ndx, dir_name in enumerate(local_dirs):
+    if len(in_list['trxFiles'])>0:
+        trx_files = [None,]*nmov
+    else:
+        trx_files = in_list['trxFiles']
+    for ndx, dir_name in enumerate(in_list['movieFiles']):
 
-        cur_list = [[l[1], l[2]] for l in in_list if l[0] == ndx]
+        cur_list = [[l[2], l[1]] for l in in_list['toTrack'] if l[0] == ndx]
         cur_idx = [i for i, l in enumerate(in_list) if l[0] == ndx]
-        if is_external_movies:
-            if is_external_crop:
-                crop_loc = crop_locs[ndx]
-            else:
-                crop_loc = None
+        if 'crop_locs' in in_list:
+            crop_loc = in_list['crop_locs'][ndx]
         else:
-            # This returns None if proj/lbl doesnt have crops
-            crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
+            crop_loc = None
+        # else:
+        #     # This returns None if proj/lbl doesnt have crops
+        #     crop_loc = PoseTools.get_crop_loc(lbl, ndx, view, on_gt)
 
         try:
             cap = movies.Movie(dir_name)
         except ValueError:
-            logging.exception('MOVIE_READ: ' + local_dirs[ndx] + ' is missing')
-            exit(1)
+            logging.exception('MOVIE_READ: ' + in_list['movieFiles'][ndx] + ' is missing')
+            raise ValueError('MOVIE_READ: ' + in_list['movieFiles'][ndx] + ' is missing')
 
         trx = get_trx_info(trx_files[ndx], conf, 0)['trx']
         ret_dict = classify_list(conf, pred_fn, cap, cur_list, trx, crop_loc, n_done=n_done, part_file=part_file)
@@ -2733,7 +2684,6 @@ def classify_list_all(model_type, conf, in_list, on_gt, model_file,
         ret_dict_all['conf'] = vars(conf)
 
     logging.info('Done prediction on all frames')
-    lbl.close()
     close_fn()
     return ret_dict_all
 
@@ -3051,7 +3001,13 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
         cfg_dict['dataset'] = d
         read_fn, db_len = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
     else:
-        if conf.db_format == 'coco':
+        if db_file.endswith('.json'):
+            # is a list file
+            coco_reader = multiResData.list_loader(conf, db_file, False)
+            read_fn = iter(coco_reader).__next__
+            db_len = len(coco_reader)
+            conf.img_dim = 3
+        elif conf.db_format == 'coco':
             coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
             read_fn = iter(coco_reader).__next__
             db_len = len(coco_reader)
@@ -3064,6 +3020,28 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
             db_len = tf_iterator.N
 
     return read_fn,db_len
+
+def convert_to_orig_list(preds, info, list_file, conf):
+    jlist = PoseTools.json_load(list_file)
+    pkeys = preds.keys()
+    pkeys = [p for p in pkeys if p.startswith('locs')]
+    if conf.has_trx_file:
+        trxfiles = jlist['trxFiles']
+        prev_trx_file = None
+        trx = None
+        for ndx,curi in enumerate(info):
+            if prev_trx_file != trxfiles[curi[0]]:
+                prev_trx_file = trxfiles[curi[0]]
+                trx = get_trx_info(prev_trx_file,conf,None)['trx']
+            for p in pkeys:
+                preds[p][ndx] = convert_to_orig(preds[p][ndx],conf,curi[1],trx[curi[2]],None)
+    elif conf.has_crop:
+        cropLocs = to_py(jlist['cropLocs'])
+        for ndx,curi in enumerate(info):
+            for p in pkeys:
+                preds[p][ndx] = convert_to_orig(preds[p][ndx],conf,curi[1],None,cropLocs[curi[0]])
+
+    return preds
 
 
 def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, **kwargs):
@@ -3376,6 +3354,9 @@ def classify_db_stage(args,view,view_ndx,db_file):
 
 
 def classify_list_file(args, view, view_ndx=0, conf_raw=None):
+    
+    # This is obsolete. Use db_classify_all with the list file. MK 20230511
+
     # ivw is the index into movieFiles, trxFiles. It corresponds to view, but
     # perhaps not absolute view. E.g. if view 1 is the only view being tracked in
     # this call, then movieFiles should have only one movie per movie set, and
@@ -3430,7 +3411,7 @@ def classify_list_file(args, view, view_ndx=0, conf_raw=None):
     else:
         toTrack['trxFiles'] = [None,]*len(toTrack['movieFiles'])
 
-    hasCrops = 'cropLocs' in toTrack
+    hasCrops = 'cropLocs' in toTrack and len(toTrack['cropLocs'])>0
     cropLocs = None
     if hasCrops:
         nCrops = len(toTrack['cropLocs'])
@@ -3449,7 +3430,7 @@ def classify_list_file(args, view, view_ndx=0, conf_raw=None):
         if mov <= 0 or mov > nMovies:
             logging.exception('toTrack[%d] has out of range movie index %d' % (i, mov))
             return success, pred_locs
-        if tgt <= 0:
+        if tgt < 0:
             logging.exception('toTrack[%d] has out of range target index %d' % (i, tgt))
             return success, pred_locs
         if isinstance(frm, int) and frm <= 0:
@@ -4380,12 +4361,13 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 logging.info('Finished training.')
 
         except tf1.errors.InternalError as e:
-            logging.exception(
-                'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly')
-            exit(1)
+            estr =  'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly'
+            logging.exception(estr)
+            raise ValueError(estr)
         except tf1.errors.ResourceExhaustedError as e:
-            logging.exception('Out of GPU Memory. Either reduce the batch size or scale down the image')
-            exit(1)
+            estr = 'Out of GPU Memory. Either reduce the batch size or scale down the image'
+            logging.exception(estr)
+            raise ValueError(estr)
 
         # Disabling this because it is hardly used MK 20210712
         if args.classify_val:
@@ -4802,15 +4784,63 @@ def run(args):
     if cmd == 'train':
         train_multi_stage(args,nviews,conf_raw)
 
-    elif cmd == 'track' and args.list_file is not None:
-        # KB 20190123: added list_file input option
+    elif (cmd == 'track' and args.list_file is not None) or (cmd == 'classify'):
 
         for view_ndx, view in enumerate(views):
-            # conf = create_conf(lbl_file, view, name, net_type=args.type,cache_dir=args.cache, conf_params=args.conf_params)
-            # maybe this should be in create_conf
-            # conf.batch_size = 1 if args.type == 'deeplabcut' else conf.batch_size
-            success, pred_locs = classify_list_file(args,view=view,view_ndx=view_ndx)
-            assert success, 'Error classifying list_file ' + args.list_file + 'view ' + str(view)
+
+            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+
+            if conf.is_multi and args.list_file is None:
+                # update the imsz only if we are classifying the dbs which could have images that are cropped
+                setup_ma(conf)
+
+            if args.list_file is not None:
+                db_file = args.list_file
+            elif args.db_file is not None:
+                db_file = args.db_file
+            else:
+                val_filename = get_valfilename(conf, args.type)
+                db_file = os.path.join(conf.cachedir, val_filename)
+
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            if cmd=='track':
+                preds = convert_to_orig_list(preds, info, db_file, conf)
+
+            info = np.array(info)
+            # A = convert_to_orig_list(conf,preds,locs, info)
+            info = to_mat(info)
+            preds = to_mat(preds)
+            locs = to_mat(locs)
+            if len(args.out_files)==len(views):
+                out_file = args.out_files[view_ndx]
+            else:
+                out_file = args.out_files[0] + '_{}.mat'.format(view)
+
+            out_dict = {'pred_locs': preds, 'labeled_locs': locs, 'list': info}
+            if db_file.endswith('.json'):
+                V = PoseTools.json_load(db_file)
+                if isinstance(V['movieFiles'][0],list) and len(V['movieFiles'][0])>1:
+                    mf = V['movieFiles']
+                    mf = [m[view_ndx] for m in mf]
+                    V['movieFiles'] = mf
+                if np.array(V['cropLocs']).ndim==3:
+                    cl = V['cropLocs']
+                    cl = [c[view_ndx] for c in cl]
+                    V['cropLocs'] = cl
+
+                out_dict.update(V)
+
+            hdf5storage.savemat(out_file, out_dict, appendmat=False,
+                                truncate_existing=True)
+
+        # KB 20190123: added list_file input option
+
+        # for view_ndx, view in enumerate(views):
+        #     # conf = create_conf(lbl_file, view, name, net_type=args.type,cache_dir=args.cache, conf_params=args.conf_params)
+        #     # maybe this should be in create_conf
+        #     # conf.batch_size = 1 if args.type == 'deeplabcut' else conf.batch_size
+        #     success, pred_locs = classify_list_file(args,view=view,view_ndx=view_ndx)
+        #     assert success, 'Error classifying list_file ' + args.list_file + 'view ' + str(view)
 
     elif cmd == 'track':
 
@@ -4845,28 +4875,6 @@ def run(args):
             out_file = args.out_files + '_{}.mat'.format(view)
             distort = not args.no_aug
             get_augmented_images(conf, out_file, distort, nsamples=args.nsamples)
-
-    elif cmd == 'classify':
-
-        for view_ndx, view in enumerate(views):
-            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
-            if conf.is_multi:
-                setup_ma(conf)
-
-            out_file = args.out_files + '_{}.mat'.format(view)
-            if args.db_file is not None:
-                db_file = args.db_file
-            else:
-                val_filename = get_valfilename(conf, args.type)
-                db_file = os.path.join(conf.cachedir, val_filename)
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
-            # A = convert_to_orig_list(conf,preds,locs, info)
-            info = to_mat(info)
-            preds = to_mat(preds)
-            locs = to_mat(locs)
-            # preds, locs = to_mat(A)
-            hdf5storage.savemat(out_file, {'pred_locs': preds, 'labeled_locs': locs, 'list': info}, appendmat=False,
-                                truncate_existing=True)
 
     elif cmd == 'model_files':
         m_files = []

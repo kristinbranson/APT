@@ -135,9 +135,12 @@ classdef Lbl
         if cfg.HasCrops,
           ci = s.movieFilesAllCropInfo;
           nmov = numel(ci);
-          cropRois = nan(nmov,4);
+          nvw = s.cfg.NumViews;
+          cropRois = nan(nmov,4,nvw);
           for imov=1:nmov
-            cropRois(imov,:) = ci{imov}.roi;
+            for iv=1:nvw
+              cropRois(imov,:,iv) = ci{imov}(iv).roi;
+            end
           end
         else
           cropRois = [];
