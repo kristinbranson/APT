@@ -2426,7 +2426,7 @@ oiCnda = onIff(beType==DLBackEnd.Conda);
 oiAWS = onIff(beType==DLBackEnd.AWS);
 set(handles.menu_track_backend_config_jrc,'checked',oiBsub);
 set(handles.menu_track_backend_config_docker,'checked',oiDckr);
-set(handles.menu_track_backend_config_conda,'checked',oiCnda);
+set(handles.menu_track_backend_config_conda,'checked',oiCnda, 'Enable', onIff(~ispc()));
 set(handles.menu_track_backend_config_aws,'checked',oiAWS);
 set(handles.menu_track_backend_config_aws_setinstance,'Enable',oiAWS);
 set(handles.menu_track_backend_config_aws_configure,'Enable',oiAWS);
@@ -2436,7 +2436,7 @@ set(handles.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_additional_bsub_args,'Enable',oiBsub);
 set(handles.menu_track_backend_config_jrc_set_singularity_image,'Enable',oiBsub);
-set(handles.menu_track_backend_set_conda_env,'Enable',oiCnda);
+set(handles.menu_track_backend_set_conda_env,'Enable',onIff(beType==DLBackEnd.Conda&&~ispc())) ;
 
 % m = handles.menu_track_backend_config;
 % % Menu item ordering seems very buggy. Setting .Position on menu items
