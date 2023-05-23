@@ -2952,7 +2952,7 @@ drawnow;
 [tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
 if ~tfCanTrain,
   errordlg(['Error training tracker: ',reason],'Error training tracker');
-  lObj.clearStatus();
+  handles.labelerObj.clearStatus();
   return;
 end
 
