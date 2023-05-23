@@ -1227,7 +1227,6 @@ def link_trklets(trk_files, conf, movs, out_files):
         trk_files2link.append(trk_files[n])
         movs2link.append(movs[n])
         out_files2link.append(out_files[n])
-    trk_files2link = [trk_files[n]]
     linked_trks_simple = simple_linking(trks2link_simple,conf)
     linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link)
 
@@ -1276,7 +1275,7 @@ def is_single_animal_trk(trk):
   overlap = np.zeros(maxn-minn+1)
   for ndx in range(len(st)):
     curst = st[ndx]-minn
-    curen = en[ndx]-maxn
+    curen = en[ndx]-minn
     overlap[curst:curen] +=1
   more_than1 = np.count_nonzero(overlap>1)/(maxn-minn+1)<0.2
   return more_than1
