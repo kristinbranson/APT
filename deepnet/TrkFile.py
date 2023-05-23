@@ -394,7 +394,7 @@ def equals_nan(x,y):
 def hdf5_to_py(A, h5file):
   if isinstance(A, h5py._hl.dataset.Dataset):
     if 'Python.Type' in A.attrs and A.attrs['Python.Type'] == b'str':
-      out = u''.join([chr(t) for t in A])
+      out = u''.join([chr(int(t)) for t in A])
     elif 'Python.Type' in A.attrs and A.attrs['Python.Type'] in [b'list', b'tuple']:
       if 'Python.Empty' in A.attrs and A.attrs['Python.Empty'] == 1:
         out = []

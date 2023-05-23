@@ -782,7 +782,7 @@ classdef TrkFile < dynamicprops
         'pTrkFull' 'pTrkFullFT' 'pTrk3d'});
     end
         
-    function objMerged = merge(obj,varargin)
+    function objMerged = merge(obj,other_objs,varargin)
       % objMerged = merge(obj0,obj1,obj2,...)
       %
       % returns new TrkFile with merge contents. tracklet-style merge.
@@ -800,12 +800,25 @@ classdef TrkFile < dynamicprops
       % scalar TrkFileObjs as distinct args.
       
       assert(~obj.isfull,'Attempt to merge non-tracklets.');
+
+      [new_ids] = myparse(varargin,'new_ids',false);
       
       % step 1: get all unique tgts; get all their start/endframes      
-      allobjs = [{obj} varargin];
+      allobjs = [{obj} other_objs];
       
       nobj = numel(allobjs);
-      itgtsAll = cellfun(@(x)x.pTrkiTgt,allobjs,'uni',0);
+      tgt_starts = zeros(1,nobj);
+      if new_ids
+        itgtsAll = cell(1,nobj);
+        cur_s = 0;
+        for ndx = 1:nobj
+          tgt_starts(ndx) = cur_s;
+          itgtsAll{ndx} = allobjs{ndx}.pTrkiTgt + cur_s;
+          cur_s = cur_s + numel(allobjs{ndx}.pTrkiTgt);
+        end
+      else
+        itgtsAll = cellfun(@(x)x.pTrkiTgt,allobjs,'uni',0);
+      end
       %sfsAll = {allobjs.startframes};
       %efsAll = {allobjs.endframes};
       
@@ -817,7 +830,7 @@ classdef TrkFile < dynamicprops
       itgt2spep = eval(sprintf('%s(itgt2spep)',cls));
       for iobj=1:nobj
         o = allobjs{iobj};
-        itgtsI = o.pTrkiTgt;
+        itgtsI = o.pTrkiTgt+tgt_starts(iobj);
         sfsI = o.startframes;
         efsI = o.endframes;
         tfhasres = sfsI<=efsI;
@@ -858,7 +871,7 @@ classdef TrkFile < dynamicprops
         trkfldso = o.trkflds();
         ntgt = numel(o.pTrkiTgt);
         for j=1:ntgt
-          itgt = o.pTrkiTgt(j);
+          itgt = o.pTrkiTgt(j)+tgt_starts(iobj);
           sp = o.startframes(j);
           ep = o.endframes(j);
           if sp<=ep

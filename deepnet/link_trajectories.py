@@ -712,7 +712,12 @@ def estimate_maxcost_ind(trk, params, nsample=1000, nframes_skip=1):
   Returns threshold on cost.
   """
 
-  nsample = np.minimum(trk.T, nsample)
+  allcosts = np.zeros((trk.ntargets, nsample))
+  allcosts[:] = np.nan
+  if trk.T<=(nframes_skip+1):
+    return np.zeros([0])
+
+  nsample = np.minimum(trk.T, nsample-nframes_skip-1)
   tsample = np.round(np.linspace(trk.T0, trk.T1-nframes_skip-1, nsample)).astype(int)
   minv, maxv = trk.get_min_max_val()
   minv = np.min(minv, axis=0)
@@ -721,9 +726,6 @@ def estimate_maxcost_ind(trk, params, nsample=1000, nframes_skip=1):
     return np.zeros(0)
   bignumber = np.sum(maxv-minv) * 2.1
   # bignumber = np.sum(np.nanmax(p,axis=(1,2,3))-np.nanmin(p,axis=(1,2,3)))*2.1
-  allcosts = np.zeros((trk.ntargets, nsample))
-  allcosts[:] = np.nan
-
   for i in range(nsample):
     t = tsample[i]
     pcurr = trk.getframe(t)
@@ -1225,7 +1227,6 @@ def link_trklets(trk_files, conf, movs, out_files):
         trk_files2link.append(trk_files[n])
         movs2link.append(movs[n])
         out_files2link.append(out_files[n])
-    trk_files2link = [trk_files[n]]
     linked_trks_simple = simple_linking(trks2link_simple,conf)
     linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link)
 
@@ -1274,7 +1275,7 @@ def is_single_animal_trk(trk):
   overlap = np.zeros(maxn-minn+1)
   for ndx in range(len(st)):
     curst = st[ndx]-minn
-    curen = en[ndx]-maxn
+    curen = en[ndx]-minn
     overlap[curst:curen] +=1
   more_than1 = np.count_nonzero(overlap>1)/(maxn-minn+1)<0.2
   return more_than1
