@@ -5,6 +5,11 @@ import cv2
 import numpy as np
 import json
 import re
+from deeplabcut.utils import auxiliaryfunctions as dlc_aux
+import deeplabcut as dlc
+import pandas as pd
+import pickle
+
 plt.ion()
 
 def describe_dataset(coco):
@@ -14,7 +19,7 @@ def describe_dataset(coco):
     annids = coco.getAnnIds(catIds=catid)
     print(f"{catid}: {cat['name']}, {len(imgids)} images, {len(annids)} annotations, {len(cat['keypoints'])} keypoints.")
 
-def show_examples(coco,imagedir):
+def show_examples(coco,imagedir,nexamples=1):
   
   catids = []
   for catid in coco.cats.keys():
@@ -23,34 +28,42 @@ def show_examples(coco,imagedir):
       catids.append(catid)
       
   ncats = len(catids)
-  nc = int(np.ceil(np.sqrt(ncats)))
-  nr = int(np.ceil(ncats/nc))
+  
+  nax = nexamples*ncats
+  nc = int(np.ceil(np.sqrt(nax)))
+  nr = int(np.ceil(nax/nc))
   fig,ax = plt.subplots(nc,nr,squeeze=False)
   fig.set_figheight(20)
   fig.set_figwidth(20)
   ax = ax.flatten()
-  for i in range(ncats,len(ax)):
-    plt.delaxes(ax[i])
 
+  axi = 0
   for i,catid in enumerate(catids):
     cat = coco.cats[catid]
     annids = coco.getAnnIds(catIds=catid)
     imgids = coco.getImgIds(catIds=catid)
-    imgid = imgids[np.random.randint(len(imgids))]
-    annIds = coco.getAnnIds(imgIds=imgid,catIds=catid)
-    anns = coco.loadAnns(annIds)
-    img = coco.loadImgs(imgid)[0]
-    imgfile = os.path.join(imagedir,img['file_name'])
-    if not os.path.exists(imgfile):
-      print(f"{imgfile} does not exist")
-      return
-    I = cv2.imread(imgfile)
-    I = I[...,::-1]
-    ax[i].imshow(I)
-    ax[i].axis('off')
-    plt.sca(ax[i])
-    coco.showAnns(anns)
-    ax[i].set_title(f"{cat['name']}, {len(annids)}")
+    idx = np.random.choice(len(imgids),np.minimum(nexamples,len(imgids)),replace=False)
+    for j in idx:
+      imgid = imgids[j]
+      annIds = coco.getAnnIds(imgIds=imgid,catIds=catid)
+      anns = coco.loadAnns(annIds)
+      img = coco.loadImgs(imgid)[0]
+      imgfile = os.path.join(imagedir,img['file_name'])
+      if not os.path.exists(imgfile):
+        print(f"{imgfile} does not exist")
+        return
+      I = cv2.imread(imgfile)
+      I = I[...,::-1]
+      ax[axi].imshow(I)
+      ax[axi].axis('off')
+      plt.sca(ax[axi])
+      coco.showAnns(anns)
+      ax[axi].set_title(f"{cat['name']}, {len(annids)}: {imgid}")
+      axi+=1
+
+  for i in range(axi,len(ax)):
+    plt.delaxes(ax[i])
+
   fig.tight_layout()
   
 def coco_select_video_subset(coco,video_ids):
@@ -59,6 +72,7 @@ def coco_select_video_subset(coco,video_ids):
 
 def split_annotationfile_by_cat(annfile,debug=False):
   
+  outannfiles = {}
   coco = COCO(annfile)
   p,n = os.path.split(annfile)
   n,ext = os.path.splitext(n)
@@ -94,6 +108,8 @@ def split_annotationfile_by_cat(annfile,debug=False):
     if not debug:
       with open(outannfile,'w') as outfid:
         outfid.write(json.dumps(dataset))
+    outannfiles[catname] = outannfile
+  return outannfiles
 
 def print_nannotations(coco):
 
@@ -113,39 +129,7 @@ def print_nannotations(coco):
 # imagedir = '/groups/branson/bransonlab/datasets/coco/images/val2017'
 
 def prepare_apt36k():
-  """
-  buffalo: 2501
-  lion: 2282
-  dog: 2275
-  horse: 2226
-  deer: 2198
-  rabbit: 2110
-  cow: 2106
-  zebra: 2025
-  monkey: 1925
-  pig: 1866
-  giraffe: 1859
-  panda: 1854
-  cheetah: 1824
-  polar-bear: 1810
-  sheep: 1803
-  elephant: 1795
-  antelope: 1684
-  wolf: 1670
-  black-bear: 1638
-  raccoon: 1589
-  fox: 1521
-  howler-monkey: 1497
-  gorilla: 1496
-  rhino: 1430
-  hippo: 1405
-  tiger: 1391
-  cat: 1380
-  spider-monkey: 1367
-  orangutan: 1363
-  chimpanzee: 1244
-  """
-  
+
   basedir = '/groups/branson/bransonlab/datasets/APT-36K'
   annfile = os.path.join(basedir,'annotations','apt36k_annotations.json')
   imagedir = os.path.join(basedir,'data')
@@ -253,59 +237,6 @@ def prepare_apt36k():
 
 def prepare_ap10k():
 
-  """
-  dog: 794
-  sheep: 355
-  cat: 307
-  antelope: 298
-  zebra: 295
-  bison: 268
-  spider_monkey: 241
-  hippo: 233
-  cow: 228
-  pig: 216
-  giraffe: 210
-  buffalo: 208
-  deer: 206
-  weasel: 199
-  elephant: 193
-  horse: 187
-  jaguar: 187
-  chimpanzee: 183
-  wolf: 179
-  rhino: 179
-  lion: 177
-  moose: 175
-  rat: 175
-  brown_bear: 171
-  otter: 167
-  panda: 164
-  gorilla: 162
-  monkey: 161
-  hamster: 159
-  fox: 157
-  polar_bear: 156
-  skunk: 155
-  raccoon: 153
-  rabbit: 153
-  bobcat: 151
-  mouse: 148
-  cheetah: 148
-  tiger: 144
-  leopard: 142
-  squirrel: 142
-  beaver: 141
-  argali_sheep: 110
-  panther: 106
-  noisy_night_monkey: 101
-  marmot: 84
-  snow_leopard: 73
-  uakari: 69
-  alouatta: 51
-  black_bear: 39
-  king_cheetah: 22
-  """
-
   basedir = '/groups/branson/bransonlab/datasets/ap-10k'
   files = ['ap10k-train-split1.json','ap10k-val-split1.json','ap10k-test-split1.json']
   annfiles = [os.path.join(basedir,'annotations',x) for x in files]
@@ -330,14 +261,302 @@ def prepare_ap10k():
   annfile = annfiles[0]
   coco = COCO(annfile)
   print_nannotations(coco)
+  
+def prepare_deeplabcut(basedir,categories,info,trainlistfile=None):
+    
+  configfile = os.path.join(basedir,'config.yaml')
+  cfg = dlc_aux.read_config(configfile)
+  
+  outannfiles = {}
+  
+  # with open(os.path.join(splitfile),'rb') as fid:
+  #   splitinfo = pickle.load(fid)
+  
+  #dlc.create_training_dataset(configfile)
 
+  bodyparts = list(cfg['bodyparts'])
+  skeleton = list(cfg['skeleton'])
+  try:
+    skeleton_idx = [[bodyparts.index(s[0])+1,bodyparts.index(s[1])+1] for s in skeleton]
+  except:
+    skeleton_idx = None
+  
+  outannfile = os.path.join(basedir,'annotations.json')
+  outannfiles['all'] = outannfile
+  
+  videos = cfg["video_sets"].keys()
+  video_names = []
+  folders = []
+  for video in videos:
+    n,ext = os.path.splitext(os.path.basename(video))
+    video_names.append(n)
+    folders.append(os.path.join(cfg['project_path'],'labeled-data',n))
+
+  dataset = {}
+  if type(categories) == str:
+    categories = {categories: None}
+  
+  dataset['categories'] = []
+  catid = 1
+  for category in categories.keys():
+    cat = {
+      'id': catid,
+      'name': category,
+      'keypoints': None,
+      'skeleton': None,
+    }
+    dataset['categories'].append(cat)
+    catid += 1
+    
+  dataset['images'] = []
+  dataset['annotations'] = []
+  dataset['licenses'] = [
+    {
+      'id': 1,
+      'name': 'Creative Commons Attribution 4.0 International',
+      'url': 'https://creativecommons.org/licenses/by/4.0/legalcode',
+    },
+  ]
+  dataset['info'] = info
+  
+  annid = 1
+  imgid = 1
+  id = 1
+    
+  for videoid in range(len(video_names)):
+    folder = folders[videoid]
+    video_name = video_names[videoid]
+    print(f'video {videoid} / {len(video_names)}: {video_name}')
+    DataCombined = pd.read_hdf(os.path.join(str(folder), "CollectedData_" + cfg["scorer"] + ".h5"))
+    imgnames = DataCombined.index
+    annnames = DataCombined.columns
+
+    anninfo = {}
+    for i,n in enumerate(annnames.names):
+      anninfo[n] = [a[i] for a in annnames]
+
+    ismulti = 'individuals' in anninfo
+
+    if ismulti:
+      individuals = list(set(anninfo['individuals']))
+    else:
+      individuals = ['dummy',]
+
+    individ2catidx = {}
+    for individual in individuals:
+      if ismulti:
+        idx = (cfg['scorer'],individual)
+      else:
+        idx = cfg['scorer']
+      bodyparts = list(set([x[0] for x in DataCombined.loc[:,idx]]))
+
+      for catidx,catname in enumerate(categories.keys()):
+        if (categories[catname] is None) or (individual in categories[catname]):
+          individ2catidx[individual] = catidx
+          break
+      assert individual in individ2catidx
+      if dataset['categories'][catidx]['keypoints'] is None:
+        skeleton_idx = []
+        for s in skeleton:
+          if (s[0] in bodyparts) and (s[1] in bodyparts):
+            skeleton_idx.append([bodyparts.index(s[0])+1,bodyparts.index(s[1])+1])
+        dataset['categories'][catidx]['keypoints'] = bodyparts
+        dataset['categories'][catidx]['skeleton'] = skeleton_idx
+  
+      assert set(dataset['categories'][catidx]['keypoints']) == set(bodyparts)
+
+    width = None
+    height = None
+    for imgname in imgnames:
+      if imgid == 1:
+        I = cv2.imread(os.path.join(basedir,imgname))
+        width = I.shape[0]
+        height = I.shape[1]
+        
+      img = {
+        'license': 1,
+        'id': imgid,
+        'file_name': imgname,
+        'video_id': videoid,
+        'width': width,
+        'height': height,
+      }
+      dataset['images'].append(img)
+
+      for individual in individuals:
+
+        catidx = individ2catidx[individual]
+        bodyparts = dataset['categories'][catidx]['keypoints']        
+        
+        x = np.zeros(len(bodyparts))
+        y = np.zeros(len(bodyparts))
+        v = np.ones(len(bodyparts))
+        if ismulti:
+          idx = (cfg['scorer'],individual)
+        else:
+          idx = (cfg['scorer'],)
+        for i,bodypart in enumerate(bodyparts):
+          if (idx+(bodypart,'x')) in DataCombined.columns:
+            x[i] = DataCombined.loc[imgname,idx+(bodypart,'x')]
+            y[i] = DataCombined.loc[imgname,idx+(bodypart,'y')]
+          else:
+            x[i] = np.nan
+            y[i] = np.nan
+            
+        v = ((np.isnan(x) | np.isnan(y)) == False).astype(int)
+        x[v==0] = 0.
+        y[v==0] = 0.
+        keypoints = np.c_[x,y,v].flatten()
+        ann = {
+          'id': annid,
+          'keypoints': keypoints.tolist(),
+          'track_id': id,
+          'image_id': imgid,
+          'category_id': dataset['categories'][catidx]['id'],
+          'video_id': videoid,
+        }
+        dataset['annotations'].append(ann)
+        annid += 1
+        id += 1
+      imgid+=1
+
+  with open(outannfile,'w') as outfid:
+    outfid.write(json.dumps(dataset))
+  coco = COCO(outannfile)
+
+  # assert len(dataset['images']) == len(splitinfo[0])
+  # all_file_names = [img['file_name'] for img in dataset['images']]
+  # imagemapping = np.zeros(len(dataset['images']),dtype=int)
+  # for i,img in enumerate(splitinfo[0]):
+  #   idx = all_file_names.index(img['image'])
+  #   assert idx is not None
+  #   imagemapping[i] = idx
+  # trainidx = imagemapping[splitinfo[1]]
+  
+  show_examples(coco,basedir,nexamples=int(np.round(16/len(coco.cats))))
+  
+  if len(categories) > 1:
+    outannfiles['category'] = split_annotationfile_by_cat(outannfile)
+  
+  if trainlistfile is not None:
+    with open(os.path.join(basedir,trainlistfile),'rb') as fid:
+      splitinfo = pickle.load(fid)
+    trainimages = splitinfo[0]
+    traindirs = set([os.path.basename(os.path.dirname(x['image'])) for x in trainimages])
+    trainidx = [video_names.index(x) for x in traindirs]
+    coco_train = COCO(outannfile)
+    coco_select_video_subset(coco_train,trainidx)
+    trainannfile = os.path.join(basedir,'annotations_train.json')
+    with open(trainannfile,'w') as outfid:
+      outfid.write(json.dumps(dataset))
+    outannfiles['train'] = trainannfile
+    coco_train = COCO(trainannfile)
+    show_examples(coco_train,basedir,nexamples=9)
+    testidx = list(set(range(len(video_names))).difference(trainidx))
+    coco_test = COCO(outannfile)
+    coco_select_video_subset(coco_test,testidx)
+    testannfile = os.path.join(basedir,'annotations_test.json')
+    with open(testannfile,'w') as outfid:
+      outfid.write(json.dumps(dataset))
+    coco_test = COCO(testannfile)
+    outannfiles['test'] = testannfile
+    show_examples(coco_train,basedir,nexamples=9)
+
+  return outannfiles
+
+def prepare_deeplabcut_all(datasets2do=None):
+    
+  rootdir = '/groups/branson/bransonlab/datasets/deeplabcut'
+      
+  basedirs = {
+    'mouse': os.path.join(rootdir,'trimice-dlc-2021-06-22'),
+    'pups': os.path.join(rootdir,'pups-dlc-2021-03-24'),
+    'fish': os.path.join(rootdir,'fish-dlc-2021-05-07'),
+    'marmoset': os.path.join(rootdir,'marmoset-dlc-2021-05-07'),
+    'horse': os.path.join(rootdir,'horse10'),
+  }
+  categories = {
+    'mouse': 'mouse',
+    'pups': {
+        'mouse': ['single',],
+        'pup': ['p1','p2'],
+      },
+    'fish': 'fish',
+    'marmoset': 'marmoset',
+    'horse': 'horse',
+  }    
+  infos = {
+    'mouse': {
+      'description': 'maDLC Tri-Mouse Benchmark by Lauer ... Mathis, converted to COCO by Branson 20230523',
+      'url': 'https://zenodo.org/record/5851157#.YeHC23vMJhE',
+    },
+    'pups': {
+      'description': 'maDLC Parenting Benchmark Dataset by Lauer ... Mathis, converted to COCO by Branson 20230523',
+      'url': 'https://zenodo.org/record/5851109#.YeHC3nvMJhE',
+    },
+    'fish': {
+      'description': 'maDLC Fish Benchmark Dataset by Lauer ... Mathis, converted to COCO by Branson 20230523',
+      'url': 'https://zenodo.org/record/5849286#.YeHC4XvMJhE',
+    },
+    'marmoset': {
+      'description': 'maDLC Marmoset Benchmark Dataset by Lauer ... Mathis, converted to COCO by Branson 20230523',
+      'url': 'https://zenodo.org/record/5849371#.YeHC3nvMJhE',
+    },
+    'horse': {
+      'description': 'Horse-10 by Rogers ... Mathism converted to COCO by Branson 20230523',
+      'url': 'http://www.mackenziemathislab.org/horse10',
+    }
+  }
+  
+  trainlistfiles = {
+    'horse': 'training-datasets/iteration-0/UnaugmentedDataSet_HorsesMay8/Documentation_data-Horses_50shuffle1.pickle',
+  }
+  
+  alldatasets = list(basedirs.keys())
+  if datasets2do is None:
+    datasets2do = alldatasets
+    
+  outannfiles = {}
+  for dataset in datasets2do:
+    if dataset in trainlistfiles:
+      trainlistfile = trainlistfiles[dataset]
+    else:
+      trainlistfile = None
+    outannfiles[dataset] = prepare_deeplabcut(basedirs[dataset],categories[dataset],infos[dataset],trainlistfile)
+
+  for dataset in alldatasets:
+    annfile = os.path.join(basedirs[dataset],'annotations.json')
+    coco = COCO(annfile)
+    print(f'{dataset}:')
+    describe_dataset(coco)
+
+    annfile = os.path.join(basedirs[dataset],'annotations_train.json')
+    if os.path.exists(annfile):
+      coco = COCO(annfile)
+      print(f'{dataset}_train:')
+      describe_dataset(coco)
+
+    annfile = os.path.join(basedirs[dataset],'annotations_test.json')
+    if os.path.exists(annfile):
+      coco = COCO(annfile)
+      print(f'{dataset}_test:')
+      describe_dataset(coco)
+
+
+  return
 
 if __name__ == "__main__":
-  prepare_apt36k()
+  #prepare_ap10k()
+  #prepare_apt36k()
+  datasets2do = [] # None #['horse',]
+  prepare_deeplabcut_all(datasets2do)
+
 
 # colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-# idxplot = 123
+# idxplot = 1
+# imagedir = basedir
 
+# imgids = coco.getImgIds()
 # img = coco.loadImgs(imgids[idxplot])[0]
 # imgfile = os.path.join(imagedir,img['file_name'])
 # assert os.path.exists(imgfile)
@@ -358,7 +577,10 @@ if __name__ == "__main__":
 #   sks = np.array(coco.loadCats(ann['category_id'])[0]['skeleton'])-1
 #   xsk = np.c_[x[sks],np.zeros(len(sks))+np.nan].T
 #   ysk = np.c_[y[sks],np.zeros(len(sks))+np.nan].T
-#   ax.plot(xsk,ysk,'-',color=colors[i%len(anns)])
+#   #ax.plot(xsk,ysk,'-',color=colors[i%len(anns)])
 #   ax.plot(x[v==1],y[v==1],'o',color=colors[i],ms=12,lw=4)
 #   ax.plot(x[v==2],y[v==2],'+',color=colors[i],ms=12,lw=4)
+#   keypointnames = coco.loadCats(ann['category_id'])[0]['keypoints']
+#   for j,kp in enumerate(keypointnames):
+#     ax.text(x[j],y[j],kp,color='')
   
