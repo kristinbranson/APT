@@ -14,7 +14,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    defaultDockerImgTag = '20230427_tf211_pytorch113_ampere';
+    defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere';
     defaultDockerImgRoot = 'bransonlabapt/apt_docker';
  
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
@@ -23,8 +23,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     jrcprefix = ':'; % 'source /etc/profile';
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
 
-    default_conda_env = 'APT'
-    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/20230427_tf211_pytorch113_ampere.sif' ;
+    default_conda_env = 'apt_20230427_tf211_pytorch113_ampere'
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' ;
     legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
   end
