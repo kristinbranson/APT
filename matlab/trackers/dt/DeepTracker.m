@@ -22,7 +22,7 @@ classdef DeepTracker < LabelTracker
     MDN_OCCLUDED_THRESH = 0.5;
   end
   properties (Constant)
-    singularity_image = '/groups/branson/bransonlab/apt/sif/apt20201027.sif';
+    singularity_image = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif';
     default_jrcgpuqueue = 'gpu_tesla';
   end
   properties
