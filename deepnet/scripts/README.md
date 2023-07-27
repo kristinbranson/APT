@@ -39,7 +39,7 @@ to produce (after some manual editing) the pinned version.
 To create the conda environment from the environment file, run the
 bash script
 ```
-./make_docker_image_apt_20230427_tf211_pytorch113_ampere.bash
+./make_conda_environment_apt_20230427_tf211_pytorch113_ampere.bash
 ```
 or
 ```
