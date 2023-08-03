@@ -15217,9 +15217,12 @@ classdef Labeler < handle
       persistent tfWarningThrownAlready
       
       if nargin < 5,
-        isrotated = false;
+        hasInfo = false
+        info = [] ;
+        %isrotated = false;
       else
-        isrotated = info.isrotated;
+        hasInfo = true ;
+        %isrotated = info.isrotated;
       end
       
       if isempty(frm),
@@ -15231,10 +15234,14 @@ classdef Labeler < handle
 %         lpostag = obj.labeledpostagGTaware;
 %         lpos = lpos{iMov}(:,:,frm,iTgt);
 %         lpostag = lpostag{iMov}(:,frm,iTgt);
-        [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',info.gtmode);      
-        if isrotated,
-          lpos = [lpos,ones(size(lpos,1),1)]*info.A;
-          lpos = lpos(:,1:2);
+        if hasInfo ,
+          [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',info.gtmode);
+          if info.isrotated,
+            lpos = [lpos,ones(size(lpos,1),1)]*info.A;
+            lpos = lpos(:,1:2);
+          end
+        else
+          [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
         end
       end
       ipts = 1:obj.nPhysPoints;
