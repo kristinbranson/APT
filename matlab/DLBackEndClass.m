@@ -1236,8 +1236,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = '** Checking for conda...'; drawnow;
       cmd = synthesize_conda_command('-V');
       hedit.String{end+1} = cmd; drawnow;
-      [st,res] = system(cmd);
-      reslines = splitlines(res);
+      [st,~] = system(cmd);
+      %reslines = splitlines(res);
       if st~=0
         hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',cmd); drawnow;
         return;
@@ -1247,18 +1247,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
       % activate APT
       hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Testing activate APT...'; drawnow;
+      hedit.String{end+1} = sprintf('** Testing activate %s...', obj.condaEnv); 
+      drawnow;
 
-      cmd = synthesize_conda_command('activate APT');
+      raw_cmd = sprintf('activate %s', escape_string_for_bash(obj.condaEnv)) ;
+      cmd = synthesize_conda_command(raw_cmd);
       %fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
-      [st,res] = system(cmd);
-      reslines = splitlines(res);
+      [st,~] = system(cmd);
+      %reslines = splitlines(res);
       %reslinesdisp = reslines(1:min(4,end));
       %hedit.String = [hedit.String; reslinesdisp(:)];
       if st~=0
-        hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment APT',cmd); drawnow;
-        return;
+        hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment %s',cmd, obj.condaEnv); 
+        drawnow;
+        return
       end
       hedit.String{end+1} = 'SUCCESS!'; drawnow;
         

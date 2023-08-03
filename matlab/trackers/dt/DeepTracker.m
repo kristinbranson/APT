@@ -1,7 +1,7 @@
 classdef DeepTracker < LabelTracker
   
   properties (Dependent)
-    algorithmName;
+    algorithmName
     algorithmNamePretty
     sPrm % new-style DT params
   end
@@ -236,7 +236,7 @@ classdef DeepTracker < LabelTracker
     function v = getAlgorithmNamePrettyHook(obj)
       v = ['Deep Convolutional Network - ' obj.trnNetType.displayString];
     end
-    function v = getNumStages(obj)
+    function v = getNumStages(obj)  %#ok<MANU> 
       v = 1;
     end
     function v = getNetsUsed(obj)
@@ -354,7 +354,7 @@ classdef DeepTracker < LabelTracker
   %% Params
   methods (Static)
     
-    function sPrmAll = massageParamsIfNecStc(net,netmode,sPrmAll,varargin)
+    function sPrmAll = massageParamsIfNecStc(net, ~, sPrmAll, varargin)
       % net-specific parameter treatments
       %
       % net: DLNetType
@@ -648,7 +648,7 @@ classdef DeepTracker < LabelTracker
   %% Train
   methods
     
-    function train(obj)
+    function train(obj)  %#ok<MANU> 
       error('Incremental training is currently unsupported for Deep Learning.');
     end
     
