@@ -18,7 +18,7 @@ if does_input_string_contain_variable && hasProject ,
   if ~ischar(projectfile) ,
     project_file_path = '' ;
   else
-    project_file_path = self.projectfile ;
+    project_file_path = projectfile ;
   end
   max_length = 100 ;
   [~,project_file_name] = fileparts2(project_file_path) ;

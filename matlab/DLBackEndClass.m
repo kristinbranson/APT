@@ -14,7 +14,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
-    defaultDockerImgTag = '20230427_tf211_pytorch113_ampere';
+    defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere';
     defaultDockerImgRoot = 'bransonlabapt/apt_docker';
  
     RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
@@ -387,7 +387,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           obj.testCondaConfig();
         otherwise
           msgbox(sprintf('Tests for %s have not been implemented',obj.type),...
-            'Not implemented','modal');
+                 'Not implemented','modal');
       end
     end
     
@@ -448,6 +448,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
         
         reason = '';
+      elseif obj.type==DLBackEnd.Conda ,
+          if ispc() ,
+              tf = false ;
+              reason = 'Conda backend is not supported on Windows.' ;
+          else
+              tf = true ;
+              reason = '' ;              
+          end
       else
         tf = true;
         reason = '';
@@ -1213,6 +1221,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
       hedit.String = {sprintf('%s: Testing Conda Configuration...',datestr(now))}; 
       drawnow;
+
+      % Check if Windows box.  Conda backend is not supported on Windows.
+      hedit.String{end+1} = ''; drawnow;
+      hedit.String{end+1} = '** Checking for (lack of) Windows...'; drawnow;
+      if ispc() ,
+        hedit.String{end+1} = 'FAILURE. Conda backend is not supported on Windows.'; drawnow;
+        return
+      end
+      hedit.String{end+1} = 'SUCCESS!'; drawnow;
 
       % make sure conda is installed
       hedit.String{end+1} = ''; drawnow;
