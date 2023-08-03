@@ -355,7 +355,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def convert_to_coco(coco_info, ann, data, conf):
+def convert_to_coco(coco_info, ann, data, conf,force=False):
     '''
      converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
 
@@ -405,13 +405,14 @@ def convert_to_coco(coco_info, ann, data, conf):
         annid = coco_info['ann_ndx']
         coco_info['ann_ndx'] += 1
         ix = cur_locs[idx, ...]
-        if np.all(ix < -1000) or np.all(np.isnan(ix)):
+        if (np.all(ix < -1000) or np.all(np.isnan(ix))) and (not force):
             continue
         occ_coco = 2 - cur_occ[idx, ..., np.newaxis]
         occ_coco[np.isnan(ix[..., 0]), :] = 0
+        ix[np.isnan(ix)] = 0
         if roi is None:
-            lmin = ix.min(axis=0)
-            lmax = ix.max(axis=0)
+            lmin = np.nanmin(ix,axis=0)
+            lmax = np.nanmax(ix,axis=0)
             w = lmax[0] - lmin[0]
             h = lmax[1] - lmin[1]
             bbox = [lmin[0], lmin[1], w, h]
@@ -500,7 +501,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def to_orig(conf, locs, x, y, theta):
+def to_orig(conf, locs, x, y, theta,scale=1.):
     ''' locs, x and y should be 0-indexed'''
 
     # tt = -theta - math.pi / 2
@@ -512,22 +513,21 @@ def to_orig(conf, locs, x, y, theta):
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
 
+    T = np.array([[1, 0, 0], [0, 1, 0],
+                  [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
     if conf.trx_align_theta:
-        T = np.array([[1, 0, 0], [0, 1, 0],
-                      [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
-        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
-        R = np.eye(3)
-        R[:, :2] = R1.T
-        A_full = np.matmul(R, T)
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1/scale)
     else:
-        x = np.round(x)
-        y = np.round(y)
-        T = np.array([[1, 0, 0], [0, 1, 0],
-                      [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
-        A_full = T
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), 0, 1/scale)
 
-    lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
-    curlocs = lr.T
+    R = np.eye(3)
+    R[:, :2] = R1.T
+    A_full = np.matmul(R, T)
+
+    ll = np.concatenate([locs,np.ones_like(locs[...,:1])],axis=-1)
+    curlocs = np.matmul(ll,A_full)[...,:2]
+    # lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
+    # curlocs = lr.T
 
     return curlocs
 
@@ -1860,7 +1860,7 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 assert False, 'For top down tracking either head-tail tracking or bbox tracking should be active'
 
             curl = cur_locs[ndx].copy()
-            cur_patch, curl = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl)
+            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx])
 
             if occ_as_nan:
                 curl[cur_occ[ndx], :] = np.nan
@@ -2363,7 +2363,7 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
         cur_trx = trx[trx_ndx]
         cur_f = cur_entry[0]
 
-        frame_in, cur_loc = multiResData.get_patch(
+        frame_in, cur_loc, scale = multiResData.get_patch(
             cap, cur_f, conf, np.zeros([conf.n_classes, 2]),
             cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
         all_f[cur_t, ...] = frame_in
@@ -2401,6 +2401,7 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                 # Theta 0 zero indicates animal facing right. So when theta is 0 the images are rotated by 90 degree so that they face upwards. To disable any rotation theta needs to be -90. Ideally conf.trx_align_theta should be false and this shouldn't be used, but adding it as a safeguard.
                 theta = np.ones_like(cur_pts[...,0,0])*(-np.pi/2)
                 ctr = cur_pts.mean(-1)
+                a = np.linalg.norm(cur_pts[...,0]-cur_pts[...,1],axis=-1)/4
             else:
                 if use_ht_pts:
                     h_pts = cur_pts[...,:,conf.ht_pts[0]]
@@ -2410,6 +2411,7 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                     h_pts = cur_pts[...,:,0]
                     t_pts = cur_pts[...,:,1]
                     ctr = cur_pts.mean(-1)
+                a = np.linalg.norm(h_pts-t_pts,axis=-1)/4
                 theta = np.arctan2(h_pts[...,1] - t_pts[..., 1], h_pts[..., 0] - t_pts[..., 0])
             end_frames.append(eframe)
             first_frames.append(sframe)
@@ -2417,7 +2419,8 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                       'y': ctr[None, ..., 1],
                       'firstframe': np.array(sframe + 1).reshape([1, 1]),
                       'endframe': np.array(eframe).reshape([1, 1]),
-                      'theta': theta[None, ...]
+                      'theta': theta[None, ...],
+                      'a': a[None]
                       }
             # +1 for firstframe because curtrx is assumed to be in matlab format
             if 'pTrkConf' in T:
@@ -2838,7 +2841,7 @@ def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
         return pred_locs, labeled_locs, info, extrastuff
 
 
-def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
+def classify_db_multi_old(conf, read_fn, pred_fn, n, return_ims=False,
                       return_hm=False, hm_dec=100, hm_floor=0.0, hm_nclustermax=1):
     assert False, 'Use classify_db2'
     '''Classifies n examples generated by read_fn'''
@@ -2946,9 +2949,15 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
         for ndx in range(ppe):
             with timer_read:
                 next_db = read_fn()
-            all_f[ndx, ...] = next_db[0]
-            labeled_locs[cur_start + ndx, ...] = next_db[1]
-            info.append(next_db[2])
+            if isinstance(next_db,dict):
+                im = next_db['images']
+                all_f[ndx, ...] = np.transpose(im* 255., [1, 2, 0])
+                labeled_locs[cur_start + ndx, ...] = next_db['locs']
+                info.append(next_db['info'])
+            else:
+                all_f[ndx, ...] = next_db[0]
+                labeled_locs[cur_start + ndx, ...] = next_db[1]
+                info.append(next_db[2])
 
         # note all_f[ppe+1:, ...] for the last batch will be cruft
 
@@ -2990,7 +2999,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
     return ret_dict_all, labeled_locs, info
 
-def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
+def get_read_fn_all(model_type,conf,db_file,img_dir='val',islist=False):
     if model_type == 'leap':
         import leap.training
         read_fn, n = leap.training.get_read_fn(conf, db_file)
@@ -3001,7 +3010,7 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
         cfg_dict['dataset'] = d
         read_fn, db_len = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
     else:
-        if db_file.endswith('.json'):
+        if db_file.endswith('.json') and islist:
             # is a list file
             coco_reader = multiResData.list_loader(conf, db_file, False)
             read_fn = iter(coco_reader).__next__
@@ -3009,6 +3018,7 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
             conf.img_dim = 3
         elif conf.db_format == 'coco':
             coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
+            # coco_reader = PoseCommon_pytorch.coco_loader(conf, db_file, False)
             read_fn = iter(coco_reader).__next__
             db_len = len(coco_reader)
             conf.img_dim = 3
@@ -3044,7 +3054,7 @@ def convert_to_orig_list(preds, info, list_file, conf):
     return preds
 
 
-def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, **kwargs):
+def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, islist=False,**kwargs):
     '''
         Classifies examples in DB.
 
@@ -3059,14 +3069,14 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
     '''
 
     if model_type2 is not None:
-        return classify_db_2stage([model_type,model_type2],[conf,conf2],db_file,[model_file,model_file2],name=[name,name2])
+        return classify_db_2stage([model_type,model_type2],[conf,conf2],db_file,[model_file,model_file2],name=[name,name2],islist=islist)
 
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=name)
 
     if classify_fcn is None:
         classify_fcn = classify_db2
 
-    read_fn, db_len = get_read_fn_all(model_type,conf,db_file,img_dir=img_dir)
+    read_fn, db_len = get_read_fn_all(model_type,conf,db_file,img_dir=img_dir,islist=islist)
     ret = classify_fcn(conf, read_fn, pred_fn, db_len, **kwargs)
     pred_locs, label_locs, info = ret[:3]
     close_fn()
@@ -3079,7 +3089,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
         return ret
 
 
-def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name=['deepnet','deepnet'],  img_dir='val'):
+def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name=['deepnet','deepnet'],  img_dir='val',islist=False):
     '''
         Classifies examples in DB.
 
@@ -3100,7 +3110,13 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     conf2.n_classes = conf[1].n_classes
     pred_fn_top, close_fn_top, model_file_top = get_pred_fn(model_type[0], conf1, model_file[0], name=name[0])
 
-    if conf[0].db_format == 'coco':
+    if db_file.endswith('.json') and islist:
+        # is a list file
+        coco_reader = multiResData.list_loader(conf, db_file, False)
+        read_fn = iter(coco_reader).__next__
+        db_len = len(coco_reader)
+        conf.img_dim = 3
+    elif conf[0].db_format == 'coco':
         coco_reader = multiResData.coco_loader(conf2, db_file, False, img_dir=img_dir)
         read_fn = iter(coco_reader).__next__
         db_len = len(coco_reader)
@@ -3171,8 +3187,9 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
                     theta = np.arctan2(ht_locs[0, 1] - ht_locs[1, 1], ht_locs[0, 0] - ht_locs[1, 0])
                 else:
                     theta = 0
-                curp, curl = multiResData.crop_patch_trx(conf[1],all_f[ndx],ctr[0],ctr[1],theta,np.zeros([conf[1].n_classes,2]))
-                single_data.append([curp,ctr,theta,cur_start+ndx,curn])
+                bbox = ht_locs.flatten().tolist()
+                curp, curl, curs = multiResData.crop_patch_trx(conf[1],all_f[ndx],ctr[0],ctr[1],theta,np.zeros([conf[1].n_classes,2]),bbox=bbox)
+                single_data.append([curp,ctr,theta,cur_start+ndx,curn, curs])
 
     close_fn_top()
     import shutil
@@ -3217,10 +3234,10 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
 
         for ndx in range(ppe):
             cur_in = single_data[cur_start+ndx]
-            ctr, theta, im_idx, animal_idx = cur_in[1:5]
+            ctr, theta, im_idx, animal_idx,scale = cur_in[1:6]
             for k in fields_record:
                 if 'locs' in k:
-                    ret_dict_all[k][im_idx,animal_idx, ...] = to_orig(conf[1],ret_dict[k][ndx, ...],ctr[0],ctr[1],theta)
+                    ret_dict_all[k][im_idx,animal_idx, ...] = to_orig(conf[1],ret_dict[k][ndx, ...],ctr[0],ctr[1],theta,scale=scale)
                 else:
                     ret_dict_all[k][im_idx,animal_idx, ...] = ret_dict[k][ndx, ...]
 
@@ -3975,7 +3992,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             tconf.rrange = 0
 
         tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf,usegpu=False)
-        tself.create_data_gen(debug=False,pin_mem=False)
+        tself.create_data_gen(debug=debug,pin_mem=False)
         # For whatever reasons, debug=True hangs for second stage in 2 stage training when the training job is submitted to the cluster from command line.
         if distort:
             db_type = 'train'
@@ -3989,7 +4006,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         for ndx in range(nsamples):
             try:
                 next_db = tself.next_data(db_type)
-            except:
+            except Exception as e:
                 break
             ims.append(next_db['images'][0].numpy())
             locs.append(next_db['locs'][0].numpy())
@@ -4794,15 +4811,17 @@ def run(args):
                 # update the imsz only if we are classifying the dbs which could have images that are cropped
                 setup_ma(conf)
 
+            islist = False
             if args.list_file is not None:
                 db_file = args.list_file
+                islist = True
             elif args.db_file is not None:
                 db_file = args.db_file
             else:
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
 
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist)
             if cmd=='track':
                 preds = convert_to_orig_list(preds, info, db_file, conf)
 

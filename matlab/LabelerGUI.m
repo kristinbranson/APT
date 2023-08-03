@@ -4591,17 +4591,38 @@ if ~isempty(tObj) && tObj.getHasTrained() && (~lObj.maIsMA)
   % single animal. Use prediction if available else use imported below
   [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
   itgt = lObj.currTarget;
+
   if ~tfhaspred(itgt)
-    msgbox('No predictions for current frame.');
-    return;    
+    if (lObj.nTrx>1)
+      msgbox('No predictions for current frame.');
+      return;    
+    else % for single animal use imported predictions if available
+      iMov = lObj.currMovie;
+      frm = lObj.currFrame;  
+      [tfhaspred,xy] = lObj.labels2{iMov}.getPTrkFrame(frm);
+      if ~tfhaspred
+        msgbox('No predictions for current frame.');
+        return;    
+      end
+    end
+  else
+    xy = xy(:,:,itgt); % "targets" treatment differs from below
   end
-  xy = xy(:,:,itgt); % "targets" treatment differs from below
+
   disp(xy);
   
   % AL20161219: possibly dangerous, assignLabelCoords prob was intended
   % only as a util method for subclasses rather than public API. This may
   % not do the right thing for some concrete LabelCores.
-  lObj.lblCore.assignLabelCoords(xy);
+%   lObj.lblCore.assignLabelCoords(xy);
+
+  lpos2xy = reshape(xy,lObj.nLabelPoints,2);
+  %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+  %lpos2xy = lpos2(:,:,frm);
+  lObj.labelPosSet(lpos2xy);
+
+  lObj.lblCore.newFrame(frm,frm,1);
+
 else
   iMov = lObj.currMovie;
   frm = lObj.currFrame;
@@ -4688,7 +4709,13 @@ else
       handles.labelerObj.lerror('LabelerGUI:setLabels','Unsupported for multiple targets.');
     end
     %lpos2 = lObj.labeledpos2{iMov};
-    p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+    %MK 20230728, labels2 now should always be TrkFile, but keeping other
+    %logic around just in case. Needs work for multiview though.
+    if isa(lObj.labels2{iMov} ,'TrkFile')      
+      [~,p] = lObj.labels2{iMov}.getPTrkFrame(frm);
+    else
+      p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+    end
     lpos2xy = reshape(p,lObj.nLabelPoints,2);
     %assert(size(lpos2,4)==1); % "targets" treatment differs from above
     %lpos2xy = lpos2(:,:,frm);

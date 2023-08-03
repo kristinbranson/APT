@@ -23,6 +23,8 @@ import time
 import cv2
 import xtcocotools.mask
 from functools import partial
+import random
+import time
 # from torch import autograd
 # autograd.set_detect_anomaly(True)
 
@@ -93,7 +95,8 @@ def decode_augment(features, conf, distort):
     return features
 
 def dataloader_worker_init_fn(id,epoch=0):
-    np.random.seed(id + 100*epoch)
+    np.random.seed(id + 100*epoch+int(time.time()))
+    random.seed(id+100*epoch+int(time.time()))
 
 class coco_loader(torch.utils.data.Dataset):
 
@@ -107,11 +110,40 @@ class coco_loader(torch.utils.data.Dataset):
     def __len__(self):
         return max(self.conf.batch_size,len(self.ann['images']))
 
+    def pad(self,image):
+        # Get the original image dimensions
+        original_height, original_width = image.shape[:2]
+
+        # Calculate the aspect ratio of the original image
+        original_aspect_ratio = original_width / original_height
+
+        # Calculate the desired width and height based on the target aspect ratio
+        target_aspect_ratio = self.conf.imsz[1]/self.conf.imsz[0]
+        if original_aspect_ratio < target_aspect_ratio:
+            # Pad vertically
+            desired_width = int(original_height * target_aspect_ratio)
+            padding = (desired_width - original_width)
+            padded_image = cv2.copyMakeBorder(image, 0, 0, 0, padding, cv2.BORDER_CONSTANT)
+        elif original_aspect_ratio > target_aspect_ratio:
+            # Pad horizontally
+            desired_height = int(original_width / target_aspect_ratio)
+            padding = desired_height - original_height
+            padded_image = cv2.copyMakeBorder(image, 0, padding, 0, 0, cv2.BORDER_CONSTANT)
+        else:
+            # No padding required, aspect ratios are the same
+            padded_image = image
+
+        return padded_image
+
     def __getitem__(self, item):
         conf = self.conf
         if (self.conf.batch_size)> len(self.ann['images']):
             item = np.random.randint(len(self.ann['images']))
-        im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
+        im_path = self.ann['images'][item]['file_name']
+        if not os.path.exists(im_path):
+            im_path = os.path.join(conf.coco_im_dir,im_path)
+
+        im = cv2.imread(im_path,cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
         else:
@@ -120,7 +152,14 @@ class coco_loader(torch.utils.data.Dataset):
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
-        if type(self.ann['images'][item]['movid']) == list:
+        if im.shape[:2] != tuple(conf.imsz):
+            im = self.pad(im)
+            sfactor = im.shape[0]/conf.imsz[0]
+        else:
+            sfactor = 1.
+
+
+        if 'movid' not in self.ann['images'][item] or type(self.ann['images'][item]['movid']) == list:
             info = [item,item,item]
         else:
             info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
@@ -130,7 +169,7 @@ class coco_loader(torch.utils.data.Dataset):
         lndx = 0
         annos = []
         for a in self.ann['annotations']:
-            if not (a['image_id']==item):
+            if not (a['image_id']==self.ann['images'][item]['id']):
                 continue
             locs = np.array(a['keypoints'])
             if a['num_keypoints']>0 and a['area']>1:
@@ -143,8 +182,11 @@ class coco_loader(torch.utils.data.Dataset):
         curl = np.array(curl)
         occ = curl[...,2] < 1.5
         locs = curl[...,:2]
+        if np.all(locs[curl[...,2]==0,:]==0):
+            locs[curl[...,2]==0,:] = np.nan
+
         mask = self.get_mask(annos,im.shape[:2])
-        im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...],occ=occ[None])
+        im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale*sfactor, mask=mask[None,...],occ=occ[None])
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
         if not self.conf.is_multi:
@@ -169,8 +211,12 @@ class coco_loader(torch.utils.data.Dataset):
 
         for obj in anno:
             if 'segmentation' in obj:
+                # MK 20230531. Segmentation is required to be a numpy array now. Probably has to do with the newer ampere image. xtcocotools might have been updated. Sigh.
+                # rles = xtcocotools.mask.frPyObjects(
+                #     obj['segmentation'], im_sz[0],
+                #     im_sz[1])
                 rles = xtcocotools.mask.frPyObjects(
-                    obj['segmentation'], im_sz[0],
+                    np.array(obj['segmentation']).astype('double'), im_sz[0],
                     im_sz[1])
                 for rle in rles:
                     m += xtcocotools.mask.decode(rle)
@@ -456,7 +502,15 @@ class PoseCommon_pytorch(object):
 
     def create_lr_sched(self,opt,training_iters,base_lr,step_lr,lr_drop_step_frac):
         if step_lr:
-            lambda_lr = lambda x: 0.1 if x > (1-lr_drop_step_frac)*training_iters else 1.
+            def lambda_lr(x):
+                if x < (1-lr_drop_step_frac)*training_iters:
+                    return 1.
+                elif x > 0.95*training_iters:
+                    return 0.01
+                else:
+                    return 0.1
+
+            # lambda_lr = lambda x: 0.1 if x > (1-lr_drop_step_frac)*training_iters else 1.
         else:
             lambda_lr = lambda x: self.conf.gamma ** (x/self.conf.decay_steps)
 
@@ -555,7 +609,10 @@ class PoseCommon_pytorch(object):
                 start_at = self.restore(model_file, model, opt, sched)
         else:
             try:
-                ckpt = torch.load(model_file)
+                if torch.cuda.device_count()==0:
+                    ckpt =torch.load(model_file,map_location=torch.device('cpu'))
+                else:
+                    ckpt = torch.load(model_file)
                 model.load_state_dict(ckpt['model_state_params'])
                 logging.info('Inititalizing model weights from {}'.format(model_file))
             except Exception as e:

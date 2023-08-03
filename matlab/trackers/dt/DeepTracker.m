@@ -5279,8 +5279,13 @@ classdef DeepTracker < LabelTracker
       if ~tfSuccess,
         return;
       end
+      curIter = obj.trnLastDMC.getIterCurr('view',ivw-1);
+      if numel(curIter)>1
+        % for 2 stage
+        curIter = curIter(2);
+      end
       isCurr = strcmp(DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getModelChainID('view',ivw-1)),trkInfo.trn_ts) && ...
-        (DeepModelChainOnDisk.getCheckSingle(obj.trnLastDMC.getIterCurr('view',ivw-1))==trkInfo.iter);
+        (DeepModelChainOnDisk.getCheckSingle(curIter)==trkInfo.iter);
     end
     
     function tf = isTrkFiles(obj)

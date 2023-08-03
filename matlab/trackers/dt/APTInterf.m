@@ -324,7 +324,7 @@ classdef APTInterf
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         elseif nstages > 1,
-          nativeTrxFiles = totrackinfo.getTrxfiles('stage',1) ;
+          nativeTrxFiles = totrackinfo.getTrkfiles('stage',1) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         end

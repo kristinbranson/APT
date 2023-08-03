@@ -232,6 +232,7 @@ class config(object):
         self.multi_crop_ims = True
         # For NMS for pose. Suppress poses whose avg matching distance is less than this percentage of the bounding box edge size.
         self.multi_match_dist_factor = .2
+        self.multi_scale_by_bbox = False
 
         # ============= TOP-DOWN =================
 

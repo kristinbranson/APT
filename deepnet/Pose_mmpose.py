@@ -32,6 +32,7 @@ import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import numpy as np
 import APT_interface
+import cv2
 
 
 ## Topdown dataset
@@ -147,7 +148,8 @@ class TopDownAPTDataset(TopDownCocoDataset):
 
 
 ## APT pipeline
-from mmpose.datasets.registry import PIPELINES
+#from mmpose.datasets.registry import PIPELINES
+from mmpose.datasets.builder import PIPELINES
 
 @PIPELINES.register_module()
 class APTtransform:
@@ -267,13 +269,29 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
             cfg.model.test_cfg.detection_threshold = conf.multi_mmpose_detection_threshold
 
         else:
-            cfg.data[ttype].type = 'TopDownAPTDataset'
+            # cfg.data[ttype].type = 'TopDownAPTDataset'
+            key_info = {}
+            for ndx in range(conf.n_classes):
+                key_info[ndx] = {'name':f'{ndx}','id':ndx,'color':[128,128,128],'type':'upper','swap':''}
+            for kk in conf.flipLandmarkMatches.keys():
+                key_info[int(kk)]['swap'] = f'{conf.flipLandmarkMatches[kk]}'
+            skel_info = {}
+            for ndx,cure in enumerate(conf.op_affinity_graph):
+                skel_info[ndx] = {'link':(f'{cure[0]}',f'{cure[1]}'),'id':ndx,'color':[128,128,128]}
+            dataset_info = {'dataset_name': 'apt',
+                            'keypoint_info':key_info,
+                            'skeleton_info':skel_info,
+                            'joint_weights':[1.,]*conf.n_classes,
+                            'sigmas':[0.06,]*conf.n_classes,
+                            'paper_info': {}}
+            cfg.data[ttype].dataset_info = dataset_info
 
         # Remove some of the transforms.
         in_pipe = cfg.data[ttype].pipeline
         cfg.data[ttype].pipeline = [ii for ii in in_pipe if ii.type not in ['TopDownHalfBodyTransform']]
 
         if conf.get('mmpose_use_apt_augmentation',False):
+            # substitute their augmentation pipeline with ours
             if ttype =='train':
                 if conf.is_multi:
                     assert \
@@ -309,6 +327,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
                 p.flip_prob = 0.5 if (conf.horz_flip or conf.vert_flip) else 0.
             elif p.type == 'TopDownHalfBodyTransform':
                 p.prob_half_body = 0.0
+            elif p.type == 'TopDownGetBboxCenterScale':
+                p.padding = conf.get('mmpose_pad',1.)
 
 
     if torch.cuda.is_available():
@@ -440,6 +460,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         elif mmpose_net =='mspn':
             #self.cfg_file = 'configs/top_down/mspn/coco/mspn50_coco_256x192.py'
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/mspn50_coco_256x192.py'
+        elif mmpose_net == 'hrnet_ap10k':
+            self.cfg_file = '/groups/branson/bransonlab/mayank/code/AP-10K/configs/animal/2d_kpt_sview_rgb_img/topdown_heatmap/ap10k/hrnet_w32_ap10k_256x256.py'
 
         else:
             assert False, 'Unknown mmpose net type'
@@ -617,6 +639,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         return  model_file
 
     def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+
         cfg = self.cfg
         conf = self.conf
 
@@ -634,6 +657,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         logging.info(f'Loaded model from {model_file}')
         if torch.cuda.is_available():
             model = MMDataParallel(model,device_ids=[0])
+        model = model.eval()
         # build part of the pipeline to do the same preprocessing as training
         test_pipeline = cfg.test_pipeline[2:]
         test_pipeline = mmpose.datasets.pipelines.Compose(test_pipeline)
@@ -651,12 +675,21 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         to_tensor_trans = ToTensor()
         norm_trans = NormalizeTensor(cfg.test_pipeline[-2]['mean'],cfg.test_pipeline[-2]['std'])
 
-        def pref_fn(ims,retrawpred=False):
+        def pred_fn(ims,retrawpred=False):
 
             pose_results = np.ones([ims.shape[0],conf.n_classes,2])*np.nan
             conf_res = np.zeros([ims.shape[0],conf.n_classes])
 
-            ims, _ = PoseTools.preprocess_ims(ims.copy(),np.zeros([ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale)
+            # pad_y = int(conf.imsz[0]*0.25)
+            # pad_sz_y1 = int( pad_y/2)
+            # pad_sz_y2 = pad_y-pad_sz_y1
+            #
+            # pad_x = int(conf.imsz[1]*0.25)
+            # pad_sz_x1 = int(pad_x/2)
+            # pad_sz_x2 = pad_x-pad_sz_x1
+            #
+            # ims = np.pad(ims,[[0,0],[pad_sz_y1,pad_sz_y2],[pad_sz_x1,pad_sz_x2],[0,0]])
+            ims, _ = PoseTools.preprocess_ims(ims.copy(),np.zeros([ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale,interp_method=cv2.INTER_CUBIC)
             all_hmaps = []
             for b in range(ims.shape[0]):
                 if ims.shape[3] == 1:
@@ -666,15 +699,17 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                 # prepare data
                 data = {'img': ii.astype('uint8'),
                     'dataset': 'coco',
-                    'ann_info': {
+                        'joints_3d': np.ones([conf.n_classes,2])*30,
+                        'joints_3d_visible': np.ones([conf.n_classes,1]),
+                        'center':np.array([ii.shape[1]/2+0.5,ii.shape[0]/2+0.5]),
+                        'scale':(np.array(ims.shape[1:3]))/200,
+                        'rotation':0.,
+                        'ann_info': {
                         'image_size':
                             cfg.data_cfg['image_size'],
                         'num_joints':
                             cfg.data_cfg['num_joints'],
                         'image_file':'',
-                        'center':np.array([ii.shape[1]/2,ii.shape[0]/2]),
-                        'scale':np.array(ims.shape[1:3])/200,
-                        'rotation':np.zeros([1,2]),
                         'bbox_score':[0],
                         'flip_pairs':pairs
                     }
@@ -682,9 +717,11 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
                 # replace the test_pipeline with ours
                 # data = test_pipeline(data)
-                data = to_tensor_trans(data)
-                data = norm_trans(data)
-                data['img'] = torch.unsqueeze(data['img'],0)
+                data = test_pipeline(data)
+                data['img'] = data['img'][None]
+                # data = to_tensor_trans(data)
+                # data = norm_trans(data)
+                # data['img'] = torch.unsqueeze(data['img'],0)
                 # Don't use this for now.
                 # data = collate([data], samples_per_gpu=1)
                 # if next(model.parameters()).is_cuda:
@@ -694,14 +731,18 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                 #     # just get the actual data from DataContainer
                 #     data['img_metas'] = data['img_metas'].data[0]
 
-                data['img_metas'] = [data['ann_info']]
+                # data['img_metas'] = [data['ann_info']]
                 # forward the model
                 with torch.no_grad():
-                    model_out = model(return_loss=False, img=data['img'], img_metas=data['img_metas'])
+                    model_out = model(return_loss=False, img=data['img'], img_metas=[data['img_metas'].data])
 
                 all_preds = model_out['preds']
                 heatmap = model_out['output_heatmap']
-                pose_results[b,:,:] = all_preds[0,:,:2].copy()*conf.rescale
+                # pose_results_x = (all_preds[0,:,0].copy()-ims.shape[2]/2+0.5)*1.25+ims.shape[2]/2-0.5
+                # pose_results_y = (all_preds[0,:,1].copy()-ims.shape[1]/2+0.5)*1.25+ims.shape[1]/2-0.5
+                # pose_results_cur = np.array([pose_results_x,pose_results_y])*conf.rescale
+                # pose_results[b,:,:] = pose_results_cur.T
+                pose_results[b,:,:] = all_preds[0,:,:2]
                 conf_res[b,:] = all_preds[0,:,2].copy()
                 if retrawpred:
                     all_hmaps.append(heatmap)
@@ -714,4 +755,4 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         def close_fn():
             torch.cuda.empty_cache()
 
-        return pref_fn, close_fn, model_file
+        return pred_fn, close_fn, model_file

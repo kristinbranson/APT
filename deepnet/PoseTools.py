@@ -116,8 +116,8 @@ def unscale_points(locs_lores, scalex, scaley):
 
 def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     sz = img.shape
-    szy_ds = int(sz[1]//scale)
-    szx_ds = int(sz[2]//scale)
+    szy_ds = round(sz[1]/scale)
+    szx_ds = round(sz[2]/scale)
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
 
@@ -144,7 +144,7 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
             simg[ndx, :, :, :] = cv2.resize(img[ndx, :, :, :], out_sz, **kwargs)
         if mask is not None:
             # use skimage transform because it can work on boolean data
-            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
+            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
 
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
@@ -592,8 +592,15 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05
+
             dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
             dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+
+            # if np.random.rand()<0.5:
+            #     dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            #     dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            # else:
+            #     dx = 0; dy= 0
 
             count += 1
             if count > 5:
@@ -614,6 +621,8 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                     and np.all(lr[valid, 1] <= rows):
                 sane = True
             elif not conf.check_bounds_distort:
+                out_of_range = (lr[...,0]<0) | (lr[...,0]>=cols) | (lr[...,1]<0) | (lr[...,1]>=rows)
+                high_valid = high_valid & ~out_of_range
                 sane = True
             elif do_transform:
                 continue
@@ -706,7 +715,7 @@ def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     blur_l = np.zeros([2 * k_size + 1, 2 * k_size + 1])
     blur_l[k_size, k_size] = 1
     blur_l = cv2.GaussianBlur(blur_l, (2 * k_size + 1, 2 * k_size + 1), blur_rad)
-    blur_l = old_div(blur_l, blur_l.max())
+    blur_l = blur_l/ blur_l.max()
     for cls in range(n_classes):
         for andx in range(maxn):
             for ndx in range(len(locs)):
@@ -1432,7 +1441,7 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,oc
     cur_im = cur_im.astype('uint8')
     xs = adjust_contrast(cur_im, conf)
     start = time.time()
-    xs, locs, mask = scale_images(xs, locs, scale, conf, mask=mask)
+    xs, locs, mask = scale_images(xs, locs, scale, conf, mask=mask,interpolation=cv2.INTER_CUBIC)
     stime = time.time()
     if distort:
         if conf.horz_flip:
@@ -1807,3 +1816,37 @@ def find_knee(x,y):
     d1 = np.array(d1)
     knee_pt = np.argmax(d1)
     return knee_pt, d1[knee_pt]
+
+
+def resize_padding(image, width, height):
+
+    # Get the original image dimensions
+    original_height, original_width = image.shape[:2]
+
+    # Calculate the aspect ratios
+    aspect_ratio = original_width / original_height
+    target_aspect_ratio = width / height
+
+    # Determine the scaling factor
+    if aspect_ratio > target_aspect_ratio:
+        scale_factor = width / original_width
+    else:
+        scale_factor = height / original_height
+
+    # Resize the image
+    resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
+
+    # Calculate the padding sizes
+    pad_width = width - resized_image.shape[1]
+    pad_height = height - resized_image.shape[0]
+
+    # Calculate the padding amounts
+    top = pad_height // 2
+    bottom = pad_height - top
+    left = pad_width // 2
+    right = pad_width - left
+
+    # Apply padding to the image
+    padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+    return padded_image,scale_factor
