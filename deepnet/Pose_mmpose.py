@@ -462,7 +462,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/mspn50_coco_256x192.py'
         elif mmpose_net == 'hrnet_ap10k':
             self.cfg_file = '/groups/branson/bransonlab/mayank/code/AP-10K/configs/animal/2d_kpt_sview_rgb_img/topdown_heatmap/ap10k/hrnet_w32_ap10k_256x256.py'
-
+        elif mmpose_net == 'hrformer':
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrformer_base_coco_256x192.py'
         else:
             assert False, 'Unknown mmpose net type'
 

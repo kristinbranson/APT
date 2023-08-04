@@ -69,6 +69,18 @@ mmpose:
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
+hrformer:
+  shortString: hrformer
+  displayString: HRFormer
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
 deeplabcut:   
   shortString: dlc
   displayString: DeepLabCut

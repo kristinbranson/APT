@@ -31,7 +31,7 @@ classdef APTParameters
         'incDLNetSpecific',true...
         );
       
-      trees = APTParameters.getParamTrees;
+      trees = APTParameters.getParamTrees() ;
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;

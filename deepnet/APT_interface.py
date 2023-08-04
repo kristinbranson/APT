@@ -1096,6 +1096,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_mdn_joint_torch_1': 'MultiAnimalGRONe',
                       'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
+                      'hrformer': 'HRFormer',
                       }
 
     if not 'ProjectFile' in A:
@@ -2578,25 +2579,30 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name, **kwargs)
         else:
             raise Exception('sb network not implemented')
-
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'mdn':
         pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file, name=name, distort=distort, **kwargs)
     elif model_type == 'leap':
         import leap.training
-
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
         pred_fn, close_fn, model_file = deeplabcut.pose_estimation_tensorflow.get_pred_fn(cfg_dict, model_file)
+    elif model_type == 'mmpose' or model_type == 'hrtransform':
+        # This is the clause for all MMPose models
+        # If we had a time machine, we'd change the 'mmpose' model type to 'mspn', since it's no longer the only MMPose model.
+        from Pose_mmpose import Pose_mmpose
+        tf1.reset_default_graph()
+        poser = Pose_mmpose(conf, name=name)
+        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
     else:
         try:
             module_name = 'Pose_{}'.format(model_type)
             pose_module = __import__(module_name)
             tf1.reset_default_graph()
-            self = getattr(pose_module, module_name)(conf, name=name)
-            pred_fn, close_fn, model_file = self.get_pred_fn(model_file)
+            poser = getattr(pose_module, module_name)(conf, name=name)
+            pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
         except ImportError:
             raise ImportError('Undefined type of network')
 
@@ -4366,15 +4372,18 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out,debug=args.debug)
                 if args.only_aug: continue
 
-                module_name = 'Pose_{}'.format(net_type)
+                if net_type == 'mmpose' or net_type == 'hrformer' :
+                    module_name = 'Pose_mmpose'
+                else :
+                    module_name = 'Pose_{}'.format(net_type)                    
                 logging.info(f'Importing pose module {module_name}')
                 pose_module = __import__(module_name)
                 tf1.reset_default_graph()
-                foo = getattr(pose_module, module_name)
-                self = foo(conf, name=args.train_name)
+                poser_factory = getattr(pose_module, module_name)
+                poser = poser_factory(conf, name=args.train_name)
                 # self.name = args.train_name
                 logging.info('Starting training...')
-                self.train_wrapper(restore=restore, model_file=model_file)
+                poser.train_wrapper(restore=restore, model_file=model_file)
                 logging.info('Finished training.')
 
         except tf1.errors.InternalError as e:
