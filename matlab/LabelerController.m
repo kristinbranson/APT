@@ -15,7 +15,6 @@ classdef LabelerController < handle
       obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       obj.labeler_.registerController(obj) ;  % hack
       obj.tvTrx_ = TrackingVisualizerTrx(labeler) ;
-      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
       obj.listeners_ = cell(1,0) ;
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
@@ -27,6 +26,8 @@ classdef LabelerController < handle
         addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(obj.updateTrxSetShowTrue(source, event))) ;      
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
+      % Do this once listeners are set up
+      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
 
     function delete(obj)
