@@ -381,6 +381,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         except:
             pass
 
+    # disable dynamic loss_scale for fp16 because the hooks in the current mmpose don't support it. MK 20230807. mmpose version is 0.29.0. REMOVE THIS WHEN UPDATING MMPOSE
+    cfg.fp16 = {}
     return cfg
 
 class TraindataHook(Hook):
@@ -464,6 +466,10 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             self.cfg_file = '/groups/branson/bransonlab/mayank/code/AP-10K/configs/animal/2d_kpt_sview_rgb_img/topdown_heatmap/ap10k/hrnet_w32_ap10k_256x256.py'
         elif mmpose_net == 'hrformer':
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrformer_base_coco_256x192.py'
+            # create a dummy distributed group to keep sync batch norm happy. REMOVE THIS WHEN ENABLING MULTI GPU
+            os.environ['MASTER_ADDR'] = 'localhost'
+            os.environ['MASTER_PORT'] = '12345'
+            torch.distributed.init_process_group(backend='gloo',rank=0,world_size=1)
         else:
             assert False, 'Unknown mmpose net type'
 
