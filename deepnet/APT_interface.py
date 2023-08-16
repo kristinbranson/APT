@@ -2589,7 +2589,7 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
         pred_fn, close_fn, model_file = deeplabcut.pose_estimation_tensorflow.get_pred_fn(cfg_dict, model_file)
-    elif model_type == 'mmpose' or model_type == 'hrtransform':
+    elif model_type == 'mmpose' or model_type == 'hrformer':
         # This is the clause for all MMPose models
         # If we had a time machine, we'd change the 'mmpose' model type to 'mspn', since it's no longer the only MMPose model.
         from Pose_mmpose import Pose_mmpose
