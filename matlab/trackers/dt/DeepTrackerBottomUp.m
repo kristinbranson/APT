@@ -19,6 +19,7 @@ classdef DeepTrackerBottomUp < DeepTracker
       trkClsAug = { ...
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_mdn_joint_torch 'trnNetMode' DLNetMode.multiAnimalBU};
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_openpose 'trnNetMode' DLNetMode.multiAnimalBU};
+          {'DeepTrackerBottomUp' 'trnNetType' DLNetType.cid 'trnNetMode' DLNetMode.multiAnimalBU};
           };
     end    
   end

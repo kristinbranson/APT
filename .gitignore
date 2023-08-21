@@ -18,3 +18,4 @@ deepnet/pretrained/*
 deepnet/log/
 .DS_Store
 log/
+*conda-list.txt

@@ -470,6 +470,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             os.environ['MASTER_ADDR'] = 'localhost'
             os.environ['MASTER_PORT'] = '12345'
             torch.distributed.init_process_group(backend='gloo',rank=0,world_size=1)
+        elif mmpose_net == 'cid':
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/cid/coco/hrnet_w32_coco_512x512.py'
         else:
             assert False, 'Unknown mmpose net type'
 

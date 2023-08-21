@@ -48,6 +48,7 @@ classdef DLNetType < handle %dynamicprops
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')
     hrformer ('hrformer')
+    cid ('cid')
   end
   
   methods 
