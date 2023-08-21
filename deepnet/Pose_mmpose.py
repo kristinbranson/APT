@@ -1,5 +1,6 @@
 import pathlib
 import os
+#from urllib.request import HTTPPasswordMgrWithDefaultRealm
 #import sys
 #sys.path.append(os.path.join(pathlib.Path(__file__).parent.resolve(),'mmpose'))
 import mmcv
@@ -237,7 +238,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         cfg.data_cfg.heatmap_size = [int(h/default_im_sz*imsz) for h in default_hm_sz]
         cfg.model.train_cfg.img_size = cfg.data_cfg.image_size
         cfg.model.keypoint_head.num_joints = conf.n_classes
-        cfg.model.keypoint_head.loss_keypoint.num_joints = conf.n_classes
+        if hasattr(cfg.model.keypoint_head, 'loss_keypoint') :
+            cfg.model.keypoint_head.loss_keypoint.num_joints = conf.n_classes
     else:
         assert default_im_sz[0]/default_hm_sz[0] == 4, 'Single animal mmpose is tested only for hmaps downsampled by 4'
         cfg.data_cfg.heatmap_size = [csz // 4 for csz in cfg.data_cfg.image_size]
@@ -338,8 +340,21 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg.seed = None
     cfg.work_dir = conf.cachedir
 
-    default_samples_per_gpu = cfg.data.samples_per_gpu
-    cfg.data.samples_per_gpu = conf.batch_size
+    # NEEDS REVIEW
+    # MK: Does this look right?  CiD cfg does not have cfg.data.samples_per_gpu, it has these three:
+    #
+    #         cfg.data.train_dataloader['samples_per_gpu']
+    #         cfg.data.test_dataloader['samples_per_gpu']
+    #         cfg.data.val_dataloader['samples_per_gpu']
+    #
+    # I'm not sure I've handled this s.t. it will work properly for testing and validation.
+    if hasattr(cfg.data, 'samples_per_gpu') :
+        default_samples_per_gpu = cfg.data.samples_per_gpu
+        cfg.data.samples_per_gpu = conf.batch_size
+    else :
+        # default_samples_per_gpu is only used to set the learning rate, so we use the value in cfg that pertains to training.
+        default_samples_per_gpu = cfg.data.train_dataloader['samples_per_gpu']
+        cfg.data.train_dataloader['samples_per_gpu'] = conf.batch_size
     cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
 
     assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
@@ -359,7 +374,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     # Disable flip testing.
     cfg.model.test_cfg.flip_test = False
 
-    if 'with_ae_loss' in cfg.model.keypoint_head.loss_keypoint:
+    if hasattr(cfg.model.keypoint_head, 'loss_keypoint') and ('with_ae_loss' in cfg.model.keypoint_head.loss_keypoint):
         # setup ae push factor.
         td = PoseTools.json_load(os.path.join(conf.cachedir, conf.trainfilename + '.json'))
         nims = len(td['images'])
@@ -491,6 +506,12 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         # From mmpose/tools/train.py
         logger = logging.getLogger()  # the root logger
         cfg = self.cfg
+        # Hack to work around what is seemingly a bug in MMPose 0.29.0...
+        try :
+            if cfg.model.type == 'CID' :
+                del cfg.model.keypoint_head['out_channels']
+        except :
+            pass
         model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
         rectify_log_level_bang(logger)
         dataset = [build_dataset(cfg.data.train)]

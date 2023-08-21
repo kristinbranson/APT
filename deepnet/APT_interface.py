@@ -4373,8 +4373,10 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out,debug=args.debug)
                 if args.only_aug: continue
 
-                if net_type == 'mmpose' or net_type == 'hrformer' or net_type == 'cid':
+                if net_type == 'mmpose' or net_type == 'hrformer':
                     module_name = 'Pose_mmpose'
+                elif net_type == 'cid':
+                    module_name = 'Pose_multi_mmpose'
                 else :
                     module_name = 'Pose_{}'.format(net_type)                    
                 logging.info(f'Importing pose module {module_name}')
