@@ -192,7 +192,8 @@ class Pose_multi_mmpose(Pose_mmpose):
             pose_results = np.ones([in_ims.shape[0],max_n_animals,conf.n_classes,2])*np.nan
             conf_res = np.zeros([in_ims.shape[0],max_n_animals,conf.n_classes])
 
-            ims, _ = PoseTools.preprocess_ims(in_ims.copy(),np.zeros([in_ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale)
+            # ims, _ = PoseTools.preprocess_ims(in_ims.copy(),np.zeros([in_ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale)
+            ims = in_ims
             tt = test_pipeline
             for b in range(ims.shape[0]):
                 if ims.shape[3] == 1:
