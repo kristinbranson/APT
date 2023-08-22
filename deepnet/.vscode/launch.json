@@ -13,10 +13,26 @@
             "justMyCode": false
         } ,
         {
+            "name": "Test MSPN training",
+            "type": "python",
+            "request": "launch",
+            "program": "test_mspn_training_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
             "name": "Test MSPN tracking",
             "type": "python",
             "request": "launch",
             "program": "test_mspn_tracking_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "Test CiD training",
+            "type": "python",
+            "request": "launch",
+            "program": "test_cid_training_on_unmarked_mice_20210924.py",
             "console": "integratedTerminal",
             "justMyCode": false
         }

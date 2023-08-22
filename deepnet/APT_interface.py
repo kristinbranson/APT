@@ -1097,6 +1097,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
                       'hrformer': 'HRFormer',
+                      'cid': 'CiD',
                       }
 
     if not 'ProjectFile' in A:
@@ -2589,7 +2590,7 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
         pred_fn, close_fn, model_file = deeplabcut.pose_estimation_tensorflow.get_pred_fn(cfg_dict, model_file)
-    elif model_type == 'mmpose' or model_type == 'hrtransform':
+    elif model_type == 'mmpose' or model_type == 'hrformer' or model_type == 'cid':
         # This is the clause for all MMPose models
         # If we had a time machine, we'd change the 'mmpose' model type to 'mspn', since it's no longer the only MMPose model.
         from Pose_mmpose import Pose_mmpose
@@ -4372,8 +4373,10 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out,debug=args.debug)
                 if args.only_aug: continue
 
-                if net_type == 'mmpose' or net_type == 'hrformer' :
+                if net_type == 'mmpose' or net_type == 'hrformer':
                     module_name = 'Pose_mmpose'
+                elif net_type == 'cid':
+                    module_name = 'Pose_multi_mmpose'
                 else :
                     module_name = 'Pose_{}'.format(net_type)                    
                 logging.info(f'Importing pose module {module_name}')
