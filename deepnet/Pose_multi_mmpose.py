@@ -17,7 +17,7 @@ from xtcocotools.coco import COCO
 
 ## Bottomup dataset
 
-from mmpose.datasets.builder import DATASETS
+from mmpose.datasets.builder import DATASETS,PIPELINES
 from mmpose.datasets.datasets.bottom_up.bottom_up_coco import BottomUpCocoDataset
 
 @DATASETS.register_module()
@@ -90,6 +90,53 @@ class BottomUpAPTDataset(BottomUpCocoDataset):
 
         return m > 0.5
 
+# TODO: Fixing a bug where mmpose code uses np.int instead of np.int32. Remove this when updating mmpose
+@PIPELINES.register_module(force=True)
+class BottomUpRandomFlip:
+    """Data augmentation with random image flip for bottom-up.
+
+    Args:
+        flip_prob (float): Probability of flip.
+    """
+
+    def __init__(self, flip_prob=0.5):
+        self.flip_prob = flip_prob
+
+    def __call__(self, results):
+        """Perform data augmentation with random image flip."""
+        image, mask, joints = results['img'], results['mask'], results[
+            'joints']
+        self.flip_index = results['ann_info']['flip_index']
+        self.output_size = results['ann_info']['heatmap_size']
+
+        assert isinstance(mask, list)
+        assert isinstance(joints, list)
+        assert len(mask) == len(joints)
+        assert len(mask) == len(self.output_size)
+
+        if np.random.random() < self.flip_prob:
+            image = image[:, ::-1].copy() - np.zeros_like(image)
+            for i, _output_size in enumerate(self.output_size):
+                if not isinstance(_output_size, np.ndarray):
+                    _output_size = np.array(_output_size)
+                if _output_size.size > 1:
+                    assert len(_output_size) == 2
+                else:
+                    _output_size = np.array([_output_size, _output_size],
+                                            dtype=np.int32)
+                mask[i] = mask[i][:, ::-1].copy()
+                joints[i] = joints[i][:, self.flip_index]
+                joints[i][:, :, 0] = _output_size[0] - joints[i][:, :, 0] - 1
+                if i == 0 and 'bboxes' in results:
+                    bbox = results['bboxes']
+                    bbox = bbox[:, [1, 0, 3, 2]]
+                    bbox[:, :, 0] = _output_size[0] - bbox[:, :, 0] - 1
+                    results['bboxes'] = bbox
+        results['img'], results['mask'], results[
+            'joints'] = image, mask, joints
+        return results
+
+
 
 class Pose_multi_mmpose(Pose_mmpose):
 
@@ -106,6 +153,7 @@ class Pose_multi_mmpose(Pose_mmpose):
         assert conf.is_multi, 'This pred function is only for multi-animal (bottom-up)'
 
         if max_n is not None:
+
             cfg.model.test_cfg.max_num_people = max_n
             max_n_animals = max_n
         else:

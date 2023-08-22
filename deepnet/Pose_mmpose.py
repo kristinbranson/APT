@@ -231,12 +231,13 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg = mmcv.Config.fromfile(mmpose_config_file_path)
     default_im_sz = cfg.data_cfg.image_size
     default_hm_sz = cfg.data_cfg.heatmap_size
-    cfg.data_cfg.image_size = [int(c / conf.rescale) for c in conf.imsz[::-1]]  # conf.imsz[0]
+    cfg.data_cfg.image_size = [int(c / conf.rescale/32)*32 for c in conf.imsz[::-1]]  # conf.imsz[0]
     if conf.is_multi:
         imsz = cfg.data_cfg.image_size[0]
         cfg.data_cfg.image_size = imsz
         cfg.data_cfg.heatmap_size = [int(h/default_im_sz*imsz) for h in default_hm_sz]
         cfg.model.train_cfg.img_size = cfg.data_cfg.image_size
+        cfg.model.test_cfg.img_size = cfg.data_cfg.image_size
         cfg.model.keypoint_head.num_joints = conf.n_classes
         if hasattr(cfg.model.keypoint_head, 'loss_keypoint') :
             cfg.model.keypoint_head.loss_keypoint.num_joints = conf.n_classes
@@ -261,6 +262,22 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
         cfg.data[ttype].data_cfg = cfg.data_cfg
 
+        key_info = {}
+        for ndx in range(conf.n_classes):
+            key_info[ndx] = {'name': f'{ndx}', 'id': ndx, 'color': [128, 128, 128], 'type': 'upper', 'swap': ''}
+        for kk in conf.flipLandmarkMatches.keys():
+            key_info[int(kk)]['swap'] = f'{conf.flipLandmarkMatches[kk]}'
+        skel_info = {}
+        for ndx, cure in enumerate(conf.op_affinity_graph):
+            skel_info[ndx] = {'link': (f'{cure[0]}', f'{cure[1]}'), 'id': ndx, 'color': [128, 128, 128]}
+        dataset_info = {'dataset_name': 'apt',
+                        'keypoint_info': key_info,
+                        'skeleton_info': skel_info,
+                        'joint_weights': [1., ] * conf.n_classes,
+                        'sigmas': [0.06, ] * conf.n_classes,
+                        'paper_info': {}}
+        cfg.data[ttype].dataset_info = dataset_info
+
         if conf.is_multi:
             cfg.data[ttype].type = 'BottomUpAPTDataset'
             cfg.model.train_cfg.num_joints = conf.n_classes
@@ -271,22 +288,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
             cfg.model.test_cfg.detection_threshold = conf.multi_mmpose_detection_threshold
 
         else:
+            pass
             # cfg.data[ttype].type = 'TopDownAPTDataset'
-            key_info = {}
-            for ndx in range(conf.n_classes):
-                key_info[ndx] = {'name':f'{ndx}','id':ndx,'color':[128,128,128],'type':'upper','swap':''}
-            for kk in conf.flipLandmarkMatches.keys():
-                key_info[int(kk)]['swap'] = f'{conf.flipLandmarkMatches[kk]}'
-            skel_info = {}
-            for ndx,cure in enumerate(conf.op_affinity_graph):
-                skel_info[ndx] = {'link':(f'{cure[0]}',f'{cure[1]}'),'id':ndx,'color':[128,128,128]}
-            dataset_info = {'dataset_name': 'apt',
-                            'keypoint_info':key_info,
-                            'skeleton_info':skel_info,
-                            'joint_weights':[1.,]*conf.n_classes,
-                            'sigmas':[0.06,]*conf.n_classes,
-                            'paper_info': {}}
-            cfg.data[ttype].dataset_info = dataset_info
 
         # Remove some of the transforms.
         in_pipe = cfg.data[ttype].pipeline
@@ -719,7 +722,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             # pad_sz_x2 = pad_x-pad_sz_x1
             #
             # ims = np.pad(ims,[[0,0],[pad_sz_y1,pad_sz_y2],[pad_sz_x1,pad_sz_x2],[0,0]])
-            ims, _ = PoseTools.preprocess_ims(ims.copy(),np.zeros([ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale,interp_method=cv2.INTER_CUBIC)
+            # ims, _ = PoseTools.preprocess_ims(ims.copy(),np.zeros([ims.shape[0],conf.n_classes,2]),conf,False,conf.rescale,interp_method=cv2.INTER_CUBIC)
             all_hmaps = []
             for b in range(ims.shape[0]):
                 if ims.shape[3] == 1:

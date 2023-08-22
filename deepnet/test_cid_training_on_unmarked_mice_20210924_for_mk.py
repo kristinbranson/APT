@@ -26,7 +26,7 @@ def test_training() :
     script_folder_path = os.path.dirname(this_script_path)
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt
 
-    read_only_folder_path = os.path.join(' /groups/branson/bransonlab/taylora/apt', "unmarkedMice_round2_cid_training_test_input_folder_read_only")
+    read_only_folder_path = os.path.join('/groups/branson/bransonlab/taylora/apt', "unmarkedMice_round2_cid_training_test_input_folder_read_only")
     working_folder_path = os.path.join(os.environ['HOME'], "unmarkedMice_round2_cid_training_test_working_folder")
 
     #logging.warning('Point 1')
