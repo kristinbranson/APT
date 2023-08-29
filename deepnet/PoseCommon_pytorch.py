@@ -7,18 +7,18 @@ import sys
 from collections import OrderedDict
 import logging
 import PoseTools
-import tfdatagen
+#import tfdatagen
 import time
-import tensorflow.compat.v1 as tf
-ISTFR = False
-try:
-    from tfrecord.torch.dataset import TFRecordDataset
-    ISTFR = True
-except:
-    print('TFRecordDataset not available')
-import errno
-import re
-import gc
+#import tensorflow.compat.v1 as tf   # type:ignore
+# ISTFR = False
+# try:
+#     from tfrecord.torch.dataset import TFRecordDataset
+#     ISTFR = True
+# except:
+#     print('TFRecordDataset not available')
+#import errno
+#import re
+#import gc
 import time
 import cv2
 import xtcocotools.mask
@@ -28,7 +28,7 @@ import time
 # from torch import autograd
 # autograd.set_detect_anomaly(True)
 
-ISWINDOWS = os.name == 'nt'
+#ISWINDOWS = os.name == 'nt'
 
 def print_train_data(cur_dict):
     p_str = ''
@@ -399,43 +399,43 @@ class PoseCommon_pytorch(object):
 
 
     def create_tf_data_gen(self, debug=False,**kwargs):
-        assert ISTFR, 'TFRecordDataset unavailable'
-        conf = self.conf
-        train_tfn = lambda f: decode_augment(f,conf,True)
-        val_tfn = lambda f: decode_augment(f,conf,False)
-        trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        valtfr = trntfr
-        xx = tf.python_io.tf_record_iterator(trntfr)
-        len_db = sum([1 for x in xx])
-        queue_sz = min(len_db,300)
-        # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
-        if not os.path.exists(valtfr):
-            logging.info('Validation data set doesnt exist. Using train data set for validation')
-            valtfr = trntfr
-        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
-        val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
-        self.train_loader_raw = train_dl_tf
-        self.val_loader_raw = val_dl_tf
-        num_workers = 0 if debug else 16
-        args = {
-            'batch_size': self.conf.batch_size,
-            'pin_memory': True,
-            'drop_last': True,
-        }
+        assert False, 'TFRecordDataset unavailable'
+        # conf = self.conf
+        # train_tfn = lambda f: decode_augment(f,conf,True)
+        # val_tfn = lambda f: decode_augment(f,conf,False)
+        # trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+        # valtfr = trntfr
+        # xx = tf.python_io.tf_record_iterator(trntfr)
+        # len_db = sum([1 for x in xx])
+        # queue_sz = min(len_db,300)
+        # # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
+        # if not os.path.exists(valtfr):
+        #     logging.info('Validation data set doesnt exist. Using train data set for validation')
+        #     valtfr = trntfr
+        # train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
+        # val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
+        # self.train_loader_raw = train_dl_tf
+        # self.val_loader_raw = val_dl_tf
+        # num_workers = 0 if debug else 16
+        # args = {
+        #     'batch_size': self.conf.batch_size,
+        #     'pin_memory': True,
+        #     'drop_last': True,
+        # }
 
-        if num_workers > 0:
-            #try:
-            #    self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
-            #except:
-            logging.warning(f'Could not create torch DataLoader with num_workers = {num_workers}, trying with 0')
-            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
-        else:
-            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+        # if num_workers > 0:
+        #     #try:
+        #     #    self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
+        #     #except:
+        #     logging.warning(f'Could not create torch DataLoader with num_workers = {num_workers}, trying with 0')
+        #     self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+        # else:
+        #     self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
 
-        self.val_dl = torch.utils.data.DataLoader(val_dl_tf, **args)
+        # self.val_dl = torch.utils.data.DataLoader(val_dl_tf, **args)
 
-        self.train_iter = iter(self.train_dl)
-        self.val_iter = iter(self.val_dl)
+        # self.train_iter = iter(self.train_dl)
+        # self.val_iter = iter(self.val_dl)
 
 
     def create_coco_data_gen(self, debug=False, pin_mem=True,**kwargs):
@@ -453,7 +453,13 @@ class PoseCommon_pytorch(object):
 
         num_workers = 0 if debug else 16
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=dataloader_worker_init_fn)
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, 
+                                                    batch_size=self.conf.batch_size, 
+                                                    pin_memory=pin_mem,
+                                                    drop_last=True,
+                                                    num_workers=num_workers,
+                                                    shuffle=True,
+                                                    worker_init_fn=dataloader_worker_init_fn)
         self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
@@ -496,7 +502,6 @@ class PoseCommon_pytorch(object):
         locs = inputs['locs']
         return PoseTools.create_label_images(locs,self.conf.imsz,1,self.conf.label_blur_rad)
 
-
     def create_optimizer(self, model, base_lr):
         return torch.optim.Adam(model.parameters(),lr=base_lr)
 
@@ -516,9 +521,7 @@ class PoseCommon_pytorch(object):
 
         return torch.optim.lr_scheduler.LambdaLR(opt,lambda_lr)
 
-
     def train(self, model, loss, opt, lr_sched, n_steps, start_at=0):
-
         save_start = time.time()
         clip_gradients = self.conf.get('clip_gradients', True)
         start = time.time()
@@ -587,7 +590,7 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False,model_file=None):
+    def train_wrapper(self, restore=False, model_file=None):
         model = self.create_model()
         training_iters = self.conf.dl_steps
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)

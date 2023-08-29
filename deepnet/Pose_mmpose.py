@@ -33,11 +33,11 @@ import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import numpy as np
 import APT_interface
-import cv2
+#import cv2
 
 
 ## Topdown dataset
-from mmpose.datasets.registry import DATASETS
+from mmpose.datasets.builder import DATASETS
 from mmpose.datasets.datasets.top_down.topdown_coco_dataset import TopDownCocoDataset
 from xtcocotools.coco import COCO
 
@@ -340,8 +340,13 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         cfg.gpu_ids = range(1)
     else:
         cfg.gpu_ids = []
-    cfg.seed = None
     cfg.work_dir = conf.cachedir
+
+    # Use a fixed seed if APT is in debug mode    
+    if APT_interface.IS_APT_IN_DEBUG_MODE:
+        cfg.seed = 0
+    else:
+        cfg.seed = None
 
     # NEEDS REVIEW
     # MK: Does this look right?  CiD cfg does not have cfg.data.samples_per_gpu, it has these three:
@@ -412,7 +417,7 @@ class TraindataHook(Hook):
 
     def after_train_iter(self, runner):
         if not self.every_n_iters(runner,self.interval):
-            return
+           return
         self.td_data['step'].append(runner.iter + 1)
         runner.log_buffer.average(self.interval)
         if 'loss' in runner.log_buffer.output.keys():
@@ -431,6 +436,26 @@ class TraindataHook(Hook):
             json_data[x] = np.array(self.td_data[x]).astype(np.float64).tolist()
         with open(train_data_file + '.json', 'w') as json_file:
             json.dump(json_data, json_file)
+
+
+class TrainingDebuggingHook(Hook):
+    def __init__(self):
+        self.step_from_i = []
+        self.training_loss_from_i = []
+
+    def after_train_iter(self, runner):        
+        step = runner.iter + 1
+        self.step_from_i.append(step)
+        runner.log_buffer.clear_output()  # Don't want other hooks to interfere with us
+        runner.log_buffer.average(1)
+        if 'loss' in runner.log_buffer.output.keys():
+            training_loss = runner.log_buffer.output['loss'].copy()
+        else:
+            training_loss = runner.log_buffer.output['all_loss'].copy()
+        runner.log_buffer.clear_output()  # Don't want to interfere with other hooks
+        self.training_loss_from_i.append(training_loss)
+        print('step: %d, loss: %g' % (step, training_loss))
+        pass
 
 
 def get_handler_by_name(logger, name):
@@ -650,13 +675,18 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         td_hook = TraindataHook(self.get_td_file(),self.conf,self.conf.display_step)
         runner.register_hook(td_hook)
 
+        # Add a hook object for debugging
+        trainingDebuggingHook = TrainingDebuggingHook()
+        runner.register_hook(trainingDebuggingHook)
+
         if cfg.resume_from:
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
-        runner.run(data_loaders, cfg.workflow)
+        with torch.autograd.detect_anomaly():
+            runner.run(data_loaders, cfg.workflow)
         logging.debug("Runner is finished running.")
 
 

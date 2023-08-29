@@ -3979,7 +3979,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
     if model_type == 'deeplabcut':
         logging.info('Generating training data samples is not supported for deeplabcut')
         db_file = os.path.join(conf.cachedir,'train_data.p')
-        read_fn, dblen = get_read_fn_all(model_type,conf,db_file)
+        read_fn, dblen = get_read_fn_all(model_type, conf, db_file)
         ims = []; locs = []; info = []
         for ndx in range(nsamples):
             next_db = read_fn()
@@ -3998,8 +3998,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         if model_type.startswith('detect'):
             tconf.rrange = 0
 
-        tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf,usegpu=False)
-        tself.create_data_gen(debug=debug,pin_mem=False)
+        tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf, usegpu=False)
+        tself.create_data_gen(debug=debug, pin_mem=False)
         # For whatever reasons, debug=True hangs for second stage in 2 stage training when the training job is submitted to the cluster from command line.
         if distort:
             db_type = 'train'
