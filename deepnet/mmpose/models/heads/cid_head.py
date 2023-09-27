@@ -128,39 +128,43 @@ class CIDHead(nn.Module):
             instances['instance_heatmap'].append(instance_heatmap)
             instances['instance_mask'].append(instance_mask)
 
-        contrastive_loss = contrastive_loss / total_instances
+        if total_instances == 0:
+            contrastive_loss = torch.zeros_like(multi_heatmap_loss)
+            single_heatmap_loss = torch.zeros_like(multi_heatmap_loss)
+        else:
+            contrastive_loss = contrastive_loss / total_instances
 
-        for k, v in instances.items():
-            instances[k] = torch.cat(v, dim=0)
-
-        # limit max instances in training
-        if 0 <= self.max_train_instances < instances['instance_param'].size(0):
-            inds = torch.randperm(
-                instances['instance_param'].size(0),
-                device=features.device).long()
             for k, v in instances.items():
-                instances[k] = v[inds[:self.max_train_instances]]
+                instances[k] = torch.cat(v, dim=0)
 
-        # single person heatmap loss
-        global_features = self.conv_down(features)
-        instance_features = global_features[instances['instance_imgid']]
-        instance_params = instances['instance_param']
-        c_instance_feats = self.c_attn(instance_features, instance_params)
-        s_instance_feats = self.s_attn(instance_features, instance_params,
-                                       instances['instance_coord'])
-        cond_instance_feats = torch.cat((c_instance_feats, s_instance_feats),
-                                        dim=1)
-        cond_instance_feats = self.fuse_attn(cond_instance_feats)
-        cond_instance_feats = F.relu(cond_instance_feats)
+            # limit max instances in training
+            if 0 <= self.max_train_instances < instances['instance_param'].size(0):
+                inds = torch.randperm(
+                    instances['instance_param'].size(0),
+                    device=features.device).long()
+                for k, v in instances.items():
+                    instances[k] = v[inds[:self.max_train_instances]]
 
-        pred_instance_heatmaps = _sigmoid(
-            self.heatmap_conv(cond_instance_feats))
+            # single person heatmap loss
+            global_features = self.conv_down(features)
+            instance_features = global_features[instances['instance_imgid']]
+            instance_params = instances['instance_param']
+            c_instance_feats = self.c_attn(instance_features, instance_params)
+            s_instance_feats = self.s_attn(instance_features, instance_params,
+                                           instances['instance_coord'])
+            cond_instance_feats = torch.cat((c_instance_feats, s_instance_feats),
+                                            dim=1)
+            cond_instance_feats = self.fuse_attn(cond_instance_feats)
+            cond_instance_feats = F.relu(cond_instance_feats)
 
-        gt_instance_heatmaps = instances['instance_heatmap']
-        gt_instance_masks = instances['instance_mask']
-        single_heatmap_loss = self.heatmap_loss(pred_instance_heatmaps,
-                                                gt_instance_heatmaps,
-                                                gt_instance_masks)
+            pred_instance_heatmaps = _sigmoid(
+                self.heatmap_conv(cond_instance_feats))
+
+            gt_instance_heatmaps = instances['instance_heatmap']
+            gt_instance_masks = instances['instance_mask']
+            single_heatmap_loss = self.heatmap_loss(pred_instance_heatmaps,
+                                                    gt_instance_heatmaps,
+                                                    gt_instance_masks)
 
         losses = dict()
         losses['multi_heatmap_loss'] = multi_heatmap_loss *\

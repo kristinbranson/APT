@@ -103,27 +103,27 @@ class FocalHeatmapLoss(nn.Module):
           pred (batch x c x h x w)
           gt_regr (batch x c x h x w)
         """
-        pos_inds = gt.eq(1).float()
-        neg_inds = gt.lt(1).float()
+        pos_inds = gt.eq(1).bool()
+        neg_inds = gt.lt(1).bool()
 
         if mask is not None:
-            pos_inds = pos_inds * mask
-            neg_inds = neg_inds * mask
+            mask_bool = mask.bool()
+            pos_inds = pos_inds & mask_bool
+            neg_inds = neg_inds & mask_bool
 
         neg_weights = torch.pow(1 - gt, self.beta)
 
-        loss = 0
+        # loss = 0
 
-        pos_loss = torch.log(pred) * torch.pow(1 - pred, self.alpha) * pos_inds
-        neg_loss = torch.log(1 - pred) * torch.pow(
-            pred, self.alpha) * neg_weights * neg_inds
+        pos_loss = torch.where(pos_inds, torch.log(pred) * torch.pow(1 - pred, self.alpha), 0.0)
+        neg_loss = torch.where(neg_inds, torch.log(1 - pred) * torch.pow(pred, self.alpha) * neg_weights, 0.0)
 
         num_pos = pos_inds.float().sum()
         pos_loss = pos_loss.sum()
         neg_loss = neg_loss.sum()
 
         if num_pos == 0:
-            loss = loss - neg_loss
+            loss = 0 - neg_loss
         else:
-            loss = loss - (pos_loss + neg_loss) / num_pos
+            loss = 0 - (pos_loss + neg_loss) / num_pos
         return loss
