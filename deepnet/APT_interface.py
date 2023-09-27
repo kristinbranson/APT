@@ -89,7 +89,7 @@ import copy
 import PoseCommon_pytorch
 import gc
 
-torch.autograd.set_detect_anomaly(False)
+torch.autograd.set_detect_anomaly(True)
 torch.autograd.profiler.profile(False)
 torch.autograd.profiler.emit_nvtx(False)
 
@@ -4999,7 +4999,12 @@ def main(argv):
     
     # Parse the arguments
     args = parse_args(argv)
-    
+
+    # Set a global to indicate in debug mode
+    global IS_APT_IN_DEBUG_MODE
+    IS_APT_IN_DEBUG_MODE = args.debug
+
+    # What the heck is this?
     if args.sub_name == 'test':
         print("Hello this is APT!")
         return

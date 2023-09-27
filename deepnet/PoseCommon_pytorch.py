@@ -451,7 +451,7 @@ class PoseCommon_pytorch(object):
         self.train_loader_raw = train_dl_coco
         self.val_loader_raw = val_dl_coco
 
-        num_workers = 0 if debug else 16
+        num_workers = 0 if debug else 2
 
         self.train_dl = torch.utils.data.DataLoader(train_dl_coco, 
                                                     batch_size=self.conf.batch_size, 
