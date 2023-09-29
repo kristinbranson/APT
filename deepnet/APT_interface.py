@@ -1990,6 +1990,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
 
         # if selndx % 100 == 99 and selndx > 0:
         #     logging.info('{} number of examples added to the dbs'.format(count))
+    logging.info('Done resaving training images.')
 
     # logging.info('{} number of examples added to the training dbs'.format(count))
 
@@ -4385,6 +4386,15 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 poser_factory = getattr(pose_module, module_name)
                 poser = poser_factory(conf, name=args.train_name)
                 # self.name = args.train_name
+                if args.zero_seeds:
+                    # Set a bunch of seeds to zero for training reproducibility
+                    #import random
+                    #random.seed(0)
+                    np.random.seed(0)
+                    torch.manual_seed(0)
+                    torch.cuda.manual_seed(0)
+                    torch.cuda.manual_seed_all(0)
+                # Proceed to actual training
                 logging.info('Starting training...')
                 poser.train_wrapper(restore=restore, model_file=model_file)
                 logging.info('Finished training.')
@@ -4427,6 +4437,8 @@ def parse_args(argv):
     parser.add_argument('-cache', dest='cache', help='Override cachedir in lbl file', default=None)
     parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-no_except', dest='no_except', help='Dont catch exception. Useful for debugging',
+                        action='store_true')
+    parser.add_argument('-zero_seeds', dest='zero_seeds', help='Zero the numpy, torch, and torch-cuda random seeds. Useful for debugging',
                         action='store_true')
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
