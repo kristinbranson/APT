@@ -405,7 +405,12 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
             pass
 
     # disable dynamic loss_scale for fp16 because the hooks in the current mmpose don't support it. MK 20230807. mmpose version is 0.29.0. REMOVE THIS WHEN UPDATING MMPOSE
-    cfg.fp16 = {}
+    if cfg['model']['type'] == 'CID':
+        # CID model needs this to be None to *really* disable 16-bit FP
+        cfg.fp16 = None
+    else:
+        # This being an empty dict diables 16-bit FP for most model types.
+        cfg.fp16 = {}
     return cfg
 
 class TraindataHook(Hook):
