@@ -66,8 +66,12 @@ def test_training() :
              '-ignore_local', '0', 
              '-cache', working_folder_path,
              '-debug',
+             '-no_except',
+             '-zero_seeds',
              'train', 
-             '-use_cache'])
+             '-use_cache',
+             '-skip_db'])
+            #  '-use_cache'])
 
 
 
