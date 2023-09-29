@@ -115,15 +115,15 @@ class FocalHeatmapLoss(nn.Module):
 
         # loss = 0
 
-        pos_loss = torch.where(pos_inds, torch.log(pred) * torch.pow(1 - pred, self.alpha), 0.0)
-        neg_loss = torch.where(neg_inds, torch.log(1 - pred) * torch.pow(pred, self.alpha) * neg_weights, 0.0)
+        pos_loss = torch.where(pos_inds, torch.log(pred    ) * torch.pow(1 - pred, self.alpha)              , 0.0)
+        neg_loss = torch.where(neg_inds, torch.log(1 - pred) * torch.pow(pred    , self.alpha) * neg_weights, 0.0)
 
         num_pos = pos_inds.float().sum()
-        pos_loss = pos_loss.sum()
-        neg_loss = neg_loss.sum()
+        pos_loss_sum = pos_loss.sum()
+        neg_loss_sum = neg_loss.sum()
 
         if num_pos == 0:
-            loss = 0 - neg_loss
+            loss = 0.0 - neg_loss_sum
         else:
-            loss = 0 - (pos_loss + neg_loss) / num_pos
+            loss = 0.0 - (pos_loss_sum + neg_loss_sum) / num_pos
         return loss
