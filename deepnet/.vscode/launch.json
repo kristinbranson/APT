@@ -29,10 +29,10 @@
             "justMyCode": false
         } ,
         {
-            "name": "Test CiD training",
+            "name": "test_four_points_training_div_by_zero.py",
             "type": "python",
             "request": "launch",
-            "program": "test_cid_training_on_unmarked_mice_20210924.py",
+            "program": "test_four_points_training_div_by_zero.py",
             "console": "integratedTerminal",
             "justMyCode": false
         }
