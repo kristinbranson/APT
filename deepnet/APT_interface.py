@@ -89,7 +89,7 @@ import copy
 import PoseCommon_pytorch
 import gc
 
-torch.autograd.set_detect_anomaly(True)
+#torch.autograd.set_detect_anomaly(True)
 torch.autograd.profiler.profile(False)
 torch.autograd.profiler.emit_nvtx(False)
 
