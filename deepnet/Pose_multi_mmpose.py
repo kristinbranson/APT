@@ -7,6 +7,7 @@ from mmpose.datasets.pipelines import Compose
 import numpy as np
 from mmcv.parallel import collate, scatter
 import torch
+import torch.nn as nn
 import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import logging
@@ -18,7 +19,12 @@ from xtcocotools.coco import COCO
 ## Bottomup dataset
 
 from mmpose.datasets.builder import DATASETS,PIPELINES
+from mmpose.models import HEADS,LOSSES,build_loss
 from mmpose.datasets.datasets.bottom_up.bottom_up_coco import BottomUpCocoDataset
+import math
+import torch.nn.functional as F
+from collections import defaultdict
+
 
 @DATASETS.register_module()
 class BottomUpAPTDataset(BottomUpCocoDataset):
@@ -180,6 +186,95 @@ class FocalHeatmapLoss(nn.Module):
         else:
             loss = 0.0 - (pos_loss_sum + neg_loss_sum) / num_pos
         return loss
+
+
+
+# TODO: Needed by our custom CIDHead:below. Remove this when updating mmpose
+class ContrastiveLoss(nn.Module):
+
+    def __init__(self, temperature=0.05):
+        super(ContrastiveLoss, self).__init__()
+        self.temp = temperature
+
+    def forward(self, features):
+        n = features.size(0)
+        features_norm = F.normalize(features, dim=1)
+        logits = features_norm.mm(features_norm.t()) / self.temp
+        targets = torch.arange(n, dtype=torch.long, device=features.device)
+        loss = F.cross_entropy(logits, targets, reduction='sum')
+        return loss
+
+
+
+# TODO: Needed by our custom CIDHead:below. Remove this when updating mmpose
+def compute_locations(h, w, stride, device):
+    shifts_x = torch.arange(
+        0, w * stride, step=stride, dtype=torch.float32, device=device)
+    shifts_y = torch.arange(
+        0, h * stride, step=stride, dtype=torch.float32, device=device)
+    shift_y, shift_x = torch.meshgrid(shifts_y, shifts_x)
+    shift_x = shift_x.reshape(-1)
+    shift_y = shift_y.reshape(-1)
+    locations = torch.stack((shift_x, shift_y), dim=1) + stride // 2
+    return locations
+
+
+
+# TODO: Needed by our custom CIDHead:below. Remove this when updating mmpose
+class ChannelAtten(nn.Module):
+
+    def __init__(self, in_channels, out_channels):
+        super(ChannelAtten, self).__init__()
+        self.atn = nn.Linear(in_channels, out_channels)
+
+    def forward(self, global_features, instance_params):
+        B, C, H, W = global_features.size()
+        instance_params = self.atn(instance_params).reshape(B, C, 1, 1)
+        return global_features * instance_params.expand_as(global_features)
+
+
+
+# TODO: Needed by our custom CIDHead:below. Remove this when updating mmpose
+class SpatialAtten(nn.Module):
+
+    def __init__(self, in_channels, out_channels):
+        super(SpatialAtten, self).__init__()
+        self.atn = nn.Linear(in_channels, out_channels)
+        self.feat_stride = 4
+        conv_in = 3
+        self.conv = nn.Conv2d(conv_in, 1, 5, 1, 2)
+
+    def forward(self, global_features, instance_params, instance_inds):
+        B, C, H, W = global_features.size()
+        instance_params = self.atn(instance_params).reshape(B, C, 1, 1)
+        feats = global_features * instance_params.expand_as(global_features)
+        fsum = torch.sum(feats, dim=1, keepdim=True)
+        input_feats = fsum
+        locations = compute_locations(
+            global_features.size(2),
+            global_features.size(3),
+            stride=1,
+            device=global_features.device)
+        n_inst = instance_inds.size(0)
+        H, W = global_features.size()[2:]
+        instance_locations = torch.flip(instance_inds, [1])
+        instance_locations = instance_locations
+        relative_coords = instance_locations.reshape(
+            -1, 1, 2) - locations.reshape(1, -1, 2)
+        relative_coords = relative_coords.permute(0, 2, 1).float()
+        relative_coords = (relative_coords /
+                           32).to(dtype=global_features.dtype)
+        relative_coords = relative_coords.reshape(n_inst, 2, H, W)
+        input_feats = torch.cat((input_feats, relative_coords), dim=1)
+        mask = self.conv(input_feats).sigmoid()
+        return global_features * mask
+
+
+
+# TODO: Needed by our custom CIDHead:below. Remove this when updating mmpose
+def _sigmoid(x):
+    y = torch.clamp(x.sigmoid_(), min=1e-4, max=1 - 1e-4)
+    return y
 
 
 
