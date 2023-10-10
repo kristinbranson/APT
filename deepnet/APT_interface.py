@@ -2591,12 +2591,17 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
         pred_fn, close_fn, model_file = deeplabcut.pose_estimation_tensorflow.get_pred_fn(cfg_dict, model_file)
-    elif model_type == 'mmpose' or model_type == 'hrformer' or model_type == 'cid':
-        # This is the clause for all MMPose models
+    elif model_type == 'mmpose' or model_type == 'hrformer':
+        # This is the clause for all top-down MMPose models
         # If we had a time machine, we'd change the 'mmpose' model type to 'mspn', since it's no longer the only MMPose model.
         from Pose_mmpose import Pose_mmpose
         tf1.reset_default_graph()
         poser = Pose_mmpose(conf, name=name)
+        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
+    elif model_type == 'cid':
+        from Pose_multi_mmpose import Pose_multi_mmpose
+        tf1.reset_default_graph()
+        poser = Pose_multi_mmpose(conf, name=name)
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
     else:
         try:
@@ -3926,6 +3931,18 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
     return files
 
 
+class cleaner :
+    """Context manager for calling a function on exit."""
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, etype, value, traceback):
+        self.fn()
+
+
 def classify_movie_all(model_type, **kwargs):
     ''' Classify movie wrapper'''
     conf = kwargs['conf']
@@ -3935,16 +3952,18 @@ def classify_movie_all(model_type, **kwargs):
     if conf.stage == 'first':
         conf.n_classes = 2
         conf.op_affinity_graph = [[0, 1]]
-
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
-    # logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
-    try:
-        trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
-    except (IOError, ValueError) as e:
-        trk = None
-        logging.exception('Could not track movie')
-    finally:
-        close_fn()
+    no_except = kwargs['no_except']
+    del kwargs['no_except']
+    with cleaner(close_fn):
+        if no_except:
+            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+        else:
+            try:
+                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+            except (IOError, ValueError) as e:
+                trk = None
+                logging.exception('Could not track movie')
     return trk
 
 
@@ -4629,7 +4648,8 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            crop_loc=args.crop_loc[view_ndx][mov_ndx],
                            model_file=args.model_file[view_ndx],
                            train_name=args.train_name,
-                           predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx]
+                           predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx],
+                           no_except=args.no_except
                            )
     else:
         trk = None
@@ -5029,6 +5049,13 @@ def main(argv):
     # set up logging to files
     errh,logh = set_up_logging(args)
         
+    # # Debugging
+    # ld_library_path = os.getenv('LD_LIBRARY_PATH')
+    # if ld_library_path is None:
+    #     logging.info("LD_LIBRARY_PATH: <not set>") 
+    # else:
+    #     logging.info("LD_LIBRARY_PATH: '%s'" % ld_library_path) 
+
     # write commit info to log
     repo_info = PoseTools.get_git_commit()
     logging.info('Git Commit: {}'.format(repo_info))

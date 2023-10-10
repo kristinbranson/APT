@@ -18,9 +18,13 @@ from xtcocotools.coco import COCO
 
 ## Bottomup dataset
 
+import cv2
 from mmpose.datasets.builder import DATASETS,PIPELINES
 from mmpose.models import HEADS,LOSSES,build_loss
 from mmpose.datasets.datasets.bottom_up.bottom_up_coco import BottomUpCocoDataset
+from mmpose.core.post_processing import (get_affine_transform, get_warp_matrix,
+                                         warp_affine_joints)
+
 import math
 import torch.nn.functional as F
 from collections import defaultdict
@@ -554,13 +558,261 @@ class CIDHead(nn.Module):
 
 
 
+# TODO: Fixing a bug where mmpose BottomUpGetImgSize uses deprecated and removed np.int. Remove this when updating mmpose
+def _ceil_to_multiples_of(x, base=64):
+    """Transform x to the integral multiple of the base."""
+    return int(np.ceil(x / base)) * base
+
+
+
+# TODO: Fixing a bug where mmpose BottomUpGetImgSize uses deprecated and removed np.int. Remove this when updating mmpose
+def _get_multi_scale_size(image,
+                          input_size,
+                          current_scale,
+                          min_scale,
+                          base_length=64,
+                          use_udp=False):
+    """Get the size for multi-scale training.
+
+    Args:
+        image: Input image.
+        input_size (np.ndarray[2]): Size (w, h) of the image input.
+        current_scale (float): Scale factor.
+        min_scale (float): Minimal scale.
+        base_length (int): The width and height should be multiples of
+            base_length. Default: 64.
+        use_udp (bool): To use unbiased data processing.
+            Paper ref: Huang et al. The Devil is in the Details: Delving into
+            Unbiased Data Processing for Human Pose Estimation (CVPR 2020).
+
+    Returns:
+        tuple: A tuple containing multi-scale sizes.
+
+        - (w_resized, h_resized) (tuple(int)): resized width/height
+        - center (np.ndarray): image center
+        - scale (np.ndarray): scales wrt width/height
+    """
+    assert len(input_size) == 2
+    h, w, _ = image.shape
+
+    # calculate the size for min_scale
+    min_input_w = _ceil_to_multiples_of(min_scale * input_size[0], base_length)
+    min_input_h = _ceil_to_multiples_of(min_scale * input_size[1], base_length)
+    if w < h:
+        w_resized = int(min_input_w * current_scale / min_scale)
+        h_resized = int(
+            _ceil_to_multiples_of(min_input_w / w * h, base_length) *
+            current_scale / min_scale)
+        if use_udp:
+            scale_w = w - 1.0
+            scale_h = (h_resized - 1.0) / (w_resized - 1.0) * (w - 1.0)
+        else:
+            scale_w = w / 200.0
+            scale_h = h_resized / w_resized * w / 200.0
+    else:
+        h_resized = int(min_input_h * current_scale / min_scale)
+        w_resized = int(
+            _ceil_to_multiples_of(min_input_h / h * w, base_length) *
+            current_scale / min_scale)
+        if use_udp:
+            scale_h = h - 1.0
+            scale_w = (w_resized - 1.0) / (h_resized - 1.0) * (h - 1.0)
+        else:
+            scale_h = h / 200.0
+            scale_w = w_resized / h_resized * h / 200.0
+    if use_udp:
+        center = (scale_w / 2.0, scale_h / 2.0)
+    else:
+        center = np.array([round(w / 2.0), round(h / 2.0)])
+    return (w_resized, h_resized), center, np.array([scale_w, scale_h])
+
+
+
+# TODO: Fixing a bug where mmpose BottomUpGetImgSize uses deprecated and removed np.int. Remove this when updating mmpose
+@PIPELINES.register_module(force=True)
+class BottomUpGetImgSize:
+    """Get multi-scale image sizes for bottom-up, including base_size and
+    test_scale_factor. Keep the ratio and the image is resized to
+    `results['ann_info']['image_size']×current_scale`.
+
+    Args:
+        test_scale_factor (List[float]): Multi scale
+        current_scale (int): default 1
+        base_length (int): The width and height should be multiples of
+            base_length. Default: 64.
+        use_udp (bool): To use unbiased data processing.
+            Paper ref: Huang et al. The Devil is in the Details: Delving into
+            Unbiased Data Processing for Human Pose Estimation (CVPR 2020).
+    """
+
+    def __init__(self,
+                 test_scale_factor,
+                 current_scale=1,
+                 base_length=64,
+                 use_udp=False):
+        self.test_scale_factor = test_scale_factor
+        self.min_scale = min(test_scale_factor)
+        self.current_scale = current_scale
+        self.base_length = base_length
+        self.use_udp = use_udp
+
+    def __call__(self, results):
+        """Get multi-scale image sizes for bottom-up."""
+        input_size = results['ann_info']['image_size']
+        if not isinstance(input_size, np.ndarray):
+            input_size = np.array(input_size)
+        if input_size.size > 1:
+            assert len(input_size) == 2
+        else:
+            input_size = np.array([input_size, input_size], dtype=int)
+        img = results['img']
+
+        base_size, center, scale = _get_multi_scale_size(
+            img, input_size, self.current_scale, self.min_scale,
+            self.base_length, self.use_udp)
+        results['ann_info']['test_scale_factor'] = self.test_scale_factor
+        results['ann_info']['base_size'] = base_size
+        results['ann_info']['center'] = center
+        results['ann_info']['scale'] = scale
+
+        return results
+
+
+
+# TODO: Fixing a bug where mmpose BottomUpResizeAlign uses deprecated and removed np.int. Remove this when updating mmpose
+def _resize_align_multi_scale(image,
+                              input_size,
+                              current_scale,
+                              min_scale,
+                              base_length=64):
+    """Resize the images for multi-scale training.
+
+    Args:
+        image: Input image
+        input_size (np.ndarray[2]): Size (w, h) of the image input
+        current_scale (float): Current scale
+        min_scale (float): Minimal scale
+        base_length (int): The width and height should be multiples of
+            base_length. Default: 64.
+
+    Returns:
+        tuple: A tuple containing image info.
+
+        - image_resized (np.ndarray): resized image
+        - center (np.ndarray): center of image
+        - scale (np.ndarray): scale
+    """
+    assert len(input_size) == 2
+    size_resized, center, scale = _get_multi_scale_size(
+        image, input_size, current_scale, min_scale, base_length)
+
+    trans = get_affine_transform(center, scale, 0, size_resized)
+    image_resized = cv2.warpAffine(image, trans, size_resized)
+
+    return image_resized, center, scale
+
+
+
+# TODO: Fixing a bug where mmpose BottomUpResizeAlign uses deprecated and removed np.int. Remove this when updating mmpose
+def _resize_align_multi_scale_udp(image,
+                                  input_size,
+                                  current_scale,
+                                  min_scale,
+                                  base_length=64):
+    """Resize the images for multi-scale training.
+
+    Args:
+        image: Input image
+        input_size (np.ndarray[2]): Size (w, h) of the image input
+        current_scale (float): Current scale
+        min_scale (float): Minimal scale
+        base_length (int): The width and height should be multiples of
+            base_length. Default: 64.
+
+    Returns:
+        tuple: A tuple containing image info.
+
+        - image_resized (np.ndarray): resized image
+        - center (np.ndarray): center of image
+        - scale (np.ndarray): scale
+    """
+    assert len(input_size) == 2
+    size_resized, _, _ = _get_multi_scale_size(image, input_size,
+                                               current_scale, min_scale,
+                                               base_length, True)
+
+    _, center, scale = _get_multi_scale_size(image, input_size, min_scale,
+                                             min_scale, base_length, True)
+
+    trans = get_warp_matrix(
+        theta=0,
+        size_input=np.array(scale, dtype=np.float32),
+        size_dst=np.array(size_resized, dtype=np.float32) - 1.0,
+        size_target=np.array(scale, dtype=np.float32))
+    image_resized = cv2.warpAffine(
+        image.copy(), trans, size_resized, flags=cv2.INTER_LINEAR)
+
+    return image_resized, center, scale
+
+
+
+# TODO: Fixing a bug where mmpose BottomUpResizeAlign uses deprecated and removed np.int. Remove this when updating mmpose
+@PIPELINES.register_module(force=True)
+class BottomUpResizeAlign:
+    """Resize multi-scale size and align transform for bottom-up.
+
+    Args:
+        transforms (List): ToTensor & Normalize
+        base_length (int): The width and height should be multiples of
+            base_length. Default: 64.
+        use_udp (bool): To use unbiased data processing.
+            Paper ref: Huang et al. The Devil is in the Details: Delving into
+            Unbiased Data Processing for Human Pose Estimation (CVPR 2020).
+    """
+
+    def __init__(self, transforms, base_length=64, use_udp=False):
+        self.transforms = Compose(transforms)
+        self.base_length = base_length
+        if use_udp:
+            self._resize_align_multi_scale = _resize_align_multi_scale_udp
+        else:
+            self._resize_align_multi_scale = _resize_align_multi_scale
+
+    def __call__(self, results):
+        """Resize multi-scale size and align transform for bottom-up."""
+        input_size = results['ann_info']['image_size']
+        if not isinstance(input_size, np.ndarray):
+            input_size = np.array(input_size)
+        if input_size.size > 1:
+            assert len(input_size) == 2
+        else:
+            input_size = np.array([input_size, input_size], dtype=int)
+        test_scale_factor = results['ann_info']['test_scale_factor']
+        aug_data = []
+
+        for _, s in enumerate(sorted(test_scale_factor, reverse=True)):
+            _results = results.copy()
+            image_resized, _, _ = self._resize_align_multi_scale(
+                _results['img'], input_size, s, min(test_scale_factor),
+                self.base_length)
+            _results['img'] = image_resized
+            _results = self.transforms(_results)
+            transformed_img = _results['img'].unsqueeze(0)
+            aug_data.append(transformed_img)
+
+        results['ann_info']['aug_data'] = aug_data
+
+        return results
+
+
+
 class Pose_multi_mmpose(Pose_mmpose):
 
-    def __init__(self, conf, name='deepnet',is_multi=True,**kwargs):
+    def __init__(self, conf, name='deepnet', is_multi=True, **kwargs):
         mmpose_net = conf.mmpose_net
-        super().__init__(conf,name,mmpose_net=mmpose_net,is_multi=True, **kwargs)
+        super().__init__(conf, name, mmpose_net=mmpose_net, is_multi=True, **kwargs)
 
-    def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+    def get_pred_fn(self, model_file=None, max_n=None, imsz=None):
         # Pred fn is sufficiently different in top-down and bottom-up to have separate fns for both.
 
         cfg = self.cfg
@@ -569,13 +821,18 @@ class Pose_multi_mmpose(Pose_mmpose):
         assert conf.is_multi, 'This pred function is only for multi-animal (bottom-up)'
 
         if max_n is not None:
-
             cfg.model.test_cfg.max_num_people = max_n
             max_n_animals = max_n
         else:
             max_n_animals = conf.max_n_animals
 
-        model = build_posenet(cfg.model)
+        # Hack to work around what is seemingly a bug in MMPose 0.29.0...
+        try :
+            if cfg.model.type == 'CID' :
+                del cfg.model.keypoint_head['out_channels']
+        except :
+            pass
+
         cfg.model.pretrained = None
         cfg.data.test.test_mode = True
         model = build_posenet(cfg.model)
@@ -586,7 +843,9 @@ class Pose_multi_mmpose(Pose_mmpose):
 
         _ = load_checkpoint(model, model_file, map_location='cpu')
         logging.info(f'Loaded model from {model_file}')
-        model = MMDataParallel(model,device_ids=[0])
+        if torch.cuda.is_available():
+            model = MMDataParallel(model, device_ids=[0])
+        model = model.eval()
         # build part of the pipeline to do the same preprocessing as training
         test_pipeline = cfg.test_pipeline[1:]
         test_pipeline = Compose(test_pipeline)
@@ -603,7 +862,7 @@ class Pose_multi_mmpose(Pose_mmpose):
 
         match_dist_factor = conf.multi_match_dist_factor
 
-        def pred_fn(in_ims,retrawpred=False):
+        def pred_fn(in_ims, retrawpred=False):
 
             pose_results = np.ones([in_ims.shape[0],max_n_animals,conf.n_classes,2])*np.nan
             conf_res = np.zeros([in_ims.shape[0],max_n_animals,conf.n_classes])
@@ -618,8 +877,8 @@ class Pose_multi_mmpose(Pose_mmpose):
                     ii = ims[b,...]
                 # prepare data
                 data = {'img': ii.astype('uint8'),
-                    'dataset': 'coco',
-                    'ann_info': {
+                        'dataset': 'coco',
+                        'ann_info': {
                         'image_size':
                             cfg.data_cfg['image_size'],
                         'num_joints':
@@ -647,18 +906,20 @@ class Pose_multi_mmpose(Pose_mmpose):
 
                 # forward the model
                 with torch.no_grad():
-                    model_out = model(return_loss=False, img=data['img'], img_metas=data['img_metas'],return_heatmap=retrawpred)
+                    model_output = model(return_loss=False, img=data['img'], img_metas=data['img_metas'], return_heatmap=retrawpred)
 
-                all_preds = model_out['preds']
-                scores = model_out['scores']
-                heatmap = model_out['output_heatmap']
+                all_preds = model_output['preds']
+                scores = model_output['scores']
+                heatmap = model_output['output_heatmap']
                 # remove duplicates
                 n_preds = len(all_preds)
-                all_array = np.array(all_preds)
+                if n_preds==0:
+                    continue
+                all_array = np.array(all_preds)  # n_preds x 4 x 4 (?)
                 # First sort of find the animal size to set a threshold
 
                 # Find average animal size for predictions
-                pred_sz = np.mean(all_array[0].max(axis=-2)-all_array[0].min(axis=-1))
+                pred_sz = np.mean(all_array[0].max(axis=-2)-all_array[0].min(axis=-1))  # numpy scalar
                 nms_dist = pred_sz*match_dist_factor
 
                 # find the match indexes
