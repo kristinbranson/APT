@@ -24,12 +24,13 @@ class cd :
 def test_training() :
     this_script_path = os.path.realpath(__file__)
     script_folder_path = os.path.dirname(this_script_path)
-    project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt
+    project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))
+    # e.g. /groups/branson/bransonlab/taylora/apt
 
-    read_only_folder_path = os.path.join(project_folder_path, "four_points_cid_no_crop_input_folder_read_only")
-    working_folder_path = os.path.join(project_folder_path, "four_points_cid_no_crop_working_folder")
+    read_only_folder_path = os.path.join(project_folder_path, "four_points_div_by_zero_tp_input_folder_read_only")
+    working_folder_path = os.path.join(project_folder_path, "four_points_div_by_zero_tp_working_folder")
 
-    #logging.warning('Point 1')
+    # logging.warning('Point 1')
 
     # Make sure the read-only test folder path exists
     if not os.path.exists(read_only_folder_path) :
@@ -42,44 +43,31 @@ def test_training() :
     subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
                    check=True)
 
-    #logging.warning('Point 2')
+    # logging.warning('Point 2')
 
     # Set some CUDA-related envars
-    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # Want the CUDA ID #s for the GPUs to match those used by nvidia-smi and nvtop
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # Want the CUDA ID #s for the GPUs to match those used by nvidia-smi and nvtop
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-    #logging.warning('Point 3')
+    # logging.warning('Point 3')
 
-    #deepnet_folder_path = os.path.join(script_folder_path, 'APT/deepnet') 
     deepnet_folder_path = script_folder_path
-    with cd(deepnet_folder_path) :
-        #APT_interface.IS_APT_IN_DEBUG_MODE = True
+    with cd(deepnet_folder_path):
+        # APT_interface.IS_APT_IN_DEBUG_MODE = True
         APT_interface.main(
-            [os.path.join(working_folder_path,'four_points_180806/20230831T153602_20230831T153603.json'),
-             '-name', '20230831T153602',
-             '-err_file', os.path.join(working_folder_path, 'four_points_180806/20230831T153602view0_20230831T153603_bu.err'),
+            [os.path.join(working_folder_path,'four_points_180806/20230830T155705_20230830T155706.json'),
+             '-name', '20230830T155705', 
+             '-err_file', os.path.join(working_folder_path,
+                                       'four_points_180806/20230830T155705view0_20230830T155706_bu.err'),
              '-json_trn_file', os.path.join(working_folder_path, 'four_points_180806/loc.json'), 
              '-conf_params', 'dl_steps', '200',
-             '-debug',
              '-type', 'cid',
              '-ignore_local', '0', 
              '-cache', working_folder_path,
              'train', 
              '-use_cache'])
-
-
-# python \
-# "/groups/branson/bransonlab/taylora/apt-refactoring/apt-ampere/deepnet/APT_interface.py" \
-# "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/20230324T164448_20230324T164448.json" \
-# -name 20230324T164448 \
-# -err_file "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/20230324T164448view0_20230324T164448_tdptrx.err" \
-# -json_trn_file "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586/multitarget_bubble/loc.json" \
-# -conf_params \
-# -type deeplabcut \
-# -ignore_local 0 \
-# -cache "/groups/scicompsoft/home/taylora/tpca01903c_9cbb_4b56_8d9c_76a51217e586" \
-# train \
-# -use_cache
+            #  '-use_cache'])
 
 
 

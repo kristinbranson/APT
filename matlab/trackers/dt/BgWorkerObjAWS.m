@@ -99,7 +99,7 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
           warningNoTrace('Failed to create remote KILLED token: %s',killfile);
           warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);
         else
-          fprintf('Created remote KILLED token: %s. Please wait for your monitor to acknowledge the kill!\n',killfile);
+          fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge that the process has been killed!\n',killfile);
         end
         % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
       end

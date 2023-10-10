@@ -170,7 +170,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         warningNoTrace('Failed to create KILLED token: %s.\n%s',killtoken,res);
         tfsucc = false;
       else
-        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge that the process has been killed!\n',killtoken);
         tfsucc = true;
       end
     end

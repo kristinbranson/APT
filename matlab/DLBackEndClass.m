@@ -60,7 +60,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
-    % We set these the string 'invalid' so we can catch them in loadobj()
+    % We set these to the string 'invalid' so we can catch them in loadobj()
     % They are set properly in the constructor.
     singularity_image_path_ = '<invalid>'
     does_have_special_singularity_detection_image_path_ = '<invalid>'
@@ -187,7 +187,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
  
   methods
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
-
       switch obj.type,
         case DLBackEnd.Bsub,
           cmd = obj.wrapBaseCommandBsub(basecmd,varargin{:});
@@ -684,13 +683,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         conda_activate_and_cuda_set_command = conda_activate_command ;
       else
         if ispc,
-          cuda_set_command = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
+          cuda_set_command = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID && set CUDA_VISIBLE_DEVICES=%d',gpuid);
         else
-          cuda_set_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+          cuda_set_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID && export CUDA_VISIBLE_DEVICES=%d',gpuid);
         end
         conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
       end
-      cmdout = [conda_activate_and_cuda_set_command,' && ',cmdin];
+      cmdout1 = [conda_activate_and_cuda_set_command,' && ',cmdin];
+      cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
     end
 
     function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 

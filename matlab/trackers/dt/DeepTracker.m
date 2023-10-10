@@ -4236,7 +4236,7 @@ classdef DeepTracker < LabelTracker
         if ispc,
           envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
         else
-          envcmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID&& export CUDA_VISIBLE_DEVICES=%d',gpuid);
+          envcmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID && export CUDA_VISIBLE_DEVICES=%d',gpuid);
         end
          codestr = [codestr,' && ',envcmd];
       end

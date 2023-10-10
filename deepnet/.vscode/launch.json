@@ -29,10 +29,42 @@
             "justMyCode": false
         } ,
         {
-            "name": "test_four_points_training_div_by_zero.py",
+            "name": "test_four_points_training.py",
             "type": "python",
             "request": "launch",
-            "program": "test_four_points_training_div_by_zero.py",
+            "program": "test_four_points_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_more_like_prod.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_training_more_like_prod.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_from_apt.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_training_from_apt.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_tracking.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_tracking.py",
             "console": "integratedTerminal",
             "justMyCode": false
         }
