@@ -363,7 +363,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         # default_samples_per_gpu is only used to set the learning rate, so we use the value in cfg that pertains to training.
         default_samples_per_gpu = cfg.data.train_dataloader['samples_per_gpu']
         cfg.data.train_dataloader['samples_per_gpu'] = conf.batch_size
-    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
+    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size / default_samples_per_gpu
 
     assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
     if cfg.lr_config.policy == 'step':
