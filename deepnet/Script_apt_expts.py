@@ -1185,7 +1185,7 @@ t_types = [('2stageHT','crop','nomask'),
            ('grone','nocrop','mask')
            ]
 run_type = 'dry'
-for cur_mov in gt_movies[-1:]:
+for cur_mov in gt_movies[-4:]:
     exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
     for tt in t_types:
         cur_str = '_'.join(tt)

@@ -334,6 +334,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
                 p.prob_half_body = 0.0
             elif p.type == 'TopDownGetBboxCenterScale':
                 p.padding = conf.get('mmpose_pad',1.)
+            elif p.type == 'TopDownRandomShiftBboxCenter':
+                p.shift_factor = conf.trange/conf.imsz[0]
 
 
     if torch.cuda.is_available():
@@ -358,13 +360,13 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         # default_samples_per_gpu is only used to set the learning rate, so we use the value in cfg that pertains to training.
         default_samples_per_gpu = cfg.data.train_dataloader['samples_per_gpu']
         cfg.data.train_dataloader['samples_per_gpu'] = conf.batch_size
-    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
+    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu # /8
 
     assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
     if cfg.lr_config.policy == 'step':
         def_epochs = cfg.total_epochs
         def_steps = cfg.lr_config.step
-        cfg.lr_config.step = [int(dd/def_epochs*conf.dl_steps) for dd in def_steps]
+        cfg.lr_config.step = [int(dd*conf.dl_steps/def_epochs) for dd in def_steps]
 
     # pretrained weights are now urls. So torch does the mapping
     # cfg.model.pretrained = os.path.join('mmpose',cfg.model.pretrained)
@@ -400,7 +402,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
             pass
 
     # disable dynamic loss_scale for fp16 because the hooks in the current mmpose don't support it. MK 20230807. mmpose version is 0.29.0. REMOVE THIS WHEN UPDATING MMPOSE
-    cfg.fp16 = {}
+    # cfg.fp16 = {}
+    cfg.fp16 = None
     return cfg
 
 class TraindataHook(Hook):
@@ -509,6 +512,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         # From mmpose/tools/train.py
         logger = logging.getLogger()  # the root logger
         cfg = self.cfg
+
+        logger.info(f'Config:\n{cfg.pretty_text}')
+
         # Hack to work around what is seemingly a bug in MMPose 0.29.0...
         try :
             if cfg.model.type == 'CID' :
@@ -595,6 +601,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             get_runner = IterBasedRunner
             steps = self.conf.dl_steps
 
+
         runner = get_runner(
             model,
             optimizer=optimizer,
@@ -654,7 +661,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
-        #runner.max_iters = steps    
+        #runner.max_iters = steps
         logging.debug("Running the runner...")
         runner.run(data_loaders, cfg.workflow)
         logging.debug("Runner is finished running.")
@@ -734,7 +741,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                     'dataset': 'coco',
                         'joints_3d': np.ones([conf.n_classes,2])*30,
                         'joints_3d_visible': np.ones([conf.n_classes,1]),
-                        'center':np.array([ii.shape[1]/2+0.5,ii.shape[0]/2+0.5]),
+                        'center':np.array([ii.shape[1]/2,ii.shape[0]/2]),
                         'scale':(np.array(ims.shape[1:3]))/200,
                         'rotation':0.,
                         'ann_info': {

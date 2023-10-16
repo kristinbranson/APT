@@ -969,7 +969,7 @@ class ma_expt(object):
         f.tight_layout()
         return f
 
-    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_rtx'):
+    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_a100'):
         t_types = self.get_types(t_types)
         for t in t_types:
             settings = self.get_settings(t)
@@ -987,6 +987,7 @@ class ma_expt(object):
                 import PoseCommon_pytorch
                 t2 = [tt for tt in t if 'mask' not in tt]
                 t2[-1] = 'second'
+                t2[1] = 'nocrop'
                 t2 = tuple(t2)
                 settings2 = self.get_settings(t2)
                 cache_dir2 = settings2['train_cache_dir'].format(0)

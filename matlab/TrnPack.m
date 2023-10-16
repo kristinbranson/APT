@@ -404,7 +404,7 @@ classdef TrnPack
       jsonoutf = dmc.trainLocLnx;
       %jsonoutf = 'loc.json';
       s = struct();
-      s.movies = lObj.movieFilesAllFull;
+      s.movies = lObj.movieFilesAllGTaware;
       if tfsplitsprovided
         s.splitnames = arrayfun(@(x)sprintf('split%02d',x),1:nsplits,'uni',0);
       else
