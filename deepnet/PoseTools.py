@@ -1850,3 +1850,10 @@ def resize_padding(image, width, height):
     padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
 
     return padded_image,scale_factor
+
+
+def set_seed(seed):
+    if seed is None:
+        return
+    from mmcv.runner import set_random_seed
+    set_random_seed(seed)

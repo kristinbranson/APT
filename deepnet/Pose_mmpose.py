@@ -516,8 +516,13 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/topdown_heatmap/coco/hrformer_base_coco_256x192.py'
             # create a dummy distributed group to keep sync batch norm happy. REMOVE THIS WHEN ENABLING MULTI GPU
             os.environ['MASTER_ADDR'] = 'localhost'
-            os.environ['MASTER_PORT'] = '12345'
-            torch.distributed.init_process_group(backend='gloo',rank=0,world_size=1)
+            os.environ['MASTER_PORT'] = f'{np.random.randint(10000, 65535)}'
+            try:
+                torch.distributed.init_process_group(backend='gloo',rank=0,world_size=1)
+            except RuntimeError as e:
+                if str(e) == 'trying to initialize the default process group twice!':
+                    pass
+
         elif mmpose_net == 'cid':
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/cid/coco/hrnet_w32_coco_512x512.py'
         else:
@@ -690,8 +695,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             runner.load_checkpoint(cfg.load_from)
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
-        with torch.autograd.detect_anomaly():
-            runner.run(data_loaders, cfg.workflow)
+        # with torch.autograd.detect_anomaly():
+        runner.run(data_loaders, cfg.workflow)
         logging.debug("Runner is finished running.")
 
 
@@ -769,7 +774,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                     'dataset': 'coco',
                         'joints_3d': np.ones([conf.n_classes,2])*30,
                         'joints_3d_visible': np.ones([conf.n_classes,1]),
-                        'center':np.array([ii.shape[1]/2+0.5,ii.shape[0]/2+0.5]),
+                        'center':np.array([ii.shape[1]/2,ii.shape[0]/2]),
                         'scale':(np.array(ims.shape[1:3]))/200,
                         'rotation':0.,
                         'ann_info': {
