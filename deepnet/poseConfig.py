@@ -29,6 +29,7 @@ class config(object):
         self.imsz = [100,100]
         self.n_classes = 10
         self.img_dim = 3
+        self.has_crops = False
 
         self.batch_size = 8
         self.view = 0
@@ -66,6 +67,7 @@ class config(object):
         self.flipLandmarkMatches = {}
         self.learning_rate_multiplier = 1.
         self.predict_occluded = False
+        self.use_openvino = False
 
         # ----- Data parameters
         # l1_cropsz = 0

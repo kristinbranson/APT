@@ -237,24 +237,29 @@ class APTHungarianAssignerMask(HungarianAssigner):
             bbox_pred.device)
 
         # 4. assign backgrounds and foregrounds
+
+        # originally ..
         # assign all indices to backgrounds first
         # assigned_gt_inds[:] = 0
+
+        # for masking, first ignore all the prediction bboxes by assigning them to -1
         assigned_gt_inds[:] = -1
 
         overlap_tr = 0.2
-        # overlap_tr_max = 0.8
+        # Find the un-matched pred bboxes that overlap with the gt_bboxes.
         overlaps = bbox_overlaps(gt_bboxes, bboxes.detach())
         overlaps, _ = overlaps.max(dim=0)
-        overlaps[matched_row_inds] = 0.
+        overlaps[matched_row_inds] = 0. # Ignore the matched bboxes.
         masked_negs = overlaps>overlap_tr
 
-        # Add bboxes that completely contain gt_bboxes as neg.
+        # Add bboxes that completely contain gt_bboxes and are 2x the size of gt_bboxes as neg.
         overlaps_f = bbox_overlaps(gt_bboxes, bboxes, mode='iof')
         overlaps_f, _ = overlaps_f.max(dim=0)
         big_boxes = (overlaps_f>0.95) & (overlaps<0.5)
         # Big boxes should have boxes that contain most of the gt_bboxes but are at least 1/0.5 = 2x in size.
         masked_negs = masked_negs | big_boxes
 
+        # Find predictions that overlap with ignored gt_bboxes
         if gt_bboxes_ignore.shape[0]>0:
             ignore_overlaps, _ = bbox_overlaps(bboxes.detach(), gt_bboxes_ignore, mode='iof').max(dim=1)
             ignore_overlaps[matched_row_inds] = 0.
@@ -616,7 +621,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
 
     if conf.mmdetect_net == 'frcnn':
         for ttype in ['train', 'val', 'test']:
-            name = ttype if ttype is not 'test' else 'val'
+            name = ttype if ttype != 'test' else 'val'
             fname = conf.trainfilename if ttype == 'train' else conf.valfilename
             cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
             file = os.path.join(data_bdir, f'{fname}.json')
@@ -652,7 +657,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
 
     elif conf.mmdetect_net == 'detr':
         for ttype in ['train', 'val', 'test']:
-            name = ttype if ttype is not 'test' else 'val'
+            name = ttype if ttype != 'test' else 'val'
             fname = conf.trainfilename if ttype == 'train' else conf.valfilename
             cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
             file = os.path.join(data_bdir, f'{fname}.json')

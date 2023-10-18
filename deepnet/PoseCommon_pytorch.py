@@ -210,14 +210,16 @@ class coco_loader(torch.utils.data.Dataset):
             return m<0.5
 
         for obj in anno:
-            if 'segmentation' in obj:
+            if 'bbox' in obj:
                 # MK 20230531. Segmentation is required to be a numpy array now. Probably has to do with the newer ampere image. xtcocotools might have been updated. Sigh.
+                # MK 20230823. when the input object is an np.array, xtcocotools expects it to be in bbox format [x,y,width,height]
                 # rles = xtcocotools.mask.frPyObjects(
                 #     obj['segmentation'], im_sz[0],
                 #     im_sz[1])
                 rles = xtcocotools.mask.frPyObjects(
-                    np.array(obj['segmentation']).astype('double'), im_sz[0],
-                    im_sz[1])
+                    # np.array(obj['segmentation']).astype('double'), im_sz[0],
+                    # im_sz[1])
+                    np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
                 for rle in rles:
                     m += xtcocotools.mask.decode(rle)
                 # if obj['iscrowd']:
@@ -241,11 +243,11 @@ class PoseCommon_pytorch(object):
         self.train_epoch = 1
         # conf.is_multi = is_multi
 
-        if usegpu and torch.cuda.is_available():
+        if usegpu and torch.cuda.is_available() and not conf.use_openvino:
             self.device = "cuda"
         else:
             self.device = "cpu"
-            if usegpu:
+            if usegpu and not conf.use_openvino:
                 logging.warning("CUDA Device not available. Using CPU!")
 
         if conf.db_format == 'coco':
@@ -295,6 +297,34 @@ class PoseCommon_pytorch(object):
         with open(self.get_ckpt_file(),'w') as cf:
             json.dump(self.prev_models,cf)
 
+    def convert_openvino(self,model,model_file):
+        from openvino.runtime import Core
+
+        model = model.cpu()
+        model.eval()
+
+        conf = self.conf
+        dummy_input = {'images': torch.randn([1, 3, int(conf.imsz[0]//conf.rescale),int(conf.imsz[1]//conf.rescale)])}
+        if not os.path.exists(model_file + '.onnx') or os.path.getmtime(model_file + '.onnx') < os.path.getmtime(model_file):
+            logging.info('Exporting model to onnx to run on using openvino on Intel cpu')
+            torch.onnx.export(model.module, {'input': dummy_input}, model_file + '.onnx')
+
+        if not os.path.exists(model_file + '.xml') or os.path.getmtime(model_file + '.xml') < os.path.getmtime(model_file):
+            logging.info('Converting onnx model to openvino ...')
+            mo_cmd = f'/groups/branson/home/kabram/.local/bin/mo --input_model {model_file}.onnx --compress_to_fp16 --output_dir {os.path.dirname(model_file)}'
+            mo_result = os.system(mo_cmd)
+
+        # ie = Core()
+        # model_onnx = ie.read_model(model_file + '.onnx')
+        # model_onnx = ie.compile_model(model_onnx, device_name='CPU')
+
+        ie1 = Core()
+        model_ir = ie1.read_model(model=model_file + '.xml')
+        compiled_model_ir = ie1.compile_model(model_ir, device_name='CPU')
+
+        return compiled_model_ir
+
+
     def restore(self, model_file,model, opt=None, sched=None):
         if model_file is None:
             with open(self.get_ckpt_file(),'r') as cf:
@@ -306,6 +336,8 @@ class PoseCommon_pytorch(object):
         else:
             ckpt = torch.load(model_file,map_location=torch.device('cpu'))
         model.load_state_dict(ckpt['model_state_params'])
+        if self.conf.use_openvino:
+            model = self.convert_openvino(model,model_file)
         if opt is not None:
             opt.load_state_dict(ckpt['optimizer_state_params'])
             for state in opt.state.values():
@@ -316,7 +348,7 @@ class PoseCommon_pytorch(object):
             sched.load_state_dict(ckpt['sched_state_params'])
         start_at = ckpt['step'] + 1
         self.restore_td(start_at)
-        return start_at
+        return model, start_at
 
 
     def init_td(self):

@@ -107,6 +107,11 @@ classdef landmark_specs < handle
       s = lpos{iMov};
       [~,p,~] = Labels.isLabeledFT(s,frm,iTgt);
       pts = reshape(p,numel(p)/2,2);
+      nan_pts = isnan(pts(:,1));
+      max_p = repmat(max(pts,[],1),[size(pts,1),1]);
+      min_p = repmat(min(pts,[],1),[size(pts,1),1]);
+      rp = rand(size(pts)).*(max_p-min_p) + min_p;
+      pts(nan_pts,:) = rp(nan_pts,:);
       %pts = lpos{iMov}(:,:,frm,iTgt);
       if isrotated,
         pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
