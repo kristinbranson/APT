@@ -259,7 +259,9 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
         cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
         file = os.path.join(data_bdir, f'{fname}.json')
-        cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
+        # ALTTODO: Fix this:
+        #cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
+        cfg.data[ttype].img_prefix = ''
         cfg.data[ttype].data_cfg = cfg.data_cfg
 
         key_info = {}
@@ -459,6 +461,7 @@ class TrainingDebuggingHook(Hook):
             training_loss = runner.log_buffer.output['all_loss'].copy()
         runner.log_buffer.clear_output()  # Don't want to interfere with other hooks
         self.training_loss_from_i.append(training_loss)
+        # TODOALT: Take this out
         print('step: %d, loss: %g' % (step, training_loss))
         pass
 
@@ -535,7 +538,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         return td_name
 
 
-    def train_wrapper(self, restore=False, model_file=None):
+    def train_wrapper(self, restore=False, model_file=None, debug=False):
         # From mmpose/tools/train.py
         logger = logging.getLogger()  # the root logger
         cfg = self.cfg
@@ -547,12 +550,15 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             pass
         model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
         rectify_log_level_bang(logger)
-        dataset = [build_dataset(cfg.data.train)]
+        dataset = mmpose.datasets.build_dataset(cfg.data.train)
+        # ALTTODO: Remove this next
+        datum = dataset[0]  # simple sanity check to see if we can access the first element
+        datasets = [ dataset ]
 
         if len(cfg.workflow) == 2:
             val_dataset = copy.deepcopy(cfg.data.val)
             val_dataset.pipeline = cfg.data.train.pipeline
-            dataset.append(build_dataset(val_dataset))
+            datasets.append(mmpose.datasets.build_dataset(val_dataset))
 
         if cfg.checkpoint_config is not None:
             # save mmpose version, config file content
@@ -586,7 +592,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             seed=cfg.seed)
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
 
-        data_loaders = [ build_dataloader(ds, **dataloader_setting) for ds in dataset]
+        dataloaders = [ build_dataloader(ds, **dataloader_setting) for ds in datasets ]
+        # ALTTODO: Take this out
+        dataloader = dataloaders[0]
 
         # determine wether use adversarial training precess or not
         use_adverserial_train = cfg.get('use_adversarial_train', False)
@@ -613,14 +621,13 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                     find_unused_parameters=find_unused_parameters)
         else:
             if torch.cuda.is_available():
-                model = MMDataParallel(
-                model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
+                model = MMDataParallel(model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
 
         # build runner
         optimizer = build_optimizers(model, cfg.optimizer)
         if self.conf.get('mmpose_use_epoch_runner', False):
             get_runner = EpochBasedRunner
-            steps = self.conf.dl_steps // len(data_loaders[0])
+            steps = self.conf.dl_steps // len(dataloaders[0])
         else:
             get_runner = IterBasedRunner
             steps = self.conf.dl_steps
@@ -662,10 +669,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         # register eval hooks
         if validate:
             eval_cfg = cfg.get('evaluation', {})
-            val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
+            val_dataset = mmpose.datasets.build_dataset(cfg.data.val, dict(test_mode=True))
             dataloader_setting = dict(
-                # samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
-                samples_per_gpu=1,
+                samples_per_gpu=cfg.data.get('samples_per_gpu', {}),
                 workers_per_gpu=cfg.data.get('workers_per_gpu', {}),
                 # cfg.gpus will be ignored if distributed
                 num_gpus=len(cfg.gpu_ids),
@@ -677,7 +683,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             eval_hook = DistEvalHook if distributed else EvalHook
             runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
-        td_hook = TraindataHook(self.get_td_file(),self.conf,self.conf.display_step)
+        td_hook = TraindataHook(self.get_td_file(), self.conf, self.conf.display_step)
         runner.register_hook(td_hook)
 
         # Add a hook object for debugging
@@ -690,8 +696,11 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             runner.load_checkpoint(cfg.load_from)
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
-        with torch.autograd.detect_anomaly():
-            runner.run(data_loaders, cfg.workflow)
+        if debug:
+            with torch.autograd.detect_anomaly():
+                runner.run(dataloaders, cfg.workflow)
+        else:
+            runner.run(dataloaders, cfg.workflow)
         logging.debug("Runner is finished running.")
 
 

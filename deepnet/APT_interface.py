@@ -3968,7 +3968,7 @@ def classify_movie_all(model_type, **kwargs):
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
-                      distort=True,debug=KBDEBUG):
+                      distort=True, debug=KBDEBUG, no_except=False):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
     #if False:
     if not ISWINDOWS and not debug:
@@ -3978,11 +3978,11 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
         p.join()
     else:
         logging.info('Launching sample training data generation (in same process)')
-        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug)
+        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug, no_except=no_except)
     logging.info('Finished sample training data generation')
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False, no_except=False):
     # Create image of sample training samples with data augmentation
 
     # if silent:
@@ -4031,10 +4031,13 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         info = []
         mask = []
         for ndx in range(nsamples):
-            try:
+            if no_except:
                 next_db = tself.next_data(db_type)
-            except Exception as e:
-                break
+            else:
+                try:
+                    next_db = tself.next_data(db_type)
+                except Exception as e:
+                    break
             ims.append(next_db['images'][0].numpy())
             locs.append(next_db['locs'][0].numpy())
             info.append(next_db['info'][0].numpy())
@@ -4390,7 +4393,8 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                         aug_out += '_' + estr
                 else:
                     aug_out = None
-                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out,debug=args.debug)
+                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=aug_out, 
+                                  debug=args.debug, no_except=args.no_except)
                 if args.only_aug: continue
 
                 if net_type == 'mmpose' or net_type == 'hrformer':
