@@ -67,6 +67,46 @@
             "program": "test_four_points_fresh_start_tracking.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "test_coco_training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_coco_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
