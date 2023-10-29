@@ -9,7 +9,9 @@ import numpy as np
 import torch
 from argparse import Namespace
 import random
+import time
 import mmcv
+import mmpose.utils
 
 
 
@@ -40,14 +42,14 @@ def test_training() :
     if not os.path.exists(read_only_folder_path) :
         raise RuntimeError("Read-only test input folder is missing, expected it at %s" % read_only_folder_path)
 
-    # # Prepare the working folder
-    # logging.info('Preparing the working folder...')
-    # if os.path.exists(working_folder_path) :
-    #     subprocess.run(['rm', '-rf', working_folder_path], 
-    #                    check=True)
-    # subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
-    #                check=True)
-    # logging.info('Done preparing the working folder.')
+    # Prepare the working folder
+    logging.info('Preparing the working folder...')
+    if os.path.exists(working_folder_path) :
+        subprocess.run(['rm', '-rf', working_folder_path], 
+                       check=True)
+    subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
+                   check=True)
+    logging.info('Done preparing the working folder.')
 
     # Set some CUDA-related envars
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -77,6 +79,13 @@ def test_training() :
         conf.json_trn_file = conf.json_trn_file.replace(original_working_folder_path, working_folder_path)
         conf.labelfile = conf.labelfile.replace(original_working_folder_path, working_folder_path)
         conf.cachedir = conf.cachedir.replace(original_working_folder_path, working_folder_path)
+
+        # Set up mmpose-style logging, just to make debugging easier
+        timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+        log_file_path = os.path.join(working_folder_path, f'{timestamp}.log')
+        mmpose_logger = mmpose.utils.get_root_logger(log_file=log_file_path, log_level='INFO')
+        # Note that this is the root logger for MMPose, not the 'true' root logger you'd 
+        # get by calling logging.getLogger()
 
         # Run the meaty part of APT_interface::train()
         if net_type == 'mmpose' or net_type == 'hrformer':
@@ -108,7 +117,7 @@ def test_training() :
             torch.use_deterministic_algorithms(True, warn_only=True)
         # Proceed to actual training
         logging.info('Starting training...')
-        poser.train_wrapper(restore=restore, model_file=model_file)
+        poser.train_wrapper(restore=restore, model_file=model_file, debug=True, logger=mmpose_logger)
         logging.info('Finished training.')
 
 

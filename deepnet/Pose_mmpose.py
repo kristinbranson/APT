@@ -339,7 +339,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
 
 
     if torch.cuda.is_available():
-        cfg.gpu_ids = range(1)
+        cfg.gpu_ids = [0]
     else:
         cfg.gpu_ids = []
     cfg.work_dir = conf.cachedir
@@ -350,22 +350,36 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     else:
         cfg.seed = None
 
-    # NEEDS REVIEW
-    # MK: Does this look right?  CiD cfg does not have cfg.data.samples_per_gpu, it has these three:
+    # NEEDS REVIEW MK: Does this look right?  CiD cfg does not have
+    # cfg.data.samples_per_gpu, it has these three:
     #
     #         cfg.data.train_dataloader['samples_per_gpu']
     #         cfg.data.test_dataloader['samples_per_gpu']
     #         cfg.data.val_dataloader['samples_per_gpu']
     #
-    # I'm not sure I've handled this s.t. it will work properly for testing and validation.
+    # I'm not sure I've handled this s.t. it will work properly for testing and
+    # validation.
+    #
+    # Idea is that there's an LR and a samples_per_gpu set in the MMPose config
+    # file.  But there's a batch_size set in the conf that we want to honor.
+    # And according to Goyal et al (2017), the LR should be scaled
+    # proportionally if the batch size is changed. So in the cfg, we set the
+    # samples_per_gpu to the batch_size as set in the conf, and then we scale
+    # the LR specified in the MMPose config file by conf.batch_size /
+    # default_samples_per_gpu to be consistent with Goyal et al's
+    # recommendation.
+    # (We also multiply by a conf.learning_rate_multiplier which is specified 
+    # in the APT GUI.)
+    actual_batch_size = conf.batch_size
+    default_lr = cfg.optimizer.lr 
     if hasattr(cfg.data, 'samples_per_gpu') :
         default_samples_per_gpu = cfg.data.samples_per_gpu
-        cfg.data.samples_per_gpu = conf.batch_size
+        cfg.data.samples_per_gpu = actual_batch_size
     else :
         # default_samples_per_gpu is only used to set the learning rate, so we use the value in cfg that pertains to training.
         default_samples_per_gpu = cfg.data.train_dataloader['samples_per_gpu']
-        cfg.data.train_dataloader['samples_per_gpu'] = conf.batch_size
-    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size / default_samples_per_gpu
+        cfg.data.train_dataloader['samples_per_gpu'] = actual_batch_size
+    cfg.optimizer.lr = conf.learning_rate_multiplier * default_lr * actual_batch_size / default_samples_per_gpu
 
     assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
     if cfg.lr_config.policy == 'step':
@@ -478,14 +492,14 @@ def get_handler_by_name(logger, name):
     return None
                     
     
-def rectify_log_level_bang(logger):
+def rectify_log_level_bang(logger, debug=False):
     '''
-    Reset the log level for the "log" handler of the root logger to DEBUG or INFO, depending
+    Reset the log level for the "log" handler of the root logger to DEBUG or INFO, depending.
     mmpose.models.build_posenet() seems to bork this, so this function fixes it.
     '''
     handler = get_handler_by_name(logger, 'log')
     if handler:
-        if APT_interface.IS_APT_IN_DEBUG_MODE:
+        if debug:
             handler.setLevel(logging.DEBUG)
         else:
             handler.setLevel(logging.INFO)            
@@ -538,9 +552,10 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         return td_name
 
 
-    def train_wrapper(self, restore=False, model_file=None, debug=False):
+    def train_wrapper(self, restore=False, model_file=None, debug=False, logger=None):
         # From mmpose/tools/train.py
-        logger = logging.getLogger()  # the root logger
+        if logger is None:
+            logger = logging.getLogger()  # the root logger
         cfg = self.cfg
         # Hack to work around what is seemingly a bug in MMPose 0.29.0...
         try :
@@ -549,7 +564,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         except :
             pass
         model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
-        rectify_log_level_bang(logger)
+        rectify_log_level_bang(logger, debug)
         dataset = mmpose.datasets.build_dataset(cfg.data.train)
         # ALTTODO: Remove this next
         datum = dataset[0]  # simple sanity check to see if we can access the first element
@@ -696,6 +711,13 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             runner.load_checkpoint(cfg.load_from)
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
+
+        # ALTTODO: Get rid of this debugging code
+        thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
+        import pickle
+        with open('/groups/branson/bransonlab/taylora/apt/compare-cid-in-apt-to-plain-cid/pre-run-variables-in-apt.pkl', 'wb') as f:
+            pickle.dump(thangs, f)
+
         if debug:
             with torch.autograd.detect_anomaly():
                 runner.run(dataloaders, cfg.workflow)

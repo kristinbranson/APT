@@ -603,7 +603,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
         def_steps = cfg.lr_config.step
         cfg.lr_config.step = [int(dd/def_epochs*conf.dl_steps) for dd in def_steps]
 
-    cfg.gpu_ids = range(1)
+    cfg.gpu_ids = [0]
     cfg.seed = None
     cfg.work_dir = conf.cachedir
 
