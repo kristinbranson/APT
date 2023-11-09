@@ -41,6 +41,39 @@ from mmpose.datasets.builder import DATASETS
 from mmpose.datasets.datasets.top_down.topdown_coco_dataset import TopDownCocoDataset
 from xtcocotools.coco import COCO
 
+
+class TrainDataHookDummy(mmcv.runner.Hook):
+    def __init__(self, out_file=None, conf=None, interval=50):
+        # self.interval = interval
+        # self.out_file = out_file
+        # self.conf = conf
+        # self.td_data = {'train_loss':[],'train_dist':[],'step':[],'val_loss':[],'val_dist':[]}
+        pass
+
+    def after_train_iter(self, runner):
+        # if not self.every_n_iters(runner,self.interval):
+        #    return
+        # self.td_data['step'].append(runner.iter + 1)
+        # runner.log_buffer.average(self.interval)
+        # if 'loss' in runner.log_buffer.output.keys():
+        #     self.td_data['train_loss'].append(runner.log_buffer.output['loss'].copy())
+        # else:
+        #     self.td_data['train_loss'].append(runner.log_buffer.output['all_loss'].copy())
+        # self.td_data['train_dist'].append(np.nan)
+        # self.td_data['val_dist'].append(np.nan)
+        # self.td_data['val_loss'].append(np.nan)
+
+        # train_data_file = self.out_file
+        # with open(train_data_file, 'wb') as td_file:
+        #     pickle.dump([self.td_data, self.conf], td_file, protocol=2)
+        # json_data = {}
+        # for x in self.td_data.keys():
+        #     json_data[x] = np.array(self.td_data[x]).astype(np.float64).tolist()
+        # with open(train_data_file + '.json', 'w') as json_file:
+        #     json.dump(json_data, json_file)
+        pass
+
+
 @DATASETS.register_module()
 class TopDownAPTDataset(TopDownCocoDataset):
     def __init__(self,
@@ -698,6 +731,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             eval_hook = DistEvalHook if distributed else EvalHook
             runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
+        #td_hook = TrainDataHookDummy()
         td_hook = TraindataHook(self.get_td_file(), self.conf, self.conf.display_step)
         runner.register_hook(td_hook)
 

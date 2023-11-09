@@ -42,14 +42,14 @@ def test_training() :
     if not os.path.exists(read_only_folder_path) :
         raise RuntimeError("Read-only test input folder is missing, expected it at %s" % read_only_folder_path)
 
-    # Prepare the working folder
-    logging.info('Preparing the working folder...')
-    if os.path.exists(working_folder_path) :
-        subprocess.run(['rm', '-rf', working_folder_path], 
-                       check=True)
-    subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
-                   check=True)
-    logging.info('Done preparing the working folder.')
+    # # Prepare the working folder
+    # logging.info('Preparing the working folder...')
+    # if os.path.exists(working_folder_path) :
+    #     subprocess.run(['rm', '-rf', working_folder_path], 
+    #                    check=True)
+    # subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
+    #                check=True)
+    # logging.info('Done preparing the working folder.')
 
     # Set some CUDA-related envars
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -117,7 +117,7 @@ def test_training() :
             torch.use_deterministic_algorithms(True, warn_only=True)
         # Proceed to actual training
         logging.info('Starting training...')
-        poser.train_wrapper(restore=restore, model_file=model_file, debug=True, logger=mmpose_logger)
+        poser.train_wrapper(restore=restore, model_file=model_file, debug=False, logger=mmpose_logger)
         logging.info('Finished training.')
 
 
