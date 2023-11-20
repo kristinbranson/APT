@@ -192,8 +192,10 @@ def read_string(x):
     if type(x) is h5py._hl.dataset.Dataset:
         if len(x) == 2 and x[0] == 0 and x[1] == 0:  # empty ML strings returned this way
             return ''
-        else:
+        elif x.ndim == 1:
             return ''.join(chr(c) for c in x)
+        else:
+            return ''.join(chr(c) for c in x[:,0])
     else:
         return x
 
@@ -1170,6 +1172,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
         conf.imsz = (width, width)
     elif has_crops:
+        conf.has_crops = True
         crops = np.array(A['MovieCropRois']).transpose()
         if conf.nviews>1:
             crops = crops[view]
@@ -1862,7 +1865,7 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 assert False, 'For top down tracking either head-tail tracking or bbox tracking should be active'
 
             curl = cur_locs[ndx].copy()
-            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx])
+            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx].T.flatten())
 
             if occ_as_nan:
                 curl[cur_occ[ndx], :] = np.nan
@@ -3016,7 +3019,7 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val',islist=False):
     if model_type == 'leap':
         import leap.training
         read_fn, n = leap.training.get_read_fn(conf, db_file)
-    elif model_type == 'deeplabcut':
+    elif model_type == 'deeplabcut' and not db_file.endswith('.json'):
         cfg_dict = create_dlc_cfg_dict(conf)
         [p, d] = os.path.split(db_file)
         cfg_dict['project_path'] = p
@@ -3058,7 +3061,7 @@ def convert_to_orig_list(preds, info, list_file, conf):
                 trx = get_trx_info(prev_trx_file,conf,None)['trx']
             for p in pkeys:
                 preds[p][ndx] = convert_to_orig(preds[p][ndx],conf,curi[1],trx[curi[2]],None)
-    elif conf.has_crop:
+    elif conf.has_crops:
         cropLocs = to_py(jlist['cropLocs'])
         for ndx,curi in enumerate(info):
             for p in pkeys:
@@ -3125,10 +3128,10 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
 
     if db_file.endswith('.json') and islist:
         # is a list file
-        coco_reader = multiResData.list_loader(conf, db_file, False)
+        coco_reader = multiResData.list_loader(conf2, db_file, False)
         read_fn = iter(coco_reader).__next__
         db_len = len(coco_reader)
-        conf.img_dim = 3
+        conf[0].img_dim = 3
     elif conf[0].db_format == 'coco':
         coco_reader = multiResData.coco_loader(conf2, db_file, False, img_dir=img_dir)
         read_fn = iter(coco_reader).__next__
@@ -4220,7 +4223,7 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
                 'project_path': conf.cachedir,
                 'dataset': conf.dlc_train_data_file,
                 'init_weights': pretrained_weights,
-                'dlc_train_steps': conf.dl_steps,
+                'dlc_train_steps': conf.dl_steps*conf.batch_size,
                 'symmetric_joints': symmetric_joints,
                 'num_joints': conf.n_classes,
                 'all_joints': [[i] for i in range(conf.n_classes)],
@@ -4474,8 +4477,8 @@ def parse_args(argv):
     parser.add_argument('-type2', dest='type2', help='Network type for second stage', default=None)
     parser.add_argument('-stage', dest='stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
     parser.add_argument('-ignore_local', dest='ignore_local', help='Whether to remove .local Python libraries from your path', default=0)
-    subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
 
+    subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
     parser_train = subparsers.add_parser('train', help='Train the detector')
     parser_train.add_argument('-skip_db', dest='skip_db', help='Skip creating the data base', action='store_true')
     parser_train.add_argument('-use_defaults', dest='use_defaults', action='store_true',
@@ -4853,7 +4856,14 @@ def run(args):
 
         for view_ndx, view in enumerate(views):
 
-            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+            if args.stage is None:
+                conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+                conf2 = None
+            elif args.stage == 'multi':
+                conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file,first_stage=True)
+                conf2 = create_conf(conf_raw, view, args.name2, net_type=args.type2, cache_dir=args.cache,conf_params=args.conf_params2,json_trn_file=args.json_trn_file,second_stage=True)
+            else:
+                assert False, 'For list classification invdividual stages are unsupported'
 
             if conf.is_multi and args.list_file is None:
                 # update the imsz only if we are classifying the dbs which could have images that are cropped
@@ -4869,7 +4879,7 @@ def run(args):
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
 
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist)
+            preds, locs, info, model_files = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist,model_type2=args.type2,model_file2=args.model_file2[view_ndx],conf2=conf2,fullret=True)
             if cmd=='track':
                 preds = convert_to_orig_list(preds, info, db_file, conf)
 

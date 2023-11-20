@@ -1460,6 +1460,9 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,oc
     if mask is not None:
         ret.append(mask)
     if occ is not None:
+        if not conf.check_bounds_distort:
+            occ = (occ>0.5) | (locs[...,0] < -1000) | np.isnan(locs[...,0])
+            occ = occ.astype('float32')
         ret.append(occ)
     return ret
 
@@ -1624,7 +1627,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/bransonlab/mayank/singularity/pytorch_mmpose.sif',precmd='',numcores=2):
+def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif',precmd='',numcores=2):
     import subprocess
     sing_script = os.path.join(dir,  name + '.sh')
     sing_err = os.path.join(dir,  name + '.err')
@@ -1663,21 +1666,22 @@ def read_h5_str(in_obj):
     return u''.join(chr(c) for c in in_obj)
 
 
-def show_result_hist(im,loc,percs):
+def show_result_hist(im,loc,percs,dropoff=0.5,ax=None):
     from matplotlib import pyplot as plt
-    cmap = get_cmap(percs.shape[0])
-    f = plt.figure()
+    cmap = get_cmap(percs.shape[0],'cool')
+    if ax is None:
+        f = plt.figure()
+        ax = plt.gca()
     if im.ndim == 2:
-        plt.imshow(im,'gray')
+        ax.imshow(im,'gray')
     elif im.shape[2] == 1:
-        plt.imshow(im[:,:,0],'gray')
+        ax.imshow(im[:,:,0],'gray')
     else:
-        plt.imshow(im)
+        ax.imshow(im)
 
-    ax = plt.gca()
     for pt in range(loc.shape[0]):
         for pp in range(percs.shape[0]):
-            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
+            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False,alpha=1-((pp+1)/percs.shape[0])*dropoff)
             ax.add_patch(c)
 
 
@@ -1850,3 +1854,10 @@ def resize_padding(image, width, height):
     padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
 
     return padded_image,scale_factor
+
+
+def set_seed(seed):
+    if seed is None:
+        return
+    from mmcv.runner import set_random_seed
+    set_random_seed(seed)

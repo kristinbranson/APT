@@ -333,14 +333,16 @@ def get_pred_fn(cfg_dict, model_file=None):
     name = Path(cfg.snapshot_prefix).stem
 
     if model_file is None:
-        ckpt_file = os.path.join(cfg.cachedir, name + '_ckpt')
-        latest_ckpt = tf.train.get_checkpoint_state(cfg.cachedir, ckpt_file)
+        ckpt_file = os.path.join(cfg.project_path, name + '_ckpt')
+        latest_ckpt = tf.train.get_checkpoint_state(cfg.project_path, ckpt_file)
         model_file = latest_ckpt.model_checkpoint_path
         init_weights = model_file
     else:
         init_weights = model_file
 
     TF.reset_default_graph()
+    TF.disable_eager_execution()
+
     cfg.init_weights = init_weights
     sess, inputs, outputs = predict.setup_pose_prediction(cfg)
 

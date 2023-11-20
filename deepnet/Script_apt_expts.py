@@ -1185,7 +1185,7 @@ t_types = [('2stageHT','crop','nomask'),
            ('grone','nocrop','mask')
            ]
 run_type = 'dry'
-for cur_mov in gt_movies[-1:]:
+for cur_mov in gt_movies[-4:]:
     exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
     for tt in t_types:
         cur_str = '_'.join(tt)
@@ -1256,3 +1256,35 @@ for cur_mov in gt_movies:
     robj.track(cur_mov,out_trk,t_types=[('grone','crop')],run_type=run_type)
 
 
+## ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+## Rat7M
+## ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+import PoseTools as pt
+import APT_interface as apt
+nets = [
+        ['mdn_joint_fpn','mdn',{}],
+        ['mdn_joint_fpn','mdn_hrnet',{'mdn_use_hrnet':True}],
+        ['mmpose','hrnet',{'mmpose_net':'\\"hrnet\\"'}],
+         ['mmpose','mspn',{'mmpose_net':'\\"mspn\\"'}],
+        ['mmpose','hrformer',{'mmpose_net':'\\"hrformer\\"'}],
+#        ['deeplabcut','deeplabcut',{}],
+        ]
+
+## convert the data to coco format
+for vw in range(1,7):
+    cmd = f'/groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/conf.json -conf_params cachedir \"/groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}\" dl_steps 5 -json_trn_file /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/loc.json -ignore_local 1 -type mdn_joint_fpn -train_name dummy -cache /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw} train -use_cache'
+    print(cmd)
+    apt.main(cmd.split())
+
+##
+
+for vw in range(1,7):
+    for net in nets:
+        c_str = ''
+        for kk,vv in net[2].items():
+            c_str += f' {kk} {vv} '
+        cmd = f'APT_interface.py /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/conf.json -conf_params cachedir \\"/groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}\\" {c_str} -json_trn_file /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/loc.json -ignore_local 1 -type {net[0]} -train_name {net[1]} -cache /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw} train -use_cache -skip_db'
+        print(cmd)
+        name = f'rat7m_{vw}_{net[1]}'
+        pt.submit_job(name,cmd,dir='/groups/branson/home/kabram/del',queue='gpu_a100')

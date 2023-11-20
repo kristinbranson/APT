@@ -35,7 +35,10 @@ def find_local_dirs(lbl_file, view=0, on_gt=False):
         exp_list = lbl['movieFilesAllGT'][view,:]
     else:
         exp_list = lbl['movieFilesAll'][view,:]
-    local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
+    if lbl[exp_list[0]].ndim==1:
+        local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
+    else:
+        local_dirs = [u''.join(chr(c) for c in lbl[jj][:,0]) for jj in exp_list]
     # local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in conf.getexplist(lbl)]
     try:
         for k in lbl['projMacros'].keys():
@@ -607,7 +610,7 @@ def get_affine_transform_matrix(image_shape, scale, target_size, x,y,theta):
     return matrix
 
 
-def get_scale_bbox(bbox,sz):
+def get_scale_bbox(bbox,sz,pad=1.0):
     # Extract the bounding box coordinates
     x_min, y_min, x_max, y_max = bbox
 
@@ -643,7 +646,7 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs,bbox=None):
     theta = theta + math.pi / 2
 
     if conf.multi_scale_by_bbox:
-        scale = get_scale_bbox(bbox,[psz_x,psz_y])
+        scale = get_scale_bbox(bbox,[psz_x,psz_y])/conf.multi_pad
     else:
         scale = 1.
 
@@ -1491,7 +1494,7 @@ class list_loader(torch.utils.data.Dataset):
         else:
             cur_trx = None
 
-        im, locs = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx,crop_loc=crop_loc,flipud=conf.flipud)
+        im, locs,scale = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx,crop_loc=crop_loc,flipud=conf.flipud)
 
         if conf.is_multi:
             locs = np.ones([conf.max_n_animals,conf.n_classes,2])*conf.imsz[0]/2
@@ -1500,5 +1503,5 @@ class list_loader(torch.utils.data.Dataset):
 
         info = [cur_i[0]-1,cur_f,tgt_id]
         occ = np.zeros_like(locs[...,0])
-        features = [im, locs, info, occ]
+        features = [im, locs, info, occ,scale]
         return features

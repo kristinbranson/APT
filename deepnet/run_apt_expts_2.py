@@ -50,7 +50,9 @@ gt_name = ''
 dpk_skel_csv = None
 dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
 expname_dict_normaltrain = None
-sing_img = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
+# sing_img = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
+sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
+
 if getpass.getuser() == 'kabram':
     # cache_dir = '/nrs/branson/mayank/apt_cache_2'
     cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'

@@ -6473,10 +6473,11 @@ classdef Labeler < handle
       tf = Labels.labeledFrames(s,nf);
     end
     function tflbled = labelPosLabeledTgts(obj,iMov)
-      ifo = obj.movieInfoAll{iMov,1};
+      zz = obj.getMovieInfoAllGTawareArg(obj.gtIsGTMode);
+      ifo = zz{iMov,1};
       nf = ifo.nframes;      
-      s = obj.labels{iMov};
-      tflbled = Labels.labeledTgts(s,nf);
+      s = obj.labelsGTaware;
+      tflbled = Labels.labeledTgts(s{iMov},nf);
     end
     
     
@@ -7550,7 +7551,7 @@ classdef Labeler < handle
       lpos = obj.labelsGTaware;
       s = lpos{obj.currMovie};
       [tf,p,~] = Labels.isLabeledFT(s,obj.currFrame,obj.currTarget);
-      islabeled = tf && all(~isnan(p));
+      islabeled = tf && ~all(isnan(p));
     end
 %     function islabeled = currFrameIsLabeled_Old(obj)
 %       % "is fully labeled"
@@ -7578,8 +7579,12 @@ classdef Labeler < handle
 %       assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
       %frm = obj.currFrame;
-      s = obj.labelsRoi{iMov};
-      v = LabelROI.getF(s,frm);
+      if ~obj.gtIsGTMode
+        s = obj.labelsRoi{iMov};
+        v = LabelROI.getF(s,frm);
+      else
+        v = [];
+      end
     end
 
    
