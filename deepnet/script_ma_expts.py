@@ -6,7 +6,8 @@ import os
 alice_dstr = '20210628'
 
 sdir = '/groups/branson/home/kabram/bransonlab/APT/deepnet/singularity_stuff'
-simg = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
+# simg = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
+simg = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
 cache_dir = '/nrs/branson/mayank/apt_cache_2'
 second_time = False
 

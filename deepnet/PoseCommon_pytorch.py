@@ -154,7 +154,7 @@ class coco_loader(torch.utils.data.Dataset):
 
         if im.shape[:2] != tuple(conf.imsz):
             im = self.pad(im)
-            sfactor = im.shape[0]/conf.imsz[0]
+            sfactor = (im.shape[0]/conf.imsz[0]+im.shape[1]/conf.imsz[1])/2
         else:
             sfactor = 1.
 
@@ -187,6 +187,9 @@ class coco_loader(torch.utils.data.Dataset):
 
         mask = self.get_mask(annos,im.shape[:2])
         im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale*sfactor, mask=mask[None,...],occ=occ[None])
+        if (im.shape[1] != round(conf.imsz[0]*conf.rescale)) or (im.shape[2] != round(conf.imsz[1]*conf.rescale)):
+            im = cv2.resize(im[0,...],(conf.imsz[1],conf.imsz[0]))[None,...]
+            mask = cv2.resize(mask[0,...].astype(np.float32),(conf.imsz[1],conf.imsz[0]))[None,...]
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
         if not self.conf.is_multi:

@@ -1460,6 +1460,9 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,oc
     if mask is not None:
         ret.append(mask)
     if occ is not None:
+        if not conf.check_bounds_distort:
+            occ = (occ>0.5) | (locs[...,0] < -1000) | np.isnan(locs[...,0])
+            occ = occ.astype('float32')
         ret.append(occ)
     return ret
 

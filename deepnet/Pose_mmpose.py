@@ -33,8 +33,8 @@ import PoseTools
 from mmpose.datasets.pipelines.shared_transform import ToTensor, NormalizeTensor
 import numpy as np
 import APT_interface
-#import cv2
-
+import cv2
+import multiprocessing as mp
 
 ## Topdown dataset
 from mmpose.datasets.builder import DATASETS
@@ -206,16 +206,25 @@ class APTtransform:
             joints_in = joints[:,:2]
             joints_in[occ_in<0.5,:] = -100000
 
-            image,joints_out, occ = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,occ=occ_in)
+            image,joints_out, occ = pt.preprocess_ims(image[np.newaxis,...],joints_in[np.newaxis,...],conf,self.distort,conf.rescale,occ=1-occ_in)
+            isz = results['ann_info']['image_size']
+            if image.shape[1] != isz[1] or image.shape[2] != isz[0]:
+                #print('Resizing image to ',isz)
+                image = cv2.resize(image[0,...],(isz[0],isz[1]))
+                image = image[None,...]
             image = image.astype('float32')
             joints_out_occ1 = np.isnan(joints_out[0,...,0:1]) | (joints_out[0,...,0:1]<-1000)
-            joints_out_occ = occ<0.5
+            joints_out_occ = occ[0,:,None]>0.5
+            # if conf.check_bounds_distort:
             assert np.array_equal(joints_out_occ1,joints_out_occ), 'Occlusion from processing and from joints should be equal'
 
             results['joints_3d'] = np.concatenate([joints_out[0,...],np.zeros_like(joints_out[0,:,:1])],1)
             results['joints_3d_visible'] = np.concatenate([1-joints_out_occ,1-joints_out_occ,np.zeros_like(joints_out_occ)],1)
 
         results['img'] = np.clip(image[0,...],0,255).astype('uint8')
+        results['center'] = np.array([image.shape[2]/2,image.shape[1]/2],dtype='float32')
+        results['scale'] = np.array([1.0,1.0],dtype='float32')
+        results['flip_pairs'] = []
         return results
 
 
@@ -305,7 +314,8 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:3] = []
                     cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
-                else:
+                elif (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip'):
+                    # old style top down pipeline
                     assert \
                         (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip') and \
                         (cfg.data[ttype].pipeline[2].type =='TopDownGetRandomScaleRotation') and \
@@ -313,7 +323,17 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:4] = []
                     cfg.data[ttype].pipeline[1] = ConfigDict({'type':'APTtransform','distort':True})
-        # else:
+                else:
+                    assert \
+                        (cfg.data[ttype].pipeline[1].type == 'TopDownGetBboxCenterScale') and \
+                        (cfg.data[ttype].pipeline[2].type == 'TopDownRandomShiftBboxCenter') and \
+                        (cfg.data[ttype].pipeline[3].type == 'TopDownRandomFlip') and \
+                        (cfg.data[ttype].pipeline[4].type == 'TopDownGetRandomScaleRotation') and \
+                        (cfg.data[ttype].pipeline[5].type == 'TopDownAffine') , \
+                            'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
+                    cfg.data[ttype].pipeline[2:6] = []
+                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    # else:
         #     assert conf.rescale == 1, 'MMpose aug with rescale has not been implemented'
 
         for p in cfg.data[ttype].pipeline:
@@ -749,8 +769,59 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
         to_tensor_trans = ToTensor()
         norm_trans = NormalizeTensor(cfg.test_pipeline[-2]['mean'],cfg.test_pipeline[-2]['std'])
+        pool = mp.Pool(processes=32)
 
         def pred_fn(ims,retrawpred=False):
+            pose_results = np.ones([ims.shape[0],conf.n_classes,2])*np.nan
+            conf_res = np.zeros([ims.shape[0],conf.n_classes])
+            all_hmaps = []
+            all_data = []
+            for b in range(ims.shape[0]):
+                if ims.shape[3] == 1:
+                    ii = np.tile(ims[b,...],[1,1,3])
+                else:
+                    ii = ims[b,...]
+                # prepare data
+                data = {'img': ii.astype('uint8'),
+                    'dataset': 'coco',
+                        'joints_3d': np.ones([conf.n_classes,2])*30,
+                        'joints_3d_visible': np.ones([conf.n_classes,1]),
+                        'center':np.array([ii.shape[1]/2,ii.shape[0]/2]),
+                        'scale':(np.array([ii.shape[1],ii.shape[0]]))/200,
+                        'rotation':0.,
+                        'ann_info': {
+                        'image_size':
+                            cfg.data_cfg['image_size'],
+                        'num_joints':
+                            cfg.data_cfg['num_joints'],
+                        'image_file':'',
+                        'bbox_score':[0],
+                        'bbox_id':[b],
+                        'flip_pairs':pairs
+
+                    }
+                }
+                all_data.append(data)
+
+            all_data = pool.map(test_pipeline,all_data)
+            imgs = torch.tensor(np.stack([d['img'] for d in all_data]))
+            img_metas = [d['img_metas'].data for d in all_data]
+
+            with torch.no_grad():
+                model_out = model(return_loss=False, img=imgs, img_metas=img_metas)
+
+            all_preds = model_out['preds']
+            heatmap = model_out['output_heatmap']
+            pose_results = all_preds[:,:,:2]
+            conf_res = all_preds[:,:,2].copy()
+
+            ret_dict = {'locs':pose_results,'conf':conf_res}
+            if retrawpred:
+                ret_dict['hmap']=heatmap
+            return ret_dict
+
+
+        def pred_fn_single(ims,retrawpred=False):
 
             pose_results = np.ones([ims.shape[0],conf.n_classes,2])*np.nan
             conf_res = np.zeros([ims.shape[0],conf.n_classes])
@@ -777,7 +848,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                         'joints_3d': np.ones([conf.n_classes,2])*30,
                         'joints_3d_visible': np.ones([conf.n_classes,1]),
                         'center':np.array([ii.shape[1]/2,ii.shape[0]/2]),
-                        'scale':(np.array(ims.shape[1:3]))/200,
+                        'scale':(np.array([ii.shape[1],ii.shape[0]]))/200,
                         'rotation':0.,
                         'ann_info': {
                         'image_size':
@@ -829,5 +900,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
         def close_fn():
             torch.cuda.empty_cache()
+            pool.close()
 
-        return pred_fn, close_fn, model_file
+        if conf.batch_size>4:
+            return pred_fn, close_fn, model_file
+        else:
+            return pred_fn_single, close_fn, model_file

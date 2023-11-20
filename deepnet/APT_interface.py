@@ -1865,7 +1865,7 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 assert False, 'For top down tracking either head-tail tracking or bbox tracking should be active'
 
             curl = cur_locs[ndx].copy()
-            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx])
+            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx].T.flatten())
 
             if occ_as_nan:
                 curl[cur_occ[ndx], :] = np.nan
@@ -3019,7 +3019,7 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val',islist=False):
     if model_type == 'leap':
         import leap.training
         read_fn, n = leap.training.get_read_fn(conf, db_file)
-    elif model_type == 'deeplabcut':
+    elif model_type == 'deeplabcut' and not db_file.endswith('.json'):
         cfg_dict = create_dlc_cfg_dict(conf)
         [p, d] = os.path.split(db_file)
         cfg_dict['project_path'] = p
@@ -4220,7 +4220,7 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
                 'project_path': conf.cachedir,
                 'dataset': conf.dlc_train_data_file,
                 'init_weights': pretrained_weights,
-                'dlc_train_steps': conf.dl_steps,
+                'dlc_train_steps': conf.dl_steps*conf.batch_size,
                 'symmetric_joints': symmetric_joints,
                 'num_joints': conf.n_classes,
                 'all_joints': [[i] for i in range(conf.n_classes)],
@@ -4473,8 +4473,8 @@ def parse_args(argv):
     parser.add_argument('-type2', dest='type2', help='Network type for second stage', default=None)
     parser.add_argument('-stage', dest='stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
     parser.add_argument('-ignore_local', dest='ignore_local', help='Whether to remove .local Python libraries from your path', default=0)
-    subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
 
+    subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
     parser_train = subparsers.add_parser('train', help='Train the detector')
     parser_train.add_argument('-skip_db', dest='skip_db', help='Skip creating the data base', action='store_true')
     parser_train.add_argument('-use_defaults', dest='use_defaults', action='store_true',

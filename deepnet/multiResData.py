@@ -610,7 +610,7 @@ def get_affine_transform_matrix(image_shape, scale, target_size, x,y,theta):
     return matrix
 
 
-def get_scale_bbox(bbox,sz):
+def get_scale_bbox(bbox,sz,pad=1.0):
     # Extract the bounding box coordinates
     x_min, y_min, x_max, y_max = bbox
 
@@ -646,7 +646,7 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs,bbox=None):
     theta = theta + math.pi / 2
 
     if conf.multi_scale_by_bbox:
-        scale = get_scale_bbox(bbox,[psz_x,psz_y])
+        scale = get_scale_bbox(bbox,[psz_x,psz_y])/conf.multi_pad
     else:
         scale = 1.
 
