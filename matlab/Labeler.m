@@ -28,6 +28,7 @@ classdef Labeler < handle
       'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'trackParams' 'preProcH0' 'preProcSaveData' ...
+      'trackAutoSetParams' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
@@ -215,6 +216,7 @@ classdef Labeler < handle
     projVerbose = 0  % transient, unmanaged
     
     isgui = false  % whether there is a GUI
+    isInDebugMode = false  % whether the Labeler is in debug mode.  Controls e.g. whether the Debug menu is shown.
     unTarLoc = ''  % location that project has most recently been untarred to
     
     projRngSeed = 17 
@@ -1531,10 +1533,12 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      isgui = ...
+      [isgui, isInDebugMode] = ...
         myparse_nocheck(varargin, ...
-                        'isgui',false);
+                        'isgui', false, ...
+                        'isInDebugMode', false) ;
       obj.isgui = isgui ;
+      obj.isInDebugMode = isInDebugMode ;
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,
@@ -11334,7 +11338,7 @@ classdef Labeler < handle
       % over.
       
       % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultParamsTree;
+      tPrm = APTParameters.defaultParamsTree() ;
       % Overlay our starting pt
       tPrm.structapply(sPrmCurrent);
       
@@ -11508,10 +11512,11 @@ classdef Labeler < handle
     end
         
     function trackRetrain(obj,varargin)
-      [tblMFTtrn,retrainArgs,dontUpdateH0] = myparse(varargin,...
+      [tblMFTtrn,retrainArgs,dontUpdateH0,do_just_generate_db] = myparse(varargin,...
         'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
         'retrainArgs',{},... % (opt) args to pass to tracker.retrain()
-        'dontUpdateH0',false...
+        'dontUpdateH0',false,...
+        'do_just_generate_db', false ...
         );
       
       tObj = obj.tracker;
@@ -11539,7 +11544,7 @@ classdef Labeler < handle
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.retrain(retrainArgs{:});
+      tObj.retrain(retrainArgs{:}, 'do_just_generate_db', do_just_generate_db);
     end
 
     function dotrain = trackCheckGPUMem(obj,varargin)
