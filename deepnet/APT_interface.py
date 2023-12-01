@@ -4068,6 +4068,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
 def train_unet(conf, args, restore, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
     tf1.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
@@ -4080,6 +4082,8 @@ def train_unet(conf, args, restore, split, split_file=None):
 def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
 
     out_file = args.aug_out
     if out_file is not None:
@@ -4107,6 +4111,8 @@ def train_leap(conf, args, split, split_file=None):
 
     if not args.skip_db:
         create_leap_db(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
 
     leap_train(data_path=os.path.join(conf.cachedir, 'leap_train.h5'),
                base_output_path=conf.cachedir,
@@ -4141,6 +4147,8 @@ def train_openpose(conf, args, split, split_file=None):
 
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
 
     nodes = []
     graph = conf.op_affinity_graph
@@ -4155,6 +4163,8 @@ def train_openpose(conf, args, split, split_file=None):
 def train_sb(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
     sb.training(conf, name=args.train_name)
     tf1.reset_default_graph()
 
@@ -4162,6 +4172,8 @@ def train_sb(conf, args, split, split_file=None):
 def train_deepcut(conf, args, split_file=None, model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
     out_file = args.aug_out
     if out_file is not None:
         out_file = args.aug_out + f'_{conf.view}'
@@ -4186,6 +4198,8 @@ def train_dpk(conf, args, split, split_file=None):
                         split=split,
                         use_cache=args.use_cache,
                         split_file=split_file)
+    if args.only_db:
+        return
 
     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
     if args.only_aug: return
@@ -4382,6 +4396,8 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                         create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
                     else:
                         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+                if args.only_db:
+                    return
 
                 if conf.multi_only_ht:
                     assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
@@ -4481,6 +4497,7 @@ def parse_args(argv):
     subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
     parser_train = subparsers.add_parser('train', help='Train the detector')
     parser_train.add_argument('-skip_db', dest='skip_db', help='Skip creating the data base', action='store_true')
+    parser_train.add_argument('-only_db', dest='only_db', help='Exit immediately after creating the data base.  Useful for debugging', action='store_true')
     parser_train.add_argument('-use_defaults', dest='use_defaults', action='store_true',
                               help='Use default settings of openpose, deeplabcut or leap')
     parser_train.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the training data.')

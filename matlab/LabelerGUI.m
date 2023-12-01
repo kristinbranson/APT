@@ -982,6 +982,23 @@ for i = 1:numel(h),
   end
 end
 
+% Change some controls to use LabelerGUIControlActuated()
+handles.pbTrain.Callback = @LabelerGUIControlActuated ;
+
+% Add the Debug menu if called for
+if lObj.isInDebugMode ,
+  % Create the top-level Debug menu
+  handles.menu_debug = ...
+    uimenu('Parent', hObject, ...
+           'Label', 'Debug', ...
+           'Tag', 'menu_debug') ;
+  handles.menu_debug_generate_db = ...
+    uimenu('Parent', handles.menu_debug, ...
+           'Label', 'Generate DB', ...
+           'Tag', 'menu_debug_generate_db', ...
+           'Callback', @LabelerGUIControlActuated) ;
+end
+
 lObj.clearStatus();
 EnableControls(handles,'noproject');
 
@@ -994,6 +1011,7 @@ if ismac % Change color of buttons
  end
 end
 
+% Write the modified handles structure back to the figure guidata
 guidata(hObject, handles);
 
 fprintf('Labeler GUI created.\n');
@@ -1173,7 +1191,8 @@ switch lower(state),
     handles.pbTrain.Enable = onOff;
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;    
-    
+    set(handles.menu_track_auto_params_update, 'Checked', lObj.trackAutoSetParams) ;
+
     tfGoTgts = ~lObj.gtIsGTMode;
     set(handles.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
     
@@ -2942,79 +2961,10 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
   set(hObject,'BackgroundColor','white');
 end
 
+
 function pbTrain_Callback(hObject, eventdata, handles)
-if ~checkProjAndMovieExist(handles)
-  return;
-end
-if handles.labelerObj.doesNeedSave ,
-  res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
-  if strcmp(res,'Cancel')
-    return
-  elseif strcmp(res,'Save As')
-    menu_file_saveas_Callback(hObject, eventdata, handles)
-  end    
-end
+% Not used anymore.  See LabelerController::pbTrain_actuated()
 
-handles.labelerObj.setStatus('Training...');
-drawnow;
-[tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
-if ~tfCanTrain,
-  errordlg(['Error training tracker: ',reason],'Error training tracker');
-  handles.labelerObj.clearStatus();
-  return;
-end
-
-%handles.labelerObj.trackSetAutoParams();
-
-fprintf('Training started at %s...\n',datestr(now));
-oc1 = onCleanup(@()(handles.labelerObj.clearStatus()));
-wbObj = WaitBarWithCancel('Training');
-oc2 = onCleanup(@()delete(wbObj));
-centerOnParentFigure(wbObj.hWB,handles.figure);
-try
-  handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
-catch ME
-  errordlg(ME.message,'Error while training','modal');
-  disp(getReport(ME));
-  return;
-end
-if wbObj.isCancel
-  msg = wbObj.cancelMessage('Training canceled');
-  msgbox(msg,'Train');
-end
-  
-function pbTrack_Callback(hObject, eventdata, handles)
-if ~checkProjAndMovieExist(handles)
-  return;
-end
-handles.labelerObj.setStatus('Tracking...');
-tm = getTrackMode(handles);
-tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
-if isempty(tblMFT),
-  msgbox('All frames tracked.','Track');
-  handles.labelerObj.clearStatus() ;
-  return;
-end
-[tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
-if ~tfCanTrack,
-  errordlg(['Error tracking: ',reason],'Error tracking');
-  handles.labelerObj.clearStatus();
-  return;
-end
-fprintf('Tracking started at %s...\n',datestr(now));
-wbObj = WaitBarWithCancel('Tracking');
-centerOnParentFigure(wbObj.hWB,handles.figure);
-oc = onCleanup(@()delete(wbObj));
-if handles.labelerObj.maIsMA
-  handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
-else
-  handles.labelerObj.track(tblMFT,'wbObj',wbObj);
-end
-if wbObj.isCancel
-  msg = wbObj.cancelMessage('Tracking canceled');
-  msgbox(msg,'Track');
-end
-handles.labelerObj.clearStatus();
 
 function pbClear_Callback(hObject, eventdata, handles)
 
@@ -4284,7 +4234,7 @@ if ~isempty(sPrmTrack),
   sPrmNew = lObj.trackSetTrackParams(sPrmTrack);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
   %cbkSaveNeeded(lObj,true,'Parameters changed');
-  lObj.setDoesNeedSave(true,'Parameters changed') ;
+  lObj.setDoesNeedSave(true, 'Parameters changed') ;
 end
 
 handles.labelerObj.clearStatus();
@@ -4295,6 +4245,9 @@ function menu_track_auto_params_update_Callback(hObject,eventdata,handles)
 checked = get(hObject,'Checked');
 set(hObject,'Checked',~checked);
 handles.labelerObj.trackAutoSetParams = ~checked;
+lObj = handles.labelerObj;
+lObj.setDoesNeedSave(true, 'Auto compute training parameters changed') ;
+
 
 function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -5461,3 +5414,15 @@ end
 lObj.projPrefs.Shortcuts = newShortcuts;
 handles = setShortcuts(handles);
 guidata(hObject,handles);
+
+
+% --------------------------------------------------------------------
+function LabelerGUIControlActuated(source, event)
+% General function to handle the actuation of control.
+% Simply passes the message on to the controller.
+% This means we don't need a closure for every callback.
+
+controlName = source.Tag ;
+handles = guidata(source) ;
+controller = handles.controller ;
+controller.controlActuated(controlName, source, event) ;
