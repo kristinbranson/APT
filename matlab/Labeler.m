@@ -14883,7 +14883,7 @@ classdef Labeler < handle
       success = false;
 %       lpos = obj.labelsGTaware;
       lpos = obj.labels;
-      if (numel(lpos)<1) && (lobj.gtIsGTMode) && numel(obj.labelsGT)>0
+      if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
         lpos = obj.labelsGT;
       end
       if obj.isPrevAxesModeInfoSet(paModeInfo),

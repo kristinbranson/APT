@@ -1288,3 +1288,47 @@ for vw in range(1,7):
         print(cmd)
         name = f'rat7m_{vw}_{net[1]}'
         pt.submit_job(name,cmd,dir='/groups/branson/home/kabram/del',queue='gpu_a100')
+
+
+## track movies
+import os
+import glob
+mov_dir = '/groups/branson/bransonlab/datasets/Rat7M/data'
+movs = []
+for vw in range(1,7):
+    movs.append(glob.glob(os.path.join(mov_dir,f'*camera{vw}*.mp4')))
+
+out_dir = '/groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/trk'
+os.makedirs(out_dir,exist_ok=True)
+import PoseTools as pt
+
+net = nets[0]
+c_str = ''
+for kk, vv in net[2].items():
+    c_str += f' {kk} {vv} '
+
+force = False
+for vw in range(1,7):
+    for mm in movs[vw-1]:
+        mname = os.path.splitext(os.path.split(mm)[1])[0]
+        out_trk = f'{out_dir}/{mname}_{net[1]}.trk'
+        if os.path.exists(out_trk) and not force:
+            continue
+        cmd = f'APT_interface.py /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/conf.json -conf_params cachedir \\"/groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}\\" {c_str} -json_trn_file /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/loc.json -ignore_local 1 -type {net[0]} -train_name {net[1]} -cache /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw} track -mov {mm} -out {out_trk}'
+        name = f'rat7m_{mname}_{net[1]}'
+        pt.submit_job(name,cmd,dir='/groups/branson/home/kabram/del/rat7m',queue='gpu_a100')
+
+
+# track using only view 1
+
+all_movs= glob.glob(os.path.join(mov_dir,f'*.mp4'))
+
+vw = 1
+for mm in all_movs:
+    mname = os.path.splitext(os.path.split(mm)[1])[0]
+    out_trk = f'{out_dir}/{mname}_{net[1]}_only_vw{vw}.trk'
+    if os.path.exists(out_trk) and not force:
+        continue
+    cmd = f'APT_interface.py /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/conf.json -conf_params cachedir \\"/groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}\\" {c_str} -json_trn_file /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw}/loc.json -ignore_local 1 -type {net[0]} -train_name {net[1]} -cache /groups/branson/bransonlab/mayank/apt_cache_2/Rat7M/view_{vw} track -mov {mm} -out {out_trk}'
+    name = f'rat7m_{mname}_{net[1]}_only_vw{vw}'
+    pt.submit_job(name,cmd,dir='/groups/branson/home/kabram/del/rat7m',queue='gpu_a100')
