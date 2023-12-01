@@ -100,7 +100,6 @@ ISDPK = False
 KBDEBUG = False
 # control how often / whether tqdm displays info
 TQDM_PARAMS = {'mininterval': 5}
-IS_APT_IN_DEBUG_MODE = False
 
 try:
     user = getpass.getuser()
@@ -4423,7 +4422,7 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 pose_module = __import__(module_name)
                 tf1.reset_default_graph()
                 poser_factory = getattr(pose_module, module_name)
-                poser = poser_factory(conf, name=args.train_name)
+                poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds)
                 # self.name = args.train_name
                 if args.zero_seeds:
                     # Set a bunch of seeds to zero for training reproducibility
@@ -5017,7 +5016,6 @@ def set_up_logging(args):
         logh.setLevel(logging.DEBUG)
     else:
         logh.setLevel(logging.INFO)
-    IS_APT_IN_DEBUG_MODE = args.debug
     logh.setFormatter(log_formatter)
     logh.name = "log"
 
@@ -5052,10 +5050,6 @@ def main(argv):
     
     # Parse the arguments
     args = parse_args(argv)
-
-    # Set a global to indicate in debug mode
-    global IS_APT_IN_DEBUG_MODE
-    IS_APT_IN_DEBUG_MODE = args.debug
 
     # What the heck is this?
     if args.sub_name == 'test':

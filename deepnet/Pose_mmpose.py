@@ -253,7 +253,7 @@ class APTtransform:
 
 
 
-def create_mmpose_cfg(conf,mmpose_config_file,run_name):
+def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False):
     curdir = pathlib.Path(__file__).parent.absolute()
     mmpose_init_file_path = mmpose.__file__
     mmpose_dir = os.path.dirname(mmpose_init_file_path)
@@ -378,7 +378,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     cfg.work_dir = conf.cachedir
 
     # Use a fixed seed if APT is in debug mode    
-    if APT_interface.IS_APT_IN_DEBUG_MODE:
+    if zero_seeds:
         cfg.seed = 0
     else:
         cfg.seed = None
@@ -540,7 +540,7 @@ def rectify_log_level_bang(logger, debug=False):
 
 class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
-    def __init__(self,conf,name,**kwargs):
+    def __init__(self, conf, name, zero_seeds=False, **kwargs):
         super().__init__(conf,name)
         self.conf = conf
         self.name = name
@@ -574,7 +574,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             assert False, 'Unknown mmpose net type'
 
         poseConfig.conf = conf
-        self.cfg = create_mmpose_cfg(self.conf,self.cfg_file,name)
+        self.cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds)
 
 
     def get_td_file(self):
