@@ -6,7 +6,9 @@ classdef LabelerController < handle
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
-    isInDebugMode_ = false  % set to true to allow control actuation exceptions to be uncaught
+    isInYodaMode_ = false  
+      % Set to true to allow control actuation to happen *ouside* or a try/catch
+      % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
   end
 
   methods
@@ -294,7 +296,8 @@ classdef LabelerController < handle
       % way makes it easier to fake control actuations by calling
       % this function with the desired controlName and an empty
       % source and event.
-      if obj.isInDebugMode_ ,
+      if obj.isInYodaMode_ ,
+        % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
         exceptionMaybe = {} ;
       else        
