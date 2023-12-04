@@ -240,9 +240,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function [tfSucc,jobID] = run(obj,syscmds,varargin)
+    function [tfSucc, jobID] = run(obj, syscmds, varargin)
 
-      [logcmds,cmdfiles,jobdesc] = myparse(varargin,'logcmds',{},'cmdfiles',{},'jobdesc','job');
+      [logcmds, cmdfiles, jobdesc, do_call_apt_interface_dot_py] = myparse( ...
+        varargin, ...
+        'logcmds', {}, ...
+        'cmdfiles', {}, ...
+        'jobdesc', 'job', ...
+        'do_call_apt_interface_dot_py', true) ;
 
       if ~isempty(cmdfiles),
         DLBackEndClass.writeCmdToFile(syscmds,cmdfiles,jobdesc);
@@ -253,15 +258,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       jobID = cell(1,njobs);
       for ijob=1:njobs,
         fprintf(1,'%s\n',syscmds{ijob});
-        if obj.type == DLBackEnd.Conda,
-          [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
-          tfSucc(ijob) = st == 0;
-        else
-          [st,res] = system(syscmds{ijob});
-          tfSucc(ijob) = st == 0;
-          if tfSucc(ijob),
-            jobID{ijob} = obj.parseJobID(res);
+        if do_call_apt_interface_dot_py ,
+          if obj.type == DLBackEnd.Conda,
+            [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
+            tfSucc(ijob) = st == 0;
+          else
+            [st,res] = system(syscmds{ijob});
+            tfSucc(ijob) = st == 0;
+            if tfSucc(ijob),
+              jobID{ijob} = obj.parseJobID(res);
+            end
           end
+        else
+          % Pretend it's a failure, for expediency.
+          tfSucc(ijob) = false ;
+          res = 'do_call_apt_interface_dot_py is false' ;
         end
         if ~tfSucc(ijob),
           warning('Failed to spawn %s %d: %s',jobdesc,ijob,res);

@@ -241,14 +241,20 @@ classdef LabelerController < handle
       obj.train_core_(source, event, 'do_just_generate_db', false) ;
     end
 
+    function menu_start_training_but_dont_call_apt_interface_dot_py_actuated(obj, source, event)
+      obj.train_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
+    end
+
     function train_core_(obj, source, event, varargin)
       % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
       % after DB creation.
 
       % Process keyword args
-      [do_just_generate_db] = ...
+      [do_just_generate_db, ...
+       do_call_apt_interface_dot_py] = ...
         myparse(varargin, ...
-                'do_just_generate_db', false) ;
+                'do_just_generate_db', false, ...
+                'do_call_apt_interface_dot_py', true) ;
       
       if ~obj.doProjectAndMovieExist_() ,
         return
@@ -279,7 +285,10 @@ classdef LabelerController < handle
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
-      labeler.trackRetrain('retrainArgs',{'wbObj',wbObj}, 'do_just_generate_db', do_just_generate_db);
+      labeler.trackRetrain(...
+        'retrainArgs',{'wbObj',wbObj}, ...
+        'do_just_generate_db', do_just_generate_db, ...
+        'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
       if wbObj.isCancel
         msg = wbObj.cancelMessage('Training canceled');
         msgbox(msg,'Train');
