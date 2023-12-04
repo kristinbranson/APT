@@ -76,7 +76,7 @@ import urllib
 import getpass
 import link_trajectories as lnk
 from matplotlib.path import Path
-from PoseCommon_pytorch import coco_loader
+#from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
 import io
 import shapely.geometry
@@ -4017,8 +4017,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         if model_type.startswith('detect'):
             tconf.rrange = 0
 
-        tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf, usegpu=False)
-        tself.create_data_gen(debug=debug, pin_mem=False)
+        poser = PoseCommon_pytorch.PoseCommon_pytorch(tconf, usegpu=False)
+        poser.create_data_gen(debug=debug, pin_mem=False)
         # For whatever reasons, debug=True hangs for second stage in 2 stage training when the training job is submitted to the cluster from command line.
         if distort:
             db_type = 'train'
@@ -4031,10 +4031,10 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         mask = []
         for ndx in range(nsamples):
             if no_except:
-                next_db = tself.next_data(db_type)
+                next_db = poser.next_data(db_type)
             else:
                 try:
-                    next_db = tself.next_data(db_type)
+                    next_db = poser.next_data(db_type)
                 except Exception as e:
                     break
             ims.append(next_db['images'][0].numpy())
@@ -4050,7 +4050,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
         try:
-            del tself.train_dl, tself.val_dl
+            del poser.train_dl, poser.val_dl
         except:
             pass
         torch.cuda.empty_cache()
@@ -4412,6 +4412,13 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                                   debug=args.debug, no_except=args.no_except)
                 if args.only_aug: continue
 
+                # # Save the state from here, so can do a quick restart later.  ALTTODO: Comment this out.
+                # pickle_file_path = 'just-before-train-wrapper.pkl'  # Will normally end up in the deepnet/ folder
+                # pickle_dict = { 'net_type':net_type, 'args':args, 'restore':restore, 'model_file':model_file }
+                # with open(pickle_file_path, 'wb') as f:
+                #     d = pickle.dump(pickle_dict, f)
+
+                # At last, the main event        
                 if net_type == 'mmpose' or net_type == 'hrformer':
                     module_name = 'Pose_mmpose'
                 elif net_type == 'cid':
@@ -4422,7 +4429,7 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 pose_module = __import__(module_name)
                 tf1.reset_default_graph()
                 poser_factory = getattr(pose_module, module_name)
-                poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds)
+                poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds, img_prefix_override=args.img_prefix_override)
                 # self.name = args.train_name
                 if args.zero_seeds:
                     # Set a bunch of seeds to zero for training reproducibility
@@ -4478,6 +4485,8 @@ def parse_args(argv):
                         action='store_true')
     parser.add_argument('-zero_seeds', dest='zero_seeds', help='Zero the numpy, torch, and torch-cuda random seeds. Useful for debugging',
                         action='store_true')
+    parser.add_argument('-img_prefix_override', dest='img_prefix_override', help='Override the img_prefix used in the mmpose cfg. Useful for debugging',
+                        default=None)
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
     parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)

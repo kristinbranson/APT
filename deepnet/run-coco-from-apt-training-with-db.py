@@ -27,8 +27,8 @@ def run_training() :
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))
     # e.g. /groups/branson/bransonlab/taylora/apt
 
-    read_only_folder_path = os.path.join(project_folder_path, "coco-from-apt/input-folder-with-db-with-train-tf-replaced-read-only")
-    working_folder_path = os.path.join(project_folder_path, "coco-from-apt/working-folder-with-db-with-train-tf-replaced")
+    read_only_folder_path = os.path.join(project_folder_path, "coco-from-apt/input-folder-with-db-read-only")
+    working_folder_path = os.path.join(project_folder_path, "coco-from-apt/working-folder-with-db")
 
     # logging.warning('Point 1')
 
@@ -36,14 +36,14 @@ def run_training() :
     if not os.path.exists(read_only_folder_path) :
         raise RuntimeError("Read-only test input folder is missing, expected it at %s" % read_only_folder_path)
 
-    # # Prepare the working folder
-    # logging.info('Preparing the working folder...')
-    # if os.path.exists(working_folder_path) :
-    #     subprocess.run(['rm', '-rf', working_folder_path], 
-    #                    check=True)
-    # subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
-    #                check=True)
-    # logging.info('Done preparing the working folder.')
+    # Prepare the working folder
+    logging.info('Preparing the working folder...')
+    if os.path.exists(working_folder_path) :
+        subprocess.run(['rm', '-rf', working_folder_path], 
+                       check=True)
+    subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
+                   check=True)
+    logging.info('Done preparing the working folder.')
 
     # logging.warning('Point 2')
 
@@ -71,7 +71,7 @@ def run_training() :
              '-no_except',
              '-zero_seeds',
              '-debug',  # Turn on debug-level logging, and loading of data in same process as training, and gradient error checking
-             '-img_prefix_override', '/groups/branson/bransonlab/taylora/apt/mmpose-0.29-native/data/coco/train2017',
+#             '-img_prefix_override', '/groups/branson/bransonlab/taylora/apt/mmpose-0.29-native/data/coco/train2017',
              'train', 
              '-skip_db',
              '-use_cache'])

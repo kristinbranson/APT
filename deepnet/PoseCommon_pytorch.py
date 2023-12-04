@@ -438,7 +438,7 @@ class PoseCommon_pytorch(object):
         # self.val_iter = iter(self.val_dl)
 
 
-    def create_coco_data_gen(self, debug=False, pin_mem=True,**kwargs):
+    def create_coco_data_gen(self, debug=False, pin_mem=True, **kwargs):
         conf = self.conf
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'

@@ -253,7 +253,7 @@ class APTtransform:
 
 
 
-def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False):
+def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_prefix_override=None):
     curdir = pathlib.Path(__file__).parent.absolute()
     mmpose_init_file_path = mmpose.__file__
     mmpose_dir = os.path.dirname(mmpose_init_file_path)
@@ -292,9 +292,11 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False):
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
         cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
         file = os.path.join(data_bdir, f'{fname}.json')
-        # ALTTODO: Fix this:
-        #cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
-        cfg.data[ttype].img_prefix = ''
+        if img_prefix_override:
+            cfg.data[ttype].img_prefix = img_prefix_override
+            #cfg.data[ttype].img_prefix = ''
+        else:
+            cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
         cfg.data[ttype].data_cfg = cfg.data_cfg
 
         key_info = {}
@@ -540,7 +542,7 @@ def rectify_log_level_bang(logger, debug=False):
 
 class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
-    def __init__(self, conf, name, zero_seeds=False, **kwargs):
+    def __init__(self, conf, name, zero_seeds=False, img_prefix_override=None, **kwargs):
         super().__init__(conf,name)
         self.conf = conf
         self.name = name
@@ -574,7 +576,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             assert False, 'Unknown mmpose net type'
 
         poseConfig.conf = conf
-        self.cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds)
+        self.cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds, img_prefix_override=img_prefix_override)
 
 
     def get_td_file(self):
@@ -746,11 +748,11 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
 
-        # ALTTODO: Get rid of this debugging code
-        thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
-        import pickle
-        with open('/groups/branson/bransonlab/taylora/apt/compare-cid-in-apt-to-plain-cid/pre-run-variables-in-apt.pkl', 'wb') as f:
-            pickle.dump(thangs, f)
+        # # ALTTODO: Get rid of this debugging code
+        # thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
+        # import pickle
+        # with open('/groups/branson/bransonlab/taylora/apt/compare-cid-in-apt-to-plain-cid/pre-run-variables-in-apt.pkl', 'wb') as f:
+        #     pickle.dump(thangs, f)
 
         if debug:
             with torch.autograd.detect_anomaly():
