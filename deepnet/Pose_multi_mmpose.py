@@ -79,30 +79,33 @@ class BottomUpAPTDataset(BottomUpCocoDataset):
         self.conf = conf
 
 
-    def _get_mask(self, anno, idx):
-        # Masks are created during image generation.
-        conf = self.conf
-        coco = self.coco
-        img_info = coco.loadImgs(self.img_ids[idx])[0]
-        m = np.zeros((img_info['height'], img_info['width']), dtype=np.float32)
-        if not conf.multi_loss_mask:
-            return m<0.5
-
-        for obj in anno:
-            if 'segmentation' in obj:
-                rles = xtcocotools.mask.frPyObjects(
-                    obj['segmentation'], img_info['height'],
-                    img_info['width'])
-                for rle in rles:
-                    m += xtcocotools.mask.decode(rle)
-                # if obj['iscrowd']:
-                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
-                #                                        img_info['height'],
-                #                                        img_info['width'])
-                #     m += xtcocotools.mask.decode(rle)
-                # else:
-
-        return m > 0.5
+    # def _get_mask(self, annos, idx):
+    #     # Masks are created during image generation.
+    #     conf = self.conf
+    #     coco = self.coco
+    #     img_info = coco.loadImgs(self.img_ids[idx])[0]
+    #     h = img_info['height']
+    #     w = img_info['width']
+    #     m = np.zeros((h, w), dtype=np.float32)
+    #     if not conf.multi_loss_mask:
+    #         return m<0.5
+    #
+    #     for anno in annos:
+    #         if 'segmentation' in anno:
+    #             segmentation = anno['segmentation']
+    #             rles = xtcocotools.mask.frPyObjects(segmentation, h, w)
+    #             for rle in rles:
+    #                 rle
+    #                 m1 = xtcocotools.mask.decode(rle)
+    #                 m += m1
+    #             # if obj['iscrowd']:
+    #             #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],
+    #             #                                        img_info['height'],
+    #             #                                        img_info['width'])
+    #             #     m += xtcocotools.mask.decode(rle)
+    #             # else:
+    #
+    #     return m > 0.5
 
 # TODO: Fixing a bug where mmpose code uses np.int instead of np.int32. Remove this when updating mmpose
 @PIPELINES.register_module(force=True)

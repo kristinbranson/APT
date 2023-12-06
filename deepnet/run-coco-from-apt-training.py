@@ -27,8 +27,8 @@ def run_training() :
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))
     # e.g. /groups/branson/bransonlab/taylora/apt
 
-    read_only_folder_path = os.path.join(project_folder_path, "coco-from-apt/input-folder-with-db-read-only")
-    working_folder_path = os.path.join(project_folder_path, "coco-from-apt/working-folder-with-db")
+    read_only_folder_path = os.path.join(project_folder_path, "coco-from-apt/input-folder-read-only")
+    working_folder_path = os.path.join(project_folder_path, "coco-from-apt/working-folder")
 
     # logging.warning('Point 1')
 
@@ -74,7 +74,7 @@ def run_training() :
              '-debug',  # Turn on debug-level logging, and loading of data in same process as training, and gradient error checking
 #             '-img_prefix_override', '/groups/branson/bransonlab/taylora/apt/mmpose-0.29-native/data/coco/train2017',
              'train', 
-             '-skip_db',
+#             '-skip_db',
              '-use_cache'])
 
 

@@ -109,6 +109,14 @@
             "justMyCode": false
         },
         {
+            "name": "run-coco-from-apt-training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "run-coco-from-apt-training-with-db.py",
             "type": "python",
             "request": "launch",

@@ -27,23 +27,23 @@ def run_training() :
     project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))
     # e.g. /groups/branson/bransonlab/taylora/apt
 
-    read_only_folder_path = os.path.join(project_folder_path, "coco-from-apt/input-folder-with-db-read-only")
-    working_folder_path = os.path.join(project_folder_path, "coco-from-apt/working-folder-with-db")
+    input_folder_path = os.path.join(project_folder_path, "coco-from-apt/input-folder-read-only")
+    output_folder_path = os.path.join(project_folder_path, "coco-from-apt/output-folder-with-db-and-after-aug-pickle")
 
     # logging.warning('Point 1')
 
-    # Make sure the read-only test folder path exists
-    if not os.path.exists(read_only_folder_path) :
-        raise RuntimeError("Read-only test input folder is missing, expected it at %s" % read_only_folder_path)
+    # Make sure the input folder path exists
+    if not os.path.exists(input_folder_path) :
+        raise RuntimeError("Read-only test input folder is missing, expected it at %s" % input_folder_path)
 
-    # Prepare the working folder
-    logging.info('Preparing the working folder...')
-    if os.path.exists(working_folder_path) :
-        subprocess.run(['rm', '-rf', working_folder_path], 
+    # Prepare the output folder
+    logging.info('Preparing the output folder...')
+    if os.path.exists(output_folder_path) :
+        subprocess.run(['rm', '-rf', output_folder_path], 
                        check=True)
-    subprocess.run(['cp', '-R', '-T', read_only_folder_path, working_folder_path], 
+    subprocess.run(['cp', '-R', '-T', input_folder_path, output_folder_path], 
                    check=True)
-    logging.info('Done preparing the working folder.')
+    logging.info('Done preparing the output folder.')
 
     # logging.warning('Point 2')
 
@@ -59,22 +59,23 @@ def run_training() :
     training_subfolder_name = 'coco'
     with cd(script_folder_path):
         APT_interface.main(
-            [os.path.join(working_folder_path, training_subfolder_name, f'{datetime_1}_{datetime_2}.json'),
+            [os.path.join(output_folder_path, training_subfolder_name, f'{datetime_1}_{datetime_2}.json'),
              '-name', datetime_1, 
-             '-err_file', os.path.join(working_folder_path,
+             '-err_file', os.path.join(output_folder_path,
                                        training_subfolder_name,
-                                       f'{datetime_1}view0_{datetime_2}_bu.er'),
-             '-json_trn_file', os.path.join(working_folder_path, training_subfolder_name, 'loc.json'), 
+                                       f'{datetime_1}view0_{datetime_2}_bu.err'),
+             '-json_trn_file', os.path.join(output_folder_path, training_subfolder_name, 'loc.json'), 
              '-conf_params',
              '-type', 'cid',
              '-ignore_local', '0', 
-             '-cache', working_folder_path,
+             '-cache', output_folder_path,
              '-no_except',
              '-zero_seeds',
              '-debug',  # Turn on debug-level logging, and loading of data in same process as training, and gradient error checking
 #             '-img_prefix_override', '/groups/branson/bransonlab/taylora/apt/mmpose-0.29-native/data/coco/train2017',
              'train', 
-             '-skip_db',
+             '-only_aug',
+             '-do_save_after_aug_pickle',
              '-use_cache'])
 
 

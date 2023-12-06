@@ -253,7 +253,7 @@ class APTtransform:
 
 
 
-def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_prefix_override=None):
+def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_prefix_override=None, debug=False):
     curdir = pathlib.Path(__file__).parent.absolute()
     mmpose_init_file_path = mmpose.__file__
     mmpose_dir = os.path.dirname(mmpose_init_file_path)
@@ -379,11 +379,15 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_
         cfg.gpu_ids = []
     cfg.work_dir = conf.cachedir
 
-    # Use a fixed seed if APT is in debug mode    
+    # Use a fixed seed if APT is in zero_seeds mode    
     if zero_seeds:
         cfg.seed = 0
     else:
         cfg.seed = None
+
+    # Don't use a separate thread for loading data if in debug mode
+    if debug:
+        cfg.data.workers_per_gpu = 0
 
     # NEEDS REVIEW MK: Does this look right?  CiD cfg does not have
     # cfg.data.samples_per_gpu, it has these three:
@@ -576,7 +580,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             assert False, 'Unknown mmpose net type'
 
         poseConfig.conf = conf
-        self.cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds, img_prefix_override=img_prefix_override)
+        cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds, img_prefix_override=img_prefix_override, debug=kwargs['debug'])
+        self.cfg = cfg
 
 
     def get_td_file(self):
@@ -601,8 +606,15 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
         rectify_log_level_bang(logger, debug)
         dataset = mmpose.datasets.build_dataset(cfg.data.train)
-        # ALTTODO: Remove this next
-        datum = dataset[0]  # simple sanity check to see if we can access the first element
+        if len(dataset)==0:
+            logging.warning('The dataset has zero elements.  Seems bad...')
+        else:
+            if debug:
+                n_to_check = min(10, len(dataset))
+                logging.info('Testing access to the first %s elements of the dataset...' % n_to_check)
+                for i in range(n_to_check):
+                    datum = dataset[i]  # Test if we can access the first few elements of the dataset
+                logging.info('Successfully read the first %d elements of the dataset.' % n_to_check)
         datasets = [ dataset ]
 
         if len(cfg.workflow) == 2:
@@ -748,11 +760,16 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
 
-        # # ALTTODO: Get rid of this debugging code
-        # thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
-        # import pickle
-        # with open('/groups/branson/bransonlab/taylora/apt/compare-cid-in-apt-to-plain-cid/pre-run-variables-in-apt.pkl', 'wb') as f:
-        #     pickle.dump(thangs, f)
+        # ALTTODO: Get rid of this debugging code, maybe
+        if debug:
+            thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
+            import pickle
+            pickle_file_leaf_name = 'training-pre-running-variables.pkl'
+            json_label_file_path = self.conf.labelfile
+            pickle_folder_path = os.path.dirname(json_label_file_path)
+            pickle_file_path = os.path.join(pickle_folder_path, pickle_file_leaf_name)
+            with open(pickle_file_path, 'wb') as f:
+                pickle.dump(thangs, f)
 
         if debug:
             with torch.autograd.detect_anomaly():

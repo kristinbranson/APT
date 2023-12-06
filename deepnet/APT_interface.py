@@ -2,6 +2,7 @@
 #from __future__ import print_function
 
 import logging
+from operator import truediv
 #logging.basicConfig(
 #    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
 #logging.warning('Entered APT_interface.py')
@@ -4203,6 +4204,89 @@ def train_dpk(conf, args, split, split_file=None):
     apt_dpk.train(conf)
 
 
+def train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view):
+    if conf.is_multi:
+        setup_ma(conf)
+    if not args.skip_db:
+        if conf.db_format == 'coco':
+            create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
+        else:
+            create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
+
+    if conf.multi_only_ht:
+        assert conf.stage!='second', 'multi_ony_ht should be True only for the first stage'
+        conf.n_classes = 2
+        conf.flipLandmarkMatches = {}
+        conf.op_affinity_graph = [[0, 1]]
+
+    if args.aug_out is not None:
+        aug_out = args.aug_out + f'_{cur_view}'
+        if first_stage or second_stage:
+            estr = 'first' if first_stage else 'second'
+            aug_out += '_' + estr
+    else:
+        aug_out = None
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=aug_out, 
+                        debug=args.debug, no_except=args.no_except)
+
+    # Sometime useful to save a pickle of the input here, to enable quick restart of training, for debugging and testing
+    if args.do_save_after_aug_pickle:
+        # Save the state from here, so can do a quick restart later.  ALTTODO: Comment this out.        
+        pickle_file_leaf_name = 'after-aug-view-%d-conf-args-etc.pkl' % cur_view
+        json_label_file_path = conf.labelfile
+        pickle_folder_path = os.path.dirname(json_label_file_path)
+        pickle_file_path = os.path.join(pickle_folder_path, pickle_file_leaf_name)  # Stick it in the cachedir
+        pickle_dict = { 'net_type':net_type, 'args':args, 'restore':restore, 'model_file':model_file, 'conf':conf }
+        with open(pickle_file_path, 'wb') as f:
+            d = pickle.dump(pickle_dict, f)
+
+    if args.only_aug: 
+        do_continue = True
+        return do_continue
+
+    # On to the training proper
+    train_other_core(net_type, conf, args, restore, model_file)
+
+    # Exit, specifying not to continue in the containing loop
+    do_continue = False
+    return do_continue
+
+
+def train_other_core(net_type, conf, args, restore, model_file):
+    '''
+    The core of train_other(), after augmentation and all that other jazz.
+    '''
+
+    # At last, the main event        
+    if net_type == 'mmpose' or net_type == 'hrformer':
+        module_name = 'Pose_mmpose'
+    elif net_type == 'cid':
+        module_name = 'Pose_multi_mmpose'
+    else :
+        module_name = 'Pose_{}'.format(net_type)                    
+    logging.info(f'Importing pose module {module_name}')
+    pose_module = __import__(module_name)
+    tf1.reset_default_graph()
+    poser_factory = getattr(pose_module, module_name)
+    poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds, img_prefix_override=args.img_prefix_override, debug=args.debug)
+    # self.name = args.train_name
+    if args.zero_seeds:
+        # Set a bunch of seeds to zero for training reproducibility
+        #import random
+        #random.seed(0)
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+
+    # Proceed to actual training
+    logging.info('Starting training...')
+    poser.train_wrapper(restore=restore, model_file=model_file, debug=args.debug)
+    logging.info('Finished training.')
+
+
 def create_dlc_cfg_dict(conf, train_name='deepnet'):
     url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -4383,66 +4467,10 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 train_deepcut(conf, args, split_file=split_file, model_file=model_file)
             elif net_type == 'dpk':
                 train_dpk(conf, args, split, split_file=split_file)
-
             else:
-                if conf.is_multi:
-                    setup_ma(conf)
-                if not args.skip_db:
-                    if conf.db_format == 'coco':
-                        create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
-                    else:
-                        create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
-                if args.only_db:
-                    return
-
-                if conf.multi_only_ht:
-                    assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
-                    conf.n_classes = 2
-                    conf.flipLandmarkMatches = {}
-                    conf.op_affinity_graph = [[0, 1]]
-
-                if args.aug_out is not None:
-                    aug_out = args.aug_out + f'_{cur_view}'
-                    if first_stage or second_stage:
-                        estr = 'first' if first_stage else 'second'
-                        aug_out += '_' + estr
-                else:
-                    aug_out = None
-                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=aug_out, 
-                                  debug=args.debug, no_except=args.no_except)
-                if args.only_aug: continue
-
-                # # Save the state from here, so can do a quick restart later.  ALTTODO: Comment this out.
-                # pickle_file_path = 'just-before-train-wrapper.pkl'  # Will normally end up in the deepnet/ folder
-                # pickle_dict = { 'net_type':net_type, 'args':args, 'restore':restore, 'model_file':model_file }
-                # with open(pickle_file_path, 'wb') as f:
-                #     d = pickle.dump(pickle_dict, f)
-
-                # At last, the main event        
-                if net_type == 'mmpose' or net_type == 'hrformer':
-                    module_name = 'Pose_mmpose'
-                elif net_type == 'cid':
-                    module_name = 'Pose_multi_mmpose'
-                else :
-                    module_name = 'Pose_{}'.format(net_type)                    
-                logging.info(f'Importing pose module {module_name}')
-                pose_module = __import__(module_name)
-                tf1.reset_default_graph()
-                poser_factory = getattr(pose_module, module_name)
-                poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds, img_prefix_override=args.img_prefix_override)
-                # self.name = args.train_name
-                if args.zero_seeds:
-                    # Set a bunch of seeds to zero for training reproducibility
-                    #import random
-                    #random.seed(0)
-                    np.random.seed(0)
-                    torch.manual_seed(0)
-                    torch.cuda.manual_seed(0)
-                    torch.cuda.manual_seed_all(0)
-                # Proceed to actual training
-                logging.info('Starting training...')
-                poser.train_wrapper(restore=restore, model_file=model_file)
-                logging.info('Finished training.')
+                do_continue = train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view)
+                if do_continue:
+                    continue
 
         except tf1.errors.InternalError as e:
             estr =  'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly'
@@ -4516,6 +4544,11 @@ def parse_args(argv):
     parser_train.add_argument('-aug_out', dest='aug_out', help='Destination to save the images', default=None)
     parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
     parser_train.add_argument('-only_aug',dest='only_aug',help='Only do data augmentation, do not train',action='store_true')
+    parser_train.add_argument(
+        '-do_save_after_aug_pickle',
+        dest='do_save_after_aug_pickle',
+        help='Write variables to a pickle file after augmentation.  Useful for debugging',
+        action='store_true')
 
     parser_train.add_argument('-classify_val', dest='classify_val',
                               help='Apply trained model to val db', action='store_true')
