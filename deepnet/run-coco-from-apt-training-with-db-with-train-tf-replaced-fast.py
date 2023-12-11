@@ -116,8 +116,8 @@ def run_training() :
         args.only_aug = False
         args.skip_db = True
         args.do_save_after_aug_pickle = False 
-        args.debug = True
-        args.no_except = True
+        args.debug = False
+        args.no_except = False
 
         # Set up mmpose-style logging, just to make debugging easier
         timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())

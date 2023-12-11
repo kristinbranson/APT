@@ -62,7 +62,6 @@ class BottomUpAPTDataset(BottomUpCocoDataset):
 
         # # End BottomUpCocoDataset init
 
-        # ALTTODO: Make sure this is how you want it
         super().__init__(**kwargs)
         self.dataset_name = 'coco'
 

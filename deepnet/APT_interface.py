@@ -4233,7 +4233,7 @@ def train_other(conf, args, restore, split, split_file, model_file, net_type, fi
 
     # Sometime useful to save a pickle of the input here, to enable quick restart of training, for debugging and testing
     if args.do_save_after_aug_pickle:
-        # Save the state from here, so can do a quick restart later.  ALTTODO: Comment this out.        
+        # Save the state from here, so can do a quick restart later.
         pickle_file_leaf_name = 'after-aug-view-%d-conf-args-etc.pkl' % cur_view
         json_label_file_path = conf.labelfile
         pickle_folder_path = os.path.dirname(json_label_file_path)

@@ -54,8 +54,8 @@ def run_training() :
 
     # logging.warning('Point 3')
 
-    datetime_1 = '20231204T154349'
-    datetime_2 = '20231204T154350'
+    datetime_1 = '20231208T165249'
+    datetime_2 = '20231208T165249'
     training_subfolder_name = 'coco'
     with cd(script_folder_path):
         APT_interface.main(

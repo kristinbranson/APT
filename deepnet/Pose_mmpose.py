@@ -418,7 +418,8 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_
         # default_samples_per_gpu is only used to set the learning rate, so we use the value in cfg that pertains to training.
         default_samples_per_gpu = cfg.data.train_dataloader['samples_per_gpu']
         cfg.data.train_dataloader['samples_per_gpu'] = actual_batch_size
-    cfg.optimizer.lr = conf.learning_rate_multiplier * default_lr * actual_batch_size / default_samples_per_gpu
+    new_lr = conf.learning_rate_multiplier * default_lr * actual_batch_size / default_samples_per_gpu
+    cfg.optimizer.lr = new_lr
 
     assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
     if cfg.lr_config.policy == 'step':
@@ -655,8 +656,6 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
 
         dataloaders = [ build_dataloader(ds, **dataloader_setting) for ds in datasets ]
-        # ALTTODO: Take this out
-        dataloader = dataloaders[0]
 
         # determine wether use adversarial training precess or not
         use_adverserial_train = cfg.get('use_adversarial_train', False)
@@ -760,8 +759,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         #runner.max_iters = steps    
         logging.debug("Running the runner...")
 
-        # ALTTODO: Get rid of this debugging code, maybe
+        # If debugging, write out the cfg just before running
         if debug:
+            dataloader = dataloaders[0]
             thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
             import pickle
             pickle_file_leaf_name = 'training-pre-running-variables.pkl'
