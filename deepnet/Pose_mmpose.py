@@ -547,7 +547,7 @@ def rectify_log_level_bang(logger, debug=False):
 
 class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
-    def __init__(self, conf, name, zero_seeds=False, img_prefix_override=None, **kwargs):
+    def __init__(self, conf, name, zero_seeds=False, img_prefix_override=None, debug=False, **kwargs):
         super().__init__(conf,name)
         self.conf = conf
         self.name = name
@@ -581,7 +581,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             assert False, 'Unknown mmpose net type'
 
         poseConfig.conf = conf
-        cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds, img_prefix_override=img_prefix_override, debug=kwargs['debug'])
+        cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds, img_prefix_override=img_prefix_override, debug=debug)
         self.cfg = cfg
 
 
