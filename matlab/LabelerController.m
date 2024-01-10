@@ -238,7 +238,7 @@ classdef LabelerController < handle
     end
 
     function pbTrain_actuated(obj, source, event)
-      obj.train_core_(source, event, 'do_just_generate_db', false) ;
+      obj.train_core_(source, event) ;
     end
 
     function menu_start_training_but_dont_call_apt_interface_dot_py_actuated(obj, source, event)
