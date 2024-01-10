@@ -515,9 +515,8 @@ class TrainingDebuggingHook(Hook):
             training_loss = runner.log_buffer.output['all_loss'].copy()
         runner.log_buffer.clear_output()  # Don't want to interfere with other hooks
         self.training_loss_from_i.append(training_loss)
-        # TODOALT: Take this out
-        print('step: %d, loss: %g' % (step, training_loss))
-        pass
+        # print('step: %d, loss: %g' % (step, training_loss))
+        # pass
 
 
 def get_handler_by_name(logger, name):
