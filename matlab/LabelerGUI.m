@@ -2963,6 +2963,40 @@ function pbTrain_Callback(hObject, eventdata, handles)
 % Not used anymore.  See LabelerController::pbTrain_actuated()
 
 
+function pbTrack_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+handles.labelerObj.setStatus('Tracking...');
+tm = getTrackMode(handles);
+tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
+if isempty(tblMFT),
+  msgbox('All frames tracked.','Track');
+  handles.labelerObj.clearStatus() ;
+  return;
+end
+[tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
+if ~tfCanTrack,
+  errordlg(['Error tracking: ',reason],'Error tracking');
+  handles.labelerObj.clearStatus();
+  return;
+end
+fprintf('Tracking started at %s...\n',datestr(now));
+wbObj = WaitBarWithCancel('Tracking');
+centerOnParentFigure(wbObj.hWB,handles.figure);
+oc = onCleanup(@()delete(wbObj));
+if handles.labelerObj.maIsMA
+  handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
+else
+  handles.labelerObj.track(tblMFT,'wbObj',wbObj);
+end
+if wbObj.isCancel
+  msg = wbObj.cancelMessage('Tracking canceled');
+  msgbox(msg,'Track');
+end
+handles.labelerObj.clearStatus();
+
+
 function pbClear_Callback(hObject, eventdata, handles)
 
 if ~checkProjAndMovieExist(handles)
