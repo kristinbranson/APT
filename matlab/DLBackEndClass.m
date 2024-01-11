@@ -686,8 +686,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function cmdout = wrapCommandConda(cmdin, varargin)
       % Take a base command and run it in a sing img
-      [condaEnv,gpuid] = myparse(varargin,...
-        'condaEnv',DLBackEndClass.default_conda_env,...
+      [condaEnv,logfile,gpuid] = myparse(varargin,...
+        'condaEnv',DLBackEndClass.default_conda_env, ...
+        'logfile', '/dev/null', ...
         'gpuid',0);
       conda_activate_command = synthesize_conda_command(['activate ',condaEnv]);
       if isnan(gpuid),
@@ -700,7 +701,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
         conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
       end
-      cmdout1 = [conda_activate_and_cuda_set_command,' && ',cmdin];
+      cmdout1 = [conda_activate_and_cuda_set_command ' && ' cmdin, ' &> ', logfile] ;
       cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
     end
 
@@ -741,6 +742,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       else
         jobnamestr = [' -J ',jobname];
       end
+      % NB: Line below sends *both* stdout and stderr to the file named by logfile
       cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s %s "%s"',...
         nslots,gpuqueue,logfile,jobnamestr,additionalArgs,esccmd);
     end

@@ -990,7 +990,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                print('Overriding param %s <= ' % n, v)
+                logging.info('Overriding param %s <= ' % n, v)
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1242,7 +1242,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                print('Overriding param %s <= ' % n, v)
+                logging.info('Overriding param %s <= ' % n, v)
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -2329,8 +2329,8 @@ def create_cv_split_files(conf, n_splits=3):
             break
 
     if imbalance:
-        print('Couldnt find a valid spilt for split type:{} even after 10 retries.'.format(conf.splitType))
-        print('Try changing the split type')
+        logging.warning('Couldnt find a valid spilt for split type:{} even after 10 retries.'.format(conf.splitType))
+        logging.warning('Try changing the split type')
         return None
 
     all_train = []
@@ -3264,14 +3264,14 @@ def check_train_db(model_type, conf, out_file):
     ''' Reads db and saves the images and locs to out_file to verify the db'''
     if model_type == 'openpose':
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         n = tf_iterator.N
     elif model_type == 'unet':
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -3280,7 +3280,7 @@ def check_train_db(model_type, conf, out_file):
         import leap.training
 
         db_file = os.path.join(conf.cachedir, 'leap_train.h5')
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         read_fn, n = leap.training.get_read_fn(conf, db_file)
     elif model_type == 'deeplabcut':
         db_file = os.path.join(conf.cachedir, 'train_data.p')
@@ -3288,11 +3288,11 @@ def check_train_db(model_type, conf, out_file):
         [p, d] = os.path.split(db_file)
         cfg_dict['project_path'] = p
         cfg_dict['dataset'] = d
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         read_fn, n = deeplabcut.train.get_read_fn(cfg_dict)
     else:
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -3402,7 +3402,7 @@ def classify_list_file(args, view, view_ndx=0, conf_raw=None):
     part_file = out_file + '.part'  # following classify_movie naming
 
     if not os.path.isfile(list_file):
-        print('File %s does not exist' % list_file)
+        logging.warning('File %s does not exist' % list_file)
         return success, pred_locs
 
     toTrack = json.load(list_fp)
@@ -4301,12 +4301,12 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
         wd_x = conf.trange / 2
         wd_y = conf.trange / 2
     if not os.path.exists(wt_file):
-        print('Downloading pretrained weights..')
+        logging.info('Downloading pretrained weights..')
         if not os.path.exists(wt_dir):
             os.makedirs(wt_dir)
         sname, header = urllib.request.urlretrieve(url)
         tar = tarfile.open(sname, "r:gz")
-        print('Extracting pretrained weights..')
+        logging.info('Extracting pretrained weights..')
         tar.extractall(path=wt_dir)
     pretrained_weights = os.path.join(wt_dir, 'resnet_v1_50.ckpt')
 
@@ -5006,7 +5006,7 @@ def run(args):
         for view_ndx, view in enumerate(views):
             conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
-        print(m_files)
+        logging.info(m_files)
 
 class TqdmToLogger(io.StringIO):
     """
@@ -5050,7 +5050,7 @@ def set_up_logging(args):
     
     if args.log_file is None:
         # output to console if no log file is specified
-        logh = logging.StreamHandler()
+        logh = logging.StreamHandler()  # log to stderr
     else:
         logh = logging.FileHandler(args.log_file, 'w')
 
@@ -5084,7 +5084,7 @@ def main(argv):
     tf1.logging.set_verbosity(tf1.logging.ERROR)
     try:    
         gpu_devices = tf.config.list_physical_devices('GPU')  # this takes into account CUDA_VISIBLE_DEVICES
-        print("len(gpu_devices): ", len(gpu_devices))
+        logging.debug("len(gpu_devices): %d", len(gpu_devices))
         tf.config.experimental.set_memory_growth(gpu_devices,True)
             # seems like passing this is a single GPU, instead of a singleton list, fails when there are multiple GPUs?
     except:
@@ -5095,7 +5095,7 @@ def main(argv):
 
     # What the heck is this?
     if args.sub_name == 'test':
-        print("Hello this is APT!")
+        logging.info("Hello this is APT!")
         return
 
     # issues arise with docker and installed python packages that end up getting bound

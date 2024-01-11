@@ -139,8 +139,8 @@ class TopDownAPTDataset(TopDownCocoDataset):
 
         self.db = self._get_db()
 
-        print(f'=> num_images: {self.num_images}')
-        print(f'=> load {len(self.db)} samples')
+        logging.info(f'=> num_images: {self.num_images}')
+        logging.info(f'=> load {len(self.db)} samples')
 
 
         ## END MMPOSE INIT CODE
