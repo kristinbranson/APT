@@ -3471,7 +3471,7 @@ classdef DeepTracker < LabelTracker
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
       njobs = numel(jobs);
-      if njobs > length(gpuids) ,
+      if njobs > numel(gpuids) ,
         warning('Not enough GPUs with enough available memory for the tracking jobs.') ;
         return 
       end
