@@ -5096,6 +5096,10 @@ def main(argv):
     # Parse the arguments
     args = parse_args(argv)
 
+    # # For debugging
+    # args.debug = False
+    # args.no_except = True
+
     # What the heck is this?
     if args.sub_name == 'test':
         logging.info("Hello this is APT!")

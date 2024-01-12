@@ -469,6 +469,7 @@ class PoseCommon_pytorch(object):
         self.val_loader_raw = val_dl_coco
 
         num_workers = 0 if debug else 2
+        logging.info('Number of DataLoader workers: %d', num_workers)
 
         self.train_dl = torch.utils.data.DataLoader(train_dl_coco, 
                                                     batch_size=self.conf.batch_size, 
@@ -477,7 +478,7 @@ class PoseCommon_pytorch(object):
                                                     num_workers=num_workers,
                                                     shuffle=True,
                                                     worker_init_fn=dataloader_worker_init_fn)
-        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size, pin_memory=pin_mem, drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
 
@@ -506,7 +507,15 @@ class PoseCommon_pytorch(object):
                     train_sampler = None
                     shuffle = True if self.conf.db_format == 'coco' else False
 
-                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=partial(dataloader_worker_init_fn,epoch=self.train_epoch))
+                self.train_dl = torch.utils.data.DataLoader(
+                    self.train_loader_raw, 
+                    batch_size=self.conf.batch_size, 
+                    pin_memory=True,
+                    drop_last=True, 
+                    num_workers=16,
+                    sampler=train_sampler,
+                    shuffle=shuffle,
+                    worker_init_fn=partial(dataloader_worker_init_fn, epoch=self.train_epoch))
                 self.train_iter = iter(self.train_dl)
                 ndata = next(self.train_iter)
             else:
