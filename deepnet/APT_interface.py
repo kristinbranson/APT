@@ -3973,16 +3973,19 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
     #if False:
     if not ISWINDOWS and not debug:
         logging.info('Launching sample training data generation (in separate process)')
-        p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort,False,True))
+        keyword_args_dict = \
+            { 'model_type':model_type, 'nsamples':nsamples, 'train_name':train_name, 
+              'out_file':out_file, 'distort':distort, 'debug':debug, 'no_except':no_except }
+        p = multiprocessing.Process(target=gen_train_samples1, args=(conf,), kwargs=keyword_args_dict)
         p.start()
         p.join()
     else:
-        logging.info('Launching sample training data generation (in same process)')
+        logging.info('Running sample training data generation (in same process)')
         gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug, no_except=no_except)
     logging.info('Finished sample training data generation')
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False, no_except=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, no_except=False):
     # Create image of sample training samples with data augmentation
 
     # if silent:
