@@ -787,15 +787,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function cmd = wrapBaseCommandBsub(basecmd,varargin)
 
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
-      cmd = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
-      cmd = DLBackEndClass.wrapCommandBsub(cmd,bsubargs{:});
+      cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
+      cmd2 = DLBackEndClass.wrapCommandBsub(cmd1,bsubargs{:});
 
       % already on cluster?
       tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
-      if ~tfOnCluster,
-        cmd = DLBackEndClass.wrapCommandSSH(cmd,sshargs{:});
+      if tfOnCluster,
+        % The Matlab environment vars cause problems with e.g. PyTorch
+        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
+      else
+        % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
+        cmd = DLBackEndClass.wrapCommandSSH(cmd2,sshargs{:});
       end
-
     end
 
 
