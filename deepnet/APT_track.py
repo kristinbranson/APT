@@ -36,7 +36,7 @@ def parse_args(argv):
     parser.add_argument('-view', help='track only for this view. If not specified, track for all the views', default=None, type=int)
     parser.add_argument('-stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
 
-    parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
+    parser.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not, or only link existing tracklets. "predict_link" both predicts and links, "only_predict" only predicts but does not link, "only_link" only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option. Default is "predict_link"')
     parser.add_argument('-predict_trk_files', help='Intermediate trk files storing pure tracklets. Required when using link_only track_type', default=None, type=int)
 
     parser.add_argument('-conf_params',
@@ -128,12 +128,12 @@ def main(argv):
         for idx, cur in enumerate(u_tstamps):
             ndx = [ix for ix, tt in enumerate(tstamps) if tt == cur]
             multi_stage = True if len(ndx) > 1 else False
-            is_multi = [mm.startswith('multi_') for mm in mtypes]
+            is_multi = [mm.startswith('multi_') or mm.startswith('detect_') for mm in mtypes]
 
             if multi_stage:
                 first_stage = [ix for ix in ndx if is_multi[ix]][0]
                 second_stage = [ix for ix in ndx if ix != first_stage][0]
-                print(f'* Model {idx+1} -- multi-animal multi-stage with {get_pretty_name(mtypes[first_stage])} and {get_pretty_name(mtypes[first_stage])} networks, trained at {cur.strftime("%Y %b %m %H:%M")}')
+                print(f'* Model {idx+1} -- multi-animal multi-stage with {get_pretty_name(mtypes[first_stage])} and {get_pretty_name(mtypes[second_stage])} networks, trained at {cur.strftime("%Y %b %m %H:%M")}')
             else:
                 mstr = 'multi-animal' if is_multi[ndx[0]] else 'single-animal'
                 print(f'* Model {idx+1} -- {mstr} {get_pretty_name(mtypes[ndx[0]])} network, trained at {cur.strftime("%Y %b %m %H:%M")}')
@@ -169,7 +169,7 @@ def main(argv):
         pre_str += f' -conf_params {c_str}'
         tndx = argv.index('-conf_params')
         argv.pop(tndx)
-        while not argv[tndx].startswith('-'):
+        while (len(argv)>tndx) and (not argv[tndx].startswith('-')):
             argv.pop(tndx)
 
     if args.conf_params2 is not None:
@@ -177,7 +177,7 @@ def main(argv):
         pre_str += f' -conf_params2 {c_str}'
         tndx = argv.index('-conf_params2')
         argv.pop(tndx)
-        while not argv[tndx].startswith('-'):
+        while (len(argv)>tndx) and (not argv[tndx].startswith('-')):
             argv.pop(tndx)
 
     if args.log_file is not None:
@@ -196,7 +196,7 @@ def main(argv):
     #     cmd = f'{config_file} '
     # else:
     #     cmd = ''
-    cmd = f'{config_file} -type {mtypes[ndx]} -cache {tdir} -name {tstamps_str[ndx]} {pre_str} {extra} track {extra_2}'
+    cmd = f'{config_file} -type {mtypes[ndx]} -cache {tdir} {pre_str} {extra} -name {tstamps_str[ndx]} track {extra_2}'
 
 
 ##

@@ -1,4 +1,4 @@
-from Pose_mmpose_new import Pose_mmpose_new as Pose_mmpose
+from Pose_mmpose_new import Pose_mmpose as Pose_mmpose
 from mmpose.models import build_posenet
 import numpy as np
 import torch

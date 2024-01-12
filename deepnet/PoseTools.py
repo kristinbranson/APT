@@ -189,7 +189,7 @@ def adjust_contrast(in_img, conf):
         else:
             for ndx in range(in_img.shape[0]):
                 lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
-                lab_planes = cv2.split(lab)
+                lab_planes = list(cv2.split(lab))
                 lab_planes[0] = clahe.apply(lab_planes[0])
                 lab = cv2.merge(lab_planes)
                 rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
@@ -1602,7 +1602,7 @@ def get_crop_loc(lbl,ndx,view, on_gt=False):
         if nviews == 1:
             crop_loc = lbl[lbl[fname][0, ndx]]['roi'].value[:, 0].astype('int')
         else:
-            crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]].value[:, 0].astype('int')
+            crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]][()][:, 0].astype('int')
         crop_loc = crop_loc - 1
     else:
         crop_loc = None
@@ -1663,12 +1663,12 @@ def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_
 
 
 def read_h5_str(in_obj):
-    return u''.join(chr(c) for c in in_obj)
+    return u''.join([chr(c) for c in in_obj[()].flatten()])
 
 
-def show_result_hist(im,loc,percs,dropoff=0.5,ax=None):
+def show_result_hist(im,loc,percs,dropoff=0.5,ax=None,cmap='cool',lw=None):
     from matplotlib import pyplot as plt
-    cmap = get_cmap(percs.shape[0],'cool')
+    cmap = get_cmap(percs.shape[0],cmap)
     if ax is None:
         f = plt.figure()
         ax = plt.gca()
@@ -1681,7 +1681,7 @@ def show_result_hist(im,loc,percs,dropoff=0.5,ax=None):
 
     for pt in range(loc.shape[0]):
         for pp in range(percs.shape[0]):
-            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False,alpha=1-((pp+1)/percs.shape[0])*dropoff)
+            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False,alpha=1-((pp+1)/percs.shape[0])*dropoff,lw=lw)
             ax.add_patch(c)
 
 

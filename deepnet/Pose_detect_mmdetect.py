@@ -49,6 +49,7 @@ import glob
 from PoseCommon_pytorch import PoseCommon_pytorch
 import poseConfig
 import PoseTools
+import logging
 
 @BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
@@ -613,7 +614,10 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
     cfg.work_dir = conf.cachedir
 
     cfg.dataset_type = 'COCODataset'
-    cfg.classes = ('fly','neg_box')
+    if conf.get('coco_classes',None) is not None:
+        cfg.classes = conf.get('coco_classes',('fly','neg_box'))
+    else:
+        cfg.classes = ('fly','neg_box')
 
     im_sz = tuple(int(c / conf.rescale) for c in conf.imsz[::-1])  # conf.imsz[0]
     default_samples_per_gpu = cfg.data.samples_per_gpu
@@ -731,6 +735,7 @@ class TraindataHook(Hook):
             json_data[x] = np.array(self.td_data[x]).astype(np.float64).tolist()
         with open(train_data_file + '.json', 'w') as json_file:
             json.dump(json_data, json_file)
+        logging.info(f'Step:{runner.iter+1}, Train loss:{self.td_data["train_loss"][-1]}')
 
 
 class Pose_detect_mmdetect(PoseCommon_pytorch):
@@ -813,6 +818,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             # cfg.gpus will be ignored if distributed
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
+            runner_type='IterBasedRunner',
             seed=cfg.seed)
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
 

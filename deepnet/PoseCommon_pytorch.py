@@ -187,9 +187,10 @@ class coco_loader(torch.utils.data.Dataset):
 
         mask = self.get_mask(annos,im.shape[:2])
         im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale*sfactor, mask=mask[None,...],occ=occ[None])
-        if (im.shape[1] != round(conf.imsz[0]*conf.rescale)) or (im.shape[2] != round(conf.imsz[1]*conf.rescale)):
-            im = cv2.resize(im[0,...],(conf.imsz[1],conf.imsz[0]))[None,...]
-            mask = cv2.resize(mask[0,...].astype(np.float32),(conf.imsz[1],conf.imsz[0]))[None,...]
+        osz = tuple([round(ii/conf.rescale) for ii in conf.imsz][::-1])
+        if (im.shape[1] != osz[1]) or (im.shape[2] != osz[0]):
+            im = cv2.resize(im[0,...],osz)[None,...]
+            mask = cv2.resize(mask[0,...].astype(np.float32),osz)[None,...]
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
         if not self.conf.is_multi:
@@ -246,11 +247,11 @@ class PoseCommon_pytorch(object):
         self.train_epoch = 1
         # conf.is_multi = is_multi
 
-        if usegpu and torch.cuda.is_available() and not conf.use_openvino:
+        if usegpu and torch.cuda.is_available() and not conf.get('use_openvino',False):
             self.device = "cuda"
         else:
             self.device = "cpu"
-            if usegpu and not conf.use_openvino:
+            if usegpu and not conf.get('use_openvino',False):
                 logging.warning("CUDA Device not available. Using CPU!")
 
         if conf.db_format == 'coco':

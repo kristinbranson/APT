@@ -1375,7 +1375,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method)
+  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.p')

@@ -1099,7 +1099,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
                       'hrformer': 'HRFormer',
-                      'cid': 'CiD',
+                      'multi_cid': 'CiD',
                       }
 
     if not 'ProjectFile' in A:
@@ -1475,7 +1475,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 info = [int(ndx), int(fnum), int(trx_ndx)]
                 cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
 
-                frame_in, cur_loc = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
+                frame_in, cur_loc,scale = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
 
                 if occ_as_nan:
                     cur_loc[cur_occ[fnum, :], :] = np.nan
@@ -2123,6 +2123,8 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         data_dict= {'im': cur_frame, 'locs': cur_locs, 'info': info, 'occ': cur_occ}
         if conf.is_multi:
             data_dict['roi'] = []
+        else:
+            data_dict['roi'] = np.array([0,0,cur_frame.shape[1],cur_frame.shape[0]]).reshape([1,2,2])
         cur_out(data_dict)
 
         if cur_out is out_fns[1] and split:
@@ -4237,7 +4239,7 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
                 'project_path': conf.cachedir,
                 'dataset': conf.dlc_train_data_file,
                 'init_weights': pretrained_weights,
-                'dlc_train_steps': conf.dl_steps*conf.batch_size,
+                'dlc_train_steps': conf.dl_steps*conf.batch_size if conf.dl_steps is not None else None,
                 'symmetric_joints': symmetric_joints,
                 'num_joints': conf.n_classes,
                 'all_joints': [[i] for i in range(conf.n_classes)],

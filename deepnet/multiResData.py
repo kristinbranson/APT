@@ -74,9 +74,9 @@ def get_trx_files(lbl, local_dirs, on_gt=False):
     :return:
     '''
     if on_gt:
-        trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAllGT'][0]]
+        trx_files = [u''.join(chr(c) for c in lbl[jj][()].flatten()) for jj in lbl['trxFilesAllGT'][0]]
     else:
-        trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAll'][0]]
+        trx_files = [u''.join(chr(c) for c in lbl[jj][()].flatten()) for jj in lbl['trxFilesAll'][0]]
     movdir = [os.path.dirname(a) for a in local_dirs]
 
     assert len(trx_files) == len(movdir), \
@@ -497,7 +497,7 @@ def trx_pts(lbl, ndx, on_gt=False,field_name='labeledpos'):
         sz = np.array(lbl[pts[0, ndx]]['size'])[:, 0].astype('int')
         cur_pts = np.zeros(sz).flatten()
         cur_pts[:] = np.nan
-        if lbl[pts[0,ndx]]['idx'].value.ndim > 1:
+        if lbl[pts[0,ndx]]['idx'][()].ndim > 1:
             idx = np.array(lbl[pts[0, ndx]]['idx'])[0, :].astype('int') - 1
             val = np.array(lbl[pts[0, ndx]]['val'])[0, :] - 1
             cur_pts[idx] = val
@@ -1384,7 +1384,7 @@ class coco_loader(torch.utils.data.Dataset):
         im_name = self.ann['images'][item]['file_name']
         im_path = os.path.join(conf.cachedir,self.img_dir)
         im_file = os.path.join(im_path,im_name)
-        if not os.path.exists(im_path):
+        if not os.path.exists(im_file):
             im_file = os.path.join(conf.coco_im_dir,im_name)
 
         im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)

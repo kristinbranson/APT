@@ -2,15 +2,15 @@
 
 # cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
 
-cmd = "/groups/branson/bransonlab/apt/experiments/data/wheel_rig_tracker_DEEP_cam0_20200318_compress20200327.lbl_mdn.lbl -name test -cache /groups/branson/bransonlab/mayank/apt_cache_2 -conf_params mdn_use_unet_loss False  dl_steps None  decay_steps 25000  save_step 40000  batch_size 4  maxckpt 200  ignore_occluded False  pretrain_freeze_bnorm True  step_lr True  lr_drop_step 0.15  normalize_loss_batch False  use_leap_preprocessing False  leap_val_size 0.15  leap_preshuffle True  leap_filters 64  leap_val_batches_per_epoch 10  leap_reduce_lr_factor 0.1  leap_reduce_lr_patience 3  leap_reduce_lr_min_delta 1e-05  leap_reduce_lr_cooldown 0  leap_reduce_lr_min_lr 1e-10  leap_amsgrad False  leap_upsampling False  dlc_intermediate_supervision False  dlc_intermediate_supervision_layer 12  dlc_location_refinement True  dlc_locref_huber_loss True  dlc_locref_loss_weight 0.05  dlc_locref_stdev 7.2801  dlc_use_apt_preprocess True  -type deeplabcut  -view 1  -train_name deepnet_20200710 train -skip_db -use_cache"
+cmd = '/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_07122023/grone/conf_nocrop.json -name grone_nocrop_nomask_07122023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask False rescale 2 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch train -use_cache -skip_db'
 
 #cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_mask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask True link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageBBox_nocrop_second_23022022/deepnet-100000 -conf_params2  -type2 mdn_joint_fpn -name2 2stageBBox_nocrop_second_23022022 -type detect_mmdetect track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_1_bbox.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/aa.trk -track_type only_predict -start_frame 48800 -end_frame 49000'
 
 
 if type(cmd)!=list:
     cmd = cmd.replace('\\','')
-    cmd = cmd.replace('"','')
-    cmd = cmd.replace("'","")
+#     cmd = cmd.replace('"','')
+#     cmd = cmd.replace("'","")
 
 from reuse import *
 # cmd = cmd.replace('"/','/')
@@ -19,7 +19,7 @@ if __name__ == '__main__':
     if type(cmd) == list:
         apt.main(cmd)
     else:
-        cmd = cmd.replace('\\', '')
+        # cmd = cmd.replace('\\', '')
         apt.main(cmd.split())
 
 

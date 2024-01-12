@@ -8,7 +8,7 @@ import re
 from reuse import *
 import cv2
 
-ap36 = True
+ap36 = False
 if ap36:
     im_dir = '/groups/branson/bransonlab/datasets/APT-36K/data'
 
@@ -124,16 +124,40 @@ for animal in animals:
             tdata_str = exp_dir+f'/ap36k_{animal}_{net[1]}_traindata'
             V = pt.pickle_load(tdata_str)
             perf = a36.compute_perf_sa(V[1],net[0],exp_dir+'/test_TF.json',net[1],exp_dir)
-            resa.append([nets[1],perf])
+            resa.append([net[1],perf])
         res.append([animal,resa])
     except:
         pass
 
-##
+ms = []
+ans = []
+for resa in res:
+    cur_ms = []
+    ans.append(resa[0])
+    for r in resa[1]:
+        cur_ms.append(r[1][0][0])
+    ms.append(cur_ms)
+
+res_dict = {}
+net_names = [n[1] for n in nets]
+for mm,aa in zip(ms,ans):
+    mstr = ','.join([f'{m:.2f}' for m in mm])
+    print(f'{aa:10s}, {mstr}')
+    if aa.startswith('-'):
+        an = aa[1:]
+    else:
+        an = 'all'
+    res_dict[an] = {}
+    for ndx,nn in enumerate(net_names):
+        res_dict[an][nn] = mm[ndx]
+
+
+## save results as pickle file
 import pickle
 astr = 'ap36' if ap36 else 'ap10'
 with open(f'/groups/branson/bransonlab/mayank/apt_results/{astr}_results.pkl','wb') as f:
-    pickle.dump(res,f)
+    pickle.dump(res_dict,f)
+
 
 ## accuracy vs occlusion plot
 
@@ -149,6 +173,46 @@ for animal in animals:
 
 ss = np.array([ [rr[1][0]  for rr in r1[1]] for r1 in res])
 plt.figure();plt.scatter(ss[:,0,0],counts)
+
+
+## accuracy of occlusion prediction
+# doing it only for all animals
+
+occ_pred = []
+ll = resa[0][1][-2]
+oo_l = np.isnan(ll[:, :, 0])
+for ndx,net in enumerate(nets):
+    oo_p = resa[ndx][1][-3]
+    occ_pred.append(oo_p)
+
+##
+f,ax = plt.subplots(1,len(nets),figsize=(15,5))
+nbin = 20
+ww = 0.4
+for ndx,net in enumerate(nets):
+    oo_p = occ_pred[ndx]
+    if 'mdn' not in net[1]:
+        oo_p = -oo_p
+    oo_p = np.clip(oo_p,np.percentile(oo_p,5),np.percentile(oo_p,95))
+    histc1,bin_edges = np.histogram(oo_p[oo_l],bins=nbin,density=True)
+    histc2,bin_edges2 = np.histogram(oo_p[~oo_l],bins=bin_edges,density=True)
+    acc = (histc1[nbin//2:].sum()+histc2[:nbin//2].sum())/histc1.sum()/2
+    ax[ndx].bar(np.arange(0,1,1/nbin),histc1/20,width=ww/nbin)
+    ax[ndx].bar(np.arange(0,1,1/nbin)+ww/nbin,histc2/20,width=ww/nbin)
+    ax[ndx].set_title(f'{net[1]}, {acc:.2f}')
+    ax[ndx].set_ylim([0,0.75])
+    ax[ndx].axis('on')
+    ax[ndx].tick_params(axis='y', which='both', left=False, right=False, labelleft=True)
+    ax[ndx].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+    if ndx>0:
+        ax[ndx].set_yticks([])
+
+ax[0].axis('on')
+ax[0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+ax[0].tick_params(axis='y', which='both', left=False, right=False, labelleft=True)
+ax[0].set_ylabel('Density')
+ax[0].set_xlabel('Occlusion prediction')
+ax[-1].legend(['Occluded','Not occluded'])
 
 
 ##

@@ -14,8 +14,8 @@ rae.setup('alice')
 # dstr = '20200604'
 # dstr = '20200706'
 # rae.run_normal_training(dstr=dstr) #run_type = 'submit'
-dstr = '20210708' #'20210629'
-rae.create_normal_dbs(expname='touching')
+dstr = '20231207' #'20210708' #'20210629'
+# rae.create_normal_dbs(expname='touching')
 rae.run_normal_training(dstr=dstr,expname='touching') #run_type = 'submit'
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
@@ -32,7 +32,8 @@ reload(rae)
 rae.setup('alice')
 # dstr = '20200706' #'20200604' # '20200410'
 # rae.get_normal_results(dstr=dstr)
-dstr = '20210708' #'20210629'
+dstr = '20231207' #'20210708' #'20210629'
+# rae.create_gt_db()
 rae.get_normal_results(dstr=dstr,exp_name='touching')
 # rae.setup('alice_difficult')
 # rae.get_normal_results(dstr=dstr)
@@ -44,8 +45,9 @@ from importlib import reload
 reload(rae)
 rae.setup('stephen')
 # dstr = '20200605'
-dstr = '20200706'
-#rae.create_normal_dbs()
+#dstr = '20200706'
+dstr = '20231207'
+# rae.create_normal_dbs()
 rae.run_normal_training(dstr=dstr) #run_type = 'submit'
 
 ##
@@ -55,7 +57,8 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('stephen')
-dstr = '20200706' #'20200411'
+# dstr = '20200706' #'20200411'
+dstr = '20231207'
 rae.get_normal_results(dstr=dstr)
 
 ## Accuracy over training set size
@@ -70,7 +73,7 @@ rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # # rae.create_incremental_dbs()
 # alice_incr_dstr = '20200716' #'20200608'
 # rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
-dstr = '20210708' #'20210629'
+dstr = '20231207'#'20210708' #'20210629'
 import run_apt_ma_expts as rae_ma
 import os
 robj = rae_ma.ma_expt('alice')
@@ -83,10 +86,11 @@ rae.run_incremental_training(dstr=dstr) #run_type = 'submit'
 
 ##
 import run_apt_expts_2 as rae
+from importlib import reload
 reload(rae)
 rae.setup('alice')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-alice_incr_dstr = '20210708' #'20200716' #'20200608'
+alice_incr_dstr = '20231207' #'20210708' #'20200716' #'20200608'
 rae.get_incremental_results(dstr=alice_incr_dstr)
 
 ##
@@ -96,7 +100,7 @@ reload(rae)
 rae.setup('stephen')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 # rae.create_incremental_dbs()
-stephen_incr_dstr = '20200717' #'20200608' # '20200414'
+stephen_incr_dstr = '20231207' #'20200717' #'20200608' # '20200414'
 rae.run_incremental_training(dstr=stephen_incr_dstr) #run_type = 'submit'
 
 ##
@@ -111,7 +115,7 @@ rae.get_incremental_results(dstr=stephen_incr_dstr)
 ## Whole dataset training
 
 import run_apt_expts_2 as rae
-for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
+for data_type in ['brit0','brit1','brit2','romain','larva']:
     reload(rae)
     rae.setup(data_type)
     # rae.create_normal_dbs()
@@ -124,7 +128,7 @@ for data_type in ['roian','brit0','brit1','brit2','romain','larva']:
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
-dstr = '20200710'
+dstr = '20231207' #'20200710'
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
     rae.all_models = [m for m in rae.all_models if 'orig' not in m]
@@ -137,7 +141,7 @@ for britnum in range(3):
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
-dstr = '20200710'
+dstr = '20231207' # '20200710'
 for britnum in range(3):
     rae.setup('brit{}'.format(britnum))
     rae.all_models = [m for m in rae.all_models if 'orig' not in m]
@@ -155,8 +159,8 @@ from importlib import reload
 reload(rae)
 rae.setup('romain','')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-dstr = '20200912'
-rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla') # skip_db=False,run_type='submit'
+dstr = '20231207' # '20200912'
+rae.cv_train_from_mat(dstr=dstr) # skip_db=False,run_type='submit'
 
 ## results
 import run_apt_expts_2 as rae
@@ -164,8 +168,10 @@ from importlib import reload
 reload(rae)
 rae.setup('romain')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-dstr = '20200912'
-rae.get_cv_results(dstr=dstr,queue='gpu_tesla')
+rae.all_models = [m for m in rae.all_models if 'hrformer' not in m]
+
+dstr = '20231207' #'20200912'
+rae.get_cv_results(dstr=dstr,db_from_mdn_dir=True)#,queue='gpu_tesla')
 
 
 
@@ -180,6 +186,7 @@ rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla') # skip_db=False,run_type='submit'
 
 ## results
+
 import run_apt_expts_2 as rae
 from importlib import reload
 reload(rae)
@@ -190,14 +197,15 @@ rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 rae.get_cv_results(queue='gpu_tesla',dstr=dstr,db_from_mdn_dir=True)
 
 ## Larva
+
 from importlib import reload
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('larva','')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 
-dstr =  '20200804' #'20200714' # '20200428'
-rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla_large') # skip_db=False,run_type='submit'
+dstr = '20231207' # '20200804' #'20200714' # '20200428'
+rae.cv_train_from_mat(dstr=dstr) # skip_db=False,run_type='submit'
 # rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla_large') # skip_db=False,run_type='submit'
 
 ## results
@@ -206,9 +214,10 @@ from importlib import reload
 reload(rae)
 rae.setup('larva')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
+rae.all_models = [m for m in rae.all_models if 'hrformer' not in m]
 # rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
-dstr = '20200804' #'20200428'
-rae.get_cv_results(dstr=dstr,queue='gpu_tesla_large',db_from_mdn_dir=True) #
+dstr = '20231207' #'20200804' #'20200428'
+rae.get_cv_results(dstr=dstr,queue='gpu_rtx8000',db_from_mdn_dir=True) #
 
 ## LEAP
 import run_apt_expts_2 as rae
@@ -1153,6 +1162,13 @@ import run_apt_ma_expts as rae_ma
 robj = rae_ma.ma_expt('roian')
 robj.get_results()
 
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('roian')
+robj.show_results()
+
+
 ## incremental training
 import run_apt_ma_expts as rae_ma
 robj = rae_ma.ma_expt('roian')
@@ -1161,7 +1177,13 @@ robj.setup_incremental()
 ##
 import run_apt_ma_expts as rae_ma
 robj = rae_ma.ma_expt('roian')
-robj.run_incremental_train(t_types=[('grone','crop','mask')],queue='gpu_tesla')
+robj.run_incremental_train(t_types=[('grone','crop','mask')],queue='gpu_rtx8000')
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.get_incremental_results(t_types=[['grone','crop','mask','first'],])
+
 
 ##
 import run_apt_ma_expts as rae_ma
@@ -1191,6 +1213,8 @@ for cur_mov in gt_movies[-4:]:
         cur_str = '_'.join(tt)
         out_trk = os.path.join(robj.trk_dir,exp_name + f'_{cur_str}.trk')
         robj.track(cur_mov,out_trk,t_types=[tt,],run_type=run_type)
+
+## unmarked mice tracking stuff in script_inc_exp.py
 
 
 ######################
@@ -1224,6 +1248,19 @@ robj = rae_ma.ma_expt('alice')
 robj.get_status()
 
 
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('alice')
+robj.get_results(res_dstr='20231226')
+
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('alice')
+robj.show_results()
+
+
 ## incremental training
 import run_apt_ma_expts as rae_ma
 robj = rae_ma.ma_expt('alice')
@@ -1247,13 +1284,73 @@ robj = rae_ma.ma_expt('alice')
 
 loc_file = os.path.join(robj.gt_dir, rae_ma.loc_file_str)
 A = pt.json_load(loc_file)
-gt_movies = A['movies']
+movies = A['movies']
+
+social_movies = [
+    '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531//movie.ufmf',
+    '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629//movie.ufmf',
+    '/groups/branson/bransonlab/from_tier2/fly_bubble/bubble_data/nochr_TrpA65F12_Unknown_RigC_20201216T164812/movie.ufmf',
+    '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigC_20201216T155818/movie.ufmf',
+    '/groups/branson/bransonlab/from_tier2/fly_bubble/bubble_data/nochr_TrpA65F12_Unknown_RigD_20201216T155952/movie.ufmf',
+    '/groups/branson/bransonlab/from_tier2/fly_bubble/bubble_data/nochr_TrpA65F12_Unknown_RigD_20201216T175902/movie.ufmf',
+    '/groups/branson/bransonlab/from_tier2/fly_bubble/bubble_data/socialCsChr_JHS_BDPAD_BDPDBD_CsChrimson_RigC_20190910T152823/movie.ufmf',
+    '/groups/branson/bransonlab/from_tier2/fly_bubble/bubble_data/nochr_TrpA71G01_Unknown_RigC_20201216T153727/movie.ufmf',
+    '/groups/branson/bransonlab/from_tier2/fly_bubble/bubble_data/socialCsChr_JHS_BDPAD_BDPDBD_CsChrimson_RigA_20190910T152328/movie.ufmf',
+]
+
+movies = A['movies']+social_movies
+nm = []
+all_e = []
+for cur_mov in movies:
+    exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
+    if exp_name in all_e:
+        continue
+    all_e.append(exp_name)
+    nm.append(cur_mov)
+
+movies = nm
 
 run_type = 'dry'
-for cur_mov in gt_movies:
+tts = [('grone','crop'),('2stageBBox','first')]
+for cur_mov in movies:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
-    out_trk = os.path.join(robj.trk_dir,exp_name + '_grone.trk')
-    robj.track(cur_mov,out_trk,t_types=[('grone','crop')],run_type=run_type)
+    for curt in tts:
+        out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_scale2.trk')
+        robj.track(cur_mov,out_trk,t_types=[curt,],run_type=run_type)
+
+
+##
+
+import TrkFile as trkf
+tts = [('grone','crop'),('2stageBBox','first')]
+acc = []
+missing = []
+for cur_mov in movies:
+    exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
+    ac = []
+    for curt in tts:
+        for sc in range(2):
+            if sc == 0:
+                out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}.trk')
+            else:
+                out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_scale2.trk')
+            if not os.path.exists(out_trk):
+                missing.append([cur_mov,curt])
+                continue
+            trk = trkf.Trk(out_trk)
+            counts = []
+            for xx in range(trk.ntargets):
+                jj = trk.gettarget(xx)[0, 0, :, 0]
+                clen = np.count_nonzero(~np.isnan(jj))
+                counts.append(clen)
+
+            counts= np.array(counts)
+            nfr = max(trk.nframes)
+            ac.append([curt[0],sc,np.count_nonzero(counts>0.9*nfr),np.sum(counts)/10])
+    acc.append([exp_name,ac])
+
+print(acc)
+
 
 
 ## ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
