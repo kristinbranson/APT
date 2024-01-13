@@ -1054,6 +1054,21 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         return pred_fn, close_fn, latest_model_file
 
 
+    def convert_output(self, preds):
+        if not self.conf.use_openvino:
+            return preds
+        else:
+            cc = [torch.tensor(preds[x]) for x in self.model.outputs]
+            cc.extend([None,]*(6-len(cc)))
+            return cc
+
+    def run_model(self,ims):
+        if ims.shape[1] == 1:
+            ims = torch.tile(ims,[1,3,1,1])
+        if self.conf.use_openvino:
+            return self.model(ims)
+        else:
+            return self.model({'images':ims})
 
     def get_pred_fn_fast(self, model_file=None,max_n=None,imsz=None):
         if max_n is not None:
@@ -1071,9 +1086,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         model = torch.nn.DataParallel(model)
 
 
-        self.restore(latest_model_file,model)
-        model.to(self.device)
-        model = model.eval()
+        model,_ = self.restore(latest_model_file,model)
+        if not self.conf.use_openvino:
+            model.to(self.device)
+            model.eval()
+
         self.model = model
         conf = self.conf
         # conf.batch_size = 1
@@ -1093,11 +1110,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
             for ndx, ims in enumerate(ims_in):
                 # do prediction on half grid cell size offset images. o is for offset
-                hsz = self.offset//2
                 ims = torch.tensor(ims[None]).to(self.device).permute([0,3,1,2])/255.
                 # oims = torch.nn.functional.pad(ims, [0, hsz,0, hsz])[:,:, hsz:, hsz:]
                 with torch.no_grad():
-                    preds = model({'images':ims})
+                    preds = self.run_model(ims)
+                    preds = self.convert_output(preds)
                     locs = self.get_joint_pred(preds)
 
                 ret_dict['locs'].append(locs['ref'][0] * conf.rescale)

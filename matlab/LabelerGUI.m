@@ -247,6 +247,13 @@ handles.menu_setup_label_overlay_montage = uimenu('Parent',handles.menu_labeling
 %   'Label','Label Overlay Montage (trx centered)',...
 %   'Tag','menu_setup_label_overlay_montage_trx_centered',...
 %   'Visible','on');
+handles.menu_setup_label_outliers = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_outliers_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Find Suspicious Labels...',...
+  'Tag','menu_setup_label_outliers',...
+  'Visible','on');
+%moveMenuItemAfter(handles.menu_setup_label_outliers,handles.menu_setup_label_overlay_montage);
+
 handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set Frame Increment',...
@@ -285,6 +292,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_use_calibration'
    'menu_setup_ma_twoclick_align'
    'menu_setup_label_overlay_montage' % 'menu_setup_label_overlay_montage_trx_centered'
+   'menu_setup_label_outliers'
    'menu_setup_set_labeling_point'
    'menu_setup_set_nframe_skip'
    'menu_setup_lock_all_frames'
@@ -3615,6 +3623,12 @@ handles.labelerObj.clearStatus();
 % hFig(3) = lObj.labelOverlayMontage('ctrMeth','trx',...
 %   'rotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
 % handles.labelerObj.clearStatus();
+
+function menu_setup_label_outliers_Callback(hObject,evtdata,handles)
+handles.labelerObj.setStatus('Finding outliers in labels...');
+lObj = handles.labelerObj;
+label_outlier_gui(lObj);
+handles.labelerObj.clearStatus();
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;

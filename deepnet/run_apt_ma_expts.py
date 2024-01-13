@@ -27,11 +27,13 @@ from reuse import *
 import hdf5storage
 import pickle
 
+#matlab code to generate the  conf files and the locs files: /groups/branson/bransonlab/mayank/APT/script_ma_expts_labels.m
+
 out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose']
+alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -51,19 +53,19 @@ class ma_expt(object):
         self.name = data_type
         if data_type == 'roian':
             self.bdir = '/groups/branson/home/kabram/temp/ma_expts/roian'
-            self.dstr = '23022022'# '08022022' #
+            self.dstr = '07122023'#''23022022'# '08022022' #
             self.imsz = 2048
-            self.train_dstr = '23022022' #'10022022' #
+            self.train_dstr = '07122023'#'23022022' #'10022022' #
             self.crop_types = ('crop','nocrop')
             self.mask_types = ('mask','nomask')
             # self.params = {}
-            self.params = {('grone','nocrop'):[{'rescale':2,'batch_size':4},{}],
-                          ('2stageHT', 'nocrop'): [{'rescale': 2,'batch_size':4},{}],
+            self.params = {#('grone','nocrop'):[{'rescale':2},{}],
+                          #('2stageHT', 'nocrop'): [{'rescale': 2,'batch_size':4},{}],
 #                            ('2stageBBox',):[{'batch_size':3},{}],
 #                            ('grone',):[{'batch_size':4}],
-                           ('openpose','crop'):[{'rescale':2},{}],
+                           #('openpose','crop'):[{'rescale':2},{}],
 #                            ('openpose','crop'):[{'rescale':2}],
-                           ('openpose','nocrop'):[{'rescale':4,'batch_size':4}]
+                           #('openpose','nocrop'):[{'rescale':4,'batch_size':4}]
                            }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 4
@@ -71,20 +73,22 @@ class ma_expt(object):
 
         elif data_type == 'alice':
             self.bdir = '/groups/branson/home/kabram/temp/ma_expts/alice'
-            self.dstr = '23022022'#'14022022'
+            self.dstr = '07122023'#'23022022'#'14022022'
             self.imsz = 1024
-            self.train_dstr = '23022022'#'14022022'
+            self.train_dstr = '12072023' #'23022022'#'14022022'
             self.crop_types = ('crop', 'nocrop')
             self.mask_types = ('mask', )
-            self.params = {('2stageHT', 'nocrop'): [{'rescale': 2}, {}],
+            self.params = { #('2stageHT', 'nocrop'): [{'rescale': 2}, {}],
             #                ('2stageBBox',): [{'batch_size': 3}, {}],
-                           ('grone', 'nocrop'): [{'rescale': 2},{}],
-                           ('openpose', 'nocrop'): [{'rescale': 2},{}],
+                           #('grone', 'nocrop'): [{'rescale': 2},{}],
+                           #('openpose', 'nocrop'): [{'rescale': 2},{}],
             #                ('openpose', 'crop'): [{'rescale': 2}]
+                ():[{'link_id_rescale':0.5},{}]
                            }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/alice_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 17
             self.dropoff = 0.7
+            self.cond_file = '/groups/branson/home/kabram/temp/alice_conditions.mat' # code to create this is is in /groups/branson/bransonlab/mayank/APT/script_ma_expts_labels.m
         self.trnp_dir = os.path.join(self.bdir,f'trn_packdir_{self.dstr}')
         self.gt_dir = os.path.join(self.bdir,f'gt_packdir_{self.dstr}')
         self.log_dir = os.path.join(self.bdir,'log')
@@ -124,7 +128,7 @@ class ma_expt(object):
                     continue
                 if fnum < cur_trx['firstframe'][0, 0] - 1:
                     continue
-                x, y, theta = multiResData.read_trx(cur_trx, fnum)
+                x, y, theta, _ = multiResData.read_trx(cur_trx, fnum)
                 x = int(round(x))
                 y = int(round(y))
                 x_min = max(0, x - boxsz)
@@ -307,6 +311,8 @@ class ma_expt(object):
                     continue
                 for c in self.crop_types:
                     for m in self.mask_types:
+                        if m == 'mask' and alg=='cid':
+                            continue
                         all_types.append((alg, c, m, stg))
         if t_types is None:
             t_types = all_types
@@ -329,7 +335,7 @@ class ma_expt(object):
 
         return t_types
 
-    def run_train(self, t_types=None, redo=False,queue='gpu_tesla',run_type='dry'):
+    def run_train(self, t_types=None, redo=False,queue='gpu_rtx8000',run_type='dry'):
         t_types = self.get_types(t_types)
         for t in t_types:
             settings = self.get_settings(t)
@@ -410,7 +416,7 @@ class ma_expt(object):
                 files = self.get_model_files(settings,v)
 
                 train_cache_dir = settings['train_cache_dir'].format(v)
-                scriptfile = os.path.join(self.log_dir, train_name + '.bsub.sh')
+                scriptfile = os.path.join(self.log_dir, self.name+'_'+train_name + '.bsub.sh')
                 submit_time = os.path.getmtime(scriptfile)
                 # latest model, time, train_dist etc
                 if len(files) > 0:
@@ -576,13 +582,17 @@ class ma_expt(object):
                      precmd='',
                      logdir=self.log_dir, nslots=3)
 
-    def get_results(self, t_types=None, only_last=True):
+    def get_results(self, t_types=None, only_last=True,res_dstr=None):
         if t_types is None:
             t_types = self.get_types((('first',),))
         else:
             t_types = self.get_types(t_types)
 
-        dstr = pt.datestr()
+        if res_dstr is None:
+            dstr = pt.datestr()
+        else:
+            dstr = res_dstr
+
         res = {}
         for curt in t_types:
             settings = self.get_settings(curt)
@@ -593,10 +603,16 @@ class ma_expt(object):
             all_res_views = []
             curt_str = '_'.join(curt)
             cur_res_file = os.path.join(out_dir, f'{self.name}_ma_res_{dstr}_{curt_str}.pkl')
+            if os.path.exists(cur_res_file):
+                res[curt_str] = pt.pickle_load(cur_res_file)
+                continue
             for v in range(settings['nviews']):
                 gt_db = os.path.join(cache_dir, proj_name, 'multi_mdn_joint_torch', 'view_{}', 'gt_db', 'train_TF.json').format(v)
                 train_cache_dir = settings['train_cache_dir'].format(v)
-                tfile = rae.get_traindata_file_flexible(train_cache_dir, run_name, proj_name)
+                try:
+                    tfile = rae.get_traindata_file_flexible(train_cache_dir, run_name, proj_name)
+                except:
+                    continue
                 conf = pt.pickle_load(tfile)[1]
                 conf.imsz = (self.imsz,self.imsz)
                 conf.img_dim = 3
@@ -668,7 +684,7 @@ class ma_expt(object):
             alg = curt[0]
             run_name = 'deepnet'
             curt_str = '_'.join(curt)
-            cur_res_file = os.path.join(out_dir, f'{self.name}_ma_res_{dstr}_{curt_str}.pkl')
+            cur_res_file = os.path.join(out_dir, f'{self.name}_ma_res_{dstr}_{curt_str}_inc.pkl')
             train_name = settings['train_name']
             all_res_inc = []
             for v in range(settings['nviews']):
@@ -824,7 +840,31 @@ class ma_expt(object):
         f.tight_layout()
         return f
 
-    def show_results(self, t_types=None):
+    def cond_idx(self,cond,info):
+        Y = sio.loadmat(self.cond_file)
+        mx = [yy[0][0] for yy in Y['movs']]
+        gt_dat = pt.json_load(os.path.join(self.gt_dir,'loc.json'))
+        assert mx==gt_dat['movies']
+        cc = Y['condition'][:,0]
+        cn = [yy[0][0] for yy in Y['condition_names']]
+        assert type(cond) is list
+        cond_id = np.zeros([len(cc)])>1
+        for curcond in cond:
+            cid = cn.index(curcond)+1
+            cond_id = cond_id | (cc==cid)
+
+        y_fr = Y['fr'][cond_id,0]
+        y_mv = Y['mov_id'][cond_id,0]
+        y_mvfr = np.array([y_mv,y_fr]).T
+        use = np.zeros([len(info)])>1
+        for idx,curinfo in enumerate(info):
+            if np.any( (y_mvfr[:,0]==curinfo[0]) & (y_mvfr[:,1]==curinfo[1])):
+                use[idx] = True
+
+        return use
+
+
+    def show_results(self, t_types=None,condition=None):
         res_file_ptn = os.path.join(out_dir,f'{self.name}_ma_res_[0-9]*.mat')
 
         files = glob.glob(res_file_ptn)
@@ -856,9 +896,18 @@ class ma_expt(object):
             # K = res[curt_str]
             # ll = K['labeled_locs']
             # pp = K['pred_locs']
+            if K['results']['res_'+curt_str].ndim == 1:
+                continue
 
             pp = K[K[K['results']['res_'+curt_str][0,0]][0,0]]['pred_locs'][()].T
             ll = K[K[K['results']['res_'+curt_str][0,0]][0,0]]['labeled_locs'][()].T
+            info = K[K[K['results']['res_'+curt_str][0,0]][0,0]]['list'][()][:,0]
+            info = np.array([K[ii][()] for ii in info])[:,:,0]
+            if condition is not None:
+                cond_idx = self.cond_idx(condition,info)
+                pp = pp[cond_idx]
+                ll = ll[cond_idx]
+                info = info[cond_idx]
             ll[ll<-1000] = np.nan
             dd = np.linalg.norm(ll[:,None]-pp[:,:,None],axis=-1)
             dd1 = find_dist_match(dd)
@@ -876,7 +925,7 @@ class ma_expt(object):
                 ax.imshow(ex_im)
 
             vv = cur_dist.copy()
-            vv[np.isnan(vv)] = 60.
+            # vv[np.isnan(vv)] = 60.
             mm = np.nanpercentile(vv,prcs,axis=0,interpolation='nearest')
             for pts in range(ex_loc.shape[0]):
                 for pp in range(mm.shape[0]):
@@ -969,7 +1018,7 @@ class ma_expt(object):
         f.tight_layout()
         return f
 
-    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_rtx'):
+    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_a100'):
         t_types = self.get_types(t_types)
         for t in t_types:
             settings = self.get_settings(t)
@@ -987,6 +1036,7 @@ class ma_expt(object):
                 import PoseCommon_pytorch
                 t2 = [tt for tt in t if 'mask' not in tt]
                 t2[-1] = 'second'
+                t2[1] = 'nocrop'
                 t2 = tuple(t2)
                 settings2 = self.get_settings(t2)
                 cache_dir2 = settings2['train_cache_dir'].format(0)

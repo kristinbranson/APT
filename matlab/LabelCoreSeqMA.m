@@ -716,7 +716,7 @@ classdef LabelCoreSeqMA < LabelCore
       obj.newPrimaryTarget();
       %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo)); 
       
-      if obj.roiShow
+      if obj.roiShow && ~lObj.gtIsGTMode
         % Note, currently if roiShow is toggled, rois for the current
         % frame will not be shown until a frame-change.
         vroi = lObj.labelroiGet(iFrm);

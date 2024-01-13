@@ -3381,7 +3381,7 @@ classdef DeepTracker < LabelTracker
       nfrmtrk = size(ptrk,1);
       ptrk = reshape(ptrk,out_sz{:});
       
-      tbltrkMFT = table(mIdx,uint32(mft(:,2)),uint32(mft(:,3)),...
+      tbltrkMFT = table(mIdx(:),uint32(mft(:,2)),uint32(mft(:,3)),...
         'VariableNames',{'mov' 'frm' 'iTgt'});
       
       sz_occ = size(ptrk);
@@ -3750,7 +3750,7 @@ classdef DeepTracker < LabelTracker
           outfile = curj.listoutfiles{view};
           S = load(outfile);
           movies = curj.getMovfiles('view',view);
-          trkfiles = curj.getTrkfiles('view',view);
+          trkfiles = curj.getTrkfiles('view',view,'stage',curj.stages(end));
           nMovies = numel(movies);
           for midx = 1:nMovies
             K = TrkFile;
@@ -4990,7 +4990,7 @@ classdef DeepTracker < LabelTracker
           iter = DeepModelChainOnDisk.getModelFileIter(char(tmp.trkInfo.model_file));
           m.iter = iter(1);
           if iscell(tmp.pTrkTS),
-            min_ts = min(cellfun(@(x) min([nan;x(:)]),tmp.pTrkTS(:)));
+            min_ts = min(cellfun(@(x) min([nan;x(x(:)>0)]),tmp.pTrkTS(:)));
           else
             min_ts = min(tmp.pTrkTS(:));
           end

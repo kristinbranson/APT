@@ -286,7 +286,8 @@ classdef APTInterf
       if nstages > 1,
         assert(nstages==2);
         code = [code {'-type2', stage2netType{2}} ...
-          {'-model_files2'}, escape_cellstring_for_bash(linux_path(stage2models{2}))];
+          {'-model_files2'}, escape_cellstring_for_bash(linux_path(stage2models{2})) ...
+          {'-name2'} totrackinfo.trainDMC.getModelChainID('stage',2)];
       end
 
       if ~isempty(ignore_local),
