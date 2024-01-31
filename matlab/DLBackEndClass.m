@@ -690,7 +690,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
         conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
       end
-      cmdout = [conda_activate_and_cuda_set_command,' && ',cmdin];
+      cmdout1 = [conda_activate_and_cuda_set_command,' && ',cmdin];
+      cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
     end
 
     function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 
