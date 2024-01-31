@@ -1,0 +1,4 @@
+#! /bin/bash
+
+# NB: We use /usr/bin/python3 b/c we want the system python, not some env python
+/usr/bin/python3 "$@"

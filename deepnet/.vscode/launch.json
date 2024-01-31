@@ -13,6 +13,12 @@
             "justMyCode": false
         } ,
         {
+            "name": "Bash: Current File",
+            "type": "bashdb",
+            "request": "launch",
+            "program": "${file}"
+        } ,
+        {
             "name": "Test MSPN tracking",
             "type": "python",
             "request": "launch",
