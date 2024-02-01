@@ -9,18 +9,65 @@ import subprocess
 
 
 
+# In everything that follows:
+#   - a "reified" path is one that has been passed through os.path.realpath()
+
+
+
 # These are argument keys that are either a file name or a list of file names.    
 file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files']
 
 
 
+def flatten(lst):
+    '''
+    Flatten a list of lists.
+    '''
+    result = []
+    for item in lst:
+        if isinstance(item, list):
+            result += flatten(item)
+        else:
+            result.append(item)
+    return result
+
+
+
+def select(lst, pred) :
+    '''
+    Return a list containing only the elements of lst for which pred is true.
+    lst and pred should be lists of the same length.
+    '''
+    result =[]
+    for i in range(len(lst)) :
+        if pred[i]:
+            result.append(lst[i])
+    return result
+
+
+
+def stringify(x):
+    '''
+    Given an object, which might be a None, a string, an int, or a (possibly recursive) list of one of these,
+    convert to a (possibly recursive) list of strings, which preserves the original list structure.
+    '''
+    if isinstance(x, list):
+        result = [ stringify(el) for el in x ]
+    else:
+        result = str(x)
+    return result
+
+
+
 def apt_track_parse_args(argv):
-    # This is copied-and-pasted from APT_track.py.
-    # include'ing it doesn't work b/c APT_track.py includes e.g. tensorflow, which
-    # we don't want to depend on.  So this may have to change when APT_track.py changes.
-    #
-    # You should leave this as-is, so that if APT_track.py::parge_args() changes, it can just 
-    # be copied-and-pasted again to bring it in sync.
+    '''
+    This is copied-and-pasted from APT_track.py. include'ing it doesn't work b/c
+    APT_track.py includes e.g. tensorflow, which we don't want to depend on.  So
+    this may have to change when APT_track.py changes.
+
+    You should leave this as-is, so that if APT_track.py::parge_args() changes,
+    it can just be copied-and-pasted again to bring it in sync.
+    '''
 
     parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
     parser.add_argument("-lbl_file", help="path to APT lbl file or a directory when the lbl file has been unbundled using untar")
@@ -52,7 +99,10 @@ def apt_track_parse_args(argv):
 
 
 def parse_args(argv):
-    # Parse all the args.  Split them into the args for us versus the args for APT_track.py.
+    '''
+    Parse all the args.  Split them into the args for us versus the args for
+    APT_track.py.
+    '''
     main_parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
     main_parser.add_argument('-backend', help='Backend to use for tracking. Options are conda and docker', default='conda')
     args_as_namespace, apt_track_tokens = main_parser.parse_known_args(argv)
@@ -67,51 +117,124 @@ def parse_args(argv):
 
 
 
-def flatten(lst):
-    # Flatten a list of lists.
-    result = []
-    for item in lst:
-        if isinstance(item, list):
-            result += flatten(item)
-        else:
-            result.append(item)
+def containerize_path(path):
+    '''
+    Convert an absolute path to the corresponding path in the container.  We
+    assume the input path is absolute and reified.
+    '''
+    relativized_path = path[1:]
+    result = os.path.join('/mnt', relativized_path)
+    return result
+
+
+# def mount_string_from_file_name(file_name):
+#     '''
+#     Generate a string that will work in a docker --mount argument. We assume the
+#     source and target have the same path. We call such a string a "mount string"
+#     '''
+#     file_absolute_path = os.path.realpath(file_name)
+#     result = 'type=bind,source=%s,target=%s' % (file_absolute_path, file_absolute_path)
+#     return result
+
+
+
+def mount_string_from_folder_path(folder_path):
+    '''
+    Generate a string that will work in a docker --mount argument.
+    folder_path is assumed to be absolute, reified, and normed.
+    We call such a string a "mount string"
+    '''
+    container_folder_path = containerize_path(folder_path)
+    result = 'type=bind,source=%s,target=%s' % (folder_path, container_folder_path)
     return result
 
 
 
-def mount_string_from_file_name(file_name):
-    # Generate a string that will work in a docker --mount argument.
-    # We assume the source and target have the same path.
-    # We call such a string a "mount string"
-    file_absolute_path = os.path.realpath(file_name)
-    result = 'type=bind,source=%s,target=%s' % (file_absolute_path, file_absolute_path)
-    return result
-
-
-
-def mount_string_lists_from_apt_arg_dict_pair(name, value):
-    # Given a single (name, value) pair from the suppied arguments to APT_track, 
-    # Generate a list of mount strings that will be used to make sure docker can 
-    # access the needed files.
-    if name in file_name_arg_keys:
+def mount_folder_list_from_reified_apt_arg_dict_pair(key, value):
+    '''
+    Given a single (name, value) pair from the suppied arguments to APT_track, 
+    that has already gone through path reification, generate a list of folders 
+    that should be mounted into the container, so that docker can access them.
+    '''
+    if key in file_name_arg_keys:
         if isinstance(value, list):
-            result = [ mount_string_from_file_name(file_name) for file_name in value ]
+            result = [ os.path.normpath(os.path.dirname(file_absolute_path)) for file_absolute_path in value ]
         elif value is None:
             result = []
         else:
-            file_name = value
-            result = [ mount_string_from_file_name(file_name) ]
+            file_absolute_path = value
+            result = [ os.path.normpath(os.path.dirname(file_absolute_path)) ]
     else:
         result = []
     return result
 
 
 
-def mount_tokens_from_apt_track_args(apt_track_args):
-    # Given a dict of APT_Track.pt arguments, outputs a list of command-line tokens to be used when
-    # calling docker run, to ensure that all the needed files are available in the container.
-    # We call this a list of "mount tokens".
-    raw_mount_strings = [ mount_string_lists_from_apt_arg_dict_pair(name, value) for name,value in apt_track_args.items() ]
+def prune_folder_list(path_from_index):
+    '''
+    Given a list of *reified* paths to folders,  
+    eliminate any paths contained within other paths.
+    '''
+
+    # Sort them to save work later.
+    path_from_sorted_index = sorted(path_from_index, key=len)
+
+    # For each path, see if any of the later/longer paths are a child path.
+    # If a path is a child of another, mark the child for deletion.
+    count = len(path_from_sorted_index)
+    do_keep_from_sorted_index = [True] * count 
+    for parent_sorted_index in range(count):
+        parent_path = path_from_sorted_index[parent_sorted_index]
+        for child_sorted_index in range(parent_sorted_index+1, count):
+            if do_keep_from_sorted_index[child_sorted_index]:
+                child_path = path_from_sorted_index[child_sorted_index]
+                do_keep = ( os.path.commonpath([parent_path, child_path]) != os.path.commonpath([parent_path]) )
+                  # The os.path.commonpath([parent_path]) is to protect from trailing slashes in parent_path.
+                do_keep_from_sorted_index[child_sorted_index] = do_keep
+
+    # Only keep the keepers    
+    result = select(path_from_sorted_index, do_keep_from_sorted_index)
+    return result
+    
+
+
+def mount_folder_list_from_apt_track_args(reified_apt_track_args):
+    '''
+    Given a dict of APT_Track.pt arguments, with all file paths already
+    converted to 'reified' paths, outputs a list of folders that will need to be
+    mounted. Note that the list may contain repeats and folders that are
+    contained within other folders on the list.
+    '''
+    mount_folder_list_list = [ mount_folder_list_from_reified_apt_arg_dict_pair(key, value) for key,value in reified_apt_track_args.items() ]
+    mount_folder_list = flatten(mount_folder_list_list)
+    return mount_folder_list
+
+
+
+# def mount_string_lists_from_apt_arg_dict_pair(name, value):
+#     # Given a single (name, value) pair from the suppied arguments to APT_track, 
+#     # Generate a list of mount strings that will be used to make sure docker can 
+#     # access the needed files.
+#     if name in file_name_arg_keys:
+#         if isinstance(value, list):
+#             result = [ mount_string_from_file_name(file_name) for file_name in value ]
+#         elif value is None:
+#             result = []
+#         else:
+#             file_name = value
+#             result = [ mount_string_from_file_name(file_name) ]
+#     else:
+#         result = []
+#     return result
+
+
+
+def mount_tokens_from_folder_list(mount_folder_list):
+    '''
+    From a list of absolute folder paths, make a list of tokens to use in the call to
+    docker.
+    '''
+    raw_mount_strings = [ mount_string_from_folder_path(folder_path) for folder_path in mount_folder_list ]
     mount_strings = flatten(raw_mount_strings)
     mount_tokens_as_list_of_lists = [ ['--mount', mount_string] for mount_string in mount_strings ]
     mount_tokens = flatten(mount_tokens_as_list_of_lists)
@@ -119,33 +242,23 @@ def mount_tokens_from_apt_track_args(apt_track_args):
 
 
 
-def tracklet_mount_tokens_from_output_file_name(output_file_name):
-    # Returns a list of mount tokens that will enable the docker container to write to the "tracklet" file.
-    # If the output file name is e.g. out.trk, the tracklet file is named out_tracklet.trk.
-    output_file_absolute_path = os.path.realpath(output_file_name)
-    #print('output_file_absolute_path:')
-    #print(output_file_absolute_path)
-    [output_file_folder_path, output_file_leaf_name] = os.path.split(output_file_absolute_path)
-    [output_file_base_name, output_file_extension] = os.path.splitext(output_file_leaf_name)
-    tracklet_file_base_name = output_file_base_name + '_tracklet'
-    tracklet_file_leaf_name = tracklet_file_base_name + output_file_extension
-    tracklet_file_absolute_path = os.path.join(output_file_folder_path, tracklet_file_leaf_name)
-    tracklet_mount_tokens = [ '--mount', mount_string_from_file_name(tracklet_file_absolute_path) ]
-    return tracklet_mount_tokens
-
-
-
-def tracklet_mount_tokens_from_output_file_names(output_file_names):
-    # Like tracklet_mount_tokens_from_output_file_name(), but works on a list of output file names
-    unflattened_result = [ tracklet_mount_tokens_from_output_file_name(output_file_name) for output_file_name in output_file_names ]
-    result = flatten(unflattened_result) 
-    return result
+# def mount_tokens_from_apt_track_args(apt_track_args):
+#     # Given a dict of APT_Track.pt arguments, outputs a list of command-line tokens to be used when
+#     # calling docker run, to ensure that all the needed files are available in the container.
+#     # We call this a list of "mount tokens".
+#     raw_mount_strings = [ mount_string_lists_from_apt_arg_dict_pair(name, value) for name,value in apt_track_args.items() ]
+#     mount_strings = flatten(raw_mount_strings)
+#     mount_tokens_as_list_of_lists = [ ['--mount', mount_string] for mount_string in mount_strings ]
+#     mount_tokens = flatten(mount_tokens_as_list_of_lists)
+#     return mount_tokens
 
 
 
 def reify_paths_in_apt_arg_dict(apt_arg_dict):
-    # Convert all the file/dir names in apt_arg_dict to
-    # os.path.realpath()'ed versions.  Note this does not modify the input.
+    '''
+    Convert all the file/dir names in apt_arg_dict to
+    os.path.realpath()'ed versions.  Note this does not modify the input.
+    '''
     result = {}
     for key,value in apt_arg_dict.items():        
         if key in file_name_arg_keys:
@@ -162,18 +275,33 @@ def reify_paths_in_apt_arg_dict(apt_arg_dict):
 
 
 
-def stringify(x):
-    # Given an object, which might be a None, a string, an int, or a (possibly recursive) list of one of these,
-    # convert to a (possibly recursive) list of strings, which preserves the original list structure.
-    if isinstance(x, list):
-        result = [ stringify(el) for el in x ]
-    else:
-        result = str(x)
+def containerize_paths_in_apt_arg_dict(reified_apt_arg_dict):
+    '''
+    Convert all the file/dir names in apt_arg_dict to the corresponding path in
+    the container.  We assume the input is reified.
+    '''
+    result = {}
+    for key,value in reified_apt_arg_dict.items():        
+        if key in file_name_arg_keys:
+            if isinstance(value, list):
+                new_value = [ containerize_path(path) for path in value ]
+            elif value is None:
+                new_value = None
+            else:
+                new_value = containerize_path(value)        
+        else:
+            new_value = value
+        result[key] = new_value
     return result
 
 
 
 def apt_track_tokens_from_apt_track_args_helper(key, value):
+    '''
+    Helper function for creating a list of tokens from the args dict returned by
+    parse_args().  Converts a single key-value pair to the corresponding token
+    list.
+    '''
     if value is None:
         result = []
     elif isinstance(value, bool):
@@ -206,44 +334,77 @@ def apt_track_tokens_from_apt_track_args_helper(key, value):
 
 
 def apt_track_tokens_from_apt_track_args(apt_track_args):
+    '''
+    Create a list of tokens from the args dict returned by parse_args().
+    '''
     protoresult = [ apt_track_tokens_from_apt_track_args_helper(key, value) for key, value in apt_track_args.items() ]
     result = flatten(protoresult)
     return result
 
 
 
-def run_with_conda(apt_track_py_absolute_path, apt_track_args, apt_track_tokens):
+def run_with_conda(apt_track_py_absolute_path, reified_apt_track_args):
     environment_name = 'apt_20230427_tf211_pytorch113_ampere'
+    # Remake the tokens to be used in the call to APT_track.py, to use the reified paths
+    apt_track_tokens = apt_track_tokens_from_apt_track_args(reified_apt_track_args)
     command_as_list = ['conda', 'run', '--live-stream', '-n', environment_name, 'python', apt_track_py_absolute_path] + apt_track_tokens
     subprocess.run(command_as_list, check=True)
 
 
 
-def run_with_docker(apt_track_py_absolute_path, apt_track_args, apt_track_tokens):
-    # Get the '--mount' command-line tokens from the APT_track arguments 
-    apt_track_mount_tokens = mount_tokens_from_apt_track_args(apt_track_args)
-
+def run_with_docker(apt_track_py_absolute_path, reified_apt_track_args):
     # Specify the tag of the image to use
     image_tag = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
 
-    # Get the '--mount' command-line tokens for the APT deepnet/ folder
-    deepnet_folder_absolute_path = os.path.dirname(apt_track_py_absolute_path)
-    deepnet_mount_tokens = [ '--mount', mount_string_from_file_name(deepnet_folder_absolute_path) ]
+    # # Get the '--mount' command-line tokens from the APT_track arguments 
+    # apt_track_mount_tokens = mount_tokens_from_apt_track_args(reified_apt_track_args)
 
-    # Add mount items for the tracklet file
-    if 'out_files' in apt_track_args.keys():
-        output_file_names = apt_track_args['out_files']
-        tracklet_mount_tokens = tracklet_mount_tokens_from_output_file_names(output_file_names)
-    else:
-        # What to do here?
-        tracklet_mount_tokens = []
+    # Extract a list of the folders to mount, with no repeats or contained folders
+    arguments_mount_folder_list = mount_folder_list_from_apt_track_args(reified_apt_track_args)
+
+    # Get the '--mount' command-line tokens for the APT deepnet/ folder
+    deepnet_folder_absolute_path = os.path.normpath(os.path.dirname(apt_track_py_absolute_path))
+
+    # Get the working folder path
+    working_folder_path = os.path.normpath(os.path.realpath(os.getcwd()))
+    containerized_working_folder_path = containerize_path(working_folder_path)
+
+    # Get the home folder path, and the in-container version
+    home_folder_path = os.path.normpath(os.path.realpath(os.getenv('HOME')))
+    containerized_home_folder_path = containerize_path(home_folder_path)
+
+    # Finalize the list of mounts
+    raw_mount_folder_list = arguments_mount_folder_list + [ deepnet_folder_absolute_path, working_folder_path, home_folder_path ]
+    mount_folder_list = prune_folder_list(raw_mount_folder_list)
+
+    # Make the list of tokens to use in the docker call
+    mount_tokens = mount_tokens_from_folder_list(mount_folder_list)
+
+    # Convert paths in the args to the in-container versions
+    containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args)
+    print('containerized_apt_track_args:')
+    print(containerized_apt_track_args)
+
+    # Remake the tokens to be used in the call to APT_track.py, to use the reified paths
+    apt_track_tokens = apt_track_tokens_from_apt_track_args(containerized_apt_track_args)
+
+    # Translate the APT_track.py path to the container-side version
+    containerized_apt_track_py_absolute_path = os.path.join('/mnt', apt_track_py_absolute_path[1:])
+
+    # Get the uid+gid, and create the --user arg string
+    uid = os.getuid()
+    gid = os.getgid()
+    user_argument_string = '%d:%d' % (uid,gid)        
 
     # Assemble the command line (as a list of tokens)
-    command_as_list = [ 'docker', 'run', '--gpus', 'all' ] + \
-                      deepnet_mount_tokens + \
-                      apt_track_mount_tokens + \
-                      tracklet_mount_tokens + \
-                      [ image_tag, 'python', apt_track_py_absolute_path ] + \
+    command_as_list = ['docker', 'run'] +\
+                      ['--rm', '--ipc=host', '--network', 'host', '--shm-size=8G' ] + \
+                      ['--user', user_argument_string, '--gpus', 'all' ] + \
+                      ['--workdir', containerized_working_folder_path] + \
+                      ['-e', 'USER='+os.getenv('USER')] + \
+                      ['-e', 'HOME='+containerized_home_folder_path] + \
+                      mount_tokens + \
+                      [ image_tag, 'python', containerized_apt_track_py_absolute_path ] + \
                       apt_track_tokens
     print('command_as_list:')
     print(command_as_list)                  
@@ -267,20 +428,15 @@ def main(argv):
     print(apt_track_args)
 
     # Convert the paths in apt_track_args to realpath'ed paths
-    massaged_apt_track_args = reify_paths_in_apt_arg_dict(apt_track_args)
-    print('massaged_apt_track_args:')
-    print(massaged_apt_track_args)
-
-    # Remake the tokens to be used in the call to APT_track.py, to use the reified paths
-    apt_track_tokens = apt_track_tokens_from_apt_track_args(massaged_apt_track_args)
-    print('apt_track_tokens:')
-    print(apt_track_tokens)
+    reified_apt_track_args = reify_paths_in_apt_arg_dict(apt_track_args)
+    print('reified_apt_track_args:')
+    print(reified_apt_track_args)
 
     backend = args['backend']
     if backend=='conda':
-        run_with_conda(apt_track_py_absolute_path, massaged_apt_track_args, apt_track_tokens)
+        run_with_conda(apt_track_py_absolute_path, reified_apt_track_args)
     if backend=='docker':
-        run_with_docker(apt_track_py_absolute_path, massaged_apt_track_args, apt_track_tokens)
+        run_with_docker(apt_track_py_absolute_path, reified_apt_track_args)
     else:
         raise RuntimeError('%s is not a valid backend.  Valid options are conda, and docker.' % args.backend)
 
