@@ -117,13 +117,16 @@ def parse_args(argv):
 
 
 
-def containerize_path(path):
+def containerize_path(path, container_mount_root_path):
     '''
     Convert an absolute path to the corresponding path in the container.  We
     assume the input path is absolute and reified.
     '''
-    relativized_path = path[1:]
-    result = os.path.join('/mnt', relativized_path)
+    if container_mount_root_path is None:
+        result = path
+    else:
+        relativized_path = path[1:]
+        result = os.path.join(container_mount_root_path, relativized_path)
     return result
 
 
@@ -138,13 +141,13 @@ def containerize_path(path):
 
 
 
-def mount_string_from_folder_path(folder_path):
+def mount_string_from_folder_path(folder_path, container_mount_root_path):
     '''
     Generate a string that will work in a docker --mount argument.
     folder_path is assumed to be absolute, reified, and normed.
     We call such a string a "mount string"
     '''
-    container_folder_path = containerize_path(folder_path)
+    container_folder_path = containerize_path(folder_path, container_mount_root_path)
     result = 'type=bind,source=%s,target=%s' % (folder_path, container_folder_path)
     return result
 
@@ -229,12 +232,12 @@ def mount_folder_list_from_apt_track_args(reified_apt_track_args):
 
 
 
-def mount_tokens_from_folder_list(mount_folder_list):
+def mount_tokens_from_folder_list(mount_folder_list, container_mount_root_path):
     '''
     From a list of absolute folder paths, make a list of tokens to use in the call to
     docker.
     '''
-    raw_mount_strings = [ mount_string_from_folder_path(folder_path) for folder_path in mount_folder_list ]
+    raw_mount_strings = [ mount_string_from_folder_path(folder_path, container_mount_root_path) for folder_path in mount_folder_list ]
     mount_strings = flatten(raw_mount_strings)
     mount_tokens_as_list_of_lists = [ ['--mount', mount_string] for mount_string in mount_strings ]
     mount_tokens = flatten(mount_tokens_as_list_of_lists)
@@ -275,7 +278,7 @@ def reify_paths_in_apt_arg_dict(apt_arg_dict):
 
 
 
-def containerize_paths_in_apt_arg_dict(reified_apt_arg_dict):
+def containerize_paths_in_apt_arg_dict(reified_apt_arg_dict, container_mount_root_path):
     '''
     Convert all the file/dir names in apt_arg_dict to the corresponding path in
     the container.  We assume the input is reified.
@@ -284,11 +287,11 @@ def containerize_paths_in_apt_arg_dict(reified_apt_arg_dict):
     for key,value in reified_apt_arg_dict.items():        
         if key in file_name_arg_keys:
             if isinstance(value, list):
-                new_value = [ containerize_path(path) for path in value ]
+                new_value = [ containerize_path(path, container_mount_root_path) for path in value ]
             elif value is None:
                 new_value = None
             else:
-                new_value = containerize_path(value)        
+                new_value = containerize_path(value, container_mount_root_path)        
         else:
             new_value = value
         result[key] = new_value
@@ -366,22 +369,23 @@ def run_with_docker(apt_track_py_absolute_path, reified_apt_track_args):
     deepnet_folder_absolute_path = os.path.normpath(os.path.dirname(apt_track_py_absolute_path))
 
     # Get the working folder path
+    container_mount_root_path = '/mnt'
     working_folder_path = os.path.normpath(os.path.realpath(os.getcwd()))
-    containerized_working_folder_path = containerize_path(working_folder_path)
+    containerized_working_folder_path = containerize_path(working_folder_path, container_mount_root_path)
 
     # Get the home folder path, and the in-container version
     home_folder_path = os.path.normpath(os.path.realpath(os.getenv('HOME')))
-    containerized_home_folder_path = containerize_path(home_folder_path)
+    containerized_home_folder_path = containerize_path(home_folder_path, container_mount_root_path)
 
     # Finalize the list of mounts
     raw_mount_folder_list = arguments_mount_folder_list + [ deepnet_folder_absolute_path, working_folder_path, home_folder_path ]
     mount_folder_list = prune_folder_list(raw_mount_folder_list)
 
     # Make the list of tokens to use in the docker call
-    mount_tokens = mount_tokens_from_folder_list(mount_folder_list)
+    mount_tokens = mount_tokens_from_folder_list(mount_folder_list, container_mount_root_path)
 
     # Convert paths in the args to the in-container versions
-    containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args)
+    containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args, container_mount_root_path)
     print('containerized_apt_track_args:')
     print(containerized_apt_track_args)
 
@@ -389,7 +393,7 @@ def run_with_docker(apt_track_py_absolute_path, reified_apt_track_args):
     apt_track_tokens = apt_track_tokens_from_apt_track_args(containerized_apt_track_args)
 
     # Translate the APT_track.py path to the container-side version
-    containerized_apt_track_py_absolute_path = os.path.join('/mnt', apt_track_py_absolute_path[1:])
+    containerized_apt_track_py_absolute_path = containerize_path(apt_track_py_absolute_path, container_mount_root_path)
 
     # Get the uid+gid, and create the --user arg string
     uid = os.getuid()
@@ -416,7 +420,7 @@ def run_with_docker(apt_track_py_absolute_path, reified_apt_track_args):
 
 def run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args):
     # Specify the tag of the image to use
-    image_tag = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
+    image_spec = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
 
     # # Get the '--mount' command-line tokens from the APT_track arguments 
     # apt_track_mount_tokens = mount_tokens_from_apt_track_args(reified_apt_track_args)
@@ -428,22 +432,23 @@ def run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args):
     deepnet_folder_absolute_path = os.path.normpath(os.path.dirname(apt_track_py_absolute_path))
 
     # Get the working folder path
+    container_mount_root_path = '/mnt'
     working_folder_path = os.path.normpath(os.path.realpath(os.getcwd()))
-    containerized_working_folder_path = containerize_path(working_folder_path)
+    containerized_working_folder_path = containerize_path(working_folder_path, container_mount_root_path)
 
     # Get the home folder path, and the in-container version
     home_folder_path = os.path.normpath(os.path.realpath(os.getenv('HOME')))
-    containerized_home_folder_path = containerize_path(home_folder_path)
+    containerized_home_folder_path = containerize_path(home_folder_path, container_mount_root_path)
 
     # Finalize the list of mounts
     raw_mount_folder_list = arguments_mount_folder_list + [ deepnet_folder_absolute_path, working_folder_path, home_folder_path ]
     mount_folder_list = prune_folder_list(raw_mount_folder_list)
 
     # Make the list of tokens to use in the docker call
-    mount_tokens = mount_tokens_from_folder_list(mount_folder_list)
+    mount_tokens = mount_tokens_from_folder_list(mount_folder_list, container_mount_root_path)
 
     # Convert paths in the args to the in-container versions
-    containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args)
+    containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args, container_mount_root_path)
     print('containerized_apt_track_args:')
     print(containerized_apt_track_args)
 
@@ -451,7 +456,7 @@ def run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args):
     apt_track_tokens = apt_track_tokens_from_apt_track_args(containerized_apt_track_args)
 
     # Translate the APT_track.py path to the container-side version
-    containerized_apt_track_py_absolute_path = os.path.join('/mnt', apt_track_py_absolute_path[1:])
+    containerized_apt_track_py_absolute_path = containerize_path(apt_track_py_absolute_path, container_mount_root_path)
 
     # Get the uid+gid, and create the --user arg string
     uid = os.getuid()
@@ -463,7 +468,7 @@ def run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args):
                       ['--nv' ] + \
                       ['--workdir', containerized_working_folder_path] + \
                       mount_tokens + \
-                      [ image_tag, 'python', containerized_apt_track_py_absolute_path ] + \
+                      [ image_spec, 'python', containerized_apt_track_py_absolute_path ] + \
                       apt_track_tokens
     print('command_as_list:')
     print(command_as_list)                  
@@ -494,9 +499,9 @@ def main(argv):
     backend = args['backend']
     if backend=='conda':
         run_with_conda(apt_track_py_absolute_path, reified_apt_track_args)
-    if backend=='docker':
+    elif backend=='docker':
         run_with_docker(apt_track_py_absolute_path, reified_apt_track_args)
-    if backend=='apptainer':
+    elif backend=='apptainer':
         run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args)
     else:
         raise RuntimeError('%s is not a valid backend.  Valid options are conda, and docker.' % args.backend)
