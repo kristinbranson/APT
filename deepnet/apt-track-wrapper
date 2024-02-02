@@ -1,4 +1,9 @@
 #! /bin/bash
 
+SCRIPT_FILE_PATH=$(realpath "$BASH_SOURCE")
+SCRIPT_FOLDER_PATH=$(dirname "$SCRIPT_FILE_PATH")
+
+PYTHON_SCRIPT_PATH="${SCRIPT_FOLDER_PATH}/apt_track_wrapper.py"
+
 # NB: We use /usr/bin/python3 b/c we want the system python, not some env python
-/usr/bin/python3 "$@"
+/usr/bin/python3 "${PYTHON_SCRIPT_PATH}" "$@"
