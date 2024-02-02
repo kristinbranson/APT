@@ -332,13 +332,13 @@ def apt_track_tokens_from_apt_track_args_helper(key, value):
             rekey = '-' + key
         result = [rekey] + value_as_token_list        
 
-    print('')
-    print('key:')
-    print(key)
-    print('value:')
-    print(value)
-    print('result:')
-    print(result)
+    # print('')
+    # print('key:')
+    # print(key)
+    # print('value:')
+    # print(value)
+    # print('result:')
+    # print(result)
 
     return result
 
@@ -394,8 +394,8 @@ def run_with_docker(image_tag, apt_track_py_absolute_path, reified_apt_track_arg
 
     # Convert paths in the args to the in-container versions
     containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args, container_mount_root_path)
-    print('containerized_apt_track_args:')
-    print(containerized_apt_track_args)
+    # print('containerized_apt_track_args:')
+    # print(containerized_apt_track_args)
 
     # Remake the tokens to be used in the call to APT_track.py, to use the reified paths
     apt_track_tokens = apt_track_tokens_from_apt_track_args(containerized_apt_track_args)
@@ -418,8 +418,8 @@ def run_with_docker(image_tag, apt_track_py_absolute_path, reified_apt_track_arg
                       mount_tokens + \
                       [ image_tag, 'python', containerized_apt_track_py_absolute_path ] + \
                       apt_track_tokens
-    print('command_as_list:')
-    print(command_as_list)                  
+    # print('command_as_list:')
+    # print(command_as_list)                  
 
     # Finally, execute the command line
     subprocess.run(command_as_list, check=True)
@@ -446,7 +446,7 @@ def run_with_apptainer(image_spec, apt_track_py_absolute_path, reified_apt_track
 
     # Get the home folder path, and the in-container version
     home_folder_path = os.path.normpath(os.path.realpath(os.getenv('HOME')))
-    containerized_home_folder_path = containerize_path(home_folder_path, container_mount_root_path)
+    # containerized_home_folder_path = containerize_path(home_folder_path, container_mount_root_path)
 
     # Finalize the list of mounts
     raw_mount_folder_list = arguments_mount_folder_list + [ deepnet_folder_absolute_path, working_folder_path, home_folder_path ]
@@ -457,8 +457,8 @@ def run_with_apptainer(image_spec, apt_track_py_absolute_path, reified_apt_track
 
     # Convert paths in the args to the in-container versions
     containerized_apt_track_args = containerize_paths_in_apt_arg_dict(reified_apt_track_args, container_mount_root_path)
-    print('containerized_apt_track_args:')
-    print(containerized_apt_track_args)
+    # print('containerized_apt_track_args:')
+    # print(containerized_apt_track_args)
 
     # Remake the tokens to be used in the call to APT_track.py, to use the reified paths
     apt_track_tokens = apt_track_tokens_from_apt_track_args(containerized_apt_track_args)
@@ -466,10 +466,10 @@ def run_with_apptainer(image_spec, apt_track_py_absolute_path, reified_apt_track
     # Translate the APT_track.py path to the container-side version
     containerized_apt_track_py_absolute_path = containerize_path(apt_track_py_absolute_path, container_mount_root_path)
 
-    # Get the uid+gid, and create the --user arg string
-    uid = os.getuid()
-    gid = os.getgid()
-    user_argument_string = '%d:%d' % (uid,gid)        
+    # # Get the uid+gid, and create the --user arg string
+    # uid = os.getuid()
+    # gid = os.getgid()
+    # user_argument_string = '%d:%d' % (uid,gid)        
 
     # Assemble the command line (as a list of tokens)
     command_as_list = ['apptainer', 'run'] + \
@@ -478,8 +478,8 @@ def run_with_apptainer(image_spec, apt_track_py_absolute_path, reified_apt_track
                       mount_tokens + \
                       [ image_spec, 'python', containerized_apt_track_py_absolute_path ] + \
                       apt_track_tokens
-    print('command_as_list:')
-    print(command_as_list)                  
+    # print('command_as_list:')
+    # print(command_as_list)                  
 
     # Finally, execute the command line
     subprocess.run(command_as_list, check=True)
@@ -494,15 +494,15 @@ def main(argv):
 
     (args, apt_track_args) = parse_args(argv)
        # args is a namespace, leftover_tokens is a list of strings
-    print('args:')
-    print(args) 
-    print('apt_track_args:')
-    print(apt_track_args)
+    # print('args:')
+    # print(args) 
+    # print('apt_track_args:')
+    # print(apt_track_args)
 
     # Convert the paths in apt_track_args to realpath'ed paths
     reified_apt_track_args = reify_paths_in_apt_arg_dict(apt_track_args)
-    print('reified_apt_track_args:')
-    print(reified_apt_track_args)
+    # print('reified_apt_track_args:')
+    # print(reified_apt_track_args)
 
     do_use_conda_backend = not (args['conda'] is None)
     do_use_docker_backend = not (args['docker'] is None)
