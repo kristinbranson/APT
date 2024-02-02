@@ -14,6 +14,11 @@ import subprocess
 
 
 
+# Default backends for each backend type
+conda_default_environment_name = 'apt_20230427_tf211_pytorch113_ampere'
+docker_default_image_tag = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
+apptainer_default_image_spec = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
+
 # These are argument keys that are either a file name or a list of file names.    
 file_name_arg_keys = ['lbl_file', 'mov', 'trx', 'log_file', 'err_file', 'out_files']
 
@@ -104,7 +109,10 @@ def parse_args(argv):
     APT_track.py.
     '''
     main_parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
-    main_parser.add_argument('-backend', help='Backend to use for tracking. Options are conda and docker', default='conda')
+    #main_parser.add_argument('-backend', help='Backend to use for tracking. Options are conda and docker', default='conda')
+    main_parser.add_argument('-conda', help='Use conda backend.  An environment name is optional.', nargs='?', default=None, const=conda_default_environment_name)
+    main_parser.add_argument('-docker', help='Use docker backend.  An image tag is optional.', nargs='?', default=None, const=docker_default_image_tag)
+    main_parser.add_argument('-apptainer', help='Use apptainer backend.  An image spec is optional.', nargs='?', default=None, const=apptainer_default_image_spec)
     args_as_namespace, apt_track_tokens = main_parser.parse_known_args(argv)
     args = vars(args_as_namespace)  # want a dict
 
@@ -346,8 +354,8 @@ def apt_track_tokens_from_apt_track_args(apt_track_args):
 
 
 
-def run_with_conda(apt_track_py_absolute_path, reified_apt_track_args):
-    environment_name = 'apt_20230427_tf211_pytorch113_ampere'
+def run_with_conda(environment_name, apt_track_py_absolute_path, reified_apt_track_args):
+    #environment_name = 'apt_20230427_tf211_pytorch113_ampere'
     # Remake the tokens to be used in the call to APT_track.py, to use the reified paths
     apt_track_tokens = apt_track_tokens_from_apt_track_args(reified_apt_track_args)
     command_as_list = ['conda', 'run', '--live-stream', '-n', environment_name, 'python', apt_track_py_absolute_path] + apt_track_tokens
@@ -355,9 +363,9 @@ def run_with_conda(apt_track_py_absolute_path, reified_apt_track_args):
 
 
 
-def run_with_docker(apt_track_py_absolute_path, reified_apt_track_args):
+def run_with_docker(image_tag, apt_track_py_absolute_path, reified_apt_track_args):
     # Specify the tag of the image to use
-    image_tag = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
+    #image_tag = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
 
     # # Get the '--mount' command-line tokens from the APT_track arguments 
     # apt_track_mount_tokens = mount_tokens_from_apt_track_args(reified_apt_track_args)
@@ -418,9 +426,9 @@ def run_with_docker(apt_track_py_absolute_path, reified_apt_track_args):
 
 
 
-def run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args):
+def run_with_apptainer(image_spec, apt_track_py_absolute_path, reified_apt_track_args):
     # Specify the tag of the image to use
-    image_spec = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
+    #image_spec = 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere'
 
     # # Get the '--mount' command-line tokens from the APT_track arguments 
     # apt_track_mount_tokens = mount_tokens_from_apt_track_args(reified_apt_track_args)
@@ -496,15 +504,36 @@ def main(argv):
     print('reified_apt_track_args:')
     print(reified_apt_track_args)
 
-    backend = args['backend']
-    if backend=='conda':
-        run_with_conda(apt_track_py_absolute_path, reified_apt_track_args)
-    elif backend=='docker':
-        run_with_docker(apt_track_py_absolute_path, reified_apt_track_args)
-    elif backend=='apptainer':
-        run_with_apptainer(apt_track_py_absolute_path, reified_apt_track_args)
+    do_use_conda_backend = not (args['conda'] is None)
+    do_use_docker_backend = not (args['docker'] is None)
+    do_use_apptainer_backend = not (args['apptainer'] is None)
+    backend_count = int(do_use_conda_backend) + int(do_use_docker_backend) + int(do_use_apptainer_backend)
+    if backend_count==0:
+        backend = 'conda'
+        backend_spec = conda_default_environment_name
+    elif backend_count==1:
+        if do_use_conda_backend:
+            backend = 'conda'
+            backend_spec = args['conda']
+        elif do_use_docker_backend:
+            backend = 'docker'
+            backend_spec = args['docker']
+        elif do_use_apptainer_backend:
+            backend = 'apptainer'
+            backend_spec = args['apptainer']
+        else:
+            raise RuntimeError('Internal error: Exactly one backend specified, but it is seemingly not conda, docker, or apptainer.')
     else:
-        raise RuntimeError('%s is not a valid backend.  Valid options are conda, and docker.' % args.backend)
+        raise RuntimeError('More than one backend specified.  You can''t do that.')
+
+    if backend=='conda':
+        run_with_conda(backend_spec, apt_track_py_absolute_path, reified_apt_track_args)
+    elif backend=='docker':
+        run_with_docker(backend_spec, apt_track_py_absolute_path, reified_apt_track_args)
+    elif backend=='apptainer':
+        run_with_apptainer(backend_spec, apt_track_py_absolute_path, reified_apt_track_args)
+    else:
+        raise RuntimeError('Internal error: The backend does not seem to be either conda, docker, or apptainer.')
 
 
 

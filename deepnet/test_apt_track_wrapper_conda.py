@@ -9,4 +9,4 @@ LABEL_FILE_PATH = '/groups/branson/bransonlab/taylora/apt/four-points/four-point
 VIDEO_FILE_PATH = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/190530_vocpbm164564_m164564_odor_m164301_f0_164992.mjpg'
 OUTPUT_FILE_PATH = './apt-track-test.trk'
 
-apt_track_wrapper.main(['-apptainer', 'docker://bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere', '-lbl_file', LABEL_FILE_PATH, '-mov', VIDEO_FILE_PATH, '-start_frame', '1', '-end_frame', '200', '-out', OUTPUT_FILE_PATH])
+apt_track_wrapper.main(['-conda', 'apt_20230427_tf211_pytorch113_ampere', '-lbl_file', LABEL_FILE_PATH, '-mov', VIDEO_FILE_PATH, '-start_frame', '1', '-end_frame', '200', '-out', OUTPUT_FILE_PATH])
