@@ -139,8 +139,8 @@ class TopDownAPTDataset(TopDownCocoDataset):
 
         self.db = self._get_db()
 
-        print(f'=> num_images: {self.num_images}')
-        print(f'=> load {len(self.db)} samples')
+        logging.info(f'=> num_images: {self.num_images}')
+        logging.info(f'=> load {len(self.db)} samples')
 
 
         ## END MMPOSE INIT CODE
@@ -262,7 +262,7 @@ class APTtransform:
 
 
 
-def create_mmpose_cfg(conf,mmpose_config_file,run_name):
+def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_prefix_override=None, debug=False):
     curdir = pathlib.Path(__file__).parent.absolute()
     mmpose_init_file_path = mmpose.__file__
     mmpose_dir = os.path.dirname(mmpose_init_file_path)
@@ -301,9 +301,11 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
         cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
         file = os.path.join(data_bdir, f'{fname}.json')
-        # ALTTODO: Fix this:
-        #cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
-        cfg.data[ttype].img_prefix = ''
+        if img_prefix_override:
+            cfg.data[ttype].img_prefix = img_prefix_override
+            #cfg.data[ttype].img_prefix = ''
+        else:
+            cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
         cfg.data[ttype].data_cfg = cfg.data_cfg
 
         key_info = {}
@@ -399,11 +401,15 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
         cfg.gpu_ids = []
     cfg.work_dir = conf.cachedir
 
-    # Use a fixed seed if APT is in debug mode    
-    if APT_interface.IS_APT_IN_DEBUG_MODE:
+    # Use a fixed seed if APT is in zero_seeds mode    
+    if zero_seeds:
         cfg.seed = 0
     else:
         cfg.seed = None
+
+    # Don't use a separate thread for loading data if in debug mode
+    if debug:
+        cfg.data.workers_per_gpu = 0
 
     # NEEDS REVIEW MK: Does this look right?  CiD cfg does not have
     # cfg.data.samples_per_gpu, it has these three:
@@ -433,14 +439,15 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
     else :
         # default_samples_per_gpu is only used to set the learning rate, so we use the value in cfg that pertains to training.
         default_samples_per_gpu = cfg.data.train_dataloader['samples_per_gpu']
-        cfg.data.train_dataloader['samples_per_gpu'] = conf.batch_size
-    cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu # /8
+        cfg.data.train_dataloader['samples_per_gpu'] = actual_batch_size
+    new_lr = conf.learning_rate_multiplier * default_lr * actual_batch_size / default_samples_per_gpu
+    cfg.optimizer.lr = new_lr
 
     assert cfg.lr_config.policy == 'step', 'Works only for steplr for now'
     if cfg.lr_config.policy == 'step':
         def_epochs = cfg.total_epochs
         def_steps = cfg.lr_config.step
-        cfg.lr_config.step = [int(dd*conf.dl_steps/def_epochs) for dd in def_steps]
+        cfg.lr_config.step = [int(dd/def_epochs*conf.dl_steps) for dd in def_steps]
 
     # pretrained weights are now urls. So torch does the mapping
     # cfg.model.pretrained = os.path.join('mmpose',cfg.model.pretrained)
@@ -476,7 +483,6 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
             pass
 
     # disable dynamic loss_scale for fp16 because the hooks in the current mmpose don't support it. MK 20230807. mmpose version is 0.29.0. REMOVE THIS WHEN UPDATING MMPOSE
-    # cfg.fp16 = {}
     cfg.fp16 = None
     return cfg
 
@@ -526,9 +532,8 @@ class TrainingDebuggingHook(Hook):
             training_loss = runner.log_buffer.output['all_loss'].copy()
         runner.log_buffer.clear_output()  # Don't want to interfere with other hooks
         self.training_loss_from_i.append(training_loss)
-        # TODOALT: Take this out
-        print('step: %d, loss: %g' % (step, training_loss))
-        pass
+        # print('step: %d, loss: %g' % (step, training_loss))
+        # pass
 
 
 def get_handler_by_name(logger, name):
@@ -558,7 +563,7 @@ def rectify_log_level_bang(logger, debug=False):
 
 class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
-    def __init__(self,conf,name,**kwargs):
+    def __init__(self, conf, name, zero_seeds=False, img_prefix_override=None, debug=False, **kwargs):
         super().__init__(conf,name)
         self.conf = conf
         self.name = name
@@ -597,7 +602,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             assert False, 'Unknown mmpose net type'
 
         poseConfig.conf = conf
-        self.cfg = create_mmpose_cfg(self.conf,self.cfg_file,name)
+        cfg = create_mmpose_cfg(self.conf, self.cfg_file, name, zero_seeds=zero_seeds, img_prefix_override=img_prefix_override, debug=debug)
+        self.cfg = cfg
 
 
     def get_td_file(self):
@@ -625,8 +631,15 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         model = mmpose.models.build_posenet(cfg.model)  # messes up logging!
         rectify_log_level_bang(logger, debug)
         dataset = mmpose.datasets.build_dataset(cfg.data.train)
-        # ALTTODO: Remove this next
-        datum = dataset[0]  # simple sanity check to see if we can access the first element
+        if len(dataset)==0:
+            logging.warning('The dataset has zero elements.  Seems bad...')
+        else:
+            if debug:
+                n_to_check = min(10, len(dataset))
+                logging.info('Testing access to the first %s elements of the dataset...' % n_to_check)
+                for i in range(n_to_check):
+                    datum = dataset[i]  # Test if we can access the first few elements of the dataset
+                logging.info('Successfully read the first %d elements of the dataset.' % n_to_check)
         datasets = [ dataset ]
 
         if len(cfg.workflow) == 2:
@@ -667,8 +680,6 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
 
         dataloaders = [ build_dataloader(ds, **dataloader_setting) for ds in datasets ]
-        # ALTTODO: Take this out
-        dataloader = dataloaders[0]
 
         # determine wether use adversarial training precess or not
         use_adverserial_train = cfg.get('use_adversarial_train', False)
@@ -770,14 +781,20 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             runner.resume(cfg.resume_from)
         elif cfg.load_from:
             runner.load_checkpoint(cfg.load_from)
-        #runner.max_iters = steps
+        #runner.max_iters = steps    
         logging.debug("Running the runner...")
 
-        # ALTTODO: Get rid of this debugging code
-        # thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
-        import pickle
-        # with open('/groups/branson/bransonlab/taylora/apt/compare-cid-in-apt-to-plain-cid/pre-run-variables-in-apt.pkl', 'wb') as f:
-        #     pickle.dump(thangs, f)
+        # If debugging, write out the cfg just before running
+        if debug:
+            dataloader = dataloaders[0]
+            thangs = { 'runner': runner, 'dataloader': dataloader, 'workflow': cfg.workflow, 'cfg': cfg }
+            import pickle
+            pickle_file_leaf_name = 'training-pre-running-variables.pkl'
+            json_label_file_path = self.conf.labelfile
+            pickle_folder_path = os.path.dirname(json_label_file_path)
+            pickle_file_path = os.path.join(pickle_folder_path, pickle_file_leaf_name)
+            with open(pickle_file_path, 'wb') as f:
+                pickle.dump(thangs, f)
 
         if debug:
             with torch.autograd.detect_anomaly():

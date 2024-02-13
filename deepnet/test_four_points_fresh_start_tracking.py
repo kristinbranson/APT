@@ -71,7 +71,6 @@ def test_tracking() :
 
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path):
-        # APT_interface.IS_APT_IN_DEBUG_MODE = True
         APT_interface.main(
             [os.path.join(working_folder_path,'four_points_180806/20231006T183351_20231006T183352.json'),
              '-name', '20231006T183351', 

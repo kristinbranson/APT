@@ -100,12 +100,29 @@ def dataloader_worker_init_fn(id,epoch=0):
 
 class coco_loader(torch.utils.data.Dataset):
 
-    def __init__(self, conf, ann_file, augment):
+    def __init__(self, conf, ann_file, augment, image_folder_path=''):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
         self.len = max(conf.batch_size,len(self.ann['images']))
         self.ex_wts = torch.ones(self.len)
+        if self.len > 0:
+            # Test the given image_folder_path.  If it's no good, use conf.coco_im_dir
+            test_image_file_name = self.ann['images'][0]['file_name']
+            test_image_file_path = os.path.join(image_folder_path, test_image_file_name)            
+            if os.path.exists(test_image_file_path):
+                self.image_folder_path = image_folder_path
+            else:               
+                backup_image_folder_path = conf.coco_im_dir
+                logging.warning('No file at %s, trying %s as the coco_loader image_folder_path' % (test_image_file_path, backup_image_folder_path))
+                test_image_file_path = os.path.join(image_folder_path, test_image_file_name)            
+                if os.path.exists(test_image_file_path):
+                    self.image_folder_path = backup_image_folder_path
+                else:
+                    raise RuntimeError('Unable to read a test image in coco_loader __init__() method')
+        else:
+            # If there are no images, this likely doesn't matter anyway
+            self.image_folder_path = image_folder_path
 
     def __len__(self):
         return max(self.conf.batch_size,len(self.ann['images']))
@@ -139,7 +156,7 @@ class coco_loader(torch.utils.data.Dataset):
         conf = self.conf
         if (self.conf.batch_size)> len(self.ann['images']):
             item = np.random.randint(len(self.ann['images']))
-        im_path = self.ann['images'][item]['file_name']
+        im_path = os.path.join(self.image_folder_path, self.ann['images'][item]['file_name'])
         if not os.path.exists(im_path):
             im_path = os.path.join(conf.coco_im_dir,im_path)
 
@@ -474,7 +491,7 @@ class PoseCommon_pytorch(object):
         # self.val_iter = iter(self.val_dl)
 
 
-    def create_coco_data_gen(self, debug=False, pin_mem=True,**kwargs):
+    def create_coco_data_gen(self, debug=False, pin_mem=True, **kwargs):
         conf = self.conf
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
@@ -488,6 +505,7 @@ class PoseCommon_pytorch(object):
         self.val_loader_raw = val_dl_coco
 
         num_workers = 0 if debug else 2
+        logging.info('Number of DataLoader workers: %d', num_workers)
 
         self.train_dl = torch.utils.data.DataLoader(train_dl_coco, 
                                                     batch_size=self.conf.batch_size, 
@@ -496,7 +514,7 @@ class PoseCommon_pytorch(object):
                                                     num_workers=num_workers,
                                                     shuffle=True,
                                                     worker_init_fn=dataloader_worker_init_fn)
-        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size, pin_memory=pin_mem, drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
 
@@ -525,7 +543,15 @@ class PoseCommon_pytorch(object):
                     train_sampler = None
                     shuffle = True if self.conf.db_format == 'coco' else False
 
-                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=partial(dataloader_worker_init_fn,epoch=self.train_epoch))
+                self.train_dl = torch.utils.data.DataLoader(
+                    self.train_loader_raw, 
+                    batch_size=self.conf.batch_size, 
+                    pin_memory=True,
+                    drop_last=True, 
+                    num_workers=16,
+                    sampler=train_sampler,
+                    shuffle=shuffle,
+                    worker_init_fn=partial(dataloader_worker_init_fn, epoch=self.train_epoch))
                 self.train_iter = iter(self.train_dl)
                 ndata = next(self.train_iter)
             else:
@@ -628,7 +654,7 @@ class PoseCommon_pytorch(object):
 
     def train_wrapper(self, restore=False, model_file=None):
         model = self.create_model()
-        training_iters = self.conf.dl_steps
+        training_iters = self.conf.dl_steps        
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)
         lr_drop_step_frac = self.conf.get('lr_drop_step', 0.15)
         step_lr = self.conf.get('step_lr', True)

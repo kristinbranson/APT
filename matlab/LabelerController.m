@@ -6,7 +6,9 @@ classdef LabelerController < handle
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
-    isInDebugMode_ = false  % set to true to allow control actuation exceptions to be uncaught
+    isInYodaMode_ = false  
+      % Set to true to allow control actuation to happen *ouside* or a try/catch
+      % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
   end
 
   methods
@@ -236,7 +238,11 @@ classdef LabelerController < handle
     end
 
     function pbTrain_actuated(obj, source, event)
-      obj.train_core_(source, event, 'do_just_generate_db', false) ;
+      obj.train_core_(source, event) ;
+    end
+
+    function menu_start_training_but_dont_call_apt_interface_dot_py_actuated(obj, source, event)
+      obj.train_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
     end
 
     function train_core_(obj, source, event, varargin)
@@ -244,9 +250,11 @@ classdef LabelerController < handle
       % after DB creation.
 
       % Process keyword args
-      [do_just_generate_db] = ...
+      [do_just_generate_db, ...
+       do_call_apt_interface_dot_py] = ...
         myparse(varargin, ...
-                'do_just_generate_db', false) ;
+                'do_just_generate_db', false, ...
+                'do_call_apt_interface_dot_py', true) ;
       
       if ~obj.doProjectAndMovieExist_() ,
         return
@@ -277,7 +285,10 @@ classdef LabelerController < handle
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
-      labeler.trackRetrain('retrainArgs',{'wbObj',wbObj}, 'do_just_generate_db', do_just_generate_db);
+      labeler.trackRetrain(...
+        'retrainArgs',{'wbObj',wbObj}, ...
+        'do_just_generate_db', do_just_generate_db, ...
+        'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
       if wbObj.isCancel
         msg = wbObj.cancelMessage('Training canceled');
         msgbox(msg,'Train');
@@ -294,7 +305,8 @@ classdef LabelerController < handle
       % way makes it easier to fake control actuations by calling
       % this function with the desired controlName and an empty
       % source and event.
-      if obj.isInDebugMode_ ,
+      if obj.isInYodaMode_ ,
+        % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
         exceptionMaybe = {} ;
       else        

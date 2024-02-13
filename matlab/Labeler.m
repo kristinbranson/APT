@@ -11517,11 +11517,13 @@ classdef Labeler < handle
     end
         
     function trackRetrain(obj,varargin)
-      [tblMFTtrn,retrainArgs,dontUpdateH0,do_just_generate_db] = myparse(varargin,...
+      [tblMFTtrn, retrainArgs, dontUpdateH0, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
+        varargin,...
         'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
         'retrainArgs',{},... % (opt) args to pass to tracker.retrain()
         'dontUpdateH0',false,...
-        'do_just_generate_db', false ...
+        'do_just_generate_db', false, ...
+        'do_call_apt_interface_dot_py', true ...
         );
       
       tObj = obj.tracker;
@@ -11549,7 +11551,7 @@ classdef Labeler < handle
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.retrain(retrainArgs{:}, 'do_just_generate_db', do_just_generate_db);
+      tObj.retrain(retrainArgs{:}, 'do_just_generate_db', do_just_generate_db, 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
     end
 
     function dotrain = trackCheckGPUMem(obj,varargin)
