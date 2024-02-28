@@ -1861,3 +1861,21 @@ def set_seed(seed):
         return
     from mmcv.runner import set_random_seed
     set_random_seed(seed)
+
+
+def get_memory_usage():
+    import psutil
+    # Get the process ID of the current Python process
+    process_id = psutil.Process()
+
+    # Get memory usage information
+    memory_info = process_id.memory_info()
+
+    # Print the memory usage details
+    # print(f"Memory Usage: {memory_info.rss} bytes (Resident Set Size)")
+    # print(f"Virtual Memory Size: {memory_info.vms} bytes")
+    # print(f"Peak Memory Usage: {memory_info.peak_wset} bytes")
+    return memory_info.rss
+
+if __name__ == "__main__":
+    get_memory_usage()

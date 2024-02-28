@@ -51,7 +51,7 @@ dpk_skel_csv = None
 dpk_py_path = '/groups/branson/home/leea30/git/dpk:/groups/branson/home/leea30/git/imgaug'
 expname_dict_normaltrain = None
 # sing_img = '/groups/branson/bransonlab/mayank/singularity/tf23_mmdetection.sif'
-sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
+default_sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
 
 if getpass.getuser() == 'kabram':
     # cache_dir = '/nrs/branson/mayank/apt_cache_2'
@@ -295,7 +295,7 @@ def run_jobs(cmd_name,
              run_dir=job_run_dir,
              queue='gpu_any',
              precmd='',
-             logdir=sdir,nslots=3,sing_img=sing_img, timeout=80*60):
+             logdir=sdir,nslots=3,sing_img=default_sing_img, timeout=80*60):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
     errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 

@@ -14,7 +14,6 @@ import cv2
 from matplotlib.pyplot import imshow
 import scipy.optimize as opt
 import pathlib
-import pickle
 import json
 import glob
 import re
@@ -26,6 +25,7 @@ import multiResData
 from reuse import *
 import hdf5storage
 import pickle
+import Pose_mmpose
 
 #matlab code to generate the  conf files and the locs files: /groups/branson/bransonlab/mayank/APT/script_ma_expts_labels.m
 
@@ -33,7 +33,7 @@ out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid']
+alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid','openpose_4x','2stageBBox_hrformer','2stageBBox_vitpose']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -66,7 +66,11 @@ class ma_expt(object):
                            #('openpose','crop'):[{'rescale':2},{}],
 #                            ('openpose','crop'):[{'rescale':2}],
                            #('openpose','nocrop'):[{'rescale':4,'batch_size':4}]
-                           }
+                ('openpose_4x',):[{'op_hires_ndeconv':2}],
+                ('2stageBBox_hrformer',):[{},{'mmpose_net':'\\"hrformer\\"'}],
+                ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
+                ('cid','nocrop'):[{'batch_size': 4,'dl_steps':200000}, {}],
+            }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 4
             self.dropoff = 0.4
@@ -83,8 +87,12 @@ class ma_expt(object):
                            #('grone', 'nocrop'): [{'rescale': 2},{}],
                            #('openpose', 'nocrop'): [{'rescale': 2},{}],
             #                ('openpose', 'crop'): [{'rescale': 2}]
-                ():[{'link_id_rescale':0.5},{}]
-                           }
+                ():[{'link_id_rescale':0.5},{}],
+                ('openpose_4x', ):[{'op_hires_ndeconv': 2},{}],
+                ('2stageBBox_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
+                ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
+
+            }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/alice_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 17
             self.dropoff = 0.7
@@ -212,7 +220,7 @@ class ma_expt(object):
                 print(f'Neg loc file {out_loc} exists, so not overwriting')
 
 
-    def add_neg_roi_roian(self, force=False, reload=False):
+    def add_neg_roi_roian(self, force=False, reload=True):
         assert self.name =='roian'
         n_add = 200
 
@@ -267,15 +275,25 @@ class ma_expt(object):
             add_params = self.params[curk][1] if stg == 'second' else self.params[curk][0]
             params.update(add_params)
 
-        loc_file = os.path.join(self.trnp_dir, alg, loc_file_str_neg)
-        loc_file_inc = os.path.join(self.trnp_dir, alg, loc_file_str_inc)
-        lbl_file = os.path.join(self.trnp_dir, alg,  f'conf_{crop}.json')
+        alg_use = alg
+        if alg.startswith('openpose'):
+            alg_use = 'openpose'
+        if alg == '2stageBBox_hrformer' or alg=='2stageBBox_vitpose':
+            alg_use = '2stageBBox'
+
+        loc_file = os.path.join(self.trnp_dir, alg_use, loc_file_str_neg)
+        loc_file_inc = os.path.join(self.trnp_dir, alg_use, loc_file_str_inc)
+        lbl_file = os.path.join(self.trnp_dir, alg_use,  f'conf_{crop}.json')
         conf = pt.json_load(lbl_file)
         if alg.startswith('2stage'):
             stg_str = f'-stage {stg}'
             train_name = '_'.join(t_type + (self.train_dstr,))
             cndx = 0 if stg == 'first' else 1
             net_type = conf['TrackerData'][cndx]['trnNetTypeString']
+            if alg.endswith('hrformer') and cndx == 1:
+                net_type = 'mmpose'
+            elif alg.endswith('vitpose') and cndx == 1:
+                net_type = 'mmpose'
 
         else:
             stg_str = ''
@@ -328,6 +346,10 @@ class ma_expt(object):
         for cur_type in t_types:
             if set(('2stageBBox','crop')).issubset(set(cur_type)):
                 continue
+            elif set(('2stageBBox_hrformer', 'crop')).issubset(set(cur_type)):
+                continue
+            elif set(('2stageBBox_vitpose', 'crop')).issubset(set(cur_type)):
+                continue
             else:
                 new_t_types.append(cur_type)
 
@@ -351,6 +373,10 @@ class ma_expt(object):
             conf_str = ' '.join([f'{k} {v}' for k, v in params.items()])
             err_file = os.path.join(self.trnp_dir,alg,train_name + '.err')
 
+            sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
+            if 'vitpose' in alg:
+                sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x.sif'
+
             cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg_str} -type {net_type} train -use_cache'
             precmd = 'export CUDA_VISIBLE_DEVICES=0'
 
@@ -365,7 +391,7 @@ class ma_expt(object):
                          run_dir=run_dir,
                          queue=queue,
                          precmd='',
-                         logdir=self.log_dir, nslots=3)
+                         logdir=self.log_dir, nslots=3,sing_img=sing_img)
         print(f'Total jobs {len(t_types)}')
 
     def show_samples(self,t_types=None,save=False):
@@ -460,7 +486,7 @@ class ma_expt(object):
                     latest_model_iter, rae.get_tstr(latest_time), train_name, rae.get_tstr(submit_time),
                     train_dist, val_dist, trntime5kiter))
 
-    def setup_incremental(self, force=False, reload=False):
+    def setup_incremental(self, force=False, reload=True):
 
         n_rounds = n_round_inc
         n_min = n_min_inc
@@ -582,7 +608,7 @@ class ma_expt(object):
                      precmd='',
                      logdir=self.log_dir, nslots=3)
 
-    def get_results(self, t_types=None, only_last=True,res_dstr=None):
+    def get_results(self, t_types=None, only_last=True,res_dstr=None,force=False):
         if t_types is None:
             t_types = self.get_types((('first',),))
         else:
@@ -603,7 +629,7 @@ class ma_expt(object):
             all_res_views = []
             curt_str = '_'.join(curt)
             cur_res_file = os.path.join(out_dir, f'{self.name}_ma_res_{dstr}_{curt_str}.pkl')
-            if os.path.exists(cur_res_file):
+            if os.path.exists(cur_res_file) and not force:
                 res[curt_str] = pt.pickle_load(cur_res_file)
                 continue
             for v in range(settings['nviews']):
@@ -819,7 +845,7 @@ class ma_expt(object):
 
             vv = cur_dist.copy()
             vv[np.isnan(vv)] = 60.
-            mm = np.nanpercentile(vv, prcs, axis=0, interpolation='nearest')
+            mm = np.nanpercentile(vv, prcs, axis=0, method='nearest')
             for pts in range(ex_loc.shape[0]):
                 for pp in range(mm.shape[0]):
                     c = plt.Circle(ex_loc[pts, :], mm[pp, pts], color=cmap[pp, :], fill=False,
@@ -1043,7 +1069,13 @@ class ma_expt(object):
                 cc = poseConfig.conf
                 cc.cachedir = cache_dir2
                 net2 = settings2['net_type']
-                sobj = PoseCommon_pytorch.PoseCommon_pytorch(cc)
+                if net2 == 'mmpose':
+                    cc.mmpose_net = settings2['params']['mmpose_net'].replace('\\','').replace('"','')
+                    cc.op_affinity_graph = []
+                    cc.is_multi = False
+                    sobj = Pose_mmpose.Pose_mmpose(cc,'deepnet')
+                else:
+                    sobj = PoseCommon_pytorch.PoseCommon_pytorch(cc)
                 latest_model_file = sobj.get_latest_model_file()
 
                 params2 = settings2['params']

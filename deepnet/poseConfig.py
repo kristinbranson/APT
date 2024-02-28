@@ -26,7 +26,7 @@ class config(object):
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
-        self.imsz = [100,100]
+        self.imsz = [100,100] # h x w -- this is the same convention as what we could get when we do np.shape(img)
         self.n_classes = 10
         self.img_dim = 3
         self.has_crops = False

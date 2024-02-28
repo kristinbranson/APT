@@ -434,7 +434,8 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice_difficult')
-rae.get_normal_results()
+dstr = '20231207' #'20210708' #'20210629'
+rae.get_normal_results(dstr=dstr,exp_name='touching',db_from_mdn_dir=True,last_model_only=True)
 
 
 
@@ -1131,7 +1132,7 @@ for britnum in range(3):
 from importlib import reload
 import run_apt_ma_expts as rae_ma
 reload(rae_ma)
-
+rae_ma.alg_names = rae_ma.alg_names[:-3]
 robj = rae_ma.ma_expt('roian')
 robj.add_neg_roi_roian()
 
@@ -1142,6 +1143,38 @@ reload(rae_ma)
 
 robj = rae_ma.ma_expt('roian')
 robj.run_train(run_type='dry')
+
+## Add more margin to bbox for CID
+import os,json,shutil
+import PoseTools as pt
+in_file = '/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/multi_cid/view_0/cid_crop_nomask_07122023/train_TF.json'
+if not os.path.exists(in_file+'.bak'):
+    shutil.copy(in_file,in_file+'.bak')
+    J = pt.json_load(in_file)
+    for ann in J['annotations']:
+        ann['bbox'] = [ann['bbox'][0]-10,ann['bbox'][1]-10,ann['bbox'][2]+20,ann['bbox'][3]+20]
+    with open(in_file,'w') as f:
+        json.dump(J,f)
+robj = rae_ma.ma_expt('roian')
+robj.run_train(run_type='dry',t_types=[('cid','crop','nomask')])
+
+##
+import os,json,shutil
+import PoseTools as pt
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+in_file = '/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/multi_cid/view_0/cid_nocrop_nomask_07122023/train_TF.json'
+if not os.path.exists(in_file+'.bak'):
+    shutil.copy(in_file,in_file+'.bak')
+    J = pt.json_load(in_file)
+    for ann in J['annotations']:
+        ann['bbox'] = [ann['bbox'][0]-10,ann['bbox'][1]-10,ann['bbox'][2]+20,ann['bbox'][3]+20]
+    with open(in_file,'w') as f:
+        json.dump(J,f)
+robj = rae_ma.ma_expt('roian')
+robj.run_train(run_type='dry',t_types=[('cid','nocrop','nomask')])
 
 ## view training images
 
@@ -1160,7 +1193,7 @@ robj.get_status()
 import run_apt_ma_expts as rae_ma
 
 robj = rae_ma.ma_expt('roian')
-robj.get_results()
+robj.get_results(res_dstr='20231226')
 
 ##
 import run_apt_ma_expts as rae_ma
@@ -1199,13 +1232,20 @@ robj = rae_ma.ma_expt('roian')
 loc_file = os.path.join(robj.gt_dir, rae_ma.loc_file_str)
 A = pt.json_load(loc_file)
 gt_movies = A['movies']
+unmarked_movies = ['/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_0.mjpg','/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_1.mjpg','/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg',]
+
+gt_movies = unmarked_movies
 
 t_types = [('2stageHT','crop','nomask'),
            ('2stageHT','nocrop','nomask'),
            ('2stageBBox','nomask'),
-           ('grone','crop','mask'),
-           ('grone','nocrop','mask')
+           ('grone','crop','nomask'),
+           ('grone','nocrop','nomask'),
+           ('2stageBBox_hrformer','nomask'),
+           ('cid','crop')
            ]
+if gt_movies[0] == unmarked_movies[0]:
+    robj.params[()]=[{'max_n_animals':4},{}]
 run_type = 'dry'
 for cur_mov in gt_movies[-4:]:
     exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
@@ -1216,6 +1256,31 @@ for cur_mov in gt_movies[-4:]:
 
 ## unmarked mice tracking stuff in script_inc_exp.py
 
+##
+import TrkFile as trk
+# tfile = '/groups/branson/home/kabram/temp/ma_expts/roian/trks/20210924_four_female_mice_again_grone_crop_mask_tracklet.trk'
+tfile = '/groups/branson/home/kabram/temp/ma_expts/roian/trks/20210924_four_female_mice_0_grone_crop_mask_tracklet.trk'
+from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import torch
+
+tt = trk.Trk(tfile)
+nfr = max(tt.nframes)
+ov = np.zeros(nfr)
+ndets = np.zeros(nfr)
+for ndx in range(nfr):
+    curp = tt.getframe(ndx)
+    vv = ~np.all(np.isnan(curp[:,0,0,:]),axis=0)
+    ndets[ndx] = np.sum(vv)
+    if vv.sum()<2:
+        continue
+    curp = curp[:,:,0,vv]
+    bb =[]
+    for xx in range(curp.shape[2]):
+        bb.append(np.min(curp[...,xx],axis=0).tolist() + (np.max(curp[...,xx],axis=0)).tolist())
+    overlaps = bbox_overlaps(torch.Tensor(bb),torch.Tensor(bb))
+    overlaps = overlaps.numpy().flatten()
+    overlaps[::vv.sum()+1] = 0
+    ov[ndx] =  overlaps.max()
 
 ######################
 ## Alice
@@ -1277,6 +1342,8 @@ robj = rae_ma.ma_expt('alice')
 robj.get_incremental_results(t_types=[('grone','crop')])
 
 ## Track movies
+
+## create list of unique movies
 import os
 import run_apt_ma_expts as rae_ma
 import PoseTools as pt
@@ -1310,6 +1377,9 @@ for cur_mov in movies:
 
 movies = nm
 
+## Run tracking
+# to do id tracking at scale 2, need to make changes in run_apt_ma_expts.py
+
 run_type = 'dry'
 tts = [('grone','crop'),('2stageBBox','first')]
 for cur_mov in movies:
@@ -1318,8 +1388,17 @@ for cur_mov in movies:
         out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_scale2.trk')
         robj.track(cur_mov,out_trk,t_types=[curt,],run_type=run_type)
 
+## Tracking without hard mining
+run_type = 'dry'
+tts = [('grone','crop'),('2stageBBox','first')]
+robj.params[()][0]['link_id_mining_steps']='1'
+for cur_mov in movies:
+    exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
+    for curt in tts:
+        out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_nohardmine.trk')
+        robj.track(cur_mov,out_trk,t_types=[curt,],run_type=run_type)
 
-##
+## ID tracking accuracy
 
 import TrkFile as trkf
 tts = [('grone','crop'),('2stageBBox','first')]
@@ -1335,23 +1414,196 @@ for cur_mov in movies:
             else:
                 out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_scale2.trk')
             if not os.path.exists(out_trk):
-                missing.append([cur_mov,curt])
+                missing.append([cur_mov,curt,sc])
                 continue
             trk = trkf.Trk(out_trk)
             counts = []
+            nfr = max(trk.nframes)
+            tlen = np.zeros((nfr))
+            clen = []
             for xx in range(trk.ntargets):
                 jj = trk.gettarget(xx)[0, 0, :, 0]
-                clen = np.count_nonzero(~np.isnan(jj))
-                counts.append(clen)
+                tlen[~np.isnan(jj)] += 1
+                cx = ~np.isnan(jj)
+                clen.append(cx)
+                counts.append(np.count_nonzero(cx))
+
+            ixx = np.argsort(counts)[::-1]
+            ilen = np.zeros((nfr,))
+
+            n_animals = round(np.median(tlen))
+            for nx in range(n_animals):
+                xx = ixx[nx]
+                ilen += clen[xx]
+
+            coverage = np.count_nonzero(ilen==tlen)/nfr
 
             counts= np.array(counts)
-            nfr = max(trk.nframes)
-            ac.append([curt[0],sc,np.count_nonzero(counts>0.9*nfr),np.sum(counts)/10])
+            avg_len = np.sum(counts)/n_animals
+            ac.append([curt[0],coverage,n_animals,np.sum(counts)/n_animals/nfr,sc])
     acc.append([exp_name,ac])
 
 print(acc)
 
+## ID accuracy using GT data
 
+# Using https://github.com/cheind/py-motmetrics#References
+# prev matlab code in /groups/branson/bransonlab/mayank/APT/matlab/script_compare_fixerror_id.m
+
+info = []
+info.append({})
+
+# Alice data, my GT
+info[0]['mov_file'] = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf'
+# info[0]['ctrax'] = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/registered_trx.mat';
+info[0]['ctrax'] = '/groups/branson/home/bransonk/tracking/code/APT/data/FlyBubble/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie/movie_JAABA/trx.mat'
+#id_trk = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_bbox.trk'
+# id_trk = '/groups/branson/home/kabram/temp/ar_id.trk'
+info[0]['id_trk'] = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_grone.trk'
+
+# info[0]['fix_error_trx'] = '/groups/branson/home/kabram/temp/fixed_id_trx_break.mat'
+info[0]['fix_error_trx'] = '/groups/branson/bransonlab/mayank/apt_results/cx_GMR_SS00030_CsChr_RigC_20150826T144616_fix_error_GT.mat'
+info[0]['ht_pts'] = [0,6]
+
+# Alice data -- social flies kb's gt
+
+info.append({})
+# id_trk = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_grone.trk';
+# id_trk = '/groups/branson/home/kabram/temp/ar_social_id_grone_70imsz.trk';
+info[-1]['id_trk'] = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_grone.trk';
+info[-1]['mov_file'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531//movie.ufmf';
+info[-1]['fix_error_trx'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531/fixedtrx_20230117T174500.mat';
+info[-1]['ht_pts'] = [0,6]
+info[-1]['ctrax'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531/registered_trx.mat'
+
+# Alice data -- social flies kb's gt --1
+
+info.append({})
+#id_trk = '/groups/branson/home/kabram/temp/ar_flytracker2_idlinked.trk';
+info[-1]['id_trk'] = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigB_20201212T163629_grone.trk';
+info[-1]['mov_file'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629//movie.ufmf'
+info[-1]['fix_error_trx'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629/fixed_trx.mat'
+info[-1]['ht_pts'] = [0,6]
+info[-1]['ctrax'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629/registered_trx.mat'
+
+# roian unmarked mice
+info.append({})
+info[-1]['mov_file'] = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_0.mjpg';
+info[-1]['id_trk'] = '/groups/branson/home/kabram/temp/20210924_four_female_mice_0_unlabeled_mice_grone_occluded_MA_Bottom_Up_motion_link.trk'
+
+# info[-1]['fix_error_trx'] = '/groups/branson/home/kabram/temp/fixed_roian_id_trx_break.mat'
+info[-1]['fix_error_trx'] = '/groups/branson/bransonlab/mayank/apt_results/20210924_four_female_mice_0_fix_error_GT.mat'
+info[-1]['ht_pts'] = [0,1]
+
+##
+import motmetrics as mm
+import numpy as np
+import APT_interface as apt
+import TrkFile as trkf
+from poseConfig import conf
+conf.has_trx_file = True
+import os
+
+
+def get_trx_frame(trx,fr):
+    # pts is n_trx x 2 x 2, where second dim has the head and tail points
+    valid_trx = np.where( (trx['first_frames']<=fr) & (trx['end_frames']>fr) )[0]
+    pts = np.ones([trx['n_trx'],2,2])*np.nan
+    for vv in range(trx['n_trx']):
+        if vv in valid_trx:
+            fro = fr-int(trx['trx'][vv]['firstframe'][0,0])+1
+            xx = trx['trx'][vv]['x'].flatten()[fro]-1
+            yy = trx['trx'][vv]['y'].flatten()[fro]-1
+            theta = trx['trx'][vv]['theta'].flatten()[fro]
+            a = trx['trx'][vv]['a'].flatten()[fro]
+
+            hh = np.array([xx+a*np.cos(theta)*2,yy+a*np.sin(theta)*2])
+            tt = np.array([xx-a*np.cos(theta)*2,yy-a*np.sin(theta)*2])
+
+            pts[vv,0,:] = hh
+            pts[vv,1,:] = tt
+    return pts
+
+res = []
+other_res = ['grone_scale2','2stageBBox','2stageBBox_scale2']
+for cur_info in info:
+    cur_res = {}
+    acc = mm.MOTAccumulator(auto_id=True)
+    t2 = apt.get_trx_info(cur_info['fix_error_trx'],conf,None)
+    t1 = trkf.Trk(cur_info['id_trk'])
+    nfr = max(t1.nframes)
+    ht = cur_info['ht_pts']
+    for fr in range(nfr):
+        f1 = t1.getframe(fr)
+        vf1 = ~np.isnan(f1[0,0,0,:])
+        vix = np.where(vf1)[0]
+        f1 = f1[...,vf1]
+        f1 = np.transpose(f1[ht,:,0],[2,0,1])
+        f2 = get_trx_frame(t2,fr)
+
+        d_mat = np.linalg.norm(f1[None,:]-f2[:,None,:,:],axis=-1).mean(axis=-1)
+
+        acc.update(range(f2.shape[0]),vix,d_mat)
+
+    mh = mm.metrics.create()
+    summ = mh.compute(acc,metrics=mm.metrics.motchallenge_metrics,return_dataframe=False)
+    # print('-------------------')
+    # print(cur_info['mov_file'])
+    # print(summ)
+    # print()
+    cur_res['grone'] = summ
+
+    for tname in other_res:
+        nname = cur_info['id_trk'].replace('grone.trk',tname+'.trk')
+        if not os.path.exists(nname):
+            continue
+        acc = mm.MOTAccumulator(auto_id=True)
+        t1 = trkf.Trk(nname)
+        for fr in range(nfr):
+            f1 = t1.getframe(fr)
+            vf1 = ~np.isnan(f1[0,0,0,:])
+            vix = np.where(vf1)[0]
+            f1 = f1[...,vf1]
+            f1 = np.transpose(f1[ht,:,0],[2,0,1])
+            f2 = get_trx_frame(t2,fr)
+
+            d_mat = np.linalg.norm(f1[None,:]-f2[:,None,:,:],axis=-1).mean(axis=-1)
+
+            acc.update(range(f2.shape[0]),vix,d_mat)
+
+        mh = mm.metrics.create()
+        summ = mh.compute(acc,metrics=mm.metrics.motchallenge_metrics,return_dataframe=False)
+        cur_res[tname] = summ
+
+
+    if 'ctrax' not in cur_info:
+        res.append([ename, cur_res])
+        continue
+
+    t1 = apt.get_trx_info(cur_info['ctrax'],conf,None)
+    acc = mm.MOTAccumulator(auto_id=True)
+    for fr in range(nfr):
+        f1 = get_trx_frame(t1, fr)
+        f2 = get_trx_frame(t2, fr)
+
+        d_mat = np.linalg.norm(f1[None,] - f2[:,None, :], axis=-1).mean(axis=-1)
+
+        acc.update(range(f2.shape[0]),range(f1.shape[0]),  d_mat)
+
+    mh = mm.metrics.create()
+    summ = mh.compute(acc, metrics=mm.metrics.motchallenge_metrics, return_dataframe=False)
+    cur_res['ctrax'] = summ
+    # print('CTRAX-------------------')
+    # print(summ)
+    # print()
+    ename = os.path.split(os.path.split(cur_info['mov_file'])[0])[1]
+    res.append([ename,cur_res])
+
+## print the results
+for rr in res:
+    print(rr[0])
+    for kk,vv in rr[1].items():
+        print(kk,vv['idf1'])
 
 ## ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ## Rat7M

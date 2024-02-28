@@ -413,12 +413,19 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
         occ_coco[np.isnan(ix[..., 0]), :] = 0
         ix[np.isnan(ix)] = 0
         if roi is None:
-            lmin = np.nanmin(ix,axis=0)
-            lmax = np.nanmax(ix,axis=0)
-            w = lmax[0] - lmin[0]
-            h = lmax[1] - lmin[1]
-            bbox = [lmin[0], lmin[1], w, h]
-            segm = [[lmin[0],lmin[1],lmin[0],lmax[1],lmax[0],lmax[1],lmax[0],lmin[1]]]
+            # if None then it should be single animal for second stage, in which case the bbox should be the whole patch. If not single animal for second stage, then update this!!!
+
+            # lmin = np.nanmin(ix,axis=0)
+            # lmax = np.nanmax(ix,axis=0)
+            # w = lmax[0] - lmin[0]
+            # h = lmax[1] - lmin[1]
+            # bbox = [lmin[0], lmin[1], w, h]
+            # segm = [[lmin[0],lmin[1],lmin[0],lmax[1],lmax[0],lmax[1],lmax[0],lmin[1]]]
+
+            bbox = [0,0,cur_im.shape[1],cur_im.shape[0]]
+            segm = [[0,0,0,cur_im.shape[0],cur_im.shape[1],cur_im.shape[0],cur_im.shape[1],0]]
+            w = cur_im.shape[1]
+            h = cur_im.shape[0]
         else:
             lmin = roi[idx].min(axis=0).astype('float64')
             lmax = roi[idx].max(axis=0).astype('float64')
@@ -432,7 +439,8 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
                                    'num_keypoints': cur_locs.shape[1], 'bbox': bbox,
                                    'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
-    if extra_roi is not None:
+    if (extra_roi is not None) and conf.multi_loss_mask:
+        # add the neg roi only if using masking. Otherwise mmpose can get touchy
         for cur_roi in extra_roi:
             annid = coco_info['ann_ndx']
             coco_info['ann_ndx'] += 1
@@ -1100,6 +1108,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'mmpose': 'MSPN',
                       'hrformer': 'HRFormer',
                       'multi_cid': 'CiD',
+                      'hrnet': 'HRNet',
                       }
 
     if not 'ProjectFile' in A:
@@ -1942,7 +1951,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
             cur_roi = np.tile(np.array(cur_t['roi']).reshape([1, 2, 4, ntgt]),(conf.nviews,1,1,1))
         else:
             cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
-        cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
+        cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])-1
 
         if 'extra_roi' in cur_t.keys() and np.size(cur_t['extra_roi']) > 0:
             extra_roi = np.array(cur_t['extra_roi'],dtype=float).reshape([conf.nviews, 2, 4, -1])
@@ -2614,9 +2623,10 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             pose_module = __import__(module_name)
             tf1.reset_default_graph()
             poser = getattr(pose_module, module_name)(conf, name=name)
-            pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
         except ImportError:
-            raise ImportError('Undefined type of network')
+            raise ImportError(f'Undefined type of network:{model_type}')
+
+        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
 

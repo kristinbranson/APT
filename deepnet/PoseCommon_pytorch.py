@@ -185,7 +185,10 @@ class coco_loader(torch.utils.data.Dataset):
         if np.all(locs[curl[...,2]==0,:]==0):
             locs[curl[...,2]==0,:] = np.nan
 
-        mask = self.get_mask(annos,im.shape[:2])
+        if conf.get('coco_ignore_mask',False):
+            mask = self.get_mask_ignore(annos,im.shape[:2])
+        else:
+            mask = self.get_mask(annos,im.shape[:2])
         im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale*sfactor, mask=mask[None,...],occ=occ[None])
         osz = tuple([round(ii/conf.rescale) for ii in conf.imsz][::-1])
         if (im.shape[1] != osz[1]) or (im.shape[2] != osz[0]):
@@ -207,6 +210,31 @@ class coco_loader(torch.utils.data.Dataset):
         return features
 
     def get_mask(self, anno, im_sz):
+        conf = self.conf
+        m = np.zeros(im_sz,dtype=np.float32)
+
+        if not conf.multi_loss_mask:
+            return m<0.5
+
+        for obj in anno:
+            if 'bbox' in obj:
+                # MK 20230531. Segmentation is required to be a numpy array now. Probably has to do with the newer ampere image. xtcocotools might have been updated. Sigh.
+                # MK 20230823. when the input object is an np.array, xtcocotools expects it to be in bbox format [x,y,width,height]
+                # rles = xtcocotools.mask.frPyObjects(
+                #     obj['segmentation'], im_sz[0],
+                #     im_sz[1])
+                rles = xtcocotools.mask.frPyObjects(
+                    # np.array(obj['segmentation']).astype('double'), im_sz[0],
+                    # im_sz[1])
+                    np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
+                for rle in rles:
+                    m += xtcocotools.mask.decode(rle)
+                # if obj['iscrowd']:
+                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
+                #     m += xtcocotools.mask.decode(rle)
+                # else:
+        return m>0.5
+    def get_mask_ignore(self, anno, im_sz):
         conf = self.conf
         m = np.zeros(im_sz,dtype=np.float32)
 

@@ -1102,6 +1102,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             ims_in, _ = PoseTools.preprocess_ims(ims_in,locs_dummy,conf,False,conf.rescale)
             ret_dict = {}
             ret_dict['locs'] = []
+            ret_dict['locs_joint'] = []
             ret_dict['conf'] = []
             ret_dict['occ'] = []
             if retrawpred:
@@ -1118,6 +1119,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     locs = self.get_joint_pred(preds)
 
                 ret_dict['locs'].append(locs['ref'][0] * conf.rescale)
+                ret_dict['locs_joint'].append(locs['joint'][0] * conf.rescale)
                 conf_joint = 1/(1+np.exp(-locs['conf_joint']))
                 conf_ref = 1/(1+np.exp(-locs['conf_ref']))
                 # pred_conf = conf_joint[...,None]*np.ones_like(conf_ref)
@@ -1140,6 +1142,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     ret_dict['preds'].append(preds)
                     ret_dict['raw_locs'].append(locs)
             ret_dict['locs'] = np.array(ret_dict['locs'])
+            ret_dict['locs_joint'] = np.array(ret_dict['locs_joint'])
             ret_dict['conf'] = np.array(ret_dict['conf'])
             ret_dict['occ'] = np.array(ret_dict['occ'])
             return ret_dict

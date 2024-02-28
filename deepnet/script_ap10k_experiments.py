@@ -158,6 +158,19 @@ astr = 'ap36' if ap36 else 'ap10'
 with open(f'/groups/branson/bransonlab/mayank/apt_results/{astr}_results.pkl','wb') as f:
     pickle.dump(res_dict,f)
 
+##
+import PoseTools as pt
+astr = 'ap36' if ap36 else 'ap10'
+res_dict = pt.pickle_load(f'/groups/branson/bransonlab/mayank/apt_results/{astr}_results.pkl')
+net_names = [n[1] for n in nets]
+print(','.join(net_names))
+for k,v in res_dict.items():
+    mstr = [f'{v[m]:.2f}' for m in net_names]
+    mstr = ','.join(mstr)
+    print(f'{k:10s}, {mstr}')
+
+
+
 
 ## accuracy vs occlusion plot
 
@@ -214,6 +227,194 @@ ax[0].set_ylabel('Density')
 ax[0].set_xlabel('Occlusion prediction')
 ax[-1].legend(['Occluded','Not occluded'])
 
+
+## mAP as function of x offset
+from xtcocotools.coco import COCO
+from xtcocotools.cocoeval import COCOeval
+
+assert not ap36
+
+animal = ''
+cura = animal[1:] if animal else ''
+exp_dir = f'{bdir}/ap36k_topdown_{cura}'
+valfile = exp_dir + '/test_TF.json'
+J = pt.json_load(valfile)
+kk = np.array([jj['keypoints'] for jj in J['annotations']]).reshape([-1, 17, 3])
+np.where(np.all(kk[:, :, 2] > 0, axis=1))
+J['annotations'] = J['annotations'][40:41]
+J['images'] = J['images'][40:41]
+import json
+
+out_file_l = '/groups/branson/home/kabram/temp/a10k_single_animal_test.json'
+with open(out_file_l, 'w') as f:
+    json.dump(J, f)
+
+Jo = J
+kk_i = np.array(Jo['annotations'][0]['keypoints']).reshape([17, 3])
+out_file_p = '/groups/branson/home/kabram/temp/a10k_single_animal_pred.json'
+aps = []
+sigmas = [0.025, 0.025, 0.026, 0.035, 0.035, 0.079, 0.072, 0.062, 0.079, 0.072, 0.062, 0.107, 0.087, 0.089, 0.107,
+          0.087, 0.089]
+aa = Jo['annotations'][0]['area']
+mm = np.sqrt( (np.array(sigmas)*2)**2*(aa*2))/10
+
+for x in np.arange(0, 10,0.25):
+    Jx = pt.json_load(out_file_l)
+    kk = np.array(J['annotations'][0]['keypoints']).reshape([17, 3])
+    kk[:,0] += x*mm
+    Jx['annotations'][0]['keypoints'] = kk.flatten().tolist()
+    Jx['annotations'][0]['score'] = 1.
+    with open(out_file_p, 'w') as f:
+        json.dump(Jx, f)
+
+
+    coco_gt = COCO(out_file_l)
+    coco_gt.loadAnns()
+
+    coco_dt = COCO(out_file_p)
+    coco_dt.loadAnns()
+
+    coco_eval = COCOeval(coco_gt, coco_dt, 'keypoints')
+    coco_eval.params.useSegm = None
+    # coco_eval.params.kpt_oks_sigmas = np.array(sigmas)
+    coco_eval.sigmas = np.array(sigmas)
+    coco_eval.evaluate()
+    coco_eval.accumulate()
+    coco_eval.summarize()
+
+    ap = coco_eval.eval['precision'][:,:,0,0,0].mean()
+    aps.append(ap)
+
+##
+plt.figure(32)
+plt.clf()
+plt.plot(np.arange(0, 10,0.25),aps)
+plt.xlabel('offset')
+plt.ylabel('mAP')
+plt.savefig('/groups/branson/home/kabram/temp/mAP_offset.png',bbox_inches='tight',pad_inches=0)
+plt.figure(34)
+plt.clf()
+J = pt.json_load(valfile)
+ii = cv2.imread(J['images'][40]['file_name'])
+ii = cv2.cvtColor(ii,cv2.COLOR_BGR2RGB)
+plt.imshow(ii)
+skel = np.array( [[1, 2],
+  [1, 3],
+  [2, 3],
+  [3, 4],
+  [4, 5],
+  [4, 6],
+  [6, 7],
+  [7, 8],
+  [4, 9],
+  [9, 10],
+  [10, 11],
+  [5, 12],
+  [12, 13],
+  [13, 14],
+  [5, 15],
+  [15, 16],
+  [16, 17]])-1
+dskl(kk_i[:,:2],skel,cc='r')
+kk = kk_i[:,:2].copy()
+kk[:,0] += 2.25*mm
+dskl(kk,skel,cc='b')
+kk = kk_i[:,:2].copy()
+kk[:,0] += 5.75*mm
+dskl(kk,skel,cc='g')
+kk = kk_i[:,:2].copy()
+kk[:,0] += 8.5*mm
+dskl(kk,skel,cc='y')
+plt.axis('off')
+
+## scale vs mAP
+J = pt.json_load('/groups/branson/bransonlab/datasets/ap-10k/annotations/ap10k-train-split1.json')
+skel = np.array(J['categories'][0]['skeleton'])-1
+ii =np.array([jj['id'] for jj in J['images']])
+aa = np.array([jj['image_id'] for jj in J['annotations']])
+ar = np.array([jj['area'] for jj in J['annotations']])
+all_a = np.array([jj['keypoints'] for jj in J['annotations']]).reshape([-1,17,3])
+n_occ = np.sum(all_a[:,:,2]==0,axis=1)
+rr = []
+for ix in ii:
+    ss = np.where(aa==ix)[0]
+    rr.append(ar[ss].max()/ar[ss].min())
+
+sr = np.argsort(rr)[::-1]
+selndx = 3122#65
+fn = os.path.join('/groups/branson/bransonlab/datasets/ap-10k/data',J['images'][selndx]['file_name'])
+im = cv2.imread(fn)
+im = cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
+plt.figure(42)
+plt.clf()
+plt.imshow(im)
+cura = []
+ss = np.where(aa==ii[selndx])[0]
+for s in ss:
+    cur = J['annotations'][s]
+    cur = np.array(cur['keypoints']).reshape([17,3])
+    cura.append(cur)
+cura = np.array(cura).astype('float32')
+cura[cura[:,:,2]==0,:] = np.nan
+mdskl(cura,skel,cc='r')
+plt.axis('off')
+print(np.sqrt(rr[selndx]))
+ratio = 481815/71448
+plt.savefig('/groups/branson/home/kabram/temp/mAP_scale.png',bbox_inches='tight',pad_inches=0)
+
+## occlusion vs mAP
+
+J = pt.json_load('/groups/branson/bransonlab/datasets/ap-10k/annotations/ap10k-train-split1.json')
+skel = np.array(J['categories'][0]['skeleton'])-1
+ii =np.array([jj['id'] for jj in J['images']])
+aa = np.array([jj['image_id'] for jj in J['annotations']])
+ar = np.array([jj['area'] for jj in J['annotations']])
+all_a = np.array([jj['keypoints'] for jj in J['annotations']]).reshape([-1,17,3]).astype('float32')
+n_occ = np.sum(all_a[:,:,2]==0,axis=1)
+all_a[all_a[:,:,2]==0,:2] = np.nan
+sr = np.argsort(n_occ)[::-1]
+selndx = 1220
+indx = np.where(ii==aa[selndx])[0][0]
+fn = os.path.join('/groups/branson/bransonlab/datasets/ap-10k/data',J['images'][indx]['file_name'])
+im = cv2.imread(fn)
+im = cv2.cvtColor(im,cv2.COLOR_BGR2RGB)
+plt.figure(43)
+plt.clf()
+plt.imshow(im)
+dskl(all_a[selndx,:,:2],skel,cc='r')
+sctr(all_a[selndx,:,:2],marker='o',color='r')
+plt.axis('off')
+plt.savefig('/groups/branson/home/kabram/temp/mAP_occlusion.png',bbox_inches='tight',pad_inches=0)
+
+#
+plt.figure(44)
+plt.clf()
+pt_occ = np.sum(all_a[:,:,2]==0,axis=0)/len(all_a)
+plt.plot(pt_occ)
+plt.xticks(np.arange(all_a.shape[1]),J['categories'][0]['keypoints'],rotation=45,ha='right')
+plt.subplots_adjust(bottom=0.3)
+plt.xlabel('Landmark')
+plt.ylabel('Fraction occluded')
+plt.savefig('/groups/branson/home/kabram/temp/occlusion_fraction.png',bbox_inches='tight',pad_inches=0)
+
+## Occlusion in APT36K
+J = pt.json_load('/groups/branson/bransonlab/datasets/APT-36K/annotations/apt36k_annotations_fixed_train.json')
+skel = np.array(J['categories'][0]['skeleton'])-1
+ii =np.array([jj['id'] for jj in J['images']])
+aa = np.array([jj['image_id'] for jj in J['annotations']])
+ar = np.array([jj['area'] for jj in J['annotations']])
+all_a = np.array([jj['keypoints'] for jj in J['annotations']]).reshape([-1,17,3]).astype('float32')
+n_occ = np.sum(all_a[:,:,2]==0,axis=1)
+plt.figure(45)
+plt.clf()
+pt_occ = np.sum(all_a[:,:,2]==0,axis=0)/len(all_a)
+plt.plot(pt_occ)
+plt.xticks(np.arange(all_a.shape[1]),J['categories'][0]['keypoints'],rotation=45,ha='right')
+plt.subplots_adjust(bottom=0.3)
+plt.xlabel('Landmark')
+plt.ylabel('Fraction occluded')
+plt.title('APT36K')
+plt.savefig('/groups/branson/home/kabram/temp/occlusion_fraction_apt36k.png',bbox_inches='tight',pad_inches=0)
 
 ##
 

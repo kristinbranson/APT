@@ -37,10 +37,68 @@ import cv2
 import multiprocessing as mp
 
 ## Topdown dataset
-from mmpose.datasets.builder import DATASETS
+from mmpose.datasets.builder import DATASETS, PIPELINES
 from mmpose.datasets.datasets.top_down.topdown_coco_dataset import TopDownCocoDataset
 from xtcocotools.coco import COCO
 
+
+###### Bug fix for np.int in multi_hrnet 8 Feb 2024
+
+from mmpose.datasets.pipelines.bottom_up_transform import HeatmapGenerator,BottomUpGenerateHeatmapTarget,JointsEncoder,BottomUpGenerateTarget
+class myHMAP(HeatmapGenerator):
+    def __init__(self, output_size, num_joints, sigma=-1, use_udp=False):
+        if not isinstance(output_size, np.ndarray):
+            output_size = np.array(output_size)
+        if output_size.size > 1:
+            assert len(output_size) == 2
+            self.output_size = output_size
+        else:
+            self.output_size = np.array([output_size, output_size],
+                                        dtype=np.int32)
+        self.num_joints = num_joints
+        if sigma < 0:
+            sigma = self.output_size.prod()**0.5 / 64
+        self.sigma = sigma
+        size = 6 * sigma + 3
+        self.use_udp = use_udp
+        if use_udp:
+            self.x = np.arange(0, size, 1, np.float32)
+            self.y = self.x[:, None]
+        else:
+            x = np.arange(0, size, 1, np.float32)
+            y = x[:, None]
+            x0, y0 = 3 * sigma + 1, 3 * sigma + 1
+            self.g = np.exp(-((x - x0)**2 + (y - y0)**2) / (2 * sigma**2))
+
+class myJoint(JointsEncoder):
+    def __init__(self, max_num_people, num_joints, output_size, tag_per_joint):
+        self.max_num_people = max_num_people
+        self.num_joints = num_joints
+        if not isinstance(output_size, np.ndarray):
+            output_size = np.array(output_size)
+        if output_size.size > 1:
+            assert len(output_size) == 2
+            self.output_size = output_size
+        else:
+            self.output_size = np.array([output_size, output_size],
+                                        dtype=np.int32)
+        self.tag_per_joint = tag_per_joint
+
+@PIPELINES.register_module(name='BottomUpGenerateTarget',force=True)
+class myBUH(BottomUpGenerateTarget):
+    def _generate(self, num_joints, heatmap_size):
+        """Get heatmap generator and joint encoder."""
+        heatmap_generator = [
+            myHMAP(output_size, num_joints, self.sigma, self.use_udp)
+            for output_size in heatmap_size
+        ]
+        joints_encoder = [
+            myJoint(self.max_num_people, num_joints, output_size, True)
+            for output_size in heatmap_size
+        ]
+        return heatmap_generator, joints_encoder
+
+## End bug fix for multi_hrnet
 
 class TrainDataHookDummy(mmcv.runner.Hook):
     def __init__(self, out_file=None, conf=None, interval=50):
@@ -466,7 +524,7 @@ def create_mmpose_cfg(conf,mmpose_config_file,run_name):
                     cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] * push_fac_mul
 
 
-    if 'keypoint_head' in cfg.model:
+    if 'keypoint_head' in cfg.model and 'out_channels' in cfg.model.keypoint_head:
         cfg.model.keypoint_head.out_channels = conf.n_classes
     if conf.n_classes < 8:
         try:

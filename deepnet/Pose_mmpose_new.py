@@ -647,6 +647,16 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             except RuntimeError as e:
                 if str(e) == 'trying to initialize the default process group twice!':
                     pass
+        elif mmpose_net == 'vitpose':
+            self.cfg_file = 'configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_ViTPose-base-simple_8xb64-210e_coco-256x192.py'
+            # create a dummy distributed group to keep sync batch norm happy. REMOVE THIS WHEN ENABLING MULTI GPU
+            os.environ['MASTER_ADDR'] = 'localhost'
+            os.environ['MASTER_PORT'] = f'{np.random.randint(10000, 65535)}'
+            try:
+                torch.distributed.init_process_group(backend='gloo', rank=0, world_size=1)
+            except RuntimeError as e:
+                if str(e) == 'trying to initialize the default process group twice!':
+                    pass
 
         elif mmpose_net == 'cid':
             self.cfg_file = 'configs/body_2d_keypoint/cid/coco/cid_hrnet-w32_8xb20-140e_coco-512x512.py'

@@ -923,7 +923,8 @@ class Pose_multi_mmpose(Pose_mmpose):
                 # First sort of find the animal size to set a threshold
 
                 # Find average animal size for predictions
-                pred_sz = np.mean(all_array[0].max(axis=-2)-all_array[0].min(axis=-1))  # numpy scalar
+                # pred_sz = np.mean(all_array[0].max(axis=-2)-all_array[0].min(axis=-1))  # numpy scalar
+                pred_sz = np.mean(all_array[:,:,:2].max(axis=-2)-all_array[:,:,:2].min(axis=-2))  # numpy scalar
                 nms_dist = pred_sz*match_dist_factor
 
                 # find the match indexes
