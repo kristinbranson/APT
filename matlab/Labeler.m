@@ -3591,6 +3591,7 @@ classdef Labeler < handle
       
       s.trackerClass(~tf) = [];
       s.trackerData(~tf) = [];
+      loc_old = loc;
       loc(~tf) = [];      
       tclass = trkersInfo;
       tclass(loc) = s.trackerClass(:);
@@ -3598,6 +3599,7 @@ classdef Labeler < handle
       tdata(loc) = s.trackerData(:);
       s.trackerClass = tclass;
       s.trackerData = tdata;      
+      s.currTracker = loc_old(s.currTracker);
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
       if oldCurrTracker>0 && ~isempty(loc) && oldCurrTracker <= numel(loc),
