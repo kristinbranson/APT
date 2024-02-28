@@ -33,6 +33,8 @@ if ~isempty(jsonfile),
 end
 assert(~isempty(toTrack));
 
+nmov = size(toTrack.movfiles,1);
+
 if iscell(toTrack.f0s),
   f0s = ones(size(toTrack.f0s));
   idx = ~cellfun(@isempty,toTrack.f0s);
@@ -55,10 +57,17 @@ end
 % else
   cropRois = toTrack.cropRois;
 % end
-if ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
+if ~isfield(toTrack,'targets')
+  toTrack.targets = {};
+elseif ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
   toTrack.targets = {toTrack.targets};
 end
-if isempty(toTrack.calibrationfiles),
+
+if ~isfield(toTrack,'trxfiles')
+  toTrack.trxfiles = {};
+end
+
+if ~isfield(toTrack,'calibrationfiles') || isempty(toTrack.calibrationfiles),
   calibrationfiles = {};
 elseif ischar(toTrack.calibrationfiles),
   calibrationfiles = {toTrack.calibrationfiles};

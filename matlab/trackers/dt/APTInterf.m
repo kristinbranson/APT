@@ -317,7 +317,8 @@ classdef APTInterf
         code = [code {'-list_file' escape_string_for_bash(totrackinfo.listfile)}];
         code = [code {'-out'} escape_cellstring_for_bash(linux_path(totrackinfo.listoutfiles))];
       else
-        code = [code {'-out'} escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)))];
+        tf = escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)));
+        code = [code {'-out'} tf(:)'];
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end

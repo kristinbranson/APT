@@ -21,7 +21,7 @@ import numpy as np
 def parse_args(argv):
 
     parser = argparse.ArgumentParser(description='Track movies using the latest trained model in the APT lbl file')
-    parser.add_argument("-lbl_file", help="path to APT lbl file or a directory when the lbl file has been unbundled using untar")
+    parser.add_argument("-lbl_file", help="path to APT lbl file or a directory when the lbl file has been unbundled using untar", required=True)
 #    parser.add_argument('-backend',help='Backend to use for tracking. Options are docker and conda',default='docker')
     parser.add_argument('-list', help='Lists all the trained models present in the lbl file',action='store_true')
     parser.add_argument("-model_ndx", help="Use this model number (model numbers can be found using -list) instead of the latest model",type=int,default=None)
