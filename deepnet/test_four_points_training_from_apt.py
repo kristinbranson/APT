@@ -67,7 +67,6 @@ def test_training() :
 
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path):
-        # APT_interface.IS_APT_IN_DEBUG_MODE = True
         APT_interface.main(
             [os.path.join(working_folder_path,'four_points_180806/20231002T194232_20231002T194232.json'),
              '-name', '20231002T194232', 

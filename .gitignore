@@ -20,3 +20,5 @@ deepnet/log/
 log/
 *conda-list.txt
 deepnet/pre-run-variables.pkl
+*.err.txt
+*.out.txt

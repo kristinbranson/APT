@@ -107,6 +107,30 @@
             "program": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

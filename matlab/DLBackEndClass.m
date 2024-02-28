@@ -240,9 +240,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function [tfSucc,jobID] = run(obj,syscmds,varargin)
+    function [tfSucc, jobID] = run(obj, syscmds, varargin)
 
-      [logcmds,cmdfiles,jobdesc] = myparse(varargin,'logcmds',{},'cmdfiles',{},'jobdesc','job');
+      [logcmds, cmdfiles, jobdesc, do_call_apt_interface_dot_py] = myparse( ...
+        varargin, ...
+        'logcmds', {}, ...
+        'cmdfiles', {}, ...
+        'jobdesc', 'job', ...
+        'do_call_apt_interface_dot_py', true) ;
 
       if ~isempty(cmdfiles),
         DLBackEndClass.writeCmdToFile(syscmds,cmdfiles,jobdesc);
@@ -253,15 +258,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       jobID = cell(1,njobs);
       for ijob=1:njobs,
         fprintf(1,'%s\n',syscmds{ijob});
-        if obj.type == DLBackEnd.Conda,
-          [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
-          tfSucc(ijob) = st == 0;
-        else
-          [st,res] = system(syscmds{ijob});
-          tfSucc(ijob) = st == 0;
-          if tfSucc(ijob),
-            jobID{ijob} = obj.parseJobID(res);
+        if do_call_apt_interface_dot_py ,
+          if obj.type == DLBackEnd.Conda,
+            [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
+            tfSucc(ijob) = st == 0;
+          else
+            [st,res] = system(syscmds{ijob});
+            tfSucc(ijob) = st == 0;
+            if tfSucc(ijob),
+              jobID{ijob} = obj.parseJobID(res);
+            end
           end
+        else
+          % Pretend it's a failure, for expediency.
+          tfSucc(ijob) = false ;
+          res = 'do_call_apt_interface_dot_py is false' ;
         end
         if ~tfSucc(ijob),
           warning('Failed to spawn %s %d: %s',jobdesc,ijob,res);
@@ -675,8 +686,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function cmdout = wrapCommandConda(cmdin, varargin)
       % Take a base command and run it in a sing img
-      [condaEnv,gpuid] = myparse(varargin,...
-        'condaEnv',DLBackEndClass.default_conda_env,...
+      [condaEnv,logfile,gpuid] = myparse(varargin,...
+        'condaEnv',DLBackEndClass.default_conda_env, ...
+        'logfile', '/dev/null', ...
         'gpuid',0);
       conda_activate_command = synthesize_conda_command(['activate ',condaEnv]);
       if isnan(gpuid),
@@ -689,7 +701,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
         conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
       end
-      cmdout1 = [conda_activate_and_cuda_set_command,' && ',cmdin];
+      cmdout1 = [conda_activate_and_cuda_set_command ' && ' cmdin, ' &> ', logfile] ;
       cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
     end
 
@@ -730,6 +742,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       else
         jobnamestr = [' -J ',jobname];
       end
+      % NB: Line below sends *both* stdout and stderr to the file named by logfile
       cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s %s "%s"',...
         nslots,gpuqueue,logfile,jobnamestr,additionalArgs,esccmd);
     end
@@ -774,15 +787,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function cmd = wrapBaseCommandBsub(basecmd,varargin)
 
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
-      cmd = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
-      cmd = DLBackEndClass.wrapCommandBsub(cmd,bsubargs{:});
+      cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
+      cmd2 = DLBackEndClass.wrapCommandBsub(cmd1,bsubargs{:});
 
       % already on cluster?
       tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
-      if ~tfOnCluster,
-        cmd = DLBackEndClass.wrapCommandSSH(cmd,sshargs{:});
+      if tfOnCluster,
+        % The Matlab environment vars cause problems with e.g. PyTorch
+        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
+      else
+        % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
+        cmd = DLBackEndClass.wrapCommandSSH(cmd2,sshargs{:});
       end
-
     end
 
 

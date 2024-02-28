@@ -2,6 +2,7 @@
 #from __future__ import print_function
 
 import logging
+from operator import truediv
 #logging.basicConfig(
 #    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
 #logging.warning('Entered APT_interface.py')
@@ -76,7 +77,7 @@ import urllib
 import getpass
 import link_trajectories as lnk
 from matplotlib.path import Path
-from PoseCommon_pytorch import coco_loader
+#from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
 import io
 import shapely.geometry
@@ -100,7 +101,6 @@ ISDPK = False
 KBDEBUG = False
 # control how often / whether tqdm displays info
 TQDM_PARAMS = {'mininterval': 5}
-IS_APT_IN_DEBUG_MODE = False
 
 try:
     user = getpass.getuser()
@@ -1000,7 +1000,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                print('Overriding param %s <= ' % n, v)
+                logging.info('Overriding param %s <= ' % n, v)
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1254,7 +1254,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                print('Overriding param %s <= ' % n, v)
+                logging.info('Overriding param %s <= ' % n, v)
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -2343,8 +2343,8 @@ def create_cv_split_files(conf, n_splits=3):
             break
 
     if imbalance:
-        print('Couldnt find a valid spilt for split type:{} even after 10 retries.'.format(conf.splitType))
-        print('Try changing the split type')
+        logging.warning('Couldnt find a valid spilt for split type:{} even after 10 retries.'.format(conf.splitType))
+        logging.warning('Try changing the split type')
         return None
 
     all_train = []
@@ -3279,14 +3279,14 @@ def check_train_db(model_type, conf, out_file):
     ''' Reads db and saves the images and locs to out_file to verify the db'''
     if model_type == 'openpose':
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         n = tf_iterator.N
     elif model_type == 'unet':
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -3295,7 +3295,7 @@ def check_train_db(model_type, conf, out_file):
         import leap.training
 
         db_file = os.path.join(conf.cachedir, 'leap_train.h5')
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         read_fn, n = leap.training.get_read_fn(conf, db_file)
     elif model_type == 'deeplabcut':
         db_file = os.path.join(conf.cachedir, 'train_data.p')
@@ -3303,11 +3303,11 @@ def check_train_db(model_type, conf, out_file):
         [p, d] = os.path.split(db_file)
         cfg_dict['project_path'] = p
         cfg_dict['dataset'] = d
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         read_fn, n = deeplabcut.train.get_read_fn(cfg_dict)
     else:
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -3417,7 +3417,7 @@ def classify_list_file(args, view, view_ndx=0, conf_raw=None):
     part_file = out_file + '.part'  # following classify_movie naming
 
     if not os.path.isfile(list_file):
-        print('File %s does not exist' % list_file)
+        logging.warning('File %s does not exist' % list_file)
         return success, pred_locs
 
     toTrack = json.load(list_fp)
@@ -3988,16 +3988,19 @@ def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name=
     #if False:
     if not ISWINDOWS and not debug:
         logging.info('Launching sample training data generation (in separate process)')
-        p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort,False,True))
+        keyword_args_dict = \
+            { 'model_type':model_type, 'nsamples':nsamples, 'train_name':train_name, 
+              'out_file':out_file, 'distort':distort, 'debug':debug, 'no_except':no_except }
+        p = multiprocessing.Process(target=gen_train_samples1, args=(conf,), kwargs=keyword_args_dict)
         p.start()
         p.join()
     else:
-        logging.info('Launching sample training data generation (in same process)')
+        logging.info('Running sample training data generation (in same process)')
         gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug, no_except=no_except)
     logging.info('Finished sample training data generation')
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False, no_except=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, no_except=False):
     # Create image of sample training samples with data augmentation
 
     # if silent:
@@ -4033,8 +4036,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         if model_type.startswith('detect'):
             tconf.rrange = 0
 
-        tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf, usegpu=False)
-        tself.create_data_gen(debug=debug, pin_mem=False)
+        poser = PoseCommon_pytorch.PoseCommon_pytorch(tconf, usegpu=False)
+        poser.create_data_gen(debug=debug, pin_mem=False)
         # For whatever reasons, debug=True hangs for second stage in 2 stage training when the training job is submitted to the cluster from command line.
         if distort:
             db_type = 'train'
@@ -4047,10 +4050,10 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         mask = []
         for ndx in range(nsamples):
             if no_except:
-                next_db = tself.next_data(db_type)
+                next_db = poser.next_data(db_type)
             else:
                 try:
-                    next_db = tself.next_data(db_type)
+                    next_db = poser.next_data(db_type)
                 except Exception as e:
                     break
             ims.append(next_db['images'][0].numpy())
@@ -4066,7 +4069,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
         try:
-            del tself.train_dl, tself.val_dl
+            del poser.train_dl, poser.val_dl
         except:
             pass
         torch.cuda.empty_cache()
@@ -4219,6 +4222,89 @@ def train_dpk(conf, args, split, split_file=None):
     apt_dpk.train(conf)
 
 
+def train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view):
+    if conf.is_multi:
+        setup_ma(conf)
+    if not args.skip_db:
+        if conf.db_format == 'coco':
+            create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
+        else:
+            create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
+
+    if conf.multi_only_ht:
+        assert conf.stage!='second', 'multi_ony_ht should be True only for the first stage'
+        conf.n_classes = 2
+        conf.flipLandmarkMatches = {}
+        conf.op_affinity_graph = [[0, 1]]
+
+    if args.aug_out is not None:
+        aug_out = args.aug_out + f'_{cur_view}'
+        if first_stage or second_stage:
+            estr = 'first' if first_stage else 'second'
+            aug_out += '_' + estr
+    else:
+        aug_out = None
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=aug_out, 
+                        debug=args.debug, no_except=args.no_except)
+
+    # Sometime useful to save a pickle of the input here, to enable quick restart of training, for debugging and testing
+    if args.do_save_after_aug_pickle:
+        # Save the state from here, so can do a quick restart later.
+        pickle_file_leaf_name = 'after-aug-view-%d-conf-args-etc.pkl' % cur_view
+        json_label_file_path = conf.labelfile
+        pickle_folder_path = os.path.dirname(json_label_file_path)
+        pickle_file_path = os.path.join(pickle_folder_path, pickle_file_leaf_name)  # Stick it in the cachedir
+        pickle_dict = { 'net_type':net_type, 'args':args, 'restore':restore, 'model_file':model_file, 'conf':conf }
+        with open(pickle_file_path, 'wb') as f:
+            d = pickle.dump(pickle_dict, f)
+
+    if args.only_aug: 
+        do_continue = True
+        return do_continue
+
+    # On to the training proper
+    train_other_core(net_type, conf, args, restore, model_file)
+
+    # Exit, specifying not to continue in the containing loop
+    do_continue = False
+    return do_continue
+
+
+def train_other_core(net_type, conf, args, restore, model_file):
+    '''
+    The core of train_other(), after augmentation and all that other jazz.
+    '''
+
+    # At last, the main event        
+    if net_type == 'mmpose' or net_type == 'hrformer':
+        module_name = 'Pose_mmpose'
+    elif net_type == 'cid':
+        module_name = 'Pose_multi_mmpose'
+    else :
+        module_name = 'Pose_{}'.format(net_type)                    
+    logging.info(f'Importing pose module {module_name}')
+    pose_module = __import__(module_name)
+    tf1.reset_default_graph()
+    poser_factory = getattr(pose_module, module_name)
+    poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds, img_prefix_override=args.img_prefix_override, debug=args.debug)
+    # self.name = args.train_name
+    if args.zero_seeds:
+        # Set a bunch of seeds to zero for training reproducibility
+        #import random
+        #random.seed(0)
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+
+    # Proceed to actual training
+    logging.info('Starting training...')
+    poser.train_wrapper(restore=restore, model_file=model_file, debug=args.debug)
+    logging.info('Finished training.')
+
+
 def create_dlc_cfg_dict(conf, train_name='deepnet'):
     url = 'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -4233,12 +4319,12 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
         wd_x = conf.trange / 2
         wd_y = conf.trange / 2
     if not os.path.exists(wt_file):
-        print('Downloading pretrained weights..')
+        logging.info('Downloading pretrained weights..')
         if not os.path.exists(wt_dir):
             os.makedirs(wt_dir)
         sname, header = urllib.request.urlretrieve(url)
         tar = tarfile.open(sname, "r:gz")
-        print('Extracting pretrained weights..')
+        logging.info('Extracting pretrained weights..')
         tar.extractall(path=wt_dir)
     pretrained_weights = os.path.join(wt_dir, 'resnet_v1_50.ckpt')
 
@@ -4399,59 +4485,10 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 train_deepcut(conf, args, split_file=split_file, model_file=model_file)
             elif net_type == 'dpk':
                 train_dpk(conf, args, split, split_file=split_file)
-
             else:
-                if conf.is_multi:
-                    setup_ma(conf)
-                if not args.skip_db:
-                    if conf.db_format == 'coco':
-                        create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
-                    else:
-                        create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
-                if args.only_db:
-                    return
-
-                if conf.multi_only_ht:
-                    assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
-                    conf.n_classes = 2
-                    conf.flipLandmarkMatches = {}
-                    conf.op_affinity_graph = [[0, 1]]
-
-                if args.aug_out is not None:
-                    aug_out = args.aug_out + f'_{cur_view}'
-                    if first_stage or second_stage:
-                        estr = 'first' if first_stage else 'second'
-                        aug_out += '_' + estr
-                else:
-                    aug_out = None
-                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=aug_out, 
-                                  debug=args.debug, no_except=args.no_except)
-                if args.only_aug: continue
-
-                if net_type == 'mmpose' or net_type == 'hrformer':
-                    module_name = 'Pose_mmpose'
-                elif net_type == 'cid':
-                    module_name = 'Pose_multi_mmpose'
-                else :
-                    module_name = 'Pose_{}'.format(net_type)                    
-                logging.info(f'Importing pose module {module_name}')
-                pose_module = __import__(module_name)
-                tf1.reset_default_graph()
-                poser_factory = getattr(pose_module, module_name)
-                poser = poser_factory(conf, name=args.train_name)
-                # self.name = args.train_name
-                if args.zero_seeds:
-                    # Set a bunch of seeds to zero for training reproducibility
-                    #import random
-                    #random.seed(0)
-                    np.random.seed(0)
-                    torch.manual_seed(0)
-                    torch.cuda.manual_seed(0)
-                    torch.cuda.manual_seed_all(0)
-                # Proceed to actual training
-                logging.info('Starting training...')
-                poser.train_wrapper(restore=restore, model_file=model_file)
-                logging.info('Finished training.')
+                do_continue = train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view)
+                if do_continue:
+                    continue
 
         except tf1.errors.InternalError as e:
             estr =  'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly'
@@ -4494,6 +4531,8 @@ def parse_args(argv):
                         action='store_true')
     parser.add_argument('-zero_seeds', dest='zero_seeds', help='Zero the numpy, torch, and torch-cuda random seeds. Useful for debugging',
                         action='store_true')
+    parser.add_argument('-img_prefix_override', dest='img_prefix_override', help='Override the img_prefix used in the mmpose cfg. Useful for debugging',
+                        default=None)
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
     parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)
@@ -4523,6 +4562,11 @@ def parse_args(argv):
     parser_train.add_argument('-aug_out', dest='aug_out', help='Destination to save the images', default=None)
     parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
     parser_train.add_argument('-only_aug',dest='only_aug',help='Only do data augmentation, do not train',action='store_true')
+    parser_train.add_argument(
+        '-do_save_after_aug_pickle',
+        dest='do_save_after_aug_pickle',
+        help='Write variables to a pickle file after augmentation.  Useful for debugging',
+        action='store_true')
 
     parser_train.add_argument('-classify_val', dest='classify_val',
                               help='Apply trained model to val db', action='store_true')
@@ -4987,7 +5031,7 @@ def run(args):
         for view_ndx, view in enumerate(views):
             conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
-        print(m_files)
+        logging.info(m_files)
 
 class TqdmToLogger(io.StringIO):
     """
@@ -5031,7 +5075,7 @@ def set_up_logging(args):
     
     if args.log_file is None:
         # output to console if no log file is specified
-        logh = logging.StreamHandler()
+        logh = logging.StreamHandler()  # log to stderr
     else:
         logh = logging.FileHandler(args.log_file, 'w')
 
@@ -5039,7 +5083,6 @@ def set_up_logging(args):
         logh.setLevel(logging.DEBUG)
     else:
         logh.setLevel(logging.INFO)
-    IS_APT_IN_DEBUG_MODE = args.debug
     logh.setFormatter(log_formatter)
     logh.name = "log"
 
@@ -5066,7 +5109,7 @@ def main(argv):
     tf1.logging.set_verbosity(tf1.logging.ERROR)
     try:    
         gpu_devices = tf.config.list_physical_devices('GPU')  # this takes into account CUDA_VISIBLE_DEVICES
-        print("len(gpu_devices): ", len(gpu_devices))
+        logging.debug("len(gpu_devices): %d", len(gpu_devices))
         tf.config.experimental.set_memory_growth(gpu_devices,True)
             # seems like passing this is a single GPU, instead of a singleton list, fails when there are multiple GPUs?
     except:
@@ -5075,13 +5118,13 @@ def main(argv):
     # Parse the arguments
     args = parse_args(argv)
 
-    # Set a global to indicate in debug mode
-    global IS_APT_IN_DEBUG_MODE
-    IS_APT_IN_DEBUG_MODE = args.debug
+    # # For debugging
+    # args.debug = False
+    # args.no_except = True
 
     # What the heck is this?
     if args.sub_name == 'test':
-        print("Hello this is APT!")
+        logging.info("Hello this is APT!")
         return
 
     # issues arise with docker and installed python packages that end up getting bound

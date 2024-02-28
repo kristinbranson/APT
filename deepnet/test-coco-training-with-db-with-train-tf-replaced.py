@@ -68,7 +68,6 @@ def test_training() :
     datetime = '20231018T161129'
     training_subfolder_name = 'coco'
     with cd(script_folder_path):
-        # APT_interface.IS_APT_IN_DEBUG_MODE = True
         APT_interface.main(
             [os.path.join(working_folder_path, training_subfolder_name, f'{datetime}_{datetime}.json'),
              '-name', datetime, 

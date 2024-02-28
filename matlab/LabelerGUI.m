@@ -992,9 +992,14 @@ if lObj.isInDebugMode ,
     uimenu('Parent', hObject, ...
            'Label', 'Debug', ...
            'Tag', 'menu_debug') ;
+  handles.menu_start_training_but_dont_call_apt_interface_dot_py = ...
+    uimenu('Parent', handles.menu_debug, ...
+           'Label', 'Start Training, But Skip Python Call', ...
+           'Tag', 'menu_start_training_but_dont_call_apt_interface_dot_py', ...
+           'Callback', @LabelerGUIControlActuated) ;
   handles.menu_debug_generate_db = ...
     uimenu('Parent', handles.menu_debug, ...
-           'Label', 'Generate DB', ...
+           'Label', 'Start Training, But Just Generate DB', ...
            'Tag', 'menu_debug_generate_db', ...
            'Callback', @LabelerGUIControlActuated) ;
 end
@@ -2964,6 +2969,40 @@ end
 
 function pbTrain_Callback(hObject, eventdata, handles)
 % Not used anymore.  See LabelerController::pbTrain_actuated()
+
+
+function pbTrack_Callback(hObject, eventdata, handles)
+if ~checkProjAndMovieExist(handles)
+  return;
+end
+handles.labelerObj.setStatus('Tracking...');
+tm = getTrackMode(handles);
+tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
+if isempty(tblMFT),
+  msgbox('All frames tracked.','Track');
+  handles.labelerObj.clearStatus() ;
+  return;
+end
+[tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
+if ~tfCanTrack,
+  errordlg(['Error tracking: ',reason],'Error tracking');
+  handles.labelerObj.clearStatus();
+  return;
+end
+fprintf('Tracking started at %s...\n',datestr(now));
+wbObj = WaitBarWithCancel('Tracking');
+centerOnParentFigure(wbObj.hWB,handles.figure);
+oc = onCleanup(@()delete(wbObj));
+if handles.labelerObj.maIsMA
+  handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
+else
+  handles.labelerObj.track(tblMFT,'wbObj',wbObj);
+end
+if wbObj.isCancel
+  msg = wbObj.cancelMessage('Tracking canceled');
+  msgbox(msg,'Track');
+end
+handles.labelerObj.clearStatus();
 
 
 function pbClear_Callback(hObject, eventdata, handles)

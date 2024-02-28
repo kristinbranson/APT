@@ -53,7 +53,6 @@ def test_training() :
     #deepnet_folder_path = os.path.join(script_folder_path, 'APT/deepnet') 
     deepnet_folder_path = script_folder_path
     with cd(deepnet_folder_path) :
-        APT_interface.IS_APT_IN_DEBUG_MODE = True
         APT_interface.main(
             [os.path.join(working_folder_path,'unmarkedMice/20230821T114207_20230821T114207.json'),
              '-name', '20230821T114207', 
