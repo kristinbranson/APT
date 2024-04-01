@@ -31,32 +31,36 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
   properties
     type  % scalar DLBackEnd
-    
-    % scalar logical. if true, bsub backend runs code in APT.Root/deepnet. 
-    % This path must be visible in the backend or else.
-    %
-    % Conceptually this could be an arbitrary loc.
-    %
-    % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
-    deepnetrunlocal = true; 
-    bsubaptroot = [];  % root of APT repo for bsub backend running     
-    jrcsimplebindpaths = 1; 
+
+    % Used only for type==Bsub
+    deepnetrunlocal = true
+      % scalar logical. if true, bsub backend runs code in APT.Root/deepnet.
+      % This path must be visible in the backend or else.
+      % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
+    bsubaptroot = []  % root of APT repo for bsub backend running     
+    jrcsimplebindpaths = true  % whether to bind '/groups', '/nrs' for the Bsub/JRC backend
         
-    % used only for type==AWS
+    % Used only for type==AWS
     awsec2  % empty, or a scalar AWSec2 object (a handle class)
-    awsgitbranch
+    awsgitbranch  
+      % Stores the branch name of APT to use when updating APT on the AWS EC2
+      % instance.  This is never set in the APT codebase, as near as I can tell.
+      % Likely used only for debugging?  -- ALT, 2024-03-07
     
-    dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
+    % Used only for type==Docker  
+    dockerapiver = '1.40'  % docker codegen will occur against this docker api ver
     dockerimgroot = DLBackEndClass.defaultDockerImgRoot
-    % We have an instance prop for this to support running on older/custom
-    % docker images.
+      % We have an instance prop for this to support running on older/custom
+      % docker images.
     dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
+
     gpuids = []  % for now used by docker/conda
-    dockercontainername = []  % transient
-    %dockershmsize = 512; % in m; passed in --shm-size
+    dockercontainername = []  
+      % transient
+      % Also, seemingly never read -- ALT, 2024-03-07
     
-    jrcAdditionalBsubArgs = ''
+    jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
 
     condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
@@ -109,12 +113,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         v = '/';
       end
     end
+
     function v = get.dockerimgfull(obj)
       v = obj.dockerimgroot;
       if ~isempty(obj.dockerimgtag)
         v = [v ':' obj.dockerimgtag];
       end
     end
+
     function set.dockerimgfull(obj, new_value)
       % Check for crazy values
       if ischar(new_value) && ~isempty(new_value) ,
@@ -141,6 +147,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.dockerimgroot = root ;
       obj.dockerimgtag = tag ;
     end    
+
     function result = get.singularity_detection_image_path(obj)
       if obj.does_have_special_singularity_detection_image_path_ ,
         result = obj.singularity_detection_image_path_ ;
@@ -173,6 +180,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
     end    
+
     function set.condaEnv(obj, new_value)
       % Check for crazy values
       if ischar(new_value) && ~isempty(new_value) ,
@@ -183,7 +191,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Actually set the value
       obj.condaEnv = new_value ;
     end    
-  end
+  end  % methods block
  
   methods
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
@@ -404,11 +412,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tf,reason] = getReadyTrainTrack(obj)
       tf = false;
       if obj.type==DLBackEnd.AWS
-        aws = obj.awsec2;
+        %aws = obj.awsec2;
         
         didLaunch = false;
         if ~obj.awsec2.isConfigured || ~obj.awsec2.isSpecified,
-          [tfsucc,instanceID,instanceType,reason,didLaunch] = ...
+          [tfsucc,instanceID,~,reason,didLaunch] = ...
             obj.awsec2.selectInstance(...
             'canconfigure',1,'canlaunch',1,'forceselect',0);
           if ~tfsucc || isempty(instanceID),
@@ -496,12 +504,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
 
-      [dockerimg,minFreeMem,condaEnv,verbose] = myparse(varargin,...
-        'dockerimg',obj.dockerimgfull,...
-        'minfreemem',obj.minFreeMem,...
-        'condaEnv',obj.condaEnv,...
-        'verbose',0 ...
-      ); %#ok<PROPLC>
+      [~,minFreeMem,condaEnv,verbose] = myparse(varargin,...
+                                                'dockerimg',obj.dockerimgfull,...
+                                                'minfreemem',obj.minFreeMem,...
+                                                'condaEnv',obj.condaEnv,...
+                                                'verbose',0 ...
+                                                ); %#ok<PROPLC>
       
       gpuid = [];
       freemem = 0;
@@ -513,9 +521,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
           codestr = obj.codeGenDockerGeneral(basecmd,...
-            'containername','aptTestContainer',...
-            'bindpath',bindpath,...
-            'detach',false);
+                                             'containername','aptTestContainer',...
+                                             'bindpath',bindpath,...
+                                             'detach',false);
           if verbose
             fprintf(1,'%s\n',codestr);
           end
@@ -526,7 +534,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         case DLBackEnd.Conda
           basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
-            aptdeepnet,obj.filesep);
+                            aptdeepnet,obj.filesep);
           conda_activation_command = synthesize_conda_command(sprintf('activate %s', condaEnv)) ;  %#ok<PROPLC> 
           codestr = sprintf('%s && %s', conda_activation_command, basecmd);
           [st,res] = system(codestr);
@@ -574,11 +582,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       gpuid = gpuInfo.id(order);
       ngpu = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
 
-      global FORCEONEJOB;
-      if isequal(FORCEONEJOB,true),
-        warning('Forcing one GPU job');
-        ngpu = 1;
-      end
+%       global FORCEONEJOB;
+%       if isequal(FORCEONEJOB,true),
+%         warning('Forcing one GPU job');
+%         ngpu = 1;
+%       end
       
       freemem = freemem(1:ngpu);
       gpuid = gpuid(1:ngpu);
@@ -612,11 +620,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           r = APT.Root;          
       end
     end
+
     function r = getAPTDeepnetRoot(obj)
       r = [obj.getAPTRoot '/deepnet'];
     end
     
-  end
+    function cmd = wrapCommandAWS(obj, basecmd, varargin)
+      cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
+    end
+  end  % methods block
   
   methods (Static)
 
@@ -703,10 +715,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       cmdout1 = [conda_activate_and_cuda_set_command ' && ' cmdin, ' &> ', logfile] ;
       cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
-    end
-
-    function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 
-      error('Not implemented');
     end
 
     function cmdout = wrapCommandSing(cmdin, varargin)
@@ -814,7 +822,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = false;
       [host] = myparse(varargin,'host',DLBackEndClass.jrchost);
       
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
       hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))};
       drawnow;
       
@@ -1018,7 +1026,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       aptdeepnet = APT.getpathdl;
       
-      tfwin = ispc;
+      tfwin = ispc() ;
       if tfwin
         % 1. Special treatment for bindpath. src are windows paths, dst are
         % linux paths inside /mnt.
@@ -1127,7 +1135,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
 
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
       hedit.String = {sprintf('%s: Testing Docker Configuration...',datestr(now))}; 
       drawnow;
       
@@ -1163,7 +1171,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking docker API version...'; drawnow;
       
-      [tfsucc,clientver,clientapiver] = obj.getDockerVers();
+      [tfsucc,~,clientapiver] = obj.getDockerVers();
       if ~tfsucc        
         hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
         return;
@@ -1214,7 +1222,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % free GPUs
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
-      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
+      [gpuid,~,~] = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
         hedit.String{end+1} = 'WARNING. Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
       else
@@ -1234,7 +1242,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tfsucc,hedit] = testCondaConfig(obj)
       tfsucc = false;
 
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
       hedit.String = {sprintf('%s: Testing Conda Configuration...',datestr(now))}; 
       drawnow;
 
@@ -1308,7 +1316,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % free GPUs
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
-      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
+      gpuid = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
         hedit.String{end+1} = 'WARNING: Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
       else
@@ -1326,7 +1334,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function [tfsucc,hedit] = testAWSConfig(obj,varargin)
       tfsucc = false;
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test AWS Backend');
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test AWS Backend');
       hedit.String = {sprintf('%s: Testing AWS backend...',datestr(now))}; 
       drawnow;
       
@@ -1366,13 +1374,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
       end
       
-      awsec2 = obj.awsec2;
+      ec2 = obj.awsec2;
 
       % test that AWS CLI is installed
       hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
       cmd = 'aws ec2 describe-regions --output table';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true);
+      [tfsucc,result] = ec2.syscmd(cmd,'dispcmd',true);
       %[status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
       if ~tfsucc % status ~= 0,
@@ -1384,7 +1392,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
       cmd = 'aws ec2 describe-security-groups';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      [tfsucc,result] = ec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       %[status,result] = system(cmd);
       if tfsucc %status == 0,
         try

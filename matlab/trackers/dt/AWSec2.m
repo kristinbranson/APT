@@ -41,7 +41,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Constant)
-    cmdEnv = 'sleep 5;LD_LIBRARY_PATH=: AWS_PAGER=';
+    cmdEnv = 'sleep 5;LD_LIBRARY_PATH=: AWS_PAGER='
   end
   
   methods
@@ -960,6 +960,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
+    function cmdfull = cmdInstanceDontRun(obj,cmdremote,varargin)
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
+    end
+
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
       fprintf('cmdInstance: %s\n',cmdremote);
       cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
@@ -1277,7 +1281,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
-  end
+  end  % Static methods block
   
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there

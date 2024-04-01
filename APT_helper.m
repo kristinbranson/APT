@@ -55,10 +55,9 @@ classdef APT_helper
 %     end
     
     
-    function check_track(lObj,varargin)
-      [backend] = myparse(varargin,'backend','docker');
-      
-    end
+%     function check_track(lObj,varargin)
+%       [backend] = myparse(varargin,'backend','docker');      
+%     end
     
     function load_trk(trkfiles)
       lObj = APT_helper.find_lObj();
@@ -71,18 +70,9 @@ classdef APT_helper
     end
     
     function set_backend(lObj, backend)
-      if strcmp(backend,'docker')
-        beType = DLBackEnd.Docker;
-      elseif strcmp(backend,'bsub')
-        beType = DLBackEnd.Bsub;
-      elseif strcmp(backend,'conda')
-        beType = DLBackEnd.Conda;
-      elseif strcmp(backend,'aws')
-        beType = DLBackEnd.AWS;
-      end
+      beType = DLBackEndFromString(backend) ;
       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
       lObj.trackSetDLBackend(be);
-
     end
     
     function lObj = new_proj(proj_name, npts,ismulti,varargin)

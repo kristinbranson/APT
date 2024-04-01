@@ -1862,7 +1862,7 @@ classdef DeepTracker < LabelTracker
         assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
         fprintf('Using user-specified container bind-paths:\n');
         paths = obj.containerBindPaths;
-      elseif backend.jrcsimplebindpaths && backend.type==DLBackEnd.Bsub
+      elseif backend.type==DLBackEnd.Bsub && backend.jrcsimplebindpaths
         fprintf('Using JRC container bind-paths:\n');
         paths = {'/groups';'/nrs'};
       else
@@ -1968,19 +1968,23 @@ classdef DeepTracker < LabelTracker
             'gpuid',gpuid,...
             'shmsize',shmsize...
             };
-          case DLBackEnd.Conda
-            if isequal(cmdtype,'train'),
-              logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
-            else % track
-              logfile = jobinfo.logfile;
-            end          
-            backEndArgs = {...
-              'condaEnv', obj.condaEnv, ...
-              'gpuid', gpuid, ...
-              'logfile', logfile };
-            % backEndArgs = {...
-            %   'condaEnv', obj.condaEnv, ...
-            %   'gpuid', gpuid };
+        case DLBackEnd.Conda
+          if isequal(cmdtype,'train'),
+            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+          else % track
+            logfile = jobinfo.logfile;
+          end
+          backEndArgs = {...
+            'condaEnv', obj.condaEnv, ...
+            'gpuid', gpuid, ...
+            'logfile', logfile };
+          % backEndArgs = {...
+          %   'condaEnv', obj.condaEnv, ...
+          %   'gpuid', gpuid };
+        case DLBackEnd.AWS
+          backEndArgs  = {} ;  % TODO: This is a stub, ALT 2024-03-08
+        otherwise,
+          error('Internal error: Unknown backend type') ;
       end
 
     end
@@ -2740,7 +2744,7 @@ classdef DeepTracker < LabelTracker
 
     function checkSetupTrack(obj,totrackinfo,backend)
 
-       if obj.bgTrkIsRunning
+      if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
       end
       if obj.bgTrnIsRunning && obj.lObj.trackDLBackEnd.type==DLBackEnd.AWS
@@ -2794,11 +2798,10 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-            % get info about current tracker
+      % get info about current tracker
       dmc = obj.trnLastDMC;
-%       backend = obj.lObj.trackDLBackEnd;
       if backend.type==DLBackEnd.AWS
-        setStatusFcn = @(varargin)(obj.lObj.SetStatus(varargin{:}));
+        setStatusFcn = @(varargin)(obj.lObj.setStatus(varargin{:}));
         backend.awsPretrack(dmc,setStatusFcn);
       end
       obj.updateTrackerInfo();
@@ -2899,7 +2902,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
 
-    end
+    end  % function track()
     
 
     function tfSuccess = trackList(obj,varargin)
@@ -3438,8 +3441,8 @@ classdef DeepTracker < LabelTracker
         return;
       end
       
-      backend = obj.lObj.trackDLBackEnd;
-      [tf,reasonbackend] = backend.getReadyTrainTrack();
+      backend = obj.lObj.trackDLBackEnd; %#ok<PROP> 
+      [tf,reasonbackend] = backend.getReadyTrainTrack(); %#ok<PROP> 
       if ~tf
         reason = reasonbackend;
         return;
