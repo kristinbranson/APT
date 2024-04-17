@@ -792,6 +792,7 @@ handles.tbAdjustCropSizeBGColor0 = handles.tbAdjustCropSize.BackgroundColor;
 handles.tbAdjustCropSizeBGColor1 = [1 0 0];
 
 pumTrack = handles.pumTrack;
+pumTrack.Tag = 'pumTrack' ;
 pumTrack.Value = 1;
 pumTrack.String = {'All frames'};
 %set(pumTrack,'FontUnits','points','FontSize',6.5);
@@ -984,6 +985,7 @@ end
 
 % Change some controls to use LabelerGUIControlActuated()
 handles.pbTrain.Callback = @LabelerGUIControlActuated ;
+handles.pbTrack.Callback = @LabelerGUIControlActuated ;
 
 % Add the Debug menu if called for
 if lObj.isInDebugMode ,
@@ -2972,37 +2974,38 @@ function pbTrain_Callback(hObject, eventdata, handles)
 
 
 function pbTrack_Callback(hObject, eventdata, handles)
-if ~checkProjAndMovieExist(handles)
-  return;
-end
-handles.labelerObj.setStatus('Tracking...');
-tm = getTrackMode(handles);
-tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
-if isempty(tblMFT),
-  msgbox('All frames tracked.','Track');
-  handles.labelerObj.clearStatus() ;
-  return;
-end
-[tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
-if ~tfCanTrack,
-  errordlg(['Error tracking: ',reason],'Error tracking');
-  handles.labelerObj.clearStatus();
-  return;
-end
-fprintf('Tracking started at %s...\n',datestr(now));
-wbObj = WaitBarWithCancel('Tracking');
-centerOnParentFigure(wbObj.hWB,handles.figure);
-oc = onCleanup(@()delete(wbObj));
-if handles.labelerObj.maIsMA
-  handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
-else
-  handles.labelerObj.track(tblMFT,'wbObj',wbObj);
-end
-if wbObj.isCancel
-  msg = wbObj.cancelMessage('Tracking canceled');
-  msgbox(msg,'Track');
-end
-handles.labelerObj.clearStatus();
+% Not used anymore.  See LabelerController::pbTrain_actuated()
+% if ~checkProjAndMovieExist(handles)
+%   return;
+% end
+% handles.labelerObj.setStatus('Tracking...');
+% tm = getTrackMode(handles);
+% tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
+% if isempty(tblMFT),
+%   msgbox('All frames tracked.','Track');
+%   handles.labelerObj.clearStatus() ;
+%   return;
+% end
+% [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
+% if ~tfCanTrack,
+%   errordlg(['Error tracking: ',reason],'Error tracking');
+%   handles.labelerObj.clearStatus();
+%   return;
+% end
+% fprintf('Tracking started at %s...\n',datestr(now));
+% wbObj = WaitBarWithCancel('Tracking');
+% centerOnParentFigure(wbObj.hWB,handles.figure);
+% oc = onCleanup(@()delete(wbObj));
+% if handles.labelerObj.maIsMA
+%   handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
+% else
+%   handles.labelerObj.track(tblMFT,'wbObj',wbObj);
+% end
+% if wbObj.isCancel
+%   msg = wbObj.cancelMessage('Tracking canceled');
+%   msgbox(msg,'Track');
+% end
+% handles.labelerObj.clearStatus();
 
 
 function pbClear_Callback(hObject, eventdata, handles)
