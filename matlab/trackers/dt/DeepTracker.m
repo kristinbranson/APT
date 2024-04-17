@@ -2814,9 +2814,9 @@ classdef DeepTracker < LabelTracker
     
     function track(obj,varargin)
 
-      [totrackinfo,track_type,wbObj,isexternal,backend] = ...
+      [totrackinfo,track_type,wbObj,isexternal,backend,do_call_apt_interface_dot_py] = ...
         myparse(varargin,'totrackinfo',[],'track_type','track',...
-        'wbObj',[],'isexternal',false,'backend',obj.lObj.trackDLBackEnd);
+        'wbObj',[],'isexternal',false,'backend',obj.lObj.trackDLBackEnd,'do_call_apt_interface_dot_py', true);
 
       obj.checkSetupTrack(totrackinfo,backend);
       
@@ -2896,7 +2896,7 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type);
+      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
       if ~tfSuccess
         obj.bgTrkReset();
         return;
@@ -3470,7 +3470,7 @@ classdef DeepTracker < LabelTracker
     function tfSuccess = trkSpawn(obj,totrackinfo,backend,varargin)
 
       tfSuccess = false;
-      [track_type] = myparse(varargin,'track_type','track');
+      [track_type,do_call_apt_interface_dot_py] = myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true);
 
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
@@ -3525,12 +3525,12 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend);
+      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
       %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
     end
 
     function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,varargin)
-      [track_type] = myparse(varargin,'track_type','movie');
+      [track_type,do_call_apt_interface_dot_py] = myparse(varargin,'track_type','movie','do_call_apt_interface_dot_py',true);
 
       if obj.dryRunOnly
         fprintf(1,'Dry run, not tracking:\n');
@@ -3566,7 +3566,8 @@ classdef DeepTracker < LabelTracker
       [tfSuccess,jobID] = backend.run(syscmds,...
         'logcmds',logcmds,...
         'cmdfiles',cmdfiles,...
-        'jobdesc','tracking job');
+        'jobdesc','tracking job', ...
+        'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       if backend.type == DLBackEnd.Bsub,
         jobID = cell2mat(jobID);

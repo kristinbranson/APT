@@ -1574,8 +1574,12 @@ classdef Labeler < handle
       if ~isempty(be)
         be.shutdown();
       end
-      if ~isempty(obj.projTempDir) && ~obj.projTempDirDontClearOnDestructor
-        obj.projRemoveTempDir();
+      if ~isempty(obj.projTempDir) 
+        if obj.projTempDirDontClearOnDestructor ,
+          fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
+        else
+          obj.projRemoveTempDir();
+        end
       end
     end
     

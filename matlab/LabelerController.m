@@ -237,7 +237,16 @@ classdef LabelerController < handle
       obj.track_core_(source, event) ;
     end
 
+    function menu_start_tracking_but_dont_call_apt_interface_dot_py_actuated(obj, source, event)
+      obj.track_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
+    end
+    
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
+      % Process keyword args
+      [do_call_apt_interface_dot_py] = ...
+        myparse(varargin, ...
+                'do_call_apt_interface_dot_py', true) ;
+      
       if ~obj.doProjectAndMovieExist_() ,
         return
       end
@@ -261,7 +270,7 @@ classdef LabelerController < handle
       centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
       oc = onCleanup(@()delete(wbObj));
       if labeler.maIsMA
-        labeler.track(tblMFT,'wbObj',wbObj,'track_type','detect');
+        labeler.track(tblMFT,'wbObj',wbObj,'track_type','detect', 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
       else
         labeler.track(tblMFT,'wbObj',wbObj);
       end
@@ -274,7 +283,9 @@ classdef LabelerController < handle
 
     function mftset = get_track_mode_(obj)
       % This is designed to do the same thing as LabelerGUI::getTrackMode().
-      % The two methods should likely be consolidated at some point.
+      % The two methods should likely be consolidated at some point.  Private by
+      % convention
+
       %handles = guidata(obj.mainFigure_) ;      
       %idx = handles.pumTrack.Value;
       pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
@@ -347,6 +358,10 @@ classdef LabelerController < handle
       end
     end  % method
 
+    function menu_quit_but_dont_delete_temp_folder_actuated(obj, source, event)
+      obj.labeler_.projTempDirDontClearOnDestructor = true ;
+      obj.quitRequested() ;
+    end  % method    
   end  % public methods block
 
   methods
