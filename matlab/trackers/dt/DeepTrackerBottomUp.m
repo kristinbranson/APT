@@ -20,6 +20,7 @@ classdef DeepTrackerBottomUp < DeepTracker
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_mdn_joint_torch 'trnNetMode' DLNetMode.multiAnimalBU};
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_openpose 'trnNetMode' DLNetMode.multiAnimalBU};
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_cid 'trnNetMode' DLNetMode.multiAnimalBU};
+          {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_dekr 'trnNetMode' DLNetMode.multiAnimalBU};
           };
     end    
   end

@@ -259,22 +259,19 @@ class coco_loader(torch.utils.data.Dataset):
             return m<0.5
 
         for obj in anno:
-            if 'bbox' in obj:
-                # MK 20230531. Segmentation is required to be a numpy array now. Probably has to do with the newer ampere image. xtcocotools might have been updated. Sigh.
-                # MK 20230823. when the input object is an np.array, xtcocotools expects it to be in bbox format [x,y,width,height]
-                # rles = xtcocotools.mask.frPyObjects(
-                #     obj['segmentation'], im_sz[0],
-                #     im_sz[1])
+            if ('bbox' in obj) and ('ignore' in obj) and obj['ignore']:
                 rles = xtcocotools.mask.frPyObjects(
-                    # np.array(obj['segmentation']).astype('double'), im_sz[0],
-                    # im_sz[1])
+                    np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
+                for rle in rles:
+                    m -= xtcocotools.mask.decode(rle)
+        m = (m+1).clip(0,1)
+        for obj in anno:
+            if ('bbox' in obj) and not  (('ignore' in obj) and obj['ignore']):
+                rles = xtcocotools.mask.frPyObjects(
                     np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
                 for rle in rles:
                     m += xtcocotools.mask.decode(rle)
-                # if obj['iscrowd']:
-                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
-                #     m += xtcocotools.mask.decode(rle)
-                # else:
+
         return m>0.5
 
     def update_wts(self,idx,loss):

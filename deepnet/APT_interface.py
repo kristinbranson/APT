@@ -1109,6 +1109,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'hrformer': 'HRFormer',
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
+                      'multi_dekr': 'DeKR',
                       }
 
     if not 'ProjectFile' in A:
@@ -2624,7 +2625,7 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             tf1.reset_default_graph()
             poser = getattr(pose_module, module_name)(conf, name=name)
         except ImportError:
-            raise ImportError(f'Undefined type of network:{model_type}')
+                raise ImportError(f'Undefined type of network:{model_type}')
 
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 

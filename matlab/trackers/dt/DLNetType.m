@@ -50,6 +50,7 @@ classdef DLNetType < handle %dynamicprops
     detect_mmdetect ('detect_mmdetect')
     hrformer ('hrformer')
     multi_cid ('multi_cid')
+    multi_dekr ('multi_dekr')
   end
   
   methods 

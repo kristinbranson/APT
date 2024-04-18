@@ -1145,6 +1145,7 @@ robj = rae_ma.ma_expt('roian')
 robj.run_train(run_type='dry')
 
 ## Add more margin to bbox for CID
+# maynot be needed anymore because using grone loc.json 16 APril 2024
 import os,json,shutil
 import PoseTools as pt
 in_file = '/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/multi_cid/view_0/cid_crop_nomask_07122023/train_TF.json'
@@ -1242,7 +1243,7 @@ t_types = [('2stageHT','crop','nomask'),
            ('grone','crop','nomask'),
            ('grone','nocrop','nomask'),
            ('2stageBBox_hrformer','nomask'),
-           ('cid','crop')
+           ('cid','crop'),('cid','nocrop'),
            ]
 if gt_movies[0] == unmarked_movies[0]:
     robj.params[()]=[{'max_n_animals':4},{}]

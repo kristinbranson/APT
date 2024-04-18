@@ -33,7 +33,7 @@ out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid','openpose_4x','2stageBBox_hrformer','2stageBBox_vitpose']
+alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid','dekr','openpose_4x','2stageBBox_hrformer','2stageBBox_vitpose']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -70,6 +70,8 @@ class ma_expt(object):
                 ('2stageBBox_hrformer',):[{},{'mmpose_net':'\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
                 ('cid','nocrop'):[{'batch_size': 4,'dl_steps':200000}, {}],
+                ('dekr',):[{'mmpose_net':'\\"dekr\\"'},{}],
+                ('dekr','nocrop'):[{'batch_size':4,'dl_steps':200000},{}],
             }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 4
@@ -299,6 +301,8 @@ class ma_expt(object):
             stg_str = ''
             train_name = '_'.join(t_type[:-1] + (self.train_dstr,))
             net_type = conf['TrackerData']['trnNetTypeString']
+            if alg == 'dekr':
+                net_type = 'multi_dekr'
 
 
         A = pt.json_load(lbl_file)
@@ -329,7 +333,7 @@ class ma_expt(object):
                     continue
                 for c in self.crop_types:
                     for m in self.mask_types:
-                        if m == 'mask' and alg=='cid':
+                        if m == 'mask' and (alg=='cid'):
                             continue
                         all_types.append((alg, c, m, stg))
         if t_types is None:
@@ -374,7 +378,7 @@ class ma_expt(object):
             err_file = os.path.join(self.trnp_dir,alg,train_name + '.err')
 
             sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
-            if 'vitpose' in alg:
+            if ('vitpose' in alg) or (alg== 'dekr'):
                 sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x.sif'
 
             cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg_str} -type {net_type} train -use_cache'

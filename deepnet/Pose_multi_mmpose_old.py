@@ -890,9 +890,14 @@ class Pose_multi_mmpose(Pose_mmpose):
                         'num_joints':
                             cfg.data_cfg['num_joints'],
                         'flip_index': flip_idx,
-                        'image_file':''
+                        'image_file':'',
+                        'skeleton':conf.op_affinity_graph,
+
                     }
                 }
+                if self.conf.mmpose_net == 'dekr':
+                    data['ann_info']['heatmap_size'] = [cfg.data_cfg['image_size']//4,cfg.data_cfg['image_size']//2]
+                    data['ann_info']['num_scales'] = 2
 
                 # data = to_tensor_trans(data)
                 # data = norm_trans(data)

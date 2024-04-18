@@ -47,6 +47,7 @@ import cv2
 import multiprocessing as mp
 
 from xtcocotools.coco import COCO
+from collections import OrderedDict
 
 
 class TrainDataHookDummy(Hook):
@@ -287,7 +288,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
         for ndx in range(len(cfg.codec)):
             cfg.codec[ndx].input_size = imsz
     else:
-        ex_codec = cfg.codec
+        ex_codec = cfg.codec.copy()
         cfg.codec.input_size = imsz
     default_im_sz = ex_codec.input_size
     if 'heatmap_size' in ex_codec:
@@ -305,6 +306,11 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
             cfg.model.head.decoder = cfg.codec
             if 'num_keypoints' in cfg.model.head:
                 cfg.model.head.num_keypoints = conf.n_classes
+        if conf.mmpose_net == 'dekr':
+            cfg.model.head.rescore_cfg = None
+            if conf.multi_loss_mask:
+                cfg.codec.background_weight = 0.
+
     else:
         if default_hm_sz is not None:
             # assert default_im_sz[0] / default_hm_sz[
@@ -345,7 +351,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
             cfg[dname].dataset.bbox_file = None
 
         # meta info -- flip pairs and skeleton
-        key_info = {}
+        key_info = OrderedDict()
         for ndx in range(conf.n_classes):
             key_info[ndx] = {'name': f'{ndx}', 'id': ndx, 'color': [128, 128, 128], 'type': 'upper', 'swap': ''}
         for kk in conf.flipLandmarkMatches.keys():
@@ -409,6 +415,8 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 p.scale_factor = [1 / sfactor, sfactor]
                 p.shift_factor = conf.trange / conf.imsz[0]
                 p.input_size = imsz
+            if p.type == 'BottomupRandomAffine':
+                p.input_size = imsz
             elif p.type == 'TopDownGetRandomScaleRotation':
                 p.rot_factor = conf.rrange / 2
                 # p.rot_prob = 1.
@@ -429,6 +437,10 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 p.encoder = cfg.codec
             elif p.type in [ 'TopdownAffine','BottomupResize','BottomupRandomAffine']:
                 p.input_size = imsz
+                if p.type == 'BottomupResize':
+                    p.resize_mode = 'fit'
+            elif p.type == 'BottomupGetHeatmapMask':
+                p.get_invalid = conf.get('mmpose_mask_valid',True)
 
         cfg[dname].dataset.pipeline = cfg[pname]
         cfg[dname].batch_size = conf.batch_size
@@ -479,7 +491,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
 
     t_steps = 0
     for sched in cfg.param_scheduler:
-        if not p.type == 'MultiStepLR':
+        if not sched.type == 'MultiStepLR':
             t_steps += sched.end
             continue
         total_epochs = sched.end
@@ -496,7 +508,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     cfg.default_hooks.checkpoint.save_best = None
 
     # Disable flip testing.
-    cfg.model.test_cfg.flip_test = False
+    cfg.model.test_cfg.flip_test = conf.get('mmpose_flip_test',False)
 
     if hasattr(cfg.model,'keypoint_head') and hasattr(cfg.model.keypoint_head, 'loss_keypoint') and ('with_ae_loss' in cfg.model.keypoint_head.loss_keypoint):
         # setup ae push factor.
@@ -510,6 +522,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] = \
                     cfg.model.keypoint_head.loss_keypoint.push_loss_factor[sidx] * push_fac_mul
 
+
     # if 'keypoint_head' in cfg.model:
     #     cfg.model.keypoint_head.out_channels = conf.n_classes
     # if conf.n_classes < 8:
@@ -521,7 +534,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
 
     # disable dynamic loss_scale for fp16 because the hooks in the current mmpose don't support it. MK 20230807. mmpose version is 0.29.0. REMOVE THIS WHEN UPDATING MMPOSE
     # cfg.fp16 = {}
-    cfg.fp16 = None
+#    cfg.fp16 = None
 
     J = PoseTools.json_load(cfg.train_dataloader.dataset.ann_file)
     n_train = len(J['images'])
@@ -660,6 +673,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
         elif mmpose_net == 'cid':
             self.cfg_file = 'configs/body_2d_keypoint/cid/coco/cid_hrnet-w32_8xb20-140e_coco-512x512.py'
+        elif mmpose_net == 'dekr':
+            self.cfg_file = 'configs/body_2d_keypoint/dekr/coco/dekr_hrnet-w32_8xb10-140e_coco-512x512.py'
+
         elif mmpose_net =='vitpose':
             self.cfg_file = 'configs/body_2d_keypoint/topdown_heatmap/coco/td-hm_ViTPose-base_8xb64-210e_coco-256x192.py'
         else:
@@ -757,6 +773,11 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             pool = None
         test_pipeline = Compose(model.cfg.test_dataloader.dataset.pipeline)
 
+        rgb2bgr = False
+        if 'data_preprocessor' in cfg.model:
+            if 'bgr_to_rgb' in cfg.model.data_preprocessor:
+                rgb2bgr = cfg.model.data_preprocessor.bgr_to_rgb
+
         def pred_fn(ims, retrawpred=False):
             pose_results = np.ones([ims.shape[0], conf.n_classes, 2]) * np.nan
             conf_res = np.zeros([ims.shape[0], conf.n_classes])
@@ -766,6 +787,9 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
                     ii = np.tile(ims[b, ...], [1, 1, 3])
                 else:
                     ii = ims[b, ...]
+                    if rgb2bgr:
+                        ii = ii[..., ::-1]
+
                 # prepare data
                 data = {'img': ii.astype('uint8'),
                         'bbox': np.array([0,0,conf.imsz[1],conf.imsz[0]])[None],

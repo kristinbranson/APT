@@ -656,6 +656,8 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
         elif mmpose_net == 'cid':
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/cid/coco/hrnet_w32_coco_512x512.py'
+        elif mmpose_net == 'dekr':
+            self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/dekr/crowdpose/hrnet_w32_crowdpose_512x512.py'
         else:
             assert False, 'Unknown mmpose net type'
 
