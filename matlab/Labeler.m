@@ -3891,7 +3891,8 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end
-    end
+    end  % lblModernize()
+    
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
       nmov = size(s.movieFilesAll,1);

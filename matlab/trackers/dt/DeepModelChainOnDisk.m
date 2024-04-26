@@ -1254,7 +1254,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);
       mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
       nMdlFiles = numel(mdlFiles);
-      netstr = char(obj.netType); 
+      netstr = charArrayFromCharArrayStringOrCellstring(obj.netType) ;
       fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,netstr);
       descstr = sprintf('Model file: %s',netstr);
       for i=1:nMdlFiles

@@ -18,8 +18,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
   end
   methods
 
-    function obj = BgWorkerObjAWS(nviews,dmcs,awsec2,varargin)
-      obj@BgWorkerObj(nviews,dmcs);
+    function obj = BgWorkerObjAWS(dmcs,awsec2,varargin)
+      obj@BgWorkerObj(dmcs);
       obj.awsEc2 = awsec2;
     end
     

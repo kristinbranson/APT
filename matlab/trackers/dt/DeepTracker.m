@@ -2810,15 +2810,15 @@ classdef DeepTracker < LabelTracker
         return;
       end
 
-    end
+    end  % method
     
     function track(obj,varargin)
 
-      [totrackinfo,track_type,wbObj,isexternal,backend,do_call_apt_interface_dot_py] = ...
+      [totrackinfo,track_type,wbObj,isexternal,localbackend,do_call_apt_interface_dot_py] = ...
         myparse(varargin,'totrackinfo',[],'track_type','track',...
         'wbObj',[],'isexternal',false,'backend',obj.lObj.trackDLBackEnd,'do_call_apt_interface_dot_py', true);
 
-      obj.checkSetupTrack(totrackinfo,backend);
+      obj.checkSetupTrack(totrackinfo,localbackend);
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
@@ -2896,7 +2896,7 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      tfSuccess = obj.trkSpawn(totrackinfo,localbackend,'track_type',track_type,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
       if ~tfSuccess
         obj.bgTrkReset();
         return;
@@ -3483,7 +3483,7 @@ classdef DeepTracker < LabelTracker
       cacheDir = obj.lObj.DLCacheDir;
       aptroot = obj.setupBackEndTrain(backend,cacheDir);
 
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      nowstr = datestr(now(),'yyyymmddTHHMMSS');
 
       syscmds = cell(1,njobs);
       cmdfiles = cell(1,njobs);      
@@ -3569,10 +3569,13 @@ classdef DeepTracker < LabelTracker
         'jobdesc','tracking job', ...
         'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
-      if backend.type == DLBackEnd.Bsub,
-        jobID = cell2mat(jobID);
+      % If that succeeded, record the job identifiers
+      if tfSuccess ,
+        if backend.type == DLBackEnd.Bsub,
+          jobID = cell2mat(jobID);
+        end
+        bgTrkWorkerObj.jobID = jobID;
       end
-      bgTrkWorkerObj.jobID = jobID;
 
     end
 

@@ -14,14 +14,18 @@ classdef LabelerController < handle
   methods
     function obj = LabelerController(varargin)
       % Process args that have to be dealt with before creating the Labeler
-      [isInDebugMode] = ...
+      [isInDebugMode, isInYodaMode] = ...
         myparse_nocheck(varargin, ...
-                        'isInDebugMode',false) ;
+                        'isInDebugMode',false, ...
+                        'isInYodaMode', false) ;
       labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode) ;  % Create the labeler, tell it there will be a GUI attached
       obj.labeler_ = labeler ;
       obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       obj.labeler_.registerController(obj) ;  % hack
       obj.tvTrx_ = TrackingVisualizerTrx(labeler) ;
+      obj.isInYodaMode_ = isInYodaMode ;  
+        % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
+        % Useful for debugging.
       obj.listeners_ = cell(1,0) ;
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      

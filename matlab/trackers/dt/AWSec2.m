@@ -28,7 +28,8 @@ classdef AWSec2 < matlab.mixin.Copyable
     keyName = '';
     pem = '';
 
-    instanceType = 'p2.xlarge';
+    %instanceType = 'p2.xlarge';
+    instanceType = 'p3.2xlarge';
     
     scpCmd
     sshCmd
@@ -149,9 +150,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
       obj.ClearStatus();
     end
+
     function setPemFile(obj,pemFile)
       obj.pem = pemFile;
     end
+    
     function setKeyName(obj,keyName)
       obj.keyName = keyName;
     end
@@ -508,6 +511,8 @@ classdef AWSec2 < matlab.mixin.Copyable
             while true,
               [tfsucc,res] = obj.cmdInstance('cat /dev/null','dispcmd',true);
               if tfsucc,
+                nAttempts = nAttempts + 1;
+                fprintf('Attempt %d to connect to AWS EC2 instance succeeded!\n',nAttempts);
                 break;
               else
                 nAttempts = nAttempts + 1;
@@ -915,8 +920,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
       
       [relative,descstr] = myparse(varargin,...
-        'relative',true,... true if remoteDir is relative to ~
-        'descstr',''... cosmetic, for disp/err strings
+        'relative',true,...  % true if remoteDir is relative to ~
+        'descstr',''... % cosmetic, for disp/err strings
         );
       
       if ~isempty(descstr)
@@ -965,6 +970,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
+      % Runs a single command-line command on the ec2 instance 
       fprintf('cmdInstance: %s\n',cmdremote);
       cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
       [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
@@ -1076,12 +1082,19 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
+      % Run a command using Matlab built-in system() command.
+      % Optional args allow caller to specify what to do if the command fails.  (Can
+      % error, warn, or silently ignore.)  Also has option to lightly process a JSON
+      % response.
+      %
+      % Seems to also support issuing the command using the Java runtime, but AFAICT
+      % this is never used in APT.  -- ALT, 2024-04-25
       [dispcmd,failbehavior,isjsonout,dosetenv,setenvcmd,usejavaRT] = ...
         myparse(varargin,...
         'dispcmd',false,...
         'failbehavior','warn',... % one of 'err','warn','silent'
         'isjsonout',false,...
-        'dosetenv',isunix,...
+        'dosetenv',isunix(),...
         'setenvcmd',AWSec2.cmdEnv,...
         'usejavaRT',false...
         );
@@ -1147,7 +1160,7 @@ classdef AWSec2 < matlab.mixin.Copyable
             assert(false);
         end
       end
-    end
+    end  % syscmd()
     
     function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
       [destRelative,sshcmd] = myparse(varargin,...

@@ -1478,7 +1478,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       obj.awsUpdateRepo();
       aws = obj.awsec2;
-      if ~isempty(dmc) && dmc.isRemote,
+      if ~isempty(dmc) && ~dmc.isRemote,
         dmc.mirror2remoteAws(aws);
       end
       
@@ -1486,6 +1486,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function awsUpdateRepo(obj) % throws if fails
+      obj.awsgitbranch = 're-aws' ;  % TODO: For debugging only, remove eventually
       if isempty(obj.awsgitbranch)
         args = {};
       else
