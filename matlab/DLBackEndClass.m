@@ -5,12 +5,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % * DLNetType: what DL net is run
   % * DLBackEndClass: where/how DL was run
   %
-  % TODO: Design is solidifying. This should be a base class with
-  % subclasses for backend types. The .type prop would be redundant against
-  % the concrete type. Codegen methods should be moved out of DeepTracker
-  % and into backend subclasses and use instance state (eg, docker codegen 
-  % for current tag; bsub for specified .sif; etc). Conceptually this class 
-  % would just be "DLBackEnd" and the enum/type would go away.
+  % TODO: Codegen methods should be moved out of DeepTracker and into this class
+  % and use instance state (eg, docker codegen for current tag; bsub for
+  % specified .sif; etc). Conceptually this class would just be "DLBackEnd" and
+  % the enum/type would go away.
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
@@ -194,19 +192,35 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods block
  
   methods
+    % The wrapBaseCommand*() methods are what wrapBaseCommand() uses for
+    % each of the backend types.  The wrapCommand*() are lower-level.  For
+    % instance, wrapBaseCommandJaneliaCluster() calls both wrapCommandSing() and
+    % wrapCommandBsub() in order to do its thing.
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
       switch obj.type,
         case DLBackEnd.Bsub,
-          cmd = obj.wrapBaseCommandBsub(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandJaneliaCluster(basecmd,varargin{:});
         case DLBackEnd.Docker
-          cmd = obj.codeGenDockerGeneral(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandDocker(basecmd,varargin{:});
         case DLBackEnd.Conda
           cmd = obj.wrapCommandConda(basecmd, varargin{:});
         case DLBackEnd.AWS
-          cmd = obj.wrapCommandAWS(basecmd);
+          cmd = obj.wrapCommandAWS(basecmd, varargin{:});
         otherwise
           error('Not implemented: %s',obj.type);
       end
+    end
+    
+    function [status, result] = run(obj, empty, basecmd, varargin)
+      % Run the basecmd using system(), after wrapping suitably for the type of
+      % backend.  Unlike spawn(), this blocks, and doesn't return a process
+      % identifier of any kind.  Return values are like those from system(): a
+      % numeric return code and a string containing any command output.
+      if ~isempty(empty) ,
+        error('Someone is still using run() when should be using spawn()') ;
+      end
+      command = obj.wrapBaseCommand(basecmd, varargin{:}) ;
+      [status, result] = system(command) ;
     end
 
     function cmd = logCommand(obj,containerName,native_log_file_name)
@@ -248,15 +262,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function [tfSucc, jobID] = run(obj, syscmds, varargin)
-
+    function [tfSucc, jobID] = spawn(obj, syscmds, varargin)      
       [logcmds, cmdfiles, jobdesc, do_call_apt_interface_dot_py] = myparse( ...
         varargin, ...
         'logcmds', {}, ...
         'cmdfiles', {}, ...
         'jobdesc', 'job', ...
         'do_call_apt_interface_dot_py', true) ;
-
       if ~isempty(cmdfiles),
         DLBackEndClass.writeCmdToFile(syscmds,cmdfiles,jobdesc);
       end
@@ -305,8 +317,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         end
       end
-
-    end
+    end  % run() method
 
     function delete(obj)  %#ok<INUSD> 
       % AL 20191218
@@ -520,7 +531,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
-          codestr = obj.codeGenDockerGeneral(basecmd,...
+          codestr = obj.wrapBaseCommandDocker(basecmd,...
                                              'containername','aptTestContainer',...
                                              'bindpath',bindpath,...
                                              'detach',false);
@@ -792,7 +803,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     end
 
-    function cmd = wrapBaseCommandBsub(basecmd,varargin)
+    function cmd = wrapBaseCommandJaneliaCluster(basecmd,varargin)
 
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
       cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
@@ -994,7 +1005,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function filequote = getFileQuoteDockerCodeGen(obj) 
-      % get filequote to use with codeGenDockerGeneral      
+      % get filequote to use with wrapBaseCommandDocker      
       if isempty(obj.dockerremotehost)
         % local Docker run
         filequote = '"';
@@ -1003,7 +1014,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function codestr = codeGenDockerGeneral(obj,basecmd,varargin)
+    function codestr = wrapBaseCommandDocker(obj,basecmd,varargin)
       % Take a base command and run it in a docker img
       %
       % basecmd: currently assumed to have any filenames/paths protected by
@@ -1026,8 +1037,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       aptdeepnet = APT.getpathdl;
       
-      tfwin = ispc() ;
-      if tfwin
+      if ispc() 
         % 1. Special treatment for bindpath. src are windows paths, dst are
         % linux paths inside /mnt.
         % 2. basecmd massage. All paths in basecmd will be windows paths;
@@ -1127,7 +1137,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ~isempty(obj.dockerremotehost),
         codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
-      if tfwin,
+      if ispc() ,
         codestr = wrap_linux_command_line_for_wsl(codestr) ;
       end
     end
@@ -1199,7 +1209,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       homedir = getenv('HOME');
       %deepnetrootguard = [filequote deepnetroot filequote];
       basecmd = 'python APT_interface.py lbl test hello';
-      cmd = obj.codeGenDockerGeneral(basecmd,...
+      cmd = obj.wrapBaseCommandDocker(basecmd,...
         'containername','containerTest',...
         'detach',false,...
         'bindpath',{deepnetroot,homedir});
@@ -1295,7 +1305,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       deepnetroot = [APT.Root '/deepnet'];
 %       %deepnetrootguard = [filequote deepnetroot filequote];
 %       basecmd = 'python APT_interface.py lbl test hello';
-%       cmd = obj.codeGenDockerGeneral(basecmd,'containerTest',...
+%       cmd = obj.wrapBaseCommandDocker(basecmd,'containerTest',...
 %         'detach',false,...
 %         'bindpath',{deepnetroot});      
 %       RUNAPTHELLO = 1;
@@ -1503,7 +1513,28 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-  end
+  end  % public methods block
+
+  methods
+    function checkCreateDir(obj,dirlocs,desc)
+      if nargin < 3 || ~ischar(desc),
+        desc = 'dir';
+      end
+      for i = 1:numel(dirlocs),
+        if ~exist(dirlocs{i},'dir')
+          dirloc = dirlocs{i} ;
+          quoted_dirloc = escape_string_for_bash(dirloc) ;
+          base_command = sprintf('mkdir %s', quoted_dirloc) ;
+          [succ,msg] = mkdir(dirlocs{i});
+          if ~succ
+            error('Failed to create %s %s: %s',desc,dirlocs{i},msg);
+          else
+            fprintf(1,'Created %s: %s\n',desc,dirlocs{i});
+          end
+        end
+      end
+    end
+  end  % public methods block
 
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there
