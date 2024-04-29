@@ -192,20 +192,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods block
  
   methods
-    % The wrapBaseCommand*() methods are what wrapBaseCommand() uses for
-    % each of the backend types.  The wrapCommand*() are lower-level.  For
-    % instance, wrapBaseCommandJaneliaCluster() calls both wrapCommandSing() and
+    % The wrapBaseCommand*_() methods are what wrapBaseCommand() uses for each of
+    % the backend types.  (The method names end in an underscore to indicate that
+    % they are "protected-by-convention").  The wrapCommand*() are lower-level.  For
+    % instance, wrapBaseCommandJaneliaCluster_() calls both wrapCommandSing() and
     % wrapCommandBsub() in order to do its thing.
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
       switch obj.type,
         case DLBackEnd.Bsub,
-          cmd = obj.wrapBaseCommandJaneliaCluster(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandJaneliaCluster_(basecmd,varargin{:});
         case DLBackEnd.Docker
-          cmd = obj.wrapBaseCommandDocker(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandDocker_(basecmd,varargin{:});
         case DLBackEnd.Conda
-          cmd = obj.wrapCommandConda(basecmd, varargin{:});
+          cmd = obj.wrapCommandConda_(basecmd, varargin{:});
         case DLBackEnd.AWS
-          cmd = obj.wrapCommandAWS(basecmd, varargin{:});
+          cmd = obj.wrapCommandAWS_(basecmd, varargin{:});
         otherwise
           error('Not implemented: %s',obj.type);
       end
@@ -357,11 +358,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ~isempty(obj2.awsec2)
         obj2.awsec2.clearStatusFuns();
       end
-    end
-    
-  end
+    end  % function
+  end  % methods
+
   methods (Access=protected)
-    
     function obj2 = copyElement(obj)
       % overload so that .awsec2 is deep-copied
       obj2 = copyElement@matlab.mixin.Copyable(obj);
@@ -369,11 +369,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj2.awsec2 = copy(obj.awsec2);
       end
     end
-    
   end
   
   methods
-    
     function modernize(obj)
       % 20220728 Win/Conda migration to WSL2/Docker
       if obj.type==DLBackEnd.Conda
@@ -503,7 +501,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function v = isLocal(obj)
+      % Docker and Conda backends are local, Bsub (i.e. Janelia LSF) and AWS are
+      % not.
       v = isequal(obj.type,DLBackEnd.Docker) || isequal(obj.type,DLBackEnd.Conda);
+    end
+    
+    function v = doesShareFilesystem(obj)
+      % The conda and bsub (i.e. Janelia LSF) backends share the same filesystem as
+      % the Matlab process.  Docker and AWS do not.
+      v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) ;
     end
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
@@ -531,7 +537,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
-          codestr = obj.wrapBaseCommandDocker(basecmd,...
+          codestr = obj.wrapBaseCommandDocker_(basecmd,...
                                              'containername','aptTestContainer',...
                                              'bindpath',bindpath,...
                                              'detach',false);
@@ -636,7 +642,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       r = [obj.getAPTRoot '/deepnet'];
     end
     
-    function cmd = wrapCommandAWS(obj, basecmd, varargin)
+    function cmd = wrapCommandAWS_(obj, basecmd, varargin)
       cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
     end
   end  % methods block
@@ -707,7 +713,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmdout = wrapCommandConda(cmdin, varargin)
+    function cmdout = wrapCommandConda_(cmdin, varargin)
       % Take a base command and run it in a sing img
       [condaEnv,logfile,gpuid] = myparse(varargin,...
         'condaEnv',DLBackEndClass.default_conda_env, ...
@@ -803,7 +809,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     end
 
-    function cmd = wrapBaseCommandJaneliaCluster(basecmd,varargin)
+    function cmd = wrapBaseCommandJaneliaCluster_(basecmd,varargin)
 
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
       cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
@@ -1005,7 +1011,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function filequote = getFileQuoteDockerCodeGen(obj) 
-      % get filequote to use with wrapBaseCommandDocker      
+      % get filequote to use with wrapBaseCommandDocker_      
       if isempty(obj.dockerremotehost)
         % local Docker run
         filequote = '"';
@@ -1014,7 +1020,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function codestr = wrapBaseCommandDocker(obj,basecmd,varargin)
+    function codestr = wrapBaseCommandDocker_(obj,basecmd,varargin)
       % Take a base command and run it in a docker img
       %
       % basecmd: currently assumed to have any filenames/paths protected by
@@ -1209,7 +1215,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       homedir = getenv('HOME');
       %deepnetrootguard = [filequote deepnetroot filequote];
       basecmd = 'python APT_interface.py lbl test hello';
-      cmd = obj.wrapBaseCommandDocker(basecmd,...
+      cmd = obj.wrapBaseCommandDocker_(basecmd,...
         'containername','containerTest',...
         'detach',false,...
         'bindpath',{deepnetroot,homedir});
@@ -1305,7 +1311,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       deepnetroot = [APT.Root '/deepnet'];
 %       %deepnetrootguard = [filequote deepnetroot filequote];
 %       basecmd = 'python APT_interface.py lbl test hello';
-%       cmd = obj.wrapBaseCommandDocker(basecmd,'containerTest',...
+%       cmd = obj.wrapBaseCommandDocker_(basecmd,'containerTest',...
 %         'detach',false,...
 %         'bindpath',{deepnetroot});      
 %       RUNAPTHELLO = 1;
@@ -1516,24 +1522,67 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % public methods block
 
   methods
-    function checkCreateDir(obj,dirlocs,desc)
-      if nargin < 3 || ~ischar(desc),
-        desc = 'dir';
+    function [didsucceed, msg] = mkdir(obj, dir_name)
+      % Create the named directory, either locally or remotely, depending on the
+      % backend type.
+      quoted_dirloc = escape_string_for_bash(dir_name) ;
+      base_command = sprintf('mkdir %s', quoted_dirloc) ;
+      [status, msg] = obj.run([], base_command) ;
+      didsucceed = (status==0) ;
+    end
+
+    function [didsucceed, msg] = deleteFile(obj, file_name)
+      % Create the named file, either locally or remotely, depending on the
+      % backend type.
+      quoted_file_name = escape_string_for_bash(file_name) ;
+      base_command = sprintf('rm %s', quoted_file_name) ;
+      [status, msg] = obj.run([], base_command) ;
+      didsucceed = (status==0) ;
+    end
+
+    function [doesexist, msg] = exist(obj, file_name, file_type)
+      % Check whether the named file/dir exists, either locally or remotely,
+      % depending on the backend type.
+      if ~exist('file_type', 'var') ,
+        file_type = '' ;
       end
-      for i = 1:numel(dirlocs),
-        if ~exist(dirlocs{i},'dir')
-          dirloc = dirlocs{i} ;
-          quoted_dirloc = escape_string_for_bash(dirloc) ;
-          base_command = sprintf('mkdir %s', quoted_dirloc) ;
-          [succ,msg] = mkdir(dirlocs{i});
-          if ~succ
-            error('Failed to create %s %s: %s',desc,dirlocs{i},msg);
-          else
-            fprintf(1,'Created %s: %s\n',desc,dirlocs{i});
-          end
+      if strcmpi(file_type, 'dir') ,
+        option = '-d' ;
+      elseif strcmpi(file_type, 'file') ,
+        option = '-f' ;
+      else
+        option = '-e' ;
+      end
+      quoted_file_name = escape_string_for_bash(file_name) ;
+      base_command = sprintf('test %s %s', option, quoted_file_name) ;
+      [status, msg] = obj.run([], base_command) ;
+      doesexist = (status==0) ;
+    end
+
+    function writeStringToFile(obj, filename, str)
+      % Write the given string to a file, overrwriting any previous contents.
+      % For remote backends, uses a single "ssh echo $string > $filename" to do
+      % this, so limited to strings of ~10^5 bytes.
+      if obj.doesShareFilesystem() ,
+        [fh,msg] = fopen(filename,'w');
+        if fh < 0,
+          error('Could not open file %s for writing: %s',filename,msg);
+        end
+        fprintf(fh,'%s',jse);
+        fclose(fh);
+      else
+        if strlength(str) > 100000 ,
+          error('Current implementation of DLBackEndClass.writeStringToFile() only supports strings of length 100,000 or less') ;
+        end          
+        quoted_file_name = escape_string_for_bash(filename) ;
+        quoted_str = escape_string_for_bash(str) ;
+        base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
+        [status, msg] = obj.run([], base_command) ;
+        if status ~= 0 ,
+          error('Something went wrong while writing to backend file %s: %s',filename,msg);
         end
       end
-    end
+    end  % function    
   end  % public methods block
 
   % These next two methods allow access to private and protected variables,

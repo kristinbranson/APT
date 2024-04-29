@@ -1264,25 +1264,20 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       v = obj.trackjobid;
     end
 
-
-    function prepareFiles(obj)
-
-      obj.checkCreateDirs();
-      obj.deleteErrFile();
-      obj.deletePartTrkFiles();
-      obj.deleteKillFile();
-
+    function prepareFiles(obj, backend)
+      obj.checkCreateDirs(backend);
+      obj.deleteErrFile(backend);
+      obj.deletePartTrkFiles(backend);
+      obj.deleteKillFile(backend);
     end
 
     function v = trkoutdir(obj,varargin)
-
       [view,stage] = myparse(varargin,'view',obj.views,'stage',obj.stages);
       v = obj.trainDMC.dirTrkOutLnx('view',view-1,'stage',stage);
-
     end
 
-    function checkCreateDirs(obj)
-      checkCreateDir(obj.trkoutdir,'trk cache dir');
+    function checkCreateDirs(obj, backend)
+      checkCreateDir(backend, obj.trkoutdir, 'trk cache dir');
     end
 
     function [v,idx] = getParttrkfiles(obj,varargin)
@@ -1294,16 +1289,16 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       v = obj.listoutfiles;
     end
 
-    function deletePartTrkFiles(obj)
-      checkDeleteFiles(obj.getParttrkfiles(),'partial tracking result');
+    function deletePartTrkFiles(obj, backend)
+      checkDeleteFiles(backend, obj.getParttrkfiles(),'partial tracking result');
     end
 
-    function deleteKillFile(obj)
-      checkDeleteFiles({obj.getKillfile()},'kill files');
+    function deleteKillFile(obj, backend)
+      checkDeleteFiles(backend, {obj.getKillfile()}, 'kill files');
     end
 
-    function deleteErrFile(obj)
-      checkDeleteFiles({obj.getErrfile()},'error file');
+    function deleteErrFile(obj, backend)
+      checkDeleteFiles(backend, {obj.getErrfile()}, 'error file');
     end
 
     function nframestrack = getNFramesTrack(obj,lObj)

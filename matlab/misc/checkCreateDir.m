@@ -1,15 +1,16 @@
-function checkCreateDir(dirlocs,desc)
+function checkCreateDir(backend, dirlocs, desc)
 
-if nargin < 2 || ~ischar(desc),
+if nargin < 3 || ~ischar(desc),
   desc = 'dir';
 end
 for i = 1:numel(dirlocs),
-  if exist(dirlocs{i},'dir')==0
-    [succ,msg] = mkdir(dirlocs{i});
+  dirloc = dirlocs{i} ;
+  if exist(dirloc,'dir') ,
+    [succ,msg] = backend.mkdir(dirloc);
     if ~succ
-      error('Failed to create %s %s: %s',desc,dirlocs{i},msg);
+      error('Failed to create %s %s: %s',desc,dirloc,msg);
     else
-      fprintf(1,'Created %s: %s\n',desc,dirlocs{i});
+      fprintf(1,'Created %s: %s\n',desc,dirloc);
     end
   end
 end

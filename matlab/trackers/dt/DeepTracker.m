@@ -3458,9 +3458,9 @@ classdef DeepTracker < LabelTracker
       % things are the same??
       %dmcLcl.setRootDir(cacheDir);
       dlConfigLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.trainConfigLnx);
-      if exist(dlConfigLcl,'file')==0
+      if ~exist(dlConfigLcl,'file') ,
         reason = sprintf('Cannot find training file: %s\n',dlConfigLcl);
-        return;
+        return
       end
       
       tfCanTrack = true;      
@@ -3514,7 +3514,7 @@ classdef DeepTracker < LabelTracker
           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
         end
 
-        totrackinfojob.prepareFiles();
+        totrackinfojob.prepareFiles(backend);
         obj.trkCreateConfig(totrackinfojob.trackconfigfile);
 
         if ijob == 1,
@@ -3580,7 +3580,7 @@ classdef DeepTracker < LabelTracker
 
     function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
       [isgt] = myparse(varargin,'isgt',false);
-      tfSuccess = false;
+      %tfSuccess = false;
 
       cacheDir = obj.lObj.DLCacheDir;
       aptroot = obj.setupBackEndTrain(backend,cacheDir);
@@ -3611,7 +3611,7 @@ classdef DeepTracker < LabelTracker
         logcmds = [];
       end
 
-      totrackinfo.prepareFiles();
+      totrackinfo.prepareFiles(backend);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
       tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,{syscmds},{cmdfiles},logcmds,backend,'track_type','list');
@@ -3660,12 +3660,8 @@ classdef DeepTracker < LabelTracker
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
       jsonoutf = configfile;
-      [fh,msg] = fopen(jsonoutf,'w');
-      if fh < 0,
-        error('Could not open file %s for writing: %s\n',jsonoutf,msg);
-      end
-      fprintf(fh,'%s\n',jse);
-      fclose(fh);
+      jsen = sprintf('%s\n', jse) ;
+      obj.backend.writeStringToFile(jsonoutf, jsen) ;
     end
     
   end
@@ -4312,7 +4308,7 @@ classdef DeepTracker < LabelTracker
       else
         shmSize = [];
       end
-      codestr = backend.wrapBaseCommandDocker(basecmd,containerName,...
+      codestr = backend.wrapBaseCommandDocker_(basecmd,containerName,...
         'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:},...
         'detach',~augOnly,'tty',augOnly,'shmsize',shmSize);      
     end
@@ -4758,7 +4754,7 @@ classdef DeepTracker < LabelTracker
       basecmd = DeepTracker.dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
         netType,outfile,baseargs{:},'filequote',filequote);
       
-      codestr = backend.wrapBaseCommandDocker(basecmd,ID,...
+      codestr = backend.wrapBaseCommandDocker_(basecmd,ID,...
         'bindpath',mntPaths,dockerargs{:});
     end    
     
@@ -4821,7 +4817,7 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      codestr = backend.wrapBaseCommandDocker(basecmd,containerName,...
+      codestr = backend.wrapBaseCommandDocker_(basecmd,containerName,...
         'bindpath',mntPaths,dockerargs{:});
     end
     
