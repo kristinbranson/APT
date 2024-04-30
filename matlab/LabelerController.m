@@ -255,7 +255,7 @@ classdef LabelerController < handle
         return
       end
       labeler = obj.labeler_ ;
-      labeler.setStatus('Tracking...');
+      labeler.setStatus('Preparing for tracking...');
       tm = obj.get_track_mode_();
       tblMFT = tm.getMFTable(labeler,'istrack',true);
       if isempty(tblMFT),
@@ -273,6 +273,7 @@ classdef LabelerController < handle
       wbObj = WaitBarWithCancel('Tracking');
       centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
       oc = onCleanup(@()delete(wbObj));
+      labeler.setStatus('Tracking...');
       if labeler.maIsMA
         labeler.track(tblMFT,'wbObj',wbObj,'track_type','detect', 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
       else

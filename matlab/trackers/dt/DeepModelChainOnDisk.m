@@ -1218,7 +1218,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       tf = ~isempty(obj.iterCurr) & ~isnan(obj.iterCurr);
     end
     
-    function mirror2remoteAws(obj,aws)
+    function mirrorToBackend(obj, backend)
+      if isequal(backend.type, DLBackEnd.AWS) ,
+        obj.mirrorToRemoteAws_(backend) ;
+      end
+    end
+
+    function mirrorToRemoteAws_(obj, backend)
       % Take a local DMC and mirror/upload it to the AWS instance aws; 
       % update .rootDir, .reader appropriately to point to model on remote 
       % disk.
@@ -1245,7 +1251,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
       fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
      
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
+      backend.checkConnection();  % throws error if backend is not connected
       
       mdlFiles = obj.findModelGlobsLocal();
       mdlFiles = cat(1,mdlFiles{:});
@@ -1269,16 +1275,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         %
         % Only situation that might cause problems are augmentedtrains but
         % let's not worry about that for now.
-        aws.scpUploadOrVerify(src,dst,sprintf('%s (%s), %d KB',descstr,info.name,round(filesz)),'destRelative',false); % throws
+        backend.scpUploadOrVerify(src,dst,sprintf('%s (%s), %d KB',descstr,info.name,round(filesz)),'destRelative',false); % throws
       end
       
       % if we made it here, upload successful
       
       obj.rootDir = DLBackEndClass.RemoteAWSCacheDir;
-      obj.reader = DeepModelChainReaderAWS(aws);
+      obj.reader = backend.getDmcReader();
     end
     
-    function mirrorFromRemoteAws(obj,cacheDirLocal)
+    function mirrorFromBackend(obj, cacheDirLocal)
+      if isequal(backend.type, DLBackEnd.AWS) ,
+        obj.mirrorFromRemoteAws_(cacheDirLocal) ;
+      end
+    end
+
+    function mirrorFromRemoteAws_(obj, cacheDirLocal)
       % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
       % instance to local cache.
       %

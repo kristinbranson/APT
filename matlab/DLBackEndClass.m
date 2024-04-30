@@ -271,20 +271,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         'jobdesc', 'job', ...
         'do_call_apt_interface_dot_py', true) ;
       if ~isempty(cmdfiles),
-        DLBackEndClass.writeCmdToFile(syscmds,cmdfiles,jobdesc);
+        obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
       end
       njobs = numel(syscmds);
       tfSucc = false(1,njobs);
       tfSuccLog = true(1,njobs);
       jobID = cell(1,njobs);
       for ijob=1:njobs,
-        fprintf(1,'%s\n',syscmds{ijob});
+        syscmd = syscmds{ijob} ;
+        fprintf(1,'%s\n',syscmd);
         if do_call_apt_interface_dot_py ,
           if obj.type == DLBackEnd.Conda,
-            [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
+            [jobID{ijob},st,res] = parfevalsystem(syscmd);
             tfSucc(ijob) = st == 0;
           else
-            [st,res] = system(syscmds{ijob});
+            [st,res] = system(syscmd);
             tfSucc(ijob) = st == 0;
             if tfSucc(ijob),
               jobID{ijob} = obj.parseJobID(res);
@@ -502,7 +503,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function v = isLocal(obj)
       % Docker and Conda backends are local, Bsub (i.e. Janelia LSF) and AWS are
-      % not.
+      % not.  Basically this refers to whether the Python training/tracking code
+      % will run on the same machine as the Matlab frontend.
       v = isequal(obj.type,DLBackEnd.Docker) || isequal(obj.type,DLBackEnd.Conda);
     end
     
@@ -616,10 +618,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.gpuids = gpuid;
     end
     
-    function pretrack(obj,cacheDir,dmc,setStatusFcn)
+    function pretrack(obj,cacheDir)
+      obj.updateRepo() ;
       switch obj.type        
-        case DLBackEnd.AWS
-          obj.awsPretrack(dmc,setStatusFcn);
         case DLBackEnd.Bsub
           obj.bsubPretrack(cacheDir);
       end      
@@ -645,13 +646,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function cmd = wrapCommandAWS_(obj, basecmd, varargin)
       cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
     end
-  end  % methods block
-  
-  methods (Static)
 
-    function tfSucc = writeCmdToFile(syscmds,cmdfiles,jobdesc)
-
-      if nargin < 3,
+    function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)
+      % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
+      % commands will be executed.
+      if nargin < 4,
         jobdesc = 'job';
       end
       if ischar(syscmds),
@@ -663,19 +662,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfSucc = false(1,numel(syscmds));
       assert(numel(cmdfiles) == numel(syscmds));
       for i = 1:numel(syscmds),
-        [fh,msg] = fopen(cmdfiles{i},'w');
-        if isequal(fh,-1)
-          warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+        syscmd = syscmds{i} ;
+        cmdfile = cmdfiles{i} ;
+        syscmdWithNewline = sprintf('%s\n', syscmd) ;
+        [didSucceed, errorMessage] = obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+        tfSucc(i) = didSucceed ;
+        if didSucceed ,
+          fprintf('Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfile);
         else
-          fprintf(fh,'%s\n',syscmds{i});
-          fclose(fh);
-          fprintf(1,'Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfiles{i});
-          tfSucc(i) = true;
+          warningNoTrace(errorMessage);
         end
-      end
-
-    end
-
+%         [fh,msg] = fopen(cmdfiles{i},'w');
+%         if isequal(fh,-1)
+%           warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+%         else
+%           fprintf(fh,'%s\n',syscmds{i});
+%           fclose(fh);
+%           fprintf(1,'Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfiles{i});
+%           tfSucc(i) = true;
+%         end
+      end  % for
+    end  % function
+  end  % methods block
+  
+  methods (Static)
     function jobid = parseJobIDStatic(res,type)
       switch type,
         case DLBackEnd.Bsub,
@@ -1489,26 +1499,44 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = true;      
     end
     
-    function awsPretrack(obj,dmc,setstatusfn)
-      setstatusfn('AWS Tracking: Uploading code and data...');
-      
-      obj.awsUpdateRepo();
-      aws = obj.awsec2;
-      if ~isempty(dmc) && ~dmc.isRemote,
-        dmc.mirror2remoteAws(aws);
-      end
-      
-      setstatusfn('Tracking...');      
+    function result = getDmcReader(obj)
+      result = DeepModelChainReader.createFromBackEnd(obj) ;
     end
-    
-    function awsUpdateRepo(obj) % throws if fails
+
+    function checkConnection(obj)  
+      % Errors if connection to backend is ok.  Otherwise returns nothing.
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        aws = obj.awsec2;
+        aws.checkInstanceRunning() ;
+      end
+    end
+
+    function scpUploadOrVerify(obj, varargin)
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        aws = obj.awsec2;
+        aws.scpUploadOrVerify(varargin{:}) ;
+      end      
+    end
+
+    function updateRepo(obj)
+      % Update the APT repo in the backend.  For non-AWS backends, this does nothing.
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        obj.awsUpdateRepo_();
+%         aws = obj.awsec2;
+%         if ~isempty(dmc) && ~dmc.isRemote,
+%           dmc.mirror2remoteAws(aws);
+%         end
+      end
+    end
+
+    function aptroot = awsUpdateRepo_(obj)  % throws if fails
       obj.awsgitbranch = 're-aws' ;  % TODO: For debugging only, remove eventually
       if isempty(obj.awsgitbranch)
         args = {};
       else
         args = {'branch' obj.awsgitbranch};
       end
-      cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true,args{:});
+      [cmdremote, aptroot] = apt.updateAPTRepoCmd('downloadpretrained',true,args{:});
 
       aws = obj.awsec2;      
       [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
@@ -1559,28 +1587,56 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       doesexist = (status==0) ;
     end
 
-    function writeStringToFile(obj, filename, str)
+    function [didSucceed, errorMessage] = writeStringToFile(obj, filename, str)
       % Write the given string to a file, overrwriting any previous contents.
       % For remote backends, uses a single "ssh echo $string > $filename" to do
       % this, so limited to strings of ~10^5 bytes.
       if obj.doesShareFilesystem() ,
         [fh,msg] = fopen(filename,'w');
         if fh < 0,
-          error('Could not open file %s for writing: %s',filename,msg);
+          didSucceed = false ;
+          errorMessage = sprintf('Could not open file %s for writing: %s',filename,msg);
+          return
         end
         fprintf(fh,'%s',jse);
         fclose(fh);
       else
         if strlength(str) > 100000 ,
-          error('Current implementation of DLBackEndClass.writeStringToFile() only supports strings of length 100,000 or less') ;
+          didSucceed = false ;
+          errorMessage = ...
+            sprintf(['Could not write to file %s: ' ...
+                     'Current implementation of DLBackEndClass.writeStringToFile() only supports strings of length 100,000 or less'], ...
+                    filename) ;
+          return
         end          
         quoted_file_name = escape_string_for_bash(filename) ;
         quoted_str = escape_string_for_bash(str) ;
         base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
         [status, msg] = obj.run([], base_command) ;
         if status ~= 0 ,
-          error('Something went wrong while writing to backend file %s: %s',filename,msg);
+          didSucceed = false ;
+          errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);
+          return
         end
+      end
+      didSucceed = true ;
+      errorMessage = '' ;
+    end  % function    
+
+    function aptroot = setupForTrainingOrTracking(obj, cacheDir)
+      switch obj.type
+        case DLBackEnd.Bsub
+          aptroot = obj.bsubSetRootUpdateRepo(cacheDir);
+        case {DLBackEnd.Conda,DLBackEnd.Docker},
+          aptroot = APT.Root;
+          DeepTracker.downloadPretrainedWeights('aptroot',aptroot);
+        case DLBackEnd.AWS,
+          %aptroot = APT.Root;
+          if isempty(obj.awsec2)
+            error('AWSec2 object not set.');
+          end
+          obj.awsec2.checkInstanceRunning(); % harderrs if instance isn't running
+          aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
       end
     end  % function    
   end  % public methods block

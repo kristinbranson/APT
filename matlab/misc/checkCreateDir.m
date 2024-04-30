@@ -5,7 +5,7 @@ if nargin < 3 || ~ischar(desc),
 end
 for i = 1:numel(dirlocs),
   dirloc = dirlocs{i} ;
-  if exist(dirloc,'dir') ,
+  if ~backend.exist(dirloc,'dir') ,
     [succ,msg] = backend.mkdir(dirloc);
     if ~succ
       error('Failed to create %s %s: %s',desc,dirloc,msg);

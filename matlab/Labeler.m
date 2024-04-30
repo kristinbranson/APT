@@ -3090,12 +3090,10 @@ classdef Labeler < handle
             continue;
           end
           try
-            if dmc.isRemote
-              try
-                dm.mirrorFromRemoteAws(projtempdir);
-              catch
-                warningNoTrace('Could not check if trackers had been downloaded from AWS.');
-              end
+            try
+              dmc.mirrorFromBackend(projtempdir);
+            catch
+              warningNoTrace('Could not check if trackers had been downloaded from AWS.');
             end
 
             if verbose,

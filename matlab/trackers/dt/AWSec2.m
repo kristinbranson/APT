@@ -1203,17 +1203,18 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
-      [timeout,usedoublequotes] = myparse(varargin,...
+      [timeout,~] = myparse(varargin,...
         'timeout',8,...
         'usedoublequotes',false);
       
       args = {sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
         '-oStrictHostKeyChecking=no' sprintf('ubuntu@%s',ip)};
-      if usedoublequotes
-        args{end+1} = sprintf('"%s"',cmdremote);
-      else
-        args{end+1} = sprintf('''%s''',cmdremote);
-      end
+      args{end+1} = escape_string_for_bash(cmdremote) ;
+%       if usedoublequotes
+%         args{end+1} = sprintf('"%s"',cmdremote);
+%       else
+%         args{end+1} = sprintf('''%s''',cmdremote);
+%       end
       cmd = String.cellstr2DelimList(args,' ');
     end
 
