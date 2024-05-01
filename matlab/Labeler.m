@@ -16163,5 +16163,21 @@ classdef Labeler < handle
       obj.notify('didSetTrackParams') ;
     end
 
-  end
-end
+    function result = getMftInfoStruct(obj)
+      % Get some info needed for pretty-printing of MFT info in the UI (or
+      % something).  We used to just pass the whole labeler object, but that seems
+      % inelegant.  Now we just pass a struct with the handful of values we need.
+      result = struct() ;
+      result.nTargets = obj.nTargets ;
+      result.trackNFramesNear = obj.trackNFramesNear ;
+      result.trackNFramesLarge = obj.trackNFramesLarge ;
+      result.trackNFramesSmall = obj.trackNFramesSmall ;
+      result.nmoviesGTaware = obj.nmoviesGTaware ;
+      result.gtIsGTMode = obj.gtIsGTMode ;
+      result.currMovIdx = obj.currMovIdx ;
+      result.moviesSelected = obj.moviesSelected ;
+      result.nmovies = obj.nmovies ;
+      result.nmoviesGT = obj.nmoviesGT ;
+    end  % function
+  end  % methods
+end  % classdef

@@ -2834,12 +2834,12 @@ if lObj.hasTrx
 else
   mfts = MFTSetEnum.TrackingMenuNoTrx;
 end
-menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
+menustrs = arrayfun(@(x)x.getPrettyStr(lObj.getMftInfoStruct()),mfts,'uni',0);
 if ispc || ismac
-  menustrs_compact = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrCompact(lObj.getMftInfoStruct()),mfts,'uni',0);
 else
   % iss #161
-  menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(lObj.getMftInfoStruct()),mfts,'uni',0);
 end
 hPUM = lObj.gdata.pumTrack;
 hPUM.String = menustrs_compact;

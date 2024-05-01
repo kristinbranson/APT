@@ -28,6 +28,7 @@ classdef MFTSet < handle
     
     function str = getPrettyStr(obj,labelerObj)
       % Create pretty-string for UI
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
       movstr = obj.movieIndexSet.getPrettyString;
       frmstr = lower(obj.frameSet.getPrettyString(labelerObj));
@@ -57,6 +58,7 @@ classdef MFTSet < handle
     
     function str = getPrettyStrCompact(obj,labelerObj)
       % Create shorter pretty-string for UI, iss #161
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
       movstr = obj.movieIndexSet.getPrettyString;
       if ~strcmpi(movstr,'current movie')
@@ -86,6 +88,7 @@ classdef MFTSet < handle
     
     function str = getPrettyStrMoreCompact(obj,labelerObj)
       % Create shorter pretty-string for UI, iss #161
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
       movstr = obj.movieIndexSet.getPrettyString;
       if ~strcmpi(movstr,'current movie')
@@ -141,8 +144,8 @@ classdef MFTSet < handle
         iTgt = zeros(0,1);
         tblMFT = table(mov,frm,iTgt);
       else
-        mis = obj.movieIndexSet.getMovieIndices(labelerObj);
-        decFac = obj.decimation.getDecimation(labelerObj);
+        mis = obj.movieIndexSet.getMovieIndices(labelerObj.getMftInfoStruct());
+        decFac = obj.decimation.getDecimation(labelerObj.getMftInfoStruct());
         tgtSet = obj.targetSet;
         frmSet = obj.frameSet;
         
