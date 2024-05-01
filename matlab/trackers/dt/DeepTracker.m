@@ -549,7 +549,7 @@ classdef DeepTracker < LabelTracker
     function updateDLCache(obj,dlcachedir)
       dmc = obj.trnLastDMC;
       if ~isempty(dmc),
-        if ~dmc.isRemote
+        if ~dmc.isRemote()
           dmc.setRootDir(dlcachedir);
         else
           warningNoTrace('Unexpected remote DMC detected for net %s.',...
@@ -615,10 +615,10 @@ classdef DeepTracker < LabelTracker
       if isfield(s,'trnLastDMC') && ~isempty(s.trnLastDMC),
         % KB 20220804
         s.trnLastDMC = DeepModelChainOnDisk.modernize(s.trnLastDMC);
-        % Add .reader to any .trnLastDMCs; assume local filesys
-        if isempty(s.trnLastDMC.reader),
-          s.trnLastDMC.reader = DeepModelChainReaderLocal();
-        end
+%         % Add .reader to any .trnLastDMCs; assume local filesys
+%         if isempty(s.trnLastDMC.reader),
+%           s.trnLastDMC.reader = DeepModelChainReaderLocal();
+%         end
       end
 
       % 20190415
@@ -1432,7 +1432,6 @@ classdef DeepTracker < LabelTracker
         'trainID',trainID,... % will get copied for all models
         'trainType',trnType,... % will get copied for all models
         'iterFinal',iterFinal(stage),...
-        'reader',DeepModelChainReader.createFromBackEnd(backend),...
         'filesep',obj.filesep,...
         'prev_models',prev_models...
         );
@@ -1919,8 +1918,8 @@ classdef DeepTracker < LabelTracker
 
     end
     
-    function updateLastDMCsCurrInfo(obj)
-      obj.trnLastDMC.updateCurrInfo();
+    function updateLastDMCsCurrInfo_(obj)
+      obj.trnLastDMC.updateCurrInfo(obj.backend);
     end
     
   end
@@ -1978,7 +1977,6 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',nvw>1,... % currently all multiview projs train serially
-        'reader',DeepModelChainReader.createFromBackEnd(backend),...
         'filesep',obj.filesep,...
         'prev_models',prev_models...
         );
@@ -2258,7 +2256,6 @@ classdef DeepTracker < LabelTracker
         'trainType',trnType,...
         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
         'isMultiView',false,...
-        'reader',DeepModelChainReader.createFromBackEnd(trnBackEnd),...
         'filesep',obj.filesep,...
         'doSplit',true ...
         );
@@ -2711,7 +2708,7 @@ classdef DeepTracker < LabelTracker
       
       if obj.bgTrnIsRunning,
         assert(obj.lObj.trackDLBackEnd.type~=DLBackEnd.AWS);
-        obj.updateLastDMCsCurrInfo();
+        obj.updateLastDMCsCurrInfo_();
         iterCurr = obj.trnLastDMC.iterCurr;
         iterCurr(isnan(iterCurr)) = 0;
         if min(iterCurr) == 0,
@@ -2732,7 +2729,7 @@ classdef DeepTracker < LabelTracker
       dmc = obj.trnLastDMC;
       %setStatusFcn = @(varargin)(obj.lObj.setStatus(varargin{:}));
       backend.updateRepo();
-      dmc.mirrorToBackend(backend) ;  % should this be mirroring to the passed-in backend?  --ALT, 2024-04-30
+      dmc.mirrorToBackend(backend) ;
 
       % get info about current tracker
       obj.updateTrackerInfo();
@@ -2744,12 +2741,15 @@ classdef DeepTracker < LabelTracker
     end  % method
     
     function track(obj,varargin)
+      [totrackinfo,track_type,isexternal,backend,do_call_apt_interface_dot_py] = ...
+        myparse(varargin, ...
+                'totrackinfo',[], ...
+                'track_type','track', ...
+                'isexternal',false, ...
+                'backend',obj.lObj.trackDLBackEnd, ...
+                'do_call_apt_interface_dot_py', true) ;
 
-      [totrackinfo,track_type,wbObj,isexternal,localbackend,do_call_apt_interface_dot_py] = ...
-        myparse(varargin,'totrackinfo',[],'track_type','track',...
-        'wbObj',[],'isexternal',false,'backend',obj.lObj.trackDLBackEnd,'do_call_apt_interface_dot_py', true);
-
-      obj.checkSetupTrack(totrackinfo,localbackend);
+      obj.checkSetupTrack(totrackinfo,backend);
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
@@ -2758,7 +2758,9 @@ classdef DeepTracker < LabelTracker
       if willload && ~isCurr,
 
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
-          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Cancel','Delete');
+          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
+                         'Previous tracking results exist', ...
+                         'Delete','Retrack','Cancel','Delete');
           if strcmpi(res,'Cancel'),
             return;
           end
@@ -2827,7 +2829,7 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawn(totrackinfo,localbackend,'track_type',track_type,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
       if ~tfSuccess
         obj.bgTrkReset();
         return;
@@ -2947,7 +2949,7 @@ classdef DeepTracker < LabelTracker
       
       % Calling this now as it is called later in getTrkFileTrnStr and we
       % are copying the dmcs here
-      obj.updateLastDMCsCurrInfo();      
+      obj.updateLastDMCsCurrInfo_();      
       dmc = obj.trnLastDMC;
       nowstr = datestr(now,'yyyymmddTHHMMSS');
       dmc.setTrkTSstr(nowstr);
@@ -3381,7 +3383,7 @@ classdef DeepTracker < LabelTracker
       end
             
       dmc = obj.trnLastDMC;
-      if ~dmc.isRemote && ~strcmp(dmc.rootDir,cacheDir)
+      if ~dmc.isRemote() && ~strcmp(dmc.rootDir,cacheDir)
         reason = 'Cache directory has changed since training.';
         return;
       end
@@ -4035,7 +4037,7 @@ classdef DeepTracker < LabelTracker
     end
     
     function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
-      obj.updateLastDMCsCurrInfo();
+      obj.updateLastDMCsCurrInfo_();
 
       trnstrs = cell(1,obj.trnLastDMC.n);
       modelFiles = cell(1,obj.trnLastDMC.n);
@@ -5160,7 +5162,7 @@ classdef DeepTracker < LabelTracker
     function isCurr = checkTrackingResultsCurrent(obj)
       
       isCurr = true;
-      obj.updateLastDMCsCurrInfo();
+      obj.updateLastDMCsCurrInfo_();
       
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);

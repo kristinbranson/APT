@@ -275,9 +275,9 @@ classdef LabelerController < handle
       oc = onCleanup(@()delete(wbObj));
       labeler.setStatus('Tracking...');
       if labeler.maIsMA
-        labeler.track(tblMFT,'wbObj',wbObj,'track_type','detect', 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
+        labeler.track(tblMFT, 'track_type', 'detect', 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
       else
-        labeler.track(tblMFT,'wbObj',wbObj);
+        labeler.track(tblMFT, 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
       end
       if wbObj.isCancel
         msg = wbObj.cancelMessage('Tracking canceled');

@@ -2847,9 +2847,9 @@ setappdata(hPUM,'FullStrings',menustrs);
 if lObj.trackModeIdx>numel(menustrs)
   lObj.trackModeIdx = 1;
 end
-
 hFig = lObj.gdata.figure;
 hFig.SizeChangedFcn(hFig,[]);
+% end function
 
 function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;

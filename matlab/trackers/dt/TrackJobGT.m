@@ -55,7 +55,7 @@ classdef TrackJobGT < handle
       % Similar to TrackJob
 
       TrackJob.checkCreateDir({obj.trkOutdirLcl},'trk cache dir');
-      if obj.dmcsrem.isRemote
+      if obj.dmcsrem.isRemote()
         be = obj.backend;
         assert(be.type==DLBackEnd.AWS);
         % Should prob be backend meth

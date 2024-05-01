@@ -2604,7 +2604,7 @@ classdef Labeler < handle
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
             dmc = tObj.trnLastDMC;
             try
-              if dmc.isRemote
+              if dmc.isRemote()
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
               else
                 dmc.copyModelFiles(obj.projTempDir,true);
@@ -3091,8 +3091,8 @@ classdef Labeler < handle
           end
           try
             try
-              dmc.mirrorFromBackend(projtempdir);
-            catch
+              dmc.mirrorFromBackend(obj.trackDLBackEnd, projtempdir);
+            catch me  %#ok<NASGU> 
               warningNoTrace('Could not check if trackers had been downloaded from AWS.');
             end
 
@@ -11726,7 +11726,7 @@ classdef Labeler < handle
       
     end
     
-    function track(obj,mftset,varargin)
+    function track(obj, mftset, varargin)
       % mftset: an MFTSet or table tblMFT
       
       tObj = obj.tracker;
@@ -11746,7 +11746,7 @@ classdef Labeler < handle
       movidx_new = [];
       for ndx = 1:numel(movidx)
         mn = movidx.get();
-        movidx_new(end+1) = mn;
+        movidx_new(end+1) = mn;  %#ok<AGROW> 
       end
       movidx = movidx_new;
       tblMFT.mov = newmov;
@@ -11778,14 +11778,17 @@ classdef Labeler < handle
           caldata = caldata(movidx);
         end
       end
-      totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
-        'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
-        'calibrationdata',caldata);
-      tObj.track('totrackinfo',totrackinfo,'isexternal',false,varargin{:});
+      totrackinfo = ...
+        ToTrackInfo('tblMFT',tblMFT, ...
+                    'movfiles',movfiles, ...
+                    'trxfiles',trxfiles, ...
+                    'views',1:obj.nview, ...
+                    'stages',1:tObj.getNumStages(), ...
+                    'croprois',croprois, ...
+                    'calibrationdata',caldata) ;
+      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, varargin{:}) ;
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
-      
-      %fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
     function trackTbl(obj,tblMFT,varargin)

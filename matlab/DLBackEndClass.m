@@ -488,7 +488,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         tf = true;
         reason = '';
       end
-    end
+    end  % method
     
     function s = prettyName(obj)
       switch obj.type,
@@ -1499,10 +1499,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = true;      
     end
     
-    function result = getDmcReader(obj)
-      result = DeepModelChainReader.createFromBackEnd(obj) ;
-    end
-
     function checkConnection(obj)  
       % Errors if connection to backend is ok.  Otherwise returns nothing.
       if isequal(obj.type, DLBackEnd.AWS) ,

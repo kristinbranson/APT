@@ -13,8 +13,7 @@ classdef MFTSet < handle
     targetSet % scalar TargetSet
   end
   
-  methods
-  
+  methods  
     function obj = MFTSet(mset,fset,dec,tset)
       assert(isa(mset,'MovieIndexSet'));
       assert(isa(fset,'FrameSet'));
@@ -112,7 +111,7 @@ classdef MFTSet < handle
         end
       end
       str(1) = upper(str(1));
-    end
+    end  % function
     
     function tblMFT = getMFTable(obj,labelerObj,varargin)
       % tblMFT: MFTable with MFTable.ID
@@ -129,7 +128,7 @@ classdef MFTSet < handle
       % 'targets' can refer to either distinct label IDs, or tracklets.
       % When tracking, neither currently applies, as entire frames are
       % processed.
-      
+
       [wbObj,istrack] = myparse(varargin,...
         'wbObj',[], ... % (opt) WaitBarWithCancel. If cancel, tblMFT indeterminate.
         'istrack',false ... % if true and labelerObj is MA, then 'targets' are ignored/meaningless.
@@ -185,10 +184,8 @@ classdef MFTSet < handle
           end
         end
         tblMFT = cat(1,tblMFT{:});
-      end
-    end
-    
-  end 
- 
-end
+      end  % if ~labelerObj.hasMovie
+    end  % function    
+  end  % methods  
+end  % classdef
     
