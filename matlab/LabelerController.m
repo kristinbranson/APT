@@ -218,25 +218,6 @@ classdef LabelerController < handle
       handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
     end
 
-    function result = doProjectAndMovieExist_(obj)
-      % Returns true iff a project exists and a movie is open.
-      % If no project exists, returns false.
-      % If a project exists but no movie is open, throws up a dialog box indictating
-      % this, then returns false.
-
-      labeler = obj.labeler_ ;
-      if labeler.hasProject ,
-        if labeler.hasMovie ,
-          result = true ;
-        else
-          msgbox('There is no movie open.');
-          result = false ;
-        end
-      else
-        result = false ;
-      end
-    end
-
     function pbTrack_actuated(obj, source, event)
       obj.track_core_(source, event) ;
     end
@@ -246,53 +227,14 @@ classdef LabelerController < handle
     end
     
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
-      % Process keyword args
-      [do_call_apt_interface_dot_py] = ...
-        myparse(varargin, ...
-                'do_call_apt_interface_dot_py', true) ;
-      
-      if ~obj.doProjectAndMovieExist_() ,
-        return
-      end
-      labeler = obj.labeler_ ;
-      labeler.setStatus('Preparing for tracking...');
       tm = obj.get_track_mode_();
-      tblMFT = tm.getMFTable(labeler,'istrack',true);
-      if isempty(tblMFT),
-        msgbox('All frames tracked.','Track');
-        labeler.clearStatus() ;
-        return;
-      end
-      [tfCanTrack,reason] = labeler.trackCanTrack(tblMFT);
-      if ~tfCanTrack,
-        errordlg(['Error tracking: ',reason],'Error tracking');
-        labeler.clearStatus();
-        return;
-      end
-      fprintf('Tracking started at %s...\n',datestr(now()));
-      wbObj = WaitBarWithCancel('Tracking');
-      centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
-      oc = onCleanup(@()delete(wbObj));
-      labeler.setStatus('Tracking...');
-      if labeler.maIsMA
-        labeler.track(tblMFT, 'track_type', 'detect', 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-      else
-        labeler.track(tblMFT, 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-      end
-      if wbObj.isCancel
-        msg = wbObj.cancelMessage('Tracking canceled');
-        msgbox(msg,'Track');
-      end
-      labeler.clearStatus();
+      obj.labeler_.track(tm, varargin{:}) ;
     end
 
     function mftset = get_track_mode_(obj)
       % This is designed to do the same thing as LabelerGUI::getTrackMode().
       % The two methods should likely be consolidated at some point.  Private by
       % convention
-
-      %handles = guidata(obj.mainFigure_) ;      
-      %idx = handles.pumTrack.Value;
       pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
       idx = pumTrack.Value ;
       % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
@@ -324,10 +266,11 @@ classdef LabelerController < handle
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
       
-      if ~obj.doProjectAndMovieExist_() ,
-        return
-      end
       labeler = obj.labeler_ ;
+      [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
+      if ~doTheyExist ,
+        error(message) ;
+      end
       if labeler.doesNeedSave ,
         res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
         if strcmp(res,'Cancel')

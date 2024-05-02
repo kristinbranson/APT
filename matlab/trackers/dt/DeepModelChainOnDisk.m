@@ -1243,7 +1243,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     
     function mirrorToBackend(obj, backend)
-      if obj.isRemote_ ,
+      if ~obj.isRemote_ ,
         obj.mirrorToRemoteAws_(backend) ;
       end
     end

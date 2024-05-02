@@ -1013,14 +1013,13 @@ classdef DeepTracker < LabelTracker
     end
     
     % update trackerInfo from trnLastDMC
-    function updateTrackerInfo(obj)
-      
+    function updateTrackerInfo(obj)      
       % info about algorithm and training
       info = DeepModelChainOnDisk.TrackerInfo(obj.trnLastDMC);
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
       obj.trackerInfo = info;
-    end
+    end  % function
     
     % set select properties of trackerInfo 
     function setTrackerInfo(obj,varargin)
@@ -2652,12 +2651,10 @@ classdef DeepTracker < LabelTracker
         tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
           tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
       end
-      
     end
-    
-  end
-  methods
-    
+  end  % methods (Static)
+
+  methods    
     % Tracking timeline
     % - Call to track. We are talking a single movie right now.
     % - .trnLastDMC must be set. The current backend behavior is the most 
@@ -2668,32 +2665,30 @@ classdef DeepTracker < LabelTracker
     % - When tracking is done for a view, movIdx2trkfile is updated.
     % - When tracking is done for all views, we stop the bgMonitor and we
     % are done.
-
-    function checkSetupTrack(obj,totrackinfo,backend)
-
+    function checkSetupTrack(obj, totrackinfo, backend)
+      % Do some basic sanity checks
       if obj.bgTrkIsRunning
         error('Tracking is already in progress.');
       end
-      if obj.bgTrnIsRunning && obj.lObj.trackDLBackEnd.type==DLBackEnd.AWS
+      if obj.bgTrnIsRunning && backend.type==DLBackEnd.AWS
         % second clause is really, "only have 1 GPU avail"
         % AWS, currently we are testing with p2.xlarge and p3.2xlarge which
         % are single-GPU EC2 instances. multi-GPU instances are avail
         % however.
         error('Tracking while training is in progress is currently unsupported on AWS.');
       end
-      % check trained tracker
-      if isempty(obj.trnName)
+      if isempty(obj.trnName)  % Check that a trained tracker exists
         error('No trained tracker found.');
       end
-
-      % nothing to track?
-      assert(~isempty(totrackinfo));
-      if totrackinfo.isempty(),
+      if isempty(totrackinfo) || totrackinfo.isempty(),
         warning('Nothing to track. Should probably catch this earlier.');
-        return;
+        return
       end
 
-      sPrmLabeler = obj.lObj.trackGetParams();
+      % Make sure the deep learning parameters have not changed since last training
+      % bout
+      labeler = obj.lObj ;
+      sPrmLabeler = labeler.trackGetParams();
       sPrmSet = obj.massageParamsIfNec(sPrmLabeler);
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged] = ...
           obj.didParamsChange(sPrmSet);
@@ -2701,13 +2696,15 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Deep Learning parameters have changed since your last retrain.');
       end
 
+      % Set the post-processing parameters
       obj.setPostProcParams(sPrmSet);
       % Specifically allow/support case where tfPostProcChanged is true
       % to enable turning off/on postproc or trying diff pp algos with a 
       % given trained tracker   
       
+      % If training is running, do some stuff before preceding
       if obj.bgTrnIsRunning,
-        assert(obj.lObj.trackDLBackEnd.type~=DLBackEnd.AWS);
+        assert(backend.type~=DLBackEnd.AWS);
         obj.updateLastDMCsCurrInfo_();
         iterCurr = obj.trnLastDMC.iterCurr;
         iterCurr(isnan(iterCurr)) = 0;
@@ -2725,20 +2722,24 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      % Upload code and data to remote filesystem, if needed
-      dmc = obj.trnLastDMC;
-      %setStatusFcn = @(varargin)(obj.lObj.setStatus(varargin{:}));
-      backend.updateRepo();
-      dmc.mirrorToBackend(backend) ;
-
-      % get info about current tracker
-      obj.updateTrackerInfo();
-      if ~dmc.canTrack(),
-        warndlg('Tracker is invalid.','Tracker invalid','modal');
-        return;
+      % Make sure the model chain is ready to track
+      dmc = obj.trnLastDMC ;
+      if ~dmc.canTrack() ,
+        warndlg('Tracker is invalid.','Tracker invalid','modal') ;
+        return
       end
 
-    end  % method
+      % Update code on remote filesystem, if needed
+      backend.updateRepo() ;
+
+      % Upload model to remote filesystem, if needed
+      dmc.mirrorToBackend(backend) ;
+
+      % TODO: This seems like a good place to upload the movies to the backend...
+
+      % Update the tracker info based on the trained model
+      obj.updateTrackerInfo() ;
+    end  % function
     
     function track(obj,varargin)
       [totrackinfo,track_type,isexternal,backend,do_call_apt_interface_dot_py] = ...
@@ -2749,7 +2750,7 @@ classdef DeepTracker < LabelTracker
                 'backend',obj.lObj.trackDLBackEnd, ...
                 'do_call_apt_interface_dot_py', true) ;
 
-      obj.checkSetupTrack(totrackinfo,backend);
+      obj.checkSetupTrack(totrackinfo, backend) ;
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
@@ -2829,7 +2830,9 @@ classdef DeepTracker < LabelTracker
 %       end
 %       hmapArgs = [hmapArgs 'do_linking' do_linking];
 
-      tfSuccess = obj.trkSpawn(totrackinfo,backend,'track_type',track_type,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      tfSuccess = obj.trkSpawn(totrackinfo, backend, ...
+                               'track_type',track_type, ...
+                               'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py) ;
       if ~tfSuccess
         obj.bgTrkReset();
         return;

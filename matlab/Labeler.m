@@ -11718,16 +11718,62 @@ classdef Labeler < handle
     end
     
     function tfCanTrack = trackAllCanTrack(obj)
-      
       tfCanTrack = false(1,numel(obj.trackersAll));
       for i = 1:numel(obj.trackersAll),
         tfCanTrack(i) = obj.trackersAll{i}.canTrack;
       end
-      
     end
     
-    function track(obj, mftset, varargin)
+    function [result, message] = doProjectAndMovieExist(obj)
+      % Returns true iff a project exists and a movie is open.
+      % If no project exists, returns false.
+      % If a project exists but no movie is open, returns false.
+      % Otherwise, returns true.
+      % message gives info about why the result it what is.
+      if obj.hasProject ,
+        if obj.hasMovie ,
+          result = true ;
+          message = '' ;
+        else
+          result = false ;
+          message = 'There is no movie open.' ;
+        end
+      else
+        result = false ;
+        message = 'There is no project open.' ;
+      end
+    end
+    
+    function track(obj, tm, varargin)
+      [okToProceed, message] = obj.doProjectAndMovieExist() ;
+      if ~okToProceed ,
+        error(message) ;
+      end
+      obj.setStatus('Preparing for tracking...');
+      cleaner = onCleanup(@()(obj.clearStatus())) ;
+      tblMFT = tm.getMFTable(obj,'istrack',true);
+      if isempty(tblMFT) ,
+        error('All frames already tracked.') ;
+      end
+      [tfCanTrack,reason] = obj.trackCanTrack(tblMFT);
+      if ~tfCanTrack,
+        error('Error tracking: %s', reason) ;
+      end
+      fprintf('Tracking started at %s...\n',datestr(now()));
+      obj.trackCore_(tblMFT, varargin{:}) ;      
+    end
+
+    function trackCore_(obj, mftset, varargin)
       % mftset: an MFTSet or table tblMFT
+
+      % Let user know what's going on...
+      obj.setStatus('Tracking...');
+      
+      if obj.maIsMA
+        args = horzcat({'track_type', 'detect'}, varargin) ;
+      else
+        args = varargin ;
+      end
       
       tObj = obj.tracker;
       if isempty(tObj)
@@ -11786,10 +11832,10 @@ classdef Labeler < handle
                     'stages',1:tObj.getNumStages(), ...
                     'croprois',croprois, ...
                     'calibrationdata',caldata) ;
-      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, varargin{:}) ;
+      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}) ;
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
-    end
+    end  % track() function
     
     function trackTbl(obj,tblMFT,varargin)
       assert(false,'This is not supported')
@@ -16178,6 +16224,7 @@ classdef Labeler < handle
       result.moviesSelected = obj.moviesSelected ;
       result.nmovies = obj.nmovies ;
       result.nmoviesGT = obj.nmoviesGT ;
+      result.hasMovie = obj.hasMovie ;
     end  % function
   end  % methods
 end  % classdef
