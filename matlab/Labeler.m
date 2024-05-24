@@ -11796,8 +11796,9 @@ classdef Labeler < handle
       end
       movidx = movidx_new;
       tblMFT.mov = newmov;
-      movfiles = obj.movieFilesAllFullGTaware;
-      movfiles = movfiles(movidx,:);
+      localmovfiles = obj.movieFilesAllFullGTaware;
+      localmovfiles = localmovfiles(movidx,:);
+      movfiles = obj.trackDLBackEnd.remoteMoviePathsFromLocal(localmovfiles) ;
 
       % get data associated with those movies
       if obj.hasTrx,
@@ -11807,6 +11808,7 @@ classdef Labeler < handle
         trxfiles = {};
       end
 
+      % Get crop ROIs
       if obj.cropProjHasCrops,
         cropInfo = obj.getMovieFilesAllCropInfoGTAware();
         croprois = cell([numel(movfiles),obj.nview]);
@@ -11818,12 +11820,16 @@ classdef Labeler < handle
       else
         croprois = {};
       end
+
+      % Get calibration data
       caldata = obj.viewCalibrationDataGTaware;
       if ~isempty(caldata)
         if ~obj.viewCalProjWide
           caldata = caldata(movidx);
         end
       end
+
+      % Put all the info into a ToTrackInfo object
       totrackinfo = ...
         ToTrackInfo('tblMFT',tblMFT, ...
                     'movfiles',movfiles, ...
@@ -11832,7 +11838,10 @@ classdef Labeler < handle
                     'stages',1:tObj.getNumStages(), ...
                     'croprois',croprois, ...
                     'calibrationdata',caldata) ;
+
+      % Call the Tracker object to do the heavy lifting of tracking
       tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}) ;
+
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
     end  % track() function

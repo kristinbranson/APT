@@ -433,9 +433,26 @@ classdef FSPath
           base = {base};
         end
       end
+    end  % function
+
+    function result = replacePrefix(path, oldPrefix, newPrefix)
+      % Replace the prefix in a single path.
+      % Just does string replacement, so should work with any style of path.
+      if startsWith(path, oldPrefix) ,
+        oldPrefixLength = strlength(oldPrefix) ;
+        stem = extractAfter(path, oldPrefixLength) ;
+        result = strcat(newPrefix, stem) ;
+      else
+        result = path ;
+      end
+    end  % function 
       
-    end
-      
-  end
-  
-end
+    function result = replaceExtension(path, newExtension)
+      % Replace the extension of path with newExtension.  newExtension should
+      % include the '.'.  This uses fileparts(), so should only be used with paths
+      % that are appropriate for the frontend platform.
+      [parent, base] = fileparts(path) ;
+      result = fullfile(parent, strcat(base, newExtension)) ;
+    end  % function 
+  end  % methods (Static) 
+end  % classdef

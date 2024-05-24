@@ -1279,10 +1279,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
       mdlFiles = obj.findModelGlobsLocal();
       mdlFiles = cat(1,mdlFiles{:});
-      pat = obj.rootDir;
-      pat = regexprep(pat,'\\','\\\\');
-      mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);
-      mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
+      %pat = obj.rootDir;  % e.g. /home/taylora/.apt/tpb9c364f9_46b1_4ac0_9095_11ddd5c2493c
+      %pat = regexprep(pat,'\\','\\\\');
+      %mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);  % DLBackEndClass.RemoteAWSCacheDir is typically '/home/ubuntu/cacheDL'
+      mdlFilesRemoteRaw = cellfun(@(path)(FSPath.replacePrefix(path, obj.rootDir, DLBackEndClass.RemoteAWSCacheDir)), mdlFiles, 'UniformOutput', false) ;
+      mdlFilesRemote = FSPath.standardPath(mdlFilesRemoteRaw);  % transform to linux-style path
       nMdlFiles = numel(mdlFiles);
       netstr = charArrayFromCharArrayStringOrCellstring(obj.netType) ;
       fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,netstr);

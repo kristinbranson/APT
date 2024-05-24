@@ -1500,8 +1500,9 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        obj.bgTrnStart(backend,dmc,'trnStartCbk',trnStartCbk,...
-          'trnCompleteCbk',trnCompleteCbk);
+        obj.bgTrnStart(backend, dmc, ...
+                       'trnStartCbk', trnStartCbk, ...
+                       'trnCompleteCbk', trnCompleteCbk) ;
 
         % spawn training
         [tfSucc, jobID] = backend.spawn(syscmds, ...
@@ -1848,8 +1849,7 @@ classdef DeepTracker < LabelTracker
       cellfun(@(x)fprintf('  %s\n',x),paths);
     end  
 
-    function backEndArgs = getBackEndArgs(obj,backEnd,gpuid,jobinfo,aptroot,cmdtype)
-
+    function backEndArgs = getBackEndArgs(obj,backend,gpuid,jobinfo,aptroot,cmdtype)
       if isequal(cmdtype,'train'),
         dmc = jobinfo;
         containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
@@ -1857,10 +1857,9 @@ classdef DeepTracker < LabelTracker
         dmc = jobinfo.trainDMC;
         containerName = jobinfo.containerName;
       end
-
-      switch backEnd.type
+      switch backend.type
         case DLBackEnd.Bsub
-          mntPaths = obj.genContainerMountPathBsubDocker(backEnd,cmdtype,jobinfo);
+          mntPaths = obj.genContainerMountPathBsubDocker(backend,cmdtype,jobinfo);
           if isequal(cmdtype,'train'),
             logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
             nslots = obj.jrcnslots;
@@ -1875,7 +1874,7 @@ classdef DeepTracker < LabelTracker
           extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
           singimg = obj.singularityImgPath();
 
-          additionalBsubArgs = backEnd.jrcAdditionalBsubArgs ;
+          additionalBsubArgs = backend.jrcAdditionalBsubArgs ;
           backEndArgs = {...
             'singargs',{'bindpath',mntPaths,'singimg',singimg},...
             'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
@@ -1883,8 +1882,8 @@ classdef DeepTracker < LabelTracker
             'sshargs',{'extraprefix',extraprefix}...
             };
         case DLBackEnd.Docker
-          mntPaths = obj.genContainerMountPathBsubDocker(backEnd,cmdtype,jobinfo);
-          dockerimg = dmc.dockerImgPath(backEnd);
+          mntPaths = obj.genContainerMountPathBsubDocker(backend,cmdtype,jobinfo);
+          dockerimg = dmc.dockerImgPath(backend);
           isgpu = ~isempty(gpuid) && ~isnan(gpuid);
           % tfRequiresTrnPack is always true;
           shmsize = 8;
@@ -1910,18 +1909,17 @@ classdef DeepTracker < LabelTracker
           %   'condaEnv', obj.condaEnv, ...
           %   'gpuid', gpuid };
         case DLBackEnd.AWS
-          backEndArgs  = {} ;  % TODO: This is a stub, ALT 2024-03-08
+          backEndArgs  = {} ;  % TODOALT: This is a stub, ALT 2024-03-08
         otherwise,
           error('Internal error: Unknown backend type') ;
       end
-
-    end
+    end  % function getBackEndArgs()
     
     function updateLastDMCsCurrInfo_(obj)
       obj.trnLastDMC.updateCurrInfo(obj.backend);
-    end
-    
-  end
+    end    
+  end  % methods block
+
   methods (Static)
     function basepaths = hlpAugBasePathsWithWarn(basepaths,newpaths,descstr)
       bps = FSPath.commonbase(newpaths);
@@ -1934,7 +1932,8 @@ classdef DeepTracker < LabelTracker
       end
     end    
   end
-  %% AWS Trainer    
+
+  % AWS Trainer    
   methods
       
     % not maintained/obsolete
@@ -2735,7 +2734,9 @@ classdef DeepTracker < LabelTracker
       % Upload model to remote filesystem, if needed
       dmc.mirrorToBackend(backend) ;
 
-      % TODO: This seems like a good place to upload the movies to the backend...
+      % TODOALT: This seems like a good place to upload the movies to the backend...
+      localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
+      backend.uploadMovies(localPathFromMovieIndex) ;
 
       % Update the tracker info based on the trained model
       obj.updateTrackerInfo() ;
@@ -2860,7 +2861,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
 
-    end
+    end  % function trackList()
 
     % AL20191220 GT classification
     % track2() is an alternate codepath that is refactored relative to 
@@ -3515,8 +3516,7 @@ classdef DeepTracker < LabelTracker
         end
         bgTrkWorkerObj.jobID = jobID;
       end
-
-    end
+    end  % function setupBGTrack()
 
     function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
       [isgt] = myparse(varargin,'isgt',false);

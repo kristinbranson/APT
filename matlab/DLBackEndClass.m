@@ -67,6 +67,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     singularity_image_path_ = '<invalid>'
     does_have_special_singularity_detection_image_path_ = '<invalid>'
     singularity_detection_image_path_ = '<invalid>'
+
+    % Used to keep track of whether movies have been uploaded or not
+    didUploadMovies_ = false
   end
 
   properties (Dependent)
@@ -99,6 +102,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
         obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
         obj.jrcAdditionalBsubArgs = oldbe.jrcAdditionalBsubArgs ;
+        obj.didUploadMovies_ = oldbe.didUploadMovies_ ;
       end
     end
   end
@@ -194,9 +198,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods
     % The wrapBaseCommand*_() methods are what wrapBaseCommand() uses for each of
     % the backend types.  (The method names end in an underscore to indicate that
-    % they are "protected-by-convention").  The wrapCommand*() are lower-level.  For
-    % instance, wrapBaseCommandJaneliaCluster_() calls both wrapCommandSing() and
-    % wrapCommandBsub() in order to do its thing.
+    % they are "protected-by-convention").  The wrapCommand*() functions are
+    % lower-level.  For instance, wrapBaseCommandJaneliaCluster_() calls both
+    % wrapCommandSing() and wrapCommandBsub() in order to do its thing.
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
       switch obj.type,
         case DLBackEnd.Bsub,
@@ -212,16 +216,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function [status, result] = run(obj, empty, basecmd, varargin)
+    function [return_code, stdouterr] = run_(obj, basecmd, varargin)
       % Run the basecmd using system(), after wrapping suitably for the type of
       % backend.  Unlike spawn(), this blocks, and doesn't return a process
       % identifier of any kind.  Return values are like those from system(): a
       % numeric return code and a string containing any command output.
-      if ~isempty(empty) ,
-        error('Someone is still using run() when should be using spawn()') ;
-      end
+      % Protected by convention, hence the trailing underscore in the name.
       command = obj.wrapBaseCommand(basecmd, varargin{:}) ;
-      [status, result] = system(command) ;
+      [return_code, stdouterr] = system(command) ;
     end
 
     function cmd = logCommand(obj,containerName,native_log_file_name)
@@ -261,6 +263,78 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherwise
           error('Not implemented: %s',obj.type);
       end
+    end
+
+    function result = remoteMoviePathFromLocal(obj, localPath)
+      % Convert a local movie path to the remote equivalent.
+      % For non-AWS backends, this is the identity function.
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        movieName = fileparts23(localPath) ;
+        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, 'movies') ;
+        rawRemotePath = linux_fullfile(remoteMovieFolderPath, movieName) ;
+        result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
+      else
+        result = localPath ;
+      end
+    end
+
+    function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
+      % Convert a cell array of local movie paths to their remote equivalents.
+      % For non-AWS backends, this is the identity function.
+      result = cellfun(@(path)(obj.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
+    end
+
+    function uploadMovies(obj, localPathFromMovieIndex)
+      % Upload movies to the backend, if necessary.
+      if ~isequal(obj.type, DLBackEnd.AWS) ,
+        obj.didUploadMovies_ = true ;
+        return
+      end
+      if obj.didUploadMovies_ ,
+        return
+      end
+      remotePathFromMovieIndex = obj.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+      movieCount = numel(localPathFromMovieIndex) ;
+      fprintf('Uploading %d movie files...\n', movieCount) ;
+      fileDescription = 'Movie file' ;
+      sidecarDescription = 'Movie sidecar file' ;
+      for i = 1:movieCount ,
+        localPath = localPathFromMovieIndex{i};
+        remotePath = remotePathFromMovieIndex{i};
+        obj.uploadOrVerifySingleFile_(localPath, remotePath, fileDescription) ;  % throws
+        % If there's a sidecar file, upload it too
+        [~,~,fileExtension] = fileparts(localPath) ;
+        if strcmp(fileExtension,'.mjpg') ,
+          sidecarLocalPath = FSPath.replaceExtension(localPath, '.txt') ;
+          if exist(sidecarLocalPath, 'file') ,
+            sidecarRemotePath = obj.remoteMoviePathFromLocal(sidecarLocalPath) ;
+            obj.uploadOrVerifySingleFile_(sidecarLocalPath, sidecarRemotePath, sidecarDescription) ;  % throws
+          end
+        end
+      end      
+      fprintf('Done uploading %d movie files.\n', movieCount) ;
+      obj.didUploadMovies_ = true ; 
+    end  % function
+
+    function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
+      % Upload a single file.  Protected by convention.
+      % Doesn't check to see if the backend type has a different filesystem.  That's
+      % why outsiders shouldn't call it.
+      localFileDirOutput = dir(localPath) ;
+      localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
+      % We just use scpUploadOrVerify which does not confirm the identity
+      % of file if it already exists. These movie files should be
+      % immutable once created and their naming (underneath timestamped
+      % modelchainIDs etc) should be pretty/totally unique. 
+      %
+      % Only situation that might cause problems are augmentedtrains but
+      % let's not worry about that for now.
+      localFileName = localFileDirOutput.name ;
+      fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
+      obj.scpUploadOrVerify(localPath, ...
+                            remotePath, ...
+                            fullFileDescription, ...
+                            'destRelative',false) ;  % throws      
     end
 
     function [tfSucc, jobID] = spawn(obj, syscmds, varargin)      
@@ -337,11 +411,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if obj.type==DLBackEnd.AWS
         aws = obj.awsec2;
         if ~isempty(aws)
-          fprintf(1,'Stopping AWS EC2 instance %s.',aws.instanceID);
-          tfsucc = aws.stopInstance();
-          if ~tfsucc
-            warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
-          end
+          fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
+          % TODOALT: Comment this back in---while debugging, stopping the AWS instance
+          % takes too long!
+%           tfsucc = aws.stopInstance();
+%           if ~tfsucc
+%             warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
+%           end
         end
       end
     end
@@ -644,6 +720,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function cmd = wrapCommandAWS_(obj, basecmd, varargin)
+
       cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
     end
 
@@ -1551,7 +1628,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_dirloc = escape_string_for_bash(dir_name) ;
       base_command = sprintf('mkdir %s', quoted_dirloc) ;
-      [status, msg] = obj.run([], base_command) ;
+      [status, msg] = obj.run_(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -1560,7 +1637,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('rm %s', quoted_file_name) ;
-      [status, msg] = obj.run([], base_command) ;
+      [status, msg] = obj.run_(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -1579,7 +1656,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('test %s %s', option, quoted_file_name) ;
-      [status, msg] = obj.run([], base_command) ;
+      [status, msg] = obj.run_(base_command) ;
       doesexist = (status==0) ;
     end
 
@@ -1608,7 +1685,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         quoted_file_name = escape_string_for_bash(filename) ;
         quoted_str = escape_string_for_bash(str) ;
         base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
-        [status, msg] = obj.run([], base_command) ;
+        [status, msg] = obj.run_(base_command) ;
         if status ~= 0 ,
           didSucceed = false ;
           errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);

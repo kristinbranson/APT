@@ -96,18 +96,19 @@ classdef AWSec2 < matlab.mixin.Copyable
       % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
 
-  methods
-    
+  methods    
     function SetStatus(obj,varargin)
       if ~isempty(obj.SetStatusFun),
         obj.SetStatusFun(varargin{:});
       end
     end
+
     function ClearStatus(obj,varargin)
       if ~isempty(obj.ClearStatusFun),
         obj.ClearStatusFun(varargin{:});
       end
     end
+
     function clearStatusFuns(obj)
       % AL20191218
       % AWSEc2 objects are deep-copied onto bg worker objects and this is
@@ -122,9 +123,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function setInstanceID(obj,instanceID,instanceType)
-
       obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
-
       if ~isempty(obj.instanceID),
         if strcmp(instanceID,obj.instanceID),
           % nothing to do
@@ -161,14 +160,8 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     function [tfsucc,json] = launchInstance(obj,varargin)
       % Launch a brand-new instance to specify an unspecified instance
-
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
       obj.ResetInstanceID();
-      
-%       assert(~obj.isSpecified,...
-%         'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
-      
-      
       obj.SetStatus('Launching new AWS EC2 instance');
       cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
@@ -236,14 +229,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         % leave IP for now even though may be outdated
       end
-    end
+    end  % function
     
     function [tfsucc,state,json] = getInstanceState(obj)
-      
       assert(obj.isSpecified);
-      
       state = '';
-      
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
@@ -254,9 +244,6 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)
-      
-      %[tfsucc,instanceID,instanceType,reason] = obj.selectInstance('dostore',false);
-      
       [tfsucc,instanceID,pemFile] = ...
         obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
     end
@@ -295,10 +282,8 @@ classdef AWSec2 < matlab.mixin.Copyable
         return;
       end
       json = jsondecode(json);
-
       obj.stopAlarm();
-      
-    end
+    end  % function
     
 
     function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)
@@ -690,6 +675,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         warning('Could  not check for alarm: %s',reason);
         return;
       end
+      return  % TODOALT: Remove this in production
       if isalarm,
         return;
       end
@@ -1208,7 +1194,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         'usedoublequotes',false);
       
       args = {sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
-        '-oStrictHostKeyChecking=no' sprintf('ubuntu@%s',ip)};
+        '-oStrictHostKeyChecking=no' '-oUserKnownHostsFile=/dev/null' sprintf('ubuntu@%s',ip)};
       args{end+1} = escape_string_for_bash(cmdremote) ;
 %       if usedoublequotes
 %         args{end+1} = sprintf('"%s"',cmdremote);
@@ -1219,7 +1205,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
-      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
+      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
         sshcmd,pem,ip,cmdremote,logfileremote);
     end
 
