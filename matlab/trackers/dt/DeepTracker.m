@@ -1283,7 +1283,7 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      if backEnd.isLocal(),
+      if backEnd.isGpuLocal(),
         % how many gpus do we have available?
         nmax = nmovies*nviews;
         gpuids = backEnd.getFreeGPUs(nmax);
@@ -1319,7 +1319,7 @@ classdef DeepTracker < LabelTracker
       view = view(:)';
       stage = stage(:)';
       nmodel = nview*nstage; %#ok<PROPLC> 
-      if backEnd.isLocal(),
+      if backEnd.isGpuLocal(),
         % how many gpus do we have available?
         gpuids = backEnd.getFreeGPUs(nmodel);
         if numel(gpuids) < nmodel,
@@ -2680,8 +2680,7 @@ classdef DeepTracker < LabelTracker
         error('No trained tracker found.');
       end
       if isempty(totrackinfo) || totrackinfo.isempty(),
-        warning('Nothing to track. Should probably catch this earlier.');
-        return
+        error('Nothing to track. Should probably catch this earlier.');
       end
 
       % Make sure the deep learning parameters have not changed since last training
@@ -2711,21 +2710,22 @@ classdef DeepTracker < LabelTracker
           % AL updated msg to be palatable for both single and multi-views
           % (in the latter case you may have a tracker for one view but not
           % another)
-          warndlg('Training in progress, and in-progress tracker(s) has not been saved yet. Please wait to track.','Tracker not ready','modal'); 
-          return;
+          error('Training in progress, and in-progress tracker(s) has not been saved yet. Please wait to track.') ;
         end
         res = questdlg(sprintf('Training in progress. Tracking will use in-progress tracker, which has been trained for %s iterations. When training completes, these frames will need to be retracked. Continue?',...
           DeepTracker.printIter(iterCurr,obj.trnLastDMC.iterFinal)),'Use in-progress tracker?','Track','Cancel','Track');
         if strcmpi(res,'Cancel'),
-          return;
+          error('APT:cancelled', 'Tracking cancelled') ;  % This error message will not normally be shown
         end
       end
 
       % Make sure the model chain is ready to track
       dmc = obj.trnLastDMC ;
       if ~dmc.canTrack() ,
-        warndlg('Tracker is invalid.','Tracker invalid','modal') ;
-        return
+        error('Tracker is invalid.') ;
+        %h = warndlg('Tracker is invalid.','Tracker invalid','modal') ;
+        %waitfor(h) ;
+        %return
       end
 
       % Update code on remote filesystem, if needed
@@ -3405,7 +3405,7 @@ classdef DeepTracker < LabelTracker
       end
       
       tfCanTrack = true;      
-    end
+    end  % function
     
     function tfSuccess = trkSpawn(obj,totrackinfo,backend,varargin)
 

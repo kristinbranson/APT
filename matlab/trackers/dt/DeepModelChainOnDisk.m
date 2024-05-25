@@ -769,6 +769,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 %       end
     end
   end
+  
   methods
     function obj = DeepModelChainOnDisk(varargin)
 
@@ -1243,8 +1244,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     
     function mirrorToBackend(obj, backend)
-      if ~obj.isRemote_ ,
-        obj.mirrorToRemoteAws_(backend) ;
+      if ~backend.isFilesystemLocal() ,
+        if ~obj.isRemote_ ,
+          obj.mirrorToRemoteAws_(backend) ;
+        end
       end
     end
 

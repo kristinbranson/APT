@@ -3032,13 +3032,14 @@ classdef Labeler < handle
       
       cacheDir = obj.projTempDir;
       
-      % Check for exploded cache in tempdir      
-      tCacheDir = fullfile(cacheDir,obj.projname);
-      if ~exist(tCacheDir,'dir')
-        warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
-          obj.projname,cacheDir);
-        return;
-      end
+      % TODOALT: Probably reinstate this check, I guess?
+%       % Check for exploded cache in tempdir      
+%       tCacheDir = fullfile(cacheDir,obj.projname);
+%       if ~exist(tCacheDir,'dir')
+%         warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
+%           obj.projname,cacheDir);
+%         return;
+%       end
             
       % Update/set all DMC.rootDirs to cacheDir
       tAll = obj.trackersAll;

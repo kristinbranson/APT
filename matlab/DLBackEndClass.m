@@ -52,6 +52,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % docker images.
     dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
+      % The docker backend can run the docker container on a remote host.
+      % dockerremotehost will contain the DNS name of the remote host in this case.
+      % But even in this case, as with local docker, we assume that the docker
+      % container and the local host have the same filesystem paths to all the
+      % training/tracking files we will access.  (Like if e.g. they're both managed
+      % Linux boxes on the Janelia network.)
 
     gpuids = []  % for now used by docker/conda
     dockercontainername = []  
@@ -216,13 +222,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function [return_code, stdouterr] = run_(obj, basecmd, varargin)
+    function [return_code, stdouterr] = runFilesystemCommand_(obj, basecmd, varargin)
       % Run the basecmd using system(), after wrapping suitably for the type of
       % backend.  Unlike spawn(), this blocks, and doesn't return a process
       % identifier of any kind.  Return values are like those from system(): a
       % numeric return code and a string containing any command output.
       % Protected by convention, hence the trailing underscore in the name.
-      command = obj.wrapBaseCommand(basecmd, varargin{:}) ;
+      fprintf('runFilesystemCommand_(): %s\n', basecmd') ;
+      if obj.isFilesystemLocal() ,
+        command = basecmd ;
+      else
+        command = obj.wrapBaseCommand(basecmd, varargin{:}) ;
+      end
       [return_code, stdouterr] = system(command) ;
     end
 
@@ -577,17 +588,25 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function v = isLocal(obj)
+    function v = isGpuLocal(obj)
       % Docker and Conda backends are local, Bsub (i.e. Janelia LSF) and AWS are
       % not.  Basically this refers to whether the Python training/tracking code
       % will run on the same machine as the Matlab frontend.
-      v = isequal(obj.type,DLBackEnd.Docker) || isequal(obj.type,DLBackEnd.Conda);
+      v = (isequal(obj.type, DLBackEnd.Docker) && isempty(obj.dockerremotehost) ) || isequal(obj.type,DLBackEnd.Conda);
     end
     
-    function v = doesShareFilesystem(obj)
-      % The conda and bsub (i.e. Janelia LSF) backends share the same filesystem as
-      % the Matlab process.  Docker and AWS do not.
-      v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) ;
+    function v = isGpuRemote(obj)
+      v = ~obj.isGpuLocal(obj) ;
+    end
+    
+    function v = isFilesystemLocal(obj)
+      % The conda and bsub (i.e. Janelia LSF) and Docker backends share (mostly) the
+      % same filesystem as the Matlab process.  AWS does not.
+      v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) || isequal(obj.type,DLBackEnd.Docker) ;
+    end
+    
+    function v = isFilesystemRemote(obj)
+      v = ~obj.isFilesystemLocal(obj) ;
     end
     
     function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
@@ -720,7 +739,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function cmd = wrapCommandAWS_(obj, basecmd, varargin)
-
       cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
     end
 
@@ -1117,7 +1135,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
         tty,shmSize] = ...
         myparse(varargin,...
-        'containername','',...
+        'containername','aptainer',...
         'bindpath',default_bindpath,... % paths on local filesystem that must be mounted/bound within container
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
@@ -1628,7 +1646,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_dirloc = escape_string_for_bash(dir_name) ;
       base_command = sprintf('mkdir %s', quoted_dirloc) ;
-      [status, msg] = obj.run_(base_command) ;
+      [status, msg] = obj.runFilesystemCommand_(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -1637,7 +1655,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('rm %s', quoted_file_name) ;
-      [status, msg] = obj.run_(base_command) ;
+      [status, msg] = obj.runFilesystemCommand_(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -1656,7 +1674,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('test %s %s', option, quoted_file_name) ;
-      [status, msg] = obj.run_(base_command) ;
+      [status, msg] = obj.runFilesystemCommand_(base_command) ;
       doesexist = (status==0) ;
     end
 
@@ -1664,15 +1682,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Write the given string to a file, overrwriting any previous contents.
       % For remote backends, uses a single "ssh echo $string > $filename" to do
       % this, so limited to strings of ~10^5 bytes.
-      if obj.doesShareFilesystem() ,
-        [fh,msg] = fopen(filename,'w');
-        if fh < 0,
-          didSucceed = false ;
-          errorMessage = sprintf('Could not open file %s for writing: %s',filename,msg);
-          return
-        end
-        fprintf(fh,'%s',jse);
-        fclose(fh);
+      if obj.isFilesystemLocal() ,
+        try
+          fo = file_object(filename, 'w') ;
+        catch me 
+          if strcmp(me.identifier, 'file_object:unable_to_open') ,
+            didSucceed = false ;
+            errorMessage = sprintf('Could not open file %s for writing: %s', filename, me.message) ;
+            return
+          else
+            rethrow(me) ;
+          end
+        end  % try-catch
+        fprintf(fo, '%s', str) ;
+        fclose(fo) ;
       else
         if strlength(str) > 100000 ,
           didSucceed = false ;
@@ -1685,7 +1708,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         quoted_file_name = escape_string_for_bash(filename) ;
         quoted_str = escape_string_for_bash(str) ;
         base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
-        [status, msg] = obj.run_(base_command) ;
+        [status, msg] = obj.runFilesystemCommand_(base_command) ;
         if status ~= 0 ,
           didSucceed = false ;
           errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);
