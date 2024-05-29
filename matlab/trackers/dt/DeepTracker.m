@@ -1486,6 +1486,11 @@ classdef DeepTracker < LabelTracker
         dmcjob = dmc.selectSubset('jobidx',ijob);
 
         basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
+        % For AWS backend, need to modify the base command to run in background
+        if backend.type == DLBackEnd.AWS ,          
+          basecmd_escaped = escape_string_for_bash(basecmd) ;
+          basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+        end
         backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),dmcjob,aptroot,'train');
         syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -1511,7 +1516,7 @@ classdef DeepTracker < LabelTracker
                                         'jobdesc', 'training job', ...
                                         'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
 
-        if backend.type == DLBackEnd.Bsub,
+        if backend.type == DLBackEnd.Bsub ,
           jobID = cell2mat(jobID);
         end
         obj.bgTrnMonBGWorkerObj.jobID = jobID;
@@ -3152,7 +3157,7 @@ classdef DeepTracker < LabelTracker
       % for now always true for track2* codepath
       %bgTrkWorkerObj.setPartfileIsTextStatus(true);
 
-      tfErrFileErr = cellfun(@bgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+      tfErrFileErr = cellfun(@BgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
       if any(tfErrFileErr)
         error('There is an existing error in an error file: ''%s''.',...
           String.cellstr2CommaSepList(errfiles));
@@ -3445,9 +3450,14 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setDefaultFiles();
 
         basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
-        backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),totrackinfojob,aptroot,'track');
-        syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
-        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
+        % For AWS backend, need to modify the base command to run in background
+        if backend.type == DLBackEnd.AWS ,    
+          basecmd_escaped = escape_string_for_bash(basecmd) ;
+          basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+        end        
+        backendArgs = obj.getBackEndArgs(backend, gpuids(ijob), totrackinfojob, aptroot, 'track') ;
+        syscmds{ijob} = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
+        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
 
         if backend.type == DLBackEnd.Docker,
           containerName = totrackinfojob.containerName;
@@ -3511,7 +3521,7 @@ classdef DeepTracker < LabelTracker
 
       % If that succeeded, record the job identifiers
       if tfSuccess ,
-        if backend.type == DLBackEnd.Bsub,
+        if backend.type == DLBackEnd.Bsub || backend.type == DLBackEnd.AWS ,
           jobID = cell2mat(jobID);
         end
         bgTrkWorkerObj.jobID = jobID;
@@ -4097,7 +4107,7 @@ classdef DeepTracker < LabelTracker
         'host',DLBackEndClass.jrchost,... % 'logfile','/dev/null',...
         'bg',false,... % AL 20201022 see note below
         'prefix',DLBackEndClass.jrcprefix,...
-        'sshoptions','-o "StrictHostKeyChecking no"',...
+        'sshoptions','-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR',...
         'timeout',[]);
       
       if ~isempty(prefix),

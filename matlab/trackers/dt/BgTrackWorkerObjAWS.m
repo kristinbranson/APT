@@ -100,9 +100,9 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
           sRes(ivw).trkfileNfrmtracked = nan;
           
           fprintf('The poll failed. Time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
-        end
-      end
+        end  % if
+      end  % for ivw
       
-    end
-  end
-end
+    end  % function
+  end  % methods
+end  % classdef

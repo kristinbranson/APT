@@ -1,7 +1,8 @@
 classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
   
   properties
-    awsEc2 % Instance of AWSec2
+    jobID  % [nmovjob x nviewJobs] remote PIDs
+    awsEc2  % Instance of AWSec2, protected "by convention"
   end
   
   methods (Access=protected)    
@@ -15,9 +16,9 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
         obj2.awsEc2 = copy(obj.awsEc2);
       end
     end
-  end
-  methods
+  end  % protected methods block
 
+  methods
     function obj = BgWorkerObjAWS(dmcs,awsec2,varargin)
       obj@BgWorkerObj(dmcs);
       obj.awsEc2 = awsec2;

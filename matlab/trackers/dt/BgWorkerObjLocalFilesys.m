@@ -10,7 +10,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     % Each element of jobID corresponds to a DL process. Since serial
     % tracking across movies and views is possible, a single DL process may 
     % track across multiple moviesets or views.
-    jobID % [nmovjob x nviewJobs] bsub jobID; or docker cellstr containerID
+    jobID  % [nmovjob x nviewJobs] bsub jobID; or docker cellstr containerID
     
     killPollIterWaitTime = 1; % sec
     killPollMaxWaitTime = 12; % sec

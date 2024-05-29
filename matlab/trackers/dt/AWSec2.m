@@ -71,12 +71,13 @@ classdef AWSec2 < matlab.mixin.Copyable
         end
       end
             
-      if ispc
-        obj.scpCmd = ['"',APT.WINSCPCMD,'"'];
-        obj.sshCmd = ['"',APT.WINSSHCMD,'"'];
+      if ispc()
+        windows_null_device_path = '\\.\NUL' ;
+        obj.scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
+        obj.sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
       else
-        obj.scpCmd = 'scp';
-        obj.sshCmd = 'ssh';
+        obj.scpCmd = 'scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+        obj.sshCmd = 'ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
       end
 
       for i=2:2:numel(varargin)
@@ -87,7 +88,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       
     end
     
-    function delete(obj)
+    function delete(obj)  %#ok<INUSD> 
       % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
     end
@@ -951,8 +952,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
-    function cmdfull = cmdInstanceDontRun(obj,cmdremote,varargin)
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
+    function cmdfull = cmdInstanceDontRun(obj, cmdremote, varargin)
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
     end
 
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
@@ -982,7 +983,7 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       
 %       cmdremote = sprintf('kill %d',obj.remotePID);
       cmdremote = 'pkill -f python';
-      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      [tfsucc,~] = obj.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc
         fprintf('Kill command sent.\n\n');
       else
@@ -1188,13 +1189,13 @@ classdef AWSec2 < matlab.mixin.Copyable
       cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
-    function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
+    function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
       [timeout,~] = myparse(varargin,...
-        'timeout',8,...
-        'usedoublequotes',false);
+                            'timeout',8,...
+                            'usedoublequotes',false);
       
-      args = {sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
-        '-oStrictHostKeyChecking=no' '-oUserKnownHostsFile=/dev/null' sprintf('ubuntu@%s',ip)};
+      args = { sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
+               '-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR' sprintf('ubuntu@%s',ip) } ;
       args{end+1} = escape_string_for_bash(cmdremote) ;
 %       if usedoublequotes
 %         args{end+1} = sprintf('"%s"',cmdremote);
@@ -1202,10 +1203,10 @@ classdef AWSec2 < matlab.mixin.Copyable
 %         args{end+1} = sprintf('''%s''',cmdremote);
 %       end
       cmd = String.cellstr2DelimList(args,' ');
-    end
+    end  % function
 
     function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
-      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
+      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
         sshcmd,pem,ip,cmdremote,logfileremote);
     end
 

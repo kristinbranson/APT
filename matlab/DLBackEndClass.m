@@ -222,7 +222,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function [return_code, stdouterr] = runFilesystemCommand_(obj, basecmd, varargin)
+    function [return_code, stdouterr] = runFilesystemCommand_(obj, basecmd)
       % Run the basecmd using system(), after wrapping suitably for the type of
       % backend.  Unlike spawn(), this blocks, and doesn't return a process
       % identifier of any kind.  Return values are like those from system(): a
@@ -232,10 +232,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if obj.isFilesystemLocal() ,
         command = basecmd ;
       else
-        command = obj.wrapBaseCommand(basecmd, varargin{:}) ;
+        command = obj.wrapBaseCommand(basecmd) ;
       end
       [return_code, stdouterr] = system(command) ;
-    end
+    end  % function
 
     function cmd = logCommand(obj,containerName,native_log_file_name)
       assert(obj.type == DLBackEnd.Docker);
@@ -265,16 +265,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function jobID = parseJobID(obj,res)
+    function jobID = parseJobID(obj, res)
       switch obj.type
         case DLBackEnd.Bsub,
           jobID = DLBackEndClass.parseJobIDBsub(res);
         case DLBackEnd.Docker,
           jobID = DLBackEndClass.parseJobIDDocker(res);
+        case DLBackEnd.AWS,
+          jobID = DLBackEndClass.parseJobIdAws(res) ;
         otherwise
           error('Not implemented: %s',obj.type);
       end
-    end
+    end  % function
 
     function result = remoteMoviePathFromLocal(obj, localPath)
       % Convert a local movie path to the remote equivalent.
@@ -371,7 +373,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
             tfSucc(ijob) = st == 0;
           else
             [st,res] = system(syscmd);
-            tfSucc(ijob) = st == 0;
+            tfSucc(ijob) = (st == 0) ;
             if tfSucc(ijob),
               jobID{ijob} = obj.parseJobID(res);
             end
@@ -398,13 +400,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         if numel(logcmds) >= ijob,
           fprintf(1,'%s\n',logcmds{ijob});
           [st2,res2] = system(logcmds{ijob});
-          tfSuccLog(ijob) = st2 == 0;
+          tfSuccLog(ijob) = (st2 == 0) ;
           if ~tfSuccLog(ijob),
             warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
           end
         end
       end
-    end  % run() method
+    end  % spawn() method
 
     function delete(obj)  %#ok<INUSD> 
       % AL 20191218
@@ -799,7 +801,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         jobid = str2double(stoks.jobid);
       else
         jobid = nan;
-        warning('Could not parse job id from:\n%s\',res);
+        warning('Could not parse job id from:\n%s\n',res);
+      end
+    end
+
+    function jobid = parseJobIdAws(res)
+      %fprintf('res: %s', res) ;
+      jobid = str2double(strtrim(res)) ;
+      if isnan(jobid) 
+        warning('Could not parse job id from:\n%s\n',res);
       end
     end
 
@@ -812,7 +822,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         assert(~isempty(res));
         jobID = strtrim(res);
       catch ME,
-        warning('Could not parse job id from:\n%s\',res);
+        warning('Could not parse job id from:\n%s\n',res);
         disp(getReport(ME));
         jobID = '';
       end
@@ -882,7 +892,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [host,prefix,sshoptions,timeout,extraprefix] = myparse(varargin,...
         'host',DLBackEndClass.jrchost,...
         'prefix',DLBackEndClass.jrcprefix,...
-        'sshoptions','-o "StrictHostKeyChecking no" -t',...
+        'sshoptions','-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR -t',...
         'timeout',[],...
         'extraprefix','');
 
