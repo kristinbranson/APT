@@ -57,6 +57,10 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       tfsucc = obj.awsEc2.remoteLs(dir);
     end
     
+    function result = fileModTime(obj, filename)
+      result = obj.awsEc2.remoteFileModTime(filename) ;
+    end
+
     function [tfsucc,warnings] = killProcess(obj)
       warnings = {};
 %       if ~obj.isRunning
@@ -104,8 +108,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
         end
         % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
       end
-    end
+    end  % function
     
-  end
+  end  % methods
     
-end
+end  % classdef

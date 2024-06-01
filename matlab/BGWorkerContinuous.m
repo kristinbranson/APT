@@ -10,11 +10,11 @@ classdef BGWorkerContinuous < handle
   end
   
   properties
-    computeTimes = zeros(0,1); % vector of tic/toc compute time elapsed for each compute command received
+    computeTimes = zeros(0,1)  % vector of tic/toc compute time elapsed for each compute command received
   end
   
   methods    
-    function obj = BGWorkerContinuous
+    function obj = BGWorkerContinuous()
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('Background processing requires Matlab 2017a or later.');
@@ -32,22 +32,26 @@ classdef BGWorkerContinuous < handle
       % callInterval: time in seconds to wait between calls to
       %   cObj.(cObjMeth)
       
+      logger = FileLogger('BGWorkerContinuous.log', 'BGWorkerContinuous') ;
+
+      logger.log('Inside BGWorkerContinuous::start()\n') ;
       assert(isa(dataQueue,'parallel.pool.DataQueue'));
       pdQueue = parallel.pool.PollableDataQueue;
       dataQueue.send(pdQueue);
-      obj.log('Done configuring queues');
+      logger.log('Done configuring queues');
             
+      iterations_completed = 0 ;
       while true        
-        tic;
+        tic_id = tic() ;
         
         [data,ok] = pdQueue.poll();
         if ok
           assert(isstruct(data) && all(isfield(data,{'action' 'data' 'id'})));
           action = data.action;          
-          obj.log('Received %s',action);
+          logger.log('Received %s',action);
           switch action
             case BGWorker.STOPACTION
-              break;
+              break
             case BGWorker.STATACTION
               sResp = struct('id',data.id,'action',action,'result',obj.computeTimes);
               dataQueue.send(sResp);
@@ -58,29 +62,23 @@ classdef BGWorkerContinuous < handle
           % continue
         end
         
-        result = cObj.(cObjMeth)();
-        obj.computeTimes(end+1,1) = toc;
+        result = cObj.(cObjMeth)(logger);
+        result.iterations_completed = iterations_completed ;
+        obj.computeTimes(end+1,1) = toc(tic_id) ;
         dataQueue.send(struct('id',0,'action','','result',{result}));
 %         dataQueue.send(struct('id',data.id,'action',action,'result',result));
 
-        obj.log('Pausing...');
+        logger.log('Pausing...');
         pause(callInterval);
-        obj.log('Done pausing...');
-        
-
+        logger.log('Done pausing...');
+        iterations_completed = iterations_completed + 1 ;
+        logger.log('iterations_completed: %d\n', iterations_completed) ;
       end
       
       status = 1;
-    end
+    end  % function
     
-  end
-  
-  methods (Access=private)    
-    function log(obj,varargin) %#ok<INUSL>
-      str = sprintf(varargin{:});
-      fprintf(1,'BGWorker (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
-    end    
-  end
-  
-end
+  end  % methods
+
+end  % classdef
   

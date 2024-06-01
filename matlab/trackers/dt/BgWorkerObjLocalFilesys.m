@@ -55,7 +55,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         return;
       end
       if partFileIsTextStatus,
-        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);
+        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);  % call superclass method
       else
         try
           nframes = TrkFile.getNFramesTrackedMatFile(f);
@@ -63,7 +63,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
           fprintf('Could not read tracking progress from %s\n',f);
         end
       end
-    end
+    end  % function
     
     function [tfsucc,warnings] = killProcess(obj)
       tfsucc = false;

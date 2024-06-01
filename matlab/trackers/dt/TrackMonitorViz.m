@@ -307,8 +307,11 @@ classdef TrackMonitorViz < handle
               if isfield(res(ijob),'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
                 obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
-                  res(ijob).trkfileNfrmtracked);
-                assert(~isnan(obj.nFramesTracked(ijob)));
+                                                  res(ijob).trkfileNfrmtracked);  %#ok<NANMAX> 
+                if isnan(obj.nFramesTracked(ijob)) ,
+                  % This used to be an assert, but those are not caught by 'dbstop if error'...
+                  error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                end
               else
                 if isdone,
                   tfile = res(ijob).trkfile;

@@ -269,7 +269,7 @@ classdef BgMonitor < handle
         return;
       end
       
-    end
+    end  % function
     
     function stop(obj)
       bgc = obj.bgClientObj;

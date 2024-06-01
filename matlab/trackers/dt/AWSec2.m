@@ -888,6 +888,22 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
+    function result = remoteFileModTime(obj, filename, varargin)
+      % Returns the file modification time (mtime) in seconds since Epoch
+      [dispcmd, failbehavior] = ...
+        myparse(varargin, ...
+                'dispcmd', false, ...
+                'failbehavior', 'warn') ;
+      command = sprintf('stat --format=%%Y %s', escape_string_for_bash(filename)) ;  % time of last data modification, seconds since Epoch
+      [did_succeed, stdouterr] = obj.cmdInstance(command, 'dispcmd', dispcmd, 'failbehavior', failbehavior) ; 
+      if did_succeed ,
+        result = str2double(stdouterr) ;
+      else
+        % Warning/error happens inside obj.cmdInstance(), so just set a fallback value
+        result = nan ;
+      end
+    end
+    
     function tfsucc = remoteLS(obj,remoteDir,varargin)
       [dispcmd,failbehavior,args] = myparse(varargin,...
         'dispcmd',false,...

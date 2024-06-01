@@ -212,7 +212,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'killFileExists',num2cell(obj.replicateJobs(killFileExists)),...
         'isexternal',obj.isexternal... % scalar expansion
         );
-    end
+    end  % function
 
     function sRes = computeList(obj)
       % sRes struct
@@ -279,7 +279,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'killFileExists',num2cell(killFileExists),...
         'isexternal',obj.isexternal... % scalar expansion
         );
-    end
+    end  % function
 
     function reset(obj) %#ok<MANU> 
       % For BgTrackWorkerObjs, this appears to only be called at 

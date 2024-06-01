@@ -100,22 +100,24 @@ classdef BGClient < handle
       end		
       obj.qWorker2Me = queue;
       
-      p = gcp;
+      p = gcp() ;
       if obj.parpoolIdleTimeout > p.IdleTimeout 
         warningNoTrace('Increasing current parpool IdleTimeout to %d minutes.',obj.parpoolIdleTimeout);
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
       if workerContinuous
-        workerObj = BGWorkerContinuous;
+        workerObj = BGWorkerContinuous() ;
         % computeObj deep-copied onto worker
-        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
-          obj.computeObj,obj.computeObjMeth,continuousCallInterval);
+        obj.fevalFuture = ...
+          parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
+        %foo = feval(@start, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
+        % ALTTODO: Make sure this is the parfeval version
       else      
-        workerObj = BGWorker;
+        workerObj = BGWorker() ;
         % computeObj deep-copied onto worker
-        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
-          obj.computeObj,obj.computeObjMeth); 
+        obj.fevalFuture = ...
+          parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth) ; 
       end
       
       obj.isContinuous = workerContinuous;
