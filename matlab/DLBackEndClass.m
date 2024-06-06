@@ -76,6 +76,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     % Used to keep track of whether movies have been uploaded or not
     didUploadMovies_ = false
+
+    % When we upload movies, keep track of the correspondence, so we can help the
+    % consumer map between the paths
+    localPathFromMovieIndex_ = cell(1,0) ;
+    remotePathFromMovieIndex_ = cell(1,0) ;
   end
 
   properties (Dependent)
@@ -327,6 +332,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end      
       fprintf('Done uploading %d movie files.\n', movieCount) ;
       obj.didUploadMovies_ = true ; 
+      obj.localPathFromMovieIndex_ = localPathFromMovieIndex ;
+      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
     end  % function
 
     function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
@@ -1745,6 +1752,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
       end
     end  % function    
+
+%     % Used to keep track of whether movies have been uploaded or not
+%     didUploadMovies_ = false
+% 
+%     % When we upload movies, keep track of the correspondence, so we can help the
+%     % consumer map between the paths
+%     localPathFromMovieIndex_ = cell(1,0) ;
+%     remotePathFromMovieIndex_ = cell(1,0) ;
+
+    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+      if ~obj.didUploadMovies_ ,
+        error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
+      end
+      movieCount = numel(obj.remotePathFromMovieIndex_) ;
+      for movieIndex = 1 : movieCount ,
+        remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
+        if strcmp(remotePath, queryRemotePath) ,
+          result = obj.localPathFromMovieIndex_{movieIndex} ;
+          return
+        end
+      end
+      % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
+      error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
+    end  % function
   end  % public methods block
 
   % These next two methods allow access to private and protected variables,

@@ -1345,7 +1345,35 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       nframestrack = size(obj.tblMFT,1);
     end
 
-  end
+    function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
+      % Assuming all the paths are paths on a remote-filesystem backend, change them
+      % all to their corresponding local paths.
+
+      % Generate all the relocated paths
+      newmovfiles = cellfun(@(old_path)(backend.getLocalMoviePathFromRemote(old_path)), ...
+                            obj.movfiles, ...
+                            'UniformOutput', false) ;
+      newtrkfiles = replace_prefix_path(obj.trkfiles, remoteCacheRoot, localCacheRoot) ;
+      % ALTTODO: Should obj.calibrationfiles be relocated?
+      % ALTTODO: Should obj.trxfiles be relocated?
+      newerrfile = replace_prefix_path(obj.errfile, remoteCacheRoot, localCacheRoot) ;
+      newlogfile = replace_prefix_path(obj.logfile, remoteCacheRoot, localCacheRoot) ;
+      newcmdfile = replace_prefix_path(obj.cmdfile, remoteCacheRoot, localCacheRoot) ;
+      newkillfile = replace_prefix_path(obj.killfile, remoteCacheRoot, localCacheRoot) ;
+      newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, remoteCacheRoot, localCacheRoot) ;
+      % ALTTODO: should obj.listoutfiles be relocated?
+
+      % Actually write all the new paths to the obj only after all the above things
+      % have finished, to make a borked state less likely.
+      obj.movfiles = newmovfiles ;
+      obj.trkfiles = newtrkfiles ;
+      obj.errfile = newerrfile ;
+      obj.logfile = newlogfile ;
+      obj.cmdfile = newcmdfile ;
+      obj.killfile = newkillfile ;
+      obj.trackconfigfile = newtrackconfigfile ;
+    end  % function
+  end  % methods
 
   methods (Static)
     
@@ -1449,7 +1477,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       for i = 2:numel(vin),
         vout = [vout;vin{i}(:)]; %#ok<AGROW> 
       end
-    end
+    end  % function
 
-  end
-end
+  end  % methods (Static)
+end  % classdef
