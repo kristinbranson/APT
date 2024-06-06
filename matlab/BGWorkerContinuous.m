@@ -35,6 +35,7 @@ classdef BGWorkerContinuous < handle
       logger = FileLogger('BGWorkerContinuous.log', 'BGWorkerContinuous') ;
 
       logger.log('Inside BGWorkerContinuous::start()\n') ;
+      logger.log('cObj.awsEc2.sshCmd: %s\n', cObj.awsEc2.sshCmd) ;
       assert(isa(dataQueue,'parallel.pool.DataQueue'));
       pdQueue = parallel.pool.PollableDataQueue;
       dataQueue.send(pdQueue);

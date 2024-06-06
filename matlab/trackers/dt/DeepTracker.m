@@ -3506,7 +3506,7 @@ classdef DeepTracker < LabelTracker
       end
 
       trkVizObj = feval(obj.bgTrkMonitorVizClass,totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj = BgTrackMonitor;
+      bgTrkMonitorObj = BgTrackMonitor() ;
       bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk,'track_type',track_type);
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
       addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
@@ -3720,6 +3720,10 @@ classdef DeepTracker < LabelTracker
     function trkCompleteCbk(obj,res)
 
       try
+        [isAllWell, message] = obj.downloadTrackingFilesIfNecessary(res) ;
+        if ~isAllWell ,
+          error(message) ;
+        end
 
         %[nMovies,nViews,nStgs] = size(res);
         nMovies = obj.trkSysInfo.nmovies;
@@ -3742,13 +3746,15 @@ classdef DeepTracker < LabelTracker
           end
           caldata = obj.trkSysInfo.getCalibrationdata('movie',movi);
           obj.trkPostProcIfNec(movfiles,trkfiles,'caldata',caldata,'calibrationfile',...
-            calibrationfile,'cropROIs',cat(1,croproi{:}));
+                               calibrationfile,'cropROIs',cat(1,croproi{:}));
           moviestr = String.cellstr2DelimList(movfiles,', ');
 
           fprintf('Tracking complete for %s, results saved to:\n',moviestr);
           for vwi = views,
             for stgi = stages,
-              fprintf('  View %d, stage %d: %s\n',vwi,stgi,DeepModelChainOnDisk.getCheckSingle(obj.trkSysInfo.getTrkfiles('movie',movi,'view',vwi,'stage',stgi)));
+              track_file_name = ...
+                DeepModelChainOnDisk.getCheckSingle(obj.trkSysInfo.getTrkfiles('movie',movi,'view',vwi,'stage',stgi)) ;
+              fprintf('  View %d, stage %d: %s\n',vwi,stgi,track_file_name);
             end
           end
           [tffound,mIdx] = obj.lObj.getMovIdxMovieFilesAllFull(movfiles);
@@ -3762,6 +3768,11 @@ classdef DeepTracker < LabelTracker
                 % changing so that we don't MK 20220729
               end
               obj.newLabelerFrame();
+            end
+          else
+            for i = 1 : numel(movfiles) ,
+              movfile = movfiles{i} ;
+              fprintf('Warning: Unable to find movie %s, which allegedly contains tracked frames\n', movfile) ;
             end
           end
         end
@@ -3823,6 +3834,67 @@ classdef DeepTracker < LabelTracker
       %                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
     end
 
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res)
+      backend  = obj.backend ;
+      if backend.type ~= DLBackEnd.AWS ,
+        isAllWell = true ;
+        message = '' ;
+        return
+      end
+      remoteCacheRoot = obj.trnLastDMC.rootDir ;
+      localCacheRoot = obj.lObj.DLCacheDir ;
+      remoteTrackFilePaths = {res.trkfile} ;
+      trkfilesLocal = cellfun(@(remote_path)(replace_prefix_path(remote_path, remoteCacheRoot, localCacheRoot)), ...
+                              remoteTrackFilePaths, ...
+                              'UniformOutput', false) ;
+      %fprintf('AWS: tracking complete at %s\n',datestr(now));
+      %assert(numel(trkfilesLocal)==numel(res));
+      
+      % ALTTODO 2024-06-05: Not entirely sure this below is general enough. In my
+      % test case, res has a single element, and the .movfile field is a char array,
+      % movfiles is a cell array of char arrays, but with only one element (i.e. one
+      % char array).
+      %localmovfiles = obj.trkSysInfo.ttis.localmovfiles ;
+      movfiles = obj.trkSysInfo.ttis.movfiles ;
+
+      if all(strcmp(movfiles(:),{res.movfile}'))
+        % we perform this check b/c while tracking has been running in
+        % the bg, the project could have been updated, movies
+        % renamed/reordered etc.
+        
+        aws = backend.awsec2;
+        
+        % download trkfiles 
+        sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
+        for ivw=1:numel(res)
+          trkLcl = trkfilesLocal{ivw};
+          trkRmt = res(ivw).trkfile;
+          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
+          aws.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
+        end
+        
+%         obj.trkPostProcIfNec(mIdx,trkfilesLocal);
+%         obj.trackResAddTrkfile(mIdx,trkfilesLocal);
+%         if mIdx==obj.lObj.currMovIdx
+%           obj.trackCurrResUpdate();
+%           obj.newLabelerFrame();
+%           fprintf('Tracking complete for current movie at %s.\n',datestr(now));
+%         else
+%           iMov = mIdx.get();
+%           fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
+%         end
+        isAllWell = true ;
+        message = '' ;
+      else
+        %warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
+        %  int32(mIdx));
+        isAllWell = false ;
+        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
+        % conservative, take no action for now
+      end
+    end
 
     function trkCompleteCbkAWS(obj,backend,trkfilesLocal,res)
       fprintf('AWS: tracking complete at %s\n',datestr(now));

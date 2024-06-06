@@ -31,7 +31,7 @@ classdef BGClient < handle
   end
 
   methods 
-    function obj = BGClient
+    function obj = BGClient()
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
@@ -106,6 +106,7 @@ classdef BGClient < handle
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
+      fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
       if workerContinuous
         workerObj = BGWorkerContinuous() ;
         % computeObj deep-copied onto worker

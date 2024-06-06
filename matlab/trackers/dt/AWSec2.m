@@ -17,32 +17,28 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (SetAccess=private)
-    instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.    
+    instanceID  % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.    
   end
+
   properties (Dependent)
     isSpecified
     isConfigured
   end
+
   properties
     instanceIP
     keyName = '';
     pem = '';
-
-    %instanceType = 'p2.xlarge';
     instanceType = 'p3.2xlarge';
-    
-    scpCmd
-    sshCmd
-    
     remotePID
-    
     SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n']);
     ClearStatusFun = @(varargin) fprintf('Done.\n');
-
   end
   
   properties (Constant)
-    cmdEnv = 'sleep 5;LD_LIBRARY_PATH=: AWS_PAGER='
+    cmdEnv = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER='
+    scpCmd = AWSec2.computeScpCmd()
+    sshCmd = AWSec2.computeSshCmd()
   end
   
   methods
@@ -71,14 +67,14 @@ classdef AWSec2 < matlab.mixin.Copyable
         end
       end
             
-      if ispc()
-        windows_null_device_path = '\\.\NUL' ;
-        obj.scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
-        obj.sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
-      else
-        obj.scpCmd = 'scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
-        obj.sshCmd = 'ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
-      end
+%       if ispc()
+%         windows_null_device_path = '\\.\NUL' ;
+%         obj.scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
+%         obj.sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
+%       else
+%         obj.scpCmd = 'scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+%         obj.sshCmd = 'ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+%       end
 
       for i=2:2:numel(varargin)
         prop = varargin{i};
@@ -721,15 +717,18 @@ classdef AWSec2 < matlab.mixin.Copyable
       % dstAbs. In many cases, naming/immutability of files (with paths)
       % means this is OK.
       
-      sysCmdArgs = myparse(varargin,...
-        'sysCmdArgs',{});
+      [sysCmdArgs] = ...
+        myparse(varargin,...
+                'sysCmdArgs',{}) ;
       
-      if exist(dstAbs,'file')>0
+      if exist(dstAbs,'file') ,
         fprintf('File %s exists, not downloading.\n',dstAbs);
         tfsucc = true;
       else
-        cmd = AWSec2.scpDownloadCmd(obj.pem,obj.instanceIP,srcAbs,dstAbs,...
-          'scpcmd',obj.scpCmd);
+        %logger.log('AWSSec2::scpDownloadOrVerify(): obj.scpcmd is %s\n', obj.scpCmd) ;
+        cmd = AWSec2.scpDownloadCmd(obj.pem, obj.instanceIP, srcAbs, dstAbs, ...
+                                    'scpcmd', obj.scpCmd) ;
+        %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
         tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
         tfsucc = tfsucc && (exist(dstAbs,'file')>0);
       end
@@ -866,9 +865,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         cmdremote = sprintf('%s %s',script,f);
       end
-      [~,res] = obj.cmdInstance(cmdremote,...
-        'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
-      tf = res(1)=='y';      
+      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+      [~,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
+      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
+      tf = (res(1)=='y');      
     end
     
     function s = remoteFileContents(obj,f,varargin)
@@ -878,8 +878,9 @@ classdef AWSec2 < matlab.mixin.Copyable
         );
       
       cmdremote = sprintf('cat %s',f);
-      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,...
-        'failbehavior',failbehavior); 
+      [tfsucc,res] = obj.cmdInstance(cmdremote, ...
+                                     'dispcmd',dispcmd, ...
+                                     'failbehavior',failbehavior); 
       if tfsucc  
         s = res;
       else
@@ -973,15 +974,20 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
-      % Runs a single command-line command on the ec2 instance 
+      % Runs a single command-line command on the ec2 instance
+%       [logger] = myparse(varargin,...
+%                          'logger',FileLogger());
+%       logger.log('cmdInstance: cmdremote: %s\n', cmdremote) ;
       fprintf('cmdInstance: %s\n',cmdremote);
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
-      [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
+%       logger.log('cmdInstance: cmdfull: %s\n', cmdfull) ;
+      [tfsucc,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
+%       logger.log('cmdInstance: tfsucc: %d, res: \n%s\n', tfsucc, res) ;
     end
         
-    function cmd = sshCmdGeneralLogged(obj,cmdremote,logfileremote)
-      cmd = AWSec2.sshCmdGeneralLoggedStc(obj.sshCmd,obj.pem,obj.instanceIP,...
-        cmdremote,logfileremote);
+    function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
+      cmd = sprintf('%s -i %s ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
+                    obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, logfileremote) ;
     end
         
     function tf = canKillRemoteProcess(obj)
@@ -1039,7 +1045,7 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       assert(isscalar(obj) && isscalar(obj2));
 %       tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
 %     end
-  end
+  end  % methods
   
   methods (Static)
     
@@ -1199,9 +1205,9 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
 
-    function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
+    function cmd = scpDownloadCmd(pem, ip, srcAbs, dstAbs, varargin)
       scpcmd = myparse(varargin,...
-        'scpcmd','scp');
+                       'scpcmd', 'scp') ;
       cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
@@ -1210,8 +1216,7 @@ classdef AWSec2 < matlab.mixin.Copyable
                             'timeout',8,...
                             'usedoublequotes',false);
       
-      args = { sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
-               '-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR' sprintf('ubuntu@%s',ip) } ;
+      args = { sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) sprintf('ubuntu@%s',ip) } ;
       args{end+1} = escape_string_for_bash(cmdremote) ;
 %       if usedoublequotes
 %         args{end+1} = sprintf('"%s"',cmdremote);
@@ -1220,11 +1225,6 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       end
       cmd = String.cellstr2DelimList(args,' ');
     end  % function
-
-    function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
-      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
-        sshcmd,pem,ip,cmdremote,logfileremote);
-    end
 
     function [tfsucc,instanceID,pemFile] = ...
                               specifyInstanceUIStc(instanceID,pemFile)
@@ -1296,6 +1296,24 @@ classdef AWSec2 < matlab.mixin.Copyable
         keyName = '';
         pemFile = '';
       end      
+    end  % function
+
+    function scpCmd = computeScpCmd()
+      if ispc()
+        windows_null_device_path = '\\.\NUL' ;
+        scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
+      else
+        scpCmd = 'scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+      end
+    end
+
+    function sshCmd = computeSshCmd()
+      if ispc()
+        windows_null_device_path = '\\.\NUL' ;
+        sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
+      else
+        sshCmd = 'ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+      end
     end
     
   end  % Static methods block

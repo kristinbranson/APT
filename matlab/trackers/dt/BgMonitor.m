@@ -68,7 +68,7 @@ classdef BgMonitor < handle
   
   methods
     
-    function obj = BgMonitor
+    function obj = BgMonitor()
       obj.reset();
     end
     

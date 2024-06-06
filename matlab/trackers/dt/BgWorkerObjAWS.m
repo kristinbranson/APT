@@ -41,7 +41,7 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       end      
     end    
     
-    function tf = fileExists(obj,f)
+    function tf = fileExists(obj, f)
       tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
     end
     
