@@ -3092,20 +3092,20 @@ classdef Labeler < handle
           end
           try
             try
-              dmc.mirrorFromBackend(obj.trackDLBackEnd, projtempdir);
-            catch me  %#ok<NASGU> 
-              warningNoTrace('Could not check if trackers had been downloaded from AWS.');
+              dmc.mirrorFromBackend(obj.trackDLBackEnd);
+            catch me
+              warningNoTrace('Could not check if trackers had been downloaded from AWS: %s', me.message);
             end
 
             if verbose,
               fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
-                tObj.trnNetType,dmc.getRootDir);
+                      tObj.trnNetType,dmc.getRootDir);
             end
             modelFilesDst = dmc.copyModelFiles(projtempdir,verbose);
             allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
           catch ME
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-              tObj.trnNetType,ndx,ME.getReport());
+                           tObj.trnNetType,ndx,ME.getReport());
           end
         end
       end

@@ -60,7 +60,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     % all over given that it is done very similarly everywhere.   
     % Example: `/groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5`
     % This will be the same for all stages/views.
-    rootDir = '';
+    localRootDir_ = '' ;
+    remoteRootDir_ = '' ;
+    % Underscore means "protected by convention"
+    %rootDir = '';
 
     % All data associated with a given Labeler project will be stored in a
     % subdirectory of the cache directory, stored in
@@ -119,6 +122,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     nviews
     njobs
     nstages
+    rootDir
+    localRootDir
+    remoteRootDir
   end
 
   methods
@@ -133,6 +139,26 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function v = get.njobs(obj)
       v = numel(unique(obj.jobidx));
+    end
+    function v = get.rootDir(obj)
+      if obj.isRemote_ ,
+        v = obj.remoteRootDir_ ;
+      else
+        v = obj.localRootDir_ ;        
+      end
+    end
+    function set.rootDir(obj,v)
+      if obj.isRemote_ ,
+        obj.remoteRootDir_ = v ;
+      else
+        obj.localRootDir_ = v ;
+      end
+    end    
+    function v = get.remoteRootDir(obj)
+      v = obj.remoteRootDir_ ;
+    end
+    function v = get.localRootDir(obj)
+      v = obj.localRootDir_ ;
     end
     function [v,idx] = getJobs(obj,varargin)
       idx = obj.select(varargin{:});
@@ -241,10 +267,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = obj.tfFollowsObjDet(idx);
     end
     function v = getRootDir(obj)
-      v = obj.rootDir;
+      v = obj.rootDir ;
     end
     function setRootDir(obj,v)
-      obj.rootDir = v;
+      obj.rootDir = v ;
     end
     function v = getFileSep(obj)
       v = obj.filesep;
@@ -1009,7 +1035,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     function [fileinfo,idx] = trainFileInfo(obj,varargin) 
       idx = obj.select(varargin{:});
-      fileinfo = struct;
+      fileinfo = struct() ;
       fileinfo.modelChainID = obj.modelChainID(idx);
       fileinfo.trainID = obj.trainID(idx);
       fileinfo.dlconfig = obj.trainConfigLnx;
@@ -1308,19 +1334,19 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
       % if we made it here, upload successful
       
-      obj.rootDir = DLBackEndClass.RemoteAWSCacheDir;
+      obj.remoteRootDir_ = DLBackEndClass.RemoteAWSCacheDir ;
       %obj.reader = backend.getDmcReader();
       obj.isRemote_ = true ;
     end
     
-    function mirrorFromBackend(obj, backend, cacheDirLocal)
+    function mirrorFromBackend(obj, backend)
       % If the model chain is remote, download it
       if obj.isRemote_ ,
-        obj.mirrorFromRemoteAws_(backend, cacheDirLocal) ;
+        obj.mirrorFromRemoteAws_(backend) ;
       end
     end
 
-    function mirrorFromRemoteAws_(obj, backend, cacheDirLocal)
+    function mirrorFromRemoteAws_(obj, backend)
       % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
       % instance to local cache.
       %
@@ -1333,6 +1359,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       assert(isscalar(obj));      
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
       
+      cacheDirLocal = obj.localRootDir_ ;
       aws = backend.awsec2;  % Should probably refactor do this directly using backend methods
       [tfexist,tfrunning] = aws.inspectInstance();
       if ~tfexist,
@@ -1346,7 +1373,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end      
       %aws.checkInstanceRunning(); % harderrs if instance isn't running
      
-      succ = obj.updateCurrInfo;
+      succ = obj.updateCurrInfo(backend) ;
       if any(~succ),
         dirModelChainLnx = obj.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dirModelChainLnx{:});
@@ -1361,7 +1388,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
         mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
         nMdlFiles = numel(mdlFilesRemote);
-        netstr = char(obj.netType(j)); 
+        netstr = char(obj.netType{j}); 
         fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
         for i=1:nMdlFiles
           fsrc = mdlFilesRemote{i};
@@ -1375,7 +1402,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
       % if we made it here, download successful
       
-      obj.rootDir = cacheDirLocal;
+      %obj.rootDir = cacheDirLocal;
       %obj.reader = DeepModelChainReaderLocal();
       obj.isRemote_ = false ;
     end
@@ -1446,7 +1473,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
       if isempty(dmcs)
         obj = dmcs;
-        return;
+        return
       end
 
       netmodes = myparse(varargin,'netmode',[]);
