@@ -518,8 +518,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tf,reason] = getReadyTrainTrack(obj)
       tf = false;
       if obj.type==DLBackEnd.AWS
-        %aws = obj.awsec2;
-        
         didLaunch = false;
         if ~obj.awsec2.isConfigured || ~obj.awsec2.isSpecified,
           [tfsucc,instanceID,~,reason,didLaunch] = ...
@@ -530,7 +528,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
             return;
           end
         end
-
         
         [tfexist,tfrunning] = obj.awsec2.inspectInstance;
         if ~tfexist,
@@ -573,13 +570,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         
         reason = '';
       elseif obj.type==DLBackEnd.Conda ,
-          if ispc() ,
-              tf = false ;
-              reason = 'Conda backend is not supported on Windows.' ;
-          else
-              tf = true ;
-              reason = '' ;              
-          end
+        if ispc() ,
+          tf = false ;
+          reason = 'Conda backend is not supported on Windows.' ;
+        else
+          tf = true ;
+          reason = '' ;
+        end
       else
         tf = true;
         reason = '';
@@ -618,7 +615,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       v = ~obj.isFilesystemLocal(obj) ;
     end
     
-    function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
+    function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)
       % Get free gpus subject to minFreeMem constraint (see optional PVs)
       %
       % This sets .gpuids
@@ -627,17 +624,17 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
 
-      [~,minFreeMem,condaEnv,verbose] = myparse(varargin,...
-                                                'dockerimg',obj.dockerimgfull,...
-                                                'minfreemem',obj.minFreeMem,...
-                                                'condaEnv',obj.condaEnv,...
-                                                'verbose',0 ...
-                                                ); %#ok<PROPLC>
+      [~, minFreeMem, condaEnv, verbose] = ...
+        myparse(varargin,...
+                'dockerimg',obj.dockerimgfull,...
+                'minfreemem',obj.minFreeMem,...
+                'condaEnv',obj.condaEnv,...
+                'verbose',0) ;  %#ok<PROPLC>
       
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
-      aptdeepnet = APT.getpathdl;
+      aptdeepnet = APT.getpathdl() ;
       
       switch obj.type,
         case DLBackEnd.Docker
@@ -673,8 +670,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           gpuInfo = [] ;
           obj.gpuids = 1 ;
           return
+        case DLBackEnd.AWS
+          % We basically want to skip all the checks etc, so return values that will
+          % make that happen.
+          gpuid = 1 ;
+          freemem = inf ;
+          gpuInfo = [] ;
+          obj.gpuids = 1 ;
+          return
         otherwise
-          error('APT:notImplemented', 'Not implemented');
+          error('APT:internalError', 'Internal error: backend type %s not recognized', char(obj.type)) ;
       end
       
       res0 = res;
@@ -1738,17 +1743,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function aptroot = setupForTrainingOrTracking(obj, cacheDir)
       switch obj.type
-        case DLBackEnd.Bsub
+        case DLBackEnd.Bsub ,
           aptroot = obj.bsubSetRootUpdateRepo(cacheDir);
-        case {DLBackEnd.Conda,DLBackEnd.Docker},
+        case {DLBackEnd.Conda, DLBackEnd.Docker} ,
           aptroot = APT.Root;
-          DeepTracker.downloadPretrainedWeights('aptroot',aptroot);
-        case DLBackEnd.AWS,
-          %aptroot = APT.Root;
+          DeepTracker.downloadPretrainedWeights('aptroot', aptroot) ;
+        case DLBackEnd.AWS ,
           if isempty(obj.awsec2)
             error('AWSec2 object not set.');
           end
-          obj.awsec2.checkInstanceRunning(); % harderrs if instance isn't running
+          obj.awsec2.checkInstanceRunning();  % harderrs if instance isn't running
           aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
       end
     end  % function    

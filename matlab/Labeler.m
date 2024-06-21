@@ -11559,7 +11559,7 @@ classdef Labeler < handle
     end
 
     function dotrain = trackCheckGPUMem(obj,varargin)
-      silent = myparse(varargin,'silent',false) | obj.silent;
+      silent = myparse(varargin,'silent',false) || obj.silent ;
       dotrain = true;
       sPrm = obj.trackGetParams();
       [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
