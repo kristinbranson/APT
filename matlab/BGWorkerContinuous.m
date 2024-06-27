@@ -77,6 +77,7 @@ classdef BGWorkerContinuous < handle
       end
       
       status = 1;
+      logger.log('About to exit BGWorkerContinuous::start()\n') ;
     end  % function
     
   end  % methods

@@ -1473,7 +1473,7 @@ classdef DeepTracker < LabelTracker
       % We have (modelChainID,trainID) config file on disk. 
 
       % Upload model to remote filesystem, if needed (ALTTODO: Is this sufficient for training?)
-      dmc.mirrorToBackend(backend) ;
+      dmc.mirrorToBackend(backend, 'training') ;
 
       unique_jobs = unique(jobidx);
       njobs = numel(unique_jobs);
@@ -2103,7 +2103,7 @@ classdef DeepTracker < LabelTracker
         
         obj.trnLastDMC = dmc;
       end
-    end
+    end  % function
         
     function ppdata = fetchPreProcData(obj,tblP,prmsTgtCrop)
       % Fetch preprocessed data per this tracker. Don't update any cache
@@ -2731,7 +2731,8 @@ classdef DeepTracker < LabelTracker
 
       % Make sure the model chain is ready to track
       dmc = obj.trnLastDMC ;
-      if ~dmc.canTrack() ,
+      canTrackFromModelIndex = dmc.canTrack() ;
+      if isempty(canTrackFromModelIndex) || any(~canTrackFromModelIndex) ,
         error('Tracker is invalid.') ;
         %h = warndlg('Tracker is invalid.','Tracker invalid','modal') ;
         %waitfor(h) ;

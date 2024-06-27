@@ -6,7 +6,7 @@ classdef TrainMonitorViz < handle
     
     hfig % scalar fig
     haxs % [2xnset] axis handle, viz training loss, dist
-    hannlastupdated % [1] textbox/annotation handle
+    %hannlastupdated % [1] textbox/annotation handle
     hline % [nmodel x 2] line handle, one loss curve per view
     hlinekill % [nmodel x 2] line handle, killed marker per view
     trainMontageFigs = []; % figure handles for showing training image montages
@@ -57,8 +57,8 @@ classdef TrainMonitorViz < handle
         'Show error messages'}},...
       'AWS',...
         {{'Update training monitor plots'...
-        'Show log files'...
-        'Show error messages'}});
+          'Show log files'...
+          'Show error messages'}});
   end
   properties (Dependent)
     nmodels
@@ -115,7 +115,7 @@ classdef TrainMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'on';
             
       obj.haxs = [handles.axes_loss;handles.axes_dist];
-      obj.hannlastupdated = handles.text_clusterstatus;
+      %obj.hannlastupdated = handles.text_clusterstatus;
       tfMultiSet = nsets>1;
       if tfMultiSet
         obj.splitaxs(nsets);
@@ -123,7 +123,10 @@ classdef TrainMonitorViz < handle
       
       % reset
       arrayfun(@(x)cla(x),obj.haxs);
-      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      clusterstr = TrainMonitorViz.civilizedBackendDescription(obj.backEnd) ;
+      str = sprintf('%s status: Initializing...', clusterstr) ;
+      obj.SetStatusDisplay(str, [], true) ;
+      %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
       handles.popupmenu_actions.Value = 1;
@@ -226,20 +229,28 @@ classdef TrainMonitorViz < handle
       end
 
       tfSucc = false;
-      msg = '';
+      msg = '';  %#ok<NASGU> 
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
         TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
-        return;
+        return
       end
       
       res = sRes.result;
-      if ~res.pollsuccess,
-        return;
-      end
-      nres = numel(res.contents);
-      assert(nres==obj.nmodels);
+
+      % This early exit seems to prevent user from seeing an error that occurs before
+      % any training iterations.
+%       if ~res.pollsuccess,
+%         % Even if the poll failed, if .resLast is empty then populate it, since maybe there was an error or
+%         % something.
+%         if isempty(obj.resLast)
+%           obj.resLast = res;
+%         end
+%         return
+%       end
+%       nres = numel(res.contents);
+%       assert(nres==obj.nmodels);
 
       % for each axes, record if any line got updated and max xlim
       tfAnyLineUpdate = false(1,obj.nset);
@@ -303,35 +314,22 @@ classdef TrainMonitorViz < handle
 
       [tfSucc,msg] = obj.updateAnn(res);
       TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
-    end
+    end  % function resultsReceived()
     
     function [tfSucc,status] = updateAnn(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      pollsuccess = res.pollsuccess;
       
-      clusterstr = 'Cluster';
-      switch obj.backEnd        
-        case DLBackEnd.Bsub
-          clusterstr = 'JRC cluster';
-        case DLBackEnd.Conda
-          clusterstr = 'Local';
-        case DLBackEnd.Docker
-          clusterstr = 'Local';
-        case DLBackEnd.AWS,
-          clusterstr = 'AWS';
-        otherwise
-          warning('Unknown back end type');
-      end
-                  
       if ~isempty(res),
+        pollsuccess = res.pollsuccess;
         isTrainComplete = res.tfComplete;
         isErr = res.errFileExists | res.logFileErrLikely;
         isLogFile = res.logFileExists;
         isJsonFile = res.jsonPresent;
       else
+        pollsuccess = false ;  % is this right?  -- ALT, 2024-06-27
         isTrainComplete = false(1,obj.nmodels);
         isErr = false(1,obj.nmodels);
         isLogFile = false(1,obj.nmodels);
@@ -352,7 +350,7 @@ classdef TrainMonitorViz < handle
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-        isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
+                                   isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
       
       if any(obj.isKilled),
         status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
@@ -374,21 +372,11 @@ classdef TrainMonitorViz < handle
       else
         status = 'Initializing training.';
       end
-      
-      str = {sprintf('%s status: %s',clusterstr,status),sprintf('Monitor updated %s.',datestr(now,'HH:MM:SS PM'))};
-      hAnn = obj.hannlastupdated;
-      hAnn.String = str;
-      
-      tfsucc = pollsuccess;
-      if tfsucc,
-        hAnn.ForegroundColor = [0 1 0];
-      else
-        hAnn.ForegroundColor = [1 0 0];
-      end
-      
-%       ax = obj.haxs(1);
-%       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
-%       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
+
+      clusterstr = TrainMonitorViz.civilizedBackendDescription(obj.backEnd) ;
+      str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
+      isAllGood = pollsuccess && ~isErr ;
+      obj.SetStatusDisplay(str, [], isAllGood) ;
     end
     
     function adjustAxes(obj,lineUpdateMaxStep,iset)
@@ -407,16 +395,15 @@ classdef TrainMonitorViz < handle
         warning('trainWorkerObj is empty -- cannot kill process');
         return;
       end
-      obj.SetBusy('Killing training jobs...',true);
+      obj.SetStatusDisplay('Killing training jobs...', [], false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
       [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
       obj.isKilled(:) = tfsucc;
-      obj.SetBusy('Checking that training jobs are killed...',true);
-      if tfsucc,
-        
+      obj.SetStatusDisplay('Checking that training jobs were killed...', [], false);
+      if tfsucc,        
         startTime = tic;
         maxWaitTime = 30;
         while true,
@@ -432,7 +419,7 @@ classdef TrainMonitorViz < handle
       else
         warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
       end
-      obj.ClearBusy('Training process killed');
+      obj.SetStatusDisplay('Training process killed.', [], true);
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
     
@@ -473,18 +460,24 @@ classdef TrainMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
-          if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
-            ss = 'No error messages.';
-          else
-            ss = obj.getErrorFileContents();
-          end
-          handles.text_clusterinfo.String = ss;
+          obj.displayErrorMessages() ;
         otherwise
           fprintf('%s not implemented\n',action);
           return;
       end
     end
-    
+
+    function displayErrorMessages(obj)
+      handles = guidata(obj.hfig);
+      if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
+        ss = 'No error messages.';
+      else
+        ss = obj.getErrorFileContents();
+      end
+      handles.text_clusterinfo.String = ss;
+      drawnow('limitrate', 'nocallbacks') ;
+    end      
+
     function ss = getLogFilesContents(obj)
       
       ss = obj.trainWorkerObj.getLogfilesContent;
@@ -529,35 +522,42 @@ classdef TrainMonitorViz < handle
 
     end
     
-    function ClearBusy(obj,s)
-
-      obj.SetBusy(s,false);
-    
-    end
-
-    function SetBusy(obj,s,isbusy)
-
+    function SetStatusDisplay(obj, s, isbusy, isallgood)  %#ok<INUSD> 
+      % Set all or some of the status message, pointer (arrow vs watch), and color
+      % of the status message.  Any of the three (non-obj) args can be empty, in
+      % which case that aspect is not changed.
       handles = guidata(obj.hfig);
-      
-      if nargin < 3
-        isbusy = true;
+      if ~exist('s', 'var') ,
+        s = [] ;
       end
-      
-      if isbusy,
-        set(handles.figure_TrainMonitor,'Pointer','watch');
-        if ~isempty(s),
-          set(handles.text_clusterstatus,'String',s,'ForegroundColor','r');
-        end
-        
+%       if ~exist('isbusy', 'var') ,
+%         isbusy = [] ;
+%       end
+      if ~exist('isallgood', 'var') ,
+        isallgood = [] ;
+      end
+%       if isempty(isbusy) ,
+%         % do nothing
+%       elseif isbusy ,
+%         set(obj.hfig,'Pointer','watch');
+%       else
+%         set(obj.hfig,'Pointer','arrow');
+%       end        
+      if isempty(s) ,
+        % do nothing
       else
-        set(handles.figure_TrainMonitor,'Pointer','arrow');
-        set(handles.text_clusterstatus,'ForegroundColor','g');
+        set(handles.text_clusterstatus,'String',s);
       end
-
-      drawnow('limitrate');
+      if isempty(isallgood) ,
+        % do nothing
+      elseif isallgood ,
+        set(handles.text_clusterstatus,'ForegroundColor','g');
+      else
+        set(handles.text_clusterstatus,'ForegroundColor','r');
+      end
+      drawnow('limitrate', 'nocallbacks');
     end
-    
-  end
+  end  % methods
   
   methods (Static)
     function hAnn = createAnnUpdate(ax)
@@ -593,7 +593,23 @@ classdef TrainMonitorViz < handle
       end
       
     end
-    
-  end
+
+    function clusterstr = civilizedBackendDescription(backend)
+      clusterstr = 'Cluster';
+      switch backend        
+        case DLBackEnd.Bsub
+          clusterstr = 'JRC cluster';
+        case DLBackEnd.Conda
+          clusterstr = 'Local';
+        case DLBackEnd.Docker
+          clusterstr = 'Local';
+        case DLBackEnd.AWS,
+          clusterstr = 'AWS';
+        otherwise
+          warning('Unknown back end type');
+      end
+    end  % function
+
+  end  % methods (Static)
   
 end

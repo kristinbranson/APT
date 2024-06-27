@@ -2,7 +2,7 @@ classdef TrackMonitorViz < handle
   properties
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
-    hannlastupdated % [1] textbox/annotation handle
+    %hannlastupdated % [1] textbox/annotation handle
     
     % Three modes. Here nmov=nMovSet*nView
     % - bulkAxsIsBulkMode: hline is [nmov]. One box/patch per mov. htext is
@@ -101,7 +101,7 @@ classdef TrackMonitorViz < handle
       %handles.pushbutton_startstop.Enable = 'on';
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
-      obj.hannlastupdated = handles.text_clusterstatus;
+      %obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
       obj.twoStgMode = dtObj.getNumStages() > 1;
@@ -111,7 +111,8 @@ classdef TrackMonitorViz < handle
       
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
-      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      %obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      obj.SetBusy('Cluster status: Initializing...', true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
@@ -241,7 +242,7 @@ classdef TrackMonitorViz < handle
       % trnComplete: scalar logical, true when all views done
       
       tfSucc = false;
-      msg = '';
+      msg = '';  %#ok<NASGU> 
       
       if nargin < 3,
         forceupdate = false;
@@ -288,7 +289,7 @@ classdef TrackMonitorViz < handle
           (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
            || isdone;
         else
-          partFileExists = false;
+          partFileExists = false;  %#ok<NASGU> 
           isupdate =false;
         end
 
@@ -515,7 +516,7 @@ classdef TrackMonitorViz < handle
         warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
-      obj.ClearBusy('Tracking process killed');
+      obj.SetBusy('Tracking process killed.', false);
       drawnow;
 
     end
@@ -595,32 +596,38 @@ classdef TrackMonitorViz < handle
 
     end
     
-    function ClearBusy(obj,s)
-
-      obj.SetBusy(s,false);
-    
-    end
+%     function ClearBusy(obj,s)
+% 
+%       obj.SetBusy(s,false);
+%     
+%     end
 
     function SetBusy(obj,s,isbusy)
 
       handles = guidata(obj.hfig);
       
-      if nargin < 3
+      if ~exist('s', 'var') ,
+        s = '' ;
+      end
+      if ~exist('isbusy', 'var') || isempty(isbusy) ,
         isbusy = true;
       end
       
       if isbusy,
         set(obj.hfig,'Pointer','watch');
-        if ~isempty(s),
-          set(handles.text_clusterstatus,'String',s,'ForegroundColor','r');
+        set(handles.text_clusterstatus,'ForegroundColor','r');
+        if ~isempty(s) ,
+          set(handles.text_clusterstatus,'String',s);
         end
-        
       else
         set(obj.hfig,'Pointer','arrow');
         set(handles.text_clusterstatus,'ForegroundColor','g');
+        if ~isempty(s) ,
+          set(handles.text_clusterstatus,'String',s);
+        end
       end
 
-      drawnow('limitrate');
+      drawnow('limitrate', 'nocallbacks');
     end
     
   end
@@ -715,7 +722,7 @@ classdef TrackMonitorViz < handle
         end
       end
     end
-    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)
+    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)  %#ok<INUSD> 
       hpch = gobjects(nmov,1);
       for imov = 1:nmov
         irow = ceil(imov/gridncol);
@@ -741,11 +748,11 @@ classdef TrackMonitorViz < handle
         
         [gridnrow,gridncol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);
         hpch = TrackMonitorViz.makeIndicatorPatches(nmov,...
-          gridnrow,gridncol,ax,[1 0 0],{});
+          gridnrow,gridncol,ax,[1 0 0],{});  %#ok<NASGU> 
         axis(ax,[0.5 gridncol+1.5 1 gridnrow+1]);
         
         drawnow;
-        mm(nmov) = getframe(hfig);
+        mm(nmov) = getframe(hfig);  %#ok<AGROW> 
         %input(num2str(nmov));
       end
     end

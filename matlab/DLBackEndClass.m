@@ -1631,6 +1631,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end      
     end
 
+    function rsyncUpload(obj, src, dest)
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        aws = obj.awsec2 ;
+        aws.rsyncUpload(src, dest) ;
+      end      
+    end
+    
     function updateRepo(obj)
       % Update the APT repo in the backend.  For non-AWS backends, this does nothing.
       if isequal(obj.type, DLBackEnd.AWS) ,
@@ -1667,13 +1674,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Create the named directory, either locally or remotely, depending on the
       % backend type.
       quoted_dirloc = escape_string_for_bash(dir_name) ;
-      base_command = sprintf('mkdir %s', quoted_dirloc) ;
+      base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
       [status, msg] = obj.runFilesystemCommand_(base_command) ;
       didsucceed = (status==0) ;
     end
 
     function [didsucceed, msg] = deleteFile(obj, file_name)
-      % Create the named file, either locally or remotely, depending on the
+      % Delete the named file, either locally or remotely, depending on the
       % backend type.
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('rm %s', quoted_file_name) ;

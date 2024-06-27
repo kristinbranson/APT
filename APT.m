@@ -312,8 +312,7 @@ classdef APT
       pposetf = fullfile(r,'deepnet');
     end
     
-    function cacheDir = getdlcacheroot()
-      
+    function cacheDir = getdlcacheroot()      
       m = APT.readManifest;
       if isfield(m,'dltemproot')
         cacheDir = m.dltemproot;
@@ -327,7 +326,7 @@ classdef APT
         end
         cacheDir = fullfile(userDir,'.apt');
       end
-    end
+    end  % function
     
     function tr = torchhome()
       tr = fullfile(APT.getdlcacheroot(),'torch');

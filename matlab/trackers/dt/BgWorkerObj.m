@@ -56,7 +56,7 @@ classdef BgWorkerObj < handle
     s = fileContents(obj,file)
     killFiles = getKillFiles(obj)
     [tf,warnings] = killProcess(obj)
-    sRes = compute(obj)
+    sRes = compute(obj, logger)
   end
   
   methods

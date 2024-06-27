@@ -112,7 +112,7 @@ classdef BGClient < handle
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
           parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
-        %foo = feval(@start, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
+        % foo = feval(@start, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
         % ALTTODO: Make sure this is the parfeval version
       else      
         workerObj = BGWorker() ;

@@ -77,8 +77,11 @@ classdef BgTrainWorkerObj < BgWorkerObj
 
     end
     
-    function sRes = compute(obj) % obj const except for .trnLogLastStep
+    function sRes = compute(obj, logger) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ;  %#ok<NASGU> 
+      end
             
       % - Read the json for every view and see if it has been updated.
       % - Check for completion 

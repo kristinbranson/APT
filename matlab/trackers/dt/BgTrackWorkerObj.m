@@ -137,8 +137,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
 
     end
       
-    function sRes = compute(obj)
+    function sRes = compute(obj, logger)
       % sRes: [nMovies x nviews x nStages] struct array      
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ; %#ok<NASGU> 
+      end
 
       % Order important, check if job is running first. If we check after
       % looking at artifacts, job may stop in between time artifacts and 

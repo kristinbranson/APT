@@ -27,18 +27,19 @@ classdef AWSec2 < matlab.mixin.Copyable
 
   properties
     instanceIP
-    keyName = '';
-    pem = '';
+    keyName = ''
+    pem = ''
     instanceType = 'p3.2xlarge';
     remotePID
-    SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n']);
-    ClearStatusFun = @(varargin) fprintf('Done.\n');
+    SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n'])
+    ClearStatusFun = @(varargin) fprintf('Done.\n')
   end
   
   properties (Constant)
-    cmdEnv = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER='
+    cmdEnv = 'sleep 3 ; LD_LIBRARY_PATH= AWS_PAGER='
     scpCmd = AWSec2.computeScpCmd()
     sshCmd = AWSec2.computeSshCmd()
+    rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
   methods
@@ -687,7 +688,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function tfsucc = getRemotePythonPID(obj)
-      [tfsucc,res] = obj.cmdInstance('pgrep -o python','dispcmd',true);
+      [tfsucc,res] = obj.cmdInstance('pgrep --uid ubuntu --oldest python','dispcmd',true);
       if tfsucc
         pid = str2double(strtrim(res));
         obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
@@ -700,7 +701,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     function tfnopyproc = getNoPyProcRunning(obj)
       % Return true if there appears to be no python process running on
       % instance
-      [tfsucc,res] = obj.cmdInstance('pgrep -o python',...
+      [tfsucc,res] = obj.cmdInstance('pgrep --uid ubuntu --oldest python',...
         'dispcmd',true,'failbehavior','silent');
       
       % AL 20200213 First clause here is legacy: "expect command to fail; 
@@ -814,7 +815,12 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
         'destRelative',destRelative); % throws
     end
-        
+       
+    function tfsucc = rsyncUpload(obj, src, dest)
+      cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
+      tfsucc = AWSec2.syscmd(cmd) ;
+    end
+
     function rmRemoteFile(obj,dst,fileDescStr,varargin) % throws
       % Either i) confirm a remote file does not exist, or ii) deletes it.
       % This method either succeeds or fails and harderrors.
@@ -1004,7 +1010,7 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       end
 %       
 %       cmdremote = sprintf('kill %d',obj.remotePID);
-      cmdremote = 'pkill -f python';
+      cmdremote = 'pkill --uid ubuntu --full python';
       [tfsucc,~] = obj.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc
         fprintf('Kill command sent.\n\n');
@@ -1018,7 +1024,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       %
       % res: [n] cellstr of fspoll responses
 
-      assert(iscellstr(fspollargs) && ~isempty(fspollargs));
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
       nargsFSP = numel(fspollargs);
       assert(mod(nargsFSP,2)==0);
       nresps = nargsFSP/2;
@@ -1185,12 +1191,12 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
       [destRelative,scpcmd] = myparse(varargin,...
-        'destRelative',true,...
-        'scpcmd','scp');
+                                      'destRelative',true,...
+                                      'scpcmd','scp');
       if destRelative
         dest = ['~/' dest];
       end
-      if ispc 
+      if ispc() 
         [fileP,fileF,fileE] = fileparts(file);
         % 20190501. scp on windows is dumb and treats colons ':' as a
         % host specifier etc. there may not be a good way to escape; 
@@ -1211,12 +1217,39 @@ classdef AWSec2 < matlab.mixin.Copyable
       cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
+    function cmd = rsyncUploadCmd(src, pemFilePath, ip, dest)
+      % Generate the system() command to upload a file/folder via rsync.
+
+      % It's important that neither src nor dest have a trailing slash
+      if isempty(src) ,
+        error('src folder for rsync cannot be empty') ;
+      else
+        if strcmp(src(end),'/') ,
+          error('src folder for rsync cannot end in a slash') ;
+        end
+      end
+      if isempty(dest) ,
+        error('dest folder for rsync cannot be empty') ;
+      else
+        if strcmp(dest(end),'/') ,
+          error('dest folder for rsync cannot end in a slash') ;
+        end
+      end
+
+      % Generate the --rsh argument
+      sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
+      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+
+      % Generate the final command
+      cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, src, ip, dest) ;
+    end
+
     function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
       [timeout,~] = myparse(varargin,...
                             'timeout',8,...
                             'usedoublequotes',false);
       
-      args = { sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) sprintf('ubuntu@%s',ip) } ;
+      args = { sshcmd '-i' pem sprintf('-o ConnectTimeout=%d', timeout) sprintf('ubuntu@%s',ip) } ;
       args{end+1} = escape_string_for_bash(cmdremote) ;
 %       if usedoublequotes
 %         args{end+1} = sprintf('"%s"',cmdremote);
@@ -1303,7 +1336,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         windows_null_device_path = '\\.\NUL' ;
         scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
       else
-        scpCmd = 'scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+        scpCmd = 'scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
       end
     end
 
@@ -1312,7 +1345,15 @@ classdef AWSec2 < matlab.mixin.Copyable
         windows_null_device_path = '\\.\NUL' ;
         sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
       else
-        sshCmd = 'ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
+        sshCmd = 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
+      end
+    end
+    
+    function result = computeRsyncCmd()
+      if ispc()
+        error('Not implemented') ;
+      else
+        result = 'rsync -az' ;
       end
     end
     
