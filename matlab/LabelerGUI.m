@@ -4747,20 +4747,20 @@ end
 function menu_track_background_predict_start_Callback(hObject,eventdata,handles)
 tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
-  tObj.asyncStartBGWorker();
+  tObj.asyncStartBgRunner();
 else
   if ~tObj.hasTrained
     errordlg('A tracker has not been trained.','Background Tracking');
     return;
   end
   tObj.asyncPrepare();
-  tObj.asyncStartBGWorker();
+  tObj.asyncStartBgRunner();
 end
   
 function menu_track_background_predict_end_Callback(hObject,eventdata,handles)
 tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
-  tObj.asyncStopBGWorker();
+  tObj.asyncStopBgRunner();
 else
   warndlg('Background worker is not running.','Background tracking');
 end

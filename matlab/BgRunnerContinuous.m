@@ -1,5 +1,5 @@
-classdef BGWorkerContinuous < handle
-  % BGWorkerContinuous is a worker that runs a repeated computation in the
+classdef BgRunnerContinuous < handle
+  % BgRunnerContinuous is a worker that runs a repeated computation in the
   % background at regular intervals. Each time it runs its computation, it
   % sends a message back. After starting, all you can do is tell it to 
   % stop.
@@ -14,7 +14,7 @@ classdef BGWorkerContinuous < handle
   end
   
   methods    
-    function obj = BGWorkerContinuous()
+    function obj = BgRunnerContinuous()
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('Background processing requires Matlab 2017a or later.');
@@ -32,9 +32,9 @@ classdef BGWorkerContinuous < handle
       % callInterval: time in seconds to wait between calls to
       %   cObj.(cObjMeth)
       
-      logger = FileLogger('BGWorkerContinuous.log', 'BGWorkerContinuous') ;
+      logger = FileLogger('BgRunnerContinuous.log', 'BgRunnerContinuous') ;
 
-      logger.log('Inside BGWorkerContinuous::start()\n') ;
+      logger.log('Inside BgRunnerContinuous::start()\n') ;
       logger.log('cObj.awsEc2.sshCmd: %s\n', cObj.awsEc2.sshCmd) ;
       assert(isa(dataQueue,'parallel.pool.DataQueue'));
       pdQueue = parallel.pool.PollableDataQueue;
@@ -51,9 +51,9 @@ classdef BGWorkerContinuous < handle
           action = data.action;          
           logger.log('Received %s',action);
           switch action
-            case BGWorker.STOPACTION
+            case BgRunner.STOPACTION
               break
-            case BGWorker.STATACTION
+            case BgRunner.STATACTION
               sResp = struct('id',data.id,'action',action,'result',obj.computeTimes);
               dataQueue.send(sResp);
             otherwise
@@ -77,7 +77,7 @@ classdef BGWorkerContinuous < handle
       end
       
       status = 1;
-      logger.log('About to exit BGWorkerContinuous::start()\n') ;
+      logger.log('About to exit BgRunnerContinuous::start()\n') ;
     end  % function
     
   end  % methods

@@ -1,6 +1,6 @@
 classdef BgWorkerObj < handle
   % Object deep copied onto BG worker. To be used with
-  % BGWorkerContinuous
+  % BgRunnerContinuous
   % 
   % Responsibilities:
   % - Poll filesystem for updates

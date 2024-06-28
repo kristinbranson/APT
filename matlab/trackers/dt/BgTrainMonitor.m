@@ -2,13 +2,13 @@ classdef BgTrainMonitor < BgMonitor
   % BGTrainMonitor
   %
   % A BGTrainMonitor is:
-  % 1. A BGClient/BGWorker pair comprising a client, bg worker working
+  % 1. A BGClient/BgRunner pair comprising a client, bg worker working
   % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
   % pipeline.
   %   - The initted BgWorkerObj knows how to poll the state of a train. For
   %     debugging/testing this can be done from the client machine.
   % 2. A client-side TrainingMonitorViz object that visualizes training 
-  % progress sent back from the BGWorker
+  % progress sent back from the BgRunner
   % 3. Custom actions performed when training is complete
   %
   % BGTrainMonitor does NOT know how to spawn training jobs but will know

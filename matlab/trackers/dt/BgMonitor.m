@@ -2,13 +2,13 @@ classdef BgMonitor < handle
   % BGMonitor
   %
   % A BGMonitor is:
-  % 1. A BGClient/BGWorker pair comprising a client, bg worker working
+  % 1. A BGClient/BgRunner pair comprising a client, bg worker working
   % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
   % pipeline.
   %   - The initted BgWorkerObj knows how to poll the state of the process. For
   %     debugging/testing this can be done from the client machine.
   % 2. A client-side MonitorViz object that visualizes 
-  % progress sent back from the BGWorker
+  % progress sent back from the BgRunner
   % 3. Custom actions performed when process is complete
   %
   % BGMonitor does NOT know how to spawn process jobs but will know
@@ -16,7 +16,7 @@ classdef BgMonitor < handle
   % jobs and monitor them with BgMonitor.
   %
   % BGMonitor does NOT know how to probe the detailed state of the
-  % process eg on disk. That is BGWorkerObj's domain.
+  % process eg on disk. That is BgRunnerObj's domain.
   %
   % So BGMonitor is a connector/manager obj that runs the worker 
   % (knows how to poll the filesystem in detail) in the background and 
@@ -29,7 +29,7 @@ classdef BgMonitor < handle
     
     bgClientObj
     bgWorkerObj % scalar "detached" object that is deep-copied onto
-    % workers. Note, this is not the BGWorker obj itself
+    % workers. Note, this is not the BgRunner obj itself
     monitorObj % object with resultsreceived() method
     cbkComplete = []; % fcnhandle with sig cbk(res), called when operation complete
     processName = 'process';
@@ -134,7 +134,7 @@ classdef BgMonitor < handle
       
       cbkResult = @obj.bgResultsReceived;
 
-      bgc = BGClient;
+      bgc = BGClient() ;
       fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult,bgWorkerObj,compute_fcn);
       
@@ -152,7 +152,7 @@ classdef BgMonitor < handle
       assert(obj.prepared);
       bgc = obj.bgClientObj;
       bgc.startWorker('workerContinuous',true,...
-        'continuousCallInterval',obj.bgContCallInterval);
+                      'continuousCallInterval',obj.bgContCallInterval);
       obj.notify('bgStart');
     end
     

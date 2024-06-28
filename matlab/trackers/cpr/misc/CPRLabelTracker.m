@@ -110,7 +110,7 @@ classdef CPRLabelTracker < LabelTracker
     asyncBGClient; % scalar BGClient object, manages comms with background worker.
   end
   properties (Dependent)
-    asyncIsPrepared % If true, asyncPrepare() has been called and asyncStartBGWorker() can be called
+    asyncIsPrepared % If true, asyncPrepare() has been called and asyncStartBgRunner() can be called
   end
      
   %% Visualization
@@ -2975,7 +2975,7 @@ classdef CPRLabelTracker < LabelTracker
       obj.asyncPredictCPRLTObj = objDetached;
     end
     
-    function asyncStartBGWorker(obj)
+    function asyncStartBgRunner(obj)
       % Start worker(s) in background thread
       
       bgc = obj.asyncBGClient;
@@ -2985,7 +2985,7 @@ classdef CPRLabelTracker < LabelTracker
       fprintf(1,'Background tracking enabled.\n');
     end
     
-    function asyncStopBGWorker(obj)
+    function asyncStopBgRunner(obj)
       % Stop worker(s) on background thread
       
       bgc = obj.asyncBGClient;
@@ -3017,7 +3017,7 @@ classdef CPRLabelTracker < LabelTracker
     end
         
     function sRes = asyncCompute(obj,sCmd)
-      % This method intended to run on BGWorker with a "detached" obj
+      % This method intended to run on BgRunner with a "detached" obj
       
       assert(isstruct(obj.lObj),'Expected ''detached'' object.');
       
@@ -3063,7 +3063,7 @@ classdef CPRLabelTracker < LabelTracker
             obj.vizLoadXYPrdCurrMovieTarget();
             obj.newLabelerFrame();
             notify(obj,'newTrackingResults');
-          case BGWorker.STATACTION
+          case BgRunner.STATACTION
             computeTimes = res;
             CPRLabelTracker.asyncComputeStatsStc(computeTimes);
           otherwise

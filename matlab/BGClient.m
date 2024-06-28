@@ -81,7 +81,7 @@ classdef BGClient < handle
     end
     
     function startWorker(obj,varargin)
-      % Start BGWorker on new thread
+      % Start BgRunner on new thread
       
       [workerContinuous,continuousCallInterval] = myparse(varargin,...
         'workerContinuous',false,...
@@ -108,14 +108,14 @@ classdef BGClient < handle
       
       fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
       if workerContinuous
-        workerObj = BGWorkerContinuous() ;
+        workerObj = BgRunnerContinuous() ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
           parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
-        % foo = feval(@start, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
+%         foo = feval(@start, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
         % ALTTODO: Make sure this is the parfeval version
       else      
-        workerObj = BGWorker() ;
+        workerObj = BgRunner() ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
           parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth) ; 
@@ -151,13 +151,13 @@ classdef BGClient < handle
     end
     
     function stopWorker(obj)
-      % "Proper" stop; STOP message is sent to BGWorker obj; BGWorker reads
+      % "Proper" stop; STOP message is sent to BgRunner obj; BgRunner reads
       % STOP message and breaks from polling loop
       
       if ~obj.isRunning
         warningNoTrace('BGClient:run','Worker is not running.');
       else
-        sCmd = struct('action',BGWorker.STOPACTION,'data',[]);
+        sCmd = struct('action',BgRunner.STOPACTION,'data',[]);
         obj.sendCommand(sCmd);
       end
     end
