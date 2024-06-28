@@ -20,11 +20,12 @@ classdef BgRunnerContinuous < handle
         error('Background processing requires Matlab 2017a or later.');
       end
     end    
-  end
-  
-  methods     
+
+    function delete(obj)  %#ok<INUSD> 
+      fprintf('A BgRunnerContinuous is being deleted.\n') ;
+    end
     
-    function status = start(obj,dataQueue,cObj,cObjMeth,callInterval)
+    function status = run(obj,dataQueue,cObj,cObjMeth,callInterval)
       % Spin up worker; call via parfeval
       % 
       % dataQueue: parallel.pool.DataQueue created by Client

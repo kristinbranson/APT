@@ -23,7 +23,7 @@ classdef BgRunner < handle
   
   methods     
     
-    function status = start(obj,dataQueue,cObj,cObjMeth)
+    function status = run(obj,dataQueue,cObj,cObjMeth)
       % Spin up worker; call via parfeval
       % 
       % dataQueue: parallel.pool.DataQueue created by Client

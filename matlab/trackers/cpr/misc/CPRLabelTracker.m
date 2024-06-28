@@ -2980,7 +2980,7 @@ classdef CPRLabelTracker < LabelTracker
       
       bgc = obj.asyncBGClient;
       fprintf(1,'Starting background worker...\n');
-      bgc.startWorker();
+      bgc.startRunner();
       obj.asyncPredictOn = true;
       fprintf(1,'Background tracking enabled.\n');
     end

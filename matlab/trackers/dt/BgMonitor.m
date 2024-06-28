@@ -151,7 +151,7 @@ classdef BgMonitor < handle
     function start(obj)
       assert(obj.prepared);
       bgc = obj.bgClientObj;
-      bgc.startWorker('workerContinuous',true,...
+      bgc.startRunner('runnerContinuous',true,...
                       'continuousCallInterval',obj.bgContCallInterval);
       obj.notify('bgStart');
     end

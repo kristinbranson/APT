@@ -80,11 +80,11 @@ classdef BGClient < handle
       obj.computeObjMeth = computeObjMeth;
     end
     
-    function startWorker(obj,varargin)
+    function startRunner(obj,varargin)
       % Start BgRunner on new thread
       
-      [workerContinuous,continuousCallInterval] = myparse(varargin,...
-        'workerContinuous',false,...
+      [runnerContinuous,continuousCallInterval] = myparse(varargin,...
+        'runnerContinuous',false,...
         'continuousCallInterval',nan);
       
       if ~obj.isConfigured
@@ -93,7 +93,7 @@ classdef BGClient < handle
       end
       
       queue = parallel.pool.DataQueue;
-      if workerContinuous
+      if runnerContinuous
       	queue.afterEach(@(dat)obj.afterEachContinuous(dat));
       else
         queue.afterEach(@(dat)obj.afterEach(dat));
@@ -107,21 +107,21 @@ classdef BGClient < handle
       end
       
       fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
-      if workerContinuous
-        workerObj = BgRunnerContinuous() ;
+      if runnerContinuous
+        runnerObj = BgRunnerContinuous() ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
-          parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
+          parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
 %         foo = feval(@start, workerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
         % ALTTODO: Make sure this is the parfeval version
       else      
-        workerObj = BgRunner() ;
+        runnerObj = BgRunner() ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
-          parfeval(@start, 1, workerObj, queue, obj.computeObj, obj.computeObjMeth) ; 
+          parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth) ; 
       end
       
-      obj.isContinuous = workerContinuous;
+      obj.isContinuous = runnerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
