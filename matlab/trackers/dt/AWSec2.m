@@ -36,7 +36,9 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Constant)
-    cmdEnv = 'sleep 3 ; LD_LIBRARY_PATH= AWS_PAGER='
+    cmdEnv = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER='  
+      % Change the sleep number at your own risk!  I tried 3, and everything seemed
+      % fine for a while until it became a very hard-to-find bug. -- ALT, 2024-06-28
     scpCmd = AWSec2.computeScpCmd()
     sshCmd = AWSec2.computeSshCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
