@@ -60,8 +60,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     % all over given that it is done very similarly everywhere.   
     % Example: `/groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5`
     % This will be the same for all stages/views.
-    localRootDir_ = '' ;
-    remoteRootDir_ = '' ;
+    localRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    remoteRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL
     % Underscore means "protected by convention"
     %rootDir = '';
 
@@ -1473,6 +1473,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainLocLnx,idx] = obj.trainLocLnx(varargin{:});
       tpdir = obj.dirProjLnx;
       tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
+    end
+
+    function result = getTorchHome(obj)
+      if obj.isRemote_ ,
+        result = linux_fullfile(obj.remoteRootDir_, 'torch') ;
+      else
+        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      end
     end
 
   end

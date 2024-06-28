@@ -312,24 +312,24 @@ classdef APT
       pposetf = fullfile(r,'deepnet');
     end
     
-    function cacheDir = getdlcacheroot()      
-      m = APT.readManifest;
-      if isfield(m,'dltemproot')
-        cacheDir = m.dltemproot;
+    function result = getdotaptdirpath()  % returns e.g. /home/joesixpack/.apt
+      manifest = APT.readManifest() ;
+      if isfield(manifest,'dltemproot')
+        result = manifest.dltemproot;
       else
-        if ispc
+        if ispc()
           userDir = winqueryreg('HKEY_CURRENT_USER',...
             ['Software\Microsoft\Windows\CurrentVersion\' ...
             'Explorer\Shell Folders'],'Personal');
         else
           userDir = char(java.lang.System.getProperty('user.home'));
         end
-        cacheDir = fullfile(userDir,'.apt');
+        result = fullfile(userDir,'.apt');
       end
     end  % function
     
     function tr = torchhome()
-      tr = fullfile(APT.getdlcacheroot(),'torch');
+      tr = fullfile(APT.getdotaptdirpath(),'torch');
     end
     
     function s = codesnapshot

@@ -29,7 +29,7 @@ classdef TrainMonitorViz < handle
     resLast % last training json contents received
     dtObj % DeepTracker Obj
     trainWorkerObj = [];
-    backEnd % scalar DLBackEnd
+    backEnd % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
     actions = struct(...
       'Bsub',...
         {{...
@@ -123,9 +123,9 @@ classdef TrainMonitorViz < handle
       
       % reset
       arrayfun(@(x)cla(x),obj.haxs);
-      clusterstr = TrainMonitorViz.civilizedBackendDescription(obj.backEnd) ;
+      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      obj.SetStatusDisplay(str, [], true) ;
+      apt.setStatusDisplayLineBang(obj.hfig, str, true) ;
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
       handles.popupmenu_actions.String = obj.actions.(char(backEnd));
@@ -373,10 +373,10 @@ classdef TrainMonitorViz < handle
         status = 'Initializing training.';
       end
 
-      clusterstr = TrainMonitorViz.civilizedBackendDescription(obj.backEnd) ;
+      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
       isAllGood = pollsuccess && ~isErr ;
-      obj.SetStatusDisplay(str, [], isAllGood) ;
+      apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
     end
     
     function adjustAxes(obj,lineUpdateMaxStep,iset)
@@ -393,33 +393,58 @@ classdef TrainMonitorViz < handle
     function stopTraining(obj)
       if isempty(obj.trainWorkerObj),
         warning('trainWorkerObj is empty -- cannot kill process');
-        return;
+        return
       end
-      obj.SetStatusDisplay('Killing training jobs...', [], false);
+      apt.setStatusDisplayLineBang(obj.hfig, 'Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
       [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
       obj.isKilled(:) = tfsucc;
-      obj.SetStatusDisplay('Checking that training jobs were killed...', [], false);
-      if tfsucc,        
-        startTime = tic;
+      apt.setStatusDisplayLineBang(obj.hfig, 'Checking that training jobs were killed...', false);
+      wereTrainingProcessesKilledForSure = false ;
+      if tfsucc ,        
+        startTime = tic() ;
         maxWaitTime = 30;
         while true,
           if toc(startTime) > maxWaitTime,
-            warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
-            break;
+            fprintf('Stopping training processes too long, giving up.\n') ;
+            if isempty(warnings) ,
+              fprintf('But there were no warnings while trying to stop training processes.\n') ;
+            else
+              fprintf('Warning(s) while trying to stop training processes:\n') ;
+              cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
+              fprintf('\n') ;
+            end
+            warndlg('Stopping training processes too long.  See console for details.', 'Problem stopping training', 'modal') ;
+            break
           end
           if ~obj.dtObj.bgTrnIsRunning,
-            break;
+            wereTrainingProcessesKilledForSure = true ;
+            break
           end
           pause(1);
         end        
       else
-        warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+        %warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+        fprintf('There was a problem stopping training processes.\n') ;
+        fprtinf('Training processes may not have been killed properly.\n') ;
+        if isempty(warnings) ,
+          fprintf('But there were no warnings while trying to stop training processes.\n') ;
+        else
+          fprintf('Warning(s) while trying to stop training processes:\n') ;
+          cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
+          fprintf('\n') ;
+        end
+        warndlg('There was a problem while stopping training processes.  See console for details.', 'Problem stopping training', 'modal') ;
       end
-      obj.SetStatusDisplay('Training process killed.', [], true);
+      if wereTrainingProcessesKilledForSure ,
+        str = 'Training process killed.' ;
+      else
+        str = 'Tried to kill training process, but there were issues.' ;
+      end        
+      apt.setStatusDisplayLineBang(obj.hfig, str, true);
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
     
@@ -522,41 +547,6 @@ classdef TrainMonitorViz < handle
 
     end
     
-    function SetStatusDisplay(obj, s, isbusy, isallgood)  %#ok<INUSD> 
-      % Set all or some of the status message, pointer (arrow vs watch), and color
-      % of the status message.  Any of the three (non-obj) args can be empty, in
-      % which case that aspect is not changed.
-      handles = guidata(obj.hfig);
-      if ~exist('s', 'var') ,
-        s = [] ;
-      end
-%       if ~exist('isbusy', 'var') ,
-%         isbusy = [] ;
-%       end
-      if ~exist('isallgood', 'var') ,
-        isallgood = [] ;
-      end
-%       if isempty(isbusy) ,
-%         % do nothing
-%       elseif isbusy ,
-%         set(obj.hfig,'Pointer','watch');
-%       else
-%         set(obj.hfig,'Pointer','arrow');
-%       end        
-      if isempty(s) ,
-        % do nothing
-      else
-        set(handles.text_clusterstatus,'String',s);
-      end
-      if isempty(isallgood) ,
-        % do nothing
-      elseif isallgood ,
-        set(handles.text_clusterstatus,'ForegroundColor','g');
-      else
-        set(handles.text_clusterstatus,'ForegroundColor','r');
-      end
-      drawnow('limitrate', 'nocallbacks');
-    end
   end  % methods
   
   methods (Static)
@@ -593,22 +583,6 @@ classdef TrainMonitorViz < handle
       end
       
     end
-
-    function clusterstr = civilizedBackendDescription(backend)
-      clusterstr = 'Cluster';
-      switch backend        
-        case DLBackEnd.Bsub
-          clusterstr = 'JRC cluster';
-        case DLBackEnd.Conda
-          clusterstr = 'Local';
-        case DLBackEnd.Docker
-          clusterstr = 'Local';
-        case DLBackEnd.AWS,
-          clusterstr = 'AWS';
-        otherwise
-          warning('Unknown back end type');
-      end
-    end  % function
 
   end  % methods (Static)
   

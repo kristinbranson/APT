@@ -1809,7 +1809,7 @@ classdef DeepTracker < LabelTracker
         
         %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
         %cacheDir = obj.lObj.DLCacheDir;
-        cacheDir = APT.getdlcacheroot;
+        cacheDir = APT.getdotaptdirpath() ;
         assert(~isempty(cacheDir));
         
         if isequal(cmdtype,'train'),
@@ -4823,8 +4823,7 @@ classdef DeepTracker < LabelTracker
         char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
     end    
     
-    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,...
-        frm0,frm1,varargin)
+    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,frm0,frm1,varargin)
 
       % varargin: see trackCodeGenBase, except for 'cache' and 'view'
       
@@ -4878,8 +4877,7 @@ classdef DeepTracker < LabelTracker
         'logFile','/dev/null'...
       ); 
       
-      basecode = APTInterf.trackCodeGenBase(fileinfo,...
-        frm0,frm1,baseargs{:});
+      basecode = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
       if ~isempty(cudaVisDevice)
         cudaDeviceStr = ...
           sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
@@ -4952,8 +4950,8 @@ classdef DeepTracker < LabelTracker
       codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end    
-    function codestr = trackCodeGenAWS(...
-        fileinfo,frm0,frm1,baseargs)
+
+    function codestr = trackCodeGenAWS(fileinfo,frm0,frm1,baseargs)
       % movRemoteFull: can be cellstr when tracking all views
       % trkRemoteFull: "
       % 

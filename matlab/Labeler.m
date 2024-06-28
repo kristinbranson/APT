@@ -2909,7 +2909,7 @@ classdef Labeler < handle
         );
       
       if isempty(obj.projTempDir)
-        obj.projTempDir = tempname(APT.getdlcacheroot);
+        obj.projTempDir = tempname(APT.getdotaptdirpath());
       end
       tname = obj.projTempDir;
       
@@ -3160,7 +3160,7 @@ classdef Labeler < handle
       
       success = true;
       if isempty(obj.projTempDir),
-        rootdir = APT.getdlcacheroot;
+        rootdir = APT.getdotaptdirpath() ;
       else
         rootdir = fileparts(obj.projTempDir);
       end

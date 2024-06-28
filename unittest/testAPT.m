@@ -155,7 +155,7 @@ classdef testAPT < handle
     end    
     
     function cdir = get_cache_dir()
-      cdir = APT.getdlcacheroot;
+      cdir = APT.getdotaptdirpath() ;
     end
         
   end

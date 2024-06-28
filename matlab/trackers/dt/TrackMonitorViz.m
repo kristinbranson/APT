@@ -24,7 +24,7 @@ classdef TrackMonitorViz < handle
     resLast = []; % last contents received
     dtObj % DeepTracker Obj
     trackWorkerObj = [];
-    backEnd % scalar DLBackEnd
+    backEnd % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
     actions = struct(...
       'Bsub',...
       {{'List all jobs on cluster'...
@@ -112,7 +112,9 @@ classdef TrackMonitorViz < handle
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
-      obj.SetBusy('Cluster status: Initializing...', true) ;
+      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
+      str = sprintf('%s status: Initializing...', clusterstr) ;
+      apt.setStatusDisplayLineBang(obj.hfig, str, true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
@@ -376,21 +378,6 @@ classdef TrackMonitorViz < handle
       tfSucc = true;
       nJobs = numel(res);
       pollsuccess = true(1,nJobs);
-      
-      clusterstr = 'Cluster';
-      switch obj.backEnd
-        case DLBackEnd.Bsub
-          clusterstr = 'JRC cluster';
-        case DLBackEnd.Docker
-          clusterstr = 'Local';
-        case DLBackEnd.Conda
-          clusterstr = 'Local';
-        case DLBackEnd.AWS,
-          clusterstr = 'AWS';
-        otherwise
-          warning('Unknown back end type');
-      end
-          
       isTrackComplete = false;
       isErr = false;
       isLogFile = false;
@@ -439,17 +426,11 @@ classdef TrackMonitorViz < handle
         status = 'Initializing tracking.';
       end
       
-      str = {sprintf('%s status: %s',clusterstr,status),sprintf('Monitor updated %s.',datestr(now,'HH:MM:SS PM'))};
-      hAnn = obj.hannlastupdated;
-      hAnn.String = str;
-      
-      isok = all(pollsuccess) && ~isErr;
-      if all(isok)
-        hAnn.ForegroundColor = [0 1 0];
-      else
-        hAnn.ForegroundColor = [1 0 0];
-      end      
-    end
+      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
+      str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
+      isAllGood = all(pollsuccess) && ~isErr ;
+      apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
+    end  % function
     
     function updateErrDisplay(obj,res)
       isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
@@ -503,7 +484,7 @@ classdef TrackMonitorViz < handle
         warning('trackWorkerObj is empty -- cannot kill process');
         return;
       end
-      obj.SetBusy('Killing tracking jobs...',true);
+      apt.setStatusDisplayLineBang(obj.hfig, 'Killing tracking jobs...', false) ;
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
@@ -516,7 +497,7 @@ classdef TrackMonitorViz < handle
         warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
-      obj.SetBusy('Tracking process killed.', false);
+      apt.setStatusDisplayLineBang(obj.hfig, 'Tracking process killed.', false);
       drawnow;
 
     end
@@ -596,41 +577,7 @@ classdef TrackMonitorViz < handle
 
     end
     
-%     function ClearBusy(obj,s)
-% 
-%       obj.SetBusy(s,false);
-%     
-%     end
-
-    function SetBusy(obj,s,isbusy)
-
-      handles = guidata(obj.hfig);
-      
-      if ~exist('s', 'var') ,
-        s = '' ;
-      end
-      if ~exist('isbusy', 'var') || isempty(isbusy) ,
-        isbusy = true;
-      end
-      
-      if isbusy,
-        set(obj.hfig,'Pointer','watch');
-        set(handles.text_clusterstatus,'ForegroundColor','r');
-        if ~isempty(s) ,
-          set(handles.text_clusterstatus,'String',s);
-        end
-      else
-        set(obj.hfig,'Pointer','arrow');
-        set(handles.text_clusterstatus,'ForegroundColor','g');
-        if ~isempty(s) ,
-          set(handles.text_clusterstatus,'String',s);
-        end
-      end
-
-      drawnow('limitrate', 'nocallbacks');
-    end
-    
-  end
+  end  % methods
   
   methods (Static)
     
