@@ -13,7 +13,7 @@ classdef BGWorker < handle
   end
   
   methods    
-    function obj = BGWorker
+    function obj = BGWorker()
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
