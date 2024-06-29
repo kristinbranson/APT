@@ -715,10 +715,6 @@ classdef DeepTracker < LabelTracker
         assert(tf2stg);        
       end
       
-      trnMonObj = BgMonitor('train') ;
-      addlistener(trnMonObj,'bgStart',trnStartCbk);
-      addlistener(trnMonObj,'bgEnd',trnCompleteCbk);
-
       % 20210806 At this point, the first arg to train worker obj (ndmcs)
       % must match numel(dmcs)...
       switch backEnd.type
@@ -741,7 +737,10 @@ classdef DeepTracker < LabelTracker
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
                                   backEnd.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
                 
-      trnMonObj.prepare(trnVizObj,trnWrkObj);
+      trnMonObj = BgMonitor('train', trnVizObj, trnWrkObj) ;
+      addlistener(trnMonObj,'bgStart',trnStartCbk);
+      addlistener(trnMonObj,'bgEnd',trnCompleteCbk);
+      %trnMonObj.prepare(trnVizObj,trnWrkObj);
       trnMonObj.start();
       obj.bgTrnMonitor = trnMonObj;
       obj.bgTrnMonBGWorkerObj = trnWrkObj;
@@ -3157,7 +3156,6 @@ classdef DeepTracker < LabelTracker
           String.cellstr2CommaSepList(errfiles));
       end
       
-      bgTrkMonitorObj = BgMonitor('track') ;
       
       %nFramesTrack = obj.getNFramesTrack(tMFTConc,mIdx,frm0,frm1,trxids);
       %fprintf('Requested to track %d frames, through interface will track %d frames.\n',size(tMFTConc,1),nFramesTrack)
@@ -3165,8 +3163,8 @@ classdef DeepTracker < LabelTracker
       %trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
       %trkVizObj = TrkTrnMonVizCmdline();
       trkVizObj = TrackMonitorViz(nvw,obj,bgTrkWorkerObj,be.type,nfrms2trk);
-      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,cbkTrkComplete);
-      %bgTrkMonitorObj.prepare(bgTrkWorkerObj,@obj.trkCompleteCbk);
+      bgTrkMonitorObj = BgMonitor('track', trkVizObj, bgTrkWorkerObj, cbkTrkComplete) ;
+      %bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,cbkTrkComplete);
       
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)disp('bgStart') ); % @(s,e)obj.notify('trackStart'));
       addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)disp('bgEnd')); % @(varargin) obj.trackStoppedCbk(varargin{:}));
@@ -3500,8 +3498,8 @@ classdef DeepTracker < LabelTracker
       end
 
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj = BgMonitor('track') ;
-      bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk,'track_type',track_type);
+      bgTrkMonitorObj = BgMonitor('track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type) ;
+      %bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk,'track_type',track_type);
       addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
       addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
