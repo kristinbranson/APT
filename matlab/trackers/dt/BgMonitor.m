@@ -25,8 +25,7 @@ classdef BgMonitor < handle
   % See also prepare() method comments for related info.
   
   properties
-    bgContCallInterval = 30; %secs
-    
+    bgContCallInterval = 30; %secs    
     bgClientObj
     bgWorkerObj % scalar "detached" object that is deep-copied onto
     % workers. Note, this is not the BgRunner obj itself
@@ -34,6 +33,7 @@ classdef BgMonitor < handle
     cbkComplete = []; % fcnhandle with sig cbk(res), called when operation complete
     processName = 'process';
   end
+
   properties (Dependent)
     prepared
     isRunning
@@ -68,15 +68,24 @@ classdef BgMonitor < handle
   
   methods
     
-    function obj = BgMonitor()
-      obj.reset();
+    function obj = BgMonitor(type_string)      
+      % Is obj for monitoring training or tracking?
+      if strcmp(type_string, 'train') ,
+        obj.bgContCallInterval = 30; %secs
+        obj.processName = 'train';
+      elseif strcmp(type_string, 'track') ,
+        obj.bgContCallInterval = 20; %secs
+        obj.processName = 'track';
+      else
+        error('Internal error: BgMonitor() argument must be ''train'' or ''track''') ;
+      end
     end
     
     function delete(obj)
-      obj.reset();
+      obj.reset_();
     end
     
-    function reset(obj)
+    function reset_(obj)  % protected by convention
       % Reset BG Monitor state
       %
       % - TODO Note, when you change eg params, u need to call this. etc etc.
@@ -86,6 +95,8 @@ classdef BgMonitor < handle
         obj.notify('bgEnd');
       end
       
+      % IMHO, it's a code smell that we explicitly delete all these things in a
+      % method that is called from delete()...  -- ALT, 2024-06-28
       if ~isempty(obj.bgClientObj)
         delete(obj.bgClientObj);
       end
@@ -125,7 +136,7 @@ classdef BgMonitor < handle
         compute_fcn = 'computeList';
       end
 
-      obj.reset();
+      obj.reset_();
       
       [tfEFE,errFile] = bgWorkerObj.errFileExists;
       if tfEFE
