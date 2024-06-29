@@ -25,7 +25,7 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
     end
     
     function obj2 = copyAndDetach(obj)
-      % See note in BGClient/configure(). We create a new obj2 here that is
+      % See note in BgClient/configure(). We create a new obj2 here that is
       % a deep-copy made palatable for parfeval
       
       obj2 = copy(obj); % deep-copies obj, including .awsec2 and .dmcs if appropriate

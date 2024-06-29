@@ -105,9 +105,9 @@ classdef CPRLabelTracker < LabelTracker
   
   %% Async
   properties
-    asyncPredictOn = false; % if true, background worker is running. newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBGClient.isRunning
+    asyncPredictOn = false; % if true, background worker is running. newLabelerFrame will fire a parfeval to predict. Could try relying on asyncBgClient.isRunning
     asyncPredictCPRLTObj; % scalar "detached" CPRLabelTracker object that is deep-copied onto workers. Contains current trained tracker used in background pred.
-    asyncBGClient; % scalar BGClient object, manages comms with background worker.
+    asyncBgClient; % scalar BgClient object, manages comms with background worker.
   end
   properties (Dependent)
     asyncIsPrepared % If true, asyncPrepare() has been called and asyncStartBgRunner() can be called
@@ -143,7 +143,7 @@ classdef CPRLabelTracker < LabelTracker
       v = ~isempty(obj.trnResRC) && any([obj.trnResRC.hasTrained]);
     end
     function v = get.asyncIsPrepared(obj)
-      v = ~isempty(obj.asyncBGClient);
+      v = ~isempty(obj.asyncBgClient);
     end
     function v = get.sPrm(obj)
       if isempty(obj.sPrmAll),
@@ -2940,12 +2940,12 @@ classdef CPRLabelTracker < LabelTracker
       end
       
       obj.asyncPredictOn = false;
-      if ~isempty(obj.asyncBGClient)
-        delete(obj.asyncBGClient);
+      if ~isempty(obj.asyncBgClient)
+        delete(obj.asyncBgClient);
       else
         tfwarn = false;
       end
-      obj.asyncBGClient = [];
+      obj.asyncBgClient = [];
       if ~isempty(obj.asyncPredictCPRLTObj)
         delete(obj.asyncPredictCPRLTObj)
       end
@@ -2968,17 +2968,17 @@ classdef CPRLabelTracker < LabelTracker
       cbkResult = @(sRes)obj.asyncResultReceived(sRes);
       fprintf(1,'Detaching trained tracker...\n');
       objDetached = obj.asyncDetachCopy();
-      bgc = BGClient;
+      bgc = BgClient;
       fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult,objDetached,'asyncCompute');
-      obj.asyncBGClient = bgc;
+      obj.asyncBgClient = bgc;
       obj.asyncPredictCPRLTObj = objDetached;
     end
     
     function asyncStartBgRunner(obj)
       % Start worker(s) in background thread
       
-      bgc = obj.asyncBGClient;
+      bgc = obj.asyncBgClient;
       fprintf(1,'Starting background worker...\n');
       bgc.startRunner();
       obj.asyncPredictOn = true;
@@ -2988,7 +2988,7 @@ classdef CPRLabelTracker < LabelTracker
     function asyncStopBgRunner(obj)
       % Stop worker(s) on background thread
       
-      bgc = obj.asyncBGClient;
+      bgc = obj.asyncBgClient;
       bgc.stopWorker();
       obj.asyncPredictOn = false;
       fprintf(1,'Background tracking disabled.\n');
@@ -3001,14 +3001,14 @@ classdef CPRLabelTracker < LabelTracker
       tblP = obj.lObj.labelGetMFTableCurrMovFrmTgt();
       tblP = obj.lObj.preProcCropLabelsToRoiIfNec(tblP);
       sCmd = struct('action','track','data',tblP);
-      obj.asyncBGClient.sendCommand(sCmd);
+      obj.asyncBgClient.sendCommand(sCmd);
     end
     
     function asyncComputeStats(obj)
       if ~obj.asyncIsPrepared
         error('CPRLabelTracker:async','No background tracking information available.');
       end
-      bgc = obj.asyncBGClient;
+      bgc = obj.asyncBgClient;
       tocs = bgc.idTocs;
       if isnan(tocs(end))
         tocs = tocs(1:end-1);

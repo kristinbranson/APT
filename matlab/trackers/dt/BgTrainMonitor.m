@@ -2,7 +2,7 @@ classdef BgTrainMonitor < BgMonitor
   % BGTrainMonitor
   %
   % A BGTrainMonitor is:
-  % 1. A BGClient/BgRunner pair comprising a client, bg worker working
+  % 1. A BgClient/BgRunner pair comprising a client, bg worker working
   % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
   % pipeline.
   %   - The initted BgWorkerObj knows how to poll the state of a train. For

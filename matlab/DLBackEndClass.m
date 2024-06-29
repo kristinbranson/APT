@@ -443,7 +443,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function obj2 = copyAndDetach(obj)
-      % See notes in BGClient, BgWorkerObjAWS.
+      % See notes in BgClient, BgWorkerObjAWS.
       %
       % Sometimes we want a deep-copy of obj that is sanitized for
       % eg serialization. This copy may still be largely functional (in the

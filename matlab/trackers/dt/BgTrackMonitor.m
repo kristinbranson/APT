@@ -1,7 +1,7 @@
 classdef BgTrackMonitor < BgMonitor 
   %
   % A BgTrackMonitor:
-  % 1. Is a BGClient/BgRunner pair comprising a client, bg worker working
+  % 1. Is a BgClient/BgRunner pair comprising a client, bg worker working
   % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
   % pipeline.
   %   - The initted BgWorkerObj knows how to poll the state of a track. For

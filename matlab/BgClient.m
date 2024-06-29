@@ -1,4 +1,4 @@
-classdef BGClient < handle
+classdef BgClient < handle
   properties
     cbkResult % function handle called when a new result is computed. 
               % Signature:  cbkResult(s) where s has fields .id, .action, .result
@@ -31,7 +31,7 @@ classdef BGClient < handle
   end
 
   methods 
-    function obj = BGClient()
+    function obj = BgClient()
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
@@ -88,7 +88,7 @@ classdef BGClient < handle
         'continuousCallInterval',nan);
       
       if ~obj.isConfigured
-        error('BGClient:config',...
+        error('BgClient:config',...
           'Object unconfigured; call configure() before starting worker.');
       end
       
@@ -133,7 +133,7 @@ classdef BGClient < handle
       % sCmd: struct with fields {'action' 'data'}
             
       if ~obj.isRunning
-        error('BGClient:run','Worker is not running.');
+        error('BgClient:run','Worker is not running.');
       end      
       
       assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
@@ -142,7 +142,7 @@ classdef BGClient < handle
       
       q = obj.qMe2Worker;
       if isempty(q)
-        warningNoTrace('BGClient:queue','Send queue not configured.');
+        warningNoTrace('BgClient:queue','Send queue not configured.');
       else
         obj.idTics(sCmd.id) = tic;
         q.send(sCmd);
@@ -155,7 +155,7 @@ classdef BGClient < handle
       % STOP message and breaks from polling loop
       
       if ~obj.isRunning
-        warningNoTrace('BGClient:run','Worker is not running.');
+        warningNoTrace('BgClient:run','Worker is not running.');
       else
         sCmd = struct('action',BgRunner.STOPACTION,'data',[]);
         obj.sendCommand(sCmd);
@@ -166,7 +166,7 @@ classdef BGClient < handle
       % Harder stop, cancel fevalFuture
       
       if ~obj.isRunning
-        warningNoTrace('BGClient:run','Worker is not running.');
+        warningNoTrace('BgClient:run','Worker is not running.');
       else
         obj.fevalFuture.cancel();
       end
@@ -179,7 +179,7 @@ classdef BGClient < handle
     function log(obj,varargin)
       if obj.printlog
         str = sprintf(varargin{:});
-        fprintf(1,'BGClient (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
+        fprintf(1,'BgClient (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
       else
         % for now don't do anything
       end
