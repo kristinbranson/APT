@@ -26,10 +26,11 @@ classdef BgMonitor < handle
   
   properties
     bgContCallInterval  % scalar double, in secs    
-    bgClientObj
-    bgWorkerObj  % scalar "detached" object that is deep-copied onto
-                 % workers. Note, this is not the BgRunner obj itself
-    monitorObj  % object with resultsreceived() method
+    bgClientObj  % the BgClient (the BgRunner is created in the .startRunner() method of the BgClient)
+    bgWorkerObj  % scalar "detached" object (not sure this is still true about it being 
+                 % detached --ALT, 2024-06-28) that is deep-copied onto
+                 % workers. Note, this is not the BgRunner obj itself.
+    monitorObj  % object with resultsreceived() method, typically a "monitor visualizer"
     cbkComplete  % fcnhandle with sig cbk(res), called when operation complete
     processName
   end
