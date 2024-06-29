@@ -31,8 +31,15 @@ classdef BgMonitor < handle
                  % detached --ALT, 2024-06-28) that is deep-copied onto
                  % workers. Note, this is not the BgRunner obj itself.
     monitorObj  % object with resultsreceived() method, typically a "monitor visualizer"
-    cbkComplete  % fcnhandle with sig cbk(res), called when operation complete
-    processName
+    cbkComplete  % empty, or fcnhandle with sig cbk(res), called when operation complete
+    processName  % 'train' or 'track'
+    % It seems like the bgClientObj is owned by obj, but bgWorkerObj and
+    % monitorObj are not (hence those refs should be treated as soft).  The
+    % effective parent of obj is the DeepTracker.  cbkComplete seems to usually (always?)
+    % call a method of the parent DeepTracker.  Would probably make sense to 
+    % add a "parent" field that contains a ref to the DeepTracker, and to call a
+    % "didCompleteBgMonitor" method of the parent when complete.  -- ALT,
+    % 2024-06-28
   end
 
   properties (Dependent)
