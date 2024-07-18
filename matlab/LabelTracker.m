@@ -478,6 +478,15 @@ classdef LabelTracker < handle
             tf(i) = true;
             loc(i) = j;
             break;
+          elseif strcmp(infocell1{i}{1},'DeepTrackerTopDownCustom') && ...
+              strcmp(infocell2{j}{1},'DeepTrackerTopDownCustom')
+            % since custom don't have trnnetype defined. MK 20240228
+            if isequal(infocell1{i}{2}(3:end),infocell2{j}{2}) && ...
+                isequal(infocell1{i}{3}(3:end),infocell2{j}{3})
+              tf(i) = true;
+              loc(i) = j;  
+              break;
+            end
           end
         end
       end
