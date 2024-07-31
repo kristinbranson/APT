@@ -35,6 +35,9 @@ classdef DeepTracker < LabelTracker
     dryRunOnly % transient, scalar logical. If true, config files, cmds 
       % are generated for DL, but actual DL train/track are not spawned
     skip_dlgs % MK: Skip save/delete dialogs for testing.
+    isTrainingSplits_  
+      % transient, scalar logical.  true iff the ongoing training is training splits.
+      % Underscore indicates it is private by convention.
   end
   properties
     containerBindPaths % cellstr of bind paths for sing/docker
@@ -683,9 +686,7 @@ classdef DeepTracker < LabelTracker
     function bgTrnStart(obj,backEnd,dmc,varargin)
       % fresh start new training monitor 
             
-      [trnStartCbk,trnCompleteCbk,trainSplits,trnVizArgs] = myparse(varargin,...
-        'trnStartCbk',[],... % function handle with sig cbk(src,evt)
-        'trnCompleteCbk',[],... % etc
+      [trainSplits,trnVizArgs] = myparse(varargin,...
         'trainSplits',false, ...  % true for splits/xv
         'trnVizArgs',{} ...
         );
@@ -695,20 +696,8 @@ classdef DeepTracker < LabelTracker
       end
       assert(isempty(obj.bgTrnMonBGWorkerObj));
 
-      if ~isempty(trnStartCbk)
-        % none
-      else
-        trnStartCbk = @(s,e)obj.notify('trainStart');
-      end
-      nmodels = dmc.n;
-      if ~isempty(trnCompleteCbk)
-      elseif trainSplits
-        % unchecked codepath 20210806
-        assert(backEnd.type==DLBackEnd.Bsub);
-        trnCompleteCbk = @(s,e) obj.xvStoppedCbk(s,e);
-      else
-        trnCompleteCbk = @(s,e) obj.trainStoppedCbk(s,e);
-      end
+      %nmodels = dmc.n;
+      obj.isTrainingSplits_ = trainSplits ;
       netmode = obj.trnNetMode;
       tf2stg = netmode.isTwoStage;
       if dmc.nstages > 1,
@@ -737,15 +726,41 @@ classdef DeepTracker < LabelTracker
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
                                   backEnd.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
                 
-      trnMonObj = BgMonitor('train', trnVizObj, trnWrkObj) ;
-      addlistener(trnMonObj,'bgStart',trnStartCbk);
-      addlistener(trnMonObj,'bgEnd',trnCompleteCbk);
-      %trnMonObj.prepare(trnVizObj,trnWrkObj);
-      trnMonObj.start();
+      trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj) ;
       obj.bgTrnMonitor = trnMonObj;
       obj.bgTrnMonBGWorkerObj = trnWrkObj;
+      trnMonObj.start();  % Moved this after the two lines above.  Seems wise, but...  -- ALT, 2024-07-31
     end
     
+    function didStartBgMonitor(obj, train_or_track)
+      % Normally called by the child BgMonitor when starting
+      if strcmp(train_or_track, 'train') ,
+        obj.notify('trainStart') ;
+      elseif strcmp(train_or_track, 'track') ,
+        obj.notify('trackStart') ;
+      else
+        error('Internal error: Argument to didStartBgMonitor() must be ''train'' or ''track''') ;
+      end
+    end
+
+    function didStopBgMonitor(obj, train_or_track)
+      % Normally called by the child BgMonitor when stopping
+      if strcmp(train_or_track, 'train') ,
+        trainSplits = obj.isTrainingSplits_ ;
+        if trainSplits
+          % unchecked codepath 20210806
+          assert(backEnd.type==DLBackEnd.Bsub);
+          obj.xvStoppedCbk() ;
+        else
+          obj.trainStoppedCbk() ;
+        end
+      elseif strcmp(train_or_track, 'track') ,
+        obj.trackStoppedCbk() ;        
+      else
+        error('Internal error: Argument to didStopBgMonitor() must be ''train'' or ''track''') ;
+      end
+    end
+
     function bgTrnReset(obj)
       % stop the training monitor
       if ~isempty(obj.bgTrnMonitor)
@@ -1407,12 +1422,10 @@ classdef DeepTracker < LabelTracker
       %
       % TODO break up bsub/docker sep meths
 
-      [existingTrnPackSLbl, trnStartCbk, trnCompleteCbk, prev_models, ...
+      [existingTrnPackSLbl, prev_models, ...
        do_just_generate_db, do_call_apt_interface_dot_py] = ...
         myparse(varargin,...
                 'existingTrnPackSLbl',[], ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
-                'trnStartCbk',[], ...
-                'trnCompleteCbk',[], ...
                 'prev_models',[], ...
                 'do_just_generate_db',false, ...
                 'do_call_apt_interface_dot_py', true ) ;
@@ -1508,9 +1521,7 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        obj.bgTrnStart(backend, dmc, ...
-                       'trnStartCbk', trnStartCbk, ...
-                       'trnCompleteCbk', trnCompleteCbk) ;
+        obj.bgTrnStart(backend, dmc) ;
 
         % spawn training
         [tfSucc, jobID] = backend.spawn(syscmds, ...
@@ -3163,11 +3174,11 @@ classdef DeepTracker < LabelTracker
       %trkVizObj = feval(obj.bgTrkMonitorVizClass,nView,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
       %trkVizObj = TrkTrnMonVizCmdline();
       trkVizObj = TrackMonitorViz(nvw,obj,bgTrkWorkerObj,be.type,nfrms2trk);
-      bgTrkMonitorObj = BgMonitor('track', trkVizObj, bgTrkWorkerObj, cbkTrkComplete) ;
+      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, cbkTrkComplete) ;
       %bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,cbkTrkComplete);
       
-      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)disp('bgStart') ); % @(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)disp('bgEnd')); % @(varargin) obj.trackStoppedCbk(varargin{:}));
+      %addlistener(bgTrkMonitorObj,'bgStart',@(s,e)disp('bgStart') ); % @(s,e)obj.notify('trackStart'));
+      %addlistener(bgTrkMonitorObj,'bgEnd',@(s,e)disp('bgEnd')); % @(varargin) obj.trackStoppedCbk(varargin{:}));
       
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);        
     end
@@ -3498,10 +3509,9 @@ classdef DeepTracker < LabelTracker
       end
 
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj = BgMonitor('track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type) ;
-      %bgTrkMonitorObj.prepare(trkVizObj,bgTrkWorkerObj,@obj.trkCompleteCbk,'track_type',track_type);
-      addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
-      addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
+      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type) ;
+      %addlistener(bgTrkMonitorObj,'bgStart',@(s,e)obj.notify('trackStart'));
+      %addlistener(bgTrkMonitorObj,'bgEnd',@(varargin) obj.trackStoppedCbk(varargin{:})); 
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % spawn the jobs
@@ -3684,9 +3694,9 @@ classdef DeepTracker < LabelTracker
       end
       assert(isempty(obj.bgTrkMonBGWorkerObj));
       
-      trkMonitorObj.start();
       obj.bgTrkMonitor = trkMonitorObj;
       obj.bgTrkMonBGWorkerObj = trkWorkerObj;
+      trkMonitorObj.start();  % Moved this down from two lines up.  Seems wise and safe, but...  --ALT, 2024-07-31
     end
 
     function createTrkfilesFromListout(obj)
@@ -3998,7 +4008,7 @@ classdef DeepTracker < LabelTracker
     end
 
     function trackCleanup(obj,varargin)
-       obj.trackCurrResUpdate();
+      obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
     

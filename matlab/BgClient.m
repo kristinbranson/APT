@@ -27,6 +27,7 @@ classdef BgClient < handle
     end    
     function v = get.isRunning(obj)
       v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
+      %fprintf('In BgClient::get.isRunning(), isRunning is %d\n', v) ;
     end
   end
 

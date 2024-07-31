@@ -40,6 +40,7 @@ classdef BgMonitor < handle
     % sense to add a "parent" field that contains a ref to the DeepTracker, and to
     % call a "didCompleteBgMonitor" method of the parent when complete.  The
     % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
+    parent_
   end
 
   properties (Dependent)
@@ -47,14 +48,15 @@ classdef BgMonitor < handle
     isRunning
   end
     
-  events
-    bgStart
-    bgEnd    
-  end
+%   events
+%     bgStart
+%     bgEnd    
+%   end
   
   methods
-    function obj = BgMonitor(type_string, monVizObj, bgWorkerObj, cbkComplete, varargin)      
+    function obj = BgMonitor(parent, type_string, monVizObj, bgWorkerObj, cbkComplete, varargin)      
       % Is obj for monitoring training or tracking?
+      obj.parent_ = parent ;
       if strcmp(type_string, 'train') ,
         obj.processName = 'train' ;
         obj.bgContCallInterval = 30 ;  % secs
@@ -107,8 +109,11 @@ classdef BgMonitor < handle
     end  % constructor
     
     function delete(obj)
-      if obj.isRunning
-        obj.notify('bgEnd');
+      if obj.isRunning ,
+        %obj.notify('bgEnd');
+        if ~isempty(obj.parent_)  && isvalid(obj.parent_) ,
+          obj.parent_.didStopBgMonitor(obj.processName) ;
+        end
       end
       
       % IMHO, it's a code smell that we explicitly delete() all these things in a
@@ -145,13 +150,15 @@ classdef BgMonitor < handle
       bgc = obj.bgClientObj;
       bgc.startRunner('runnerContinuous',true,...
                       'continuousCallInterval',obj.bgContCallInterval);
-      obj.notify('bgStart');
+      %obj.notify('bgStart');
+      obj.parent_.didStartBgMonitor(obj.processName) ;
     end
     
     function stop(obj)
       bgc = obj.bgClientObj;
       bgc.stopWorkerHard();
-      obj.notify('bgEnd');
+      %obj.notify('bgEnd');
+      obj.parent_.didStopBgMonitor(obj.processName) ;
     end
     
     function bgResultsReceived(obj,sRes)

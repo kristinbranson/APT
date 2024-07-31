@@ -409,7 +409,7 @@ classdef TrainMonitorViz < handle
         maxWaitTime = 30;
         while true,
           if toc(startTime) > maxWaitTime,
-            fprintf('Stopping training processes too long, giving up.\n') ;
+            fprintf('Stopping training processes is taking too long, giving up.\n') ;
             if isempty(warnings) ,
               fprintf('But there were no warnings while trying to stop training processes.\n') ;
             else
@@ -417,7 +417,7 @@ classdef TrainMonitorViz < handle
               cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
               fprintf('\n') ;
             end
-            warndlg('Stopping training processes too long.  See console for details.', 'Problem stopping training', 'modal') ;
+            warndlg('Stopping training processes took too long.  See console for details.', 'Problem stopping training', 'modal') ;
             break
           end
           if ~obj.dtObj.bgTrnIsRunning,
