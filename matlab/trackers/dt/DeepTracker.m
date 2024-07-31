@@ -549,14 +549,15 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
+
     function updateDLCache(obj,dlcachedir)
       dmc = obj.trnLastDMC;
       if ~isempty(dmc),
         if ~dmc.isRemote()
           dmc.setRootDir(dlcachedir);
         else
-          warningNoTrace('Unexpected remote DMC detected for net %s.',...
-            obj.trnNetType.displayString);
+          warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
+                         obj.trnNetType.displayString);
         end
       end
       % At save-time we should be updating DMCs to local
@@ -1483,7 +1484,7 @@ classdef DeepTracker < LabelTracker
       % At this point
       % We have (modelChainID,trainID) config file on disk. 
 
-      % Upload model to remote filesystem, if needed (ALTTODO: Is this sufficient for training?)
+      % Upload model to remote filesystem, if needed 
       dmc.mirrorToBackend(backend, 'training') ;
 
       unique_jobs = unique(jobidx);
@@ -1928,7 +1929,7 @@ classdef DeepTracker < LabelTracker
           %   'condaEnv', obj.condaEnv, ...
           %   'gpuid', gpuid };
         case DLBackEnd.AWS
-          backEndArgs  = {} ;  % TODOALT: This is a stub, ALT 2024-03-08
+          backEndArgs  = {} ;
         otherwise,
           error('Internal error: Unknown backend type') ;
       end
@@ -2754,7 +2755,7 @@ classdef DeepTracker < LabelTracker
       % Upload model to remote filesystem, if needed
       dmc.mirrorToBackend(backend) ;
 
-      % TODOALT: This seems like a good place to upload the movies to the backend...
+      % Upload the movies to the backend
       localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
       backend.uploadMovies(localPathFromMovieIndex) ;
 
@@ -3851,12 +3852,9 @@ classdef DeepTracker < LabelTracker
       %fprintf('AWS: tracking complete at %s\n',datestr(now));
       %assert(numel(trkfilesLocal)==numel(res));
       
-      % ALTTODO 2024-06-05: Not entirely sure this below is general enough. In my
-      % test case, res has a single element, and the .movfile field is a char array,
-      % movfiles is a cell array of char arrays, but with only one element (i.e. one
-      % char array).
-      %localmovfiles = obj.trkSysInfo.ttis.localmovfiles ;
-      %movfiles_bad = obj.trkSysInfo.ttis.movfiles ;
+      % Is this general enough? In my test case, res has a single element, and the
+      % .movfile field is a char array, movfiles is a cell array of char arrays, but
+      % with only one element (i.e. one char array).  -- ALT, 2024-06-05
       movfiles = obj.trkSysInfo.getMovfiles() ;
 
       if all(strcmp(movfiles(:),{res.movfile}'))

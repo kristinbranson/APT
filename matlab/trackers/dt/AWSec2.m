@@ -675,7 +675,9 @@ classdef AWSec2 < matlab.mixin.Copyable
         warning('Could  not check for alarm: %s',reason);
         return;
       end
-      return  % TODOALT: Remove this in production
+      %return  
+        % DEBUGAWS: Uncomment line above to avoid AWS alarms that are annoying
+        % while debugging
       if isalarm,
         return;
       end

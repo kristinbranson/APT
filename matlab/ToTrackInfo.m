@@ -1354,14 +1354,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
                             obj.movfiles, ...
                             'UniformOutput', false) ;
       newtrkfiles = replace_prefix_path(obj.trkfiles, remoteCacheRoot, localCacheRoot) ;
-      % ALTTODO: Should obj.calibrationfiles be relocated?
-      % ALTTODO: Should obj.trxfiles be relocated?
       newerrfile = replace_prefix_path(obj.errfile, remoteCacheRoot, localCacheRoot) ;
       newlogfile = replace_prefix_path(obj.logfile, remoteCacheRoot, localCacheRoot) ;
       newcmdfile = replace_prefix_path(obj.cmdfile, remoteCacheRoot, localCacheRoot) ;
       newkillfile = replace_prefix_path(obj.killfile, remoteCacheRoot, localCacheRoot) ;
       newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, remoteCacheRoot, localCacheRoot) ;
-      % ALTTODO: should obj.listoutfiles be relocated?
+      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+      % would need to be relocated, but so far hasn't been an issue 
+      % -- ALT, 2024-07-31
 
       % Actually write all the new paths to the obj only after all the above things
       % have finished, to make a borked state less likely.

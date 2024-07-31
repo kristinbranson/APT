@@ -3032,14 +3032,15 @@ classdef Labeler < handle
       
       cacheDir = obj.projTempDir;
       
-      % TODOALT: Probably reinstate this check, I guess?
-%       % Check for exploded cache in tempdir      
-%       tCacheDir = fullfile(cacheDir,obj.projname);
-%       if ~exist(tCacheDir,'dir')
-%         warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
-%           obj.projname,cacheDir);
-%         return;
-%       end
+      % I had this check commented out while working on the AWS backend, for some
+      % reason  --ALT, 2024-07-31
+      % Check for exploded cache in tempdir      
+      tCacheDir = fullfile(cacheDir,obj.projname);
+      if ~exist(tCacheDir,'dir')
+        warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
+                       obj.projname,cacheDir);
+        return
+      end
             
       % Update/set all DMC.rootDirs to cacheDir
       tAll = obj.trackersAll;

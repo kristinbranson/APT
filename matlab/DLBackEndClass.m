@@ -432,12 +432,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         aws = obj.awsec2;
         if ~isempty(aws)
           fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
-          % TODOALT: Comment this back in---while debugging, stopping the AWS instance
+          % DEBUGAWS: Comment this out while debugging AWS--- stopping the AWS instance
           % takes too long!
-%           tfsucc = aws.stopInstance();
-%           if ~tfsucc
-%             warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
-%           end
+          tfsucc = aws.stopInstance();
+          if ~tfsucc
+            warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
+          end
         end
       end
     end
