@@ -6,16 +6,22 @@ classdef LabelerController < handle
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
+    isInYodaMode_ = false  
+      % Set to true to allow control actuation to happen *ouside* or a try/catch
+      % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
   end
 
   methods
     function obj = LabelerController(varargin)
-      labeler = Labeler('isgui', true) ;  % Create the labeler, tell it there will be a GUI attached
+      % Process args that have to be dealt with before creating the Labeler
+      [isInDebugMode] = ...
+        myparse_nocheck(varargin, ...
+                        'isInDebugMode',false) ;
+      labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode) ;  % Create the labeler, tell it there will be a GUI attached
       obj.labeler_ = labeler ;
       obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       obj.labeler_.registerController(obj) ;  % hack
       obj.tvTrx_ = TrackingVisualizerTrx(labeler) ;
-      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
       obj.listeners_ = cell(1,0) ;
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
@@ -27,6 +33,8 @@ classdef LabelerController < handle
         addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(obj.updateTrxSetShowTrue(source, event))) ;      
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
+      % Do this once listeners are set up
+      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
 
     function delete(obj)
@@ -205,6 +213,147 @@ classdef LabelerController < handle
       handles = guidata(obj.mainFigure_) ;
       handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
     end
+
+    function result = doProjectAndMovieExist_(obj)
+      % Returns true iff a project exists and a movie is open.
+      % If no project exists, returns false.
+      % If a project exists but no movie is open, throws up a dialog box indictating
+      % this, then returns false.
+
+      labeler = obj.labeler_ ;
+      if labeler.hasProject ,
+        if labeler.hasMovie ,
+          result = true ;
+        else
+          msgbox('There is no movie open.');
+          result = false ;
+        end
+      else
+        result = false ;
+      end
+    end
+
+    function menu_debug_generate_db_actuated(obj, source, event)
+      obj.train_core_(source, event, 'do_just_generate_db', true) ;
+    end
+
+    function pbTrain_actuated(obj, source, event)
+      obj.train_core_(source, event) ;
+    end
+
+    function menu_start_training_but_dont_call_apt_interface_dot_py_actuated(obj, source, event)
+      obj.train_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
+    end
+
+    function train_core_(obj, source, event, varargin)
+      % This is like pbTrain_Callback() in LabelerGUI.m, but set up to stop just
+      % after DB creation.
+
+      % Process keyword args
+      [do_just_generate_db, ...
+       do_call_apt_interface_dot_py] = ...
+        myparse(varargin, ...
+                'do_just_generate_db', false, ...
+                'do_call_apt_interface_dot_py', true) ;
+      
+      if ~obj.doProjectAndMovieExist_() ,
+        return
+      end
+      labeler = obj.labeler_ ;
+      if labeler.doesNeedSave ,
+        res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
+        if strcmp(res,'Cancel')
+          return
+        elseif strcmp(res,'Save As')
+          menu_file_saveas_Callback(source, event, guidata(source))
+        end    
+      end
+      
+      labeler.setStatus('Training...');
+      drawnow;
+      [tfCanTrain,reason] = labeler.trackCanTrain();
+      if ~tfCanTrain,
+        errordlg(['Error training tracker: ',reason],'Error training tracker');
+        labeler.clearStatus();
+        return
+      end
+      
+      %labeler.trackSetAutoParams();
+      
+      fprintf('Training started at %s...\n',datestr(now));
+      oc1 = onCleanup(@()(labeler.clearStatus()));
+      wbObj = WaitBarWithCancel('Training');
+      oc2 = onCleanup(@()delete(wbObj));
+      centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
+      labeler.trackRetrain(...
+        'retrainArgs',{'wbObj',wbObj}, ...
+        'do_just_generate_db', do_just_generate_db, ...
+        'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+      if wbObj.isCancel
+        msg = wbObj.cancelMessage('Training canceled');
+        msgbox(msg,'Train');
+      end
+    end  % method
+
+  end  % public methods block
+
+  methods
+    function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked
+      % The advantage of passing in the controlName, rather than,
+      % say always storing it in the tag of the graphics object, and
+      % then reading it out of the source arg, is that doing it this
+      % way makes it easier to fake control actuations by calling
+      % this function with the desired controlName and an empty
+      % source and event.
+      if obj.isInYodaMode_ ,
+        % "Do, or do not.  There is no try." --Yoda
+        obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
+        exceptionMaybe = {} ;
+      else        
+        try
+          obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
+          exceptionMaybe = {} ;
+        catch exception
+          if isequal(exception.identifier,'APT:invalidPropertyValue') ,
+            % ignore completely, don't even pass on to output
+            exceptionMaybe = {} ;
+          else
+            raiseDialogOnException(exception) ;
+            exceptionMaybe = { exception } ;
+          end
+        end
+      end
+    end  % function
+
+    function controlActuatedCore_(obj, controlName, source, event, varargin)
+      if isempty(source) ,
+        % this means the control actuated was a 'faux' control
+        methodName=[controlName '_actuated'] ;
+        if ismethod(obj,methodName) ,
+          obj.(methodName)(source, event, varargin{:});
+        end
+      else
+        type=get(source,'Type');
+        if isequal(type,'uitable') ,
+          if isfield(event,'EditData') || isprop(event,'EditData') ,  % in older Matlabs, event is a struct, in later, an object
+            methodName=[controlName '_cell_edited'];
+          else
+            methodName=[controlName '_cell_selected'];
+          end
+          if ismethod(obj,methodName) ,
+            obj.(methodName)(source, event, varargin{:});
+          end
+        elseif isequal(type,'uicontrol') || isequal(type,'uimenu') ,
+          methodName=[controlName '_actuated'] ;
+          if ismethod(obj,methodName) ,
+            obj.(methodName)(source, event, varargin{:});
+          end
+        else
+          % odd --- just ignore
+        end
+      end
+    end  % function
     
-  end
+  end  % public methods block
+  
 end

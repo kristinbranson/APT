@@ -154,7 +154,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
         warningNoTrace('Failed to create KILLED token: %s',killtoken);
       else
         tfsucc = true;
-        fprintf('Created KILLED token: %s.\nPlease wait for your monitor to acknowledge the kill!\n',killtoken);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge that the process has been killed!\n',killtoken);
       end
     end
     

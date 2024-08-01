@@ -247,6 +247,13 @@ handles.menu_setup_label_overlay_montage = uimenu('Parent',handles.menu_labeling
 %   'Label','Label Overlay Montage (trx centered)',...
 %   'Tag','menu_setup_label_overlay_montage_trx_centered',...
 %   'Visible','on');
+handles.menu_setup_label_outliers = uimenu('Parent',handles.menu_labeling_setup,...
+  'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_label_outliers_Callback',hObject,eventdata,guidata(hObject)),...
+  'Label','Find Suspicious Labels...',...
+  'Tag','menu_setup_label_outliers',...
+  'Visible','on');
+%moveMenuItemAfter(handles.menu_setup_label_outliers,handles.menu_setup_label_overlay_montage);
+
 handles.menu_setup_set_nframe_skip = uimenu('Parent',handles.menu_labeling_setup,...
   'Callback',@(hObject,eventdata)LabelerGUI('menu_setup_set_nframe_skip_Callback',hObject,eventdata,guidata(hObject)),...
   'Label','Set Frame Increment',...
@@ -285,6 +292,7 @@ LABEL_MENU_ORDER = {
    'menu_setup_use_calibration'
    'menu_setup_ma_twoclick_align'
    'menu_setup_label_overlay_montage' % 'menu_setup_label_overlay_montage_trx_centered'
+   'menu_setup_label_outliers'
    'menu_setup_set_labeling_point'
    'menu_setup_set_nframe_skip'
    'menu_setup_lock_all_frames'
@@ -974,6 +982,28 @@ for i = 1:numel(h),
   end
 end
 
+% Change some controls to use LabelerGUIControlActuated()
+handles.pbTrain.Callback = @LabelerGUIControlActuated ;
+
+% Add the Debug menu if called for
+if lObj.isInDebugMode ,
+  % Create the top-level Debug menu
+  handles.menu_debug = ...
+    uimenu('Parent', hObject, ...
+           'Label', 'Debug', ...
+           'Tag', 'menu_debug') ;
+  handles.menu_start_training_but_dont_call_apt_interface_dot_py = ...
+    uimenu('Parent', handles.menu_debug, ...
+           'Label', 'Start Training, But Skip Python Call', ...
+           'Tag', 'menu_start_training_but_dont_call_apt_interface_dot_py', ...
+           'Callback', @LabelerGUIControlActuated) ;
+  handles.menu_debug_generate_db = ...
+    uimenu('Parent', handles.menu_debug, ...
+           'Label', 'Start Training, But Just Generate DB', ...
+           'Tag', 'menu_debug_generate_db', ...
+           'Callback', @LabelerGUIControlActuated) ;
+end
+
 lObj.clearStatus();
 EnableControls(handles,'noproject');
 
@@ -986,6 +1016,7 @@ if ismac % Change color of buttons
  end
 end
 
+% Write the modified handles structure back to the figure guidata
 guidata(hObject, handles);
 
 fprintf('Labeler GUI created.\n');
@@ -1165,7 +1196,8 @@ switch lower(state),
     handles.pbTrain.Enable = onOff;
     handles.pbTrack.Enable = onOff;
     handles.menu_view_hide_predictions.Enable = onOff;    
-    
+    set(handles.menu_track_auto_params_update, 'Checked', lObj.trackAutoSetParams) ;
+
     tfGoTgts = ~lObj.gtIsGTMode;
     set(handles.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
     
@@ -2934,47 +2966,11 @@ if ispc && isequal(get(hObject,'BackgroundColor'), ...
   set(hObject,'BackgroundColor','white');
 end
 
+
 function pbTrain_Callback(hObject, eventdata, handles)
-if ~checkProjAndMovieExist(handles)
-  return;
-end
-if handles.labelerObj.doesNeedSave ,
-  res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
-  if strcmp(res,'Cancel')
-    return
-  elseif strcmp(res,'Save As')
-    menu_file_saveas_Callback(hObject, eventdata, handles)
-  end    
-end
+% Not used anymore.  See LabelerController::pbTrain_actuated()
 
-handles.labelerObj.setStatus('Training...');
-drawnow;
-[tfCanTrain,reason] = handles.labelerObj.trackCanTrain();
-if ~tfCanTrain,
-  errordlg(['Error training tracker: ',reason],'Error training tracker');
-  handles.labelerObj.clearStatus();
-  return;
-end
 
-%handles.labelerObj.trackSetAutoParams();
-
-fprintf('Training started at %s...\n',datestr(now));
-oc1 = onCleanup(@()(handles.labelerObj.clearStatus()));
-wbObj = WaitBarWithCancel('Training');
-oc2 = onCleanup(@()delete(wbObj));
-centerOnParentFigure(wbObj.hWB,handles.figure);
-try
-  handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
-catch ME
-  errordlg(ME.message,'Error while training','modal');
-  disp(getReport(ME));
-  return;
-end
-if wbObj.isCancel
-  msg = wbObj.cancelMessage('Training canceled');
-  msgbox(msg,'Train');
-end
-  
 function pbTrack_Callback(hObject, eventdata, handles)
 if ~checkProjAndMovieExist(handles)
   return;
@@ -3007,6 +3003,7 @@ if wbObj.isCancel
   msgbox(msg,'Track');
 end
 handles.labelerObj.clearStatus();
+
 
 function pbClear_Callback(hObject, eventdata, handles)
 
@@ -3626,6 +3623,12 @@ handles.labelerObj.clearStatus();
 % hFig(3) = lObj.labelOverlayMontage('ctrMeth','trx',...
 %   'rotAlignMeth','trxtheta','hFig0',hFig(2)); %#ok<NASGU>
 % handles.labelerObj.clearStatus();
+
+function menu_setup_label_outliers_Callback(hObject,evtdata,handles)
+handles.labelerObj.setStatus('Finding outliers in labels...');
+lObj = handles.labelerObj;
+label_outlier_gui(lObj);
+handles.labelerObj.clearStatus();
 
 function menu_setup_set_nframe_skip_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -4270,7 +4273,7 @@ if ~isempty(sPrmTrack),
   sPrmNew = lObj.trackSetTrackParams(sPrmTrack);
   RC.saveprop('lastCPRAPTParams',sPrmNew);
   %cbkSaveNeeded(lObj,true,'Parameters changed');
-  lObj.setDoesNeedSave(true,'Parameters changed') ;
+  lObj.setDoesNeedSave(true, 'Parameters changed') ;
 end
 
 handles.labelerObj.clearStatus();
@@ -4281,6 +4284,9 @@ function menu_track_auto_params_update_Callback(hObject,eventdata,handles)
 checked = get(hObject,'Checked');
 set(hObject,'Checked',~checked);
 handles.labelerObj.trackAutoSetParams = ~checked;
+lObj = handles.labelerObj;
+lObj.setDoesNeedSave(true, 'Auto compute training parameters changed') ;
+
 
 function menu_track_use_all_labels_to_train_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
@@ -4591,17 +4597,38 @@ if ~isempty(tObj) && tObj.getHasTrained() && (~lObj.maIsMA)
   % single animal. Use prediction if available else use imported below
   [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
   itgt = lObj.currTarget;
+
   if ~tfhaspred(itgt)
-    msgbox('No predictions for current frame.');
-    return;    
+    if (lObj.nTrx>1)
+      msgbox('No predictions for current frame.');
+      return;    
+    else % for single animal use imported predictions if available
+      iMov = lObj.currMovie;
+      frm = lObj.currFrame;  
+      [tfhaspred,xy] = lObj.labels2{iMov}.getPTrkFrame(frm);
+      if ~tfhaspred
+        msgbox('No predictions for current frame.');
+        return;    
+      end
+    end
+  else
+    xy = xy(:,:,itgt); % "targets" treatment differs from below
   end
-  xy = xy(:,:,itgt); % "targets" treatment differs from below
+
   disp(xy);
   
   % AL20161219: possibly dangerous, assignLabelCoords prob was intended
   % only as a util method for subclasses rather than public API. This may
   % not do the right thing for some concrete LabelCores.
-  lObj.lblCore.assignLabelCoords(xy);
+%   lObj.lblCore.assignLabelCoords(xy);
+
+  lpos2xy = reshape(xy,lObj.nLabelPoints,2);
+  %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+  %lpos2xy = lpos2(:,:,frm);
+  lObj.labelPosSet(lpos2xy);
+
+  lObj.lblCore.newFrame(frm,frm,1);
+
 else
   iMov = lObj.currMovie;
   frm = lObj.currFrame;
@@ -4688,7 +4715,13 @@ else
       handles.labelerObj.lerror('LabelerGUI:setLabels','Unsupported for multiple targets.');
     end
     %lpos2 = lObj.labeledpos2{iMov};
-    p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+    %MK 20230728, labels2 now should always be TrkFile, but keeping other
+    %logic around just in case. Needs work for multiview though.
+    if isa(lObj.labels2{iMov} ,'TrkFile')      
+      [~,p] = lObj.labels2{iMov}.getPTrkFrame(frm);
+    else
+      p = Labels.getLabelsF(lObj.labels2{iMov},frm,1);
+    end
     lpos2xy = reshape(p,lObj.nLabelPoints,2);
     %assert(size(lpos2,4)==1); % "targets" treatment differs from above
     %lpos2xy = lpos2(:,:,frm);
@@ -5420,3 +5453,15 @@ end
 lObj.projPrefs.Shortcuts = newShortcuts;
 handles = setShortcuts(handles);
 guidata(hObject,handles);
+
+
+% --------------------------------------------------------------------
+function LabelerGUIControlActuated(source, event)
+% General function to handle the actuation of control.
+% Simply passes the message on to the controller.
+% This means we don't need a closure for every callback.
+
+controlName = source.Tag ;
+handles = guidata(source) ;
+controller = handles.controller ;
+controller.controlActuated(controlName, source, event) ;

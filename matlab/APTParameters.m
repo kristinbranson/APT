@@ -31,7 +31,7 @@ classdef APTParameters
         'incDLNetSpecific',true...
         );
       
-      trees = APTParameters.getParamTrees;
+      trees = APTParameters.getParamTrees() ;
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;
@@ -628,20 +628,26 @@ classdef APTParameters
           
           end
       end
-      
+
+      % Set default return values
+      canceled = false ;
+      do_update = false ;
+
+      % Don't bother computing automatic parameters (which can take a while) if we
+      % know we're not going to use them.
+      if ~lobj.trackAutoSetParams ,
+        return
+      end
+
       % automatically set the parameters based on labels.
       autoparams = compute_auto_params(lobj);
       
       kk = autoparams.keys();
-      res = 'Update';
-      canceled = false;
-      do_update = false;
       % If values have been previously updated, then check if they are
       % significantly (>10%) different now
       %%
       dstr = '';
       diff = false;
-      identical = true;
       default = true;
 
       for ndx = 1:numel(kk)
@@ -655,9 +661,9 @@ classdef APTParameters
         if nd.Data.DefaultValue~=nd.Data.Value
           default = false;
         end
-        if cur_val~=prev_val
-          identical = false;
-        end
+%         if cur_val~=prev_val
+%           identical = false;
+%         end
         extra_str = '';
         if ~isempty(strfind(kk{ndx},'DataAugmentation')) && lobj.maIsMA && lobj.trackerIsTwoStage
           if strfind(kk{ndx},'MultiAnimal.Detect')
@@ -685,12 +691,12 @@ classdef APTParameters
         end
         if strcmp(res,'Cancel')
           canceled = true;
-          return;
+          return
         end
       else
-        % All parameters are identical
-        do_udpate = false;
-        return;
+        % All parameters are within 10% of original values
+        do_update = false;
+        return
       end
       
       if strcmp(res,'Update')

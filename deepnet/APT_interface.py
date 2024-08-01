@@ -2,6 +2,7 @@
 #from __future__ import print_function
 
 import logging
+from operator import truediv
 #logging.basicConfig(
 #    format="[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s")
 #logging.warning('Entered APT_interface.py')
@@ -76,7 +77,7 @@ import urllib
 import getpass
 import link_trajectories as lnk
 from matplotlib.path import Path
-from PoseCommon_pytorch import coco_loader
+#from PoseCommon_pytorch import coco_loader
 from tqdm import tqdm
 import io
 import shapely.geometry
@@ -89,7 +90,7 @@ import copy
 import PoseCommon_pytorch
 import gc
 
-torch.autograd.set_detect_anomaly(False)
+#torch.autograd.set_detect_anomaly(True)
 torch.autograd.profiler.profile(False)
 torch.autograd.profiler.emit_nvtx(False)
 
@@ -100,7 +101,6 @@ ISDPK = False
 KBDEBUG = False
 # control how often / whether tqdm displays info
 TQDM_PARAMS = {'mininterval': 5}
-IS_APT_IN_DEBUG_MODE = False
 
 try:
     user = getpass.getuser()
@@ -192,8 +192,10 @@ def read_string(x):
     if type(x) is h5py._hl.dataset.Dataset:
         if len(x) == 2 and x[0] == 0 and x[1] == 0:  # empty ML strings returned this way
             return ''
-        else:
+        elif x.ndim == 1:
             return ''.join(chr(c) for c in x)
+        else:
+            return ''.join(chr(c) for c in x[:,0])
     else:
         return x
 
@@ -355,7 +357,7 @@ def create_tfrecord(conf, split=True, split_file=None, use_cache=True, on_gt=Fal
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def convert_to_coco(coco_info, ann, data, conf):
+def convert_to_coco(coco_info, ann, data, conf,force=False):
     '''
      converts the data as [img,locs,info,occ] into coco compatible format and adds it to ann
 
@@ -405,17 +407,25 @@ def convert_to_coco(coco_info, ann, data, conf):
         annid = coco_info['ann_ndx']
         coco_info['ann_ndx'] += 1
         ix = cur_locs[idx, ...]
-        if np.all(ix < -1000) or np.all(np.isnan(ix)):
+        if (np.all(ix < -1000) or np.all(np.isnan(ix))) and (not force):
             continue
         occ_coco = 2 - cur_occ[idx, ..., np.newaxis]
         occ_coco[np.isnan(ix[..., 0]), :] = 0
+        ix[np.isnan(ix)] = 0
         if roi is None:
-            lmin = ix.min(axis=0)
-            lmax = ix.max(axis=0)
-            w = lmax[0] - lmin[0]
-            h = lmax[1] - lmin[1]
-            bbox = [lmin[0], lmin[1], w, h]
-            segm = [[lmin[0],lmin[1],lmin[0],lmax[1],lmax[0],lmax[1],lmax[0],lmin[1]]]
+            # if None then it should be single animal for second stage, in which case the bbox should be the whole patch. If not single animal for second stage, then update this!!!
+
+            # lmin = np.nanmin(ix,axis=0)
+            # lmax = np.nanmax(ix,axis=0)
+            # w = lmax[0] - lmin[0]
+            # h = lmax[1] - lmin[1]
+            # bbox = [lmin[0], lmin[1], w, h]
+            # segm = [[lmin[0],lmin[1],lmin[0],lmax[1],lmax[0],lmax[1],lmax[0],lmin[1]]]
+
+            bbox = [0,0,cur_im.shape[1],cur_im.shape[0]]
+            segm = [[0,0,0,cur_im.shape[0],cur_im.shape[1],cur_im.shape[0],cur_im.shape[1],0]]
+            w = cur_im.shape[1]
+            h = cur_im.shape[0]
         else:
             lmin = roi[idx].min(axis=0).astype('float64')
             lmax = roi[idx].max(axis=0).astype('float64')
@@ -429,7 +439,8 @@ def convert_to_coco(coco_info, ann, data, conf):
                                    'num_keypoints': cur_locs.shape[1], 'bbox': bbox,
                                    'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
-    if extra_roi is not None:
+    if (extra_roi is not None) and conf.multi_loss_mask:
+        # add the neg roi only if using masking. Otherwise mmpose can get touchy
         for cur_roi in extra_roi:
             annid = coco_info['ann_ndx']
             coco_info['ann_ndx'] += 1
@@ -500,7 +511,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
         logging.warning('SPLIT_WRITE: Could not output the split data information')
 
 
-def to_orig(conf, locs, x, y, theta):
+def to_orig(conf, locs, x, y, theta,scale=1.):
     ''' locs, x and y should be 0-indexed'''
 
     # tt = -theta - math.pi / 2
@@ -512,22 +523,21 @@ def to_orig(conf, locs, x, y, theta):
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
 
+    T = np.array([[1, 0, 0], [0, 1, 0],
+                  [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
     if conf.trx_align_theta:
-        T = np.array([[1, 0, 0], [0, 1, 0],
-                      [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
-        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
-        R = np.eye(3)
-        R[:, :2] = R1.T
-        A_full = np.matmul(R, T)
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1/scale)
     else:
-        x = np.round(x)
-        y = np.round(y)
-        T = np.array([[1, 0, 0], [0, 1, 0],
-                      [x - float(psz_x) / 2 + 0.5, y - float(psz_y) / 2 + 0.5, 1]]).astype('float')
-        A_full = T
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), 0, 1/scale)
 
-    lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
-    curlocs = lr.T
+    R = np.eye(3)
+    R[:, :2] = R1.T
+    A_full = np.matmul(R, T)
+
+    ll = np.concatenate([locs,np.ones_like(locs[...,:1])],axis=-1)
+    curlocs = np.matmul(ll,A_full)[...,:2]
+    # lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
+    # curlocs = lr.T
 
     return curlocs
 
@@ -990,7 +1000,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                print('Overriding param %s <= ' % n, v)
+                logging.info('Overriding param %s <= ' % n, v)
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1096,6 +1106,9 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_mdn_joint_torch_1': 'MultiAnimalGRONe',
                       'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
+                      'hrformer': 'HRFormer',
+                      'multi_cid': 'CiD',
+                      'hrnet': 'HRNet',
                       }
 
     if not 'ProjectFile' in A:
@@ -1168,6 +1181,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
         conf.imsz = (width, width)
     elif has_crops:
+        conf.has_crops = True
         crops = np.array(A['MovieCropRois']).transpose()
         if conf.nviews>1:
             crops = crops[view]
@@ -1240,7 +1254,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                print('Overriding param %s <= ' % n, v)
+                logging.info('Overriding param %s <= ' % n, v)
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1470,7 +1484,7 @@ def db_from_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, sel=Non
                 info = [int(ndx), int(fnum), int(trx_ndx)]
                 cur_out = multiResData.get_cur_env(out_fns, split, conf, info, mov_split, trx_split=trx_split, predefined=predefined)
 
-                frame_in, cur_loc = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
+                frame_in, cur_loc,scale = multiResData.get_patch(cap, fnum, conf, cur_pts[trx_ndx, fnum, :, sel_pts], cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
 
                 if occ_as_nan:
                     cur_loc[cur_occ[fnum, :], :] = np.nan
@@ -1860,7 +1874,7 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
                 assert False, 'For top down tracking either head-tail tracking or bbox tracking should be active'
 
             curl = cur_locs[ndx].copy()
-            cur_patch, curl = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl)
+            cur_patch, curl, scale = multiResData.crop_patch_trx(conf, cur_frame, ctr[0], ctr[1], theta, curl,bbox=cur_roi[ndx].T.flatten())
 
             if occ_as_nan:
                 curl[cur_occ[ndx], :] = np.nan
@@ -1937,7 +1951,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
             cur_roi = np.tile(np.array(cur_t['roi']).reshape([1, 2, 4, ntgt]),(conf.nviews,1,1,1))
         else:
             cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
-        cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
+        cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])-1
 
         if 'extra_roi' in cur_t.keys() and np.size(cur_t['extra_roi']) > 0:
             extra_roi = np.array(cur_t['extra_roi'],dtype=float).reshape([conf.nviews, 2, 4, -1])
@@ -1988,6 +2002,7 @@ def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
 
         # if selndx % 100 == 99 and selndx > 0:
         #     logging.info('{} number of examples added to the dbs'.format(count))
+    logging.info('Done resaving training images.')
 
     # logging.info('{} number of examples added to the training dbs'.format(count))
 
@@ -2117,6 +2132,8 @@ def db_from_cached_lbl(conf, out_fns, split=True, split_file=None, on_gt=False, 
         data_dict= {'im': cur_frame, 'locs': cur_locs, 'info': info, 'occ': cur_occ}
         if conf.is_multi:
             data_dict['roi'] = []
+        else:
+            data_dict['roi'] = np.array([0,0,cur_frame.shape[1],cur_frame.shape[0]]).reshape([1,2,2])
         cur_out(data_dict)
 
         if cur_out is out_fns[1] and split:
@@ -2326,8 +2343,8 @@ def create_cv_split_files(conf, n_splits=3):
             break
 
     if imbalance:
-        print('Couldnt find a valid spilt for split type:{} even after 10 retries.'.format(conf.splitType))
-        print('Try changing the split type')
+        logging.warning('Couldnt find a valid spilt for split type:{} even after 10 retries.'.format(conf.splitType))
+        logging.warning('Try changing the split type')
         return None
 
     all_train = []
@@ -2363,7 +2380,7 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
         cur_trx = trx[trx_ndx]
         cur_f = cur_entry[0]
 
-        frame_in, cur_loc = multiResData.get_patch(
+        frame_in, cur_loc, scale = multiResData.get_patch(
             cap, cur_f, conf, np.zeros([conf.n_classes, 2]),
             cur_trx=cur_trx, flipud=flipud, crop_loc=crop_loc)
         all_f[cur_t, ...] = frame_in
@@ -2401,6 +2418,7 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                 # Theta 0 zero indicates animal facing right. So when theta is 0 the images are rotated by 90 degree so that they face upwards. To disable any rotation theta needs to be -90. Ideally conf.trx_align_theta should be false and this shouldn't be used, but adding it as a safeguard.
                 theta = np.ones_like(cur_pts[...,0,0])*(-np.pi/2)
                 ctr = cur_pts.mean(-1)
+                a = np.linalg.norm(cur_pts[...,0]-cur_pts[...,1],axis=-1)/4
             else:
                 if use_ht_pts:
                     h_pts = cur_pts[...,:,conf.ht_pts[0]]
@@ -2410,6 +2428,7 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                     h_pts = cur_pts[...,:,0]
                     t_pts = cur_pts[...,:,1]
                     ctr = cur_pts.mean(-1)
+                a = np.linalg.norm(h_pts-t_pts,axis=-1)/4
                 theta = np.arctan2(h_pts[...,1] - t_pts[..., 1], h_pts[..., 0] - t_pts[..., 0])
             end_frames.append(eframe)
             first_frames.append(sframe)
@@ -2417,7 +2436,8 @@ def get_trx_info(trx_file, conf, n_frames, use_ht_pts=False):
                       'y': ctr[None, ..., 1],
                       'firstframe': np.array(sframe + 1).reshape([1, 1]),
                       'endframe': np.array(eframe).reshape([1, 1]),
-                      'theta': theta[None, ...]
+                      'theta': theta[None, ...],
+                      'a': a[None]
                       }
             # +1 for firstframe because curtrx is assumed to be in matlab format
             if 'pTrkConf' in T:
@@ -2575,27 +2595,38 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             pred_fn, close_fn, model_file = sb.get_pred_fn(conf, model_file, name=name, **kwargs)
         else:
             raise Exception('sb network not implemented')
-
     elif model_type == 'unet':
         pred_fn, close_fn, model_file = get_unet_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'mdn':
         pred_fn, close_fn, model_file = get_mdn_pred_fn(conf, model_file, name=name, distort=distort, **kwargs)
     elif model_type == 'leap':
         import leap.training
-
         pred_fn, close_fn, model_file = leap.training.get_pred_fn(conf, model_file, name=name, **kwargs)
     elif model_type == 'deeplabcut':
         cfg_dict = create_dlc_cfg_dict(conf, name)
         pred_fn, close_fn, model_file = deeplabcut.pose_estimation_tensorflow.get_pred_fn(cfg_dict, model_file)
+    elif model_type == 'mmpose' or model_type == 'hrformer':
+        # This is the clause for all top-down MMPose models
+        # If we had a time machine, we'd change the 'mmpose' model type to 'mspn', since it's no longer the only MMPose model.
+        from Pose_mmpose import Pose_mmpose
+        tf1.reset_default_graph()
+        poser = Pose_mmpose(conf, name=name)
+        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
+    elif model_type == 'cid':
+        from Pose_multi_mmpose import Pose_multi_mmpose
+        tf1.reset_default_graph()
+        poser = Pose_multi_mmpose(conf, name=name)
+        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
     else:
         try:
             module_name = 'Pose_{}'.format(model_type)
             pose_module = __import__(module_name)
             tf1.reset_default_graph()
-            self = getattr(pose_module, module_name)(conf, name=name)
-            pred_fn, close_fn, model_file = self.get_pred_fn(model_file)
+            poser = getattr(pose_module, module_name)(conf, name=name)
         except ImportError:
-            raise ImportError('Undefined type of network')
+            raise ImportError(f'Undefined type of network:{model_type}')
+
+        pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
 
@@ -2838,7 +2869,7 @@ def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
         return pred_locs, labeled_locs, info, extrastuff
 
 
-def classify_db_multi(conf, read_fn, pred_fn, n, return_ims=False,
+def classify_db_multi_old(conf, read_fn, pred_fn, n, return_ims=False,
                       return_hm=False, hm_dec=100, hm_floor=0.0, hm_nclustermax=1):
     assert False, 'Use classify_db2'
     '''Classifies n examples generated by read_fn'''
@@ -2946,9 +2977,15 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
         for ndx in range(ppe):
             with timer_read:
                 next_db = read_fn()
-            all_f[ndx, ...] = next_db[0]
-            labeled_locs[cur_start + ndx, ...] = next_db[1]
-            info.append(next_db[2])
+            if isinstance(next_db,dict):
+                im = next_db['images']
+                all_f[ndx, ...] = np.transpose(im* 255., [1, 2, 0])
+                labeled_locs[cur_start + ndx, ...] = next_db['locs']
+                info.append(next_db['info'])
+            else:
+                all_f[ndx, ...] = next_db[0]
+                labeled_locs[cur_start + ndx, ...] = next_db[1]
+                info.append(next_db[2])
 
         # note all_f[ppe+1:, ...] for the last batch will be cruft
 
@@ -2990,18 +3027,18 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
 
     return ret_dict_all, labeled_locs, info
 
-def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
+def get_read_fn_all(model_type,conf,db_file,img_dir='val',islist=False):
     if model_type == 'leap':
         import leap.training
         read_fn, n = leap.training.get_read_fn(conf, db_file)
-    elif model_type == 'deeplabcut':
+    elif model_type == 'deeplabcut' and not db_file.endswith('.json'):
         cfg_dict = create_dlc_cfg_dict(conf)
         [p, d] = os.path.split(db_file)
         cfg_dict['project_path'] = p
         cfg_dict['dataset'] = d
         read_fn, db_len = deeplabcut.pose_estimation_tensorflow.get_read_fn(cfg_dict)
     else:
-        if db_file.endswith('.json'):
+        if db_file.endswith('.json') and islist:
             # is a list file
             coco_reader = multiResData.list_loader(conf, db_file, False)
             read_fn = iter(coco_reader).__next__
@@ -3009,6 +3046,7 @@ def get_read_fn_all(model_type,conf,db_file,img_dir='val'):
             conf.img_dim = 3
         elif conf.db_format == 'coco':
             coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir=img_dir)
+            # coco_reader = PoseCommon_pytorch.coco_loader(conf, db_file, False)
             read_fn = iter(coco_reader).__next__
             db_len = len(coco_reader)
             conf.img_dim = 3
@@ -3035,7 +3073,7 @@ def convert_to_orig_list(preds, info, list_file, conf):
                 trx = get_trx_info(prev_trx_file,conf,None)['trx']
             for p in pkeys:
                 preds[p][ndx] = convert_to_orig(preds[p][ndx],conf,curi[1],trx[curi[2]],None)
-    elif conf.has_crop:
+    elif conf.has_crops:
         cropLocs = to_py(jlist['cropLocs'])
         for ndx,curi in enumerate(info):
             for p in pkeys:
@@ -3044,7 +3082,7 @@ def convert_to_orig_list(preds, info, list_file, conf):
     return preds
 
 
-def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, **kwargs):
+def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None, name='deepnet',fullret=False, img_dir='val',conf2=None,model_type2=None,name2='deepnet', model_file2=None, islist=False,**kwargs):
     '''
         Classifies examples in DB.
 
@@ -3059,14 +3097,14 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
     '''
 
     if model_type2 is not None:
-        return classify_db_2stage([model_type,model_type2],[conf,conf2],db_file,[model_file,model_file2],name=[name,name2])
+        return classify_db_2stage([model_type,model_type2],[conf,conf2],db_file,[model_file,model_file2],name=[name,name2],islist=islist)
 
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=name)
 
     if classify_fcn is None:
         classify_fcn = classify_db2
 
-    read_fn, db_len = get_read_fn_all(model_type,conf,db_file,img_dir=img_dir)
+    read_fn, db_len = get_read_fn_all(model_type,conf,db_file,img_dir=img_dir,islist=islist)
     ret = classify_fcn(conf, read_fn, pred_fn, db_len, **kwargs)
     pred_locs, label_locs, info = ret[:3]
     close_fn()
@@ -3079,7 +3117,7 @@ def classify_db_all(model_type, conf, db_file, model_file=None,classify_fcn=None
         return ret
 
 
-def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name=['deepnet','deepnet'],  img_dir='val'):
+def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name=['deepnet','deepnet'],  img_dir='val',islist=False):
     '''
         Classifies examples in DB.
 
@@ -3100,7 +3138,13 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
     conf2.n_classes = conf[1].n_classes
     pred_fn_top, close_fn_top, model_file_top = get_pred_fn(model_type[0], conf1, model_file[0], name=name[0])
 
-    if conf[0].db_format == 'coco':
+    if db_file.endswith('.json') and islist:
+        # is a list file
+        coco_reader = multiResData.list_loader(conf2, db_file, False)
+        read_fn = iter(coco_reader).__next__
+        db_len = len(coco_reader)
+        conf[0].img_dim = 3
+    elif conf[0].db_format == 'coco':
         coco_reader = multiResData.coco_loader(conf2, db_file, False, img_dir=img_dir)
         read_fn = iter(coco_reader).__next__
         db_len = len(coco_reader)
@@ -3171,8 +3215,9 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
                     theta = np.arctan2(ht_locs[0, 1] - ht_locs[1, 1], ht_locs[0, 0] - ht_locs[1, 0])
                 else:
                     theta = 0
-                curp, curl = multiResData.crop_patch_trx(conf[1],all_f[ndx],ctr[0],ctr[1],theta,np.zeros([conf[1].n_classes,2]))
-                single_data.append([curp,ctr,theta,cur_start+ndx,curn])
+                bbox = ht_locs.flatten().tolist()
+                curp, curl, curs = multiResData.crop_patch_trx(conf[1],all_f[ndx],ctr[0],ctr[1],theta,np.zeros([conf[1].n_classes,2]),bbox=bbox)
+                single_data.append([curp,ctr,theta,cur_start+ndx,curn, curs])
 
     close_fn_top()
     import shutil
@@ -3217,10 +3262,10 @@ def classify_db_2stage(model_type, conf, db_file, model_file = [None,None], name
 
         for ndx in range(ppe):
             cur_in = single_data[cur_start+ndx]
-            ctr, theta, im_idx, animal_idx = cur_in[1:5]
+            ctr, theta, im_idx, animal_idx,scale = cur_in[1:6]
             for k in fields_record:
                 if 'locs' in k:
-                    ret_dict_all[k][im_idx,animal_idx, ...] = to_orig(conf[1],ret_dict[k][ndx, ...],ctr[0],ctr[1],theta)
+                    ret_dict_all[k][im_idx,animal_idx, ...] = to_orig(conf[1],ret_dict[k][ndx, ...],ctr[0],ctr[1],theta,scale=scale)
                 else:
                     ret_dict_all[k][im_idx,animal_idx, ...] = ret_dict[k][ndx, ...]
 
@@ -3234,14 +3279,14 @@ def check_train_db(model_type, conf, out_file):
     ''' Reads db and saves the images and locs to out_file to verify the db'''
     if model_type == 'openpose':
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
         n = tf_iterator.N
     elif model_type == 'unet':
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -3250,7 +3295,7 @@ def check_train_db(model_type, conf, out_file):
         import leap.training
 
         db_file = os.path.join(conf.cachedir, 'leap_train.h5')
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         read_fn, n = leap.training.get_read_fn(conf, db_file)
     elif model_type == 'deeplabcut':
         db_file = os.path.join(conf.cachedir, 'train_data.p')
@@ -3258,11 +3303,11 @@ def check_train_db(model_type, conf, out_file):
         [p, d] = os.path.split(db_file)
         cfg_dict['project_path'] = p
         cfg_dict['dataset'] = d
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         read_fn, n = deeplabcut.train.get_read_fn(cfg_dict)
     else:
         db_file = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        print('Checking db from {}'.format(db_file))
+        logging.info('Checking db from {}'.format(db_file))
         tf_iterator = multiResData.tf_reader(conf, db_file, False)
         tf_iterator.batch_size = 1
         read_fn = tf_iterator.next
@@ -3372,7 +3417,7 @@ def classify_list_file(args, view, view_ndx=0, conf_raw=None):
     part_file = out_file + '.part'  # following classify_movie naming
 
     if not os.path.isfile(list_file):
-        print('File %s does not exist' % list_file)
+        logging.warning('File %s does not exist' % list_file)
         return success, pred_locs
 
     toTrack = json.load(list_fp)
@@ -3901,6 +3946,18 @@ def get_latest_model_files(conf, net_type='mdn', name='deepnet'):
     return files
 
 
+class cleaner :
+    """Context manager for calling a function on exit."""
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, etype, value, traceback):
+        self.fn()
+
+
 def classify_movie_all(model_type, **kwargs):
     ''' Classify movie wrapper'''
     conf = kwargs['conf']
@@ -3910,35 +3967,40 @@ def classify_movie_all(model_type, **kwargs):
     if conf.stage == 'first':
         conf.n_classes = 2
         conf.op_affinity_graph = [[0, 1]]
-
     pred_fn, close_fn, model_file = get_pred_fn(model_type, conf, model_file, name=train_name)
-    # logging.info('Saving hmaps') if kwargs['save_hmaps'] else logging.info('NOT saving hmaps')
-    try:
-        trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
-    except (IOError, ValueError) as e:
-        trk = None
-        logging.exception('Could not track movie')
-    finally:
-        close_fn()
+    no_except = kwargs['no_except']
+    del kwargs['no_except']
+    with cleaner(close_fn):
+        if no_except:
+            trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+        else:
+            try:
+                trk = classify_movie(conf, pred_fn, model_type, model_file=model_file, **kwargs)
+            except (IOError, ValueError) as e:
+                trk = None
+                logging.exception('Could not track movie')
     return trk
 
 
 def gen_train_samples(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None,
-                      distort=True,debug=KBDEBUG):
+                      distort=True, debug=KBDEBUG, no_except=False):
     # Pytorch dataloaders can be fickle. Also they might not release GPU memory. Launching this in a separate process seems like a better idea
     #if False:
     if not ISWINDOWS and not debug:
         logging.info('Launching sample training data generation (in separate process)')
-        p = multiprocessing.Process(target=gen_train_samples1,args=(conf,model_type,nsamples,train_name,out_file,distort,False,True))
+        keyword_args_dict = \
+            { 'model_type':model_type, 'nsamples':nsamples, 'train_name':train_name, 
+              'out_file':out_file, 'distort':distort, 'debug':debug, 'no_except':no_except }
+        p = multiprocessing.Process(target=gen_train_samples1, args=(conf,), kwargs=keyword_args_dict)
         p.start()
         p.join()
     else:
-        logging.info('Launching sample training data generation (in same process)')
-        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug)
+        logging.info('Running sample training data generation (in same process)')
+        gen_train_samples1(conf, model_type=model_type, nsamples=nsamples, train_name=train_name, out_file=out_file, distort=distort, debug=debug, no_except=no_except)
     logging.info('Finished sample training data generation')
 
 
-def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, silent=False):
+def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name='deepnet', out_file=None, distort=True, debug=False, no_except=False):
     # Create image of sample training samples with data augmentation
 
     # if silent:
@@ -3955,7 +4017,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
     if model_type == 'deeplabcut':
         logging.info('Generating training data samples is not supported for deeplabcut')
         db_file = os.path.join(conf.cachedir,'train_data.p')
-        read_fn, dblen = get_read_fn_all(model_type,conf,db_file)
+        read_fn, dblen = get_read_fn_all(model_type, conf, db_file)
         ims = []; locs = []; info = []
         for ndx in range(nsamples):
             next_db = read_fn()
@@ -3974,8 +4036,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         if model_type.startswith('detect'):
             tconf.rrange = 0
 
-        tself = PoseCommon_pytorch.PoseCommon_pytorch(tconf,usegpu=False)
-        tself.create_data_gen(debug=False,pin_mem=False)
+        poser = PoseCommon_pytorch.PoseCommon_pytorch(tconf, usegpu=False)
+        poser.create_data_gen(debug=debug, pin_mem=False)
         # For whatever reasons, debug=True hangs for second stage in 2 stage training when the training job is submitted to the cluster from command line.
         if distort:
             db_type = 'train'
@@ -3987,10 +4049,13 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         info = []
         mask = []
         for ndx in range(nsamples):
-            try:
-                next_db = tself.next_data(db_type)
-            except:
-                break
+            if no_except:
+                next_db = poser.next_data(db_type)
+            else:
+                try:
+                    next_db = poser.next_data(db_type)
+                except Exception as e:
+                    break
             ims.append(next_db['images'][0].numpy())
             locs.append(next_db['locs'][0].numpy())
             info.append(next_db['info'][0].numpy())
@@ -4004,7 +4069,7 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
         save_dict = {'ims': ims, 'locs': locs + 1., 'idx': info + 1,'mask':mask}
 
         try:
-            del tself.train_dl, tself.val_dl
+            del poser.train_dl, poser.val_dl
         except:
             pass
         torch.cuda.empty_cache()
@@ -4018,6 +4083,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
 def train_unet(conf, args, restore, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
     tf1.reset_default_graph()
     self = PoseUNet.PoseUNet(conf, name=args.train_name)
     if args.train_name == 'deepnet':
@@ -4030,6 +4097,8 @@ def train_unet(conf, args, restore, split, split_file=None):
 def train_mdn(conf, args, restore, split, split_file=None, model_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
 
     out_file = args.aug_out
     if out_file is not None:
@@ -4057,6 +4126,8 @@ def train_leap(conf, args, split, split_file=None):
 
     if not args.skip_db:
         create_leap_db(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
 
     leap_train(data_path=os.path.join(conf.cachedir, 'leap_train.h5'),
                base_output_path=conf.cachedir,
@@ -4091,6 +4162,8 @@ def train_openpose(conf, args, split, split_file=None):
 
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
 
     nodes = []
     graph = conf.op_affinity_graph
@@ -4105,6 +4178,8 @@ def train_openpose(conf, args, split, split_file=None):
 def train_sb(conf, args, split, split_file=None):
     if not args.skip_db:
         create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
     sb.training(conf, name=args.train_name)
     tf1.reset_default_graph()
 
@@ -4112,6 +4187,8 @@ def train_sb(conf, args, split, split_file=None):
 def train_deepcut(conf, args, split_file=None, model_file=None):
     if not args.skip_db:
         create_deepcut_db(conf, False, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
     out_file = args.aug_out
     if out_file is not None:
         out_file = args.aug_out + f'_{conf.view}'
@@ -4136,11 +4213,96 @@ def train_dpk(conf, args, split, split_file=None):
                         split=split,
                         use_cache=args.use_cache,
                         split_file=split_file)
+    if args.only_db:
+        return
 
     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
     if args.only_aug: return
     tf1.reset_default_graph()
     apt_dpk.train(conf)
+
+
+def train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view):
+    if conf.is_multi:
+        setup_ma(conf)
+    if not args.skip_db:
+        if conf.db_format == 'coco':
+            create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
+        else:
+            create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
+    if args.only_db:
+        return
+
+    if conf.multi_only_ht:
+        assert conf.stage!='second', 'multi_ony_ht should be True only for the first stage'
+        conf.n_classes = 2
+        conf.flipLandmarkMatches = {}
+        conf.op_affinity_graph = [[0, 1]]
+
+    if args.aug_out is not None:
+        aug_out = args.aug_out + f'_{cur_view}'
+        if first_stage or second_stage:
+            estr = 'first' if first_stage else 'second'
+            aug_out += '_' + estr
+    else:
+        aug_out = None
+    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name, out_file=aug_out, 
+                        debug=args.debug, no_except=args.no_except)
+
+    # Sometime useful to save a pickle of the input here, to enable quick restart of training, for debugging and testing
+    if args.do_save_after_aug_pickle:
+        # Save the state from here, so can do a quick restart later.
+        pickle_file_leaf_name = 'after-aug-view-%d-conf-args-etc.pkl' % cur_view
+        json_label_file_path = conf.labelfile
+        pickle_folder_path = os.path.dirname(json_label_file_path)
+        pickle_file_path = os.path.join(pickle_folder_path, pickle_file_leaf_name)  # Stick it in the cachedir
+        pickle_dict = { 'net_type':net_type, 'args':args, 'restore':restore, 'model_file':model_file, 'conf':conf }
+        with open(pickle_file_path, 'wb') as f:
+            d = pickle.dump(pickle_dict, f)
+
+    if args.only_aug: 
+        do_continue = True
+        return do_continue
+
+    # On to the training proper
+    train_other_core(net_type, conf, args, restore, model_file)
+
+    # Exit, specifying not to continue in the containing loop
+    do_continue = False
+    return do_continue
+
+
+def train_other_core(net_type, conf, args, restore, model_file):
+    '''
+    The core of train_other(), after augmentation and all that other jazz.
+    '''
+
+    # At last, the main event        
+    if net_type == 'mmpose' or net_type == 'hrformer':
+        module_name = 'Pose_mmpose'
+    elif net_type == 'cid':
+        module_name = 'Pose_multi_mmpose'
+    else :
+        module_name = 'Pose_{}'.format(net_type)                    
+    logging.info(f'Importing pose module {module_name}')
+    pose_module = __import__(module_name)
+    tf1.reset_default_graph()
+    poser_factory = getattr(pose_module, module_name)
+    poser = poser_factory(conf, name=args.train_name, zero_seeds=args.zero_seeds, img_prefix_override=args.img_prefix_override, debug=args.debug)
+    # self.name = args.train_name
+    if args.zero_seeds:
+        # Set a bunch of seeds to zero for training reproducibility
+        #import random
+        #random.seed(0)
+        np.random.seed(0)
+        torch.manual_seed(0)
+        torch.cuda.manual_seed(0)
+        torch.cuda.manual_seed_all(0)
+
+    # Proceed to actual training
+    logging.info('Starting training...')
+    poser.train_wrapper(restore=restore, model_file=model_file, debug=args.debug)
+    logging.info('Finished training.')
 
 
 def create_dlc_cfg_dict(conf, train_name='deepnet'):
@@ -4157,12 +4319,12 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
         wd_x = conf.trange / 2
         wd_y = conf.trange / 2
     if not os.path.exists(wt_file):
-        print('Downloading pretrained weights..')
+        logging.info('Downloading pretrained weights..')
         if not os.path.exists(wt_dir):
             os.makedirs(wt_dir)
         sname, header = urllib.request.urlretrieve(url)
         tar = tarfile.open(sname, "r:gz")
-        print('Extracting pretrained weights..')
+        logging.info('Extracting pretrained weights..')
         tar.extractall(path=wt_dir)
     pretrained_weights = os.path.join(wt_dir, 'resnet_v1_50.ckpt')
 
@@ -4173,7 +4335,7 @@ def create_dlc_cfg_dict(conf, train_name='deepnet'):
                 'project_path': conf.cachedir,
                 'dataset': conf.dlc_train_data_file,
                 'init_weights': pretrained_weights,
-                'dlc_train_steps': conf.dl_steps,
+                'dlc_train_steps': conf.dl_steps*conf.batch_size if conf.dl_steps is not None else None,
                 'symmetric_joints': symmetric_joints,
                 'num_joints': conf.n_classes,
                 'all_joints': [[i] for i in range(conf.n_classes)],
@@ -4323,42 +4485,10 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                 train_deepcut(conf, args, split_file=split_file, model_file=model_file)
             elif net_type == 'dpk':
                 train_dpk(conf, args, split, split_file=split_file)
-
             else:
-                if conf.is_multi:
-                    setup_ma(conf)
-                if not args.skip_db:
-                    if conf.db_format == 'coco':
-                        create_coco_db(conf, split=split, split_file=split_file, trnpack_val_split=args.val_split)
-                    else:
-                        create_tfrecord(conf, split=split, use_cache=args.use_cache, split_file=split_file)
-
-                if conf.multi_only_ht:
-                    assert conf.stage!= 'second', 'multi_ony_ht should be True only for the first stage'
-                    conf.n_classes = 2
-                    conf.flipLandmarkMatches = {}
-                    conf.op_affinity_graph = [[0, 1]]
-
-                if args.aug_out is not None:
-                    aug_out = args.aug_out + f'_{cur_view}'
-                    if first_stage or second_stage:
-                        estr = 'first' if first_stage else 'second'
-                        aug_out += '_' + estr
-                else:
-                    aug_out = None
-                gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name,out_file=aug_out,debug=args.debug)
-                if args.only_aug: continue
-
-                module_name = 'Pose_{}'.format(net_type)
-                logging.info(f'Importing pose module {module_name}')
-                pose_module = __import__(module_name)
-                tf1.reset_default_graph()
-                foo = getattr(pose_module, module_name)
-                self = foo(conf, name=args.train_name)
-                # self.name = args.train_name
-                logging.info('Starting training...')
-                self.train_wrapper(restore=restore, model_file=model_file)
-                logging.info('Finished training.')
+                do_continue = train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view)
+                if do_continue:
+                    continue
 
         except tf1.errors.InternalError as e:
             estr =  'Could not create a tf session. Probably because the CUDA_VISIBLE_DEVICES is not set properly'
@@ -4399,6 +4529,10 @@ def parse_args(argv):
     parser.add_argument('-debug', dest='debug', help='Print debug messages', action='store_true')
     parser.add_argument('-no_except', dest='no_except', help='Dont catch exception. Useful for debugging',
                         action='store_true')
+    parser.add_argument('-zero_seeds', dest='zero_seeds', help='Zero the numpy, torch, and torch-cuda random seeds. Useful for debugging',
+                        action='store_true')
+    parser.add_argument('-img_prefix_override', dest='img_prefix_override', help='Override the img_prefix used in the mmpose cfg. Useful for debugging',
+                        default=None)
     parser.add_argument('-train_name', dest='train_name', help='Training name', default='deepnet')
     parser.add_argument('-err_file', dest='err_file', help='Err file', default=None)
     parser.add_argument('-log_file', dest='log_file', help='Log file', default=None)
@@ -4410,10 +4544,11 @@ def parse_args(argv):
     parser.add_argument('-type2', dest='type2', help='Network type for second stage', default=None)
     parser.add_argument('-stage', dest='stage', help='Stage for multi-stage tracking. Options are multi, first, second or None (default)', default=None)
     parser.add_argument('-ignore_local', dest='ignore_local', help='Whether to remove .local Python libraries from your path', default=0)
-    subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
 
+    subparsers = parser.add_subparsers(help='train or track or gt_classify', dest='sub_name')
     parser_train = subparsers.add_parser('train', help='Train the detector')
     parser_train.add_argument('-skip_db', dest='skip_db', help='Skip creating the data base', action='store_true')
+    parser_train.add_argument('-only_db', dest='only_db', help='Exit immediately after creating the data base.  Useful for debugging', action='store_true')
     parser_train.add_argument('-use_defaults', dest='use_defaults', action='store_true',
                               help='Use default settings of openpose, deeplabcut or leap')
     parser_train.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the training data.')
@@ -4427,6 +4562,11 @@ def parse_args(argv):
     parser_train.add_argument('-aug_out', dest='aug_out', help='Destination to save the images', default=None)
     parser_train.add_argument('-nsamples', dest='nsamples', default=9, help='Number of examples to be generated', type=int)
     parser_train.add_argument('-only_aug',dest='only_aug',help='Only do data augmentation, do not train',action='store_true')
+    parser_train.add_argument(
+        '-do_save_after_aug_pickle',
+        dest='do_save_after_aug_pickle',
+        help='Write variables to a pickle file after augmentation.  Useful for debugging',
+        action='store_true')
 
     parser_train.add_argument('-classify_val', dest='classify_val',
                               help='Apply trained model to val db', action='store_true')
@@ -4588,7 +4728,8 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            crop_loc=args.crop_loc[view_ndx][mov_ndx],
                            model_file=args.model_file[view_ndx],
                            train_name=args.train_name,
-                           predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx]
+                           predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx],
+                           no_except=args.no_except
                            )
     else:
         trk = None
@@ -4788,21 +4929,30 @@ def run(args):
 
         for view_ndx, view in enumerate(views):
 
-            conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+            if args.stage is None:
+                conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file)
+                conf2 = None
+            elif args.stage == 'multi':
+                conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache,conf_params=args.conf_params,json_trn_file=args.json_trn_file,first_stage=True)
+                conf2 = create_conf(conf_raw, view, args.name2, net_type=args.type2, cache_dir=args.cache,conf_params=args.conf_params2,json_trn_file=args.json_trn_file,second_stage=True)
+            else:
+                assert False, 'For list classification invdividual stages are unsupported'
 
             if conf.is_multi and args.list_file is None:
                 # update the imsz only if we are classifying the dbs which could have images that are cropped
                 setup_ma(conf)
 
+            islist = False
             if args.list_file is not None:
                 db_file = args.list_file
+                islist = True
             elif args.db_file is not None:
                 db_file = args.db_file
             else:
                 val_filename = get_valfilename(conf, args.type)
                 db_file = os.path.join(conf.cachedir, val_filename)
 
-            preds, locs, info = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx])
+            preds, locs, info, model_files = classify_db_all(args.type, conf, db_file, model_file=args.model_file[view_ndx],islist=islist,model_type2=args.type2,model_file2=args.model_file2[view_ndx],conf2=conf2,fullret=True)
             if cmd=='track':
                 preds = convert_to_orig_list(preds, info, db_file, conf)
 
@@ -4881,7 +5031,7 @@ def run(args):
         for view_ndx, view in enumerate(views):
             conf = create_conf(conf_raw, view, name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params)
             m_files.append(get_latest_model_files(conf, net_type=args.type, name=args.train_name))
-        print(m_files)
+        logging.info(m_files)
 
 class TqdmToLogger(io.StringIO):
     """
@@ -4925,7 +5075,7 @@ def set_up_logging(args):
     
     if args.log_file is None:
         # output to console if no log file is specified
-        logh = logging.StreamHandler()
+        logh = logging.StreamHandler()  # log to stderr
     else:
         logh = logging.FileHandler(args.log_file, 'w')
 
@@ -4933,7 +5083,6 @@ def set_up_logging(args):
         logh.setLevel(logging.DEBUG)
     else:
         logh.setLevel(logging.INFO)
-    IS_APT_IN_DEBUG_MODE = args.debug
     logh.setFormatter(log_formatter)
     logh.name = "log"
 
@@ -4960,7 +5109,7 @@ def main(argv):
     tf1.logging.set_verbosity(tf1.logging.ERROR)
     try:    
         gpu_devices = tf.config.list_physical_devices('GPU')  # this takes into account CUDA_VISIBLE_DEVICES
-        print("len(gpu_devices): ", len(gpu_devices))
+        logging.debug("len(gpu_devices): %d", len(gpu_devices))
         tf.config.experimental.set_memory_growth(gpu_devices,True)
             # seems like passing this is a single GPU, instead of a singleton list, fails when there are multiple GPUs?
     except:
@@ -4968,9 +5117,14 @@ def main(argv):
     
     # Parse the arguments
     args = parse_args(argv)
-    
+
+    # # For debugging
+    # args.debug = False
+    # args.no_except = True
+
+    # What the heck is this?
     if args.sub_name == 'test':
-        print("Hello this is APT!")
+        logging.info("Hello this is APT!")
         return
 
     # issues arise with docker and installed python packages that end up getting bound
@@ -4981,6 +5135,13 @@ def main(argv):
     # set up logging to files
     errh,logh = set_up_logging(args)
         
+    # # Debugging
+    # ld_library_path = os.getenv('LD_LIBRARY_PATH')
+    # if ld_library_path is None:
+    #     logging.info("LD_LIBRARY_PATH: <not set>") 
+    # else:
+    #     logging.info("LD_LIBRARY_PATH: '%s'" % ld_library_path) 
+
     # write commit info to log
     repo_info = PoseTools.get_git_commit()
     logging.info('Git Commit: {}'.format(repo_info))

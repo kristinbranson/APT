@@ -49,6 +49,7 @@ import glob
 from PoseCommon_pytorch import PoseCommon_pytorch
 import poseConfig
 import PoseTools
+import logging
 
 @BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
@@ -237,24 +238,29 @@ class APTHungarianAssignerMask(HungarianAssigner):
             bbox_pred.device)
 
         # 4. assign backgrounds and foregrounds
+
+        # originally ..
         # assign all indices to backgrounds first
         # assigned_gt_inds[:] = 0
+
+        # for masking, first ignore all the prediction bboxes by assigning them to -1
         assigned_gt_inds[:] = -1
 
         overlap_tr = 0.2
-        # overlap_tr_max = 0.8
+        # Find the un-matched pred bboxes that overlap with the gt_bboxes.
         overlaps = bbox_overlaps(gt_bboxes, bboxes.detach())
         overlaps, _ = overlaps.max(dim=0)
-        overlaps[matched_row_inds] = 0.
+        overlaps[matched_row_inds] = 0. # Ignore the matched bboxes.
         masked_negs = overlaps>overlap_tr
 
-        # Add bboxes that completely contain gt_bboxes as neg.
+        # Add bboxes that completely contain gt_bboxes and are 2x the size of gt_bboxes as neg.
         overlaps_f = bbox_overlaps(gt_bboxes, bboxes, mode='iof')
         overlaps_f, _ = overlaps_f.max(dim=0)
         big_boxes = (overlaps_f>0.95) & (overlaps<0.5)
         # Big boxes should have boxes that contain most of the gt_bboxes but are at least 1/0.5 = 2x in size.
         masked_negs = masked_negs | big_boxes
 
+        # Find predictions that overlap with ignored gt_bboxes
         if gt_bboxes_ignore.shape[0]>0:
             ignore_overlaps, _ = bbox_overlaps(bboxes.detach(), gt_bboxes_ignore, mode='iof').max(dim=1)
             ignore_overlaps[matched_row_inds] = 0.
@@ -603,12 +609,15 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
         def_steps = cfg.lr_config.step
         cfg.lr_config.step = [int(dd/def_epochs*conf.dl_steps) for dd in def_steps]
 
-    cfg.gpu_ids = range(1)
+    cfg.gpu_ids = [0]
     cfg.seed = None
     cfg.work_dir = conf.cachedir
 
     cfg.dataset_type = 'COCODataset'
-    cfg.classes = ('fly','neg_box')
+    if conf.get('coco_classes',None) is not None:
+        cfg.classes = conf.get('coco_classes',('fly','neg_box'))
+    else:
+        cfg.classes = ('fly','neg_box')
 
     im_sz = tuple(int(c / conf.rescale) for c in conf.imsz[::-1])  # conf.imsz[0]
     default_samples_per_gpu = cfg.data.samples_per_gpu
@@ -616,7 +625,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
 
     if conf.mmdetect_net == 'frcnn':
         for ttype in ['train', 'val', 'test']:
-            name = ttype if ttype is not 'test' else 'val'
+            name = ttype if ttype != 'test' else 'val'
             fname = conf.trainfilename if ttype == 'train' else conf.valfilename
             cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
             file = os.path.join(data_bdir, f'{fname}.json')
@@ -652,7 +661,7 @@ def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
 
     elif conf.mmdetect_net == 'detr':
         for ttype in ['train', 'val', 'test']:
-            name = ttype if ttype is not 'test' else 'val'
+            name = ttype if ttype != 'test' else 'val'
             fname = conf.trainfilename if ttype == 'train' else conf.valfilename
             cfg.data[ttype].ann_file = os.path.join(data_bdir, f'{fname}.json')
             file = os.path.join(data_bdir, f'{fname}.json')
@@ -726,6 +735,7 @@ class TraindataHook(Hook):
             json_data[x] = np.array(self.td_data[x]).astype(np.float64).tolist()
         with open(train_data_file + '.json', 'w') as json_file:
             json.dump(json_data, json_file)
+        logging.info(f'Step:{runner.iter+1}, Train loss:{self.td_data["train_loss"][-1]}')
 
 
 class Pose_detect_mmdetect(PoseCommon_pytorch):
@@ -808,6 +818,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             # cfg.gpus will be ignored if distributed
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
+            runner_type='IterBasedRunner',
             seed=cfg.seed)
         dataloader_setting = dict(dataloader_setting, **cfg.data.get('train_dataloader', {}))
 

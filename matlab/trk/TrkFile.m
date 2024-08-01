@@ -804,7 +804,7 @@ classdef TrkFile < dynamicprops
       [new_ids] = myparse(varargin,'new_ids',false);
       
       % step 1: get all unique tgts; get all their start/endframes      
-      allobjs = [{obj} other_objs];
+      allobjs = [{obj}; other_objs];
       
       nobj = numel(allobjs);
       tgt_starts = zeros(1,nobj);

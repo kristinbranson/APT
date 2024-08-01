@@ -541,8 +541,15 @@ class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch
             locs = self.get_joint_pred(preds)
             ret_dict = {}
             ret_dict['locs'] = locs['ref'][:,0,...] * conf.rescale
-            cur_joint_conf = locs['conf_ref'][:,0,...]
-            ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
+
+            if ('conf_dist' not in locs) or (locs['conf_dist'] is None):
+                cur_joint_conf = locs['conf_ref'][:,0,...]
+                ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
+            else:
+                cur_joint_conf = locs['conf_dist'][:,0,...]
+                ret_dict['conf'] = 1/np.clip(cur_joint_conf,0,25)
+
+            ret_dict['conf_joint'] = locs['conf_joint'][...,0]
             if self.conf.predict_occluded:
                 ret_dict['occ'] = locs['pred_occ'][:,0,...]
             else:

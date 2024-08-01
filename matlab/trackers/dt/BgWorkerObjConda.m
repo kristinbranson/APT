@@ -124,7 +124,7 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
         tfsucc = false;
       else
         fclose(fid);
-        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge that the process has been killed!\n',killtoken);
         tfsucc = true;
       end
     end

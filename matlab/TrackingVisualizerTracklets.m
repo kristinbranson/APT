@@ -122,13 +122,14 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       xy = nan(npts,2,nTrx);
       tfeo = false(npts,nTrx);
       has_occ = isfield(ptrx,'pocc');
+      sel_pts = min(npts,size(ptrx(1).p,1));
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));
         if ~isempty(ptrxJ.p)
           idx = frm + ptrxJ.off;
-          xy(:,:,j) = ptrxJ.p(:,:,idx);
+          xy(1:sel_pts,:,j) = ptrxJ.p(1:sel_pts,:,idx);
           if has_occ
-            tfeo(:,j) = ptrxJ.pocc(:,idx);
+            tfeo(1:sel_pts,j) = ptrxJ.pocc(1:sel_pts,idx);
           end
         end
       end

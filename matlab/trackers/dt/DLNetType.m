@@ -37,16 +37,19 @@ classdef DLNetType < handle %dynamicprops
   
   enumeration 
     mdn_joint_fpn ('mdn_joint_fpn')
-    mmpose ('mmpose')
+    mmpose ('mmpose')  % If we had a time machine we would change this to mspn, but it's hard to do now (Aug 2023)
     deeplabcut ('deeplabcut')
     dpk ('dpk')
     openpose ('openpose')
     mdn ('mdn')
     unet ('unet')
+    hrnet ('hrnet')
     %leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')
+    hrformer ('hrformer')
+    multi_cid ('multi_cid')
   end
   
   methods 
@@ -71,15 +74,13 @@ classdef DLNetType < handle %dynamicprops
     function g = getModelGlobs(obj,iterCurr)
       g = cellfun(@(x)sprintf(x,iterCurr),obj.modelGlobs,'uni',0);
     end
-    function tf = requiresTrnPack(obj,netMode)
-      % whether training requires trnpack generation
-      
-      tf = true;
-      return
-      
-      tf = obj.isMultiAnimal || ...
-          (netMode~=DLNetMode.singleAnimal && ...
-           netMode~=DLNetMode.multiAnimalTDPoseTrx);      
+    function tf = requiresTrnPack(obj, netMode)  %#ok<INUSD> 
+      % whether training requires trnpack generation      
+      tf = true ;
+      return      
+%       tf = obj.isMultiAnimal || ...
+%           (netMode~=DLNetMode.singleAnimal && ...
+%            netMode~=DLNetMode.multiAnimalTDPoseTrx);      
     end
   end
   

@@ -116,8 +116,8 @@ def unscale_points(locs_lores, scalex, scaley):
 
 def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     sz = img.shape
-    szy_ds = int(sz[1]//scale)
-    szx_ds = int(sz[2]//scale)
+    szy_ds = round(sz[1]/scale)
+    szx_ds = round(sz[2]/scale)
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
 
@@ -144,7 +144,7 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
             simg[ndx, :, :, :] = cv2.resize(img[ndx, :, :, :], out_sz, **kwargs)
         if mask is not None:
             # use skimage transform because it can work on boolean data
-            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
+            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
 
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
@@ -189,7 +189,7 @@ def adjust_contrast(in_img, conf):
         else:
             for ndx in range(in_img.shape[0]):
                 lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
-                lab_planes = cv2.split(lab)
+                lab_planes = list(cv2.split(lab))
                 lab_planes[0] = clahe.apply(lab_planes[0])
                 lab = cv2.merge(lab_planes)
                 rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
@@ -592,8 +592,15 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05
+
             dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
             dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+
+            # if np.random.rand()<0.5:
+            #     dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            #     dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            # else:
+            #     dx = 0; dy= 0
 
             count += 1
             if count > 5:
@@ -614,6 +621,8 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                     and np.all(lr[valid, 1] <= rows):
                 sane = True
             elif not conf.check_bounds_distort:
+                out_of_range = (lr[...,0]<0) | (lr[...,0]>=cols) | (lr[...,1]<0) | (lr[...,1]>=rows)
+                high_valid = high_valid & ~out_of_range
                 sane = True
             elif do_transform:
                 continue
@@ -706,7 +715,7 @@ def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     blur_l = np.zeros([2 * k_size + 1, 2 * k_size + 1])
     blur_l[k_size, k_size] = 1
     blur_l = cv2.GaussianBlur(blur_l, (2 * k_size + 1, 2 * k_size + 1), blur_rad)
-    blur_l = old_div(blur_l, blur_l.max())
+    blur_l = blur_l/ blur_l.max()
     for cls in range(n_classes):
         for andx in range(maxn):
             for ndx in range(len(locs)):
@@ -1432,7 +1441,7 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,oc
     cur_im = cur_im.astype('uint8')
     xs = adjust_contrast(cur_im, conf)
     start = time.time()
-    xs, locs, mask = scale_images(xs, locs, scale, conf, mask=mask)
+    xs, locs, mask = scale_images(xs, locs, scale, conf, mask=mask,interpolation=cv2.INTER_CUBIC)
     stime = time.time()
     if distort:
         if conf.horz_flip:
@@ -1451,6 +1460,9 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,oc
     if mask is not None:
         ret.append(mask)
     if occ is not None:
+        if not conf.check_bounds_distort:
+            occ = (occ>0.5) | (locs[...,0] < -1000) | np.isnan(locs[...,0])
+            occ = occ.astype('float32')
         ret.append(occ)
     return ret
 
@@ -1590,7 +1602,7 @@ def get_crop_loc(lbl,ndx,view, on_gt=False):
         if nviews == 1:
             crop_loc = lbl[lbl[fname][0, ndx]]['roi'].value[:, 0].astype('int')
         else:
-            crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]].value[:, 0].astype('int')
+            crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]][()][:, 0].astype('int')
         crop_loc = crop_loc - 1
     else:
         crop_loc = None
@@ -1615,7 +1627,7 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_rtx    ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/bransonlab/mayank/singularity/pytorch_mmpose.sif',precmd='',numcores=2):
+def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif',precmd='',numcores=2):
     import subprocess
     sing_script = os.path.join(dir,  name + '.sh')
     sing_err = os.path.join(dir,  name + '.err')
@@ -1651,24 +1663,25 @@ def submit_job(name, cmd, dir,queue='gpu_rtx    ',gpu_model=None,timeout=72*60,r
 
 
 def read_h5_str(in_obj):
-    return u''.join(chr(c) for c in in_obj)
+    return u''.join([chr(c) for c in in_obj[()].flatten()])
 
 
-def show_result_hist(im,loc,percs):
+def show_result_hist(im,loc,percs,dropoff=0.5,ax=None,cmap='cool',lw=None):
     from matplotlib import pyplot as plt
-    cmap = get_cmap(percs.shape[0])
-    f = plt.figure()
+    cmap = get_cmap(percs.shape[0],cmap)
+    if ax is None:
+        f = plt.figure()
+        ax = plt.gca()
     if im.ndim == 2:
-        plt.imshow(im,'gray')
+        ax.imshow(im,'gray')
     elif im.shape[2] == 1:
-        plt.imshow(im[:,:,0],'gray')
+        ax.imshow(im[:,:,0],'gray')
     else:
-        plt.imshow(im)
+        ax.imshow(im)
 
-    ax = plt.gca()
     for pt in range(loc.shape[0]):
         for pp in range(percs.shape[0]):
-            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
+            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False,alpha=1-((pp+1)/percs.shape[0])*dropoff,lw=lw)
             ax.add_patch(c)
 
 
@@ -1807,3 +1820,62 @@ def find_knee(x,y):
     d1 = np.array(d1)
     knee_pt = np.argmax(d1)
     return knee_pt, d1[knee_pt]
+
+
+def resize_padding(image, width, height):
+
+    # Get the original image dimensions
+    original_height, original_width = image.shape[:2]
+
+    # Calculate the aspect ratios
+    aspect_ratio = original_width / original_height
+    target_aspect_ratio = width / height
+
+    # Determine the scaling factor
+    if aspect_ratio > target_aspect_ratio:
+        scale_factor = width / original_width
+    else:
+        scale_factor = height / original_height
+
+    # Resize the image
+    resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
+
+    # Calculate the padding sizes
+    pad_width = width - resized_image.shape[1]
+    pad_height = height - resized_image.shape[0]
+
+    # Calculate the padding amounts
+    top = pad_height // 2
+    bottom = pad_height - top
+    left = pad_width // 2
+    right = pad_width - left
+
+    # Apply padding to the image
+    padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+    return padded_image,scale_factor
+
+
+def set_seed(seed):
+    if seed is None:
+        return
+    from mmcv.runner import set_random_seed
+    set_random_seed(seed)
+
+
+def get_memory_usage():
+    import psutil
+    # Get the process ID of the current Python process
+    process_id = psutil.Process()
+
+    # Get memory usage information
+    memory_info = process_id.memory_info()
+
+    # Print the memory usage details
+    # print(f"Memory Usage: {memory_info.rss} bytes (Resident Set Size)")
+    # print(f"Virtual Memory Size: {memory_info.vms} bytes")
+    # print(f"Peak Memory Usage: {memory_info.peak_wset} bytes")
+    return memory_info.rss
+
+if __name__ == "__main__":
+    get_memory_usage()

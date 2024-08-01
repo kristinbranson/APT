@@ -28,6 +28,7 @@ classdef Labeler < handle
       'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
       'trackParams' 'preProcH0' 'preProcSaveData' ...
+      'trackAutoSetParams' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
       'projectHasTrx'...
@@ -215,6 +216,7 @@ classdef Labeler < handle
     projVerbose = 0  % transient, unmanaged
     
     isgui = false  % whether there is a GUI
+    isInDebugMode = false  % whether the Labeler is in debug mode.  Controls e.g. whether the Debug menu is shown.
     unTarLoc = ''  % location that project has most recently been untarred to
     
     projRngSeed = 17 
@@ -1531,10 +1533,12 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      isgui = ...
+      [isgui, isInDebugMode] = ...
         myparse_nocheck(varargin, ...
-                        'isgui',false);
+                        'isgui', false, ...
+                        'isInDebugMode', false) ;
       obj.isgui = isgui ;
+      obj.isInDebugMode = isInDebugMode ;
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,
@@ -3591,7 +3595,6 @@ classdef Labeler < handle
       
       s.trackerClass(~tf) = [];
       s.trackerData(~tf) = [];
-      loc_old = loc;
       loc(~tf) = [];      
       tclass = trkersInfo;
       tclass(loc) = s.trackerClass(:);
@@ -3599,7 +3602,6 @@ classdef Labeler < handle
       tdata(loc) = s.trackerData(:);
       s.trackerClass = tclass;
       s.trackerData = tdata;      
-      s.currTracker = loc_old(s.currTracker);
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
       if oldCurrTracker>0 && ~isempty(loc) && oldCurrTracker <= numel(loc),
@@ -6475,10 +6477,11 @@ classdef Labeler < handle
       tf = Labels.labeledFrames(s,nf);
     end
     function tflbled = labelPosLabeledTgts(obj,iMov)
-      ifo = obj.movieInfoAll{iMov,1};
+      zz = obj.getMovieInfoAllGTawareArg(obj.gtIsGTMode);
+      ifo = zz{iMov,1};
       nf = ifo.nframes;      
-      s = obj.labels{iMov};
-      tflbled = Labels.labeledTgts(s,nf);
+      s = obj.labelsGTaware;
+      tflbled = Labels.labeledTgts(s{iMov},nf);
     end
     
     
@@ -7552,7 +7555,7 @@ classdef Labeler < handle
       lpos = obj.labelsGTaware;
       s = lpos{obj.currMovie};
       [tf,p,~] = Labels.isLabeledFT(s,obj.currFrame,obj.currTarget);
-      islabeled = tf && all(~isnan(p));
+      islabeled = tf && ~all(isnan(p));
     end
 %     function islabeled = currFrameIsLabeled_Old(obj)
 %       % "is fully labeled"
@@ -7580,8 +7583,12 @@ classdef Labeler < handle
 %       assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
       %frm = obj.currFrame;
-      s = obj.labelsRoi{iMov};
-      v = LabelROI.getF(s,frm);
+      if ~obj.gtIsGTMode
+        s = obj.labelsRoi{iMov};
+        v = LabelROI.getF(s,frm);
+      else
+        v = [];
+      end
     end
 
    
@@ -8210,7 +8217,10 @@ classdef Labeler < handle
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
-          %displaying when .trk file was last updated
+          if (iVw==1) && size(scell{iVw}.pTrk{1},1)~=obj.nLabelPoints
+            warning('Number of landmarks in the trk file does not match with the project')
+          end
+            %displaying when .trk file was last updated
           tfileDir = dir(tfile);
           disp(['  trk file last modified: ',tfileDir.date]);
 
@@ -11333,7 +11343,7 @@ classdef Labeler < handle
       % over.
       
       % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultParamsTree;
+      tPrm = APTParameters.defaultParamsTree() ;
       % Overlay our starting pt
       tPrm.structapply(sPrmCurrent);
       
@@ -11507,10 +11517,13 @@ classdef Labeler < handle
     end
         
     function trackRetrain(obj,varargin)
-      [tblMFTtrn,retrainArgs,dontUpdateH0] = myparse(varargin,...
+      [tblMFTtrn, retrainArgs, dontUpdateH0, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
+        varargin,...
         'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
         'retrainArgs',{},... % (opt) args to pass to tracker.retrain()
-        'dontUpdateH0',false...
+        'dontUpdateH0',false,...
+        'do_just_generate_db', false, ...
+        'do_call_apt_interface_dot_py', true ...
         );
       
       tObj = obj.tracker;
@@ -11538,7 +11551,7 @@ classdef Labeler < handle
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.retrain(retrainArgs{:});
+      tObj.retrain(retrainArgs{:}, 'do_just_generate_db', do_just_generate_db, 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
     end
 
     function dotrain = trackCheckGPUMem(obj,varargin)
@@ -14877,7 +14890,7 @@ classdef Labeler < handle
       success = false;
 %       lpos = obj.labelsGTaware;
       lpos = obj.labels;
-      if (numel(lpos)<1) && (lobj.gtIsGTMode) && numel(obj.labelsGT)>0
+      if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
         lpos = obj.labelsGT;
       end
       if obj.isPrevAxesModeInfoSet(paModeInfo),

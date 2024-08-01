@@ -34,6 +34,7 @@ import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from torch.utils.data import Dataset,DataLoader
 
+
 def angle_span(pcurr,pnext):
   z = pcurr-pnext
   y = np.linalg.norm(z,axis=1)
@@ -1375,7 +1376,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method)
+  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.p')
@@ -1604,8 +1605,8 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   # for debugging
   # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
   trk_info_batches = split_parallel(trk_info,n_batches)
+  args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
-    args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
     data = pool.starmap(read_tracklet_ims,args,chunksize=1)
   data = merge_parallel(data)
   return data
@@ -1642,6 +1643,8 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
   # Very important to set the seed as otherwise same set of images would be returned
   np.random.seed(seed)
   cap = movies.Movie(mov_file)
+
+  # print(seed)
 
   all_ims = []
   for cur_trk in trk_info:
@@ -2895,6 +2898,7 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
           new_pred_map.append([tndx,tid])
           linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
         taken.append(tid)
+  logging.info('DOne adding paths...')
 
   if len(new_pred_map)>0:
     new_pred_map = np.concatenate([pred_map, new_pred_map],axis=0)
@@ -2942,6 +2946,9 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
   n_trks = len(int_trks)
 
   # edge mat will be used to compute the shortest path. [:,0] corresponds to starting tracklet and [:,-1] correspoinds to ending tracklet
+  debug = False
+  if debug:
+    logging.info(f'st_idx, {st_idx} en_idx{en_idx} link_st, {link_st}, link_en, {link_en}, ntrk, {n_trks},mem, {PoseTools.get_memory_usage()}')
   edge_mat = np.ones([n_trks+2,n_trks+2])*bignumber*(link_en-link_st+1)
 
   def get_link_cost(cur_link):
@@ -3082,7 +3089,7 @@ def greedy_longest_path(edge_mat,st_pt,max_val):
   if edge_mat.shape[0]<2: return path
   while True:
     nextp = np.argmin(edge_mat[st_pt])
-    if edge_mat[st_pt,nextp]>max_val: return path
+    if edge_mat[st_pt,nextp]>(max_val-1): return path
     path.append(nextp)
     st_pt = nextp
 

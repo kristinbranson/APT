@@ -800,7 +800,7 @@ class Tracklet:
       return
     data = [None,]*self.ntargets
     for itgt in range(self.ntargets):
-      data[itgt] = self.gettargetframe(itgt,np.arange(startframes[itgt],endframes[itgt]+1,dtype=int))
+      data[itgt] = self.gettargetframe(itgt,np.arange(startframes[itgt],endframes[itgt]+1,dtype=int))[...,0]
     self.data = data
     self.startframes[:] = startframes
     self.endframes[:] = endframes

@@ -26,9 +26,10 @@ class config(object):
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
-        self.imsz = [100,100]
+        self.imsz = [100,100] # h x w -- this is the same convention as what we could get when we do np.shape(img)
         self.n_classes = 10
         self.img_dim = 3
+        self.has_crops = False
 
         self.batch_size = 8
         self.view = 0
@@ -66,6 +67,7 @@ class config(object):
         self.flipLandmarkMatches = {}
         self.learning_rate_multiplier = 1.
         self.predict_occluded = False
+        self.use_openvino = False
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -232,6 +234,8 @@ class config(object):
         self.multi_crop_ims = True
         # For NMS for pose. Suppress poses whose avg matching distance is less than this percentage of the bounding box edge size.
         self.multi_match_dist_factor = .2
+        self.multi_scale_by_bbox = False
+        self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
 
         # ============= TOP-DOWN =================
 

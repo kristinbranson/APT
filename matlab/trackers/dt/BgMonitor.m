@@ -237,10 +237,8 @@ classdef BgMonitor < handle
           obj.stop();
           
           fprintf(1,'Error occurred during %s:\n',obj.processName);
-          errFile = obj.getLogFile(sRes,i);
-          fprintf(1,'\n### %s\n\n',errFile);
-          errContents = obj.bgWorkerObj.fileContents(errFile);
-          disp(errContents);
+          logFiles = obj.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
+          displayFileOrFiles(logFiles, obj.bgWorkerObj) ;
           fprintf(1,'\n\n. You may need to manually kill any running %s process.\n',obj.processName);
           return;
           
