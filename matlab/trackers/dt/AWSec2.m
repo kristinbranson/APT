@@ -896,14 +896,15 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function remoteLS(obj,remoteDir,varargin)
-      [dispcmd,failbehavior] = myparse(varargin,...
+    function tfsucc = remoteLS(obj,remoteDir,varargin)
+      [dispcmd,failbehavior,args] = myparse(varargin,...
         'dispcmd',false,...
-        'failbehavior','warn'...
+        'failbehavior','warn',...
+        'args','-lha'...
         );
       
-      cmdremote = sprintf('ls -lh %s',remoteDir);
-      [~,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,...
+      cmdremote = sprintf('ls %s %s',args,remoteDir);
+      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,...
         'failbehavior',failbehavior);
       
       disp(res);
@@ -1276,6 +1277,19 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
+  end
+  
+  % These next two methods allow access to private and protected variables,
+  % intended to be used for encoding/decoding.  The trailing underscore is there
+  % to remind you that these methods are only intended for "special case" uses.
+  methods
+    function result = get_property_value_(self, name)
+      result = self.(name) ;
+    end  % function
+    
+    function set_property_value_(self, name, value)
+      self.(name) = value ;
+    end  % function
   end
   
 end

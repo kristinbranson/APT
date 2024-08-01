@@ -22,18 +22,21 @@
 # Adapted by Allen Lee @ Branson Lab, JRC/HHMI Oct 2019
 
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+#from __future__ import absolute_import
+#from __future__ import division
+#from __future__ import print_function
 
 import os
 import tensorflow.keras as keras
 from tensorflow.keras.layers import Layer
 import logging
 
-from tensorflow.python.keras.applications import imagenet_utils
+import tensorflow
+tf = tensorflow.compat.v1
 
-_obtain_input_shape = imagenet_utils.imagenet_utils._obtain_input_shape
+from keras_applications import imagenet_utils
+
+_obtain_input_shape = imagenet_utils._obtain_input_shape
 
 backend = keras.backend
 layers = keras.layers

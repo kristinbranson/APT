@@ -3,10 +3,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   % Note: ML Stro Calib App requires all ims/views to have the same size.
   
   properties
-    nonMLinit = false; % if true, obj is not initialized from MATLAB stereo calibration
-    calSess % scalar Session from ML Stro calibration; or if .nonMLinit, scalar struct mirroring calSession object
+    calSess % scalar Session from ML Stro calibration
     
-    eplineComputeMode = 'caltech'; % one of 'caltech' or 'zray'
+    eplineComputeMode = 'mostaccurate'; % either 'mostaccurate' or 'fastest'
   end
   properties (Dependent)
     stroParams
@@ -45,6 +44,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     function T = get.TRL(obj)
       T = -obj.RLR'*obj.TLR;
     end
+    %function s = get.int(obj)
     function s = getInt(obj)
       sp = obj.stroParams;
       
@@ -62,50 +62,28 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   methods
     
     function obj = CalRigMLStro(calSess,varargin)
-      % obj = CalRigMLStro(calSess) 
-      % calSess: one of:
-      %   1. a char filename for saved result from ML Stereo Calib App; 
-      %   2. the ML calibration Session object saved therein; 
-      %   3. char filename for APT-style rig config/param YAML file;
-      %   4. a YAML struct for such YAML contents
+      % calibSession: either a char filename for saved result from ML 
+      % Stereo Calib App; or the object within
       
       offerSave = myparse(varargin, ...
         'offerSave',true...
         );
       
-      isYamlRig = false;
       if ischar(calSess)
-        [~,~,ext] = fileparts(calSess);
-        switch ext
-          case '.yaml'
-            s = ReadYaml(calSess);
-            calSessObj = CalRigMLStro.rigYaml2CalSess(s);
-            isYamlRig = true;
-          case '.mat'
-            s = load(calSess,'-mat','calibrationSession');
-            calSessObj = s.calibrationSession;
-        end
+        s = load(calSess,'-mat','calibrationSession');
+        calSessObj = s.calibrationSession;
       elseif isa(calSess,'vision.internal.calibration.tool.Session')
         calSessObj = calSess;
-      elseif isstruct(calSess) && isfield(calSess,'NumCameras')
-        calSessObj = CalRigMLStro.rigYaml2CalSess(calSess);
-        isYamlRig = true;
       else
         error('Input argument must be a MATLAB Stereo Calibration Session.');
       end
       
       obj.calSess = calSessObj;
-      obj.nonMLinit = isYamlRig;
       obj.int = obj.getInt();
-
-      obj.eplineComputeMode = 'caltech';
-      %obj.autoCalibrateProj2NormFuncTol();
-      obj.proj2NormFuncTol = nan; % AL20220302 no longer used
-
-      if ~isYamlRig
-        obj.autoCalibrateEplineZrange();
-        obj.runDiagnostics();
-      end
+      
+      obj.autoCalibrateProj2NormFuncTol();
+      obj.autoCalibrateEplineZrange();
+      obj.runDiagnostics();
       
       if offerSave
         if ischar(calSess)
@@ -125,8 +103,6 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       end
     end
     
-    % AL20220302: currently unused, see .projected2normalized now relying
-    % on MATLAB/vision API for undistorting (removing nonlinearities)
     function autoCalibrateProj2NormFuncTol(obj,varargin)
       % Automatically set .proj2NormFuncTol by "round-tripping" calibration
       % points through projected2normalized/normalized2projected.
@@ -152,8 +128,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         );
       
       cs = obj.calSess;
-      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
-      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -187,10 +163,6 @@ classdef CalRigMLStro < CalRigZhang2CamBase
           fprintf(' ... SUCCESS! Setting .proj2NormFuncTol to %.3g.\n',functol);
           obj.proj2NormFuncTol = functol;
           break;
-        elseif functol < 1e-13
-          fprintf(' ... STOPPING. Setting .proj2NormFuncTol to %.3g.\n',functol);
-          obj.proj2NormFuncTol = functol;
-          break;
         else
           functol = functol/2;
         end
@@ -217,8 +189,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         );
       
       cs = obj.calSess;
-      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
-      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -265,54 +237,51 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       ntestpts = size(testpts,1);
       fprintf(1,'Selecting zrange with %d test points.\n',ntestpts);
       
-      ENOUGHPTS = 2e3;
-      NVW = 2;      
-      %nInBounds = zeros(ntestpts,NVW);
-      obj.eplineZrange = cell(1,NVW);
-      for ivw=1:NVW
-        fprintf(1,'Computing zrange for view %d...\n',ivw);
-        nInBounds = -ones(ntestpts,1);
-        while 1
-          zrangelims = zRangeWidthCtr(ivw,2) + 0.5*zRangeWidthCtr(ivw,1)*[-1 1];
-          zrangelims = max(zrangelims,0);
-          % want zrangelims to be integer multiples of dz. That way, as 
-          % range is expanded, zrange are precise successive supersets to
-          % avoid edge effects where nInBounds has spurious changes by +/-1 
-          zrangelims = round(zrangelims/dz)*dz;
-          zrange = zrangelims(1):dz:zrangelims(2);
-
-          fprintf('... zrange (n=%d): %s.\n',numel(zrange),mat2str(zrange([1 end])));
-
-          nInBoundsNew = nan(ntestpts,1);
-          ivwother = 3-ivw;
-          for ipt=1:ntestpts
-            [~,~,~,tfOOB] = ...
-              obj.computeEpiPolarLine(ivw,testpts(ipt,:)',ivwother,roi,'z1range',zrange);
-            nInBoundsNew(ipt) = nnz(~tfOOB);
-          end
-
-          disp(nInBoundsNew);
-
-          tfPtIsGood = nInBounds==nInBoundsNew | nInBoundsNew>ENOUGHPTS;
-          % AL 20220302 second condition is required bc in some cases
-          % nInBoundsNew will continue to grow without bound; for example
-          % with both cameras close to each other and axis-aligned, viewing 
-          % a target together "in parallel". In this case, each increase
-          % in zrange will continually add points to the EP line (almost
-          % all of which will lie on top of each other).
-          if all(tfPtIsGood)
-            % All pts have either saturated by being unchanging, or their
-            % EPlines exceed ENOUGHPTS.
-            fprintf('SUCCESS! zrange found for view %d.\n',ivw);
-            break;
-          end
-
-          zRangeWidthCtr(ivw,1) = zRangeWidthCtr(ivw,1)*zrangeWidthTitrationFac;
-          nInBounds = nInBoundsNew;
+      nInBounds = zeros(ntestpts,2);
+      while 1
+        zrangelims1 = zRangeWidthCtr(1,2) + 0.5*zRangeWidthCtr(1,1)*[-1 1];
+        zrangelims2 = zRangeWidthCtr(2,2) + 0.5*zRangeWidthCtr(2,1)*[-1 1];
+        zrangelims1 = max(zrangelims1,0);
+        zrangelims2 = max(zrangelims2,0);
+        % want zrangelims1/2 to be integer multiples of dz. That way, as 
+        % range is expanded, zrange1/2 are precise successive supersets to
+        % avoid edge effects where nInBounds has spurious changes by +/-1 
+        zrangelims1 = round(zrangelims1/dz)*dz;
+        zrangelims2 = round(zrangelims2/dz)*dz;        
+        zrange1 = zrangelims1(1):dz:zrangelims1(2);
+        zrange2 = zrangelims2(1):dz:zrangelims2(2);
+        
+        fprintf('View1 zrange (n=%d): %s.\nView2 zrange (n=%d): %s.\n',...
+          numel(zrange1),mat2str(zrange1([1 end])),...
+          numel(zrange2),mat2str(zrange2([1 end])));
+        
+        nInBoundsNew = nan(ntestpts,2);
+        for i=1:ntestpts
+          [~,~,~,tfOOB1] = ...
+            obj.computeEpiPolarLine(1,testpts(i,:)',2,roi,'z1range',zrange1);
+          [~,~,~,tfOOB2] = ...
+            obj.computeEpiPolarLine(2,testpts(i,:)',1,roi,'z1range',zrange2);
+          nInBoundsNew(i,:) = [nnz(~tfOOB1) nnz(~tfOOB2)];
         end
         
-        obj.eplineZrange{ivw} = zrange;
+        disp(nInBoundsNew);
+        
+        if isequal(nInBounds,nInBoundsNew)
+          fprintf('SUCCESS! Setting .eplineZrange.\n');
+          break;
+        end
+        
+        for ivw=1:2
+          if ~isequal(nInBounds(:,ivw),nInBoundsNew(:,ivw))
+            zRangeWidthCtr(ivw,1) = zRangeWidthCtr(ivw,1)*zrangeWidthTitrationFac;
+          end
+        end
+        
+        nInBounds = nInBoundsNew;
+        
       end
+      
+      obj.eplineZrange = {zrange1 zrange2};
     end
     
     function epdmu = calculateMeanEPlineSpacing(obj,calpts,roi,zrange1,zrange2)
@@ -365,9 +334,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       sp = obj.stroParams;
       %       cp1 = sp.CameraParameters1;
       %       cp2 = sp.CameraParameters2;
-      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
+      bs = cs.BoardSet;
       
-      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -484,9 +453,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       % sp = obj.stroParams;
       %       cp1 = sp.CameraParameters1;
       %       cp2 = sp.CameraParameters2;
-      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
+      bs = cs.BoardSet;
       
-      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -525,9 +494,9 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       sp = obj.stroParams;
       cp1 = sp.CameraParameters1;
       cp2 = sp.CameraParameters2;
-      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
+      bs = cs.BoardSet;
       
-      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -567,8 +536,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       sp = cs.CameraParameters;
       cp1 = sp.CameraParameters1;
       cp2 = sp.CameraParameters2;
-      [bs,calpts] = CalRigMLStro.getCalSessionBoardSet(cs);
-      %calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
+      bs = cs.BoardSet;
+      calpts = bs.BoardPoints; % ipt, x/y, ipat, ivw
       [npts,d,npat,nvw] = size(calpts);
       calpts = permute(calpts,[1 3 2 4]);
       calpts = reshape(calpts,[npts*npat d nvw]);
@@ -676,106 +645,22 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       
   methods % CalRig
     
-    function xn = projected2normalized(obj,xp,cam,varargin)
-      % ML-specific overload of project2normalized
-      
-      assert(size(xp,1)==2);
-      xp = xp.';
-      
-      [iView,camName] = obj.camArgHelper(cam);
-      cpFld = ['CameraParameters' num2str(iView)];
-      sp = obj.stroParams;
-      intprm = sp.(cpFld);
-      if isprop(sp,'Intrinsics')
-        % default MATLAB case
-        % stereoParams.CameraParameters1 is a cameraParameters
-        % <that>.Intrinsics is a cameraIntrinsics which is v similar
-        intprm = intprm.Intrinsics;
-      else
-        % already intrinsics
-      end
-      xud = undistortPoints(xp,intprm);
-
-      RDUMMY = eye(3);
-      TDUMMY = [0;0;1]; % z=1; the API doesn't really make sense and is not well 
-                   % documented, but this empirically works
-      xn = pointsToWorld(intprm,RDUMMY,TDUMMY,xud); 
-      xn = xn.';
-    end
-    
     function [xEPL,yEPL,Xc1,Xc1OOB] = ...
         computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
       
-      Xc1 = [];
-      Xc1OOB = [];
       switch obj.eplineComputeMode
-        case 'caltech'
-          [xEPL,yEPL] = ...
-            obj.computeEpiPolarLineCaltech(iView1,xy1,iViewEpi,roiEpi,varargin{:});
-        case {'zray' 'mostaccurate'} % accept 'mostaccurate' for legacy
-          [xEPL,yEPL,Xc1,Xc1OOB] = ...
-            obj.computeEpiPolarLineZRay(iView1,xy1,iViewEpi,roiEpi,varargin{:});
+        case 'mostaccurate'
+          [xEPL,yEPL,Xc1,Xc1OOB] = obj.computeEpiPolarLineBase(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         case 'fastest'
-          warningNoTrace('DEVELOPMENT CODEPATH.');
           % This codepath will err if 3rd/4th args are requested
           [xEPL,yEPL] = obj.computeEpiPolarLineEPline(iView1,xy1,iViewEpi,roiEpi,varargin{:});
         otherwise
-          error('Unrecognized value of ''eplineComputeMode'' property.');
+          error('''eplineComputeMode'' property must be either ''mostaccurate'' or ''fastest''.');          
       end
     end
       
-    function [xEPL,yEPL] = ...
-        computeEpiPolarLineCaltech(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
-
-      % "view"/"target" nomenclature here a little confusing
-      % "view": where the EP line will be drawn; corresponds to iViewEpi
-      % "target": origin of click/xy1; corresponds to iView1
-      if iView1 == 1 % iViewEpi==2
-        view_R = obj.RLR;
-        view_T = obj.TLR;        
-        ints_view = obj.int.cam2;
-        ints_tgt = obj.int.cam1;
-      else % iView1==2, iViewEpi==1
-        view_R = obj.RRL;
-        view_T = obj.TRL;        
-        ints_view = obj.int.cam1;
-        ints_tgt = obj.int.cam2;
-      end
-      view_fc = ints_view.fc;
-      view_cc = ints_view.cc-1;
-      view_kc = ints_view.kc;
-      view_alpha_c = ints_view.alpha_c;
-      target_fc = ints_tgt.fc;
-      target_cc = ints_tgt.cc-1;
-      target_kc = ints_tgt.kc;
-      target_alpha_c = ints_tgt.alpha_c;
-
-      xLp = [xy1(1), xy1(2)] - 1;
-      xLp = xLp';
-      epipole = compute_epipole2(xLp, view_R, view_T, ...
-        view_fc, view_cc, view_kc, view_alpha_c, ...
-        target_fc, target_cc, target_kc, target_alpha_c,...
-        'roi',roiEpi);
-      xEPL = epipole(1,:) + 1;
-      yEPL = epipole(2,:) + 1;
-
-      % we passed roiEpi to compute_epipole2 above, so we should already be
-      % ballpark correct, but crop strictly so our axes don't get messed
-      % up.
-      CROP_ROI = true;
-      if CROP_ROI
-        xlo = roiEpi(1);
-        xhi = roiEpi(2);
-        ylo = roiEpi(3);
-        yhi = roiEpi(4);
-        tfrm = xEPL<xlo | xEPL>xhi | yEPL<ylo | yEPL>yhi;
-        xEPL(tfrm) = [];
-        yEPL(tfrm) = [];
-      end
-    end
-
     function [xEPL,yEPL,Xc1,Xc1OOB] = ...
-        computeEpiPolarLineZRay(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
+        computeEpiPolarLineBase(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
       %
       % Xc1: [3 x nz] World coords (coord sys of cam/iView1) of EPline
       % Xc1OOB: [nz] indicator vec for Xc1 being out-of-view in iViewEpi
@@ -799,7 +684,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       %Zc1 = 1:.25:5e2;
       Xc1 = [xn1(1)*z1Range; xn1(2)*z1Range; z1Range];
 
-      switch projectionmeth
+      switch projectionmeth        
         case 'worldToImage'
           sp = obj.stroParams;
           cpEpiFld = ['CameraParameters' num2str(iViewEpi)];
@@ -820,18 +705,12 @@ classdef CalRigMLStro < CalRigZhang2CamBase
           else
             assert(false);
           end
-          % AL 20220428: there was a reason we use imPointsUD here to crop;
-          % maybe due to a rig with v high distortions. Probably a special
-          % case though and better to just crop using imPoints (or in
-          % caller, to share crop code with other methods)
           Xc1OOB = imPointsUD(:,1)<roiEpi(1) | imPointsUD(:,1)>roiEpi(2) |...
                    imPointsUD(:,2)<roiEpi(3) | imPointsUD(:,2)>roiEpi(4);
           imPoints(Xc1OOB,:) = nan;  
           xEPL = imPoints(:,1);
           yEPL = imPoints(:,2);
         case 'normalized2projected'
-          warningNoTrace('DEVELOPMENT CODEPATH.');
-
           XcEpi = obj.camxform(Xc1,[iView1 iViewEpi]); % 3D seg, in frame of cam2
           xnEpi = [XcEpi(1,:)./XcEpi(3,:); XcEpi(2,:)./XcEpi(3,:)]; % normalize
           xpEpi = obj.normalized2projected(xnEpi,iViewEpi); % project
@@ -847,7 +726,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
     end
     
     function [xEPL,yEPL] = ...
-        computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi,varargin)
+        computeEpiPolarLineEPline(obj,iView1,xy1,iViewEpi,roiEpi)
       % Use worldToImage
       
       warningNoTrace('Development codepath.');
@@ -923,12 +802,7 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       xp1ud = cat(1,xp1ud{:});
       xp2ud = arrayfun(@(i)undistortPoints(xp2(:,i)',cp2),(1:n)','uni',0);
       xp2ud = cat(1,xp2ud{:});
-      cm1 = cameraMatrix(cp1,eye(3),[0 0 0]);
-      cm2 = cameraMatrix(cp2,sp.RotationOfCamera2,sp.TranslationOfCamera2);
-      X1 = triangulate(xp1ud,xp2ud,cm1,cm2);
-      % X1 = triangulate(...,sp); 
-      % Don't use this sig beacuse in the case of .nonMLinit, MATLAB/Vision 
-      % doesn't ducktype and requires a real stereoParameters type
+      X1 = triangulate(xp1ud,xp2ud,sp);
       
       xp1rp = worldToImage(cp1,eye(3),[0;0;0],X1,'applyDistortion',true);
       xp2rp = worldToImage(cp2,...
@@ -963,22 +837,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
   end
   
   methods (Static)
-    function [bs,bps] = getCalSessionBoardSet(cs)
-      if isprop(cs,'BoardSet')
-        bs = cs.BoardSet;
-        bps = bs.BoardPoints;
-      elseif isprop(cs,'PatternSet')
-        bs = cs.PatternSet;
-        bps = bs.PatternPoints;
-      else
-        error('Cannot find ''BoardSet'' property in CalibrationSession.');
-      end
-    end
     function [fc,cc,kc,alpha_c] = camParams2Intrinsics(camParams)
       % convert ML-style intrinsics to Bouget-style
-      %
-      % Note: cc is still 1-based not 0-based!
-      % Note: alpha_c has a slightly different defn compared to .Skew!
       
       fc = camParams.FocalLength(:);
       assert(numel(fc)==2);
@@ -996,14 +856,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
       tandistort = camParams.TangentialDistortion;
       kc([3 4]) = tandistort;
       
-      alpha_c = camParams.Skew/fc(1);
+      alpha_c = camParams.Skew;
       assert(isscalar(alpha_c));
-    end
-    function cs = rigYaml2CalSess(s)
-      % s: struct, rig yaml
-      cs = struct();
-      cs.cameraSet = CameraSet(s);
-      cs.CameraParameters = cs.cameraSet.getMatlabStereoParameters();
     end
   end
 

@@ -117,7 +117,9 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         assert(~lObj.cropProjHasCrops);
         assert(nviews==1,'Unsupported for multiview projects with trx.');
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
-        cropRadius = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
+        %cropRadius = sPrm.ROOT.MultiAnimal.TargetCrop.Radius;
+        prmsTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        cropRadius = maGetTgtCropRad(prmsTgtCrop);
         [roixlo,roixhi,roiylo,roiyhi] = xyRad2roi(xTrx,yTrx,cropRadius);
         axis(hAx,[roixlo roixhi roiylo roiyhi]);
       end

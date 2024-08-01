@@ -19,24 +19,24 @@ import errno
 import PoseTools
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
 
 import movies
 import json
+import torch
 
 
-def find_local_dirs(conf, on_gt=False):
-    lbl = h5py.File(conf.labelfile, 'r')
+def find_local_dirs(lbl_file, view=0, on_gt=False):
+    lbl = h5py.File(lbl_file, 'r')
     if on_gt:
-        exp_list = lbl['movieFilesAllGT'][conf.view,:]
+        exp_list = lbl['movieFilesAllGT'][view,:]
     else:
-        exp_list = lbl['movieFilesAll'][conf.view,:]
+        exp_list = lbl['movieFilesAll'][view,:]
     local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
     # local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in conf.getexplist(lbl)]
-    sel_dirs = [True] * len(local_dirs)
     try:
         for k in lbl['projMacros'].keys():
             r_dir = u''.join(chr(c) for c in lbl['projMacros'][k])
@@ -44,7 +44,7 @@ def find_local_dirs(conf, on_gt=False):
     except:
         pass
     lbl.close()
-    return local_dirs, sel_dirs
+    return local_dirs
 
 
 def find_gt_dirs(conf):
@@ -177,7 +177,6 @@ def bytes_feature(value):
     if not isinstance(value, list):
         value = [value]
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
-
 
 def float_feature(value):
     if not isinstance(value, (list, np.ndarray)):
@@ -441,15 +440,10 @@ def create_envs(conf, split, db_type=None):
             val_env = None
         return env, val_env
     else:
-        if split:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            val_filename = os.path.join(conf.cachedir, conf.valfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
-        else:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = None
+        train_filename = os.path.join(conf.cachedir, conf.trainfilename)
+        val_filename = os.path.join(conf.cachedir, conf.valfilename)
+        env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
+        val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
         return env, val_env
 
 
@@ -623,7 +617,7 @@ def crop_patch_trx(conf, im_in, x, y, theta, locs):
         A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
 
     A = A_full[:,:2].T
-    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cv2.INTER_LINEAR)
+    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cv2.INTER_CUBIC)
     if rpatch.ndim == 2:
         rpatch = rpatch[:, :, np.newaxis]
 
@@ -1097,7 +1091,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False
     all_info = []
     all_occ = []
     for ndx, record in enumerate(xx):
-        if (len(indices) > 0) and (indices.count(ndx) is 0):
+        if (len(indices) > 0) and (indices.count(ndx) == 0):
             continue
 
         example = tf.train.Example()
@@ -1149,7 +1143,7 @@ def read_and_decode_without_session_multi(filename, n_classes):
         width = int(example.features.feature['width'].int64_list.value[0])
         depth = int(example.features.feature['depth'].int64_list.value[0])
         expid = int(example.features.feature['expndx'].float_list.value[0])
-        maxn = int(example.features.feature['max_n'].int64_list.value[0])
+        maxn = int(example.features.feature['ntgt'].int64_list.value[0])
         t = int(example.features.feature['ts'].float_list.value[0])
         img_string = example.features.feature['image_raw'].bytes_list.value[0]
         img_1d = np.fromstring(img_string, dtype=np.uint8)
@@ -1269,3 +1263,116 @@ class tf_reader(object):
 #        return {'orig_images':ims, 'orig_locs':locs, 'info':info, 'extra_info':np.zeros([self.batch_size,1])}
         return ims, locs, info, np.zeros([self.batch_size,1])
 
+
+
+class coco_loader(torch.utils.data.Dataset):
+
+    def __init__(self, conf, ann_file, augment,img_dir='val'):
+        self.ann = PoseTools.json_load(ann_file)
+        self.conf = conf
+        self.augment = augment
+        self.img_dir = img_dir
+
+    def __len__(self):
+        return len(self.ann['images'])
+
+    def __getitem__(self, item):
+        conf = self.conf
+        im_name = self.ann['images'][item]['file_name']
+        im_path = os.path.join(conf.cachedir,self.img_dir)
+        im_file = os.path.join(im_path,im_name)
+        im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+        if im.ndim == 2:
+            im = im[...,np.newaxis]
+        if im.shape[2] == 1:
+            im = np.tile(im,[1,1,3])
+
+        if 'patch' in self.ann['images'][item].keys():
+            tgt_id = self.ann['images'][item]['patch']
+        else:
+            tgt_id = self.ann['images'][item]['tgt']
+        info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],tgt_id]
+
+        curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
+        lndx = 0
+        for a in self.ann['annotations']:
+            if not (a['image_id']==item):
+                continue
+            locs = np.array(a['keypoints'])
+            locs = np.reshape(locs,[conf.n_classes,3])
+            if np.all(locs[:,2]>0.5):
+                curl[lndx,...] = locs
+                lndx += 1
+
+        curl = np.array(curl)
+        occ = curl[...,2] < 1.5
+        locs = curl[...,:2]
+        # im,locs = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale)
+        # im = np.transpose(im[0,...] / 255., [2, 0, 1])
+        features = [im, locs, info, occ]
+        return features
+
+
+class list_loader(torch.utils.data.Dataset):
+    # list is in matlab indexing!!
+
+    def __init__(self, conf, list_file, augment):
+        self.list = PoseTools.json_load(list_file)
+        self.conf = conf
+        self.augment = augment
+        self.prev_item = None
+        self.movs = self.list['movieFiles']
+        self.toTrack = self.list['toTrack']
+        self.cropLocs = self.list['cropLocs']
+        self.trx_files = self.list['trxFiles']
+        self.cap = None
+        self.has_crop = (len(self.cropLocs)>0) and len(self.cropLocs[0])>0 and ~np.all(np.isnan(self.cropLocs[0]))
+        self.trx = None
+
+    def __len__(self):
+        return len(self.toTrack)
+
+    def __getitem__(self, item):
+        import APT_interface as apt
+        conf = self.conf
+        cur_i = self.toTrack[item]
+        mov = self.movs[cur_i[0]-1]
+        if isinstance(mov,list) or isinstance(mov,tuple):
+            mov = mov[conf.view]
+
+        cur_f = cur_i[2]-1
+        tgt_id = cur_i[1]-1
+        if self.prev_item is None or cur_i[0]!=self.prev_item[0]:
+            cap = movies.Movie(mov)
+            n_frames = cap.get_n_frames()
+            self.cap = cap
+            self.prev_item = cur_i
+            if conf.has_trx_file:
+                trx_file = self.trx_files[cur_i[0]-1]
+                trx = apt.get_trx_info(trx_file,conf,n_frames)['trx']
+            else:
+                trx = None
+            self.trx = trx
+        else:
+            cap = self.cap
+
+        if self.has_crop:
+            crop_loc = self.cropLocs[cur_i[0]-1][conf.view]
+        else:
+            crop_loc = None
+        if conf.has_trx_file:
+            cur_trx = self.trx[tgt_id]
+        else:
+            cur_trx = None
+
+        im, locs = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx,crop_loc=crop_loc,flipud=conf.flipud)
+
+        if conf.is_multi:
+            locs = np.ones([conf.max_n_animals,conf.n_classes,2])*conf.imsz[0]/2
+        else:
+            locs = np.ones([conf.n_classes,2])*conf.imsz[0]/2
+
+        info = [cur_i[0]-1,cur_f,tgt_id]
+        occ = np.zeros_like(locs[...,0])
+        features = [im, locs, info, occ]
+        return features

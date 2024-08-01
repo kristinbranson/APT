@@ -59,7 +59,8 @@ classdef PreProcDB < handle
     %  * changing crop defns should clear the cache
 
         
-    function [tblNewReadFailed,dataNew] = add(obj,tblNew,lObj,varargin)
+    function [tblNewReadFailed,dataNew,tfReadFailed] = ...
+                                    add(obj,tblNew,lObj,varargin)
       % Add new rows to DB
       %
       % tblNew: new rows. MFTable.FLDSCORE are required fields. .roi may 
@@ -79,21 +80,21 @@ classdef PreProcDB < handle
       %   as requested.
       % dataNew: CPRData of new data created/added
       
-      [wbObj,prmpp,computeOnly] = myparse(varargin,...
+      [wbObj,prmsTgtCrop,computeOnly] = myparse(varargin,...
         'wbObj',[],...
-        'prmpp',[],... % preprocessing params
+        'prmsTgtCrop',[],... % preprocessing params
         'computeOnly',false... % if true, don't update the DB, compute only.
         );
 
       tfWB = ~isempty(wbObj);
-      if isempty(prmpp)
-        prmpp = lObj.preProcParams;
-        if isempty(prmpp)
-          error('Please specify preprocessing parameters.');
+      if isempty(prmsTgtCrop)
+        prms = lObj.trackParams;
+        if isempty(prms)
+          error('Please specify parameters.');
         end
-      end
-      
-      assert(isstruct(prmpp),'Expected parameters to be struct/value class.');
+        prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
+      end      
+%       assert(isstruct(prmpp),'Expected parameters to be struct/value class.');
 
       FLDSREQUIRED = [MFTable.FLDSCORE 'pAbs'];
       % AL 20200804. Store pAbs in MD. This is the original/raw lbl. We
@@ -114,19 +115,10 @@ classdef PreProcDB < handle
       tblNewReadFailed = tblNew([],:);
       dataNew = [];
       
-      if prmpp.histeq
-        %warningNoTrace('Histogram Equalization currently disabled for Deep Learning trackers.');
-        prmpp.histeq = false;
-      end
-      if prmpp.BackSub.Use
-        %warningNoTrace('Background subtraction currently disabled for Deep Learning trackers.');
-        prmpp.BackSub.Use = false;
-      end
-      if prmpp.NeighborMask.Use
-        %warningNoTrace('Neighbor masking currently disabled for Deep Learning trackers.');
-        prmpp.NeighborMask.Use = false;
-      end
-      assert(isempty(prmpp.channelsFcn));
+      PRMPP_DUMMY = struct;
+      PRMPP_DUMMY.histeq = false;
+      PRMPP_DUMMY.BackSub.Use = false;
+      PRMPP_DUMMY.NeighborMask.Use = false;
                         
       tblNewConc = lObj.mftTableConcretizeMov(tblNew);
       nNew = height(tblNew);
@@ -138,16 +130,16 @@ classdef PreProcDB < handle
           'forceGrayscale',lObj.movieForceGrayscale,...
           'preload',lObj.movieReadPreLoadMovies,...
           'movieInvert',lObj.movieInvert,...          
-          'roiPadVal',prmpp.TargetCrop.PadBkgd,...
-          'rotateImsUp',prmpp.TargetCrop.AlignUsingTrxTheta,...
+          'roiPadVal',prmsTgtCrop.PadBkgd,...
+          'rotateImsUp',prmsTgtCrop.AlignUsingTrxTheta&~isempty(lObj.trxCache),...
           'isDLpipeline',true,...
-          'doBGsub',prmpp.BackSub.Use,...
-          'bgReadFcn',prmpp.BackSub.BGReadFcn,...
-          'bgType',prmpp.BackSub.BGType,...
-          'maskNeighbors',prmpp.NeighborMask.Use,...
-          'maskNeighborsMeth',prmpp.NeighborMask.SegmentMethod,...
-          'maskNeighborsEmpPDF',lObj.fgEmpiricalPDF,...
-          'fgThresh',prmpp.NeighborMask.FGThresh,...
+          'doBGsub',PRMPP_DUMMY.BackSub.Use,...
+          'bgReadFcn',[],...
+          'bgType',[],...
+          'maskNeighbors',PRMPP_DUMMY.NeighborMask.Use,...
+          'maskNeighborsMeth',[],...
+          'maskNeighborsEmpPDF',[],...
+          'fgThresh',[],...
           'trxCache',lObj.trxCache,...
           'labeler',lObj,...
           'usePreProcData',lObj.copyPreProcData);
@@ -164,6 +156,7 @@ classdef PreProcDB < handle
         I(~didreadallviews,:) = [];
         nNborMask(~didreadallviews,:) = [];
         tformA(:,:,~didreadallviews,:) = [];
+        tfReadFailed = ~didreadallviews;
         
         % AL: a little worried if all reads fail -- might get a harderr
         
@@ -231,9 +224,9 @@ classdef PreProcDB < handle
       % tfAU: [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID)
       % locAU: 
       
-      [wbObj,prmpp,verbose] = myparse(varargin,...
+      [wbObj,prmsTgtCrop,verbose] = myparse(varargin,...
         'wbObj',[], ... % WaitBarWithCancel. If cancel, obj unchanged.
-        'prmpp',[], ...
+        'prmsTgtCrop',[], ...
         'verbose',true ...
         );
       
@@ -275,7 +268,8 @@ classdef PreProcDB < handle
       % that could be factored out of the add but keep it simple for now.
       obj.dat.rmRows(locdiffidxsonly); 
       tblAUadd = tblAU(tfnewAU | tfdiffAU,:);
-      tblAddReadFailed = obj.add(tblAUadd,lObj,'wbObj',wbObj,'prmpp',prmpp);      
+      tblAddReadFailed = obj.add(tblAUadd,lObj,'wbObj',wbObj,...
+        'prmsTgtCrop',prmsTgtCrop);      
       [tfAU,locAU] = tblismember(tblAU,obj.dat.MD,MFTable.FLDSID);
       
       if verbose

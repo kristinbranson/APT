@@ -8,19 +8,23 @@ MK 20200505
 
 '''
 
-from __future__ import division
-from __future__ import print_function
+#from __future__ import division
+#from __future__ import print_function
 
 from builtins import str
 from builtins import range
 from builtins import object
 
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
+# from batch_norm import batch_norm_mine_old as batch_norm
+#from tensorflow.compat.v1.layers import BatchNormalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+    return batch_norm_temp(inp,momentum=decay,training=is_training)
+#from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
 import os
 import PoseTools
 import multiResData
@@ -30,9 +34,7 @@ import re
 import pickle
 import sys
 import math
-from past.utils import old_div
-from tensorflow.contrib.layers import batch_norm
-# from batch_norm import batch_norm_mine_old as batch_norm
+#from past.utils import old_div
 import copy
 import cv2
 import gc
@@ -50,11 +52,11 @@ from collections import OrderedDict
 renorm = False
 def conv_relu(x_in, kernel_shape, train_phase):
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tensorflow.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
-    conv = batch_norm(conv, is_training=train_phase, renorm=renorm)
+    conv = batch_norm(conv, decay=0.99, is_training=train_phase, renorm=renorm)
     return tf.nn.relu(conv + biases)
 
 
@@ -65,7 +67,7 @@ def conv_relu3(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False, data_f
         in_dim = x_in.get_shape().as_list()[1]
     kernel_shape = [3, 3, in_dim, n_filt]
     weights = tf.get_variable("weights", kernel_shape,
-                              initializer=tensorflow.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME',data_format=data_format)
@@ -86,7 +88,7 @@ def conv_shortcut(x_in, n_filt, train_phase, keep_prob=None,use_leaky=False):
     kernel_shape = [1, 1, in_dim, n_filt]
     with tf.variable_scope('shortcut'):
         weights = tf.get_variable("weights", kernel_shape,
-                                  initializer=tensorflow.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("biases", kernel_shape[-1],
                                  initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -229,8 +231,15 @@ class PoseCommon(object):
     def restore(self, sess, model_file=None):
         saver = self.saver
         if model_file is not None:
-            latest_model_file = model_file
-            saver['saver'].restore(sess, model_file)
+            try:
+                latest_model_file = model_file
+                saver['saver'].restore(sess, model_file)
+            except Exception as e:
+                logging.info(f'Could not load model weights from {model_file}')
+                logging.info(e)
+                latest_model_file = None
+                sess.run(tf.variables_initializer(PoseTools.get_vars('')), feed_dict=self.fd)
+
         else:
             grr = os.path.split(self.ckpt_file) # angry that get_checkpoint_state doesnt accept complete path to ckpt file. Damn idiots!
             latest_ckpt = tf.train.get_checkpoint_state(grr[0],grr[1])
@@ -429,14 +438,14 @@ class PoseCommon(object):
         train_dataset = train_dataset.repeat()
         train_dataset = train_dataset.shuffle(buffer_size=100)
         train_dataset = train_dataset.batch(self.conf.batch_size)
-        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=16)
-        train_dataset = train_dataset.prefetch(buffer_size=100)
+        train_dataset = train_dataset.map(map_func=self.train_py_map,num_parallel_calls=8)
+        train_dataset = train_dataset.prefetch(buffer_size=10)
 
         val_dataset = val_dataset.map(map_func=pfn,num_parallel_calls=2)
         val_dataset = val_dataset.repeat()
         val_dataset = val_dataset.batch(self.conf.batch_size)
         val_dataset = val_dataset.map(map_func=self.val_py_map,num_parallel_calls=4)
-        val_dataset = val_dataset.prefetch(buffer_size=100)
+        val_dataset = val_dataset.prefetch(buffer_size=5)
 
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
@@ -467,14 +476,17 @@ class PoseCommon(object):
         self.create_ph_fd()
         self.create_input_ph()
 
-    def init_restore_net(self, sess, do_restore=False):
+    def init_restore_net(self, sess, do_restore=False,model_file=None):
         saver = self.saver
         name = self.net_name
         out_file = saver['out_file'].replace('\\', '/')
         latest_ckpt = tf.train.get_checkpoint_state(
             self.conf.cachedir, saver['ckpt_file'])
 
-        if not latest_ckpt or not do_restore:
+        if model_file is not None:
+            self.restore(sess,model_file=model_file)
+            start_at = 0
+        elif not latest_ckpt or not do_restore:
             start_at = 0
 #            sess.run(tf.variables_initializer(PoseTools.get_vars(name)),
 #                     feed_dict=self.fd)
@@ -649,7 +661,7 @@ class PoseCommon(object):
 
 
     def train(self, create_network,
-              loss, learning_rate, restore=False):
+              loss, learning_rate, restore=False,model_file=None):
 
         self.setup_train()
         self.pred = create_network()
@@ -665,14 +677,14 @@ class PoseCommon(object):
         config.gpu_options.allow_growth = True
         with tf.Session(config=config) as sess:
             # train_writer = tf.summary.FileWriter(self.saver['summary_dir'],sess.graph)
-            start_at = self.init_restore_net(sess, do_restore=restore)
+            start_at = self.init_restore_net(sess, do_restore=restore,model_file=model_file)
 
             start = time.time()
             save_start = start
             step_lr =  self.conf.get('step_lr', True)
             lr_drop_step_frac = self.conf.get('lr_drop_step',0.15)
 
-            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a bug in tensorflow. We tried but cant fix :(')
+            logging.info('Testing TF session. If the err and log file doesnt update for more than 5 minutes at this stage, KILL and RESTART your training. This is because of a tensorflow bug in tensorflow that we tried but could not fix :(')
             ss = sess.run(self.inputs,self.fd)
             logging.info('Input shape:{}'.format(ss[0].shape))
             logging.info('Starting training..')
@@ -723,12 +735,12 @@ class PoseCommon(object):
         tf.reset_default_graph()
 
 
-    def train_quick(self, learning_rate=0.0001, restore=False):
+    def train_quick(self, learning_rate=0.0001, restore=False, model_file=None):
         self.create_optimizer()
         self.create_saver()
         training_iters = self.conf.dl_steps
         with tf.Session() as sess:
-            start_at = self.init_restore_net(sess, do_restore=restore)
+            start_at = self.init_restore_net(sess, do_restore=restore,model_file=model_file)
             start = time.time()
             save_start = start
             step_lr =  self.conf.get('step_lr', True)
@@ -832,7 +844,7 @@ class PoseCommon(object):
 
     def classify_val(self,train_type=0, at_step=-1):
 
-        if train_type is 0:
+        if train_type == 0:
             val_file = os.path.join(self.conf.cachedir, self.conf.valfilename + '.tfrecords')
         else:
             val_file = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')

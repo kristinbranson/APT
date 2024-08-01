@@ -12,10 +12,10 @@ try
   fprintf('... done with untar.\n');
   rawLblFile = fullfile(tname,'label_file.lbl');
 catch ME
-  if contains(ME.identifier,'invalidTarFile')
+  if endsWith(ME.identifier,'untar:invalidTarFile')
     warningNoTrace('Label file %s is not bundled. Using it in raw (mat) format.',lbl_file);
     rawLblFile = lbl_file;
-  else 
+  else
     ME.rethrow();
   end
 end

@@ -10,13 +10,23 @@ import PoseTools
 import tfdatagen
 import time
 import tensorflow.compat.v1 as tf
-from tfrecord.torch.dataset import TFRecordDataset
+ISTFR = False
+try:
+    from tfrecord.torch.dataset import TFRecordDataset
+    ISTFR = True
+except:
+    print('TFRecordDataset not available')
 import errno
 import re
 import gc
-from torch import autograd
 import time
-autograd.set_detect_anomaly(True)
+import cv2
+import xtcocotools.mask
+from functools import partial
+# from torch import autograd
+# autograd.set_detect_anomaly(True)
+
+ISWINDOWS = os.name == 'nt'
 
 def print_train_data(cur_dict):
     p_str = ''
@@ -34,12 +44,17 @@ def decode_augment(features, conf, distort):
 
     if 'mask' in features.keys():
         features['mask'] = np.array(features['mask']).reshape([h,w,1])
-        ims = ims * features['mask']
+        if conf.multi_use_mask:
+            ims = ims * features['mask']
+    else:
+        features['mask'] = None
 
     if 'max_n' in features.keys():
         n_max = features['max_n'][0]
+        ntgt = features['ntgt'][0]
     else:
         n_max = None
+        ntgt = None
 
     if 'occ' in features.keys():
         features['occ'] = features['occ'].reshape([-1,n_pts])
@@ -52,7 +67,8 @@ def decode_augment(features, conf, distort):
         locs = features['locs'].reshape([1,n_pts,2])
         features['occ'] = features['occ'][0,...]
     else:
-        locs = features['locs'].reshape([1,n_max,n_pts,2])
+        locs = np.ones([1,n_max,n_pts,2])*np.nan
+        locs[:,:ntgt] = features['locs'].reshape([1,ntgt,n_pts,2])
 
     if 'trx_ndx' not in features.keys():
         features['trx_ndx'] = np.array([0])
@@ -61,7 +77,12 @@ def decode_augment(features, conf, distort):
     features['info'] = np.array([features['expndx'][0],features['ts'][0],features['trx_ndx'][0]])
 
 
-    ims, locs = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale)
+    ret = PoseTools.preprocess_ims(ims, locs, conf, distort, conf.rescale,mask=features['mask'][None,...,0])
+    ims,locs = ret[:2]
+    if features['mask'] is not None:
+        features['mask'] = ret[2][0]
+    else:
+        features['mask'] = np.array([])
 
     # convert CHW format
     ims = np.transpose(ims[0,...]/255.,[2,0,1])
@@ -71,30 +92,120 @@ def decode_augment(features, conf, distort):
 
     return features
 
+def dataloader_worker_init_fn(id,epoch=0):
+    np.random.seed(id + 100*epoch)
 
-def next_data(loader, dataset):
-    try:
-        ndata = next(loader)
-    except StopIteration:
-        loader = iter(dataset)
-        ndata = next(loader)
-    return ndata, loader
+class coco_loader(torch.utils.data.Dataset):
+
+    def __init__(self, conf, ann_file, augment):
+        self.ann = PoseTools.json_load(ann_file)
+        self.conf = conf
+        self.augment = augment
+        self.len = max(conf.batch_size,len(self.ann['images']))
+        self.ex_wts = torch.ones(self.len)
+
+    def __len__(self):
+        return max(self.conf.batch_size,len(self.ann['images']))
+
+    def __getitem__(self, item):
+        conf = self.conf
+        if (self.conf.batch_size)> len(self.ann['images']):
+            item = np.random.randint(len(self.ann['images']))
+        im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
+        if im.ndim == 2:
+            im = im[...,np.newaxis]
+        else:
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
+        if im.shape[2] == 1:
+            im = np.tile(im,[1,1,3])
+
+        if type(self.ann['images'][item]['movid']) == list:
+            info = [item,item,item]
+        else:
+            info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
+
+        info = np.array(info)
+        curl = np.ones([conf.max_n_animals,conf.n_classes,3])*-10000
+        lndx = 0
+        annos = []
+        for a in self.ann['annotations']:
+            if not (a['image_id']==item):
+                continue
+            locs = np.array(a['keypoints'])
+            if a['num_keypoints']>0 and a['area']>1:
+                locs = np.reshape(locs, [conf.n_classes, 3])
+                # if np.all(locs[:,2]>0.5):
+                curl[lndx,...] = locs
+                lndx += 1
+            annos.append(a)
+
+        curl = np.array(curl)
+        occ = curl[...,2] < 1.5
+        locs = curl[...,:2]
+        mask = self.get_mask(annos,im.shape[:2])
+        im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...],occ=occ[None])
+        im = np.transpose(im[0,...] / 255., [2, 0, 1])
+        mask = mask[0,...]
+        if not self.conf.is_multi:
+            locs = locs[:,0]
+            occ = occ[:,0]
+
+        features = {'images':im,
+                    'locs':locs[0],
+                    'info':info,
+                    'occ': occ[0],
+                    'mask':mask,
+                    'item':item
+                    }
+        return features
+
+    def get_mask(self, anno, im_sz):
+        conf = self.conf
+        m = np.zeros(im_sz,dtype=np.float32)
+
+        if not conf.multi_loss_mask:
+            return m<0.5
+
+        for obj in anno:
+            if 'segmentation' in obj:
+                rles = xtcocotools.mask.frPyObjects(
+                    obj['segmentation'], im_sz[0],
+                    im_sz[1])
+                for rle in rles:
+                    m += xtcocotools.mask.decode(rle)
+                # if obj['iscrowd']:
+                #     rle = xtcocotools.mask.frPyObjects(obj['segmentation'],im_sz[0], im_sz[1])
+                #     m += xtcocotools.mask.decode(rle)
+                # else:
+        return m>0.5
+
+    def update_wts(self,idx,loss):
+        for ix,l in zip(idx,loss):
+            self.ex_wts[ix] = l
+
 
 class PoseCommon_pytorch(object):
 
-    def __init__(self,conf,name='deepnet',is_multi=False):
+    def __init__(self,conf,name='deepnet',usegpu=True):
         self.conf = conf
         self.name = name
-        self.is_multi = is_multi
         self.prev_models = []
         self.td_fields = ['dist','loss']
-        conf.is_multi = is_multi
+        self.train_epoch = 1
+        # conf.is_multi = is_multi
 
-        if torch.cuda.is_available():
+        if usegpu and torch.cuda.is_available():
             self.device = "cuda"
         else:
             self.device = "cpu"
-            print('CUDA Device not available. Using CPU!')
+            if usegpu:
+                logging.warning("CUDA Device not available. Using CPU!")
+
+        if conf.db_format == 'coco':
+            self.use_hard_mining = conf.get('use_hard_mining', False)
+        else:
+            self.use_hard_mining = False
 
     def get_ckpt_file(self):
         return os.path.join(self.conf.cachedir,self.name + '_ckpt')
@@ -106,7 +217,7 @@ class PoseCommon_pytorch(object):
         else:
             with open(ckpt_file,'r') as f:
                 mf = json.load(f)
-            if len(mf) > 1:
+            if len(mf) > 0:
                 model_file = mf[-1]
             else:
                 model_file = None
@@ -130,8 +241,9 @@ class PoseCommon_pytorch(object):
         self.save_td()
         self.prev_models.append(fname)
         if len(self.prev_models) > self.conf.maxckpt:
-            if os.path.exists(self.prev_models[0]):
-                os.remove(self.prev_models[0])
+            for curm in self.prev_models[:-self.conf.maxckpt]:
+                if os.path.exists(os.path.join(self.conf.cachedir,curm)):
+                    os.remove(os.path.join(self.conf.cachedir,curm))
             _ = self.prev_models.pop(0)
 
         with open(self.get_ckpt_file(),'w') as cf:
@@ -143,7 +255,10 @@ class PoseCommon_pytorch(object):
                 prev_models = json.load(cf)
             model_file = prev_models[-1]
         logging.info('Loading model from {}'.format(model_file))
-        ckpt = torch.load(model_file)
+        if torch.cuda.is_available():
+            ckpt = torch.load(model_file)
+        else:
+            ckpt = torch.load(model_file,map_location=torch.device('cpu'))
         model.load_state_dict(ckpt['model_state_params'])
         if opt is not None:
             opt.load_state_dict(ckpt['optimizer_state_params'])
@@ -220,7 +335,7 @@ class PoseCommon_pytorch(object):
     def compute_train_data(self,inputs,net,loss):
         labels = self.create_targets(inputs)
         output = net(inputs)
-        loss_val = loss(output,labels).detach().item()
+        loss_val = loss(output,labels).detach().sum().item()
         dist = self.compute_dist(output,labels)
         return {'cur_loss':loss_val, 'cur_dist':dist}
 
@@ -228,22 +343,108 @@ class PoseCommon_pytorch(object):
     def compute_dist(self,output,labels):
         return np.nan
 
+    def create_data_gen(self,debug=False,pin_mem=False):
+        if self.conf.db_format == 'tfrecord':
+            return self.create_tf_data_gen(debug=debug)
+        elif self.conf.db_format =='coco':
+            return self.create_coco_data_gen(debug=debug,pin_mem=pin_mem)
+        else:
+            assert  False, 'Unknown data format type'
 
-    def create_data_gen(self, **kwargs):
+
+    def create_tf_data_gen(self, debug=False,**kwargs):
+        assert ISTFR, 'TFRecordDataset unavailable'
         conf = self.conf
         train_tfn = lambda f: decode_augment(f,conf,True)
         val_tfn = lambda f: decode_augment(f,conf,False)
         trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
+        valtfr = trntfr
+        xx = tf.python_io.tf_record_iterator(trntfr)
+        len_db = sum([1 for x in xx])
+        queue_sz = min(len_db,300)
+        # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
         if not os.path.exists(valtfr):
             logging.info('Validation data set doesnt exist. Using train data set for validation')
             valtfr = trntfr
-        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=300)
+        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
         val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
-        train_dl = torch.utils.data.DataLoader(train_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True,num_workers=16)
-        val_dl = torch.utils.data.DataLoader(val_dl_tf, batch_size=self.conf.batch_size,pin_memory=True,drop_last=True)
-        return [train_dl, val_dl]
+        self.train_loader_raw = train_dl_tf
+        self.val_loader_raw = val_dl_tf
+        num_workers = 0 if debug else 16
+        args = {
+            'batch_size': self.conf.batch_size,
+            'pin_memory': True,
+            'drop_last': True,
+        }
 
+        if num_workers > 0:
+            #try:
+            #    self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
+            #except:
+            logging.warning(f'Could not create torch DataLoader with num_workers = {num_workers}, trying with 0')
+            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+        else:
+            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+
+        self.val_dl = torch.utils.data.DataLoader(val_dl_tf, **args)
+
+        self.train_iter = iter(self.train_dl)
+        self.val_iter = iter(self.val_dl)
+
+
+    def create_coco_data_gen(self, debug=False, pin_mem=True,**kwargs):
+        conf = self.conf
+        trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
+        valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
+        train_dl_coco = coco_loader(conf,trnjson,True)
+        if os.path.exists(valjson) and (len(PoseTools.json_load(valjson)['annotations'])>0):
+            val_dl_coco = coco_loader(conf,valjson,False)
+        else:
+            logging.info('Val json file doesnt exist or is empty. Using training file for validation')
+            val_dl_coco = coco_loader(conf,trnjson,False)
+        self.train_loader_raw = train_dl_coco
+        self.val_loader_raw = val_dl_coco
+
+        num_workers = 0 if debug else 16
+
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=dataloader_worker_init_fn)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True)
+        self.train_iter = iter(self.train_dl)
+        self.val_iter = iter(self.val_dl)
+
+    def next_data(self, dtype):
+        if dtype == 'train':
+            it = self.train_iter
+        else:
+            it = self.val_iter
+
+        try:
+            ndata = next(it)
+        except StopIteration:
+            if dtype == 'train':
+                self.train_epoch += 1
+                if self.use_hard_mining and (self.step[0]/self.step[1]>0.001) and self.train_epoch>3:
+                    wts = self.train_loader_raw.ex_wts
+                    pcs = np.percentile(wts.numpy(),[5,95])
+                    wts = torch.clamp(wts,pcs[0],pcs[1])
+                    wt_range = 10.
+                    wts = wts-wts.min()
+                    wts = wts/wts.max()
+                    wts = wts*(wt_range-1) + 1
+                    train_sampler = torch.utils.data.WeightedRandomSampler(wts,self.train_loader_raw.len)
+                    shuffle = False
+                else:
+                    train_sampler = None
+                    shuffle = True if self.conf.db_format == 'coco' else False
+
+                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=partial(dataloader_worker_init_fn,epoch=self.train_epoch))
+                self.train_iter = iter(self.train_dl)
+                ndata = next(self.train_iter)
+            else:
+                self.val_dl = torch.utils.data.DataLoader(self.val_loader_raw, batch_size=self.conf.batch_size, pin_memory=True, drop_last=True)
+                self.val_iter = iter(self.val_dl)
+                ndata = next(self.val_iter)
+        return ndata
 
     def create_targets(self, inputs):
         locs = inputs['locs']
@@ -262,38 +463,34 @@ class PoseCommon_pytorch(object):
         return torch.optim.lr_scheduler.LambdaLR(opt,lambda_lr)
 
 
-    def train(self, data_loaders, model, loss, opt, lr_sched, n_steps, start_at=0):
-        train_datagen = data_loaders[0]
-        if len(data_loaders) > 1:
-            val_datagen = data_loaders[1]
-        else:
-            val_datagen = data_loaders[0]
+    def train(self, model, loss, opt, lr_sched, n_steps, start_at=0):
 
-        train_loader = iter(train_datagen)
-        val_loader = iter(val_datagen)
         save_start = time.time()
         clip_gradients = self.conf.get('clip_gradients', True)
         start = time.time()
         for step in range(start_at,n_steps):
             # gc.collect()
+            self.step = [step,n_steps]
             a = time.time()
-            inputs, train_loader = next_data(train_loader,train_datagen)
+            inputs = self.next_data('train')
             l = time.time()
             opt.zero_grad()
             outputs = model(inputs)
             o = time.time()
             labels = self.create_targets(inputs)
-            valid = torch.any(torch.all(labels > -1000, dim=3), dim=2)
-            if not torch.all(torch.any(valid, dim=1)):
-                print('Some inputs dont have any labels')
-                continue
+            # valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
+            # if not torch.all(torch.any(valid, dim=1)):
+            #     print('Some inputs dont have any labels')
+            #     continue
 
             t = time.time()
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
             loss_val = loss(outputs,labels)
+            if self.use_hard_mining:
+                self.train_loader_raw.update_wts(inputs['item'].numpy(),loss_val.detach().cpu().numpy().copy())
             lo = time.time()
             # print(prof)
-            loss_val.backward()
+            loss_val.sum().backward()
             if clip_gradients:
                 torch.nn.utils.clip_grad_norm_(model.parameters(),5.)
             b = time.time()
@@ -304,22 +501,22 @@ class PoseCommon_pytorch(object):
             # print('Timings Load:{:.2f}, target:{:.2f} fwd:{:.2f} loss:{:0.2f} bkwd:{:.2f} op:{:.2f}'.format(l-a,o-l,t-o,lo-t,b-lo,op-b))
 
             if self.conf.save_time is None:
-                if step % self.conf.save_step == 0:
+                if (step % self.conf.save_step == 0) & (step>0):
                     self.save(step, model, opt, lr_sched)
             else:
                 if ((time.time() - save_start) > self.conf.save_time*60) or step==0:
                     save_start = time.time()
                     self.save(step,model,opt,lr_sched)
 
-            if step % self.conf.display_step == 0:
+            if (step+1) % self.conf.display_step == 0:
                 en = time.time()
                 logging.info('Time required to train:{}'.format(en-start))
                 start = en
-                train_in, train_loader = next_data(train_loader, train_datagen)
+                train_in = self.next_data('train')
                 train_dict = self.compute_train_data(train_in, model, loss)
                 train_loss = train_dict['cur_loss']
                 train_dist = train_dict['cur_dist']
-                val_in, val_loader = next_data(val_loader, val_datagen)
+                val_in = self.next_data('val')
                 val_dict = self.compute_train_data(val_in, model, loss)
                 val_loss = val_dict['cur_loss']
                 val_dist = val_dict['cur_dist']
@@ -328,7 +525,7 @@ class PoseCommon_pytorch(object):
                 cur_dict['train_dist'] = train_dist
                 cur_dict['train_loss'] = train_loss
                 cur_dict['val_loss'] = val_loss
-                cur_dict['step'] = step
+                cur_dict['step'] = step + 1
                 cur_dict['l_rate'] = lr_sched.get_last_lr()[0]
                 self.update_td(cur_dict)
                 self.save_td()
@@ -336,7 +533,7 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False):
+    def train_wrapper(self, restore=False,model_file=None):
         model = self.create_model()
         training_iters = self.conf.dl_steps
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)
@@ -348,19 +545,41 @@ class PoseCommon_pytorch(object):
         logging.info('Using {} GPUS!'.format(torch.cuda.device_count()))
         model = torch.nn.DataParallel(model)
 
-        if restore:
-            model_file = self.get_latest_model_file()
-        else:
-            model_file = None
         if model_file is None:
+            if restore:
+                model_file = self.get_latest_model_file()
+            if model_file is None:
+                start_at = 0
+                self.init_td()
+            else:
+                start_at = self.restore(model_file, model, opt, sched)
+        else:
+            try:
+                ckpt = torch.load(model_file)
+                model.load_state_dict(ckpt['model_state_params'])
+                logging.info('Inititalizing model weights from {}'.format(model_file))
+            except Exception as e:
+                logging.info(f'Could not initialize model weights from {model_file}')
+                logging.info(e)
             start_at = 0
             self.init_td()
-        else:
-            start_at = self.restore(model_file, model, opt, sched)
 
         model.to(self.device)
-        data_loaders = self.create_data_gen()
-        self.train(data_loaders,model,self.loss,opt,sched,training_iters,start_at)
+        self.create_data_gen()
+
+        if self.conf.get('use_dataset_stats_norm',False):
+            all_ims = []
+            for ndx in range(50):
+                for skip in range(40):
+                    cur_i, train_loader = self.next_data('train')
+                all_ims.append(cur_i['images'].cpu().numpy())
+            all_ims = np.concatenate(all_ims,0)
+            im_mean = all_ims.mean((0,2,3),keepdims=True)
+            im_std = all_ims.std((0,2,3),keepdims=True)
+            model.module.im_mean = torch.tensor(im_mean[0,...].astype('single'))
+            model.module.im_std = torch.tensor(im_std[0,...].astype('single'))
+
+        self.train(model,self.loss,opt,sched,training_iters,start_at)
 
     def loss(self,output, labels):
         torch.nn.MSELoss(output-labels)
@@ -378,3 +597,19 @@ class PoseCommon_pytorch(object):
             return [self.to_numpy(tt) for tt in t]
         else:
             return t.detach().cpu().numpy()
+
+    def diagnose(self, ims, out_file=None, **kwargs):
+        model_file = kwargs.pop('model_file')
+        pred_fn, close_fn, model_file = self.get_pred_fn(model_file,**kwargs)
+        ret_dict = pred_fn(ims,retrawpred=True)
+        conf = self.conf
+
+        if out_file is None:
+            out_file = os.path.join(conf.cachedir,'diagnose_' + PoseTools.get_datestr())
+
+        with open(out_file,'wb') as f:
+            pickle.dump({'ret_dict':ret_dict,'conf':conf,'ims':ims},f)
+
+        close_fn()
+        return ret_dict
+

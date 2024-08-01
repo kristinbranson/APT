@@ -107,16 +107,23 @@ elseif strcmpi(ext,'.tif') || strcmp(ext,'.tiff'),
     nframes = headerinfo.nframes;
     fid = -1;
   end
-elseif strcmpi(ext,'.png'),
+elseif strcmpi(ext,'.png') || strcmpi(ext,'.jpg'),
   info = imfinfo(filename);
   isimseq = false;
-  filespec = regexprep(filename,'_\d+\.png$','_*.png');
+  filespec = regexprep(filename,['\d+\',ext,'$'],['*',ext]);
   imfiles = mydir(filespec);
   if numel(imfiles) > 1,
-    imfiles = sort(imfiles);
+    framenum = regexp(imfiles,['[^\d]+(\d+)\',ext,'$'],'tokens','once');
+    assert(~any(cellfun(@isempty,framenum)));
+    framenum = cellfun(@str2double,framenum);
+    [sortedframenum,order] = sort(framenum);
+    if any(diff(sortedframenum)~=1),
+      warning('Frame numbers for jpg sequence are not contiguous.');
+    end
+    imfiles = imfiles(order);
     im = imread(imfiles{1});
     headerinfo = struct('nr',size(im,1),'nc',size(im,2),'ncolors',size(im,3),'nframes',numel(imfiles),...
-      'type','imseq','imfiles',{imfiles});
+      'type','imseq','imfiles',{imfiles},'imfinfo',info);
     readframe = @(f) imseq_read_frame(f,imfiles);
     nframes = headerinfo.nframes;
     fid = -1;

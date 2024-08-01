@@ -29,7 +29,7 @@ function lObj = createProject(baseProj,movFiles,varargin)
   'diaryfile',''... % (opt) diary file
   );
 
-lObj = StartAPT();
+lObj = Labeler();
 lObj.projLoad(baseProj);
 if clearBaseProj
   lObj.movieRmAll();

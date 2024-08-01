@@ -258,8 +258,10 @@ class PoseDataset:
         for person_id in range(len(coords)):
             for k, j_id in enumerate(joint_id[person_id]):
                 joint_pt = coords[person_id][k, :]
-                j_x = np.asscalar(joint_pt[0])
-                j_y = np.asscalar(joint_pt[1])
+                # j_x = np.asscalar(joint_pt[0])
+                # j_y = np.asscalar(joint_pt[1])
+                j_x = joint_pt[0].item()
+                j_y = joint_pt[1].item()
                 if np.isnan(j_x) or np.isnan(j_y):
                     continue
 

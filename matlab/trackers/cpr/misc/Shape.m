@@ -140,7 +140,6 @@ classdef Shape
       % oriented, and if not, then p1 has same overall alignment as p0
     end
     
-    %#3DOK
     function [pAug,info] = randInitShapes(pN,Naug,model,bboxes,varargin)
       % Simple shape augmenter/randomizer
       %
@@ -370,7 +369,6 @@ classdef Shape
         'bbox1',bboxes(1,:));
     end
     
-    %# 3DOK
     function bbJ = jitterBbox(bb,L,d,uncertfac)
       % Randomly jitter bounding box. The offset (x1...xd) is jittered by
       % random values (positive or negative) with max magnitude
@@ -745,9 +743,9 @@ classdef Shape
       for iview=1:nview
         x0 = round(xyTrx(iview,1,:)); % [1 x 1 x n]
         y0 = round(xyTrx(iview,2,:)); % etc
-        xlo = x0-radius;
+        xlo = x0-radius + 1; % MK 10022022. Adding 1 so that the patch is even sized
         xhi = x0+radius;
-        ylo = y0-radius;
+        ylo = y0-radius + 1;
         yhi = y0+radius;
         
         roicols = (1:4) + (iview-1)*4;
@@ -996,7 +994,7 @@ classdef Shape
       % Visualize many Images+Shapes from a Trial set
       % 
       % I: [N] cell vec of images, all same size
-      % p: [NxD] shapes
+      % p: [NxDxntgtmax] shapes
       %
       % optional pvs
       % fig - handle to figure to use
@@ -1015,6 +1013,7 @@ classdef Shape
       opts.framelbls = [];
       opts.framelblscolor = [1 1 1];
       opts.framelblsbgcolor = [0 0 0];
+      opts.framelblsIsFullSize = false; % if true, numel(opts.framelbls)==size(I,1)
       opts.labelpts = false;
       opts.labelptsdx = 10;
       opts.labelptsargs = {'fontweight' 'bold'};
@@ -1027,8 +1026,10 @@ classdef Shape
       opts.titlestr = 'Montage';
       opts.imsHeterogeneousSz = false; % if true, pad elements of I to make them the same size. all p's must be nan
       opts.imsHeterogeneousPadColor = 0; % grayscale pad color 
-      opts.rois = []; % (opt), [Nx4] roi rectangles will be plotted. Each row is [xlo xhi ylo yhi].
+      opts.rois = []; % (opt), [Nx4] roi rectangles will be plotted. Each row is [xlo xhi ylo yhi]. OR, [N] cell array of rectangles; each el is [nroix4].
       opts.roisRectangleArgs = {'EdgeColor' [0 1 0] 'LineWidth',2}; % P-Vs used for plotting roi rects
+      opts.masks = []; % (opt) [N] cell vec of masks, all the same size. Masks are doubles in [0,1] and scale I directly. Masks MUST have 3 chans!
+      opts.maskalpha = 0.1;
       opts.ppFcn = []; % Optional preprocessing fcn for images
       opts = getPrmDfltStruct(varargin,opts);
       if isempty(opts.fig)
@@ -1040,6 +1041,7 @@ classdef Shape
       tfMD = ~isempty(opts.md);
       tfROI = ~isempty(opts.rois);
       tfpp = ~isempty(opts.ppFcn);
+      tfmask = ~isempty(opts.masks);
       
       N = numel(I);
       if opts.imsHeterogeneousSz
@@ -1061,6 +1063,7 @@ classdef Shape
       end      
       assert(size(p,1)==N);
       npts = size(p,2)/2;
+      ntgtmax = size(p,3);
       if tfMD
         assert(size(opts.md,1)==N);
       end
@@ -1082,7 +1085,11 @@ classdef Shape
       
       tfFrameLbls = ~isempty(opts.framelbls);
       if tfFrameLbls
-        assert(iscellstr(opts.framelbls) && numel(opts.framelbls)==nplot);
+        if opts.framelblsIsFullSize
+          opts.framelbls = opts.framelbls(iPlot);
+        end
+        assert(iscellstr(opts.framelbls));
+        assert(numel(opts.framelbls)==nplot);
       end
 
       tfP2 = ~isempty(opts.p2);
@@ -1090,15 +1097,21 @@ classdef Shape
         szassert(opts.p2,size(p));        
       end
       
-      if tfROI 
-        szassert(opts.rois,[N 4]);
+      if tfROI
+        tfCellRoi = iscell(opts.rois);
+        if tfCellRoi
+          assert(numel(opts.rois)==N);
+        else
+          szassert(opts.rois,[N 4]);
+        end
       end
       
-      [imnr,imnc] = size(I{1});
-      bigIm = nan(imnr*opts.nr,imnc*opts.nc);
-      bigP = nan(npts,2,nplot);
-      bigP2 = nan(npts,2,nplot);
-      bigROI = nan(nplot,4);
+      [imnr,imnc,nch] = size(I{1});
+      BIGIMNCHAN = 3; % use color to enable ROIs etc
+      bigIm = nan(imnr*opts.nr,imnc*opts.nc,BIGIMNCHAN); 
+      bigP = nan(npts,2,ntgtmax,nplot);
+      bigP2 = nan(npts,2,ntgtmax,nplot);
+      bigROI = cell(nplot);
       for iRow=1:opts.nr
         for iCol=1:opts.nc
           iPlt = iCol+opts.nc*(iRow-1);
@@ -1112,29 +1125,43 @@ classdef Shape
           if tfpp
             Ithis = opts.ppFcn(Ithis);
           end
-          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1) ) = Ithis;
+          if size(Ithis,3)<BIGIMNCHAN
+            Ithis = repmat(Ithis,1,1,BIGIMNCHAN);
+          end
+          if tfmask
+            maskthis = opts.masks{iIm};
+            Ithis = Ithis*(1-opts.maskalpha) + maskthis*opts.maskalpha;
+          end
+          bigIm( (1:imnr)+imnr*(iRow-1), (1:imnc)+imnc*(iCol-1), :) = Ithis;
           
-          xytmp = reshape(p(iIm,:),npts,2);
-          xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
-          xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
-          bigP(:,:,iPlt) = xytmp;
-          
-          if tfP2
-            xytmp = reshape(opts.p2(iIm,:),npts,2);
+          for itgt=1:ntgtmax
+            % surely suboptimal indexing
+            xytmp = reshape(p(iIm,:,itgt),npts,2);
             xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
             xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
-            bigP2(:,:,iPlt) = xytmp;            
+            bigP(:,:,itgt,iPlt) = xytmp;
+          
+            if tfP2
+              xytmp = reshape(opts.p2(iIm,:,itgt),npts,2);
+              xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
+              xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
+              bigP2(:,:,itgt,iPlt) = xytmp;            
+            end
           end
           
           if tfROI
-            roi = opts.rois(iIm,:);
-            roi(1:2) = roi(1:2) + imnc*(iCol-1);
-            roi(3:4) = roi(3:4) + imnr*(iRow-1);
-            bigROI(iPlt,:) = roi;
+            if tfCellRoi
+              roi = opts.rois{iIm}; % [nroi x 4]
+            else
+              roi = opts.rois(iIm,:); % [nroi==1 x 4]
+            end
+            roi(:,1:2) = roi(:,1:2) + imnc*(iCol-1);
+            roi(:,3:4) = roi(:,3:4) + imnr*(iRow-1);
+            bigROI{iPlt} = CropInfo.roi2RectPos(roi);
           end
         end
       end
-      bigROIRectPosn = CropInfo.roi2RectPos(bigROI);
+      %bigROIRectPosn = CropInfo.roi2RectPos(bigROI);
       
       hIm = imagesc(bigIm);
       hIm.PickableParts = 'none';
@@ -1149,8 +1176,10 @@ classdef Shape
       hP1 = gobjects(npts,1);
       hP2 = gobjects(npts,1);
       for ipt=1:npts
-        bigx = squeeze(bigP(ipt,1,:));
-        bigy = squeeze(bigP(ipt,2,:));        
+        bigx = bigP(ipt,1,:,:);
+        bigy = bigP(ipt,2,:,:);
+        bigx = bigx(:);
+        bigy = bigy(:);
         hP1(ipt) = plot(bigx,bigy,'o','Color',colors(ipt,:),...
           opts.pplotargs{:});
         if opts.labelpts
@@ -1158,8 +1187,10 @@ classdef Shape
             'color',colors(ipt,:),opts.labelptsargs{:});
         end
         if tfP2
-          bigx = squeeze(bigP2(ipt,1,:));
-          bigy = squeeze(bigP2(ipt,2,:));
+          bigx = squeeze(bigP2(ipt,1,:,:));
+          bigy = squeeze(bigP2(ipt,2,:,:));
+          bigx = bigx(:);
+          bigy = bigy(:);
           hP2(ipt) = plot(bigx,bigy,...          
             opts.p2marker,'MarkerFaceColor',colors(ipt,:),...
             'MarkerEdgeColor',colors(ipt,:),'linewidth',2);
@@ -1194,8 +1225,10 @@ classdef Shape
               'BackgroundColor',opts.framelblsbgcolor);
           end
           if tfROI
-            posn = bigROIRectPosn(iPlt,:);
-            rectangle('Position',posn,opts.roisRectangleArgs{:});
+            posns = bigROI{iPlt};
+            for iposn = 1:size(posns,1)
+              rectangle('Position',posns(iposn,:),opts.roisRectangleArgs{:});
+            end
           end
         end
       end
@@ -1211,6 +1244,23 @@ classdef Shape
 %         end
 %         text(1,1,str,'parent',hax(iPlt),'color',[1 1 .2],...
 %           'verticalalignment','top','interpreter','none');
+    end
+    
+    function h = montageTabbed(I,p,plotnr,plotnc,varargin)
+      % If you pass framelbls, make sure to set framelblsIsFullSize==true
+      
+      n = size(I,1);
+      nplot = plotnr*plotnc;
+      startIdxs = 1:nplot:n;
+      h = [];
+      for i=1:numel(startIdxs)
+        plotIdxs = startIdxs(i):min(startIdxs(i)+nplot-1,n);
+        h(end+1,1) = figure('windowstyle','docked'); %#ok<AGROW>
+        Shape.montage(I,p,'fig',h(end),...
+          'nr',plotnr,'nc',plotnc,'idxs',plotIdxs,...
+          varargin{:} ...
+          );
+      end
     end
     
     function cbk = makeCbkMarkerSize(hPlot,action)

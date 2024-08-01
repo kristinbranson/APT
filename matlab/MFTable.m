@@ -97,7 +97,7 @@ classdef MFTable
     end
     
     function tbl = sortCanonical(tbl)
-      assert(isa(tbl.mov,'MovieIndex'));
+      %assert(isa(tbl.mov,'MovieIndex'));
       tfgt = tbl.mov<0;
       tblGT = tbl(tfgt,:);
       tblReg = tbl(~tfgt,:);
@@ -107,22 +107,43 @@ classdef MFTable
       tbl = [tblReg; tblGT];
     end
     
-    function [tblnew,tfNew] = tblDiff(tbl0,tbl1)
-      % Remove entried of tbl1 in tbl0
+    function [tblnew,tfNew] = tblDiff(tbl0,tbl1,varargin)
+      % Remove entries of tbl1 in tbl0
       %
       % tbl0, tbl1: MF tables
       %
       % tblnew: new frames (rows of tbl0 whose (mov,frm,iTgt) are not in 
       %   tbl1)
       
-      FLDSID = MFTable.FLDSID;
+      flds = myparse(varargin,...
+        'flds',MFTable.FLDSID ...
+        );
+
       tblnew = tbl0;
       tfNew = true(size(tbl0,1),1);
       if isempty(tbl1) || isempty(tbl0),
         return;
       end
-      
-      tfNew = ~tblismember(tbl0,tbl1,FLDSID);
+
+      if ismember('iTgt',flds),
+        iswild1 = MFTable.isTgtUnset(tbl1);
+        fldsrest = setdiff(flds,'iTgt');
+
+        if any(iswild1),
+          % if tbl0 has movie m, frame f, target *
+          % and tbl1 has movie m, frame f, target 1
+          % tfNew = true
+          % if tbl0 has movie m, frame f, target *
+          % and tbl1 has movie m, frame f, target *
+          % tfNew = false
+
+          tfNew = tfNew & ~tblismember(tbl0,tbl1(iswild1,:),fldsrest);
+        end
+      else
+        iswild1 = false(size(tbl1,1),1);
+      end
+
+      tfNew = tfNew & ~tblismember(tbl0,tbl1(~iswild1,:),flds);
       tblnew = tbl0(tfNew,:);
     end
     
@@ -138,12 +159,19 @@ classdef MFTable
       % idx0update: indices into rows of tblP0 corresponding to tblPupdate;
       %   ie tblP0(idx0update,:) ~ tblPupdate
       
+      unsetval = -1;
+
       FLDSID = MFTable.FLDSID;
       FLDSCORE = MFTable.FLDSCORE;
       tblfldscontainsassert(tblP0,FLDSCORE);
       tblfldscontainsassert(tblP,FLDSCORE);
       
-      tfNew = ~tblismember(tblP,tblP0,FLDSID);
+      copytblP0 = tblP0;
+      copytblP0.iTgt(MFTable.isTgtUnset(tblP0)) = unsetval;
+      copytblP = tblP;
+      copytblP.iTgt(MFTable.isTgtUnset(tblP)) = unsetval;
+      
+      tfNew = ~tblismember(copytblP,copytblP0,FLDSID);
       [tfSame,locSame] = tblismember(tblP,tblP0,FLDSCORE);
       if nnz(tfSame)>0
         % side check, all shared fields must be identical for 'same' rows
@@ -153,7 +181,7 @@ classdef MFTable
       end
       tfDiff = ~tfSame;
       tfUpdate = tfDiff & ~tfNew; 
-            
+
       tblPnew = tblP(tfNew,:);
       tblPupdate = tblP(tfUpdate,:);            
      
@@ -382,6 +410,17 @@ classdef MFTable
         otherwise
           error('Multiple movie-frame-target tables found in file ''%s''.',fname);
       end
+    end
+
+    function v = isTgtUnset(tblMFT)
+      v = isnan(tblMFT.iTgt);
+    end
+
+    function tblMFT = unsetTgt(tblMFT)
+      tblMFT.iTgt(:) = nan;
+      tblMF = removevars(tblMFT,'iTgt');
+      [~,idx] = unique(tblMF);
+      tblMFT = tblMFT(idx,:);
     end
           
   end

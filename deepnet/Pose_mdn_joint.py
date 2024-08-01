@@ -1,22 +1,47 @@
 import PoseUNet_resnet
 import PoseTools as pt
+
+# import tensorflow
+# vv = [int(v) for v in tensorflow.__version__.split('.')]
+# if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+#     tf = tensorflow.compat.v1
+# else:
+#     tf = tensorflow
+# # from batch_norm import batch_norm_mine_old as batch_norm
+# if vv[0]==1:
+#     from tensorflow.contrib.layers import batch_norm
+#     import tensorflow.contrib.slim as slim
+#     from tensorflow.contrib.slim.nets import resnet_v1
+#     from tensorflow.contrib.layers import xavier_initializer
+# else:
+#     from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+#     def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+#         return batch_norm_temp(inp,momentum=decay,training=is_training)
+#     import tf_slim as slim
+#     from tf_slim.nets import resnet_v1
+#     from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
+# from batch_norm import batch_norm_mine_old as batch_norm
+#from tensorflow.compat.v1.layers import BatchNormalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+    return batch_norm_temp(inp,momentum=decay,training=is_training)
+import tf_slim as slim
+from tf_slim.nets import resnet_v1
+#from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
+
 from PoseCommon_dataset import conv_relu3, conv_relu
-import tensorflow.contrib.slim as slim
-from tensorflow.contrib.slim.nets import resnet_v1
 import resnet_official
 import numpy as np
-from tensorflow.contrib.layers import batch_norm
 import contextlib
 from upsamp import upsample_init_value
 
 
-class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
+class Pose_mdn_joint_tf(PoseUNet_resnet.PoseUMDN_resnet):
 
     def set_shape(self):
         im, locs, info, hmap = self.inputs
@@ -128,7 +153,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
                     prev_in = tf.nn.conv2d_transpose(prev_in, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
                     biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                     conv_b = prev_in + biases
-                    bn = batch_norm(conv_b,is_training=self.ph['phase_train'])
+                    bn = batch_norm(conv_b,0.99,is_training=self.ph['phase_train'])
                     prev_in = tf.nn.relu(bn) + lateral
             X_ref = prev_in
             self.ref_scale = 2**(len(fpn_layers)-1)
@@ -171,7 +196,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
                 in_filt = loc_shape[-1]
 
-                weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * n_out], initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * n_out], initializer=xavier_initializer(),regularizer=wt_reg)
                 biases_locs = tf.get_variable("biases_locs", 2 *  n_out, initializer=tf.constant_initializer(0))
                 o_locs = tf.nn.conv2d(mdn_l, weights_locs, [1, 1, 1, 1], padding='SAME') + biases_locs
                 o_locs = tf.reshape(o_locs,[-1,n_y,n_x,n_out,2])
@@ -203,7 +228,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
                 in_filt = loc_shape[-1]
 
-                weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * k_ref * n_out],                                              initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                weights_locs = tf.get_variable("weights_locs", [1, 1, in_filt, 2 * k_ref * n_out],                                              initializer=xavier_initializer(),regularizer=wt_reg)
                 biases_locs = tf.get_variable("biases_locs", 2 * k_ref* n_out, initializer=tf.constant_initializer(0))
                 o_locs = tf.nn.conv2d(mdn_l, weights_locs, [1, 1, 1, 1], padding='SAME') + biases_locs
 
@@ -229,7 +254,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
                 with tf.variable_scope('layer_logits'):
                     kernel_shape = [1, 1, n_filt_in, n_filt]
-                    weights = tf.get_variable("weights", kernel_shape, initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                    weights = tf.get_variable("weights", kernel_shape, initializer=xavier_initializer(),regularizer=wt_reg)
                     biases = tf.get_variable("biases", kernel_shape[-1], initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(X_joint, weights,strides=[1, 1, 1, 1], padding='SAME')
                     conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
@@ -237,7 +262,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
                 loc_shape = mdn_l.get_shape().as_list()
                 in_filt = loc_shape[-1]
-                weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt,1], initializer=tensorflow.contrib.layers.xavier_initializer())
+                weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt,1], initializer=xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k_joint * 1, initializer=tf.constant_initializer(0))
                 logits_joint = tf.nn.conv2d(mdn_l, weights_logits, [1, 1, 1, 1], padding='SAME') + biases_logits
 
@@ -248,7 +273,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
                 with tf.variable_scope('layer_logits'):
                     kernel_shape = [1, 1, n_filt_in, n_filt]
-                    weights = tf.get_variable("weights", kernel_shape, initializer=tensorflow.contrib.layers.xavier_initializer(),regularizer=wt_reg)
+                    weights = tf.get_variable("weights", kernel_shape, initializer=xavier_initializer(),regularizer=wt_reg)
                     biases = tf.get_variable("biases", kernel_shape[-1], initializer=tf.constant_initializer(0))
                     conv = tf.nn.conv2d(X_ref, weights,strides=[1, 1, 1, 1], padding='SAME')
                     conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
@@ -256,7 +281,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
                 loc_shape = mdn_l.get_shape().as_list()
                 in_filt = loc_shape[-1]
-                weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt, k_ref*n_out], initializer=tensorflow.contrib.layers.xavier_initializer())
+                weights_logits = tf.get_variable("weights_logits", [1, 1, in_filt, k_ref*n_out], initializer=xavier_initializer())
                 biases_logits = tf.get_variable("biases_logits", k_ref * n_out, initializer=tf.constant_initializer(0))
                 logits = tf.nn.conv2d(mdn_l, weights_logits,
                                       [1, 1, 1, 1], padding='SAME') + biases_logits
@@ -277,7 +302,6 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         self.k_joint = k_joint
         self.k_ref = k_ref
         return [locs_joint, locs, logits_joint, logits]
-
 
 
     def l2_loss(self,X,y):
@@ -358,7 +382,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         return tot_loss / self.conf.n_classes
 
 
-    def get_joint_pred(self,preds):
+    def get_joint_pred(self, preds, occ_out=None):
         locs_joint, locs_ref, logits_joint, logits_ref = preds
         bsz = locs_joint.shape[0]
         n_classes = locs_joint.shape[-2]
@@ -372,6 +396,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
 
         preds_ref = np.zeros([bsz,n_classes,2])
         preds_joint = np.zeros([bsz,n_classes,2])
+        preds_occ = np.ones([bsz,n_classes])*np.nan
         for ndx in range(bsz):
             sel_ex = np.argmax(ll_joint_img[ndx, :])
             idx = np.unravel_index(sel_ex, [n_y_j, n_x_j])
@@ -383,7 +408,9 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
                 pt_selex = np.argmax(logits_ref[ndx, mm_y, mm_x, :, cls])
                 cur_pred = locs_ref[ndx,mm_y,mm_x,pt_selex,cls,:]
                 preds_ref[ndx,cls,:] = cur_pred
-        return preds_ref, preds_joint
+            if self.conf.predict_occluded and (occ_out is not None):
+                preds_occ[ndx,:] = occ_out[ndx, idx[0], idx[1], ...]
+        return preds_ref, preds_joint,preds_occ
 
     def compute_dist(self, preds, locs):
         locs = locs.copy()
@@ -408,6 +435,7 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         if tmr_pred is None:
             tmr_pred = contextlib.suppress()
         conf = self.conf
+        pred_occ = self.conf.predict_occluded
 
         def pred_fn(all_f):
             # this is the function that is used for classification.
@@ -425,17 +453,26 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
             self.fd[self.ph['learning_rate']] = 0
             out_list = [self.pred, self.inputs]
 
+            if pred_occ:
+                out_list.append(self.occ_pred)
+
             with tmr_pred:
                 out = sess.run(out_list, self.fd)
 
             pred = out[0]
             cur_input = out[1]
 
+            if pred_occ:
+                occ_out = out[-1]
+            else:
+                occ_out = None
+
             pred_locs = self.get_joint_pred(pred)
             ret_dict = {}
             ret_dict['locs'] = pred_locs[0]*self.conf.rescale
             ret_dict['locs_joint'] = pred_locs[1]*self.conf.rescale
             ret_dict['conf'] = np.ones([bsize,self.conf.n_classes])
+            ret_dict['occ'] = pred_locs[2]
             return ret_dict
 
         def close_fn():
@@ -444,5 +481,83 @@ class Pose_mdn_joint(PoseUNet_resnet.PoseUMDN_resnet):
         return pred_fn, close_fn, latest_model_file
 
 
-    def train_wrapper(self,restore=False):
-        self.train_umdn(restore)
+    def train_wrapper(self,restore=False,model_file=None):
+        self.train_umdn(restore,model_file=model_file)
+
+
+import PoseCommon_pytorch
+import Pose_multi_mdn_joint_torch
+import torch
+import PoseTools
+import numpy as np
+from poseConfig import conf
+
+class Pose_mdn_joint_torch(Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch):
+    def __init__(self,conf,**kwargs):
+        conf.max_n_animals = 1
+        conf.min_n_animals = 1
+        conf.multi_loss_mask = False
+        super(Pose_mdn_joint_torch, self).__init__(conf, **kwargs)
+
+    def create_targets(self, inputs):
+        target_dict = {'locs':inputs['locs'][:,None,...]}
+        if 'mask' in inputs.keys():
+            target_dict['mask'] = inputs['mask']
+        target_dict['occ'] = inputs['occ'][:,None,...]
+        return target_dict
+
+
+    def get_pred_fn(self, model_file=None,max_n=None,imsz=None):
+        assert not self.conf.is_multi, 'This is for single animal'
+        if imsz is not None:
+            self.conf.imsz = imsz
+
+
+        if model_file is None:
+            latest_model_file = self.get_latest_model_file()
+        else:
+            latest_model_file = model_file
+
+        self.set_version(latest_model_file)
+
+        model = self.create_model()
+        model = torch.nn.DataParallel(model)
+
+        self.restore(latest_model_file,model)
+        model.to(self.device)
+        model.eval()
+        self.model = model
+        conf = self.conf
+        match_dist_factor = conf.get('multi_match_dist_factor',0.2)
+
+        def pred_fn(ims, retrawpred=False):
+            locs_sz = (conf.batch_size, conf.n_classes, 2)
+            locs_dummy = np.zeros(locs_sz)
+
+            ims, _ = PoseTools.preprocess_ims(ims,locs_dummy,conf,False,conf.rescale)
+            with torch.no_grad():
+                preds = model({'images':torch.tensor(ims).permute([0,3,1,2])/255.})
+
+            locs = self.get_joint_pred(preds)
+            ret_dict = {}
+            ret_dict['locs'] = locs['ref'][:,0,...] * conf.rescale
+            cur_joint_conf = locs['conf_ref'][:,0,...]
+            ret_dict['conf'] = 1/(1+np.exp(-cur_joint_conf))
+            if self.conf.predict_occluded:
+                ret_dict['occ'] = locs['pred_occ'][:,0,...]
+            else:
+                ret_dict['occ'] = np.ones_like(locs['pred_occ'][:,0])*np.nan
+            if retrawpred:
+                ret_dict['preds'] = preds
+                ret_dict['raw_locs'] = locs
+            return ret_dict
+
+        def close_fn():
+            del self.model
+            torch.cuda.empty_cache()
+
+        return pred_fn, close_fn, latest_model_file
+
+class Pose_mdn_joint(Pose_mdn_joint_torch):
+    def __init__(self,conf,**kwargs):
+        super(Pose_mdn_joint,self).__init__(conf,**kwargs)

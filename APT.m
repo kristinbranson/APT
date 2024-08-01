@@ -24,10 +24,6 @@ classdef APT
     % AMI = 'ami-094a08ff1202856d6'; TF 1.13
     % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
     AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
-    
-    % version
-    VERSIONFILE = 'version.txt';
-
   end
   
   methods (Static)
@@ -58,27 +54,6 @@ classdef APT
       m.jaaba = fullfile(root,'external','JAABA');
       m.piotr = fullfile(root,'external','PiotrDollarToolbox');
       m.cameracalib = fullfile(root,'external','CameraCalibrationToolbox');      
-    end
-    
-    function v = readVersion()
-      
-      fname = fullfile(APT.Root,APT.VERSIONFILE);
-      v = '';
-      if exist(fname,'file'),
-        fid = fopen(fname,'r');
-        while true,
-          s = fgetl(fid);
-          if ~ischar(s),
-            break;
-          end
-          s = strtrim(s);
-          if ~isempty(s) && s(1) ~= '#',
-            v = s;
-            break;
-          end
-        end
-      end
-      
     end
   
     function [p,jp,jprel] = getpath()
@@ -132,6 +107,7 @@ classdef APT
         fullfile(root,'unittest'); ...
         fullfile(mlroot,'compute_landmark_features'); ...
         fullfile(mlroot,'compute_landmark_transforms'); ...
+        fullfile(mlroot,'trk'); ...
         };
       
       cprpath = { ...
@@ -345,6 +321,10 @@ classdef APT
         end
         cacheDir = fullfile(userDir,'.apt');
       end
+    end
+    
+    function tr = torchhome()
+      tr = fullfile(APT.getdlcacheroot(),'torch');
     end
     
     function s = codesnapshot
@@ -604,6 +584,18 @@ classdef APT
       end
     end
     
+    function v = getprefdefault(name,dfltval)
+      v = RC.getpropdefault(name,dfltval);
+    end
+    
+    function v = getpref(name)
+      v = RC.getprop(name);
+    end
+    
+    function setpref(name,val)
+      RC.saveprop(name,val);
+    end
+    
   end
   
 end
@@ -611,7 +603,7 @@ end
 
 function root = getRootGeneral()
   if isdeployed
-    root = ctfroot;
+    root = fullfile(ctfroot,'APT_deployed');
   else
     root = fileparts(mfilename('fullpath'));   
   end

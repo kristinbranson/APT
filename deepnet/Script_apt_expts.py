@@ -12,8 +12,11 @@ reload(rae)
 rae.setup('alice')
 #rae.create_normal_dbs()
 # dstr = '20200604'
-dstr = '20200706'
-rae.run_normal_training(dstr=dstr) #run_type = 'submit'
+# dstr = '20200706'
+# rae.run_normal_training(dstr=dstr) #run_type = 'submit'
+dstr = '20210708' #'20210629'
+rae.create_normal_dbs(expname='touching')
+rae.run_normal_training(dstr=dstr,expname='touching') #run_type = 'submit'
 # rae.run_normal_training(dstr=dstr,queue='gpu_tesla') #run_type = 'submit' to actually submit jobs.
 
 #dstr = 20200410 for old
@@ -27,10 +30,12 @@ if sys.version_info.major > 2:
     from importlib import reload
 reload(rae)
 rae.setup('alice')
-dstr = '20200706' #'20200604' # '20200410'
-rae.get_normal_results(dstr=dstr)
-rae.setup('alice_difficult')
-rae.get_normal_results(dstr=dstr)
+# dstr = '20200706' #'20200604' # '20200410'
+# rae.get_normal_results(dstr=dstr)
+dstr = '20210708' #'20210629'
+rae.get_normal_results(dstr=dstr,exp_name='touching')
+# rae.setup('alice_difficult')
+# rae.get_normal_results(dstr=dstr)
 
 ##
 import run_apt_expts_2 as rae
@@ -62,16 +67,26 @@ if sys.version_info.major > 2:
 reload(rae)
 rae.setup('alice')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-# rae.create_incremental_dbs()
-alice_incr_dstr = '20200716' #'20200608'
-rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
+# # rae.create_incremental_dbs()
+# alice_incr_dstr = '20200716' #'20200608'
+# rae.run_incremental_training(dstr=alice_incr_dstr) #run_type = 'submit'
+dstr = '20210708' #'20210629'
+import run_apt_ma_expts as rae_ma
+import os
+robj = rae_ma.ma_expt('alice')
+ma_inc_file = os.path.join(robj.trnp_dir,'inc_data.pkl')
+ma_loc = os.path.join(robj.trnp_dir, 'grone', rae_ma.loc_file_str)
+
+rae.create_incremental_dbs_ma(ma_inc_file, ma_loc)
+rae.run_incremental_training(dstr=dstr) #run_type = 'submit'
+
 
 ##
 import run_apt_expts_2 as rae
 reload(rae)
 rae.setup('alice')
 rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-alice_incr_dstr = '20200716' #'20200608'
+alice_incr_dstr = '20210708' #'20200716' #'20200608'
 rae.get_incremental_results(dstr=alice_incr_dstr)
 
 ##
@@ -1093,4 +1108,151 @@ for britnum in range(3):
         for train_type in rae.all_models:
             rae.track(movid=movid, train_type=train_type,
                       start_ndx=starts[ndx],end_ndx=ends[ndx])
+
+
+
+## ======================================================
+## =================== MUlti Animal =====================
+## ======================================================
+
+
+## Roian
+
+## Add neg ROIs for mask experiments
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('roian')
+robj.add_neg_roi_roian()
+
+## Run training
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('roian')
+robj.run_train(run_type='dry')
+
+## view training images
+
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.show_samples()
+
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('roian')
+robj.get_status()
+
+
+##
+import run_apt_ma_expts as rae_ma
+
+robj = rae_ma.ma_expt('roian')
+robj.get_results()
+
+## incremental training
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.setup_incremental()
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.run_incremental_train(t_types=[('grone','crop','mask')],queue='gpu_tesla')
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('roian')
+robj.show_incremental_results(t_type=['grone','crop','mask','first'])
+
+## ID Track movies
+import run_apt_ma_expts as rae_ma
+import PoseTools as pt
+import os
+robj = rae_ma.ma_expt('roian')
+
+loc_file = os.path.join(robj.gt_dir, rae_ma.loc_file_str)
+A = pt.json_load(loc_file)
+gt_movies = A['movies']
+
+t_types = [('2stageHT','crop','nomask'),
+           ('2stageHT','nocrop','nomask'),
+           ('2stageBBox','nomask'),
+           ('grone','crop','mask'),
+           ('grone','nocrop','mask')
+           ]
+run_type = 'dry'
+for cur_mov in gt_movies[-1:]:
+    exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
+    for tt in t_types:
+        cur_str = '_'.join(tt)
+        out_trk = os.path.join(robj.trk_dir,exp_name + f'_{cur_str}.trk')
+        robj.track(cur_mov,out_trk,t_types=[tt,],run_type=run_type)
+
+
+######################
+## Alice
+
+## Add neg ROIs for experiments
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('alice')
+# robj.get_neg_roi_alice(debug=True) # view the neg rois
+robj.add_neg_roi_alice()
+
+## Run training
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+
+robj = rae_ma.ma_expt('alice')
+robj.run_train(run_type='dry')
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.show_samples()
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.get_status()
+
+
+## incremental training
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.setup_incremental()
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.run_incremental_train(t_types=[('grone','crop')])
+
+##
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+robj.get_incremental_results(t_types=[('grone','crop')])
+
+## Track movies
+import os
+import run_apt_ma_expts as rae_ma
+import PoseTools as pt
+robj = rae_ma.ma_expt('alice')
+
+loc_file = os.path.join(robj.gt_dir, rae_ma.loc_file_str)
+A = pt.json_load(loc_file)
+gt_movies = A['movies']
+
+run_type = 'dry'
+for cur_mov in gt_movies:
+    exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
+    out_trk = os.path.join(robj.trk_dir,exp_name + '_grone.trk')
+    robj.track(cur_mov,out_trk,t_types=[('grone','crop')],run_type=run_type)
+
 

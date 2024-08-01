@@ -57,16 +57,16 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
     % core/root calibration params;
     % X_R = R_RL*X_L + T_RL
     % When X_L=0, X_R=T_RL => T_RL is position of left cam wrt right
-    omRL;
-    TRL;
-
-    useEP2 = false;
+    % omRL;
+    % TRL;
+    omLR;
+    TLR;
   end
   properties (Dependent,Hidden)
     % extrinsic props all derived from .om_RL, .T_RL
     RLR
     RRL
-    TLR
+    TRL
   end
   properties (Dependent)
     R
@@ -74,14 +74,14 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   end
   
   methods
-    function R = get.RLR(obj)
-      R = obj.RRL';
+    function RLR = get.RLR(obj)
+      RLR = rodrigues(obj.omLR);
     end
-    function R = get.RRL(obj)
-      R = rodrigues(obj.omRL);
+    function RRL = get.RRL(obj)
+      RRL = obj.RLR';
     end
-    function T = get.TLR(obj)
-      T = -obj.RRL'*obj.TRL;
+    function TRL = get.TRL(obj)
+      TRL = -obj.RRL*obj.TLR;
     end
     function s = get.R(obj)
       s = struct(...
@@ -111,40 +111,23 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       obj.viewNames = {'L' 'R'}; % For now all props expect these viewNames
       obj.stroInfo = ifo;
       obj.int = struct('L',int.l,'R',int.r);
-      obj.omRL = ext.om;
-      obj.TRL = ext.T;
+      obj.omLR = ext.om;
+      obj.TLR = ext.T;
     end
-    
+
   end
   
   methods
     
-    %#OK
     function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi,roiEpi)
       % See CalRig
       
       assert(numel(xy1)==2);
-      %fprintf(1,'Cam %d: croppedcoords: %s\n',iAx,mat2str(round(pos(:)')));
 
-      % "view"/"target" nomenclature here a little confusing
-      % "view": where the EP line will be drawn; corresponds to iViewEpi
-      % "target": origin of click/xy1; corresponds to iView1
       if iView1 == 1
-        view_R = rodrigues(obj.omRL);
-        view_T = obj.TRL;
-        view_fc = obj.int.R.fc;
-        view_cc = obj.int.R.cc;
-        view_kc = obj.int.R.kc;
-        view_alpha_c = obj.int.R.alpha_c;
+        view_R = obj.RLR;
+        view_T = obj.TLR;
 
-        target_fc = obj.int.L.fc;
-        target_cc = obj.int.L.cc;
-        target_kc = obj.int.L.kc;
-        target_alpha_c = obj.int.L.alpha_c;
-      else
-        % view_R = inv(obj.org_R);
-        view_R = rodrigues(-obj.omRL);
-        view_T = -view_R * obj.TRL;
         view_fc = obj.int.L.fc;
         view_cc = obj.int.L.cc;
         view_kc = obj.int.L.kc;
@@ -154,35 +137,34 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         target_cc = obj.int.R.cc;
         target_kc = obj.int.R.kc;
         target_alpha_c = obj.int.R.alpha_c;
+      else
+        view_R = obj.RRL;
+        view_T = obj.TRL;
+
+        view_fc = obj.int.R.fc;
+        view_cc = obj.int.R.cc;
+        view_kc = obj.int.R.kc;
+        view_alpha_c = obj.int.R.alpha_c;
+
+        target_fc = obj.int.L.fc;
+        target_cc = obj.int.L.cc;
+        target_kc = obj.int.L.kc;
+        target_alpha_c = obj.int.L.alpha_c;
       end
 
       xLp = [xy1(1), xy1(2)] - 1;
       xLp = xLp';
       
-      if obj.useEP2
-        epipole = compute_epipole2(xLp, view_R, view_T, view_fc, view_cc, ...
-          view_kc, view_alpha_c, target_fc, target_cc, target_kc, ...
-          target_alpha_c,'roi',roiEpi);
-      else
-        % hack... we'll add 1000 to the last argument of compute_epipole
-        % what this does is to compute 1000 points on the epipolar line. This
-        % isn't great, the correct solution would probably to figure out the
-        % the bounds of the image space before computing points.
-        %
-        % AL 20220428: Think the 1e3 is a 'diameter of interest' (in px) 
-        % for the EP line rather than a number of points; for the latter
-        % see N_line parameter in compute_epipole. See also
-        % compute_epipole2 for slightly improved range-of-interest
-        % estimation
-        epipole = compute_epipole(xLp, view_R, view_T, view_fc, view_cc, ...
-          view_kc, view_alpha_c, target_fc, target_cc, target_kc, ...
-          target_alpha_c,1000);
-      end
+      % hack... we'll add 1000 to the last argument of compute_epipole
+      % what this does is to compute 1000 points on the epipolar line. This
+      % isn't great, the correct solution would probably to figure out the
+      % the bounds of the image space before computing points.
+      %epipole = compute_epipole(xLp, view_R, view_T, view_fc, view_cc, view_kc, view_alpha_c, target_fc, target_cc, target_kc, target_alpha_c, 1000);
+      epipole = compute_epipole(xLp, view_R, view_T, target_fc, target_cc, target_kc, target_alpha_c, view_fc, view_cc, view_kc, view_alpha_c, 1000);
       xEPL = epipole(1, :) + 1;
       yEPL = epipole(2, :) + 1;
       
       % next lets limit the extents of the epipolar line.
-      
       yEPL(xEPL < 1) = [];
       xEPL(xEPL < 1) = [];
 
@@ -243,7 +225,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
   
   methods % coordinate conversions, projections, reconstructions
     
-    %#OK
     function xp = y2x(obj,y,cam)
       % Transform from cropped points to image projection points.
       %
@@ -270,7 +251,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xp = xp';
     end
     
-    %#OK
     function y = x2y(obj,xp,cam)
       % Transform projected points to cropped points.
       %
@@ -296,7 +276,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       y = [row(:) col(:)];
     end
      
-    %#OK
     function xp = normalized2projected(obj,xn,cam)
       % 
       
@@ -317,7 +296,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       xp(:,tf) = xpCropped;
     end
     
-    %#OK
     function [xn,fval] = projected2normalized(obj,xp,cam)
       % Find normalized coords corresponding to projected coords.
       % This uses search/optimization to invert normalized2projected; note
@@ -370,9 +348,9 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
         xprp = nan(d,n,nvw);
         rpe = nan(n,nvw);
       
-        X2 = obj.camxform(X,'lr');
-        xp1 = obj.project(X,'l');
-        xp2 = obj.project(X2,'r');
+        X2 = obj.camxform(X,'LR');
+        xp1 = obj.project(X,'L');
+        xp2 = obj.project(X2,'R');
         
         xprp(:,:,1) = xp1 + 1; % see .x2y
         xprp(:,:,2) = xp2 + 1;
@@ -398,7 +376,7 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       intL = obj.int.L;
       intR = obj.int.R;
       [XL,XR] = stereo_triangulation(xL,xB,...
-        obj.omRL,obj.TRL,...
+        obj.omLR,obj.TLR,...
         intL.fc,intL.cc,intL.kc,intL.alpha_c,...
         intR.fc,intR.cc,intR.kc,intR.alpha_c);
     end
@@ -509,7 +487,6 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       X1 = obj.camxform(X2,[cam2 cam1]);      
     end
         
-    %#OK
     function Xc2 = camxform(obj,Xc,type)
       % Extrinsic coord transformation: from camera1 coord sys to camera2
       %
@@ -532,6 +509,19 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       Xc2 = RR*Xc + repmat(TT,1,N);
     end
     
+    function t = summarizeIntrinsics(obj)
+      camnames = fieldnames(obj.int);
+      sall = [];
+      for cam=camnames(:)',cam=cam{1};
+        s = obj.int.(cam);
+        s.cc = s.cc.';
+        s.fc = s.fc.';
+        s.kc = s.kc.';
+        sall = [sall; s];
+      end
+      t = struct2table(sall,'rownames',camnames,'asarray',1);
+    end
+        
   end
       
 end

@@ -1,7 +1,8 @@
 classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj 
   methods    
-    function obj = BgTrackWorkerObjAWS(varargin)
+    function obj = BgTrackWorkerObjAWS(nviews,varargin)
       obj@BgWorkerObjAWS(varargin{:});
+      obj.nviews = nviews;
     end
     
     function sRes = compute(obj)
@@ -63,13 +64,12 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         'killFileExists',repmat(killFileExists,[1 nVwPerJob]),...
         'isexternal',obj.isexternal);
       
-      %assert(numel(sRes)==obj.nviews);
+      assert(numel(sRes)==obj.nviews);
       
       % Handle trk/part files etc; these are one per view
-      ntrkfiles = numel(obj.artfctTrkfiles);
-      for itrk=1:ntrkfiles
-        trkfile = obj.artfctTrkfiles{itrk};
-        partFile = obj.artfctPartTrkfiles{itrk};
+      for ivw=1:obj.nviews
+        trkfile = obj.artfctTrkfiles{ivw};
+        partFile = obj.artfctPartTrkfiles{ivw};
                 
         % See AWSEC2 convenience meth
         fspollargs = ...
@@ -85,19 +85,19 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         end
         
         if tfpollsucc          
-          sRes(itrk).tfComplete = strcmp(reslines{1},'y');
-          sRes(itrk).parttrkfileTimestamp = str2double(reslines{2}); % includes nan for 'DNE'
-          sRes(itrk).parttrkfileNfrmtracked = str2double(reslines{3}); % includes nan for 'DNE'
-          sRes(itrk).trkfileNfrmtracked = str2double(reslines{4}); % includes nan for 'DNE'
+          sRes(ivw).tfComplete = strcmp(reslines{1},'y');
+          sRes(ivw).parttrkfileTimestamp = str2double(reslines{2}); % includes nan for 'DNE'
+          sRes(ivw).parttrkfileNfrmtracked = str2double(reslines{3}); % includes nan for 'DNE'
+          sRes(ivw).trkfileNfrmtracked = str2double(reslines{4}); % includes nan for 'DNE'
           
           fprintf('The poll succeeded. Time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
         else
           % trackWorkerObj results don't have a 'pollsuccess' for some
           % reason
-          sRes(itrk).tfComplete = false;
-          sRes(itrk).parttrkfileTimestamp = nan;
-          sRes(itrk).parttrkfileNfrmtracked = nan;
-          sRes(itrk).trkfileNfrmtracked = nan;
+          sRes(ivw).tfComplete = false;
+          sRes(ivw).parttrkfileTimestamp = nan;
+          sRes(ivw).parttrkfileNfrmtracked = nan;
+          sRes(ivw).trkfileNfrmtracked = nan;
           
           fprintf('The poll failed. Time is %s\n',datestr(now,'yyyymmddTHHMMSS'));
         end

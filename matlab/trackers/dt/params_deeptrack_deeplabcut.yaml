@@ -1,0 +1,27 @@
+# * Each node has a list of metadata:
+# - 1 - pretty name (displayed). Note, the node name/identifier itself is also meaningful as the fieldname in the data struct. 
+# - 2 - type (see PropertiesGUIProp.m for options)
+# - 3 - isEditable
+# - 4 - description
+# - 5 - default value
+# - 6 - visualization function
+# - 7 - level - one of {'Important','Beginner','Advanced','Developer'}. All important features need to be reset for each project. Default values should work for all non-Important features, but better results could potentially be achieved by changing these. The rest of the parameters are split into those that often are helpful to adjust (Beginner), those that should be rarely adjusted (Intermediate), and those that only someone working with a developer should touch. This property is only used for leaf nodes. Level of non-leaf nodes is based on maximum level of children, with important being highest, developer being lowest. 
+# - 8 - requirements - some parameters will only be used in certain kinds of projects. list here keys for including these parameters. Non-leaf nodes included if any child node is included. 
+# * After the metadata comes a list of child nodes.
+# * As a shortcut, leaf nodes can contain the metadata directly as their value.
+
+ROOT:
+  - ['','',false,DUMMY,'','']
+  - DeepLabCut:
+    - ['','',false,DeepLabCut (DLC) settings.,'','']
+    - dlc_intermediate_supervision: ['Intermediate Supervision',boolean,true,'Do intermediate supervision while training the network ',0,'','Developer','']
+    - dlc_intermediate_supervision_layer: ['Layer for Intermediate Supervision',unsigned,true,'Layer for intermediate supervision while training the network ',12,'','Developer','']
+    - dlc_location_refinement: ['Location refinement',boolean,true,'Do Deeplabcut location refinement',1,'','Developer','']
+    - dlc_locref_huber_loss: ['Huber loss for location refinement',boolean,true,'Use huber loss for location refinement',1,'','Developer','']
+    - dlc_locref_loss_weight: ['Weight for location refinement loss',float,true,'Weight for location refinement loss',0.05,'','Developer','']
+    - dlc_locref_stdev: ['Std-dev for location refinement',float,true,'Std-dev for location refinement. Check DeepLabCut and DeeperCut documentation',7.2801,'','Developer','']
+    - dlc_use_apt_preprocess: ['Use APTs image augmentation.',boolean,true,'Use APTs image augmentation instead of DeepLabCuts native augmentaton',1,'','Advanced','']
+    - dlc_override_dlsteps: ['Override DLCs training iters',boolean,true,'Override DeepLabCuts default number of training iterations. DLCs is usually trained for a fixed number of iterations because it uses batch size of 1. You can override this and trained for number of iterations specified in the training iterations menu. The training however will use a batch size of 1.',0,'','Beginner','']
+
+
+

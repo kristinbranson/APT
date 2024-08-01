@@ -130,13 +130,12 @@ classdef CalRigZhang2CamBase < CalRig
       
       assert(isequal(size(xp),[2 1]));
       
-      [xn0,functol] = myparse(varargin,...
-        'xn0',[0;0],...
+      functol = myparse(varargin,...
         'functol',obj.proj2NormFuncTol...
         );
       
       fcn = @(xnguess) sum( (xp-obj.normalized2projected(xnguess(:),cam)).^2 );
-      %xn0 = [0;0];
+      xn0 = [0;0];
       
       % Old 
       % opts = optimset('TolX',1e-6);

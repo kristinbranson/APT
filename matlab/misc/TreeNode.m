@@ -125,6 +125,28 @@ classdef TreeNode < handle
       end
     end
     
+    function nodelist = flatten(t)
+      % return flat nodelist
+      
+      nodelist = cell(0,1);      
+      t.traverse(@lclAccum);
+      
+      nodelist = cat(1,nodelist{:});
+      
+      function lclAccum(x)
+        nodelist{end+1,1} = x;
+      end
+    end
+    
+    function nrepeatNodes = countRepeatNodes(t)
+      % nrepeatNodes: integer. if nodelist=t.flatten(), number of nodes
+      % in nodelist that appear at least twice in nodelist.
+      
+      nodelist = t.flatten();
+      cnt = arrayfun(@(x)nnz(nodelist==x),nodelist);
+      nrepeatNodes = nnz(cnt>1);      
+    end
+    
     function setValue(t,propFQN,propVal)
       % Set the property specified by propFQN to have the value propVal.
       %
@@ -147,7 +169,7 @@ classdef TreeNode < handle
       end
       v = node.Data.Value;
     end
-    
+        
   end
   
 end

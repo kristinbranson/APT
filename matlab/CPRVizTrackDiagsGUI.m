@@ -37,7 +37,7 @@ end
 vizObj = CPRVizTrackDiags(lObj,hObject);
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(lObj,'currFrame','PostSet',@(s,e)cbkCurrFrameChanged(s,e,vizObj));
-listeners{end+1,1} = addlistener(lObj,'currTarget','PostSet',@(s,e)cbkCurrTargetChanged(s,e,vizObj));
+listeners{end+1,1} = addlistener(lObj,'didSetCurrTarget',@(s,e)(cbkCurrTargetChanged(s,e,vizObj)));
 listeners{end+1,1} = addlistener(lObj,'newProject',@(s,e)cbkNewProj(s,e,vizObj));
 listeners{end+1,1} = addlistener(vizObj,'iRep','PostSet',@cbkRepChanged);
 listeners{end+1,1} = addlistener(handles.sldReplicate,'ContinuousValueChange',@(s,e)sldReplicate_Callback(s,e,struct('vizObj',vizObj)));
@@ -160,9 +160,10 @@ if ~vizObj.isinit
   updateVizFeaturesAndTable(vizObj);
 end
 
-function cbkCurrFrameChanged(src,evt,vizObj) %#ok<INUSL,*INUSD>
+function cbkCurrFrameChanged(~,~,vizObj)
 updateVizFeaturesAndTable(vizObj);
-function cbkCurrTargetChanged(src,evt,vizObj) %#ok<INUSL,*INUSD>
+
+function cbkCurrTargetChanged(~,~,vizObj)
 updateVizFeaturesAndTable(vizObj);
 
 function updateLandmarkDist(vizObj)

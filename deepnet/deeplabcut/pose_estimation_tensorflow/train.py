@@ -18,12 +18,10 @@ import threading
 import argparse
 from pathlib import Path
 import tensorflow as tf
-vers = (tf.__version__).split('.')
-if int(vers[0])==1 and int(vers[1])>12:
-    TF=tf.compat.v1
-else:
-    TF=tf
-import tensorflow.contrib.slim as slim
+#vers = (tf.__version__).split('.')
+TF=tf.compat.v1
+import tf_slim as slim
+#from tf_slim.nets import resnet_v1
 
 from deeplabcut.pose_estimation_tensorflow.config import load_config
 from deeplabcut.pose_estimation_tensorflow.dataset.pose_dataset import Batch
@@ -70,11 +68,7 @@ def setup_preloading(batch_spec):
     placeholders_list = list(placeholders.values())
 
     QUEUE_SIZE = 20
-    vers = (tf.__version__).split('.')
-    if int(vers[0])==1 and int(vers[1])>12:
-        q = tf.queue.FIFOQueue(QUEUE_SIZE, [tf.float32]*len(batch_spec))
-    else:
-        q = tf.FIFOQueue(QUEUE_SIZE, [tf.float32]*len(batch_spec))
+    q = tf.queue.FIFOQueue(QUEUE_SIZE, [tf.float32]*len(batch_spec))
     enqueue_op = q.enqueue(placeholders_list)
     batch_list = q.dequeue()
 
@@ -82,14 +76,19 @@ def setup_preloading(batch_spec):
     for idx, name in enumerate(names):
         batch[name] = batch_list[idx]
         batch[name].set_shape(batch_spec[name])
-    return batch, enqueue_op, placeholders
+    return batch, enqueue_op, placeholders, q
 
 
 def load_and_enqueue(sess, enqueue_op, coord, dataset, placeholders):
     while not coord.should_stop():
         batch_np = dataset.next_batch()
         food = {pl: batch_np[name] for (name, pl) in placeholders.items()}
-        sess.run(enqueue_op, feed_dict=food)
+        try:
+            sess.run(enqueue_op, feed_dict=food)
+        except tf.errors.CancelledError:
+            # Just ignore this error
+            logging.debug("Ignoring tf.errors.CancelledError in load_and_enqueue()")
+            pass
 
 
 def start_preloading(sess, enqueue_op, dataset, placeholders):
@@ -184,7 +183,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
         kk = dataset.next_batch() # for debugging
     logging.info('Time for inputting {}'.format( (time.time()-start)/1000))
     batch_spec = get_batch_spec(cfg)
-    batch, enqueue_op, placeholders = setup_preloading(batch_spec)
+    batch, enqueue_op, placeholders, q = setup_preloading(batch_spec)
     net = pose_net(cfg)
     losses = net.train(batch)
     total_loss = losses['total_loss']
@@ -227,7 +226,16 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
     sess.run(TF.local_variables_initializer())
 
     # Restore variables from disk.
-    restorer.restore(sess, cfg.init_weights)
+    try:
+        print(f'Initializing weights from {cfg.init_weights}')
+        wtfile = cfg.init_weights
+        if wtfile.endswith('.index'):
+            wtfile = ''.join(wtfile.rsplit('.index',1))
+        restorer.restore(sess, wtfile)
+    except Exception as e:
+        print(f'Could not load weights from {cfg.init_weights}')
+        print(e)
+
     if maxiters==None:
         max_iter = int(cfg.multi_step[-1][1])
     else:
@@ -303,6 +311,7 @@ def train(cfg_dict,displayiters,saveiters,maxiters,max_to_keep=5,keepdeconvweigh
 
     lrf.close()
     coord.request_stop()
+    sess.run(q.close(cancel_pending_enqueues=True))
     coord.join([thread],stop_grace_period_secs=60,ignore_live_threads=True)
     sess.close()
 
@@ -331,7 +340,7 @@ def get_pred_fn(cfg_dict, model_file=None):
     else:
         init_weights = model_file
 
-    tf.reset_default_graph()
+    TF.reset_default_graph()
     cfg.init_weights = init_weights
     sess, inputs, outputs = predict.setup_pose_prediction(cfg)
 

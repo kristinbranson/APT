@@ -1,7 +1,1117 @@
 
-cmd = '-name 20201110T005848 -view 1 -cache /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564 -debug -type mdn /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564/test1/20201110T005848_20201110T010044.lbl train -use_cache -skip_db'
+
+# cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
+
+cmd =['/groups/branson/home/kabram/.apt/tp7b481a44_7035_4538_8a2f_755ab2049701/floss/20230522T111707_20230522T111711.json', '-name', '20230522T111707', '-err_file', '/groups/branson/home/kabram/.apt/tp7b481a44_7035_4538_8a2f_755ab2049701/floss/multi_mdn_joint_torch/view_0/20230522T111707/trk/track_20230523T114657_mov1_vw1.err', '-type', 'multi_mdn_joint_torch', '-model_files', '/groups/branson/home/kabram/.apt/tp7b481a44_7035_4538_8a2f_755ab2049701/floss/multi_mdn_joint_torch/view_0/20230522T111707/deepnet-20000', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tp7b481a44_7035_4538_8a2f_755ab2049701', 'track', '-config_file', '/groups/branson/bransonlab/mayank/data/floss/floss_janelia/trkconfig_floss_floss_janelia_round2_magrone.json', '-track_type', 'only_link', '-out', '/groups/branson/bransonlab/mayank/data/floss/floss_janelia/floss_floss_janelia_round2_magrone.trk', '-mov', '/groups/branson/bransonlab/mayank/data/floss/floss_janelia/floss.mp4']
+
+#cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_mask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask True link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageBBox_nocrop_second_23022022/deepnet-100000 -conf_params2  -type2 mdn_joint_fpn -name2 2stageBBox_nocrop_second_23022022 -type detect_mmdetect track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_1_bbox.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/aa.trk -track_type only_predict -start_frame 48800 -end_frame 49000'
+
+
+if type(cmd)!=list:
+    cmd = cmd.replace('\\','')
+    cmd = cmd.replace('"','')
+    cmd = cmd.replace("'","")
+
+from reuse import *
+# cmd = cmd.replace('"/','/')
+# cmd = cmd.replace('" ',' ')
+if __name__ == '__main__':
+    if type(cmd) == list:
+        apt.main(cmd)
+    else:
+        cmd = cmd.replace('\\', '')
+        apt.main(cmd.split())
+
+
+##
+cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
+
+from reuse import *
+# cmd = cmd.replace('"/','/')
+# cmd = cmd.replace('" ',' ')
+if type(cmd) == list:
+    apt.main(cmd)
+else:
+    cmd = cmd.replace('\\', '')
+    apt.main(cmd.split())
+
+## creating conf two methods
+view = 0
+cache_dir = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535'
+net_type = 'mdn_joint_fpn'
+first_stage = False
+second_stage = False
+name = 'test'
+lbl_file = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535/more_than_two_mice/20210928T151013_20210928T151036.lbl'
+json_conf_file = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535/more_than_two_mice/20210928T151013_20210928T151036.json'
+json_trn_file = None
+conf_params = None
+quiet = False
+
+conf1 = apt.create_conf(lbl_file, view, name, cache_dir=cache_dir,net_type=net_type,first_stage=first_stage,second_stage=second_stage)
+
+A = pt.json_load(json_conf_file)
+net_names_dict = {'mdn':'MDN',
+                  'dpk':'DeepPoseKit',
+                  'openpose':'OpenPose',
+                  'multi_openpose':'MultiAnimalOpenPose',
+                  'sb':'',
+                  'unet':'Unet',
+                  'deeplabcut':'DeepLabCut',
+                  'leap':'LEAP',
+                  'detect_mmpose':'MMDetect',
+                  'mdn_joint_fpn':'GRONe',
+                  'multi_mdn_joint_torch':'MultiAnimalGRONe',
+                  'mmpose':'MSPN',
+                  }
+
+import poseConfig
+import re
+from APT_interface import to_py
+import ast
+
+conf = poseConfig.config()
+proj_name = A['ProjName']
+conf.set_exp_name(proj_name)
+cc = A['Config']
+conf.nviews = cc['NumViews']
+conf.n_classes = cc['NumLabelPoints']
+conf.selpts = np.arange(conf.n_classes)
+conf.project_file = ''   ## TODO
+conf.is_multi = cc['MultiAnimal']>0.5
+conf.img_dim = cc['NumChans']
+has_crops = cc['HasCrops']
+
+conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
+if not os.path.exists(conf.cachedir):
+    os.makedirs(conf.cachedir)
+
+if first_stage:
+    conf.stage = 'first'
+elif second_stage:
+    conf.stage = 'second'
+else:
+    conf.stage = None
+
+dt_params = A['TrackerData']['sPrmAll']['ROOT']
+if second_stage:
+    # Find out whether head-tail or bbox detector
+    if dt_params['MultiAnimal']['Detect']['multi_only_ht']:
+        conf.use_ht_trx = True
+    else:
+        conf.use_bbox_trx = True
+
+# If the project has trx file then we use the crop locs
+# specified by the user. If the project doesnt have trx files
+# then we use the crop size specified by user else use the whole frame.
+if conf.has_trx_file or conf.use_ht_trx or conf.use_bbox_trx:
+    width = dt_params['MultiAnimal']['TargetCrop']['Radius']*2
+    conf.imsz = (width,width)
+elif has_crops:
+    conf.imsz = (-1,-1)   # TODO
+else:
+    conf.imsz = (A['MovieInfo']['NumRows'],A['MovieInfo']['NumCols'])
+
+conf.labelfile = json_conf_file
+conf.sel_sz = min(conf.imsz)
+conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius']*2
+conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
+
+def set_all(conf, cur_set, flatten=False):
+    for k in cur_set:
+        if type(cur_set[k]) is not dict:
+            conf.__dict__[k] = cur_set[k]
+
+set_all(conf, dt_params['MultiAnimal'])
+set_all(conf, dt_params['DeepTrack']['Saving'])
+set_all(conf, dt_params['DeepTrack']['ImageProcessing'])
+set_all(conf, dt_params['DeepTrack']['GradientDescent'])
+set_all(conf, dt_params['DeepTrack']['DataAugmentation'])
+set_all(conf, dt_params['DeepTrack']['LossFunction'])
+set_all(conf, dt_params['MultiAnimal']['TrackletStitch'])
+
+conf.rescale = conf.scale
+conf.ht_pts = to_py(dt_params['MultiAnimal']['Detect']['ht_pts'])
+
+net_conf = dt_params['DeepTrack'][net_names_dict[net_type]]
+set_all(conf, net_conf)
+
+try:
+    conf.op_affinity_graph = poseConfig.parse_aff_graph(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
+except KeyError:
+    pass
+
+f_str = conf.flipLandmarkMatches
+graph = {}
+if f_str:
+    f_str = f_str.split(',')
+    for b in f_str:
+        mm = re.search('(\d+)\s+(\d+)', b)
+        n1 = int(mm.groups()[0]) - 1
+        n2 = int(mm.groups()[1]) - 1
+        graph['{}'.format(n1)] = n2
+        graph['{}'.format(n2)] = n1
+        # The keys have to be strings so that they can be saved in the trk file
+conf.flipLandmarkMatches = graph
+conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
+
+if conf_params is not None:
+    cc = conf_params
+    assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
+    for n, v in zip(cc[0::2], cc[1::2]):
+        if not quiet:
+            print('Overriding param %s <= ' % n, v)
+        setattr(conf, n, ast.literal_eval(v))
+
+# overrides for each network
+if net_type == 'sb':
+    sb.update_conf(conf)
+# elif net_type == 'openpose':
+#     op.update_conf(conf)
+elif net_type == 'dpk':
+    if conf.dpk_use_op_affinity_graph:
+        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+    else:
+        assert conf.dpk_skel_csv is not None
+        apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+
+# elif net_type == 'deeplabcut':
+#     conf.batch_size = 1
+elif net_type == 'unet':
+    conf.use_pretrained_weights = False
+
+conf.unet_rescale = conf.rescale
+conf.leap_rescale = conf.rescale
+
+assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
+
+import PoseTools as pt
+ks = list(conf1.__dict__.keys())
+for k in ks:
+    if k.startswith('DeepTrack_') or k.startswith('MultiAnimal_') or k[0].isupper():
+        conf1.__dict__.pop(k)
+
+pt.compare_conf(conf1,conf)
+
+
+
+##
+
+
+
+J = TrkFile.Trk('/groups/branson/home/kabram/temp/roian_190423_m2f0_vocpbm164564_m164564odor_m164301_f163284_ds2_grone_id_raw.trk');
+pred_locs = J.getfull()[0] ;
+pred_locs = np.transpose(pred_locs,[2,3,0,1]) ;
+pred_conf = J.pTrkConf.getdense()[0];
+pred_conf = np.transpose(pred_conf,[1,2,0]);
+pred_animal_conf = None
+
+
+## Training with neg APT
+from importlib import reload
+import Pose_detect_mmdetect as mmdetect_file
+reload(mmdetect_file)
+from Pose_detect_mmdetect import Pose_detect_mmdetect
+from poseConfig import conf
+conf.mmpose_use_epoch_runner = True
+conf.mmdetect_net = 'test'
+conf.cachedir = '/groups/branson/bransonlab/mayank/APT/deepnet/mmdetection/test_apt_neg'
+conf.dl_steps = 24*550
+self = Pose_detect_mmdetect(conf, 'deepnet')
+self.cfg.seed = 3
+self.cfg.model.train_cfg.rpn.assigner.type = 'APTMaxIoUAssigner'
+self.cfg.model.train_cfg.rpn.assigner.ignore_iof_thr = 0.2
+self.cfg.data.train.ann_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/detection_cache/trn_neg.json'
+self.cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
+# self.cfg.model.train_cfg.rpn_proposal.nms.iou_threshold=0.85
+
+# self.cfg.model.train_cfg.rpn.assigner.neg_iou_thr=(0.15,0.25)
+
+# self.cfg.load_from = '/groups/branson/bransonlab/mayank/APT/deepnet/mmdetection/test_apt1/epoch_4.pth'
+# self.cfg.model.rpn_head.anchor_generator.strides = [19,25,32,43,56]
+self.train_wrapper()
+
+##
+import numpy as np
+in_im = all_f[0,...,0]
+cols = all_f.shape[1]
+rows = all_f.shape[2]
+out_ims = []
+for rangle in range(-12,13):
+    ang = np.deg2rad(rangle)
+    rot = [[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]]
+    mat = cv2.getRotationMatrix2D((cols / 2, rows / 2), rangle, 1)
+    ii = in_im.copy()
+    ii = cv2.warpAffine(ii, mat, (int(cols), int(rows)), flags=cv2.INTER_CUBIC)  # ,borderMode=cv2.BORDER_REPLICATE)
+    if ii.ndim == 2:
+        ii = ii[..., np.newaxis]
+    out_ims.append(ii)
+
+out_ims = np.array(out_ims)
+
+out_l  = []
+for rxx in range(out_ims.shape[0]//8):
+    zz = pred_fn(out_ims[rxx*8:(rxx+1)*8,...])
+    out_l.append(zz['locs'])
+
+out_l = np.concatenate(out_l,axis=0)
+dd = np.diff(out_l,axis=0)
+dd = np.linalg.norm(dd,axis=-1)
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"mspn\" dl_steps 100000 rrange 30 trange 20 imsz \(192,192\) trx_align_theta True img_dim 1 ht_pts \(0,6\) use_ht_trx True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type mmpose -name alice_neg -cache /nrs/branson/mayank/apt_cache_2  train -use_cache -skip_db'
+cmd = cmd.replace('\\','')
+#cmd = cmd.replace('"','')
+apt.main(cmd.split())
+
+##
+aa = [np.array(yy['keypoints']).reshape([-1,3]) for yy in Y['annotations']]
+negs = [np.all(np.isnan(a[:,:2])) for a in aa]
+nx = [i for i,x in enumerate(negs) if x]
+
+##
+f,ax = plt.subplots(5,5)
+ax = ax.flatten()
+for ndx,sel in enumerate(nx):
+    iid = Y['annotations'][sel]['image_id']
+    im = cv2.imread(Y['images'][iid]['file_name'])
+    ax[ndx].imshow(im)
+    bb = np.array(Y['annotations'][sel]['segmentation']).reshape(4,2)
+    # mask = apt.create_mask([bb],[320,320])
+    ax[ndx].plot(bb[:,0],bb[:,1])
+
+## single animal ht
+# import APT_interface as apt
+# import os
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"tfrecord\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True  multi_crop_ims True rrange 30 trange 30 is_multi False max_n_animals 7 imsz \(192,192\) use_ht_trx True ht_pts \(0,6\) -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type openpose -name alice_ht_test -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache'
+# cmd = cmd.replace('\\','')
+# apt.main(cmd.split())
+
+##
+import APT_interface as apt
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -conf_params db_format \"coco\" mmpose_net \"higherhrnet\" dl_steps 100000 op_affinity_graph \(\(0,1\),\(0,5\),\(1,2\),\(3,4\),\(3,5\),\(5,6\),\(5,7\),\(5,9\),\(3,16\),\(9,10\),\(10,15\),\(9,14\),\(4,11\),\(7,8\),\(8,12\),\(7,13\)\) multi_use_mask False multi_loss_mask True multi_crop_ims True rrange 180 trange 30 is_multi True max_n_animals 7 ht_pts \(0,6\) multi_only_ht True -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split_neg.json -type multi_mdn_joint_torch -name alice_neg_ht_test -cache /nrs/branson/mayank/apt_cache_2 -no_except train -use_cache'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+# %run reuse
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl'
+
+n_pairs = [['multi_openpose','openpose']]
+curp = n_pairs[0]
+net_type = curp[0] #'multi_mdn_joint_torch' #'multi_mmpose' #
+train_name = 'deepnet'
+
+run_name = f'roian_split_crop_ims_{curp[1]}_multi'
+conf = apt.create_conf(lbl_file,0,run_name,net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+# conf.batch_size = 4 if net_type == 'multi_openpose' else 8
+db_file = '/nrs/branson/mayank/apt_cache_2/four_points_180806/multi_mdn_joint_torch/view_0/roian_split_full_ims_grone_multi/val_TF.json'
+conf.db_format = 'coco'
+conf.max_n_animals = 2
+conf.imsz = (1024*2,1024*2) #(288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet' #'higherhrnet_2x'#
+conf.is_multi = True
+conf.op_affinity_graph = ((0,1),(0,2),(0,3))
+conf.batch_size = 2
+conf.rescale = 1
+conf.background_mask_sel_rate = 1.1
+info =[3,3,3]
+T = pt.json_load('/nrs/branson/mayank/apt_cache_2/four_points_180806/loc_split.json')
+im = cv2.imread('/nrs/branson/mayank/apt_cache_2/four_points_180806/'+T['locdata'][0]['img'][0],cv2.IMREAD_UNCHANGED)
+cur_pts = np.array(T['locdata'][0]['pabs']).reshape([2,4,2]).transpose([2,1,0])
+occ = np.array(T['locdata'][0]['occ']).reshape([4,-1]).transpose([1,0])
+
+
+##
+mcase = 'far2'
+debug = True
+plt.close('all')
+if mcase == 'overlap':
+    extra_roi = np.array([[
+        [ 820.36679812, 286.26984163],
+        [ 820.36679812, 2587.13256204],
+        [2173.98770493, 2587.13256204],
+        [2173.98770493, 286.26984163]]])
+elif mcase =='full':
+    extra_roi = np.array( [[[0, 0], [0, 2048], [2048, 2048], [2048, 0]]])
+elif mcase =='fit':
+    extra_roi = np.array( [[[1290, 190],
+                            [1290, 500],
+                            [1400, 500],
+                            [1400, 190]]])
+elif mcase == 'far':
+    extra_roi = np.array( [[[1190, 1090],
+                            [1190, 1200],
+                            [500, 1200],
+                            [500, 1090]]])
+
+elif mcase == 'far2':
+    extra_roi = np.array( [[[1190, 1090],
+                            [1190, 1200],
+                            [500, 1200],
+                            [500, 1090]],
+                           [[1190, 1290],
+                            [1190, 1400],
+                            [500, 1400],
+                            [500, 1290]]
+                           ])
+
+roi = np.array(T['locdata'][0]['roi']).reshape([2,4,-1]).transpose([2,1,0])
+conf.multi_frame_sz = [2048,2048]
+conf.imsz = [640,640]
+
+if debug:
+    roim = apt.create_mask(roi,conf.multi_frame_sz)
+    eroim = apt.create_mask(extra_roi,conf.multi_frame_sz)
+    f = plt.figure();
+    plt.imshow(im*(roim|eroim),'gray')
+
+all_data = apt.create_ma_crops(conf,np.tile(im[...,None],[1,1,3]),cur_pts,info,occ,roi,extra_roi)
+
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+
+if debug:
+    f1,ax = plt.subplots(int(np.ceil(len(all_data)/2)),2)
+    ax = ax.flatten()
+    for ndx, a in enumerate(all_data):
+        mm = apt.create_mask(a['roi'],conf.imsz)
+        if a['extra_roi'] is not None:
+            mm = mm| apt.create_mask(a['extra_roi'],conf.imsz)
+        ax[ndx].imshow(a['im']*mm[:,:,None])
+        ax[ndx].axis('off')
+
+    plt.figure(f.number)
+    plt.axis('off')
+    for a in all_data:
+        xx = [a['x_left'],a['x_left'],a['x_left']+conf.imsz[1],a['x_left']+conf.imsz[1],a['x_left']]
+        yy = [a['y_top'],a['y_top']+conf.imsz[0],a['y_top']+conf.imsz[0],a['y_top'],a['y_top']]
+        plt.plot(xx,yy)
+
+##
+ix = 1127
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+conf.batch_size = 1
+rr = 8
+pl = []
+plt.cla()
+imshow(im[0,...,0],'gray')
+for xx in range(-rr,rr+1,4):
+    xl = []
+    for yy in range(-rr,rr+1,4):
+        oim = np.pad(im,[[0,0],[rr,rr],[rr,rr],[0,0]])
+        oim = oim[:,(rr+yy):(rr+yy+1024),(rr+xx):(rr+xx+1024),:]
+        dfile = os.path.join('/tmp/',f'diagnose_val_{ix}_wt_offset_5.p')
+        import Pose_multi_mdn_joint_torch
+        pp = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf,name='wt_offset_5')
+        pp.diagnose(oim,dfile)
+        A = pt.pickle_load(dfile)
+        A = A['ret_dict']
+        # curl = A['locs'][0]
+        curl = A['raw_locs'][0]['joint'][0]
+        curl[...,0] += xx
+        curl[...,1] += yy
+        xl.append(curl.copy())
+        mdskl(curl,conf.op_affinity_graph)
+    pl.append(xl)
+mdskl(np.clip(ll1[ix,...],0,10000),conf.op_affinity_graph,cc=[0,0,1.])
+aa = np.array(pl)
+plt.title(f'{ix}')
+##
+layers  = list(model.named_modules())
+layers = [l for l in layers if 'conv' in l[0]]
+train_dict = {}
+for l in layers:
+    train_dict[l[0]] = None
+
+def save_outputs_hook(layer_id: str):
+    def fn(_, __, output):
+        oo = output.detach().cpu().numpy().copy()
+        if train_dict[layer_id] is None:
+            train_dict[layer_id] = [[oo.sum(axis=(0,2,3))],[(oo**2).sum(axis=(0,2,3))]]
+        else:
+            train_dict[layer_id][0].append(oo.sum(axis=(0,2,3)))
+            train_dict[layer_id][1].append((oo**2).sum(axis=(0, 2, 3)))
+    return fn
+
+for l in layers:
+    if 'conv' not in l[0]:
+        continue
+    l[1].register_forward_hook(save_outputs_hook(l[0]))
+
+import cv2
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'train', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+for ix in range(0,500,10):
+    im_file = os.path.join(conf.cachedir, 'val', f'{ix:08}.png')
+    im = cv2.imread(im_file, cv2.IMREAD_UNCHANGED)
+    im = np.tile(im[None, ..., None], [1, 1, 1, 3])
+    sims, _ = PoseTools.preprocess_ims(im, locs_dummy[:1], conf, False, conf.rescale)
+    with torch.no_grad():
+        preds = model({'images': torch.tensor(sims).permute([0, 3, 1, 2]) / 255.})
+
+##
+import pickle
+k = 'module.locs_ref.conv1'
+rr = [np.array(t) for t in train_dict[k]]
+k1 = 'module.locs_joint.conv1'
+rr1 = [np.array(t) for t in train_dict[k1]]
+
+with open('/groups/branson/home/kabram/temp/grone_out_offset5.p','wb') as f:
+    pickle.dump({k:rr,k1:rr1},f)
+
+##
+
+k = 'module.locs_ref.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+k = 'module.locs_joint.conv1'
+# rr = [np.array(t) for t in train_dict[k]]
+rr = A[k]
+f,ax = plt.subplots(1,2)
+ax = ax.flatten()
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+# rr = A[k]
+rm = rr[0][:50].sum(axis=0).std()
+ax[0].scatter(rr[0][:50].sum(axis=0)/rm,rr[0][50:].sum(axis=0)/rm,marker='.')
+rm = rr[1][:50].sum(axis=0).std()
+ax[1].scatter(rr[1][:50].sum(axis=0)/rm,rr[1][50:].sum(axis=0)/rm,marker='.')
+ax[0].axis('equal')
+ax[1].axis('equal')
+
+## diagnose grone
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+
+net_type = 'multi_mdn_joint_torch' #'multi_mmpose' #
+# train_name = 'grone_maskim' # 'higher'# 'deepnet' #
+run_name = 'val_split'
+train_name = 'deepnet'
+
+run_name = 'alice_maskim_split_crop_ims_grone_multi'
+# train_name = 'grone_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# net_type = 'multi_mmpose' #'multi_mmpose' #
+# train_name = 'higherhr_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# train_name = 'higherhr_maskim' # 'higher'# 'deepnet' #
+# run_name = 'maskim_split'
+
+# net_type = 'multi_openpose' #'multi_mmpose' #
+# train_name = 'openpose_maskloss' # 'higher'# 'deepnet' #
+# run_name = 'val_split'
+
+# db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/val_split/val_TF.json'
+# use whole unmasked images for validation
+conf = apt.create_conf(lbl_file,0,run_name,net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+# conf.batch_size = 4 if net_type == 'multi_openpose' else 8
+db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/val_split_fullims/val_TF.json'
+conf.db_format = 'coco'
+conf.max_n_animals = 10
+conf.imsz = (1024,1024) #(288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet' #'higherhrnet_2x'#
+conf.is_multi = True
+conf.op_affinity_graph = ((0,1),(0,5),(1,2),(3,4),(3,5),(5,6),(5,7),(5,9),(3,16),(9,10),(10,15),(9,14),(4,11),(7,8),(8,12),(7,13))
+
+import Pose_multi_mdn_joint_torch
+import cv2
+ix = 862
+im_file = os.path.join(os.path.dirname(db_file),'val',f'{ix:08}.png')
+im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+im = np.tile(im[None,...,None],[1,1,1,3])
+import PoseTools as pt
+A = pt.pickle_load('/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/alice_maskim_split_crop_ims_grone_multi/diagnose_20210201')
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+plt.imshow(im[0,:,:,0],'gray')
+A = A['ret_dict']
+kk = A['preds'][0]
+kk1 = A['preds'][1]
+jj1 =  A['raw_locs'][1]['ref'][0] + 16
+jj =  A['raw_locs'][0]['ref'][0]
+ff =  jj[-1,...]
+ff1 = jj1[4,...]
+ff-ff1
+mm = kk[0][0,...,0,23,23]
+mm.round()
+mm1 = kk1[0][0,...,0,23,23]
+mm1.round()
+## masking loss
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import APT_interface as apt
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/alice_ma/loc_split.json -conf_params dl_steps 110000 is_multi True multi_use_mask False multi_loss_mask True mmpose_net \"higherhrnet\" db_format \"coco\" max_n_animals 7  -train_name higherhr_maskloss -type multi_mmpose -name val_split -cache /nrs/branson/mayank/apt_cache_2 train -continue -skip_db'
+cmd = cmd.replace('\\','')
+apt.main(cmd.split())
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+
+cmd = '/nrs/branson/mayank/apt_cache_2/four_points_180806/20201225T042233_20201225T042235.lbl -json_trn_file /nrs/branson/mayank/apt_cache_2/four_points_180806/loc.json -conf_params dl_steps 200000 pretrain_freeze_bnorm False is_multi True mmpose_net "higherhrnet" multi_use_mask False db_format "coco" batch_size 2 max_n_animals 2 save_step 10000 -train_name grone_nomask_bn -type multi_mdn_joint_torch -name full_dataset -cache /nrs/branson/mayank/apt_cache_2 train -skip_db'
+
+
 import APT_interface as apt
 apt.main(cmd.split())
+
+
+##
+nims = len(A['images'])
+aas = np.random.rand(nims,11,2,3)*-1000
+for im in range(nims):
+    lndx = 0
+    for a in A['annotations']:
+        if not (a['image_id'] == im):
+            continue
+        locs = np.array(a['keypoints'])
+        locs = np.reshape(locs, [2, 3])
+        aas[im,lndx, ...] = locs
+        lndx += 1
+
+dd = np.ones([nims,11,11])*10000
+for ix in range(2):
+    for iy in range(2):
+        cdd = np.linalg.norm(aas[:,:,np.newaxis,ix,:2]-aas[:,np.newaxis,:,iy,:2],axis=-1)
+        dd = np.minimum(cdd,dd)
+dd = dd.reshape([nims,-1])
+dd[:,::12] = 1000
+dd = dd.reshape([nims,11,11])
+##
+kk = np.where(dd<20)
+sndx = np.random.randint(len(kk[0]))
+plt.figure(210)
+plt.cla()
+plt.plot(aas[kk[0][sndx],:,:,0].T,aas[kk[0][sndx],:,:,1].T)
+plt.show()
+##
+import h5py
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+lbl = h5py.File(lbl_file,'r')
+exp_list = lbl['movieFilesAll'][0, :]
+local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
+try:
+    for k in lbl['projMacros'].keys():
+        r_dir = u''.join(chr(c) for c in lbl['projMacros'][k])
+        local_dirs = [s.replace('${}'.format(k), r_dir) for s in local_dirs]
+except:
+    pass
+
+vals = []
+from scipy import io as sio
+for ndx in range(len(local_dirs)):
+    pfile = local_dirs[ndx].replace('movie.ufmf','perframe/dnose2ell.mat')
+    Z = sio.loadmat(pfile)
+    for im in range(ims):
+        if A['images']['movid'] != ndx:
+            continue
+        fr = A['images']['frm']
+
+
+
+##
+
+rep = np.zeros(p.shape[-1])
+flip = np.zeros(p.shape[-1])
+
+for t in range(p.shape[-1]):
+    cp = p[...,t]
+    dd1 = np.linalg.norm(cp[:,:,np.newaxis,:]-cp[:,:,:,np.newaxis],axis=0).sum(0)
+    dd1.flat[::dd1.shape[0]+1] = 1000
+    cpi = cp[:,[1,0],...]
+    dd2 = np.linalg.norm(cp[:,:,np.newaxis,:]-cpi[...,np.newaxis],axis=0).sum(0)
+    while np.any(dd1<14):
+        rep[t] = 1
+        zz = np.where(dd1<14)[0][-1]
+        p[:,:,zz,t] = np.nan
+        cp = p[...,t]
+        dd1 = np.linalg.norm(cp[:,:,np.newaxis,:]-cp[:,:,:,np.newaxis],axis=0).sum(0)
+        dd1.flat[::dd1.shape[0]+1] = 1000
+    if np.any(dd2<14):
+        flip[t] = 1
+
+
+
+## Debugging errors in Alice's MA tracking
+pp = newtrk['pTrk']
+t = 100
+for t1 in range(t,t+800):
+    id1 = np.nonzero(~np.isnan(pp[0,0,t1,:]))[0]
+    id2 = np.nonzero(~np.isnan(pp[0,0,t1+1,:]))[0]
+    if not np.array_equal(id1,id2):
+        print(t1,id1.shape[0],id2.shape[0])
+        print(id1)
+        print(id2)
+        break
+
+#
+pp = newtrk['pTrk']
+t = t1
+id1 = np.nonzero(~np.isnan(pp[0,0,t,:]))
+id2 = np.nonzero(~np.isnan(pp[0,0,t+1,:]))
+print(id1)
+print(id2)
+if not np.array_equal(id1,id2):
+    mov = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf'
+    # mov = '/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg'
+    import movies
+
+    cap = movies.Movie(mov)
+    fr = cap.get_frame(t)[0]
+    fr1 = cap.get_frame(t+1)[0]
+    f = plt.figure(234,frameon=False)
+    plt.cla()
+    plt.imshow(np.minimum(fr,fr1),'gray')
+    plt.plot(pp[:,0,t,:],pp[:,1,t,:],c='r')
+    # plt.scatter(pp[0, 0, t, :], pp[0, 1, t, :], c='r',marker='^')
+    plt.plot(pp[:,0,t+1,:]+3,pp[:,1,t+1,:]+3,c='b')
+    # plt.scatter(pp[0, 0, t+1, :]+3, pp[0, 1, t+1, :]+3, c='b',marker='^')
+    plt.plot(p[0,:,:,t]+6,p[1,:,:,t]+6,c='g')
+    plt.plot(p[0,:,:,t+1]-3,p[1,:,:,t+1]-3,c='k')
+
+##
+import APT_interface as apt
+import Pose_multi_mdn_joint_torch
+import torch
+import numpy as np
+import PoseTools
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+conf = apt.create_conf(lbl_file,0,'full_touch_20200811','/nrs/branson/mayank/apt_cache_2','multi_mdn_joint_torch')
+conf.has_trx_file = False
+conf.imsz = (1024, 1024)
+conf.batch_size = 1
+conf.max_n_animals = 12
+conf.is_multi = True
+conf.mmpose_net = "higherhrnet"
+model_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/full_touch_20200811/grone-100000'
+self = Pose_multi_mdn_joint_torch.Pose_multi_mdn_joint_torch(conf)
+model = self.create_model()
+model = torch.nn.DataParallel(model)
+
+self.model = model
+self.restore(model_file, model)
+model.to('cuda')
+model.eval()
+conf = self.conf
+match_dist = 4
+
+##
+t = 1140
+fr = cap.get_frame(t)[0]
+ims = np.tile(fr[np.newaxis,...,np.newaxis],[1,1,1,3])
+locs_sz = (conf.batch_size, conf.n_classes, 2)
+locs_dummy = np.zeros(locs_sz)
+
+ims, _ = PoseTools.preprocess_ims(ims, locs_dummy, conf, False, conf.rescale)
+with torch.no_grad():
+    preds = model({'images': torch.tensor(ims).permute([0, 3, 1, 2]) / 255.})
+
+# do prediction on half grid cell size offset images. o is for offset
+hsz = 16
+oims = np.pad(ims, [[0, 0], [0, hsz], [0, hsz], [0, 0]])[:, hsz:, hsz:, :]
+with torch.no_grad():
+    opreds = model({'images': torch.tensor(oims).permute([0, 3, 1, 2]) / 255.})
+locs = self.get_joint_pred(preds)
+olocs = self.get_joint_pred(opreds)
+
+plt.figure(322)
+plt.cla()
+plt.imshow(fr,'gray')
+plt.scatter(locs['ref'][...,0],locs['ref'][...,1])
+plt.scatter(olocs['ref'][...,0]+16,olocs['ref'][...,1]+16)
+
+plt.figure(333)
+plt.cla()
+plt.imshow(opreds[1][0,2,:,:].cpu().numpy().reshape([32,32]))
+
+matched = {}
+for dkeys in ['ref','joint']:
+    olocs_orig = olocs[dkeys] + hsz
+    locs_orig = locs[dkeys]
+    cur_pred = np.ones_like(olocs_orig) * np.nan
+    dd = olocs_orig[:,:,np.newaxis,...] - locs_orig[:,np.newaxis,...]
+    dd = np.linalg.norm(dd,axis=-1).mean(-1)
+    matched_ndx = 0
+    # match predictions from offset pred and normal preds
+    for b in range(dd.shape[0]):
+        done_offset = np.zeros(dd.shape[1])
+        done_locs = np.zeros(dd.shape[1])
+        for ix in range(dd.shape[1]):
+            if np.all(np.isnan(dd[b,:,ix])):
+                continue
+            olocs_ndx = np.nanargmin(dd[b,:,ix])
+            if dd[b,olocs_ndx,ix] < match_dist:
+                cc = (olocs_orig[b,olocs_ndx,...] + locs_orig[b,ix,...])/2
+                done_offset[olocs_ndx] = 1
+                done_locs[ix] = 1
+                print(f'Matched {ix} with {olocs_ndx}')
+            else:
+                cc = locs_orig[b,ix,...]
+                done_locs[ix] = 1
+            cur_pred[b,matched_ndx,...] = cc
+            matched_ndx += 1
+        for ix in np.where(done_offset<0.5)[0]:
+            if np.all(np.isnan(dd[b,ix,:])):
+                continue
+            if matched_ndx >= conf.max_n_animals:
+                break
+            cc = olocs_orig[b,ix,...]
+            cur_pred[b,matched_ndx,...] = cc
+            matched_ndx += 1
+    matched[dkeys] = cur_pred
+matched['ref'][0,:,0,0]
+## Roian -no mask
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+import objgraph
+cmd = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl -name full_touch_20200811 -type multi_mmpose -train_name higherhrnet -conf_params has_trx_file False imsz (1024,1024) batch_size 1 max_n_animals 12 is_multi True mmpose_net "higherhrnet" -cache /nrs/branson/mayank/apt_cache_2 track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/alice_multi/cx_GMR_SS00030_CsChr_RigC_20150826T144616_higherhrnet.trk'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+
+from mmcv import Config, DictAction
+import APT_interface as apt
+import os
+import numpy as np
+import poseConfig
+import matplotlib
+matplotlib.use('TkAgg')
+from Pose_mmpose import Pose_mmpose
+
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2','mmpose')
+conf.batch_size = 3
+conf.imsz = [768,768]#(sz+2*buffer,sz+2*buffer)
+conf.rescale = 1.
+conf.save_step = 10000
+conf.dl_steps = 100000
+conf.brange = [0,0]
+conf.crange =[1,1]
+conf.horz_flip = True
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+conf.mmpose_use_apt_augmentation = False
+ss = Pose_mmpose(conf,'mmpose_aug')
+# ss.cfg.model.pretrained='/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mmpose/view_0/deepnet/mmpose_aug-100000'
+ss.train_wrapper(False)
+
+
+## debugging topk for mmpose
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+import torch
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+db_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/apt/val_TF.json'
+
+net_type = 'multi_mmpose' #'multi_mdn_joint_torch' #
+train_name = 'higher_2x' # 'higher'# 'deepnet' #
+conf = apt.create_conf(lbl_file,0,'apt',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.db_format = 'coco'
+conf.max_n_animals = 8
+conf.imsz = (288,288)
+conf.img_dim = 3
+conf.mmpose_net = 'higherhrnet_2x'#'higherhrnet'
+conf.is_multi = True
+conf.min_n_animals = 2
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+torch.cuda.empty_cache()
+
+def find_dist_match(dd):
+    dout = np.ones_like(dd[:,:,0,:])*np.nan
+    yy = np.nanmean(dd,axis=-1)
+    for a in range(dd.shape[0]):
+        for ndx in range(dd.shape[2]):
+            if np.all(np.isnan(yy[a,:,ndx])):
+                continue
+            r = np.nanargmin(yy[a,:,ndx])
+            dout[a,ndx,:] = dd[a,r,ndx,:]
+    return dout
+
+
+pp1 = out[0]
+ll1 = out[1]
+dd1 = np.linalg.norm(pp1[:,:,np.newaxis,...]-ll1[:,np.newaxis,...],axis=-1)
+dd1 = find_dist_match(dd1)
+valid = ll1[:,:,0,0]>-1000
+dd1_val = dd1[valid,:]
+np.nanpercentile(dd1_val,[50,75,90,95,97],axis=0)
+
+
+##
+import APT_interface as apt
+import poseConfig
+from Pose_multi_mmpose import Pose_multi_mmpose
+
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+conf = apt.create_conf(lbl_file,0,'apt','/nrs/branson/mayank/apt_cache_2','multi_mmpose')
+
+conf.db_format = 'coco'
+conf.dl_steps = 500
+conf.nviews = 1
+conf.view = 0
+conf.n_classes = 17
+conf.is_multi = True
+conf.mmpose_net = 'higherhrnet_2x'
+conf.json_trn_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc.json'
+conf.max_n_animals = 7
+conf.mmpose_use_apt_augmentation = False
+conf.set_exp_name('alice')
+
+apt.setup_ma(conf)
+# apt.create_coco_db(conf,True)
+self = Pose_multi_mmpose(conf,'higherhr_2x')
+self.train_wrapper()
+
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] ='0'
+from importlib import reload
+import APT_interface as apt
+reload(apt)
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+split_trn = '/nrs/branson/mayank/apt_cache_2/alice_ma/loc_split.json'
+cmd = f'{lbl_file} -json_trn_file {split_trn} -conf_params dl_steps 100000 is_multi True db_format \"coco\" max_n_animals 7 -type multi_mdn_joint_torch -cache /nrs/branson/mayank/apt_cache_2 train -skip_db'
+apt.main(cmd.split())
+
+
+##
+cmd = '-name 20200925T080001 -view 1 -cache /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800 -type mdn /groups/branson/home/kabram/.apt/tp3fdd7f66_1a7e_4213_b390_47a7e8798800/alice_test/20200925T080001_20200925T080130.lbl train -use_cache -skip_db'
+## Roian Tracking
+# cmd = '-name 20201110T005848 -view 1 -cache /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564 -debug -type mdn /groups/branson/home/kabram/.apt/tp8480fd4e_f20c_4592_8eb6_29a1a0ff4564/test1/20201110T005848_20201110T010044.lbl train -use_cache -skip_db'
+cmd = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl -name full -type multi_mdn_joint_torch -no_except -conf_params has_trx_file False imsz (2048,2048) batch_size 1 max_n_animals 2 is_multi True -cache /nrs/branson/mayank/apt_cache_2 track -mov /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg -out /groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.trk1 -start_frame 481 -end_frame 482'
+import APT_interface as apt
+apt.main(cmd.split())
+
+##
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+import torch
+import matplotlib
+matplotlib.use('TkAgg')
+import os
+
+exp_name = 'alice' #'roian'
+net_type = 'multi_mmpose' #'multi_openpose'#'multi_mdn_joint_torch'
+scale = 1
+flip_idx = {}
+if exp_name == 'alice':
+    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+    n_grid = 4
+    sz = np.round(1024 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 10  # extra pixels around bb
+    buffer = 60  # roughly half the animal size + bb_ex
+    max_n = 6
+    af_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+    isz = sz+2*buffer
+    flip_idx = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+    if net_type == 'multi_mdn_joint_torch':
+        name = '?'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 4
+    elif net_type == 'multi_mmpose':
+        name = 'fixed_lr_mmpose_aug'
+        scale = isz/384
+
+elif exp_name == 'roian':
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
+    n_grid = 8
+    sz = np.round(2048 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 40  # extra pixels around bb
+    buffer = 170  # roughly half the animal size + bb_ex
+    max_n = 2
+    af_graph = ((0,1),(0,2),(0,3),(2,3))
+    isz = sz+2*buffer
+    flip_idx = {'2':3,'3':2}
+    if net_type == 'multi_mdn_joint_torch':
+        name = 'try_1'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 6
+
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (isz,isz)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.op_affinity_graph = af_graph
+conf.mdn_joint_use_fpn = True
+conf.batch_size = 1
+conf.rescale = scale
+conf.flipLandmarkMatches = flip_idx
+
+if net_type == 'multi_mmpose':
+    db_file = os.path.join(conf.cachedir.replace('multi_mmpose','multi_mdn_joint_torch'), 'val_TF.tfrecords')
+else:
+    db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=name)
+torch.cuda.empty_cache()
+# net_type = 'multi_openpose'; train_name =  '50k_resnet'
+# conf.cachedir = '/nrs/branson/mayank/apt_cache_2/multitarget_bubble/multi_openpose/view_0/deepnet/'
+# out1 = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=train_name)
+
+def find_dist_match(dd):
+    dout = np.ones_like(dd[:,:,0,:])*np.nan
+    yy = np.nanmean(dd,axis=-1)
+    for a in range(dd.shape[0]):
+        for ndx in range(dd.shape[2]):
+            if np.all(np.isnan(yy[a,:,ndx])):
+                continue
+            r = np.nanargmin(yy[a,:,ndx])
+            dout[a,ndx,:] = dd[a,r,ndx,:]
+    return dout
+
+
+pp1 = out[0]
+ll1 = out[1]
+dd1 = np.linalg.norm(pp1[:,:,np.newaxis,...]-ll1[:,np.newaxis,...],axis=-1)
+dd1 = find_dist_match(dd1)
+valid = ll1[:,:,0,0]>-1000
+dd1_val = dd1[valid,:]
+
+
+## mmpose single animal
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+import APT_interface as apt
+net = 'mmpose'
+tname = 'mmpose_aug'
+mfile = f'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/{net}/view_0/deepnet/{tname}-100000'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2',net)
+conf.rescale = conf.imsz[0]/768
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+aa = apt.classify_db_all('mmpose',conf,'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mdn_joint_fpn/view_0/multi_compare/val_TF.tfrecords',mfile)
+import numpy as np
+dd = np.linalg.norm(aa[0]-aa[1],axis=-1)
+ss = np.percentile(dd,[50,76,90,95,97],axis=0)
+
+
+
+
+##
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import APT_interface as apt
+import poseConfig
+from Pose_multi_mmpose import Pose_multi_mmpose
+from Pose_multi_mdn_joint_torch import Pose_multi_mdn_joint_torch
+
+lbl_file = '/nrs/branson/mayank/apt_cache_2/alice_ma/alice_ma.lbl_multianimal.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2','multi_mdn_fpn_torch')
+
+conf.cachedir = '/nrs/branson/mayank/apt_cache_2/alice_ma/'
+conf.db_format = 'coco'
+conf.dl_steps = 100000
+conf.nviews = 1
+conf.view = 0
+conf.n_classes = 17
+conf.is_multi = True
+conf.max_n_animals = 6
+conf.set_exp_name('alice')
+
+apt.setup_ma(conf)
+# apt.create_coco_db(conf,True)
+# self = Pose_multi_mmpose(conf,'test')
+self = Pose_multi_mdn_joint_torch(conf,name='test')
+self.train_wrapper()
+
+
+##
+import APT_interface as apt
+net = 'mmpose'
+tname = 'mmpose_aug'
+mfile = f'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/{net}/view_0/deepnet/{tname}-100000'
+lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+conf = apt.create_conf(lbl_file,0,'deepnet','/nrs/branson/mayank/apt_cache_2',net)
+conf.rescale = 183/768
+conf.flipLandmarkMatches = {'11': 16, '16': 11, '1': 2, '2': 1, '3': 4, '4': 3, '7': 9, '9': 7, '8': 10, '10': 8, '12': 15, '15': 12, '13': 14, '14': 13}
+aa = apt.classify_db_all('mmpose',conf,'/nrs/branson/mayank/apt_cache_2/multitarget_bubble/mdn_joint_fpn/view_0/multi_compare/val_TF.tfrecords',mfile)
+dd = np.linalg.norm(aa[0]-aa[1],axis=-1)
+ss = np.percentile(dd,[50,76,90,95,97],axis=0)
+
+##
+import APT_interface as apt
+import poseConfig
+from Pose_multi_mmpose import Pose_multi_mmpose
+conf = poseConfig.conf
+
+conf.labelfile = '/groups/branson/bransonlab/apt/ma/trnpack_20201123/bub_wking_2movs_20201112.lbl_multianimal.lbl'
+conf.cachedir = '/groups/branson/home/kabram/temp/mapack'
+conf.db_format = 'coco'
+conf.dl_steps = 500
+conf.nviews = 1
+conf.view = 0
+conf.n_classes = 17
+conf.is_multi = True
+conf.set_exp_name('alice')
+
+apt.setup_ma(conf)
+apt.create_coco_db(conf,True)
+self = Pose_multi_mmpose(conf,'test')
+self.train_wrapper()
 
 ##
 
@@ -14,6 +1124,100 @@ import torch
 import matplotlib
 matplotlib.use('TkAgg')
 import os
+
+exp_name = 'alice' #'roian'
+net_type = 'multi_mmpose' #'multi_openpose'#'multi_mdn_joint_torch'
+scale = 1
+if exp_name == 'alice':
+    lbl_file = '/groups/branson/home/kabram/APT_projects/alice_touch_stripped.lbl'
+    n_grid = 4
+    sz = np.round(1024 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 10  # extra pixels around bb
+    buffer = 60  # roughly half the animal size + bb_ex
+    max_n = 6
+    af_graph = ((0,1),(1,2),(0,5),(5,3),(3,16),(3,4),(4,11),(5,9),(9,10),(10,15),(5,14),(5,6),(5,13),(5,7),(7,8),(8,12))
+    isz = sz+2*buffer
+    if net_type == 'multi_mdn_joint_torch':
+        name = '?'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 4
+    elif net_type == 'multi_mmpose':
+        name = 'test'
+        scale = isz/384
+elif exp_name == 'roian':
+    lbl_file = '/groups/branson/bransonlab/apt/experiments/data/four_points_all_mouse_linux_tracker_updated20200423_new_skl_20200817.lbl_mdn.lbl'
+    n_grid = 8
+    sz = np.round(2048 / n_grid).astype('int')
+    fill_value = 255
+    bb_ex = 40  # extra pixels around bb
+    buffer = 170  # roughly half the animal size + bb_ex
+    max_n = 2
+    af_graph = ((0,1),(0,2),(0,3),(2,3))
+    isz = sz+2*buffer
+    if net_type == 'multi_mdn_joint_torch':
+        name = 'try_1'
+        batch_size = 6
+    elif net_type == 'multi_openpose':
+        name= '50k_resnet'
+        batch_size = 6
+
+conf = apt.create_conf(lbl_file,0,'deepnet',net_type=net_type,cache_dir='/nrs/branson/mayank/apt_cache_2')
+conf.rrange = 180
+conf.trange = 50
+conf.max_n_animals = max_n
+conf.imsz = (isz,isz)
+conf.mdn_use_unet_loss = False
+conf.img_dim = 3
+conf.op_affinity_graph = af_graph
+conf.mdn_joint_use_fpn = True
+conf.batch_size = 1
+conf.rescale = scale
+
+if net_type == 'multi_mmpose':
+    db_file = os.path.join(conf.cachedir.replace('multi_mmpose','multi_mdn_joint_torch'), 'val_TF.tfrecords')
+else:
+    db_file = os.path.join(conf.cachedir,'val_TF.tfrecords')
+out = apt.classify_db_all(net_type,conf,db_file,classify_fcn=apt.classify_db_multi,name=name)
+
+
+## joining trajectories
+import numpy as np
+import link_trajectories as lnk
+import movies
+cap = movies.Movie('/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.mjpg')
+import h5py
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
+plt.ion()
+A = h5py.File('/groups/branson/home/kabram/temp/roian_multi/200918_m170234vocpb_m170234_odor_m170232_f0180322.trk','r')
+ll = A['pTrk'].value
+
+plt.imshow(cap.get_frame(0)[0])
+plt.scatter(ll[0,:,0,0],ll[0,:,1,0])
+##
+
+import PoseTools
+import re
+import h5py
+import numpy as np
+import APT_interface as apt
+import torch
+import matplotlib
+matplotlib.use('TkAgg')
+import torch
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+import Pose_coco_mdn_joint
+name = 'rescale_3'
+self = Pose_coco_mdn_joint.Pose_coco_mdn_joint('/nrs/branson/mayank/apt_cache_2/coco',name=name,rescale=3)
+self.conf.learning_rate_multiplier = 0.1
+import PoseTools
+# with PoseTools.GuruMeditation():
+self.train_wrapper(restore=True)
 
 exp_name = 'roian'
 net_type = 'multi_mdn_joint_torch'
@@ -1071,373 +2275,3 @@ self.create_db(split_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/
 ##
 import APT_interface as apt
 apt.main(cmd.split())
-
-##
-lbl_file  = '/home/mayank/temp/apt_cache/multitarget_bubble/20190131T181525_20190131T181623.lbl'
-import APT_interface as apt
-import easydict
-reload(apt)
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-conf = apt.create_conf('/home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl',0,'20190129T180959','/home/mayank/temp/apt_cache','leap')
-# conf.label_blur_rad = 5
-# apt.create_leap_db(conf,False,use_cache=True)
-args = easydict.EasyDict()
-args.use_cache = True
-args.skip_db = True
-args.train_name = 'deepnet'
-conf.op_affinity_graph = [[0,1],[1,2],[2,0]]
-apt.train_openpose(conf,args,False)
-
-##
-cmd_str = '-name 20190129T180959 -view 1 -cache /home/mayank/temp/apt_cache  -conf_params  label_blur_rad 7 dl_steps 5000 leap_use_default_lr False -train_name decay_lr -type leap /home/mayank/temp/apt_cache/multitarget_bubble/20190129T180959_20190129T181147.lbl train -use_cache -skip_db'
-
-import APT_interface as apt
-apt.main(cmd_str.split())
-
-##
-# debug postprocessing
-import APT_interface as apt
-import os
-import tensorflow as tf
-import multiResData
-conf = apt.create_conf(lbl_file,0,'compare_cache','/home/mayank/temp/apt_cache','mdn')
-
-conf.trainfilename = 'normal.tfrecords'
-n_envs = multiResData.create_envs(conf,False)
-conf.trainfilename = 'cached.tfrecords'
-c_envs = multiResData.create_envs(conf,False)
-
-n_out_fns = [lambda data: n_envs[0].write(apt.tf_serialize(data)),
-           lambda data: n_envs[1].write(apt.tf_serialize(data))]
-c_out_fns = [lambda data: c_envs[0].write(apt.tf_serialize(data)),
-           lambda data: c_envs[1].write(apt.tf_serialize(data))]
-
-splits = apt.db_from_cached_lbl(conf, c_out_fns, False, None, False)
-splits = apt.db_from_lbl(conf, n_out_fns, False, None, False)
-c_envs[0].close()
-n_envs[0].close()
-
-c_file_name = os.path.join(conf.cachedir,'cached.tfrecords')
-n_file_name = os.path.join(conf.cachedir,'normal.tfrecords')
-A = []
-A.append(multiResData.read_and_decode_without_session(c_file_name,conf,()))
-A.append(multiResData.read_and_decode_without_session(n_file_name,conf,()))
-
-ims1= np.array(A[0][0]).astype('float')
-ims2 = np.array(A[1][0]).astype('float')
-locs1 = np.array(A[0][1])
-locs2 = np.array(A[1][1])
-
-ndx = np.random.choice(ims1.shape[0])
-f,ax = plt.subplots(1,2,sharex=True,sharey=True)
-ax = ax.flatten()
-ax[0].imshow(ims1[ndx,:,:,0],'gray',vmin=0,vmax=255)
-ax[1].imshow(ims2[ndx,:,:,0],'gray',vmin=0,vmax=255)
-ax[0].scatter(locs1[ndx,:,0],locs1[ndx,:,1])
-ax[1].scatter(locs2[ndx,:,0],locs2[ndx,:,1])
-
-
-##
-import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cmd = '-name 20190129T144258 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/20190129T144258_20190129T144311.err -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190129T144258_20190129T144311.lbl train -use_cache'
-apt.main(cmd.split())
-
-##
-
-import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cmd = '-name 20190114T160046 -view 1 -cache /home/mayank/temp/apt_cache -err_file /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190114T160046/trk/movie_trn20190114T160046_20190114T181805.err -type mdn /home/mayank/temp/apt_cache/multitarget_bubble/20190114T160046_20190114T160137.lbl track -mov /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/movie.ufmf -out /home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190114T160046/trk/movie_trn20190114T160046_20190114T181805.trk -start_frame 50 -end_frame 220 -trx /home/mayank/work/FlySpaceTime/cx_GMR_SS00038_CsChr_RigB_20150729T150617/registered_trx.mat -trx_ids 3'
-
-apt.main(cmd.split())
-
-##
-import APT_interface as apt
-reload(apt)
-import multiResData
-import h5py
-# lbl_file = '/home/mayank/temp/test_conversion/20190114T111122_20190114T111124.lbl'
-# db_file = '/home/mayank/temp/test_conversion/mdn/view_0/20190114T111122/train_TF.tfrecords'
-lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190114T151632_20190114T151735.lbl'
-db_file = '/home/mayank/temp/apt_cache/multitarget_bubble/mdn/view_0/20190114T151632/train_TF.tfrecords'
-L = h5py.File(lbl_file,'r')
-conf = apt.create_conf(lbl_file,0,'test','/home/mayank/temp','mdn')
-A = multiResData.read_and_decode_without_session(db_file,conf,())
-orig_locs = []
-labeled_locs = []
-for ndx in range(0,len(A[0]),500):
-    cur_locs = A[1][ndx]
-    info = A[2][ndx]
-    trx_file = apt.read_string(L[L['trxFilesAll'][0,info[0]]])
-    cur_trx,_ = apt.get_cur_trx(trx_file,info[2])
-    cur_orig = apt.convert_to_orig(cur_locs,conf,info[1],cur_trx,None)
-    orig_locs.append(cur_orig)
-    pts = apt.trx_pts(L,info[0])
-    labeled_locs.append(pts[info[2],info[1],:,:].T)
-
-orig_locs = np.array(orig_locs)
-labeled_locs = np.array(labeled_locs)
-
-
-##
-##
-import APT_interface as apt
-
-lbl_file = '/home/mayank/temp/apt_cache/multitarget_bubble/20190111T185319_20190111T185419.lbl'
-conf = apt.create_conf(lbl_file,0,'test','/home/mayank/temp/apt_cache1','mdn')
-apt.create_tfrecord(conf,True)
-
-##
-import numpy as np
-import multiResData
-reload(multiResData)
-import easydict
-conf = easydict.EasyDict()
-isz = 6 + np.random.choice(2)
-conf.imsz = [isz,isz]
-conf.img_dim = 1
-ims = np.zeros([18,18,1])
-st = 6
-en = 9 + np.random.choice(2)
-ims[st:en,st:en,:] = 1
-locs = np.array([[st,st,en-1,en-1,7],[st,en-1,st,en-1,7]])
-locs = locs.T
-angle = np.random.choice(180) * np.pi / 180
-ni,nl = multiResData.crop_patch_trx(conf,ims,7,7,angle,locs)
-f,ax = plt.subplots(1,2)
-ax[0].imshow(ims[:,:,0])
-ax[0].scatter(locs[:,0],locs[:,1])
-ax[1].imshow(ni[:,:,0])
-ax[1].scatter(nl[:,0],nl[:,1])
-ax[1].set_title('{},{}'.format(isz%2,en%2))
-
-
-##
-import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-cmd_str = '-cache /home/mayank/temp -name xv_test -type mdn /home/mayank/work/poseTF/data/alice/multitarget_bubble_expandedbehavior_20180425_local.lbl classify -out_file /home/mayank/temp/aa'
-cc = cmd_str.split()
-apt.main(cc)
-
-##
-import APT_interface as apt
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-cmd_str = '-name alice_compare -cache /home/mayank/work/APT/deepnet/cache -type mdn /home/mayank/work/APT/deepnet/data/multitarget_bubble_expandedbehavior_20180425_modified4.lbl track -start_frame 5000 -end_frame 5500 -trx /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/registered_trx.mat -mov /home/mayank/work/FlyBowl/pBDPGAL4U_TrpA_Rig2Plate14BowlD_20110617T143743/movie.ufmf -trx_ids 3 8 -out /home/mayank/temp/a.trk'
-
-cc = cmd_str.split()
-apt.main(cc)
-
-##
-import APT_interface as apt
-cmd_str = '-name stephen_20181029 -conf_params mdn_groups ((0),(1,2,3,4)) -cache /tmp -type mdn /home/mayank/work/APT/deepnet/data/sh_trn4879_gtcomplete.lbl train -use_cache -skip_db'
-
-cc = cmd_str.split()
-apt.main(cc)
-## stephen without image mean normalization
-import APT_interface as apt
-import os
-import PoseUNet_resnet as PoseUNet
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
-view = 1
-conf = apt.create_conf(lbl_file, view, 'conf','/tmp',net_type='umdn')
-conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view{}'.format(view)
-conf.normalize_img_mean = False
-self = PoseUNet.PoseUMDN_resnet(conf,name='no_mean_norm')
-self.train_umdn()
-V = self.classify_val()
-
-##
-
-import APT_interface as apt
-import os
-import PoseUNet_resnet as PoseUNet
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
-view = 1
-conf = apt.create_conf(lbl_file, view, 'conf','/tmp',net_type='umdn')
-conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view{}'.format(view)
-conf.normalize_img_mean = False
-self = PoseUNet.PoseUMDN_resnet(conf,'no_mean_norm')
-V = self.classify_val()
-res = np.array([
-    [8.15356254,  7.79341274,  8.01287003,  8.61840345,  8.13417424],
-    [ 9.65344996,  9.5212058 ,  9.99045115, 10.12551694,  9.58502402],
-   [11.86516147, 12.44826803, 12.82939408, 12.48889447, 12.14856348],
-    [13.38951142, 15.10225055, 14.2305725 , 15.00483587, 14.43672831]])
-
-
-## Incorrect img normalize code
-import APT_interface as apt
-import os
-import PoseUNet_resnet as PoseUNet
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-lbl_file = '/groups/branson/bransonlab/mayank/stephen_copy/apt_cache/sh_trn4523_gtcomplete_cacheddata_bestPrms20180920_retrain20180920T123534_withGTres.lbl'
-view = 1
-conf = apt.create_conf(lbl_file, view, 'conf','/tmp',net_type='umdn')
-conf.cachedir = '/nrs/branson/mayank/apt_cache/stephen_view{}'.format(view)
-self = PoseUNet.PoseUMDN_resnet(conf)
-V = self.classify_val()
-res = np.array([
-    [ 7.24539496,  7.8049516 ,  7.97217146,  8.44032115,  7.69838612],
-    [ 8.76899118,  9.63168685,  9.55280912, 10.26671805,  9.54993247],
-    [10.91299409, 12.02790342, 11.79002365, 13.02997551, 11.82780871],
-    [12.50440241, 15.64563049, 13.13194025, 14.71218933, 13.96273946]])
-
-unet_pred = V[6][-1]
-mdn_pred = V[3]
-locs = V[4]
-xx = V[5][3]*self.offset
-ii = np.argmax(V[5][2],axis=1)
-mdn_conf = np.zeros([xx.shape[0],5])
-for ndx in range(V[5][0].shape[0]):
-    for pt in range(conf.n_classes):
-        mdn_conf[ndx,pt] = xx[ndx,ii[ndx,0],pt]
-
-dd = np.sqrt(np.sum((locs-mdn_pred)**2,axis=-1))
-dd_unet = np.sqrt(np.sum((locs-unet_pred)**2,axis=-1))
-dd_unet_mdn = np.sqrt(np.sum((mdn_pred-unet_pred)**2,axis=-1))
-unet_conf = np.max(V[6][0],axis=(1,2))
-pos = dd > self.min_dist;#self.min_dist
-pt = 1
-from sklearn.metrics import roc_curve, auc
-fpr_mdn,tnr_mdn,_ = roc_curve(pos[:,pt],mdn_conf[:,pt])
-fpr_unet, tnr_unet,_ = roc_curve(pos[:,pt], dd_unet_mdn[:,pt])
-fpr_unetc, tnr_unetc,_ = roc_curve(pos[:,pt], -unet_conf[:,pt])
-# dd_comb = np.maximum(dd_unet_mdn,mdn_conf)
-dd_comb = dd_unet_mdn+mdn_conf
-
-fpr_comb, tnr_comb,_ = roc_curve(pos[:,pt], dd_comb[:,pt])
-
-from matplotlib import pyplot as plt
-plt.figure()
-plt.scatter(dd[:,pt],mdn_conf[:,pt])
-plt.figure()
-plt.scatter(dd[:,pt],dd_unet_mdn[:,pt])
-
-plt.figure()
-plt.plot(fpr_mdn,tnr_mdn)
-plt.plot(fpr_unet,tnr_unet)
-plt.plot(fpr_unetc,tnr_unetc)
-plt.plot(fpr_comb,tnr_comb)
-plt.legend(['mdn','unet','unetc','comb'])
-
-##
-from matplotlib import pyplot as plt
-tr = 12
-kk = np.where(np.any(V[0]>tr,axis=1))[0]
-pt = np.random.choice(kk)
-jj = np.where(V[0][pt,:]>tr)[0][0]
-plt.imshow(V[2][pt,:,:,jj])
-plt.scatter(V[4][pt,jj,0],V[4][pt,jj,1])
-plt.figure()
-plt.imshow(V[1][pt,:,:,0],'gray')
-plt.scatter(V[4][pt,jj,0],V[4][pt,jj,1])
-##
-##
-from poseConfig import aliceConfig as conf
-conf.cachedir += '_moreeval';
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import PoseUNet
-import PoseUNet_dataset as PoseUNet
-conf.normalize_img_mean = True
-self = PoseUNet.PoseUNet(conf,'mean_img',pad_input=False)
-self.no_pad = False
-self.train_unet()
-V = self.classify_val()
-
-
-##
-from poseConfig import aliceConfig as conf
-conf.cachedir += '_moreeval';
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import PoseUNet
-import PoseUNet_dataset as PoseUNet
-self = PoseUNet.PoseUNet(conf,'normal',pad_input=False)
-self.no_pad = False
-V = self.classify_val()
-
-res = np.array([[
-         1.33725852,  1.44260777,  1.2197094 ,  1.4054476 ,  1.35461989,
-         1.56339064,  1.26828579,  1.67202601,  1.64307798,  1.58602942,
-         1.53797884,  2.02196571,  1.69124296,  3.61847242,  3.67470543,
-         1.33736349,  1.59257857],
-       [ 1.50369884,  1.63343346,  1.37017441,  1.56989693,  1.52073472,
-         1.81230858,  1.43857005,  1.91531989,  1.96209875,  1.80547304,
-         1.86310851,  2.93751308,  2.18633115,  6.91663258,  7.43064016,
-         1.7052951 ,  2.31254946],
-       [ 1.66861117,  1.87583231,  1.5277497 ,  1.77298601,  1.7090494 ,
-         2.1332188 ,  1.66154602,  2.33803084,  2.43522788,  2.09856196,
-         2.37024879,  5.07045206,  4.64947697, 12.4103475 , 12.49274121,
-         4.09860036,  3.98436972],
-       [ 1.83226236,  1.99950524,  1.62278993,  1.91806128,  1.83863565,
-         2.36829227,  1.83341173,  2.70041566,  3.03500595,  2.40945369,
-         2.76952887,  7.3060946 ,  8.71812219, 17.10891411, 15.22070564,
-         8.70113416,  6.7436511 ]])
-
-##
-from poseConfig import aliceConfig as conf
-conf.cachedir += '_moreeval';
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import PoseUNet
-import PoseUNet_dataset as PoseUNet
-self = PoseUNet.PoseUNet(conf,'pad_input',pad_input=True)
-self.no_pad = True
-V = self.classify_val()
-res = np.array([[ 
-        0.95649637,  1.02741287,  1.04891375,  1.07227733,  1.02023282,
-         1.27983229,  1.09385869,  1.31877817,  1.3403253 ,  1.30063015,
-         1.41057154,  1.72905072,  1.45960683,  3.40282266,  3.17321152,
-         1.40711469,  1.53104846],
-       [ 1.09724486,  1.16849824,  1.22082977,  1.24287679,  1.19170516,
-         1.53320109,  1.26721911,  1.54900245,  1.69752963,  1.54619462,
-         1.75219689,  2.72170986,  1.98324972,  7.71005632,  6.90737272,
-         1.82825058,  2.44256888],
-       [ 1.31465742,  1.35346597,  1.49190471,  1.49177832,  1.40930846,
-         1.85047257,  1.56990009,  1.97619232,  2.48437686,  1.94906626,
-         2.35587152,  5.23579364,  5.49393322, 14.4646526 , 12.48910452,
-         5.18257147,  4.67947102],
-       [ 1.49047977,  1.58661416,  1.74333241,  1.74709639,  1.71730347,
-         2.18539484,  1.87386084,  2.8115908 ,  3.51928015,  2.47797139,
-         3.02428713, 10.29741283, 12.1697288 , 20.66926424, 16.88128325,
-        11.85019535,  8.162599  ]])
-
-##
-from poseConfig import aliceConfig as conf
-conf.cachedir += '_bigsize'; conf.imsz = (370,370)
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import PoseUNet
-import PoseUNet_dataset as PoseUNet
-p_sz, a_sz = PoseUNet.find_pad_sz(4,conf.imsz[0])
-# print a_sz
-self = PoseUNet.PoseUNet(conf,'unet_no_pad',pad_input=False)
-self.no_pad = True
-V = self.classify_val()
-res = np.array([[ 
-        0.98649726,  1.02755724,  1.05933487,  1.0318891 ,  1.05936735,
-         1.32980098,  1.15310487,  1.30030844,  1.34996524,  1.35013757,
-         1.43107478,  1.78587489,  1.51182891,  3.71149039,  3.65348891,
-         1.33653132,  1.55634646],
-       [ 1.16142442,  1.18833696,  1.24923555,  1.19032531,  1.22991107,
-         1.55732873,  1.35345994,  1.59213747,  1.72097007,  1.60372583,
-         1.78842193,  2.8360998 ,  2.22584712,  7.71927776,  7.67398873,
-         1.80188066,  2.58162556],
-       [ 1.411857  ,  1.41011399,  1.4909414 ,  1.50987044,  1.46764162,
-         1.8779709 ,  1.70232433,  2.16371472,  2.8266522 ,  2.03626738,
-         2.43268328,  6.47444709,  7.745492  , 16.25207438, 14.27371572,
-         6.12199992,  5.13091404],
-       [ 1.88424917,  1.69646305,  1.75829603,  1.79497454,  1.89181109,
-         2.29069112,  2.58236851,  4.82837597,  5.54433209,  3.4245605 ,
-         3.63215097, 16.06407953, 18.46977448, 29.2672358 , 27.22291975,
-        13.97790465,  8.60922717]])
-

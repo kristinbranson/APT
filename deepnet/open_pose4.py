@@ -1,38 +1,34 @@
-from __future__ import print_function
-from __future__ import division
-
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Concatenate
-from tensorflow.keras.layers import Activation, Input, Lambda, PReLU
-from tensorflow.keras.layers import Conv2DTranspose
-from tensorflow.keras.layers import Multiply
-from tensorflow.keras.regularizers import l2
-from tensorflow.keras.initializers import random_normal,constant
-from tensorflow.keras.callbacks import LearningRateScheduler, ModelCheckpoint, CSVLogger, TensorBoard
-from tensorflow.keras.callbacks import Callback
-from tensorflow.keras.applications.vgg19 import VGG19
-#from keras.applications.resnet50 import ResNet50
-import imagenet_resnet
-from scipy import stats
-from tensorflow.keras.optimizers import Optimizer, Adam
-from tensorflow.keras import backend as K
-#from keras.legacy import interfaces
-
-import sys
 import os
+import sys
+#stderr = sys.stderr
+#sys.stderr = open(os.devnull, 'w')
+
+import tensorflow as tf
+K = tf.keras.backend
+# Pylance complains about all these imports b/c apparently TF uses dynamic behavior ot import keras -- ALT, 2023-03-31
+#   See: https://github.com/microsoft/pylance-release/issues/3387
+# from tf.keras.models import Model
+# from tf.keras.layers import Concatenate
+# from tf.keras.layers import Activation, Input, Lambda, PReLU
+# from tf.keras.layers import Conv2DTranspose
+# from tf.keras.layers import Multiply
+# from tf.keras.regularizers import l2
+# from tf.keras.initializers import random_normal,constant
+# from tf.keras.callbacks import LearningRateScheduler, ModelCheckpoint, CSVLogger, TensorBoard
+# from tf.keras.callbacks import Callback
+# from tf.keras.applications.vgg19 import VGG19
+
+import imagenet_resnet
+#from scipy import stats
 import re
 import pickle
 import math
 import PoseTools
-import os
-import  numpy as np
+import numpy as np
 import json
-import tensorflow as tf
-import tensorflow.keras.backend as K
 import logging
 from time import time
 import cv2
-from past.utils import old_div
 import matplotlib.pyplot as plt
 
 import tfdatagen
@@ -41,6 +37,9 @@ import util
 
 import vgg_cpm
 from vgg_cpm import conv
+import multiprocessing
+
+#sys.stderr = stderr
 
 '''
 Adapted from:
@@ -61,7 +60,7 @@ Adapted from:
 ISPY3 = sys.version_info >= (3, 0)
 
 def prelu(x,nm):
-    return PReLU(shared_axes=[1, 2],name=nm)(x)
+    return tf.keras.layers.PReLU(shared_axes=[1, 2],name=nm)(x)
 
 def upsample_filt(alg='nn', dtype=None):
     if alg == 'nn':
@@ -131,31 +130,31 @@ def deconv_2x_upsampleinit(x, nf, ks, name, wd, wdmode):
     # nf must also equal number of channels in x
 
     if wdmode == 0:  # 'aroundzero':
-        kernel_reg = l2(wd[0]) if wd else None
-        bias_reg = l2(wd[1]) if wd else None
+        kernel_reg = tf.keras.regularizers.l2(wd[0]) if wd else None
+        bias_reg = tf.keras.regularizers.l2(wd[1]) if wd else None
         logging.info("Deconv: regularization around zero with weights {}".format(wd))
     elif wdmode == 1:  # 'aroundinit'
         kshape = (ks, ks, nf, nf)
         kinit = upsample_init_value(kshape, 'bl')
         kernel_reg = make_kernel_regularizer(kinit, wd[0])
-        bias_reg = l2(wd[1]) if wd else None
+        bias_reg = tf.keras.regularizers.l2(wd[1]) if wd else None
         logging.info("Deconv: regulization around init with weights {}".format(wd))
     else:
         assert False
 
-    x = Conv2DTranspose(nf, (ks, ks), strides=2,
+    x = tf.keras.layers.Conv2DTranspose(nf, (ks, ks), strides=2,
                         padding='same', name=name,
                         kernel_regularizer=kernel_reg,
                         bias_regularizer=bias_reg,
                         kernel_initializer=upsamp_init_bl,
-                        bias_initializer=constant(0.0))(x)
+                        bias_initializer=tf.keras.regularizers.constant(0.0))(x)
     logging.info("Using 2xdeconv w/init around upsample, wdmode={}, wd={}.".format(wdmode, wd))
 
     return x
 
 def convblock(x0, nf, namebase, kernel_reg):
     '''
-    Three 3x3 convs with PReLU and with results concatenated
+    Three 3x3 convs with tf.keras.layers.PReLU and with results concatenated
 
     :param x0:
     :param nf:
@@ -169,7 +168,7 @@ def convblock(x0, nf, namebase, kernel_reg):
     x2 = prelu(x2, "cblock-{}-{}-prelu".format(namebase, 2))
     x3 = conv(x2, nf, 3, kernel_reg, name="cblock-{}-{}".format(namebase, 3))
     x3 = prelu(x3, "cblock-{}-{}-prelu".format(namebase, 3))
-    x = Concatenate(name="cblock-{}".format(namebase))([x1, x2, x3])
+    x = tf.keras.layers.Concatenate(name="cblock-{}".format(namebase))([x1, x2, x3])
     return x
 
 def stageCNN(x, nfout, stagety, stageidx, kernel_reg,
@@ -182,7 +181,7 @@ def stageCNN(x, nfout, stagety, stageidx, kernel_reg,
     x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-1by1-1-prelu".format(stagety, stageidx))
     x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
-    x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
+    # x = prelu(x, "{}-stg{}-1by1-2-prelu".format(stagety, stageidx))
     return x
 
 def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
@@ -217,20 +216,21 @@ def stageCNNwithDeconv(x, nfout, stagety, stageidx, kernel_reg,
 
     x = conv(x, nf1by1, 1, kernel_reg, name="{}-stg{}-1by1-1".format(stagety, stageidx))
     x = prelu(x, "{}-stg{}-postDC-1by1-1-prelu".format(stagety, stageidx))
-    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
-    x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
+    x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-postDC-1by1-2".format(stagety, stageidx))
+    # x = conv(x, nfout, 1, kernel_reg, name="{}-stg{}-1by1-2".format(stagety, stageidx))
+    # x = prelu(x, "{}-stg{}-postDC-1by1-2-prelu".format(stagety, stageidx))
     return x
 
 def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=None,
                        nPAFstg=5, nMAPstg=1,
-                       nlimbsT2=38, npts=19, doDC=True, nDC=2):
+                       nlimbsT2=38, npts=19, doDC=True, nDC=2,conf=None):
     '''
 
     :param imszuse: (imnr, imnc) raw image size, possibly adjusted to be 0 mod 8
     :param kernel_reg:
     :param nlimbsT2:
     :param npts:
-    :return: Model.
+    :return: tf.keras.models.Model.
         Inputs: [img]
         Outputs: [paf_1, ... paf_nPAFstg, map_1, ... map_nMAPstg]
     '''
@@ -245,23 +245,25 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     inputs = []
 
     # This is hardcoded to dim=3 due to VGG pretrained weights
-    img_input = Input(shape=imszuse + (3,), name='input_img')
+    img_input = tf.keras.layers.Input(shape=imszuse + (3,), name='input_img')
+    mask_input = tf.keras.layers.Input(shape=imszuse, name='input_mask')
 
-    # paf_weight_input = Input(shape=paf_input_shape,
+    # paf_weight_input = tf.keras.layers.Input(shape=paf_input_shape,
     #                          name='input_paf_mask')
-    # map_weight_input = Input(shape=map_input_shape,
+    # map_weight_input = tf.keras.layers.Input(shape=map_input_shape,
     #                          name='input_part_mask')
-    # paf_weight_input_hires = Input(shape=paf_input_shape_hires,
+    # paf_weight_input_hires = tf.keras.layers.Input(shape=paf_input_shape_hires,
     #                                name='input_paf_mask_hires')
-    # map_weight_input_hires = Input(shape=map_input_shape_hires,
+    # map_weight_input_hires = tf.keras.layers.Input(shape=map_input_shape_hires,
     #                                name='input_part_mask_hires')
     inputs.append(img_input)
+    inputs.append(mask_input)
     # inputs.append(paf_weight_input)
     # inputs.append(map_weight_input)
     # inputs.append(paf_weight_input_hires)
     # inputs.append(map_weight_input_hires)
 
-    img_normalized = Lambda(lambda z: z / 256. - 0.5)(img_input)  # [-0.5, 0.5] Isn't this really [-0.5, 0.496]
+    img_normalized = tf.keras.layers.Lambda(lambda z: z / 256. - 0.5)(img_input)  # [-0.5, 0.5] Isn't this really [-0.5, 0.496]
     # sub mean?
 
     # backbone
@@ -290,32 +292,46 @@ def model_train(imszuse, kernel_reg, backbone='resnet50_8px', backbone_weights=N
     for iPAFstg in range(nPAFstg):
         xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, kernel_reg)
         xpaflist.append(xstageout)
-        xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
+        xstagein = tf.keras.layers.Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
 
     # MAP
     xmaplist = []
     for iMAPstg in range(nMAPstg):
         xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, kernel_reg)
         xmaplist.append(xstageout)
-        xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
+        xstagein = tf.keras.layers.Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
 
     xmaplistDC = []
     if doDC:
         # xstagein is ready/good from MAP loop
         xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, kernel_reg, ndeconvs=nDC)
         xmaplistDC.append(xstageout)
+        dc_scale = 2**conf.op_hires_ndeconv
+    else:
+        dc_scale = 1
 
     assert len(xpaflist) == nPAFstg
     assert len(xmaplist) == nMAPstg
-    outputs = xpaflist + xmaplist + xmaplistDC
+
+    scale_hires = conf.op_label_scale // dc_scale  # downsample scale of hires (postDC) relative to network input
+    mask_low_res = mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    mask_high_res = mask_input[:,::scale_hires,::scale_hires,None]
+    # for ndx, xp in enumerate(xpaflist):
+    #     xpaflist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    # for ndx, xp in enumerate(xmaplist):
+    #     xmaplist[ndx] = xp*mask_input[:,::conf.op_label_scale,::conf.op_label_scale,None]
+    # for ndx, xp in enumerate(xmaplistDC):
+    #     xmaplistDC[ndx] = xp*mask_input[:,::scale_hires,::scale_hires,None]
+
+    outputs = xpaflist + xmaplist + xmaplistDC +[mask_low_res,mask_high_res]
 
     # w1 = apply_mask(stage1_branch1_out, paf_weight_input, 1, 1)
     # w2 = apply_mask(stage1_branch2_out, map_weight_input, 1, 2)
 
-    model = Model(inputs=inputs, outputs=outputs)
+    model = tf.keras.models.Model(inputs=inputs, outputs=outputs)
     return model
 
-def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None):
+def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_wtfac=None,use_mask=True):
     '''
     
     :param model: 
@@ -328,36 +344,54 @@ def configure_losses(model, bsize, dc_on=True, dcNum=None, dc_blur_rad_ratio=Non
     :return: losses, loss_weights. both dicts whose keys are .names of model.outputs
     '''
 
-    def eucl_loss(x, y):
-        return K.sum(K.square(x - y)) / bsize / 2.  # not sure why norm by bsize nec
+    def eucl_loss(x, y, mask = None, use_mask=True):
+        diff = K.square(x - y)
+        if use_mask and (mask is not None):
+            loss = K.sum(diff*mask) /  2.
+        else:
+            loss = K.sum(diff) / 2.
+        return loss
 
     losses = {}
     loss_weights = {}
     loss_weights_vec = []
 
-    outs = model.outputs
-    lyrs = model.layers
-    for o in outs:
+    outputs = model.outputs[:-2]
+    masks = model.outputs[-2:]
+    # this is fantastically ugly.
+    layers = model.layers
+    for output in outputs:
         # Not sure how to get from output Tensor to its layer. Using
         # output Tensor name doesn't work with model.compile
-        olyrname = [l.name for l in lyrs if l.output == o]
-        assert len(olyrname) == 1, "Found multiple layers for output."
-        key = olyrname[0]
-        losses[key] = eucl_loss
+        
+        layers_matching_output = [layer for layer in layers if layer.output == output]
+        assert len(layers_matching_output) == 1, "Found multiple layers for output."
+        layer_matching_output = layers_matching_output[0]
+        output_layer_name = layer_matching_output.name
 
-        if "postDC" in key:
+        #output_layer_names = [layer.name for layer in layers if layer.output == output]
+        #assert len(output_layer_names) == 1, "Found multiple layers for output."
+        #output_layer_name = output_layer_names[0]
+
+        #output_layer_name = output.node.layer.name  # ALT 2023-03-30: Maybe this will work?
+
+        print('output_layer_name: ', output_layer_name)
+
+        if "postDC" in output_layer_name:
+            losses[output_layer_name] = lambda x, y: eucl_loss(x, y, masks[1],use_mask=use_mask)
             assert dc_on, "Found post-deconv layer"
             # left alone, L2 loss will be ~dc_blur_rad_ratio**2 larger for hi-res wrt lo-res
-            loss_weights[key] = float(dc_wtfac) / float(dc_blur_rad_ratio)**2
+            loss_weights[output_layer_name] = float(dc_wtfac) / float(dc_blur_rad_ratio)**2
         else:
-            loss_weights[key] = 1.0
+            losses[output_layer_name] = lambda x, y: eucl_loss(x, y, masks[0],use_mask=use_mask)
+            loss_weights[output_layer_name] = 1.0
 
-        logging.info('Configured loss for output name {}, loss_weight={}'.format(key, loss_weights[key]))
-        loss_weights_vec.append(loss_weights[key])
+        logging.info('Configured loss for output name {}, loss_weight={}'.format(output_layer_name, loss_weights[output_layer_name]))
+        loss_weights_vec.append(loss_weights[output_layer_name])
 
     return losses, loss_weights, loss_weights_vec
 
-def model_test(imszuse,
+def model_test(imszuse, kernel_reg,
                       backbone='resnet50_8px',
                       nPAFstg=5, nMAPstg=1, nlimbsT2=38, npts=19,
                       doDC=True, nDC=2, fullpred=False):
@@ -377,9 +411,9 @@ def model_test(imszuse,
     assert imncuse % 8 == 0, "Image size must be divisible by 8"
     imszvgg = (imnruse//8, imncuse//8)  # imsz post VGG ftrs
 
-    img_input = Input(shape=imszuse + (3,), name='input_img')
+    img_input = tf.keras.layers.Input(shape=imszuse + (3,), name='input_img')
 
-    img_normalized = Lambda(lambda x: x / 256 - 0.5)(img_input) # [-0.5, 0.5]
+    img_normalized = tf.keras.layers.Lambda(lambda x: x / 256 - 0.5)(img_input) # [-0.5, 0.5]
 
     # backbone
     if backbone == 'vgg':
@@ -410,22 +444,22 @@ def model_test(imszuse,
     xstagein = backboneF
     for iPAFstg in range(nPAFstg):
         # Using None for kernel_reg is nonsensical but shouldn't hurt in test mode
-        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, None)
+        xstageout = stageCNN(xstagein, nlimbsT2, 'paf', iPAFstg, kernel_reg)
         xpaflist.append(xstageout)
-        xstagein = Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
+        xstagein = tf.keras.layers.Concatenate(name="paf-stg{}".format(iPAFstg))([backboneF, xstageout])
 
     # MAP
     xmaplist = []
     for iMAPstg in range(nMAPstg):
         # Using None for kernel_reg is nonsensical but shouldn't hurt in test mode
-        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, None)
+        xstageout = stageCNN(xstagein, npts, 'map', iMAPstg, kernel_reg)
         xmaplist.append(xstageout)
-        xstagein = Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
+        xstagein = tf.keras.layers.Concatenate(name="map-stg{}".format(iMAPstg))([backboneF, xpaflist[-1], xstageout])
 
     xmaplistDC = []
     if doDC:
         # xstagein is ready/good from MAP loop
-        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, None, ndeconvs=nDC)
+        xstageout = stageCNNwithDeconv(xstagein, npts, 'map', nMAPstg, kernel_reg, ndeconvs=nDC)
         xmaplistDC.append(xstageout)
 
     assert len(xpaflist) == nPAFstg
@@ -438,7 +472,7 @@ def model_test(imszuse,
     else:
         outputs = [xpaflist[-1], xmaplist[-1], ]
 
-    model = Model(inputs=[img_input], outputs=outputs)
+    model = tf.keras.models.Model(inputs=[img_input], outputs=outputs)
 
     return model
 
@@ -570,8 +604,7 @@ def update_op_graph(op_graph):
     return  new_graph
 
 
-def training(conf, name='deepnet'):
-
+def training(conf, name='deepnet',restore=False, model_file=None):
     # base_lr = conf.op_base_lr
     base_lr = conf.get('op_base_lr',4e-5) * conf.get('learning_rate_multiplier',1.)
     batch_size = conf.batch_size  # Gines 10
@@ -609,16 +642,32 @@ def training(conf, name='deepnet'):
                                nlimbsT2=len(conf.op_affinity_graph) * 2,
                                npts=conf.n_classes,
                                doDC=conf.op_hires,
-                               nDC=conf.op_hires_ndeconv)
+                               nDC=conf.op_hires_ndeconv,conf=conf)
 
     if conf.op_backbone=='vgg' and conf.op_backbone_weights=='imagenet':
         logging.info("Loading vgg19 weights...")
-        vgg_model = VGG19(include_top=False, weights='imagenet')
+        vgg_model = tf.keras.applications.vgg19.VGG19(include_top=False, weights='imagenet')
         for layer in model.layers:
             if layer.name in vgg_cpm.from_vgg:
                 vgg_layer_name = vgg_cpm.from_vgg[layer.name]
                 layer.set_weights(vgg_model.get_layer(vgg_layer_name).get_weights())
                 logging.info("Loaded VGG19 layer: {}->{}".format(layer.name, vgg_layer_name))
+
+    if model_file is not None:
+        try:
+            logging.info("Loading the weights from {}.. ".format(model_file))
+            model.load_weights(model_file)
+        except Exception as e:
+            logging.info(f'Could not initialize model weights from {model_file}')
+            logging.info(e)
+
+
+    elif restore:
+        latest_model_file = PoseTools.get_latest_model_file_keras(conf, name)
+        logging.info("Loading the weights from {}.. ".format(latest_model_file))
+        model.load_weights(latest_model_file)
+        last_iter = re.search(f'{name}-(\d*)$',latest_model_file).groups()[0]
+        last_epoch = int(last_iter)//iterations_per_epoch
 
     # prepare generators
     PREPROCFN = 'ims_locs_preprocess_openpose'
@@ -636,10 +685,9 @@ def training(conf, name='deepnet'):
     logging.info("Your label_blur_rads (hi/lo)res are {}/{}".format(
         conf.op_map_hires_blur_rad, conf.op_map_lores_blur_rad))
     losses, loss_weights, loss_weights_vec = \
-        configure_losses(model, batch_size,
-                         dc_on=conf.op_hires,
+        configure_losses(model, dc_on=conf.op_hires,
                          dc_blur_rad_ratio=conf.op_map_hires_blur_rad / conf.op_map_lores_blur_rad,
-                         dc_wtfac=2.5)
+                         dc_wtfac=2.5,use_mask=conf.is_multi&conf.multi_loss_mask)
 
     def lr_decay(epoch):  # epoch is 0-based
         initial_lrate = base_lr
@@ -649,7 +697,7 @@ def training(conf, name='deepnet'):
 
     # Callback to do writing pring stuff.
     # See apt_dpk_callbacks/TrainDataLogger, future refactor
-    class OutputObserver(Callback):
+    class OutputObserver(tf.keras.callbacks.Callback):
         def __init__(self, conf, dis):
             self.train_di, self.val_di = dis
             self.train_info = {}
@@ -666,6 +714,7 @@ def training(conf, name='deepnet'):
             self.config = conf
             self.save_start = time()
             self.force = False
+            self.prev_models = []
 
         def on_epoch_end(self, epoch, logs={}):
             step = (epoch+1) * iterations_per_epoch
@@ -686,7 +735,7 @@ def training(conf, name='deepnet'):
             lr = K.eval(self.model.optimizer.lr)
 
             # dist only for last MAP layer (will be hi-res if deconv is on)
-            predhmval = val_out[-1]
+            predhmval = val_out[-3]
             predhmval = clip_heatmap_with_warn(predhmval)
             # (bsize, npts, 2), (x,y), 0-based
 
@@ -704,7 +753,7 @@ def training(conf, name='deepnet'):
                                         # *self.config.op_label_scale
 
             # NOTE train_dist uses argmax
-            tt1 = PoseTools.get_pred_locs(train_out[-1]) - \
+            tt1 = PoseTools.get_pred_locs(train_out[-3]) - \
                   PoseTools.get_pred_locs(train_y[-1])
             tt1 = np.sqrt(np.sum(tt1 ** 2, 2))
             train_dist = np.nanmean(tt1) # *self.config.op_label_scale
@@ -740,18 +789,27 @@ def training(conf, name='deepnet'):
             with open(train_data_file, 'wb') as td:
                 pickle.dump([self.train_info, conf], td, protocol=2)
 
+            m_file = str(os.path.join(conf.cachedir, name + '-{}'.format(int(step))))
             if conf.save_time is None:
                 if step % conf.save_step == 0:
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
+                    model.save(m_file)
+                    self.prev_models.append(m_file)
             else:
                 if time() - self.save_start > conf.save_time*60:
                     self.save_start = time()
-                    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(step)))))
+                    model.save(m_file)
+                    self.prev_models.append(m_file)
+
+            if len(self.prev_models) > conf.maxckpt:
+                for curm in self.prev_models[:-conf.maxckpt]:
+                    if os.path.exists(curm):
+                        os.remove(curm)
+                _ = self.prev_models.pop(0)
 
 
     # configure callbacks
-    lrate = LearningRateScheduler(lr_decay)
-    # checkpoint = ModelCheckpoint(val_di
+    lrate = tf.keras.callbacks.LearningRateScheduler(lr_decay)
+    # checkpoint = tf.keras.callbacks.ModelCheckpoint(val_di
     #     model_file, monitor='loss', verbose=0, save_best_only=False,
     #     save_weights_only=True, mode='min', period=conf.save_step)
     obs = OutputObserver(conf, [train_di2, val_di])
@@ -761,26 +819,27 @@ def training(conf, name='deepnet'):
     # Mayank 20190423 - Adding clipnorm so that the loss doesn't go to zero.
     # Epsilon: could just leave un-speced, None leads to default in tf1.14 at least
     # Decay: 0.0 bc lr schedule handled above by callback/LRScheduler
-    optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    #optimizer = Adam(lr=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+    # ALT 2023-03-29 --- Dropped "decay" keyword argument b/c no longer supported
+    optimizer = tf.keras.optimizers.legacy.Adam(learning_rate=base_lr, beta_1=0.9, beta_2=0.999, epsilon=None, amsgrad=False)
+      # Have to use "legacy" version b/c without ".legacy" you get an "experimental" version, which tries to use .numpy(), 
+      # which doesn't work b/c we've disabled eager execution via tf.compat.v1.disable_v2_behavior() in APT_interface.main().  -- ALT, 2023-03-31
 
     model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer)
+    #model.compile(loss=losses, loss_weights=loss_weights, optimizer=optimizer, run_eagerly=True)  # for debugging
 
     logging.info("Your model.metrics_names are {}".format(model.metrics_names))
 
     # save initial model
-    model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
+    # model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(0))))
 
-    model.fit_generator(train_di,
-                        steps_per_epoch=iterations_per_epoch,
-                        epochs=max_iter-1,
-                        callbacks=callbacks_list,
-                        verbose=0,
-                        initial_epoch=last_epoch
-                        )
-                        # validation_data=val_di,
-                        # validation_steps=val_samples // batch_size,
-#                        use_multiprocessing=True,
-#                        workers=4,
+    model.fit(train_di,
+              steps_per_epoch=iterations_per_epoch,
+              epochs=max_iter-1,
+              callbacks=callbacks_list,
+              verbose=0,
+              initial_epoch=last_epoch
+              )
 
     # force saving in case the max iter doesn't match the save step.
     model.save(str(os.path.join(conf.cachedir, name + '-{}'.format(int(max_iter*iterations_per_epoch)))))
@@ -851,6 +910,7 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
     assert not conf.normalize_img_mean, "OP currently performs its own img input norm"
     assert not conf.normalize_batch_mean, "OP currently performs its own img input norm"
     model = model_test(conf.op_imsz_net,
+                       conf.op_weight_decay_kernel,
                               backbone=conf.op_backbone,
                               nPAFstg=conf.op_paf_nstage,
                               nMAPstg=conf.op_map_nstage,
@@ -871,6 +931,10 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
 
     op_pred_simple = conf.get('op_pred_simple', False)
     op_inference_old = conf.get('op_inference_old', False)
+    if not op_pred_simple:
+        parpool = multiprocessing.Pool(conf.batch_size)
+    else:
+        parpool = None
 
     def pred_fn(all_f, retrawpred=conf.op_pred_raw):
         '''
@@ -883,25 +947,29 @@ def get_pred_fn(conf, model_file=None, name='deepnet', edge_ignore=0):
         assert all_f.shape[0] == conf.batch_size
         locs_sz = (conf.batch_size, conf.n_classes, 2)
         locs_dummy = np.zeros(locs_sz)
-        ims, _ = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False)
-        model_preds = model.predict(ims)
+        ret = tfdatagen.ims_locs_preprocess_openpose(all_f, locs_dummy, conf, False, gen_target_hmaps=False,mask=np.ones_like(all_f[...,0])>0)
+        ims = ret[0]
+
+        model_preds = []
+        for ix in range(ims.shape[0]):
+            model_preds.append(model.predict(ims[ix:ix+1,...]))
 
         # all_infered = []
         # for ex in range(xs.shape[0]):
         #     infered = do_inference(model_preds[-1][ex,...],model_preds[-2][ex,...],conf, thre1, thre2)
         #     all_infered.append(infered)
 
-        predhm = model_preds[-1]  # this is always the last/final MAP hmap
         if op_pred_simple:
+            predhm = np.array([m[-1][0,...] for m in model_preds])  # this is always the last/final MAP hmap
             ret_dict = pred_simple(predhm,conf,edge_ignore,retrawpred,ims,model_preds)
         else:
-            locs = np.ones([predhm.shape[0],conf.max_n_animals,conf.n_classes,2])*np.nan
-            for ndx in range(predhm.shape[0]):
-                if op_inference_old:
-                    cur_locs = do_inference_old(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
-                else:
-                    cur_locs = do_inference(predhm[ndx,...],model_preds[-2][ndx,...],conf,thre_hm,thre_paf)
-                locs[ndx,...] = cur_locs
+            in_args = [[mm[-1][0,...],mm[-2][0,...],conf,thre_hm,thre_paf] for mm in model_preds]
+            fn = do_inference_old if op_inference_old else do_inference
+            if len(in_args)>1:
+                cur_locs = parpool.starmap(fn,in_args)
+            else:
+                cur_locs = [fn(*in_args[0])]
+            locs = np.array(cur_locs).copy()
 
             # undo rescale
             locs = PoseTools.unscale_points(locs, conf.rescale, conf.rescale)

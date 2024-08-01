@@ -2384,10 +2384,10 @@ if strcmp(get(ax,'XTickLabelMode'),'auto') && strcmp(get(ax,'XScale'),'linear')
         axlabelx = get(ax, 'XTickLabel');
         numlabels = zeros(length(axlabelx), 1);
         for ix = 1:length (axlabelx)
-            numlabels(ix) = str2num(axlabelx{ix});
+            numlabels(ix) = str2double(axlabelx{ix});
         end
     else
-        numlabels = str2num(get(ax,'XTickLabel'));
+        numlabels = str2double(get(ax,'XTickLabel'));
     end
     labelpos = get(ax,'XTick');
     numlabels = numlabels(:);

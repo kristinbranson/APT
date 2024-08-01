@@ -25,7 +25,7 @@ function varargout = TrainMonitorGUI(varargin)
 % Last Modified by GUIDE v2.5 19-Dec-2018 13:10:34
 
 % Begin initialization code - DO NOT EDIT
-gui_Singleton = 1;
+gui_Singleton = 0;
 gui_State = struct('gui_Name',       mfilename, ...
                    'gui_Singleton',  gui_Singleton, ...
                    'gui_OpeningFcn', @TrainMonitorGUI_OpeningFcn, ...
@@ -126,8 +126,10 @@ function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
 
 % Hint: delete(hObject) closes the figure
 
+tfbatch = batchStartupOptionUsed; % ci
 mode = get(handles.pushbutton_startstop,'UserData');
-if strcmpi(mode,'stop'),
+
+if strcmpi(mode,'stop') && ~tfbatch,
   
   res = questdlg({'Training currently in progress. Please stop training before'
     'closing this monitor. If you have already clicked Stop training,'
@@ -139,7 +141,7 @@ if strcmpi(mode,'stop'),
     delete(hObject);
   end
   
-elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
+elseif strcmpi(mode,'start') || strcmpi(mode,'done') || tfbatch,
   
   delete(hObject);
   

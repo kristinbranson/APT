@@ -1,8 +1,5 @@
 classdef APTParameters
   properties (Constant)
-    PARAM_FILE_SPECS = lclInitParamFileSpecs();
-  end
-  properties (Constant, Access=private)
     % This property stores parsetrees for yamls so that yaml files only 
     % need to be parsed once.
     %
@@ -38,24 +35,75 @@ classdef APTParameters
       tPrmPreprocess = trees.preprocess.tree;
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;
+      tPrmMA = trees.ma.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
       
       if incDLNetSpecific
-        [~,nets] = enumeration('DLNetType');
-        tPrmDeepNets = cellfun(@(x)trees.(x).tree,nets,'uni',0);
-        tPrmDeepNets = cat(1,tPrmDeepNets{:});
-        tPrmDeepNetsChildren = cat(1,tPrmDeepNets.Children);    
+        [nettypes,nets] = enumeration('DLNetType');
+        netisMA = logical([nettypes.isMultiAnimal]);
+        idxisMA = find(netisMA); 
+                
+        tPrmDeepNets0 = cellfun(@(x)trees.(x).tree,nets,'uni',0);
+        tPrmDeepNetsTopLevelDT = cat(1,tPrmDeepNets0{:});
+        tPrmDeepNetsMADetect = tPrmDeepNets0(netisMA);
+        % deep copy these nodes as they will be placed under .Detect and
+        % will have different requirements
+        tPrmDeepNetsMADetect = cellfun(@copy,tPrmDeepNetsMADetect,'uni',0);
+        tPrmDeepNetsMADetect = cat(1,tPrmDeepNetsMADetect{:});
+        
+        % these MA nets will be added to the top-level .DeepTrack.
+        % MA nets placed here apply only to bottom-up MA-tracking.
+        for i=idxisMA(:)'
+          tPrmDeepNetsTopLevelDT(i).traverse(...
+                        @(x)x.Data.addRequirement('isBotUp'));
+        end
+        tPrmDeepNetsChildren = cat(1,tPrmDeepNetsTopLevelDT.Children);    
         tPrmDT.Children.Children = [tPrmDT.Children.Children; ...
                                     tPrmDeepNetsChildren];
+        
+        % these MA nets will be added under .Detect and apply only to 
+        % top-down tracking (stage1)
+        arrayfun(@(x)x.traverse(@(y)y.Data.addRequirement('isTopDown')), ...
+          tPrmDeepNetsMADetect);
+        tPrmDeepNetsMAChildren = cat(1,tPrmDeepNetsMADetect.Children);
+        
+        tPrmMADetectDT = tPrmMA.findnode('ROOT.MultiAnimal.Detect.DeepTrack');
+        tPrmMADetectDT.Children = ...
+          [tPrmMADetectDT.Children; tPrmDeepNetsMAChildren];
       end
       
       tPrm0 = tPrmPreprocess;
       tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmDT.Children; tPrmPostProc.Children];
+        tPrmCpr.Children; tPrmMA.Children; tPrmDT.Children; tPrmPostProc.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
+    function tPrm0 = defaultTrackParamsTree(varargin)
+      tPrm0 = APTParameters.defaultParamsTree(varargin{:});
+      tPrmTrack = tPrm0.findnode('ROOT.Track');
+      tPrmMA = tPrm0.findnode('ROOT.MultiAnimal.Track');
+      tPrmMA.Data.Field = 'MultiAnimal';
+      tPrmPostProcess = tPrm0.findnode('ROOT.PostProcess');
+      tPrm0.Children = [tPrmTrack;tPrmMA;tPrmPostProcess];
+    end
+        
+    % all parameters to tracking (not training) parameters
+    function v = all2TrackParams(sPrmAll,compress)
+      if nargin < 2,
+        compress = true;
+      end
+      v = struct;
+      v.ROOT = struct;
+      v.ROOT.Track = sPrmAll.ROOT.Track;
+      if compress,
+        v.ROOT.MultiAnimal = sPrmAll.ROOT.MultiAnimal.Track;
+      else
+        v.ROOT.MultiAnimal.Track = sPrmAll.ROOT.MultiAnimal.Track;
+      end
+      v.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
+    end
+
     function sPrm0 = defaultParamsStruct
       tPrm0 = APTParameters.defaultParamsTree('incDLNetSpecific',false);
       sPrm0 = tPrm0.structize();
@@ -64,18 +112,20 @@ classdef APTParameters
     function sPrm0 = defaultParamsStructAll
       tPrm0 = APTParameters.defaultParamsTree;
       sPrm0 = tPrm0.structize();
-    end
-    
-    function dlNetTypes = getDLNetTypes
-      dlNetTypes = enumeration('DLNetType')';
-%       mc = ?DLNetType;
-%       dlNetTypes = cellfun(@(x) DLNetType(x),{mc.EnumerationMemberList.Name},'uni',0);
-%       dlNetTypes = cat(2,dlNetTypes{:});
-    end
-    
+    end    
+ 
     function dlNetTypesPretty = getDLNetTypesPretty
       mc = ?DLNetType;
-      dlNetTypesPretty = cellfun(@(x) DLNetType(x).prettyString,{mc.EnumerationMemberList.Name},'Uni',0);
+      dlNetTypesPretty = cellfun(@APTParameters.getParamField,...
+        {mc.EnumerationMemberList.Name},'Uni',0);
+    end
+    
+    function f = getParamField(nettype)
+      if ~ischar(nettype)
+        nettype = char(nettype);
+      end
+      % first non-ROOT top-level field in parameter yaml 
+      f = APTParameters.PARAM_FILES_TREES.(nettype).tree.Children(1).Data.Field;      
     end
     
     function sPrmDTcommon = defaultParamsStructDTCommon
@@ -158,13 +208,15 @@ classdef APTParameters
     end
     
     function tree = filterPropertiesByCondition(tree,labelerObj,varargin)
-    
+      % note on netsUsed
+      % Currently, topdown trackers include 2 'netsUsed'
+      
       if isempty(tree.Children),
         
-        [trackerAlgo,hasTrx,trackerIsDL] = myparse(varargin,...
-          'trackerAlgo',[],'hasTrx',[],'trackerIsDL',[]);
-        if isempty(trackerAlgo),
-          trackerAlgo = labelerObj.trackerAlgo;
+        [netsUsed,hasTrx,trackerIsDL] = myparse(varargin,...
+          'netsUsed',[],'hasTrx',[],'trackerIsDL',[]);
+        if isempty(netsUsed),
+          netsUsed = labelerObj.trackerNetsUsed;
         end
         if isempty(hasTrx),
           hasTrx = labelerObj.hasTrx;
@@ -172,20 +224,56 @@ classdef APTParameters
         if isempty(trackerIsDL),
           trackerIsDL = labelerObj.trackerIsDL;
         end
+        isma = labelerObj.maIsMA;
+        is2stg = labelerObj.trackerIsTwoStage;
+        isbu = labelerObj.trackerIsBotUp;
+        isod = labelerObj.trackerIsObjDet;
+        isht = is2stg && ~isod;
+        
+        % AL20210901: note: in parameter yamls, the 'isTopDown' requirement
+        % is used; but this actually means "isTD-2stg"; vs SA-trx which is
+        % conceptually TD.
       
-        if ismember('isCPR',tree.Data.Requirements) && ~strcmpi(trackerAlgo,'cpr'),
+        reqs = tree.Data.Requirements;
+        if ismember('isCPR',reqs) && ~any(strcmpi('cpr',netsUsed)),
           tree.Data.Visible = false;
-        elseif ismember('hasTrx',tree.Data.Requirements) && ~hasTrx,
+        elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
+          if ~hasTrx && ~is2stg
+            % Special case/hack; if hasTrx and ma are both present, it's an
+            % OR condition (rather than AND which is the default for 2+
+            % requiremetns)
+            tree.Data.Visible = false;
+          end
+        elseif all(ismember({'hasTrx' 'isHeadTail'},reqs))
+          if ~hasTrx && ~isht
+            % Special case/hack; if hasTrx and head-tail are both present, it's an
+            % OR condition (rather than AND which is the default for 2+
+            % requiremetns)
+            tree.Data.Visible = false;
+          end
+        elseif ismember('isBotUp',reqs) && ~isbu
           tree.Data.Visible = false;
-        elseif ismember('isMultiView',tree.Data.Requirements) && ~labelerObj.isMultiView
+        elseif ismember('ma',reqs) && ~isma
           tree.Data.Visible = false;
-        elseif ismember('isDeepTrack',tree.Data.Requirements) && ~trackerIsDL,
+        elseif ismember('hasTrx',reqs) && ~hasTrx,
+          tree.Data.Visible = false;
+        elseif ismember('isMultiView',reqs) && ~labelerObj.isMultiView
+          tree.Data.Visible = false;
+        elseif ismember('isDeepTrack',reqs) && ~trackerIsDL,
+          tree.Data.Visible = false;
+        elseif ismember('isTopDown',reqs) && ~is2stg
+          tree.Data.Visible = false;          
+        elseif ismember('isHeadTail',reqs) && ~isht
+          tree.Data.Visible = false;
+        elseif ismember('isObjDet',reqs) && ~isod
+          tree.Data.Visible = false;
+        elseif ismember('~isObjDet',reqs) && isod
           tree.Data.Visible = false;
         else
           dlnets = enumeration('DLNetType');
           for i=1:numel(dlnets)
             net = dlnets(i);
-            if ismember(net,tree.Data.Requirements) && ~strcmp(trackerAlgo,net)
+            if ismember(net,reqs) && ~any(strcmp(net,netsUsed))
               tree.Data.Visible = false;
               break;
             end
@@ -247,7 +335,8 @@ classdef APTParameters
       
     end
     
-    function [v,sPrmFilter0,sPrmFilter1] = isEqualFilteredStructProperties(sPrm0,sPrm1,varargin)
+    function [v,sPrmFilter0,sPrmFilter1] = ...
+        isEqualFilteredStructProperties(sPrm0,sPrm1,varargin)
       [tPrm0,leftovers] = myparse_nocheck(varargin,'tree',[]);
       if isempty(tPrm0),
         tPrm0 = APTParameters.defaultParamsTree;
@@ -272,12 +361,13 @@ classdef APTParameters
       
       tfChangeMade = false;
       
-      if sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta && ...
-         strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
-        warningNoTrace('CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.');
-        sPrm.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
-        tfChangeMade = true;
-      end
+%     20211026 MA CPR no longer supported
+%       if sPrm.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta && ...
+%          strcmp(sPrm.ROOT.CPR.RotCorrection.OrientationType,'fixed')
+%         warningNoTrace('CPR OrientationType cannot be ''fixed'' if aligning target crops using trx.theta. Setting CPR OrientationType to ''arbitrary''.');
+%         sPrm.ROOT.CPR.RotCorrection.OrientationType = 'arbitrary';
+%         tfChangeMade = true;
+%       end
     end
     
     % convert from all parameters to various subsets 
@@ -300,16 +390,18 @@ classdef APTParameters
       sPrmDT = sPrmAll.ROOT.DeepTrack;
       dlNetTypesPretty = APTParameters.getDLNetTypesPretty;
       v = rmfield(sPrmDT,intersect(fieldnames(sPrmDT),dlNetTypesPretty));
+      flds2remove = {'LossFunction','Saving','DataAugmentation','GradientDescent'};
+      for fndx = 1:numel(flds2remove)
+        if isfield(v,flds2remove{fndx})
+          v = rmfield(v,flds2remove{fndx});
+        end
+      end
     end
 
-%     function v = all2DLCacheDir(sPrmAll)
-%       v = sPrmAll.ROOT.DeepTrack.Saving.CacheDir;
-%     end
-    
     % all parameters to specific dl parameters for input netType
     function v = all2DLSpecificParams(sPrmAll,netType)
       if ~ischar(netType),
-        netType = netType.prettyString;
+        netType = APTParameters.getParamField(netType);
       end
       v = sPrmAll.ROOT.DeepTrack.(netType);
     end
@@ -329,7 +421,7 @@ classdef APTParameters
       end
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = CPRParam.new2old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = CPRParam.n/ew2old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
       v = rmfield(sPrmPPandCPRold,'PreProc');
     end
 
@@ -352,6 +444,13 @@ classdef APTParameters
       sPrmAll.ROOT.DeepTrack = structoverlay(sPrmAll.ROOT.DeepTrack,sPrmDT);      
     end
     
+    % set tracking-specific parameters
+    function sPrmAll = setTrackParams(sPrmAll,sPrmTrack)
+      sPrmAll.ROOT.Track = sPrmTrack.ROOT.Track;
+      sPrmAll.ROOT.MultiAnimal.Track = sPrmTrack.ROOT.MultiAnimal;
+      sPrmAll.ROOT.PostProcess = sPrmTrack.ROOT.PostProcess;  
+    end
+    
     % set specific dl parameters for input netType
     function sPrmAll = setDLSpecificParams(sPrmAll,netType,sPrmDT)
       sPrmAll.ROOT.DeepTrack.(netType) = sPrmDT;
@@ -368,7 +467,7 @@ classdef APTParameters
       sPrmAll.ROOT.CPR = sPrmCPR;
     end
     
-    function sPrmAll = setNFramesTrackParams(sPrmAll,obj)      
+    function sPrmAll = setNFramesTrackParams(sPrmAll,obj)
       sPrmAll.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrmAll.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrmAll.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;
@@ -441,6 +540,230 @@ classdef APTParameters
       end
     end
     
+    function sPrmAll = modernize(sPrmAll)
+      % 20210720 param reorg MA
+      if ~isempty(sPrmAll)
+        if isfield(sPrmAll.ROOT,'MultiAnimalDetection')
+          sPrmAll.ROOT.MultiAnimal.Detect = sPrmAll.ROOT.MultiAnimalDetection;
+          sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'MultiAnimalDetection');
+        end
+        if isfield(sPrmAll.ROOT,'ImageProcessing') && ... 
+          isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
+           isfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop')
+          sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
+          sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
+            rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
+        end        
+        if isfield(sPrmAll.ROOT,'MultiAnimal')
+          if isfield(sPrmAll.ROOT.MultiAnimal,'TargetCrop') && ...
+            isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
+            sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
+               sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
+            sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
+              rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
+          end
+          if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
+            isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
+            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
+            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
+            sPrmAll.ROOT.MultiAnimal.Detect = ...
+              rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
+          end
+          % KB 20220516: moving tracking related parameters around
+          if isfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals')
+            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.max_n_animals;
+            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals');
+          end
+          if isfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals')
+            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.min_n_animals;
+            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals');
+          end
+          if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
+            sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
+            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
+          end
+        end
+        
+        sPrmDflt = APTParameters.defaultParamsStructAll;
+        sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
+          'dontWarnUnrecog',true); % to allow removal of obsolete params
+      end
+    end
+    
+    function [tPrm,canceled,do_update] = ...
+        autosetparams(tPrm,lobj,varargin)
+      
+      silent = myparse(varargin,'silent',false);
+      
+      if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
+          % Using head-tail for the first stage
+          align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
+
+          if ~align_trx_theta
+            if silent
+              res = 'Yes';
+            else
+              res = questdlg('For head-tail based two-stage detection, align using head-tail is switched off. Aligning animals using the head-tail direction will lead to better performance. Align using the head-tail direction?','Align using head-tail','Yes','No','Yes');
+            end
+            if strcmp(res,'Yes')
+              tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value = 1;
+              lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = 1;
+            end
+          end
+          
+          align_trx_theta = tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value;
+          vert_flip = tPrm.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value;
+          if align_trx_theta && vert_flip
+            if silent
+              res = 'Yes';
+            else
+              res = questdlg('When aligning using head-tail for 2 stage tracking, horizontal flipping and not vertical flipping is recommended for augmentation as the animal is rotated to face up. Switch the augmentation flip augmentation type from vertical to horizontal?','Switch flipping?','Yes','No','Yes');
+            end
+            if strcmp(res,'Yes')
+              tPrm.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value = 0;
+              tPrm.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip').Data.Value = 1;
+              lobj.trackParams.ROOT.DeepTrack.DataAugmentation.horz_flip = 1;
+              lobj.trackParams.ROOT.DeepTrack.DataAugmentation.vert_flip = 0;
+            end
+          
+          end
+      end
+      
+      % automatically set the parameters based on labels.
+      autoparams = compute_auto_params(lobj);
+      
+      kk = autoparams.keys();
+      res = 'Update';
+      canceled = false;
+      do_update = false;
+      % If values have been previously updated, then check if they are
+      % significantly (>10%) different now
+      %%
+      dstr = '';
+      diff = false;
+      identical = true;
+      default = true;
+
+      for ndx = 1:numel(kk)
+        nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+        prev_val = nd.Data.Value;
+        cur_val = autoparams(kk{ndx});
+        reldiff = (cur_val-prev_val)/(prev_val+0.001);
+        if isempty(reldiff) || abs(reldiff)>0.1 % first clause if eg prev_val empty
+          diff = true;
+        end
+        if nd.Data.DefaultValue~=nd.Data.Value
+          default = false;
+        end
+        if cur_val~=prev_val
+          identical = false;
+        end
+        extra_str = '';
+        if ~isempty(strfind(kk{ndx},'DataAugmentation')) && lobj.maIsMA && lobj.trackerIsTwoStage
+          if strfind(kk{ndx},'MultiAnimal.Detect')
+            extra_str = ' (first stage)';
+          else
+            extra_str = ' (second stage)';
+          end
+        end
+        dstr = sprintf('%s%s%s %d -> %d\n',dstr,nd.Data.DispName, extra_str,...
+                    prev_val,cur_val);
+
+      end
+
+      if diff
+        dstr = sprintf('Auto-computed parameters have changed from earlier by more than 10%% \nfor some of the parameters. Update the following parameters? \n%s',dstr);
+        
+        if lobj.trackAutoSetParams
+          if default || silent
+            res = 'Update';
+          else
+            res = APTParameters.auto_gui(dstr,lobj);
+          end
+        else
+          res = 'Do not update';
+        end
+        if strcmp(res,'Cancel')
+          canceled = true;
+          return;
+        end
+      else
+        % All parameters are identical
+        do_udpate = false;
+        return;
+      end
+      
+      if strcmp(res,'Update')
+        for ndx = 1:numel(kk)
+          nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+          nd.Data.Value = autoparams(kk{ndx});
+        end
+        do_update = true;
+      end
+      
+    end
+    
+    function res = auto_gui(dstr,lobj)
+    %%    
+      margin = 10;
+      btn_w = 150;
+      btn_h = 30;
+      n_btn = 3;
+      min_w = n_btn*btn_w+(n_btn+1)*margin;
+      min_h = btn_h + 3*margin;
+
+     dstr= strtrim(dstr);
+     f = figure('units','pixels','position',[300,300,min_w,150],...
+       'toolbar','none','menu','none');
+     t = uicontrol('style','text','String',dstr,'units','pixels',...
+       'position',[0,0,250,100],'Parent',f);
+     text_sz = get(t,'Extent');
+
+%       c_box = uicontrol('style','checkbox','String','Always do this action',...
+%         'units','pixels','position',[0,0,250,100]);
+%       c_sz = get(c_box,'Extent');
+
+     min_h = min_h+text_sz(4);
+     min_w = max(min_w,text_sz(3)+2*margin);
+
+     f.Position(4) = min_h;
+     f.Position(3) = min_w;
+     t.Position(2) = 2*margin+btn_h;
+     t.Position(1) = (min_w-text_sz(3))/2;
+     t.Position(3:4) = t.Extent(3:4);
+%      c_box.Position(3) = c_box.Extent(3)+20;
+%      c_box.Position(4) = c_box.Extent(4);
+%      c_box.Position(2) = margin;
+%      c_box.Position(1) = (min_w-c_sz(3))/2;
+
+     btn_bottom = margin; 
+     btn_margin = (min_w-2*margin-n_btn*btn_w)/(n_btn-1);
+     btns = [];
+     btns(1) = uicontrol('style','pushbutton','String','Update',...
+       'units','pixels','position',[margin,btn_bottom,btn_w,btn_h],'Visible','on');
+     btns(2) = uicontrol('style','pushbutton','String','Do not update',...
+       'units','pixels','position',[margin+(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+     btns(3) = uicontrol('style','pushbutton','String','Cancel',...
+       'units','pixels','position',[margin+2*(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+
+     set(btns,'Callback',@p_call)
+     centerOnParentFigure(f,lobj.hFig);
+
+      function p_call(hobj,~,handles)
+        handles.action = get(hobj,'String');
+        handles.never_again = false; %get(c_box,'Value');
+        uiresume(f);
+        guidata(hobj,handles);
+      end
+      
+     uiwait(f)
+     handles = guidata(f);
+     res = handles.action;
+     delete(f);
+    end
+
+    
+    
   end
   methods (Static)
     function sPrm0 = defaultParamsOldStyle
@@ -453,32 +776,298 @@ classdef APTParameters
   end
 end
 
-function s = lclInitParamFileSpecs()
-s = struct(...
-  'preprocess',{{'params_preprocess.yaml'}},...
-  'track',{{'params_track.yaml'}},...
-  'cpr',{{'trackers','cpr','params_cpr.yaml'}},...
-  'deeptrack',{{'trackers','dt','params_deeptrack.yaml'}},...
-  'postprocess',{{'params_postprocess.yaml'}});
 
-nettypes = enumeration('DLNetType');
-for i=1:numel(nettypes)
-  netty = nettypes(i);
-  s.(char(netty)) = {'trackers','dt',netty.paramFileShort};
+function autoparams = compute_auto_params(lobj)
+
+  assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
+  %%
+  view = 1;
+  autoparams = containers.Map();
+  nmov = numel(lobj.labels);
+  npts = lobj.nLabelPoints;
+  all_labels = [];
+  all_id = [];
+  all_mov = [];
+  pair_labels = [];
+  cur_pts = ((view-1)*2*npts+1):(view*2*npts);
+  for ndx = 1:nmov        
+    if ~Labels.hasLbls(lobj.labels{ndx}), continue; end
+
+    all_labels = [all_labels lobj.labels{ndx}.p(cur_pts,:,:)];
+    n_labels = size(lobj.labels{ndx}.p,2);
+    all_id = [all_id 1:n_labels];
+    all_mov = [all_mov ones(1,n_labels)*ndx];
+
+    if ~lobj.maIsMA, continue, end
+    pair_done = [];
+    big_val = 10000000;
+    for fndx = 1:numel(lobj.labels{ndx}.frm)
+      f = lobj.labels{ndx}.frm(fndx);
+      if nnz(lobj.labels{ndx}.frm==f)>1
+        idx = find(lobj.labels{ndx}.frm==f);
+        for ix = idx(:)'
+          if ix==fndx, continue, end
+          if any(pair_done==(f*big_val+ix))
+            continue
+          end
+          if any(pair_done==(ix*big_val+f))
+            continue
+          end
+
+          pair_done(end+1) = ix*big_val+f;
+          cur_pair = [lobj.labels{ndx}.p(cur_pts,fndx);lobj.labels{ndx}.p(cur_pts,ix)];
+          pair_labels = [pair_labels cur_pair];
+
+        end
+      end
+
+    end
+
+  end
+  all_labels = reshape(all_labels,npts,2,[]);
+  pair_labels = reshape(pair_labels,npts,2,2,[]);
+  % animals are along the last dimension.
+  % second dim has the coordinates
+
+  %%
+  %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
+  %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+  l_min = permute(nanmin(all_labels,[],1),[2,3,1]);
+  l_max = permute(nanmax(all_labels,[],1),[2,3,1]);
+  l_span = l_max-l_min;
+  % l_span is labels span in x and y direction
+
+  l_span_pc = prctile(l_span,95,2);
+  l_span_max = nanmax(l_span,[],2);
+
+  % Check and flag outliers..
+  if any( (l_span_max./l_span_pc)>2)
+    outliers = zeros(0,3);
+    for jj = find( (l_span_max/l_span_pc)>2)
+      ix = find(l_span(jj,:)>l_span_pc(jj)*2);
+      for xx = ix(:)'
+        mov = all_mov(xx);
+        yy = all_id(xx);
+        cur_fr = lobj.labels{mov}.frm(yy);
+        cur_tgt = lobj.labels{mov}.tgt(yy);
+        outliers(end+1,:) = [mov,cur_fr,cur_tgt];
+      end
+    end
+    wstr = 'Some bounding boxes have sizes much larger than normal. This suggests that they may have labeing errors\n';
+    wstr = sprintf('%s The list of examples is \n',wstr);
+    for zz = 1:size(outliers,1)
+      wstr = sprintf('%s Movie:%d, frame:%d, target:%d\n',wstr,outliers(zz,1),outliers(zz,2),outliers(zz,3));
+    end
+    warning(wstr);
+  end
+
+  crop_radius = nanmax(l_span_pc);
+  crop_radius = ceil(crop_radius/16)*16;
+  autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
+  if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
+    autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
+  end
+
+  % Look at distances between labeled pairs to find what to set for
+  % tranlation range for data augmentation
+  min_pairs = min(pair_labels,[],1);
+  max_pairs = max(pair_labels,[],1);
+  ctr_pairs = (max_pairs+min_pairs)/2;
+  d_pairs = sqrt(sum( (ctr_pairs(:,:,1,:)-ctr_pairs(:,:,2,:)).^2,2));
+  d_pairs = squeeze(d_pairs);
+  d_pairs_pc = prctile(d_pairs,5);
+  d_pairs_min = min(d_pairs_pc);
+
+  % If the distances between center of animals is much less than the
+  % span then warn about using bbox based methods
+  if(d_pairs_pc<min(l_span_pc/10)) && lobj.trackerIsObjDet
+    wstr = 'The distances between the center of animals is much smaller than the spans of the animals';
+    wstr = sprintf('%s\n Avoid using object detection based top-down methods',wstr);
+    warning(wstr);
+  end
+
+  trange_frame = min(lobj.movienr(view),lobj.movienc(view))/10;
+  trange_pair = d_pairs_pc/2;
+  trange_crop = min(l_span_pc)/10; 
+  trange_animal = min(trange_pair,trange_crop);
+  rrange = 15;
+  align_theta = lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta;
+
+  % Estimate the translation range and rotation ranges
+  if ~lobj.maIsMA
+    % Single animal autoparameters.
+    if lobj.hasTrx
+      % If has trx then just use defaults for rrange
+      % If using cropping set trange to 10 percent of the crop size.
+      trange = max(5,trange_animal);
+      trange = round(trange/5)*5;
+      if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta
+        rrange = 15;
+      else
+        rrange = 180;
+      end
+      autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      autoparams('DeepTrack.DataAugmentation.trange') = trange;
+    else
+      % No trx. 
+
+      % Set translation range to 10 percent of the crop size
+      trange = max(5,trange_frame);
+      trange = round(trange/5)*5;
+      % Try to guess rotation range for single animal
+      % For this look at the angles from center of the frame/crop to
+      % the labels
+      l_thetas = atan2(all_labels(:,1,:)-lobj.movienc(view)/2,...
+        all_labels(:,2,:)-lobj.movienr(view)/2);
+      ang_span = get_angle_span(l_thetas)*180/pi;
+      rrange = min(180,max(10,median(ang_span)/2));
+      rrange = round(rrange/10)*10;
+      autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      autoparams('DeepTrack.DataAugmentation.trange') = trange;
+    end
+  else
+    % Multi-animal. Two tranges for first and second stage. Applied
+    % depending on the workflow
+
+    
+    if lobj.trackParams.ROOT.MultiAnimal.multi_crop_ims
+      % If we are cropping the images then use animal trange.
+      crop_sz = lobj.trackParams.ROOT.MultiAnimal.multi_crop_im_sz;
+      trange_crop = crop_sz/10;
+      trange_top = min(trange_pair,trange_crop);
+    else
+      trange_top = trange_frame;
+    end
+    
+    trange_top = max(5,trange_top);
+    trange_top = round(trange_top/5)*5;
+    trange_second = min(trange_crop,trange_animal);
+    trange_second = max(5,trange_second);
+    trange_second = round(trange_second/5)*5;
+
+    if lobj.trackerIsTwoStage
+      % For 2 stage DeepTrack.DataAugmentation is for the second stage
+      % and Multianiml.Detect.DeepTrack.DataAugmentation is for the first
+      % stage. Note DataAugmentation doesn't apply for bbox detection
+      autoparams('DeepTrack.DataAugmentation.trange') = trange_second;
+      if lobj.trackerIsObjDet
+        % If uses object detection for the first stage then the look at
+        % the variation in angles relative to the center
+        mid_labels = mean(all_labels,1);
+        l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+          all_labels(:,2,:)-mid_labels(:,2,:));
+        ang_span = get_angle_span(l_thetas)*180/pi;
+        rrange = min(180,max(10,median(ang_span)/2));
+        rrange = round(rrange/10)*10;
+        autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      else
+        % Using head-tail for the first stage
+        align_trx_theta = lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta;
+
+        if align_trx_theta
+        % For head-tail based, find the angle span after aligning along
+        % the head-tail direction.
+
+          hd = all_labels(lobj.skelHead,:,:);
+          tl = all_labels(lobj.skelTail,:,:);
+          body_ctr = (hd+tl)/2;
+          l_thetas = atan2(all_labels(:,1,:)-body_ctr(:,1,:),...
+            all_labels(:,2,:)-body_ctr(:,2,:));
+          l_thetas_r = mod(l_thetas - l_thetas(lobj.skelHead,:,:),2*pi);
+          ang_span = get_angle_span(l_thetas_r)*180/pi;
+          
+          % Remove ang spans for head and tail because they will be always
+          % zero.
+          ht_pts = [lobj.skelHead, lobj.skelTail];
+          ang_span(ht_pts) = [];
+        else
+          % If not aligned along the head-tail then look at the angles
+          % from the center
+          warning('For head-tail based two-stage detection, align using head-tail is switched off. Aligning using head-tail will lead to better performance');
+          mid_labels = mean(all_labels,1);
+          l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+            all_labels(:,2,:)-mid_labels(:,2,:));
+          ang_span = get_angle_span(l_thetas)*180/pi;
+        end
+        if numel(ang_span)>0
+          rrange = min(180,max(10,median(ang_span)/2));
+        else
+          rrange = 15;
+        end
+        rrange = round(rrange/10)*10;
+        autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+        
+        mid_labels = mean(all_labels,1);
+        l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+          all_labels(:,2,:)-mid_labels(:,2,:));
+        ang_span = get_angle_span(l_thetas)*180/pi;
+        ang_span = ang_span([lobj.skelHead,lobj.skelTail]);
+        rrange = min(180,max(10,median(ang_span)/2));
+        rrange = round(rrange/10)*10;
+        autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.rrange') = rrange;
+        autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.trange') = trange_top;
+      end
+    else
+      % Bottom up. Just look at angles of landmarks to the center to
+      % see if the animals tend to be always aligned.
+      mid_labels = mean(all_labels,1);
+      l_thetas = atan2(all_labels(:,1,:)-mid_labels(:,1,:),...
+        all_labels(:,2,:)-mid_labels(:,2,:));
+      ang_span = get_angle_span(l_thetas)*180/pi;
+      rrange = min(180,max(10,median(ang_span)/2));
+      rrange = round(rrange/10)*10;
+      autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+      autoparams('DeepTrack.DataAugmentation.trange') = trange_top;
+
+    end
+  end
+
 end
+
+function ang_span = get_angle_span(theta)
+  % Find the span of thetas. Hacky method that rotates the pts by
+  % 10degrees and then checks the span.
+  ang_span = ones(size(theta,1),1)*2*pi;
+  for offset = 0:10:360
+    thetao = mod(theta + offset*pi/180,2*pi);
+    cur_span = prctile(thetao,98,3) - prctile(thetao,2,3);
+    ang_span = min(ang_span,cur_span);
+  end
+end
+
+function [s,deepnets] = lclParamFileSpecs()
+% Specifies/finds yamls in APT tree.
+%
+% Deepnets are found dynamically to easy adding new nets.
+
+s.preprocess = 'params_preprocess.yaml';
+s.track = 'params_track.yaml';
+s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
+s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
+s.ma = fullfile('trackers','dt','params_ma.yaml');
+s.postprocess = 'params_postprocess.yaml';
+aptroot = APT.getRoot;
+dd = dir(fullfile(aptroot,'matlab','trackers','dt','params_deeptrack_*.yaml'));
+dtyamls = {dd.name}';
+sre = regexp(dtyamls,'params_deeptrack_(?<net>[a-zA-Z_]+).yaml','names');
+for i=1:numel(dtyamls)
+  s.(sre{i}.net) = fullfile('trackers','dt',dtyamls{i});
+end
+deepnets = cellfun(@(x)x.net,sre,'uni',0);
 end
 
 function s = lclInitParamFilesTrees()
 %disp('APTParams init files trees');
-specs = APTParameters.PARAM_FILE_SPECS;
+%fprintf(1,'APTParameters:lclInitParamFilesTrees\n');
+[specs,deepnets] = lclParamFileSpecs();
 aptroot = APT.getRoot;
-[~,nets] = enumeration('DLNetType');
+%[~,nets] = enumeration('DLNetType');
 
 s = struct();
 for f=fieldnames(specs)',f=f{1}; %#ok<FXSET>  
-  s.(f).yaml = fullfile(aptroot,'matlab',specs.(f){:});
+  s.(f).yaml = fullfile(aptroot,'matlab',specs.(f));
   yamlcontents = parseConfigYaml(s.(f).yaml);
-  if any(strcmp(f,nets))
+  if any(strcmp(f,deepnets))
     % AL 20190711: automatically create requirements for all deep net
     %   param trees
     yamlcontents.traverse(@(x)set(x.Data,'Requirements',...
