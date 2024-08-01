@@ -107,7 +107,7 @@ classdef BgClient < handle
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
-      fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
+      %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
       if runnerContinuous
         runnerObj = BgRunnerContinuous() ;
         % computeObj deep-copied onto worker
