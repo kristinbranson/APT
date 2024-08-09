@@ -139,8 +139,13 @@ classdef CalRig < handle
       elseif all(ismember({'om' 'T' 'R' 'active_images_left' 'recompute_intrinsic_right'},vars))
         % Bouget Calib_Results_stereo.mat file
         % NOTE: could check calibResultsStereo.nx and .ny vs viewSizes
-        obj = CalRig2CamCaltech(fname);
-%         tfSetViewRois = true;        
+        %obj = CalRig2CamCaltech(fname);
+        caltech2cam = CalRig2CamCaltech(fname);
+        s.nviews = 2;
+        s.calibrations = cell(2, 2);
+        s.calibrations{1, 2} = caltech2cam;
+        obj = CalRigNPairwiseCalibrated(s);
+%         tfSetViewRois = true;
       else
         error('CalRig:load',...
           'Calibration file ''%s'' has unrecognized contents.',fname);
@@ -183,6 +188,10 @@ classdef CalRig < handle
       r = y(:,1);
       c = y(:,2);
       
+      badidx = r>rhi | c>chi | r<rlo | c<clo;
+      r(badidx) = NaN;
+      c(badidx) = NaN;
+      
       [maxr,maxri] = max(r);
       [minr,minri] = min(r);
       [maxc,maxci] = max(c);
@@ -194,14 +203,14 @@ classdef CalRig < handle
         % equation of the line:
         % (y-minr) = slope*(x-c(minri))
         % solve for x at y = rlo and y = rhi
-        rout = [rlo;rhi];
+        rout = [minr;maxr];
         cout = (rout-minr)*mrecip+c(minri);
       else % abs(slope)<=1
         m = (r(maxci)-r(minci)) / dc; % slope
         % equation of the line:
         % (y-r(minci)) = m*(x-minc)
         % solve for y at x = clo and x = chi
-        cout = [clo;chi];
+        cout = [minc;maxc];
         rout = m*(cout-minc)+r(minci);        
       end
       y = [rout,cout];

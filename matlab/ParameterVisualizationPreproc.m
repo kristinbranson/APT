@@ -129,7 +129,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       ParameterVisualization.setBusy(hAx);
       obj.tfUpdating = true;
       
-      [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
+%       [~,~,ppPrms] = lObj.convertNew2OldParams(sPrm);
       
       if ~isstruct(obj.initVizInfo),
         obj.initializeVizInfo();
@@ -144,7 +144,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 
         % Let 'treatInfPosAsOcc' default to false here, should be fine as
         % this is for paramviz
-        tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms);
+        sPrmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        tblPTrn = lObj.preProcGetMFTableLbled('prmsTgtCrop',sPrmTgtCrop);
         nlabeled = size(tblPTrn,1);
         if nlabeled == 0,
           return;
@@ -159,7 +160,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
           obj.initVizInfo.tblPTrn1 = tblPTrn(idx,:);
         end
         
-        obj.initVizInfo.ppd = lObj.tracker.fetchPreProcData(obj.initVizInfo.tblPTrn1,ppPrms);
+        obj.initVizInfo.ppd = lObj.tracker.fetchPreProcData(...
+          obj.initVizInfo.tblPTrn1,sPrmTgtCrop);
         obj.initVizInfo.sPrm = sPrm;
         [tfsucc,msg] = obj.cleanDataAugCache();
         if ~tfsucc,
@@ -177,7 +179,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       if strcmpi(s{1},'ImageProcessing'),
         ims = obj.initVizInfo.ppd.I;
         locs = permute(reshape(obj.initVizInfo.ppd.pGT,[numel(ims),nparts,2]),[2,3,1]);
-      elseif strcmpi(s{1},'DeepTrack') && strcmpi(s{2},'DataAugmentation'),
+      elseif (strcmpi(s{1},'DeepTrack') || strcmpi(s{1},'Deep Learning (pose)')) && (strcmpi(s{2},'DataAugmentation') || strcmpi(s{2},'Data Augmentation')),
         if ~isfield(obj.initVizInfo,'augd') || isempty(obj.initVizInfo.augd) || ...
             ~APTParameters.isEqualDeepTrackDataAugParams(obj.initVizInfo.sPrm,sPrm),
           fprintf('DATAAUG:\n');

@@ -26,10 +26,10 @@ classdef MMTableSingle < MovieManagerTable
       tfTrx = any(cellfun(@(x)~isempty(x),trxNames));
       if tfTrx
         assert(size(trxNames,2)==1,'Expect single column.');
-        dat = [movNames trxNames num2cell(movsHaveLbls)];
+        dat = [num2cell(int64(1:size(movNames,1)))' movNames trxNames num2cell(int64(movsHaveLbls))];
         jtArgs = MovieManagerTable.JTABLEPROPS_TRX;
       else
-        dat = [movNames num2cell(movsHaveLbls)];
+        dat = [num2cell(int64(1:size(movNames,1)))' movNames num2cell(int64(movsHaveLbls))];
         jtArgs = MovieManagerTable.JTABLEPROPS_NOTRX;
       end
       

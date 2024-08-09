@@ -11,7 +11,7 @@ classdef BgTrainSplitWorkerObjBsub < BgTrainWorkerObjBsub
       % complete
       %
       % overloaded to look for val/test results
-      f = {obj.dmcs.valresultsLnx}';
+      f = obj.dmcs.valresultsLnx(:);
     end
 
   end

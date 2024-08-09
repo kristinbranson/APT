@@ -292,7 +292,7 @@ class RNN_pp(object):
         lstm_size = 256
         batch_size = self.conf.batch_size*2
 
-        # in_w = tf.get_variable('in_weights',[self.conf.n_classes*2, lstm_size],initializer=tf.contrib.layers.xavier_initializer())
+        # in_w = tf.get_variable('in_weights',[self.conf.n_classes*2, lstm_size],initializer=xavier_initializer())
         # in_b = tf.get_variable('softmax_weights',[lstm_size],initializer=tf.constant_initializer(0.))
         # input = tf.nn.relu(tf.matmul(self.inputs[0], in_w) + in_b)
 
@@ -308,7 +308,7 @@ class RNN_pp(object):
             cur_input = input[:, cur_ndx,:]
             output, state = lstm(cur_input, state)
 
-        # softmax_w = tf.get_variable('softmax_weights',[lstm_size,self.conf.n_classes*2],initializer=tf.contrib.layers.xavier_initializer())
+        # softmax_w = tf.get_variable('softmax_weights',[lstm_size,self.conf.n_classes*2],initializer=xavier_initializer())
         # softmax_b = tf.get_variable('softmax_weights',[self.conf.n_classes*2],initializer=tf.constant_initializer(0.))
         # out = tf.matmul(output, softmax_w) + softmax_b
 

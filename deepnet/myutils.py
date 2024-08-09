@@ -10,7 +10,9 @@ from __future__ import division
 # In[1]:
 
 from builtins import range
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
+
 import numpy as np
 import scipy
 from scipy import ndimage

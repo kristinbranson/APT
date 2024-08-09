@@ -13,13 +13,7 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
         imov = 1;
       end
       obj.jobID{imov,iview} = res;
-      fprintf('Process job (movie %d, view %d) spawned, ID = %d:\n\n',...
-        imov,iview,obj.jobID{imov,iview}.ID);
       
-%       containerID = strtrim(res);
-%       fprintf('Process job (view %d) spawned, docker containerID=%s.\n\n',...
-%         iview,containerID);
-      % assigning to 'local' workerobj, not the one copied to workers
     end
         
     function killJob(obj,jID)
@@ -130,7 +124,7 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
         tfsucc = false;
       else
         fclose(fid);
-        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge the kill!\n',killtoken);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge that the process has been killed!\n',killtoken);
         tfsucc = true;
       end
     end

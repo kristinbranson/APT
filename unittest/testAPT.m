@@ -11,6 +11,17 @@ classdef testAPT < handle
   % testObj.test_train('net_type','mdn',...
   %        'backend','docker','niters',1000,'test_tracking',true)
   
+  % MA/roian
+  % testObj = testAPT('name','roianma');
+  % testObj.test_setup('simpleprojload',1);
+  % testObj.test_train('net_type',[],'params',-1,'niters',1000);  
+  
+  % MA/roian, Kristin's suggestion:
+  % testObj = testAPT('name','roianma');  
+  % testObj.test_full('nets',{},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_rtx8000','jrcnslots',4},'backend','bsub');
+  % testObj.test_full('nets',{'Stg1tddobj_Stg2tdpobj','magrone','Stg1tddht_Stg2tdpht','maopenpose'},'setup_params',{'simpleprojload',1,'jrcgpuqueue','gpu_rtx8000','jrcnslots',4},'backend','docker');
+  % empty nets means test all nets
+  
   % Carmen/GT workflow (proj on JRC/dm11)
   % testObj = testAPT('name','carmen');
   % testObj.test_setup('simpleprojload',1);
@@ -146,16 +157,17 @@ classdef testAPT < handle
     function cdir = get_cache_dir()
       cdir = APT.getdlcacheroot;
     end
-    
+        
   end
-  
   
   methods
     
     function testObj = testAPT(varargin)
       testObj.setup_path();
       [name] = myparse(varargin,'name','alice');
-      testObj.get_info(name);      
+      if ~strcmp(name,'dummy')
+        testObj.get_info(name);      
+      end
     end
     
     function exp_name = get_exp_name(self,pin)
@@ -248,7 +260,53 @@ classdef testAPT < handle
         info.proj_name = 'carmen_test';
         info.sz = [];
         info.bundle_link = '';
-        info.op_graph = [];        
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'roianma')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 250;
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'argrone')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT_20210823.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = true;
+        info.proj_name = 'test';
+        info.sz = 90;
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'argroneSA')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = true;
+        info.proj_name = 'test';
+        info.sz = 90;
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'sam2view')
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+        
         
       else
         error('Unrecognized test name');
@@ -324,27 +382,44 @@ classdef testAPT < handle
       info = self.info;
       cacheDir = testAPT.get_cache_dir();
       out_file = fullfile(tempdir,[info.proj_name '_data.tar.gz']); 
-      if exist(out_file,'file')
-        try
-          untar(out_file,cacheDir);
-        catch ME
-          websave(out_file,info.bundle_link);
-          untar(out_file,cacheDir);
-        end
-      else
-          websave(out_file,info.bundle_link);
-          untar(out_file,cacheDir);          
+            
+      try
+        untar(out_file,cacheDir);
+        return;
+      catch ME
+        % none, fallthru
       end
+
+      % fallback to websave
+      try
+        websave(out_file,info.bundle_link);
+      catch ME
+        if endsWith(ME.identifier,'SSLConnectionSystemFailure')
+          % JRC cluster
+          wo = weboptions('CertificateFilename','/etc/ssl/certs/ca-bundle.crt');
+          websave(out_file,info.bundle_link,wo);
+        else
+          rethrow(ME);
+        end
+      end
+      
+      untar(out_file,cacheDir);          
     end
     
     function test_full(self,varargin)
-      [all_nets,backend,params,aws_params] = myparse(varargin,...
+      [all_nets,backend,params,aws_params,setup_params] = myparse(varargin,...
         'nets',{'mdn'},'backend','docker','params',{},...
-        'aws_params',struct());
-      self.test_setup();
+        'aws_params',struct(),'setup_params',{});
+      self.test_setup(setup_params{:});
 
-      if ischar(all_nets)
+      if ischar(all_nets) || isscalar(all_nets),
         all_nets = {all_nets};
+      end
+      if isempty(all_nets),
+        all_nets = num2cell(1:numel(self.lObj.trackersAll));
+      end
+      if isnumeric(all_nets),
+        all_nets = num2cell(all_nets);
       end
       for nndx = 1:numel(all_nets)
         self.test_train('net_type',all_nets{nndx},'backend',backend,...
@@ -354,16 +429,18 @@ classdef testAPT < handle
     
     function test_setup(self,varargin)
       self.setup_path();
-      [target_trk,simpleprojload] = myparse(varargin,...
+      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots] = myparse(varargin,...
         'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
-        'simpleprojload',false ... % if true, just load the proj; use when proj on local filesys with all deps
+        'simpleprojload',false, ... % if true, just load the proj; use when proj on local filesys with all deps
+        'jrcgpuqueue','',... % override gpu queue
+        'jrcnslots',[]... % override nslots
         );
       
       if simpleprojload
         lObj = StartAPT();
         lObj.projLoad(self.info.ref_lbl);
         self.lObj = lObj;
-        self.old_lbl = [];        
+        self.old_lbl = [];
       else
         self.load_lbl();
         old_lbl = self.old_lbl;
@@ -373,10 +450,10 @@ classdef testAPT < handle
         lObj = self.create_project();
         self.lObj = lObj;
         self.add_movies();
-        self.add_labels_quick();  
+        self.add_labels_quick();
       end
       
-      if self.info.has_trx
+      if lObj.hasTrx
         trkTypes = MFTSetEnum.TrackingMenuTrx;
       else
         trkTypes = MFTSetEnum.TrackingMenuNoTrx;
@@ -384,6 +461,21 @@ classdef testAPT < handle
       trk_pum_ndx = find(trkTypes == target_trk );      
       set(self.lObj.gdata.pumTrack,'Value',trk_pum_ndx);
       self.lObj.setSkeletonEdges(self.info.op_graph);
+      
+      if ~isempty(jrcgpuqueue),
+        for i = 1:numel(lObj.trackersAll),
+          if isprop(lObj.trackersAll{i},'jrcgpuqueue'),
+            lObj.trackersAll{i}.setJrcgpuqueue(jrcgpuqueue);
+          end
+        end
+      end
+      if ~isempty(jrcnslots),
+        for i = 1:numel(lObj.trackersAll),
+          if isprop(lObj.trackersAll{i},'jrcnslots'),
+            lObj.trackersAll{i}.setJrcnslots(jrcnslots);
+          end
+        end
+      end
     end
     
         
@@ -485,7 +577,6 @@ classdef testAPT < handle
       info = self.info;
 
       lc = lObj.lblCore;
-
       nmov = size(old_lbl.movieFilesAll,1);
       for ndx = 1:nmov
           lObj.movieSet(ndx);
@@ -517,39 +608,48 @@ classdef testAPT < handle
 
     function setup_alg(self,alg)
       % Set the algorithm.
-      %old_lbl = self.old_lbl;
+
       lObj = self.lObj;
-      info = self.info;
 
-      nalgs = numel(lObj.trackersAll);
-      tndx = 0;
-      for ix = 1:nalgs
+      if isnumeric(alg)
+        tndx = alg;
+      else
+        nalgs = numel(lObj.trackersAll);
+        tndx = 0;
+        for ix = 1:nalgs
           if strcmp(lObj.trackersAll{ix}.algorithmName,alg)
-              tndx = ix;
+            tndx = ix;
           end
+        end
       end
-
       assert(tndx > 0)
       lObj.trackSetCurrentTracker(tndx);
     end
     
-    function set_params(self, has_trx, dl_steps,sz,params)
+    function set_params_base(self,has_trx,dl_steps,sz, batch_size)
       lObj = self.lObj;
-      % set some params
-      tPrm = APTParameters.defaultParamsTree;
-      sPrm = tPrm.structize;      
-      sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
-      sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
-      if has_trx
-        sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = has_trx;
-      end
-      for ndx = 1:2:numel(params)
-        sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
-      end
-      lObj.trackSetParams(sPrm);
+      sPrm = lObj.trackGetParams();      
+      
+      sbase.AlignUsingTrxTheta = has_trx;
+      sbase.dl_steps = dl_steps;
+      sbase.ManualRadius = sz;
+      sbase.batch_size = batch_size;
+      sPrm = structsetleaf(sPrm,sbase,'verbose',true);
 
+      % AL: Note 'ManualRadius' by itself may not do anything since
+      % 'AutoRadius' is on by default
+      lObj.trackSetParams(sPrm);
+      
+%       sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
+%       sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
+%       if has_trx
+%         sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = has_trx;
+%       end
+%       for ndx = 1:2:numel(params)
+%         sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
+%       end
     end
-    
+        
     function set_backend(self,backend,aws_params)
       % aws_params: can be a pre-configured AWSec2 instance
       
@@ -597,16 +697,26 @@ classdef testAPT < handle
     end
     
     
-    % train
     function test_train(self,varargin)
-      [net_type,backend,niters,test_tracking,block,params,...
-        aws_params] = myparse(varargin,...
+      [net_type,backend,niters,test_tracking,block,serial2stgtrain, ...
+        batch_size, params, aws_params] = myparse(varargin,...
             'net_type','mdn','backend','docker',...
             'niters',1000,'test_tracking',true,'block',true,...
-            'params',{},'aws_params',struct());
+            'serial2stgtrain',true,...
+            'batch_size',8,...
+            'params',[],... % optional, struct; see structsetleaf
+            'aws_params',struct());
           
-      self.setup_alg(net_type)
-      self.set_params(self.info.has_trx,niters,self.info.sz,params);
+      if ~isempty(net_type)
+        self.setup_alg(net_type)
+      end
+      fprintf('Training with tracker %s\n',self.lObj.tracker.algorithmNamePretty);
+      self.set_params_base(self.info.has_trx,niters,self.info.sz, batch_size);
+      if ~isempty(params)
+        sPrm = self.lObj.trackGetParams();
+        sPrm = structsetleaf(sPrm,params,'verbose',true);
+        self.lObj.trackSetParams(sPrm);
+      end
       self.set_backend(backend,aws_params);
 
       lObj = self.lObj;
@@ -615,30 +725,48 @@ classdef testAPT < handle
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,handles.figure);
-      handles.labelerObj.tracker.skip_dlgs = true;
-      handles.labelerObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+      tObj = lObj.tracker;
+      tObj.skip_dlgs = true;
+      lObj.silent = true;
+      if lObj.trackerIsTwoStage && ~strcmp(backend,'bsub')
+        tObj.forceSerial = serial2stgtrain;
+      end      
+      lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
       if wbObj.isCancel
         msg = wbObj.cancelMessage('Training canceled');
         msgbox(msg,'Train');
-      end
+      end      
       
       if block
         % block while training
+        
+        % Alternative to polling:
+        % ho = HGsetgetObj;
+        % ho.data = false;
+        % tObj = lObj.tracker;
+        % tObj.addlistener('trainEnd',@(s,e)set(ho,'data',true));        
+        % waitfor(ho,'data');
+        
         pause(2);
-        while self.lObj.tracker.bgTrnIsRunning()
+        while tObj.bgTrnIsRunning
           pause(10);
         end
-        pause(10);
+        pause(30);
         if test_tracking
           self.test_track('block',block);
         end
-      end
-      
+      end      
     end
     
     function test_track(self,varargin)
-      [block,backend,aws_params] = myparse(varargin,'block',true,...
+      [block,net_type,backend,aws_params] = myparse(varargin,...
+        'block',true,...
+        'net_type',[],...
         'backend','','aws_params',struct);
+      
+      if ~isempty(net_type)
+        self.setup_alg(net_type)
+      end
       if ~isempty(backend),
         self.set_backend(backend,aws_params);
       end
@@ -646,10 +774,27 @@ classdef testAPT < handle
       kk(self.lObj.gdata.pbTrack,[],self.lObj.gdata);      
       if block,
         pause(2);
-        while self.lObj.tracker.bgTrkIsRunning()
+        while self.lObj.tracker.bgTrkIsRunning
           pause(10);
         end
         pause(10);
+      end
+    end
+    
+    function test_track_export(self)
+      lObj = self.lObj;
+      iMov = lObj.currMovie;
+      nvw = lObj.nview;
+      tfiles = arrayfun(@(x)tempname(),1:nvw,'uni',0);
+      lObj.trackExportResults(iMov,'trkfiles',tfiles);
+      
+      for ivw=1:nvw
+        trk = TrkFile.load(tfiles{ivw});
+        fprintf(1,'Exported and re-loaded trkfile!\n');
+        if nvw>1
+          fprintf(1,'  View %d:\n',ivw);
+        end
+        disp(trk);
       end
     end
     
@@ -666,13 +811,111 @@ classdef testAPT < handle
       self.lObj.tracker.trackGT();
       if block,
         pause(2);
-        while self.lObj.tracker.bgTrkIsRunning()
+        while self.lObj.tracker.bgTrkIsRunning
           pause(10);
         end
         pause(10);
       end
     end
     
+  end
+  
+  methods (Static) 
+    % testAPT.sh interface
+    % for triggering tests from unix commandline, CI, etc
+    
+    function CIsuite(varargin)
+      
+      disp('### testAPT/CIsuite ###');
+      disp(varargin);
+      
+%       APTPATH = '/groups/branson/home/leea30/git/apt.param';
+%       addpath(APTPATH);
+%       APT.setpath
+      
+      action = varargin{1};
+      switch action
+        case 'train'          
+          name = varargin{2};
+          iTracker = varargin{3};
+          iTracker = str2double(iTracker);
+          dotrack = varargin{4};
+          dotrack = str2double(dotrack);
+          be = varargin{5};
+          
+          TRNITERS = 500;
+          
+          testObj = testAPT('name',name);
+          testObj.test_setup('simpleprojload',1);
+          testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
+          testObj.test_train(...
+            'net_type',iTracker,...
+            'niters',TRNITERS,...
+            'params',struct('batch_size',2),...
+            'backend',be,...
+            'test_tracking',false);
+          
+          disp('Train done!');          
+          tObj = testObj.lObj.tracker;
+          tinfo = tObj.trackerInfo;
+          iters1 = tinfo.iterFinal;
+          if iters1==TRNITERS
+            fprintf(1,'Final iteration (%d) matches expected (%d)!\n',...
+              iters1,TRNITERS);
+          else
+            error('apttest:missedfinaliter',...
+              'Final iteration (%d) is not expected (%d)!',iters1,TRNITERS);
+          end
+          
+          if dotrack
+            pause(10);
+            testObj.test_track(...
+              'net_type',iTracker,...
+              'backend',be,...
+              'block',true ...
+              );
+            
+            disp('Track done!');
+            testObj.test_track_export();
+          end
+          
+        case 'track'          
+          name = varargin{2};
+          iTracker = varargin{3};
+          iTracker = str2double(iTracker);
+                    
+          testObj = testAPT('name',name);
+          testObj.test_setup('simpleprojload',1);
+          testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
+          testObj.test_track(...
+            'net_type',iTracker,...
+            'block',true ...
+            );
+          
+          disp('Track done!');
+          %pause(10);
+          testObj.test_track_export();
+          
+        case 'full'
+          name = varargin{2};
+          be = varargin{3};          
+          testObj = testAPT('name',name);
+          testObj.test_full('backend',be);            
+          testObj.lObj.projTempDirDontClearOnDestructor = true;
+          testObj.lObj.trackAutoSetParams = false;
+          
+        case 'hello'
+          disp('hello!');
+          
+        case 'testerr'
+          error('testAPT:testerr','Test error!');
+          
+        otherwise
+          error('testAPT:testerr','Unrecognized action: %s',action);
+      end
+    end
   end
     
 end

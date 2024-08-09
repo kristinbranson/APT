@@ -1,12 +1,14 @@
 from __future__ import division
+
+import logging
 from builtins import object
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
 import os
 import re
 # import localSetup
 import numpy as np
 import copy
-import logging
 
 class config(object):
     # ----- Names
@@ -24,8 +26,10 @@ class config(object):
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
-        self.imsz = [100,100]
+        self.imsz = [100,100] # h x w -- this is the same convention as what we could get when we do np.shape(img)
         self.n_classes = 10
+        self.img_dim = 3
+        self.has_crops = False
 
         self.batch_size = 8
         self.view = 0
@@ -39,12 +43,14 @@ class config(object):
         # rate will be reduced by gamma every decay_step iterations.
 
         # range for contrast, brightness and rotation adjustment
+        self.has_trx_file = False
         self.trx_align_theta = True
         self.horz_flip = False
         self.vert_flip = False
         self.brange = [-0.2, 0.2]
         self.crange = [0.7, 1.3]
         self.rrange = 30
+        self.rot_prob = 0.6
         self.trange = 10
         self.scale_range = 0.1
         self.scale_factor_range = 1.1
@@ -60,17 +66,28 @@ class config(object):
         self.perturb_color = False
         self.flipLandmarkMatches = {}
         self.learning_rate_multiplier = 1.
+        self.predict_occluded = False
+        self.use_openvino = False
 
         # ----- Data parameters
         # l1_cropsz = 0
         self.splitType = 'frame'
-        self.trainfilename = 'train_TF'
-        self.fulltrainfilename = 'fullTrain_TF'
-        self.valfilename = 'val_TF'
         self.valdatafilename = 'valdata'
         self.valratio = 0.3
         self.holdoutratio = 0.8
         self.flipud = False
+        self.json_trn_file = None
+        self.db_format = 'tfrecord' # other option is coco
+        #self.db_format = 'coco' # other option is coco
+
+        if self.db_format == 'tfrecord':
+            self.trainfilename = 'train_TF'
+            self.fulltrainfilename = 'fullTrain_TF'
+            self.valfilename = 'val_TF'
+        else:
+            self.trainfilename = 'traindata'
+            self.fulltrainfilename = 'fulltraindata'
+            self.valfilename = 'valdata'
 
         # ----- UNet params
         self.unet_rescale = 1
@@ -85,7 +102,8 @@ class config(object):
         self.mdn_logit_eps_training = 0.001
         self.mdn_extra_layers = 1
         self.mdn_use_unet_loss = True
-        self.mdn_pred_dist = True
+        self.mdn_pred_dist = False
+        self.pretrain_freeze_bnorm = True
 
         # ----- OPEN POSE PARAMS
         self.op_label_scale = 8
@@ -137,11 +155,24 @@ class config(object):
 
         # ------ Leap params
         self.leap_net_name = "leap_cnn"
+        self.leap_val_size = 0.15
+        self.leap_preshuffle = True
+        self.leap_filters = 64
+        self.leap_val_batches_per_epoch = 10
+        self.leap_reduce_lr_factor =0.1
+        self.leap_reduce_lr_patience =3
+        self.leap_reduce_lr_min_delta = 1e-5
+        self.leap_reduce_lr_cooldown = 0
+        self.leap_reduce_lr_min_lr = 1e-10
+        self.leap_amsgrad =False
+        self.leap_upsampling =False
+        self.use_leap_preprocessing = False
 
         # ----- Deep Lab Cut
         self.dlc_train_img_dir = 'train'
         self.dlc_train_data_file = 'train_data.p'
         self.dlc_augment = True
+        self.dlc_override_dlsteps = False
 
         # ---- dpk
         # "early" here is eg after initial setup in APT_interface
@@ -182,12 +213,70 @@ class config(object):
         self.dpk_val_batch_size = 0        # use 0 when dpk_train_style='apt' to not do valdist loggin
         self.dpk_tfdata_shuffle_bsize = 5000       # buffersize for tfdata shuffle
         self.dpk_auto_steps_per_epoch = True  # if True, set .display_step=ntrn/bsize. If False, use .display_step as provided.
+        self.dpk_use_op_affinity_graph = True # if True, use affinity graph for dpk skel.
+                                              # if False, dpk_skel_csv must be set
 
         # ============== MULTIANIMAL ==========
+        self.is_multi = False
         self.max_n_animals = 1
-        self.bb_ex = 0 # extra margin to keep around annotations while generating masks
-        self.n_grid = 1 # Number of cells to split the image into for multianimal
+        self.min_n_animals = 0
+        self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
+        self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
+        self.multi_link_cost = 5 # cost for linking trajectory. 5 is roughly the max movement in pixels per landmark that will not lead to death and birth of new trajectories.
+        # actual frame size
+        self.multi_frame_sz = []
+        self.multi_animal_crop_sz = None
+        # multi_use_mask is whether to mask the image or not
+        self.multi_use_mask = False
+        # whether to mask the loss or not
+        self.multi_loss_mask = True
+        # crop images during training
+        self.multi_crop_ims = True
+        # For NMS for pose. Suppress poses whose avg matching distance is less than this percentage of the bounding box edge size.
+        self.multi_match_dist_factor = .2
+        self.multi_scale_by_bbox = False
+        self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
 
+        # ============= TOP-DOWN =================
+
+        # For top-down networks, use these points as head tail
+        self.ht_pts = []
+        # Train-Track only ht points -- for top-down networks
+        self.multi_only_ht = False
+        # multi_only_ht is for first stage. And if multi_only_ht is used for first stage then use_ht_trx should be true for the second-stage else use_bbox_trx
+        # Use ht points as trx surrogate for top-down network
+        self.use_ht_trx = False
+        # Use bbox as trx surrogate for top-down networks.
+        self.use_bbox_trx = False
+        self.stage = None
+
+        # ============== LINKING ===============
+        self.link_stage = 'second'
+        self.link_maxcost_heuristic = 'secondorder'
+        self.link_maxcost_framesfit = 5
+        self.link_maxcost_mult = 2.0
+        self.link_maxcost_prctile = 95.
+        self.link_maxframes_delete = 10
+        self.link_maxframes_missed = 10
+        self.link_minconf_delete = 0.5
+        self.link_maxcost_secondorder_thresh = 1.
+        self.link_strict_match_thres = 2.
+
+        self.link_id = False
+        self.link_id_cropsz = -1
+        self.link_id_training_iters = 100000
+        self.link_id_tracklet_samples = 25
+        self.link_id_rescale = 1
+        self.link_id_min_tracklet_len = 6 # should be greater than link_maxcost_framesfit
+        self.link_id_mining_steps = 10
+        self.link_id_min_train_track_len = 10
+        self.link_id_keep_all_preds = False
+        self.link_id_batch_size = 16
+        self.link_id_ignore_far = False
+
+        # ============= MMPOSE =================
+        self.mmpose_net = 'multi_hrnet'
+        self.multi_mmpose_detection_threshold = 0.5
 
         # ============== EXTRA ================
 
@@ -256,7 +345,6 @@ class config(object):
             for f in flds:
                 printfcn('  {}: {}'.format(f, getattr(self, f, '<DNE>')))
 
-# Config object that once set can be shared globally
 conf = config()
 
 def parse_aff_graph(aff_graph_str):
@@ -267,6 +355,8 @@ def parse_aff_graph(aff_graph_str):
     '''
     graph = []
     aff_graph_str = aff_graph_str.split(',')
+    if len(aff_graph_str)==1 and aff_graph_str[0] == '':
+        return graph
     for b in aff_graph_str:
         mm = re.search('(\d+)\s+(\d+)', b)
         n1 = int(mm.groups()[0]) - 1

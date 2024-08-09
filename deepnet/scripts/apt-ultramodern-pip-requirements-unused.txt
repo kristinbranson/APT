@@ -1,0 +1,4 @@
+chumpy==0.70
+xtcocotools==1.13
+mmpose==1.2
+mmdeploy==1.3

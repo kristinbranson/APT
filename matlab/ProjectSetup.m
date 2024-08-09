@@ -1,7 +1,7 @@
 function varargout = ProjectSetup(varargin)
 % New project creation
 
-% Last Modified by GUIDE v2.5 24-Oct-2018 09:38:44
+% Last Modified by GUIDE v2.5 03-Oct-2020 10:16:05
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 0;
@@ -129,7 +129,14 @@ cfg.NumViews = handles.nViews;
 cfg.NumLabelPoints = handles.nPoints;
 cfg.ViewNames = struct2cell(cfg.ViewNames);
 cfg.LabelPointNames = struct2cell(cfg.LabelPointNames);
-cfg.Trx.HasTrx = handles.checkbox_multitarget.Value;
+cfg.Trx.HasTrx = handles.cbHasTrx.Value;
+cfg.MultiAnimal = handles.cbMA.Value;
+isMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
+if isMA
+  cfg.LabelMode = LabelMode.MULTIANIMAL;
+else
+  cfg.LabelMode = LabelMode.SEQUENTIAL;
+end
 % pumLM = handles.pumLabelingMode;
 % lmVal = pumLM.Value;
 % cfg.LabelMode = char(pumLM.UserData(lmVal));
@@ -154,7 +161,9 @@ handles.nViews = cfg.NumViews;
 handles.nPoints = cfg.NumLabelPoints;
 set(handles.etNumberOfViews,'string',num2str(handles.nViews));
 set(handles.etNumberOfPoints,'string',num2str(handles.nPoints));
-set(handles.checkbox_multitarget,'Value',cfg.Trx.HasTrx);
+set(handles.cbHasTrx,'Value',cfg.Trx.HasTrx);
+set(handles.cbMA,'Value',cfg.MultiAnimal);
+
 
 % pumLM = handles.pumLabelingMode;
 % [tf,val] = ismember(cfg.LabelMode,arrayfun(@char,pumLM.UserData,'uni',0));
@@ -227,6 +236,14 @@ else
 end
 
 function etProjectName_Callback(hObject, eventdata, handles)
+name = hObject.String;
+if ~all(isstrprop(name,'alphanum')) 
+  % This unfortunately invalidates _ also. Checking for it seems more work
+  % than worth. MK 20220913
+  warndlg('Name should have only alphanumberic characters');
+  hObject.String = '';
+end
+
 function etNumberOfPoints_Callback(hObject, eventdata, handles)
 %fprintf('etNOP enter');
 val = str2double(hObject.String);
@@ -244,6 +261,16 @@ if floor(val)==val && val>=1
   handles.nViews = val;
 else
   hObject.String = handles.nViews;
+end
+switch handles.nViews
+  case 1
+    handles.cbHasTrx.Enable = 'on';
+    handles.cbMA.Enable = 'on';    
+  otherwise
+    handles.cbHasTrx.Value = 0;
+    handles.cbMA.Value = 0;
+    handles.cbHasTrx.Enable = 'off';
+    handles.cbMA.Enable = 'off';
 end
 handles = advTableRefresh(handles);
 guidata(hObject,handles);
@@ -305,13 +332,7 @@ for f=flds(:)',f=f{1}; %#ok<FXSET>
   end
 end
 
-
-% --- Executes on button press in checkbox_multitarget.
-function checkbox_multitarget_Callback(hObject, eventdata, handles)
-% hObject    handle to checkbox_multitarget (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hint: get(hObject,'Value') returns toggle state of checkbox_multitarget
-%handles.hasTrx = hObject.Value;
-%guidata(hObject,handles);
+function cbHasTrx_Callback(hObject, eventdata, handles)
+% none
+function cbMA_Callback(hObject, eventdata, handles)
+% none

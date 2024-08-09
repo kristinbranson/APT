@@ -29,7 +29,7 @@ Y = struct;
 Y.tFliesTrk2018.fly = [];
 Y.tFliesTrk2018.lbl = {};
 fields2join = {'movieFilesAll','trxFilesAll','movieInfoAll','labeledpos','labeledpostag',...
-  'labeledposTS','labeledposMarked','labeledpos2'};
+  'labeledposTS','labeledpos2'}; %'labeledposMarked'
 for curfly = uu(:)'
   if curfly < 100, 
     continue;

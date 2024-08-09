@@ -32,7 +32,8 @@ classdef InfoTimeline < handle
     npts % number of label points in current movie/timeline
     %nfrm % number of frames "
     tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
-    hPtsL % [npts] line handles
+    hPtsL % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)
+    axLmaxntgt = 3 % applies to hAxL for MA projs; number of tgts to display
     custom_data % [1 x nframes] custom data to plot
     
     listeners % [nlistener] col cell array of labeler prop listeners
@@ -171,9 +172,7 @@ classdef InfoTimeline < handle
 %          'labeledpostagGT'},... 
 %         'PostSet',@obj.cbkLabelUpdated);
       
-      listeners{end+1,1} = addlistener(labeler,...
-        {'labeledpos','labeledposGT','labeledpostagGT'},... 
-        'PostSet',@obj.cbkLabelUpdated);
+      listeners{end+1,1} = addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
       listeners{end+1,1} = addlistener(labeler,...
         'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated);
       listeners{end+1,1} = addlistener(labeler,...
@@ -317,25 +316,48 @@ classdef InfoTimeline < handle
       deleteValidHandles(obj.hPtsL);
       obj.hPts = gobjects(obj.npts,1);
       obj.hPtStat = gobjects(1);
-      obj.hPtsL = gobjects(obj.npts,1);
       colors = obj.lObj.LabelPointColors;
       ax = obj.hAx;
       axl = obj.hAxL;
       for i=1:obj.npts
         obj.hPts(i) = plot(ax,nan,i,'.','linestyle','-','Color',colors(i,:),...
           'hittest','off','Tag',sprintf('InfoTimeline_Pt%d',i));
-        if obj.isL,
-          obj.hPtsL(i) = patch(axl,nan(1,5),i-1+[0,1,1,0,0],colors(i,:),'EdgeColor','none','hittest','off','Tag',sprintf('InfoTimeline_Label_%d',i));
+      end
+      isMA = obj.lObj.maIsMA;
+      if isMA
+        obj.hPtsL = gobjects(1,1);
+      else
+        obj.hPtsL = gobjects(obj.npts,1);        
+      end
+      if obj.isL
+        if isMA
+          obj.hPtsL = image(nan,'parent',axl,'hittest','off','tag','InfoTimeline_Label_ma');
+        else
+          for i=1:obj.npts
+            obj.hPtsL(i) = patch(axl,nan(1,5),i-1+[0,1,1,0,0],colors(i,:),...
+              'EdgeColor','none','hittest','off','Tag',sprintf('InfoTimeline_Label_%d',i));
+          end
         end
       end
+      
       obj.hPtStat = plot(ax,nan,i,'.-','Color',obj.color,'hittest','off','LineWidth',2,'Tag','InfoTimeline_Stat');
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
-      if obj.isL,
-        axl.YLim = [0-dy obj.npts+dy];
+      if ishandle(obj.hSelIm)
+        obj.hSelIm.YData = ax.YLim;
+      end
+      if obj.isL
+        if isMA
+          axl.YLim = [0-dy obj.axLmaxntgt+dy];
+          colormap(axl,[0 0 0;0 0 1]);
+          axis(axl,'ij');
+        else
+          axl.YLim = [0-dy obj.npts+dy];
+          axis(axl,'xy');
+        end
       end
       
       set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
@@ -414,10 +436,14 @@ classdef InfoTimeline < handle
       obj.setLabelsFull();
     end
     
-    function setLabelsFull(obj)
+    function setLabelsFull(obj,runinit)
       % Get data and set .hPts, .hMarked
       
-      if isnan(obj.npts), return; end
+      if nargin < 2,
+        runinit = false;
+      end
+      
+      if isnan(obj.npts) || (~runinit && obj.lObj.isinit), return; end
       
       dat = obj.getDataCurrMovTgt(); % [nptsxnfrm]
       dat(isinf(dat)) = nan;
@@ -468,19 +494,24 @@ classdef InfoTimeline < handle
       end
       
       if obj.isL,
-        islabeled = obj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
-        for i = 1:obj.npts,
-          if any(islabeled(i,:)),
-            [t0s,t1s] = get_interval_ends(islabeled(i,:));
-            nbouts = numel(t0s);
-            t0s = t0s(:)'-.5; t1s = t1s(:)'-.5;
-            xd = [t0s;t0s;t1s;t1s;t0s];
-            yd = i-1+repmat([0;1;1;0;0],[1,nbouts]);
-          else
-            xd = nan;
-            yd = nan;
+        if obj.lObj.maIsMA
+          tflbledDisp = obj.getlabeledTgts();
+          set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
+        else
+          islabeled = obj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
+          for i = 1:obj.npts,
+            if any(islabeled(i,:)),
+              [t0s,t1s] = get_interval_ends(islabeled(i,:));
+              nbouts = numel(t0s);
+              t0s = t0s(:)'-.5; t1s = t1s(:)'-.5;
+              xd = [t0s;t0s;t1s;t1s;t0s];
+              yd = i-1+repmat([0;1;1;0;0],[1,nbouts]);
+            else
+              xd = nan;
+              yd = nan;
+            end
+            set(obj.hPtsL(i),'XData',xd,'YData',yd);
           end
-          set(obj.hPtsL(i),'XData',xd,'YData',yd);
         end
       end
       
@@ -559,7 +590,7 @@ classdef InfoTimeline < handle
       for i=1:obj.npts
         set(obj.hPts(i),'Color',ptclrs(i,:));
       end
-      if obj.isL,
+      if obj.isL && ~obj.lObj.maIsMA
         for i=1:obj.npts
           set(obj.hPtsL(i),'FaceColor',lblcolors(i,:));
         end
@@ -570,7 +601,7 @@ classdef InfoTimeline < handle
       if obj.lObj.isinit || isnan(obj.nfrm), return; end
 
       deleteValidHandles(obj.hSelIm);
-      obj.hSelIm = image(1:obj.nfrm,0.5,uint8(zeros(1,obj.nfrm)),...
+      obj.hSelIm = image(1:obj.nfrm,obj.hAx.YLim,uint8(zeros(1,obj.nfrm)),...
         'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');
 
@@ -805,8 +836,14 @@ classdef InfoTimeline < handle
         % Navigate to clicked frame
         
         pos = get(src,'CurrentPoint');
+        if obj.lObj.hasTrx,
+          [sf,ef] = obj.lObj.trxGetFrameLimits();
+        else
+          sf = 1;
+          ef = obj.nfrm;
+        end
         frm = round(pos(1,1));
-        frm = min(max(frm,1),obj.nfrm);
+        frm = min(max(frm,sf),ef);
         obj.lObj.setFrame(frm);
       end
     end
@@ -824,11 +861,11 @@ classdef InfoTimeline < handle
     end
     function tf = hasPrediction(obj)
       tf = ismember('Predictions',obj.proptypes) && isvalid(obj.tracker);
-       if tf,
-         pcode = obj.props_tracker(1);
-         data = obj.tracker.getPropValues(pcode);
-         tf = ~isempty(data) && any(~isnan(data(:)));
-       end
+      if tf,
+        pcode = obj.props_tracker(1);
+        data = obj.tracker.getPropValues(pcode);
+        tf = ~isempty(data) && any(~isnan(data(:)));
+      end
     end
     function setCurPropTypePredictionDefault(obj)
       proptypei =  find(strcmpi(obj.proptypes,'Predictions'),1);
@@ -842,17 +879,17 @@ classdef InfoTimeline < handle
     end
 
     
-    function cbkLabelUpdated(obj,src,~) %#ok<INUSD>
-      if ~obj.lObj.isinit
-        obj.setLabelsFull;
+    function cbkLabelUpdated(obj, ~, ~)
+      if ~obj.lObj.isinit ,
+        obj.setLabelsFull() ;
       end
     end
     
-    function cbkNewTrackingResults(obj,src,~)
-      if obj.isDefaultProp() && obj.hasPrediction(),
-        obj.setCurPropTypePredictionDefault();
+    function cbkNewTrackingResults(obj, ~, ~)
+      if obj.isDefaultProp() && obj.hasPrediction() ,
+        obj.setCurPropTypePredictionDefault() ;
       end
-      obj.cbkLabelUpdated(src);
+      obj.cbkLabelUpdated() ;
     end
     
     function cbkSetNumFramesShown(obj,src,evt) %#ok<INUSD>
@@ -912,7 +949,8 @@ classdef InfoTimeline < handle
       end
       onOff = onIff(gt);
       obj.hSegLineGT.setVisible(onOff);
-      obj.hSegLineGTLbled.setVisible(onOff);
+      obj.hSegLineGTLbled.setVisible(onOff);   
+      set(obj.hPtsL,'Visible',onIff(~gt));
     end
     function cbkGTSuggUpdated(obj,src,evt) %#ok<INUSD>
       % full update to any change to labeler.gtSuggMFTable*
@@ -1000,22 +1038,41 @@ classdef InfoTimeline < handle
             else
               bodytrx = [];
             end
+            
+            nfrmtot = labeler.nframes;
             if strcmp(ptype,'Labels'),
-            lpos = labeler.labeledposGTaware{iMov};
-              lpostag = labeler.labeledpostagGTaware{iMov};
+              s = labeler.labelsGTaware{iMov};
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
+              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             else
-              lpos = labeler.labeledpos2GTaware{iMov};
-              lpostag = false(obj.npts,labeler.nframes,labeler.nTargets);
+              s = labeler.labels2GTaware{iMov};
+              if labeler.maIsMA
+                % Use "current Tracklet" for imported data
+                if ~isempty(labeler.labeledpos2trkViz)
+                  iTgt = labeler.labeledpos2trkViz.currTrklet;
+                  if isnan(iTgt)
+                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
+                    iTgt = 1;
+                  end
+                else
+                  iTgt = 1;
+                end
+              end  
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
             end
-            data = ComputeLandmarkFeatureFromPos(lpos(:,:,:,iTgt),...
-              lpostag(:,:,iTgt),bodytrx,pcode);
+            if tfhasdata
+              data = ComputeLandmarkFeatureFromPos(...
+                lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
+            else
+              data = nan(obj.npts,1); % looks like we don't need 2nd dim to be nfrmtot
+            end
           case 'Predictions'
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
             % the trackers are not updated (via
             % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
             % call which leads here.
-            if isvalid(obj.tracker)
+            if ~isempty(obj.tracker) && isvalid(obj.tracker)
               data = obj.tracker.getPropValues(pcode);
             else
               data = nan(obj.npts,1);
@@ -1044,63 +1101,30 @@ classdef InfoTimeline < handle
       if isempty(iMov) || iMov==0 || ~labeler.hasMovie
         data = nan(obj.npts,1);
       else
-        data = reshape(all(~isnan(labeler.labeledposGTaware{iMov}(:,:,:,iTgt)),2),[obj.npts,obj.nfrm]);
-        szassert(data,[obj.npts obj.nfrm]);
+        s = labeler.labelsGTaware{iMov};       
+        [p,~] = Labels.getLabelsT_full(s,iTgt,obj.nfrm);
+        xy = reshape(p,obj.npts,2,obj.nfrm);
+        data = reshape(all(~isnan(xy),2),obj.npts,obj.nfrm);
       end
     end
     
-%     function lpos = getMarkedDataCurrMovTgt(obj)
-%       % lpos: [nptsxnfrm]
-%       
-%       labeler = obj.lObj;
-%       iMov = labeler.currMovie;
-%       if iMov>0
-%         if ~labeler.gtIsGTMode
-%           iTgt = labeler.currTarget;
-%           lpos = squeeze(labeler.labeledposMarked{iMov}(:,:,iTgt)); % AL: squeeze seems unnec
-%         else
-%           lpos = false(labeler.nLabelPoints,labeler.nframes);
-%         end
-%       else
-%         lpos = false(labeler.nLabelPoints,1);
-%       end
-%     end
+    function tflbledDisp = getlabeledTgts(obj)
+      labeler = obj.lObj;
+      iMov = labeler.currMovie;
+      if iMov==0
+        tflbledDisp = nan;
+        return;
+      end
+      tflbledDisp = labeler.labelPosLabeledTgts(iMov);
+      ntgtsmax = size(tflbledDisp,2);
+      ntgtDisp = obj.axLmaxntgt;
+      if ntgtsmax>=ntgtDisp 
+        tflbledDisp = tflbledDisp(:,1:ntgtDisp);
+      else
+        tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
+      end
+    end
     
-%     function nxtFrm = findFrame(obj,dr,curFr)
-%       % Finds the next or previous frame which satisfy conditions.
-%       % dr = 0 is back, 1 is forward
-%       nxtFrm = nan;
-%       if isnan(obj.jumpThreshold)
-%         warndlg('Threhold value is not for navigation');
-%         obj.thresholdGUI();
-%         if isnan(obj.jumpThreshold)
-%           return;
-%         end
-%       end
-%       
-%       data = obj.getDataCurrMovTgt();
-%       if obj.jumpCondition > 0
-%         locs = any(data>obj.jumpThreshold,1);
-%       else
-%         locs = any(data<=obj.jumpThreshold,1);
-%       end
-%       
-%       if dr > 0.5
-%         locs = locs(curFr:end);
-%         nxtlocs = find( (~locs(1:end-1))&(locs(2:end)),1);
-%         if isempty(nxtlocs)
-%           return;
-%         end
-%         nxtFrm = curFr + nxtlocs - 1;
-%       else
-%         locs = locs(1:curFr);
-%         nxtlocs = find( (locs(1:end-1))&(~locs(2:end)),1,'last');
-%         if isempty(nxtlocs)
-%           return;
-%         end
-%         nxtFrm = nxtlocs;
-%       end
-%     end
   end
   
 end

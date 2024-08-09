@@ -149,6 +149,7 @@ classdef LabelCoreTemplate < LabelCore
     supportsSingleView = true;
     supportsMultiView = false;
     supportsCalibration = false;
+    supportsMultiAnimal = false;
   end
   
   properties
@@ -167,7 +168,7 @@ classdef LabelCoreTemplate < LabelCore
     % indicates whether tracking is present for that unadjusted point.
     lastSetAllUnadjustedResetType = LabelCoreTemplateResetType.RESET
     
-    kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
+    %kpfIPtFor1Key;  % scalar positive integer. This is the point index that 
                  % the '1' hotkey maps to, eg typically this will take the 
                  % values 1, 11, 21, ...
                  
@@ -177,15 +178,6 @@ classdef LabelCoreTemplate < LabelCore
     hPtsMarkerPVNotPredUnadjusted; % HG PV-pairs for not that; reverts the above
     hPtsTxtPVPredUnadjusted % etc
     hPtsTxtPVNotPredUnadjusted
-  end  
-  
-  methods
-    
-    function set.kpfIPtFor1Key(obj,val)
-      obj.kpfIPtFor1Key = val;
-      obj.refreshTxLabelCoreAux();
-    end
-    
   end
   
   methods
@@ -274,6 +266,7 @@ classdef LabelCoreTemplate < LabelCore
         [tfneighbor,iFrm0Neighb,lpos0] = ...
           lObj.labelPosLabeledNeighbor(iFrm1,iTgt1);
         if tfneighbor
+          lpos0 = reshape(lpos0,[],2);
           xy = LabelCore.transformPtsTrx(lpos0,...
             lObj.trx(iTgt1),iFrm0Neighb,...
             lObj.trx(iTgt1),iFrm1);
@@ -305,12 +298,15 @@ classdef LabelCoreTemplate < LabelCore
       obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
     end 
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
+    function axBDF(obj,src,evt) 
       
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
         return;
       end
-      
+      if obj.isPanZoom(),
+        return;
+      end
+
       [tf,iSel] = obj.anyPointSelected();
       if tf
         pos = get(obj.hAx,'CurrentPoint');
@@ -336,31 +332,30 @@ classdef LabelCoreTemplate < LabelCore
     
     function ptBDF(obj,src,evt)
       
-      if ~obj.labeler.isReady,
+      if ~obj.labeler.isReady || evt.Button>1
+        return;
+      end
+
+      if obj.isPanZoom(),
         return;
       end
       
-      switch evt.Button
-        case 1
-          tf = obj.anyPointSelected();
-          if tf
-            iPt = get(src,'UserData');
-            obj.toggleSelectPoint(iPt);
-            % none
-          else
-            % prepare for click-drag of pt
-            
-            if obj.state==LabelState.ACCEPTED
-              % KB 20181029
-              %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
-            end
-            iPt = get(src,'UserData');
-            obj.iPtMove = iPt;
-            obj.tfMoved = false;
-          end
-        case 3
-          iPt = get(src,'UserData');
-          obj.toggleEstOccPoint(iPt);
+      mod = obj.hFig.CurrentModifier;
+      tfShift = any(strcmp(mod,'shift'));
+      if ~tfShift
+        iPt = get(src,'UserData');
+        obj.toggleSelectPoint(iPt);
+        % prepare for click-drag of pt
+        
+        if obj.state==LabelState.ACCEPTED
+          % KB 20181029
+          %obj.enterAdjust(LabelCoreTemplateResetType.NORESET,false);
+        end
+        obj.iPtMove = iPt;
+        obj.tfMoved = false;
+      else
+        iPt = get(src,'UserData');
+        obj.toggleEstOccPoint(iPt);
       end
     end
     
@@ -499,6 +494,10 @@ classdef LabelCoreTemplate < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
+      if obj.isPanZoom(),
+        return;
+      end
+
       
       [tf,iSel] = obj.anyPointSelected();
       if tf
@@ -815,12 +814,12 @@ classdef LabelCoreTemplate < LabelCore
       end
     end
     
-    function refreshTxLabelCoreAux(obj)
-      iPt0 = obj.kpfIPtFor1Key;
-      iPt1 = iPt0+9;
-      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
-      obj.txLblCoreAux.String = str;      
-    end
+%     function refreshTxLabelCoreAux(obj)
+%       iPt0 = obj.kpfIPtFor1Key;
+%       iPt1 = iPt0+9;
+%       str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles',iPt0,iPt1);
+%       obj.txLblCoreAux.String = str;      
+%     end
             
   end
   

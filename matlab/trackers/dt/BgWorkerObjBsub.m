@@ -12,21 +12,21 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       if nargin < 4,
         imov = 1;
       end
-      PAT = 'Job <(?<jobid>[0-9]+)>';
-      stoks = regexp(res,PAT,'names');
-      if ~isempty(stoks)
-        jobid = str2double(stoks.jobid);
-      else
-        jobid = nan;
-        warningNoTrace('Failed to ascertain jobID.');
-      end
+      jobid = DLBackEndClass.parseJobIDBsub(res);
+%       PAT = 'Job <(?<jobid>[0-9]+)>';
+%       stoks = regexp(res,PAT,'names');
+%       if ~isempty(stoks)
+%         jobid = str2double(stoks.jobid);
+%       else
+%         jobid = nan;
+%         warningNoTrace('Failed to ascertain jobID.');
+%       end
       fprintf('Process job (view %d, mov %d) spawned, jobid=%d.\n\n',...
         iview,imov,jobid);
       % assigning to 'local' workerobj, not the one copied to workers
       obj.jobID(imov,iview) = jobid;
       
     end
-
     
     function killJob(obj,jID)
       % jID: scalar jobID
@@ -154,7 +154,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
         warningNoTrace('Failed to create KILLED token: %s',killtoken);
       else
         tfsucc = true;
-        fprintf('Created KILLED token: %s.\nPlease wait for your monitor to acknowledge the kill!\n',killtoken);
+        fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge that the process has been killed!\n',killtoken);
       end
     end
     

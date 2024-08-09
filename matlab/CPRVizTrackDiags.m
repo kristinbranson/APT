@@ -18,7 +18,7 @@ classdef CPRVizTrackDiags < handle
     t % major iter
     u % minor iter
   end
-  properties (SetObservable,SetAccess=private)    
+  properties (SetObservable, SetAccess=private)    
     % These props govern what is shown for 'Feature Details'
     iFernHilite % scalar, in 0..M. If 0, then no fern hilighted, all feature details shown. Otherwise, show details only for given fern.
     vizShow % scalar logical

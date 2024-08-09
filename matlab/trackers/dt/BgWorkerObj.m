@@ -32,7 +32,21 @@ classdef BgWorkerObj < handle
   % BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj 
   
   properties
-    nviews
+    % TODO Reconcile/cleanup
+    % For BgTrainWorkerObjs
+    %   In general, for training, the number of actual views is not
+    %   important to BgWorkers; the concept of "views" can be replaced by 
+    %   "stages" with no changes in code.
+    % For BgTrackWorkerObjs, nviews is still the number of actual views,
+    %   and may differ from numel(dmcs) for top-down (2-stage) trackers.
+    %   BgTrackWorkerObjs are tighter in terms of shapes and keeping track
+    %   of numviews, numsets etc.    
+    %
+    % Actually, .dmcs are not used in BgTrackWorkerObj classes, so just
+    % move .dmcs.
+    
+    % This belongs in a BgTrainWorkerObj subclass as it isn't used by
+    % BgTrackWorkerObjs.
     dmcs % [nview] DeepModelChainOnDisk array  
   end
   
@@ -47,16 +61,18 @@ classdef BgWorkerObj < handle
   
   methods
     
-    function obj = BgWorkerObj(nviews,dmcs,varargin)
+    function obj = BgWorkerObj(dmcs,varargin)
       if nargin == 0,
         return;
       end
-      obj.nviews = nviews;
-      assert(isa(dmcs,'DeepModelChainOnDisk') && ((numel(dmcs)==1 && isempty(dmcs.view)) || numel(dmcs)==nviews));
       obj.dmcs = dmcs;
       obj.reset();
     end
     
+    function v = n(obj)
+      v = obj.dmcs.n;
+    end
+
     function logFiles = getLogFiles(obj)
       fprintf('Using BgWorkerObj.getLogFiles ... maybe shouldn''t happen.\n');
       logFiles = {};
@@ -68,6 +84,20 @@ classdef BgWorkerObj < handle
 
     function reset(obj)
       
+    end
+
+    function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
+      nframes = 0;
+      if nargin < 3,
+        partFileIsTextStatus = false;
+      end
+      if ~exist(f,'file'),
+        return;
+      end
+      if partFileIsTextStatus,
+        s = obj.fileContents(f);
+        nframes = TrkFile.getNFramesTrackedPartFile(s);
+      end
     end
        
     function printLogfiles(obj) % obj const
@@ -106,22 +136,40 @@ classdef BgWorkerObj < handle
         tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
       end
     end
+
+    function lsdir(obj,dir) %#ok<INUSL> 
+      if ispc 
+        lscmd = 'dir';
+      else
+        lscmd = 'ls -al';
+      end
+      cmd = sprintf('%s "%s"',lscmd,dir);
+      system(cmd);
+    end
+    
+    function dispProjDir(obj)
+      fprintf('### %s\n',dpl);
+      obj.lsdir(dpl);
+      fprintf('\n');
+    end
     
     function dispModelChainDir(obj)
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
-        fprintf('### View %d: %s\n',ivw,dmc.dirModelChainLnx);
-        system(cmd);
+      for i=1:obj.n,
+        dmcl = dmc.dirModelChainLnx(i);
+        dmcl = dmcl{1};
+        [ijob,ivw,istage] = obj.dmc.ind2sub(i);
+        fprintf('### Model %d, job %d, view %d, stage %d: %s\n',ivw,ijob,ivw,istage,dmcl);
+        obj.lsdir(dmcl);
         fprintf('\n');
       end
     end
     
     function dispTrkOutDir(obj)
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
-        fprintf('### View %d: %s\n',ivw,dmc.dirTrkOutLnx);
+      dtol = obj.dmcs.dirTrkOutLnx;
+      for i = 1:obj.n,
+        [ijob,ivw,istage] = obj.dmc.ind2sub(i);
+        cmd = sprintf('ls -al "%s"',dtol);
+        fprintf('### Model %d, job %d, view %d, stage %d: %s\n',i,ijob,ivw,istage,dtol{i});
         system(cmd);
         fprintf('\n');
       end

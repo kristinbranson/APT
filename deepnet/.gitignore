@@ -1,7 +1,7 @@
-<<<<<<< HEAD
 cache*/
 Untitled*
 *.swp
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -75,9 +75,7 @@ target/
 # dotenv
 .env
 
-=======
 .apt.mat
-pref.yaml
+pre.yaml
 Manifest.txt
 *.asv
->>>>>>> df1de9e1493d929de94fcd63b0510058ae6df479

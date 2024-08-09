@@ -72,8 +72,11 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
       end
       if exist('affectsTraining','var'),
         obj.AffectsTraining = affectsTraining;
-      end
-        
+      end        
+    end
+    
+    function addRequirement(obj,req)
+      obj.Requirements{end+1} = req;
     end
   end
 end

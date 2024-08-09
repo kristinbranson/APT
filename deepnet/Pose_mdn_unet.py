@@ -11,5 +11,5 @@ class Pose_mdn_unet(PoseURes.PoseUMDN_resnet):
         else:
             self.train_data_name = None
 
-    def train_wrapper(self,restore=False):
-        PoseURes.PoseUMDN_resnet.train_umdn(self,restore)
+    def train_wrapper(self,restore=False,model_file=None):
+        PoseURes.PoseUMDN_resnet.train_umdn(self,restore=restore,model_file=model_file)

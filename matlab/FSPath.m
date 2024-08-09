@@ -361,21 +361,35 @@ classdef FSPath
       end
     end
     
-    function base = commonbase(p)
+    function base = commonbase(p,mindepth)
       % Find common base of paths
       %
       % p: cellstr of paths
       %
       % base: char, common base path. Will be empty if there is no base path.
-      
+      if nargin < 2,
+        mindepth = 0;
+      end
 %       assert(isunix);
       assert(~isempty(p) && iscellstr(p));
 %       if ~all(cellfun(@(x)x(1)=='/',p))
 %         error('All paths must be absolute unix paths.');
 %       end
       
+      for i = 1:numel(p),
+        if p{i}(end) == filesep,
+          p{i} = p{i}(1:end-1);
+        end
+      end
+
       if isscalar(p)
-        base = p{1};
+        if exist(p{1},'dir'),
+          base = p{1};
+        else
+          assert(exist(p{1},'file')>0);
+          base = fileparts(p{1});
+        end
+        %base = p{1};
         return;
       end
       
@@ -399,7 +413,7 @@ classdef FSPath
           break;
         end
       end
-      % parts/folders match up to and including position i      
+      % parts/folders match up to and including position i
       
       if i==0
         base = '';
@@ -408,6 +422,18 @@ classdef FSPath
       else
         base = ['/' fullfile(parts{1}{1:i})];
       end
+      
+      if mindepth > 0,
+        if i < mindepth,
+          base = unique( cellfun(@(x) fullfile(x{1:min(numel(x),mindepth)}), parts,'Uni',0) );
+          if ~ispc,
+            base = cellfun(@(x) ['/',x],base,'Uni',0);
+          end
+        else
+          base = {base};
+        end
+      end
+      
     end
       
   end

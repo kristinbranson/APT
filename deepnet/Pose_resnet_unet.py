@@ -4,19 +4,30 @@ import os
 import tarfile
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
+# from batch_norm import batch_norm_mine_old as batch_norm
+if vv[0]==1:
+    from tensorflow.contrib.layers import batch_norm
+    import tensorflow.contrib.slim as slim
+    from tensorflow.contrib.slim.nets import resnet_v1
 
-import tensorflow.contrib.slim as slim
+    from tensorflow.contrib.layers import xavier_initializer
+
+else:
+    from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+    def batch_norm(inp,decay,is_training,renorm=False,data_format=None):
+        return batch_norm_temp(inp,momentum=decay,training=is_training)
+    import tf_slim as slim
+    from tf_slim.nets import resnet_v1
+    from tensorflow.keras.initializers import GlorotUniform as  xavier_initializer
 import urllib
 import resnet_official
-from tensorflow.contrib.slim.nets import resnet_v1
 import convNetBase as CNB
 from PoseCommon_dataset import conv_relu3, conv_relu
 import numpy as np
-from tensorflow.contrib.layers import batch_norm
 from upsamp import upsample_init_value
 
 
@@ -133,7 +144,7 @@ class Pose_resnet_unet(PoseBase):
         n_filt = X.get_shape().as_list()[-1]
         n_out = self.conf.n_classes
         weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                  initializer=tensorflow.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')

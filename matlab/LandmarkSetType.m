@@ -1,11 +1,17 @@
 classdef LandmarkSetType
   enumeration 
     % caution, order matters here for clients
-    Label
-    Prediction 
-    Imported
+    Label ('labelPointsPlotInfo')
+    Prediction ('predPointsPlotInfo')
+    Imported ('impPointsPlotInfo')
+  end
+  properties
+    labelerPropPlotInfo
   end
   methods 
+    function obj = LandmarkSetType(lprop)
+      obj.labelerPropPlotInfo = lprop;
+    end
     function meth = updateColorLabelerMethod(obj)
       meth = sprintf('updateLandmark%sColors',char(obj));
     end

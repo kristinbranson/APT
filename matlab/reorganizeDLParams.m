@@ -25,10 +25,10 @@ end
 ts_all = zeros(1,numel(s.trackerData));
 for i = 1:numel(s.trackerData),
   if ~isfield(s.trackerData{i},'trnLastDMC') || isempty(s.trackerData{i}.trnLastDMC) ...
-      || isempty(s.trackerData{i}.trnLastDMC(1).trainID)
+      || isempty(s.trackerData{i}.trnLastDMC.trainID)
     continue;
   end
-  ts_all(i) = datenum(s.trackerData{i}.trnLastDMC(1).trainID,'yyyymmddTHHMMSS');
+  ts_all(i) = max(datenum(s.trackerData{i}.trnLastDMC.trainID,'yyyymmddTHHMMSS'));
 end
 
 [~,order] = sort(ts_all,'descend');
@@ -70,10 +70,10 @@ for i = order,
   sPrm_specific_in = flattenStruct(s.trackerData{i}.sPrm);
   leaves_specific = fieldnames(sPrm_specific_in);
   if ~isfield(s.trackerData{i},'trnLastDMC') || isempty(s.trackerData{i}.trnLastDMC) ...
-      || isempty(s.trackerData{i}.trnLastDMC(1).trainID)
+      || isempty(s.trackerData{i}.trnLastDMC.trainID)
     ts = 0;
   else
-    ts = datenum(s.trackerData{i}.trnLastDMC(1).trainID,'yyyymmddTHHMMSS');
+    ts = max(datenum(s.trackerData{i}.trnLastDMC.trainID,'yyyymmddTHHMMSS'));
   end
   
   warnfun_common = @(fn) sprintf('Collision collapsing from %s to common DL parameter %s, using most recent value',char(s.trackerData{i}.trnNetType),fn);
