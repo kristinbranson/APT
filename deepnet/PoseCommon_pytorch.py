@@ -106,6 +106,7 @@ class coco_loader(torch.utils.data.Dataset):
         self.augment = augment
         self.len = max(conf.batch_size,len(self.ann['images']))
         self.ex_wts = torch.ones(self.len)
+        self.coco_ignore_mask =  conf.get('coco_ignore_mask', False)
         if self.len > 0:
             # Test the given image_folder_path.  If it's no good, use conf.coco_im_dir
             test_image_file_name = self.ann['images'][0]['file_name']
@@ -202,7 +203,7 @@ class coco_loader(torch.utils.data.Dataset):
         if np.all(locs[curl[...,2]==0,:]==0):
             locs[curl[...,2]==0,:] = np.nan
 
-        if conf.get('coco_ignore_mask',False):
+        if self.coco_ignore_mask:
             mask = self.get_mask_ignore(annos,im.shape[:2])
         else:
             mask = self.get_mask(annos,im.shape[:2])
@@ -281,12 +282,15 @@ class coco_loader(torch.utils.data.Dataset):
 
 class PoseCommon_pytorch(object):
 
-    def __init__(self,conf,name='deepnet',usegpu=True):
+    def __init__(self,conf,name='deepnet',usegpu=True,zero_seeds=False,img_prefix_override=None,debug=False):
         self.conf = conf
         self.name = name
         self.prev_models = []
         self.td_fields = ['dist','loss']
         self.train_epoch = 1
+        self.zero_seeds = zero_seeds
+        self.img_prefix_override = img_prefix_override
+        self.debug = debug
         # conf.is_multi = is_multi
 
         if usegpu and torch.cuda.is_available() and not conf.get('use_openvino',False):
@@ -677,7 +681,7 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False, model_file=None):
+    def train_wrapper(self, restore=False, model_file=None,debug=False):
         model = self.create_model()
         training_iters = self.conf.dl_steps        
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)

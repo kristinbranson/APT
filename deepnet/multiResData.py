@@ -610,7 +610,7 @@ def get_affine_transform_matrix(image_shape, scale, target_size, x,y,theta):
     return matrix
 
 
-def get_scale_bbox(bbox,sz,pad=1.0):
+def get_scale_bbox(bbox,sz,pad=1.0,imresize_expand=False):
     # Extract the bounding box coordinates
     x_min, y_min, x_max, y_max = bbox
 
@@ -625,7 +625,7 @@ def get_scale_bbox(bbox,sz,pad=1.0):
     target_aspect_ratio = target_width / target_height
 
     # Calculate the scaling factor
-    if cropped_aspect_ratio > target_aspect_ratio:
+    if (cropped_aspect_ratio > target_aspect_ratio)!=imresize_expand:
         # Scale based on width
         scale_factor = target_width / cropped_width
     else:
@@ -1357,7 +1357,8 @@ class coco_loader(torch.utils.data.Dataset):
         target_aspect_ratio = width / height
 
         # Determine the scaling factor
-        if aspect_ratio > target_aspect_ratio:
+        # with imresize exapnd, we resize the image so that the smallest dimension fits the target size
+        if (aspect_ratio > target_aspect_ratio) != self.conf.imresize_expand:
             scale_factor = width / original_width
         else:
             scale_factor = height / original_height
@@ -1365,13 +1366,14 @@ class coco_loader(torch.utils.data.Dataset):
         # Resize the image
         resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
 
-        # Calculate the padding sizes
-        pad_width = width - resized_image.shape[1]
-        pad_height = height - resized_image.shape[0]
 
-        # Calculate the padding amounts
-        bottom = pad_height
-        right = pad_width
+        # Calculate the padding sizes
+        if self.conf.imresize_expand:
+            right = 31-(resized_image.shape[1]-1)%32
+            bottom = 31-(resized_image.shape[0]-1)%32
+        else:
+            right = width - resized_image.shape[1]
+            bottom = height - resized_image.shape[0]
 
         # Apply padding to the image
         padded_image = cv2.copyMakeBorder(resized_image, 0, bottom, 0, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])

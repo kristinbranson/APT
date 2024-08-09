@@ -68,6 +68,8 @@ class config(object):
         self.learning_rate_multiplier = 1.
         self.predict_occluded = False
         self.use_openvino = False
+        self.flip_test = False
+        self.imresize_expand = False
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -102,7 +104,8 @@ class config(object):
         self.mdn_logit_eps_training = 0.001
         self.mdn_extra_layers = 1
         self.mdn_use_unet_loss = True
-        self.mdn_pred_dist = False
+        self.mdn_pred_dist = True
+        self.mdn_joint_thres = -3.
         self.pretrain_freeze_bnorm = True
 
         # ----- OPEN POSE PARAMS

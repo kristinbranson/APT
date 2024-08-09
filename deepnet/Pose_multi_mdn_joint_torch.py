@@ -328,7 +328,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.1)
         # self.k_j = 4 if self.fpn_joint_layer ==3 else 1
         self.k_j = 1
-        self.k_r = 3
+        self.k_r = 1
         self.wt_offset = self.conf.get('mdn_joint_wt_offset',-5)
         self.mdn_joint_max_assign = conf.get('mdn_joint_max_assign',100)
         self.top_k_factor = self.conf.get('mdn_joint_top_k',5)
@@ -337,9 +337,11 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         if self.hmap_loss:
             self.heatmap_gen = HeatmapGenerator([int(self.conf.imsz[1]//4),int(self.conf.imsz[0]//4)],self.conf.n_classes,2)
         self.min_hmap_sz = self.conf.get('mdn_min_hmap_sz',10)
-        self.version = 2.
+        self.version = 3
         self.do_dist_pred = True
         # version 1 has k_j = 4
+        # version 2 has k_j = 1 and k_r = 3
+        # version 3 has k_j = 1 and k_r = 1
 
     def create_model(self):
         backbone_type = self.conf.get('mdn_backbone','resnet50')
@@ -505,12 +507,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         # We want only one prediction for each label. We penalize multiple predictions by taking the total weight that gets assigned to a label. This should sum to 1. However this leads to corner case where three close by pixels can have values < 0, but the sum of their sigmoids is 1. To avoid this have that they total weight for each label is 2. With this even for corner cases we will have that one pixels value is greater than 0. Also, this will force close by pixels too to predict the pose.
         assign_sum = assign.sum(axis=-1)
-        assign_sum1 = torch.clamp(assign_sum,0,self.mdn_joint_max_assign)
+        assign_sum1 = torch.clamp(assign_sum,0,self.mdn_joint_max_assign*2)
 
         if self.use_base_loss:
             wt_loss_sum_target = 5.
         else:
             wt_loss_sum_target = 2.
+        wt_loss_sum_target = min(wt_loss_sum_target,self.mdn_joint_max_assign)
         wt_loss_all = (wt_loss_sum_target-assign_sum1)**2
         cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all))
 
@@ -748,7 +751,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         if not self.hmap_loss:
             locs_ref = locs_ref * self.ref_scale
 
-        joint_thres = self.conf.get('mdn_joint_thres',0.)
+        if hasattr(self.conf,'mdn_joint_thres'):
+            joint_thres = self.conf.mdn_joint_thres
+        else:
+            joint_thres = -3. # sigmoid thresh of 0.05
 
         preds_ref = torch.ones([bsz,n_max, n_classes,2],device=self.device) * np.nan
         conf_ref = torch.ones([bsz,n_max,n_classes],device=self.device)*-100
@@ -765,21 +771,19 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         for ndx in range(bsz):
             # n_preds = np.count_nonzero(ll_joint_flat[ndx,:]>0)
             # n_preds = np.clip(n_preds,n_min,np.inf)
-            if self.use_base_loss:
-                cur_wt = logits_joint[ndx]
-                nms_wt = torch.ones_like(cur_wt)<0.5
-                nms_wt[:,1:-1,1:-1] = (cur_wt[:,1:-1,1:-1]>cur_wt[:,:-2,1:-1]) & \
-                                      (cur_wt[:,1:-1,1:-1]>cur_wt[:,2:,1:-1]) & \
-                                      (cur_wt[:,1:-1,1:-1]>cur_wt[:,1:-1,:-2]) & \
-                                        (cur_wt[:,1:-1,1:-1]>cur_wt[:,1:-1,2:])
-                cur_wt = logits_joint[ndx].clone()
-                cur_wt[~nms_wt] = -100
-                k = np.clip(n_max * 5, n_min, ll_joint_flat.shape[1])
-                ids = cur_wt.flatten().topk(n_max*5)[1]
+            # if self.use_base_loss:
 
-            else:
-                k = np.clip(n_max * top_k_factor, n_min, ll_joint_flat.shape[1])
-                ids = ll_joint_flat[ndx,:].topk(k)[1]
+            k_sz = 9 if self.conf.mdn_use_hrnet else 3
+            p_sz = (k_sz-1)//2
+            max_pool = F.max_pool2d(logits_joint[ndx:ndx+1,...],kernel_size=k_sz,stride=1,padding=p_sz)
+            cur_wt = torch.where(max_pool[0,0]==logits_joint[ndx,0],logits_joint[ndx,0],-100)
+
+            k = np.clip(n_max * 5, n_min, ll_joint_flat.shape[1])
+            ids = cur_wt.flatten().topk(k)[1]
+
+            # else:
+            #     k = np.clip(n_max * top_k_factor, n_min, ll_joint_flat.shape[1])
+            #     ids = ll_joint_flat[ndx,:].topk(k)[1]
             done_count = 0
             cur_n = 0
             while (done_count < n_max) and (cur_n<len(ids)):
@@ -790,7 +794,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     break
 
                 idx = unravel_index(sel_ex, [k_joint,n_y_j, n_x_j])
-                curp = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
+                id1 = torch.clamp(idx[1],1,n_y_j-2)
+                id2 = torch.clamp(idx[2],1,n_x_j-2)
+                curp = locs_joint[ndx,...,idx[0],id1-1:id1+2,id2-1:id2+2].mean(-1).mean(-1) * locs_offset
                 dprev = torch.norm(preds_joint[ndx,...]-curp[None,...],dim=-1).mean(-1)
                 # Find the animal size as the mean length of the bounding box
                 cur_sz =  torch.mean(curp.max(axis=-2)[0]-curp.min(axis=-2)[0])
@@ -808,12 +814,16 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     if not self.hmap_loss:
                         rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
                         mm = torch.round(rpred).int()
-                        mm_y = torch.clamp(mm[1],0,n_y_r-1)
-                        mm_x = torch.clamp(mm[0],0,n_x_r-1)
-                        pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
-                        cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y,mm_x]
-                        preds_ref[ndx,done_count,cls,:] = cur_pred
-                        conf_ref[ndx,done_count,cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
+                        if (mm[0] >= n_x_r) or (mm[1] >= n_y_r) or (mm[0] < 0) or (mm[1] < 0):
+                            preds_ref[ndx,done_count,cls,:] = preds_joint[ndx,done_count,cls,:]
+                            conf_ref[ndx,done_count,cls] = conf_joint[ndx,done_count]
+                        else:
+                            mm_y = torch.clamp(mm[1],1,n_y_r-2)
+                            mm_x = torch.clamp(mm[0],1,n_x_r-2)
+                            pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
+                            cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y-1:mm_y+2,mm_x-1:mm_x+2].mean(-1).mean(-1)
+                            preds_ref[ndx,done_count,cls,:] = cur_pred
+                            conf_ref[ndx,done_count,cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
 
                 done_count += 1
 
@@ -1122,9 +1132,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
     def set_version(self,model_file):
         ckpt = torch.load(model_file, map_location=torch.device('cpu'))
         k_j = ckpt['model_state_params']['module.wts_joint.conv_out.weight'].shape[0]
-        if k_j==4:
+        k_r = ckpt['model_state_params']['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
+        if k_r==3:
+            self.version = 2
+        elif k_j==4:
             self.version = 1
         self.k_j = k_j
+        self.k_r = k_r
 
         if 'module.dist_pred.conv_out.weight' not in ckpt['model_state_params']:
             self.do_dist_pred = False
@@ -1217,6 +1231,69 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         else:
             return self.model({'images':ims})
 
+    def combine_flip(self,locs,locs_flip,flip_coords=False):
+        conf = self.conf
+        flip_matches = conf.flipLandmarkMatches
+        out_locs = locs.clone()
+        flocs = torch.flip(locs_flip,[-1])
+        if flip_coords:
+            flocs[:,:,0] = flocs.shape[-1]-flocs[:,:,0]
+        for ndx in range(conf.n_classes):
+            if str(ndx) in flip_matches:
+                jj = flip_matches[str(ndx)]
+                out_locs[:,ndx] = (locs[:,ndx] + flocs[:,jj])/2
+            else:
+                out_locs[:,ndx] = (locs[:,ndx]+flocs[:,ndx])/2
+        return out_locs
+
+    def merge_flip(self,locs,flip_locs,x_sz,conf_flip,dpred,dpred_flip):
+        conf = self.conf
+        match_dist_factor = 0.25 #self.conf.multi_match_dist_factor
+
+        flip_matches = conf.flipLandmarkMatches
+        out_locs = locs.copy()
+        fl = flip_locs.copy()
+        if dpred is not None:
+            dpred_fl = dpred_flip.copy()
+        for ndx in range(conf.n_classes):
+            if str(ndx) in flip_matches:
+                jj = flip_matches[str(ndx)]
+                fl[:,ndx] = flip_locs[:,jj]
+                if dpred is not None:
+                    dpred_fl[:,ndx] = dpred_flip[:,jj]
+        fl[...,0] = x_sz-fl[...,0]
+        v1 = ~np.all(np.isnan(locs[...,0]),axis=-1)
+        nv1 = np.sum(v1)
+        v2 = ~np.all(np.isnan(fl[...,0]),axis=-1)
+        done_count = nv1
+        matched = np.zeros(locs.shape[0])
+        if dpred is not None:
+            dpred_out = dpred.copy()
+        else:
+            dpred_out = None
+        for ndx in np.where(v2)[0]:
+            curp = fl[ndx]
+            dprev = np.linalg.norm(locs[v1, ...] - curp[None, ...], axis=-1).mean(-1)
+            # Find the animal size as the mean length of the bounding box
+            cur_sz = np.mean(curp.max(axis=-2)[0] - curp.min(axis=-2)[0])
+            nms_dist = cur_sz * match_dist_factor
+            if np.nanmin(dprev) < nms_dist:
+                lndx = np.argmin(dprev)
+                out_locs[lndx] = (locs[lndx] + curp) / 2
+                matched[lndx] = 1
+                if dpred is not None:
+                    dpred_out[lndx] = (dpred[lndx] + dpred_fl[ndx]) / 2
+            elif (done_count < conf.max_n_animals) and (conf_flip[ndx] > 0):
+                out_locs[done_count] = curp
+                if dpred is not None:
+                    dpred_out[done_count] = dpred_fl[ndx]
+                done_count += 1
+        # to_del = np.where( (matched < 0.5)&v1)[0]
+        # out_locs[to_del] = np.nan
+
+        return out_locs,dpred_out
+
+
     def get_pred_fn_fast(self, model_file=None,max_n=None,imsz=None):
         if max_n is not None:
             self.conf.max_n_animals = max_n
@@ -1254,8 +1331,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             ret_dict['occ'] = []
             ret_dict['conf_joint'] = []
             if retrawpred:
-                ret_dict['preds'] = [[]]
-                ret_dict['raw_locs'] = [[]]
+                ret_dict['preds'] = []
+                ret_dict['raw_locs'] = []
 
             for ndx, ims in enumerate(ims_in):
                 # do prediction on half grid cell size offset images. o is for offset
@@ -1265,6 +1342,36 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     preds = self.run_model(ims)
                     preds = self.convert_output(preds)
                     locs = self.get_joint_pred(preds)
+                    if self.conf.flip_test:
+                        ims_flip = torch.flip(ims,[3])
+                        preds_flip = self.run_model(ims_flip)
+                        preds_flip = self.convert_output(preds_flip)
+                        locs_flip = self.get_joint_pred(preds_flip)
+                        for ndx in range(locs['ref'].shape[0]):
+                            if locs['conf_dist'] is not None:
+                                d1 = locs['conf_dist'][ndx]
+                                d2 = locs_flip['conf_dist'][ndx]
+                            else:
+                                d1 = None
+                                d2 = None
+                            new_locs, new_dpred = self.merge_flip(locs['ref'][ndx],locs_flip['ref'][ndx],ims.shape[-1],locs_flip['conf_joint'][ndx],d1,d2)
+                            locs['ref'][ndx] = new_locs
+                            if locs['conf_dist'] is not None:
+                                locs['conf_dist'][ndx] = new_dpred
+
+                if locs['conf_dist'] is not None:
+                    pp = locs['ref'][0]
+                    cur_joint_conf = locs['conf_dist'][0]
+                    ss = np.max(pp, axis=-2) - np.min(pp, axis=-2)
+                    sz = np.sqrt(np.prod(ss, axis=-1))[..., None]
+                    pred_out = np.count_nonzero(cur_joint_conf > sz,axis=1)
+                    sel = pred_out>(conf.n_classes/3)
+                    locs['ref'][0][sel] = np.nan
+                    locs['joint'][0][sel] = np.nan
+                    locs['conf_joint'][0][sel] = -100
+                    locs['conf_ref'][0][sel] = -100
+                    locs['conf_dist'][0][sel] = np.nan
+                    locs['pred_occ'][0][sel]  = np.nan
 
                 ret_dict['locs'].append(locs['ref'][0] * conf.rescale)
                 ret_dict['locs_joint'].append(locs['joint'][0] * conf.rescale)
@@ -1280,7 +1387,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     ret_dict['conf'].append(pred_conf[0])
                 else:
                     cur_joint_conf = locs['conf_dist'][0]
-                    ret_dict['conf'].append(1/np.clip(cur_joint_conf, 0, 25))
+                    ss = np.max(locs['ref'][0],axis=-2) - np.min(locs['ref'][0],axis=-2)
+                    sz = np.sqrt(np.prod(ss,axis=-1))[...,None]
+                    cur_joint_conf = 1-np.clip(cur_joint_conf/sz/2,0,1)
+                    ret_dict['conf'].append(cur_joint_conf) #np.clip(cur_joint_conf, 0, 25))
                 #
                 if self.conf.predict_occluded:
                     ret_dict['occ'].append(locs['pred_occ'][0])

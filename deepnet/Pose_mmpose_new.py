@@ -309,7 +309,8 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
         if conf.mmpose_net == 'dekr':
             cfg.model.head.rescore_cfg = None
             if conf.multi_loss_mask:
-                cfg.codec.background_weight = 0.
+                cfg.codec.type = 'SPR_mask'
+
 
     else:
         if default_hm_sz is not None:
@@ -437,7 +438,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 p.encoder = cfg.codec
             elif p.type in [ 'TopdownAffine','BottomupResize','BottomupRandomAffine']:
                 p.input_size = imsz
-                if p.type == 'BottomupResize':
+                if p.type == 'BottomupResize' and not conf.imresize_expand:
                     p.resize_mode = 'fit'
             elif p.type == 'BottomupGetHeatmapMask':
                 p.get_invalid = conf.get('mmpose_mask_valid',True)
@@ -508,7 +509,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     cfg.default_hooks.checkpoint.save_best = None
 
     # Disable flip testing.
-    cfg.model.test_cfg.flip_test = conf.get('mmpose_flip_test',False)
+    cfg.model.test_cfg.flip_test = conf.get('flip_test',False)
 
     if hasattr(cfg.model,'keypoint_head') and hasattr(cfg.model.keypoint_head, 'loss_keypoint') and ('with_ae_loss' in cfg.model.keypoint_head.loss_keypoint):
         # setup ae push factor.

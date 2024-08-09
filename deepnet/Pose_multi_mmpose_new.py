@@ -23,7 +23,24 @@ from mmpose.apis import init_model
 from mmengine.registry import init_default_scope
 from mmengine.dataset import Compose, pseudo_collate
 
+from mmpose.registry import KEYPOINT_CODECS
+from mmpose.codecs import SPR
+
+
 import multiprocessing as mp
+
+
+# TODO: DEKR drops heatmap masks. Adding heatmap masks to the output
+@KEYPOINT_CODECS.register_module(force=True)
+class SPR_mask(SPR):
+    field_mapping_table = dict(
+        heatmaps='heatmaps',
+        heatmap_weights='heatmap_weights',
+        displacements='displacements',
+        displacement_weights='displacement_weights',
+        heatmap_mask='heatmap_mask'
+    )
+
 
 
 # TODO: Fixing a bug where mmpose FocalHeatmapLoss class generates NaNs when no animal in GT. Remove this when updating mmpose
