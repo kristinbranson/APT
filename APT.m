@@ -107,6 +107,7 @@ classdef APT
         fullfile(root,'unittest'); ...
         fullfile(mlroot,'compute_landmark_features'); ...
         fullfile(mlroot,'compute_landmark_transforms'); ...
+        fullfile(mlroot,'trk'); ...
         };
       
       cprpath = { ...
@@ -320,6 +321,10 @@ classdef APT
         end
         cacheDir = fullfile(userDir,'.apt');
       end
+    end
+    
+    function tr = torchhome()
+      tr = fullfile(APT.getdlcacheroot(),'torch');
     end
     
     function s = codesnapshot
@@ -579,6 +584,18 @@ classdef APT
       end
     end
     
+    function v = getprefdefault(name,dfltval)
+      v = RC.getpropdefault(name,dfltval);
+    end
+    
+    function v = getpref(name)
+      v = RC.getprop(name);
+    end
+    
+    function setpref(name,val)
+      RC.saveprop(name,val);
+    end
+    
   end
   
 end
@@ -586,7 +603,7 @@ end
 
 function root = getRootGeneral()
   if isdeployed
-    root = ctfroot;
+    root = fullfile(ctfroot,'APT_deployed');
   else
     root = fileparts(mfilename('fullpath'));   
   end

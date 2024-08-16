@@ -22,13 +22,19 @@ classdef ShiftArrowMovieNavMode
       switch obj
         case ShiftArrowMovieNavMode.NEXTTIMELINE
           tldata = lObj.gdata.labelTLInfo.tldata;
-          [tffound,f] = Labeler.seekSmallLpos(tldata,f0,dir);
+          [tffound,f] = Labels.seekSmallLpos(tldata,f0,dir);
         case ShiftArrowMovieNavMode.NEXTTIMELINETHRESH
           tldata = lObj.gdata.labelTLInfo.tldata;
-          [tffound,f] = Labeler.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
+          [tffound,f] = Labels.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
         case ShiftArrowMovieNavMode.NEXTLABELED
-          lpos = lObj.labeledposCurrMovie;
-          [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+          %lpos = lObj.labeledposCurrMovie;
+          s = lObj.labelsCurrMovie;
+          if lObj.hasTrx,
+            tgt = lObj.currTarget;
+          else
+            tgt = [];
+          end
+          [tffound,f] = Labels.findLabelNear(s,f0,tgt,dir*2);
         case ShiftArrowMovieNavMode.NEXTIMPORTED
           if lObj.gtIsGTMode
             warningNoTrace('No imported labels available in GT mode.');
@@ -36,8 +42,10 @@ classdef ShiftArrowMovieNavMode
             f = nan;
           else
             iMov = lObj.currMovie;
-            lpos = lObj.labeledpos2{iMov};
-            [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+            %lpos = lObj.labeledpos2{iMov};
+            s = lObj.labels2{iMov};
+            [tffound,f] = Labels.findLabelNear(s,f0,lObj.currTarget,dir*2);
+            %[tffound,f] = Labels.seekBigLpos(lpos,f0,dir,lObj.currTarget);
           end
         case ShiftArrowMovieNavMode.NEXTTRACKED
           tObj = lObj.tracker;
@@ -46,8 +54,15 @@ classdef ShiftArrowMovieNavMode
             tffound = false;
             f = nan;
           else
-            lpos = tObj.getTrackingResultsCurrMovie();
-            [tffound,f] = Labeler.seekBigLpos(lpos,f0,dir,lObj.currTarget);
+            [tffound,xy,~,sf,~] = tObj.getTrackingResultsCurrMovieTgt();
+            if tffound
+              off = 1-sf;
+              f0mod = f0+off;
+              [tffound,f] = Labels.seekBigLpos(xy,f0mod,dir);
+              f = f-off;
+            else
+              f = nan;
+            end
           end
         otherwise
           assert(false);

@@ -1,5 +1,9 @@
-function copyfileensuredir(src,dst)
+function copyfileensuredir(src,dst,force)
 % Throws if unsuccessful
+
+if nargin < 3,
+  force = true;
+end
 
 dstP = fileparts(dst);
 if exist(dstP,'dir')==0
@@ -9,7 +13,9 @@ if exist(dstP,'dir')==0
   end
 end
 
-[succ,msg] = copyfile(src,dst);
-if ~succ
-  error('Failed to copy %s to %s: %s',src,dst,msg);
+if force || ~exist(dst,'file'),
+  [succ,msg] = copyfile(src,dst);
+  if ~succ
+    error('Failed to copy %s to %s: %s',src,dst,msg);
+  end
 end

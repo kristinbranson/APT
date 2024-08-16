@@ -51,41 +51,10 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
     function s = fileContents(obj,f)
       s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
     end
-    
-    function dispModelChainDir(obj)
-      aws = obj.awsEc2;
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirModelChainLnx);
-        fprintf('### View %d:\n',ivw);
-        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
-        if tfsucc
-          disp(res);
-        else
-          warningNoTrace('Failed to access training directory %s: %s',...
-            dmc.dirModelChainLnx,res);
-        end
-        fprintf('\n');
-      end
+
+    function tfsucc = lsdir(obj,dir)
+      tfsucc = obj.awsEc2.remoteLs(dir);
     end
-    
-    function dispTrkOutDir(obj)
-      aws = obj.awsEc2;
-      for ivw=1:obj.nviews
-        dmc = obj.dmcs(ivw);
-        cmd = sprintf('ls -al "%s"',dmc.dirTrkOutLnx);
-        fprintf('### View %d:\n',ivw);
-        [tfsucc,res] = aws.cmdInstance(cmd,'dispcmd',false); 
-        if tfsucc
-          disp(res);
-        else
-          warningNoTrace('Failed to access training directory %s: %s',...
-            dmc.dirModelChainLnx,res);
-        end
-        fprintf('\n');
-      end
-    end
-    
     
     function [tfsucc,warnings] = killProcess(obj)
       warnings = {};
@@ -130,7 +99,7 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
           warningNoTrace('Failed to create remote KILLED token: %s',killfile);
           warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);
         else
-          fprintf('Created remote KILLED token: %s. Please wait for your monitor to acknowledge the kill!\n',killfile);
+          fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge that the process has been killed!\n',killfile);
         end
         % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
       end

@@ -52,7 +52,7 @@ classdef CPRLabelTracker < LabelTracker
   
   
   %% Training Data Selection
-  properties (SetObservable,SetAccess=private)
+  properties (SetObservable, SetAccess=private)
     trnDataDownSamp = false; % scalar logical.
   end
   properties
@@ -152,6 +152,9 @@ classdef CPRLabelTracker < LabelTracker
         v = CPRParam.all2cpr(obj.sPrmAll,obj.lObj.nPhysPoints,obj.lObj.nview);
       end
     end
+    function v = getNetsUsed(obj)
+      v = {'cpr'};
+    end
   end
   methods
     function set.storeFullTracking(obj,v)
@@ -239,12 +242,7 @@ classdef CPRLabelTracker < LabelTracker
           'nview',lObj.nview);
         obj.lObj = s;
         obj.ax = [];
-        delete(obj.hLCurrMovie);
-        delete(obj.hLCurrFrame);
-        delete(obj.hLCurrTarget);
-        obj.hLCurrMovie = [];
-        obj.hLCurrFrame = [];
-        obj.hLCurrTarget = [];
+        obj.deleteListeners();
       end
     end
     
@@ -459,7 +457,7 @@ classdef CPRLabelTracker < LabelTracker
       notify(obj,'newTrackingResults');
     end
     
-    function [tblTrkRes,pTrkiPt] = getAllTrackResTable(obj) % obj const
+    function [tblTrkRes,pTrkiPt] = getTrackingResultsTable(obj) % obj const
       % Get all current tracking results in a table
       %
       % tblTrkRes: [NTrk x ncol] table of tracking results
@@ -2081,8 +2079,10 @@ classdef CPRLabelTracker < LabelTracker
       end
     end
 
-    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovie(obj)
-      tpos = obj.xyPrdCurrMovie;
+    % 20220919: Not updated to new API
+    function [tpos,taux,tauxlbl] = getTrackingResultsCurrMovieTgt(obj)
+      iTgt = obj.lObj.currTarget;
+      tpos = obj.xyPrdCurrMovie(:,:,:,iTgt);
       taux = [];
       tauxlbl = cell(0,1);
     end
@@ -2133,7 +2133,7 @@ classdef CPRLabelTracker < LabelTracker
       tfHasTrx = obj.lObj.projectHasTrx;
       assert(~(tfHasCrop && tfHasTrx),'Project cannot have both crops and trx');
       if tfHasTrx
-        tgtcroprad = obj.sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius;
+        tgtcroprad = obj.sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
         tgtcropsz = 2*tgtcroprad+1;
         tgtcropimsz = {tgtcropsz tgtcropsz};
       end
@@ -2348,7 +2348,7 @@ classdef CPRLabelTracker < LabelTracker
         return;
       end
       
-      [xy,isinterp,xyfull] = obj.getPredictionCurrentFrame();
+      [tfhaspred,xy,isinterp,xyfull] = obj.getTrackingResultsCurrFrm();
       
       if obj.asyncPredictOn && all(isnan(xy(:)))
         obj.asyncTrackCurrFrameBG();
@@ -2715,7 +2715,7 @@ classdef CPRLabelTracker < LabelTracker
     end
     
     %#%MTGT
-    function [xy,isinterp,xyfull] = getPredictionCurrentFrame(obj)
+    function [tfhaspred,xy,isinterp,xyfull] = getTrackingResultsCurrFrm(obj)
       % xy: [nPtsx2xnTgt], tracking results for all targets in current frm
       % isinterp: scalar logical, only relevant if nTgt==1
       % xyfull: [nPtsx2xnRep]. full tracking only for current target. Only 
@@ -2726,6 +2726,7 @@ classdef CPRLabelTracker < LabelTracker
       if isempty(xyPCM)
         npts = obj.nPts;
         nTgt = obj.lObj.nTargets;
+        tfhaspred = false(nTgt,1);
         xy = nan(npts,2,nTgt);
         isinterp = false;
       else
@@ -2737,6 +2738,8 @@ classdef CPRLabelTracker < LabelTracker
         
         xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
         isinterp = obj.xyPrdCurrMovieIsInterp(frm);
+        tfhaspred = any(~isnan(xy(:,1,:)),1);
+        tfhaspred = tfhaspred(:);
       end
       if obj.storeFullTracking>StoreFullTrackingType.NONE && ...
           ~isequal(obj.xyPrdCurrMovieFull,[])
@@ -2801,7 +2804,7 @@ classdef CPRLabelTracker < LabelTracker
         infos{end+1} = sprintf('New labels since training: %s',s);
         
         isParamChange = ~APTParameters.isEqualFilteredStructProperties(obj.sPrmAll,obj.lObj.trackParams,...
-          'trackerAlgo',obj.algorithmName,'hasTrx',obj.lObj.hasTrx,'trackerIsDL',false);
+          'netsUsed',obj.getNetsUsed(),'hasTrx',obj.lObj.hasTrx,'trackerIsDL',false);
         if isParamChange,
           s = 'Yes';
         else

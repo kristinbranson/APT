@@ -1,0 +1,136 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "Test MSPN training",
+            "type": "python",
+            "request": "launch",
+            "program": "test_mspn_training_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "Test MSPN tracking",
+            "type": "python",
+            "request": "launch",
+            "program": "test_mspn_tracking_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_more_like_prod.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_training_more_like_prod.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_from_apt.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_training_from_apt.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_tracking.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_tracking.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_coco_training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_coco_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "type": "python",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}

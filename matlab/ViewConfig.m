@@ -178,7 +178,7 @@ classdef ViewConfig
       end
     end
     
-    function viewCfg = readCfgOffViews(hFig,hAx,hAxPrev)
+    function viewCfg = readCfgOffViews(hFig,hAx)
       % viewCfg: currently just a struct array
       
       assert(numel(hFig)==numel(hAx));

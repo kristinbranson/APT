@@ -5,9 +5,10 @@ from __future__ import print_function
 
 # In[ ]:
 
-from past.builtins import cmp
+#from past.builtins import cmp
 from builtins import range
-from past.utils import old_div
+#from past.utils import old_div
+from operator import floordiv as old_div
 import numpy as np
 import scipy, re
 import math, h5py
@@ -15,11 +16,9 @@ import math, h5py
 from scipy import misc
 from scipy import ndimage
 import tensorflow
-vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
-    tf = tensorflow.compat.v1
-else:
-    tf = tensorflow
+# Assume TensorFlow 2.x.x
+tf = tensorflow.compat.v1
+
 
 import multiResData
 import tempfile
@@ -44,7 +43,9 @@ import yaml
 import logging
 import time
 import subprocess
-
+import warnings
+warnings.filterwarnings("ignore",message="invalid value encountered in greater")
+import hdf5storage
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 ISPY3 = sys.version_info >= (3, 0)
@@ -113,10 +114,10 @@ def unscale_points(locs_lores, scalex, scaley):
     locs_hires[..., 1] = float(scaley) * (locs_hires[..., 1] + 0.5) - 0.5
     return locs_hires
 
-def scale_images(img, locs, scale, conf, **kwargs):
+def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     sz = img.shape
-    szy_ds = int(sz[1]//scale)
-    szx_ds = int(sz[2]//scale)
+    szy_ds = round(sz[1]/scale)
+    szx_ds = round(sz[2]/scale)
     scaley_actual = sz[1]/szy_ds
     scalex_actual = sz[2]/szx_ds
 
@@ -125,19 +126,32 @@ def scale_images(img, locs, scale, conf, **kwargs):
     valid = nan_valid & high_valid
 
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
+    smask = np.zeros((sz[0],szy_ds,szx_ds)) if mask is not None else None
     for ndx in range(sz[0]):
+        # using skimage transform which is really really slow
         # use anti_aliasing?
+        # if sz[3] == 1:
+        #     simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
+        # else:
+        #     simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
+        # if mask is not None:
+        #     smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0,**kwargs)
+
+        out_sz = simg.shape[1:3][::-1]
         if sz[3] == 1:
-            simg[ndx, :, :, 0] = transform.resize(img[ndx, :, :, 0], simg.shape[1:3], preserve_range=True, mode='edge', **kwargs)
+            simg[ndx, :, :, 0] = cv2.resize(img[ndx, :, :, 0], out_sz, **kwargs)
         else:
-            simg[ndx, :, :, :] = transform.resize(img[ndx, :, :, :], simg.shape[1:3], preserve_range= True, mode='edge', **kwargs)
+            simg[ndx, :, :, :] = cv2.resize(img[ndx, :, :, :], out_sz, **kwargs)
+        if mask is not None:
+            # use skimage transform because it can work on boolean data
+            smask[ndx,...] = transform.resize(mask[ndx,...],smask.shape[1:3],preserve_range=True,mode='edge',order=0)#,**kwargs)
 
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
     new_locs[~valid] = -100000
 
-    return simg, new_locs
+    return simg, new_locs, smask
 
 
 def normalize_mean(in_img, conf):
@@ -175,7 +189,7 @@ def adjust_contrast(in_img, conf):
         else:
             for ndx in range(in_img.shape[0]):
                 lab = cv2.cvtColor(in_img[ndx,...], cv2.COLOR_RGB2LAB)
-                lab_planes = cv2.split(lab)
+                lab_planes = list(cv2.split(lab))
                 lab_planes[0] = clahe.apply(lab_planes[0])
                 lab = cv2.merge(lab_planes)
                 rgb = cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
@@ -205,18 +219,21 @@ def crop_images(frame_in, conf):
     return frame_in[start[0]:end[0], start[1]:end[1], :]
 
 
-def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
+def randomly_flip_lr(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
     locs = in_locs.copy()
+    occ = in_occ.copy() if in_occ is not None else np.ones_like(locs[...,0])
 
     if locs.ndim == 3:
         reduce_dim = True
-        locs = locs[:,np.newaxis,...]
+        locs = locs[:,None,...]
+        occ = occ[:,None]
     else:
         reduce_dim = False
 
     num = img.shape[0]
     n_groups = num//group_sz
     orig_locs = locs.copy()
+    orig_occ = occ.copy()
     pairs = conf.flipLandmarkMatches
     wd = img.shape[2]
     for ndx in range(n_groups):
@@ -226,6 +243,8 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
 
         if jj > 0.5:
             img[st:en, ...] = img[st:en, :, ::-1, :]
+            if mask is not None:
+                mask[st:en, ...] = mask[st:en,:,::-1]
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
@@ -240,23 +259,31 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1):
                             locs[sndx,curn, ll, 0] = wd - 1 - orig_locs[sndx,curn, match, 0]
 
                 locs[st:en, :, ll, 1] = orig_locs[st:en, :, match, 1]
+                occ[st:en,:,ll] = orig_occ[st:en,:,match]
+
+    if reduce_dim:
+        locs = locs[:, 0]
+        occ = occ[:,0]
+    if in_occ is None:
+        occ = None
+    return img, locs, mask, occ
 
 
-    locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs
-
-
-def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
+def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
     locs = in_locs.copy()
+    occ = in_occ.copy() if in_occ is not None else np.ones_like(locs[...,0])
+
     if locs.ndim == 3:
         reduce_dim = True
-        locs = locs[:,np.newaxis,...]
+        locs = locs[:,None,...]
+        occ = occ[:,None]
     else:
         reduce_dim = False
 
     num = img.shape[0]
     n_groups = num//group_sz
     orig_locs = locs.copy()
+    orig_occ = occ.copy()
     pairs = conf.flipLandmarkMatches
     ht = img.shape[1]
     for ndx in range(n_groups):
@@ -265,6 +292,9 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
         jj = np.random.randint(2)
         if jj > 0.5:
             img[st:en, ...] = img[st:en, ::-1, : ,: ]
+            if mask is not None:
+                mask[st:en, ...] = mask[st:en,::-1,:]
+
             for ll in range(locs.shape[2]):
                 str_ll = '{}'.format(ll)
                 if str_ll in pairs.keys():
@@ -279,9 +309,14 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1):
                             locs[sndx,curn, ll, 1] = ht - 1 - orig_locs[sndx,curn, match, 1]
 
                 locs[st:en, :, ll, 0] = orig_locs[st:en, :, match , 0]
+                occ[st:en,:,ll] = orig_occ[st:en,:,match]
 
-    locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs
+    if reduce_dim:
+        locs = locs[:, 0]
+        occ = occ[:,0]
+    if in_occ is None:
+        occ = None
+    return img, locs, mask, occ
 
 
 def randomly_translate(img, locs, conf, group_sz = 1):
@@ -422,8 +457,12 @@ def randomly_adjust(img, conf, group_sz = 1):
     # and single channel
     num = img.shape[0]
     brange = conf.brange
+    if type(brange) == float:
+        brange = [-brange,brange]
     bdiff = brange[1] - brange[0]
     crange = conf.crange
+    if type(crange) == float:
+        crange = [1-crange, 1+crange]
     cdiff = crange[1] - crange[0]
     imax = conf.imax
     if (bdiff<0.01) and (cdiff<0.01):
@@ -467,7 +506,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
                 sfactor = 1.0/sfactor
         else:
             sfactor = (np.random.rand()-0.5)*srange + 1
-            
+
         for g in range(group_sz):
             jj = img[st+g, ...].copy()
             # cur_img = zoom(jj, sfactor) if srange != 0 else jj
@@ -485,7 +524,7 @@ def randomly_scale(img,locs,conf,group_sz=1):
     return img, locs
 
 
-def randomly_affine(img,locs, conf, group_sz=1):
+def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.INTER_LINEAR):
 
     # KB 20191218 - replaced scale_range with scale_factor_range
     if conf.use_scale_factor_range:
@@ -495,12 +534,15 @@ def randomly_affine(img,locs, conf, group_sz=1):
     no_rescale = (conf.use_scale_factor_range and \
                   (srange > 1.0/1.01) and (srange < 1.01)) or \
                   ((not conf.use_scale_factor_range) and srange < .01)
-    
+
     if conf.rrange < 1 and conf.trange< 1 and no_rescale:
-        return img, locs
+        return img, locs, mask
 
     locs = locs.copy()
     img = img.copy()
+    if mask is not None:
+        mask = mask.copy()
+
     if locs.ndim == 3: # hack for multi animal
         reduce_dim = True
         locs = locs[:,np.newaxis,...]
@@ -519,17 +561,23 @@ def randomly_affine(img,locs, conf, group_sz=1):
         en = (ndx+1)*group_sz
         orig_locs = locs[st:en, ...]
         orig_im = img[st:en, ...].copy()
+        orig_mask = mask[st:en,...].copy() if mask is not None else None
         sane = False
         do_transform = True
 
         count = 0
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
+        out_mask = orig_mask.copy() if mask is not None else None
+
         nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
         high_valid = orig_locs[..., 0] > -1000  # ridiculosly low values are used for multi animal
         valid = nan_valid & high_valid
         while not sane:
-            rangle = (np.random.rand() * 2 - 1) * conf.rrange
+            if np.random.rand() < conf.rot_prob:
+                rangle = (np.random.rand() * 2 - 1) * conf.rrange
+            else:
+                rangle = 0
 
             if conf.use_scale_factor_range:
                 # KB 20191218: first choose the scale factor
@@ -544,15 +592,22 @@ def randomly_affine(img,locs, conf, group_sz=1):
             # clip scaling to 0.05
             if sfactor < 0.05:
                 sfactor = 0.05
+
             dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
             dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+
+            # if np.random.rand()<0.5:
+            #     dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            #     dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
+            # else:
+            #     dx = 0; dy= 0
 
             count += 1
             if count > 5:
                 rangle = 0; dx = 0; dy=0; sfactor = 1
                 sane = True
                 do_transform = False
-
+            # print(f'Aug params rot:{rangle},scale:{sfactor},dx:{dx},dy:{dy}')
             rot_mat = cv2.getRotationMatrix2D((cols/2,rows/2), rangle, sfactor)
             rot_mat[0,2] += dx
             rot_mat[1,2] += dy
@@ -566,24 +621,31 @@ def randomly_affine(img,locs, conf, group_sz=1):
                     and np.all(lr[valid, 1] <= rows):
                 sane = True
             elif not conf.check_bounds_distort:
+                out_of_range = (lr[...,0]<0) | (lr[...,0]>=cols) | (lr[...,1]<0) | (lr[...,1]>=rows)
+                high_valid = high_valid & ~out_of_range
                 sane = True
             elif do_transform:
                 continue
 
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
-                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=cv2.INTER_CUBIC)
+                ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=interp_method)
+                # Do not use inter_cubic. Leads to splotches.
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
+                if mask is not None:
+                    out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST)
 
         lr[~high_valid,0] = -100000
         lr[~high_valid,1] = -100000
         locs[st:en, ...] = lr
         img[st:en, ...] = out_ii
+        if mask is not None:
+            mask[st:en,...] = out_mask
 
     locs = locs[:, 0, ...] if reduce_dim else locs
-    return img, locs
+    return img, locs, mask
 
 
 def blur_label(im_sz, loc, scale, blur_rad):
@@ -653,7 +715,7 @@ def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     blur_l = np.zeros([2 * k_size + 1, 2 * k_size + 1])
     blur_l[k_size, k_size] = 1
     blur_l = cv2.GaussianBlur(blur_l, (2 * k_size + 1, 2 * k_size + 1), blur_rad)
-    blur_l = old_div(blur_l, blur_l.max())
+    blur_l = blur_l/ blur_l.max()
     for cls in range(n_classes):
         for andx in range(maxn):
             for ndx in range(len(locs)):
@@ -842,8 +904,97 @@ def get_vars(vstr):
     return b_list
 
 
+def compare_conf_json_lbl(conf_json, conf_lbl, jr, net_type):
+
+    net_names_dict = {'mdn': 'MDN',
+                      'dpk': 'DeepPoseKit',
+                      'openpose': 'OpenPose',
+                      'multi_openpose': 'MultiAnimalOpenPose',
+                      'unet': 'Unet',
+                      'deeplabcut': 'DeepLabCut',
+                      'detect_mmpose': 'MMDetect',
+                      'mdn_joint_fpn': 'GRONe',
+                      'multi_mdn_joint_torch': 'MultiAnimalGRONe',
+                      'mmpose': 'MSPN',
+                      }
+
+    # remove cpr and other stuff
+    to_remove = ['CPR', 'Track', 'ImageProcessing']
+    for k in to_remove:
+        L = jr[k]
+        for kk in L.keys():
+            if type(L[kk]) not in [dict]:
+                delattr(conf_lbl, kk)
+            else:
+                for kk1 in L[kk].keys():
+                    if hasattr(conf_lbl, kk1):
+                        delattr(conf_lbl, kk1)
+                    elif type(L[kk][kk1]) == dict:
+                        for kk2 in L[kk][kk1].keys():
+                            if hasattr(conf_lbl, kk2):
+                                delattr(conf_lbl, kk2)
+
+    def get_list(k, jj, cc):
+        cur_list = []
+        for c in dir(conf_lbl):
+            if c.startswith(k + '_'):
+                cur_list.append(c)
+        if type(jj) in [dict]:
+            for curk in jj.keys():
+                if type(jj[curk]) == dict:
+                    cur_list.extend(get_list(curk, jj[curk], cc))
+
+        return cur_list
+
+    a_list = []
+    for k in jr:
+        a_list.extend(get_list(k, jr[k], conf_lbl))
+
+    for k in net_names_dict:
+        if k == net_type: continue
+        if k == 'multi_mdn_joint_torch': continue
+        if net_names_dict[k] in jr['DeepTrack']:
+            a_list.extend(list(jr['DeepTrack'][net_names_dict[k]].keys()))
+
+    a_list.extend(
+        ['MultiAnimalGRONe', 'reconcile3dType', 'FGThresh', 'ManualRadius', 'AlignUsingTrxTheta', 'PadFloor', 'PadBkgd',
+         'MinAspectRatio', 'AlignHeadTail', 'PadFactor','mdn_joint_layer_num'])
+
+    for a in a_list:
+        if hasattr(conf_lbl, a) and not hasattr(conf_json, a):
+            delattr(conf_lbl, a)
+
+    b_list = ['adjustContrast']
+    b_list.extend(list(jr['MultiAnimal']['LossMask'].keys()))
+    for a in b_list:
+        if hasattr(conf_json, a):
+            delattr(conf_json, a)
+
+    ignore = ['labelfile', 'project_file', 'db_format']
+    ignore_vals = [[],[]]
+    for a in ignore:
+        ignore_vals[0].append(getattr(conf_json,a))
+        delattr(conf_json, a)
+        ignore_vals[1].append(getattr(conf_lbl,a))
+        delattr(conf_lbl, a)
+
+    if 'MSPN' in jr['DeepTrack']:
+        conf_json.mmpose_net = jr['DeepTrack']['MSPN']['mmpose_net']
+
+    if len(conf_lbl.op_affinity_graph) == 0:
+        conf_json.op_affinity_graph = []
+
+    match = compare_conf(conf_lbl, conf_json)
+
+    for ndx in range(len(ignore)):
+        setattr(conf_json,ignore[ndx], ignore_vals[0][ndx])
+        setattr(conf_lbl, ignore[ndx], ignore_vals[1][ndx])
+    return match
+
+
 def compare_conf(curconf, oldconf):
     ff = list(set(dir(curconf))|set(dir(oldconf)))
+    match = True
     for f in ff:
         if f[0:2] == '__' or f[0:3] == 'get':
             continue
@@ -853,31 +1004,36 @@ def compare_conf(curconf, oldconf):
                     logging.warning('{} not equal'.format(f))
                     logging.warning('New:{}'.format(getattr(curconf, f)))
                     logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                    match = False
 
             elif type(getattr(curconf, f)) is list:
                 if type(getattr(oldconf, f)) is list:
-                    if cmp(getattr(curconf, f), getattr(oldconf, f)) !=0 :
+                    if getattr(curconf, f)!= getattr(oldconf, f):
                         logging.warning('{} doesnt match'.format(f))
                         logging.warning('New:{}'.format(getattr(curconf, f)))
                         logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                        match = False
                 else:
                     logging.warning('%s doesnt match' % f)
                     logging.warning('New:{}'.format(getattr(curconf, f)))
                     logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                    match = False
             elif callable(getattr(curconf,f)):
                 pass
             elif getattr(curconf, f) != getattr(oldconf, f):
                 logging.warning('%s doesnt match' % f)
                 logging.warning('New:{}'.format(getattr(curconf, f)))
                 logging.warning('Old:{}'.format(getattr(oldconf, f)))
+                match = False
 
         else:
             logging.warning('%s doesnt match' % f)
+            match = False
             if not hasattr(curconf,f):
                 logging.warning('New does not have {}'.format(f))
             else:
                 logging.warning('Old does not have {}'.format(f))
-
+    return match
 
 def open_movie(movie_name):
     cap = cv2.VideoCapture(movie_name)
@@ -916,7 +1072,7 @@ def db_info(self, dbType='val',train_type=0):
     self.pred = self.create_network()
     self.create_saver()
     val_info = []
-    if train_type is 1:
+    if train_type == 1:
         fname = os.path.join(self.conf.cachedir, self.conf.fulltrainfilename + '.tfrecords')
     else:
         if dbType == 'val':
@@ -972,14 +1128,18 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     from matplotlib import cm
     pad_amt = xx*yy - im_s.shape[0]
     if pad_amt > 0:
-        im_s = np.concatenate([im_s,im_s[:pad_amt,...]],axis=0)
+        im_s = np.concatenate([im_s,np.zeros_like(im_s[:pad_amt,...])],axis=0)
     isz1 = im_s.shape[1]
     isz2 = im_s.shape[2]
     im_s = im_s.reshape([xx,yy,isz1, isz2])
     im_s = im_s.transpose([0, 2, 1, 3])
     im_s = im_s.reshape([xx * isz1, yy * isz2])
     plt.figure(); plt.imshow(im_s,cmap=cmap)
-
+    for x in range(1,yy):
+        plt.plot([x*isz2,x*isz2],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
+    for y in range(1,xx):
+        plt.plot([1,im_s.shape[1]-1],[y*isz1,y*isz1],c=[0.3,0.3,0.3])
+    plt.axis('off')
 
 def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
     import matplotlib.pyplot as plt
@@ -1084,7 +1244,7 @@ def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=Non
             cur_im = np.pad(cur_im, [[0, out_size[0]-cur_im.shape[0]], [0, out_size[1]-cur_im.shape[1]], [0, 0]])
         if cur_im.shape[2] == 1:
             cur_im = cur_im[:, :, 0]
-        if scale is not 1:
+        if scale != 1:
             cur_im = transform.resize(cur_im, np.array(cur_im.shape[:2]) * scale, preserve_range=True)
             cur_locs = scale * cur_locs
         im_name = '{:012d}.png'.format(ndx)
@@ -1093,7 +1253,7 @@ def tfrecord_to_coco(db_file, n_classes, img_dir, out_file, scale=1,skeleton=Non
 
         cv2.imwrite(os.path.join(img_dir, im_name), cur_im)
 
-        ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name})
+        ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name,'movid':cur_info[0],'frm':cur_info[1],'tgt':cur_info[2]})
         ix = cur_locs
         occ_coco = 2-cur_occ[:,np.newaxis]
         occ_coco[np.isnan(ix[:,0]),:] = 0
@@ -1135,7 +1295,7 @@ def tfrecord_to_coco_old(db_file, img_dir, out_file, conf,scale = 1):
             cur_im, cur_locs, cur_info = sess.run(data)
             if cur_im.shape[2] == 1:
                 cur_im = cur_im[:,:,0]
-            if scale is not 1:
+            if scale != 1:
                 cur_im = transform.resize(cur_im, cur_im.shape[:2]*scale, preserve_range= True)
                 cur_locs = scale*cur_locs
             im_name = '{:012d}.png'.format(ndx)
@@ -1173,7 +1333,7 @@ def tfrecord_to_coco_multi(db_file, n_classes, img_dir, out_file, scale=1,skelet
         cur_im, cur_locs, cur_info, cur_occ, cur_mask = [d[ndx] for  d in data]
         if cur_im.shape[2] == 1:
             cur_im = cur_im[:, :, 0]
-        if scale is not 1:
+        if scale != 1:
             cur_im = transform.resize(cur_im, cur_im.shape[:2] * scale, preserve_range=True)
             cur_locs = scale * cur_locs
         im_name = '{:012d}.png'.format(ndx)
@@ -1260,7 +1420,7 @@ def crop_to_size(img, sz):
     return out_img, dx, dy
 
 
-def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
+def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,occ=None,interp_method=cv2.INTER_LINEAR):
     '''
 
     :param ims: Input image. It is converted to uint8 before applying the transformations. Size: B x H x W x C
@@ -1281,25 +1441,30 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1):
     cur_im = cur_im.astype('uint8')
     xs = adjust_contrast(cur_im, conf)
     start = time.time()
-    xs, locs = scale_images(xs, locs, scale, conf)
+    xs, locs, mask = scale_images(xs, locs, scale, conf, mask=mask,interpolation=cv2.INTER_CUBIC)
     stime = time.time()
     if distort:
         if conf.horz_flip:
-            xs, locs = randomly_flip_lr(xs, locs, conf, group_sz=group_sz)
+            xs, locs, mask, occ = randomly_flip_lr(xs, locs, conf, group_sz=group_sz,mask=mask,in_occ=occ)
         if conf.vert_flip:
-            xs, locs = randomly_flip_ud(xs, locs, conf, group_sz=group_sz)
+            xs, locs, mask, occ = randomly_flip_ud(xs, locs, conf, group_sz=group_sz,mask=mask,in_occ=occ)
         ftime = time.time()
-        xs, locs = randomly_affine(xs, locs, conf, group_sz=group_sz)
+        xs, locs, mask = randomly_affine(xs, locs, conf, group_sz=group_sz,mask=mask,interp_method=interp_method)
         rtime = time.time()
-        # xs, locs = randomly_scale(xs, locs, conf, group_sz=group_sz)
-        # xs, locs = randomly_rotate(xs, locs, conf, group_sz=group_sz)
-        # xs, locs = randomly_translate(xs, locs, conf, group_sz=group_sz)
         xs = randomly_adjust(xs, conf, group_sz=group_sz)
         ctime = time.time()
     xs = normalize_mean(xs, conf)
     etime = time.time()
     # print('Time for aug {}, {}, {}, {}, {}'.format(stime-start,ftime-stime,rtime-ftime,ctime-rtime,etime-ctime))
-    return xs, locs
+    ret = [xs,locs]
+    if mask is not None:
+        ret.append(mask)
+    if occ is not None:
+        if not conf.check_bounds_distort:
+            occ = (occ>0.5) | (locs[...,0] < -1000) | np.isnan(locs[...,0])
+            occ = occ.astype('float32')
+        ret.append(occ)
+    return ret
 
 
 def pad_ims(ims, locs, pady, padx):
@@ -1342,6 +1507,7 @@ def running_in_docker():
 
 
 def json_load(filename):
+    logging.info(f'json_load called on {filename}')
     with open(filename,'r') as f:
         K = json.load(f)
     return K
@@ -1422,6 +1588,7 @@ def get_latest_model_file_keras(conf, name):
 def get_crop_loc(lbl,ndx,view, on_gt=False):
     ''' return crop loc in 0-indexed format
     For indexing add 1 to xhi and yhi.
+    Needs updating for json conf file -- MK 20220126
     '''
     from APT_interface import read_entry
     # this is unnecessarily ugly just because matlab.
@@ -1435,7 +1602,7 @@ def get_crop_loc(lbl,ndx,view, on_gt=False):
         if nviews == 1:
             crop_loc = lbl[lbl[fname][0, ndx]]['roi'].value[:, 0].astype('int')
         else:
-            crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]].value[:, 0].astype('int')
+            crop_loc = lbl[lbl[lbl[fname][0, ndx]]['roi'][view][0]][()][:, 0].astype('int')
         crop_loc = crop_loc - 1
     else:
         crop_loc = None
@@ -1460,19 +1627,17 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
-               run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',
-               sing_image='docker://bransonlabapt/apt_docker:tf1.15_py3',
-               precmd='',numcores=2):
+def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif',precmd='',numcores=2):
     import subprocess
-    sing_script = os.path.join(dir, 'opt_' + name + '.sh')
-    sing_err = os.path.join(dir, 'opt_' + name + '.err')
-    sing_log = os.path.join(dir, 'opt_' + name + '.log')
-    bsub_script = os.path.join(dir, 'opt_' + name + '.bsub.sh')
+    sing_script = os.path.join(dir,  name + '.sh')
+    sing_err = os.path.join(dir,  name + '.err')
+    sing_log = os.path.join(dir,  name + '.log')
+    bsub_script = os.path.join(dir, name + '.bsub.sh')
+    # sing_image = 'docker://bransonlabapt/apt_docker:tf1.15_py3'
     with open(sing_script, 'w') as f:
         f.write('#!/bin/bash\n')
         # f.write('bjobs -uall -m `hostname -s`\n')
-        f.write('. /opt/venv/bin/activate\n')
+        # f.write('. /opt/venv/bin/activate\n')
         f.write('cd {}\n'.format(run_dir))
         f.write('numCores2use={} \n'.format(numcores))
         f.write('{} \n'.format(precmd))
@@ -1487,7 +1652,7 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
     gpu_str = "num=1"
     if gpu_model is not None:
         gpu_str += ":gmodel={}".format(gpu_model)
-    cmd = '''ssh 10.36.11.34 '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
+    cmd = '''ssh login1.int.janelia.org '. /misc/lsf/conf/profile.lsf; bsub -J {} -oo {} -eo {} -n{} -W {} -gpu "{}" -q {} "singularity exec --nv -B /groups/branson -B /nrs/branson {} {}"' '''.format(name, sing_log, sing_err, numcores, timeout, gpu_str, queue, sing_image, sing_script)  # -n2 because SciComp says we need 2 slots for the RAM
     with open(bsub_script,'w') as f:
         f.write(cmd)
         f.write('\n')
@@ -1498,24 +1663,25 @@ def submit_job(name, cmd, dir,queue='gpu_any',gpu_model=None,timeout=36*60,
 
 
 def read_h5_str(in_obj):
-    return u''.join(chr(c) for c in in_obj)
+    return u''.join([chr(c) for c in in_obj[()].flatten()])
 
 
-def show_result_hist(im,loc,percs):
+def show_result_hist(im,loc,percs,dropoff=0.5,ax=None,cmap='cool',lw=None):
     from matplotlib import pyplot as plt
-    cmap = get_cmap(percs.shape[0])
-    f = plt.figure()
+    cmap = get_cmap(percs.shape[0],cmap)
+    if ax is None:
+        f = plt.figure()
+        ax = plt.gca()
     if im.ndim == 2:
-        plt.imshow(im,'gray')
+        ax.imshow(im,'gray')
     elif im.shape[2] == 1:
-        plt.imshow(im[:,:,0],'gray')
+        ax.imshow(im[:,:,0],'gray')
     else:
-        plt.imshow(im)
+        ax.imshow(im)
 
-    ax = plt.gca()
     for pt in range(loc.shape[0]):
         for pp in range(percs.shape[0]):
-            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False)
+            c = plt.Circle(loc[pt,:],percs[pp,pt],color=cmap[pp,:],fill=False,alpha=1-((pp+1)/percs.shape[0])*dropoff,lw=lw)
             ax.add_patch(c)
 
 
@@ -1526,20 +1692,217 @@ def nan_hook(name, grad):
     else:
         print('{} has normal grad'.format(name))
 
-
 def get_git_commit():
+    curd = os.path.split(__file__)[0]
+    aptd = os.path.split(curd)[0]
+    gitd = os.path.join(aptd,'.git')
+    try:
+        cmd = ['git',"--git-dir={}".format(gitd), "describe"]
+        label = subprocess.check_output(cmd).strip()
+        label = str(label,'utf-8')
+    except subprocess.CalledProcessError as e:
+        label = 'Not a git repo'
+    except FileNotFoundError as e:
+        label = 'Git not installed'
+    return label
+
+def get_git_commit_old():
     try:
         label = subprocess.check_output(["git", "describe"]).strip()
     except subprocess.CalledProcessError as e:
         label = 'Not a git repo'
     except Exception as e:
         label = "Error caught calling git: {}".format(e)
-        
+
     # AL: not sure what is best here
     try:
         label = str(label,'utf-8')
     except:
         # TypeError when label is already a str
         pass
-    
+
     return label
+
+
+def show_sample_images(sample_file,extra_txt = ''):
+    from matplotlib import pyplot as plt
+
+    ##
+    K = hdf5storage.loadmat(sample_file)
+    if K['mask'].size > 0 :
+        ims = K['ims'] * K['mask'][...,None]
+    else:
+        ims = K['ims']
+    ims = ims-ims.min()
+    ims = ims/ims.max()
+    ims = (255*ims).astype('uint8')
+    h,w = ims.shape[1:3]
+    ims = ims[:9].reshape((3,3)+ims.shape[1:])
+    ims = ims.transpose([0, 2, 1, 3, 4])
+    ims = ims.reshape([3 * h, 3 * w, ims.shape[-1]])
+
+    locs = K['locs'][:9].reshape((3,3)+K['locs'].shape[1:])
+    if locs.ndim==4:
+        locs[...,0] = locs[...,0] + w*np.arange(3)[None,:,None]
+        locs[...,1] = locs[...,1] + h*np.arange(3)[:,None,None]
+    else:
+        locs[..., 0] = locs[..., 0] + w * np.arange(3)[None, :, None, None]
+        locs[..., 1] = locs[..., 1] + h * np.arange(3)[:, None, None, None]
+    npts = locs.shape[-2]
+    locs = locs.reshape((-1,npts,2))
+    cmap = np.tile(get_cmap(npts),[locs.shape[0],1,1]).reshape([-1,4])
+
+    f = plt.figure()
+    if ims.shape[-1]==0:
+        plt.imshow(ims[...,0])
+    else:
+        plt.imshow(ims)
+    plt.scatter(locs[:, :, 0], locs[ :,:, 1],c=cmap)
+    plt.title(f'{extra_txt} height:{h}, width{w}')
+    return f
+
+def find_mem(cmd, conn, skip_db=False):
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+    import APT_interface as apt
+    import torch
+    available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+    print(available_gpus)
+
+    if skip_db:
+        cmd += ' -skip_db'
+    print(cmd)
+    success = True
+    try:
+        apt.main(cmd.split())
+    except:
+        success = False
+        pass
+    # sess = tf.get_default_session()
+    # if sess is None:
+    #     sess = tf.Session()
+    # mem_use = sess.run(tf.contrib.memory_stats.MaxBytesInUse())/1024/1024
+    # tf.reset_default_graph()
+    conn.send(success)
+
+
+def linspacev(start,end,n):
+    if n == 1:
+        return end
+    d_vec = np.ones([1,n])
+    d_vec[0,:] = np.arange(n)/(n-1)
+    ret = start[:,None] + (end[:,None]-start[:,None])*d_vec
+    return ret
+
+
+def find_knee(x,y):
+    # based on https://towardsdatascience.com/detecting-knee-elbow-points-in-a-graph-d13fc517a63c
+    # can you kneed but installing it is a pain
+    # so using distance to the diagnol as surrogate for finding the knee
+    x = x.copy()
+    y = y.copy()
+    x = x-x.min()
+    x = x/x.max()
+    y = y-y.min()
+    y = y/y.max()
+    npts = x.shape[0]
+
+    d1 = []
+    for ix in range(npts):
+        xc = x[ix]; yc = y[ix]
+        p = np.array([xc,yc])
+        p1 = np.array([1,1])
+        p2 = np.array([0,0])
+        dist_diag = np.linalg.norm(np.cross(p2-p1, p1-p))/np.linalg.norm(p2-p1)
+        d1.append(dist_diag)
+
+    d1 = np.array(d1)
+    knee_pt = np.argmax(d1)
+    return knee_pt, d1[knee_pt]
+
+
+def resize_padding(image, width, height):
+
+    # Get the original image dimensions
+    original_height, original_width = image.shape[:2]
+
+    # Calculate the aspect ratios
+    aspect_ratio = original_width / original_height
+    target_aspect_ratio = width / height
+
+    # Determine the scaling factor
+    if aspect_ratio > target_aspect_ratio:
+        scale_factor = width / original_width
+    else:
+        scale_factor = height / original_height
+
+    # Resize the image
+    resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
+
+    # Calculate the padding sizes
+    pad_width = width - resized_image.shape[1]
+    pad_height = height - resized_image.shape[0]
+
+    # Calculate the padding amounts
+    top = pad_height // 2
+    bottom = pad_height - top
+    left = pad_width // 2
+    right = pad_width - left
+
+    # Apply padding to the image
+    padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+    return padded_image,scale_factor
+
+
+def align_points(P, Q):
+    # Step 1: Compute centroids
+    cP = np.mean(P, axis=0)
+    cQ = np.mean(Q, axis=0)
+
+    # Translate points to the origin
+    P_prime = P - cP
+    Q_prime = Q - cQ
+
+    # Step 2: Compute the optimal rotation
+    A = Q_prime.T @ P_prime
+    U, _, Vt = np.linalg.svd(A)
+    R = U @ Vt
+
+    # Step 3: Compute the translation
+    t = cQ - R @ cP
+
+    P_transformed = (R @ P.T).T + t
+
+    # Compute the Euclidean distance between the transformed points
+    distances = np.linalg.norm(P_transformed - Q, axis=1)
+    total_distance = np.sum(distances)
+
+    return total_distance, distances, R, t
+
+
+
+def set_seed(seed):
+    if seed is None:
+        return
+    from mmcv.runner import set_random_seed
+    set_random_seed(seed)
+
+
+def get_memory_usage():
+    import psutil
+    # Get the process ID of the current Python process
+    process_id = psutil.Process()
+
+    # Get memory usage information
+    memory_info = process_id.memory_info()
+
+    # Print the memory usage details
+    # print(f"Memory Usage: {memory_info.rss} bytes (Resident Set Size)")
+    # print(f"Virtual Memory Size: {memory_info.vms} bytes")
+    # print(f"Peak Memory Usage: {memory_info.peak_wset} bytes")
+    return memory_info.rss
+
+if __name__ == "__main__":
+    get_memory_usage()

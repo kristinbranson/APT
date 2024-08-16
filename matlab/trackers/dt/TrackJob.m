@@ -129,39 +129,58 @@ classdef TrackJob < handle
     tObj = [];
     backend = [];
 
-    trnstr = {}; % cellstr, first output of DeepTracker.getTrkFileTrnStr; corresponding to .ivw
+    trnstr = {}; % [nView x nset] cellstr, first output of DeepTracker.getTrainStrModelFiles; corresponding to .ivw
     nowstr = 'UNIQUETAG';
     id = 'TAG_ANN';
     modelChainID = '';
     remoteRoot = '/home/ubuntu';
     remoteDataDirRel = 'data';
-
-    modelfile = {}; % cellstr, [nView] corresponding to .ivw
+    
+    modelfile = {}; % cellstr, [nView x nSet] corresponding to .ivw
     logdir = '';
     logfile = '';
     errfile = '';
+    cmdfile = '';
     
     % AL: Ideally we would enforce these all to be [nmovsettrk x nView]
-    lblfileLcl = '';
-    movfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
+    trainconfigLcl = '';
+    lblfileLcl = ''; % lblfileLcl should be obsolete soon
+    trackconfigLcl = '';
+    movfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if 
+                     % tfserialmultimov, [nSerialMov]
+                     % SHOULD PROB BE [nmov x nView x nSet]
     trxfileLcl = {}; % unused if .tftrx is false. If .tftrx is true:
-                     % if ~tfserialmultimov, cellstr [nView] corresponding to .ivw (currently APT only supports single-view projs with trx);
+                     % if ~tfserialmultimov, cellstr [nView] corresponding to .ivw 
+                     %    (note currently APT only supports single-view projs with trx or 2stg);
                      % if tfserialmultimov, [nSerialMov] corresponding to .movfileLcl
-    trkfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
-    trkoutdirLcl = {}; % cellstr, [nView] corresponding to .ivw. STILL USED for errfile if .tfexternal
-    parttrkfileLcl = {}; % cellstr, [nView] corresponding to .ivw; or if tfserialmultimov, [nSerialMov]
-    trkfilestr = {}; % cellstr, [nView] shortnames for trkfileLcl. UNUSED if .tfexternal
+%     trxfileStg1Lcl = {}; % Only used if .tf2stg is true.
+%                          % trxfiles produced by stage1 tracking
+%                          % if ~tfserialmultimov, cellstr [nView] corresponding to .ivw 
+%                          %    (note currently APT only supports single-view projs with 2stg);
+%                          % if tfserialmultimov, [nSerialMov] corresponding to .movfileLcl          
+
+    % nset==2 if .tf2stg is true
+    trkfileLcl = {}; % cellstr, [nView x nset] corresponding to .ivw; or if tfserialmultimov, [nSerialMov x nset]
+    trkoutdirLcl = {}; % cellstr, [nView x nset] corresponding to .ivw. STILL USED for errfile if .tfexternal
+    parttrkfileLcl = {}; % cellstr, [nView x nset] corresponding to .ivw; or if tfserialmultimov, [nSerialMov x nset]
+    trkfilestr = {}; % cellstr, [nView x nset] shortnames for trkfileLcl. UNUSED if .tfexternal
+    
     rootdirLcl = '';
     listfilestr = '';
     listfileLcl = '';
     calibrationfileLcl = {}; % cellstr, [nSerialMov] % KB 20200504: added, but not used yet
     
+    trainconfigRem = '';
     lblfileRem = '';
+    trackconfigRem = '';
     movfileRem = {};
     trxfileRem = {};
+    trxfileStg1Rem = {};
     trkfileRem = {};
     trkoutdirRem = {};
     parttrkfileRem = {};
+    trkoutdirStg1Rem = {};
+    parttrkfileStg1Rem = {};
     rootdirRem = '';
     listfileRem = '';
         
@@ -169,9 +188,10 @@ classdef TrackJob < handle
     tfserialmultimov = false;
     tfexternal = false;
     tftrx = false;
-    tfremote = false;
+    tf2stg = false;
+    tfremote = false;    
 
-    dmcLcl = []; % [nView] dmc
+    dmcLcl = []; 
     dmcRem = [];
     
     tMFTConc = [];
@@ -197,25 +217,24 @@ classdef TrackJob < handle
     logcmd = '';
     codestr = '';
     ssfile = '';
-
   end
   
   properties (Dependent)
     nmovsettrk 
 
     trkfile
+    configfile
     containerName
     movfile
-    movlocal
-    movremote
-    trkfilelocal
-    trkfileremote
-    parttrkfilelocal
-    parttrkfileremote
-    trxlocal
-    trxremote
-    snapshotfile
-        
+    %movlocal
+    %movremote
+    %trkfilelocal
+    %trkfileremote
+    %parttrkfilelocal
+    %parttrkfileremote
+    %trxlocal
+    %trxremote
+    snapshotfile        
   end
   
   methods
@@ -227,9 +246,10 @@ classdef TrackJob < handle
       end
       
       [ivw,trxids,frm0,frm1,cropRoi,tMFTConc,...
-        lblfileLcl,movfileLcl,trxfileLcl,trkfileLcl,trkoutdirLcl,rootdirLcl,...
+        trainconfigLcl,movfileLcl,trxfileLcl,trkfileLcl,trackconfigLcl,...
+        trkoutdirLcl,rootdirLcl,...
         isMultiView,isSerialMultiMov,isExternal,isRemote,nowstr,logfile,...
-        errfile,modelChainID,isContiguous,calibrationfileLcl] = ...
+        errfile,cmdfile,modelChainID,isContiguous,calibrationfileLcl] = ...
         myparse(varargin,...
         'ivw',[],...
         'targets',[],...
@@ -237,10 +257,11 @@ classdef TrackJob < handle
         'frm1',[],...
         'cropRoi',[],... % serialmode: either [], or [nmovset x 4]
         'tMFTConc',[],...
-        'lblfileLcl','',...
+        'trainconfigLcl','',...
         'movfileLcl',{},...
         'trxfileLcl',{},...
         'trkfileLcl',{},...
+        'trackconfigLcl','',...
         'trkoutdirLcl',{},...
         'rootdirLcl','',...
         'isMultiView',false,... % flag of whether we want to track all views in one track job
@@ -250,6 +271,7 @@ classdef TrackJob < handle
         'nowstr',[],...
         'logfile',{},...
         'errfile',{},...
+        'cmdfile',{},...
         'modelChainID','',...
         'isContiguous',[],...
         'calibrationfileLcl',[] ...
@@ -281,7 +303,11 @@ classdef TrackJob < handle
       if isempty(isContiguous),
         if isempty(tMFTConc),
           isContiguous = true;
-          assert(~isempty(frm0) && ~isempty(frm1));
+          %MK 20220706. Not sure why the following assert statement is
+          %required if tracking multiple movies serially. Commenting it
+          %because it errors when tracking multiple movies on docker
+          %through batch tracking GUI in a MA project.
+%          assert(~isempty(frm0) && ~isempty(frm1));
         elseif isempty(frm0) || isempty(frm1),
           isContiguous = false;
           assert(~isempty(tMFTConc));
@@ -294,6 +320,7 @@ classdef TrackJob < handle
       obj.setBackEnd(backend);
       obj.nView = numel(obj.ivw);
       obj.tftrx = obj.tObj.lObj.hasTrx;
+      obj.tf2stg = obj.tObj.getNumStages()>1;
       if isempty(nowstr),
         obj.nowstr = datestr(now,'yyyymmddTHHMMSS');
       else
@@ -306,9 +333,17 @@ classdef TrackJob < handle
         obj.modelChainID = modelChainID;
       end
       
-      [trnstrs,modelFiles] = obj.tObj.getTrkFileTrnStr();
-      obj.modelfile = modelFiles(obj.ivw);
-      obj.trnstr = trnstrs(obj.ivw);
+      [trnstrs,modelFiles] = obj.tObj.getTrainStrModelFiles();
+      if obj.tf2stg
+        assert(numel(modelFiles)==2);
+        obj.modelfile = modelFiles(:)';
+        obj.trnstr = trnstrs(:)';
+      else
+        obj.modelfile = modelFiles(obj.ivw);
+        obj.modelfile = obj.modelfile(:);
+        obj.trnstr = trnstrs(obj.ivw);
+        obj.trnstr = obj.trnstr(:);
+      end
       
       % currently need to specify frm0 and frm1
       %assert(~isempty(frm0) && ~isempty(frm1));
@@ -340,28 +375,37 @@ classdef TrackJob < handle
         obj.rootdirLcl = rootdirLcl;
       end
       
-      obj.dmcRem = obj.tObj.trnLastDMC(obj.ivw);
-      obj.dmcLcl = obj.dmcRem;
-      if obj.tfremote,
-        for i = 1:obj.nView,
-          obj.dmcLcl(i) = obj.dmcRem(i).copy();
-          obj.dmcLcl(i).rootDir = obj.rootdirLcl;
-        end
-      end
-      obj.rootdirRem = obj.dmcRem.rootDir;
-      
-      if isempty(lblfileLcl),
-        lblfileLcl = unique({obj.dmcLcl.lblStrippedLnx});
-        assert(isscalar(lblfileLcl));
-        obj.lblfileLcl = lblfileLcl{1};
+      if obj.tf2stg
+        obj.dmcRem = obj.tObj.trnLastDMC;
+        obj.dmcLcl = obj.dmcRem;
       else
-        obj.lblfileLcl = lblfileLcl;
+        obj.dmcRem = obj.tObj.trnLastDMC.selectSubset('view',obj.ivw-1);
+        obj.dmcLcl = obj.dmcRem;
+      end      
+      if obj.tfremote,
+        obj.dmcLcl = obj.dmcRem.copy();
+        obj.dmcLcl.setRootDir(obj.rootdirLcl);
       end
-      obj.lblfileRem = obj.dmcRem.lblStrippedLnx;
+      obj.rootdirRem = obj.dmcRem.getRootDir();
       
-      obj.trkoutdirRem = cell(1,obj.nView);
-      for i = 1:obj.nView,
-        obj.trkoutdirRem{i} = obj.dmcRem(i).dirTrkOutLnx;
+      if isempty(trainconfigLcl),
+        obj.trainconfigLcl = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.trainConfigLnx);
+      else
+        obj.trainconfigLcl = trainconfigLcl;
+      end
+      obj.trainconfigRem = obj.dmcRem.trainConfigLnx;
+      
+      if obj.tf2stg,
+        nstage = 2;
+      else
+        nstage = 1;
+      end
+      obj.trkoutdirRem = cell(obj.nView,nstage);
+      for ivw = 1:obj.nView,
+        view = obj.ivw(ivw);
+        for istage = 1:nstage,
+          obj.trkoutdirRem{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirTrkOutLnx('view',view-1,'stage',istage));
+        end
       end
       
       %if obj.tfexternal
@@ -370,16 +414,18 @@ classdef TrackJob < handle
       %else
       
       % in case of obj.tfexternal, trkoutdirLcl still used for trk errfile
-      if isempty(trkoutdirLcl),
-        obj.trkoutdirLcl = cell(1,obj.nView);
-        for i = 1:obj.nView,
-          obj.trkoutdirLcl{i} = obj.dmcLcl(i).dirTrkOutLnx;
+      if isempty(trkoutdirLcl)
+        obj.trkoutdirLcl = cell(obj.nView,nstage);
+        for ivw = 1:obj.nView,
+          view = obj.ivw(ivw);
+          for istage = 1:nstage,
+            obj.trkoutdirLcl{ivw,istage} = DeepModelChainOnDisk.getCheckSingle(obj.dmcLcl.dirTrkOutLnx('view',view-1,'stage',istage));
+          end
         end
       else
-        assert(numel(trkoutdirLcl)==obj.nView);
-        obj.trkoutdirLcl = trkoutdirLcl;
+          obj.trkoutdirLcl = trkoutdirLcl;
       end
-      %end
+      szassert(obj.trkoutdirLcl,[obj.nView nstage]);
       
       if obj.tfexternal,
         assert(~isempty(movfileLcl) && ~isempty(trkfileLcl));
@@ -389,20 +435,37 @@ classdef TrackJob < handle
           %assert(~isempty(trxids));
           obj.trxids = trxids;
           obj.trxfileLcl = trxfileLcl;
+          obj.trkfileLcl = obj.trkfileLcl(:);
+        elseif obj.tf2stg
+          obj.trxids = {};
+          obj.trxfileLcl = {};
+%          obj.trkfileLcl = obj.trkfileLcl(:)'; % shape important
+          if numel(obj.trkfileLcl) == obj.nmovsettrk
+            warningNoTrace('Two-stage tracker: using default stage1 trkfilename.');
+            tt = cell(obj.nmovsettrk,2);
+            for ndx = 1:numel(obj.movfileLcl)
+              [tflP,tflF,tflE] = fileparts(obj.trkfileLcl{ndx});
+              tflStg1 = fullfile(tflP,[tflF '_stg1' tflE]);
+              tt{ndx,1} = tflStg1;
+              tt{ndx,2} = obj.trkfileLcl{ndx};
+            end
+            obj.trkfileLcl = tt;
+          end
         else
           obj.trxids = {};
           obj.trxfileLcl = {};
+          obj.trkfileLcl = obj.trkfileLcl(:);
         end
         
         if obj.tfserialmultimov
           nserial = numel(obj.movfileLcl);
           obj.nSerialMov = nserial;
-          assert(numel(obj.trkfileLcl)==nserial);
+          assert(size(obj.trkfileLcl,1)==nserial);
           if obj.tftrx
             assert(numel(obj.trxfileLcl)==nserial);
           end
         else
-          assert(numel(obj.trkfileLcl)==obj.nView && ...
+          assert(size(obj.trkfileLcl,1)==obj.nView && ...
                  numel(obj.movfileLcl)==obj.nView);
           if obj.tftrx
             assert(numel(obj.trxfileLcl)==obj.nView);
@@ -429,6 +492,11 @@ classdef TrackJob < handle
         obj.cropRoi = cropRoi(obj.ivw,:);
       end
       
+      if isempty(trackconfigLcl),
+        i = find(~cellfun(@isempty,obj.trkfileLcl),1);
+        obj.trackconfigLcl = TrackJob.trk2configfiles(obj.trkfileLcl{i});
+      end
+      
       obj.setLocalFiles();
       
       obj.setRemoteFiles();
@@ -437,10 +505,10 @@ classdef TrackJob < handle
             
       obj.setId();
       
-      obj.setLogErrFiles('logfile',logfile,'errfile',errfile);      
+      obj.setLogErrFiles('logfile',logfile,'errfile',errfile,'cmdfile',cmdfile);      
       
     end
-    
+        
     function prepareFiles(obj)
       
       obj.checkCreateDirs();
@@ -457,24 +525,51 @@ classdef TrackJob < handle
       
       [bsubargs,sshargs,baseargs,singargs,...
         dockerargs,mntpaths,useLogFlag,...
-        condaargs] = ...
+        condaargs,writecmdfile] = ...
         myparse(varargin,...
         'bsubargs',{},'sshargs',{},...
         'baseargs',{},'singargs',{},...
         'dockerargs',{},'mntpaths',{},'useLogFlag',ispc,...
-        'condaargs',{});
+        'condaargs',{},'writecmdfile',true);
       containerName = obj.id;
       baseargs = obj.getBaseArgs(baseargs);
 
-      fileargs = {obj.modelChainID,obj.rootdirRem,obj.lblfileRem,obj.errfile,obj.tObj.trnNetType,...
-            obj.movfileRem,obj.trkfileRem};
+      if obj.tf2stg
+        fileargs = struct;
+        fileargs.modelChainID = obj.modelChainID;
+        fileargs.cache = obj.rootdirRem;
+        fileargs.dlconfig = obj.trainconfigRem;
+        fileargs.errfile = obj.errfile;
+        fileargs.netType = obj.tObj.trnNetType;
+        fileargs.netMode = obj.tObj.trnNetMode;
+        fileargs.nettypeStage1 = obj.tObj.stage1Tracker.trnNetType;
+        fileargs.netmodeStage1 = obj.tObj.stage1Tracker.trnNetMode;
+        fileargs.movtrk = obj.movfileRem;
+        fileargs.outtrk = obj.trkfileRem;
+        fileargs.configfile = obj.trackconfigRem;
+      else
+        fileargs = struct;
+        fileargs.modelChainID = obj.modelChainID;
+        fileargs.cache = obj.rootdirRem;
+        fileargs.dlconfig = obj.trainconfigRem;
+        fileargs.errfile = obj.errfile;
+        fileargs.netType = obj.tObj.trnNetType;
+        fileargs.netMode = obj.tObj.trnNetMode;
+        fileargs.movtrk = obj.movfileRem;
+        fileargs.outtrk = obj.trkfileRem;
+        fileargs.configfile = obj.trackconfigRem;
+      end
+            
       switch obj.backend.type,
         
         case DLBackEnd.Bsub,
           
           bsubargs = [bsubargs,{'outfile' obj.logfile}];
+          % trnID,cache,dllbl,errfile,...
+          % nettype,movtrk,outtrk,frm0,frm1,
           obj.codestr = DeepTracker.trackCodeGenSSHBsubSing(...
-            fileargs{:},...
+            obj.backend, ...
+            fileargs,...
             obj.frm0,obj.frm1,...
             'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
             'sshargs',sshargs);
@@ -486,7 +581,7 @@ classdef TrackJob < handle
           end
           obj.codestr = ...
             DeepTracker.trackCodeGenDocker(obj.backend,...
-            fileargs{:},...
+            fileargs,...
             obj.frm0,obj.frm1,...
             'baseargs',baseargs,'mntPaths',mntpaths,...
              'containerName',obj.containerName,...
@@ -496,7 +591,7 @@ classdef TrackJob < handle
                 
           [obj.codestr] = ...
             DeepTracker.trackCodeGenConda(...
-            fileargs{:},...
+            fileargs,...
             obj.frm0,obj.frm1,...
             'baseargs',[baseargs,{'filesep',obj.tObj.filesep}],...
             'outfile',obj.logfile,...
@@ -506,7 +601,7 @@ classdef TrackJob < handle
           
           codestrRem = ...
             DeepTracker.trackCodeGenAWS(...
-            fileargs{:},...
+            fileargs,...
             obj.frm0,obj.frm1,...
             baseargs);
           
@@ -517,8 +612,99 @@ classdef TrackJob < handle
           error('not implemented back end %s',obj.backend.type);
           
       end
+      if writecmdfile,
+        try
+          fid = fopen(obj.cmdfile,'w');
+          if fid > 0,
+            fprintf(fid,obj.codestr);
+            fclose(fid);
+          end
+          fprintf('Track command saved to %s\n',obj.cmdfile);
+        catch ME,
+          warning('Could not write track command to file %s:\n%s',obj.cmdfile,getReport(ME));
+        end
+      end
       codestr = obj.codestr;
     end
+    
+    function [logfiles,errfiles,trkfiles,partfiles,movfiles] = ...
+        getMonitorArtifacts(objArr)
+      % Generate file/artifact list for BgTrackMonitor.
+      %
+      % objArr: [nMovJobs x nViewJobs] array of TrackJobs
+      % 
+      % *files: with shapes as expected by BgTrackWOrkerObj.initFiles.
+      % logfiles, errfiles: [nMovJobs x nViewJobs]
+      % trkfiles, partfiles: [nMovs x nViews x nStages]
+      % movfiles: [nMovs x nViews]      
+      
+      [nMovJobs,nViewJobs] = size(objArr);
+      logfiles = reshape({objArr.logfile},size(objArr));
+      errfiles = reshape({objArr.errfile},size(objArr));
+      
+      if objArr(1).tfmultiview % each job in objArr tracks across views
+        assert(nViewJobs==1);
+        movfiles = {objArr.movfileLcl};
+        movfiles = cellfun(@(x)x(:)',movfiles,'uni',0);
+        movfiles = cat(1,movfiles{:});
+        
+        trkfiles = {objArr.trkfileRem};
+        trkfiles = cat(3,trkfiles{:}); % [nView x nset x nMovs]
+        trkfiles = permute(trkfiles,[3 1 2]);
+        partfiles = {objArr.parttrkfileRem};
+        partfiles = cat(3,partfiles{:});
+        partfiles = permute(partfiles,[3 1 2]);
+        
+      elseif objArr(1).tfserialmultimov % each job in objArr tracks across movs
+        assert(nMovJobs==1);
+        movfiles = {objArr.movfileLcl};
+        movfiles = cellfun(@(x)x(:),movfiles,'uni',0);
+        movfiles = cat(2,movfiles{:});
+        
+        trkfiles = {objArr.trkfileRem};
+        trkfiles = cat(3,trkfiles{:}); % [nSerialMov x nset x nViews]
+        trkfiles = permute(trkfiles,[1 3 2]);
+        partfiles = {objArr.parttrkfileRem};
+        partfiles = cat(3,partfiles{:});
+        partfiles = permute(partfiles,[1 3 2]);
+      else
+        movfiles = cat(1,objArr.movfileLcl);
+        movfiles = reshape(movfiles,size(objArr));
+
+        %trkfiles = {objArr.trkfileRem}; % each el is a row [1 x nset]
+        trkfiles = cat(1,objArr.trkfileRem); % [nMov*nView x nset]
+        trkfiles = reshape(trkfiles,nMovJobs,nViewJobs,[]);
+        partfiles = cat(1,objArr.parttrkfileRem); 
+        partfiles = reshape(partfiles,nMovJobs,nViewJobs,[]); 
+      end
+    end
+    
+    function trkfiles = getTrkFilesSingleMov(objArr)
+      % Get trkfiles produced by an array of TrackJobs for a single movie
+      %
+      % objArr: array of TrackJobs all for a single movie. All elements
+      % must have same tfmultiview, tfserialmultimov, tf2stg etc.
+      %
+      % trkfiles: [nview] vector of trkfiles for movie produced by
+      % TrackJobs. trkfiles should contain nview elements corresponding to
+      % each view.
+      
+      obj1 = objArr(1);
+      if obj1.tfserialmultimov
+        assert(false,'Unsupported');
+      elseif obj1.tfmultiview
+        % objArr should prob be scalar here
+        % Each el of objArr.trkfileLcl should be a column
+        trkfiles = cat(1,objArr.trkfileLcl);
+      elseif obj1.tf2stg
+        trkfiles = cat(1,objArr.trkfileLcl);
+        trkfiles = trkfiles(:,2); 
+        % right now, just return final/stage1 trks
+      else
+        % typical nonscalar objArr case
+        trkfiles = cat(1,objArr.trkfileLcl);        
+      end
+    end    
     
     function nframestrack = getNFramesTrack(obj,forcecompute)
       % nframestrack: [nmovsettrk] array. If tfmultiview, movs are assumed 
@@ -608,9 +794,6 @@ classdef TrackJob < handle
       if ~obj.isContiguous,
         baseargsaug = [baseargsaug {'listfile' obj.listfileRem}]; 
       end
-        
-      
-      
     end
     
     function checkLocalFiles(obj)
@@ -662,9 +845,6 @@ classdef TrackJob < handle
       else
         args = {};
       end
-      if ispc && obj.backend.type == DLBackEnd.Conda
-        args(end+1:end+2) = {'isWinBackend' true};
-      end
       DeepTracker.trackWriteListFile(...
         obj.movfileRem,obj.movfileLcl,obj.tMFTConc,obj.listfileLcl,args{:});
     end
@@ -683,13 +863,10 @@ classdef TrackJob < handle
       end
       
     end
-
         
     function setId(obj)
-      
       [~,movS] = fileparts(obj.movfileRem{1});
-      obj.id = [movS '_' obj.trnstr{1} '_' obj.nowstr];
-      
+      obj.id = [movS '_' obj.trnstr{1} '_' obj.nowstr];      
     end
     
     function settMFTConc(obj,tMFTConc)
@@ -707,34 +884,38 @@ classdef TrackJob < handle
     end  
     
     function setDefaultTrkFiles(obj)
-      % Only called from settMFTConc
-            
-      obj.trkfilestr = cell(size(obj.movfileLcl));
-      obj.trkfileLcl = cell(size(obj.movfileLcl));
-      for i = 1:obj.nView,
-        mov = obj.movfileLcl{i};
-        trnstr0 = obj.trnstr{i};
-        [~,movS] = fileparts(mov);
-        obj.trkfilestr{i} = [movS '_' trnstr0 '_' obj.nowstr '.trk'];
-        obj.trkfileLcl{i} = fullfile(obj.trkoutdirLcl{i},obj.trkfilestr{i});
-      end
+      % Only called from settMFTConc => only one movieset to track
+      % sets .trkfileLcl, .trkfilestr
       
+      movs = obj.movfileLcl;
+      trnstrs = obj.trnstr;
+      [nview,nset] = size(trnstrs);
+      
+      obj.trkfileLcl = cell([nview nset]);
+      obj.trkfilestr = cell([nview nset]);
+      for ivw=1:nview
+        mov = movs{ivw};
+        [~,movS] = fileparts(mov);
+        for iset=1:nset
+          trnstr0 = obj.trnstr{ivw,iset};
+          obj.trkfilestr{ivw,iset} = [movS '_' trnstr0 '_' obj.nowstr '.trk'];
+          obj.trkfileLcl{ivw,iset} = fullfile(obj.trkoutdirLcl{ivw,iset},...
+                                              obj.trkfilestr{ivw,iset});
+        end
+      end
     end
     
     function setPartTrkFiles(obj)
-      
       obj.parttrkfileLcl = cellfun(@(x) [x,'.part'],obj.trkfileLcl,'Uni',0);
-      obj.parttrkfileRem = cellfun(@(x) [x,'.part'],obj.trkfileRem,'Uni',0);
-      
+      obj.parttrkfileRem = cellfun(@(x) [x,'.part'],obj.trkfileRem,'Uni',0);      
     end
-
     
     function setLogErrFiles(obj,varargin)
       % backend needs to be set before making this call
       %
       % AL: possible dup with DeepModelChainOnDisk
       
-      [logfile,errfile] = myparse(varargin,'logfile','','errfile',''); %#ok<PROPLC>
+      [logfile,errfile,cmdfile] = myparse(varargin,'logfile','','errfile','','cmdfile',''); %#ok<PROPLC>
       obj.logdir = obj.trkoutdirRem{1};
       isremote = obj.tfremote;
       if isempty(logfile), %#ok<PROPLC>
@@ -754,6 +935,11 @@ classdef TrackJob < handle
         end
       else
         obj.errfile = errfile; %#ok<PROPLC>
+      end
+      if isempty(cmdfile), %#ok<PROPLC>
+        obj.cmdfile = fullfile(obj.trkoutdirLcl{1},[obj.id,'.cmd']);
+      else
+        obj.cmdfile = cmdfile; %#ok<PROPLC>
       end
       if isremote
         obj.ssfile = [obj.logdir '/' obj.id '.aptsnapshot'];
@@ -777,6 +963,7 @@ classdef TrackJob < handle
       obj.movfileRem = obj.movfileLcl;
       obj.trxfileRem = obj.trxfileLcl;
       obj.trkfileRem = obj.trkfileLcl;
+      obj.trackconfigRem = obj.trackconfigLcl;
       obj.listfileRem = obj.listfileLcl;
       if obj.tfremote,
         for i = 1:obj.nView,
@@ -798,7 +985,8 @@ classdef TrackJob < handle
           obj.trkfileRem{i} = [obj.trkoutdirRem{i} '/' trkRemoteRel];
           
         end
-        obj.listfileRem = [obj.dmcRem.dirModelChainLnx '/' obj.listfilestr];
+        obj.trackconfigRem = TrackJob.trk2configfiles(obj.trkfileRem{1});
+        obj.listfileRem = [DeepModelChainOnDisk.getCheckSingle(obj.dmcRem.dirModelChainLnx('view',i-1)) '/' obj.listfilestr];
       end
       
     end
@@ -824,7 +1012,7 @@ classdef TrackJob < handle
       end
             
       % errors out if fails
-      obj.checkUploadFiles({obj.lblfileLcl},{obj.lblfileRem},'Lbl file');
+      obj.checkUploadFiles({obj.trackconfigLcl},{obj.trackconfigRem},'Config file');
       obj.checkUploadFiles(obj.movfileLcl,obj.movfileRem,'Movie file');
       if obj.tftrx,
         obj.checkUploadFiles(obj.trxfileLcl,obj.trxfileRem,'Trx file');
@@ -883,13 +1071,16 @@ classdef TrackJob < handle
     end
 
     function v = get.trkfile(obj)
-      
-      if obj.tfmultiview || obj.tfserialmultimov
+      if obj.tfmultiview || obj.tfserialmultimov || obj.tf2stg
         v = obj.trkfileLcl;
       else
         v = obj.trkfileLcl{1};
-      end
-      
+      end      
+    end
+    
+    
+    function v = get.configfile(obj)
+      v = obj.trackconfigLcl;
     end
     
     function v = get.containerName(obj)
@@ -906,38 +1097,38 @@ classdef TrackJob < handle
       end
     end    
     
-    function v = get.trkfilelocal(obj)
-      if obj.tfmultiview || obj.tfserialmultimov
-        v = obj.trkfileLcl;
-      else
-        v = obj.trkfileLcl{1};
-      end
-    end
+%     function v = get.trkfilelocal(obj)
+%       if obj.tfmultiview || obj.tfserialmultimov
+%         v = obj.trkfileLcl;
+%       else
+%         v = obj.trkfileLcl{1};
+%       end
+%     end
+%     
+%     function v = get.trkfileremote(obj)
+%       if obj.tfmultiview || obj.tfserialmultimov
+%         v = obj.trkfileRem;
+%       else
+%         v = obj.trkfileRem{1};
+%       end
+%     end
     
-    function v = get.trkfileremote(obj)
-      if obj.tfmultiview || obj.tfserialmultimov
-        v = obj.trkfileRem;
-      else
-        v = obj.trkfileRem{1};
-      end
-    end
     
+%     function v = get.parttrkfilelocal(obj)
+%       if obj.tfmultiview || obj.tfserialmultimov
+%         v = obj.parttrkfileLcl;
+%       else
+%         v = obj.parttrkfileLcl{1};
+%       end
+%     end
     
-    function v = get.parttrkfilelocal(obj)
-      if obj.tfmultiview || obj.tfserialmultimov
-        v = obj.parttrkfileLcl;
-      else
-        v = obj.parttrkfileLcl{1};
-      end
-    end
-    
-    function v = get.parttrkfileremote(obj)
-      if obj.tfmultiview || obj.tfserialmultimov
-        v = obj.parttrkfileRem;
-      else
-        v = obj.parttrkfileRem{1};
-      end
-    end
+%     function v = get.parttrkfileremote(obj)
+%       if obj.tfmultiview || obj.tfserialmultimov
+%         v = obj.parttrkfileRem;
+%       else
+%         v = obj.parttrkfileRem{1};
+%       end
+%     end
     
 %     function v = get.trxlocal(obj)
 %       if obj.tfmultiview,
@@ -1008,8 +1199,7 @@ classdef TrackJob < handle
             fprintf(1,'Created %s: %s\n',desc,dirlocs{i});
           end
         end
-      end
-      
+      end      
     end
 
     function isContiguous = isMFTContiguous(tMFTConc,frm0,frm1)
@@ -1032,6 +1222,22 @@ classdef TrackJob < handle
         end
       end
     end
+    
+    function configfiles = trk2configfiles(trkfiles)
+      isone = ischar(trkfiles);
+      if isone,
+        trkfiles = {trkfiles};
+      end
+      configfiles = cell(size(trkfiles));
+      for i = 1:numel(configfiles),
+        [p,n,~] = fileparts(trkfiles{i});
+        configfiles{i} = fullfile(p,['trkconfig_',n,'.json']);
+      end
+      if isone,
+        configfiles = configfiles{1};
+      end
+    end
+
 
   end
   

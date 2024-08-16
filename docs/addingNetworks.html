@@ -25,52 +25,206 @@ strong.regular-font {
 
 <h1><a id="adding_networks">Adding Networks to APT</a></h1>
 <br>
-<p>There are two ways of adding new networks to APT:</p>
+<p>APT's backend has a modular structure to enable easier integration of different networks. To add a network <i>mynet</i>, user has to add file <code>Pose_mynet.py</code> to the deepnet directory and define a class with the same name (i.e., <code>Pose_mynet</code>) in the file. For tensorflow 1.x based networks, <code>Pose_mynet</code> can inherit from <code>PoseBase</code> or <code>PoseBaseGeneral</code> classes. These classes define all the training data-loading, model saving and loading to appropriate locations and other procecures and the user has to define only the networks and maybe the training procedures.
+ 
+<p> APT front end (GUI) interacts with APT backend (DL algorithms) through <code>APT_interface.py</code>. During training when user selects <i>mynet</i> as the network to use, <code>APT_interface.py</code> creates the training databases, initializes the <code>Pose_mynet</code> class with the configuration settings object (<a href=#conf><code>conf</code></a>) and then calls the <code> train_wrapper</code> function to start the training. APT requires that the information about training's status be stored in the json format to <code>traindata.json</code> file to enable APT front-end to update the training progress and that the model file name have the format <code>deepnet-<i>step_num</i></code> so that APT can bundle the model files into the APT project at the end of the training. The files <code>traindata.json</code> and <code>deepnet-*</code> are constantly polled by APT front-end in order to update the user about training's status.
+<p>
+During tracking, <code>APT_interface.py</code> calls <code>get_pred_fn</code> after initilializing the <code>Pose_mynet</code> object. This function should return a handle to <i>prediction</i> function which when given a batch of input images as numpy array as input   returns the landmark predictions as <i>x,y</i>  locations, and if possible prediction scores or confidences. 
+<p>
+Example implementation of PyTorch networks can be found in <code>Pose_multi_mdn_joint_torch.py</code> and its super class <code>PoseCommon_pytorch.py</code>. In particular, <code>PoseCommon_pytorch.create_data_gen</code> function can be used to create the data loaders quickly. 
+<p> There are multiple ways of adding new networks to APT:</p>
 <ul>
-<li> The easiest way is to inherit <a href="#posebase">PoseBase</a> where you only need to define the network.
-<li> If more flexiblity is required then you can inherit <a href="#posebasegeneral">PoseBaseGeneral</a>. In this case, the code will provide a tensorflow dataset object which can be used to generate the augmented training examples (images and labeled landmark location).
+<li> <a href="#pytorch">Based on code outline</a>: This is the only way to add PyTorch based networks. Understanding code outline is also helpful for adding networks based on other methods as well. 
+<li> For Tensorflow 1.x based networks: We provide the base class <a href="#posebase">PoseBase</a> which when inherited the user only has to define only the network. 
+<li> If more flexiblity is required for your Tensorflow 1.x based networks then you can inherit <a href="#posebasegeneral">PoseBaseGeneral</a>. In this case, the code will provide a tensorflow dataset object which can be used to generate the augmented training examples (images and labeled landmark location).
 </ul>
 
-<p>To add your network <i>mynet</i>, create a new file <i>Pose_mynet.py</i> and define a new class of the same name (i.e., <i>Pose_mynet</i>). Class <i>Pose_mynet</i> should inherit from <i>PoseBase</i> or <i>PoseBaseGeneral</i>. Eg:</p>
+
+<h2><a id="pytorch">Code Outline</a></h2>
+
+<p> Outline of <code>Pose_<i>mynet</i>.py</code> file that implements a PyTorch based network that can be added to APT</p>
 <pre><code>
-  from PoseBase import PoseBase
-  class Pose_mynet(PoseBase):
-      def train(self):
-      ...
+  import PoseTools # If you want to use APTs default image augmentation method.
+  import json
+  import torch
+  import logging # Use logging to print out information. 
+  
+  <b>class Pose_mynet(object)</b>:
+      
+      <b>def __init__(self,conf,**kwargs)</b>:
+          # <a href="#conf">conf is a poseConfig</a> object that has the configuration properties
+          # kwargs can be ignored.
+          self.conf = conf
+          self.model = None
+          
+      # --- helper fuctions ----
+         
+      def create_dataloader(self, train_info_file):
+          # create dataloaders that will return images etc for training
+          # An example pytorch based data loader can be found in PoseCommon_pytorch.py. 
+          
+      def create_model(self):
+          # Create the model
+          
+      def get_saved_model_info(self):
+          # Find the last model file that was saved and the iteration at which it was saved.
+          
+      def loss(self,preds,labels):
+          # Compute the loss
+          
+      def load_model(self, model_file):
+          # Load the model weights, optimizer state etc from the model_file
+          
+      def preprocess(self,ims):
+          # Preprocess the images, eg: normalize.
+          
+          
+      <b>def train_wrapper(self, restore=False):</b>
+          # This is the main training function that is called by APT_interface to start the training.
+          # When restore is set to True, the training should restart from the last saved model.
+          
+          conf = self.conf
+          self.model = self.create_model()          
+          # Also create the optimizer and loss function as required. 
+          
+          <b>train_info_file = os.path.join(conf.cachedir,conf.trainfilename + '.json') </b>
+          # train_info_file has the training data information in coco format. The <i>image_file</i> path in train_info_file is relative to the conf.cachedir
+          
+          data_loader = self.create_dataloader(train_info_file)
+          # An example pytorch based data loader can be found in PoseCommon_pytorch.py. 
+          
+          # The ability to restart the training is optional, but preferred.
+          if restore: 
+              # restore is set to True if user wants to continue from previously paused or discontinued training
+              prev_step, model_file = self.get_saved_model_info()
+              self.load_model(model_file)
+          else:
+              prev_step = 0
+          
+          <b>output_model_file_name = os.path.join(conf.cachedir,'deepnet-{}')</b>
+          train_info_dict = {'step':[],'train_loss':[]}
+          
+          for step in range(prev_step,conf.dl_steps):
+              img, labels = next(data_loader) 
+              # For TF based networks, the whole dataset pipeline needs to be setup appropriately. 
+              
+              aug_img, aug_labels = PoseTools.preprocess_ims(img,labels,conf,scale=conf.rescale,distort=True)              
+              # For PyTorch based networks, it is better to do the image augmentation in data_loader.
+              # img and batches should be batched when calling preprocess_ims. The shape of img should be conf.batch_size x conf.imsz[0] x conf.imsz[1] x img_dim. For single animal, locs shape should be conf.batch_size x conf.n_classes x 2. For multi-animal, locs shape should be conf.batch_size x conf.max_n_animals x conf.n_classes x 2. The size of the aug_img will conf.batch_size x int(conf.imsz[0]/conf.rescale) x int(conf.imsz[1]/conf.rescale) x conf.img_dim. Shape of aug_locs is same as locs. Labeled locs that are missing annotations should have values either np.nan or -100000 (very large negative value).
+              # Networks can implement their augmentation methods. The augmentation parameters set by user are availabel in self.conf.
+              
+              # Actual training steps.
+               model_out = self.model(aug_img)
+               loss = self.loss(model_out,aug_locs)
+               loss.backward()
+               optimizer.step()
+               
+               <b>if (step % conf.save_step == 0) and (step>0):</b>
+                  # every conf.save_step save the model to f'deepnet-{step}' file.
+                  model_param_dict = {'step':step,'model_state_params':self.model.state_dict(),...}
+                  # Add optimizer parameters to the dict etc to help with restart of the training                  
+                  <b>torch.save(model_param_dict,output_model_file_name.format(step))</b>
+                  
+               <b>if step % conf.display_step == 0:</b>
+                  # every display_step save training information details. This information is displayed by APT front end in training monitor GUI during training.
+                  train_loss = loss.cpu().numpy() 
+                  # to ensure that the GPU memory gets collected by the gc.
+                  # Loss can also be computed fresh batch of training inputs.
+                  train_info_dict['train_loss'].append(train_loss)
+                  train_info_dict['step'].append(step)
+                  <b>train_data_file = os.path.join(conf.cachedir,'traindata.json')
+                  with open(train_data_file,'w') as f:
+                      json.dump(train_info_dict,f)</b>
+                      
+                  logging.info(f'step:{step}, train loss:{train_loss}')
+                      
+          # save the final model
+          model_param_dict = {'step':conf.dl_steps,'model_state_params':self.model.state_dict(),...}
+          torch.save(model_param_dict,output_model_file_name.format(conf.dl_steps))
+                      
+          
+      <b>def get_pred_fn(self,model_file=None)</b>:
+          # This is the function that is called to setup the model to start predicting. If model_file is not None, then the weights should be loaded from the model_file. If model_file is None, then load the weights from that latest model file. 
+          # This function should return --
+          # pred_fn: Function that predicts on a batch of input images
+          # close_fn: Function that clears up stuff like releasing GPU memory etc.
+          # model_file: Model file from which the weights were used. 
+          
+          self.model = self.create_model()
+          
+          # Load weights from latest trained model file if model_file is None.
+          if model_file is None:
+              step, model_file_used = self.get_saved_model_info()
+          else:
+              model_file_used = model_file
+          self.load_model(model_file_used)
+          
+          <b>def pred_fn(ims):</b>
+              # ims is a numpy array of a batch input images of shape conf.batch_size x conf.imsz[0] x conf.imsz[1] x conf.img_dim
+              
+              preprocessed_ims = self.preprocess(ims)
+              # preprocess the inputs images to normalize them. The range of values of ims will be form 0 to 255 even though ims might not be a uint8 array. 
+              
+              # Do the prediction.
+              preds = self.model(preprocessed_ims)
+              
+              # If the outputs are heatmaps, conver them to x,y loctions.
+              pred_locs, pred_scores = self.convert_heatmaps_to_xy(preds)
+              # For single animal networks: pred_locs and pred_scores shape must be conf.batch_size x conf.n_classes x 2 and conf.batch_size x conf.n_classes 
+              # For multi-animal networks: pred_locs and pred_scores shape must be conf.batch_size x conf.max_n_animals x conf.n_classes x 2 and conf.batch_size x conf.max_n_animals x conf.n_classes
+              
+              <b>return {'locs':pred_locs, 'conf': pred_scores}</b>
+              
+          <b>def close_fn():</b>
+              # Close any open files, clear GPU memory etc. 
+              torch.cuda.empty_cache()
+        
+          <b>return pred_fn, close_fn, model_file_used</b>
+      
 </code></pre>
+
 <p>
-The <i>Pose_mynet</i> object can access configuration settings that were set by the user in APT GUI in self.conf object. Some of the useful configuration settings are:</p>
+<h2><a id="conf">Configuration Object</a></h2>
+During a network's initialization, the configuration settings defined by the user in the APT GUI as are given as an <code>PoseConfig (conf)</code> object during initialization. Listed below are its important configuration fields.</p>
 <ul>
+    <li> cachedir: Directory where the model files and training information must be saved.
     <li> imsz: 2 element tuple specifying the size of the input image.
-    <li> img_dim: Number of channels in input image.
+    <li> img_dim: Number of channels in input image. 1 for grayscale, 3 for color.
     <li> batch_size: Batch size defined by user.
     <li> rescale: How much to downsample the input image before feeding into the network.
     <li> dl_steps: Number of steps to run training for.
+    <li> n_classes: Number of pose landmarks.
+    <li> is_multi: Whether the project is multi-animal or single-animal.
+    <li> max_n_animals: For multi-animal networks, the number of maximum animals in an image.
+    <li> trainfilename: Name of the file that has the training data.
+    <li> save_step: Number of steps after which to save models.
+    <li> maxckpt: Maximum number of latest models to save.
+    <li> display_step: Number of steps after which to display and save the training information.
+    <li> rrange: Amount in degree suggested by the user by which images can be rotated for augmentation. 
+    <li> trange: Amount in pixels suggested by the user by which the image can be translated in both x and y directions for augmentation. 
+    <li> scale_range_factor: Scaling amount suggested by for augmentation. Images can be scaled between [1/scale_factor_range,scale_factor_range].
+    <li> flip_landmark_matches: Dict specifying landmark indices mapping to be used when images are flipped for augmentation.
+    <li>horz_flip: Boolean specifying if images can be flipped horizontally for augmentation. 
+    <li>vert_flip: Boolean specifying if images can be flipped vertically for augmentation. 
+    
 </ul>
-<p>Details of other settings can be found APT/tracker/dt/params_deeptrack.yaml.</p>
+<p>Details of other settings can be found  in <code>APT/tracker/dt/params_deeptrack.yaml</code>.</p>
 
-<p>If you would like add parameters specifically for your network in APT GUI, then can create a new configuration settings file APT/trackers/dt/params_mynet.yaml. These parameters will be available in APT GUI when user selects mynet in APT.</p>
+<p>To expose parameters specific to your network to the user through the <code>APT&#8594;Tracking&#8594;Set Tracking Parameters</code> interface when they select <i>mynet</i> in APT, create a new configuration settings file <code>APT/trackers/dt/params_<i>mynet</i>.yaml</code>. Details of its format can be found in <code>APT/tracker/dt/params_deeptrack.yaml</code>.
 
-<p> To use pretrained weights (eg. Imagenet weights), put the location of the pretrained weights in self.pretrained_weights in the __init__ function. When the weights are initialized, for all variables whose names and sizes match the variables saved in the pretrained weights file will get their weights initialized to the ones saved in the pretrained file. </p>
-<pre><code>
-    def __init__(self,conf):
-        PoseBase.__init__(self,conf)
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        wt_dir = os.path.join(script_dir, 'pretrained')
-        self.pretrained_weights =  os.path.join(wt_dir,'resnet_v1_50.ckpt')
-</code></pre>
-
+<h2><a id="pytorch">Adding TensorFlow 1.x networks</a></h2>
+<p> 
 
 <h2><a id="posebase">Inheriting PoseBase</a></h2>
 
-    <p>If the network generates heatmaps for each landmark, then you only need to override create_network function and supply the appropriate hmaps_downsample to the __init__ function when you inherit. For example in case of openpose since the final heatmap output is downsampled by 8, self.hmaps_downsample should be set to 8.</p>
+    <p>This is quickest way to add tensorflow 1.x based networks. If the network generates heatmaps for each landmark, then the user only needs to override create_network function and supply the appropriate hmaps_downsample to the __init__ function. For example in the case of openpose network, the final heatmap output is downsampled by a factor of 8. In this case, during initializiation <code>self.hmaps_downsample</code> should be set to 8.</p>
 
     <p>If your networks produces output other than only heatmaps, you'll have to override</p>
     <ul>
         <li> <a href="#pb_create_network">create_network</a> - Function that creates the network.
         <li> <a href="#pb_convert_locs_to_targets">convert_locs_to_targets</a> - Convert x,y locations to network target e.g., from x,y locations to heatmaps.
         <li> <a href="#pb_convert_preds_to_locs">convert_preds_to_locs</a> - Convert the networks output (eg heatmaps) to x,y landmark locations.
-        <li> <a href="#pb_conf">get_conf_from_preds</a> - Get prediction confidence (or scores) from predictions. Eg., Maximum heatmap value for each landmark.
+        <li> <a href="#pb_conf">get_conf_from_preds</a> - Get prediction confidence (or scores) from predictions. Eg., Heatmap pixel value at each landmarks predicted location.
         <li> <a href="#pb_loss">loss</a> - Define the loss function to be optimized.
     </ul>
     <p>In addition, if you want to change the training procedure, you'll have to override</p>
@@ -267,8 +421,8 @@ def get_pred_fn(self, model_file=None):
 
 
 <h2><a id="posebasegeneral"> Inheriting PoseBaseGeneral</a></h2>
-    <p>This class provides more flexibility for adding your own networks to APT.</p>
-    <p>The function that need to overridden are:</p>
+    <p>This class provides more flexibility for adding tensorflow 1.x based networks to APT, where you have more control over the training procedure.</p>
+    <p>In this case, the function that need to overridden are:</p>
     <ul>
         <li><a href="#pbg_convert_locs">convert_locs_to_target</a> - create target outputs (e.g. heatmaps) from x,y locations that you want the network the predict.
           <li><a href="#pbg_convert_preds">convert_preds_to_locs</a> - convert the output of network to x,y locations E.g From output heatmaps to x,y predictions.
@@ -347,5 +501,14 @@ def get_pred_fn(self, model_file=None):
 
           <p>In this function, setup the network, load the saved weights from the model_file. If model_file is None load the weights from the latest model. The placeholders (if any) used during training, should be converted to constant tensors.</p>
 
+
+<p> To use pretrained weights (eg. Imagenet weights) for TF 1.x based networks, put the location of the pretrained weights in self.pretrained_weights in the __init__ function. When the weights are initialized, for all variables whose names and sizes match the variables saved in the pretrained weights file will get their weights initialized to the ones saved in the pretrained file. </p>
+<pre><code>
+    def __init__(self,conf):
+        PoseBase.__init__(self,conf)
+        script_dir = os.path.dirname(os.path.realpath(__file__))
+        wt_dir = os.path.join(script_dir, 'pretrained')
+        self.pretrained_weights =  os.path.join(wt_dir,'resnet_v1_50.ckpt')
+</code></pre>
 
 </body>

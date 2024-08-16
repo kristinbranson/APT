@@ -1,6 +1,11 @@
 from PoseCommon_dataset import PoseCommon, PoseCommonMulti, PoseCommonRNN, PoseCommonTime, conv_relu3, conv_shortcut
 import PoseTools
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 import os
 import sys
 import math
@@ -15,7 +20,13 @@ from scipy import io as sio
 import re
 import json
 import logging
-from tensorflow.contrib.layers import batch_norm
+#from tensorflow.compat.v1.layers import batch_normalization as batch_norm_temp
+batch_norm_temp = tensorflow.compat.v1.layers.BatchNormalization
+def batch_norm(inp, decay, is_training, renorm=False, data_format=None):
+    return batch_norm_temp(inp, momentum=decay, training=is_training)
+#from tensorflow.keras.initializers import GlorotUniform as xavier_initializer
+xavier_initializer = tensorflow.keras.initializers.GlorotUniform
+
 from upsamp import upsample_init_value
 
 # for tf_unet
@@ -50,7 +61,7 @@ def conv_residual(x_in, train_phase):
 
     kernel_shape = [3, 3, in_dim, in_dim/4]
     weights = tf.get_variable("weights1", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases1", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -59,7 +70,7 @@ def conv_residual(x_in, train_phase):
 
     kernel_shape = [3, 3, in_dim/4, in_dim/4]
     weights = tf.get_variable("weights2", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases2", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(conv, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -68,7 +79,7 @@ def conv_residual(x_in, train_phase):
 
     kernel_shape = [3, 3, in_dim/4, in_dim]
     weights = tf.get_variable("weights3", kernel_shape,
-                              initializer=tf.contrib.layers.xavier_initializer())
+                              initializer=xavier_initializer())
     biases = tf.get_variable("biases3", kernel_shape[-1],
                              initializer=tf.constant_initializer(0.))
     conv = tf.nn.conv2d(conv, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -97,7 +108,7 @@ def find_pad_sz(n_layers,in_sz):
         if cur_sz > in_sz:
             break
         p_amt += 1
-    return p_amt, all_sz
+    return p_amt, int(all_sz)
 
 
 class PoseUNet(PoseCommon):
@@ -132,9 +143,9 @@ class PoseUNet(PoseCommon):
         im, locs, info, hmap = self.inputs
         conf = self.conf
         im.set_shape(
-            [conf.batch_size, (conf.imsz[0] + self.pad_y) // conf.rescale, (conf.imsz[1] + self.pad_x) // conf.rescale,
+            [conf.batch_size, int((conf.imsz[0] + self.pad_y) // conf.rescale), int((conf.imsz[1] + self.pad_x) // conf.rescale),
              conf.img_dim])
-        hmap.set_shape([conf.batch_size, conf.imsz[0]//conf.rescale, conf.imsz[1]//conf.rescale,conf.n_classes])
+        hmap.set_shape([conf.batch_size, int(conf.imsz[0]//conf.rescale), int(conf.imsz[1]//conf.rescale),conf.n_classes])
         locs.set_shape([conf.batch_size, conf.n_classes,2])
         info.set_shape([conf.batch_size,3])
 
@@ -153,7 +164,7 @@ class PoseUNet(PoseCommon):
             in_dim = x_in.get_shape().as_list()[3]
             kernel_shape = [3, 3, in_dim, n_filt]
             weights = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=xavier_initializer())
             biases = tf.get_variable("biases", kernel_shape[-1],
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='VALID')
@@ -240,7 +251,7 @@ class PoseUNet(PoseCommon):
                 biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
                 conv_b = X + biases
 
-                bn = batch_norm(conv_b)
+                bn = batch_norm(conv_b,decay=0.99,is_training=self.ph['phase_train'])
                 X = tf.nn.relu(bn)
 
             # concat with down layer
@@ -271,7 +282,7 @@ class PoseUNet(PoseCommon):
 
         # final conv
         weights = tf.get_variable("out_weights", [3, 3, n_filt, n_out],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -380,7 +391,7 @@ class PoseUNet(PoseCommon):
             # # upsample using deconv
             # with tf.variable_scope('u_{}'.format(ndx)):
             #     X_sh = X.get_shape().as_list()
-            #     w = tf.get_variable('w', [5, 5, X_sh[-1], X_sh[-1]],initializer=tf.contrib.layers.xavier_initializer())
+            #     w = tf.get_variable('w', [5, 5, X_sh[-1], X_sh[-1]],initializer=xavier_initializer())
             #     out_shape = [X_sh[0],layers_sz[ndx][0],layers_sz[ndx][1],X_sh[-1]]
             #     X = tf.nn.conv2d_transpose(X, w, output_shape=out_shape, strides=[1, 2, 2, 1], padding="SAME")
             #     biases = tf.get_variable('biases', [out_shape[-1]], initializer=tf.constant_initializer(0))
@@ -419,7 +430,7 @@ class PoseUNet(PoseCommon):
 
         # final conv
         weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -434,7 +445,7 @@ class PoseUNet(PoseCommon):
             in_dim = x_in.get_shape().as_list()[3]
             kernel_shape = [3, 3, in_dim, n_filt]
             weights = tf.get_variable("weights", kernel_shape,
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=xavier_initializer())
             biases = tf.get_variable("biases", kernel_shape[-1],
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(x_in, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -493,7 +504,7 @@ class PoseUNet(PoseCommon):
             n_filt = min(max_filt, n_filt_base * (2** (ndx+1)))
             kernel_shape = [3, 3, in_dim, n_filt]
             with tf.variable_scope('layerdown_{}_2'.format(ndx)):
-                weights = tf.get_variable("weights1", kernel_shape, initializer=tf.contrib.layers.xavier_initializer())
+                weights = tf.get_variable("weights1", kernel_shape, initializer=xavier_initializer())
                 biases = tf.get_variable("biases1", kernel_shape[-1], initializer=tf.constant_initializer(0.))
                 conv = tf.nn.conv2d(X, weights, strides=[1, 2, 2, 1], padding='SAME')
                 conv = batch_norm(conv, decay=0.99, is_training=self.ph['phase_train'])
@@ -540,7 +551,7 @@ class PoseUNet(PoseCommon):
 
         # final conv
         weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -1155,11 +1166,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # downsample
         for ndx in range(n_layers):
-            if ndx is 0:
+            if ndx == 0:
                 n_filt = 64
-            elif ndx is 1:
+            elif ndx == 1:
                 n_filt = 128
-            elif ndx is 2:
+            elif ndx == 2:
                 n_filt = 256
             else:
                 n_filt = 512
@@ -1183,11 +1194,11 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # upsample
         for ndx in reversed(range(n_layers)):
-            if ndx is 0:
+            if ndx == 0:
                 n_filt = 64
-            elif ndx is 1:
+            elif ndx == 1:
                 n_filt = 128
-            elif ndx is 2:
+            elif ndx == 2:
                 n_filt = 256
             else:
                 n_filt = 512
@@ -1223,7 +1234,7 @@ class PoseUNetTime(PoseUNet, PoseCommonTime):
 
         # final conv
         weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                  initializer=tf.contrib.layers.xavier_initializer())
+                                  initializer=xavier_initializer())
         biases = tf.get_variable("out_biases", n_out,
                                  initializer=tf.constant_initializer(0.))
         conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')
@@ -1315,11 +1326,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
             n_filt = 128
             # downsample
             for ndx in range(n_layers):
-                # if ndx is 0:
+                # if ndx == 0:
                 #     n_filt = 64
-                # elif ndx is 1:
+                # elif ndx == 1:
                 #     n_filt = 128
-                # elif ndx is 2:
+                # elif ndx == 2:
                 #     n_filt = 256
                 # else:
                 #     n_filt = 512
@@ -1345,11 +1356,11 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
             # upsample
         with tf.variable_scope(self.net_unet_name):
             for ndx in reversed(range(n_layers)):
-                # if ndx is 0:
+                # if ndx == 0:
                 #     n_filt = 64
-                # elif ndx is 1:
+                # elif ndx == 1:
                 #     n_filt = 128
-                # elif ndx is 2:
+                # elif ndx == 2:
                 #     n_filt = 256
                 # else:
                 #     n_filt = 512
@@ -1365,7 +1376,7 @@ class PoseUNetRNN(PoseUNet, PoseCommonRNN):
 
             # final conv
             weights = tf.get_variable("out_weights", [3,3,n_filt,n_out],
-                                      initializer=tf.contrib.layers.xavier_initializer())
+                                      initializer=xavier_initializer())
             biases = tf.get_variable("out_biases", n_out,
                                      initializer=tf.constant_initializer(0.))
             conv = tf.nn.conv2d(X, weights, strides=[1, 1, 1, 1], padding='SAME')

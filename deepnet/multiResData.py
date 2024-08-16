@@ -19,24 +19,27 @@ import errno
 import PoseTools
 import tensorflow
 vv = [int(v) for v in tensorflow.__version__.split('.')]
-if vv[0]==1 and vv[1]>12:
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
     tf = tensorflow.compat.v1
 else:
     tf = tensorflow
 
 import movies
 import json
+import torch
 
 
-def find_local_dirs(conf, on_gt=False):
-    lbl = h5py.File(conf.labelfile, 'r')
+def find_local_dirs(lbl_file, view=0, on_gt=False):
+    lbl = h5py.File(lbl_file, 'r')
     if on_gt:
-        exp_list = lbl['movieFilesAllGT'][conf.view,:]
+        exp_list = lbl['movieFilesAllGT'][view,:]
     else:
-        exp_list = lbl['movieFilesAll'][conf.view,:]
-    local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
+        exp_list = lbl['movieFilesAll'][view,:]
+    if lbl[exp_list[0]].ndim==1:
+        local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in exp_list]
+    else:
+        local_dirs = [u''.join(chr(c) for c in lbl[jj][:,0]) for jj in exp_list]
     # local_dirs = [u''.join(chr(c) for c in lbl[jj]) for jj in conf.getexplist(lbl)]
-    sel_dirs = [True] * len(local_dirs)
     try:
         for k in lbl['projMacros'].keys():
             r_dir = u''.join(chr(c) for c in lbl['projMacros'][k])
@@ -44,7 +47,7 @@ def find_local_dirs(conf, on_gt=False):
     except:
         pass
     lbl.close()
-    return local_dirs, sel_dirs
+    return local_dirs
 
 
 def find_gt_dirs(conf):
@@ -71,9 +74,9 @@ def get_trx_files(lbl, local_dirs, on_gt=False):
     :return:
     '''
     if on_gt:
-        trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAllGT'][0]]
+        trx_files = [u''.join(chr(c) for c in lbl[jj][()].flatten()) for jj in lbl['trxFilesAllGT'][0]]
     else:
-        trx_files = [u''.join(chr(c) for c in lbl[jj]) for jj in lbl['trxFilesAll'][0]]
+        trx_files = [u''.join(chr(c) for c in lbl[jj][()].flatten()) for jj in lbl['trxFilesAll'][0]]
     movdir = [os.path.dirname(a) for a in local_dirs]
 
     assert len(trx_files) == len(movdir), \
@@ -177,7 +180,6 @@ def bytes_feature(value):
     if not isinstance(value, list):
         value = [value]
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=value))
-
 
 def float_feature(value):
     if not isinstance(value, (list, np.ndarray)):
@@ -441,19 +443,14 @@ def create_envs(conf, split, db_type=None):
             val_env = None
         return env, val_env
     else:
-        if split:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            val_filename = os.path.join(conf.cachedir, conf.valfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
-        else:
-            train_filename = os.path.join(conf.cachedir, conf.trainfilename)
-            env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
-            val_env = None
+        train_filename = os.path.join(conf.cachedir, conf.trainfilename)
+        val_filename = os.path.join(conf.cachedir, conf.valfilename)
+        env = tf.python_io.TFRecordWriter(train_filename + '.tfrecords')
+        val_env = tf.python_io.TFRecordWriter(val_filename + '.tfrecords')
         return env, val_env
 
 
-def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, flipud=False, crop_loc=None):
+def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, flipud=False, crop_loc=None,bbox=None):
     '''
     fnum is the frame number
     cur_trx == None indicates that the project doesnt have trx file.
@@ -463,9 +460,9 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
 
     '''
     if cur_trx is not None: # when there are trx
-        return get_patch_trx(cap, cur_trx, fnum, conf, locs, offset, stationary,flipud)
+        return get_patch_trx(cap, cur_trx, fnum, conf, locs, offset, stationary,flipud,bbox=bbox)
     else:
-        frame_in, _, _, _ = read_frame(cap,fnum,cur_trx,flipud=flipud, offset=offset)
+        frame_in = read_frame(cap,fnum,cur_trx,flipud=flipud, offset=offset)[0]
         frame_in = frame_in[:,:,0:conf.img_dim]
         if crop_loc is not None:
             xlo, xhi, ylo, yhi = crop_loc
@@ -484,7 +481,7 @@ def get_patch(cap, fnum, conf, locs, offset=0, stationary=True, cur_trx=None, fl
         cur_loc[:, 0] = cur_loc[:, 0] - xlo    # ugh, the nasty x-y business.
         cur_loc[:, 1] = cur_loc[:, 1] - ylo
         cur_loc = cur_loc.clip(min=0, max=[(xhi-xlo) + 7, (yhi-ylo) + 7])
-        return  frame_in, cur_loc
+        return  frame_in, cur_loc, 1
 
 
 
@@ -500,7 +497,7 @@ def trx_pts(lbl, ndx, on_gt=False,field_name='labeledpos'):
         sz = np.array(lbl[pts[0, ndx]]['size'])[:, 0].astype('int')
         cur_pts = np.zeros(sz).flatten()
         cur_pts[:] = np.nan
-        if lbl[pts[0,ndx]]['idx'].value.ndim > 1:
+        if lbl[pts[0,ndx]]['idx'][()].ndim > 1:
             idx = np.array(lbl[pts[0, ndx]]['idx'])[0, :].astype('int') - 1
             val = np.array(lbl[pts[0, ndx]]['val'])[0, :] - 1
             cur_pts[idx] = val
@@ -546,15 +543,16 @@ def check_fnum(fnum, cap, expname, ndx):
 
 def read_trx(cur_trx, fnum):
     if cur_trx is None:
-        return None,None,None
+        return None,None,None, None
     trx_fnum = fnum - int(cur_trx['firstframe'][0, 0]) + 1
     # x = int(round(cur_trx['x'][0, trx_fnum])) - 1
     # y = int(round(cur_trx['y'][0, trx_fnum])) - 1
     x = cur_trx['x'][0, trx_fnum] - 1
     y = cur_trx['y'][0, trx_fnum] - 1
+    a = cur_trx['a'][0, trx_fnum]
     # -1 for 1-indexing in matlab and 0-indexing in python
     theta = cur_trx['theta'][0, trx_fnum]
-    return x, y, theta
+    return x, y, theta,a
 
 
 def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
@@ -579,77 +577,129 @@ def read_frame(cap, fnum, cur_trx, offset=0, stationary=True,flipud=False):
         framein = framein[:, :, np.newaxis]
 
     if stationary:
-        x, y, theta = read_trx(cur_trx, o_fnum)
+        x, y, theta, a = read_trx(cur_trx, o_fnum)
     else:
-        x, y, theta = read_trx(cur_trx, fnum)
-    return framein, x, y, theta
+        x, y, theta, a = read_trx(cur_trx, fnum)
+    return framein, x, y, theta, a
 
 
-def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flipud=False):
+def get_patch_trx(cap, cur_trx, fnum, conf, locs, offset=0, stationary=True,flipud=False,bbox=None):
     # assert conf.imsz[0] == conf.imsz[1]
-    im, x, y, theta = read_frame(cap, fnum, cur_trx, offset, stationary,flipud)
-    return crop_patch_trx(conf, im,x,y,theta, locs)
+    im, x, y, theta,a  = read_frame(cap, fnum, cur_trx, offset, stationary,flipud)
+    dx = np.abs(a*4*np.sin(theta)+x); dy = np.abs(a*4*np.cos(theta)+y)
+    bbox = np.array([x-dx,y-dy,x+dx,y+dy])
+    return crop_patch_trx(conf, im,x,y,theta, locs,bbox=bbox)
 
 
-def crop_patch_trx(conf, im_in, x, y, theta, locs):
+def get_affine_transform_matrix(image_shape, scale, target_size, x,y,theta):
+    # Get the image width and height
+    image_width, image_height = image_shape[1], image_shape[0]
+
+    # Calculate the target width and height based on the target size
+    target_width, target_height = target_size
+
+
+    # Calculate the translation to center the patch within the target size
+    translate_x = (target_width / 2) - (x * scale)
+    translate_y = (target_height / 2) - (y * scale)
+
+    # Build the affine transformation matrix
+    matrix = np.array([[scale * np.cos(theta), -scale * np.sin(theta), translate_x],
+                       [scale * np.sin(theta), scale * np.cos(theta), translate_y]], dtype=np.float32)
+
+    return matrix
+
+
+def get_scale_bbox(bbox,sz,pad=1.0,imresize_expand=False):
+    # Extract the bounding box coordinates
+    x_min, y_min, x_max, y_max = bbox
+
+    # Calculate the width and height of the bounding box
+    cropped_width = x_max - x_min
+    cropped_height = y_max - y_min
+
+    cropped_aspect_ratio = cropped_width / cropped_height
+
+    # Calculate the target width and height based on the target size
+    target_width, target_height = sz
+    target_aspect_ratio = target_width / target_height
+
+    # Calculate the scaling factor
+    if (cropped_aspect_ratio > target_aspect_ratio)!=imresize_expand:
+        # Scale based on width
+        scale_factor = target_width / cropped_width
+    else:
+        # Scale based on height
+        scale_factor = target_height / cropped_height
+
+    return scale_factor
+
+
+def crop_patch_trx(conf, im_in, x, y, theta, locs,bbox=None):
     ''' return patch for movies with trx file
     function for testing: test_crop_path_trx
+    bbox if specified should be [x,y,width,height]
     '''
     psz_x = conf.imsz[1]
     psz_y = conf.imsz[0]
     im = im_in.copy()
     theta = theta + math.pi / 2
 
+    if conf.multi_scale_by_bbox:
+        scale = get_scale_bbox(bbox,[psz_x,psz_y])/conf.multi_pad
+    else:
+        scale = 1.
+
     if im_in.ndim == 2:
         im = im[:,:,np.newaxis]
 
-    # psz = int(max(conf.imsz))
-    # pad_im = np.pad(im, [[psz, psz],[psz, psz],[0,0]], 'constant')
-    # patch = pad_im[y:y + (2 * psz + 1), x: (x + 2 * psz + 1),:]
-    # # patch is now of size 2*psz+1 with pixel x,y at its center at (psz,psz).
-    # rot_mat = cv2.getRotationMatrix2D((psz, psz), theta * 180 / math.pi, 1)
-    # rpatch = cv2.warpAffine(patch, rot_mat, (2 * psz + 1, 2 * psz + 1),flags=cvc.INTER_CUBIC)
+    if not conf.trx_align_theta:
+        theta = 0
 
 
+    # if conf.trx_align_theta:
+    #     T = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
+    #     R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
+    #     R = np.eye(3)
+    #     R[:, :2] = R1.T
+    #     A_full = np.matmul(T,R)
+    # else:
+    #     x = np.round(x)
+    #     y = np.round(y)
+    #     A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
+    # A = A_full[:,:2].T
+    #
+    # lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
+    # lr = lr.T
+    #
+
+    # A = get_affine_transform_matrix(im.shape,scale,[psz_x,psz_y],x+0.5,y+0.5,theta)
+
+    T = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
     if conf.trx_align_theta:
-        T = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
-        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, 1)
-        R = np.eye(3)
-        R[:, :2] = R1.T
-        A_full = np.matmul(T,R)
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), theta * 180 / math.pi, scale)
     else:
-        x = np.round(x)
-        y = np.round(y)
-        A_full = np.array([[1, 0, 0], [0, 1, 0], [-x + float(psz_x) / 2 - 0.5, -y + float(psz_y) / 2 - 0.5, 1]]).astype('float')
+        R1 = cv2.getRotationMatrix2D((float(psz_x) / 2 - 0.5, float(psz_y) / 2 - 0.5), 0, scale)
 
+    R = np.eye(3)
+    R[:, :2] = R1.T
+    A_full = np.matmul(T, R)
     A = A_full[:,:2].T
-    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cv2.INTER_LINEAR)
+
+    rpatch = cv2.warpAffine(im, A, (psz_x,psz_y),flags=cv2.INTER_CUBIC)
     if rpatch.ndim == 2:
         rpatch = rpatch[:, :, np.newaxis]
 
-    lr = np.matmul(A_full[:2, :2].T, locs.T) + A_full[2, :2, np.newaxis]
-    lr = lr.T
+    points = np.array(locs).reshape(-1, 1, 2)
 
-    # select patch starting at psz/2 of size psz.
-    # for odd psz: x,y is at (psz-1)/2,(psz-1)/2
-    # for even psz: x,y is at psz/2-1, psz/2-1
-    # rpatch = rpatch[psz // 2 + 1: -psz // 2 , psz // 2 + 1: - psz // 2 , :]
-    # ll = locs.copy()
-    # ll = ll - [x, y]
-    # rot = [[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]]
-    # lr = np.dot(ll, rot) + [psz - psz // 2 -1, psz - psz // 2 -1]
-    #
-    # if conf.imsz[0] < conf.imsz[1]:
-    #     extra = (psz-conf.imsz[0])//2
-    #     rpatch = rpatch[extra:-extra,...]
-    #     lr[:,1] -= extra
-    # elif conf.imsz[1] < conf.imsz[0]:
-    #     extra = (psz-conf.imsz[1])//2
-    #     rpatch = rpatch[:,extra:-extra,...]
-    #     lr[:,0] -= extra
+    # Apply the transformation using cv2.transform()
+    transformed_points = cv2.transform(points, A)
+
+    # Reshape the transformed points back to a list of (x, y) coordinates
+    lr = transformed_points.reshape(-1, 2)
 
     rpatch = rpatch[:,:,:conf.img_dim]
-    return rpatch, lr
+    return rpatch, lr, scale
 
 def test_crop_patch_trx():
     ''' Code to test crop_patch_trx'''
@@ -659,19 +709,29 @@ def test_crop_patch_trx():
     isz = 6 + np.random.choice(2)
     conf.imsz = [isz, isz]
     conf.img_dim = 1
+    conf.multi_scale_by_bbox = True
+    conf.trx_align_theta = True
     ims = np.zeros([18, 18, 1])
     st = 6
     en = 9 + np.random.choice(2)
     ims[st:en, st:en, :] = 1
     angle = np.random.choice(180)*np.pi/180
-    locs = np.array([[st, st, en - 1, en - 1, 7], [st, en - 1, st, en - 1,7]])
+    locs = np.array([[st, st, en - 1, en - 1, 7.], [st, en - 1, st, en - 1,7.]])
     locs = locs.T
-    ni, nl = crop_patch_trx(conf, ims, 7, 7, angle, locs)
-    f, ax = plt.subplots(1, 2)
+    bbox = [5,5,15,15]
+    print(f'scale:{isz/10}')
+    ni1,nl1 = crop_patch_trx(conf,ims,7.,7.,angle,locs,[st,st,st+isz,st+isz])
+    ni2,nl2 = crop_patch_trx(conf,ims,7.,7.,-math.pi/2,locs,bbox)
+    ni, nl = crop_patch_trx(conf, ims, 7., 7., angle, locs,bbox)
+    f, ax = plt.subplots(1, 4)
     ax[0].imshow(ims[:, :, 0])
     ax[0].scatter(locs[:, 0], locs[:, 1])
-    ax[1].imshow(ni[:, :, 0])
-    ax[1].scatter(nl[:, 0], nl[:, 1])
+    ax[1].imshow(ni1[:, :, 0])
+    ax[1].scatter(nl1[:, 0], nl1[:, 1])
+    ax[2].imshow(ni2[:, :, 0])
+    ax[2].scatter(nl2[:, 0], nl2[:, 1])
+    ax[3].imshow(ni[:, :, 0])
+    ax[3].scatter(nl[:, 0], nl[:, 1])
 
 
 def create_tf_record_from_lbl_with_trx(conf, split=True, split_file=None):
@@ -1097,7 +1157,7 @@ def read_and_decode_without_session(filename, conf, indices=(0,), skip_ims=False
     all_info = []
     all_occ = []
     for ndx, record in enumerate(xx):
-        if (len(indices) > 0) and (indices.count(ndx) is 0):
+        if (len(indices) > 0) and (indices.count(ndx) == 0):
             continue
 
         example = tf.train.Example()
@@ -1149,7 +1209,7 @@ def read_and_decode_without_session_multi(filename, n_classes):
         width = int(example.features.feature['width'].int64_list.value[0])
         depth = int(example.features.feature['depth'].int64_list.value[0])
         expid = int(example.features.feature['expndx'].float_list.value[0])
-        maxn = int(example.features.feature['max_n'].int64_list.value[0])
+        maxn = int(example.features.feature['ntgt'].int64_list.value[0])
         t = int(example.features.feature['ts'].float_list.value[0])
         img_string = example.features.feature['image_raw'].bytes_list.value[0]
         img_1d = np.fromstring(img_string, dtype=np.uint8)
@@ -1269,3 +1329,181 @@ class tf_reader(object):
 #        return {'orig_images':ims, 'orig_locs':locs, 'info':info, 'extra_info':np.zeros([self.batch_size,1])}
         return ims, locs, info, np.zeros([self.batch_size,1])
 
+
+
+class coco_loader(torch.utils.data.Dataset):
+    # different than coco loader in pytorch in that it doesn't do preprocessing.
+
+    def __init__(self, conf, ann_file, augment,img_dir='val'):
+        self.ann = PoseTools.json_load(ann_file)
+        self.conf = conf
+        self.augment = augment
+        self.img_dir = img_dir
+
+    def __len__(self):
+        return len(self.ann['images'])
+
+        # Load the image
+
+
+    def pad_resize(self,image):
+
+        height,width = self.conf.imsz
+        # Get the original image dimensions
+        original_height, original_width = image.shape[:2]
+
+        # Calculate the aspect ratios
+        aspect_ratio = original_width / original_height
+        target_aspect_ratio = width / height
+
+        # Determine the scaling factor
+        # with imresize exapnd, we resize the image so that the smallest dimension fits the target size
+        if (aspect_ratio > target_aspect_ratio) != self.conf.imresize_expand:
+            scale_factor = width / original_width
+        else:
+            scale_factor = height / original_height
+
+        # Resize the image
+        resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
+
+
+        # Calculate the padding sizes
+        if self.conf.imresize_expand:
+            right = 31-(resized_image.shape[1]-1)%32
+            bottom = 31-(resized_image.shape[0]-1)%32
+        else:
+            right = width - resized_image.shape[1]
+            bottom = height - resized_image.shape[0]
+
+        # Apply padding to the image
+        padded_image = cv2.copyMakeBorder(resized_image, 0, bottom, 0, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+        return padded_image,scale_factor
+
+
+    def __getitem__(self, item):
+        conf = self.conf
+        im_name = self.ann['images'][item]['file_name']
+        im_path = os.path.join(conf.cachedir,self.img_dir)
+        im_file = os.path.join(im_path,im_name)
+        if not os.path.exists(im_file):
+            im_file = os.path.join(conf.coco_im_dir,im_name)
+
+        im = cv2.imread(im_file,cv2.IMREAD_UNCHANGED)
+        if im.ndim > 2:
+            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
+        if im.ndim == 2:
+            im = im[...,np.newaxis]
+        if im.shape[2] == 1:
+            im = np.tile(im,[1,1,3])
+        if im.shape[:2] == tuple(conf.imsz):
+            scale_factor = 1.
+        else:
+            im,scale_factor = self.pad_resize(im)
+
+        if 'movid' not in self.ann['images'][item] or type(self.ann['images'][item]['movid']) == list:
+            info = [item,item,item]
+        else:
+            if 'patch' in self.ann['images'][item].keys():
+                tgt_id = self.ann['images'][item]['patch']
+            else:
+                tgt_id = self.ann['images'][item]['tgt']
+            info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],tgt_id]
+        info = np.array(info)
+
+        curl = np.ones([conf.max_n_animals,conf.n_classes,3])*np.nan
+        lndx = 0
+        annos = []
+        for a in self.ann['annotations']:
+            if not (a['image_id']==self.ann['images'][item]['id']):
+                continue
+            locs = np.array(a['keypoints'])
+            if a['num_keypoints']>0 and a['area']>1:
+                locs = np.reshape(locs, [conf.n_classes, 3])
+                # if np.all(locs[:,2]>0.5):
+                curl[lndx,...] = locs
+                lndx += 1
+            annos.append(a)
+
+        curl = np.array(curl)
+        occ = curl[...,2] < 1.5
+        locs = curl[...,:2]
+        locs[locs>0] *= scale_factor
+        if np.all(locs[curl[...,2]==0,:]==0):
+            locs[curl[...,2]==0,:] = np.nan
+
+        if not self.conf.is_multi:
+            # MK 20230526. This seems very wrong!!!
+            # locs = locs[:,0]
+            # occ = occ[:,0]
+            locs = locs[0]
+            occ = occ[0]
+
+        features = [im, locs, info, occ]
+        return features
+
+
+class list_loader(torch.utils.data.Dataset):
+    # list is in matlab indexing!!
+
+    def __init__(self, conf, list_file, augment):
+        self.list = PoseTools.json_load(list_file)
+        self.conf = conf
+        self.augment = augment
+        self.prev_item = None
+        self.movs = self.list['movieFiles']
+        self.toTrack = self.list['toTrack']
+        self.cropLocs = self.list['cropLocs']
+        self.trx_files = self.list['trxFiles']
+        self.cap = None
+        self.has_crop = (len(self.cropLocs)>0) and len(self.cropLocs[0])>0 and ~np.all(np.isnan(self.cropLocs[0]))
+        self.trx = None
+
+    def __len__(self):
+        return len(self.toTrack)
+
+    def __getitem__(self, item):
+        import APT_interface as apt
+        conf = self.conf
+        cur_i = self.toTrack[item]
+        mov = self.movs[cur_i[0]-1]
+        if isinstance(mov,list) or isinstance(mov,tuple):
+            mov = mov[conf.view]
+
+        cur_f = cur_i[2]-1
+        tgt_id = cur_i[1]-1
+        if self.prev_item is None or cur_i[0]!=self.prev_item[0]:
+            cap = movies.Movie(mov)
+            n_frames = cap.get_n_frames()
+            self.cap = cap
+            self.prev_item = cur_i
+            if conf.has_trx_file:
+                trx_file = self.trx_files[cur_i[0]-1]
+                trx = apt.get_trx_info(trx_file,conf,n_frames)['trx']
+            else:
+                trx = None
+            self.trx = trx
+        else:
+            cap = self.cap
+
+        if self.has_crop:
+            crop_loc = self.cropLocs[cur_i[0]-1][conf.view]
+        else:
+            crop_loc = None
+        if conf.has_trx_file:
+            cur_trx = self.trx[tgt_id]
+        else:
+            cur_trx = None
+
+        im, locs,scale = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx,crop_loc=crop_loc,flipud=conf.flipud)
+
+        if conf.is_multi:
+            locs = np.ones([conf.max_n_animals,conf.n_classes,2])*conf.imsz[0]/2
+        else:
+            locs = np.ones([conf.n_classes,2])*conf.imsz[0]/2
+
+        info = [cur_i[0]-1,cur_f,tgt_id]
+        occ = np.zeros_like(locs[...,0])
+        features = [im, locs, info, occ,scale]
+        return features

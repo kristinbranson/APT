@@ -7,6 +7,9 @@ end
 
 function d = lclInitGfxDir()
 d = fullfile(APT.getRoot,'gfx');
+% if isdeployed,
+% warndlg(sprintf('APTROOT %s',APT.getRoot))
+% end
 % PNGSHOULDEXIST = 'playsegmentblack.png';
 % if exist(fullfile(d,PNGSHOULDEXIST),'file')==0
 %   % might occur in compiled/deployed matlab. The gfx dir will be located in

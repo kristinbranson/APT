@@ -121,7 +121,7 @@ handles.listener{end+1,1} = addlistener(lObj,...
 % handles.listener{end+1,1} = addlistener(lObj,...
 %   'currFrame','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
-  'currTarget','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
+  'didSetCurrTarget',@(s,e)(cbkCurrMovFrmTgtChanged(hObject,s,e)));
 
 handles.figure1.DeleteFcn = @lclDeleteFig;
 guidata(hObject,handles);
@@ -255,9 +255,9 @@ lclNavToMFT(lObj,mftRow);
 function lclNavToMFT(lObj,mftRow)
 iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
-  lObj.SetStatus(sprintf('Switching to GT movie %d...',iMov));
+  lObj.setStatus(sprintf('Switching to GT movie %d...',iMov));
   lObj.movieSet(iMov);
-  lObj.ClearStatus();
+  lObj.clearStatus();
 end
 lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
 

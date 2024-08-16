@@ -36,7 +36,7 @@ classdef FrameSetVariable < FrameSet
       % Get frames to track for given movie/target/decimation
       %
       % mIdx: scalar MovieIndex
-      % iTgt: scalar target
+      % iTgt: scalar target. nan <=> "any target MA"
       % decFac: positive int, decimation factor
       %
       % frms: vector of frames for given movie. Can be empty for various 
@@ -77,6 +77,8 @@ classdef FrameSetVariable < FrameSet
           tfFrmOK = frm2trxTotAndTgt(frms);
           frms(~tfFrmOK) = [];
         end
+      elseif labelerObj.maIsMA
+        % pass
       else
         % no target-based restriction
         assert(iTgt==1);
@@ -111,6 +113,7 @@ classdef FrameSetVariable < FrameSet
     AllFrm = FrameSetVariable(@(lo)'All frames',@(lo)'All fr',@FrameSetVariable.allFrmGetFrms);
     SelFrm = FrameSetVariable(@(lo)'Selected frames',@(lo)'Sel fr',@lclSelFrmGetFrms);
     WithinCurrFrm = FrameSetVariable(@lclWithinCurrFrmPrettyStr,@lclWithinCurrFrmPrettyCompactStr,@lclWithinCurrFrmGetFrms);
+    WithinCurrFrmLarge = FrameSetVariable(@lclWithinCurrFrmPrettyStrLarge,@lclWithinCurrFrmPrettyCompactStrLarge,@lclWithinCurrFrmGetFrmsLarge);
     LabeledFrm = FrameSetVariable(@(lo)'Labeled frames',@(lo)'Lab fr',@FrameSetVariable.labeledFrmGetFrms); % AL 20180125: using parameterized anon fcnhandle that directly calls lclLabeledFrmGetFrmsCore fails in 17a, suspect class init issue
     Labeled2Frm = FrameSetVariable(@(lo)'Labeled frames',@(lo)'Lab fr',@lclLabeledFrmGetFrms2);
   end
@@ -132,8 +135,18 @@ else
   str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear);
 end
 end
+function str = lclWithinCurrFrmPrettyStrLarge(lObj)
+if isunix && ~ismac
+  str = sprintf('Nearest %d frames',2*lObj.trackNFramesNear*5);
+else
+  str = sprintf('Within %d frames of current frame',lObj.trackNFramesNear*5);
+end
+end
 function str = lclWithinCurrFrmPrettyCompactStr(lObj)
 str = sprintf('+/-%d fr',lObj.trackNFramesNear);
+end
+function str = lclWithinCurrFrmPrettyCompactStrLarge(lObj)
+str = sprintf('+/-%d fr',5*lObj.trackNFramesNear);
 end
 
 function frms = lclSelFrmGetFrms(lObj,mIdx,nfrm,iTgt)
@@ -149,17 +162,23 @@ frm0 = max(currFrm-df,1);
 frm1 = min(currFrm+df,nfrm);
 frms = frm0:frm1;
 end
+function frms = lclWithinCurrFrmGetFrmsLarge(lObj,mIdx,nfrm,iTgt)
+currFrm = lObj.currFrame; % Note currentMovie~=iMov in general
+df = lObj.trackNFramesNear*5;
+frm0 = max(currFrm-df,1);
+frm1 = min(currFrm+df,nfrm);
+frms = frm0:frm1;
+end
 function frms = lclLabeledFrmGetFrms2(lObj,mIdx,nfrm,iTgt)
 frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,true);
 end
 function frms = lclLabeledFrmGetFrmsCore(lObj,mIdx,nfrm,iTgt,tfLbls2)
-npts = lObj.nLabelPoints;
-if tfLbls2
-  lpos = lObj.getLabeledPos2MovIdx(mIdx);
+% iTgt=nan <=> "any target MA"
+if tfLbls2 & (~lObj.maIsMA)
+  s = lObj.getLabels2MovIdx(mIdx);
+  frms = s.isLabeledT(iTgt);
 else
-  lpos = lObj.getLabeledPosMovIdx(mIdx); % [nptsx2xnfrmxntgt]
+  s = lObj.getLabelsMovIdx(mIdx);
+  frms = Labels.isLabeledT(s,iTgt);
 end
-lposTgt = reshape(lpos(:,:,:,iTgt),[2*npts nfrm]);
-tfLbledFrm = any(~isnan(lposTgt),1); % considered labeled if any x- or y-coord is non-nan
-frms = find(tfLbledFrm);
 end

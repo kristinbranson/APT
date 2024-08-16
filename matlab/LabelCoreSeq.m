@@ -31,6 +31,7 @@ classdef LabelCoreSeq < LabelCore
     supportsSingleView = true;
     supportsMultiView = false;
     supportsCalibration = false;
+    supportsMultiAnimal = false;
   end
         
   properties
@@ -38,18 +39,12 @@ classdef LabelCoreSeq < LabelCore
     nPtsLabeled; % scalar integer. 0..nPts, or inf.
 
     % Templatemode-like behavior in 'adjust' and 'accepted' stages
-    kpfIPtFor1Key; % scalar positive integer. This is the point index that
+    % moved to parent class
+    %kpfIPtFor1Key; % scalar positive integer. This is the point index that
                    % the '1' hotkey maps to, eg typically this will take the 
                    % values 1, 11, 21, ...
   end
-  
-  methods
-    function set.kpfIPtFor1Key(obj,val)
-      obj.kpfIPtFor1Key = val;
-      obj.refreshTxLabelCoreAux();
-    end
-  end
-  
+    
   methods
     
     function obj = LabelCoreSeq(varargin)
@@ -96,8 +91,12 @@ classdef LabelCoreSeq < LabelCore
       %obj.beginAdjust();
     end
     
-    function axBDF(obj,src,evt) %#ok<INUSD>
-      if ~obj.labeler.isReady,
+    function axBDF(obj,src,evt) 
+      if ~obj.labeler.isReady || evt.Button>1
+        return;
+      end
+
+      if obj.isPanZoom(),
         return;
       end
       
@@ -133,7 +132,10 @@ classdef LabelCoreSeq < LabelCore
       if ~obj.labeler.isReady,
         return;
       end
-      
+      if obj.isPanZoom(),
+        return;
+      end
+
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
 
@@ -146,6 +148,10 @@ classdef LabelCoreSeq < LabelCore
             if obj.tfEstOcc(iSel)
               obj.tfEstOcc(iSel) = false; 
               % following toggleSelectPoint call will call refreshPtMarkers
+            else
+              % AL 20220224: looks like bug, seems this should always occur
+              % even if code enters if branch above
+              obj.labeler.labelPosSetIFullyOcc(iSel);
             end
             obj.toggleSelectPoint(iSel);        
             obj.tfOcc(iSel) = true;
@@ -211,27 +217,31 @@ classdef LabelCoreSeq < LabelCore
       end
     end
         
-    function ptBDF(obj,src,~)
-      if ~obj.labeler.isReady,
+    function ptBDF(obj,src,evt)
+      if obj.isPanZoom()
         return;
       end
-      tf = obj.anyPointSelected();
-      if tf
-        % none
-      else
+
+      if ~obj.labeler.isReady || evt.Button>1
+        return;
+      end
         switch obj.state
-          case {LabelState.ADJUST LabelState.ACCEPTED}          
+          case {LabelState.ADJUST LabelState.ACCEPTED}
+            if ismember('control',obj.hFig.CurrentModifier),
+              return;
+            end
+
             iPt = get(src,'UserData');
+            obj.toggleSelectPoint(iPt);
             % KB 20181029: removing adjust state
 %             if obj.state==LabelState.ACCEPTED
 %               obj.beginAdjust();
 %             end
             obj.iPtMove = iPt;
         end
-      end
     end
     
-    function wbmf(obj,~,~)
+    function wbmf(obj,src,evt)
       % KB 20181029: removing adjust state
       if isempty(obj.state) || ~obj.labeler.isReady,
         return;
@@ -254,7 +264,7 @@ classdef LabelCoreSeq < LabelCore
       end
       
       % KB 20181029: removing adjust state
-      if ismember(gco,obj.labeler.hTrx),
+      if ismember(gco,obj.labeler.controller_.tvTrx_.hTrx),
         return;
       end
       if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ~isnan(obj.iPtMove),
@@ -295,7 +305,7 @@ classdef LabelCoreSeq < LabelCore
         lObj.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
         lObj.frameDown(tfCtrl);
-      elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
+      elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
           tfShift = any(strcmp('shift',modifier));
@@ -395,6 +405,7 @@ classdef LabelCoreSeq < LabelCore
       obj.tfOcc(:) = false;
       obj.tfEstOcc(:) = false;
       obj.tfSel(:) = false;
+      set(obj.hPts(ishandle(obj.hPts)),'HitTest','off');
       if tfClearLabels
         obj.labeler.labelPosClear();
       end
@@ -429,6 +440,7 @@ classdef LabelCoreSeq < LabelCore
       end
       % KB 20181029: moved this here from beginAdjust as I remove adjust
       % mode
+      set(obj.hPts(ishandle(obj.hPts)),'HitTest','on');
       obj.iPtMove = nan;
       obj.clearSelected();
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Labeled',...
@@ -445,12 +457,12 @@ classdef LabelCoreSeq < LabelCore
     end
     
     % C+P
-    function refreshTxLabelCoreAux(obj)
-      iPt0 = obj.kpfIPtFor1Key;
-      iPt1 = iPt0+9;
-      str = sprintf('Hotkeys 0-9 map to points %d-%d',iPt0,iPt1);
-      obj.txLblCoreAux.String = str;      
-    end
+%     function refreshTxLabelCoreAux(obj)
+%       iPt0 = obj.kpfIPtFor1Key;
+%       iPt1 = iPt0+9;
+%       str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles',iPt0,iPt1);
+%       obj.txLblCoreAux.String = str;      
+%     end
     
     function toggleEstOccPoint(obj,iPt)
       obj.tfEstOcc(iPt) = ~obj.tfEstOcc(iPt);

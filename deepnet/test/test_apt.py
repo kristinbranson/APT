@@ -17,13 +17,13 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def main():
-    # net_types = ['mdn','unet','resnet_unet','deeplabcut','openpose','leap']
+    # net_types = ['mdn','deeplabcut','openpose','leap','unet','resnet_unet']
     net_types = ['mdn']
     n_views = 1
     exp_name = 'alice_test'
     op_af_graph = '(0,1),(1,2),(2,3),(3,4),(4,5),(5,6),(6,7),(7,8),(8,9),(9,10),(10,11),(11,12),(12,13),(13,14),(14,15),(15,16)'
     bsz = 8
-    dl_steps = 15000
+    dl_steps = 150 #15000 #
     ptiles = [50,75,90,95]
     tdir = tempfile.mkdtemp()
 
@@ -41,6 +41,7 @@ def main():
 
     cmd = '-cache {} -name {} -conf_params batch_size {} dl_steps {} op_affinity_graph {} -type {{}} {} train -use_cache '.format(tdir, exp_name, bsz, dl_steps,op_af_graph, lbl_file)
 
+
     ##
     import h5py
     R = h5py.File(res_file,'r')
@@ -49,6 +50,7 @@ def main():
         apt.main(cmd.format(net).split())
 
         conf = apt.create_conf(lbl_file, 0, exp_name, tdir, net)
+        conf.batch_size = 1
         # if data_type == 'stephen' and train_type == 'mdn':
         #     conf.mdn_use_unet_loss = False
         if op_af_graph is not None:
@@ -70,7 +72,7 @@ def main():
 
 
         afiles = [f.replace('.index', '') for f in files]
-        mdn_out = apt_expts.classify_db_all(conf, gt_file, afiles, net, name=exp_name)
+        mdn_out = apt_expts.classify_db_all(conf, gt_file, afiles, net, name='deepnet')
         preds = mdn_out[0][0]
         labels = mdn_out[0][1]
 

@@ -13,13 +13,20 @@ PrettyOutput = False
 def get_gpu_memory_free():
 
     nvidiasmi = 'nvidia-smi'
+    memtotal = []
+    memfree = []
     # check if nvidia-smi exists
     if distutils.spawn.find_executable(nvidiasmi) is None:
         if platform.system() == "Windows":
-            nvpath = os.environ['NVTOOLSEXT_PATH']
+            nvpath = None
+            if 'NVTOOLSEXT_PATH' in os.environ:
+                try:
+                    nvpath = os.environ['NVTOOLSEXT_PATH']
+                except:
+                    pass
             if nvpath is None:
-                print('Could not find path to nvidia-smi. OS = Windows, environmental variable NVTOOLSEXT_PATH is not set')
-                return
+                #print('Could not find path to nvidia-smi. OS = Windows, environmental variable NVTOOLSEXT_PATH is not set')
+                return memfree, memtotal
             nvpath,tail = os.path.split(nvpath)
             if tail == '':
                 nvpath = os.path.dirname(nvpath)

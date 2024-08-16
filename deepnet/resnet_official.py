@@ -33,7 +33,12 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import tensorflow as tf
+import tensorflow
+vv = [int(v) for v in tensorflow.__version__.split('.')]
+if (vv[0]==1 and vv[1]>12) or vv[0]==2:
+    tf = tensorflow.compat.v1
+else:
+    tf = tensorflow
 
 _BATCH_NORM_DECAY = 0.997
 _BATCH_NORM_EPSILON = 1e-5

@@ -10,6 +10,10 @@ classdef ParameterVisualizationMemory < ParameterVisualization
     nettype = '';
     batchsize = nan;
     downsample = nan;
+    is_ma = false;
+    is2stage = false;
+    is_ma_net = false;
+    stage = 1;
   end
   
   properties (Constant)
@@ -19,21 +23,27 @@ classdef ParameterVisualizationMemory < ParameterVisualization
     nDownsamples = 20;
   end
   
-  methods
-        
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)      
-      obj.init(hAx,lObj,propFullName,sPrm);    
-    end
-    
-    function getProjImsz(obj,lObj,sPrm)
+
+  methods(Static)
+    function imsz = getProjImsz(lObj,sPrm,is_ma,is2stage,stage)
       % sets .imsz
-      
-      if lObj.hasTrx,
-        obj.imsz = sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius*2+[1,1];
+      imsz = [];
+      if lObj.hasTrx || (is_ma && is2stage && (stage==2))
+        prmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        cropRad = maGetTgtCropRad(prmTgtCrop);
+        imsz = cropRad*2+[1,1];
+      elseif lObj.maIsMA
+        if sPrm.ROOT.MultiAnimal.multi_crop_ims
+          i_sz = sPrm.ROOT.MultiAnimal.multi_crop_im_sz;
+        else
+          i_sz = lObj.getMovieRoiMovIdx(MovieIndex(1));
+          i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
+        end
+        imsz = [i_sz,i_sz];
       else
         nmov = lObj.nmoviesGTaware;
         rois = nan(nmov,lObj.nview,4);
-        for i = 1:nmov,
+        for i = 1:nmov
           rois(i,:,:) = lObj.getMovieRoiMovIdx(MovieIndex(i));
         end
         if isempty(rois),
@@ -49,47 +59,115 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         hs = rois(:,4)-rois(:,3)+1;
         ws = rois(:,2)-rois(:,1)+1;
         assert(all(hs==hs(1)) && all(ws==ws(1)));
-        obj.imsz = [hs(1),ws(1)];
+        imsz = [hs(1),ws(1)];
       end
     end
+
+    function [ds,nettype,bsz] = getOtherProps(lObj,sPrm,is_ma,is2stage,stage)
+      ds =1; nettype= ''; bsz = 1;
+      if is_ma && is2stage && stage == 2
+        ds = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        nettype = string(lObj.tracker.trnNetType);
+        bsz = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
+      elseif is_ma && is2stage && stage == 1
+        ds = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.ImageProcessing.scale;
+        nettype = lObj.tracker.stage1Tracker.algorithmName;
+        bsz = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size;        
+      elseif is_ma
+        ds = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        nettype = string(lObj.tracker.trnNetType);
+        bsz = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;        
+        
+      else
+        ds = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        nettype = lObj.tracker.algorithmName;
+        bsz = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;        
+      end      
+      
+    end
+
+    function [is_ma,is2stage,is_ma_net,stage] = getStage(lObj,prop)
+      is_ma = lObj.maIsMA;
+      is2stage = lObj.trackerIsTwoStage;
+      is_ma_net = false;
+      stage = 1;
+
+      if is_ma 
+        if is2stage
+          if startsWith(prop,'Deep Learning (pose)')
+            stage = 2;
+          else
+            stage = 1;
+            is_ma_net = true;
+          end
+        else
+          stage = 1;
+          is_ma_net = true;
+        end
+      end
+    end
+
+
+
+  end
+
+  methods
+        
+    function propSelected(obj,hAx,lObj,propFullName,sPrm)      
+      obj.init(hAx,lObj,propFullName,sPrm);    
+    end
+    
+        
     
     function init(obj,hAx,lObj,propFullName,sPrm)
-      %fprintf('init\n');
+      %fprintf('init\n');      
       obj.axPos = [.1,.1,.85,.85];
       set(hAx,'Units','normalized','Position',obj.axPos);
       
       obj.initSuccessful = false;
-      obj.getProjImsz(lObj,sPrm);
-      obj.downsample = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
-      
-      obj.nettype = lObj.tracker.algorithmName;
-      obj.batchsize = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
-
-      switch propFullName,
-        case {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'}
-          xstr = 'Downsample factor';
-          xs = logspace(0,log10(max(obj.downsample,ParameterVisualizationMemory.maxDownsample)),ParameterVisualizationMemory.nDownsamples);
-          memuses = nan(size(xs));
-          for i = 1:numel(xs),
-            imsz1 = max(1,round(obj.imsz/xs(i)));
-            memuses(i) = get_network_size(obj.nettype,imsz1,obj.batchsize);
-          end
-          xcurr = obj.downsample;
-          imsz1 = max(1,round(obj.imsz/xcurr));
-          memusecurr = get_network_size(obj.nettype,imsz1,obj.batchsize);
-
-        case {'DeepTrack.GradientDescent.Training batch size','DeepTrack.GradientDescent.batch_size'},
-          xstr = 'Batch size';
-          xs = 1:max(obj.batchsize,ParameterVisualizationMemory.maxBatchSize);
-          imsz1 = max(1,round(obj.imsz/obj.downsample));
-          memuses = nan(size(xs));
-          for i = 1:numel(xs),
-            memuses(i) = get_network_size(obj.nettype,imsz1,xs(i));
-          end
-          xcurr = obj.batchsize;
-          memusecurr = get_network_size(obj.nettype,imsz1,xcurr);
-        otherwise
-          error('Unknown prop %s',propFullName);
+      [is_ma,is2stage,stage,is_ma_net] = ...
+        ParameterVisualizationMemory.getStage(...
+        lObj,propFullName);
+      obj.is_ma = is_ma;
+      obj.is2stage = is2stage;
+      obj.stage = stage;
+      obj.is_ma_net = is_ma_net;
+      obj.imsz = ParameterVisualizationMemory.getProjImsz(...
+        lObj,sPrm,obj.is_ma,obj.is2stage,obj.stage);
+      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
+        lObj,sPrm,is_ma,is2stage,stage);
+      obj.downsample = ds;
+      obj.nettype = nettype;
+      obj.batchsize = bsz;
+  
+      if endsWith(propFullName,...
+          {'Image Processing.Downsample factor',...
+          'Image Processing.scale'})
+        
+        xstr = 'Downsample factor';
+        xs = logspace(log10(0.25),log10(max(obj.downsample,ParameterVisualizationMemory.maxDownsample)),ParameterVisualizationMemory.nDownsamples);
+        memuses = nan(size(xs));
+        for i = 1:numel(xs),
+          imsz1 = max(1,round(obj.imsz/xs(i)));
+          memuses(i) = get_network_size(obj.nettype,imsz1,obj.batchsize,obj.is_ma_net);
+        end
+        xcurr = obj.downsample;
+        imsz1 = max(1,round(obj.imsz/xcurr));
+        memusecurr = get_network_size(obj.nettype,imsz1,obj.batchsize,obj.is_ma_net);
+      elseif endsWith(propFullName,...
+          {'Gradient Descent.Training batch size','DeepTrack.GradientDescent.batch_size'})
+        
+        xstr = 'Batch size';
+        xs = 1:max(obj.batchsize,ParameterVisualizationMemory.maxBatchSize);
+        imsz1 = max(1,round(obj.imsz/obj.downsample));
+        memuses = nan(size(xs));
+        for i = 1:numel(xs),
+          memuses(i) = get_network_size(obj.nettype,imsz1,xs(i),obj.is_ma_net);
+        end
+        xcurr = obj.batchsize;
+        memusecurr = get_network_size(obj.nettype,imsz1,xcurr,obj.is_ma_net);
+      else
+        error('Unknown prop %s',propFullName);
       end
       
       cla(hAx);
@@ -113,6 +191,9 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.batchsize = nan;
       obj.downsample = nan;
       obj.initSuccessful = false;
+      obj.stage = 1;
+      obj.is_ma = false;
+      obj.is_ma_net = false;
     end
 
     function propUpdated(obj,hAx,lObj,propFullName,sPrm)
@@ -120,10 +201,10 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       
       if obj.initSuccessful,
         switch propFullName,
-          case {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'},
-            if sPrm.ROOT.DeepTrack.ImageProcessing.scale == obj.downsample,
-              return;
-            end
+        case {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'},
+          if sPrm.ROOT.DeepTrack.ImageProcessing.scale == obj.downsample,
+            return;
+          end
         case {'DeepTrack.GradientDescent.Training batch size','DeepTrack.GradientDescent.batch_size'},
           if sPrm.ROOT.DeepTrack.GradientDescent.batch_size == obj.batchsize,
             return;
