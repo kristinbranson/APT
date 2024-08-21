@@ -26,7 +26,7 @@ end
 % end
 
 if ~any(strcmp(net_type,fieldnames(A.mem_use)))
-  warningNoTrace('No data for network type %s\n',net_type);
+  warningNoTrace('No data on GPU memory requirements for network type %s\n',net_type);
   return
 end
 

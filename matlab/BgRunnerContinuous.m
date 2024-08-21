@@ -35,7 +35,7 @@ classdef BgRunnerContinuous < handle
       
       logger = FileLogger('BgRunnerContinuous.log', 'BgRunnerContinuous') ;
 
-      logger.log('Inside BgRunnerContinuous::start()\n') ;
+      logger.log('Inside BgRunnerContinuous::run()\n') ;
       if isa(cObj, 'BgTrackWorkerObjAWS') ,
         logger.log('cObj.awsEc2.sshCmd: %s\n', cObj.awsEc2.sshCmd) ;
       end
@@ -80,7 +80,7 @@ classdef BgRunnerContinuous < handle
       end
       
       status = 1;
-      logger.log('About to exit BgRunnerContinuous::start()\n') ;
+      logger.log('About to exit BgRunnerContinuous::run()\n') ;
     end  % function
     
   end  % methods

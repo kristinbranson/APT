@@ -35,25 +35,25 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
     
     function res = queryAllJobsStatus(obj)
     
-      p = gcp;
+      p = gcp();
       q = p.FevalQueue;
-      r = q.RunningFutures;
+      rfs = q.RunningFutures;
       res = {};
-      if isempty(r),
+      if isempty(rfs),
         res{end+1} = 'No jobs running.';
       else
         res{end+1} = 'Jobs running:';
-        for i = 1:numel(r),
-          res{end+1} = sprintf('ID %d, started %s: %s',r(i).ID,r(i).StartDateTime,r(i).State);
+        for i = 1:numel(rfs),
+          res{end+1} = sprintf('ID %d, started %s: %s',rfs(i).ID,rfs(i).StartDateTime,rfs(i).State); %#ok<AGROW> 
         end
       end
-      r = q.QueuedFutures;
-      if isempty(r),
+      qfs = q.QueuedFutures;
+      if isempty(qfs),
         res{end+1} = 'No jobs queued.';
       else
         res{end+1} = 'Jobs queued:';
-        for i = 1:numel(r),
-          res{end+1} = sprintf('ID %d, started %s: %s',r(i).ID,r(i).StartDateTime,r(i).State);
+        for i = 1:numel(qfs),
+          res{end+1} = sprintf('ID %d, started %s: %s',qfs(i).ID,qfs(i).StartDateTime,qfs(i).State); %#ok<AGROW> 
         end
       end
       
