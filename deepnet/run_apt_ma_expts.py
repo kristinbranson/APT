@@ -33,7 +33,7 @@ out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid','openpose_4x','2stageBBox_hrformer','2stageBBox_vitpose']
+alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid','dekr','openpose_4x','2stageBBox_hrformer']#,'2stageBBox_vitpose']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -70,10 +70,13 @@ class ma_expt(object):
                 ('2stageBBox_hrformer',):[{},{'mmpose_net':'\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
                 ('cid','nocrop'):[{'batch_size': 4,'dl_steps':200000}, {}],
+                ('dekr',):[{'mmpose_net':'\\"dekr\\"'},{}],
+                ('dekr','nocrop'):[{'batch_size':2,'dl_steps':400000},{}],
             }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 4
             self.dropoff = 0.4
+            self.cond_file = '/groups/branson/home/kabram/temp/ma_expts/roian/roian_conditions.mat'
 
         elif data_type == 'alice':
             self.bdir = '/groups/branson/home/kabram/temp/ma_expts/alice'
@@ -299,6 +302,8 @@ class ma_expt(object):
             stg_str = ''
             train_name = '_'.join(t_type[:-1] + (self.train_dstr,))
             net_type = conf['TrackerData']['trnNetTypeString']
+            if alg == 'dekr':
+                net_type = 'multi_dekr'
 
 
         A = pt.json_load(lbl_file)
@@ -329,7 +334,7 @@ class ma_expt(object):
                     continue
                 for c in self.crop_types:
                     for m in self.mask_types:
-                        if m == 'mask' and alg=='cid':
+                        if m == 'mask' and (alg=='cid'):
                             continue
                         all_types.append((alg, c, m, stg))
         if t_types is None:
@@ -374,7 +379,7 @@ class ma_expt(object):
             err_file = os.path.join(self.trnp_dir,alg,train_name + '.err')
 
             sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
-            if 'vitpose' in alg:
+            if ('vitpose' in alg) or (alg== 'dekr'):
                 sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x.sif'
 
             cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg_str} -type {net_type} train -use_cache'
@@ -870,7 +875,8 @@ class ma_expt(object):
         Y = sio.loadmat(self.cond_file)
         mx = [yy[0][0] for yy in Y['movs']]
         gt_dat = pt.json_load(os.path.join(self.gt_dir,'loc.json'))
-        assert mx==gt_dat['movies']
+        if self.name == 'alice':
+            assert mx==gt_dat['movies']
         cc = Y['condition'][:,0]
         cn = [yy[0][0] for yy in Y['condition_names']]
         assert type(cond) is list
@@ -890,7 +896,7 @@ class ma_expt(object):
         return use
 
 
-    def show_results(self, t_types=None,condition=None):
+    def show_results(self, t_types=None,condition=None,f=None):
         res_file_ptn = os.path.join(out_dir,f'{self.name}_ma_res_[0-9]*.mat')
 
         files = glob.glob(res_file_ptn)
@@ -911,7 +917,10 @@ class ma_expt(object):
         nr = int(np.ceil(n_types/float(nc)))
         prcs = [50,75,90,95,98,99]
         cmap = pt.get_cmap(len(prcs), 'cool')
-        f, axx = plt.subplots(nr, nc, figsize=(12, 8), squeeze=False)
+        if f is None:
+            f, axx = plt.subplots(nr, nc, figsize=(12, 8), squeeze=False)
+        else:
+            axx = f.subplots(nr, nc, squeeze=False)
         axx = axx.flat
         dropoff = self.dropoff
 
@@ -935,11 +944,25 @@ class ma_expt(object):
                 ll = ll[cond_idx]
                 info = info[cond_idx]
             ll[ll<-1000] = np.nan
-            dd = np.linalg.norm(ll[:,None]-pp[:,:,None],axis=-1)
-            dd1 = find_dist_match(dd)
             valid_l = np.any(~np.isnan(ll[:,:,:,0]),axis=-1)
 
-            cur_dist = dd1[valid_l]
+            # assign closest prediction. Multiple predictions can be assigned to the same label
+            dd = np.linalg.norm(ll[:, :, None] - pp[:, None], axis=-1)
+            dd1 = dd[valid_l]
+            max_val = np.nanmax(dd1)
+
+            dd1_m = np.nanmean(dd1,axis=-1)
+            no_preds = np.where(np.all(np.isnan(dd1_m),axis=-1))[0]
+            dd1_m[no_preds] = max_val
+            ax = np.nanargmin(dd1_m, axis=1)
+            cur_dist = dd1[np.arange(dd1.shape[0]), ax, :]
+            cur_dist[np.isnan(cur_dist)] = max_val
+
+            # match closest prediction to each label. One prediction to one label
+            # dd = np.linalg.norm(ll[:,None]-pp[:,:,None],axis=-1)
+            # dd1 = find_dist_match(dd)
+            # cur_dist = dd1[valid_l]
+
             all_dist.append(cur_dist)
 
             ax = axx[idx]
@@ -956,6 +979,7 @@ class ma_expt(object):
             for pts in range(ex_loc.shape[0]):
                 for pp in range(mm.shape[0]):
                     c = plt.Circle(ex_loc[pts, :], mm[pp, pts], color=cmap[pp, :], fill=False,alpha=1-((pp+1)/mm.shape[0])*dropoff)
+                    c.set_label(f'{prcs[pp]}')
                     ax.add_patch(c)
             ttl = '{} '.format(curt_str)
             ax.set_title(ttl)
@@ -1044,7 +1068,9 @@ class ma_expt(object):
         f.tight_layout()
         return f
 
-    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_a100'):
+
+
+    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_a100',sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'):
         t_types = self.get_types(t_types)
         for t in t_types:
             settings = self.get_settings(t)
@@ -1110,5 +1136,5 @@ class ma_expt(object):
                          run_dir=run_dir,
                          queue=queue,
                          precmd='',
-                         logdir=self.log_dir, nslots=10,timeout=160*60)
+                         logdir=self.log_dir, nslots=10,timeout=160*60,sing_img=sing_img)
         print(f'Total jobs {len(t_types)}')

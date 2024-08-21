@@ -387,7 +387,7 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
       end
       
       % KB 20181029: removing adjust state
-      if ismember(gco,bj.labeler.controller_.tvTrx_.hTrx),
+      if ismember(gco,obj.labeler.controller_.tvTrx_.hTrx),
         return;
       end
       if obj.state == LabelState.ADJUST || obj.state == LabelState.ACCEPTED && ~isempty(obj.iPtMove) && ~isnan(obj.iPtMove),

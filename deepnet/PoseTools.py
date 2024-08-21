@@ -1737,17 +1737,17 @@ def show_sample_images(sample_file,extra_txt = ''):
     ims = ims/ims.max()
     ims = (255*ims).astype('uint8')
     h,w = ims.shape[1:3]
-    ims = ims.reshape((3,3)+ims.shape[1:])
+    ims = ims[:9].reshape((3,3)+ims.shape[1:])
     ims = ims.transpose([0, 2, 1, 3, 4])
     ims = ims.reshape([3 * h, 3 * w, ims.shape[-1]])
 
-    locs = K['locs'].reshape((3,3)+K['locs'].shape[1:])
+    locs = K['locs'][:9].reshape((3,3)+K['locs'].shape[1:])
     if locs.ndim==4:
-        locs[...,0] = locs[...,0] + h*np.arange(3)[None,:,None]
-        locs[...,1] = locs[...,1] + w*np.arange(3)[:,None,None]
+        locs[...,0] = locs[...,0] + w*np.arange(3)[None,:,None]
+        locs[...,1] = locs[...,1] + h*np.arange(3)[:,None,None]
     else:
-        locs[..., 0] = locs[..., 0] + h * np.arange(3)[None, :, None, None]
-        locs[..., 1] = locs[..., 1] + w * np.arange(3)[:, None, None, None]
+        locs[..., 0] = locs[..., 0] + w * np.arange(3)[None, :, None, None]
+        locs[..., 1] = locs[..., 1] + h * np.arange(3)[:, None, None, None]
     npts = locs.shape[-2]
     locs = locs.reshape((-1,npts,2))
     cmap = np.tile(get_cmap(npts),[locs.shape[0],1,1]).reshape([-1,4])
@@ -1854,6 +1854,33 @@ def resize_padding(image, width, height):
     padded_image = cv2.copyMakeBorder(resized_image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=[0, 0, 0])
 
     return padded_image,scale_factor
+
+
+def align_points(P, Q):
+    # Step 1: Compute centroids
+    cP = np.mean(P, axis=0)
+    cQ = np.mean(Q, axis=0)
+
+    # Translate points to the origin
+    P_prime = P - cP
+    Q_prime = Q - cQ
+
+    # Step 2: Compute the optimal rotation
+    A = Q_prime.T @ P_prime
+    U, _, Vt = np.linalg.svd(A)
+    R = U @ Vt
+
+    # Step 3: Compute the translation
+    t = cQ - R @ cP
+
+    P_transformed = (R @ P.T).T + t
+
+    # Compute the Euclidean distance between the transformed points
+    distances = np.linalg.norm(P_transformed - Q, axis=1)
+    total_distance = np.sum(distances)
+
+    return total_distance, distances, R, t
+
 
 
 def set_seed(seed):

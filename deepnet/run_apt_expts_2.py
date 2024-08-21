@@ -108,6 +108,7 @@ common_conf['lr_drop_step'] = 0.15
 common_conf['normalize_loss_batch'] = False
 common_conf['use_scale_factor_range'] = True
 common_conf['predict_occluded'] = False
+common_conf['mdn_pred_dist'] = True
 
 common_conf['mmpose_net'] = '\\"mspn\\"'
 

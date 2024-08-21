@@ -23,7 +23,24 @@ from mmpose.apis import init_model
 from mmengine.registry import init_default_scope
 from mmengine.dataset import Compose, pseudo_collate
 
+from mmpose.registry import KEYPOINT_CODECS
+from mmpose.codecs import SPR
+
+
 import multiprocessing as mp
+
+
+# TODO: DEKR drops heatmap masks. Adding heatmap masks to the output
+@KEYPOINT_CODECS.register_module(force=True)
+class SPR_mask(SPR):
+    field_mapping_table = dict(
+        heatmaps='heatmaps',
+        heatmap_weights='heatmap_weights',
+        displacements='displacements',
+        displacement_weights='displacement_weights',
+        heatmap_mask='heatmap_mask'
+    )
+
 
 
 # TODO: Fixing a bug where mmpose FocalHeatmapLoss class generates NaNs when no animal in GT. Remove this when updating mmpose
@@ -715,6 +732,11 @@ class Pose_multi_mmpose(Pose_mmpose):
         match_dist_factor = conf.multi_match_dist_factor
         max_n_animals = conf.max_n_animals
 
+        rgb2bgr = False
+        if 'data_preprocessor' in cfg.model:
+            if 'bgr_to_rgb' in cfg.model.data_preprocessor:
+                rgb2bgr = cfg.model.data_preprocessor.bgr_to_rgb
+
         def pred_fn(ims, retrawpred=False):
 
             pose_results = np.ones([ims.shape[0],max_n_animals,conf.n_classes,2])*np.nan
@@ -726,6 +748,8 @@ class Pose_multi_mmpose(Pose_mmpose):
                     ii = np.tile(ims[b, ...], [1, 1, 3])
                 else:
                     ii = ims[b, ...]
+                    if rgb2bgr:
+                        ii = ii[..., ::-1]
                 # prepare data
                 data = {'img': ii.astype('uint8'),
                         'bbox': np.array([0,0,conf.imsz[1],conf.imsz[0]])[None],

@@ -1136,6 +1136,15 @@ rae_ma.alg_names = rae_ma.alg_names[:-3]
 robj = rae_ma.ma_expt('roian')
 robj.add_neg_roi_roian()
 
+## create gt db
+from importlib import reload
+import run_apt_ma_expts as rae_ma
+reload(rae_ma)
+robj = rae_ma.ma_expt('roian')
+robj.create_gt_db()
+
+
+
 ## Run training
 from importlib import reload
 import run_apt_ma_expts as rae_ma
@@ -1145,6 +1154,7 @@ robj = rae_ma.ma_expt('roian')
 robj.run_train(run_type='dry')
 
 ## Add more margin to bbox for CID
+# maynot be needed anymore because using grone loc.json 16 APril 2024
 import os,json,shutil
 import PoseTools as pt
 in_file = '/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/multi_cid/view_0/cid_crop_nomask_07122023/train_TF.json'
@@ -1190,10 +1200,11 @@ robj.get_status()
 
 
 ##
+
 import run_apt_ma_expts as rae_ma
 
 robj = rae_ma.ma_expt('roian')
-robj.get_results(res_dstr='20231226')
+robj.get_results(res_dstr='20240418')
 
 ##
 import run_apt_ma_expts as rae_ma
@@ -1234,7 +1245,12 @@ A = pt.json_load(loc_file)
 gt_movies = A['movies']
 unmarked_movies = ['/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_0.mjpg','/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_1.mjpg','/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg',]
 
-gt_movies = unmarked_movies
+marked_movies_close = ['/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210902_m186741silpb_no_odor_m186370_ft181918.mjpg',
+'/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210903_m186370silpb_no_odor_m186741_ft181918.mjpg',
+'/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210906_m186741silpb_no_odor_m186370_f0181320.mjpg',
+'/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210907_m186370silpb_no_odor_m186741_f0186560.mjpg']
+
+# gt_movies = marked_movies_close
 
 t_types = [('2stageHT','crop','nomask'),
            ('2stageHT','nocrop','nomask'),
@@ -1242,17 +1258,245 @@ t_types = [('2stageHT','crop','nomask'),
            ('grone','crop','nomask'),
            ('grone','nocrop','nomask'),
            ('2stageBBox_hrformer','nomask'),
-           ('cid','crop')
+           ('cid','crop'),('cid','nocrop'),
+           ('dekr','crop','nomask'),
+           ('dekr','nocrop','nomask'),
            ]
 if gt_movies[0] == unmarked_movies[0]:
     robj.params[()]=[{'max_n_animals':4},{}]
 run_type = 'dry'
+sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
+# sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x.sif'
+
 for cur_mov in gt_movies[-4:]:
     exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
     for tt in t_types:
         cur_str = '_'.join(tt)
         out_trk = os.path.join(robj.trk_dir,exp_name + f'_{cur_str}.trk')
-        robj.track(cur_mov,out_trk,t_types=[tt,],run_type=run_type)
+        robj.track(cur_mov,out_trk,t_types=[tt,],run_type=run_type,sing_img=sing_img)
+
+## for close movies find frames with large differences between different algos
+
+import run_apt_ma_expts as rae_ma
+import PoseTools as pt
+import os
+import TrkFile as Trk
+from reuse import find_dist_match
+robj = rae_ma.ma_expt('roian')
+
+marked_movies_close = ['/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210902_m186741silpb_no_odor_m186370_ft181918.mjpg',
+'/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210903_m186370silpb_no_odor_m186741_ft181918.mjpg',
+'/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210906_m186741silpb_no_odor_m186370_f0181320.mjpg',
+'/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210907_m186370silpb_no_odor_m186741_f0186560.mjpg']
+
+t_types = [('grone','crop','nomask'),
+           ('2stageBBox_hrformer','nomask'),
+           ('dekr','crop','nomask'),
+           ]
+all_d = []
+for cur_mov in marked_movies_close:
+    exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
+    all_t = []
+    for tt in t_types:
+        cur_str = '_'.join(tt)
+        out_trk = os.path.join(robj.trk_dir,exp_name + f'_{cur_str}_tracklet.trk')
+        curt = Trk.Trk(out_trk)
+        all_t.append(curt)
+    nfr = max(all_t[0].endframes)+1
+    d_all = np.zeros((nfr,len(t_types),len(t_types),2,4))
+    for ndx in range(nfr):
+        curp = [tt.getframe(ndx)[:,:,0] for tt in all_t]
+        curv = [~np.all(np.isnan(curp[xx][:,0,]),axis=0) for xx in range(len(curp))]
+        curp = [curp[xx][:,:,curv[xx]] for xx in range(len(curp))]
+        for xx in range(len(curp)):
+            for yy in range(xx+1,len(curp)):
+                if (curp[xx].shape[2] != 2) or (curp[yy].shape[2] != 2):
+                    d_all[ndx,xx,yy] = np.nan
+                    continue
+                dd = np.linalg.norm(curp[xx][..., None] - curp[yy][:, :, None], axis=1)
+
+                dd_m = find_dist_match(np.transpose(dd[None], [0, 3, 2, 1]))[0]
+                d_all[ndx,xx,yy] = dd_m
+
+    all_d.append(d_all)
+
+## show few examples
+
+import movies
+movid = 2
+
+cap = movies.Movie(marked_movies_close[movid])
+sel = np.unique(np.where(~(np.max(all_d[movid],axis=(-1,-2))<50))[0])
+cur_mov = marked_movies_close[movid]
+exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
+
+all_t = []
+for tt in t_types:
+    cur_str = '_'.join(tt)
+    out_trk = os.path.join(robj.trk_dir, exp_name + f'_{cur_str}_tracklet.trk')
+    curt = Trk.Trk(out_trk)
+    all_t.append(curt)
+
+##
+ndx = np.random.choice(sel)
+plt.figure(73)
+plt.clf()
+fr = cap.get_frame(ndx)[0]
+plt.imshow(fr,'gray')
+skel = np.array([[0,1],[0,2],[2,3]])
+ccs = ['r','g','b']
+
+for xx in range(len(all_t)):
+    curp = all_t[xx].getframe(ndx)
+    curp = curp[:,:,0]
+    curp = curp[:,:,~np.all(np.isnan(curp[:,0]),axis=0)]
+    curp = np.transpose(curp,(2,0,1))
+    mdskl(curp,skel,cc=ccs[xx])
+
+all_d[movid][ndx].max(axis=(-1,-2))
+
+## check consistency between different trackers
+
+all_aa = []; all_bb = []; all_cc = []
+all_sel = []
+for movid in range(len(marked_movies_close)):
+    jj = all_d[movid].copy()
+    jj[np.isnan(jj)] = 3000
+    sel = np.unique(np.where(~(np.max(all_d[movid],axis=(-1,-2))<50))[0])
+    aa = np.minimum(jj[sel][:,0,1].max(axis=(-1,-2)),jj[sel][:,0,2].max(axis=(-1,-2)))
+    bb = np.minimum(jj[sel][:,0,1].max(axis=(-1,-2)),jj[sel][:,1,2].max(axis=(-1,-2)))
+    cc = np.minimum(jj[sel][:,0,2].max(axis=(-1,-2)),jj[sel][:,1,2].max(axis=(-1,-2)))
+    all_aa.append(aa)
+    all_bb.append(bb)
+    all_cc.append(cc)
+    all_sel.extend(list(zip([movid]*len(sel),sel)))
+aa = np.concatenate(all_aa,0)
+bb = np.concatenate(all_bb,0)
+cc = np.concatenate(all_cc,0)
+print(len(aa)/4/108000)
+print(np.count_nonzero(aa>2500),np.count_nonzero(bb>2500),np.count_nonzero(cc>2500))
+ff(); plt.hist([aa,bb,cc],list(range(0,200,30)))
+ff(); plt.hist([aa,bb,cc])
+
+## create list of frames to label
+
+all_sel = []
+thresh = 50
+for movid in range(len(marked_movies_close)):
+    jj = all_d[movid].copy()
+    jj[np.isnan(jj)] = 3000
+    sel = np.unique(np.where(~(np.max(all_d[movid],axis=(-1,-2))<thresh))[0])
+    all_sel.extend(list(zip([movid+1]*len(sel),sel+1)))
+
+n_sel = 300
+sel = np.random.choice(len(all_sel),n_sel,replace=False)
+sel = [all_sel[xx] for xx in sel]
+
+out_file = '/groups/branson/bransonlab/mayank/apt_results/roian_ma_close_labels_suggestions_20240506.mat'
+from scipy import io as sio
+sio.savemat(out_file,{'sel':sel,'movies':marked_movies_close})
+
+
+## show heatmaps for an example frame where mice are close
+movid = 0
+fr = 106839
+net = 'dekr'
+cstr = ''
+if net == 'grone':
+    net_name = 'multi_mdn_joint_torch'
+elif net == 'dekr':
+    net_name = 'multi_dekr'
+    cstr = 'mmpose_net "dekr"'
+elif net == 'cid':
+    net_name = 'multi_cid'
+    cstr = 'mmpose_net "cid"'
+cmd = f'/groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_07122023/{net}/conf_crop.json -name {net}_crop_nomask_07122023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/roian/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask False link_id True link_id_training_iters 100000 {cstr} -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type {net_name} track -mov {marked_movies_close[movid]} -out /groups/branson/home/kabram/temp/out.trk -start_frame {fr+1} -end_frame {fr+2}'
+
+import APT_interface as apt
+apt.main(cmd.split())
+
+# for dekr, breakpoint at line 457 in /environments/apt-ultramodern-frozen-2023-11-10/lib/python3.10/site-packages/mmpose/models/heads/hybrid_heads/dekr_head.py
+
+# for dekr, breakpoint at line 457 in /environments/apt-ultramodern-frozen-2023-11-10/lib/python3.10/site-packages/mmpose/models/heads/hybrid_heads/dekr_head.py
+# for cid, breakpont at line 250 in /schtuff/pinned-ampere-env/lib/python3.10/site-packages/mmpose/models/detectors/cid.py
+# dekr output in /groups/branson/home/kabram/temp/roian_dekr_hmap_close_0_47628.pkl and /groups/branson/home/kabram/temp/roian_dekr_hmap_close_0_47628.mat
+
+## show results of different trackers on an overlapping mice frame
+import PoseTools as pt
+movid = 0
+fr = 106839
+
+import movies
+
+cap = movies.Movie(marked_movies_close[movid])
+cur_mov = marked_movies_close[movid]
+exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
+
+t_types = [('grone','crop','nomask'),
+           ('2stageBBox_hrformer','nomask'),
+           ('dekr','crop','nomask'),
+           ('cid','crop'),
+           ('2stageBBox','nomask')
+           ]
+
+all_t = []
+for tt in t_types:
+    cur_str = '_'.join(tt)
+    out_trk = os.path.join(robj.trk_dir, exp_name + f'_{cur_str}_tracklet.trk')
+    curt = Trk.Trk(out_trk)
+    all_t.append(curt)
+
+ndx = fr
+fr1 = cap.get_frame(ndx)[0]
+f,ax = plt.subplots(2,3,figsize=(15,10))
+ax = ax.flatten()
+skel = np.array([[0,1],[0,2],[2,3]])
+nets = ['GRONe','DeTR+HRFormer','DeKR','CiD','DeTR+GRONe']
+xlim = [1400,1800]
+ylim = [500,100]
+
+for xx in range(len(all_t)):
+    curp = all_t[xx].getframe(ndx)
+    curp = curp[:,:,0]
+    curp = curp[:,:,~np.all(np.isnan(curp[:,0]),axis=0)]
+    curp = np.transpose(curp,(2,0,1))
+    ax[xx].imshow(fr1,'gray')
+    mdskl(curp,skel,cc='r',ax=ax[xx])
+    ax[xx].set_title(nets[xx])
+    ax[xx].axis('off')
+    ax[xx].set_xlim(xlim)
+    ax[xx].set_ylim(ylim)
+
+
+f.tight_layout()
+f.savefig(f'/groups/branson/home/kabram/temp/roian_close_mice_{movid}_{fr}.png')
+
+## show dekr heatmaps
+
+zz = pt.pickle_load(f'/groups/branson/home/kabram/temp/roian_dekr_hmap_close_{movid}_{fr}.pkl')
+hh = np.array([cv2.resize(hhx,zz['img'].shape) for hhx in zz['hmap']])
+ff(); imshow(zz['img'][ylim[1]:ylim[0],xlim[0]:xlim[1]],'gray')
+imshow(hh.sum(axis=0)[ylim[1]:ylim[0],xlim[0]:xlim[1]],alpha=0.2)
+plt.axis('off')
+plt.tight_layout()
+plt.savefig(f'/groups/branson/home/kabram/temp/roian_dekr_hmap_close_{movid}_{fr}.png')
+
+pt.show_stack(hh[:,ylim[1]:ylim[0],xlim[0]:xlim[1]],2,2)
+plt.savefig(f'/groups/branson/home/kabram/temp/roian_dekr_hmap_close_{movid}_{fr}_stack.png')
+
+
+## show cid heatmaps
+zz = pt.pickle_load(f'/groups/branson/home/kabram/temp/roian_cid_hmap_close_{movid}_{fr}.pkl')
+hh = np.array([cv2.resize(hhx,zz['img'].shape) for hhx in zz['hmap']])
+ff(); imshow(zz['img'][ylim[1]:ylim[0],xlim[0]:xlim[1]],'gray')
+imshow(hh.sum(axis=0)[ylim[1]:ylim[0],xlim[0]:xlim[1]],alpha=0.2)
+plt.axis('off')
+plt.tight_layout()
+plt.savefig(f'/groups/branson/home/kabram/temp/roian_cid_hmap_close_{movid}_{fr}.png')
+
+pt.show_stack(hh[:,ylim[1]:ylim[0],xlim[0]:xlim[1]],2,2)
+plt.savefig(f'/groups/branson/home/kabram/temp/roian_cid_hmap_close_{movid}_{fr}_stack.png')
+
 
 ## unmarked mice tracking stuff in script_inc_exp.py
 
@@ -1390,9 +1634,9 @@ for cur_mov in movies:
 
 ## Tracking without hard mining
 run_type = 'dry'
-tts = [('grone','crop'),('2stageBBox','first')]
+tts = [('grone','crop'),('2stageBBox_hrformer','first')]
 robj.params[()][0]['link_id_mining_steps']='1'
-for cur_mov in movies:
+for cur_mov in movies[:3]:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
     for curt in tts:
         out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_nohardmine.trk')
@@ -1401,7 +1645,7 @@ for cur_mov in movies:
 ## ID tracking accuracy
 
 import TrkFile as trkf
-tts = [('grone','crop'),('2stageBBox','first')]
+tts = [('grone','crop'),('2stageBBox_hrformer','first')]
 acc = []
 missing = []
 for cur_mov in movies:

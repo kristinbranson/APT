@@ -439,9 +439,16 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
                                    'num_keypoints': cur_locs.shape[1], 'bbox': bbox,
                                    'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
-    if (extra_roi is not None) and conf.multi_loss_mask:
+    if conf.multi_loss_mask:
+        if extra_roi is None:
+            extra_roi_use = roi
+        else:
+            if roi is not None:
+                extra_roi_use = np.concatenate([roi, extra_roi], 0)
+            else:
+                extra_roi_use = extra_roi
         # add the neg roi only if using masking. Otherwise mmpose can get touchy
-        for cur_roi in extra_roi:
+        for cur_roi in extra_roi_use:
             annid = coco_info['ann_ndx']
             coco_info['ann_ndx'] += 1
             lmin = cur_roi.min(axis=0)
@@ -456,7 +463,7 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
                 out_locs = np.zeros([conf.n_classes, 3])
             ann['annotations'].append({'iscrowd': 1, 'segmentation': segm, 'area': 1, 'image_id': ndx, 'id': annid,
                                        'num_keypoints': conf.n_classes, 'bbox': bbox,
-                                       'keypoints': out_locs.flatten().tolist(), 'category_id': 2})
+                                       'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
 
 def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), max_nsamples=np.Inf, use_cache=True, db_dict=None,
@@ -1109,6 +1116,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'hrformer': 'HRFormer',
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
+                      'multi_dekr': 'DeKR',
                       }
 
     if not 'ProjectFile' in A:
@@ -2624,7 +2632,7 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
             tf1.reset_default_graph()
             poser = getattr(pose_module, module_name)(conf, name=name)
         except ImportError:
-            raise ImportError(f'Undefined type of network:{model_type}')
+                raise ImportError(f'Undefined type of network:{model_type}')
 
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
@@ -2957,7 +2965,11 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
     bsize = conf.batch_size
     n_batches = int(math.ceil(float(n) / bsize))
 
-    all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
+    if conf.imresize_expand:
+        assert conf.batch_size == 1, "imresize_expand only works with batch_size=1"
+        all_f = []
+    else:
+        all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
     if conf.is_multi:
         labeled_locs = np.zeros([n, conf.max_n_animals,conf.n_classes, 2])
     else:
@@ -2983,7 +2995,10 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
                 labeled_locs[cur_start + ndx, ...] = next_db['locs']
                 info.append(next_db['info'])
             else:
-                all_f[ndx, ...] = next_db[0]
+                if conf.imresize_expand:
+                    all_f = next_db[0][None]
+                else:
+                    all_f[ndx, ...] = next_db[0]
                 labeled_locs[cur_start + ndx, ...] = next_db[1]
                 info.append(next_db[2])
 
