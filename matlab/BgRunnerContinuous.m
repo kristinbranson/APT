@@ -2,7 +2,7 @@ classdef BgRunnerContinuous < handle
   % BgRunnerContinuous is a worker that runs a repeated computation in the
   % background at regular intervals. Each time it runs its computation, it
   % sends a message back. After starting, all you can do is tell it to 
-  % stop.
+  % stop.  Oh, and also to report its status.
   
   properties (Constant)
     STOPACTION = 'STOP';
