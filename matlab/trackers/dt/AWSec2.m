@@ -32,8 +32,6 @@ classdef AWSec2 < matlab.mixin.Copyable
     pem = ''
     instanceType = 'p3.2xlarge';
     remotePID
-    %SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n'])
-    %ClearStatusFun = @(varargin) fprintf('Done.\n')
   end
   
   properties (Transient)
@@ -52,35 +50,20 @@ classdef AWSec2 < matlab.mixin.Copyable
   methods
   end
   
-  methods
-    
+  methods    
     function obj = AWSec2(varargin)
-      
-%       if ispc()
-%         windows_null_device_path = '\\.\NUL' ;
-%         obj.scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
-%         obj.sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
-%       else
-%         obj.scpCmd = 'scp -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
-%         obj.sshCmd = 'ssh -oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR';
-%       end
-
       for i=1:2:numel(varargin)
         prop = varargin{i};
         val = varargin{i+1};
         obj.(prop) = val;
-      end
-      
+      end      
     end
     
     function delete(obj)  %#ok<INUSD> 
       % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
-    end
-    
+    end    
   end
-      % NOTE: for now, lifecycle of obj is not tied at all to the actual
-      % instance-in-the-cloud
 
   methods    
     function set.instanceID(obj,v)
@@ -103,31 +86,6 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.isInDebugMode_ = value ;
     end
 
-%     function SetStatus(obj,varargin)
-% %       if ~isempty(obj.SetStatusFun),
-% %         obj.SetStatusFun(varargin{:});
-% %       end
-%     end
-% 
-%     function ClearStatus(obj,varargin)
-% %       if ~isempty(obj.ClearStatusFun),
-% %         obj.ClearStatusFun(varargin{:});
-% %       end
-%     end
-% 
-%     function clearStatusFuns(obj)
-% %       % AL20191218
-% %       % AWSEc2 objects are deep-copied onto bg worker objects and this is
-% %       % causing problems on Linux because these function handles contain
-% %       % references to the Labeler and the entire GUI is being
-% %       % serialized/copied. 
-% %       %
-% %       % For these worker objects these statusFun handles are unnec and we 
-% %       % clear them out.
-% %       obj.SetStatusFun = [];
-% %       obj.ClearStatusFun = [];
-%     end
-    
     function setInstanceID(obj,instanceID,instanceType)
       %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
       if ~isempty(obj.instanceID),
@@ -137,7 +95,7 @@ classdef AWSec2 < matlab.mixin.Copyable
           return;
         end
         %instanceID = obj.instanceID;
-        [tfexist,tfrunning,json] = obj.inspectInstance();
+        [tfexist,tfrunning] = obj.inspectInstance();
         if tfexist && tfrunning,
           tfsucc = obj.stopInstance();
           if ~tfsucc,
@@ -249,36 +207,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       state = json.Reservations.Instances.State.Name;      
     end
     
-    function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)
-      [tfsucc,instanceID,pemFile] = ...
-        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
-    end
-    
-    function [tfsucc,keyName,pemFile] = specifyPemKeyType(obj,dostore)
-      if nargin < 2,
-        dostore = false;
-      end
-      [tfsucc,keyName,pemFile] = ...
-        obj.specifySSHKeyUIStc(obj.keyName,obj.pem);
-      if tfsucc && dostore,
-        obj.setPemFile(pemFile);
-        obj.setKeyName(keyName);
-      end
-    end
-    
-    function [tfsucc,json] = stopInstance(obj,varargin)
-      [isinteractive] = myparse(varargin,'isinteractive',false);
+    function [tfsucc,json] = stopInstance(obj)
       if ~obj.isSpecified,
         tfsucc = true;
         json = {};
         return;
-      end
-      if isinteractive,
-        res = questdlg(sprintf('Stop AWS instance %s? If you stop your instance, running other computations on AWS will have some overhead as the instance is re-initialized. If you do not stop the instance now, you may need to manually stop the instance in the future.',obj.instanceID),'Stop AWS Instance');
-        if ~strcmpi(res,'Yes'),
-          tfsucc = false;
-          return;
-        end
       end
       %obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
@@ -315,8 +248,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       %obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
       [doblock] = myparse(varargin,'doblock',true);
       
-      maxwaittime = 100;
-      iterwaittime = 5;
+      %maxwaittime = 100;
+      %iterwaittime = 5;
       warningstr = '';
       [tfsucc,state,json] = obj.getInstanceState();
       if ~tfsucc,
@@ -715,7 +648,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       tfsucc = AWSec2.syscmd(cmd) ;
     end
 
-    function rmRemoteFile(obj,dst,fileDescStr,varargin) % throws
+    function rmRemoteFile(obj,dst,~,varargin)
       % Either i) confirm a remote file does not exist, or ii) deletes it.
       % This method either succeeds or fails and harderrors.
       %
@@ -1151,78 +1084,6 @@ classdef AWSec2 < matlab.mixin.Copyable
 %         args{end+1} = sprintf('''%s''',cmdremote);
 %       end
       cmd = String.cellstr2DelimList(args,' ');
-    end  % function
-
-    function [tfsucc,instanceID,pemFile] = ...
-                              specifyInstanceUIStc(instanceID,pemFile)
-      % Prompt user to specify/confirm an AWS instance.
-      % 
-      % instanceID, pemFile (in): optional defaults/best guesses
-      
-      if nargin<1
-        instanceID = '';
-      end
-      if nargin<2
-        pemFile = '';
-      end
-      
-      PROMPT = {
-        'Instance ID'
-        'Private key (.pem) file'
-        };
-      NAME = 'AWS EC2 Config';
-      INPUTBOXWIDTH = 100;
-      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
-
-      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
-        {instanceID;pemFile},'on',BROWSEINFO);
-      tfsucc = ~isempty(resp);      
-      if tfsucc
-        instanceID = strtrim(resp{1});
-        pemFile = strtrim(resp{2});
-        if exist(pemFile,'file')==0
-          error('Cannot find private key (.pem) file %s.',pemFile);
-        end
-      else
-        instanceID = [];
-        pemFile = [];
-      end      
-    end
-    
-    function [tfsucc,keyName,pemFile] = ...
-        specifySSHKeyUIStc(keyName,pemFile)
-      % Prompt user to specify pemFile
-      % 
-      % keyName, pemFile (in): optional defaults/best guesses
-      
-      if nargin<1 || isempty(keyName),
-        keyName = '';
-      end
-      if nargin<2 || isempty(pemFile),
-        pemFile = '';
-      end
-      
-      PROMPT = {
-        'Key name'
-        'Private key (.pem or id_rsa) file'
-        };
-      NAME = 'AWS EC2 Config';
-      INPUTBOXWIDTH = 100;
-      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
-
-      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
-        {keyName;pemFile},'on',BROWSEINFO);
-      tfsucc = ~isempty(resp);      
-      if tfsucc
-        keyName = strtrim(resp{1});
-        pemFile = strtrim(resp{2});
-        if exist(pemFile,'file')==0
-          error('Cannot find private key (.pem or id_rsa) file %s.',pemFile);
-        end
-      else
-        keyName = '';
-        pemFile = '';
-      end      
     end  % function
 
     function scpCmd = computeScpCmd()

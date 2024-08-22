@@ -2563,40 +2563,9 @@ be.testConfigUI(cacheDir);
       
 function cbkTrackerBackendAWSSetInstance(src,evt)
 error('Implemented elsewhere') ;
-% handles = guidata(src);
-% lObj = handles.labelerObj;
-% %be = lObj.trackDLBackEnd;
-% assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
-% 
-% % aws = be.awsec2;
-% % if ~isempty(aws)
-%   %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
-%   [tfsucc,~,~,~] = lObj.trackDLBackEnd.awsec2.selectInstance();
-% % else
-% %   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
-% % end
-% 
-% if tfsucc
-% %   lObj.trackDLBackEnd.awsec2.setInstanceID(instanceID);
-% %   lObj.trackDLBackEnd.awsec2.setPemFile(pemFile);
-% %   aws = AWSec2(pemFile,'instanceID',instanceID);
-% %   be.awsec2 = aws;
-%   %aws.checkInstanceRunning('throwErrs',false);
-%   %lObj.trackSetDLBackend(be);
-% end
 
 function cbkTrackerBackendAWSConfigure(src,evt)
 error('Implemented elsewhere') ;
-% handles = guidata(src);
-% lObj = handles.labelerObj;
-% assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
-% 
-% [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance('canlaunch',1,...
-%   'canconfigure',2,'forceSelect',1);
-% if ~tfsucc,
-%   warning('Problem configuring: %s',reason);
-% end
-
 
 function cbkTrackerBackendSetJRCNSlots(src,evt)
 handles = guidata(src);

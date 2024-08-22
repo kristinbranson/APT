@@ -341,7 +341,12 @@ classdef LabelerController < handle
       ec2 = backend.awsec2 ;
       if ~ec2.isConfigured || canConfigure >= 2,
         if canConfigure,
-          [tfsucc] = ec2.specifyPemKeyType(true);
+          [tfsucc,keyName,pemFile] = ...
+            specifySSHKeyUIStc(ec2.keyName,ec2.pem);
+          if tfsucc ,
+            ec2.setPemFile(pemFile);
+            ec2.setKeyName(keyName);
+          end
           if ~tfsucc && ~ec2.isConfigured,
             reason = 'AWS EC2 instance is not configured.';
             error(reason) ;
