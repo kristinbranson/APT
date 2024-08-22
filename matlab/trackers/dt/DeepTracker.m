@@ -4226,13 +4226,13 @@ classdef DeepTracker < LabelTracker
         '/groups/branson/home'
         '/nrs/branson'
         '/scratch'};      
-      dobj = DLBackEndClass(1);
+      %dobj = DLBackEndClass(1);
       [bindpath,singimg] = myparse(varargin,...
         'bindpath',DFLTBINDPATH,...
         'singimg',''...
         );
       assert(~isempty(singimg)) ;
-      delete(dobj);
+      %delete(dobj);
       bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
       Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
       Bflagsstr = sprintf('%s ',Bflags{:});

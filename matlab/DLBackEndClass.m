@@ -88,33 +88,27 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockerimgfull % full docker img spec (with tag if specified)
     singularity_image_path
     singularity_detection_image_path
+    isInDebugMode
   end
   
+  properties (Transient)
+    isInDebugMode_ = false
+  end
+
   methods
-    function obj = DLBackEndClass(ty, oldbe)
+    function obj = DLBackEndClass(ty, isInDebugMode)
       if ~exist('ty', 'var') || isempty(ty) ,
         ty = DLBackEnd.Docker ;
       end
-      assert(isa(ty, 'DLBackEnd')) ;
+      if ~exist('isInDebugMode', 'var') || isempty(isInDebugMode) ,
+        isInDebugMode = false ;
+      end
       obj.type = ty ;
+      obj.isInDebugMode_ = isInDebugMode ;
       % Set the singularity fields to valid values
       obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
       obj.singularity_detection_image_path_ = '' ;
-      % Copy over stuff from the old backend
-      if exist('oldbe', 'var') && ~isempty(oldbe) ,
-        % save state
-        obj.deepnetrunlocal = oldbe.deepnetrunlocal;
-        obj.awsec2 = oldbe.awsec2;
-        obj.dockerimgroot = oldbe.dockerimgroot;
-        obj.dockerimgtag = oldbe.dockerimgtag;
-        obj.condaEnv = oldbe.condaEnv;
-        obj.singularity_image_path_ = oldbe.singularity_image_path_ ;
-        obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
-        obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
-        obj.jrcAdditionalBsubArgs = oldbe.jrcAdditionalBsubArgs ;
-        obj.didUploadMovies_ = oldbe.didUploadMovies_ ;
-      end
     end
   end
   
@@ -125,6 +119,19 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       else
         v = '/';
       end
+    end
+
+    function set.type(obj, value)
+      assert(isa(value, 'DLBackEnd')) ;
+      old_value = obj.type ;
+      % If switching to AWS from something else, take steps
+      if (isempty(old_value) || old_value~=DLBackEnd.AWS) && value==DLBackEnd.AWS ,        
+        if isempty(obj.awsec2) ,
+          obj.awsec2 = AWSec2('isInDebugMode', obj.isInDebugMode_) ;
+        end
+      end
+      % Finally, assign the value
+      obj.type = value ;      
     end
 
     function v = get.dockerimgfull(obj)
@@ -428,18 +435,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function shutdown(obj)
-      if obj.type==DLBackEnd.AWS
-        aws = obj.awsec2;
-        if ~isempty(aws)
-          fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
-          % DEBUGAWS: Comment this out while debugging AWS--- stopping the AWS instance
-          % takes too long!
-          tfsucc = aws.stopInstance();
-          if ~tfsucc
-            warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
-          end
-        end
-      end
+      obj.stopEc2InstanceIfNeeded_() ;
     end
     
     function obj2 = copyAndDetach(obj)
@@ -452,9 +448,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       assert(isscalar(obj));
       obj2 = copy(obj);
-      if ~isempty(obj2.awsec2)
-        obj2.awsec2.clearStatusFuns();
-      end
+%       if ~isempty(obj2.awsec2)
+%         obj2.awsec2.clearStatusFuns();
+%       end
     end  % function
   end  % methods
 
@@ -1814,4 +1810,34 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end  
     end
   end
-end
+
+  methods   % private by convention
+    function stopEc2InstanceIfNeeded_(obj)
+      aws = obj.awsec2;
+      if ~isempty(aws)
+        % DEBUGAWS: Stopping the AWS instance takes too long when debugging.
+        if obj.isInDebugMode_ ,
+          return
+        end
+        fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
+        tfsucc = aws.stopInstance();
+        if ~tfsucc
+          warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
+        end
+      end
+    end  % function    
+  end  % methods block
+
+  methods
+    function result = get.isInDebugMode(obj)
+      result = obj.isInDebugMode_ ;
+    end
+
+    function set.isInDebugMode(obj, value)
+      obj.isInDebugMode_ = value ;
+      if ~isempty(obj.awsec2) ,
+        obj.awsec2.isInDebugMode = value ;
+      end
+    end    
+  end  % methods block
+end  % classdef

@@ -69,11 +69,11 @@ classdef APT_helper
       
     end
     
-    function set_backend(lObj, backend)
-      beType = DLBackEndFromString(backend) ;
-      be = DLBackEndClass(beType,lObj.trackGetDLBackend);
-      lObj.trackSetDLBackend(be);
-    end
+%     function set_backend(lObj, backend)
+%       beType = DLBackEndFromString(backend) ;
+%       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
+%       lObj.trackSetDLBackend(be);
+%     end
     
     function lObj = new_proj(proj_name, npts,ismulti,varargin)
       [nviews,has_trx] = myparse(varargin,...

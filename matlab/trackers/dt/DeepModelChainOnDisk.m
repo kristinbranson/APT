@@ -1022,18 +1022,18 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     function obj2 = copyAndDetach(obj)
       obj2 = copy(obj);
-      obj2.prepareBg();
+      %obj2.prepareBg();
     end    
 
-    function prepareBg(obj)
-      % 'Detach' a DMC for use in bg processes
-      % Typically you would deepcopy the DMC before calling this
-      for i=1:numel(obj)
-%         if ~isempty(obj(i).reader)
-%           obj(i).reader.prepareBg();
-%         end
-      end
-    end
+%     function prepareBg(obj)
+%       % 'Detach' a DMC for use in bg processes
+%       % Typically you would deepcopy the DMC before calling this
+%       for i=1:numel(obj)
+% %         if ~isempty(obj(i).reader)
+% %           obj(i).reader.prepareBg();
+% %         end
+%       end
+%     end
 
     function [fileinfo,idx] = trainFileInfo(obj,varargin) 
       idx = obj.select(varargin{:});

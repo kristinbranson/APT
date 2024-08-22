@@ -306,11 +306,131 @@ classdef LabelerController < handle
       end
     end  % method
 
-    function menu_quit_but_dont_delete_temp_folder_actuated(obj, source, event)
+    function menu_quit_but_dont_delete_temp_folder_actuated(obj, source, event)  %#ok<INUSD> 
       obj.labeler_.projTempDirDontClearOnDestructor = true ;
       obj.quitRequested() ;
     end  % method    
+
+    function menu_track_backend_config_aws_configure_actuated(obj, source, event)  %#ok<INUSD> 
+      obj.selectAwsInstance_('canlaunch',1,...
+                             'canconfigure',2, ...
+                             'forceSelect',1) ;
+    end
+
+    function menu_track_backend_config_aws_setinstance_actuated(obj, source, event)  %#ok<INUSD> 
+      obj.selectAwsInstance_() ;
+    end
   end  % public methods block
+
+  methods  % private by convention methods block
+    function selectAwsInstance_(obj, varargin)
+      [canLaunch,canConfigure,forceSelect] = ...
+        myparse(varargin, ...
+                'canlaunch',true,...
+                'canconfigure',1,...
+                'forceSelect',true);
+            
+      labeler = obj.labeler_ ;
+      backend = labeler.trackDLBackEnd ;
+      if isempty(backend) ,
+        error('Backend not configured') ;
+      end
+      if backend.type ~= DLBackEnd.AWS ,
+        error('Backend is not of type AWS') ;
+      end        
+      ec2 = backend.awsec2 ;
+      if ~ec2.isConfigured || canConfigure >= 2,
+        if canConfigure,
+          [tfsucc] = ec2.specifyPemKeyType(true);
+          if ~tfsucc && ~ec2.isConfigured,
+            reason = 'AWS EC2 instance is not configured.';
+            error(reason) ;
+          end
+        else
+          reason = 'AWS EC2 instance is not configured.';
+          error(reason) ;
+        end
+      end
+      if forceSelect || ~ec2.isSpecified,
+        if ec2.isSpecified ,
+          instanceID = ec2.instanceID;
+        else
+          instanceID = '';
+        end
+        if canLaunch,
+          qstr = 'Launch a new instance or attach to an existing instance?';
+          if ~ec2.isSpecified,
+            qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
+          else
+            qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
+          end
+          tstr = 'Specify AWS EC2 instance';
+          btn = questdlg(qstr,tstr,'Launch New','Attach to Existing','Cancel','Cancel');
+          if isempty(btn)
+            btn = 'Cancel';
+          end
+        else
+          btn = 'Attach to Existing';
+        end
+        while true,
+          switch btn
+            case 'Launch New'
+              tf = ec2.launchInstance();
+              if ~tf
+                reason = 'Could not launch AWS EC2 instance.';
+                error(reason) ;
+              end
+              break
+            case 'Attach to Existing',
+              [tfsucc,instanceIDs,instanceTypes] = ec2.listInstances();
+              if ~tfsucc,
+                reason = 'Error listing instances.';
+                error(reason) ;
+              end
+              if isempty(instanceIDs),
+                if canLaunch,
+                  btn = questdlg('No instances found. Launch a new instance?',tstr,'Launch New','Cancel','Cancel');
+                  continue
+                else
+                  reason = 'No instances found.';
+                  error(reason) ;
+                end
+              end
+              
+              PROMPT = {
+                'Instance'
+                };
+              NAME = 'AWS EC2 Select Instance';
+              INPUTBOXWIDTH = 100;
+              BROWSEINFO = struct('type',{'popupmenu'});
+              s = cellfun(@(x,y) sprintf('%s (%s)',x,y),instanceIDs,instanceTypes,'Uni',false);
+              v = 1;
+              if ~isempty(ec2.instanceID),
+                v = find(strcmp(instanceIDs,ec2.instanceID),1);
+                if isempty(v),
+                  v = 1;
+                end
+              end
+              DEFVAL = {{s,v}};
+              resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],1,1),...
+                                        DEFVAL,'on',BROWSEINFO);
+              tfsucc = ~isempty(resp);
+              if tfsucc
+                instanceID = instanceIDs{resp{1}};
+                instanceType = instanceTypes{resp{1}};
+              else
+                return
+              end
+              break
+            otherwise
+              % This is a cancel
+              return
+          end
+        end
+        ec2.setInstanceID(instanceID,instanceType);
+      end
+    end  % function selectAwsInstance_()
+  end  % private by-convention methods block
 
   methods
     function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked

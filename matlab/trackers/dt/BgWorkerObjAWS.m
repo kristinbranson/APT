@@ -30,15 +30,15 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       
       obj2 = copy(obj); % deep-copies obj, including .awsec2 and .dmcs if appropriate
 
-      dmcs = obj.dmcs;
-      if ~isempty(dmcs)
-        dmcs.prepareBg();
-      end
+%       dmcs = obj.dmcs;
+%       if ~isempty(dmcs)
+%         dmcs.prepareBg();
+%       end
 
-      aws = obj.awsEc2;
-      if ~isempty(aws)
-        aws.clearStatusFuns();
-      end      
+%       aws = obj.awsEc2;
+%       if ~isempty(aws)
+%         aws.clearStatusFuns();
+%       end      
     end    
     
     function tf = fileExists(obj, f)

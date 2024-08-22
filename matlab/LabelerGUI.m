@@ -2343,18 +2343,19 @@ if ~isfield(handles,'menu_track_backend_config')
     'Tag','menu_track_backend_config_jrc_set_singularity_image');  
 
   % AWS submenu (enabled when backend==AWS)
-  handles.menu_track_backend_config_aws_setinstance = uimenu( ...
-    'Parent',handles.menu_track_backend_config,...
-    'Separator','on',...
-    'Label','(AWS) Set EC2 instance',...
-    'Callback',@cbkTrackerBackendAWSSetInstance,...
-    'Tag','menu_track_backend_config_aws_setinstance');  
-  
   handles.menu_track_backend_config_aws_configure = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(AWS) Configure...',...
-    'Callback',@cbkTrackerBackendAWSConfigure,...
+    'Callback',@LabelerGUIControlActuated,...
     'Tag','menu_track_backend_config_aws_configure');  
+
+  handles.menu_track_backend_config_aws_setinstance = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(AWS) Set EC2 instance',...
+    'Callback',@LabelerGUIControlActuated,...
+    'Tag','menu_track_backend_config_aws_setinstance');  
+%    'Callback',@cbkTrackerBackendAWSSetInstance,...
   
   % Docker 'submenu' (added by KB)
   handles.menu_track_backend_config_setdockerssh = uimenu( ...
@@ -2514,8 +2515,7 @@ function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 beType = src.UserData;
-be = DLBackEndClass(beType,lObj.trackGetDLBackend());
-lObj.trackSetDLBackend(be);
+lObj.setBackendType(beType) ;
 
 function cbkTrackerBackendMenuMoreInfo(src,evt)
 
@@ -2562,51 +2562,41 @@ be.testConfigUI(cacheDir);
       
       
 function cbkTrackerBackendAWSSetInstance(src,evt)
-handles = guidata(src);
-lObj = handles.labelerObj;
-%be = lObj.trackDLBackEnd;
-assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
-
-% aws = be.awsec2;
-% if ~isempty(aws)
-  %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
-  [tfsucc,~,~,~] = lObj.trackDLBackEnd.awsec2.selectInstance();
-% else
-%   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+error('Implemented elsewhere') ;
+% handles = guidata(src);
+% lObj = handles.labelerObj;
+% %be = lObj.trackDLBackEnd;
+% assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
+% 
+% % aws = be.awsec2;
+% % if ~isempty(aws)
+%   %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
+%   [tfsucc,~,~,~] = lObj.trackDLBackEnd.awsec2.selectInstance();
+% % else
+% %   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
+% % end
+% 
+% if tfsucc
+% %   lObj.trackDLBackEnd.awsec2.setInstanceID(instanceID);
+% %   lObj.trackDLBackEnd.awsec2.setPemFile(pemFile);
+% %   aws = AWSec2(pemFile,'instanceID',instanceID);
+% %   be.awsec2 = aws;
+%   %aws.checkInstanceRunning('throwErrs',false);
+%   %lObj.trackSetDLBackend(be);
 % end
 
-if tfsucc
-%   lObj.trackDLBackEnd.awsec2.setInstanceID(instanceID);
-%   lObj.trackDLBackEnd.awsec2.setPemFile(pemFile);
-%   aws = AWSec2(pemFile,'instanceID',instanceID);
-%   be.awsec2 = aws;
-  %aws.checkInstanceRunning('throwErrs',false);
-  %lObj.trackSetDLBackend(be);
-end
-
 function cbkTrackerBackendAWSConfigure(src,evt)
-handles = guidata(src);
-lObj = handles.labelerObj;
-%be = lObj.trackDLBackEnd;
-assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
+error('Implemented elsewhere') ;
+% handles = guidata(src);
+% lObj = handles.labelerObj;
+% assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
+% 
+% [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance('canlaunch',1,...
+%   'canconfigure',2,'forceSelect',1);
+% if ~tfsucc,
+%   warning('Problem configuring: %s',reason);
+% end
 
-%aws = be.awsec2;
-%if ~isempty(aws)
-  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance('canlaunch',1,...
-    'canconfigure',2,'forceSelect',1);
-  if ~tfsucc,
-    warning('Problem configuring: %s',reason);
-  end
-%else
-%  [tfsucc,keyName,pemFile] = AWSec2.specifySSHKeyUIStc();
-%end
-
-if tfsucc  
-%   aws = AWSec2(pemFile,'keyName',keyName);
-%   be.awsec2 = aws;
-  %aws.checkInstanceRunning('throwErrs',false);
-%   lObj.trackSetDLBackend(be);
-end
 
 function cbkTrackerBackendSetJRCNSlots(src,evt)
 handles = guidata(src);
