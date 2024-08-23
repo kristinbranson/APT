@@ -36,9 +36,17 @@ classdef BgRunnerContinuous < handle
       logger = FileLogger('BgRunnerContinuous.log', 'BgRunnerContinuous') ;
 
       logger.log('Inside BgRunnerContinuous::run()\n') ;
+
+      logger.log('cObj:\n') ;
+      logger.log(formattedDisplayText(cObj)) ;
+      logger.log('\n') ;
+
       if isa(cObj, 'BgTrackWorkerObjAWS') ,
-        logger.log('cObj.awsEc2.sshCmd: %s\n', cObj.awsEc2.sshCmd) ;
-      end
+        logger.log('cObj.awsEc2:\n') ;
+        logger.log(formattedDisplayText(cObj.awsEc2)) ;
+        logger.log('\n') ;
+      end      
+
       assert(isa(dataQueue,'parallel.pool.DataQueue'));
       pdQueue = parallel.pool.PollableDataQueue;
       dataQueue.send(pdQueue);

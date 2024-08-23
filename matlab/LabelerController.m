@@ -344,8 +344,8 @@ classdef LabelerController < handle
           [tfsucc,keyName,pemFile] = ...
             specifySSHKeyUIStc(ec2.keyName,ec2.pem);
           if tfsucc ,
-            ec2.setPemFile(pemFile);
-            ec2.setKeyName(keyName);
+            % For changing things in the model, we go through the top-level model object
+            labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
           end
           if ~tfsucc && ~ec2.isConfigured,
             reason = 'AWS EC2 instance is not configured.';
@@ -432,7 +432,9 @@ classdef LabelerController < handle
               return
           end
         end
-        ec2.setInstanceID(instanceID,instanceType);
+        % For changing things in the model, we go through the top-level model object
+        labeler.setAwsInstanceId(instanceID, instanceType) ;
+        %ec2.setInstanceID(instanceID,instanceType);
       end
     end  % function selectAwsInstance_()
   end  % private by-convention methods block

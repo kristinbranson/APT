@@ -27,14 +27,15 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
 
   properties
-    instanceIP
     keyName = ''
     pem = ''
     instanceType = 'p3.2xlarge';
-    remotePID
   end
   
-  properties (Transient)
+  properties  % (Transient)  Making these transient means they don't get copied over when you pass an AWSec2 in an arg to parfeval()!
+              %              We'll just have to be smart about handling them when loading.
+    instanceIP
+    remotePID
     isInDebugMode_ = false
   end
   
@@ -45,9 +46,6 @@ classdef AWSec2 < matlab.mixin.Copyable
     scpCmd = AWSec2.computeScpCmd()
     sshCmd = AWSec2.computeSshCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
-  end
-  
-  methods
   end
   
   methods    

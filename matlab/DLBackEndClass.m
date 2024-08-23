@@ -39,7 +39,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     jrcsimplebindpaths = true  % whether to bind '/groups', '/nrs' for the Bsub/JRC backend
         
     % Used only for type==AWS
-    awsec2  % empty, or a scalar AWSec2 object (a handle class)
+    awsec2  % a scalar AWSec2 object (present whether we need it or not)
     awsgitbranch  
       % Stores the branch name of APT to use when updating APT on the AWS EC2
       % instance.  This is never set in the APT codebase, as near as I can tell.
@@ -109,6 +109,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
       obj.singularity_detection_image_path_ = '' ;
+      % Just populate this now, whether or not we end up using it      
+      obj.awsec2 = AWSec2('isInDebugMode', isInDebugMode) ;
     end
   end
   
@@ -491,6 +493,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       end
       % 20211101 turn on by default
       obj.jrcsimplebindpaths = 1;
+      % In modern versions, we always have a .awsec2, whether we need it or not
+      if isempty(obj.awsec2) ,
+        obj.awsec2 = AWSec2() ;
+      end
+      % On load, clear the .awsec2 fields that should be Transient, but can't be b/c
+      % we need them to survive going through parfeval()
+      obj.awsec2.instanceIP = [] ;
+      obj.awsec2.remotePID = [] ;
+      obj.awsec2.isInDebugMode = obj.isInDebugMode_ ;
     end
     
     function testConfigUI(obj,cacheDir)
