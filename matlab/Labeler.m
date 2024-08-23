@@ -217,6 +217,7 @@ classdef Labeler < handle
     
     isgui = false  % whether there is a GUI
     isInDebugMode = false  % whether the Labeler is in debug mode.  Controls e.g. whether the Debug menu is shown.
+    isInAwsDebugMode = false  % whether the Labeler is in AWS debug mode.  Controls e.g. whether AWS is shutdown at exit.
     unTarLoc = ''  % location that project has most recently been untarred to
     
     projRngSeed = 17 
@@ -1533,12 +1534,14 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      [isgui, isInDebugMode] = ...
+      [isgui, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
                         'isgui', false, ...
-                        'isInDebugMode', false) ;
+                        'isInDebugMode', false, ...
+                        'isInAwsDebugMode', false) ;
       obj.isgui = isgui ;
       obj.isInDebugMode = isInDebugMode ;
+      obj.isInAwsDebugMode = isInAwsDebugMode ;
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,
@@ -1758,9 +1761,9 @@ classdef Labeler < handle
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 0;
       
-      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub, obj.isInDebugMode);
+      obj.trackDLBackEnd = DLBackEndClass();
+      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
       obj.trackParams = [];
-
       
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
@@ -2575,9 +2578,9 @@ classdef Labeler < handle
       [~,prevModeInfo] = obj.FixPrevModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
       obj.setPrevAxesMode(pamode,prevModeInfo);
       
-      % Make sure the debug mode of the backend is consistent with the Labeler debug
+      % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
-      obj.trackDLBackEnd.isInDebugMode = obj.isInDebugMode ;
+      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
  
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
@@ -2785,7 +2788,8 @@ classdef Labeler < handle
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 1;
       
-      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub, obj.isInDebugMode);
+      obj.trackDLBackEnd = DLBackEndClass() ;
+      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
       % not resetting trackParams, hopefully nothing in here that depends
       % on number of landmarks
       %obj.trackParams = [];
@@ -3670,10 +3674,10 @@ classdef Labeler < handle
       % prop on Labeler
       if ~isfield(s,'trackDLBackEnd') || ~isa(s.trackDLBackEnd, 'DLBackEndClass') ,
         % maybe change this by looking thru existing trackerDatas
-        s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub, obj.isInDebugMode);
+        s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       end
       % 20201028 docker/sing backend img/tag update
-      s.trackDLBackEnd.modernize();        
+      s.trackDLBackEnd.modernize();
       
       % 20181220 DL common parameters
       assert(isTrackParams);      
@@ -10007,7 +10011,7 @@ classdef Labeler < handle
       backend = obj.trackDLBackEnd;
       if backend.type == DLBackEnd.AWS
         warning('Cannot use AWS cloud to do GT computation, using Docker backend on local computer. If no GPUs are available locally, CPUs will be used.')
-        backend = DLBackEndClass(DLBackEnd.Docker, obj.isInDebugMode);
+        backend = DLBackEndClass(DLBackEnd.Docker);
       end
 
       if ~obj.gtIsGTMode

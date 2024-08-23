@@ -88,29 +88,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockerimgfull % full docker img spec (with tag if specified)
     singularity_image_path
     singularity_detection_image_path
-    isInDebugMode
+    isInAwsDebugMode
   end
   
-  properties (Transient)
-    isInDebugMode_ = false
-  end
-
   methods
-    function obj = DLBackEndClass(ty, isInDebugMode)
+    function obj = DLBackEndClass(ty)
       if ~exist('ty', 'var') || isempty(ty) ,
-        ty = DLBackEnd.Docker ;
-      end
-      if ~exist('isInDebugMode', 'var') || isempty(isInDebugMode) ,
-        isInDebugMode = false ;
+        ty = DLBackEnd.Bsub ;
       end
       obj.type = ty ;
-      obj.isInDebugMode_ = isInDebugMode ;
       % Set the singularity fields to valid values
       obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
       obj.singularity_detection_image_path_ = '' ;
       % Just populate this now, whether or not we end up using it      
-      obj.awsec2 = AWSec2('isInDebugMode', isInDebugMode) ;
+      obj.awsec2 = AWSec2() ;
     end
   end
   
@@ -125,14 +117,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function set.type(obj, value)
       assert(isa(value, 'DLBackEnd')) ;
-      old_value = obj.type ;
-      % If switching to AWS from something else, take steps
-      if (isempty(old_value) || old_value~=DLBackEnd.AWS) && value==DLBackEnd.AWS ,        
-        if isempty(obj.awsec2) ,
-          obj.awsec2 = AWSec2('isInDebugMode', obj.isInDebugMode_) ;
-        end
-      end
-      % Finally, assign the value
       obj.type = value ;      
     end
 
@@ -501,7 +485,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % we need them to survive going through parfeval()
       obj.awsec2.instanceIP = [] ;
       obj.awsec2.remotePID = [] ;
-      obj.awsec2.isInDebugMode = obj.isInDebugMode_ ;
+      obj.awsec2.isInDebugMode = false ;
     end
     
     function testConfigUI(obj,cacheDir)
@@ -1825,30 +1809,25 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods   % private by convention
     function stopEc2InstanceIfNeeded_(obj)
       aws = obj.awsec2;
-      if ~isempty(aws)
-        % DEBUGAWS: Stopping the AWS instance takes too long when debugging.
-        if obj.isInDebugMode_ ,
-          return
-        end
-        fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
-        tfsucc = aws.stopInstance();
-        if ~tfsucc
-          warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
-        end
+      % DEBUGAWS: Stopping the AWS instance takes too long when debugging.
+      if aws.isInDebugMode ,
+        return
+      end
+      fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
+      tfsucc = aws.stopInstance();
+      if ~tfsucc
+        warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
       end
     end  % function    
   end  % methods block
 
   methods
-    function result = get.isInDebugMode(obj)
-      result = obj.isInDebugMode_ ;
+    function result = get.isInAwsDebugMode(obj)
+      result = obj.awsec2.isInDebugMode ;
     end
 
-    function set.isInDebugMode(obj, value)
-      obj.isInDebugMode_ = value ;
-      if ~isempty(obj.awsec2) ,
-        obj.awsec2.isInDebugMode = value ;
-      end
+    function set.isInAwsDebugMode(obj, value)
+      obj.awsec2.isInDebugMode = value ;
     end    
   end  % methods block
 end  % classdef
