@@ -28,7 +28,7 @@ classdef BgRunnerContinuous < handle
     end    
 
     function delete(obj)  %#ok<INUSD> 
-      fprintf('A BgRunnerContinuous is being deleted.\n') ;
+      %fprintf('A BgRunnerContinuous is being deleted.\n') ;
     end
     
     function status = run(obj,dataQueue,cObj,cObjMeth,callInterval)
