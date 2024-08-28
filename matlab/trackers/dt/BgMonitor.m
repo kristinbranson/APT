@@ -41,6 +41,7 @@ classdef BgMonitor < handle
     % call a "didCompleteBgMonitor" method of the parent when complete.  The
     % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
     parent_
+    projTempDirMaybe_
   end
 
   properties (Dependent)
@@ -80,11 +81,18 @@ classdef BgMonitor < handle
       % bgResultsReceivedHook method. These work in concert and the 
       % custom actions taken by bgResultsReceivedHook depends on custom 
       % info supplied by bgWorkerObj.
-      [track_type] = myparse(varargin,'track_type','movie');
+      [track_type, projTempDir] = myparse(varargin, ...
+                                          'track_type', 'movie', ...
+                                          'projTempDir', []);
       if strcmp(track_type,'movie')
         compute_fcn_name = 'compute';
       else
         compute_fcn_name = 'computeList';
+      end
+      if isempty(projTempDir) ,
+        obj.projTempDirMaybe_ = {} ;
+      else
+        obj.projTempDirMaybe_ = { projTempDir } ;
       end
 
       %obj.reset_();  % Not needed
@@ -96,7 +104,7 @@ classdef BgMonitor < handle
       
       cbkResult = @obj.bgResultsReceived;
 
-      bgc = BgClient() ;
+      bgc = BgClient('projTempDirMaybe', obj.projTempDirMaybe_) ;
       fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult, bgWorkerObj, compute_fcn_name) ;
       
@@ -149,7 +157,7 @@ classdef BgMonitor < handle
       assert(obj.prepared);
       bgc = obj.bgClientObj;
       bgc.startRunner('runnerContinuous',true,...
-                      'continuousCallInterval',obj.bgContCallInterval);
+                      'continuousCallInterval',obj.bgContCallInterval) ;
       %obj.notify('bgStart');
       obj.parent_.didStartBgMonitor(obj.processName) ;
     end

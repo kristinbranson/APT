@@ -684,7 +684,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart(obj,backEnd,dmc,varargin)
+    function bgTrnStart(obj,backEnd,dmc,projTempDir,varargin)
       % fresh start new training monitor 
             
       [trainSplits,trnVizArgs] = myparse(varargin,...
@@ -727,7 +727,7 @@ classdef DeepTracker < LabelTracker
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
                                   backEnd.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
                 
-      trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj) ;
+      trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, [], 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = trnMonObj;
       obj.bgTrnMonBGWorkerObj = trnWrkObj;
       trnMonObj.start();  % Moved this after the two lines above.  Seems wise, but...  -- ALT, 2024-07-31
@@ -901,14 +901,15 @@ classdef DeepTracker < LabelTracker
       % calls trnSpawn to actually do anything.
       % also can call trnSpawnAWS but this is obsolete
       
-      [wbObj, dlTrnType, oldVizObj, augOnly, do_just_generate_db, do_call_apt_interface_dot_py] = ...
+      [~, dlTrnType, oldVizObj, augOnly, do_just_generate_db, do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,...
                 'wbObj',[],...
                 'dlTrnType',DLTrainType.New, ...
                 'oldVizObj',[], ...
                 'augOnly',false, ...
                 'do_just_generate_db', false, ...
-                'do_call_apt_interface_dot_py', true );
+                'do_call_apt_interface_dot_py', true, ...
+                'projTempDir', '') ;
      
       obj.preretrain();
       lblObj = obj.lObj;
@@ -979,7 +980,8 @@ classdef DeepTracker < LabelTracker
                    modelChain, ...
                    'prev_models',prev_models, ...
                    'do_just_generate_db',do_just_generate_db, ...
-                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                   'projTempDir', projTempDir) ;
 %       switch backend.type
 %         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
 %           obj.trnSpawn(backend, ...
@@ -1423,13 +1425,17 @@ classdef DeepTracker < LabelTracker
       %
       % TODO break up bsub/docker sep meths
 
-      [existingTrnPackSLbl, prev_models, ...
-       do_just_generate_db, do_call_apt_interface_dot_py] = ...
+      [existingTrnPackSLbl, ...
+       prev_models, ...
+       do_just_generate_db, ...
+       do_call_apt_interface_dot_py, ...
+       projTempDir] = ...
         myparse(varargin,...
                 'existingTrnPackSLbl',[], ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
                 'prev_models',[], ...
                 'do_just_generate_db',false, ...
-                'do_call_apt_interface_dot_py', true ) ;
+                'do_call_apt_interface_dot_py', true, ...
+                'projTempDir', '') ;
       
       % create/ensure config file; set trainID
       tfGenNewConfigFile = trnType==DLTrainType.New || ...
@@ -1522,7 +1528,7 @@ classdef DeepTracker < LabelTracker
       if obj.dryRunOnly
         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        obj.bgTrnStart(backend, dmc) ;
+        obj.bgTrnStart(backend, dmc, projTempDir) ;
 
         % spawn training
         [tfSucc, jobID] = backend.spawn(syscmds, ...
@@ -1537,7 +1543,7 @@ classdef DeepTracker < LabelTracker
         obj.bgTrnMonBGWorkerObj.jobID = jobID;
       end
       obj.trnLastDMC = dmc;
-    end
+    end  % trnSpawn() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
       % trnImgMats: cellstr, or could be loaded mats
@@ -2764,13 +2770,14 @@ classdef DeepTracker < LabelTracker
     end  % function
     
     function track(obj,varargin)
-      [totrackinfo,track_type,isexternal,backend,do_call_apt_interface_dot_py] = ...
+      [totrackinfo,track_type,isexternal,backend,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin, ...
                 'totrackinfo',[], ...
                 'track_type','track', ...
                 'isexternal',false, ...
                 'backend',obj.lObj.trackDLBackEnd, ...
-                'do_call_apt_interface_dot_py', true) ;
+                'do_call_apt_interface_dot_py', true, ...
+                'projTempDir',[]) ;
 
       % Verify that everything is in order for tracking
       obj.validateAndSetupForTracking_(totrackinfo, backend) ;
@@ -2846,7 +2853,8 @@ classdef DeepTracker < LabelTracker
       % Spawn the tracking job
       tfSuccess = obj.trkSpawn(totrackinfo, backend, ...
                                'track_type',track_type, ...
-                               'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py) ;
+                               'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
+                               'projTempDir',projTempDir) ;
       if ~tfSuccess
         obj.bgTrkReset();
         return
@@ -3419,7 +3427,8 @@ classdef DeepTracker < LabelTracker
     function tfSuccess = trkSpawn(obj,totrackinfo,backend,varargin)
 
       tfSuccess = false;
-      [track_type,do_call_apt_interface_dot_py] = myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true);
+      [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
+        myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true,'projTempDir',[]);
 
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
@@ -3479,12 +3488,15 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,...
+                                   'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
+                                   'projTempDir',projTempDir);
       %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
     end
 
     function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,varargin)
-      [track_type,do_call_apt_interface_dot_py] = myparse(varargin,'track_type','movie','do_call_apt_interface_dot_py',true);
+      [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
+        myparse(varargin,'track_type','movie','do_call_apt_interface_dot_py',true,'projTempDir',[]);
 
       if obj.dryRunOnly
         fprintf(1,'Dry run, not tracking:\n');
@@ -3510,7 +3522,7 @@ classdef DeepTracker < LabelTracker
       end
 
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type) ;
+      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type, 'projTempDir', projTempDir) ;
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % spawn the jobs

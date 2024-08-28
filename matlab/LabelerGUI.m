@@ -5205,8 +5205,7 @@ landmark_specs('lObj',lObj);
 
 function menu_track_viz_dataaug_Callback(hObject,evtdata,handles)
 lObj = handles.labelerObj;
-t = lObj.tracker;
-t.retrain('augOnly',true);
+lObj.retrainAugOnly() ;
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
 if strcmpi(get(hObject,'Checked'),'off'),

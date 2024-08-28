@@ -13,12 +13,18 @@ classdef BgRunnerContinuous < handle
     computeTimes = zeros(0,1)  % vector of tic/toc compute time elapsed for each compute command received
   end
   
+  properties  % hidden-by-convention properties
+    projTempDirMaybe_ = {}
+  end
+
   methods    
-    function obj = BgRunnerContinuous()
+    function obj = BgRunnerContinuous(varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('Background processing requires Matlab 2017a or later.');
       end
+      projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
+      obj.projTempDirMaybe_ = projTempDirMaybe ;
     end    
 
     function delete(obj)  %#ok<INUSD> 
@@ -33,7 +39,14 @@ classdef BgRunnerContinuous < handle
       % callInterval: time in seconds to wait between calls to
       %   cObj.(cObjMeth)
       
-      logger = FileLogger('BgRunnerContinuous.log', 'BgRunnerContinuous') ;
+      % Set up the log file, if called for
+      if isempty(obj.projTempDirMaybe_) ,
+        logger = FileLogger() ;  % silently ignores .log() calls
+      else
+        projTempDir = obj.projTempDirMaybe_{1} ;
+        logFilePath = fullfile(projTempDir, 'BgRunnerContinuous.log') ;
+        logger = FileLogger(logFilePath, 'BgRunnerContinuous') ;
+      end
 
       logger.log('Inside BgRunnerContinuous::run()\n') ;
 

@@ -16,6 +16,7 @@ classdef BgClient < handle
     printlog = false; % if true, logging messages are displayed
     
     parpoolIdleTimeout = 100*60; % bump gcp IdleTimeout to at least this value every time a worker is started
+    projTempDirMaybe_ = {}
   end
   properties (Dependent)
     isConfigured
@@ -32,11 +33,13 @@ classdef BgClient < handle
   end
 
   methods 
-    function obj = BgClient()
+    function obj = BgClient(varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
       end
+      projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
+      obj.projTempDirMaybe_ = projTempDirMaybe ;
     end
     function delete(obj)
       if ~isempty(obj.qWorker2Me)
@@ -109,7 +112,7 @@ classdef BgClient < handle
       
       %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
       if runnerContinuous
-        runnerObj = BgRunnerContinuous() ;
+        runnerObj = BgRunnerContinuous('projTempDirMaybe', obj.projTempDirMaybe_) ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
           parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;

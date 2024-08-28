@@ -11512,7 +11512,10 @@ classdef Labeler < handle
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.retrain(retrainArgs{:}, 'do_just_generate_db', do_just_generate_db, 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
+      tObj.retrain(retrainArgs{:}, ...
+                   'do_just_generate_db', do_just_generate_db, ...
+                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                   'projTempDir', obj.projTempDir);
     end
 
     function dotrain = trackCheckGPUMem(obj,varargin)
@@ -11798,7 +11801,7 @@ classdef Labeler < handle
                     'calibrationdata',caldata) ;
 
       % Call the Tracker object to do the heavy lifting of tracking
-      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}) ;
+      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}, 'projTempDir', obj.projTempDir) ;
 
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
@@ -16224,5 +16227,13 @@ classdef Labeler < handle
       ec2 = backend.awsec2 ;
       ec2.setInstanceID(instanceID, instanceType) ;
     end
+
+    function retrainAugOnly(obj)
+      % No idea what this does, but I know LabelerGUI methods shouldn't be calling
+      % non-getter methods on Labeler internals. --ALT, 2024-08-28
+      t = obj.tracker;
+      t.retrain('augOnly',true);
+    end
+
   end  % methods
 end  % classdef
