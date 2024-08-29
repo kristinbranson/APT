@@ -3521,6 +3521,8 @@ classdef DeepTracker < LabelTracker
         numel(nFramesTrack));
       end
 
+      % Create the TrackMonitorViz, and the BgMonitor, and set them up for
+      % monitoring.
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
       bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type, 'projTempDir', projTempDir) ;
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);

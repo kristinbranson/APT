@@ -112,7 +112,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
         end
       end
       sRes.pollsuccess = true;
-    end
+    end  % function
     
     function reset(obj) 
       % clears/inits .trnLogLastStep, the only mutatable prop

@@ -2968,7 +2968,7 @@ classdef CPRLabelTracker < LabelTracker
       cbkResult = @(sRes)obj.asyncResultReceived(sRes);
       fprintf(1,'Detaching trained tracker...\n');
       objDetached = obj.asyncDetachCopy();
-      bgc = BgClient;
+      bgc = BgClient();
       fprintf(1,'Configuring background worker...\n');
       bgc.configure(cbkResult,objDetached,'asyncCompute');
       obj.asyncBgClient = bgc;
