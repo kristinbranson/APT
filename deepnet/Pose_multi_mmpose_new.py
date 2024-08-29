@@ -701,7 +701,7 @@ class BottomUpResizeAlign:
 
 
 
-class Pose_multi_mmpose(Pose_mmpose):
+class Pose_multi_mmpose_new(Pose_mmpose):
 
     def __init__(self, conf, name='deepnet', is_multi=True, **kwargs):
         mmpose_net = conf.mmpose_net
@@ -809,7 +809,7 @@ class Pose_multi_mmpose(Pose_mmpose):
                         break
                     if ndx in to_remove:
                         continue
-                    pose_results[b,count,:,:] = pred*conf.rescale
+                    pose_results[b,count,:,:] = pred #*conf.rescale # this apparently is not required. cur_data has original size which is used to rescale
                     conf_res[b,count,:] = all_scores[ndx]
                     count = count+1
                     # pose_results.append({
