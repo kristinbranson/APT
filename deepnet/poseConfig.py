@@ -252,6 +252,7 @@ class config(object):
         # Use bbox as trx surrogate for top-down networks.
         self.use_bbox_trx = False
         self.stage = None
+        self.ht_2stage_n_classes = 2
 
         # ============== LINKING ===============
         self.link_stage = 'second'

@@ -954,7 +954,7 @@ class Pose_multi_mmpose(Pose_mmpose):
                         break
                     if ndx in to_remove:
                         continue
-                    pose_results[b,count,:,:] = pred[:,:2].copy()*conf.rescale
+                    pose_results[b,count,:,:] = pred[:,:2].copy() #*conf.rescale
                     conf_res[b,count,:] = pred[:,2].copy()
                     count = count+1
                     # pose_results.append({

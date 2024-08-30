@@ -1627,7 +1627,8 @@ def datestr():
     return datetime.datetime.now().strftime('%Y%m%d')
 
 
-def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif',precmd='',numcores=2):
+def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_dir='/groups/branson/home/kabram/bransonlab/APT/deepnet',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif',precmd='',numcores=5,n_omp_threads=2):
+    assert numcores>=(n_omp_threads*2+1)
     import subprocess
     sing_script = os.path.join(dir,  name + '.sh')
     sing_err = os.path.join(dir,  name + '.err')
@@ -1640,6 +1641,8 @@ def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_
         # f.write('. /opt/venv/bin/activate\n')
         f.write('cd {}\n'.format(run_dir))
         f.write('numCores2use={} \n'.format(numcores))
+
+        f.write(f'export OMP_NUM_THREADS={n_omp_threads}\n')
         f.write('{} \n'.format(precmd))
         f.write('python {}'.format(cmd))
         f.write('\n')

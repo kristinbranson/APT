@@ -480,6 +480,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         # assign each prediction to the label based on its distance. Then compute the weighted loss between the prediction and that label
         assign = p_assign * torch.unsqueeze(ll_joint_flat, 1)
+        assign[assign<1e-10] = 0
         assign_sum = torch.where(valid,assign.sum(axis=-1),torch.ones_like(assign[:,:,0]))
         assign_norm = assign/ torch.unsqueeze(assign_sum+1e-10,dim=-1)
         dloss = (assign_norm*dd_all).sum(axis=-1)

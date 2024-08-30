@@ -333,7 +333,8 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_
     default_hm_sz = cfg.data_cfg.heatmap_size
     cfg.data_cfg.image_size = [int(c / conf.rescale/32)*32 for c in conf.imsz[::-1]]  # conf.imsz[0]
     if conf.is_multi:
-        imsz = cfg.data_cfg.image_size[0]
+        # imsz = cfg.data_cfg.image_size[0]
+        imsz = min(cfg.data_cfg.image_size)
         cfg.data_cfg.image_size = imsz
         cfg.data_cfg.heatmap_size = [int(h/default_im_sz*imsz) for h in default_hm_sz]
         cfg.model.train_cfg.img_size = cfg.data_cfg.image_size

@@ -33,7 +33,7 @@ out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageBBox', 'grone', 'openpose','cid','dekr','openpose_4x','2stageBBox_hrformer']#,'2stageBBox_vitpose']
+alg_names = ['2stageHT', '2stageBBox', 'grone', 'grone_hrnet' ,'openpose','cid','dekr','openpose_4x','2stageBBox_hrformer']#,'2stageBBox_vitpose']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -70,8 +70,11 @@ class ma_expt(object):
                 ('2stageBBox_hrformer',):[{},{'mmpose_net':'\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
                 ('cid','nocrop'):[{'batch_size': 4,'dl_steps':200000}, {}],
+                ('grone_hrnet',):[{'mdn_use_hrnet':True},{}],
                 ('dekr',):[{'mmpose_net':'\\"dekr\\"'},{}],
                 ('dekr','nocrop'):[{'batch_size':2,'dl_steps':400000},{}],
+                ('grone','nocrop'):[{'batch_size':4,'dl_steps':200000},{}],
+                ('grone_hrnet', 'nocrop'): [{'batch_size': 4, 'dl_steps': 200000}, {}],
             }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 4
@@ -92,6 +95,7 @@ class ma_expt(object):
             #                ('openpose', 'crop'): [{'rescale': 2}]
                 ():[{'link_id_rescale':0.5},{}],
                 ('openpose_4x', ):[{'op_hires_ndeconv': 2},{}],
+                ('grone_hrnet',): [{'mdn_use_hrnet': True}, {}],
                 ('2stageBBox_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
 
@@ -283,6 +287,8 @@ class ma_expt(object):
             alg_use = 'openpose'
         if alg == '2stageBBox_hrformer' or alg=='2stageBBox_vitpose':
             alg_use = '2stageBBox'
+        if alg.startswith('grone'):
+            alg_use = 'grone'
 
         loc_file = os.path.join(self.trnp_dir, alg_use, loc_file_str_neg)
         loc_file_inc = os.path.join(self.trnp_dir, alg_use, loc_file_str_inc)
@@ -362,7 +368,7 @@ class ma_expt(object):
 
         return t_types
 
-    def run_train(self, t_types=None, redo=False,queue='gpu_rtx8000',run_type='dry'):
+    def run_train(self, t_types=None, redo=False,queue='gpu_a100',run_type='dry'):
         t_types = self.get_types(t_types)
         for t in t_types:
             settings = self.get_settings(t)
@@ -396,7 +402,7 @@ class ma_expt(object):
                          run_dir=run_dir,
                          queue=queue,
                          precmd='',
-                         logdir=self.log_dir, nslots=3,sing_img=sing_img)
+                         logdir=self.log_dir, nslots=11,sing_img=sing_img,n_omp_threads=5)
         print(f'Total jobs {len(t_types)}')
 
     def show_samples(self,t_types=None,save=False):

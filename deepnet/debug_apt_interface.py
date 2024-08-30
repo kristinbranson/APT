@@ -1,4 +1,149 @@
 
+# installing sleap
+# install mamba and miniforge3
+# clone sleap (~/bransonlab/code/sleap)
+# activate miniforge3 -- micromamba activate ~/miniforge3
+# install sleap -- mamba env create -f environment_no_cuda.yml -n sleap
+# if that cribs: conda config --set channel_priority disabled
+# activate sleap -- conda activate /home/kabram@hhmi.org/miniforge3/envs/sleap
+
+
+from poseConfig import conf as in_conf
+from copy import deepcopy
+from reuse import *
+import ap36_train as a36
+
+def create_conf_sleap(cura,exp_dir,npts,imsz,min_n,max_n,flips):
+    conf = deepcopy(in_conf)
+    conf.imsz = imsz
+    conf.save_step = 20000
+    conf.maxckpt = 5
+    conf.expname = f'sleap_{cura}'
+    conf.coco_im_dir = ''
+    conf.db_format = 'coco'
+    conf.cachedir = exp_dir
+    conf.n_classes = npts
+    conf.ht_pts = [2, 4]
+    conf.is_multi = True
+    conf.horz_flip = False
+    conf.predict_occluded = True
+    conf.scale_factor_range = 1.5
+    conf.rrange = 180
+    conf.trange = min(conf.imsz)/10
+    fm = {}
+    for m in flips:
+        fm[f'{m[0]}'] = m[1]
+        fm[f'{m[1]}'] = m[0]
+    conf.flipLandmarkMatches = fm
+
+    skel = [[1, 2], [1, 3], [2, 3], [3, 4], [4, 5], [4, 6], [6, 7], [7, 8], [4, 9], [9, 10], [10, 11], [5, 12],
+            [12, 13], [13, 14], [5, 15], [15, 16], [16, 17]]
+    skel = apt.to_py(skel)
+    conf.op_affinity_graph = []
+    conf.multi_scale_by_bbox = True
+    conf.trx_align_theta = False
+    conf.multi_loss_mask = False
+    conf.check_bounds_distort = True
+    conf.batch_size = 16
+    conf.dl_steps = 100000
+    conf.mmpose_pad = 1.
+    conf.multi_crop_ims = False
+    conf.multi_loss_mask = False
+    conf.multi_frame_sz = conf.imsz
+    conf.min_n_animals = min_n
+    conf.max_n_animals = max_n
+
+    return conf
+
+ht_pts = {'mice_of': [0, 6], 'mice_hc': [0, 3], 'bees': [1, 2], 'gerbils': [0, 9], 'fly13': [0, 2]}
+
+
+nets = [
+    ['multi_mdn_joint_torch','grone',{}],
+    ['multi_mmpose','cid',{'mmpose_net':'cid'}],
+    ['multi_mmpose_new','dekr',{'mmpose_net':'dekr'}],
+]
+
+td_nets = [
+    [['detect_mmdetect','detr',{'stage':'first','mmdetect_net':'detr'}],['mdn_joint_fpn','mdn_bbox',{'use_bbox_trx':True,'stage':'second','is_multi':False}]],
+    [['detect_mmdetect','detr',{'stage':'first','mmdetect_net':'detr'}],['mmpose','hrformer_bbox',{'use_bbox_trx':True,'stage':'second','is_multi':False,'mmpose_net':'hrformer'}]],
+    # [['detect_mmdetect','detr',{'stage':'first','mmdetect_net':'detr'}],['mmpose','vitpose_bbox',{'use_bbox_trx':True,'stage':'second','is_multi':False,'mmpose_net':'vitpose'}]],
+]
+
+td_nets_ht = [
+    [['multi_mdn_joint_torch','td_grone',{'stage':'first'}],['mdn_joint_fpn','mdn_ht',{'use_ht_trx':True,'stage':'second','is_multi':False}]],
+]
+
+aconf = {}
+flips = {}
+aconf['fly13'] = {'horz_flip':True,'max_n_animals':2,'min_n_animals':2}
+flips['fly13'] = [[3,4],[5,6],[7,8],[9,10],[11,12]]
+aconf['gerbils'] = {'horz_flip':True,'max_n_animals':4,'min_n_animals':4}
+flips['gerbils'] = [[1,2],[3,4]]
+aconf['mice_of'] = {'horz_flip':True,'max_n_animals':5,'min_n_animals':1}
+flips['mice_of'] = [[2,3],[4,5],[7,8],[9,10]]
+aconf['mice_hc'] = {'horz_flip':True,'max_n_animals':2,'min_n_animals':2}
+flips['mice_hc'] = [[1,2]]
+aconf['bees'] = {'horz_flip':True,'max_n_animals':2,'min_n_animals':2}
+flips['bees'] = [[3,5],[4,6],[7,9],[8,10],[11,13],[12,14],[15,17],[16,18],[19,20]]
+
+names = ['mice_of','mice_hc','bees','gerbils','fly13']
+
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/sleap'
+
+
+def net_settings(conf,net,name):
+    if name == 'fly13':
+        pass
+    elif name == 'mice_of' and net in ['dekr']:
+        conf.batch_size = 8
+        conf.dl_steps = 200000
+        conf.rescale = 2
+    elif name == 'mice_hc' and net in ['cid','dekr']:
+        conf.batch_size = 8
+        conf.dl_steps = 200000
+    elif name == 'bees':
+        conf.batch_size = 4
+        conf.dl_steps = 400000
+        conf.rescale = 2
+    elif name == 'gerbils' and net in ['cid']:
+        conf.batch_size = 8
+        conf.dl_steps = 200000
+
+name = 'mice_hc'
+cdir = f'{bdir}/{name}'
+net = nets[2]
+
+split = 'val'
+L = pt.json_load(f'{cdir}/train_TF.json')
+npts = len(L['annotations'][0]['keypoints']) // 3
+
+im = cv2.imread(L['images'][0]['file_name'])
+conf = create_conf_sleap(name,cdir,npts,im.shape[:2],aconf[name]['max_n_animals'],aconf[name]['min_n_animals'],flips[name])
+conf.op_affinity_graph = L['categories'][0]['skeleton']
+conf.ht_pts = ht_pts[name]
+
+for kk,vv in aconf[name].items():
+    setattr(conf,kk,vv)
+
+if split=='val':
+    conf.trainfilename = 'train_TF'
+    conf.valfilename = 'val_TF'
+    tstr = '_val'
+else:
+    conf.trainfilename = 'train_full_TF'
+    conf.valfilename = 'test_TF'
+    tstr = '_full'
+
+
+for kk, vv in net[2].items():
+    setattr(conf, kk, vv)
+
+net_settings(conf,net[1],name)
+
+a36.train(conf, net[0], net[1] + tstr)
+
+##
 cmd = '-name 20220831T192550 -view 1 -cache /groups/branson/home/kabram/APT_bugs/rta/ -type mdn /groups/branson/home/kabram/APT_bugs/rta/20220831T192550_20220831T192559.lbl train -use_cache'
 
 # cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']

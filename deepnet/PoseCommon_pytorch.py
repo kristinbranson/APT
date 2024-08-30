@@ -577,7 +577,7 @@ class PoseCommon_pytorch(object):
                     batch_size=self.conf.batch_size, 
                     pin_memory=True,
                     drop_last=True, 
-                    num_workers=16,
+                    num_workers=2,
                     sampler=train_sampler,
                     shuffle=shuffle,
                     worker_init_fn=partial(dataloader_worker_init_fn, epoch=self.train_epoch))
@@ -613,25 +613,32 @@ class PoseCommon_pytorch(object):
         return torch.optim.lr_scheduler.LambdaLR(opt,lambda_lr)
 
     def train(self, model, loss, opt, lr_sched, n_steps, start_at=0):
+
         save_start = time.time()
         clip_gradients = self.conf.get('clip_gradients', True)
         start = time.time()
+
+        logger = logging.getLogger()
+        handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
         for step in range(start_at,n_steps):
             # gc.collect()
             self.step = [step,n_steps]
             a = time.time()
             inputs = self.next_data('train')
             l = time.time()
+            labels = self.create_targets(inputs)
+            t = time.time()
             opt.zero_grad()
             outputs = model(inputs)
             o = time.time()
-            labels = self.create_targets(inputs)
             # valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
             # if not torch.all(torch.any(valid, dim=1)):
             #     print('Some inputs dont have any labels')
             #     continue
 
-            t = time.time()
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
             loss_val = loss(outputs,labels)
             if self.use_hard_mining:
@@ -646,7 +653,7 @@ class PoseCommon_pytorch(object):
             opt.step()
             lr_sched.step()
             op = time.time()
-            # print('Timings Load:{:.2f}, target:{:.2f} fwd:{:.2f} loss:{:0.2f} bkwd:{:.2f} op:{:.2f}'.format(l-a,o-l,t-o,lo-t,b-lo,op-b))
+            # print('Timings Load:{:.2f}, target:{:.2f} fwd:{:.2f} loss:{:0.2f} bkwd:{:.2f} op:{:.2f}'.format(l-a,t-l,o-t,lo-t,b-lo,op-b))
 
             if self.conf.save_time is None:
                 if (step % self.conf.save_step == 0) & (step>0):
