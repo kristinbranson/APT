@@ -310,6 +310,8 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
             cfg.model.head.rescore_cfg = None
             if conf.multi_loss_mask:
                 cfg.codec.type = 'SPR_mask'
+        if conf.mmpose_net == 'cid' and conf.multi_loss_mask:
+            raise RuntimeError('For the CiD model, if a frame has any labeled animals, all animals in the frame must be labeled.  Therefore in the training parameters "Unlabeled animals present" (a.k.a. multi_loss_mask) must be false.')
 
 
     else:

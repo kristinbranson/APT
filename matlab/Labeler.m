@@ -11516,7 +11516,7 @@ classdef Labeler < handle
                    'do_just_generate_db', do_just_generate_db, ...
                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
                    'projTempDir', obj.projTempDir);
-    end
+    end  % function
 
     function dotrain = trackCheckGPUMem(obj,varargin)
       silent = myparse(varargin,'silent',false) || obj.silent ;

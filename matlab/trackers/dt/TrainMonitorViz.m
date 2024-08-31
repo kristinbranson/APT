@@ -429,7 +429,7 @@ classdef TrainMonitorViz < handle
       else
         %warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
         fprintf('There was a problem stopping training processes.\n') ;
-        fprtinf('Training processes may not have been killed properly.\n') ;
+        fprintf('Training processes may not have been killed properly.\n') ;
         if isempty(warnings) ,
           fprintf('But there were no warnings while trying to stop training processes.\n') ;
         else

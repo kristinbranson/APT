@@ -928,11 +928,17 @@ classdef DeepTracker < LabelTracker
         end        
       end
       
-      obj.setAllParams(lblObj.trackGetParams());
-      if isempty(obj.sPrmAll)
+      allParamsRaw=lblObj.trackGetParams();
+      obj.setAllParams(allParamsRaw);
+      paramsAll=obj.sPrmAll;
+      if isempty(paramsAll)
         error('No tracking parameters have been set.');
       end
-      
+      if lblObj.maIsMA && strcmp(lblObj.trackerAlgo, 'multi_cid') && paramsAll.ROOT.MultiAnimal.multi_loss_mask ,
+        error(['For the CiD model, cannot have frames with both lableled and unlabeled animals.  ' ...
+               'If all animals are labelled in each frame with any labels, set the tracking parameter "Unlabeled animals present" to false.']) ;
+      end
+
       obj.bgTrnReset();
       if ~isempty(oldVizObj),
         delete(oldVizObj);
