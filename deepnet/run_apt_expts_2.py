@@ -296,7 +296,7 @@ def run_jobs(cmd_name,
              run_dir=job_run_dir,
              queue='gpu_any',
              precmd='',
-             logdir=sdir,nslots=3,sing_img=default_sing_img, timeout=80*60):
+             logdir=sdir,nslots=11,sing_img=default_sing_img, timeout=80*60,n_omp_threads=5):
     logfile = os.path.join(logdir,'opt_' + cmd_name + '.log')
     errfile = os.path.join(logdir,'opt_' + cmd_name + '.err')
 
@@ -323,7 +323,7 @@ def run_jobs(cmd_name,
                              run_dir=run_dir,
                              queue=queue,
                              precmd=precmd,numcores=nslots,
-                             timeout=timeout,sing_image=sing_img)
+                             timeout=timeout,sing_image=sing_img,n_omp_threads=n_omp_threads)
     else:
         print('NOT submitting job {}'.format(cmd_name))
 
@@ -881,21 +881,21 @@ def run_trainining(exp_name,train_type,view,run_type,
             if train_type == 'leap':
                 nslots = 5
             elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn','mdn_unet']:
-                nslots = 4
+                nslots = 5
             else:
                 nslots = 2
         elif queue in ['gpu_tesla']:
             if train_type == 'leap':
                 nslots = 6
             else:
-                nslots = 4
+                nslots = 5
         else:
             if train_type == 'leap':
                 nslots = 10
             elif data_type == 'larva' and train_type in ['mdn','mdn_joint','mdn_joint_fpn']:
                 nslots = 7
             else:
-                nslots = 4
+                nslots = 5
 
     if run_type == 'dry':
         print(cmd_name)

@@ -4077,6 +4077,8 @@ def gen_train_samples1(conf, model_type='mdn_joint_fpn', nsamples=10, train_name
             mask.append(next_db['mask'][0].numpy())
 
         ims,locs,info, mask = map(np.array,[ims,locs,info,mask])
+        if ims.ndim == 3:
+            ims = ims[...,np.newaxis]
         ims = ims.transpose([0,2,3,1])
         locs[locs<-1000] = np.nan
         if not conf.is_multi:
