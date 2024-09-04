@@ -20,7 +20,7 @@ classdef DeepTracker < LabelTracker
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     
-    default_jrcgpuqueue = 'gpu_rtx8000';
+    default_jrcgpuqueue = 'gpu_a100';
     default_jrcnslots_train = 1;
     default_jrcnslots_track = 1;
     

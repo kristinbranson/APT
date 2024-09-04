@@ -384,7 +384,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           res = 'do_call_apt_interface_dot_py is false' ;
         end
         if ~tfSucc(ijob),
-          warning('Failed to spawn %s %d: %s',jobdesc,ijob,res);
+          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
         else
           jobid = jobID{ijob};
           if isnumeric(jobid),
