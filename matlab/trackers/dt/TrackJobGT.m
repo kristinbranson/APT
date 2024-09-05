@@ -55,7 +55,7 @@ classdef TrackJobGT < handle
       % Similar to TrackJob
 
       TrackJob.checkCreateDir({obj.trkOutdirLcl},'trk cache dir');
-      if obj.dmcsrem.isRemote
+      if obj.dmcsrem.isRemote()
         be = obj.backend;
         assert(be.type==DLBackEnd.AWS);
         % Should prob be backend meth
@@ -153,7 +153,7 @@ classdef TrackJobGT < handle
 %       end
       codebase = obj.codegenBase(baseargs);   
       containerName = sprintf('gt_%s',dmc1.getTrkTSstr());
-      codestr = be.codeGenDockerGeneral(codebase,containerName,...
+      codestr = be.wrapBaseCommandDocker_(codebase,containerName,...
         'bindpath',bindpaths,'gpuid',gpuids);      
       logcmd = sprintf('%s logs -f %s &> "%s" &',...
                   be.dockercmd,containerName,logfile); 

@@ -14,14 +14,20 @@ classdef LabelerController < handle
   methods
     function obj = LabelerController(varargin)
       % Process args that have to be dealt with before creating the Labeler
-      [isInDebugMode] = ...
+      [isInDebugMode, isInAwsDebugMode, isInYodaMode] = ...
         myparse_nocheck(varargin, ...
-                        'isInDebugMode',false) ;
-      labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode) ;  % Create the labeler, tell it there will be a GUI attached
+                        'isInDebugMode',false, ...
+                        'isInAwsDebugMode',false, ...
+                        'isInYodaMode', false) ;
+      labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
+        % Create the labeler, tell it there will be a GUI attached
       obj.labeler_ = labeler ;
       obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       obj.labeler_.registerController(obj) ;  % hack
       obj.tvTrx_ = TrackingVisualizerTrx(labeler) ;
+      obj.isInYodaMode_ = isInYodaMode ;  
+        % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
+        % Useful for debugging.
       obj.listeners_ = cell(1,0) ;
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
@@ -214,23 +220,29 @@ classdef LabelerController < handle
       handles.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
     end
 
-    function result = doProjectAndMovieExist_(obj)
-      % Returns true iff a project exists and a movie is open.
-      % If no project exists, returns false.
-      % If a project exists but no movie is open, throws up a dialog box indictating
-      % this, then returns false.
+    function pbTrack_actuated(obj, source, event)
+      obj.track_core_(source, event) ;
+    end
 
-      labeler = obj.labeler_ ;
-      if labeler.hasProject ,
-        if labeler.hasMovie ,
-          result = true ;
-        else
-          msgbox('There is no movie open.');
-          result = false ;
-        end
-      else
-        result = false ;
-      end
+    function menu_start_tracking_but_dont_call_apt_interface_dot_py_actuated(obj, source, event)
+      obj.track_core_(source, event, 'do_call_apt_interface_dot_py', false) ;
+    end
+    
+    function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
+      tm = obj.get_track_mode_();
+      obj.labeler_.track(tm, varargin{:}) ;
+    end
+
+    function mftset = get_track_mode_(obj)
+      % This is designed to do the same thing as LabelerGUI::getTrackMode().
+      % The two methods should likely be consolidated at some point.  Private by
+      % convention
+      pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
+      idx = pumTrack.Value ;
+      % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
+      % .TrackingMenuTrx.
+      mfts = MFTSetEnum.TrackingMenuTrx;
+      mftset = mfts(idx);      
     end
 
     function menu_debug_generate_db_actuated(obj, source, event)
@@ -256,10 +268,11 @@ classdef LabelerController < handle
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
       
-      if ~obj.doProjectAndMovieExist_() ,
-        return
-      end
       labeler = obj.labeler_ ;
+      [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
+      if ~doTheyExist ,
+        error(message) ;
+      end
       if labeler.doesNeedSave ,
         res = questdlg('Project has unsaved changes. Save before training?','Save Project','Save As','No','Cancel','Save As');
         if strcmp(res,'Cancel')
@@ -295,7 +308,138 @@ classdef LabelerController < handle
       end
     end  % method
 
+    function menu_quit_but_dont_delete_temp_folder_actuated(obj, source, event)  %#ok<INUSD> 
+      obj.labeler_.projTempDirDontClearOnDestructor = true ;
+      obj.quitRequested() ;
+    end  % method    
+
+    function menu_track_backend_config_aws_configure_actuated(obj, source, event)  %#ok<INUSD> 
+      obj.selectAwsInstance_('canlaunch',1,...
+                             'canconfigure',2, ...
+                             'forceSelect',1) ;
+    end
+
+    function menu_track_backend_config_aws_setinstance_actuated(obj, source, event)  %#ok<INUSD> 
+      obj.selectAwsInstance_() ;
+    end
   end  % public methods block
+
+  methods  % private by convention methods block
+    function selectAwsInstance_(obj, varargin)
+      [canLaunch,canConfigure,forceSelect] = ...
+        myparse(varargin, ...
+                'canlaunch',true,...
+                'canconfigure',1,...
+                'forceSelect',true);
+            
+      labeler = obj.labeler_ ;
+      backend = labeler.trackDLBackEnd ;
+      if isempty(backend) ,
+        error('Backend not configured') ;
+      end
+      if backend.type ~= DLBackEnd.AWS ,
+        error('Backend is not of type AWS') ;
+      end        
+      ec2 = backend.awsec2 ;
+      if ~ec2.isConfigured || canConfigure >= 2,
+        if canConfigure,
+          [tfsucc,keyName,pemFile] = ...
+            specifySSHKeyUIStc(ec2.keyName,ec2.pem);
+          if tfsucc ,
+            % For changing things in the model, we go through the top-level model object
+            labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
+          end
+          if ~tfsucc && ~ec2.isConfigured,
+            reason = 'AWS EC2 instance is not configured.';
+            error(reason) ;
+          end
+        else
+          reason = 'AWS EC2 instance is not configured.';
+          error(reason) ;
+        end
+      end
+      if forceSelect || ~ec2.isSpecified,
+        if ec2.isSpecified ,
+          instanceID = ec2.instanceID;
+        else
+          instanceID = '';
+        end
+        if canLaunch,
+          qstr = 'Launch a new instance or attach to an existing instance?';
+          if ~ec2.isSpecified,
+            qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
+          else
+            qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
+          end
+          tstr = 'Specify AWS EC2 instance';
+          btn = questdlg(qstr,tstr,'Launch New','Attach to Existing','Cancel','Cancel');
+          if isempty(btn)
+            btn = 'Cancel';
+          end
+        else
+          btn = 'Attach to Existing';
+        end
+        while true,
+          switch btn
+            case 'Launch New'
+              tf = ec2.launchInstance();
+              if ~tf
+                reason = 'Could not launch AWS EC2 instance.';
+                error(reason) ;
+              end
+              break
+            case 'Attach to Existing',
+              [tfsucc,instanceIDs,instanceTypes] = ec2.listInstances();
+              if ~tfsucc,
+                reason = 'Error listing instances.';
+                error(reason) ;
+              end
+              if isempty(instanceIDs),
+                if canLaunch,
+                  btn = questdlg('No instances found. Launch a new instance?',tstr,'Launch New','Cancel','Cancel');
+                  continue
+                else
+                  reason = 'No instances found.';
+                  error(reason) ;
+                end
+              end
+              
+              PROMPT = {
+                'Instance'
+                };
+              NAME = 'AWS EC2 Select Instance';
+              INPUTBOXWIDTH = 100;
+              BROWSEINFO = struct('type',{'popupmenu'});
+              s = cellfun(@(x,y) sprintf('%s (%s)',x,y),instanceIDs,instanceTypes,'Uni',false);
+              v = 1;
+              if ~isempty(ec2.instanceID),
+                v = find(strcmp(instanceIDs,ec2.instanceID),1);
+                if isempty(v),
+                  v = 1;
+                end
+              end
+              DEFVAL = {{s,v}};
+              resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],1,1),...
+                                        DEFVAL,'on',BROWSEINFO);
+              tfsucc = ~isempty(resp);
+              if tfsucc
+                instanceID = instanceIDs{resp{1}};
+                instanceType = instanceTypes{resp{1}};
+              else
+                return
+              end
+              break
+            otherwise
+              % This is a cancel
+              return
+          end
+        end
+        % For changing things in the model, we go through the top-level model object
+        labeler.setAwsInstanceId(instanceID, instanceType) ;
+        %ec2.setInstanceID(instanceID,instanceType);
+      end
+    end  % function selectAwsInstance_()
+  end  % private by-convention methods block
 
   methods
     function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked
@@ -314,7 +458,7 @@ classdef LabelerController < handle
           obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
           exceptionMaybe = {} ;
         catch exception
-          if isequal(exception.identifier,'APT:invalidPropertyValue') ,
+          if isequal(exception.identifier,'APT:invalidPropertyValue') || isequal(exception.identifier,'APT:cancelled'),
             % ignore completely, don't even pass on to output
             exceptionMaybe = {} ;
           else

@@ -11,10 +11,12 @@ classdef TargetSetVariable < TargetSet
       obj.prettyCompactString = pcs;
       obj.getTargetIndicesHook = fcn;
     end
-    function str = getPrettyString(obj,lObj)
+    function str = getPrettyString(obj,labelerObj)
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;      
       str = obj.prettyString;
     end
-    function str = getPrettyCompactString(obj,lObj)
+    function str = getPrettyCompactString(obj,labelerObj)
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;      
       str = obj.prettyCompactString;
     end
     function iTgts = getTargetIndices(obj,lObj,mIdx)

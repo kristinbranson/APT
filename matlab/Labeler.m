@@ -217,6 +217,7 @@ classdef Labeler < handle
     
     isgui = false  % whether there is a GUI
     isInDebugMode = false  % whether the Labeler is in debug mode.  Controls e.g. whether the Debug menu is shown.
+    isInAwsDebugMode = false  % whether the Labeler is in AWS debug mode.  Controls e.g. whether AWS is shutdown at exit.
     unTarLoc = ''  % location that project has most recently been untarred to
     
     projRngSeed = 17 
@@ -1533,12 +1534,14 @@ classdef Labeler < handle
   methods 
   
     function obj = Labeler(varargin)
-      [isgui, isInDebugMode] = ...
+      [isgui, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
                         'isgui', false, ...
-                        'isInDebugMode', false) ;
+                        'isInDebugMode', false, ...
+                        'isInAwsDebugMode', false) ;
       obj.isgui = isgui ;
       obj.isInDebugMode = isInDebugMode ;
+      obj.isInAwsDebugMode = isInAwsDebugMode ;
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,
@@ -1574,8 +1577,12 @@ classdef Labeler < handle
       if ~isempty(be)
         be.shutdown();
       end
-      if ~isempty(obj.projTempDir) && ~obj.projTempDirDontClearOnDestructor
-        obj.projRemoveTempDir();
+      if ~isempty(obj.projTempDir) 
+        if obj.projTempDirDontClearOnDestructor ,
+          fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
+        else
+          obj.projRemoveTempDir();
+        end
       end
     end
     
@@ -1754,9 +1761,9 @@ classdef Labeler < handle
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 0;
       
-      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      obj.trackDLBackEnd = DLBackEndClass();
+      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
       obj.trackParams = [];
-
       
       obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
@@ -2571,9 +2578,10 @@ classdef Labeler < handle
       [~,prevModeInfo] = obj.FixPrevModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
       obj.setPrevAxesMode(pamode,prevModeInfo);
       
-      % Call this here to eg init AWS backend
-      obj.trackSetDLBackend(obj.trackDLBackEnd);
-      
+      % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
+      % mode
+      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
+ 
       props = obj.gdata.propsNeedInit;
       for p = props(:)', p=p{1}; %#ok<FXSET>
         obj.(p) = obj.(p);
@@ -2600,7 +2608,7 @@ classdef Labeler < handle
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
             dmc = tObj.trnLastDMC;
             try
-              if dmc.isRemote
+              if dmc.isRemote()
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
               else
                 dmc.copyModelFiles(obj.projTempDir,true);
@@ -2780,7 +2788,8 @@ classdef Labeler < handle
       % the loaded .lbl knows what trackers to create.
       obj.currTracker = 1;
       
-      obj.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
+      obj.trackDLBackEnd = DLBackEndClass() ;
+      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
       % not resetting trackParams, hopefully nothing in here that depends
       % on number of landmarks
       %obj.trackParams = [];
@@ -2905,7 +2914,7 @@ classdef Labeler < handle
         );
       
       if isempty(obj.projTempDir)
-        obj.projTempDir = tempname(APT.getdlcacheroot);
+        obj.projTempDir = tempname(APT.getdotaptdirpath());
       end
       tname = obj.projTempDir;
       
@@ -3028,12 +3037,14 @@ classdef Labeler < handle
       
       cacheDir = obj.projTempDir;
       
+      % I had this check commented out while working on the AWS backend, for some
+      % reason  --ALT, 2024-07-31
       % Check for exploded cache in tempdir      
       tCacheDir = fullfile(cacheDir,obj.projname);
       if ~exist(tCacheDir,'dir')
         warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
-          obj.projname,cacheDir);
-        return;
+                       obj.projname,cacheDir);
+        return
       end
             
       % Update/set all DMC.rootDirs to cacheDir
@@ -3086,23 +3097,21 @@ classdef Labeler < handle
             continue;
           end
           try
-            if dmc.isRemote
-              try
-                dm.mirrorFromRemoteAws(projtempdir);
-              catch
-                warningNoTrace('Could not check if trackers had been downloaded from AWS.');
-              end
+            try
+              dmc.mirrorFromBackend(obj.trackDLBackEnd);
+            catch me
+              warningNoTrace('Could not check if trackers had been downloaded from AWS: %s', me.message);
             end
 
             if verbose,
               fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
-                tObj.trnNetType,dmc.getRootDir);
+                      tObj.trnNetType,dmc.getRootDir);
             end
             modelFilesDst = dmc.copyModelFiles(projtempdir,verbose);
             allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
           catch ME
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-              tObj.trnNetType,ndx,ME.getReport());
+                           tObj.trnNetType,ndx,ME.getReport());
           end
         end
       end
@@ -3157,7 +3166,7 @@ classdef Labeler < handle
       
       success = true;
       if isempty(obj.projTempDir),
-        rootdir = APT.getdlcacheroot;
+        rootdir = APT.getdotaptdirpath() ;
       else
         rootdir = fileparts(obj.projTempDir);
       end
@@ -3668,7 +3677,7 @@ classdef Labeler < handle
         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       end
       % 20201028 docker/sing backend img/tag update
-      s.trackDLBackEnd.modernize();        
+      s.trackDLBackEnd.modernize();
       
       % 20181220 DL common parameters
       assert(isTrackParams);      
@@ -3887,7 +3896,8 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end
-    end
+    end  % lblModernize()
+    
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
       nmov = size(s.movieFilesAll,1);
@@ -11447,63 +11457,14 @@ classdef Labeler < handle
       be = obj.trackDLBackEnd;
     end
     
-    function trackSetDLBackend(obj,be)
-      assert(isa(be,'DLBackEndClass'));
-      
-      switch be.type
-        case DLBackEnd.AWS
-          % special-case this to avoid running repeat AWS commands
-          
-          aws = be.awsec2;
-          if isempty(aws),            
-            be.awsec2 = AWSec2([],...
-              'SetStatusFun',[], ... % @(varargin) obj.SetStatus(varargin{:}),...
-              'ClearStatusFun',[]); % ... %@(varargin) obj.ClearStatus(varargin{:}));
-          else
-            % This codepath occurs on eg projLoad
-            be.awsec2.SetStatusFun = []; % @(varargin) obj.SetStatus(varargin{:});
-            be.awsec2.ClearStatusFun = []; % @(varargin) obj.ClearStatus(varargin{:});
-          end
-%           [tfexist,tfrunning] = aws.inspectInstance();
-%           if tfexist
-%             % AWS auto-shutdown alarm 20190213
-%             % The only official way to set the APT backend is here. We add
-%             % a metricalarm here to auto-shutdown the EC2 instance should
-%             % it become idle.
-%             %
-%             % - We use use a single/unique alarm name (see AWSec2). I think
-%             % this an AWS account can only have one alarm at a time, so
-%             % adding it here removes it from somewhere else if it is
-%             % somewhere else.
-%             % - If an account uses multiple instances, some will be
-%             % unprotected for now. We expect the typical use case to be a
-%             % single instance at a time.
-%             % - Currently we never remove the alarm, so it just hangs
-%             % around configured for the last instance where it was added. I
-%             % don't get the impression that this hurts or that CloudWatch
-%             % is expensive etc. Note in particular, the CloudWatch alarm
-%             % lifecycle is independent of the EC2 lifecycle. CloudWatch
-%             % alarms specify an instance only eg via the 'Dimensions'.
-%             % - The alarm(s) is clearly visible on the EC2 dash. I think it
-%             % should be ok for now.
-%             aws.configureAlarm;
-%           end
-%           
-%           if isempty(aws) || ~tfexist
-%             warningNoTrace('AWS backend is not configured. You will need to configure an instance before training or tracking.');
-%           elseif ~tfrunning
-%             warningNoTrace('AWS backend instance is not running. You will need to start instance before training or tracking.');
-%           end
-          
-        otherwise
-          [tf,reason] = be.getReadyTrainTrack();
-          if ~tf
-            warningNoTrace('Backend is not ready to train: %s',reason);
-          end
-      end
-      
-      obj.trackDLBackEnd = be;
-    end
+    function trackSetDLBackendType(obj, type)
+      assert(isa(type,'DLBackEnd'));      
+      obj.trackDLBackEnd.type = type ;
+      [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
+      if ~tf
+        warningNoTrace('Backend is not ready to train: %s',reason);
+      end      
+    end  % function
     
     function trackTrain(obj)
       tObj = obj.tracker;
@@ -11551,11 +11512,14 @@ classdef Labeler < handle
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.retrain(retrainArgs{:}, 'do_just_generate_db', do_just_generate_db, 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py);
-    end
+      tObj.retrain(retrainArgs{:}, ...
+                   'do_just_generate_db', do_just_generate_db, ...
+                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                   'projTempDir', obj.projTempDir);
+    end  % function
 
     function dotrain = trackCheckGPUMem(obj,varargin)
-      silent = myparse(varargin,'silent',false) | obj.silent;
+      silent = myparse(varargin,'silent',false) || obj.silent ;
       dotrain = true;
       sPrm = obj.trackGetParams();
       [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
@@ -11715,16 +11679,62 @@ classdef Labeler < handle
     end
     
     function tfCanTrack = trackAllCanTrack(obj)
-      
       tfCanTrack = false(1,numel(obj.trackersAll));
       for i = 1:numel(obj.trackersAll),
         tfCanTrack(i) = obj.trackersAll{i}.canTrack;
       end
-      
     end
     
-    function track(obj,mftset,varargin)
+    function [result, message] = doProjectAndMovieExist(obj)
+      % Returns true iff a project exists and a movie is open.
+      % If no project exists, returns false.
+      % If a project exists but no movie is open, returns false.
+      % Otherwise, returns true.
+      % message gives info about why the result it what is.
+      if obj.hasProject ,
+        if obj.hasMovie ,
+          result = true ;
+          message = '' ;
+        else
+          result = false ;
+          message = 'There is no movie open.' ;
+        end
+      else
+        result = false ;
+        message = 'There is no project open.' ;
+      end
+    end
+    
+    function track(obj, tm, varargin)
+      [okToProceed, message] = obj.doProjectAndMovieExist() ;
+      if ~okToProceed ,
+        error(message) ;
+      end
+      obj.setStatus('Preparing for tracking...');
+      cleaner = onCleanup(@()(obj.clearStatus())) ;
+      tblMFT = tm.getMFTable(obj,'istrack',true);
+      if isempty(tblMFT) ,
+        error('All frames already tracked.') ;
+      end
+      [tfCanTrack,reason] = obj.trackCanTrack(tblMFT);
+      if ~tfCanTrack,
+        error('Error tracking: %s', reason) ;
+      end
+      fprintf('Tracking started at %s...\n',datestr(now()));
+      obj.trackCore_(tblMFT, varargin{:}) ;      
+    end
+
+    function trackCore_(obj, mftset, varargin)
       % mftset: an MFTSet or table tblMFT
+
+      % Let user know what's going on...
+      obj.setStatus('Tracking...');
+      
+      if obj.maIsMA
+        args = horzcat({'track_type', 'detect'}, varargin) ;
+      else
+        args = varargin ;
+      end
       
       tObj = obj.tracker;
       if isempty(tObj)
@@ -11743,12 +11753,13 @@ classdef Labeler < handle
       movidx_new = [];
       for ndx = 1:numel(movidx)
         mn = movidx.get();
-        movidx_new(end+1) = mn;
+        movidx_new(end+1) = mn;  %#ok<AGROW> 
       end
       movidx = movidx_new;
       tblMFT.mov = newmov;
-      movfiles = obj.movieFilesAllFullGTaware;
-      movfiles = movfiles(movidx,:);
+      localmovfiles = obj.movieFilesAllFullGTaware;
+      localmovfiles = localmovfiles(movidx,:);
+      movfiles = obj.trackDLBackEnd.remoteMoviePathsFromLocal(localmovfiles) ;
 
       % get data associated with those movies
       if obj.hasTrx,
@@ -11758,6 +11769,7 @@ classdef Labeler < handle
         trxfiles = {};
       end
 
+      % Get crop ROIs
       if obj.cropProjHasCrops,
         cropInfo = obj.getMovieFilesAllCropInfoGTAware();
         croprois = cell([numel(movfiles),obj.nview]);
@@ -11769,21 +11781,31 @@ classdef Labeler < handle
       else
         croprois = {};
       end
+
+      % Get calibration data
       caldata = obj.viewCalibrationDataGTaware;
       if ~isempty(caldata)
         if ~obj.viewCalProjWide
           caldata = caldata(movidx);
         end
       end
-      totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
-        'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
-        'calibrationdata',caldata);
-      tObj.track('totrackinfo',totrackinfo,'isexternal',false,varargin{:});
+
+      % Put all the info into a ToTrackInfo object
+      totrackinfo = ...
+        ToTrackInfo('tblMFT',tblMFT, ...
+                    'movfiles',movfiles, ...
+                    'trxfiles',trxfiles, ...
+                    'views',1:obj.nview, ...
+                    'stages',1:tObj.getNumStages(), ...
+                    'croprois',croprois, ...
+                    'calibrationdata',caldata) ;
+
+      % Call the Tracker object to do the heavy lifting of tracking
+      tObj.track('totrackinfo', totrackinfo, 'isexternal', false, args{:}, 'projTempDir', obj.projTempDir) ;
+
       % For template mode to see new tracking results
       obj.labelsUpdateNewFrame(true);
-      
-      %fprintf('Tracking complete at %s.\n',datestr(now));
-    end
+    end  % track() function
     
     function trackTbl(obj,tblMFT,varargin)
       assert(false,'This is not supported')
@@ -16157,5 +16179,61 @@ classdef Labeler < handle
       obj.notify('didSetTrackParams') ;
     end
 
-  end
-end
+    function result = getMftInfoStruct(obj)
+      % Get some info needed for pretty-printing of MFT info in the UI (or
+      % something).  We used to just pass the whole labeler object, but that seems
+      % inelegant.  Now we just pass a struct with the handful of values we need.
+      result = struct() ;
+      result.nTargets = obj.nTargets ;
+      result.trackNFramesNear = obj.trackNFramesNear ;
+      result.trackNFramesLarge = obj.trackNFramesLarge ;
+      result.trackNFramesSmall = obj.trackNFramesSmall ;
+      result.nmoviesGTaware = obj.nmoviesGTaware ;
+      result.gtIsGTMode = obj.gtIsGTMode ;
+      result.currMovIdx = obj.currMovIdx ;
+      result.moviesSelected = obj.moviesSelected ;
+      result.nmovies = obj.nmovies ;
+      result.nmoviesGT = obj.nmoviesGT ;
+      result.hasMovie = obj.hasMovie ;
+    end  % function
+
+    function setBackendType(obj, type)
+      assert(isa(type,'DLBackEnd'));
+      obj.trackDLBackEnd.type = type ;
+%       if type ~= DLBackEnd.AWS ,
+%         [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
+%         if ~tf
+%           warningNoTrace('Backend is not ready to train: %s',reason);
+%         end
+%       end
+      obj.notify('didSetTrackDLBackEnd') ;
+    end
+
+    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
+      backend = obj.trackDLBackEnd ;
+      if isempty(backend) ,
+        error('Backend not configured') ;
+      end      
+      ec2 = backend.awsec2 ;
+      ec2.setPemFile(pemFile);
+      ec2.setKeyName(keyName);
+    end
+    
+    function setAwsInstanceId(obj, instanceID, instanceType)
+      backend = obj.trackDLBackEnd ;
+      if isempty(backend) ,
+        error('Backend not configured') ;
+      end      
+      ec2 = backend.awsec2 ;
+      ec2.setInstanceID(instanceID, instanceType) ;
+    end
+
+    function retrainAugOnly(obj)
+      % No idea what this does, but I know LabelerGUI methods shouldn't be calling
+      % non-getter methods on Labeler internals. --ALT, 2024-08-28
+      t = obj.tracker;
+      t.retrain('augOnly',true);
+    end
+
+  end  % methods
+end  % classdef

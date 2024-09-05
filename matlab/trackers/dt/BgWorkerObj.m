@@ -1,6 +1,6 @@
 classdef BgWorkerObj < handle
   % Object deep copied onto BG worker. To be used with
-  % BGWorkerContinuous
+  % BgRunnerContinuous
   % 
   % Responsibilities:
   % - Poll filesystem for updates
@@ -56,7 +56,7 @@ classdef BgWorkerObj < handle
     s = fileContents(obj,file)
     killFiles = getKillFiles(obj)
     [tf,warnings] = killProcess(obj)
-    sRes = compute(obj)
+    sRes = compute(obj, logger)
   end
   
   methods

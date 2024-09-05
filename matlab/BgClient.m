@@ -1,4 +1,4 @@
-classdef BGClient < handle
+classdef BgClient < handle
   properties
     cbkResult % function handle called when a new result is computed. 
               % Signature:  cbkResult(s) where s has fields .id, .action, .result
@@ -16,6 +16,7 @@ classdef BGClient < handle
     printlog = false; % if true, logging messages are displayed
     
     parpoolIdleTimeout = 100*60; % bump gcp IdleTimeout to at least this value every time a worker is started
+    projTempDirMaybe_ = {}
   end
   properties (Dependent)
     isConfigured
@@ -27,15 +28,18 @@ classdef BGClient < handle
     end    
     function v = get.isRunning(obj)
       v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
+      %fprintf('In BgClient::get.isRunning(), isRunning is %d\n', v) ;
     end
   end
 
   methods 
-    function obj = BGClient
+    function obj = BgClient(varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
       end
+      projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
+      obj.projTempDirMaybe_ = projTempDirMaybe ;
     end
     function delete(obj)
       if ~isempty(obj.qWorker2Me)
@@ -80,45 +84,48 @@ classdef BGClient < handle
       obj.computeObjMeth = computeObjMeth;
     end
     
-    function startWorker(obj,varargin)
-      % Start BGWorker on new thread
+    function startRunner(obj,varargin)
+      % Start BgRunner on new thread
       
-      [workerContinuous,continuousCallInterval] = myparse(varargin,...
-        'workerContinuous',false,...
+      [runnerContinuous,continuousCallInterval] = myparse(varargin,...
+        'runnerContinuous',false,...
         'continuousCallInterval',nan);
       
       if ~obj.isConfigured
-        error('BGClient:config',...
+        error('BgClient:config',...
           'Object unconfigured; call configure() before starting worker.');
       end
       
       queue = parallel.pool.DataQueue;
-      if workerContinuous
+      if runnerContinuous
       	queue.afterEach(@(dat)obj.afterEachContinuous(dat));
       else
         queue.afterEach(@(dat)obj.afterEach(dat));
       end		
       obj.qWorker2Me = queue;
       
-      p = gcp;
+      p = gcp() ;
       if obj.parpoolIdleTimeout > p.IdleTimeout 
         warningNoTrace('Increasing current parpool IdleTimeout to %d minutes.',obj.parpoolIdleTimeout);
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
-      if workerContinuous
-        workerObj = BGWorkerContinuous;
+      %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
+      if runnerContinuous
+        runnerObj = BgRunnerContinuous('projTempDirMaybe', obj.projTempDirMaybe_) ;
         % computeObj deep-copied onto worker
-        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
-          obj.computeObj,obj.computeObjMeth,continuousCallInterval);
+        obj.fevalFuture = ...
+          parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
+        % foo = feval(@run, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
+        %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       else      
-        workerObj = BGWorker;
+        runnerObj = BgRunner() ;
         % computeObj deep-copied onto worker
-        obj.fevalFuture = parfeval(@start,1,workerObj,queue,...
-          obj.computeObj,obj.computeObjMeth); 
+        obj.fevalFuture = ...
+          parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth) ; 
       end
       
-      obj.isContinuous = workerContinuous;
+      obj.isContinuous = runnerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
@@ -130,7 +137,7 @@ classdef BGClient < handle
       % sCmd: struct with fields {'action' 'data'}
             
       if ~obj.isRunning
-        error('BGClient:run','Worker is not running.');
+        error('BgClient:run','Worker is not running.');
       end      
       
       assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
@@ -139,7 +146,7 @@ classdef BGClient < handle
       
       q = obj.qMe2Worker;
       if isempty(q)
-        warningNoTrace('BGClient:queue','Send queue not configured.');
+        warningNoTrace('BgClient:queue','Send queue not configured.');
       else
         obj.idTics(sCmd.id) = tic;
         q.send(sCmd);
@@ -148,13 +155,13 @@ classdef BGClient < handle
     end
     
     function stopWorker(obj)
-      % "Proper" stop; STOP message is sent to BGWorker obj; BGWorker reads
+      % "Proper" stop; STOP message is sent to BgRunner obj; BgRunner reads
       % STOP message and breaks from polling loop
       
       if ~obj.isRunning
-        warningNoTrace('BGClient:run','Worker is not running.');
+        warningNoTrace('BgClient:run','Worker is not running.');
       else
-        sCmd = struct('action',BGWorker.STOPACTION,'data',[]);
+        sCmd = struct('action',BgRunner.STOPACTION,'data',[]);
         obj.sendCommand(sCmd);
       end
     end
@@ -163,7 +170,7 @@ classdef BGClient < handle
       % Harder stop, cancel fevalFuture
       
       if ~obj.isRunning
-        warningNoTrace('BGClient:run','Worker is not running.');
+        warningNoTrace('BgClient:run','Worker is not running.');
       else
         obj.fevalFuture.cancel();
       end
@@ -176,7 +183,7 @@ classdef BGClient < handle
     function log(obj,varargin)
       if obj.printlog
         str = sprintf(varargin{:});
-        fprintf(1,'BGClient (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
+        fprintf(1,'BgClient (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
       else
         % for now don't do anything
       end

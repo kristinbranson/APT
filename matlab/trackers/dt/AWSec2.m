@@ -17,127 +17,89 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (SetAccess=private)
-    instanceID % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.    
+    instanceID  % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
   end
+
   properties (Dependent)
     isSpecified
     isConfigured
+    isInDebugMode
   end
+
   properties
+    keyName = ''
+    pem = ''
+    instanceType = 'p3.2xlarge';
+  end
+  
+  properties  % (Transient)  Making these transient means they don't get copied over when you pass an AWSec2 in an arg to parfeval()!
+              %              We'll just have to be smart about handling them when loading.
     instanceIP
-    keyName = '';
-    pem = '';
-
-    instanceType = 'p2.xlarge';
-    
-    scpCmd
-    sshCmd
-    
     remotePID
-    
-    SetStatusFun = @(s,varargin) fprintf(['AWS Status: ',s,'\n']);
-    ClearStatusFun = @(varargin) fprintf('Done.\n');
-
+    isInDebugMode_ = false
   end
   
   properties (Constant)
-    cmdEnv = 'sleep 5;LD_LIBRARY_PATH=: AWS_PAGER=';
+    cmdEnv = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER='  
+      % Change the sleep number at your own risk!  I tried 3, and everything seemed
+      % fine for a while until it became a very hard-to-find bug. -- ALT, 2024-06-28
+    scpCmd = AWSec2.computeScpCmd()
+    sshCmd = AWSec2.computeSshCmd()
+    rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
-  methods
-    function set.instanceID(obj,v)
-%       if ~isempty(obj.instanceID) && ~strcmp(v,obj.instanceID),
-%         fprintf('AWSEc2 instanceID was already set to %s, overwriting to %s.',obj.instanceID,v);
-%       end
-      obj.instanceID = v;
-    end
-    function v = get.isConfigured(obj)
-      v = ~isempty(obj.pem) && ~isempty(obj.keyName);
-    end
-    function v = get.isSpecified(obj)
-      v = ~isempty(obj.instanceID);
-    end
-  end
-  
-  methods
-    
+  methods    
     function obj = AWSec2(varargin)
-      
-      if nargin >= 1,
-        pem = varargin{1};
-        if ~isempty(pem),
-          obj.pem = pem;
-        end
-      end
-            
-      if ispc
-        obj.scpCmd = ['"',APT.WINSCPCMD,'"'];
-        obj.sshCmd = ['"',APT.WINSSHCMD,'"'];
-      else
-        obj.scpCmd = 'scp';
-        obj.sshCmd = 'ssh';
-      end
-
-      for i=2:2:numel(varargin)
+      for i=1:2:numel(varargin)
         prop = varargin{i};
         val = varargin{i+1};
         obj.(prop) = val;
-      end
-      
+      end      
     end
     
-    function delete(obj)
+    function delete(obj)  %#ok<INUSD> 
       % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
-    end
-    
+    end    
   end
-      % NOTE: for now, lifecycle of obj is not tied at all to the actual
-      % instance-in-the-cloud
 
-  methods
-    
-    function SetStatus(obj,varargin)
-      if ~isempty(obj.SetStatusFun),
-        obj.SetStatusFun(varargin{:});
-      end
+  methods    
+    function set.instanceID(obj,v)
+      obj.instanceID = v;
     end
-    function ClearStatus(obj,varargin)
-      if ~isempty(obj.ClearStatusFun),
-        obj.ClearStatusFun(varargin{:});
-      end
+
+    function v = get.isConfigured(obj)
+      v = ~isempty(obj.pem) && ~isempty(obj.keyName);
     end
-    function clearStatusFuns(obj)
-      % AL20191218
-      % AWSEc2 objects are deep-copied onto bg worker objects and this is
-      % causing problems on Linux because these function handles contain
-      % references to the Labeler and the entire GUI is being
-      % serialized/copied. 
-      %
-      % For these worker objects these statusFun handles are unnec and we 
-      % clear them out.
-      obj.SetStatusFun = [];
-      obj.ClearStatusFun = [];
+
+    function v = get.isSpecified(obj)
+      v = ~isempty(obj.instanceID);
     end
-    
+
+    function result = get.isInDebugMode(obj)
+      result = obj.isInDebugMode_ ;
+    end
+
+    function set.isInDebugMode(obj, value)
+      obj.isInDebugMode_ = value ;
+    end
+
     function setInstanceID(obj,instanceID,instanceType)
-
-      obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
-
+      %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
       if ~isempty(obj.instanceID),
         if strcmp(instanceID,obj.instanceID),
           % nothing to do
-          obj.ClearStatus();
+          %obj.ClearStatus();
           return;
         end
         %instanceID = obj.instanceID;
-        [tfexist,tfrunning,json] = obj.inspectInstance();
+        [tfexist,tfrunning] = obj.inspectInstance();
         if tfexist && tfrunning,
           tfsucc = obj.stopInstance();
           if ~tfsucc,
             warning('Error stopping old AWS EC2 instance %s.',instanceID);
           end
-          obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
+          %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
         end
       end
       obj.instanceID = instanceID;
@@ -147,26 +109,22 @@ classdef AWSec2 < matlab.mixin.Copyable
       if obj.isSpecified,
         obj.configureAlarm();
       end
-      obj.ClearStatus();
+      %obj.ClearStatus();
     end
+
     function setPemFile(obj,pemFile)
       obj.pem = pemFile;
     end
+    
     function setKeyName(obj,keyName)
       obj.keyName = keyName;
     end
     
     function [tfsucc,json] = launchInstance(obj,varargin)
       % Launch a brand-new instance to specify an unspecified instance
-
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
       obj.ResetInstanceID();
-      
-%       assert(~obj.isSpecified,...
-%         'AWSEc2 instance is already specified with instanceID %s.',obj.instanceID);
-      
-      
-      obj.SetStatus('Launching new AWS EC2 instance');
+      %obj.SetStatus('Launching new AWS EC2 instance');
       cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
@@ -178,14 +136,14 @@ classdef AWSec2 < matlab.mixin.Copyable
       if dostore,
         obj.setInstanceID(instanceID);
       end
-      obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
+      %obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
       [tfsucc] = obj.waitForInstanceStart();
       if ~tfsucc,
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       obj.configureAlarm();
-      obj.ClearStatus();
+      %obj.ClearStatus();
     end
     
     function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
@@ -233,14 +191,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         % leave IP for now even though may be outdated
       end
-    end
+    end  % function
     
     function [tfsucc,state,json] = getInstanceState(obj)
-      
       assert(obj.isSpecified);
-      
       state = '';
-      
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if ~tfsucc
@@ -250,59 +205,29 @@ classdef AWSec2 < matlab.mixin.Copyable
       state = json.Reservations.Instances.State.Name;      
     end
     
-    function [tfsucc,instanceID,pemFile] = respecifyInstance(obj)
-      
-      %[tfsucc,instanceID,instanceType,reason] = obj.selectInstance('dostore',false);
-      
-      [tfsucc,instanceID,pemFile] = ...
-        obj.specifyInstanceUIStc(obj.instanceID,obj.pem);
-    end
-    
-    function [tfsucc,keyName,pemFile] = specifyPemKeyType(obj,dostore)
-      if nargin < 2,
-        dostore = false;
-      end
-      [tfsucc,keyName,pemFile] = ...
-        obj.specifySSHKeyUIStc(obj.keyName,obj.pem);
-      if tfsucc && dostore,
-        obj.setPemFile(pemFile);
-        obj.setKeyName(keyName);
-      end
-    end
-    
-    function [tfsucc,json] = stopInstance(obj,varargin)
-      [isinteractive] = myparse(varargin,'isinteractive',false);
+    function [tfsucc,json] = stopInstance(obj)
       if ~obj.isSpecified,
         tfsucc = true;
         json = {};
         return;
       end
-      if isinteractive,
-        res = questdlg(sprintf('Stop AWS instance %s? If you stop your instance, running other computations on AWS will have some overhead as the instance is re-initialized. If you do not stop the instance now, you may need to manually stop the instance in the future.',obj.instanceID),'Stop AWS Instance');
-        if ~strcmpi(res,'Yes'),
-          tfsucc = false;
-          return;
-        end
-      end
-      obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
+      %obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
-      obj.ClearStatus();
+      %obj.ClearStatus();
       if ~tfsucc
         return;
       end
       json = jsondecode(json);
-
       obj.stopAlarm();
-      
-    end
+    end  % function
     
 
     function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)
     
       instanceIDs = {};
       instanceTypes = {};
-      obj.SetStatus('Listing AWS EC2 instances available');
+      %obj.SetStatus('Listing AWS EC2 instances available');
       cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',[]); % empty instType to list all instanceTypes
       [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       if tfsucc,
@@ -312,152 +237,35 @@ classdef AWSec2 < matlab.mixin.Copyable
           instanceTypes = arrayfun(@(x)x.Instances.InstanceType,info.Reservations,'uni',0);
         end
       end
-      obj.ClearStatus();
+      %obj.ClearStatus();
       
     end
-    
-    function [tfsucc,instanceID,instanceType,reason,didLaunch] = ...
-        selectInstance(obj,varargin)
 
-      [canLaunch,canConfigure,forceSelect] = ...
-        myparse(varargin,'canlaunch',true,...
-        'canconfigure',1,'forceSelect',true);
-      
-      reason = '';
-      instanceID = '';
-      instanceType = '';
-      didLaunch = false;
-      tfsucc = false;
-      
-      if ~obj.isConfigured || canConfigure >= 2,
-        if canConfigure,
-          [tfsucc] = obj.specifyPemKeyType(true);
-          if ~tfsucc && ~obj.isConfigured,
-            reason = 'AWS EC2 instance is not configured.';
-            return;
-          else
-            tfsucc = true;
-          end
-        else
-          reason = 'AWS EC2 instance is not configured.';
-          return;
-        end
-      end
-      if forceSelect || ~obj.isSpecified,
-        if obj.isSpecified,
-          instanceID = obj.instanceID;
-        else
-          instanceID = '';
-        end
-        if canLaunch,
-          qstr = 'Launch a new instance or attach to an existing instance?';
-          if ~obj.isSpecified,
-            qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
-          else
-            qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
-          end
-          tstr = 'Specify AWS EC2 instance';
-          btn = questdlg(qstr,tstr,'Launch New','Attach to Existing','Cancel','Cancel');
-          if isempty(btn)
-            btn = 'Cancel';
-          end
-        else
-          btn = 'Attach to Existing';
-        end
-        while true,
-          switch btn
-            case 'Launch New'
-              tf = obj.launchInstance();
-              if ~tf
-                reason = 'Could not launch AWS EC2 instance.';
-                return;
-              end
-              instanceID = obj.instanceID;
-              instanceType = obj.instanceType;
-              didLaunch = true;
-              break;
-            case 'Attach to Existing',
-
-              [tfsucc,instanceIDs,instanceTypes] = obj.listInstances();
-              if ~tfsucc,
-                reason = 'Error listing instances.';
-                return;
-              end
-              if isempty(instanceIDs),
-                if canLaunch,
-                  btn = questdlg('No instances found. Launch a new instance?',tstr,'Launch New','Cancel','Cancel');
-                  continue;
-                else
-                  tfsucc = false;
-                  reason = 'No instances found.';
-                  return;
-                end
-              end
-              
-              PROMPT = {
-                'Instance'
-                };
-              NAME = 'AWS EC2 Select Instance';
-              INPUTBOXWIDTH = 100;
-              BROWSEINFO = struct('type',{'popupmenu'});
-              s = cellfun(@(x,y) sprintf('%s (%s)',x,y),instanceIDs,instanceTypes,'Uni',false);
-              v = 1;
-              if ~isempty(obj.instanceID),
-                v = find(strcmp(instanceIDs,obj.instanceID),1);
-                if isempty(v),
-                  v = 1;
-                end
-              end
-              DEFVAL = {{s,v}};
-              resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],1,1),...
-                DEFVAL,'on',BROWSEINFO);
-              tfsucc = ~isempty(resp);
-              if tfsucc
-                instanceID = instanceIDs{resp{1}};
-                instanceType = instanceTypes{resp{1}};
-              else
-                reason = 'Canceled.';
-                return;
-              end
-              break;
-            otherwise
-              reason = 'Canceled.';
-              return;
-          end
-        end
-        obj.setInstanceID(instanceID,instanceType);
-%         obj.instanceID = instanceID;
-%         obj.instanceType = instanceType;
-      end
-      tfsucc = true;
-
-    end
-    
     function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
 
-      obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
+      %obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
       [doblock] = myparse(varargin,'doblock',true);
       
-      maxwaittime = 100;
-      iterwaittime = 5;
+      %maxwaittime = 100;
+      %iterwaittime = 5;
       warningstr = '';
       [tfsucc,state,json] = obj.getInstanceState();
       if ~tfsucc,
         warningstr = 'Failed to get instance state.';
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
 
       if ismember(lower(state),{'shutting-down','terminated'}),
         warningstr = sprintf('Instance is %s, cannot start',state);
         tfsucc = false;
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return
       end
       if ismember(lower(state),{'stopping'}),
         warningstr = sprintf('Instance is %s, please wait for this to finish before starting.',state);
         tfsucc = false;
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       if ~ismember(lower(state),{'running','pending'}),
@@ -465,25 +273,25 @@ classdef AWSec2 < matlab.mixin.Copyable
         [tfsucc,json] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       end
       if ~tfsucc
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
       if ~doblock,
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       
       [tfsucc] = obj.waitForInstanceStart();
       if ~tfsucc,
         warningstr = 'Timed out waiting for AWS EC2 instance to spool up.';
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       
       obj.inspectInstance();
       obj.configureAlarm();
-      obj.ClearStatus();
+      %obj.ClearStatus();
     end
     
     function [tfsucc] = waitForInstanceStart(obj)
@@ -508,6 +316,8 @@ classdef AWSec2 < matlab.mixin.Copyable
             while true,
               [tfsucc,res] = obj.cmdInstance('cat /dev/null','dispcmd',true);
               if tfsucc,
+                nAttempts = nAttempts + 1;
+                fprintf('Attempt %d to connect to AWS EC2 instance succeeded!\n',nAttempts);
                 break;
               else
                 nAttempts = nAttempts + 1;
@@ -537,7 +347,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       % - If runs silently, obj appears to be a running EC2 instance with 
       %   no issues
       % - If harderror thrown, something appears wrong
-      obj.SetStatus('Checking whether AWS EC2 instance is running');
+      %obj.SetStatus('Checking whether AWS EC2 instance is running');
       throwErrs = myparse(varargin,...
         'throwErrs',true... % if false, just warn if there is a problem
         );
@@ -549,7 +359,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
       
       [tfexist,tfrun] = obj.inspectInstance;
-      obj.ClearStatus();
+      %obj.ClearStatus();
 
       if ~tfexist
         throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
@@ -685,21 +495,25 @@ classdef AWSec2 < matlab.mixin.Copyable
         warning('Could  not check for alarm: %s',reason);
         return;
       end
+      % DEBUGAWS: AWS alarms are annoying while debugging
+      if obj.isInDebugMode_ ,
+        return
+      end
       if isalarm,
-        return;
+        return
       end
       
-      codestr = obj.createShutdownAlarmCmd;
+      codestr = obj.createShutdownAlarmCmd ;
       
       fprintf('Setting up AWS CloudWatch alarm to auto-shutdown your instance if it is idle for too long.\n');
       
       tfsucc = obj.syscmd(codestr,...
-        'dispcmd',true,...
-        'failbehavior','warn');      
+                          'dispcmd',true,...
+                          'failbehavior','warn');      
     end
     
     function tfsucc = getRemotePythonPID(obj)
-      [tfsucc,res] = obj.cmdInstance('pgrep -o python','dispcmd',true);
+      [tfsucc,res] = obj.cmdInstance('pgrep --uid ubuntu --oldest python','dispcmd',true);
       if tfsucc
         pid = str2double(strtrim(res));
         obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
@@ -712,7 +526,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     function tfnopyproc = getNoPyProcRunning(obj)
       % Return true if there appears to be no python process running on
       % instance
-      [tfsucc,res] = obj.cmdInstance('pgrep -o python',...
+      [tfsucc,res] = obj.cmdInstance('pgrep --uid ubuntu --oldest python',...
         'dispcmd',true,'failbehavior','silent');
       
       % AL 20200213 First clause here is legacy: "expect command to fail; 
@@ -729,15 +543,18 @@ classdef AWSec2 < matlab.mixin.Copyable
       % dstAbs. In many cases, naming/immutability of files (with paths)
       % means this is OK.
       
-      sysCmdArgs = myparse(varargin,...
-        'sysCmdArgs',{});
+      [sysCmdArgs] = ...
+        myparse(varargin,...
+                'sysCmdArgs',{}) ;
       
-      if exist(dstAbs,'file')>0
+      if exist(dstAbs,'file') ,
         fprintf('File %s exists, not downloading.\n',dstAbs);
         tfsucc = true;
       else
-        cmd = AWSec2.scpDownloadCmd(obj.pem,obj.instanceIP,srcAbs,dstAbs,...
-          'scpcmd',obj.scpCmd);
+        %logger.log('AWSSec2::scpDownloadOrVerify(): obj.scpcmd is %s\n', obj.scpCmd) ;
+        cmd = AWSec2.scpDownloadCmd(obj.pem, obj.instanceIP, srcAbs, dstAbs, ...
+                                    'scpcmd', obj.scpCmd) ;
+        %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
         tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
         tfsucc = tfsucc && (exist(dstAbs,'file')>0);
       end
@@ -797,11 +614,11 @@ classdef AWSec2 < matlab.mixin.Copyable
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
       else
-        obj.SetStatus(sprintf('Uploading %s file to AWS EC2 instance',fileDescStr));
+        %obj.SetStatus(sprintf('Uploading %s file to AWS EC2 instance',fileDescStr));
         fprintf('About to upload. This could take a while depending ...\n');
         tfsucc = obj.scpUpload(src,dstAbs,...
           'destRelative',false,'sysCmdArgs',{'dispcmd',true});
-        obj.ClearStatus();
+        %obj.ClearStatus();
         if tfsucc
           fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dst);
         else
@@ -823,8 +640,13 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
         'destRelative',destRelative); % throws
     end
-        
-    function rmRemoteFile(obj,dst,fileDescStr,varargin) % throws
+       
+    function tfsucc = rsyncUpload(obj, src, dest)
+      cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
+      tfsucc = AWSec2.syscmd(cmd) ;
+    end
+
+    function rmRemoteFile(obj,dst,~,varargin)
       % Either i) confirm a remote file does not exist, or ii) deletes it.
       % This method either succeeds or fails and harderrors.
       %
@@ -850,9 +672,9 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         cmd = sprintf('rm -f "%s"',dstAbs);
       end
-      obj.SetStatus(sprintf('Deleting %s file(s) (if they exist) from AWS EC2 instance',fileDescStr));
+      %obj.SetStatus(sprintf('Deleting %s file(s) (if they exist) from AWS EC2 instance',fileDescStr));
       [tfsucc,res] = obj.cmdInstance(cmd,'dispcmd',true,'failbehavior','err'); %#ok<ASGLU>
-      obj.ClearStatus();
+      %obj.ClearStatus();
     end
     
     
@@ -874,9 +696,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         cmdremote = sprintf('%s %s',script,f);
       end
-      [~,res] = obj.cmdInstance(cmdremote,...
-        'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
-      tf = res(1)=='y';      
+      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+      [~,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,'failbehavior','err','usejavaRT',usejavaRT); 
+      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
+      tf = (res(1)=='y');      
     end
     
     function s = remoteFileContents(obj,f,varargin)
@@ -886,13 +709,30 @@ classdef AWSec2 < matlab.mixin.Copyable
         );
       
       cmdremote = sprintf('cat %s',f);
-      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',dispcmd,...
-        'failbehavior',failbehavior); 
+      [tfsucc,res] = obj.cmdInstance(cmdremote, ...
+                                     'dispcmd',dispcmd, ...
+                                     'failbehavior',failbehavior); 
       if tfsucc  
         s = res;
       else
         % warning thrown etc per failbehavior
         s = '';
+      end
+    end
+    
+    function result = remoteFileModTime(obj, filename, varargin)
+      % Returns the file modification time (mtime) in seconds since Epoch
+      [dispcmd, failbehavior] = ...
+        myparse(varargin, ...
+                'dispcmd', false, ...
+                'failbehavior', 'warn') ;
+      command = sprintf('stat --format=%%Y %s', escape_string_for_bash(filename)) ;  % time of last data modification, seconds since Epoch
+      [did_succeed, stdouterr] = obj.cmdInstance(command, 'dispcmd', dispcmd, 'failbehavior', failbehavior) ; 
+      if did_succeed ,
+        result = str2double(stdouterr) ;
+      else
+        % Warning/error happens inside obj.cmdInstance(), so just set a fallback value
+        result = nan ;
       end
     end
     
@@ -915,8 +755,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
       
       [relative,descstr] = myparse(varargin,...
-        'relative',true,... true if remoteDir is relative to ~
-        'descstr',''... cosmetic, for disp/err strings
+        'relative',true,...  % true if remoteDir is relative to ~
+        'descstr',''... % cosmetic, for disp/err strings
         );
       
       if ~isempty(descstr)
@@ -929,10 +769,10 @@ classdef AWSec2 < matlab.mixin.Copyable
         remoteDirFull = remoteDir;
       end
       
-      obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
+      %obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
       cmdremote = sprintf('mkdir -p %s',remoteDirFull);
       [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
-      obj.ClearStatus();
+      %obj.ClearStatus();
       if tfsucc
         fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
           descstr,remoteDirFull,res);
@@ -960,15 +800,25 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
+    function cmdfull = cmdInstanceDontRun(obj, cmdremote, varargin)
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
+    end
+
     function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
+      % Runs a single command-line command on the ec2 instance
+%       [logger] = myparse(varargin,...
+%                          'logger',FileLogger());
+%       logger.log('cmdInstance: cmdremote: %s\n', cmdremote) ;
       fprintf('cmdInstance: %s\n',cmdremote);
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd,obj.pem,obj.instanceIP,cmdremote,'usedoublequotes',true);
-      [tfsucc,res] = AWSec2.syscmd(cmdfull,varargin{:});
+      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
+%       logger.log('cmdInstance: cmdfull: %s\n', cmdfull) ;
+      [tfsucc,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
+%       logger.log('cmdInstance: tfsucc: %d, res: \n%s\n', tfsucc, res) ;
     end
         
-    function cmd = sshCmdGeneralLogged(obj,cmdremote,logfileremote)
-      cmd = AWSec2.sshCmdGeneralLoggedStc(obj.sshCmd,obj.pem,obj.instanceIP,...
-        cmdremote,logfileremote);
+    function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
+      cmd = sprintf('%s -i %s ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
+                    obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, logfileremote) ;
     end
         
     function tf = canKillRemoteProcess(obj)
@@ -985,8 +835,8 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       end
 %       
 %       cmdremote = sprintf('kill %d',obj.remotePID);
-      cmdremote = 'pkill -f python';
-      [tfsucc,res] = obj.cmdInstance(cmdremote,'dispcmd',true);
+      cmdremote = 'pkill --uid ubuntu --full python';
+      [tfsucc,~] = obj.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc
         fprintf('Kill command sent.\n\n');
       else
@@ -999,7 +849,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       %
       % res: [n] cellstr of fspoll responses
 
-      assert(iscellstr(fspollargs) && ~isempty(fspollargs));
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
       nargsFSP = numel(fspollargs);
       assert(mod(nargsFSP,2)==0);
       nresps = nargsFSP/2;
@@ -1026,7 +876,7 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       assert(isscalar(obj) && isscalar(obj2));
 %       tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
 %     end
-  end
+  end  % methods
   
   methods (Static)
     
@@ -1072,12 +922,19 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
+      % Run a command using Matlab built-in system() command.
+      % Optional args allow caller to specify what to do if the command fails.  (Can
+      % error, warn, or silently ignore.)  Also has option to lightly process a JSON
+      % response.
+      %
+      % Seems to also support issuing the command using the Java runtime, but AFAICT
+      % this is never used in APT.  -- ALT, 2024-04-25
       [dispcmd,failbehavior,isjsonout,dosetenv,setenvcmd,usejavaRT] = ...
         myparse(varargin,...
         'dispcmd',false,...
         'failbehavior','warn',... % one of 'err','warn','silent'
         'isjsonout',false,...
-        'dosetenv',isunix,...
+        'dosetenv',isunix(),...
         'setenvcmd',AWSec2.cmdEnv,...
         'usejavaRT',false...
         );
@@ -1102,7 +959,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         res = [];
         val = is.read();
         while val~=-1 && numel(res)<100
-          res(1,end+1) = val;
+          res(1,end+1) = val;  %#ok<AGROW> 
           val = is.read();
         end
         res = strtrim(char(res));
@@ -1143,7 +1000,7 @@ classdef AWSec2 < matlab.mixin.Copyable
             assert(false);
         end
       end
-    end
+    end  % syscmd()
     
     function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
       [destRelative,sshcmd] = myparse(varargin,...
@@ -1159,12 +1016,12 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
       [destRelative,scpcmd] = myparse(varargin,...
-        'destRelative',true,...
-        'scpcmd','scp');
+                                      'destRelative',true,...
+                                      'scpcmd','scp');
       if destRelative
         dest = ['~/' dest];
       end
-      if ispc 
+      if ispc() 
         [fileP,fileF,fileE] = fileparts(file);
         % 20190501. scp on windows is dumb and treats colons ':' as a
         % host specifier etc. there may not be a good way to escape; 
@@ -1179,105 +1036,81 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
 
-    function cmd = scpDownloadCmd(pem,ip,srcAbs,dstAbs,varargin)
+    function cmd = scpDownloadCmd(pem, ip, srcAbs, dstAbs, varargin)
       scpcmd = myparse(varargin,...
-        'scpcmd','scp');
+                       'scpcmd', 'scp') ;
       cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
-    function cmd = sshCmdGeneral(sshcmd,pem,ip,cmdremote,varargin)
-      [timeout,usedoublequotes] = myparse(varargin,...
-        'timeout',8,...
-        'usedoublequotes',false);
-      
-      args = {sshcmd '-i' pem sprintf('-oConnectTimeout=%d',timeout) ...
-        '-oStrictHostKeyChecking=no' sprintf('ubuntu@%s',ip)};
-      if usedoublequotes
-        args{end+1} = sprintf('"%s"',cmdremote);
+    function cmd = rsyncUploadCmd(src, pemFilePath, ip, dest)
+      % Generate the system() command to upload a file/folder via rsync.
+
+      % It's important that neither src nor dest have a trailing slash
+      if isempty(src) ,
+        error('src folder for rsync cannot be empty') ;
       else
-        args{end+1} = sprintf('''%s''',cmdremote);
+        if strcmp(src(end),'/') ,
+          error('src folder for rsync cannot end in a slash') ;
+        end
       end
+      if isempty(dest) ,
+        error('dest folder for rsync cannot be empty') ;
+      else
+        if strcmp(dest(end),'/') ,
+          error('dest folder for rsync cannot end in a slash') ;
+        end
+      end
+
+      % Generate the --rsh argument
+      sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
+      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+
+      % Generate the final command
+      cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, src, ip, dest) ;
+    end
+
+    function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
+      [timeout,~] = myparse(varargin,...
+                            'timeout',8,...
+                            'usedoublequotes',false);
+      
+      args = { sshcmd '-i' pem sprintf('-o ConnectTimeout=%d', timeout) sprintf('ubuntu@%s',ip) } ;
+      args{end+1} = escape_string_for_bash(cmdremote) ;
+%       if usedoublequotes
+%         args{end+1} = sprintf('"%s"',cmdremote);
+%       else
+%         args{end+1} = sprintf('''%s''',cmdremote);
+%       end
       cmd = String.cellstr2DelimList(args,' ');
-    end
+    end  % function
 
-    function cmd = sshCmdGeneralLoggedStc(sshcmd,pem,ip,cmdremote,logfileremote)
-      cmd = sprintf('%s -i %s -oStrictHostKeyChecking=no ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
-        sshcmd,pem,ip,cmdremote,logfileremote);
-    end
-
-    function [tfsucc,instanceID,pemFile] = ...
-                              specifyInstanceUIStc(instanceID,pemFile)
-      % Prompt user to specify/confirm an AWS instance.
-      % 
-      % instanceID, pemFile (in): optional defaults/best guesses
-      
-      if nargin<1
-        instanceID = '';
-      end
-      if nargin<2
-        pemFile = '';
-      end
-      
-      PROMPT = {
-        'Instance ID'
-        'Private key (.pem) file'
-        };
-      NAME = 'AWS EC2 Config';
-      INPUTBOXWIDTH = 100;
-      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
-
-      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
-        {instanceID;pemFile},'on',BROWSEINFO);
-      tfsucc = ~isempty(resp);      
-      if tfsucc
-        instanceID = strtrim(resp{1});
-        pemFile = strtrim(resp{2});
-        if exist(pemFile,'file')==0
-          error('Cannot find private key (.pem) file %s.',pemFile);
-        end
+    function scpCmd = computeScpCmd()
+      if ispc()
+        windows_null_device_path = '\\.\NUL' ;
+        scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
       else
-        instanceID = [];
-        pemFile = [];
-      end      
+        scpCmd = 'scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
+      end
+    end
+
+    function sshCmd = computeSshCmd()
+      if ispc()
+        windows_null_device_path = '\\.\NUL' ;
+        sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
+      else
+        sshCmd = 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
+      end
     end
     
-    function [tfsucc,keyName,pemFile] = ...
-        specifySSHKeyUIStc(keyName,pemFile)
-      % Prompt user to specify pemFile
-      % 
-      % keyName, pemFile (in): optional defaults/best guesses
-      
-      if nargin<1 || isempty(keyName),
-        keyName = '';
-      end
-      if nargin<2 || isempty(pemFile),
-        pemFile = '';
-      end
-      
-      PROMPT = {
-        'Key name'
-        'Private key (.pem or id_rsa) file'
-        };
-      NAME = 'AWS EC2 Config';
-      INPUTBOXWIDTH = 100;
-      BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
-
-      resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
-        {keyName;pemFile},'on',BROWSEINFO);
-      tfsucc = ~isempty(resp);      
-      if tfsucc
-        keyName = strtrim(resp{1});
-        pemFile = strtrim(resp{2});
-        if exist(pemFile,'file')==0
-          error('Cannot find private key (.pem or id_rsa) file %s.',pemFile);
-        end
+    function result = computeRsyncCmd()
+      if ispc()
+        error('Not implemented') ;
       else
-        keyName = '';
-        pemFile = '';
-      end      
+        result = 'rsync -az' ;
+      end
     end
     
-  end
+  end  % Static methods block
   
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there

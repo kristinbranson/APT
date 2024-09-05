@@ -131,6 +131,14 @@
             "program": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "type": "python",
+            "request": "launch",
+            "program": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }

@@ -27,9 +27,11 @@ classdef FrameSetVariable < FrameSet
       obj.avoidRadius = avdRad;
     end
     function str = getPrettyString(obj,labelerObj)
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       str = obj.prettyStringHook(labelerObj);
     end
     function str = getPrettyCompactString(obj,labelerObj)
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       str = obj.prettyCompactStringHook(labelerObj);
     end
     function frms = getFrames(obj,labelerObj,mIdx,iTgt,decFac)

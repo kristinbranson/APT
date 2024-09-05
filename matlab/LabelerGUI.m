@@ -792,6 +792,7 @@ handles.tbAdjustCropSizeBGColor0 = handles.tbAdjustCropSize.BackgroundColor;
 handles.tbAdjustCropSizeBGColor1 = [1 0 0];
 
 pumTrack = handles.pumTrack;
+pumTrack.Tag = 'pumTrack' ;
 pumTrack.Value = 1;
 pumTrack.String = {'All frames'};
 %set(pumTrack,'FontUnits','points','FontSize',6.5);
@@ -984,6 +985,7 @@ end
 
 % Change some controls to use LabelerGUIControlActuated()
 handles.pbTrain.Callback = @LabelerGUIControlActuated ;
+handles.pbTrack.Callback = @LabelerGUIControlActuated ;
 
 % Add the Debug menu if called for
 if lObj.isInDebugMode ,
@@ -1001,6 +1003,16 @@ if lObj.isInDebugMode ,
     uimenu('Parent', handles.menu_debug, ...
            'Label', 'Start Training, But Just Generate DB', ...
            'Tag', 'menu_debug_generate_db', ...
+           'Callback', @LabelerGUIControlActuated) ;
+  handles.menu_start_tracking_but_dont_call_apt_interface_dot_py = ...
+    uimenu('Parent', handles.menu_debug, ...
+           'Label', 'Start Tracking, But Skip Python Call', ...
+           'Tag', 'menu_start_tracking_but_dont_call_apt_interface_dot_py', ...
+           'Callback', @LabelerGUIControlActuated) ;
+  handles.menu_quit_but_dont_delete_temp_folder = ...
+    uimenu('Parent', handles.menu_debug, ...
+           'Label', 'Quit, But Don''t Delete Temp Folder', ...
+           'Tag', 'menu_quit_but_dont_delete_temp_folder', ...
            'Callback', @LabelerGUIControlActuated) ;
 end
 
@@ -2331,18 +2343,19 @@ if ~isfield(handles,'menu_track_backend_config')
     'Tag','menu_track_backend_config_jrc_set_singularity_image');  
 
   % AWS submenu (enabled when backend==AWS)
-  handles.menu_track_backend_config_aws_setinstance = uimenu( ...
-    'Parent',handles.menu_track_backend_config,...
-    'Separator','on',...
-    'Label','(AWS) Set EC2 instance',...
-    'Callback',@cbkTrackerBackendAWSSetInstance,...
-    'Tag','menu_track_backend_config_aws_setinstance');  
-  
   handles.menu_track_backend_config_aws_configure = uimenu( ...
     'Parent',handles.menu_track_backend_config,...
+    'Separator','on',...
     'Label','(AWS) Configure...',...
-    'Callback',@cbkTrackerBackendAWSConfigure,...
+    'Callback',@LabelerGUIControlActuated,...
     'Tag','menu_track_backend_config_aws_configure');  
+
+  handles.menu_track_backend_config_aws_setinstance = uimenu( ...
+    'Parent',handles.menu_track_backend_config,...
+    'Label','(AWS) Set EC2 instance',...
+    'Callback',@LabelerGUIControlActuated,...
+    'Tag','menu_track_backend_config_aws_setinstance');  
+%    'Callback',@cbkTrackerBackendAWSSetInstance,...
   
   % Docker 'submenu' (added by KB)
   handles.menu_track_backend_config_setdockerssh = uimenu( ...
@@ -2502,8 +2515,7 @@ function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 beType = src.UserData;
-be = DLBackEndClass(beType,lObj.trackGetDLBackend());
-lObj.trackSetDLBackend(be);
+lObj.setBackendType(beType) ;
 
 function cbkTrackerBackendMenuMoreInfo(src,evt)
 
@@ -2550,51 +2562,10 @@ be.testConfigUI(cacheDir);
       
       
 function cbkTrackerBackendAWSSetInstance(src,evt)
-handles = guidata(src);
-lObj = handles.labelerObj;
-%be = lObj.trackDLBackEnd;
-assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
-
-% aws = be.awsec2;
-% if ~isempty(aws)
-  %[tfsucc,instanceID,pemFile] = lObj.trackDLBackEnd.awsec2.respecifyInstance();
-  [tfsucc,~,~,~] = lObj.trackDLBackEnd.awsec2.selectInstance();
-% else
-%   [tfsucc,instanceID,pemFile] = AWSec2.specifyInstanceUIStc();
-% end
-
-if tfsucc
-%   lObj.trackDLBackEnd.awsec2.setInstanceID(instanceID);
-%   lObj.trackDLBackEnd.awsec2.setPemFile(pemFile);
-%   aws = AWSec2(pemFile,'instanceID',instanceID);
-%   be.awsec2 = aws;
-  %aws.checkInstanceRunning('throwErrs',false);
-  %lObj.trackSetDLBackend(be);
-end
+error('Implemented elsewhere') ;
 
 function cbkTrackerBackendAWSConfigure(src,evt)
-handles = guidata(src);
-lObj = handles.labelerObj;
-%be = lObj.trackDLBackEnd;
-assert(lObj.trackDLBackEnd.type==DLBackEnd.AWS);
-
-%aws = be.awsec2;
-%if ~isempty(aws)
-  [tfsucc,~,~,reason] = lObj.trackDLBackEnd.awsec2.selectInstance('canlaunch',1,...
-    'canconfigure',2,'forceSelect',1);
-  if ~tfsucc,
-    warning('Problem configuring: %s',reason);
-  end
-%else
-%  [tfsucc,keyName,pemFile] = AWSec2.specifySSHKeyUIStc();
-%end
-
-if tfsucc  
-%   aws = AWSec2(pemFile,'keyName',keyName);
-%   be.awsec2 = aws;
-  %aws.checkInstanceRunning('throwErrs',false);
-%   lObj.trackSetDLBackend(be);
-end
+error('Implemented elsewhere') ;
 
 function cbkTrackerBackendSetJRCNSlots(src,evt)
 handles = guidata(src);
@@ -2822,12 +2793,12 @@ if lObj.hasTrx
 else
   mfts = MFTSetEnum.TrackingMenuNoTrx;
 end
-menustrs = arrayfun(@(x)x.getPrettyStr(lObj),mfts,'uni',0);
+menustrs = arrayfun(@(x)x.getPrettyStr(lObj.getMftInfoStruct()),mfts,'uni',0);
 if ispc || ismac
-  menustrs_compact = arrayfun(@(x)x.getPrettyStrCompact(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrCompact(lObj.getMftInfoStruct()),mfts,'uni',0);
 else
   % iss #161
-  menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(lObj),mfts,'uni',0);
+  menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(lObj.getMftInfoStruct()),mfts,'uni',0);
 end
 hPUM = lObj.gdata.pumTrack;
 hPUM.String = menustrs_compact;
@@ -2835,9 +2806,9 @@ setappdata(hPUM,'FullStrings',menustrs);
 if lObj.trackModeIdx>numel(menustrs)
   lObj.trackModeIdx = 1;
 end
-
 hFig = lObj.gdata.figure;
 hFig.SizeChangedFcn(hFig,[]);
+% end function
 
 function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
@@ -2972,37 +2943,38 @@ function pbTrain_Callback(hObject, eventdata, handles)
 
 
 function pbTrack_Callback(hObject, eventdata, handles)
-if ~checkProjAndMovieExist(handles)
-  return;
-end
-handles.labelerObj.setStatus('Tracking...');
-tm = getTrackMode(handles);
-tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
-if isempty(tblMFT),
-  msgbox('All frames tracked.','Track');
-  handles.labelerObj.clearStatus() ;
-  return;
-end
-[tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
-if ~tfCanTrack,
-  errordlg(['Error tracking: ',reason],'Error tracking');
-  handles.labelerObj.clearStatus();
-  return;
-end
-fprintf('Tracking started at %s...\n',datestr(now));
-wbObj = WaitBarWithCancel('Tracking');
-centerOnParentFigure(wbObj.hWB,handles.figure);
-oc = onCleanup(@()delete(wbObj));
-if handles.labelerObj.maIsMA
-  handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
-else
-  handles.labelerObj.track(tblMFT,'wbObj',wbObj);
-end
-if wbObj.isCancel
-  msg = wbObj.cancelMessage('Tracking canceled');
-  msgbox(msg,'Track');
-end
-handles.labelerObj.clearStatus();
+% Not used anymore.  See LabelerController::pbTrain_actuated()
+% if ~checkProjAndMovieExist(handles)
+%   return;
+% end
+% handles.labelerObj.setStatus('Tracking...');
+% tm = getTrackMode(handles);
+% tblMFT = tm.getMFTable(handles.labelerObj,'istrack',true);
+% if isempty(tblMFT),
+%   msgbox('All frames tracked.','Track');
+%   handles.labelerObj.clearStatus() ;
+%   return;
+% end
+% [tfCanTrack,reason] = handles.labelerObj.trackCanTrack(tblMFT);
+% if ~tfCanTrack,
+%   errordlg(['Error tracking: ',reason],'Error tracking');
+%   handles.labelerObj.clearStatus();
+%   return;
+% end
+% fprintf('Tracking started at %s...\n',datestr(now));
+% wbObj = WaitBarWithCancel('Tracking');
+% centerOnParentFigure(wbObj.hWB,handles.figure);
+% oc = onCleanup(@()delete(wbObj));
+% if handles.labelerObj.maIsMA
+%   handles.labelerObj.track(tblMFT,'wbObj',wbObj,'track_type','detect');
+% else
+%   handles.labelerObj.track(tblMFT,'wbObj',wbObj);
+% end
+% if wbObj.isCancel
+%   msg = wbObj.cancelMessage('Tracking canceled');
+%   msgbox(msg,'Track');
+% end
+% handles.labelerObj.clearStatus();
 
 
 function pbClear_Callback(hObject, eventdata, handles)
@@ -4734,20 +4706,20 @@ end
 function menu_track_background_predict_start_Callback(hObject,eventdata,handles)
 tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
-  tObj.asyncStartBGWorker();
+  tObj.asyncStartBgRunner();
 else
   if ~tObj.hasTrained
     errordlg('A tracker has not been trained.','Background Tracking');
     return;
   end
   tObj.asyncPrepare();
-  tObj.asyncStartBGWorker();
+  tObj.asyncStartBgRunner();
 end
   
 function menu_track_background_predict_end_Callback(hObject,eventdata,handles)
 tObj = handles.labelerObj.tracker;
 if tObj.asyncIsPrepared
-  tObj.asyncStopBGWorker();
+  tObj.asyncStopBgRunner();
 else
   warndlg('Background worker is not running.','Background tracking');
 end
@@ -5233,8 +5205,7 @@ landmark_specs('lObj',lObj);
 
 function menu_track_viz_dataaug_Callback(hObject,evtdata,handles)
 lObj = handles.labelerObj;
-t = lObj.tracker;
-t.retrain('augOnly',true);
+lObj.retrainAugOnly() ;
 
 function menu_view_showhide_skeleton_Callback(hObject, eventdata, handles)
 if strcmpi(get(hObject,'Checked'),'off'),

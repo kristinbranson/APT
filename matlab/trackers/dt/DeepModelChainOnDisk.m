@@ -21,11 +21,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
     props_cell = {'netType','netMode','trainType','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword','prev_models'};
     props_bool = {'tfFollowsObjDet'};
-
   end
 
   properties
-
     % All properties will be cells/arrays, with an entry for each separate
     % training / tracking.
     % We will keep track of which job, stage, and view the
@@ -62,7 +60,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     % all over given that it is done very similarly everywhere.   
     % Example: `/groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5`
     % This will be the same for all stages/views.
-    rootDir = '';
+    localRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    remoteRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL
+    % Underscore means "protected by convention"
+    %rootDir = '';
 
     % All data associated with a given Labeler project will be stored in a
     % subdirectory of the cache directory, stored in
@@ -101,9 +102,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     
     iterFinal = []; % final expected iteration    
     iterCurr = []; % last completed iteration, corresponds to actual model file used
+      % iterCurr is 0x0 (if there are zero models) or 1 x nModels.  Elements can
+      % be nan, which means no training has been done on that model.
     nLabels = []; % number of labels used to train
     
-    reader % scalar DeepModelChainReader. used to update the itercurr; 
+    %reader % scalar DeepModelChainReader. used to update the itercurr; 
       % knows how to read the (possibly remote) filesys etc
       
     filesep ='/'; % file separator
@@ -111,14 +114,21 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trkTaskKeyword = {}; % arbitrary tracking task keyword; used for tracking output files
     trkTSstr = '';% timestamp for tracking
     prev_models = []; % prev model to start training from
+    isRemote_ = false  
+      % True iff the "current" version of the model is on a remote AWS filesystem.  
+      % Underscore means "protected by convention"
   end
+
   properties (Dependent)
     n
     nviews
     njobs
     nstages
-    isRemote
+    rootDir
+    localRootDir
+    remoteRootDir
   end
+
   methods
     function n = get.n(obj)
       n = numel(obj.view);
@@ -131,6 +141,26 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     function v = get.njobs(obj)
       v = numel(unique(obj.jobidx));
+    end
+    function v = get.rootDir(obj)
+      if obj.isRemote_ ,
+        v = obj.remoteRootDir_ ;
+      else
+        v = obj.localRootDir_ ;        
+      end
+    end
+    function set.rootDir(obj,v)
+      if obj.isRemote_ ,
+        obj.remoteRootDir_ = v ;
+      else
+        obj.localRootDir_ = v ;
+      end
+    end    
+    function v = get.remoteRootDir(obj)
+      v = obj.remoteRootDir_ ;
+    end
+    function v = get.localRootDir(obj)
+      v = obj.localRootDir_ ;
     end
     function [v,idx] = getJobs(obj,varargin)
       idx = obj.select(varargin{:});
@@ -148,12 +178,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       idx = obj.select(varargin{:});
       v = obj.splitIdx(idx);
     end
-    function v = get.isRemote(obj)
-      if isempty(obj.reader),
-        v = false;
-      else
-        v = obj.reader.getModelIsRemote();
-      end
+    function v = isRemote(obj)
+      v = obj.isRemote_ ;
     end
     function idx = select(obj,varargin)
       idx = DeepModelChainOnDisk.selectHelper(obj,varargin{:});
@@ -243,10 +269,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = obj.tfFollowsObjDet(idx);
     end
     function v = getRootDir(obj)
-      v = obj.rootDir;
+      v = obj.rootDir ;
     end
     function setRootDir(obj,v)
-      obj.rootDir = v;
+      obj.rootDir = v ;
     end
     function v = getFileSep(obj)
       v = obj.filesep;
@@ -766,11 +792,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   methods (Access=protected)
     function obj2 = copyElement(obj)
       obj2 = copyElement@matlab.mixin.Copyable(obj);
-      if ~isempty(obj.reader)
-        obj2.reader = copy(obj.reader);
-      end
+%       if ~isempty(obj.reader)
+%         obj2.reader = copy(obj.reader);
+%       end
     end
   end
+  
   methods
     function obj = DeepModelChainOnDisk(varargin)
 
@@ -794,7 +821,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
     
     function autoFix(obj,nmodels)
-
       if nargin < 2 || isempty(nmodels),
         nmodels = max([numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx)]);
       end
@@ -887,16 +913,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         obj.nLabels = repmat(obj.nLabels,[1,nmodels]);
       end
       obj.checkFileSep();
-      if isempty(obj.reader),
-        obj.reader = DeepModelChainReaderLocal();
+      if isempty(obj.isRemote_),
+        obj.isRemote_ = false ;
       end
-
-    end
+%       if isempty(obj.reader),
+%         obj.reader = DeepModelChainReaderLocal();
+%       end
+    end  % function
 
     function tf = isPostRefactor202208(obj)
-
       nmodels = max([numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx)]);
-
       tf = nmodels==numel(obj.jobidx) && nmodels==numel(obj.stage) && ...
           nmodels==numel(obj.view) && nmodels==numel(obj.splitIdx) && ...
           nmodels==numel(obj.modelChainID) && ...
@@ -906,7 +932,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           nmodels==numel(obj.netMode);
       %tf = tf && isequal(numel(unique(obj.view)) > 1,obj.isMultiView);
       %tf = tf && isequal(numel(unique(obj.stage)) > 1,obj.isMultiStage);
-
     end
 
     function merge(obj,dmc)
@@ -955,6 +980,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       obj.resetIsMultiViewTracker();
       obj.resetIsMultiStageTracker();
     end
+
     function dmc = selectSubset(obj,varargin)
       idx = obj.select(varargin{:});
       dmc = obj.copy();
@@ -996,20 +1022,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     function obj2 = copyAndDetach(obj)
       obj2 = copy(obj);
-      obj2.prepareBg();
+      %obj2.prepareBg();
     end    
-    function prepareBg(obj)
-      % 'Detach' a DMC for use in bg processes
-      % Typically you would deepcopy the DMC before calling this
-      for i=1:numel(obj)
-        if ~isempty(obj(i).reader)
-          obj(i).reader.prepareBg();
-        end
-      end
-    end
+
+%     function prepareBg(obj)
+%       % 'Detach' a DMC for use in bg processes
+%       % Typically you would deepcopy the DMC before calling this
+%       for i=1:numel(obj)
+% %         if ~isempty(obj(i).reader)
+% %           obj(i).reader.prepareBg();
+% %         end
+%       end
+%     end
+
     function [fileinfo,idx] = trainFileInfo(obj,varargin) 
       idx = obj.select(varargin{:});
-      fileinfo = struct;
+      fileinfo = struct() ;
       fileinfo.modelChainID = obj.modelChainID(idx);
       fileinfo.trainID = obj.trainID(idx);
       fileinfo.dlconfig = obj.trainConfigLnx;
@@ -1025,6 +1053,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       fileinfo.splitidx = obj.splitIdx(idx);
       fileinfo.selectfun = @(idx1) DeepModelChainOnDisk.selectHelper(fileinfo,idx);
     end
+
     function [fileinfo,idx] = trainFileInfoSingle(obj,varargin)
       [fileinfo,idx] = obj.trainFileInfo(varargin{:});
       fileinfo.modelChainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
@@ -1041,6 +1070,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % fileinfo.stage may be a vector
       % fileinfo.splitidx may be a vector
     end
+
     function [fileinfo,idx] = trackFileInfo(obj,varargin)
       % TODO update and test
       [fileinfo,idx] = obj.trainFileInfo(varargin{:});
@@ -1048,36 +1078,20 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       fileinfo.logfile = obj.trkLogfileLnx(idx);
       fileinfo.configfile = obj.trkConfigLnx(idx);
     end
-%     % OBSOLETE
-%     function printall(obj)
-%       mc = metaclass(obj);
-%       props = mc.PropertyList;
-%       tf = [props.Dependent];
-%       propnames = {props(tf).Name}';
-% %       tf = cellfun(@(x)~isempty(regexp(x,'lnx$','once')),propnames);
-% %       propnames = propnames(tf);
-% 
-%       nobj = numel(obj);
-%       for iobj=1:nobj
-%         if nobj>1
-%           fprintf('### obj %d ###\n',iobj);
-%         end
-%         for iprop=1:numel(propnames)
-%           p = propnames{iprop};
-%           fprintf('%s: %s\n',p,obj(iobj).(p));
-%         end
-%       end
+
+%     function lsProjDir(obj,varargin)
+%       idx = obj.select(varargin{:});
+%       obj.reader.lsProjDir(obj,idx);
 %     end
-    function lsProjDir(obj,varargin)
-      idx = obj.select(varargin{:});
-      obj.reader.lsProjDir(obj,idx);
-    end
-    function lsModelChainDir(obj)
-      obj.reader.lsModelChainDir(obj);
-    end
-    function lsTrkDir(obj)
-      obj.reader.lsTrkDir(obj);
-    end
+% 
+%     function lsModelChainDir(obj)
+%       obj.reader.lsModelChainDir(obj);
+%     end
+% 
+%     function lsTrkDir(obj)
+%       obj.reader.lsTrkDir(obj);
+%     end
+
     function [g,idx] = modelGlobsLnx(obj,varargin)
       % filesys paths/globs of important parts/stuff to keep
       
@@ -1096,6 +1110,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           gnetspecific(:)];
       end
     end
+
     function [mdlFiles,idx] = findModelGlobsLocal(obj,varargin)
       % Return all key/to-be-saved model files
       %
@@ -1123,6 +1138,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
       end      
     end
+
     function modelFilesDst = copyModelFiles(obj,newRootDir,debug)
       if nargin < 3,
         debug = false;
@@ -1133,13 +1149,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       modelFilesDst = strrep(modelFiles,obj.getRootDir(),newRootDir);
       % nothing to do
       if isequal(obj.getRootDir(),newRootDir), 
-        return;
+        return
       end
-      if obj.isRemote
+      if obj.isRemote_
         warningNoTrace('Remote model detected. This will not be migrated.');
-        return;
+        return
       end
-      tfsucc = obj.updateCurrInfo();
+      backend = [] ;  % we know we don't need a backend, b/c isRemote is false
+      tfsucc = obj.updateCurrInfo(backend);
       if ~all(tfsucc),
         for i = find(~tfsucc(:)'),
           warningNoTrace('Failed to update model iteration count for for net type %s.',...
@@ -1154,14 +1171,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
     
-    function tfSuccess = updateCurrInfo(obj)
+    function tfSuccess = updateCurrInfo(obj, backend, varargin)
       % Update .iterCurr by probing filesys
       
       assert(isscalar(obj));
       % will update for all
-      maxiter = obj.reader.getMostRecentModel(obj);
+      maxiter = obj.getMostRecentModel_(backend, varargin{:});
       obj.iterCurr = maxiter;
-      tfSuccess = all(maxiter >= 0);
+      tfSuccess = (maxiter >= 0) ;
       
       if any(maxiter>obj.iterFinal),
         warningNoTrace('Current model iteration exceeds specified maximum/target iteration: %s.',...
@@ -1169,8 +1186,49 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end
     end
 
+    function [maxiter,idx] = getMostRecentModel_(obj, backend, varargin)
+      if obj.isRemote_ ,
+        % maxiter is nan if something bad happened or if DNE
+        % TODO allow polling for multiple models at once
+        aws = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
+        [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
+        fspollargs = {};
+        for i = 1:numel(idx),
+          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
+        end
+        [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
+        if tfsucc
+          maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
+        else
+          maxiter = nan(1,numel(idx));
+        end        
+      else
+        [modelglob,idx] = obj.trainModelGlob(varargin{:});
+        [dirModelChainLnx] = obj.dirModelChainLnx(idx);
+
+        maxiter = nan(1,numel(idx));
+        for i = 1:numel(idx),
+          modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
+          if isempty(modelfiles),
+            continue;
+          end
+          for j = 1:numel(modelfiles),
+            iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
+            if ~isempty(iter),
+              maxiter(i) = max(maxiter(i),iter);
+            end
+          end
+        end
+      end
+    end
+
     function tf = canTrack(obj)
-      tf = ~isempty(obj.iterCurr) && all(obj.iterCurr >= 0);
+      % For each known model, whether or not it is in a state that allows tracking.
+      % We consider a model to be in a state that allows tracking if it has
+      % undergone at least one iteration of training.  Note also that a model that
+      % has been trained for nan iterations is not considered to be in a state that
+      % allows tracking.
+      tf = (obj.iterCurr >= 0) ;
     end
     
     % read nLabels from config file
@@ -1218,7 +1276,19 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       tf = ~isempty(obj.iterCurr) & ~isnan(obj.iterCurr);
     end
     
-    function mirror2remoteAws(obj,aws)
+    function mirrorToBackend(obj, backend, mode)
+      % mode should be 'tracking' or 'training'.
+      if ~exist('mode', 'var') || isempty(mode) ,
+        mode = 'tracking' ;
+      end
+      if ~backend.isFilesystemLocal() ,
+        if ~obj.isRemote_ ,
+          obj.mirrorToRemoteAws_(backend, mode) ;
+        end
+      end
+    end
+
+    function mirrorToRemoteAws_(obj, backend, mode)
       % Take a local DMC and mirror/upload it to the AWS instance aws; 
       % update .rootDir, .reader appropriately to point to model on remote 
       % disk.
@@ -1235,50 +1305,109 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % - .reader update to AWS reader
       
       assert(isscalar(obj));
-      assert(~obj.isRemote,'Model must be local in order to mirror/upload.');      
+      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
 
-      succ = obj.updateCurrInfo;
-      if ~all(succ),
+      succ = obj.updateCurrInfo(backend);
+      if strcmp(mode, 'tracking') && any(~succ) ,
         dmclfail = obj.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dmclfail{:});
         error('Failed to determine latest model iteration in %s.',fstr);
       end
-      fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
-     
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
-      
-      mdlFiles = obj.findModelGlobsLocal();
-      mdlFiles = cat(1,mdlFiles{:});
-      pat = obj.rootDir;
-      pat = regexprep(pat,'\\','\\\\');
-      mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);
-      mdlFilesRemote = FSPath.standardPath(mdlFilesRemote);
-      nMdlFiles = numel(mdlFiles);
-      netstr = char(obj.netType); 
-      fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,netstr);
-      descstr = sprintf('Model file: %s',netstr);
-      for i=1:nMdlFiles
-        src = mdlFiles{i};
-        info = dir(src);
-        filesz = info.bytes/2^10;
-        dst = mdlFilesRemote{i};
-        % We just use scpUploadOrVerify which does not confirm the identity
-        % of file if it already exists. These model files should be
-        % immutable once created and their naming (underneath timestamped
-        % modelchainIDs etc) should be pretty/totally unique. 
-        %
-        % Only situation that might cause problems are augmentedtrains but
-        % let's not worry about that for now.
-        aws.scpUploadOrVerify(src,dst,sprintf('%s (%s), %d KB',descstr,info.name,round(filesz)),'destRelative',false); % throws
+      if isnan(obj.iterCurr) ,
+        fprintf('Currently, there is no trained model.\n');
+      else
+        fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
       end
+     
+      backend.checkConnection();  % throws error if backend is not connected
       
+%       % Upload the already-existing model files
+%       mdlFilesWrapper = obj.findModelGlobsLocal();
+%       mdlFiles = cat(1,mdlFilesWrapper{:});
+%       %pat = obj.rootDir;  % e.g. /home/taylora/.apt/tpb9c364f9_46b1_4ac0_9095_11ddd5c2493c
+%       %pat = regexprep(pat,'\\','\\\\');
+%       %mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);  % DLBackEndClass.RemoteAWSCacheDir is typically '/home/ubuntu/cacheDL'
+%       mdlFilesRemoteRaw = cellfun(@(path)(FSPath.replacePrefix(path, obj.rootDir, DLBackEndClass.RemoteAWSCacheDir)), mdlFiles, 'UniformOutput', false) ;
+%       mdlFilesRemote = FSPath.standardPath(mdlFilesRemoteRaw);  % transform to linux-style path
+%       nMdlFiles = numel(mdlFiles);
+%       networkTypeAsString = charArrayFromCharArrayStringOrCellstring(obj.netType) ;
+%       fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,networkTypeAsString);
+%       descstr = sprintf('Model file: %s',networkTypeAsString);
+%       for i=1:nMdlFiles
+%         src = mdlFiles{i};
+%         info = dir(src);
+%         leafname = info.name ;
+%         filesz = round(info.bytes/2^10);
+%         dst = mdlFilesRemote{i};
+%         % We just use scpUploadOrVerify which does not confirm the identity
+%         % of file if it already exists. These model files should be
+%         % immutable once created and their naming (underneath timestamped
+%         % modelchainIDs etc) should be pretty/totally unique. 
+%         %
+%         % Only situation that might cause problems are augmentedtrains but
+%         % let's not worry about that for now.
+%         backend.scpUploadOrVerify(src, ...
+%                                   dst, ...
+%                                   sprintf('%s (%s), %d KB',descstr,leafname,filesz), ...
+%                                   'destRelative', false) ;  % throws
+%       end
+
+      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
+      % only a single boolean to represent whether it's local or remote, we're just
+      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
+      % backend.  -- ALT, 2024-06-25
+      localProjectPath = fullfile(obj.rootDir, obj.projID) ;
+      remoteProjectPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, obj.projID) ;  % ensure linux-style path
+      backend.rsyncUpload(localProjectPath, remoteProjectPath) ;
+
+%       localDisFromPathIndex = enumerate_all_files_and_folders(localProjectPath) ; % nx1 "dis" struct array, same fields as result of dir()
+%       localPathFromPathIndex = path_from_dir_struct(localDisFromPathIndex) ;
+%       rawRemotePaths = cellfun(@(path)(FSPath.replacePrefix(path, obj.rootDir, DLBackEndClass.RemoteAWSCacheDir)), ...
+%                                localPathFromPathIndex, ...
+%                                'UniformOutput', false) ;
+%       remotePaths = FSPath.standardPath(rawRemotePaths) ;  % transform to linux-style paths
+%       pathCount = numel(localDisFromPathIndex) ;
+%       networkTypeAsString = charArrayFromCharArrayStringOrCellstring(obj.netType) ;
+%       fprintf('Going to upload %d project files for net %s.\n',pathCount,networkTypeAsString);
+%       descstr = sprintf('Model file: %s',networkTypeAsString);
+%       for i = 1:pathCount ,
+%         localDis = localDisFromPathIndex(i) ;        
+%         localPath = localPathFromPathIndex{i} ;  % already computed above, might as well use
+%         leafname = localDis.name ;
+%         fileSizeInMibibytes = round(localDis.bytes/2^10) ;
+%         remotePath = remotePaths{i} ;
+%         if localDis.isdir ,
+%           backend.mkdir(remotePath) ;
+%         else
+%           % We just use scpUploadOrVerify which does not confirm the identity
+%           % of file if it already exists. These model files should be
+%           % immutable once created and their naming (underneath timestamped
+%           % modelchainIDs etc) should be pretty/totally unique. 
+%           %
+%           % Only situation that might cause problems are augmentedtrains but
+%           % let's not worry about that for now.
+%           backend.scpUploadOrVerify(localPath, ...
+%                                     remotePath, ...
+%                                     sprintf('%s (%s), %d KB',descstr,leafname,fileSizeInMibibytes), ...
+%                                     'destRelative', false) ;  % throws
+%         end
+%       end
+
       % if we made it here, upload successful
       
-      obj.rootDir = DLBackEndClass.RemoteAWSCacheDir;
-      obj.reader = DeepModelChainReaderAWS(aws);
+      obj.remoteRootDir_ = DLBackEndClass.RemoteAWSCacheDir ;
+      %obj.reader = backend.getDmcReader();
+      obj.isRemote_ = true ;
     end
     
-    function mirrorFromRemoteAws(obj,cacheDirLocal)
+    function mirrorFromBackend(obj, backend)
+      % If the model chain is remote, download it
+      if obj.isRemote_ ,
+        obj.mirrorFromRemoteAws_(backend) ;
+      end
+    end
+
+    function mirrorFromRemoteAws_(obj, backend)
       % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
       % instance to local cache.
       %
@@ -1289,9 +1418,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % to point to the local cache.
       
       assert(isscalar(obj));      
-      assert(obj.isRemote,'Model must be remote in order to mirror/download.');      
+      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
       
-      aws = obj.reader.awsec2;
+      cacheDirLocal = obj.localRootDir_ ;
+      aws = backend.awsec2;  % Should probably refactor do this directly using backend methods
       [tfexist,tfrunning] = aws.inspectInstance();
       if ~tfexist,
         error('AWS EC2 instance %s could not be found.',aws.instanceID);
@@ -1304,7 +1434,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       end      
       %aws.checkInstanceRunning(); % harderrs if instance isn't running
      
-      succ = obj.updateCurrInfo;
+      succ = obj.updateCurrInfo(backend) ;
       if any(~succ),
         dirModelChainLnx = obj.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dirModelChainLnx{:});
@@ -1319,7 +1449,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
         mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
         nMdlFiles = numel(mdlFilesRemote);
-        netstr = char(obj.netType(j)); 
+        netstr = char(obj.netType{j}); 
         fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
         for i=1:nMdlFiles
           fsrc = mdlFilesRemote{i};
@@ -1333,8 +1463,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       
       % if we made it here, download successful
       
-      obj.rootDir = cacheDirLocal;
-      obj.reader = DeepModelChainReaderLocal();
+      %obj.rootDir = cacheDirLocal;
+      %obj.reader = DeepModelChainReaderLocal();
+      obj.isRemote_ = false ;
     end
     
     function [tf,tpdir,idx] = trnPackExists(obj,varargin)
@@ -1342,6 +1473,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainLocLnx,idx] = obj.trainLocLnx(varargin{:});
       tpdir = obj.dirProjLnx;
       tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
+    end
+
+    function result = getTorchHome(obj)
+      if obj.isRemote_ ,
+        result = linux_fullfile(obj.remoteRootDir_, 'torch') ;
+      else
+        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      end
     end
 
   end
@@ -1403,7 +1542,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
       if isempty(dmcs)
         obj = dmcs;
-        return;
+        return
       end
 
       netmodes = myparse(varargin,'netmode',[]);
@@ -1521,8 +1660,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           'prev_models',prev_models,...
           'filesep',dmcs(1).filesep,...
           'trkTaskKeyword',trkTaskKeyword,...
-          'trkTSstr',dmcs(1).trkTSstr,...
-          'reader',dmcs(1).reader...
+          'trkTSstr',dmcs(1).trkTSstr...
           );
         obj.resetFollowsObjDet();
         obj.resetIsMultiViewTracker();
@@ -1545,7 +1683,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         info.nmodels = dmc.n;
         info.isTrainStarted = true;
         info.isTrainRestarted = strcmp(dmc.trainType,'Restart');
-        info.trainStartTS = datenum(dmc.modelChainID,'yyyymmddTHHMMSS');
+        info.trainStartTS = datenum(dmc.modelChainID,'yyyymmddTHHMMSS');  %#ok<DATNM> 
         assert(all(~isnan(info.trainStartTS)));
         info.iterCurr = dmc.iterCurr;
         if isempty(dmc.iterCurr),

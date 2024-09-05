@@ -5,12 +5,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % * DLNetType: what DL net is run
   % * DLBackEndClass: where/how DL was run
   %
-  % TODO: Design is solidifying. This should be a base class with
-  % subclasses for backend types. The .type prop would be redundant against
-  % the concrete type. Codegen methods should be moved out of DeepTracker
-  % and into backend subclasses and use instance state (eg, docker codegen 
-  % for current tag; bsub for specified .sif; etc). Conceptually this class 
-  % would just be "DLBackEnd" and the enum/type would go away.
+  % TODO: Codegen methods should be moved out of DeepTracker and into this class
+  % and use instance state (eg, docker codegen for current tag; bsub for
+  % specified .sif; etc). Conceptually this class would just be "DLBackEnd" and
+  % the enum/type would go away.
   
   properties (Constant)
     minFreeMem = 9000; % in MiB
@@ -31,32 +29,42 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
   properties
     type  % scalar DLBackEnd
-    
-    % scalar logical. if true, bsub backend runs code in APT.Root/deepnet. 
-    % This path must be visible in the backend or else.
-    %
-    % Conceptually this could be an arbitrary loc.
-    %
-    % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
-    deepnetrunlocal = true; 
-    bsubaptroot = [];  % root of APT repo for bsub backend running     
-    jrcsimplebindpaths = 1; 
+
+    % Used only for type==Bsub
+    deepnetrunlocal = true
+      % scalar logical. if true, bsub backend runs code in APT.Root/deepnet.
+      % This path must be visible in the backend or else.
+      % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
+    bsubaptroot = []  % root of APT repo for bsub backend running     
+    jrcsimplebindpaths = true  % whether to bind '/groups', '/nrs' for the Bsub/JRC backend
         
-    % used only for type==AWS
-    awsec2  % empty, or a scalar AWSec2 object (a handle class)
-    awsgitbranch
+    % Used only for type==AWS
+    awsec2  % a scalar AWSec2 object (present whether we need it or not)
+    awsgitbranch  
+      % Stores the branch name of APT to use when updating APT on the AWS EC2
+      % instance.  This is never set in the APT codebase, as near as I can tell.
+      % Likely used only for debugging?  -- ALT, 2024-03-07
     
-    dockerapiver = '1.40'; % docker codegen will occur against this docker api ver
+    % Used only for type==Docker  
+    dockerapiver = '1.40'  % docker codegen will occur against this docker api ver
     dockerimgroot = DLBackEndClass.defaultDockerImgRoot
-    % We have an instance prop for this to support running on older/custom
-    % docker images.
+      % We have an instance prop for this to support running on older/custom
+      % docker images.
     dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
+      % The docker backend can run the docker container on a remote host.
+      % dockerremotehost will contain the DNS name of the remote host in this case.
+      % But even in this case, as with local docker, we assume that the docker
+      % container and the local host have the same filesystem paths to all the
+      % training/tracking files we will access.  (Like if e.g. they're both managed
+      % Linux boxes on the Janelia network.)
+
     gpuids = []  % for now used by docker/conda
-    dockercontainername = []  % transient
-    %dockershmsize = 512; % in m; passed in --shm-size
+    dockercontainername = []  
+      % transient
+      % Also, seemingly never read -- ALT, 2024-03-07
     
-    jrcAdditionalBsubArgs = ''
+    jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
 
     condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
@@ -65,6 +73,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     singularity_image_path_ = '<invalid>'
     does_have_special_singularity_detection_image_path_ = '<invalid>'
     singularity_detection_image_path_ = '<invalid>'
+
+    % Used to keep track of whether movies have been uploaded or not
+    didUploadMovies_ = false
+
+    % When we upload movies, keep track of the correspondence, so we can help the
+    % consumer map between the paths
+    localPathFromMovieIndex_ = cell(1,0) ;
+    remotePathFromMovieIndex_ = cell(1,0) ;
   end
 
   properties (Dependent)
@@ -72,32 +88,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     dockerimgfull % full docker img spec (with tag if specified)
     singularity_image_path
     singularity_detection_image_path
+    isInAwsDebugMode
   end
   
   methods
-    function obj = DLBackEndClass(ty, oldbe)
+    function obj = DLBackEndClass(ty)
       if ~exist('ty', 'var') || isempty(ty) ,
-        ty = DLBackEnd.Docker ;
+        ty = DLBackEnd.Bsub ;
       end
-      assert(isa(ty, 'DLBackEnd')) ;
       obj.type = ty ;
       % Set the singularity fields to valid values
       obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
       obj.singularity_detection_image_path_ = '' ;
-      % Copy over stuff from the old backend
-      if exist('oldbe', 'var') && ~isempty(oldbe) ,
-        % save state
-        obj.deepnetrunlocal = oldbe.deepnetrunlocal;
-        obj.awsec2 = oldbe.awsec2;
-        obj.dockerimgroot = oldbe.dockerimgroot;
-        obj.dockerimgtag = oldbe.dockerimgtag;
-        obj.condaEnv = oldbe.condaEnv;
-        obj.singularity_image_path_ = oldbe.singularity_image_path_ ;
-        obj.does_have_special_singularity_detection_image_path_ = oldbe.does_have_special_singularity_detection_image_path_ ;
-        obj.singularity_detection_image_path_ = oldbe.singularity_detection_image_path_ ;
-        obj.jrcAdditionalBsubArgs = oldbe.jrcAdditionalBsubArgs ;
-      end
+      % Just populate this now, whether or not we end up using it      
+      obj.awsec2 = AWSec2() ;
     end
   end
   
@@ -109,12 +114,19 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         v = '/';
       end
     end
+
+    function set.type(obj, value)
+      assert(isa(value, 'DLBackEnd')) ;
+      obj.type = value ;      
+    end
+
     function v = get.dockerimgfull(obj)
       v = obj.dockerimgroot;
       if ~isempty(obj.dockerimgtag)
         v = [v ':' obj.dockerimgtag];
       end
     end
+
     function set.dockerimgfull(obj, new_value)
       % Check for crazy values
       if ischar(new_value) && ~isempty(new_value) ,
@@ -141,6 +153,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.dockerimgroot = root ;
       obj.dockerimgtag = tag ;
     end    
+
     function result = get.singularity_detection_image_path(obj)
       if obj.does_have_special_singularity_detection_image_path_ ,
         result = obj.singularity_detection_image_path_ ;
@@ -173,6 +186,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Actually set the value
       obj.jrcAdditionalBsubArgs = new_value ;
     end    
+
     function set.condaEnv(obj, new_value)
       % Check for crazy values
       if ischar(new_value) && ~isempty(new_value) ,
@@ -183,23 +197,43 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Actually set the value
       obj.condaEnv = new_value ;
     end    
-  end
+  end  % methods block
  
   methods
+    % The wrapBaseCommand*_() methods are what wrapBaseCommand() uses for each of
+    % the backend types.  (The method names end in an underscore to indicate that
+    % they are "protected-by-convention").  The wrapCommand*() functions are
+    % lower-level.  For instance, wrapBaseCommandJaneliaCluster_() calls both
+    % wrapCommandSing() and wrapCommandBsub() in order to do its thing.
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
       switch obj.type,
         case DLBackEnd.Bsub,
-          cmd = obj.wrapBaseCommandBsub(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandJaneliaCluster_(basecmd,varargin{:});
         case DLBackEnd.Docker
-          cmd = obj.codeGenDockerGeneral(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandDocker_(basecmd,varargin{:});
         case DLBackEnd.Conda
-          cmd = obj.wrapCommandConda(basecmd, varargin{:});
+          cmd = obj.wrapCommandConda_(basecmd, varargin{:});
         case DLBackEnd.AWS
-          cmd = obj.wrapCommandAWS(basecmd);
+          cmd = obj.wrapCommandAWS_(basecmd, varargin{:});
         otherwise
           error('Not implemented: %s',obj.type);
       end
     end
+    
+    function [return_code, stdouterr] = runFilesystemCommand_(obj, basecmd)
+      % Run the basecmd using system(), after wrapping suitably for the type of
+      % backend.  Unlike spawn(), this blocks, and doesn't return a process
+      % identifier of any kind.  Return values are like those from system(): a
+      % numeric return code and a string containing any command output.
+      % Protected by convention, hence the trailing underscore in the name.
+      fprintf('runFilesystemCommand_(): %s\n', basecmd') ;
+      if obj.isFilesystemLocal() ,
+        command = basecmd ;
+      else
+        command = obj.wrapBaseCommand(basecmd) ;
+      end
+      [return_code, stdouterr] = system(command) ;
+    end  % function
 
     function cmd = logCommand(obj,containerName,native_log_file_name)
       assert(obj.type == DLBackEnd.Docker);
@@ -229,42 +263,117 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function jobID = parseJobID(obj,res)
+    function jobID = parseJobID(obj, res)
       switch obj.type
         case DLBackEnd.Bsub,
           jobID = DLBackEndClass.parseJobIDBsub(res);
         case DLBackEnd.Docker,
           jobID = DLBackEndClass.parseJobIDDocker(res);
+        case DLBackEnd.AWS,
+          jobID = DLBackEndClass.parseJobIdAws(res) ;
         otherwise
           error('Not implemented: %s',obj.type);
       end
+    end  % function
+
+    function result = remoteMoviePathFromLocal(obj, localPath)
+      % Convert a local movie path to the remote equivalent.
+      % For non-AWS backends, this is the identity function.
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        movieName = fileparts23(localPath) ;
+        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, 'movies') ;
+        rawRemotePath = linux_fullfile(remoteMovieFolderPath, movieName) ;
+        result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
+      else
+        result = localPath ;
+      end
     end
 
-    function [tfSucc, jobID] = run(obj, syscmds, varargin)
+    function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
+      % Convert a cell array of local movie paths to their remote equivalents.
+      % For non-AWS backends, this is the identity function.
+      result = cellfun(@(path)(obj.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
+    end
 
+    function uploadMovies(obj, localPathFromMovieIndex)
+      % Upload movies to the backend, if necessary.
+      if ~isequal(obj.type, DLBackEnd.AWS) ,
+        obj.didUploadMovies_ = true ;
+        return
+      end
+      if obj.didUploadMovies_ ,
+        return
+      end
+      remotePathFromMovieIndex = obj.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+      movieCount = numel(localPathFromMovieIndex) ;
+      fprintf('Uploading %d movie files...\n', movieCount) ;
+      fileDescription = 'Movie file' ;
+      sidecarDescription = 'Movie sidecar file' ;
+      for i = 1:movieCount ,
+        localPath = localPathFromMovieIndex{i};
+        remotePath = remotePathFromMovieIndex{i};
+        obj.uploadOrVerifySingleFile_(localPath, remotePath, fileDescription) ;  % throws
+        % If there's a sidecar file, upload it too
+        [~,~,fileExtension] = fileparts(localPath) ;
+        if strcmp(fileExtension,'.mjpg') ,
+          sidecarLocalPath = FSPath.replaceExtension(localPath, '.txt') ;
+          if exist(sidecarLocalPath, 'file') ,
+            sidecarRemotePath = obj.remoteMoviePathFromLocal(sidecarLocalPath) ;
+            obj.uploadOrVerifySingleFile_(sidecarLocalPath, sidecarRemotePath, sidecarDescription) ;  % throws
+          end
+        end
+      end      
+      fprintf('Done uploading %d movie files.\n', movieCount) ;
+      obj.didUploadMovies_ = true ; 
+      obj.localPathFromMovieIndex_ = localPathFromMovieIndex ;
+      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
+    end  % function
+
+    function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
+      % Upload a single file.  Protected by convention.
+      % Doesn't check to see if the backend type has a different filesystem.  That's
+      % why outsiders shouldn't call it.
+      localFileDirOutput = dir(localPath) ;
+      localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
+      % We just use scpUploadOrVerify which does not confirm the identity
+      % of file if it already exists. These movie files should be
+      % immutable once created and their naming (underneath timestamped
+      % modelchainIDs etc) should be pretty/totally unique. 
+      %
+      % Only situation that might cause problems are augmentedtrains but
+      % let's not worry about that for now.
+      localFileName = localFileDirOutput.name ;
+      fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
+      obj.scpUploadOrVerify(localPath, ...
+                            remotePath, ...
+                            fullFileDescription, ...
+                            'destRelative',false) ;  % throws      
+    end
+
+    function [tfSucc, jobID] = spawn(obj, syscmds, varargin)      
       [logcmds, cmdfiles, jobdesc, do_call_apt_interface_dot_py] = myparse( ...
         varargin, ...
         'logcmds', {}, ...
         'cmdfiles', {}, ...
         'jobdesc', 'job', ...
         'do_call_apt_interface_dot_py', true) ;
-
       if ~isempty(cmdfiles),
-        DLBackEndClass.writeCmdToFile(syscmds,cmdfiles,jobdesc);
+        obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
       end
       njobs = numel(syscmds);
       tfSucc = false(1,njobs);
       tfSuccLog = true(1,njobs);
       jobID = cell(1,njobs);
       for ijob=1:njobs,
-        fprintf(1,'%s\n',syscmds{ijob});
+        syscmd = syscmds{ijob} ;
+        fprintf(1,'%s\n',syscmd);
         if do_call_apt_interface_dot_py ,
           if obj.type == DLBackEnd.Conda,
-            [jobID{ijob},st,res] = parfevalsystem(syscmds{ijob});
+            [jobID{ijob},st,res] = parfevalsystem(syscmd);
             tfSucc(ijob) = st == 0;
           else
-            [st,res] = system(syscmds{ijob});
-            tfSucc(ijob) = st == 0;
+            [st,res] = system(syscmd);
+            tfSucc(ijob) = (st == 0) ;
             if tfSucc(ijob),
               jobID{ijob} = obj.parseJobID(res);
             end
@@ -275,7 +384,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           res = 'do_call_apt_interface_dot_py is false' ;
         end
         if ~tfSucc(ijob),
-          warning('Failed to spawn %s %d: %s',jobdesc,ijob,res);
+          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
         else
           jobid = jobID{ijob};
           if isnumeric(jobid),
@@ -291,14 +400,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         if numel(logcmds) >= ijob,
           fprintf(1,'%s\n',logcmds{ijob});
           [st2,res2] = system(logcmds{ijob});
-          tfSuccLog(ijob) = st2 == 0;
+          tfSuccLog(ijob) = (st2 == 0) ;
           if ~tfSuccLog(ijob),
             warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
           end
         end
       end
-
-    end
+    end  % spawn() method
 
     function delete(obj)  %#ok<INUSD> 
       % AL 20191218
@@ -313,36 +421,26 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function shutdown(obj)
-      if obj.type==DLBackEnd.AWS
-        aws = obj.awsec2;
-        if ~isempty(aws)
-          fprintf(1,'Stopping AWS EC2 instance %s.',aws.instanceID);
-          tfsucc = aws.stopInstance();
-          if ~tfsucc
-            warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
-          end
-        end
-      end
+      obj.stopEc2InstanceIfNeeded_() ;
     end
     
     function obj2 = copyAndDetach(obj)
-      % See notes in BGClient, BGWorkerObjAWS.
+      % See notes in BgClient, BgWorkerObjAWS.
       %
       % Sometimes we want a deep-copy of obj that is sanitized for
       % eg serialization. This copy may still be largely functional (in the
-      % case of BGWorkerObjAWS) or perhaps it can be 'reconstituted' at
+      % case of BgWorkerObjAWS) or perhaps it can be 'reconstituted' at
       % load-time as here.
       
       assert(isscalar(obj));
       obj2 = copy(obj);
-      if ~isempty(obj2.awsec2)
-        obj2.awsec2.clearStatusFuns();
-      end
-    end
-    
-  end
+%       if ~isempty(obj2.awsec2)
+%         obj2.awsec2.clearStatusFuns();
+%       end
+    end  % function
+  end  % methods
+
   methods (Access=protected)
-    
     function obj2 = copyElement(obj)
       % overload so that .awsec2 is deep-copied
       obj2 = copyElement@matlab.mixin.Copyable(obj);
@@ -350,11 +448,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj2.awsec2 = copy(obj.awsec2);
       end
     end
-    
   end
   
   methods
-    
     function modernize(obj)
       % 20220728 Win/Conda migration to WSL2/Docker
       if obj.type==DLBackEnd.Conda
@@ -381,6 +477,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       end
       % 20211101 turn on by default
       obj.jrcsimplebindpaths = 1;
+      % In modern versions, we always have a .awsec2, whether we need it or not
+      if isempty(obj.awsec2) ,
+        obj.awsec2 = AWSec2() ;
+      end
+      % On load, clear the .awsec2 fields that should be Transient, but can't be b/c
+      % we need them to survive going through parfeval()
+      obj.awsec2.instanceIP = [] ;
+      obj.awsec2.remotePID = [] ;
+      obj.awsec2.isInDebugMode = false ;
     end
     
     function testConfigUI(obj,cacheDir)
@@ -404,11 +509,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tf,reason] = getReadyTrainTrack(obj)
       tf = false;
       if obj.type==DLBackEnd.AWS
-        aws = obj.awsec2;
-        
         didLaunch = false;
         if ~obj.awsec2.isConfigured || ~obj.awsec2.isSpecified,
-          [tfsucc,instanceID,instanceType,reason,didLaunch] = ...
+          [tfsucc,instanceID,~,reason,didLaunch] = ...
             obj.awsec2.selectInstance(...
             'canconfigure',1,'canlaunch',1,'forceselect',0);
           if ~tfsucc || isempty(instanceID),
@@ -416,7 +519,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
             return;
           end
         end
-
         
         [tfexist,tfrunning] = obj.awsec2.inspectInstance;
         if ~tfexist,
@@ -459,18 +561,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         
         reason = '';
       elseif obj.type==DLBackEnd.Conda ,
-          if ispc() ,
-              tf = false ;
-              reason = 'Conda backend is not supported on Windows.' ;
-          else
-              tf = true ;
-              reason = '' ;              
-          end
+        if ispc() ,
+          tf = false ;
+          reason = 'Conda backend is not supported on Windows.' ;
+        else
+          tf = true ;
+          reason = '' ;
+        end
       else
         tf = true;
         reason = '';
       end
-    end
+    end  % method
     
     function s = prettyName(obj)
       switch obj.type,
@@ -483,11 +585,28 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function v = isLocal(obj)
-      v = isequal(obj.type,DLBackEnd.Docker) || isequal(obj.type,DLBackEnd.Conda);
+    function v = isGpuLocal(obj)
+      % Docker and Conda backends are local, Bsub (i.e. Janelia LSF) and AWS are
+      % not.  Basically this refers to whether the Python training/tracking code
+      % will run on the same machine as the Matlab frontend.
+      v = (isequal(obj.type, DLBackEnd.Docker) && isempty(obj.dockerremotehost) ) || isequal(obj.type,DLBackEnd.Conda);
     end
     
-    function [gpuid,freemem,gpuInfo] = getFreeGPUs(obj,nrequest,varargin)
+    function v = isGpuRemote(obj)
+      v = ~obj.isGpuLocal(obj) ;
+    end
+    
+    function v = isFilesystemLocal(obj)
+      % The conda and bsub (i.e. Janelia LSF) and Docker backends share (mostly) the
+      % same filesystem as the Matlab process.  AWS does not.
+      v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) || isequal(obj.type,DLBackEnd.Docker) ;
+    end
+    
+    function v = isFilesystemRemote(obj)
+      v = ~obj.isFilesystemLocal(obj) ;
+    end
+    
+    function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)
       % Get free gpus subject to minFreeMem constraint (see optional PVs)
       %
       % This sets .gpuids
@@ -496,26 +615,26 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
 
-      [dockerimg,minFreeMem,condaEnv,verbose] = myparse(varargin,...
-        'dockerimg',obj.dockerimgfull,...
-        'minfreemem',obj.minFreeMem,...
-        'condaEnv',obj.condaEnv,...
-        'verbose',0 ...
-      ); %#ok<PROPLC>
+      [~, minFreeMem, condaEnv, verbose] = ...
+        myparse(varargin,...
+                'dockerimg',obj.dockerimgfull,...
+                'minfreemem',obj.minFreeMem,...
+                'condaEnv',obj.condaEnv,...
+                'verbose',0) ;  %#ok<PROPLC>
       
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
-      aptdeepnet = APT.getpathdl;
+      aptdeepnet = APT.getpathdl() ;
       
       switch obj.type,
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
-          codestr = obj.codeGenDockerGeneral(basecmd,...
-            'containername','aptTestContainer',...
-            'bindpath',bindpath,...
-            'detach',false);
+          codestr = obj.wrapBaseCommandDocker_(basecmd,...
+                                             'containername','aptTestContainer',...
+                                             'bindpath',bindpath,...
+                                             'detach',false);
           if verbose
             fprintf(1,'%s\n',codestr);
           end
@@ -526,7 +645,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         case DLBackEnd.Conda
           basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
-            aptdeepnet,obj.filesep);
+                            aptdeepnet,obj.filesep);
           conda_activation_command = synthesize_conda_command(sprintf('activate %s', condaEnv)) ;  %#ok<PROPLC> 
           codestr = sprintf('%s && %s', conda_activation_command, basecmd);
           [st,res] = system(codestr);
@@ -542,8 +661,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           gpuInfo = [] ;
           obj.gpuids = 1 ;
           return
+        case DLBackEnd.AWS
+          % We basically want to skip all the checks etc, so return values that will
+          % make that happen.
+          gpuid = 1 ;
+          freemem = inf ;
+          gpuInfo = [] ;
+          obj.gpuids = 1 ;
+          return
         otherwise
-          error('APT:notImplemented', 'Not implemented');
+          error('APT:internalError', 'Internal error: backend type %s not recognized', char(obj.type)) ;
       end
       
       res0 = res;
@@ -574,11 +701,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       gpuid = gpuInfo.id(order);
       ngpu = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
 
-      global FORCEONEJOB;
-      if isequal(FORCEONEJOB,true),
-        warning('Forcing one GPU job');
-        ngpu = 1;
-      end
+%       global FORCEONEJOB;
+%       if isequal(FORCEONEJOB,true),
+%         warning('Forcing one GPU job');
+%         ngpu = 1;
+%       end
       
       freemem = freemem(1:ngpu);
       gpuid = gpuid(1:ngpu);
@@ -591,10 +718,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.gpuids = gpuid;
     end
     
-    function pretrack(obj,cacheDir,dmc,setStatusFcn)
+    function pretrack(obj,cacheDir)
+      obj.updateRepo() ;
       switch obj.type        
-        case DLBackEnd.AWS
-          obj.awsPretrack(dmc,setStatusFcn);
         case DLBackEnd.Bsub
           obj.bsubPretrack(cacheDir);
       end      
@@ -612,17 +738,19 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           r = APT.Root;          
       end
     end
+
     function r = getAPTDeepnetRoot(obj)
       r = [obj.getAPTRoot '/deepnet'];
     end
     
-  end
-  
-  methods (Static)
+    function cmd = wrapCommandAWS_(obj, basecmd, varargin)
+      cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
+    end
 
-    function tfSucc = writeCmdToFile(syscmds,cmdfiles,jobdesc)
-
-      if nargin < 3,
+    function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)
+      % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
+      % commands will be executed.
+      if nargin < 4,
         jobdesc = 'job';
       end
       if ischar(syscmds),
@@ -634,19 +762,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfSucc = false(1,numel(syscmds));
       assert(numel(cmdfiles) == numel(syscmds));
       for i = 1:numel(syscmds),
-        [fh,msg] = fopen(cmdfiles{i},'w');
-        if isequal(fh,-1)
-          warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+        syscmd = syscmds{i} ;
+        cmdfile = cmdfiles{i} ;
+        syscmdWithNewline = sprintf('%s\n', syscmd) ;
+        [didSucceed, errorMessage] = obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+        tfSucc(i) = didSucceed ;
+        if didSucceed ,
+          fprintf('Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfile);
         else
-          fprintf(fh,'%s\n',syscmds{i});
-          fclose(fh);
-          fprintf(1,'Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfiles{i});
-          tfSucc(i) = true;
+          warningNoTrace(errorMessage);
         end
-      end
-
-    end
-
+%         [fh,msg] = fopen(cmdfiles{i},'w');
+%         if isequal(fh,-1)
+%           warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+%         else
+%           fprintf(fh,'%s\n',syscmds{i});
+%           fclose(fh);
+%           fprintf(1,'Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfiles{i});
+%           tfSucc(i) = true;
+%         end
+      end  % for
+    end  % function
+  end  % methods block
+  
+  methods (Static)
     function jobid = parseJobIDStatic(res,type)
       switch type,
         case DLBackEnd.Bsub,
@@ -665,7 +804,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         jobid = str2double(stoks.jobid);
       else
         jobid = nan;
-        warning('Could not parse job id from:\n%s\',res);
+        warning('Could not parse job id from:\n%s\n',res);
+      end
+    end
+
+    function jobid = parseJobIdAws(res)
+      %fprintf('res: %s', res) ;
+      jobid = str2double(strtrim(res)) ;
+      if isnan(jobid) 
+        warning('Could not parse job id from:\n%s\n',res);
       end
     end
 
@@ -678,13 +825,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         assert(~isempty(res));
         jobID = strtrim(res);
       catch ME,
-        warning('Could not parse job id from:\n%s\',res);
+        warning('Could not parse job id from:\n%s\n',res);
         disp(getReport(ME));
         jobID = '';
       end
     end
 
-    function cmdout = wrapCommandConda(cmdin, varargin)
+    function cmdout = wrapCommandConda_(cmdin, varargin)
       % Take a base command and run it in a sing img
       [condaEnv,logfile,gpuid] = myparse(varargin,...
         'condaEnv',DLBackEndClass.default_conda_env, ...
@@ -703,10 +850,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       cmdout1 = [conda_activate_and_cuda_set_command ' && ' cmdin, ' &> ', logfile] ;
       cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
-    end
-
-    function cmd = wrapCommandAWS(basecmd,varargin) %#ok<STOUT,INUSD> 
-      error('Not implemented');
     end
 
     function cmdout = wrapCommandSing(cmdin, varargin)
@@ -752,7 +895,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [host,prefix,sshoptions,timeout,extraprefix] = myparse(varargin,...
         'host',DLBackEndClass.jrchost,...
         'prefix',DLBackEndClass.jrcprefix,...
-        'sshoptions','-o "StrictHostKeyChecking no" -t',...
+        'sshoptions','-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR -t',...
         'timeout',[],...
         'extraprefix','');
 
@@ -784,7 +927,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     end
 
-    function cmd = wrapBaseCommandBsub(basecmd,varargin)
+    function cmd = wrapBaseCommandJaneliaCluster_(basecmd,varargin)
 
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
       cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
@@ -814,7 +957,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = false;
       [host] = myparse(varargin,'host',DLBackEndClass.jrchost);
       
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
       hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))};
       drawnow;
       
@@ -986,7 +1129,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function filequote = getFileQuoteDockerCodeGen(obj) 
-      % get filequote to use with codeGenDockerGeneral      
+      % get filequote to use with wrapBaseCommandDocker_      
       if isempty(obj.dockerremotehost)
         % local Docker run
         filequote = '"';
@@ -995,7 +1138,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function codestr = codeGenDockerGeneral(obj,basecmd,varargin)
+    function codestr = wrapBaseCommandDocker_(obj,basecmd,varargin)
       % Take a base command and run it in a docker img
       %
       % basecmd: currently assumed to have any filenames/paths protected by
@@ -1005,7 +1148,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
         tty,shmSize] = ...
         myparse(varargin,...
-        'containername','',...
+        'containername','aptainer',...
         'bindpath',default_bindpath,... % paths on local filesystem that must be mounted/bound within container
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
@@ -1018,8 +1161,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       aptdeepnet = APT.getpathdl;
       
-      tfwin = ispc;
-      if tfwin
+      if ispc() 
         % 1. Special treatment for bindpath. src are windows paths, dst are
         % linux paths inside /mnt.
         % 2. basecmd massage. All paths in basecmd will be windows paths;
@@ -1119,7 +1261,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ~isempty(obj.dockerremotehost),
         codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
-      if tfwin,
+      if ispc() ,
         codestr = wrap_linux_command_line_for_wsl(codestr) ;
       end
     end
@@ -1127,7 +1269,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
 
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
       hedit.String = {sprintf('%s: Testing Docker Configuration...',datestr(now))}; 
       drawnow;
       
@@ -1163,7 +1305,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking docker API version...'; drawnow;
       
-      [tfsucc,clientver,clientapiver] = obj.getDockerVers();
+      [tfsucc,~,clientapiver] = obj.getDockerVers();
       if ~tfsucc        
         hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
         return;
@@ -1191,7 +1333,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       homedir = getenv('HOME');
       %deepnetrootguard = [filequote deepnetroot filequote];
       basecmd = 'python APT_interface.py lbl test hello';
-      cmd = obj.codeGenDockerGeneral(basecmd,...
+      cmd = obj.wrapBaseCommandDocker_(basecmd,...
         'containername','containerTest',...
         'detach',false,...
         'bindpath',{deepnetroot,homedir});
@@ -1214,7 +1356,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % free GPUs
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
-      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
+      [gpuid,~,~] = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
         hedit.String{end+1} = 'WARNING. Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
       else
@@ -1234,7 +1376,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function [tfsucc,hedit] = testCondaConfig(obj)
       tfsucc = false;
 
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
       hedit.String = {sprintf('%s: Testing Conda Configuration...',datestr(now))}; 
       drawnow;
 
@@ -1287,7 +1429,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       deepnetroot = [APT.Root '/deepnet'];
 %       %deepnetrootguard = [filequote deepnetroot filequote];
 %       basecmd = 'python APT_interface.py lbl test hello';
-%       cmd = obj.codeGenDockerGeneral(basecmd,'containerTest',...
+%       cmd = obj.wrapBaseCommandDocker_(basecmd,'containerTest',...
 %         'detach',false,...
 %         'bindpath',{deepnetroot});      
 %       RUNAPTHELLO = 1;
@@ -1308,7 +1450,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % free GPUs
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
-      [gpuid,freemem,gpuifo] = obj.getFreeGPUs(1,'verbose',true);
+      gpuid = obj.getFreeGPUs(1,'verbose',true);
       if isempty(gpuid)
         hedit.String{end+1} = 'WARNING: Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
       else
@@ -1326,7 +1468,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function [tfsucc,hedit] = testAWSConfig(obj,varargin)
       tfsucc = false;
-      [hfig,hedit] = DLBackEndClass.createFigTestConfig('Test AWS Backend');
+      [~,hedit] = DLBackEndClass.createFigTestConfig('Test AWS Backend');
       hedit.String = {sprintf('%s: Testing AWS backend...',datestr(now))}; 
       drawnow;
       
@@ -1366,13 +1508,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
       end
       
-      awsec2 = obj.awsec2;
+      ec2 = obj.awsec2;
 
       % test that AWS CLI is installed
       hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
       cmd = 'aws ec2 describe-regions --output table';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true);
+      [tfsucc,result] = ec2.syscmd(cmd,'dispcmd',true);
       %[status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
       if ~tfsucc % status ~= 0,
@@ -1384,7 +1526,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
       cmd = 'aws ec2 describe-security-groups';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = awsec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      [tfsucc,result] = ec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       %[status,result] = system(cmd);
       if tfsucc %status == 0,
         try
@@ -1465,25 +1607,47 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tfsucc = true;      
     end
     
-    function awsPretrack(obj,dmc,setstatusfn)
-      setstatusfn('AWS Tracking: Uploading code and data...');
-      
-      obj.awsUpdateRepo();
-      aws = obj.awsec2;
-      if ~isempty(dmc) && dmc.isRemote,
-        dmc.mirror2remoteAws(aws);
+    function checkConnection(obj)  
+      % Errors if connection to backend is ok.  Otherwise returns nothing.
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        aws = obj.awsec2;
+        aws.checkInstanceRunning() ;
       end
-      
-      setstatusfn('Tracking...');      
+    end
+
+    function scpUploadOrVerify(obj, varargin)
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        aws = obj.awsec2;
+        aws.scpUploadOrVerify(varargin{:}) ;
+      end      
+    end
+
+    function rsyncUpload(obj, src, dest)
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        aws = obj.awsec2 ;
+        aws.rsyncUpload(src, dest) ;
+      end      
     end
     
-    function awsUpdateRepo(obj) % throws if fails
+    function updateRepo(obj)
+      % Update the APT repo in the backend.  For non-AWS backends, this does nothing.
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        obj.awsUpdateRepo_();
+%         aws = obj.awsec2;
+%         if ~isempty(dmc) && ~dmc.isRemote,
+%           dmc.mirror2remoteAws(aws);
+%         end
+      end
+    end
+
+    function aptroot = awsUpdateRepo_(obj)  % throws if fails
+      obj.awsgitbranch = 're-aws' ;  % TODO: For debugging only, remove eventually
       if isempty(obj.awsgitbranch)
         args = {};
       else
         args = {'branch' obj.awsgitbranch};
       end
-      cmdremote = DeepTracker.updateAPTRepoCmd('downloadpretrained',true,args{:});
+      [cmdremote, aptroot] = apt.updateAPTRepoCmd('downloadpretrained',true,args{:});
 
       aws = obj.awsec2;      
       [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
@@ -1494,7 +1658,127 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-  end
+  end  % public methods block
+
+  methods
+    function [didsucceed, msg] = mkdir(obj, dir_name)
+      % Create the named directory, either locally or remotely, depending on the
+      % backend type.
+      quoted_dirloc = escape_string_for_bash(dir_name) ;
+      base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
+      [status, msg] = obj.runFilesystemCommand_(base_command) ;
+      didsucceed = (status==0) ;
+    end
+
+    function [didsucceed, msg] = deleteFile(obj, file_name)
+      % Delete the named file, either locally or remotely, depending on the
+      % backend type.
+      quoted_file_name = escape_string_for_bash(file_name) ;
+      base_command = sprintf('rm %s', quoted_file_name) ;
+      [status, msg] = obj.runFilesystemCommand_(base_command) ;
+      didsucceed = (status==0) ;
+    end
+
+    function [doesexist, msg] = exist(obj, file_name, file_type)
+      % Check whether the named file/dir exists, either locally or remotely,
+      % depending on the backend type.
+      if ~exist('file_type', 'var') ,
+        file_type = '' ;
+      end
+      if strcmpi(file_type, 'dir') ,
+        option = '-d' ;
+      elseif strcmpi(file_type, 'file') ,
+        option = '-f' ;
+      else
+        option = '-e' ;
+      end
+      quoted_file_name = escape_string_for_bash(file_name) ;
+      base_command = sprintf('test %s %s', option, quoted_file_name) ;
+      [status, msg] = obj.runFilesystemCommand_(base_command) ;
+      doesexist = (status==0) ;
+    end
+
+    function [didSucceed, errorMessage] = writeStringToFile(obj, filename, str)
+      % Write the given string to a file, overrwriting any previous contents.
+      % For remote backends, uses a single "ssh echo $string > $filename" to do
+      % this, so limited to strings of ~10^5 bytes.
+      if obj.isFilesystemLocal() ,
+        try
+          fo = file_object(filename, 'w') ;
+        catch me 
+          if strcmp(me.identifier, 'file_object:unable_to_open') ,
+            didSucceed = false ;
+            errorMessage = sprintf('Could not open file %s for writing: %s', filename, me.message) ;
+            return
+          else
+            rethrow(me) ;
+          end
+        end  % try-catch
+        fprintf(fo, '%s', str) ;
+        fclose(fo) ;
+      else
+        if strlength(str) > 100000 ,
+          didSucceed = false ;
+          errorMessage = ...
+            sprintf(['Could not write to file %s: ' ...
+                     'Current implementation of DLBackEndClass.writeStringToFile() only supports strings of length 100,000 or less'], ...
+                    filename) ;
+          return
+        end          
+        quoted_file_name = escape_string_for_bash(filename) ;
+        quoted_str = escape_string_for_bash(str) ;
+        base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
+        [status, msg] = obj.runFilesystemCommand_(base_command) ;
+        if status ~= 0 ,
+          didSucceed = false ;
+          errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);
+          return
+        end
+      end
+      didSucceed = true ;
+      errorMessage = '' ;
+    end  % function    
+
+    function aptroot = setupForTrainingOrTracking(obj, cacheDir)
+      switch obj.type
+        case DLBackEnd.Bsub ,
+          aptroot = obj.bsubSetRootUpdateRepo(cacheDir);
+        case {DLBackEnd.Conda, DLBackEnd.Docker} ,
+          aptroot = APT.Root;
+          DeepTracker.downloadPretrainedWeights('aptroot', aptroot) ;
+        case DLBackEnd.AWS ,
+          if isempty(obj.awsec2)
+            error('AWSec2 object not set.');
+          end
+          obj.awsec2.checkInstanceRunning();  % harderrs if instance isn't running
+          aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
+      end
+    end  % function    
+
+%     % Used to keep track of whether movies have been uploaded or not
+%     didUploadMovies_ = false
+% 
+%     % When we upload movies, keep track of the correspondence, so we can help the
+%     % consumer map between the paths
+%     localPathFromMovieIndex_ = cell(1,0) ;
+%     remotePathFromMovieIndex_ = cell(1,0) ;
+
+    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+      if ~obj.didUploadMovies_ ,
+        error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
+      end
+      movieCount = numel(obj.remotePathFromMovieIndex_) ;
+      for movieIndex = 1 : movieCount ,
+        remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
+        if strcmp(remotePath, queryRemotePath) ,
+          result = obj.localPathFromMovieIndex_{movieIndex} ;
+          return
+        end
+      end
+      % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
+      error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
+    end  % function
+  end  % public methods block
 
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there
@@ -1521,4 +1805,29 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end  
     end
   end
-end
+
+  methods   % private by convention
+    function stopEc2InstanceIfNeeded_(obj)
+      aws = obj.awsec2;
+      % DEBUGAWS: Stopping the AWS instance takes too long when debugging.
+      if aws.isInDebugMode ,
+        return
+      end
+      fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
+      tfsucc = aws.stopInstance();
+      if ~tfsucc
+        warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
+      end
+    end  % function    
+  end  % methods block
+
+  methods
+    function result = get.isInAwsDebugMode(obj)
+      result = obj.awsec2.isInDebugMode ;
+    end
+
+    function set.isInAwsDebugMode(obj, value)
+      obj.awsec2.isInDebugMode = value ;
+    end    
+  end  % methods block
+end  % classdef
