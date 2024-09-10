@@ -891,7 +891,6 @@ classdef DeepTracker < LabelTracker
     end
     
     function retrain(obj,varargin)
-      % retrain(obj,...)
       % Main training function
       % Called by Labeler.trackRetrain
       % Checks whether tracking results already exist, and what to do about
@@ -1967,166 +1966,7 @@ classdef DeepTracker < LabelTracker
 
   % AWS Trainer    
   methods
-      
-    % not maintained/obsolete
-    function trnSpawnAWS(obj,backend,trnType,modelChainID,varargin)
-      %
-      % backend: scalar DLBackEndClass
-      % trnType: scalar DLTrainType
-      % modelChainID: trainID 
-      %
-      % PostConds (success):
-      %  - training aws job spawned
-      %  - .trnLastDMC set
-
-      error('TODO: update AWS code');
-
-      [wbObj,prev_models] = myparse(varargin,...
-        'wbObj',[],'prev_models',[] ... 
-        );
-            
-      aws = backend.awsec2;
-      if isempty(aws)
-        error('AWSec2 object not set.');
-      end
-      aws.checkInstanceRunning(); % harderrs if instance isn't running
-      
-      backend.awsUpdateRepo_();
-      
-      nvw = obj.lObj.nview;
-
-      % Base DMC, to be further copied/specified per-view
-      dmc = DeepModelChainOnDisk(...        
-        'rootDir',backend.RemoteAWSCacheDir,...
-        'projID',obj.lObj.projname,...
-        'netType',char(obj.trnNetType),...
-        'netMode',obj.trnNetMode,...
-        'view',nan,... % to be filled in 
-        'modelChainID',modelChainID,...
-        'trainID','',... % to be filled in 
-        'trainType',trnType,...
-        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
-        'isMultiView',nvw>1,... % currently all multiview projs train serially
-        'filesep',obj.filesep,...
-        'prev_models',prev_models...
-        );
-      dmcLcl = dmc.copy();
-      dmcLcl.rootDir = obj.lObj.DLCacheDir;
-      
-      warning('Stripped lbl files still used in AWS. Todo: fix this!');
-
-      % create/ensure stripped lbl, local and remote
-      tfGenNewStrippedLbl = trnType==DLTrainType.New || ...
-                            trnType==DLTrainType.RestartAug;
-                          
-      if tfGenNewStrippedLbl        
-        s = obj.trnCreateStrippedLbl('awsRemote',true,'wbObj',wbObj); 
-        % store nLabels in DMC
-        dmc.nLabels = s.nLabels;
-        
-        trainID = datestr(now,'yyyymmddTHHMMSS');
-        dmc.trainID = trainID;
-        dmcLcl.trainID = trainID;
-        
-        % Write stripped lblfile to local cache
-        dlLblFileLcl = dmcLcl.lblStrippedLnx;
-        dlLblFileLclDir = fileparts(dlLblFileLcl);
-        
-        % MK 2019018. Creating the cache dir in case it does not exist
-        % realized later that cache dir should exist by default.
-        % so commenting it out for now, but might be useful.
-%         dlCacheDir = fileparts(dlLblFileLclDir);
-%         if exist(dlCacheDir,'dir')==0
-%           fprintf('Creating local dir: %s\n',dlCacheDir);
-%           [succ,msg] = mkdir(dlCacheDir);
-%           if ~succ
-%             error('Failed to create local dir %s: %s',dlCacheDir,msg);
-%           end
-%         end
-        
-        if exist(dlLblFileLclDir,'dir')==0
-          fprintf('Creating local dir: %s\n',dlLblFileLclDir);
-          [succ,msg] = mkdir(dlLblFileLclDir);
-          if ~succ
-            error('Failed to create local dir %s: %s',dlLblFileLclDir,msg);
-          end
-        end
-        save(dlLblFileLcl,'-mat','-v7.3','-struct','s');
-        fprintf('Saved stripped lbl file locally: %s\n',dlLblFileLcl);
-      else % Restart
-        trainID = obj.trnNameLbl;
-        assert(~isempty(trainID));
-        
-        dmc.trainID = trainID;
-        dmcLcl.trainID = trainID;
-
-        dlLblFileLcl = dmcLcl.lblStrippedLnx;
-        if exist(dlLblFileLcl,'file')>0
-          fprintf(1,'Found existing local stripped lbl file: %s\n',dlLblFileLcl);
-        else
-          error('Cannot find local stripped lbl file: %s',dlLblFileLcl);
-        end
-        
-        dmc.restartTS = datestr(now,'yyyymmddTHHMMSS');
-        dmcLcl.restartTS = dmc.restartTS;
-        % read nLabels from stripped lbl file
-        dmcLcl.readNLabels();
-        dmc.nLabels = dmcLcl.nLabels;
-      end
-      dlLblFileRemote = dmc.lblStrippedLnx;
-      aws.scpUploadOrVerifyEnsureDir(dlLblFileLcl,dlLblFileRemote,'training file');
-      
-      % At this point
-      % We have (modelChainID,trainID), dlLblFileRemote. remote is ready to 
-      % train
-      
-      % gen DMCs
-      for ivw=1:nvw
-        if ivw>1
-          dmc(ivw) = dmc(1).copy();
-        end
-        dmc(ivw).view = ivw-1; % 0-based
-      end
-
-      % codegen
-      % Multiview train is currently serial (no -view flag spec'd)
-      % - single logfile
-      % - single errfile
-      codestr = obj.trainCodeGenAWS(dmc(1)); % all dmcs identical save for view flag
-      logfileRemote = dmc(1).trainLogLnx;
-      syscmds = { aws.sshCmdGeneralLogged(codestr,logfileRemote) };
-            
-      if obj.dryRunOnly
-        cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
-      else
-        obj.bgTrnStart(backend,dmc);
-
-        % spawn training
-        syscmdrun = syscmds{1};
-        fprintf(1,'%s\n',syscmdrun);
-        system(syscmdrun);
-        fprintf('Training job spawned.\n\n');
-
-        % record local cmdfile
-        cmdfile = dmcLcl.cmdfileLnx; % currently writes "...viewNan..." since view is not set; this is benign
-        %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
-        [fh,msg] = fopen(cmdfile,'w');
-        if isequal(fh,-1)
-          warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
-        else
-          fprintf(fh,'%s\n',syscmdrun);
-          fclose(fh);
-          fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
-        end
-        
-        pause(3.0); % Hack try to more reliably get PID -- still not 100% AL 20190130
-        aws.getRemotePythonPID(); % Conceptually, bgTrnWorkerObj should
-            % remember. Right now there is only one PID per aws so it's ok
-        
-        obj.trnLastDMC = dmc;
-      end
-    end  % function
-        
+              
     function ppdata = fetchPreProcData(obj,tblP,prmsTgtCrop)
       % Fetch preprocessed data per this tracker. Don't update any cache
       % b/c the preproc params supplied may be "trial"/random.
@@ -4159,29 +3999,6 @@ classdef DeepTracker < LabelTracker
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
     end
 
-    function [codestr] = trainCodeGenConda(fileinfo,trainType,view1b,gpuid,varargin)
-      
-      [condaargs,isMultiView,outfile,prev_model] = myparse(varargin,'condaargs',{},'isMultiView',false,...
-        'outfile','','prev_model',[]);
-      %fprintf(2,'TODO: restart/trainType\n');
-      %baseargs = {'view' view1b};
-      baseargs = {'trainType' trainType};
-      if ~isempty(prev_model)
-        baseargs = [baseargs,{'prev_model' prev_model}];
-      end
-      if ~isMultiView,
-        baseargs = [baseargs,{'view' view1b}];
-      end
-      
-      basecmd = APTInterf.regTrainCodeGen(fileinfo,baseargs{:},'filesep',filesep,'filequote','"');
-      
-      if ~isempty(outfile),
-        basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
-      end
-      
-      codestr = codeGenCondaGeneral(basecmd,'gpuid',gpuid,condaargs{:});      
-    end
-
     function baseargs = trainTopDownBaseArgs(dmc)
       stages = unique(dmc.getStages());
       if numel(stages) > 1,
@@ -4195,92 +4012,6 @@ classdef DeepTracker < LabelTracker
         'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
         'maTopDownStage' stagearg ...
         };
-    end
-
-    function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
-      [trnCmdType,leftovers] = myparse_nocheck(varargin,'trnCmdType',dmc.trainType);
-      trnCmdType = DeepModelChainOnDisk.getCheckSingle(trnCmdType);
-      prev_models = dmcs.getPrevModels();
-      if ~isempty(prev_models)
-        leftovers = [leftovers {'prev_model' prev_models}];
-      end
-      [codestr] = DeepTracker.trainCodeGenConda(...
-        dmc.trainFileInfoSingle(),trnCmdType,dmc.getView()+1,gpuid,...
-        'outfile',DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx),leftovers{:});
-    end
-
-    function codestr = trainCodeGenSing(fileinfo,varargin)
-      [baseargs,singargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{});
-      backend = obj.lObj.trackDLBackEnd ;
-      singimg = pick_singularity_image(backend, fileinfo.netMode) ;
-      singargs = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;
-      baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
-      basecmd = APTInterf.trainCodeGen(fileinfo,baseargs{:});      
-      codestr = codeGenSingGeneral(basecmd,singargs{:});
-    end
-
-    function codestr = trainCodeGenBsubSing(fileinfo,varargin)
-      [baseargs,singargs,bsubargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{});
-      basecmd = DeepTracker.trainCodeGenSing(fileinfo,'baseargs',baseargs,'singargs',singargs);
-      codestr = codeGenBsubGeneral(basecmd,bsubargs{:});
-    end    
-
-    function codestr = trainCodeGenSSHBsubSing(fileinfo,varargin)
-      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{},...
-        'sshargs',{});
-      remotecmd = DeepTracker.trainCodeGenBsubSing(fileinfo,...
-        'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
-      codestr = codeGenSSHGeneral(remotecmd,sshargs{:});
-    end
-
-    function codestr = trainCodeGenSSHBsubSingDMC(aptroot,dmc,varargin)
-      [singargs,bsubargs,baseargsadd,trnCmdType,isTopDown] = myparse(varargin,...
-        'singargs',{},...
-        'bsubargs',{},...
-        'baseargsadd',{},...
-        'trnCmdType',dmc.trainType,...
-        'isTopDown',false...
-        );
-      trnCmdType = DeepModelChainOnDisk.getCheckSingle(trnCmdType);
-      if isempty(aptroot)
-        aptroot = dmc.dirAptRootLnx;
-      end
-      % there should only be one modelchainid & trainid for this training
-      aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx);
-        
-      repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
-      repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
-      prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];      
-      baseargs = {'view' dmc.getView()+1 'trainType' trnCmdType 'deepnetroot' [aptroot '/deepnet']};
-      % TODO this split probably won't work properly
-      if dmc.isSplit
-        baseargs(end+1:end+2) = {
-          'val_split' 
-          dmc.splitIdx % 'classify_val' true 'classify_val_out' dmc.valresultsLnx
-          };
-      end
-      prev_models = dmc.getPrevModels();
-      if ~isempty(prev_models)
-        baseargs(end+1:end+2) = {'prev_model' prev_models};
-      end
-      if isTopDown,
-        baseargs = [baseargs, DeepTracker.trainTopDownBaseArgs(dmc)];
-      end
-      baseargs = [baseargs baseargsadd];
-      codestr = DeepTracker.trainCodeGenSSHBsubSing(...
-        dmc.trainFileInfoSingle(),...
-        'baseArgs',baseargs,...
-        'singargs',singargs,...
-        'bsubArgs',[bsubargs {'outfile' DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx)}],...
-        'sshargs',{'prefix' prefix});
     end
 
     function downloadPretrainedExec(aptroot)
@@ -4354,29 +4085,6 @@ classdef DeepTracker < LabelTracker
       end
     end
           
-    function codestr = trainCodeGenAWS(dmc,varargin)
-      incViewFlag = myparse(varargin,...
-        'incViewFlag',false... % if true, include -view flag to train a single view. if false, no -view flag specified, all views trained serially
-        );
-      
-      assert(isscalar(dmc));
-      
-      trnCodeGenArgs = {
-        dmc.trainFileInfoSingle(),...
-        'deepnetroot','/home/ubuntu/APT/deepnet',...
-        'trainType',dmc.trainType};
-      if incViewFlag
-        trnCodeGenArgs = [trnCodeGenArgs {'view' dmc.getView()+1}];
-      end
-      
-      codestr = {
-        'cd /home/ubuntu/APT/deepnet;';
-        'export LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
-        APTInterf.regTrainCodeGen(trnCodeGenArgs{:});
-        };
-      codestr = cat(2,codestr{:});
-    end
-
     function str = cellstr2SpaceDelimWithEscapedSpace(c)
       % c: cellstr
       %
