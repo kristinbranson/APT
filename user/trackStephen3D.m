@@ -48,7 +48,7 @@ for ndx = 1:size(toTrack.movfiles,1)
       gpu_id, baseCmd);
     end
     singimg = pick_singularity_image(backend, net_mode) ;    
-    cmd_str = DeepTracker.codeGenSingGeneral(baseCmd,'bindpath',bindpath,'singimg',singimg);
+    cmd_str = codeGenSingGeneral(baseCmd,'bindpath',bindpath,'singimg',singimg);
   else
     backend = DLBackEndClass(DLBackEnd.Docker);
     cmd_str = backend.wrapBaseCommand(baseCmd,'run1','bindpath',bindpath,...

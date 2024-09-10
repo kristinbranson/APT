@@ -127,9 +127,9 @@ classdef TrackJobGT < handle
       sshargs = {'prefix' prefix};
         
       codebase = obj.codegenBase(baseargs);
-      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
+      codesing = codeGenSingGeneral(codebase,singargs{:});
       codebsub = codeGenBsubGeneral(codesing,bsubargs{:});
-      codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
+      codestr = codeGenSSHGeneral(codebsub,sshargs{:});      
     end
     function [codestr,logcmd] = codegenDocker(obj,varargin)
       assert(obj.backend.type==DLBackEnd.Docker) ;

@@ -2430,9 +2430,9 @@ classdef DeepTracker < LabelTracker
 %               'outfile' dmcI.trainLogLnx, 'additionalargs', trnBackend.jrcAdditionalBsubArgs};
 %             sshargs = {};
 %             codeOuter = dmcI.cmdfileLnx;
-%             codeOuter = DeepTracker.codeGenSingGeneral(codeOuter,singargs{:});
+%             codeOuter = codeGenSingGeneral(codeOuter,singargs{:});
 %             codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
-%             codeOuter = DeepTracker.codeGenSSHGeneral(codeOuter,sshargs{:})
+%             codeOuter = codeGenSSHGeneral(codeOuter,sshargs{:})
 %             syscmds{isplit} = codeOuter;            
 %           end
 % %         case DLBackEnd.Docker
@@ -3107,43 +3107,7 @@ classdef DeepTracker < LabelTracker
 %           'sshargs',sshargsuse);
 %       end
     end
-        
-    function trksysinfo = track2_codegen_listfile(obj,trksysinfo,listfiles,outfiles)
-      % trackListFile-specific trksysinfo massage + codegen
-      
-      nvw = obj.lObj.nview;
-      assert(isequal(nvw,numel(listfiles),numel(outfiles)));
-
-      modelChainID = obj.trnName;
-      
-      for ivw=1:nvw
-        trksysinfo(ivw).listfile = listfiles{ivw};
-        trksysinfo(ivw).outfile = outfiles{ivw};
-        trksysinfo(ivw).partfile = ''; % for now
-        aptroot = trksysinfo(ivw).aptroot;
-        logfile = trksysinfo(ivw).logfile;
-        
-        baseargs = {'deepnetroot' [aptroot '/deepnet']};
-        baseargsaug = [baseargs {'model_file' trksysinfo(ivw).modelfile}];
-        bsubargs = {'outfile' logfile};
-        sshargs = {};
-        listfileroot = fileparts(listfiles{ivw});        
-        singBind = obj.genContainerMountPath('aptroot',aptroot,...
-          'extra',{listfileroot}); % XXX ood api
-        singargs = {'bindpath',singBind};
-        repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
-        repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,trksysinfo(ivw).snapshotfile);
-        prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];
-        sshargsuse = [sshargs {'prefix' prefix}];
-        
-        trksysinfo(ivw).codestr = ...
-          trackCodeGenListFileSSHBsubSing(obj.backend,...
-                                          trksysinfo(ivw),modelChainID,obj.trnNetType,obj.trnNetMode,ivw,...          
-                                          'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
-                                          'sshargs',sshargsuse);
-      end
-    end
-    
+            
     function track2_bgStart(obj,trkjobs,cbkTrkComplete,nfrms2trk)
       % Start track monitor. This stuff mirrors what is done in (and 
       % downstream) of .track()
@@ -4195,70 +4159,6 @@ classdef DeepTracker < LabelTracker
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
     end
 
-    function codestr = codeGenSSHGeneral(remotecmd,varargin)
-      % Currently this assumes a JRC backend due to oncluster special case      
-      [host,bg,prefix,sshoptions,timeout] = myparse(varargin,...
-        'host',DLBackEndClass.jrchost,... % 'logfile','/dev/null',...
-        'bg',false,... % AL 20201022 see note below
-        'prefix',DLBackEndClass.jrcprefix,...
-        'sshoptions','-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR',...
-        'timeout',[]);
-      
-      if ~isempty(prefix),
-        remotecmd = [prefix,'; ',remotecmd];
-      end
-      if ~isempty(timeout),
-        sshoptions1 = ['-o "ConnectTimeout ',num2str(timeout),'"'];
-        if ~ischar(sshoptions) || isempty(sshoptions),
-          sshoptions = sshoptions1;
-        else
-          sshoptions = [sshoptions,' ',sshoptions1];
-        end
-      end
-          
-      if ~ischar(sshoptions) || isempty(sshoptions),
-        sshcmd = 'ssh';
-      else
-        sshcmd = ['ssh ',sshoptions];
-      end
-            
-      if bg
-        % AL 20201022 not sure why this codepath was nec. Now it is causing
-        % problems with LSF/job scheduling. The </dev/null & business
-        % confuses LSF and the account/runtime limit doesn't get set. So
-        % for now this is a nonproduction codepath.
-        codestr = sprintf('%s %s ''%s </dev/null &''',sshcmd,host,remotecmd);
-      else
-        tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
-        if tfOnCluster
-          codestr = remotecmd;
-        else
-          codestr = sprintf('%s %s ''%s''',sshcmd,host,remotecmd);
-        end
-      end
-    end
-
-    function codestr = codeGenSingGeneral(basecmd,varargin)
-      % Take a base command and run it in a sing img
-      DFLTBINDPATH = {
-        '/groups/branson/bransonlab'
-        '/groups/branson/home'
-        '/nrs/branson'
-        '/scratch'};      
-      %dobj = DLBackEndClass(1);
-      [bindpath,singimg] = myparse(varargin,...
-        'bindpath',DFLTBINDPATH,...
-        'singimg',''...
-        );
-      assert(~isempty(singimg)) ;
-      %delete(dobj);
-      bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
-      Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
-      Bflagsstr = sprintf('%s ',Bflags{:});
-      codestr = sprintf('singularity exec --nv %s %s bash -c "%s"',...
-        Bflagsstr,singimg,basecmd);
-    end
-    
     function [codestr] = trainCodeGenConda(fileinfo,trainType,view1b,gpuid,varargin)
       
       [condaargs,isMultiView,outfile,prev_model] = myparse(varargin,'condaargs',{},'isMultiView',false,...
@@ -4315,10 +4215,10 @@ classdef DeepTracker < LabelTracker
         'singargs',{});
       backend = obj.lObj.trackDLBackEnd ;
       singimg = pick_singularity_image(backend, fileinfo.netMode) ;
-      singimg = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;
+      singargs = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;
       baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
       basecmd = APTInterf.trainCodeGen(fileinfo,baseargs{:});      
-      codestr = DeepTracker.codeGenSingGeneral(basecmd,singargs{:});
+      codestr = codeGenSingGeneral(basecmd,singargs{:});
     end
 
     function codestr = trainCodeGenBsubSing(fileinfo,varargin)
@@ -4338,7 +4238,7 @@ classdef DeepTracker < LabelTracker
         'sshargs',{});
       remotecmd = DeepTracker.trainCodeGenBsubSing(fileinfo,...
         'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
-      codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
+      codestr = codeGenSSHGeneral(remotecmd,sshargs{:});
     end
 
     function codestr = trainCodeGenSSHBsubSingDMC(aptroot,dmc,varargin)
@@ -4397,7 +4297,7 @@ classdef DeepTracker < LabelTracker
     function updateAPTRepoExecJRC(cacheRoot) % throws if fails
       % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
       updatecmd = apt.updateAPTRepoCmd('aptparent',cacheRoot);
-      updatecmd = DeepTracker.codeGenSSHGeneral(updatecmd,'bg',false);
+      updatecmd = codeGenSSHGeneral(updatecmd,'bg',false);
       [~,res] = DeepTracker.syscmd(updatecmd,...
         'dispcmd',true,...
         'failbehavior','err');
@@ -4412,7 +4312,7 @@ classdef DeepTracker < LabelTracker
 
     function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
       cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
-      cmd = DeepTracker.codeGenSSHGeneral(cmd,'bg',false);
+      cmd = codeGenSSHGeneral(cmd,'bg',false);
       [~,res] = DeepTracker.syscmd(cmd,...
         'dispcmd',true,...
         'failbehavior','err');
@@ -4430,7 +4330,7 @@ classdef DeepTracker < LabelTracker
       % does repo in 'remote' cache exist?
       aptroot = [cacheRoot '/APT'];
       aptrootexistscmd = DeepTracker.dirExistsCmd(aptroot);
-      aptrootexistscmd = DeepTracker.codeGenSSHGeneral(aptrootexistscmd,...
+      aptrootexistscmd = codeGenSSHGeneral(aptrootexistscmd,...
         'bg',false);
       
       [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
@@ -4444,7 +4344,7 @@ classdef DeepTracker < LabelTracker
           fprintf('Found JRC/APT repo at %s.\n',aptroot);
         case 'n'
           cloneaptcmd = sprintf('git clone %s %s',DLBackEndClass.jrcprodrepo,aptroot);
-          cloneaptcmd = DeepTracker.codeGenSSHGeneral(cloneaptcmd,'bg',false);
+          cloneaptcmd = codeGenSSHGeneral(cloneaptcmd,'bg',false);
           [~,res] = DeepTracker.syscmd(cloneaptcmd,...
             'dispcmd',true,...
             'failbehavior','err');
@@ -4713,7 +4613,7 @@ classdef DeepTracker < LabelTracker
 %         
 %       codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
 %         cudaDeviceStr,basecode);
-%       codestr = DeepTracker.codeGenSSHGeneral(codestrremote,...
+%       codestr = codeGenSSHGeneral(codestrremote,...
 %         'host',venvHost,'logfile',logFile);
 %     end
     
@@ -4786,9 +4686,9 @@ classdef DeepTracker < LabelTracker
       starttime = tic;
       res = cell(1,nout);
       bjobscmd = sprintf('bjobs %d',jobid);
-      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      bjobscmd = codeGenSSHGeneral(bjobscmd,'bg',false);
       killcmd = sprintf('bkill %d',jobid);
-      killcmd = DeepTracker.codeGenSSHGeneral(killcmd,'bg',false);
+      killcmd = codeGenSSHGeneral(killcmd,'bg',false);
       runStatuses = {'PEND','RUN','PROV','WAIT'};
       doneStatuses = {'DONE'};
       tfJobRunning = false;

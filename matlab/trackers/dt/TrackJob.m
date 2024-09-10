@@ -521,110 +521,110 @@ classdef TrackJob < handle
       
     end
     
-    function [codestr,containerName] = setCodeStr(obj,varargin)
-      
-      [bsubargs,sshargs,baseargs,singargs,...
-        dockerargs,mntpaths,useLogFlag,...
-        condaargs,writecmdfile] = ...
-        myparse(varargin,...
-        'bsubargs',{},'sshargs',{},...
-        'baseargs',{},'singargs',{},...
-        'dockerargs',{},'mntpaths',{},'useLogFlag',ispc,...
-        'condaargs',{},'writecmdfile',true);
-      containerName = obj.id;
-      baseargs = obj.getBaseArgs(baseargs);
-
-      if obj.tf2stg
-        fileargs = struct;
-        fileargs.modelChainID = obj.modelChainID;
-        fileargs.cache = obj.rootdirRem;
-        fileargs.dlconfig = obj.trainconfigRem;
-        fileargs.errfile = obj.errfile;
-        fileargs.netType = obj.tObj.trnNetType;
-        fileargs.netMode = obj.tObj.trnNetMode;
-        fileargs.nettypeStage1 = obj.tObj.stage1Tracker.trnNetType;
-        fileargs.netmodeStage1 = obj.tObj.stage1Tracker.trnNetMode;
-        fileargs.movtrk = obj.movfileRem;
-        fileargs.outtrk = obj.trkfileRem;
-        fileargs.configfile = obj.trackconfigRem;
-      else
-        fileargs = struct;
-        fileargs.modelChainID = obj.modelChainID;
-        fileargs.cache = obj.rootdirRem;
-        fileargs.dlconfig = obj.trainconfigRem;
-        fileargs.errfile = obj.errfile;
-        fileargs.netType = obj.tObj.trnNetType;
-        fileargs.netMode = obj.tObj.trnNetMode;
-        fileargs.movtrk = obj.movfileRem;
-        fileargs.outtrk = obj.trkfileRem;
-        fileargs.configfile = obj.trackconfigRem;
-      end
-            
-      switch obj.backend.type,
-        
-        case DLBackEnd.Bsub,
-          
-          bsubargs = [bsubargs,{'outfile' obj.logfile}];
-          obj.codestr = ...
-            trackCodeGen(obj.backend, ...
-                         fileargs,...
-                         obj.frm0,obj.frm1,...
-                         'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
-                         'sshargs',sshargs);
-          
-        case DLBackEnd.Docker,
-          
-          if useLogFlag
-            baseargs = [baseargs {'log_file' obj.logfile}]; 
-          end
-          obj.codestr = ...
-            trackCodeGen(obj.backend,...
-                         fileargs,...
-                         obj.frm0,obj.frm1,...
-                         'baseargs',baseargs,...
-                         'mntPaths',mntpaths,...
-                         'containerName',obj.containerName,...
-                         'dockerargs',dockerargs);
-          
-        case DLBackEnd.Conda,
-                
-          obj.codestr = ...
-            trackCodeGen(obj.backend,...
-                         fileargs,...
-                         obj.frm0,obj.frm1,...
-                         'baseargs',[baseargs,{'filesep',obj.tObj.filesep}],...
-                         'outfile',obj.logfile,...
-                         'condaargs',condaargs);
-          
-        case DLBackEnd.AWS,
-          
-          codestrRem = ...
-            trackCodeGen(obj.backend,...
-                         fileargs,...
-                         obj.frm0,obj.frm1,...
-                         baseargs);
-          
-          logfilelnx = regexprep(obj.logfile,'\\','/'); % maybe this should be generated for lnx upstream
-          obj.codestr = obj.backend.awsec2.sshCmdGeneralLogged(codestrRem,logfilelnx);
-           
-        otherwise
-          error('not implemented back end %s',obj.backend.type);
-          
-      end
-      if writecmdfile,
-        try
-          fid = fopen(obj.cmdfile,'w');
-          if fid > 0,
-            fprintf(fid,obj.codestr);
-            fclose(fid);
-          end
-          fprintf('Track command saved to %s\n',obj.cmdfile);
-        catch ME,
-          warning('Could not write track command to file %s:\n%s',obj.cmdfile,getReport(ME));
-        end
-      end
-      codestr = obj.codestr;
-    end
+%     function [codestr,containerName] = setCodeStr(obj,varargin)
+%       
+%       [bsubargs,sshargs,baseargs,singargs,...
+%         dockerargs,mntpaths,useLogFlag,...
+%         condaargs,writecmdfile] = ...
+%         myparse(varargin,...
+%         'bsubargs',{},'sshargs',{},...
+%         'baseargs',{},'singargs',{},...
+%         'dockerargs',{},'mntpaths',{},'useLogFlag',ispc,...
+%         'condaargs',{},'writecmdfile',true);
+%       containerName = obj.id;
+%       baseargs = obj.getBaseArgs(baseargs);
+% 
+%       if obj.tf2stg
+%         fileargs = struct;
+%         fileargs.modelChainID = obj.modelChainID;
+%         fileargs.cache = obj.rootdirRem;
+%         fileargs.dlconfig = obj.trainconfigRem;
+%         fileargs.errfile = obj.errfile;
+%         fileargs.netType = obj.tObj.trnNetType;
+%         fileargs.netMode = obj.tObj.trnNetMode;
+%         fileargs.nettypeStage1 = obj.tObj.stage1Tracker.trnNetType;
+%         fileargs.netmodeStage1 = obj.tObj.stage1Tracker.trnNetMode;
+%         fileargs.movtrk = obj.movfileRem;
+%         fileargs.outtrk = obj.trkfileRem;
+%         fileargs.configfile = obj.trackconfigRem;
+%       else
+%         fileargs = struct;
+%         fileargs.modelChainID = obj.modelChainID;
+%         fileargs.cache = obj.rootdirRem;
+%         fileargs.dlconfig = obj.trainconfigRem;
+%         fileargs.errfile = obj.errfile;
+%         fileargs.netType = obj.tObj.trnNetType;
+%         fileargs.netMode = obj.tObj.trnNetMode;
+%         fileargs.movtrk = obj.movfileRem;
+%         fileargs.outtrk = obj.trkfileRem;
+%         fileargs.configfile = obj.trackconfigRem;
+%       end
+%             
+%       switch obj.backend.type,
+%         
+%         case DLBackEnd.Bsub,
+%           
+%           bsubargs = [bsubargs,{'outfile' obj.logfile}];
+%           obj.codestr = ...
+%             trackCodeGen(obj.backend, ...
+%                          fileargs,...
+%                          obj.frm0,obj.frm1,...
+%                          'baseargs',baseargs,'singArgs',singargs,'bsubargs',bsubargs,...
+%                          'sshargs',sshargs);
+%           
+%         case DLBackEnd.Docker,
+%           
+%           if useLogFlag
+%             baseargs = [baseargs {'log_file' obj.logfile}]; 
+%           end
+%           obj.codestr = ...
+%             trackCodeGen(obj.backend,...
+%                          fileargs,...
+%                          obj.frm0,obj.frm1,...
+%                          'baseargs',baseargs,...
+%                          'mntPaths',mntpaths,...
+%                          'containerName',obj.containerName,...
+%                          'dockerargs',dockerargs);
+%           
+%         case DLBackEnd.Conda,
+%                 
+%           obj.codestr = ...
+%             trackCodeGen(obj.backend,...
+%                          fileargs,...
+%                          obj.frm0,obj.frm1,...
+%                          'baseargs',[baseargs,{'filesep',obj.tObj.filesep}],...
+%                          'outfile',obj.logfile,...
+%                          'condaargs',condaargs);
+%           
+%         case DLBackEnd.AWS,
+%           
+%           codestrRem = ...
+%             trackCodeGen(obj.backend,...
+%                          fileargs,...
+%                          obj.frm0,obj.frm1,...
+%                          baseargs);
+%           
+%           logfilelnx = regexprep(obj.logfile,'\\','/'); % maybe this should be generated for lnx upstream
+%           obj.codestr = obj.backend.awsec2.sshCmdGeneralLogged(codestrRem,logfilelnx);
+%            
+%         otherwise
+%           error('not implemented back end %s',obj.backend.type);
+%           
+%       end
+%       if writecmdfile,
+%         try
+%           fid = fopen(obj.cmdfile,'w');
+%           if fid > 0,
+%             fprintf(fid,obj.codestr);
+%             fclose(fid);
+%           end
+%           fprintf('Track command saved to %s\n',obj.cmdfile);
+%         catch ME,
+%           warning('Could not write track command to file %s:\n%s',obj.cmdfile,getReport(ME));
+%         end
+%       end
+%       codestr = obj.codestr;
+%     end
     
     function [logfiles,errfiles,trkfiles,partfiles,movfiles] = ...
         getMonitorArtifacts(objArr)

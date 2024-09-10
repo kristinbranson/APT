@@ -991,7 +991,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       remotecmd = sprintf('touch "%s"; if [ -e "%s" ]; then rm -f "%s" && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
       timeout = 20;
-      cmd1 = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host,'bg',false,'timeout',timeout);
+      cmd1 = codeGenSSHGeneral(remotecmd,'host',host,'bg',false,'timeout',timeout);
       %cmd = sprintf('timeout 20 %s',cmd1);
       cmd = cmd1;
       hedit.String{end+1} = cmd; drawnow;
@@ -1016,7 +1016,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % test that we can run bjobs
       hedit.String{end+1} = '** Testing that we can interact with the cluster...'; drawnow;
       remotecmd = 'bjobs';
-      cmd = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host);
+      cmd = codeGenSSHGeneral(remotecmd,'host',host);
       hedit.String{end+1} = cmd; drawnow;
       [status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
@@ -1477,7 +1477,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
 %       
 %       remotecmd = sprintf('touch %s; if [ -e %s ]; then rm -f %s && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
-%       cmd1 = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host,'bg',false);
+%       cmd1 = codeGenSSHGeneral(remotecmd,'host',host,'bg',false);
 %       cmd = sprintf('timeout 20 %s',cmd1);
 %       hedit.String{end+1} = cmd; drawnow;
 %       [status,result] = system(cmd);
@@ -1501,7 +1501,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       % test that we can run bjobs
 %       hedit.String{end+1} = '** Testing that we can interact with the cluster...'; drawnow;
 %       remotecmd = 'bjobs';
-%       cmd = DeepTracker.codeGenSSHGeneral(remotecmd,'host',host);
+%       cmd = codeGenSSHGeneral(remotecmd,'host',host);
 %       hedit.String{end+1} = cmd; drawnow;
 %       [status,result] = system(cmd);
 %       hedit.String{end+1} = result; drawnow;

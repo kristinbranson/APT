@@ -41,7 +41,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
       
       bkillcmd = sprintf('bkill %d',jID);
-      bkillcmd = DeepTracker.codeGenSSHGeneral(bkillcmd,'bg',false);
+      bkillcmd = codeGenSSHGeneral(bkillcmd,'bg',false);
       fprintf(1,'%s\n',bkillcmd);
       [st,res] = system(bkillcmd);
       if st~=0
@@ -52,7 +52,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
     function res = queryAllJobsStatus(obj)
       
       bjobscmd = 'bjobs';
-      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      bjobscmd = codeGenSSHGeneral(bjobscmd,'bg',false);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -82,7 +82,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
       
       bjobscmd = sprintf('bjobs %d; echo "More detail:"; bjobs -l %d',jID,jID);
-      bjobscmd = DeepTracker.codeGenSSHGeneral(bjobscmd,'bg',false);
+      bjobscmd = codeGenSSHGeneral(bjobscmd,'bg',false);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -110,7 +110,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       runStatuses = {'PEND','RUN','PROV','WAIT'};
       
       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
-      pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
+      pollcmd = codeGenSSHGeneral(pollcmd,'bg',false);
       [st,res] = system(pollcmd);
       if st==0
         s = sprintf('(%s)|',runStatuses{:});
@@ -125,7 +125,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       
       fcn = @() obj.isKilled(jID);
 %       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
-%       pollcmd = DeepTracker.codeGenSSHGeneral(pollcmd,'bg',false);
+%       pollcmd = codeGenSSHGeneral(pollcmd,'bg',false);
 %       
 %       fcn = @lcl;
 %       
@@ -147,7 +147,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
         killdir = '.';
       end
       touchcmd = sprintf('mkdir -p "%s"; touch "%s"',killdir,killtoken); % codeGenSSHGeneral uses single-quotes
-      touchcmd = DeepTracker.codeGenSSHGeneral(touchcmd,'bg',false); 
+      touchcmd = codeGenSSHGeneral(touchcmd,'bg',false); 
       [st,res] = system(touchcmd);
       if st~=0
         tfsucc = false;
