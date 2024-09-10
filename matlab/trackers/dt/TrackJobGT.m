@@ -128,16 +128,11 @@ classdef TrackJobGT < handle
         
       codebase = obj.codegenBase(baseargs);
       codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
-      codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
+      codebsub = codeGenBsubGeneral(codesing,bsubargs{:});
       codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
     end
     function [codestr,logcmd] = codegenDocker(obj,varargin)
-%       [gpuid] = myparse(varargin,...
-%         'gpuid',[] ... % {} ...  %  'containerName','' ... 'useLogFlag', ispc ...
-%         );
-      
-      %baseargs = [{'cache' cache} baseargs];
-      %filequote = bed.getFileQuoteDockerCodeGen;
+      assert(obj.backend.type==DLBackEnd.Docker) ;
       
       dmc1 = obj.dmcsrem;
       logfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkLogLnx);
@@ -153,8 +148,8 @@ classdef TrackJobGT < handle
 %       end
       codebase = obj.codegenBase(baseargs);   
       containerName = sprintf('gt_%s',dmc1.getTrkTSstr());
-      codestr = be.wrapBaseCommandDocker_(codebase,containerName,...
-        'bindpath',bindpaths,'gpuid',gpuids);      
+      codestr = be.wrapBaseCommand(codebase,containerName,...
+                                   'bindpath',bindpaths,'gpuid',gpuids);      
       logcmd = sprintf('%s logs -f %s &> "%s" &',...
                   be.dockercmd,containerName,logfile); 
       be.dockercontainername = containerName;

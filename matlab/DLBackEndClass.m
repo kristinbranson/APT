@@ -25,6 +25,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' ;
     legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
+
+    default_docker_api_version = '1.40'
   end
 
   properties
@@ -46,7 +48,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Likely used only for debugging?  -- ALT, 2024-03-07
     
     % Used only for type==Docker  
-    dockerapiver = '1.40'  % docker codegen will occur against this docker api ver
+    dockerapiver = DLBackEndClass.default_docker_api_version  % docker codegen will occur against this docker api ver
     dockerimgroot = DLBackEndClass.defaultDockerImgRoot
       % We have an instance prop for this to support running on older/custom
       % docker images.
@@ -203,18 +205,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     % The wrapBaseCommand*_() methods are what wrapBaseCommand() uses for each of
     % the backend types.  (The method names end in an underscore to indicate that
     % they are "protected-by-convention").  The wrapCommand*() functions are
-    % lower-level.  For instance, wrapBaseCommandJaneliaCluster_() calls both
+    % lower-level.  For instance, wrapBaseCommandForBsubBackend_() calls both
     % wrapCommandSing() and wrapCommandBsub() in order to do its thing.
     function cmd = wrapBaseCommand(obj,basecmd,varargin)
       switch obj.type,
         case DLBackEnd.Bsub,
-          cmd = obj.wrapBaseCommandJaneliaCluster_(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandForBsubBackend_(basecmd,varargin{:});
         case DLBackEnd.Docker
-          cmd = obj.wrapBaseCommandDocker_(basecmd,varargin{:});
+          cmd = obj.wrapBaseCommandForDockerBackend_(basecmd,varargin{:});
         case DLBackEnd.Conda
-          cmd = obj.wrapCommandConda_(basecmd, varargin{:});
+          cmd = obj.wrapBaseCommandForCondaBackend_(basecmd, varargin{:});
         case DLBackEnd.AWS
-          cmd = obj.wrapCommandAWS_(basecmd, varargin{:});
+          cmd = obj.wrapBaseCommandForAWSBackend_(basecmd, varargin{:});
         otherwise
           error('Not implemented: %s',obj.type);
       end
@@ -631,7 +633,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnet}; % don't use guarded
-          codestr = obj.wrapBaseCommandDocker_(basecmd,...
+          codestr = obj.wrapBaseCommandForDockerBackend_(basecmd,...
                                              'containername','aptTestContainer',...
                                              'bindpath',bindpath,...
                                              'detach',false);
@@ -743,7 +745,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       r = [obj.getAPTRoot '/deepnet'];
     end
     
-    function cmd = wrapCommandAWS_(obj, basecmd, varargin)
+    function cmd = wrapBaseCommandForAWSBackend_(obj, basecmd, varargin)
       cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
     end
 
@@ -831,7 +833,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmdout = wrapCommandConda_(cmdin, varargin)
+    function cmdout = wrapBaseCommandForCondaBackend_(cmdin, varargin)
       % Take a base command and run it in a sing img
       [condaEnv,logfile,gpuid] = myparse(varargin,...
         'condaEnv',DLBackEndClass.default_conda_env, ...
@@ -891,7 +893,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function cmdout = wrapCommandSSH(remotecmd,varargin)
-
       [host,prefix,sshoptions,timeout,extraprefix] = myparse(varargin,...
         'host',DLBackEndClass.jrchost,...
         'prefix',DLBackEndClass.jrcprefix,...
@@ -924,11 +925,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
 
       cmdout = sprintf('%s %s "%s"',sshcmd,host,remotecmd);
-
     end
 
-    function cmd = wrapBaseCommandJaneliaCluster_(basecmd,varargin)
-
+    function cmd = wrapBaseCommandForBsubBackend_(basecmd,varargin)
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
       cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
       cmd2 = DLBackEndClass.wrapCommandBsub(cmd1,bsubargs{:});
@@ -1078,10 +1077,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %     end
 
     function s = dockercmd(obj)
-%       if ispc() ,
-%         s = sprintf('set "DOCKER_API_VERSION=%s" & docker',obj.dockerapiver);
-%       else
-      s = sprintf('export DOCKER_API_VERSION=%s ; docker',obj.dockerapiver);
+      s = dockercmd_from_apiver(obj.dockerapiver) ;
     end
 
     % KB 20191219: moved this to not be a static function so that we could
@@ -1128,28 +1124,25 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function filequote = getFileQuoteDockerCodeGen(obj) 
-      % get filequote to use with wrapBaseCommandDocker_      
-      if isempty(obj.dockerremotehost)
-        % local Docker run
-        filequote = '"';
-      else
-        filequote = '\"';
-      end
-    end
+%     function filequote = getFileQuoteDockerCodeGen(obj) 
+%       % get filequote to use with wrapBaseCommandForDockerBackend_      
+%       if isempty(obj.dockerremotehost)
+%         % local Docker run
+%         filequote = '"';
+%       else
+%         filequote = '\"';
+%       end
+%     end
     
-    function codestr = wrapBaseCommandDocker_(obj,basecmd,varargin)
+    function codestr = wrapBaseCommandForDockerBackend_(obj,basecmd,varargin)
       % Take a base command and run it in a docker img
-      %
-      % basecmd: currently assumed to have any filenames/paths protected by
-      %   filequote as returned by obj.getFileQuoteDockerCodeGen
-      
-      default_bindpath = {};
+
+      % Parse keyword args
       [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
         tty,shmSize] = ...
         myparse(varargin,...
         'containername','aptainer',...
-        'bindpath',default_bindpath,... % paths on local filesystem that must be mounted/bound within container
+        'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
         'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
         'isgpu',true,... % set to false for CPU-only
         'gpuid',0,... % used if isgpu
@@ -1157,114 +1150,30 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         'tty',false,...
         'shmsize',[] ... optional
         );
-      assert(~isempty(containerName));
-      
-      aptdeepnet = APT.getpathdl;
-      
-      if ispc() 
-        % 1. Special treatment for bindpath. src are windows paths, dst are
-        % linux paths inside /mnt.
-        % 2. basecmd massage. All paths in basecmd will be windows paths;
-        % these need to be replaced with the container paths under /mnt.
 
-%         srcbindpath = regexprep(bindpath,'\\','\\\');
-%         dstbindpath = cellfun(...
-%           @(x,y)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,bindMntLocInContainer),...
-%           srcbindpath,'uni',0);
+      % Call main function, returns Linux/WSL-style command string
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'containername',containerName,...
+                          'bindpath',bindpath,...
+                          'dockerimg',dockerimg,...
+                          'isgpu',isgpu,...
+                          'gpuid',gpuid,...
+                          'detach',tfDetach, ...
+                          'tty',tty,...
+                          'shmsize',shmSize, ...
+                          'apiver',obj.dockerapiver) ;
 
-        srcbindpath = {'/mnt'};
-        dstbindpath = {'/mnt'};
-        mountArgs = cellfun(@(x,y)sprintf('--mount type=bind,src=%s,dst=%s',x,y),...
-          srcbindpath,dstbindpath,'uni',0);
-        deepnetrootContainer = ...
-          linux_path(aptdeepnet) ;
-        userArgs = {};
-       else
-        mountArgsFcn = @(x)sprintf('--mount "type=bind,src=%s,dst=%s"',x,x);
-        % Can use raw bindpaths here; already in single-quotes, addnl
-        % quotes unnec
-        mountArgs = cellfun(mountArgsFcn,bindpath,'uni',0);
-        deepnetrootContainer = aptdeepnet;
-        userArgs = {'--user' '$(id -u):$(id -g)'};
-      end
-      
-      if isgpu
-        %nvidiaArgs = {'--runtime nvidia'};
-        gpuArgs = {'--gpus' 'all'};
-        cudaEnv = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d;',gpuid);
-      else
-        gpuArgs = cell(1,0);
-        cudaEnv = 'export CUDA_VISIBLE_DEVICES=;'; 
-        % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
-      end
-      
-      native_home_dir = get_home_dir_name() ;      
-      user = get_user_name() ;
-      
-      dockercmd = obj.dockercmd();
-
-%       if tfwin
-%         dockercmd = ['wsl ' dockercmd];
-%         %if ~isempty(obj.dockerremotehost),
-%         %  error('Docker execution on remote host currently unsupported on Windows.');
-%         %  % Might work fine, maybe issue with double-quotes
-%       end
-      
-      if tfDetach,
-        detachstr = '-d';
-      else
-        if tty
-          detachstr = '-it';
-        else
-          detachstr = '-i';
-        end        
-      end
-      
-      otherargs = cell(0,1);
-      if ~isempty(shmSize)
-        otherargs{end+1,1} = sprintf('--shm-size=%dG',shmSize);
-      end
-
-      code = [
-        {
-        dockercmd
-        'run'
-        detachstr
-        sprintf('--name %s',containerName);
-        '--rm'
-        '--ipc=host'
-        '--network host'
-        };
-        mountArgs(:);
-        gpuArgs(:);
-        userArgs(:);
-        otherargs(:);
-        {
-        '-w'
-        escape_string_for_bash(deepnetrootContainer)
-        '-e'
-        ['USER=' user]
-        dockerimg
-        }
-        ];
-      home_dir = linux_path(native_home_dir) ;
-      bashcmd = ...
-        sprintf('export HOME=%s ; %s cd %s ; %s',...
-                escape_string_for_bash(home_dir), ...
-                cudaEnv, ...
-                escape_string_for_bash(deepnetrootContainer), ...
-                basecmd) ;
-      escbashcmd = ['bash -c ' escape_string_for_bash(bashcmd)] ;
-      code{end+1} = escbashcmd;      
-      codestr = sprintf('%s ',code{:});
-      codestr = codestr(1:end-1);
+      % Wrap for ssh'ing into a remote docker host, if needed
       if ~isempty(obj.dockerremotehost),
         codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
+
+      % Wrap command for running in WSL, if needed
       if ispc() ,
         codestr = wrap_linux_command_line_for_wsl(codestr) ;
       end
-    end
+    end  % function wrapBaseCommandForDockerBackend_()
     
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
@@ -1333,7 +1242,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       homedir = getenv('HOME');
       %deepnetrootguard = [filequote deepnetroot filequote];
       basecmd = 'python APT_interface.py lbl test hello';
-      cmd = obj.wrapBaseCommandDocker_(basecmd,...
+      cmd = obj.wrapBaseCommandForDockerBackend_(basecmd,...
         'containername','containerTest',...
         'detach',false,...
         'bindpath',{deepnetroot,homedir});
@@ -1429,7 +1338,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       deepnetroot = [APT.Root '/deepnet'];
 %       %deepnetrootguard = [filequote deepnetroot filequote];
 %       basecmd = 'python APT_interface.py lbl test hello';
-%       cmd = obj.wrapBaseCommandDocker_(basecmd,'containerTest',...
+%       cmd = obj.wrapBaseCommandForDockerBackend_(basecmd,'containerTest',...
 %         'detach',false,...
 %         'bindpath',{deepnetroot});      
 %       RUNAPTHELLO = 1;

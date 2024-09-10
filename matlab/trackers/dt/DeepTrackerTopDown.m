@@ -620,68 +620,68 @@ classdef DeepTrackerTopDown < DeepTracker
 %       
 %     end
 
-    function [codestr,containerName] = tdTrainCodeGenDockerDMC(tfSerial,...
-        backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
-      
-      augOnly = myparse(varargin,...
-        'augOnly',false ...
-        );
-      
-      if tfSerial
-        assert(isscalar(gpuids));
-      else
-        assert(numel(gpuids)==2);
-      end
-      
-      assert(~any([dmcs.doSplit]));
-            
-      % where dmc1 is used here, it should matter whether dmcs(1) or dmcs(2) is used.
-      dmc1 = dmcs(end);
-      baseargs0 = {...
-        'maTopDown' true ... % missing: 'maTopDownStage'
-        'maTopDownStage1NetType' dmcs(1).netType ...
-        'maTopDownStage1NetMode' dmcs(1).netMode};
-
-      % looks like there is some path conversion happening for Windows
-      % figure out what that is
-      % {'deepnetroot' pathConvertFcn(APT.getpathdl)}
-      fileinfo = dmcs(2).trainFileInfoSingle('topdown_docker');
-      args = { backend,fileinfo,...
-        trnCmdType,dmcs(2).view+1,mntPaths }; 
-
-%       args = { backend,...
-%         dmc1.modelChainID,dmc1.trainID,dmc1.trainConfigLnx,...
-%         dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
-%         trnCmdType,dmc1.view+1,mntPaths }; 
-
-      if tfSerial
-        % for stage==0/serial, netType/Mode passed in regular arguments are
-        % for stage 2.        
-        stg = 0;
-      else
-        stg = [1;2];
-      end
-      assert(numel(gpuids)==numel(stg));
-      
-      % recall, augOut is just the 'base' for any training montages (eg
-      % stg1/stg2 have appended suffixes)
-      if augOnly
-        [tmpp,tmpf] = fileparts(dmc1.errfileLnx);
-        augOut = [tmpp '/' tmpf];
-      else
-        augOut = '';
-      end
-       
-      stg = stg(:);
-      gpuids = gpuids(:);      
-      codestr = cell(size(stg));
-      containerName = cell(size(stg));
-      for i=1:numel(stg)
-        [codestr{i},containerName{i}] = DeepTracker.trainCodeGenDocker(...
-          args{:},gpuids(i),'baseArgs',[baseargs0 {'maTopDownStage' stg(i)}],...
-          'augOnly',augOnly,'augOut',augOut);
-      end
-    end
+%     function [codestr,containerName] = tdTrainCodeGenDockerDMC(tfSerial,...
+%         backend,dmcs,trnCmdType,mntPaths,gpuids,varargin)
+%       
+%       augOnly = myparse(varargin,...
+%         'augOnly',false ...
+%         );
+%       
+%       if tfSerial
+%         assert(isscalar(gpuids));
+%       else
+%         assert(numel(gpuids)==2);
+%       end
+%       
+%       assert(~any([dmcs.doSplit]));
+%             
+%       % where dmc1 is used here, it should matter whether dmcs(1) or dmcs(2) is used.
+%       dmc1 = dmcs(end);
+%       baseargs0 = {...
+%         'maTopDown' true ... % missing: 'maTopDownStage'
+%         'maTopDownStage1NetType' dmcs(1).netType ...
+%         'maTopDownStage1NetMode' dmcs(1).netMode};
+% 
+%       % looks like there is some path conversion happening for Windows
+%       % figure out what that is
+%       % {'deepnetroot' pathConvertFcn(APT.getpathdl)}
+%       fileinfo = dmcs(2).trainFileInfoSingle('topdown_docker');
+%       args = { backend,fileinfo,...
+%         trnCmdType,dmcs(2).view+1,mntPaths }; 
+% 
+% %       args = { backend,...
+% %         dmc1.modelChainID,dmc1.trainID,dmc1.trainConfigLnx,...
+% %         dmc1.rootDir,dmc1.errfileLnx,dmcs(2).netType,dmcs(2).netMode,...
+% %         trnCmdType,dmc1.view+1,mntPaths }; 
+% 
+%       if tfSerial
+%         % for stage==0/serial, netType/Mode passed in regular arguments are
+%         % for stage 2.        
+%         stg = 0;
+%       else
+%         stg = [1;2];
+%       end
+%       assert(numel(gpuids)==numel(stg));
+%       
+%       % recall, augOut is just the 'base' for any training montages (eg
+%       % stg1/stg2 have appended suffixes)
+%       if augOnly
+%         [tmpp,tmpf] = fileparts(dmc1.errfileLnx);
+%         augOut = [tmpp '/' tmpf];
+%       else
+%         augOut = '';
+%       end
+%        
+%       stg = stg(:);
+%       gpuids = gpuids(:);      
+%       codestr = cell(size(stg));
+%       containerName = cell(size(stg));
+%       for i=1:numel(stg)
+%         [codestr{i},containerName{i}] = DeepTracker.trainCodeGenDocker(...
+%           args{:},gpuids(i),'baseArgs',[baseargs0 {'maTopDownStage' stg(i)}],...
+%           'augOnly',augOnly,'augOut',augOut);
+%       end
+%     end
     
     function codestr = tdTrainCodeGenSSHBsubSingDMC(...
         tfSerial,aptroot,dmcs,trnCmdType,bsubargs,singargs)

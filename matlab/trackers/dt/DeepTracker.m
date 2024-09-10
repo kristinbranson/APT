@@ -2243,333 +2243,333 @@ classdef DeepTracker < LabelTracker
 
       error('TODO: fix trainsplit code');
 
-      [wbObj] = myparse(varargin,...
-        'wbObj',[] ...
-        );
-                 
-      lblObj = obj.lObj;
-      assert(obj.lObj.nview==1,'Currently only supported for single-view.');
-
-      if obj.lObj.gtIsGTMode
-        error('Unsupported in GT mode.');
-      end
-
-      obj.preretrain();
-      
-      obj.setAllParams(lblObj.trackGetParams());
-      
-      if isempty(obj.sPrmAll)
-        error('No tracking parameters have been set.');
-      end      
-           
-      % Currently, cacheDir must be visible on the JRC shared filesys.
-      % In the future, we may need i) "localWSCache" and ii) "jrcCache".
-      
-      trnType = DLTrainType.New;
-      netObj = obj.trnNetType;
-      netMode = obj.trnNetMode;
-      
-      % TODO: prev models
-      cacheDir = lblObj.DLCacheDir;
-      projname = lblObj.projname;
-      trnBackEnd = lblObj.trackDLBackEnd;
-
-      % Base DMC, to be further copied/specified per-split
-      dmc = DeepModelChainOnDisk(...
-        'rootDir',cacheDir,...
-        'projID',projname,...
-        'netType',char(netObj),...
-        'netMode',netMode,...
-        'view',0,...  % 0b
-        'modelChainID','',... % to be filled in
-        'trainID','',... % to be filled in
-        'trainType',trnType,...
-        'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
-        'isMultiView',false,...
-        'filesep',obj.filesep,...
-        'doSplit',true ...
-        );
-
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
-      dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
-      dmc.trainID = nowstr;      
-      
-      dlConfigLclDir = dmc.dirProjLnx;
-      if exist(dlConfigLclDir,'dir')==0
-        fprintf('Creating dir: %s\n',dlConfigLclDir);
-        [succ,msg] = mkdir(dlConfigLclDir);
-        if ~succ
-          error('Failed to create dir %s: %s',dlConfigLclDir,msg);
-        end
-      end
-      
-      % write slbl/trnpack
-      tfRequiresTrnPack = netObj.requiresTrnPack(netMode);
-      assert(tfRequiresTrnPack); % 202111
-
-      [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc,...
-        'tblsplit',tblSplit ...
-        );
-      % TODO: SA tblSplit will have tgts
-      dmc.nLabels = ntgtstot;
-      
-      
-      %         tLbl = []; % XXX TODO
-      %         % get labeled rows
-      %         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
-      %         tLbl = obj.lObj.preProcGetMFTableLbled( ...
-      %           'treatInfPosAsOcc',treatInfPosAsOcc ...
-      %           );
-      %         tLbl = tLbl(:,1:3);
-      
-% %       else
-% %         slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
-% %         % store nLabels in dmc
-% %         dmc.nLabels = s.nLabels;
-% % 
-% %         % Write stripped lblfile to local cache
-% % 
-% %         save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
-% %         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
-% %         
-% %         tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
-% %               slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
-% %       end
-
-      
-      obj.bgTrnReset();      
-
-      % see trnSpawn
-      
-      nvw = obj.lObj.nview;
-      isMultiViewTrain = false;
-      nTrainJobs = nvw;
-%       if backEnd.type == DLBackEnd.Docker || backEnd.type == DLBackEnd.Conda,
-%         % how many gpus do we have available?
-%         gpuids = obj.getFreeGPUs(nvw);
-%         if numel(gpuids) < nvw,
-%           if nvw == 1 || numel(gpuids)<1,
-%               error('No GPUs with sufficient RAM available locally');
-%           else
-%             gpuids = gpuids(1);
-%             isMultiViewTrain = true;
-%             nTrainJobs = 1;
-%           end
+%       [wbObj] = myparse(varargin,...
+%         'wbObj',[] ...
+%         );
+%                  
+%       lblObj = obj.lObj;
+%       assert(obj.lObj.nview==1,'Currently only supported for single-view.');
+% 
+%       if obj.lObj.gtIsGTMode
+%         error('Unsupported in GT mode.');
+%       end
+% 
+%       obj.preretrain();
+%       
+%       obj.setAllParams(lblObj.trackGetParams());
+%       
+%       if isempty(obj.sPrmAll)
+%         error('No tracking parameters have been set.');
+%       end      
+%            
+%       % Currently, cacheDir must be visible on the JRC shared filesys.
+%       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
+%       
+%       trnType = DLTrainType.New;
+%       netObj = obj.trnNetType;
+%       netMode = obj.trnNetMode;
+%       
+%       % TODO: prev models
+%       cacheDir = lblObj.DLCacheDir;
+%       projname = lblObj.projname;
+%       trnBackEnd = lblObj.trackDLBackEnd;
+% 
+%       % Base DMC, to be further copied/specified per-split
+%       dmc = DeepModelChainOnDisk(...
+%         'rootDir',cacheDir,...
+%         'projID',projname,...
+%         'netType',char(netObj),...
+%         'netMode',netMode,...
+%         'view',0,...  % 0b
+%         'modelChainID','',... % to be filled in
+%         'trainID','',... % to be filled in
+%         'trainType',trnType,...
+%         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
+%         'isMultiView',false,...
+%         'filesep',obj.filesep,...
+%         'doSplit',true ...
+%         );
+% 
+%       nowstr = datestr(now,'yyyymmddTHHMMSS');
+%       dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
+%       dmc.trainID = nowstr;      
+%       
+%       dlConfigLclDir = dmc.dirProjLnx;
+%       if exist(dlConfigLclDir,'dir')==0
+%         fprintf('Creating dir: %s\n',dlConfigLclDir);
+%         [succ,msg] = mkdir(dlConfigLclDir);
+%         if ~succ
+%           error('Failed to create dir %s: %s',dlConfigLclDir,msg);
 %         end
 %       end
-
-      switch trnBackEnd.type
-        case DLBackEnd.Bsub
-          aptroot = trnBackEnd.bsubSetRootUpdateRepo(cacheDir);
-        case {DLBackEnd.Conda,DLBackEnd.Docker},
-          %assert(false);
-          aptroot = APT.Root;
-          %obj.downloadPretrainedWeights('aptroot',aptroot); 
-      end
-            
-      trnCmdType = trnType;
- 
-      % LOOP STUFF
-
-      %dmc.nLabels = slbl.nLabels;
-            
-      % At this point
-      % We have (modelChainID,trainID). stripped lbl is on disk. 
-
-      syscmds = cell(nvw,1);
-      %switch trnBackEnd.type
-      %  case DLBackEnd.Bsub
-          
-      %  case DLBackEnd.Docker 
-      %    fprintf(2,'UNCMT JRC\n');
-          %assert(false);
-          %mntPaths = obj.genContainerMountPath();          
-      %end
-      
-      switch trnBackEnd.type
-        case {DLBackEnd.Bsub DLBackEnd.Docker}
-          mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
-          singArgs = {'bindpath',mntPaths};
-          % splits verified in TrnPack.genWriteTrnPack
-          nsplits = max(tblSplit.split);
-          for isplit=1:nsplits
-            if isplit>1
-              dmc(isplit) = dmc(1).copy();
-              dmc(isplit).modelChainID = ...
-                DeepModelChainOnDisk.modelChainIDForSplit(nowstr,isplit); 
-              dmc(isplit).trnConfigNameOverride = dmc(1).trnConfigName;
-            end
-            dmcI = dmc(isplit);
-            dmcI.splitIdx = isplit;
-            dmcI.nLabels = nnz(tblSplit.split~=isplit);
-            
-            % "Inner"/cmdfile codegen
-            xvcode = dmcI.cmdfileLnx;
-            xvres = dmcI.valresultsBaseLnx;
-%             CONFPARAMSEXTRA = {'dl_steps' '500'};
-%             fprintf(2,'Extra confparams\n');
-            APTInterf.splitTrainValCodeGenCmdfile(xvcode,xvres,...
-              dmcI.modelChainID,...
-              dmcI.trnConfigLnx,dmcI.rootDir,dmcI.errfileLnx,...
-              DLNetType.(dmcI.netType),dmcI.netMode,isplit,...
-              ... %'confparamsextra',CONFPARAMSEXTRA,...
-              'view',1,'trainType',DLTrainType.New,...
-              'deepnetroot',[aptroot '/deepnet']);
-            fprintf(1,'Split %d: wrote cmdfile %s.\n',isplit,xvcode);
-            [succ,msg,id] = fileattrib(xvcode,'+x','a');
-            if ~succ
-              warningNoTrace('Failed to change file attributes for cmdfile %s: %s',...
-                xvcode,msg);
-            end
-
-            % "Outer" codegen
-            mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
-            singimg = pick_singularity_image(trnBackEnd, netMode) ;
-            singargs = {'bindpath',mntPaths, 'singimg', singimg};
-            bsubargs = {'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots ...
-              'outfile' dmcI.trainLogLnx, 'additionalargs', trnBackend.jrcAdditionalBsubArgs};
-            sshargs = {};
-            codeOuter = dmcI.cmdfileLnx;
-            codeOuter = DeepTracker.codeGenSingGeneral(codeOuter,singargs{:});
-            codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
-            codeOuter = DeepTracker.codeGenSSHGeneral(codeOuter,sshargs{:})
-            syscmds{isplit} = codeOuter;            
-          end
-%         case DLBackEnd.Docker
-%           containerNames = cell(nTrainJobs,1);
-%           logcmds = cell(nTrainJobs,1);
-%           syscmds = cell(nTrainJobs,1);
-%           for ivw=1:nvw,
-%             if ivw>1
-%               dmc(ivw) = dmc(1).copy();
+%       
+%       % write slbl/trnpack
+%       tfRequiresTrnPack = netObj.requiresTrnPack(netMode);
+%       assert(tfRequiresTrnPack); % 202111
+% 
+%       [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc,...
+%         'tblsplit',tblSplit ...
+%         );
+%       % TODO: SA tblSplit will have tgts
+%       dmc.nLabels = ntgtstot;
+%       
+%       
+%       %         tLbl = []; % XXX TODO
+%       %         % get labeled rows
+%       %         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
+%       %         tLbl = obj.lObj.preProcGetMFTableLbled( ...
+%       %           'treatInfPosAsOcc',treatInfPosAsOcc ...
+%       %           );
+%       %         tLbl = tLbl(:,1:3);
+%       
+% % %       else
+% % %         slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
+% % %         % store nLabels in dmc
+% % %         dmc.nLabels = s.nLabels;
+% % % 
+% % %         % Write stripped lblfile to local cache
+% % % 
+% % %         save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
+% % %         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
+% % %         
+% % %         tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
+% % %               slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
+% % %       end
+% 
+%       
+%       obj.bgTrnReset();      
+% 
+%       % see trnSpawn
+%       
+%       nvw = obj.lObj.nview;
+%       isMultiViewTrain = false;
+%       nTrainJobs = nvw;
+% %       if backEnd.type == DLBackEnd.Docker || backEnd.type == DLBackEnd.Conda,
+% %         % how many gpus do we have available?
+% %         gpuids = obj.getFreeGPUs(nvw);
+% %         if numel(gpuids) < nvw,
+% %           if nvw == 1 || numel(gpuids)<1,
+% %               error('No GPUs with sufficient RAM available locally');
+% %           else
+% %             gpuids = gpuids(1);
+% %             isMultiViewTrain = true;
+% %             nTrainJobs = 1;
+% %           end
+% %         end
+% %       end
+% 
+%       switch trnBackEnd.type
+%         case DLBackEnd.Bsub
+%           aptroot = trnBackEnd.bsubSetRootUpdateRepo(cacheDir);
+%         case {DLBackEnd.Conda,DLBackEnd.Docker},
+%           %assert(false);
+%           aptroot = APT.Root;
+%           %obj.downloadPretrainedWeights('aptroot',aptroot); 
+%       end
+%             
+%       trnCmdType = trnType;
+%  
+%       % LOOP STUFF
+% 
+%       %dmc.nLabels = slbl.nLabels;
+%             
+%       % At this point
+%       % We have (modelChainID,trainID). stripped lbl is on disk. 
+% 
+%       syscmds = cell(nvw,1);
+%       %switch trnBackEnd.type
+%       %  case DLBackEnd.Bsub
+%           
+%       %  case DLBackEnd.Docker 
+%       %    fprintf(2,'UNCMT JRC\n');
+%           %assert(false);
+%           %mntPaths = obj.genContainerMountPath();          
+%       %end
+%       
+%       switch trnBackEnd.type
+%         case {DLBackEnd.Bsub DLBackEnd.Docker}
+%           mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
+%           singArgs = {'bindpath',mntPaths};
+%           % splits verified in TrnPack.genWriteTrnPack
+%           nsplits = max(tblSplit.split);
+%           for isplit=1:nsplits
+%             if isplit>1
+%               dmc(isplit) = dmc(1).copy();
+%               dmc(isplit).modelChainID = ...
+%                 DeepModelChainOnDisk.modelChainIDForSplit(nowstr,isplit); 
+%               dmc(isplit).trnConfigNameOverride = dmc(1).trnConfigName;
 %             end
-%             dmc(ivw).view = ivw-1; % 0-based
-%             if ivw <= nTrainJobs,
-%             gpuid = gpuids(ivw);
-%             [syscmds{ivw},containerNames{ivw}] = ...
-%                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
-%                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
-%             logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
-%               obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
+%             dmcI = dmc(isplit);
+%             dmcI.splitIdx = isplit;
+%             dmcI.nLabels = nnz(tblSplit.split~=isplit);
+%             
+%             % "Inner"/cmdfile codegen
+%             xvcode = dmcI.cmdfileLnx;
+%             xvres = dmcI.valresultsBaseLnx;
+% %             CONFPARAMSEXTRA = {'dl_steps' '500'};
+% %             fprintf(2,'Extra confparams\n');
+%             APTInterf.splitTrainValCodeGenCmdfile(xvcode,xvres,...
+%               dmcI.modelChainID,...
+%               dmcI.trnConfigLnx,dmcI.rootDir,dmcI.errfileLnx,...
+%               DLNetType.(dmcI.netType),dmcI.netMode,isplit,...
+%               ... %'confparamsextra',CONFPARAMSEXTRA,...
+%               'view',1,'trainType',DLTrainType.New,...
+%               'deepnetroot',[aptroot '/deepnet']);
+%             fprintf(1,'Split %d: wrote cmdfile %s.\n',isplit,xvcode);
+%             [succ,msg,id] = fileattrib(xvcode,'+x','a');
+%             if ~succ
+%               warningNoTrace('Failed to change file attributes for cmdfile %s: %s',...
+%                 xvcode,msg);
 %             end
+% 
+%             % "Outer" codegen
+%             mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
+%             singimg = pick_singularity_image(trnBackEnd, netMode) ;
+%             singargs = {'bindpath',mntPaths, 'singimg', singimg};
+%             bsubargs = {'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots ...
+%               'outfile' dmcI.trainLogLnx, 'additionalargs', trnBackend.jrcAdditionalBsubArgs};
+%             sshargs = {};
+%             codeOuter = dmcI.cmdfileLnx;
+%             codeOuter = DeepTracker.codeGenSingGeneral(codeOuter,singargs{:});
+%             codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
+%             codeOuter = DeepTracker.codeGenSSHGeneral(codeOuter,sshargs{:})
+%             syscmds{isplit} = codeOuter;            
 %           end
-%         case DLBackEnd.Conda
-%           condaargs = {'condaEnv',obj.condaEnv};
-%           for ivw=1:nvw,
-%             if ivw>1
-%               dmc(ivw) = dmc(1).copy();
-%             end
-%             dmc(ivw).view = ivw-1; % 0-based
-%             if ivw <= nTrainJobs,
-%               gpuid = gpuids(ivw);
-%               syscmds{ivw} = ...
-%                 DeepTracker.trainCodeGenCondaDMC(dmc(ivw),gpuid,...
-%                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
-%                 'condaargs',condaargs);
-%             end
-%           end
-        otherwise
-          assert(false);
-      end
-      
-      %be = obj.lObj.trackDLBackEnd;
-      
-      if obj.dryRunOnly
-        cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
-      else
-        obj.bgTrnStart(trnBackEnd,dmc,'trainSplits',true);
-        
-        bgTrnWorkerObj = obj.bgTrnMonBGWorkerObj;
-        
-        % spawn training
-        if trnBackEnd.type==DLBackEnd.Docker
-          bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
-          for iview=1:nTrainJobs
-            fprintf(1,'%s\n',syscmds{iview});
-            [st,res] = system(syscmds{iview});
-            if st==0
-              bgTrnWorkerObj.parseJobID(res,iview);
-              
-              fprintf(1,'%s\n',logcmds{iview});
-              [st2,res2] = system(logcmds{iview});
-              if st2==0
-              else
-                fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
-                  iview,res2);
-              end
-            else
-              fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
-                iview,res);
-            end            
-          end
-        elseif trnBackEnd.type==DLBackEnd.Conda
-          bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
-          for iview=1:nTrainJobs
-            fprintf(1,'%s\n',syscmds{iview});
-            [job,st,res] = parfevalsystem(syscmds{iview});
-            if ~st,
-              bgTrnWorkerObj.parseJobID(job,iview);
-            else
-              fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
-                iview,res);
-            end            
-          end
-        else
-          nTrainJobs = numel(dmc);
-          bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
-          assert(nTrainJobs==numel(dmc));
-          for iview=1:nTrainJobs
-            syscmdrun = syscmds{iview};
-            fprintf(1,'%s\n',syscmdrun);
-            
-%             cmdfile = dmc(iview).cmdfileLnx;
-%             %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
-%             [fh,msg] = fopen(cmdfile,'w');
-%             if isequal(fh,-1)
-%               warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+% %         case DLBackEnd.Docker
+% %           containerNames = cell(nTrainJobs,1);
+% %           logcmds = cell(nTrainJobs,1);
+% %           syscmds = cell(nTrainJobs,1);
+% %           for ivw=1:nvw,
+% %             if ivw>1
+% %               dmc(ivw) = dmc(1).copy();
+% %             end
+% %             dmc(ivw).view = ivw-1; % 0-based
+% %             if ivw <= nTrainJobs,
+% %             gpuid = gpuids(ivw);
+% %             [syscmds{ivw},containerNames{ivw}] = ...
+% %                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
+% %                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
+% %             logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
+% %               obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
+% %             end
+% %           end
+% %         case DLBackEnd.Conda
+% %           condaargs = {'condaEnv',obj.condaEnv};
+% %           for ivw=1:nvw,
+% %             if ivw>1
+% %               dmc(ivw) = dmc(1).copy();
+% %             end
+% %             dmc(ivw).view = ivw-1; % 0-based
+% %             if ivw <= nTrainJobs,
+% %               gpuid = gpuids(ivw);
+% %               syscmds{ivw} = ...
+% %                 DeepTracker.trainCodeGenCondaDMC(dmc(ivw),gpuid,...
+% %                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
+% %                 'condaargs',condaargs);
+% %             end
+% %           end
+%         otherwise
+%           assert(false);
+%       end
+%       
+%       %be = obj.lObj.trackDLBackEnd;
+%       
+%       if obj.dryRunOnly
+%         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
+%       else
+%         obj.bgTrnStart(trnBackEnd,dmc,'trainSplits',true);
+%         
+%         bgTrnWorkerObj = obj.bgTrnMonBGWorkerObj;
+%         
+%         % spawn training
+%         if trnBackEnd.type==DLBackEnd.Docker
+%           bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
+%           for iview=1:nTrainJobs
+%             fprintf(1,'%s\n',syscmds{iview});
+%             [st,res] = system(syscmds{iview});
+%             if st==0
+%               bgTrnWorkerObj.parseJobID(res,iview);
+%               
+%               fprintf(1,'%s\n',logcmds{iview});
+%               [st2,res2] = system(logcmds{iview});
+%               if st2==0
+%               else
+%                 fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
+%                   iview,res2);
+%               end
 %             else
-%               fprintf(fh,'%s\n',syscmdrun);
-%               fclose(fh);
-%               fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
+%               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
+%                 iview,res);
+%             end            
+%           end
+%         elseif trnBackEnd.type==DLBackEnd.Conda
+%           bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
+%           for iview=1:nTrainJobs
+%             fprintf(1,'%s\n',syscmds{iview});
+%             [job,st,res] = parfevalsystem(syscmds{iview});
+%             if ~st,
+%               bgTrnWorkerObj.parseJobID(job,iview);
+%             else
+%               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
+%                 iview,res);
+%             end            
+%           end
+%         else
+%           nTrainJobs = numel(dmc);
+%           bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
+%           assert(nTrainJobs==numel(dmc));
+%           for iview=1:nTrainJobs
+%             syscmdrun = syscmds{iview};
+%             fprintf(1,'%s\n',syscmdrun);
+%             
+% %             cmdfile = dmc(iview).cmdfileLnx;
+% %             %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
+% %             [fh,msg] = fopen(cmdfile,'w');
+% %             if isequal(fh,-1)
+% %               warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
+% %             else
+% %               fprintf(fh,'%s\n',syscmdrun);
+% %               fclose(fh);
+% %               fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
+% %             end
+%             
+%             if exist(dmc(iview).dirTrkOutLnx,'dir')==0
+%               [succ,msg] = mkdir(dmc(iview).dirTrkOutLnx);
+%               if succ
+%                 fprintf(1,'Made dir ''%s''.\n',dmc(iview).dirTrkOutLnx);
+%               else
+%                 error('Failed to create dir ''%s'': %s',dmc(iview).dirTrkOutLnx,...
+%                   msg);
+%               end
+%             end                
+%             
+%             [st,res] = system(syscmdrun);
+%             if st==0
+%               PAT = 'Job <(?<jobid>[0-9]+)>';
+%               stoks = regexp(res,PAT,'names');
+%               if ~isempty(stoks)
+%                 jobid = str2double(stoks.jobid);
+%               else
+%                 jobid = nan;
+%                 warningNoTrace('Failed to ascertain jobID.');
+%               end
+%               fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
+%                 iview,jobid);
+%               % assigning to 'local' workerobj, not the one copied to workers
+%               bgTrnWorkerObj.jobID(iview) = jobid;
+%             else
+%               fprintf('Failed to spawn training job for view %d: %s.\n\n',...
+%                 iview,res);
 %             end
-            
-            if exist(dmc(iview).dirTrkOutLnx,'dir')==0
-              [succ,msg] = mkdir(dmc(iview).dirTrkOutLnx);
-              if succ
-                fprintf(1,'Made dir ''%s''.\n',dmc(iview).dirTrkOutLnx);
-              else
-                error('Failed to create dir ''%s'': %s',dmc(iview).dirTrkOutLnx,...
-                  msg);
-              end
-            end                
-            
-            [st,res] = system(syscmdrun);
-            if st==0
-              PAT = 'Job <(?<jobid>[0-9]+)>';
-              stoks = regexp(res,PAT,'names');
-              if ~isempty(stoks)
-                jobid = str2double(stoks.jobid);
-              else
-                jobid = nan;
-                warningNoTrace('Failed to ascertain jobID.');
-              end
-              fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
-                iview,jobid);
-              % assigning to 'local' workerobj, not the one copied to workers
-              bgTrnWorkerObj.jobID(iview) = jobid;
-            else
-              fprintf('Failed to spawn training job for view %d: %s.\n\n',...
-                iview,res);
-            end
-          end
-        end        
-        obj.trnSplitLastDMC = dmc;
-      end
-      
-      % Nothing should occur here as failed trnSpawn* will early return
-      
-    end
-  end
+%           end
+%         end        
+%         obj.trnSplitLastDMC = dmc;
+%       end
+%       
+%       % Nothing should occur here as failed trnSpawn* will early return
+%       
+    end  % function trainsplit
+  end  % methods
   
   %% Track  
   methods (Static)
@@ -3136,10 +3136,11 @@ classdef DeepTracker < LabelTracker
         prefix = [DLBackEndClass.jrcprefix '; ' repoSScmd];
         sshargsuse = [sshargs {'prefix' prefix}];
         
-        trksysinfo(ivw).codestr = DeepTracker.trackCodeGenListFileSSHBsubSing(...
-          obj.backend, trksysinfo(ivw),modelChainID,obj.trnNetType,obj.trnNetMode,ivw,...          
-          'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
-          'sshargs',sshargsuse);
+        trksysinfo(ivw).codestr = ...
+          trackCodeGenListFileSSHBsubSing(obj.backend,...
+                                          trksysinfo(ivw),modelChainID,obj.trnNetType,obj.trnNetMode,ivw,...          
+                                          'baseargs',baseargsaug,'singArgs',singargs,'bsubargs',bsubargs,...
+                                          'sshargs',sshargsuse);
       end
     end
     
@@ -4258,113 +4259,6 @@ classdef DeepTracker < LabelTracker
         Bflagsstr,singimg,basecmd);
     end
     
-    function plnx = codeGenPathUpdateWin2LnxContainer(pwin,mntloc)
-      PAT1 = '^(?<drivelet>[a-zA-Z]):\\';
-      match_struct = regexp(pwin, PAT1, 'names') ;
-      if isempty(match_struct) ,
-        plnx = pwin ;
-      else
-        % We need to lowercase the drive letter for recent (as of April 2023) versions of WSL
-        drive_letter = match_struct.drivelet ;
-        REP1 = sprintf('%s/%s/', mntloc, lower(drive_letter)) ;
-        plnx = regexprep(pwin,PAT1,REP1);
-      end
-      
-      PAT2 = '^\\\\(?<server>[^/\\]+)[/\\]';
-      REP2 = sprintf('%s/$<server>/',mntloc);
-      plnx = regexprep(plnx,PAT2,REP2);
-      
-      PAT3 = '\\';
-      REP3 = '/';
-      plnx = regexprep(plnx,PAT3,REP3);
-    end
-    
-    function codestr = codeGenCondaGeneral(basecmd,varargin)
-      % Take a base command and run it in a sing img
-      [condaEnv,gpuid] = myparse(varargin,...
-        'condaEnv','APT',...
-        'gpuid',0);
-      codestr = synthesize_conda_command(['activate ',condaEnv]);
-      if ~isnan(gpuid),
-        if ispc,
-          envcmd = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID&& set CUDA_VISIBLE_DEVICES=%d',gpuid);
-        else
-          envcmd = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID && export CUDA_VISIBLE_DEVICES=%d',gpuid);
-        end
-         codestr = [codestr,' && ',envcmd];
-      end
-      codestr = [codestr,' && ',basecmd];
-    end
-
-    function codestr = codeGenBsubGeneral(basecmd,varargin)
-      [nslots,gpuqueue,outfile,additionalargs] = myparse(varargin,...
-        'nslots',1,...
-        'gpuqueue',DeepTracker.default_jrcgpuqueue,...
-        'outfile','/dev/null', ...
-        'additionalargs', '');
-      codestr = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]" %s %s',...
-        nslots,gpuqueue,outfile,additionalargs,basecmd);      
-    end
-
-    function [codestr,containerName] = trainCodeGenDocker(backend,...
-        fileinfo,trainType,...
-        view1b,mntPaths,gpuid,varargin)
-                  
-      [dockerargs,isMultiView,prev_models,prev_models2,augOnly,augOut,baseargs0] = ... 
-        myparse(varargin,...
-        'dockerargs',{},...
-        'isMultiView',false,...
-        'prev_model',[],...
-        'prev_model2',[],...
-        'augOnly',false, ...
-        'augOut','', ... % used only if augOnly==true  
-        'baseargs',{} ...
-        );
-
-      if ~isMultiView,
-        view1b = DeepModelChainOnDisk.getCheckSingle(view1b);
-      end
-
-      modelChainID = fileinfo.modelChainID;
-      trainID = fileinfo.trainID;
-      netModeName = fileinfo.netModeName;
-
-      filequote = backend.getFileQuoteDockerCodeGen;
-      baseargs = [{'trainType' trainType 'filequote' filequote} baseargs0];
-      if ~isMultiView,
-        baseargs = [baseargs, {'view' view1b}];
-      end
-      if ~isempty(prev_models)
-        baseargs = [baseargs, {'prev_model' prev_models}];
-      end
-      if ~isempty(prev_models2),
-        baseargs = [baseargs, {'prev_model2' prev_models2}];
-      end
-
-      basecmd = APTInterf.trainCodeGen(fileinfo,...
-        baseargs{:},'augOnly',augOnly,'augOut',augOut);      
-
-      if isMultiView,      
-        containerName = [modelChainID '_' trainID '_' netModeName];
-      else
-        containerName = [modelChainID '_' trainID '_' netModeName '_view' num2str(view1b)];
-      end
-
-      % using this bool as torch proxy?
-      tfRequiresTrnPack = false;
-      for i = 1:numel(fileinfo.netType),
-        tfRequiresTrnPack = tfRequiresTrnPack || fileinfo.netType{i}.requiresTrnPack(fileinfo.netMode{i});
-      end
-      if tfRequiresTrnPack
-        shmSize = 8;
-      else
-        shmSize = [];
-      end
-      codestr = backend.wrapBaseCommandDocker_(basecmd,containerName,...
-        'bindpath',mntPaths,'gpuid',gpuid,dockerargs{:},...
-        'detach',~augOnly,'tty',augOnly,'shmsize',shmSize);      
-    end
-
     function [codestr] = trainCodeGenConda(fileinfo,trainType,view1b,gpuid,varargin)
       
       [condaargs,isMultiView,outfile,prev_model] = myparse(varargin,'condaargs',{},'isMultiView',false,...
@@ -4385,9 +4279,7 @@ classdef DeepTracker < LabelTracker
         basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
       end
       
-      codestr = DeepTracker.codeGenCondaGeneral(basecmd,...
-        'gpuid',gpuid,condaargs{:});
-      
+      codestr = codeGenCondaGeneral(basecmd,'gpuid',gpuid,condaargs{:});      
     end
 
     function baseargs = trainTopDownBaseArgs(dmc)
@@ -4403,51 +4295,6 @@ classdef DeepTracker < LabelTracker
         'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
         'maTopDownStage' stagearg ...
         };
-    end
-
-    function [codestr,containerName] = trainCodeGenDockerDMC(...
-        dmc,backend,mntPaths,gpuid,varargin)
-      [trnCmdType,augOnly,augOut,isTopDown,leftovers] = myparse_nocheck(varargin,...
-        'trnCmdType',dmc.trainType,... 
-        'augOnly',false, ...
-        'augOut','', ...
-        'isTopDown',false...
-        );
-      trnCmdType = DeepModelChainOnDisk.getCheckSingle(trnCmdType);
-      if ~isempty(dmc.prev_models),
-        if isTopDown,
-          stages = unique(dmc.getStages());
-          for i = 1:numel(stages),
-            stage = stages(i);
-            prev_models = dmc.getPrevModels('stage',stage);
-            if isempty(prev_models),
-              continue;
-            end
-            if i == 1,
-              arg = 'prev_model';
-            else
-              arg = sprintf('prev_model%d',i);
-            end
-            leftovers = [leftovers {arg,prev_models}]; %#ok<AGROW> 
-          end
-        else
-          leftovers = [leftovers {'prev_model' dmc.prev_models}];
-        end
-      end
-      if isTopDown,
-        baseargs = DeepTracker.trainTopDownBaseArgs(dmc);
-      else
-        baseargs = {};
-      end
-%       [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
-%         dmc.modelChainID,dmc.trainID,dmc.trainConfigLnx,...
-%         dmc.rootDir,dmc.errfileLnx,dmc.netType,dmc.netMode,...
-%         trnCmdType,dmc.view+1,mntPaths,gpuid,leftovers{:},...
-%         'augOnly',augOnly,'augOut',augOut);
-      [codestr,containerName] = DeepTracker.trainCodeGenDocker(backend,...
-        dmc.trainFileInfoSingle(),...
-        trnCmdType,dmc.getView()+1,mntPaths,gpuid,leftovers{:},...
-        'augOnly',augOnly,'augOut',augOut,'baseargs',baseargs);
     end
 
     function [codestr] = trainCodeGenCondaDMC(dmc,gpuid,varargin)
@@ -4480,7 +4327,7 @@ classdef DeepTracker < LabelTracker
         'singargs',{},...
         'bsubargs',{});
       basecmd = DeepTracker.trainCodeGenSing(fileinfo,'baseargs',baseargs,'singargs',singargs);
-      codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
+      codestr = codeGenBsubGeneral(basecmd,bsubargs{:});
     end    
 
     function codestr = trainCodeGenSSHBsubSing(fileinfo,varargin)
@@ -4794,19 +4641,19 @@ classdef DeepTracker < LabelTracker
       fclose(fid);      
     end
     
-    function [codestr] = dataAugCodeGenDocker(backend,...
-        ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
-      
-      [baseargs,dockerargs,mntPaths] = myparse(varargin,...
-        'baseargs',{},'dockerargs',{},'mntPaths',{});
-      
-      filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = DeepTracker.dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-        netType,outfile,baseargs{:},'filequote',filequote);
-      
-      codestr = backend.wrapBaseCommandDocker_(basecmd,ID,...
-        'bindpath',mntPaths,dockerargs{:});
-    end    
+%     function [codestr] = dataAugCodeGenDocker(backend,...
+%         ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
+%       
+%       [baseargs,dockerargs,mntPaths] = myparse(varargin,...
+%         'baseargs',{},'dockerargs',{},'mntPaths',{});
+%       
+%       filequote = backend.getFileQuoteDockerCodeGen;
+%       basecmd = DeepTracker.dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
+%         netType,outfile,baseargs{:},'filequote',filequote);
+%       
+%       codestr = backend.wrapBaseCommandDocker_(basecmd,ID,...
+%         'bindpath',mntPaths,dockerargs{:});
+%     end    
     
     function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
         nettype,outfile,varargin)
@@ -4845,153 +4692,30 @@ classdef DeepTracker < LabelTracker
       codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
         char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
     end    
-    
-    function [codestr,containerName] = trackCodeGenDocker(backend,fileinfo,frm0,frm1,varargin)
-
-      % varargin: see trackCodeGenBase, except for 'cache' and 'view'
-      
-      [baseargs,dockerargs,mntPaths,containerName] = myparse(varargin,...
-        'baseargs',{},'dockerargs',{},'mntPaths',{},'containerName','');
-      
-      baseargs = [{'cache' fileinfo.cache} baseargs];
-      filequote = backend.getFileQuoteDockerCodeGen;
-      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:},...
-        'filequote',filequote);
-
-      if isempty(containerName),
-        if iscell(fileinfo.outtrk),
-          [~,containerName] = fileparts(fileinfo.outtrk{1});
-        else
-          [~,containerName] = fileparts(fileinfo.outtrk);
-        end
-      end
-      
-      codestr = backend.wrapBaseCommandDocker_(basecmd,containerName,...
-        'bindpath',mntPaths,dockerargs{:});
-    end
-    
-    function [codestr] = trackCodeGenConda(fileinfo,frm0,frm1,varargin)
-%         movtrk,outtrk,frm0,frm1,...
-%         modelChainID,trainID,dlconfigfile,cache,errfile,netType,view1b,mntPaths,...
-%         varargin)
-
-      % varargin: see trackCodeGenBase, except for 'cache' and 'view'
-      
-      [baseargs,condaargs,outfile] = myparse(varargin,...
-        'baseargs',{},'condaargs',{},'outfile','');
-      
-      addnlbaseargs = {'cache' fileinfo.cache 'filequote' '"' 'updateWinPaths2LnxContainer' false};
-      baseargs = [addnlbaseargs baseargs];
-        
-      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-      if ~isempty(outfile),
-        basecmd = sprintf('%s > %s 2>&1',basecmd,outfile);
-      end
-      codestr = DeepTracker.codeGenCondaGeneral(basecmd,...
-        condaargs{:});
-    end
-    
-    function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
-      [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
-        'baseargs',{},... % p-v cell for trackCodeGenBase
-        'venvHost','10.103.20.155',... % host to run DL verman-ws1
-        'venv','/groups/branson/bransonlab/mayank/venv',... 
-        'cudaVisDevice',[],... % if supplied, export CUDA_VISIBLE_DEVICES to this
-        'logFile','/dev/null'...
-      ); 
-      
-      basecode = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-      if ~isempty(cudaVisDevice)
-        cudaDeviceStr = ...
-          sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
-          cudaVisDevice);
-      else
-        cudaDeviceStr = '';
-      end
-        
-      codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
-        cudaDeviceStr,basecode);
-      codestr = DeepTracker.codeGenSSHGeneral(codestrremote,...
-        'host',venvHost,'logfile',logFile);
-    end
-    
-    function codestr = trackCodeGenSing(backend, fileinfo,frm0,frm1,varargin)
-      [baseargs,singargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{});
-      baseargs = [baseargs {'confparamsfilequote','\\\"','ignore_local',1}];
-      basecmd = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-      singimg = pick_singularity_image(backend, fileinfo.netMode) ;
-      singargs2 = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;
-      codestr = DeepTracker.codeGenSingGeneral(basecmd, singargs2{:});
-    end
-
-    function codestr = trackCodeGenBsubSing(backend, fileinfo,frm0,frm1,varargin)
-      [baseargs,singargs,bsubargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{});
-      basecmd = DeepTracker.trackCodeGenSing(backend, fileinfo,frm0,frm1,'baseargs',baseargs,'singargs',singargs);
-      codestr = DeepTracker.codeGenBsubGeneral(basecmd,bsubargs{:});
-    end
-    
-    function codestr = trackCodeGenSSHBsubSing(backend, fileinfo,frm0,frm1,varargin)
-      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{},...
-        'sshargs',{}...
-        );
-      baseargs = [baseargs {'cache' fileinfo.cache}];      
             
-      remotecmd = DeepTracker.trackCodeGenBsubSing(backend, fileinfo,frm0,frm1,...
-        'baseargs',baseargs,'singargs',singargs,'bsubargs',bsubargs);
-      codestr = DeepTracker.codeGenSSHGeneral(remotecmd,sshargs{:});
-    end
-    
-    function codestr = trackCodeGenListFileSSHBsubSing(backend, trksysinfo,...
-        trnID,nettype,netmode,view,varargin)
-      
-      [baseargs,singargs,bsubargs,sshargs] = myparse(varargin,...
-        'baseargs',{},...
-        'singargs',{},...
-        'bsubargs',{},...
-        'sshargs',{}...
-        );      
-      
-      cache = trksysinfo.dmcRootDir;
-      dlconfigfile = trksysinfo.trainConfigLnx;
-      errfile = trksysinfo.errfile;
-      outfile = trksysinfo.outfile;
-      listfile = trksysinfo.listfile;
-
-      codebase = DeepTracker.trackCodeGenBaseListFile(trnID,cache,dlconfigfile,...
-        outfile,errfile,nettype,view,listfile,baseargs{:});
-      singimg = pick_singularity_image(backend, netmode) ;
-      singargs2 = add_pair_to_key_value_list(singargs, 'singimg', singimg) ;      
-      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs2{:});
-      codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
-      codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
-    end    
-
-    function codestr = trackCodeGenAWS(fileinfo,frm0,frm1,baseargs)
-      % movRemoteFull: can be cellstr when tracking all views
-      % trkRemoteFull: "
-      % 
-      % baseargs: PV cell vector that goes to .trackCodeGenBase
-      
-      deepnetroot = '/home/ubuntu/APT/deepnet';
-      baseargs = [baseargs {'cache' fileinfo.cache}];
-      codestrbase = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,...
-        'deepnetroot',deepnetroot,baseargs{:});
-      
-      codestr = {
-         'cd /home/ubuntu/APT/deepnet;';
-         'export LD_LIBRARY_PATH=/home/ubuntu/src/cntk/bindings/python/cntk/libs:/usr/local/cuda/lib64:/usr/local/lib:/usr/lib:/usr/local/cuda/extras/CUPTI/lib64:/usr/local/mpi/lib;';
-         codestrbase
-        };
-      codestr = cat(2,codestr{:});
-    end
+%     function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
+%       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
+%         'baseargs',{},... % p-v cell for trackCodeGenBase
+%         'venvHost','10.103.20.155',... % host to run DL verman-ws1
+%         'venv','/groups/branson/bransonlab/mayank/venv',... 
+%         'cudaVisDevice',[],... % if supplied, export CUDA_VISIBLE_DEVICES to this
+%         'logFile','/dev/null'...
+%       ); 
+%       
+%       basecode = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
+%       if ~isempty(cudaVisDevice)
+%         cudaDeviceStr = ...
+%           sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
+%           cudaVisDevice);
+%       else
+%         cudaDeviceStr = '';
+%       end
+%         
+%       codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
+%         cudaDeviceStr,basecode);
+%       codestr = DeepTracker.codeGenSSHGeneral(codestrremote,...
+%         'host',venvHost,'logfile',logFile);
+%     end
     
     function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
       
