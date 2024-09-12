@@ -1457,7 +1457,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           % See comment in mirror2RemoteAws regarding not confirming ID of
           % files-that-already-exist
           aws.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'err'}); % throws
+            'sysCmdArgs',{'failbehavior', 'err'}); % throws
         end
       end
       

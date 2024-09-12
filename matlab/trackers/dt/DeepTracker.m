@@ -1268,7 +1268,7 @@ classdef DeepTracker < LabelTracker
 %       dmc2.rootDir = obj.lObj.DLCacheDir;
 %       assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
 %       cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
-%       tfsucc = AWSec2.syscmd(cmd,'dispcmd',true);
+%       tfsucc = DeepTracker.syscmd(cmd);
 %       if ~tfsucc
 %         error('Failed to create dir %s.',dmc2.dirModelChainLnx);
 %       end
@@ -3466,7 +3466,7 @@ classdef DeepTracker < LabelTracker
       if ismac
         file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err','dosleep',false);
+        [~,res] = DeepTracker.syscmd(shacmd,'failbehavior','err');
         res = strtrim(res);
         toks = regexp(res,' ','split');
         sha = toks{end};        
@@ -3474,13 +3474,13 @@ classdef DeepTracker < LabelTracker
       elseif isunix
         file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err','dosleep',false);
+        [~,res] = DeepTracker.syscmd(shacmd,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err','dosleep',false);
+        [~,res] = DeepTracker.syscmd(shacmd,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
         sha = regexprep(sha,' ','');
@@ -3688,7 +3688,7 @@ classdef DeepTracker < LabelTracker
         aws = backend.awsec2;
         
         % download trkfiles 
-        sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
+        sysCmdArgs = {'failbehavior', 'err'};
         for ivw=1:numel(res)
           trkLcl = trkfilesLocal{ivw};
           trkRmt = res(ivw).trkfile;
@@ -3962,11 +3962,13 @@ classdef DeepTracker < LabelTracker
     
   end
   methods (Static) % train/track codegen
-    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
-      [tfsucc,res,warningstr] = AWSec2.syscmd(cmd,varargin{:},...
-                                              'setenvcmd','LD_LIBRARY_PATH=: ');
-    end
-
+    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)      
+      setenvcmd = 'LD_LIBRARY_PATH=:' ;
+      [tfsucc,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
+        % We pass in our setenvcmd first so that it can be overidden by one passed in
+        % in varargin
+    end  % function        
+    
     function downloadPretrainedWeights(varargin) 
       aptroot = myparse(varargin,...
         'aptroot',APT.Root...
@@ -4020,19 +4022,15 @@ classdef DeepTracker < LabelTracker
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-      [~,res] = AWSec2.syscmd(cmd,...
-        'dispcmd',true,...
-        'failbehavior','err',...
-        'dosleep',false);
+      [~,res] = DeepTracker.syscmd(cmd,...
+        'failbehavior','err');
     end      
 
     function updateAPTRepoExecJRC(cacheRoot) % throws if fails
       % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
       updatecmd = apt.updateAPTRepoCmd('aptparent',cacheRoot);
       updatecmd = wrapCommandSSH(updatecmd,'host',DLBackEndClass.jrchost);
-      [~,res] = AWSec2.syscmd(updatecmd,...
-        'dispcmd',true,...
-        'dosleep',false,...
+      [~,res] = DeepTracker.syscmd(updatecmd,...
         'failbehavior','err');
     end
 
@@ -4046,9 +4044,7 @@ classdef DeepTracker < LabelTracker
     function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
       cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
       cmd = wrapCommandSSH(cmd,'host',DLBackEndClass.jrchost);
-      [~,res] = AWSec2.syscmd(cmd,...
-        'dispcmd',true,...
-        'dosleep',false,...
+      [~,res] = DeepTracker.syscmd(cmd,...
         'failbehavior','err');
     end
 
@@ -4066,9 +4062,7 @@ classdef DeepTracker < LabelTracker
       aptrootexistscmd = DeepTracker.dirExistsCmd(aptroot);
       aptrootexistscmd = wrapCommandSSH(aptrootexistscmd,'host',DLBackEndClass.jrchost);
       
-      [~,res] = AWSec2.syscmd(aptrootexistscmd,...
-        'dispcmd',true,...
-        'dosleep',false,...
+      [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
         'failbehavior','err');
       res = strtrim(res);
       
@@ -4079,9 +4073,7 @@ classdef DeepTracker < LabelTracker
         case 'n'
           cloneaptcmd = sprintf('git clone %s %s',DLBackEndClass.jrcprodrepo,aptroot);
           cloneaptcmd = wrapCommandSSH(cloneaptcmd,'host',DLBackEndClass.jrchost);
-          [~,res] = AWSec2.syscmd(cloneaptcmd,...
-            'dispcmd',true,...
-            'dosleep',false,...
+          [~,res] = DeepTracker.syscmd(cloneaptcmd,...
             'failbehavior','err');
           fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
         otherwise
@@ -5045,7 +5037,6 @@ classdef DeepTracker < LabelTracker
     function result = singularityImgPath(obj)
       backend = obj.backend ;  %#ok<PROP> 
       result = backend.singularity_image_path ;  %#ok<PROP> 
-    end
-  end    
-
-end
+    end  % function
+  end  % methods    
+end  % classdef

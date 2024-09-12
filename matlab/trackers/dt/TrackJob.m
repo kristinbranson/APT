@@ -856,7 +856,7 @@ classdef TrackJob < handle
           obj.uploadfun = @aws.scpUploadOrVerifyEnsureDir;
           obj.mkdirRemFun = @aws.ensureRemoteDir;
           obj.rmRemFun = @aws.rmRemoteFile;
-          sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
+          sysCmdArgs = {'failbehavior', 'err'};
           obj.downloadfun = @(varargin) aws.scpDownloadOrVerify(varargin{:},'sysCmdArgs',sysCmdArgs);
         
       end

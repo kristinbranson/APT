@@ -1335,13 +1335,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
       end
       
-      ec2 = obj.awsec2;
-
       % test that AWS CLI is installed
       hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
       cmd = 'aws ec2 describe-regions --output table';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = AWSec2.syscmd(cmd,'dispcmd',true);
+      [tfsucc,result] = AWSec2.syscmd(cmd);
       %[status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
       if ~tfsucc % status ~= 0,
@@ -1353,7 +1351,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
       cmd = 'aws ec2 describe-security-groups';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      [tfsucc,result] = AWSec2.syscmd(cmd,'isjsonout',true);
       %[status,result] = system(cmd);
       if tfsucc %status == 0,
         try
@@ -1473,7 +1471,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       [cmdremote, aptroot] = apt.updateAPTRepoCmd('downloadpretrained',true,args{:});
 
       ec2 = obj.awsec2;      
-      [tfsucc,res] = ec2.cmdInstance(cmdremote,'dispcmd',true);
+      [tfsucc,res] = ec2.cmdInstance(cmdremote);
       if tfsucc
         fprintf('Updated remote APT repo.\n\n');
       else
