@@ -1268,7 +1268,7 @@ classdef DeepTracker < LabelTracker
 %       dmc2.rootDir = obj.lObj.DLCacheDir;
 %       assert(exist(dmc2.dirModelChainLnx,'dir')==0,'Dir %s already exists.',dmc2.dirModelChainLnx);
 %       cmd = sprintf('mkdir -p %s',dmc2.dirModelChainLnx);
-%       tfsucc = DeepTracker.syscmd(cmd,'dispcmd',true);
+%       tfsucc = AWSec2.syscmd(cmd,'dispcmd',true);
 %       if ~tfsucc
 %         error('Failed to create dir %s.',dmc2.dirModelChainLnx);
 %       end
@@ -2272,7 +2272,7 @@ classdef DeepTracker < LabelTracker
 %             codeOuter = dmcI.cmdfileLnx;
 %             codeOuter = codeGenSingGeneral(codeOuter,singargs{:});
 %             codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
-%             codeOuter = codeGenSSHGeneral(codeOuter,sshargs{:})
+%             codeOuter = wrapCommandSSH(codeOuter,sshargs{:})
 %             syscmds{isplit} = codeOuter;            
 %           end
 % %         case DLBackEnd.Docker
@@ -3466,7 +3466,7 @@ classdef DeepTracker < LabelTracker
       if ismac
         file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
-        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err','dosleep',false);
         res = strtrim(res);
         toks = regexp(res,' ','split');
         sha = toks{end};        
@@ -3474,13 +3474,13 @@ classdef DeepTracker < LabelTracker
       elseif isunix
         file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
-        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err','dosleep',false);
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = DeepTracker.syscmd(shacmd,'dispcmd',true,'failbehavior','err');
+        [~,res] = AWSec2.syscmd(shacmd,'dispcmd',true,'failbehavior','err','dosleep',false);
         toks = regexp(res,'\n','split');
         sha = toks{2};
         sha = regexprep(sha,' ','');
@@ -3964,7 +3964,7 @@ classdef DeepTracker < LabelTracker
   methods (Static) % train/track codegen
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
       [tfsucc,res,warningstr] = AWSec2.syscmd(cmd,varargin{:},...
-        'setenvcmd','LD_LIBRARY_PATH=: ');
+                                              'setenvcmd','LD_LIBRARY_PATH=: ');
     end
 
     function downloadPretrainedWeights(varargin) 
@@ -4020,17 +4020,19 @@ classdef DeepTracker < LabelTracker
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-      [~,res] = DeepTracker.syscmd(cmd,...
+      [~,res] = AWSec2.syscmd(cmd,...
         'dispcmd',true,...
-        'failbehavior','err');
+        'failbehavior','err',...
+        'dosleep',false);
     end      
 
     function updateAPTRepoExecJRC(cacheRoot) % throws if fails
       % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
       updatecmd = apt.updateAPTRepoCmd('aptparent',cacheRoot);
-      updatecmd = codeGenSSHGeneral(updatecmd,'bg',false);
-      [~,res] = DeepTracker.syscmd(updatecmd,...
+      updatecmd = wrapCommandSSH(updatecmd,'host',DLBackEndClass.jrchost);
+      [~,res] = AWSec2.syscmd(updatecmd,...
         'dispcmd',true,...
+        'dosleep',false,...
         'failbehavior','err');
     end
 
@@ -4043,9 +4045,10 @@ classdef DeepTracker < LabelTracker
 
     function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
       cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
-      cmd = codeGenSSHGeneral(cmd,'bg',false);
-      [~,res] = DeepTracker.syscmd(cmd,...
+      cmd = wrapCommandSSH(cmd,'host',DLBackEndClass.jrchost);
+      [~,res] = AWSec2.syscmd(cmd,...
         'dispcmd',true,...
+        'dosleep',false,...
         'failbehavior','err');
     end
 
@@ -4061,11 +4064,11 @@ classdef DeepTracker < LabelTracker
       % does repo in 'remote' cache exist?
       aptroot = [cacheRoot '/APT'];
       aptrootexistscmd = DeepTracker.dirExistsCmd(aptroot);
-      aptrootexistscmd = codeGenSSHGeneral(aptrootexistscmd,...
-        'bg',false);
+      aptrootexistscmd = wrapCommandSSH(aptrootexistscmd,'host',DLBackEndClass.jrchost);
       
-      [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
+      [~,res] = AWSec2.syscmd(aptrootexistscmd,...
         'dispcmd',true,...
+        'dosleep',false,...
         'failbehavior','err');
       res = strtrim(res);
       
@@ -4075,9 +4078,10 @@ classdef DeepTracker < LabelTracker
           fprintf('Found JRC/APT repo at %s.\n',aptroot);
         case 'n'
           cloneaptcmd = sprintf('git clone %s %s',DLBackEndClass.jrcprodrepo,aptroot);
-          cloneaptcmd = codeGenSSHGeneral(cloneaptcmd,'bg',false);
-          [~,res] = DeepTracker.syscmd(cloneaptcmd,...
+          cloneaptcmd = wrapCommandSSH(cloneaptcmd,'host',DLBackEndClass.jrchost);
+          [~,res] = AWSec2.syscmd(cloneaptcmd,...
             'dispcmd',true,...
+            'dosleep',false,...
             'failbehavior','err');
           fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
         otherwise
@@ -4321,7 +4325,7 @@ classdef DeepTracker < LabelTracker
 %         
 %       codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
 %         cudaDeviceStr,basecode);
-%       codestr = codeGenSSHGeneral(codestrremote,...
+%       codestr = wrapCommandSSH(codestrremote,...
 %         'host',venvHost,'logfile',logFile);
 %     end
     
@@ -4394,9 +4398,9 @@ classdef DeepTracker < LabelTracker
       starttime = tic;
       res = cell(1,nout);
       bjobscmd = sprintf('bjobs %d',jobid);
-      bjobscmd = codeGenSSHGeneral(bjobscmd,'bg',false);
+      bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
       killcmd = sprintf('bkill %d',jobid);
-      killcmd = codeGenSSHGeneral(killcmd,'bg',false);
+      killcmd = wrapCommandSSH(killcmd,'host',DLBackEndClass.jrchost);
       runStatuses = {'PEND','RUN','PROV','WAIT'};
       doneStatuses = {'DONE'};
       tfJobRunning = false;

@@ -1,35 +1,90 @@
 function cmdout = wrapCommandSSH(remotecmd,varargin)
+% Wrap a Linux/WSL-style command string for execution on a remote host via
+% ssh.  Output is a Linux/WSL-style string, regardless of ispc() return value.
 
-[host,prefix,sshoptions,timeout,extraprefix] = ...
+% Deal with keyword arguments
+[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,identity] = ...
   myparse(varargin,...
-          'host',DLBackEndClass.jrchost,...
-          'prefix',DLBackEndClass.jrcprefix,...
-          'sshoptions','-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR -t',...
+          'host','',...
+          'prefix','',...
+          'sshoptions','',...
+          'addlsshoptions','',...
           'timeout',[],...
-          'extraprefix','');
+          'extraprefix','', ...
+          'username','', ...
+          'identity','');
 
-if ~isempty(extraprefix),
-  prefix = sprintf('%s; %s', prefix, extraprefix) ;
-end
-
-if ~isempty(prefix),
-  remotecmd = sprintf('%s; %s', prefix, remotecmd) ;  
-end
-
-quotedremotecmd = escape_string_for_bash(remotecmd);
-
-if ~isempty(timeout),
-  sshoptions1 = sprintf('-o "ConnectTimeout %s"', num2str(timeout)) ;
-  if ~ischar(sshoptions) || isempty(sshoptions),
-    sshoptions = sshoptions1;
+% Sort out the prefixes, merging them all into prefixes
+if isempty(extraprefix),
+  if isempty(prefix) ,
+    prefixes = '' ;
   else
-    sshoptions = sprintf('%s %s', sshoptions, sshoptions1) ;    
+    prefixes = prefix ;
+  end
+else
+  if isempty(prefix) ,
+    prefixes = extraprefix ;
+  else
+    prefixes = sprintf('%s ; %s', prefix, extraprefix) ;
   end
 end
-if ~ischar(sshoptions) || isempty(sshoptions),
-  sshcmd = 'ssh';
+
+% Append the prefixes, if present, to remotecmd
+if isempty(prefixes),
+  prefixed_remotecmd = remotecmd ;
 else
-  sshcmd = sprintf('ssh %s',sshoptions) ;
+  prefixed_remotecmd = sprintf('%s ; %s', prefixes, remotecmd) ;  
 end
 
-cmdout = sprintf('%s %s %s',sshcmd,host,quotedremotecmd);
+% quote the prefixes command
+quoted_prefixed_remotecmd = escape_string_for_bash(prefixed_remotecmd);
+
+% Sort out the sshoptions and the addlsshoptions
+if isempty(sshoptions) ,
+  base_sshoptions = '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -t' ;
+  if isempty(addlsshoptions) ,
+    % Both empty, use the base options
+    sshoptions2 = base_sshoptions ;
+  else
+    % sshoptions empty, addlsshoptions nonempty => add addlsshoptions to base
+    % options
+    sshoptions2 = sprintf('%s %s', base_sshoptions, addlsshoptions) ;
+  end
+else
+  if isempty(addlsshoptions) ,
+    % sshoptions nonempty, addlsshoptions empty => use sshoptions, overriding
+    % base_sshoptions
+    sshoptions2 = sshoptions ;
+  else
+    % sshoptions nonempty, addlsshoptions nonempty => use sshoptions, overriding
+    % base_sshoptions, thus ignoring addlsshoptions.  But give a warning about
+    % this unusual (and probably unintentional) usage.
+    warning('sshoptions and addlsshoptions both provided: ignoring addlsshoptions') ;  
+    sshoptions2 = sshoptions ;
+  end
+end  
+
+% Append the timeout duration, if provided, to the ssh options
+if isempty(timeout),
+  sshoptions3 = sshoptions2 ;
+else
+  sshoptions3 = sprintf('%s -o ConnectTimeout=%d', sshoptions2, round(timeout)) ;
+end
+
+% Append the idenitity file, if provided, to the ssh options
+if isempty(identity),
+  sshoptions4 = sshoptions3 ;
+else
+  quoted_identity = escape_string_for_bash(identity) ;
+  sshoptions4 = sprintf('-i %s %s', quoted_identity, sshoptions3) ;
+end
+
+% Append the username, if provided, to the hostname
+if ~isempty(username) ,
+  user_at_host_string = sprintf('%s@%s', username, host) ;  
+else
+  user_at_host_string = host ;
+end
+
+% Generate the final command line
+cmdout = sprintf('ssh %s %s %s', sshoptions4, user_at_host_string, quoted_prefixed_remotecmd) ;

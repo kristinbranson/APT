@@ -41,7 +41,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
       
       bkillcmd = sprintf('bkill %d',jID);
-      bkillcmd = codeGenSSHGeneral(bkillcmd,'bg',false);
+      bkillcmd = wrapCommandSSH(bkillcmd,'host',DLBackEndClass.jrchost);
       fprintf(1,'%s\n',bkillcmd);
       [st,res] = system(bkillcmd);
       if st~=0
@@ -52,7 +52,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
     function res = queryAllJobsStatus(obj)
       
       bjobscmd = 'bjobs';
-      bjobscmd = codeGenSSHGeneral(bjobscmd,'bg',false);
+      bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -82,7 +82,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
       
       bjobscmd = sprintf('bjobs %d; echo "More detail:"; bjobs -l %d',jID,jID);
-      bjobscmd = codeGenSSHGeneral(bjobscmd,'bg',false);
+      bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -110,7 +110,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       runStatuses = {'PEND','RUN','PROV','WAIT'};
       
       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
-      pollcmd = codeGenSSHGeneral(pollcmd,'bg',false);
+      pollcmd = wrapCommandSSH(pollcmd,'host',DLBackEndClass.jrchost);
       [st,res] = system(pollcmd);
       if st==0
         s = sprintf('(%s)|',runStatuses{:});
@@ -125,7 +125,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       
       fcn = @() obj.isKilled(jID);
 %       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
-%       pollcmd = codeGenSSHGeneral(pollcmd,'bg',false);
+%       pollcmd = wrapCommandSSH(pollcmd);
 %       
 %       fcn = @lcl;
 %       
@@ -146,12 +146,12 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       if isempty(n),
         killdir = '.';
       end
-      touchcmd = sprintf('mkdir -p "%s"; touch "%s"',killdir,killtoken); % codeGenSSHGeneral uses single-quotes
-      touchcmd = codeGenSSHGeneral(touchcmd,'bg',false); 
+      touchcmd = sprintf('mkdir -p "%s"; touch "%s"',killdir,killtoken); % wrapCommandSSH uses single-quotes
+      touchcmd = wrapCommandSSH(touchcmd,'host',DLBackEndClass.jrchost); 
       [st,res] = system(touchcmd);
       if st~=0
         tfsucc = false;
-        warningNoTrace('Failed to create KILLED token: %s',killtoken);
+        warningNoTrace('Failed to create KILLED token: %s\nReason:\n%s',killtoken,res);
       else
         tfsucc = true;
         fprintf('Created KILLED token: %s.\nPlease wait for your training monitor to acknowledge that the process has been killed!\n',killtoken);

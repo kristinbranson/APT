@@ -129,7 +129,7 @@ classdef TrackJobGT < handle
       codebase = obj.codegenBase(baseargs);
       codesing = codeGenSingGeneral(codebase,singargs{:});
       codebsub = codeGenBsubGeneral(codesing,bsubargs{:});
-      codestr = codeGenSSHGeneral(codebsub,sshargs{:});      
+      codestr = wrapCommandSSH(codebsub,'host',DLBackEndClass.jrchost,sshargs{:});      
     end
     function [codestr,logcmd] = codegenDocker(obj,varargin)
       assert(obj.backend.type==DLBackEnd.Docker) ;

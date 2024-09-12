@@ -40,11 +40,8 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Constant)
-    cmdEnv = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER='  
-      % Change the sleep number at your own risk!  I tried 3, and everything seemed
-      % fine for a while until it became a very hard-to-find bug. -- ALT, 2024-06-28
     scpCmd = AWSec2.computeScpCmd()
-    sshCmd = AWSec2.computeSshCmd()
+    %sshCmd = AWSec2.computeSshCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
@@ -577,10 +574,10 @@ classdef AWSec2 < matlab.mixin.Copyable
         'destRelative',true,... % true if dest is relative to ~
         'sysCmdArgs',{});
       cmd = AWSec2.scpPrepareUploadCmd(obj.pem,obj.instanceIP,dest,...
-        'sshcmd',obj.sshCmd,'destRelative',destRelative);
+                                       'destRelative',destRelative);
       AWSec2.syscmd(cmd,sysCmdArgs{:});
       cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
-        'scpcmd',obj.scpCmd,'destRelative',destRelative);
+                                'scpcmd',obj.scpCmd,'destRelative',destRelative);
       tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
     end
     
@@ -800,26 +797,27 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
-    function cmdfull = cmdInstanceDontRun(obj, cmdremote, varargin)
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
+    function cmdfull = wrapCommandSSH(obj, cmdremote, varargin)
+      %cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
+      cmdfull = wrapCommandSSH(cmdremote, ...
+                               'host', obj.instanceIP, ...
+                               'timeout',8, ...
+                               'username', 'ubuntu', ...
+                               'identity', obj.pem) ;
     end
 
-    function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)
-      % Runs a single command-line command on the ec2 instance
-%       [logger] = myparse(varargin,...
-%                          'logger',FileLogger());
-%       logger.log('cmdInstance: cmdremote: %s\n', cmdremote) ;
-      fprintf('cmdInstance: %s\n',cmdremote);
-      cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
-%       logger.log('cmdInstance: cmdfull: %s\n', cmdfull) ;
+    function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)      
+      % Runs a single command-line command on the ec2 instance.
+      fprintf('AWSec2::cmdInstance(): %s\n',cmdremote);
+      %cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
+      cmdfull = obj.wrapCommandSSH(cmdremote) ;      
       [tfsucc,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
-%       logger.log('cmdInstance: tfsucc: %d, res: \n%s\n', tfsucc, res) ;
     end
         
-    function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
-      cmd = sprintf('%s -i %s ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
-                    obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, logfileremote) ;
-    end
+%     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
+%       cmd = sprintf('%s -i %s ubuntu@%s "%s </dev/null >%s 2>&1 &"',...
+%                     obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, logfileremote) ;
+%     end
         
     function tf = canKillRemoteProcess(obj)
       tf = ~isempty(obj.remotePID) && ~isnan(obj.remotePID);
@@ -921,97 +919,20 @@ classdef AWSec2 < matlab.mixin.Copyable
       cmd = sprintf('aws ec2 start-instances --instance-ids %s',ec2id);
     end
     
-    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)
-      % Run a command using Matlab built-in system() command.
-      % Optional args allow caller to specify what to do if the command fails.  (Can
-      % error, warn, or silently ignore.)  Also has option to lightly process a JSON
-      % response.
-      %
-      % Seems to also support issuing the command using the Java runtime, but AFAICT
-      % this is never used in APT.  -- ALT, 2024-04-25
-      [dispcmd,failbehavior,isjsonout,dosetenv,setenvcmd,usejavaRT] = ...
-        myparse(varargin,...
-        'dispcmd',false,...
-        'failbehavior','warn',... % one of 'err','warn','silent'
-        'isjsonout',false,...
-        'dosetenv',isunix(),...
-        'setenvcmd',AWSec2.cmdEnv,...
-        'usejavaRT',false...
-        );
-      
-%       cmd = [cmd sprintf('\n\r')];
-      if dosetenv,
-        cmd = [setenvcmd,' ',cmd];
-      end
-
-      % XXX HACK
-      drawnow 
-
-      if dispcmd
-        disp(cmd); 
-      end
-      if usejavaRT
-        fprintf(1,'Using javaRT call\n');
-        runtime = java.lang.Runtime.getRuntime();
-        proc = runtime.exec(cmd);
-        st = proc.waitFor();
-        is = proc.getInputStream;
-        res = [];
-        val = is.read();
-        while val~=-1 && numel(res)<100
-          res(1,end+1) = val;  %#ok<AGROW> 
-          val = is.read();
-        end
-        res = strtrim(char(res));
-        tfsucc = st==0;
-      else
-        fprintf('syscmd: %s\n',cmd);
-        [st,res] = system(cmd);
-        if st ~= 0,
-          fprintf('st = %d, res = %s\n',st,res);
-        else
-          fprintf('success.\n');
-        end
-        tfsucc = st==0 || isempty(res);
-      end
-      
-      if isjsonout && tfsucc,
-        jsonstart = find(res == '{',1);
-        if isempty(jsonstart),
-          tfsucc = false;
-          warningstr = 'Could not find json start character {';
-        else
-          warningstr = res(1:jsonstart-1);
-          res = res(jsonstart:end);
-        end
-      else
-        warningstr = '';
-      end
-      
-      if ~tfsucc 
-        switch failbehavior
-          case 'err'
-            error('Nonzero status code: %s',res);
-          case 'warn'
-            warningNoTrace('Command failed: %s: %s',cmd,res);
-          case 'silent'
-            % none
-          otherwise
-            assert(false);
-        end
-      end
-    end  % syscmd()
-    
     function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
-      [destRelative,sshcmd] = myparse(varargin,...
-        'destRelative',true,...
-        'sshcmd','ssh');
+      destRelative = myparse(varargin,...
+                             'destRelative',true);
       if destRelative
-        dest = ['~/' dest];
+        dest = linux_fullfile('~',dest);
       end
-      [parentdir] = fileparts(dest);
+      parentdir = fileparts(dest);
       cmdremote = sprintf('[ ! -d %s ] && mkdir -p %s',parentdir,parentdir);
-      cmd = AWSec2.sshCmdGeneral(sshcmd,pem,ip,cmdremote,'usedoublequotes',true);      
+      %cmd = AWSec2.sshCmdGeneral(sshcmd,pem,ip,cmdremote,'usedoublequotes',true);      
+      cmd = wrapCommandSSH(cmdremote, ...
+                           'host', ip, ...
+                           'timeout',8, ...
+                           'username', 'ubuntu', ...
+                           'identity', pem) ;      
     end
     
     function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
@@ -1062,22 +983,25 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
 
       % Generate the --rsh argument
-      sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
+      %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
+      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+        % We use an empty command, and an empty host, to get a string with the default
+        % options plus the two options we want to specify.
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
       cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, src, ip, dest) ;
     end
 
-    function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
-      [timeout,~] = myparse(varargin,...
-                            'timeout',8,...
-                            'usedoublequotes',false);
-      
-      args = { sshcmd '-i' pem sprintf('-o ConnectTimeout=%d', timeout) sprintf('ubuntu@%s',ip) } ;
-      args{end+1} = escape_string_for_bash(cmdremote) ;
-      cmd = space_out(args,' ');
-    end  % function
+%     function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
+%       [timeout,~] = myparse(varargin,...
+%                             'timeout',8,...
+%                             'usedoublequotes',false);
+%       
+%       args = { sshcmd '-i' pem sprintf('-o ConnectTimeout=%d', timeout) sprintf('ubuntu@%s',ip) } ;
+%       args{end+1} = escape_string_for_bash(cmdremote) ;
+%       cmd = space_out(args,' ');
+%     end  % function
 
     function scpCmd = computeScpCmd()
       if ispc()
@@ -1088,14 +1012,14 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
 
-    function sshCmd = computeSshCmd()
-      if ispc()
-        windows_null_device_path = '\\.\NUL' ;
-        sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
-      else
-        sshCmd = 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
-      end
-    end
+%     function sshCmd = computeSshCmd()
+%       if ispc()
+%         windows_null_device_path = '\\.\NUL' ;
+%         sshCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSSHCMD, windows_null_device_path) ; 
+%       else
+%         sshCmd = 'ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
+%       end
+%     end
     
     function result = computeRsyncCmd()
       if ispc()

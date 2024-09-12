@@ -164,7 +164,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       else
         touchcmd = sprintf('touch "%s"',killtoken);
       end
-      %touchcmd = codeGenSSHGeneral(touchcmd,'bg',false);
+      %touchcmd = wrapCommandSSH(touchcmd);
       [st,res] = system(touchcmd);
       if st~=0
         warningNoTrace('Failed to create KILLED token: %s.\n%s',killtoken,res);

@@ -11,18 +11,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   % the enum/type would go away.
   
   properties (Constant)
-    minFreeMem = 9000; % in MiB
-    defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere';
-    defaultDockerImgRoot = 'bransonlabapt/apt_docker';
+    minFreeMem = 9000  % in MiB
+    defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
+    defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
-    RemoteAWSCacheDir = '/home/ubuntu/cacheDL';
+    RemoteAWSCacheDir = '/home/ubuntu/cacheDL'
 
-    jrchost = 'login1.int.janelia.org';
-    jrcprefix = ':'; % 'source /etc/profile';
-    jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod';
+    jrchost = 'login1.int.janelia.org'
+    jrcprefix = ''
+    jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod'
 
     default_conda_env = 'APT'
-    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' ;
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' 
     legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
 
@@ -747,9 +747,78 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
     
     function cmd = wrapBaseCommandForAWSBackend_(obj, basecmd, varargin)
-      cmd = obj.awsec2.cmdInstanceDontRun(basecmd, varargin{:}) ;
+      cmd = obj.awsec2.wrapCommandSSH(basecmd, varargin{:}) ;
     end
 
+    function cmd = wrapBaseCommandForBsubBackend_(obj, basecmd, varargin)  %#ok<INUSD> 
+      [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
+      cmd1 = wrapCommandSing(basecmd,singargs{:});
+      cmd2 = wrapCommandBsub(cmd1,bsubargs{:});
+
+      % already on cluster?
+      tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+      if tfOnCluster,
+        % The Matlab environment vars cause problems with e.g. PyTorch
+        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
+      else
+        % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
+        cmd = wrapCommandSSH(cmd2,'host',DLBackEndClass.jrchost,sshargs{:});
+      end
+    end
+
+    function cmdout = wrapBaseCommandForCondaBackend_(obj, cmdin, varargin)  %#ok<INUSD> 
+      % Take a base command and run it in a sing img
+      [condaEnv,logfile,gpuid] = ...
+        myparse(varargin,...
+                'condaEnv',DLBackEndClass.default_conda_env, ...
+                'logfile', '/dev/null', ...
+                'gpuid',0);
+      cmdout = wrapCommandConda(cmdin, 'condaEnv', condaEnv, 'logfile', logfile, 'gpuid', gpuid) ;
+    end
+
+    function codestr = wrapBaseCommandForDockerBackend_(obj,basecmd,varargin)
+      % Take a base command and run it in a docker img
+
+      % Parse keyword args
+      [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
+        tty,shmSize] = ...
+        myparse(varargin,...
+        'containername','aptainer',...
+        'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
+        'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
+        'isgpu',true,... % set to false for CPU-only
+        'gpuid',0,... % used if isgpu
+        'detach',true, ...
+        'tty',false,...
+        'shmsize',[] ... optional
+        );
+
+      % Call main function, returns Linux/WSL-style command string
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'containername',containerName,...
+                          'bindpath',bindpath,...
+                          'dockerimg',dockerimg,...
+                          'isgpu',isgpu,...
+                          'gpuid',gpuid,...
+                          'detach',tfDetach, ...
+                          'tty',tty,...
+                          'shmsize',shmSize, ...
+                          'apiver',obj.dockerapiver) ;
+
+      % Wrap for ssh'ing into a remote docker host, if needed
+      if ~isempty(obj.dockerremotehost),
+        codestr = wrapCommandSSH(codestr,'host',obj.dockerremotehost);
+      end
+
+      % Wrap command for running in WSL, if needed
+      if ispc() ,
+        codestr = wrap_linux_command_line_for_wsl(codestr) ;
+      end
+    end  % function wrapBaseCommandForDockerBackend_()
+    
+
+    
     function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)
       % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
       % commands will be executed.
@@ -834,33 +903,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function cmdout = wrapBaseCommandForCondaBackend_(cmdin, varargin)
-      % Take a base command and run it in a sing img
-      [condaEnv,logfile,gpuid] = ...
-        myparse(varargin,...
-                'condaEnv',DLBackEndClass.default_conda_env, ...
-                'logfile', '/dev/null', ...
-                'gpuid',0);
-      cmdout = wrapCommandConda(cmdin, 'condaEnv', condaEnv, 'logfile', logfile, 'gpuid', gpuid) ;
-    end
-
-    function cmd = wrapBaseCommandForBsubBackend_(basecmd, varargin)
-      [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
-      cmd1 = wrapCommandSing(basecmd,singargs{:});
-      cmd2 = wrapCommandBsub(cmd1,bsubargs{:});
-
-      % already on cluster?
-      tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
-      if tfOnCluster,
-        % The Matlab environment vars cause problems with e.g. PyTorch
-        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
-      else
-        % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
-        cmd = wrapCommandSSH(cmd2,sshargs{:});
-      end
-    end
-
-
     function [hfig,hedit] = createFigTestConfig(figname)
       hfig = dialog('Name',figname,'Color',[0,0,0],'WindowStyle','normal');
       hedit = uicontrol(hfig,'Style','edit','Units','normalized',...
@@ -908,7 +950,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       remotecmd = sprintf('touch "%s"; if [ -e "%s" ]; then rm -f "%s" && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
       timeout = 20;
-      cmd1 = codeGenSSHGeneral(remotecmd,'host',host,'bg',false,'timeout',timeout);
+      cmd1 = wrapCommandSSH(remotecmd,'host',host,'timeout',timeout);
       %cmd = sprintf('timeout 20 %s',cmd1);
       cmd = cmd1;
       hedit.String{end+1} = cmd; drawnow;
@@ -933,7 +975,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % test that we can run bjobs
       hedit.String{end+1} = '** Testing that we can interact with the cluster...'; drawnow;
       remotecmd = 'bjobs';
-      cmd = codeGenSSHGeneral(remotecmd,'host',host);
+      cmd = wrapCommandSSH(remotecmd,'host',host);
       hedit.String{end+1} = cmd; drawnow;
       [status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
@@ -1050,47 +1092,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %         filequote = '\"';
 %       end
 %     end
-    
-    function codestr = wrapBaseCommandForDockerBackend_(obj,basecmd,varargin)
-      % Take a base command and run it in a docker img
-
-      % Parse keyword args
-      [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,...
-        tty,shmSize] = ...
-        myparse(varargin,...
-        'containername','aptainer',...
-        'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
-        'dockerimg',obj.dockerimgfull,... % use :latest_cpu for CPU tracking
-        'isgpu',true,... % set to false for CPU-only
-        'gpuid',0,... % used if isgpu
-        'detach',true, ...
-        'tty',false,...
-        'shmsize',[] ... optional
-        );
-
-      % Call main function, returns Linux/WSL-style command string
-      codestr = ...
-        wrapCommandDocker(basecmd, ...
-                          'containername',containerName,...
-                          'bindpath',bindpath,...
-                          'dockerimg',dockerimg,...
-                          'isgpu',isgpu,...
-                          'gpuid',gpuid,...
-                          'detach',tfDetach, ...
-                          'tty',tty,...
-                          'shmsize',shmSize, ...
-                          'apiver',obj.dockerapiver) ;
-
-      % Wrap for ssh'ing into a remote docker host, if needed
-      if ~isempty(obj.dockerremotehost),
-        codestr = wrapCommandSSH(codestr,'host',obj.dockerremotehost);
-      end
-
-      % Wrap command for running in WSL, if needed
-      if ispc() ,
-        codestr = wrap_linux_command_line_for_wsl(codestr) ;
-      end
-    end  % function wrapBaseCommandForDockerBackend_()
     
     function [tfsucc,hedit] = testDockerConfig(obj)
       tfsucc = false;
@@ -1340,7 +1341,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
       cmd = 'aws ec2 describe-regions --output table';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = ec2.syscmd(cmd,'dispcmd',true);
+      [tfsucc,result] = AWSec2.syscmd(cmd,'dispcmd',true);
       %[status,result] = system(cmd);
       hedit.String{end+1} = result; drawnow;
       if ~tfsucc % status ~= 0,
@@ -1352,7 +1353,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
       cmd = 'aws ec2 describe-security-groups';
       hedit.String{end+1} = cmd; drawnow;
-      [tfsucc,result] = ec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
+      [tfsucc,result] = AWSec2.syscmd(cmd,'dispcmd',true,'isjsonout',true);
       %[status,result] = system(cmd);
       if tfsucc %status == 0,
         try
@@ -1394,7 +1395,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
 %       
 %       remotecmd = sprintf('touch %s; if [ -e %s ]; then rm -f %s && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
-%       cmd1 = codeGenSSHGeneral(remotecmd,'host',host,'bg',false);
+%       cmd1 = wrapCommandSSH(remotecmd,'host',host);
 %       cmd = sprintf('timeout 20 %s',cmd1);
 %       hedit.String{end+1} = cmd; drawnow;
 %       [status,result] = system(cmd);
@@ -1418,7 +1419,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       % test that we can run bjobs
 %       hedit.String{end+1} = '** Testing that we can interact with the cluster...'; drawnow;
 %       remotecmd = 'bjobs';
-%       cmd = codeGenSSHGeneral(remotecmd,'host',host);
+%       cmd = wrapCommandSSH(remotecmd,'host',host);
 %       hedit.String{end+1} = cmd; drawnow;
 %       [status,result] = system(cmd);
 %       hedit.String{end+1} = result; drawnow;
