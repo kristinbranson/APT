@@ -247,7 +247,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
                 containerName, ...
                 escape_string_for_bash(log_file_name)) ;
       if ~isempty(obj.dockerremotehost),
-        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+        cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
       cmd = [cmd,' &'];
       if ispc() ,        
@@ -627,12 +627,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
-      aptdeepnet = APT.getpathdl() ;
+      aptdeepnetpath = APT.getpathdl() ;
       
       switch obj.type,
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
-          bindpath = {aptdeepnet}; % don't use guarded
+          bindpath = {aptdeepnetpath}; % don't use guarded
           codestr = obj.wrapBaseCommandForDockerBackend_(basecmd,...
                                              'containername','aptTestContainer',...
                                              'bindpath',bindpath,...
@@ -646,8 +646,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
             return;
           end
         case DLBackEnd.Conda
-          basecmd = sprintf('echo START && python %s%sparse_nvidia_smi.py && echo END',...
-                            aptdeepnet,obj.filesep);
+          scriptpath = fullfile(aptdeepnetpath, 'sparse_nvidia_smi.py') ;
+          basecmd = sprintf('echo START && python %s && echo END',...
+                            scriptpath);
           conda_activation_command = synthesize_conda_command(sprintf('activate %s', condaEnv)) ;  %#ok<PROPLC> 
           codestr = sprintf('%s && %s', conda_activation_command, basecmd);
           [st,res] = system(codestr);
@@ -835,102 +836,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function cmdout = wrapBaseCommandForCondaBackend_(cmdin, varargin)
       % Take a base command and run it in a sing img
-      [condaEnv,logfile,gpuid] = myparse(varargin,...
-        'condaEnv',DLBackEndClass.default_conda_env, ...
-        'logfile', '/dev/null', ...
-        'gpuid',0);
-      conda_activate_command = synthesize_conda_command(['activate ',condaEnv]);
-      if isnan(gpuid),
-        conda_activate_and_cuda_set_command = conda_activate_command ;
-      else
-        if ispc,
-          cuda_set_command = sprintf('set CUDA_DEVICE_ORDER=PCI_BUS_ID && set CUDA_VISIBLE_DEVICES=%d',gpuid);
-        else
-          cuda_set_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID && export CUDA_VISIBLE_DEVICES=%d',gpuid);
-        end
-        conda_activate_and_cuda_set_command = [conda_activate_command,' && ',cuda_set_command];
-      end
-      cmdout1 = [conda_activate_and_cuda_set_command ' && ' cmdin, ' &> ', logfile] ;
-      cmdout = prepend_stuff_to_clear_matlab_environment(cmdout1) ;
+      [condaEnv,logfile,gpuid] = ...
+        myparse(varargin,...
+                'condaEnv',DLBackEndClass.default_conda_env, ...
+                'logfile', '/dev/null', ...
+                'gpuid',0);
+      cmdout = wrapCommandConda(cmdin, 'condaEnv', condaEnv, 'logfile', logfile, 'gpuid', gpuid) ;
     end
 
-    function cmdout = wrapCommandSing(cmdin, varargin)
-
-      DFLTBINDPATH = {
-        '/groups'
-        '/nrs'
-        '/scratch'};
-      [bindpath,singimg] = myparse(varargin,...
-        'bindpath',DFLTBINDPATH,...
-        'singimg',''...
-        );
-      assert(~isempty(singimg)) ;
-      bindpath = cellfun(@(x)['"' x '"'],bindpath,'uni',0);      
-      Bflags = [repmat({'-B'},1,numel(bindpath)); bindpath(:)'];
-      Bflagsstr = sprintf('%s ',Bflags{:});
-      esccmd = String.escapeQuotes(cmdin);
-      cmdout = sprintf('singularity exec --nv %s "%s" bash -c "%s"',...
-        Bflagsstr,singimg,esccmd);
-
-    end
-
-    function cmdout = wrapCommandBsub(cmdin,varargin)
-      [nslots,gpuqueue,logfile,jobname,additionalArgs] = myparse(varargin,...
-        'nslots',DeepTracker.default_jrcnslots_train,...
-        'gpuqueue',DeepTracker.default_jrcgpuqueue,...
-        'logfile','/dev/null',...
-        'jobname','', ...
-        'additionalArgs','');
-      esccmd = String.escapeQuotes(cmdin);
-      if isempty(jobname),
-        jobnamestr = '';
-      else
-        jobnamestr = [' -J ',jobname];
-      end
-      % NB: Line below sends *both* stdout and stderr to the file named by logfile
-      cmdout = sprintf('bsub -n %d -gpu "num=1" -q %s -o "%s" -R"affinity[core(1)]"%s %s "%s"',...
-        nslots,gpuqueue,logfile,jobnamestr,additionalArgs,esccmd);
-    end
-
-    function cmdout = wrapCommandSSH(remotecmd,varargin)
-      [host,prefix,sshoptions,timeout,extraprefix] = myparse(varargin,...
-        'host',DLBackEndClass.jrchost,...
-        'prefix',DLBackEndClass.jrcprefix,...
-        'sshoptions','-oStrictHostKeyChecking=no -oUserKnownHostsFile=/dev/null -oLogLevel=ERROR -t',...
-        'timeout',[],...
-        'extraprefix','');
-
-      if ~isempty(extraprefix),
-        prefix = [prefix '; ' extraprefix];
-      end
-
-      if ~isempty(prefix),
-        remotecmd = [prefix,'; ',remotecmd];
-      end
-
-      remotecmd = String.escapeQuotes(remotecmd);
-
-      if ~isempty(timeout),
-        sshoptions1 = ['-o "ConnectTimeout ',num2str(timeout),'"'];
-        if ~ischar(sshoptions) || isempty(sshoptions),
-          sshoptions = sshoptions1;
-        else
-          sshoptions = [sshoptions,' ',sshoptions1];
-        end
-      end
-      if ~ischar(sshoptions) || isempty(sshoptions),
-        sshcmd = 'ssh';
-      else
-        sshcmd = ['ssh ',sshoptions];
-      end
-
-      cmdout = sprintf('%s %s "%s"',sshcmd,host,remotecmd);
-    end
-
-    function cmd = wrapBaseCommandForBsubBackend_(basecmd,varargin)
+    function cmd = wrapBaseCommandForBsubBackend_(basecmd, varargin)
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
-      cmd1 = DLBackEndClass.wrapCommandSing(basecmd,singargs{:});
-      cmd2 = DLBackEndClass.wrapCommandBsub(cmd1,bsubargs{:});
+      cmd1 = wrapCommandSing(basecmd,singargs{:});
+      cmd2 = wrapCommandBsub(cmd1,bsubargs{:});
 
       % already on cluster?
       tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
@@ -939,7 +856,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
       else
         % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
-        cmd = DLBackEndClass.wrapCommandSSH(cmd2,sshargs{:});
+        cmd = wrapCommandSSH(cmd2,sshargs{:});
       end
     end
 
@@ -1093,7 +1010,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format "%s"',dockercmd,FMTSPEC);
       if ~isempty(obj.dockerremotehost),
-        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+        cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
       if ispc() ,
         cmd = wrap_linux_command_line_for_wsl(cmd) ;
@@ -1122,7 +1039,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         clientapiver = toks{2};
         break;
       end
-    end
+    end  % function
     
 %     function filequote = getFileQuoteDockerCodeGen(obj) 
 %       % get filequote to use with wrapBaseCommandForDockerBackend_      
@@ -1166,7 +1083,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
       % Wrap for ssh'ing into a remote docker host, if needed
       if ~isempty(obj.dockerremotehost),
-        codestr = DLBackEndClass.wrapCommandSSH(codestr,'host',obj.dockerremotehost);
+        codestr = wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
 
       % Wrap command for running in WSL, if needed
@@ -1190,7 +1107,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       cmd = sprintf('%s run --rm hello-world',dockercmd);
 
       if ~isempty(obj.dockerremotehost),
-        cmd = DLBackEndClass.wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+        cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
 
       if ispc() ,
@@ -1542,10 +1459,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Update the APT repo in the backend.  For non-AWS backends, this does nothing.
       if isequal(obj.type, DLBackEnd.AWS) ,
         obj.awsUpdateRepo_();
-%         aws = obj.awsec2;
-%         if ~isempty(dmc) && ~dmc.isRemote,
-%           dmc.mirror2remoteAws(aws);
-%         end
       end
     end
 
@@ -1558,14 +1471,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       [cmdremote, aptroot] = apt.updateAPTRepoCmd('downloadpretrained',true,args{:});
 
-      aws = obj.awsec2;      
-      [tfsucc,res] = aws.cmdInstance(cmdremote,'dispcmd',true); %#ok<ASGLU>
+      ec2 = obj.awsec2;      
+      [tfsucc,res] = ec2.cmdInstance(cmdremote,'dispcmd',true);
       if tfsucc
         fprintf('Updated remote APT repo.\n\n');
       else
-        error('Failed to update remote APT repo.');
+        error('Failed to update remote APT repo:\n%s', res);
       end
-    end
+    end  % function
     
   end  % public methods block
 

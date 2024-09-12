@@ -1076,12 +1076,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       args = { sshcmd '-i' pem sprintf('-o ConnectTimeout=%d', timeout) sprintf('ubuntu@%s',ip) } ;
       args{end+1} = escape_string_for_bash(cmdremote) ;
-%       if usedoublequotes
-%         args{end+1} = sprintf('"%s"',cmdremote);
-%       else
-%         args{end+1} = sprintf('''%s''',cmdremote);
-%       end
-      cmd = String.cellstr2DelimList(args,' ');
+      cmd = space_out(args,' ');
     end  % function
 
     function scpCmd = computeScpCmd()
