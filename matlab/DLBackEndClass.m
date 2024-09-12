@@ -649,8 +649,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           scriptpath = fullfile(aptdeepnetpath, 'sparse_nvidia_smi.py') ;
           basecmd = sprintf('echo START && python %s && echo END',...
                             scriptpath);
-          conda_activation_command = synthesize_conda_command(sprintf('activate %s', condaEnv)) ;  %#ok<PROPLC> 
-          codestr = sprintf('%s && %s', conda_activation_command, basecmd);
+          codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
           [st,res] = system(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
@@ -1219,7 +1218,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % make sure conda is installed
       hedit.String{end+1} = ''; drawnow;
       hedit.String{end+1} = '** Checking for conda...'; drawnow;
-      cmd = synthesize_conda_command('-V');
+      conda_executable_path = find_conda_executable() ;
+      cmd = sprintf('%s -V', conda_executable_path) ;
       hedit.String{end+1} = cmd; drawnow;
       [st,~] = system(cmd);
       %reslines = splitlines(res);
@@ -1232,11 +1232,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
       % activate APT
       hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = sprintf('** Testing activate %s...', obj.condaEnv); 
+      hedit.String{end+1} = sprintf('** Testing conda run -n %s...', obj.condaEnv); 
       drawnow;
 
-      raw_cmd = sprintf('activate %s', escape_string_for_bash(obj.condaEnv)) ;
-      cmd = synthesize_conda_command(raw_cmd);
+      raw_cmd = 'echo "Hello, world!"' ;
+      cmd = wrapCommandConda(raw_cmd, 'condaEnv', obj.condaEnv) ;
       %fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; drawnow;
       [st,~] = system(cmd);
