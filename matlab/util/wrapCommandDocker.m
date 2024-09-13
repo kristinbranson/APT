@@ -6,7 +6,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   % Parse keyword args
   [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,tty,shmsize,apiver] = ...
     myparse(varargin,...
-            'containername','',...
+            'containername','apt-docker-container',...
             'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
             'dockerimg','',... 
             'isgpu',true,... % set to false for CPU-only
@@ -14,19 +14,13 @@ function codestr = wrapCommandDocker(basecmd, varargin)
             'detach',true, ...
             'tty',false,...
             'shmsize',[], ... optional
-            'apiver',[]) ;
+            'apiver','1.40') ;
 
   % Check mandatory keyword args
-  if isempty(containerName) ,
-    error('containerName cannot be empty') ;
-  end
   if isempty(dockerimg) ,
     error('dockerimg cannot be empty') ;
   end
-  if isempty(apiver) ,
-    error('apiver cannot be empty') ;
-  end
-
+  
   % Get path to the deepnet/ subdirectory in the APT source tree
   aptdeepnet = APT.getpathdl ;  % this is a native path
   deepnetrootContainer = linux_path(aptdeepnet) ;

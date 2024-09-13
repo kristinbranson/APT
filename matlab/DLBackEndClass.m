@@ -250,9 +250,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
       cmd = [cmd,' &'];
-      if ispc() ,        
-        cmd = wrap_linux_command_line_for_wsl(cmd) ;
-      end
+      cmd = wrap_linux_command_line_for_wsl_if_needed(cmd) ;
     end
 
     function v = ignore_local(obj)
@@ -588,9 +586,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function v = isGpuLocal(obj)
-      % Docker and Conda backends are local, Bsub (i.e. Janelia LSF) and AWS are
-      % not.  Basically this refers to whether the Python training/tracking code
-      % will run on the same machine as the Matlab frontend.
+      % Docker and Conda backends use a local GPU, Bsub (i.e. Janelia LSF) and AWS
+      % do not.  Basically this refers to whether the Python training/tracking code
+      % will run on the same machine as the Matlab frontend.  (Docker GPU can actually
+      % be local or remote depending on whether a remote Docker host has been
+      % specified).
       v = (isequal(obj.type, DLBackEnd.Docker) && isempty(obj.dockerremotehost) ) || isequal(obj.type,DLBackEnd.Conda);
     end
     
@@ -647,8 +647,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         case DLBackEnd.Conda
           scriptpath = fullfile(aptdeepnetpath, 'sparse_nvidia_smi.py') ;
-          basecmd = sprintf('echo START && python %s && echo END',...
-                            scriptpath);
+          basecmd = sprintf('echo START && python %s && echo END', scriptpath);
           codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
           [st,res] = system(codestr);
           if st ~= 0,
@@ -745,8 +744,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       r = [obj.getAPTRoot '/deepnet'];
     end
     
-    function cmd = wrapBaseCommandForAWSBackend_(obj, basecmd, varargin)
-      cmd = obj.awsec2.wrapCommandSSH(basecmd, varargin{:}) ;
+    function result = wrapBaseCommandForAWSBackend_(obj, basecmd, varargin)
+      % Wrap for docker, returns Linux/WSL-style command string
+      dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
+      bindpath = {} ;
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'dockerimg',dockerimg, ...
+                          'bindpath',bindpath) ;
+
+      % Wrap for ssh'ing into a remote docker host, if needed
+      result_for_linux = obj.awsec2.wrapCommandSSH(codestr, varargin{:}) ;
+
+      % Wrap command for running in WSL, if needed
+      result = wrap_linux_command_line_for_wsl_if_needed(result_for_linux) ;
     end
 
     function cmd = wrapBaseCommandForBsubBackend_(obj, basecmd, varargin)  %#ok<INUSD> 
@@ -779,17 +790,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Take a base command and run it in a docker img
 
       % Parse keyword args
-      [containerName,bindpath,isgpu,gpuid,tfDetach,...
-        tty,shmSize] = ...
+      [containerName,bindpath,isgpu,gpuid,tfDetach,tty,shmSize] = ...
         myparse(varargin,...
-        'containername','aptainer',...
-        'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
-        'isgpu',true,... % set to false for CPU-only
-        'gpuid',0,... % used if isgpu
-        'detach',true, ...
-        'tty',false,...
-        'shmsize',[] ... optional
-        );
+                'containername','aptainer',...
+                'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
+                'isgpu',true,... % set to false for CPU-only
+                'gpuid',0,... % used if isgpu
+                'detach',true, ...
+                'tty',false,...
+                'shmsize',[] ... optional
+                );
 
       % Call main function, returns Linux/WSL-style command string
       codestr = ...
@@ -810,9 +820,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
 
       % Wrap command for running in WSL, if needed
-      if ispc() ,
-        codestr = wrap_linux_command_line_for_wsl(codestr) ;
-      end
+      codestr = wrap_linux_command_line_for_wsl_if_needed(codestr) ;
     end  % function wrapBaseCommandForDockerBackend_()
     
 
@@ -1052,9 +1060,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if ~isempty(obj.dockerremotehost),
         cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
-      if ispc() ,
-        cmd = wrap_linux_command_line_for_wsl(cmd) ;
-      end
+      cmd = wrap_linux_command_line_for_wsl_if_needed(cmd) ;
       
       tfsucc = false;
       clientver = '';
@@ -1109,9 +1115,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
       end
 
-      if ispc() ,
-        cmd = wrap_linux_command_line_for_wsl(cmd) ;
-      end
+      cmd = wrap_linux_command_line_for_wsl_if_needed(cmd) ;
       
       fprintf(1,'%s\n',cmd);
       hedit.String{end+1} = cmd; 
