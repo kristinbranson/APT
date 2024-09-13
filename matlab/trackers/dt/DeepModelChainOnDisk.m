@@ -777,13 +777,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s_%s.aptsnapshot',obj.modelChainID{icurr},obj.trainID{icurr});
       end
     end
-    function v = dockerImgPath(obj,backend) %#ok<INUSL> 
-      % todo: this should depend on what type of tracker
-      v = backend.dockerimgroot;
-      if ~isempty(backend.dockerimgtag)
-        v = [v ':' backend.dockerimgtag];
-      end
-    end
+%     function v = dockerImgPath(obj,backend) %#ok<INUSL> 
+%       % todo: this should depend on what type of tracker
+%       v = backend.dockerimgroot;
+%       if ~isempty(backend.dockerimgtag)
+%         v = [v ':' backend.dockerimgtag];
+%       end
+%     end
     function [v,idx] = getPrevModels(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.prev_models(idx);
