@@ -14,7 +14,7 @@ if isempty(memoized_result) ,
     [retval, location] = system('which conda') ;
     is_conda_on_path = (retval==0) && ~isempty(location) ;
     if is_conda_on_path ,
-      memoized_result = location ;
+      memoized_result = strtrim(location) ;
     else
       % conda is not on the path
 

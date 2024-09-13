@@ -646,13 +646,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
             return;
           end
         case DLBackEnd.Conda
-          scriptpath = fullfile(aptdeepnetpath, 'sparse_nvidia_smi.py') ;
+          scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;
           basecmd = sprintf('echo START && python %s && echo END', scriptpath);
           codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
           [st,res] = system(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
-            return;
+            return
           end
         case DLBackEnd.Bsub
           % We basically want to skip all the checks etc, so return values that will
@@ -1296,7 +1296,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   methods % AWS
     
-    function [tfsucc,hedit] = testAWSConfig(obj,varargin)
+    function [tfsucc,hedit] = testAWSConfig(obj,varargin)  %#ok<INUSD> 
       tfsucc = false;
       [~,hedit] = DLBackEndClass.createFigTestConfig('Test AWS Backend');
       hedit.String = {sprintf('%s: Testing AWS backend...',datestr(now))}; 
