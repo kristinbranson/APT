@@ -34,7 +34,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
     mountArgs = cellfun(@mount_option_string,srcbindpath,dstbindpath,'uni',0);
   else    
     % Add whatever the user passed in as paths to bind to the container
-    mountArgs = cellfun(mount_option_string,bindpath,bindpath,'uni',0);
+    mountArgs = cellfun(@mount_option_string,bindpath,bindpath,'uni',0);
   end
 
   % Apparently we need to use the --user switch when running in real Linux
@@ -57,7 +57,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   native_home_dir = get_home_dir_name() ;      
   user = get_user_name() ;
   
-  dockercmd = DLBackEndClass.dockercmd_from_api_ver(apiver) ;
+  dockercmd = dockercmd_from_apiver(apiver) ;
 
   if tfDetach,
     detachstr = '-d';
