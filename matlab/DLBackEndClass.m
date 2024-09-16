@@ -1465,7 +1465,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function aptroot = awsUpdateRepo_(obj)  % throws if fails
-      obj.awsgitbranch = 're-aws' ;  % TODO: For debugging only, remove eventually
+      obj.awsgitbranch = 'dockerized-aws' ;  % TODO: For debugging only, remove eventually
       if isempty(obj.awsgitbranch)
         args = {};
       else
@@ -1576,6 +1576,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
           obj.awsec2.checkInstanceRunning();  % harderrs if instance isn't running
           aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
+        otherwise
+          error('Unknown backend type') ;
       end
     end  % function    
 

@@ -22,7 +22,7 @@ end
 fprintf('apt.syscmd(): %s\n',cmd);
 [st,res] = system(cmd);
 if st ~= 0,
-  fprintf('st = %d, res = %s\n',st,res);
+  fprintf('st = %d, res = "%s"\n',st,res);
 else
   fprintf('success.\n');
 end
