@@ -62,9 +62,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Linux boxes on the Janelia network.)
 
     gpuids = []  % for now used by docker/conda
-    dockercontainername = []  
-      % transient
-      % Also, seemingly never read -- ALT, 2024-03-07
+%     dockercontainername = []  
+%       % transient
+%       % Also, seemingly never read -- ALT, 2024-03-07
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
 
@@ -83,6 +83,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     % consumer map between the paths
     localPathFromMovieIndex_ = cell(1,0) ;
     remotePathFromMovieIndex_ = cell(1,0) ;
+
+    % The job registry.  These are protected, transient in spirit.
+    % These are jobs that can be spawned with a subsequent call to
+    % spawnRegisteredJobs().
+    syscmds_ = cell(0,1)
+    cmdfiles_ = cell(0,1)
+    logcmds_ = cell(0,1)
   end
 
   properties (Dependent)
@@ -222,17 +229,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
     
-    function [return_code, stdouterr] = runFilesystemCommand_(obj, basecmd)
+    function [return_code, stdouterr] = runFilesystemCommand(obj, basecmd)
       % Run the basecmd using system(), after wrapping suitably for the type of
       % backend.  Unlike spawn(), this blocks, and doesn't return a process
       % identifier of any kind.  Return values are like those from system(): a
       % numeric return code and a string containing any command output.
-      % Protected by convention, hence the trailing underscore in the name.
-      fprintf('runFilesystemCommand_(): %s\n', basecmd') ;
+      % Note that any file names in the basecmd must refer to the filenames on the
+      % *backend* filesystem.
+      fprintf('DLBackEndClass::runFilesystemCommand(): %s\n', basecmd') ;
       if obj.isFilesystemLocal() ,
         command = basecmd ;
       else
-        command = obj.wrapBaseCommand(basecmd) ;
+        command = obj.wrapBaseCommand(basecmd, 'isdeep', false) ;
       end
       [return_code, stdouterr] = system(command) ;
     end  % function
@@ -350,7 +358,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
                             'destRelative',false) ;  % throws      
     end
 
-    function [tfSucc, jobID] = spawn(obj, syscmds, varargin)      
+    function [tfSucc, jobID] = spawn(obj, syscmds, varargin)
       [logcmds, cmdfiles, jobdesc, do_call_apt_interface_dot_py] = myparse( ...
         varargin, ...
         'logcmds', {}, ...
@@ -719,14 +727,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.gpuids = gpuid;
     end
     
-    function pretrack(obj,cacheDir)
-      obj.updateRepo() ;
-      switch obj.type        
-        case DLBackEnd.Bsub
-          obj.bsubPretrack(cacheDir);
-      end      
-    end
-    
     function r = getAPTRoot(obj)
       switch obj.type
         case DLBackEnd.Bsub
@@ -746,15 +746,29 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function result = wrapBaseCommandForAWSBackend_(obj, basecmd, varargin)
       % Wrap for docker, returns Linux/WSL-style command string
-      dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
-      bindpath = {} ;
-      codestr = ...
-        wrapCommandDocker(basecmd, ...
-                          'dockerimg',dockerimg, ...
-                          'bindpath',bindpath) ;
+      
+      % Parse arguments
+      [dodockerize, dockerargs, sshargs] = ...
+        myparse_nocheck(varargin, ...
+                        'isdeep',true, ...
+                        'dockerargs',{}, ...
+                        'sshargs',{}) ;
+
+      % Wrap for docker, if called for
+      if dodockerize ,
+        dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
+        bindpath = {} ;
+        codestr = ...
+          wrapCommandDocker(basecmd, ...
+                            'dockerimg',dockerimg, ...
+                            'bindpath',bindpath, ...
+                            dockerargs{:}) ;
+      else
+        codestr = basecmd ;
+      end
 
       % Wrap for ssh'ing into a remote docker host, if needed
-      result_for_linux = obj.awsec2.wrapCommandSSH(codestr, varargin{:}) ;
+      result_for_linux = obj.awsec2.wrapCommandSSH(codestr, sshargs{:}) ;
 
       % Wrap command for running in WSL, if needed
       result = wrap_linux_command_line_for_wsl_if_needed(result_for_linux) ;
@@ -1000,27 +1014,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   methods % Bsub
 
-    function aptroot = bsubSetRootUpdateRepo(obj,cacheDir,varargin)
-      copyptw = myparse(varargin,...
-        'copyptw',true ...
-      );
-      
-      if obj.deepnetrunlocal
-        aptroot = APT.Root;
-      else
-        DeepTracker.cloneJRCRepoIfNec(cacheDir);
-        DeepTracker.updateAPTRepoExecJRC(cacheDir);
-        aptroot = [cacheDir '/APT'];
-      end
-      if copyptw
-        DeepTracker.cpupdatePTWfromJRCProdExec(aptroot);
-      end
+    function aptroot = bsubSetRootUpdateRepo_(obj)
+      aptroot = apt.bsubSetRootUpdateRepo(obj.deepnetrunlocal) ;
       obj.bsubaptroot = aptroot;
     end
 
-    function bsubPretrack(obj,cacheDir)
-      obj.bsubSetRootUpdateRepo(cacheDir);
-    end
+%     function bsubPretrack(obj,cacheDir)
+%       obj.bsubSetRootUpdateRepo_(cacheDir);
+%     end
     
   end
   
@@ -1457,15 +1458,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end      
     end
     
-    function updateRepo(obj)
-      % Update the APT repo in the backend.  For non-AWS backends, this does nothing.
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        obj.awsUpdateRepo_();
-      end
-    end
-
     function aptroot = awsUpdateRepo_(obj)  % throws if fails
       obj.awsgitbranch = 'dockerized-aws' ;  % TODO: For debugging only, remove eventually
+      obj.cloneAWSRemoteAPTRepoIfNeeeded_(obj.awsgitbranch) ;
       if isempty(obj.awsgitbranch)
         args = {};
       else
@@ -1482,6 +1477,26 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end  % function
     
+    function cloneAWSRemoteAPTRepoIfNeeeded_(obj, branch_name)
+      % Clone the APT source repo on the remote AWS instance, if needed.
+      
+      % Does the APT root dir exist?
+      remote_apt_root = obj.getAPTRoot() ;
+      does_remote_apt_dir_exist = obj.exist(remote_apt_root) ;
+      
+      % clone it if needed
+      if does_remote_apt_dir_exist ,
+        fprintf('Found JRC/APT repo at %s.\n', remote_apt_root);
+      else
+        apt_github_url = 'https://github.com/kristinbranson/APT' ;
+        command_line = sprintf('git clone -b %s %s %s', branch_name, apt_github_url, remote_apt_root);
+        [return_code, stdouterr] = obj.runFilesystemCommand(command_line) ;
+        if return_code ~= 0 ,
+          error('Unable to clone APT git repo in AWS instance.\nReturn code: %d\nStdout/stderr:\n%s\n', return_code, stdouterr) ;
+        end
+        fprintf('Cloned APT repo into %s on AWS instance.\n', remote_apt_root);
+      end  % if
+    end  % function    
   end  % public methods block
 
   methods
@@ -1490,7 +1505,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_dirloc = escape_string_for_bash(dir_name) ;
       base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
-      [status, msg] = obj.runFilesystemCommand_(base_command) ;
+      [status, msg] = obj.runFilesystemCommand(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -1499,7 +1514,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('rm %s', quoted_file_name) ;
-      [status, msg] = obj.runFilesystemCommand_(base_command) ;
+      [status, msg] = obj.runFilesystemCommand(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -1518,7 +1533,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('test %s %s', option, quoted_file_name) ;
-      [status, msg] = obj.runFilesystemCommand_(base_command) ;
+      [status, msg] = obj.runFilesystemCommand(base_command) ;
       doesexist = (status==0) ;
     end
 
@@ -1552,7 +1567,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         quoted_file_name = escape_string_for_bash(filename) ;
         quoted_str = escape_string_for_bash(str) ;
         base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
-        [status, msg] = obj.runFilesystemCommand_(base_command) ;
+        [status, msg] = obj.runFilesystemCommand(base_command) ;
         if status ~= 0 ,
           didSucceed = false ;
           errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);
@@ -1563,31 +1578,26 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       errorMessage = '' ;
     end  % function    
 
-    function aptroot = setupForTrainingOrTracking(obj, cacheDir)
+    function aptroot = updateRepo(obj, localCacheDir)  %#ok<INUSD> 
+      % Update the APT repo on the backend.  While we're at it, make sure the
+      % pretrained weights are downloaded.  The method formerly known as
+      % setupForTrainingOrTracking().
+      % localCacheDir should be e.g. /home/joeuser/.apt/tp662830c8_246a_49c6_816c_470db4ecd950
+      % localCacheDir is not currently used, but will be needed to get the JRC
+      % backend working properly for AD-linked Linux workstations.
       switch obj.type
         case DLBackEnd.Bsub ,
-          aptroot = obj.bsubSetRootUpdateRepo(cacheDir);
+          aptroot = obj.bsubSetRootUpdateRepo_();
         case {DLBackEnd.Conda, DLBackEnd.Docker} ,
           aptroot = APT.Root;
-          DeepTracker.downloadPretrainedWeights('aptroot', aptroot) ;
+          apt.downloadPretrainedWeights('aptroot', aptroot) ;
         case DLBackEnd.AWS ,
-          if isempty(obj.awsec2)
-            error('AWSec2 object not set.');
-          end
-          obj.awsec2.checkInstanceRunning();  % harderrs if instance isn't running
+          obj.awsec2.checkInstanceRunning();  % errs if instance isn't running
           aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
         otherwise
           error('Unknown backend type') ;
       end
     end  % function    
-
-%     % Used to keep track of whether movies have been uploaded or not
-%     didUploadMovies_ = false
-% 
-%     % When we upload movies, keep track of the correspondence, so we can help the
-%     % consumer map between the paths
-%     localPathFromMovieIndex_ = cell(1,0) ;
-%     remotePathFromMovieIndex_ = cell(1,0) ;
 
     function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
       if ~obj.didUploadMovies_ ,
@@ -1656,4 +1666,210 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.awsec2.isInDebugMode = value ;
     end    
   end  % methods block
+
+  methods
+    function backEndArgs = getBackEndArgs_(backend,deeptracker,gpuid,jobinfo,aptroot,train_or_track)
+      if isequal(train_or_track,'train'),
+        dmc = jobinfo;
+        containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
+      else
+        dmc = jobinfo.trainDMC;
+        containerName = jobinfo.containerName;
+      end
+      switch backend.type
+        case DLBackEnd.Bsub
+          mntPaths = deeptracker.genContainerMountPathBsubDocker(backend,train_or_track,jobinfo);
+          if isequal(train_or_track,'train'),
+            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+            nslots = deeptracker.jrcnslots;
+          else % track
+            logfile = jobinfo.logfile;
+            nslots = deeptracker.jrcnslotstrack;
+          end
+
+          % for printing git status? not sure why this is only in bsub and
+          % not others. 
+          aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx);
+          extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
+          singimg = deeptracker.singularityImgPath();
+
+          additionalBsubArgs = backend.jrcAdditionalBsubArgs ;
+          backEndArgs = {...
+            'singargs',{'bindpath',mntPaths,'singimg',singimg},...
+            'bsubargs',{'gpuqueue' deeptracker.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
+                        'additionalArgs', additionalBsubArgs},...
+            'sshargs',{'extraprefix',extraprefix}...
+            };
+        case DLBackEnd.Docker
+          mntPaths = deeptracker.genContainerMountPathBsubDocker(backend,train_or_track,jobinfo);
+          isgpu = ~isempty(gpuid) && ~isnan(gpuid);
+          % tfRequiresTrnPack is always true;
+          shmsize = 8;
+          backEndArgs = {...
+            'containerName',containerName,...
+            'bindpath',mntPaths,...
+            'isgpu',isgpu,...
+            'gpuid',gpuid,...
+            'shmsize',shmsize...
+            };
+        case DLBackEnd.Conda
+          if isequal(train_or_track,'train'),
+            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+          else % track
+            logfile = jobinfo.logfile;
+          end
+          backEndArgs = {...
+            'condaEnv', deeptracker.condaEnv, ...
+            'gpuid', gpuid, ...
+            'logfile', logfile };
+          % backEndArgs = {...
+          %   'condaEnv', obj.condaEnv, ...
+          %   'gpuid', gpuid };
+        case DLBackEnd.AWS
+          backEndArgs  = {} ;
+        otherwise,
+          error('Internal error: Unknown backend type') ;
+      end
+    end  % function getBackEndArgs()
+    
+    function clearJobRegistry(obj)
+      % Clear all registered jobs
+      obj.syscmds_ = cell(0,1) ;
+      obj.cmdfiles_ = cell(0,1) ;
+      obj.logcmds_ = cell(0,1) ;   
+    end
+
+    function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
+      basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
+      % For AWS backend, need to modify the base command to run in background
+      if backend.type == DLBackEnd.AWS ,          
+        basecmd_escaped = escape_string_for_bash(basecmd) ;
+        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+      end
+      backendArgs = backend.getBackEndArgs_(deeptracker,gpuids,dmcjob,aptroot,'train');
+      syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+
+      if backend.type == DLBackEnd.Docker,
+        containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
+        logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
+        logcmd = backend.logCommand(containerName,logfile);
+      else
+        logcmd = '' ;
+      end
+
+      % Add all the commands to the registry
+      backend.syscmds_{end+1,1} = syscmd ;
+      backend.logcmds_{end+1,1} = logcmd ;
+      backend.cmdfiles_{end+1,1} = cmdfile ;
+    end
+
+    function registerTrackingJob(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
+      basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
+      % For AWS backend, need to modify the base command to run in background
+      if backend.type == DLBackEnd.AWS ,    
+        basecmd_escaped = escape_string_for_bash(basecmd) ;
+        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+      end        
+      backendArgs = obj.getBackEndArgs_(deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
+      syscmd = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
+
+      if backend.type == DLBackEnd.Docker,
+        containerName = totrackinfojob.containerName;
+        logfile = totrackinfojob.logfile;
+        logcmd = backend.logCommand(containerName,logfile);
+      else
+        logcmd = '' ;
+      end
+    
+      % Add all the commands to the registry
+      backend.syscmds_{end+1,1} = syscmd ;
+      backend.logcmds_{end+1,1} = logcmd ;
+      backend.cmdfiles_{end+1,1} = cmdfile ;
+    end
+
+%     function registerTrackingJobList(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
+%       basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot);
+%       backendArgs = backend.getBackEndArgs_(deeptracker,gpuids,totrackinfojob,aptroot,'track');
+%       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
+%       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
+% 
+%       if backend.type == DLBackEnd.Docker
+%         containerName = totrackinfojob.containerName;
+%         logfile = totrackinfojob.logfile;
+%         logcmd = backend.logCommand(containerName,logfile) ; 
+%       else
+%         logcmd = '' ;
+%       end
+% 
+%       % Add all the commands to the registry
+%       backend.syscmds_{end+1,1} = syscmd ;
+%       backend.logcmds_{end+1,1} = logcmd ;
+%       backend.cmdfiles_{end+1,1} = cmdfile ;
+%     end
+
+    function [tfSucc, jobID] = spawnRegisteredJobs(obj, varargin)
+      % Spawn all the jobs that have been previously registered
+      [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
+        varargin, ...
+        'jobdesc', 'job', ...
+        'do_call_apt_interface_dot_py', true) ;
+      syscmds = obj.syscmds_ ;
+      logcmds = obj.logcmds_ ;
+      cmdfiles = obj.cmdfiles_ ;
+      if ~isempty(cmdfiles),
+        obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
+      end
+      njobs = numel(syscmds);
+      tfSucc = false(1,njobs);
+      tfSuccLog = true(1,njobs);
+      jobID = cell(1,njobs);
+      for ijob=1:njobs,
+        syscmd = syscmds{ijob} ;
+        fprintf(1,'%s\n',syscmd);
+        if do_call_apt_interface_dot_py ,
+          if obj.type == DLBackEnd.Conda,
+            [jobID{ijob},st,res] = parfevalsystem(syscmd);
+            tfSucc(ijob) = st == 0;
+          else
+            [st,res] = system(syscmd);
+            tfSucc(ijob) = (st == 0) ;
+            if tfSucc(ijob),
+              jobID{ijob} = obj.parseJobID(res);
+            end
+          end
+        else
+          % Pretend it's a failure, for expediency.
+          tfSucc(ijob) = false ;
+          res = 'do_call_apt_interface_dot_py is false' ;
+        end
+        if ~tfSucc(ijob),
+          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
+        else
+          jobid = jobID{ijob};
+          if isnumeric(jobid),
+            jobidstr = num2str(jobid);
+          elseif isa(jobid, 'parallel.FevalFuture') ,
+            jobidstr = num2str(jobid.ID) ;
+          else
+            % hopefully the jobid is a string
+            jobidstr = jobid ;
+          end
+          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
+        end
+        if numel(logcmds) >= ijob ,
+          logcmd = logcmds{ijob} ;
+          if ~isempty(logcmd) ,
+            fprintf(1,'%s\n',logcmds{ijob});
+            [st2,res2] = system(logcmds{ijob});
+            tfSuccLog(ijob) = (st2 == 0) ;
+            if ~tfSuccLog(ijob),
+              warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
+            end
+          end
+        end
+      end
+    end  % function
+  end  % methods
 end  % classdef

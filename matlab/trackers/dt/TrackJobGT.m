@@ -136,23 +136,25 @@ classdef TrackJobGT < handle
       
       dmc1 = obj.dmcsrem;
       logfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkLogLnx);
-      be = obj.backend;
-      aptroot = be.getAPTRoot;
+      backend = obj.backend;
+      aptroot = backend.getAPTRoot;
       baseargs = obj.codegenBaseArgs();
       baseargs = [baseargs {'filequote' '"'}];
       bindpaths = {dmc1.getRootDir(); [aptroot '/deepnet']};
 
-      gpuids = be.gpuids;
-%       if useLogFlag
-%         baseargs = [baseargs {'log_file' obj.logfile}];
-%       end
+      gpuids = backend.gpuids;
       codebase = obj.codegenBase(baseargs);   
       containerName = sprintf('gt_%s',dmc1.getTrkTSstr());
-      codestr = be.wrapBaseCommand(codebase,containerName,...
-                                   'bindpath',bindpaths,'gpuid',gpuids);      
+      codestr = wrapBaseCommandForDockerBackendGT(codebase,...
+                                                  'containerName', containerName,...
+                                                  'bindpath',bindpaths,...
+                                                  'gpuid',gpuids, ...
+                                                  'dockerimg', backend.dockerimgfull, ...
+                                                  'dockerapiver', backend.dockerapiver, ...
+                                                  'dockerremotehost', backend.dockerremotehost);      
       logcmd = sprintf('%s logs -f %s &> "%s" &',...
-                  be.dockercmd,containerName,logfile); 
-      be.dockercontainername = containerName;
+                       backend.dockercmd,containerName,logfile); 
+      %backend.dockercontainername = containerName;
     end
     
   end

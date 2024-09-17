@@ -880,7 +880,7 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'\n'); 
 
       % Update code on remote filesystem, if needed
-      backend.updateRepo() ;
+      backend.updateRepo(cacheDir) ;
 
 %       % Upload model to remote filesystem, if needed
 %       dmc.mirrorToBackend(backend) ;
@@ -1478,7 +1478,7 @@ classdef DeepTracker < LabelTracker
 
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
-      aptroot = backend.setupForTrainingOrTracking(cacheDir);
+      aptroot = backend.updateRepo(cacheDir);
             
       if ~isempty(existingTrnPackSLbl),
         assert(strcmp(dmc.trainConfigLnx,existingTrnPackSLbl));
@@ -2600,7 +2600,8 @@ classdef DeepTracker < LabelTracker
       end
 
       % Update code on remote filesystem, if needed
-      backend.updateRepo() ;
+      localCacheDir = labeler.DLCacheDir;
+      backend.updateRepo(localCacheDir) ;
 
       % Upload model to remote filesystem, if needed
       dmc.mirrorToBackend(backend) ;
@@ -2790,10 +2791,10 @@ classdef DeepTracker < LabelTracker
       end 
       
       backend = obj.lObj.trackDLBackEnd;
-      cchdir = obj.lObj.DLCacheDir;
+      localCacheDir = obj.lObj.DLCacheDir;
       dmc = obj.trnLastDMC;
       %setStatusFcn = @(str, is_busy)(obj.lObj.setStatus(str, is_busy)) ;
-      backend.pretrack(cchdir);
+      backend.updateRepo(localCacheDir);
       dmc.mirrorToBackend(backend) ;
 
       % why not; done in track()
@@ -3248,7 +3249,7 @@ classdef DeepTracker < LabelTracker
       end
 
       cacheDir = obj.lObj.DLCacheDir;
-      aptroot = backend.setupForTrainingOrTracking(cacheDir);
+      aptroot = backend.updateRepo(cacheDir);
 
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
 
@@ -3357,7 +3358,7 @@ classdef DeepTracker < LabelTracker
       %tfSuccess = false;
 
       cacheDir = obj.lObj.DLCacheDir;
-      aptroot = backend.setupForTrainingOrTracking(cacheDir);
+      aptroot = backend.updateRepo(cacheDir);
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
 
       totrackinfo.setTrainDMC(obj.trnLastDMC);
@@ -3374,8 +3375,8 @@ classdef DeepTracker < LabelTracker
 
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
-      syscmds = backend.wrapBaseCommand(basecmd,backendArgs{:});
-      cmdfiles = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
+      syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
 
       if backend.type == DLBackEnd.Docker
         containerName = totrackinfo.containerName;
@@ -3388,7 +3389,7 @@ classdef DeepTracker < LabelTracker
       totrackinfo.prepareFiles(backend);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
-      tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,{syscmds},{cmdfiles},logcmds,backend,'track_type','list');
+      tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,{syscmd},{cmdfile},logcmds,backend,'track_type','list');
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
@@ -3958,7 +3959,8 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-  end
+  end  % methods
+
   methods (Static) % train/track codegen
     function [tfsucc,res,warningstr] = syscmd(cmd,varargin)      
       setenvcmd = 'LD_LIBRARY_PATH=:' ;
@@ -3967,33 +3969,6 @@ classdef DeepTracker < LabelTracker
         % in varargin
     end  % function        
     
-    function downloadPretrainedWeights(varargin) 
-      aptroot = myparse(varargin,...
-        'aptroot',APT.Root...
-        );
-      
-      urlsAll = DeepTracker.pretrained_weights_urls;
-      weightfilepats = DeepTracker.pretrained_weights_files_pat_lnx;
-      deepnetrootlnx = [aptroot '/deepnet'];
-      pretrainedlnx = [deepnetrootlnx '/pretrained'];
-      for i = 1:numel(urlsAll)
-        url = urlsAll{i};
-        pat = weightfilepats{i};
-        wfile = sprintf(pat,deepnetrootlnx);
-
-        if exist(wfile,'file')>0
-          fprintf('Tensorflow resnet pretrained weights %s already downloaded.\n',url);
-          continue;
-        end
-          
-        % hmm what happens when the weightfilenames change?
-        fprintf('Downloading tensorflow resnet pretrained weights %s (APT)..\n',url);
-        outfiles = untar(url,pretrainedlnx);
-        sprintf('Downloaded and extracted the following files/directories:\n');
-        fprintf('%s\n',outfiles{:});
-      end      
-    end
-
     function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
@@ -4024,14 +3999,6 @@ classdef DeepTracker < LabelTracker
         'failbehavior','err');
     end      
 
-    function updateAPTRepoExecJRC(cacheRoot) % throws if fails
-      % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
-      updatecmd = apt.updateAPTRepoCmd('aptparent',cacheRoot);
-      updatecmd = wrapCommandSSH(updatecmd,'host',DLBackEndClass.jrchost);
-      [~,res] = DeepTracker.syscmd(updatecmd,...
-        'failbehavior','err');
-    end
-
     function cmd = cpPTWfromJRCProdLnx(aptrootLnx)
       % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
       srcPTWlnx = [DLBackEndClass.jrcprodrepo '/deepnet/pretrained'];
@@ -4039,46 +4006,6 @@ classdef DeepTracker < LabelTracker
       cmd = sprintf('cp -r -u "%s" "%s"',srcPTWlnx,dstPTWlnx);
     end
 
-    function cpupdatePTWfromJRCProdExec(aptrootLnx) % throws if errors
-      cmd = DeepTracker.cpPTWfromJRCProdLnx(aptrootLnx);
-      cmd = wrapCommandSSH(cmd,'host',DLBackEndClass.jrchost);
-      [~,res] = DeepTracker.syscmd(cmd,...
-        'failbehavior','err');
-    end
-
-    function cmd = dirExistsCmd(ddir)
-      cmd = sprintf('bash -c "[ -d ''%s'' ] && echo ''y'' || echo ''n''"',ddir);
-    end      
-
-    function cloneJRCRepoIfNec(cacheRoot) % throws on fail
-      % Clone 'remote' repo into cacheRoot from prod, if necessary
-      % 
-      % cacheRoot: 'remote' cachedir, ie cachedir on JRC filesys
-      
-      % does repo in 'remote' cache exist?
-      aptroot = [cacheRoot '/APT'];
-      aptrootexistscmd = DeepTracker.dirExistsCmd(aptroot);
-      aptrootexistscmd = wrapCommandSSH(aptrootexistscmd,'host',DLBackEndClass.jrchost);
-      
-      [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
-        'failbehavior','err');
-      res = strtrim(res);
-      
-      % clone it if nec
-      switch res
-        case 'y'
-          fprintf('Found JRC/APT repo at %s.\n',aptroot);
-        case 'n'
-          cloneaptcmd = sprintf('git clone %s %s',DLBackEndClass.jrcprodrepo,aptroot);
-          cloneaptcmd = wrapCommandSSH(cloneaptcmd,'host',DLBackEndClass.jrchost);
-          [~,res] = DeepTracker.syscmd(cloneaptcmd,...
-            'failbehavior','err');
-          fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
-        otherwise
-          error('Failed to update APT repo on JRC filesystem.');
-      end
-    end
-          
     function str = cellstr2SpaceDelimWithEscapedSpace(c)
       % c: cellstr
       %
