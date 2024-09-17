@@ -1668,7 +1668,154 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods block
 
   methods
+    function clearJobRegistry(obj)
+      % Clear all registered jobs
+      obj.syscmds_ = cell(0,1) ;
+      obj.cmdfiles_ = cell(0,1) ;
+      obj.logcmds_ = cell(0,1) ;   
+    end
+
+    function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
+      % Register a single training job with the backend, for later spawning via
+      % spawnRegisteredJobs().
+      basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
+      % For AWS backend, need to modify the base command to run in background
+      if backend.type == DLBackEnd.AWS ,          
+        basecmd_escaped = escape_string_for_bash(basecmd) ;
+        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+      end
+      backendArgs = backend.getBackEndArgs_(deeptracker,gpuids,dmcjob,aptroot,'train');
+      syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+
+      if backend.type == DLBackEnd.Docker,
+        containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
+        logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
+        logcmd = backend.logCommand(containerName,logfile);
+      else
+        logcmd = '' ;
+      end
+
+      % Add all the commands to the registry
+      backend.syscmds_{end+1,1} = syscmd ;
+      backend.logcmds_{end+1,1} = logcmd ;
+      backend.cmdfiles_{end+1,1} = cmdfile ;
+    end
+
+    function registerTrackingJob(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
+      % Register a single tracking job with the backend, for later spawning via
+      % spawnRegisteredJobs().
+      basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
+      % For AWS backend, need to modify the base command to run in background
+      if backend.type == DLBackEnd.AWS ,    
+        basecmd_escaped = escape_string_for_bash(basecmd) ;
+        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+      end        
+      backendArgs = obj.getBackEndArgs_(deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
+      syscmd = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
+
+      if backend.type == DLBackEnd.Docker,
+        containerName = totrackinfojob.containerName;
+        logfile = totrackinfojob.logfile;
+        logcmd = backend.logCommand(containerName,logfile);
+      else
+        logcmd = '' ;
+      end
+    
+      % Add all the commands to the registry
+      backend.syscmds_{end+1,1} = syscmd ;
+      backend.logcmds_{end+1,1} = logcmd ;
+      backend.cmdfiles_{end+1,1} = cmdfile ;
+    end
+
+%     function registerTrackingJobList(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
+%       basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot);
+%       backendArgs = backend.getBackEndArgs_(deeptracker,gpuids,totrackinfojob,aptroot,'track');
+%       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
+%       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
+% 
+%       if backend.type == DLBackEnd.Docker
+%         containerName = totrackinfojob.containerName;
+%         logfile = totrackinfojob.logfile;
+%         logcmd = backend.logCommand(containerName,logfile) ; 
+%       else
+%         logcmd = '' ;
+%       end
+% 
+%       % Add all the commands to the registry
+%       backend.syscmds_{end+1,1} = syscmd ;
+%       backend.logcmds_{end+1,1} = logcmd ;
+%       backend.cmdfiles_{end+1,1} = cmdfile ;
+%     end
+
+    function [tfSucc, jobID] = spawnRegisteredJobs(obj, varargin)
+      % Spawn all the jobs that have been previously registered.  Jobs should be
+      % either all tracking jobs or all training jobs.  
+      [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
+        varargin, ...
+        'jobdesc', 'job', ...
+        'do_call_apt_interface_dot_py', true) ;
+      syscmds = obj.syscmds_ ;
+      logcmds = obj.logcmds_ ;
+      cmdfiles = obj.cmdfiles_ ;
+      if ~isempty(cmdfiles),
+        obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
+      end
+      njobs = numel(syscmds);
+      tfSucc = false(1,njobs);
+      tfSuccLog = true(1,njobs);
+      jobID = cell(1,njobs);
+      for ijob=1:njobs,
+        syscmd = syscmds{ijob} ;
+        fprintf(1,'%s\n',syscmd);
+        if do_call_apt_interface_dot_py ,
+          if obj.type == DLBackEnd.Conda,
+            [jobID{ijob},st,res] = parfevalsystem(syscmd);
+            tfSucc(ijob) = st == 0;
+          else
+            [st,res] = system(syscmd);
+            tfSucc(ijob) = (st == 0) ;
+            if tfSucc(ijob),
+              jobID{ijob} = obj.parseJobID(res);
+            end
+          end
+        else
+          % Pretend it's a failure, for expediency.
+          tfSucc(ijob) = false ;
+          res = 'do_call_apt_interface_dot_py is false' ;
+        end
+        if ~tfSucc(ijob),
+          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
+        else
+          jobid = jobID{ijob};
+          if isnumeric(jobid),
+            jobidstr = num2str(jobid);
+          elseif isa(jobid, 'parallel.FevalFuture') ,
+            jobidstr = num2str(jobid.ID) ;
+          else
+            % hopefully the jobid is a string
+            jobidstr = jobid ;
+          end
+          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
+        end
+        if numel(logcmds) >= ijob ,
+          logcmd = logcmds{ijob} ;
+          if ~isempty(logcmd) ,
+            fprintf(1,'%s\n',logcmds{ijob});
+            [st2,res2] = system(logcmds{ijob});
+            tfSuccLog(ijob) = (st2 == 0) ;
+            if ~tfSuccLog(ijob),
+              warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
+            end
+          end
+        end
+      end
+    end  % function
+
     function backEndArgs = getBackEndArgs_(backend,deeptracker,gpuid,jobinfo,aptroot,train_or_track)
+      % Get arguments for a particular job to be registered.  Protected by
+      % convention.
       if isequal(train_or_track,'train'),
         dmc = jobinfo;
         containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
@@ -1730,146 +1877,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherwise,
           error('Internal error: Unknown backend type') ;
       end
-    end  % function getBackEndArgs()
+    end  % function getBackEndArgs_()
     
-    function clearJobRegistry(obj)
-      % Clear all registered jobs
-      obj.syscmds_ = cell(0,1) ;
-      obj.cmdfiles_ = cell(0,1) ;
-      obj.logcmds_ = cell(0,1) ;   
-    end
-
-    function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
-      basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
-      % For AWS backend, need to modify the base command to run in background
-      if backend.type == DLBackEnd.AWS ,          
-        basecmd_escaped = escape_string_for_bash(basecmd) ;
-        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-      end
-      backendArgs = backend.getBackEndArgs_(deeptracker,gpuids,dmcjob,aptroot,'train');
-      syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-
-      if backend.type == DLBackEnd.Docker,
-        containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
-        logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
-        logcmd = backend.logCommand(containerName,logfile);
-      else
-        logcmd = '' ;
-      end
-
-      % Add all the commands to the registry
-      backend.syscmds_{end+1,1} = syscmd ;
-      backend.logcmds_{end+1,1} = logcmd ;
-      backend.cmdfiles_{end+1,1} = cmdfile ;
-    end
-
-    function registerTrackingJob(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
-      basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
-      % For AWS backend, need to modify the base command to run in background
-      if backend.type == DLBackEnd.AWS ,    
-        basecmd_escaped = escape_string_for_bash(basecmd) ;
-        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-      end        
-      backendArgs = obj.getBackEndArgs_(deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
-      syscmd = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
-
-      if backend.type == DLBackEnd.Docker,
-        containerName = totrackinfojob.containerName;
-        logfile = totrackinfojob.logfile;
-        logcmd = backend.logCommand(containerName,logfile);
-      else
-        logcmd = '' ;
-      end
-    
-      % Add all the commands to the registry
-      backend.syscmds_{end+1,1} = syscmd ;
-      backend.logcmds_{end+1,1} = logcmd ;
-      backend.cmdfiles_{end+1,1} = cmdfile ;
-    end
-
-%     function registerTrackingJobList(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
-%       basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot);
-%       backendArgs = backend.getBackEndArgs_(deeptracker,gpuids,totrackinfojob,aptroot,'track');
-%       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
-%       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile);
-% 
-%       if backend.type == DLBackEnd.Docker
-%         containerName = totrackinfojob.containerName;
-%         logfile = totrackinfojob.logfile;
-%         logcmd = backend.logCommand(containerName,logfile) ; 
-%       else
-%         logcmd = '' ;
-%       end
-% 
-%       % Add all the commands to the registry
-%       backend.syscmds_{end+1,1} = syscmd ;
-%       backend.logcmds_{end+1,1} = logcmd ;
-%       backend.cmdfiles_{end+1,1} = cmdfile ;
-%     end
-
-    function [tfSucc, jobID] = spawnRegisteredJobs(obj, varargin)
-      % Spawn all the jobs that have been previously registered
-      [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
-        varargin, ...
-        'jobdesc', 'job', ...
-        'do_call_apt_interface_dot_py', true) ;
-      syscmds = obj.syscmds_ ;
-      logcmds = obj.logcmds_ ;
-      cmdfiles = obj.cmdfiles_ ;
-      if ~isempty(cmdfiles),
-        obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
-      end
-      njobs = numel(syscmds);
-      tfSucc = false(1,njobs);
-      tfSuccLog = true(1,njobs);
-      jobID = cell(1,njobs);
-      for ijob=1:njobs,
-        syscmd = syscmds{ijob} ;
-        fprintf(1,'%s\n',syscmd);
-        if do_call_apt_interface_dot_py ,
-          if obj.type == DLBackEnd.Conda,
-            [jobID{ijob},st,res] = parfevalsystem(syscmd);
-            tfSucc(ijob) = st == 0;
-          else
-            [st,res] = system(syscmd);
-            tfSucc(ijob) = (st == 0) ;
-            if tfSucc(ijob),
-              jobID{ijob} = obj.parseJobID(res);
-            end
-          end
-        else
-          % Pretend it's a failure, for expediency.
-          tfSucc(ijob) = false ;
-          res = 'do_call_apt_interface_dot_py is false' ;
-        end
-        if ~tfSucc(ijob),
-          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
-        else
-          jobid = jobID{ijob};
-          if isnumeric(jobid),
-            jobidstr = num2str(jobid);
-          elseif isa(jobid, 'parallel.FevalFuture') ,
-            jobidstr = num2str(jobid.ID) ;
-          else
-            % hopefully the jobid is a string
-            jobidstr = jobid ;
-          end
-          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
-        end
-        if numel(logcmds) >= ijob ,
-          logcmd = logcmds{ijob} ;
-          if ~isempty(logcmd) ,
-            fprintf(1,'%s\n',logcmds{ijob});
-            [st2,res2] = system(logcmds{ijob});
-            tfSuccLog(ijob) = (st2 == 0) ;
-            if ~tfSuccLog(ijob),
-              warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
-            end
-          end
-        end
-      end
-    end  % function
   end  % methods
 end  % classdef

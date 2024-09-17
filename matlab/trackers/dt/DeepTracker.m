@@ -1500,51 +1500,53 @@ classdef DeepTracker < LabelTracker
 
       unique_jobs = unique(jobidx);
       njobs = numel(unique_jobs);
-      syscmds = cell(njobs,1);
-      cmdfiles = cell(njobs,1);
-      logcmds = {};
       % looks like logging may be disabled for docker + win? figure out what
       % should happen here
-      if backend.type == DLBackEnd.Docker,
-        logcmds = cell(njobs,1);
-      end
+%       if backend.type == DLBackEnd.Docker,
+%         logcmds = cell(njobs,1);
+%       end
+      backend.clearJobRegistry() ;
 
       for ijob = 1:njobs,
         assert(ijob==unique_jobs(ijob));
         dmcjob = dmc.selectSubset('jobidx',ijob);
 
-        basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
-        % For AWS backend, need to modify the base command to run in background
-        if backend.type == DLBackEnd.AWS ,          
-          basecmd_escaped = escape_string_for_bash(basecmd) ;
-          basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-        end
-        backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),dmcjob,aptroot,'train');
-        syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
-        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-
-        if backend.type == DLBackEnd.Docker,
-          containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
-          logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
-          logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
-        end
-      end
+        backend.registerTrainingJob(dmcjob, obj, gpuids(ijob), aptroot, do_just_generate_db) ;
+%         basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
+%         % For AWS backend, need to modify the base command to run in background
+%         if backend.type == DLBackEnd.AWS ,          
+%           basecmd_escaped = escape_string_for_bash(basecmd) ;
+%           basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+%         end
+%         backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),dmcjob,aptroot,'train');
+%         syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
+%         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+% 
+%         if backend.type == DLBackEnd.Docker,
+%           containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
+%           logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
+%           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
+%         end
+      end  % for
       
       if obj.dryRunOnly
-        cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
+        fprintf('Dry run, not spawning training jobs') ;
+        %cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
         obj.bgTrnStart(backend, dmc, projTempDir) ;
 
         % spawn training
-        [tfSucc, jobID] = backend.spawn(syscmds, ...
-                                        'logcmds', logcmds, ...
-                                        'cmdfiles', cmdfiles, ...
-                                        'jobdesc', 'training job', ...
-                                        'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+%         [tfSucc, jobID] = backend.spawn(syscmds, ...
+%                                         'logcmds', logcmds, ...
+%                                         'cmdfiles', cmdfiles, ...
+%                                         'jobdesc', 'training job', ...
+%                                         'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+        [tfSucc, jobID] = backend.spawnRegisteredJobs('jobdesc', 'training job', ...
+                                                      'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
 
-        if backend.type == DLBackEnd.Bsub ,
-          jobID = cell2mat(jobID);
-        end
+%         if backend.type == DLBackEnd.Bsub ,
+%           jobID = cell2mat(jobID);
+%         end
         obj.bgTrnMonBGWorkerObj.jobID = jobID;
       end
       obj.trnLastDMC = dmc;
@@ -1880,69 +1882,69 @@ classdef DeepTracker < LabelTracker
       cellfun(@(x)fprintf('  %s\n',x),paths);
     end  
 
-    function backEndArgs = getBackEndArgs(obj,backend,gpuid,jobinfo,aptroot,cmdtype)
-      if isequal(cmdtype,'train'),
-        dmc = jobinfo;
-        containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
-      else
-        dmc = jobinfo.trainDMC;
-        containerName = jobinfo.containerName;
-      end
-      switch backend.type
-        case DLBackEnd.Bsub
-          mntPaths = obj.genContainerMountPathBsubDocker(backend,cmdtype,jobinfo);
-          if isequal(cmdtype,'train'),
-            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
-            nslots = obj.jrcnslots;
-          else % track
-            logfile = jobinfo.logfile;
-            nslots = obj.jrcnslotstrack;
-          end
-
-          % for printing git status? not sure why this is only in bsub and
-          % not others. 
-          aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx);
-          extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
-          singimg = obj.singularityImgPath();
-
-          additionalBsubArgs = backend.jrcAdditionalBsubArgs ;
-          backEndArgs = {...
-            'singargs',{'bindpath',mntPaths,'singimg',singimg},...
-            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
-                        'additionalArgs', additionalBsubArgs},...
-            'sshargs',{'extraprefix',extraprefix}...
-            };
-        case DLBackEnd.Docker
-          mntPaths = obj.genContainerMountPathBsubDocker(backend,cmdtype,jobinfo);
-          isgpu = ~isempty(gpuid) && ~isnan(gpuid);
-          % tfRequiresTrnPack is always true;
-          shmsize = 8;
-          backEndArgs = {...
-            'containerName',containerName,...
-            'bindpath',mntPaths,...
-            'isgpu',isgpu,...
-            'gpuid',gpuid,...
-            'shmsize',shmsize...
-            };
-        case DLBackEnd.Conda
-          if isequal(cmdtype,'train'),
-            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
-          else % track
-            logfile = jobinfo.logfile;
-          end
-          backEndArgs = {...
-            'condaEnv', obj.condaEnv, ...
-            'gpuid', gpuid, ...
-            'logfile', logfile };
-          % backEndArgs = {...
-          %   'condaEnv', obj.condaEnv, ...
-          %   'gpuid', gpuid };
-        case DLBackEnd.AWS
-          backEndArgs  = {} ;
-        otherwise,
-          error('Internal error: Unknown backend type') ;
-      end
-    end  % function getBackEndArgs()
+%     function backEndArgs = getBackEndArgs(obj,backend,gpuid,jobinfo,aptroot,cmdtype)
+%       if isequal(cmdtype,'train'),
+%         dmc = jobinfo;
+%         containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
+%       else
+%         dmc = jobinfo.trainDMC;
+%         containerName = jobinfo.containerName;
+%       end
+%       switch backend.type
+%         case DLBackEnd.Bsub
+%           mntPaths = obj.genContainerMountPathBsubDocker(backend,cmdtype,jobinfo);
+%           if isequal(cmdtype,'train'),
+%             logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+%             nslots = obj.jrcnslots;
+%           else % track
+%             logfile = jobinfo.logfile;
+%             nslots = obj.jrcnslotstrack;
+%           end
+% 
+%           % for printing git status? not sure why this is only in bsub and
+%           % not others. 
+%           aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx);
+%           extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
+%           singimg = obj.singularityImgPath();
+% 
+%           additionalBsubArgs = backend.jrcAdditionalBsubArgs ;
+%           backEndArgs = {...
+%             'singargs',{'bindpath',mntPaths,'singimg',singimg},...
+%             'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
+%                         'additionalArgs', additionalBsubArgs},...
+%             'sshargs',{'extraprefix',extraprefix}...
+%             };
+%         case DLBackEnd.Docker
+%           mntPaths = obj.genContainerMountPathBsubDocker(backend,cmdtype,jobinfo);
+%           isgpu = ~isempty(gpuid) && ~isnan(gpuid);
+%           % tfRequiresTrnPack is always true;
+%           shmsize = 8;
+%           backEndArgs = {...
+%             'containerName',containerName,...
+%             'bindpath',mntPaths,...
+%             'isgpu',isgpu,...
+%             'gpuid',gpuid,...
+%             'shmsize',shmsize...
+%             };
+%         case DLBackEnd.Conda
+%           if isequal(cmdtype,'train'),
+%             logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+%           else % track
+%             logfile = jobinfo.logfile;
+%           end
+%           backEndArgs = {...
+%             'condaEnv', obj.condaEnv, ...
+%             'gpuid', gpuid, ...
+%             'logfile', logfile };
+%           % backEndArgs = {...
+%           %   'condaEnv', obj.condaEnv, ...
+%           %   'gpuid', gpuid };
+%         case DLBackEnd.AWS
+%           backEndArgs  = {} ;
+%         otherwise,
+%           error('Internal error: Unknown backend type') ;
+%       end
+%     end  % function getBackEndArgs()
     
     function updateLastDMCsCurrInfo_(obj)
       obj.trnLastDMC.updateCurrInfo(obj.backend);
@@ -3253,9 +3255,9 @@ classdef DeepTracker < LabelTracker
 
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
 
-      syscmds = cell(1,njobs);
-      cmdfiles = cell(1,njobs);      
-      logcmds = {};
+%       syscmds = cell(1,njobs);
+%       cmdfiles = cell(1,njobs);      
+%       logcmds = {};
 
       totrackinfojobs = [];
 
@@ -3263,6 +3265,7 @@ classdef DeepTracker < LabelTracker
       totrackinfo.setTrackid(nowstr);
       totrackinfo.setDefaultFiles();
 
+      backend.clearRegisteredJobs() ;
       for ijob = 1:numel(jobs),
         [imovjob,ivwjob] = ind2sub(size(jobs),ijob);
         id = sprintf('mov%d_vw%d',imovjob,ivwjob);
@@ -3272,21 +3275,22 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setJobid(id);
         totrackinfojob.setDefaultFiles();
 
-        basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
-        % For AWS backend, need to modify the base command to run in background
-        if backend.type == DLBackEnd.AWS ,    
-          basecmd_escaped = escape_string_for_bash(basecmd) ;
-          basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-        end        
-        backendArgs = obj.getBackEndArgs(backend, gpuids(ijob), totrackinfojob, aptroot, 'track') ;
-        syscmds{ijob} = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
-        cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
-
-        if backend.type == DLBackEnd.Docker,
-          containerName = totrackinfojob.containerName;
-          logfile = totrackinfojob.logfile;
-          logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
-        end
+        backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), aptroot, track_type) ;
+%         basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
+%         % For AWS backend, need to modify the base command to run in background
+%         if backend.type == DLBackEnd.AWS ,    
+%           basecmd_escaped = escape_string_for_bash(basecmd) ;
+%           basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
+%         end        
+%         backendArgs = obj.getBackEndArgs(backend, gpuids(ijob), totrackinfojob, aptroot, 'track') ;
+%         syscmds{ijob} = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
+%         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
+% 
+%         if backend.type == DLBackEnd.Docker,
+%           containerName = totrackinfojob.containerName;
+%           logfile = totrackinfojob.logfile;
+%           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
+%         end
 
         totrackinfojob.prepareFiles(backend);
         obj.trkCreateConfig(totrackinfojob.trackconfigfile);
@@ -3298,20 +3302,19 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,...
+      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,backend,...
                                    'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
                                    'projTempDir',projTempDir);
-      %[logfiles,errfiles,outfiles,partfiles,movfiles] = trksysinfo.getMonitorArtifacts();
     end
 
-    function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,syscmds,cmdfiles,logcmds,backend,varargin)
+    function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,backend,varargin)
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,'track_type','movie','do_call_apt_interface_dot_py',true,'projTempDir',[]);
 
       if obj.dryRunOnly
-        fprintf(1,'Dry run, not tracking:\n');
-        fprintf('%s\n',syscmds{:});
-        return;
+        fprintf('Dry run, not tracking.\n');
+        %fprintf('%s\n',syscmds{:});
+        return
       end
 
       % start track monitor
@@ -3338,17 +3341,14 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % spawn the jobs
-      [tfSuccess,jobID] = backend.spawn(syscmds,...
-                                        'logcmds',logcmds,...
-                                        'cmdfiles',cmdfiles,...
-                                        'jobdesc','tracking job', ...
-                                        'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      [tfSuccess,jobID] = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
+                                                      'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % If that succeeded, record the job identifiers
       if tfSuccess ,
-        if backend.type == DLBackEnd.Bsub || backend.type == DLBackEnd.AWS ,
-          jobID = cell2mat(jobID);
-        end
+        %if backend.type == DLBackEnd.Bsub || backend.type == DLBackEnd.AWS ,
+        %  jobID = cell2mat(jobID);
+        %end
         bgTrkWorkerObj.jobID = jobID;
       end
     end  % function setupBGTrack()
@@ -3373,23 +3373,25 @@ classdef DeepTracker < LabelTracker
       totrackinfo.makeListFile(isgt);
       gpuid =nan;
 
-      basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
-      backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
-      syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
-
-      if backend.type == DLBackEnd.Docker
-        containerName = totrackinfo.containerName;
-        logfile = totrackinfo.logfile;
-        logcmds = {backend.logCommand(containerName,logfile)}; 
-      else
-        logcmds = [];
-      end
+      backend.clearRegisteredJobs() ;
+      backend.registerTrackingJob(totrackinfo, obj, gpuid, aptroot, track_type) ;      
+%       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
+%       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
+%       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
+%       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
+% 
+%       if backend.type == DLBackEnd.Docker
+%         containerName = totrackinfo.containerName;
+%         logfile = totrackinfo.logfile;
+%         logcmds = {backend.logCommand(containerName,logfile)}; 
+%       else
+%         logcmds = [];
+%       end
 
       totrackinfo.prepareFiles(backend);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
-      tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,{syscmd},{cmdfile},logcmds,backend,'track_type','list');
+      tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,backend,'track_type','list');
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
