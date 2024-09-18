@@ -1505,7 +1505,7 @@ classdef DeepTracker < LabelTracker
 %       if backend.type == DLBackEnd.Docker,
 %         logcmds = cell(njobs,1);
 %       end
-      backend.clearJobRegistry() ;
+      backend.clearRegisteredJobs() ;
 
       for ijob = 1:njobs,
         assert(ijob==unique_jobs(ijob));

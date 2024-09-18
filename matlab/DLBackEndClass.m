@@ -209,14 +209,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods block
  
   methods
-    function [return_code, stdouterr] = runFilesystemCommand(obj, basecmd)
+    function [return_code, stdouterr] = runFilesystemCommand(obj, basecmd, varargin)
       % Run the basecmd using apt.syscmd(), after wrapping suitably for the type of
       % backend.  Unlike spawn(), this blocks, and doesn't return a process
       % identifier of any kind.  Return values are like those from system(): a
       % numeric return code and a string containing any command output.
       % Note that any file names in the basecmd must refer to the filenames on the
       % *backend* filesystem.
-      fprintf('DLBackEndClass::runFilesystemCommand(): %s\n', basecmd) ;
+      failbehavior = myparse(varargin, 'failbehavior', 'silent') ;  % want different default than apt.syscmd() provides 
+      leftover_args = remove_pair_from_key_value_list_if_present(varargin, 'failbehavior') ;
       switch obj.type,
         case DLBackEnd.AWS
           command = wrapFilesystemCommandForAWSBackend(basecmd, obj) ;
@@ -232,7 +233,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherwise
           error('Not implemented: %s',obj.type);
       end
-      [return_code, stdouterr] = apt.syscmd(command) ;
+      [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', failbehavior, leftover_args{:}) ;
     end  % function
 
     function jobID = parseJobID(obj, res)
@@ -1501,7 +1502,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods block
 
   methods
-    function clearJobRegistry(obj)
+    function clearRegisteredJobs(obj)
       % Clear all registered jobs
       obj.syscmds_ = cell(0,1) ;
       obj.cmdfiles_ = cell(0,1) ;

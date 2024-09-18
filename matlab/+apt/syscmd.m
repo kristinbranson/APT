@@ -1,4 +1,4 @@
-function [tfsucc,res,warningstr,st] = syscmd(cmd0, varargin)
+function [st,res,warningstr] = syscmd(cmd0, varargin)
 % Run a command using Matlab built-in system() command, but with some handy
 % additional capabilities.
 % Optional args allow caller to specify what to do if the command fails.  (Can
@@ -6,12 +6,13 @@ function [tfsucc,res,warningstr,st] = syscmd(cmd0, varargin)
 % response.
 
 % Process keyword args
-[failbehavior,isjsonout,setenvcmd,usewslonwindows] = ...
+[failbehavior,isjsonout,setenvcmd,usewslonwindows,verbose] = ...
   myparse(varargin,...
           'failbehavior','warn',... % one of 'err','warn','silent'
           'isjsonout',false,...
           'setenvcmd','LD_LIBRARY_PATH=',...
-          'usewslonwindows',false);
+          'usewslonwindows',false,...
+          'verbose',true);
   % Default setenvcmd is to prevent Matlab's very matlab-specific
   % LD_LIBRARY_PATH from messing up normal commands.
   % See prepend_stuff_to_clear_matlab_environment() if we need this to be 
@@ -33,23 +34,25 @@ else
 end
 
 % Echo, & run
-fprintf('apt.syscmd(): %s\n',cmd);
+if verbose ,
+  fprintf('apt.syscmd(): %s\n',cmd);
+end
 [st,res] = system(cmd);
 
-% Echo result, decide if it was successful
-if st ~= 0,
-  fprintf('st = %d, res = "%s"\n',st,res);
-else
-  fprintf('success.\n');
+% Echo result, if called for
+if verbose ,
+  if st ~= 0,
+    fprintf('apt.syscmd(): st = %d, res = "%s"\n',st,res);
+  else
+    fprintf('apt.syscmd(): success.\n');
+  end
 end
-%tfsucc = st==0 || isempty(res);  % Why does isempty(res) count as success?  --ALT, 2024-09-12
-tfsucc = (st==0) ;
 
 % Parse output JSON, if requested
-if isjsonout && tfsucc ,
+if isjsonout && (st==0) ,
   jsonstart = find(res == '{',1);
   if isempty(jsonstart),
-    tfsucc = false;
+    st = 0 ;
     warningstr = 'Could not find json start character {';
   else
     warningstr = res(1:jsonstart-1);
@@ -60,12 +63,12 @@ else
 end
 
 % If failed, do the appropriate thing
-if ~tfsucc 
+if st ~= 0 , 
   switch failbehavior
     case 'err'
-      error('The command:\n%s\nYielded a nonzero status code (%d):\n%s\n',cmd,st,res);
+      error('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
     case 'warn'
-      warningNoTrace('The command:\m%s\nYielded a nonzero status code (%d):\n%s\n',cmd,st,res);
+      warningNoTrace('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
     case 'silent'
       % do nothing
     otherwise
