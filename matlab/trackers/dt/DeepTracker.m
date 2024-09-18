@@ -3964,9 +3964,9 @@ classdef DeepTracker < LabelTracker
   end  % methods
 
   methods (Static) % train/track codegen
-    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)      
+    function [st,res,warningstr] = syscmd(cmd,varargin)      
       setenvcmd = 'LD_LIBRARY_PATH=:' ;
-      [tfsucc,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
+      [st,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
         % We pass in our setenvcmd first so that it can be overidden by one passed in
         % in varargin
     end  % function        

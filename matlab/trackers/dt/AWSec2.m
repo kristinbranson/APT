@@ -123,7 +123,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.ResetInstanceID();
       %obj.SetStatus('Launching new AWS EC2 instance');
       cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
-      [tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      tfsucc = (st==0) ;
       if ~tfsucc
         obj.ClearStatus();
         return;
@@ -156,7 +157,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       % Aside: this works with empty .instanceID if there is only one 
       % instance in the cloud, but we are not interested in that for now
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); 
-      [tfexist,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      tfexist = (st==0) ;
       if ~tfexist
         tfrunning = false;
         return;
@@ -190,7 +192,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       assert(obj.isSpecified);
       state = '';
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
-      [tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      tfsucc = (st==0) ;
       if ~tfsucc
         return;
       end
@@ -206,10 +209,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
       %obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
-      [tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      tfsucc = (st==0) ;
       %obj.ClearStatus();
       if ~tfsucc
-        return;
+        return
       end
       json = jsondecode(json);
       obj.stopAlarm();
@@ -222,7 +226,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       instanceTypes = {};
       %obj.SetStatus('Listing AWS EC2 instances available');
       cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',[]); % empty instType to list all instanceTypes
-      [tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+      tfsucc = (st==0) ;
       if tfsucc,
         info = jsondecode(json);
         if ~isempty(info.Reservations),
@@ -263,23 +268,25 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
       if ~ismember(lower(state),{'running','pending'}),
         cmd = AWSec2.startInstanceCmd(obj.instanceID);
-        [tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+        %[tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+        [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
+        tfsucc = (st==0) ;        
       end
       if ~tfsucc
         %obj.ClearStatus();
-        return;
+        return
       end
       json = jsondecode(json);
       if ~doblock,
         %obj.ClearStatus();
-        return;
+        return
       end
       
       [tfsucc] = obj.waitForInstanceStart();
       if ~tfsucc,
         warningstr = 'Timed out waiting for AWS EC2 instance to spool up.';
         %obj.ClearStatus();
-        return;
+        return
       end
       
       obj.inspectInstance();
@@ -435,12 +442,13 @@ classdef AWSec2 < matlab.mixin.Copyable
       namestr = sprintf(obj.autoShutdownAlarmNamePat);
 
       codestr = sprintf('aws cloudwatch describe-alarms --alarm-names "%s"',namestr);
-      [tfsucc,json] = obj.syscmd(codestr,...
-        'failbehavior','warn',...
-        'isjsonout',true);
+      [st,json] = obj.syscmd(codestr,...
+                             'failbehavior','warn',...
+                             'isjsonout',true);
+      tfsucc = (st==0) ;
       if ~tfsucc,
         reason = 'AWS CLI error calling describe-alarms.';
-        return;
+        return
       end
       json = jsondecode(json);
       if isempty(json) || isempty(json.MetricAlarms),
@@ -485,7 +493,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
       if ~tfsucc,
         warning('Could  not check for alarm: %s',reason);
-        return;
+        return
       end
       % DEBUGAWS: AWS alarms are annoying while debugging
       if obj.isInDebugMode_ ,
@@ -499,8 +507,9 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       fprintf('Setting up AWS CloudWatch alarm to auto-shutdown your instance if it is idle for too long.\n');
       
-      tfsucc = AWSec2.syscmd(codestr,...
-                             'failbehavior','warn');
+      st = AWSec2.syscmd(codestr,...
+                         'failbehavior','warn');
+      tfsucc = (st==0) ;
     end
     
     function tfsucc = getRemotePythonPID(obj)
@@ -546,7 +555,8 @@ classdef AWSec2 < matlab.mixin.Copyable
         cmd = AWSec2.scpDownloadCmd(obj.pem, obj.instanceIP, srcAbs, dstAbs, ...
                                     'scpcmd', obj.scpCmd) ;
         %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
-        tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+        st = AWSec2.syscmd(cmd,sysCmdArgs{:});
+        tfsucc = (st==0) ;        
         tfsucc = tfsucc && (exist(dstAbs,'file')>0);
       end
     end
@@ -572,7 +582,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       AWSec2.syscmd(cmd,sysCmdArgs{:});
       cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
                                 'scpcmd',obj.scpCmd,'destRelative',destRelative);
-      tfsucc = AWSec2.syscmd(cmd,sysCmdArgs{:});
+      st = AWSec2.syscmd(cmd,sysCmdArgs{:});
+      tfsucc = (st==0) ;
     end
     
     function scpUploadOrVerify(obj,src,dst,fileDescStr,varargin) % throws
@@ -634,7 +645,8 @@ classdef AWSec2 < matlab.mixin.Copyable
        
     function tfsucc = rsyncUpload(obj, src, dest)
       cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
-      tfsucc = AWSec2.syscmd(cmd) ;
+      st = AWSec2.syscmd(cmd) ;
+      tfsucc = (st==0) ;
     end
 
     function rmRemoteFile(obj,dst,~,varargin)
@@ -796,7 +808,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       %fprintf('AWSec2::cmdInstance(): %s\n',cmdremote);
       %cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
       cmdfull = obj.wrapCommandSSH(cmdremote) ;      
-      [tfsucc,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
+      [st,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
+      tfsucc = (st==0) ;
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -1014,12 +1027,12 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function [tfsucc,res,warningstr] = syscmd(cmd,varargin)      
+    function [st,res,warningstr] = syscmd(cmd,varargin)      
       setenvcmd = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER= ' ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
-      [tfsucc,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
+      [st,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
         % We pass in our setenvcmd first so that it can be overidden by one passed in
         % in varargin
     end  % function    
