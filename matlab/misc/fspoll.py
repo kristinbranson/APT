@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # FutureWarnings from import corrupting fspoll output/parse
 # alternatively, could eg prefix each 'real' output line with

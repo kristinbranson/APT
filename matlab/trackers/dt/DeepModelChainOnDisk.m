@@ -1358,6 +1358,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % backend.  -- ALT, 2024-06-25
       localProjectPath = fullfile(obj.rootDir, obj.projID) ;
       remoteProjectPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, obj.projID) ;  % ensure linux-style path
+      [didsucceed, msg] = backend.mkdir(remoteProjectPath) ;
+      if ~didsucceed ,
+        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
+      end
       backend.rsyncUpload(localProjectPath, remoteProjectPath) ;
 
 %       localDisFromPathIndex = enumerate_all_files_and_folders(localProjectPath) ; % nx1 "dis" struct array, same fields as result of dir()
