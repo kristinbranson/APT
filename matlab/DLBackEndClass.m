@@ -714,12 +714,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end
 
-    function jobid = parseJobIdAws(res)
+    function jobID = parseJobIdAws(res)
       %fprintf('res: %s', res) ;
-      jobid = str2double(strtrim(res)) ;
-      if isnan(jobid) 
-        warning('Could not parse job id from:\n%s\n',res);
-      end
+      jobID = parseJobIDDocker(res) ;
+%       jobid = str2double(strtrim(res)) ;
+%       if isnan(jobid) 
+%         warning('Could not parse job id from:\n%s\n',res);
+%       end
     end
 
     function jobID = parseJobIDDocker(res)
