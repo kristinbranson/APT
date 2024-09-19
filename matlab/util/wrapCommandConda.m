@@ -15,7 +15,7 @@ end
 conda_exectuable_path = find_conda_executable() ;
 
 % Augment the command with a specification of the GPU id, if called for
-if isnan(gpuid),
+if isempty(gpuid) || isnan(gpuid) ,
   partial_command = cmd ;
 else
   partial_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID && export CUDA_VISIBLE_DEVICES=%d && %s', gpuid, cmd) ;
