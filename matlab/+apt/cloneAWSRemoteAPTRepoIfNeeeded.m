@@ -8,8 +8,8 @@ function cloneAWSRemoteAPTRepoIfNeeeded(remote_apt_root)
   
   command_line_1 = wrapCommandSSH(command_line_1,'host',DLBackEndClass.jrchost);
   
-  [~,res] = DeepTracker.syscmd(command_line_1,...
-                               'failbehavior','err');
+  [~,res] = apt.syscmd(command_line_1,...
+                       'failbehavior','err');
   res = strtrim(res);
   
   % clone it if nec
@@ -19,8 +19,7 @@ function cloneAWSRemoteAPTRepoIfNeeeded(remote_apt_root)
     case 'n'
       cloneaptcmd = sprintf('git clone %s %s',DLBackEndClass.jrcprodrepo,remote_apt_root);
       cloneaptcmd = wrapCommandSSH(cloneaptcmd,'host',DLBackEndClass.jrchost);
-      DeepTracker.syscmd(cloneaptcmd,...
-                         'failbehavior','err');
+      apt.syscmd(cloneaptcmd,'failbehavior','err');
       fprintf('Cloned JRC/APT repo into %s.\n',remote_apt_root);
     otherwise
       error('Failed to update APT repo on JRC filesystem.');

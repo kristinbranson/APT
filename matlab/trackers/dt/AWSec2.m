@@ -1028,12 +1028,12 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [st,res,warningstr] = syscmd(cmd,varargin)      
-      setenvcmd = 'sleep 5 ; LD_LIBRARY_PATH= AWS_PAGER= ' ;
+      precommand = 'sleep 5 && export LD_LIBRARY_PATH= && export AWS_PAGER=' ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
-      [st,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
-        % We pass in our setenvcmd first so that it can be overidden by one passed in
+      [st,res,warningstr] = apt.syscmd(cmd, 'precommand', precommand, varargin{:}) ;
+        % We pass in our precommand first so that it can be overidden by one passed in
         % in varargin
     end  % function    
   end  % Static methods block

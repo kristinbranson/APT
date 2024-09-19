@@ -216,8 +216,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % numeric return code and a string containing any command output.
       % Note that any file names in the basecmd must refer to the filenames on the
       % *backend* filesystem.
-      failbehavior = myparse(varargin, 'failbehavior', 'silent') ;  % want different default than apt.syscmd() provides 
-      leftover_args = remove_pair_from_key_value_list_if_present(varargin, 'failbehavior') ;
+      %failbehavior = myparse(varargin, 'failbehavior', 'silent') ;  % want different default than apt.syscmd() provides 
+      %leftover_args = remove_pair_from_key_value_list_if_present(varargin, 'failbehavior') ;
       switch obj.type,
         case DLBackEnd.AWS
           command = wrapFilesystemCommandForAWSBackend(basecmd, obj) ;
@@ -233,17 +233,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         otherwise
           error('Not implemented: %s',obj.type);
       end
-      [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', failbehavior, leftover_args{:}) ;
+      [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
+        % Things passed in with varargin should overide things we set here
     end  % function
 
     function jobID = parseJobID(obj, res)
       switch obj.type
-        case DLBackEnd.Bsub,
-          jobID = DLBackEndClass.parseJobIDBsub(res);
-        case DLBackEnd.Docker,
-          jobID = DLBackEndClass.parseJobIDDocker(res);
         case DLBackEnd.AWS,
           jobID = DLBackEndClass.parseJobIdAws(res) ;
+        case DLBackEnd.Bsub,
+          jobID = DLBackEndClass.parseJobIDBsub(res);
+        case DLBackEnd.Conda,
+          jobID = DLBackEndClass.parseJobIDConda(res);
+        case DLBackEnd.Docker,
+          jobID = DLBackEndClass.parseJobIDDocker(res);
         otherwise
           error('Not implemented: %s',obj.type);
       end
@@ -322,64 +325,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
                             fullFileDescription, ...
                             'destRelative',false) ;  % throws      
     end
-
-    function [tfSucc, jobID] = spawn(obj, syscmds, varargin)
-      [logcmds, cmdfiles, jobdesc, do_call_apt_interface_dot_py] = myparse( ...
-        varargin, ...
-        'logcmds', {}, ...
-        'cmdfiles', {}, ...
-        'jobdesc', 'job', ...
-        'do_call_apt_interface_dot_py', true) ;
-      if ~isempty(cmdfiles),
-        obj.writeCmdToFile(syscmds,cmdfiles,jobdesc);
-      end
-      njobs = numel(syscmds);
-      tfSucc = false(1,njobs);
-      tfSuccLog = true(1,njobs);
-      jobID = cell(1,njobs);
-      for ijob=1:njobs,
-        syscmd = syscmds{ijob} ;
-        fprintf(1,'%s\n',syscmd);
-        if do_call_apt_interface_dot_py ,
-          if obj.type == DLBackEnd.Conda,
-            [jobID{ijob},st,res] = parfevalsystem(syscmd);
-            tfSucc(ijob) = st == 0;
-          else
-            [st,res] = apt.syscmd(syscmd);
-            tfSucc(ijob) = (st == 0) ;
-            if tfSucc(ijob),
-              jobID{ijob} = obj.parseJobID(res);
-            end
-          end
-        else
-          % Pretend it's a failure, for expediency.
-          tfSucc(ijob) = false ;
-          res = 'do_call_apt_interface_dot_py is false' ;
-        end
-        if ~tfSucc(ijob),
-          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
-        else
-          jobid = jobID{ijob};
-          if isnumeric(jobid),
-            jobidstr = num2str(jobid);
-          elseif isa(jobid, 'parallel.FevalFuture') ,
-            jobidstr = num2str(jobid.ID) ;
-          else
-            % hopefully the jobid is a string
-            jobidstr = jobid ;
-          end
-          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
-        end
-        if numel(logcmds) >= ijob,
-          fprintf(1,'%s\n',logcmds{ijob});
-          [st2,res2] = apt.syscmd(logcmds{ijob});
-          tfSuccLog(ijob) = (st2 == 0) ;
-          if ~tfSuccLog(ijob),
-            warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
-          end
-        end
-      end
-    end  % spawn() method
 
     function delete(obj)  %#ok<INUSD> 
       % AL 20191218
@@ -620,7 +565,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;
           basecmd = sprintf('echo START && python %s && echo END', scriptpath);
           codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
-          [st,res] = apt.syscmd(codestr);
+          [st,res] = apt.syscmd(codestr) ;  % wrapCommandConda 
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
             return
@@ -789,6 +734,25 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         disp(getReport(ME));
         jobID = '';
       end
+    end
+
+    function jobid = parseJobIDConda(res)
+      % We look for the first line of res that is an integer. If we can't find such
+      % a line, we throw a warning and return nan.
+
+      %fprintf('res: %s', res) ;      
+      line_from_line_index = break_string_into_lines(res) ;
+      line_count = numel(line_from_line_index) ;
+      for line_index = 1 : line_count ,
+        line = line_from_line_index{line_index} ;         
+        jobid = str2double(strtrim(line)) ;
+        if isfinite(jobid) && round(jobid)==jobid ,
+          return
+        end
+      end
+      % If get here, we have failed to read a job id
+      warning('Could not parse job id from:\n%s\n',res);
+      jobid = nan ;
     end
 
     function [hfig,hedit] = createFigTestConfig(figname)
@@ -1161,7 +1125,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         end
       end
       
-      if ispc,
+      if ispc(),
         hedit.String{end+1} = sprintf('\n** Testing that certUtil is installed...\n'); drawnow;
         cmd = 'where certUtil';
         hedit.String{end+1} = cmd; drawnow;
@@ -1586,15 +1550,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         syscmd = syscmds{ijob} ;
         fprintf(1,'%s\n',syscmd);
         if do_call_apt_interface_dot_py ,
-          if obj.type == DLBackEnd.Conda,
-            [jobID{ijob},st,res] = parfevalsystem(syscmd);
-            tfSucc(ijob) = st == 0;
-          else
-            [st,res] = system(syscmd);
-            tfSucc(ijob) = (st == 0) ;
-            if tfSucc(ijob),
-              jobID{ijob} = obj.parseJobID(res);
-            end
+%           if obj.type == DLBackEnd.Conda,
+%             [jobID{ijob},st,res] = parfevalsystem(syscmd);
+%             tfSucc(ijob) = st == 0;
+%           else
+          [st,res] = apt.syscmd(syscmd, 'failbehavior', 'silent');
+          tfSucc(ijob) = (st == 0) ;
+          if tfSucc(ijob),
+            jobID{ijob} = obj.parseJobID(res);
           end
         else
           % Pretend it's a failure, for expediency.
@@ -1619,7 +1582,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           logcmd = logcmds{ijob} ;
           if ~isempty(logcmd) ,
             fprintf(1,'%s\n',logcmd);
-            [st2,res2] = apt.syscmd(logcmd);
+            [st2,res2] = apt.syscmd(logcmd, 'failbehavior', 'silent');
             tfSuccLog(ijob) = (st2==0) ;
             if ~tfSuccLog(ijob),
               warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);

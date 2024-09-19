@@ -6,22 +6,22 @@ function [st,res,warningstr] = syscmd(cmd0, varargin)
 % response.
 
 % Process keyword args
-[failbehavior,isjsonout,setenvcmd,usewslonwindows,verbose] = ...
+[failbehavior,isjsonout,precommand,usewslonwindows,verbose] = ...
   myparse(varargin,...
           'failbehavior','warn',... % one of 'err','warn','silent'
           'isjsonout',false,...
-          'setenvcmd','LD_LIBRARY_PATH=',...
+          'precommand','export LD_LIBRARY_PATH=',...
           'usewslonwindows',false,...
           'verbose',true);
-  % Default setenvcmd is to prevent Matlab's very matlab-specific
+  % Default precommand is to prevent Matlab's very matlab-specific
   % LD_LIBRARY_PATH from messing up normal commands.
   % See prepend_stuff_to_clear_matlab_environment() if we need this to be 
   % fancier at some point.    
 
 % Prepend the LD_LIBRARY_PATH bit if on Linux or WSL  
-dosetenv = isunix() || usewslonwindows ;
-if dosetenv && ~isempty(setenvcmd) ,
-  cmd1 = sprintf('%s %s', setenvcmd, cmd0) ;
+doprecommand = isunix() || usewslonwindows ;
+if doprecommand && ~isempty(precommand) ,
+  cmd1 = sprintf('%s && %s', precommand, cmd0) ;
 else
   cmd1 = cmd0 ;
 end

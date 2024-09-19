@@ -57,14 +57,15 @@ end
 
 
 
-function cmdout = wrapCommandToBeSpawnedForCondaBackend(basecmd, varargin)
+function result = wrapCommandToBeSpawnedForCondaBackend(basecmd, varargin)
   % Take a base command and run it in a sing img
   [condaEnv,logfile,gpuid] = ...
     myparse(varargin,...
             'condaEnv',DLBackEndClass.default_conda_env, ...
             'logfile', '/dev/null', ...
             'gpuid',0);
-  cmdout = wrapCommandConda(basecmd, 'condaEnv', condaEnv, 'logfile', logfile, 'gpuid', gpuid) ;
+  preresult = wrapCommandConda(basecmd, 'condaEnv', condaEnv, 'logfile', logfile, 'gpuid', gpuid) ;
+  result = sprintf('{ %s & } && echo $!', preresult) ;  % echo $! to get the PID
 end
 
 

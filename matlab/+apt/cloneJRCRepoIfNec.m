@@ -8,8 +8,7 @@ function cloneJRCRepoIfNec(cacheRoot)  % throws on fail
   aptrootexistscmd = sprintf('bash -c "[ -d ''%s'' ] && echo ''y'' || echo ''n''"',aptroot);
   aptrootexistscmd = wrapCommandSSH(aptrootexistscmd,'host',DLBackEndClass.jrchost);
   
-  [~,res] = DeepTracker.syscmd(aptrootexistscmd,...
-                               'failbehavior','err');
+  [~,res] = apt.syscmd(aptrootexistscmd,'failbehavior','err');
   res = strtrim(res);
   
   % clone it if nec
@@ -19,8 +18,8 @@ function cloneJRCRepoIfNec(cacheRoot)  % throws on fail
     case 'n'
       cloneaptcmd = sprintf('git clone %s %s',DLBackEndClass.jrcprodrepo,aptroot);
       cloneaptcmd = wrapCommandSSH(cloneaptcmd,'host',DLBackEndClass.jrchost);
-      DeepTracker.syscmd(cloneaptcmd,...
-                         'failbehavior','err');
+      apt.syscmd(cloneaptcmd,...
+                 'failbehavior','err');
       fprintf('Cloned JRC/APT repo into %s.\n',aptroot);
     otherwise
       error('Failed to update APT repo on JRC filesystem.');

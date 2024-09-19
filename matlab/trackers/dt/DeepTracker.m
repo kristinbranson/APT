@@ -3467,7 +3467,7 @@ classdef DeepTracker < LabelTracker
       if ismac
         file = strrep(file,' ','\ ');
         shacmd = sprintf('MD5 %s',file);
-        [~,res] = DeepTracker.syscmd(shacmd,'failbehavior','err');
+        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
         res = strtrim(res);
         toks = regexp(res,' ','split');
         sha = toks{end};        
@@ -3475,13 +3475,13 @@ classdef DeepTracker < LabelTracker
       elseif isunix
         file = strrep(file,' ','\ ');
         shacmd = sprintf('md5sum %s',file);
-        [~,res] = DeepTracker.syscmd(shacmd,'failbehavior','err');
+        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
         toks = regexp(res,' ','split');
         sha = toks{1};        
         sha = regexprep(sha,' ','');
       else
         shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = DeepTracker.syscmd(shacmd,'failbehavior','err');
+        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
         toks = regexp(res,'\n','split');
         sha = toks{2};
         sha = regexprep(sha,' ','');
@@ -3964,13 +3964,6 @@ classdef DeepTracker < LabelTracker
   end  % methods
 
   methods (Static) % train/track codegen
-    function [st,res,warningstr] = syscmd(cmd,varargin)      
-      setenvcmd = 'LD_LIBRARY_PATH=:' ;
-      [st,res,warningstr] = apt.syscmd(cmd, 'setenvcmd', setenvcmd, varargin{:}) ;
-        % We pass in our setenvcmd first so that it can be overidden by one passed in
-        % in varargin
-    end  % function        
-    
     function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
@@ -3997,8 +3990,7 @@ classdef DeepTracker < LabelTracker
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-      [~,res] = DeepTracker.syscmd(cmd,...
-        'failbehavior','err');
+      apt.syscmd(cmd,'failbehavior','err');
     end      
 
     function cmd = cpPTWfromJRCProdLnx(aptrootLnx)
