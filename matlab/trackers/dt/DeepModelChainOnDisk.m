@@ -1190,13 +1190,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       if obj.isRemote_ ,
         % maxiter is nan if something bad happened or if DNE
         % TODO allow polling for multiple models at once
-        aws = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
+        ec2 = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
         [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
         fspollargs = {};
         for i = 1:numel(idx),
           fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
         end
-        [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
+        [tfsucc,res] = ec2.remoteCallFSPoll(fspollargs);
         if tfsucc
           maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
         else

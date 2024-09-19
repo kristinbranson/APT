@@ -850,8 +850,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       assert(mod(nargsFSP,2)==0);
       nresps = nargsFSP/2;
       
-      fspollstr = sprintf('%s ',fspollargs{:});
-      fspollstr = fspollstr(1:end-1);
+      fspollstr = space_out(fspollargs);
       cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollstr);
 
       [tfsucc,res] = obj.cmdInstance(cmdremote);

@@ -1259,23 +1259,44 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end      
     end
     
-    function aptroot = awsUpdateRepo_(obj)  % throws if fails
-      obj.awsgitbranch = 'dockerized-aws' ;  % TODO: For debugging only, remove eventually
-      obj.cloneAWSRemoteAPTRepoIfNeeeded_(obj.awsgitbranch) ;
-      if isempty(obj.awsgitbranch)
-        args = {};
-      else
-        args = {'branch' obj.awsgitbranch};
-      end
-      [cmdremote, aptroot] = apt.updateAPTRepoCmd('downloadpretrained',true,args{:});
+    function aptroot = awsUpdateRepo_(obj)  % throws if fails      
+      % What branch do we want?
+      branch = 'dockerized-aws' ;  % TODO: For debugging only, set back to develop or main eventually
 
-      ec2 = obj.awsec2;      
-      [tfsucc,res] = ec2.cmdInstance(cmdremote);
-      if tfsucc
-        fprintf('Updated remote APT repo.\n\n');
-      else
-        error('Failed to update remote APT repo:\n%s', res);
+      % Clone the git repo if needed
+      obj.cloneAWSRemoteAPTRepoIfNeeeded_(branch) ;
+
+      % Determine the remote APT source root, and quote it for bash
+      aptroot = obj.getAPTRoot() ;
+      quoted_aptroot = escape_string_for_bash(aptroot) ;
+
+      % Checkout the correct branch
+      command_line_1 = sprintf('git -C %s checkout %s', quoted_aptroot, branch) ;
+      [st_1,res_1] = obj.runFilesystemCommand(command_line_1) ;
+      if st_1 ~= 0 ,
+        error('Failed to update remote APT repo:\n%s', res_1);
       end
+
+      % Do a git pull
+      command_line_2 = sprintf('git -C %s pull', quoted_aptroot) ;
+      [st_2,res_2] = obj.runFilesystemCommand(command_line_2) ;
+      if st_2 ~= 0 ,
+        error('Failed to update remote APT repo:\n%s', res_2);
+      end
+      
+      % Run the remote Python script to download the pretrained model weights
+      % This python script doesn't do anything fancy, apparently, so we use the
+      % python interpreter provided by the plain EC2 instance, not the one inside
+      % the Docker container on the instance.
+      download_script_path = linux_fullfile(aptroot, 'deepnet', 'download_pretrained.py') ;
+      quoted_download_script_path = escape_string_for_bash(download_script_path) ;      
+      [st_3,res_3] = obj.runFilesystemCommand(quoted_download_script_path) ;
+      if st_3 ~= 0 ,
+        error('Failed to update remote APT repo:\n%s', res_3);
+      end
+      
+      % If get here, all is well
+      fprintf('Updated remote APT repo.\n\n');
     end  % function
     
     function cloneAWSRemoteAPTRepoIfNeeeded_(obj, branch_name)
