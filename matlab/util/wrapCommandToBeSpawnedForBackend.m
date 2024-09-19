@@ -26,7 +26,7 @@ function result = wrapCommandToBeSpawnedForAWSBackend(backend, basecmd, varargin
 
   % Wrap for docker
   dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
-  bindpath = {} ;
+  bindpath = {'/home'} ;
   codestr = ...
     wrapCommandDocker(basecmd, ...
                       'dockerimg',dockerimg, ...
@@ -58,9 +58,8 @@ end
 
 
 function result = wrapCommandToBeSpawnedForCondaBackend(backend, basecmd, varargin)
-  % Take a base command and run it in a sing img
-  logfile = myparse(varargin, 'logfile', '/dev/null');
-  preresult = wrapCommandConda(basecmd, 'condaEnv', backend.condaEnv, 'logfile', logfile, 'gpuid', backend.gpuids(1), varargin{:}) ;
+  % Take a base command and run it in a conda env
+  preresult = wrapCommandConda(basecmd, 'condaEnv', backend.condaEnv, 'logfile', '/dev/null', 'gpuid', backend.gpuids(1), varargin{:}) ;
   result = sprintf('{ %s & } && echo $!', preresult) ;  % echo $! to get the PID
 end
 

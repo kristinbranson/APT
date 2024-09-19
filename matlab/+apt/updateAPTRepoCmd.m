@@ -17,7 +17,7 @@ codestr = {
   };
 if downloadpretrained
   % assumes we are on lnx. we cd-ed into deepnet above
-  codestr{end+1,1} = sprintf(DeepTracker.pretrained_download_script_py,'.');
+  codestr{end+1,1} = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
 end
 codestr = cat(2,codestr{:});
 
