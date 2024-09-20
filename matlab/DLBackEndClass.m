@@ -395,6 +395,17 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       end
       % 20211101 turn on by default
       obj.jrcsimplebindpaths = 1;
+      
+      % On load, clear the fields that should be Transient, but can't be b/c
+      % we need them to survive going through parfeval().  (Is this right?  Does the
+      % backend need to go through parfeval?  --ALT, 2024-09-19)
+      obj.didUploadMovies_ = false ;
+      obj.localPathFromMovieIndex_ = cell(1,0) ;
+      obj.remotePathFromMovieIndex_ = cell(1,0) ;
+      obj.syscmds_ = cell(0,1) ;
+      obj.cmdfiles_ = cell(0,1) ;
+      obj.logcmds_ = cell(0,1) ;
+
       % In modern versions, we always have a .awsec2, whether we need it or not
       if isempty(obj.awsec2) ,
         obj.awsec2 = AWSec2() ;
