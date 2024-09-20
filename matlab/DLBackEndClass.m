@@ -716,7 +716,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function jobID = parseJobIdAws(res)
       %fprintf('res: %s', res) ;
-      jobID = parseJobIDDocker(res) ;
+      jobID = DLBackEndClass.parseJobIDDocker(res) ;
 %       jobid = str2double(strtrim(res)) ;
 %       if isnan(jobid) 
 %         warning('Could not parse job id from:\n%s\n',res);
@@ -1502,11 +1502,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % spawnRegisteredJobs().
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
-      % For AWS backend, need to modify the base command to run in background
-      if backend.type == DLBackEnd.AWS ,          
-        basecmd_escaped = escape_string_for_bash(basecmd) ;
-        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-      end
       args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,aptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -1530,11 +1525,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % spawnRegisteredJobs().
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',ignore_local,'aptroot',aptroot,'track_type',track_type);
-      % For AWS backend, need to modify the base command to run in background
-      if backend.type == DLBackEnd.AWS ,    
-        basecmd_escaped = escape_string_for_bash(basecmd) ;
-        basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-      end        
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;

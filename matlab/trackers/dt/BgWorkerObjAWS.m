@@ -86,7 +86,7 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       ec2.killRemoteProcess();
 
       % expect command to fail; fail -> py proc killed
-      %pollCbk = @()~aws.cmdInstance('pgrep -o python','dispcmd',true,'failbehavior','silent');
+      %pollCbk = @()~aws.runFilesystemCommand('pgrep -o python','dispcmd',true,'failbehavior','silent');
       pollCbk = @()ec2.getNoPyProcRunning();
       iterWaitTime = 1;
       maxWaitTime = 20;
@@ -102,7 +102,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       killfile_folder_path = fileparts(killfile) ;
       escaped_killfile_folder_path = escape_string_for_bash(killfile_folder_path) ;
       cmd = sprintf('mkdir -p %s',escaped_killfile_folder_path); 
-      tfsucc = ec2.cmdInstance(cmd);
+      st = ec2.runFilesystemCommand(cmd);
+      tfsucc = (st==0) ;
       if ~tfsucc ,
         warningNoTrace('Failed to create remote KILLED token dir: %s',killfile_folder_path);
         warnings{end+1} = sprintf('Failed to create remote KILLED token dir: %s',killfile_folder_path);          
@@ -111,7 +112,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
 
       escaped_killfile = escape_string_for_bash(killfile) ;
       cmd = sprintf('touch %s',escaped_killfile);
-      tfsucc = ec2.cmdInstance(cmd);
+      st = ec2.runFilesystemCommand(cmd);
+      tfsucc = (st==0) ;
       if ~tfsucc
         warningNoTrace('Failed to create remote KILLED token: %s',killfile);
         warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);

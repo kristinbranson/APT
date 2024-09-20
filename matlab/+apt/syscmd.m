@@ -66,7 +66,7 @@ end
 if st ~= 0 , 
   switch failbehavior
     case 'err'
-      error('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
+      error('APT:syscmd','\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
     case 'warn'
       warningNoTrace('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
     case 'silent'

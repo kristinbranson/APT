@@ -294,7 +294,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       %obj.ClearStatus();
     end
     
-    function [tfsucc] = waitForInstanceStart(obj)
+    function tfsucc = waitForInstanceStart(obj)
       
       maxwaittime = 100;
       iterwaittime = 5;
@@ -314,7 +314,8 @@ classdef AWSec2 < matlab.mixin.Copyable
             starttime = tic;
             nAttempts = 0;
             while true,
-              [tfsucc,res] = obj.cmdInstance('cat /dev/null');
+              [st,res] = obj.runFilesystemCommand('cat /dev/null');
+              tfsucc = (st==0) ;
               if tfsucc,
                 nAttempts = nAttempts + 1;
                 fprintf('Attempt %d to connect to AWS EC2 instance succeeded!\n',nAttempts);
@@ -513,7 +514,8 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function tfsucc = getRemotePythonPID(obj)
-      [tfsucc,res] = obj.cmdInstance('pgrep --uid ubuntu --oldest python');
+      [st,res] = obj.runFilesystemCommand('pgrep --uid ubuntu --oldest python');
+      tfsucc = (st==0) ;
       if tfsucc
         pid = str2double(strtrim(res));
         obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
@@ -526,9 +528,10 @@ classdef AWSec2 < matlab.mixin.Copyable
     function tfnopyproc = getNoPyProcRunning(obj)
       % Return true if there appears to be no python process running on
       % instance
-      [tfsucc,res] = obj.cmdInstance('pgrep --uid ubuntu --oldest python',...
-                                     'failbehavior','silent');
-      
+      [st,res] = obj.runFilesystemCommand('pgrep --uid ubuntu --oldest python',...
+                                          'failbehavior','silent');
+      tfsucc = (st==0) ;
+        
       % AL 20200213 First clause here is legacy: "expect command to fail; 
       % fail -> py proc killed". Running today on win10, the cmd always
       % succeeds whether a py proc is present or not. In latter case,
@@ -676,7 +679,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         cmd = sprintf('rm -f "%s"',dstAbs);
       end
       %obj.SetStatus(sprintf('Deleting %s file(s) (if they exist) from AWS EC2 instance',fileDescStr));
-      [tfsucc,res] = obj.cmdInstance(cmd,'failbehavior','err'); %#ok<ASGLU>
+      obj.runFilesystemCommand(cmd,'failbehavior','err');
       %obj.ClearStatus();
     end
     
@@ -698,36 +701,43 @@ classdef AWSec2 < matlab.mixin.Copyable
         cmdremote = sprintf('%s %s',script,f);
       end
       %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
-      [~,res] = obj.cmdInstance(cmdremote,'failbehavior','err'); 
+      [~,res] = obj.runFilesystemCommand(cmdremote,'failbehavior','err'); 
       %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
       tf = (res(1)=='y');      
     end
     
     function s = remoteFileContents(obj,f,varargin)
-      failbehavior = myparse(varargin,'failbehavior','warn');
-      
-      cmdremote = sprintf('cat %s',f);
-      [tfsucc,res] = obj.cmdInstance(cmdremote, ...
-                                     'failbehavior',failbehavior); 
-      if tfsucc  
-        s = res;
+      % First check if the file exists
+      cmdremote = sprintf('[[ -e %s ]]',f);
+      [st,res] = obj.runFilesystemCommand(cmdremote, varargin{:}) ;
+      if st~=0 ,
+        if isempty(strtrim(res)) ,
+          s = '<File does not exist>' ;
+        else
+          s = sprintf('<Unable to determine if file exists: %s>', res) ;
+        end
       else
-        % warning thrown etc per failbehavior
-        s = '';
+        % File exists, at least
+        cmdremote = sprintf('cat %s',f);
+        [st,res] = obj.runFilesystemCommand(cmdremote, varargin{:}) ;
+        if st==0
+          s = res;
+        else
+          % warning thrown etc per failbehavior
+          s = sprintf('<Unable to read file: %s>', res) ;
+        end
       end
-    end
+    end  % function
     
     function result = remoteFileModTime(obj, filename, varargin)
       % Returns the file modification time (mtime) in seconds since Epoch
-      [failbehavior] = ...
-        myparse(varargin, ...
-                'failbehavior', 'warn') ;
       command = sprintf('stat --format=%%Y %s', escape_string_for_bash(filename)) ;  % time of last data modification, seconds since Epoch
-      [did_succeed, stdouterr] = obj.cmdInstance(command, 'failbehavior', failbehavior) ; 
+      [st, stdouterr] = obj.runFilesystemCommand(command, varargin{:}) ; 
+      did_succeed = (st==0) ;
       if did_succeed ,
         result = str2double(stdouterr) ;
       else
-        % Warning/error happens inside obj.cmdInstance(), so just set a fallback value
+        % Warning/error happens inside obj.runFilesystemCommand(), so just set a fallback value
         result = nan ;
       end
     end
@@ -739,8 +749,8 @@ classdef AWSec2 < matlab.mixin.Copyable
         );
       
       cmdremote = sprintf('ls %s %s',args,remoteDir);
-      [tfsucc,res] = obj.cmdInstance(cmdremote,'failbehavior',failbehavior);
-      
+      [st,res] = obj.runFilesystemCommand(cmdremote,'failbehavior',failbehavior);
+      tfsucc = (st==0) ;
       disp(res);
       % warning thrown etc per failbehavior
     end
@@ -765,7 +775,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       %obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
       cmdremote = sprintf('mkdir -p %s',remoteDirFull);
-      [tfsucc,res] = obj.cmdInstance(cmdremote);
+      [st,res] = obj.runFilesystemCommand(cmdremote);
+      tfsucc = (st==0) ;
       %obj.ClearStatus();
       if tfsucc
         fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
@@ -783,7 +794,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       lscmd = cellfun(@(x)sprintf('ls %s 2> /dev/null;',x),globs,'uni',0);
       lscmd = cat(2,lscmd{:});
-      [tfsucc,res] = obj.cmdInstance(lscmd);
+      [st,res] = obj.runFilesystemCommand(lscmd);
+      tfsucc = (st==0) ;      
       if tfsucc
         remotePaths = regexp(res,'\n','split');
         remotePaths = remotePaths(:);
@@ -803,13 +815,15 @@ classdef AWSec2 < matlab.mixin.Copyable
                                'identity', obj.pem) ;
     end
 
-    function [tfsucc,res,cmdfull] = cmdInstance(obj,cmdremote,varargin)      
+    function [st,res] = runFilesystemCommand(obj,cmdremote,varargin)      
       % Runs a single command-line command on the ec2 instance.
-      %fprintf('AWSec2::cmdInstance(): %s\n',cmdremote);
-      %cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
-      cmdfull = obj.wrapCommandSSH(cmdremote) ;      
-      [st,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
-      tfsucc = (st==0) ;
+      % It would be nice to get rid of this command, replace it's uses with uses of
+      % DLBackEndClass:runFilesystemCommand().  But that's a lift.  
+      % -- ALT, 2024-09-29
+      command = wrapFilesystemCommandForAWSBackend(cmdremote, obj) ;        
+      [st, res] = apt.syscmd(command, varargin{:}) ;      
+%       cmdfull = obj.wrapCommandSSH(cmdremote) ;      
+%       [st,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -832,8 +846,8 @@ classdef AWSec2 < matlab.mixin.Copyable
 %       
 %       cmdremote = sprintf('kill %d',obj.remotePID);
       cmdremote = 'pkill --uid ubuntu --full python';
-      [tfsucc,~] = obj.cmdInstance(cmdremote);
-      if tfsucc
+      [st,~] = obj.runFilesystemCommand(cmdremote);
+      if st==0 ,
         fprintf('Kill command sent.\n\n');
       else
         error('Kill command failed.');
@@ -853,7 +867,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       fspollstr = space_out(fspollargs);
       cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollstr);
 
-      [tfsucc,res] = obj.cmdInstance(cmdremote);
+      [st,res] = obj.runFilesystemCommand(cmdremote);
+      tfsucc = (st==0) ;
       if tfsucc
         res = regexp(res,'\n','split');
         tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
