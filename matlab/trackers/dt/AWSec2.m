@@ -938,8 +938,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         dest = linux_fullfile('~',dest);
       end
       parentdir = fileparts(dest);
-      cmdremote = sprintf('[ ! -d %s ] && mkdir -p %s',parentdir,parentdir);
-      %cmd = AWSec2.sshCmdGeneral(sshcmd,pem,ip,cmdremote,'usedoublequotes',true);      
+      cmdremote = sprintf('mkdir -p %s',parentdir);
       cmd = wrapCommandSSH(cmdremote, ...
                            'host', ip, ...
                            'timeout',8, ...
