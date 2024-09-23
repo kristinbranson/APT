@@ -45,10 +45,10 @@ end
 tfsucc = false;
 % In this conditional we assume the apiver numbering scheme continues
 % like '1.39', '1.40', ... 
-if ~(str2double(clientapiver)>=str2double(backend.dockerapiver))          
+if ~(str2double(clientapiver)>=str2double(apt.docker_api_version()))          
   hedit.String{end+1} = ...
     sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
-      clientapiver,backend.dockerapiver);
+      clientapiver,apt.docker_api_version());
   drawnow;
   return;
 end        

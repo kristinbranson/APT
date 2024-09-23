@@ -20,7 +20,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
 
-    default_docker_api_version = '1.40'
+    %default_docker_api_version = '1.40'
   end
 
   properties
@@ -42,7 +42,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Likely used only for debugging?  -- ALT, 2024-03-07
     
     % Used only for type==Docker  
-    dockerapiver = DLBackEndClass.default_docker_api_version  % docker codegen will occur against this docker api ver
+    %dockerapiver = DLBackEndClass.default_docker_api_version  % docker codegen will occur against this docker api ver
     dockerimgroot = DLBackEndClass.defaultDockerImgRoot
       % We have an instance prop for this to support running on older/custom
       % docker images.
@@ -642,7 +642,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   
   methods % Docker
     function s = dockercmd(obj)
-      s = dockercmd_from_apiver(obj.dockerapiver) ;
+      s = dockercmd_from_apiver(apt.docker_api_version()) ;
     end
 
     % KB 20191219: moved this to not be a static function so that we could
