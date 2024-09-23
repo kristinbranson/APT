@@ -1,7 +1,7 @@
 function cmd = generateLogCommandForDockerBackend(backend, containerName, native_log_file_name)
 
 assert(backend.type == DLBackEnd.Docker);
-dockercmd = backend.dockercmd();
+dockercmd = apt.dockercmd();
 log_file_name = linux_path(native_log_file_name) ;
 cmd = ...
   sprintf('%s logs -f %s &> %s', ... 

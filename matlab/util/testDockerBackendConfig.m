@@ -10,7 +10,7 @@ drawnow;
 hedit.String{end+1} = ''; drawnow;
 hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
 
-dockercmd = backend.dockercmd();
+dockercmd = apt.dockercmd();
 cmd = sprintf('%s run --rm hello-world',dockercmd);
 
 %       if ~isempty(obj.dockerremotehost),

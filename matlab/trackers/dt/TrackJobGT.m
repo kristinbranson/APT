@@ -152,7 +152,7 @@ classdef TrackJobGT < handle
                                      'dockerimg', backend.dockerimgfull, ...
                                      'apiver', apt.docker_api_version());
       logcmd = sprintf('%s logs -f %s &> "%s" &',...
-                       backend.dockercmd,containerName,logfile); 
+                       apt.dockercmd(),containerName,logfile); 
       %backend.dockercontainername = containerName;
     end
     

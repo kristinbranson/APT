@@ -641,10 +641,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods
   
   methods % Docker
-    function s = dockercmd(obj)
-      s = dockercmd_from_apiver(apt.docker_api_version()) ;
-    end
-
     % KB 20191219: moved this to not be a static function so that we could
     % use this object's dockerremotehost
     function [tfsucc,clientver,clientapiver] = getDockerVers(obj)
@@ -654,7 +650,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientver: if tfsucc, char containing client version; indeterminate otherwise
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
-      dockercmd = obj.dockercmd();      
+      dockercmd = apt.dockercmd();      
       fmtspec = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format "%s"',dockercmd,fmtspec);
       
