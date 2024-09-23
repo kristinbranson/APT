@@ -75,5 +75,10 @@ function codestr = wrapCommandToBeSpawnedForDockerBackend(backend, basecmd, vara
                       'gpuid',backend.gpuids(1),...
                       'apiver',apt.docker_api_version(), ...
                       varargin{:}) ;  % key-value pairs in varagin will override ones specified here
+
+  % Wrap for ssh'ing into a remote docker host, if needed
+  if ~isempty(backend.dockerremotehost),
+    codestr = wrapCommandSSH(codestr,'host',backend.dockerremotehost);
+  end
 end  % function 
     

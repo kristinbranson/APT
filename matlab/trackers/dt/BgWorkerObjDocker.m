@@ -28,6 +28,14 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       obj.jobID{imov,iview} = containerID;
     end
     
+    function s = dockercmd(obj)
+      if isempty(obj.dockerremotehost),
+        s = 'docker';
+      else
+        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+      end
+    end
+    
     function killJob(obj,jID)
       % jID: scalar jobID
 

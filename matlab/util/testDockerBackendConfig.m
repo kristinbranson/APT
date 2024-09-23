@@ -13,16 +13,14 @@ hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
 dockercmd = apt.dockercmd();
 cmd = sprintf('%s run --rm hello-world',dockercmd);
 
-%       if ~isempty(obj.dockerremotehost),
-%         cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
-%       end
-
-%       cmd = wrap_linux_command_line_for_wsl_if_windows(cmd) ;
+if ~isempty(obj.dockerremotehost),
+  cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+end
 
 fprintf(1,'%s\n',cmd);
 hedit.String{end+1} = cmd; 
 drawnow;
-[st,res] = apt.syscmd(cmd);
+[st,res] = apt.syscmd(cmd) ;
 reslines = splitlines(res);
 reslinesdisp = reslines(1:min(4,end));
 hedit.String = [hedit.String; reslinesdisp(:)];

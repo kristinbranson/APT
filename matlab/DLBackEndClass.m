@@ -203,8 +203,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % numeric return code and a string containing any command output.
       % Note that any file names in the basecmd must refer to the filenames on the
       % *backend* filesystem.
-      %failbehavior = myparse(varargin, 'failbehavior', 'silent') ;  % want different default than apt.syscmd() provides 
-      %leftover_args = remove_pair_from_key_value_list_if_present(varargin, 'failbehavior') ;
       switch obj.type,
         case DLBackEnd.AWS
           command = wrapFilesystemCommandForAWSBackend(basecmd, obj) ;
@@ -215,7 +213,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         case DLBackEnd.Conda
           command = basecmd ;
         case DLBackEnd.Docker
-          % Don't support remote docker host anymore.
+          % If docker host is remote, we assume all files we need to access are on the
+          % same path on the remote host.
           command = basecmd ;
         otherwise
           error('Not implemented: %s',obj.type);
@@ -461,10 +460,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
 
     function v = isGpuLocal(obj)
-      % Docker and Conda backends use a local GPU, Bsub (i.e. Janelia LSF) and AWS
-      % do not.  Basically this refers to whether the Python training/tracking code
-      % will run on the same machine as the Matlab frontend.
-      v = isequal(obj.type, DLBackEnd.Docker) || isequal(obj.type,DLBackEnd.Conda) ;
+      % Whether the Python training/tracking code will run on a GPU in the same
+      % machine as the Matlab frontend.  This is true for the Conda backend, false
+      % for the Bsub (i.e. Janelia LSF) backend and the AWS backend.  This is true
+      % for the Docker backend, unless a Docker remote host has been specified, in
+      % which case it is false.
+      is_docker_and_local = isequal(obj.type, DLBackEnd.Docker) && isempty(obj.dockerremotehost) ;
+      v = is_docker_and_local || isequal(obj.type,DLBackEnd.Conda) ;
     end
     
     function v = isGpuRemote(obj)
@@ -653,6 +655,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       dockercmd = apt.dockercmd();      
       fmtspec = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
       cmd = sprintf('%s version --format "%s"',dockercmd,fmtspec);
+      if ~isempty(obj.dockerremotehost),
+        cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+      end
       
       tfsucc = false;
       clientver = '';

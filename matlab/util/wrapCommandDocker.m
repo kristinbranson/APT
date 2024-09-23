@@ -22,7 +22,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   end
   
   % Get path to the deepnet/ subdirectory in the APT source tree
-  aptdeepnet = APT.getpathdl ;  % this is a native path
+  aptdeepnet = APT.getpathdl() ;  % this is a native, local path
   deepnetrootContainer = linux_path(aptdeepnet) ;
 
   % Set the paths to make visible in the container

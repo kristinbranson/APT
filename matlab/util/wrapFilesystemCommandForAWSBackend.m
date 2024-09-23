@@ -1,7 +1,7 @@
 function result = wrapFilesystemCommandForAWSBackend(basecmd, backend_or_awsec2)
   % Wrap a filesystem command for AWS, returns Linux/WSL-style command string.
 
-  % Sort oout the backend/ec2 nonsense
+  % Sort out the backend/ec2 nonsense
   if isa(backend_or_awsec2, 'DLBackEndClass') ,
     backend = backend_or_awsec2 ;
     ec2 = backend.awsec2 ;
