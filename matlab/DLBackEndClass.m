@@ -196,13 +196,21 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end  % methods block
  
   methods
-    function [return_code, stdouterr] = runFilesystemCommand(obj, basecmd, varargin)
+    function [return_code, stdouterr] = runBatchCommandOutsideContainer(obj, basecmd, varargin)
       % Run the basecmd using apt.syscmd(), after wrapping suitably for the type of
-      % backend.  Unlike spawn(), this blocks, and doesn't return a process
-      % identifier of any kind.  Return values are like those from system(): a
-      % numeric return code and a string containing any command output.
-      % Note that any file names in the basecmd must refer to the filenames on the
-      % *backend* filesystem.
+      % backend.  But as the name implies, commands are run outside the backend
+      % container/environment.  For the AWS backend, this means commands are run
+      % outside the Docker environment.  For the Bsub backend, commands are run
+      % outside the Apptainer containter.  For the Conda backend, commands are run
+      % outside the conda environment (i.e. they are simply run).  For the Docker
+      % backend, commands are run outside the Docker container (for local Docker,
+      % this means they are simply run; for remote Docker, this means they are run
+      % via ssh, but outside the Docker container).  This function blocks, and
+      % doesn't return a process identifier of any kind.  Return values are like
+      % those from system(): a numeric return code and a string containing any
+      % command output. Note that any file names in the basecmd must refer to the
+      % filenames on the *backend* filesystem (and within WSL if running on
+      % Windows).
       switch obj.type,
         case DLBackEnd.AWS
           command = wrapFilesystemCommandForAWSBackend(basecmd, obj) ;
@@ -721,14 +729,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
       % Checkout the correct branch
       command_line_1 = sprintf('git -C %s checkout %s', quoted_aptroot, branch) ;
-      [st_1,res_1] = obj.runFilesystemCommand(command_line_1) ;
+      [st_1,res_1] = obj.runBatchCommandOutsideContainer(command_line_1) ;
       if st_1 ~= 0 ,
         error('Failed to update remote APT repo:\n%s', res_1);
       end
 
       % Do a git pull
       command_line_2 = sprintf('git -C %s pull', quoted_aptroot) ;
-      [st_2,res_2] = obj.runFilesystemCommand(command_line_2) ;
+      [st_2,res_2] = obj.runBatchCommandOutsideContainer(command_line_2) ;
       if st_2 ~= 0 ,
         error('Failed to update remote APT repo:\n%s', res_2);
       end
@@ -739,7 +747,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % the Docker container on the instance.
       download_script_path = linux_fullfile(aptroot, 'deepnet', 'download_pretrained.py') ;
       quoted_download_script_path = escape_string_for_bash(download_script_path) ;      
-      [st_3,res_3] = obj.runFilesystemCommand(quoted_download_script_path) ;
+      [st_3,res_3] = obj.runBatchCommandOutsideContainer(quoted_download_script_path) ;
       if st_3 ~= 0 ,
         error('Failed to update remote APT repo:\n%s', res_3);
       end
@@ -761,7 +769,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       else
         apt_github_url = 'https://github.com/kristinbranson/APT' ;
         command_line = sprintf('git clone -b %s %s %s', branch_name, apt_github_url, remote_apt_root);
-        [return_code, stdouterr] = obj.runFilesystemCommand(command_line) ;
+        [return_code, stdouterr] = obj.runBatchCommandOutsideContainer(command_line) ;
         if return_code ~= 0 ,
           error('Unable to clone APT git repo in AWS instance.\nReturn code: %d\nStdout/stderr:\n%s\n', return_code, stdouterr) ;
         end
@@ -776,7 +784,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_dirloc = escape_string_for_bash(dir_name) ;
       base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
-      [status, msg] = obj.runFilesystemCommand(base_command) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -785,7 +793,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % backend type.
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('rm %s', quoted_file_name) ;
-      [status, msg] = obj.runFilesystemCommand(base_command) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -804,7 +812,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       quoted_file_name = escape_string_for_bash(file_name) ;
       base_command = sprintf('test %s %s', option, quoted_file_name) ;
-      [status, msg] = obj.runFilesystemCommand(base_command) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
       doesexist = (status==0) ;
     end
 
@@ -838,7 +846,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         quoted_file_name = escape_string_for_bash(filename) ;
         quoted_str = escape_string_for_bash(str) ;
         base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
-        [status, msg] = obj.runFilesystemCommand(base_command) ;
+        [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
         if status ~= 0 ,
           didSucceed = false ;
           errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);

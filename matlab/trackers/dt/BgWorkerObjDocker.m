@@ -1,14 +1,14 @@
 classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys  
   
   properties
-    dockerremotehost = '';
+    backend
   end
 
   methods
     
     function obj = BgWorkerObjDocker(dmcs,backend,varargin)
       obj@BgWorkerObjLocalFilesys(dmcs,varargin{:});
-      obj.dockerremotehost = backend.dockerremotehost;
+      obj.backend = backend ;
     end
     
     function parseJobID(obj,res,iview,imov)
@@ -28,13 +28,13 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       obj.jobID{imov,iview} = containerID;
     end
     
-    function s = dockercmd(obj)
-      if isempty(obj.dockerremotehost),
-        s = 'docker';
-      else
-        s = sprintf('ssh -t %s docker',obj.dockerremotehost);
-      end
-    end
+%     function s = dockercmd(obj)
+%       if isempty(obj.dockerremotehost),
+%         s = 'docker';
+%       else
+%         s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+%       end
+%     end
     
     function killJob(obj,jID)
       % jID: scalar jobID
@@ -48,20 +48,22 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         return;
       end
       
-      bkillcmd = sprintf('docker kill %s',jID{1});
+      cmd = sprintf('%s kill %s', apt.dockercmd(), jID{1});
         
-      fprintf(1,'%s\n',bkillcmd);
-      [st,res] = system(bkillcmd);
+      fprintf(1,'%s\n',cmd);
+      [st,res] = obj.backend.runBatchCommandOutsideContainer(cmd);  
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
       if st~=0
-        warningNoTrace('Docker kill command failed: %s',res);
+        warningNoTrace('docker kill command failed: %s',res);
       end
     end
     
     function res = queryAllJobsStatus(obj)
       
-      bjobscmd = sprintf('docker container ls');
-      fprintf(1,'%s\n',bjobscmd);
-      [st,res] = system(bjobscmd);
+      cmd = sprintf('%s container ls', apt.dockercmd());
+      fprintf(1,'%s\n',cmd);
+      [st,res] = obj.backend.runBatchCommandOutsideContainer(cmd);
       if st~=0
         warningNoTrace('docker ps command failed: %s',res);
       else
@@ -86,9 +88,9 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         res = 'jID not set';
         return;
       end
-      bjobscmd = sprintf('docker container ls -a -f id=%s',jID);
+      bjobscmd = sprintf('%s container ls -a -f id=%s',apt.dockercmd(),jID);
       fprintf(1,'%s\n',bjobscmd);
-      [st,res] = system(bjobscmd);
+      [st,res] = obj.backend.runBatchCommandOutsideContainer(bjobscmd);
       if st~=0
         warningNoTrace('docker ps command failed: %s',res);
       else
@@ -115,9 +117,9 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         return;
       end
       jIDshort = jID(1:8);
-      pollcmd = sprintf('docker ps -q -f "id=%s"',jIDshort);
+      pollcmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jIDshort);
       
-      [st,res] = system(pollcmd);
+      [st,res] = obj.backend.runBatchCommandOutsideContainer(pollcmd);
       if st==0
         tf = isempty(regexp(res,jIDshort,'once'));
       else
@@ -138,7 +140,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
 %       function tf = lcl
 %         % returns true when jobID is killed
 %         %disp(pollcmd);
-%         [st,res] = system(pollcmd);
+%         [st,res] = obj.backend.runBatchCommandOutsideContainer(pollcmd);
 %         if st==0
 %           tf = isempty(regexp(res,jIDshort,'once'));
 %         else
@@ -163,7 +165,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         touchcmd = sprintf('touch "%s"',killtoken);
       end
       %touchcmd = wrapCommandSSH(touchcmd);
-      [st,res] = system(touchcmd);
+      [st,res] = obj.backend.runBatchCommandOutsideContainer(touchcmd);
       if st~=0
         warningNoTrace('Failed to create KILLED token: %s.\n%s',killtoken,res);
         tfsucc = false;
