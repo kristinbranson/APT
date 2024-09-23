@@ -2539,7 +2539,7 @@ assert(exist(cacheDir,'dir')>0,...
   'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
 
 backend = lObj.trackDLBackEnd;
-backend.testConfigUI(cacheDir);
+testBackendConfigUI(backend, cacheDir);
       
       
 function cbkTrackerBackendAWSSetInstance(src,evt)
@@ -3966,8 +3966,8 @@ function cbkTrackerTrainStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 algName = lObj.tracker.algorithmName;
 %algLabel = lObj.tracker.algorithmNamePretty;
-backend = lObj.trackDLBackEnd.prettyName;
-handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend,datestr(now(),'HH:MM'));
+backend_type_string = lObj.trackDLBackEnd.prettyName();
+handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));
 handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.Visible = 'on';
@@ -3988,8 +3988,8 @@ function cbkTrackerStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 algName = lObj.tracker.algorithmName;
 %algLabel = lObj.tracker.algorithmNamePretty;
-backend = lObj.trackDLBackEnd.prettyName;
-handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+backend_type_string = lObj.trackDLBackEnd.prettyName() ;
+handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend_type_string,datestr(now,'HH:MM'));
 handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.Visible = 'on';

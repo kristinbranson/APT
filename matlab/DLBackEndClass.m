@@ -1,14 +1,8 @@
 classdef DLBackEndClass < matlab.mixin.Copyable
-  % 
   % APT Backends specify a physical machine/server where GPU code is run.
-  %
-  % * DLNetType: what DL net is run
-  % * DLBackEndClass: where/how DL was run
-  %
-  % TODO: Codegen methods should be moved out of DeepTracker and into this class
-  % and use instance state (eg, docker codegen for current tag; bsub for
-  % specified .sif; etc). Conceptually this class would just be "DLBackEnd" and
-  % the enum/type would go away.
+  % This class is intended to abstract away details particular to one backend or
+  % another, so that calling code doesn't need to worry about such grubby
+  % details.
   
   properties (Constant)
     minFreeMem = 9000  % in MiB
@@ -54,6 +48,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % docker images.
     dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
+      % (We no longer support remote docker backends.  --ALT, 2024-09-20)
       % The docker backend can run the docker container on a remote host.
       % dockerremotehost will contain the DNS name of the remote host in this case.
       % But even in this case, as with local docker, we assume that the docker
@@ -76,11 +71,12 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     does_have_special_singularity_detection_image_path_ = '<invalid>'
     singularity_detection_image_path_ = '<invalid>'
 
-    % Used to keep track of whether movies have been uploaded or not
+    % Used to keep track of whether movies have been uploaded or not.
+    % Transient and protected in spirit.
     didUploadMovies_ = false
 
     % When we upload movies, keep track of the correspondence, so we can help the
-    % consumer map between the paths
+    % consumer map between the paths.  Transient, protected in spirit.
     localPathFromMovieIndex_ = cell(1,0) ;
     remotePathFromMovieIndex_ = cell(1,0) ;
 
@@ -93,7 +89,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end
 
   properties (Dependent)
-    filesep
     dockerimgfull % full docker img spec (with tag if specified)
     singularity_image_path
     singularity_detection_image_path
@@ -116,14 +111,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   end
   
   methods % Prop access
-    function v = get.filesep(obj)
-      if obj.type == DLBackEnd.Conda,
-        v = filesep();  %#ok<CPROP> 
-      else
-        v = '/';
-      end
-    end
-
     function set.type(obj, value)
       assert(isa(value, 'DLBackEnd')) ;
       obj.type = value ;      
@@ -237,21 +224,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         % Things passed in with varargin should overide things we set here
     end  % function
 
-    function jobID = parseJobID(obj, res)
-      switch obj.type
-        case DLBackEnd.AWS,
-          jobID = DLBackEndClass.parseJobIdAws(res) ;
-        case DLBackEnd.Bsub,
-          jobID = DLBackEndClass.parseJobIDBsub(res);
-        case DLBackEnd.Conda,
-          jobID = DLBackEndClass.parseJobIDConda(res);
-        case DLBackEnd.Docker,
-          jobID = DLBackEndClass.parseJobIDDocker(res);
-        otherwise
-          error('Not implemented: %s',obj.type);
-      end
-    end  % function
-
     function result = remoteMoviePathFromLocal(obj, localPath)
       % Convert a local movie path to the remote equivalent.
       % For non-AWS backends, this is the identity function.
@@ -352,9 +324,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       assert(isscalar(obj));
       obj2 = copy(obj);
-%       if ~isempty(obj2.awsec2)
-%         obj2.awsec2.clearStatusFuns();
-%       end
     end  % function
   end  % methods
 
@@ -381,18 +350,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           warningNoTrace('Current backend is Conda.  This is only intended for developers.  Be careful.');
         end
       end
-%       if obj.type==DLBackEnd.Docker || obj.type==DLBackEnd.Bsub
-%         defaultDockerFullImageSpec = ...
-%           horzcat(DLBackEndClass.defaultDockerImgRoot, ':', DLBackEndClass.defaultDockerImgTag) ;
-%         fullImageSpec = obj.dockerimgfull ;
-%         if ~strcmp(fullImageSpec, defaultDockerFullImageSpec) ,
-%           message = ...
-%             sprintf('The Docker image spec (%s) differs from the default (%s).', ...
-%                     fullImageSpec, ...
-%                     defaultDockerFullImageSpec) ;
-%           warningNoTrace(message) ;
-%         end
-%       end
+
       % 20211101 turn on by default
       obj.jrcsimplebindpaths = 1;
       
@@ -415,25 +373,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.awsec2.instanceIP = [] ;
       obj.awsec2.remotePID = [] ;
       obj.awsec2.isInDebugMode = false ;
-    end
-    
-    function testConfigUI(obj,cacheDir)
-      % Test whether backend is ready to do; display results in msgbox
-      
-      switch obj.type,
-        case DLBackEnd.Bsub,
-          DLBackEndClass.testBsubConfig(cacheDir);
-        case DLBackEnd.Docker
-          obj.testDockerConfig();
-        case DLBackEnd.AWS
-          obj.testAWSConfig();
-        case DLBackEnd.Conda
-          obj.testCondaConfig();
-        otherwise
-          msgbox(sprintf('Tests for %s have not been implemented',obj.type),...
-                 'Not implemented','modal');
-      end
-    end
+    end  % function
     
     function [tf,reason] = getReadyTrainTrack(obj)
       tf = false;
@@ -441,8 +381,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         didLaunch = false;
         if ~obj.awsec2.isConfigured || ~obj.awsec2.isSpecified,
           [tfsucc,instanceID,~,reason,didLaunch] = ...
-            obj.awsec2.selectInstance(...
-            'canconfigure',1,'canlaunch',1,'forceselect',0);
+            obj.awsec2.selectInstance('canconfigure',1,'canlaunch',1,'forceselect',0);
           if ~tfsucc || isempty(instanceID),
             reason = sprintf('Problem configuring: %s',reason);
             return;
@@ -451,7 +390,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         
         [tfexist,tfrunning] = obj.awsec2.inspectInstance;
         if ~tfexist,
-          uiwait(warndlg(sprintf('AWS EC2 instance %s could not be found or is terminated. Please configure AWS back end with a different AWS EC2 instance.',obj.awsec2.instanceID),'AWS EC2 instance not found'));
+          warning_message = ...
+            sprintf('AWS EC2 instance %s could not be found or is terminated. Please configure AWS back end with a different AWS EC2 instance.',...
+                    obj.awsec2.instanceID);
+          uiwait(warndlg(warning_message,'AWS EC2 instance not found'));
           reason = 'Instance could not be found.';
           obj.awsec2.ResetInstanceID();
           return;
@@ -505,12 +447,16 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     
     function s = prettyName(obj)
       switch obj.type,
+        case DLBackEnd.AWS,
+          s = 'Docker';
         case DLBackEnd.Bsub,
           s = 'JRC Cluster';
+        case DLBackEnd.Conda,
+          s = 'Conda';
         case DLBackEnd.Docker,
-          s = 'Local';
+          s = 'Docker';
         otherwise
-          s = char(obj.type);
+          error('Unknown backend type') ;
       end
     end
 
@@ -531,9 +477,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) || isequal(obj.type,DLBackEnd.Docker) ;
     end
     
-%     function v = isFilesystemRemote(obj)
-%       v = ~obj.isFilesystemLocal(obj) ;
-%     end
+    function v = isFilesystemRemote(obj)
+      v = ~obj.isFilesystemLocal(obj) ;
+    end
     
     function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)
       % Get free gpus subject to minFreeMem constraint (see optional PVs)
@@ -630,12 +576,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       gpuid = gpuInfo.id(order);
       ngpu = find(freemem>=minFreeMem,1,'last'); %#ok<PROPLC>
 
-%       global FORCEONEJOB;
-%       if isequal(FORCEONEJOB,true),
-%         warning('Forcing one GPU job');
-%         ngpu = 1;
-%       end
-      
       freemem = freemem(1:ngpu);
       gpuid = gpuid(1:ngpu);
       
@@ -689,204 +629,18 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         else
           warningNoTrace(errorMessage);
         end
-%         [fh,msg] = fopen(cmdfiles{i},'w');
-%         if isequal(fh,-1)
-%           warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
-%         else
-%           fprintf(fh,'%s\n',syscmds{i});
-%           fclose(fh);
-%           fprintf(1,'Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfiles{i});
-%           tfSucc(i) = true;
-%         end
       end  % for
     end  % function
   end  % methods block
   
-  methods (Static)
-    function jobid = parseJobIDStatic(res,type)
-      switch type,
-        case DLBackEnd.Bsub,
-          jobid = parseJobIDBsub(res);
-        case DLBackEnd.Docker,
-          jobid = parseJobIDDocker(res);
-        otherwise
-          error('Not implemented: %s',type);
-      end
-    end
-
-    function jobid = parseJobIDBsub(res)
-      PAT = 'Job <(?<jobid>[0-9]+)>';
-      stoks = regexp(res,PAT,'names');
-      if ~isempty(stoks)
-        jobid = str2double(stoks.jobid);
-      else
-        jobid = nan;
-        warning('Could not parse job id from:\n%s\n',res);
-      end
-    end
-
-    function jobID = parseJobIdAws(res)
-      %fprintf('res: %s', res) ;
-      jobID = DLBackEndClass.parseJobIDDocker(res) ;
-%       jobid = str2double(strtrim(res)) ;
-%       if isnan(jobid) 
-%         warning('Could not parse job id from:\n%s\n',res);
-%       end
-    end
-
-    function jobID = parseJobIDDocker(res)
-      res = regexp(res,'\n','split');
-      res = regexp(res,'^[0-9a-f]+$','once','match');
-      l = cellfun(@numel,res);
-      try
-        res = res{find(l==64,1)};
-        assert(~isempty(res));
-        jobID = strtrim(res);
-      catch ME,
-        warning('Could not parse job id from:\n%s\n',res);
-        disp(getReport(ME));
-        jobID = '';
-      end
-    end
-
-    function jobid = parseJobIDConda(res)
-      % We look for the first line of res that is an integer. If we can't find such
-      % a line, we throw a warning and return nan.
-
-      %fprintf('res: %s', res) ;      
-      line_from_line_index = break_string_into_lines(res) ;
-      line_count = numel(line_from_line_index) ;
-      for line_index = 1 : line_count ,
-        line = line_from_line_index{line_index} ;         
-        jobid = str2double(strtrim(line)) ;
-        if isfinite(jobid) && round(jobid)==jobid ,
-          return
-        end
-      end
-      % If get here, we have failed to read a job id
-      warning('Could not parse job id from:\n%s\n',res);
-      jobid = nan ;
-    end
-
-    function [hfig,hedit] = createFigTestConfig(figname)
-      hfig = dialog('Name',figname,'Color',[0,0,0],'WindowStyle','normal');
-      hedit = uicontrol(hfig,'Style','edit','Units','normalized',...
-        'Position',[.05,.05,.9,.9],'Enable','inactive','Min',0,'Max',10,...
-        'HorizontalAlignment','left','BackgroundColor',[.1,.1,.1],...
-        'ForegroundColor',[0,1,0]);
-    end
-    
-    function [tfsucc,hedit] = testBsubConfig(cacheDir,varargin)
-      tfsucc = false;
-      [host] = myparse(varargin,'host',DLBackEndClass.jrchost);
-      
-      [~,hedit] = DLBackEndClass.createFigTestConfig('Test JRC Cluster Backend');
-      hedit.String = {sprintf('%s: Testing JRC cluster backend...',datestr(now))};
-      drawnow;
-      
-      % test that you can ping jrc host
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = sprintf('** Testing that host %s can be reached...\n',host); drawnow;
-      cmd = sprintf('ping -c 1 -W 10 %s',host);
-      hedit.String{end+1} = cmd; drawnow;
-      [status,result] = apt.syscmd(cmd);
-      hedit.String{end+1} = result; drawnow;
-      if status ~= 0,
-        hedit.String{end+1} = 'FAILURE. Error with ping command.'; drawnow;
-        return;
-      end
-      % tried to make this robust to mac output
-      m = regexp(result,' (\d+) [^,]*received','tokens','once');
-      if isempty(m),
-        hedit.String{end+1} = 'FAILURE. Could not parse ping output.'; drawnow;
-        return;
-      end
-      if str2double(m{1}) == 0,
-        hedit.String{end+1} = sprintf('FAILURE. Could not ping %s:\n',host); drawnow;
-        return;
-      end
-      hedit.String{end+1} = 'SUCCESS!'; drawnow;
-      
-      % test that we can connect to jrc host and access CacheDir on it
-      
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = sprintf('** Testing that we can do passwordless ssh to %s...',host); drawnow;
-      touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
-      
-      remotecmd = sprintf('touch "%s"; if [ -e "%s" ]; then rm -f "%s" && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
-      timeout = 20;
-      cmd1 = wrapCommandSSH(remotecmd,'host',host,'timeout',timeout);
-      %cmd = sprintf('timeout 20 %s',cmd1);
-      cmd = cmd1;
-      hedit.String{end+1} = cmd; drawnow;
-      [status,result] = apt.syscmd(cmd);
-      hedit.String{end+1} = result; drawnow;
-      if status ~= 0,
-        hedit.String{end+1} = sprintf('ssh command timed out. This could be because passwordless ssh to %s has not been set up. Please see APT wiki for more details.',host); drawnow;
-        return;
-      end
-      issuccess = contains(result,'SUCCESS');
-      isfailure = contains(result,'FAILURE');
-      if issuccess && ~isfailure,
-        hedit.String{end+1} = 'SUCCESS!'; drawnow;
-      elseif ~issuccess && isfailure,
-        hedit.String{end+1} = sprintf('FAILURE. Could not create file in CacheDir %s:',cacheDir); drawnow;
-        return;
-      else
-        hedit.String{end+1} = 'FAILURE. ssh test failed.'; drawnow;
-        return;
-      end
-      
-      % test that we can run bjobs
-      hedit.String{end+1} = '** Testing that we can interact with the cluster...'; drawnow;
-      remotecmd = 'bjobs';
-      cmd = wrapCommandSSH(remotecmd,'host',host);
-      hedit.String{end+1} = cmd; drawnow;
-      [status,result] = apt.syscmd(cmd);
-      hedit.String{end+1} = result; drawnow;
-      if status ~= 0,
-        hedit.String{end+1} = sprintf('Error running bjobs on %s',host); drawnow;
-        return;
-      end
-      hedit.String{end+1} = 'SUCCESS!';
-      hedit.String{end+1} = '';
-      hedit.String{end+1} = 'All tests passed. JRC Backend should work for you.'; drawnow;
-      
-      tfsucc = true;
-    end
-    
-  end
-  
   methods % Bsub
-
     function aptroot = bsubSetRootUpdateRepo_(obj)
       aptroot = apt.bsubSetRootUpdateRepo(obj.deepnetrunlocal) ;
       obj.bsubaptroot = aptroot;
     end
-
-%     function bsubPretrack(obj,cacheDir)
-%       obj.bsubSetRootUpdateRepo_(cacheDir);
-%     end
-    
-  end
+  end  % methods
   
   methods % Docker
-
-%     function [cmd,cmdend] = dockercmd(obj)
-%       apiVerExport = sprintf('export DOCKER_API_VERSION=%s;',obj.dockerapiver);
-%       remHost = obj.dockerremotehost;
-%       if isempty(remHost),
-%         cmd = sprintf('%s docker',apiVerExport);
-%         cmdend = '';
-%       else
-%         cmd = sprintf('ssh -t %s "%s docker',remHost,apiVerExport);
-%         cmdend = '"';        
-%       end
-%       if ispc
-%         cmd = ['wsl ' cmd];
-%       end
-%     end
-
     function s = dockercmd(obj)
       s = dockercmd_from_apiver(obj.dockerapiver) ;
     end
@@ -901,12 +655,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % clientapiver: if tfsucc, char containing client apiversion; indeterminate otherwise
       
       dockercmd = obj.dockercmd();      
-      FMTSPEC = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
-      cmd = sprintf('%s version --format "%s"',dockercmd,FMTSPEC);
-%       if ~isempty(obj.dockerremotehost),
-%         cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
-%       end
-%      cmd = wrap_linux_command_line_for_wsl_if_windows(cmd) ;
+      fmtspec = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
+      cmd = sprintf('%s version --format "%s"',dockercmd,fmtspec);
       
       tfsucc = false;
       clientver = '';
@@ -932,322 +682,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         break;
       end
     end  % function
-    
-    function [tfsucc,hedit] = testDockerConfig(obj)
-      tfsucc = false;
-
-      [~,hedit] = DLBackEndClass.createFigTestConfig('Test Docker Configuration');      
-      hedit.String = {sprintf('%s: Testing Docker Configuration...',datestr(now))}; 
-      drawnow;
-      
-      % docker hello world
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
-      
-      dockercmd = obj.dockercmd();
-      cmd = sprintf('%s run --rm hello-world',dockercmd);
-
-%       if ~isempty(obj.dockerremotehost),
-%         cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
-%       end
-
-%       cmd = wrap_linux_command_line_for_wsl_if_windows(cmd) ;
-      
-      fprintf(1,'%s\n',cmd);
-      hedit.String{end+1} = cmd; 
-      drawnow;
-      [st,res] = apt.syscmd(cmd);
-      reslines = splitlines(res);
-      reslinesdisp = reslines(1:min(4,end));
-      hedit.String = [hedit.String; reslinesdisp(:)];
-      if st~=0
-        hedit.String{end+1} = 'FAILURE. Error with docker run command.'; drawnow;
-        return;
-      end
-      hedit.String{end+1} = 'SUCCESS!'; drawnow;
-      
-      % docker (api) version
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Checking docker API version...'; drawnow;
-      
-      [tfsucc,~,clientapiver] = obj.getDockerVers();
-      if ~tfsucc        
-        hedit.String{end+1} = 'FAILURE. Failed to ascertain docker API version.'; drawnow;
-        return;
-      end
-      
-      tfsucc = false;
-      % In this conditional we assume the apiver numbering scheme continues
-      % like '1.39', '1.40', ... 
-      if ~(str2double(clientapiver)>=str2double(obj.dockerapiver))          
-        hedit.String{end+1} = ...
-          sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
-            clientapiver,obj.dockerapiver);
-        drawnow;
-        return;
-      end        
-      succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
-      hedit.String{end+1} = succstr; drawnow;      
-      
-      % APT hello
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Testing APT deepnet library...'; 
-      hedit.String{end+1} = '   (This can take some time the first time the docker image is pulled)'; 
-      drawnow;
-      deepnetroot = [APT.Root '/deepnet'];
-      homedir = getenv('HOME');
-      %deepnetrootguard = [filequote deepnetroot filequote];
-      basecmd = 'python APT_interface.py lbl test hello';
-      cmd = wrapCommandDocker(basecmd,...
-                              'dockerimg', obj.dockerimgfull, ...
-                              'containername','containerTest',...
-                              'detach',false,...
-                              'bindpath',{deepnetroot,homedir});
-      hedit.String{end+1} = cmd;
-      RUNAPTHELLO = 1;
-      if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
-        %fprintf(1,'%s\n',cmd);
-        %hedit.String{end+1} = cmd; drawnow;
-        [st,res] = apt.syscmd(cmd);
-        reslines = splitlines(res);
-        reslinesdisp = reslines(1:min(4,end));
-        hedit.String = [hedit.String; reslinesdisp(:)];
-        if st~=0
-          hedit.String{end+1} = 'FAILURE. Error with APT deepnet command.'; drawnow;
-          return;
-        end
-        hedit.String{end+1} = 'SUCCESS!'; drawnow;
-      end
-      
-      % free GPUs
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
-      [gpuid,~,~] = obj.getFreeGPUs(1,'verbose',true);
-      if isempty(gpuid)
-        hedit.String{end+1} = 'WARNING. Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
-      else
-        hedit.String{end+1} = 'SUCCESS! Found available GPUs.'; drawnow;
-      end
-      
-      hedit.String{end+1} = '';
-      hedit.String{end+1} = 'All tests passed. Docker Backend should work for you.'; drawnow;
-      
-      tfsucc = true;      
-    end
-    
-  end
-  
-  methods % Conda
-    
-    function [tfsucc,hedit] = testCondaConfig(obj)
-      tfsucc = false;
-
-      [~,hedit] = DLBackEndClass.createFigTestConfig('Test Conda Configuration');      
-      hedit.String = {sprintf('%s: Testing Conda Configuration...',datestr(now))}; 
-      drawnow;
-
-      % Check if Windows box.  Conda backend is not supported on Windows.
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Checking for (lack of) Windows...'; drawnow;
-      if ispc() ,
-        hedit.String{end+1} = 'FAILURE. Conda backend is not supported on Windows.'; drawnow;
-        return
-      end
-      hedit.String{end+1} = 'SUCCESS!'; drawnow;
-
-      % make sure conda is installed
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Checking for conda...'; drawnow;
-      conda_executable_path = find_conda_executable() ;
-      cmd = sprintf('%s -V', conda_executable_path) ;
-      hedit.String{end+1} = cmd; drawnow;
-      [st,~] = apt.syscmd(cmd);
-      %reslines = splitlines(res);
-      if st~=0
-        hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',cmd); drawnow;
-        return;
-      end
-      hedit.String{end+1} = 'SUCCESS!'; drawnow;
-
-
-      % activate APT
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = sprintf('** Testing conda run -n %s...', obj.condaEnv); 
-      drawnow;
-
-      raw_cmd = 'echo "Hello, world!"' ;
-      cmd = wrapCommandConda(raw_cmd, 'condaEnv', obj.condaEnv) ;
-      %fprintf(1,'%s\n',cmd);
-      hedit.String{end+1} = cmd; drawnow;
-      [st,~] = apt.syscmd(cmd);
-      %reslines = splitlines(res);
-      %reslinesdisp = reslines(1:min(4,end));
-      %hedit.String = [hedit.String; reslinesdisp(:)];
-      if st~=0
-        hedit.String{end+1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment %s',cmd, obj.condaEnv); 
-        drawnow;
-        return
-      end
-      hedit.String{end+1} = 'SUCCESS!'; drawnow;
-        
-      % free GPUs
-      hedit.String{end+1} = ''; drawnow;
-      hedit.String{end+1} = '** Looking for free GPUs ...'; drawnow;
-      gpuid = obj.getFreeGPUs(1,'verbose',true);
-      if isempty(gpuid)
-        hedit.String{end+1} = 'WARNING: Could not find free GPUs. APT will run SLOWLY on CPU.'; drawnow;
-      else
-        hedit.String{end+1} = sprintf('SUCCESS! Found available GPUs.'); drawnow;
-      end
-      
-      hedit.String{end+1} = '';
-      hedit.String{end+1} = 'All tests passed. Conda Backend should work for you.'; drawnow;
-      
-      tfsucc = true;      
-    end
-  end
+  end  % methods
   
   methods % AWS
-    
-    function [tfsucc,hedit] = testAWSConfig(obj,varargin)  %#ok<INUSD> 
-      tfsucc = false;
-      [~,hedit] = DLBackEndClass.createFigTestConfig('Test AWS Backend');
-      hedit.String = {sprintf('%s: Testing AWS backend...',datestr(now))}; 
-      drawnow;
-      
-      % test that ssh exists
-      hedit.String{end+1} = sprintf('** Testing that ssh is available...'); drawnow;
-      hedit.String{end+1} = ''; drawnow;
-      if ispc,
-        isssh = exist(APT.WINSSHCMD,'file') && exist(APT.WINSCPCMD,'file');
-        if isssh,
-          hedit.String{end+1} = sprintf('Found ssh at %s',APT.WINSSHCMD); 
-          drawnow;
-        else
-          hedit.String{end+1} = sprintf('FAILURE. Did not find ssh in the expected location: %s.',APT.WINSSHCMD); 
-          drawnow;
-          return;
-        end
-      else
-        cmd = 'which ssh';
-        hedit.String{end+1} = cmd; drawnow;
-        [status,result] = apt.syscmd(cmd);
-        hedit.String{end+1} = result; drawnow;
-        if status ~= 0,
-          hedit.String{end+1} = 'FAILURE. Did not find ssh.'; drawnow;
-          return;
-        end
-      end
-      
-      if ispc(),
-        hedit.String{end+1} = sprintf('\n** Testing that certUtil is installed...\n'); drawnow;
-        cmd = 'where certUtil';
-        hedit.String{end+1} = cmd; drawnow;
-        [status,result] = apt.syscmd(cmd);
-        hedit.String{end+1} = result; drawnow;
-        if status ~= 0,
-          hedit.String{end+1} = 'FAILURE. Did not find certUtil.'; drawnow;
-          return;
-        end
-      end
-      
-      % test that AWS CLI is installed
-      hedit.String{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); drawnow;
-      cmd = 'aws ec2 describe-regions --output table';
-      hedit.String{end+1} = cmd; drawnow;
-      [status,result] = AWSec2.syscmd(cmd);
-      tfsucc = (status==0) ;      
-      hedit.String{end+1} = result; drawnow;
-      if ~tfsucc % status ~= 0,
-        hedit.String{end+1} = 'FAILURE. Error using the AWS CLI.'; drawnow;
-        return
-      end
-
-      % test that apt_dl security group has been created
-      hedit.String{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); drawnow;
-      cmd = 'aws ec2 describe-security-groups';
-      hedit.String{end+1} = cmd; drawnow;
-      [status,result] = AWSec2.syscmd(cmd,'isjsonout',true);
-      tfsucc = (status==0) ;
-      if status == 0,
-        try
-          result = jsondecode(result);
-          if ismember('apt_dl',{result.SecurityGroups.GroupName}),
-            hedit.String{end+1} = 'Found apt_dl security group.'; drawnow;
-          else
-            status = 1;
-          end
-        catch
-          status = 1;
-        end
-        if status == 1,
-          hedit.String{end+1} = 'FAILURE. Could not find the apt_dl security group.'; drawnow;
-        end
-      else
-        hedit.String{end+1} = result; drawnow;
-        hedit.String{end+1} = 'FAILURE. Error checking for apt_dl security group.'; drawnow;
-        return
-      end
-      
-      % to do, could test launching an instance, or at least dry run
-
-%       m = regexp(result,' (\d+) received, (\d+)% packet loss','tokens','once');
-%       if isempty(m),
-%         hedit.String{end+1} = 'FAILURE. Could not parse ping output.'; drawnow;
-%         return;
-%       end
-%       if str2double(m{1}) == 0,
-%         hedit.String{end+1} = sprintf('FAILURE. Could not ping %s:\n',host); drawnow;
-%         return;
-%       end
-%       hedit.String{end+1} = 'SUCCESS!'; drawnow;
-%       
-%       % test that we can connect to jrc host and access CacheDir on it
-%      
-%       hedit.String{end+1} = ''; drawnow;
-%       hedit.String{end+1} = sprintf('** Testing that we can do passwordless ssh to %s...',host); drawnow;
-%       touchfile = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now,'yyyymmddTHHMMSS.FFF')));
-%       
-%       remotecmd = sprintf('touch %s; if [ -e %s ]; then rm -f %s && echo "SUCCESS"; else echo "FAILURE"; fi;',touchfile,touchfile,touchfile);
-%       cmd1 = wrapCommandSSH(remotecmd,'host',host);
-%       cmd = sprintf('timeout 20 %s',cmd1);
-%       hedit.String{end+1} = cmd; drawnow;
-%       [status,result] = apt.syscmd(cmd);
-%       hedit.String{end+1} = result; drawnow;
-%       if status ~= 0,
-%         hedit.String{end+1} = sprintf('ssh command timed out. This could be because passwordless ssh to %s has not been set up. Please see APT wiki for more details.',host); drawnow;
-%         return;
-%       end
-%       issuccess = contains(result,'SUCCESS');
-%       isfailure = contains(result,'FAILURE');
-%       if issuccess && ~isfailure,
-%         hedit.String{end+1} = 'SUCCESS!'; drawnow;
-%       elseif ~issuccess && isfailure,
-%         hedit.String{end+1} = sprintf('FAILURE. Could not create file in CacheDir %s:',cacheDir); drawnow;
-%         return;
-%       else
-%         hedit.String{end+1} = 'FAILURE. ssh test failed.'; drawnow;
-%         return;
-%       end
-%       
-%       % test that we can run bjobs
-%       hedit.String{end+1} = '** Testing that we can interact with the cluster...'; drawnow;
-%       remotecmd = 'bjobs';
-%       cmd = wrapCommandSSH(remotecmd,'host',host);
-%       hedit.String{end+1} = cmd; drawnow;
-%       [status,result] = apt.syscmd(cmd);
-%       hedit.String{end+1} = result; drawnow;
-%       if status ~= 0,
-%         hedit.String{end+1} = sprintf('Error running bjobs on %s',host); drawnow;
-%         return;
-%       end
-      hedit.String{end+1} = 'SUCCESS!'; 
-      hedit.String{end+1} = ''; 
-      hedit.String{end+1} = 'All tests passed. AWS Backend should work for you.'; drawnow;
-      
-      tfsucc = true;      
-    end
-    
     function checkConnection(obj)  
       % Errors if connection to backend is ok.  Otherwise returns nothing.
       if isequal(obj.type, DLBackEnd.AWS) ,
@@ -1447,7 +884,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
       error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
     end  % function
-  end  % public methods block
+  end  % methods
 
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there
@@ -1473,7 +910,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
       end  
     end
-  end
+  end  % methods (Static)
 
   methods   % private by convention
     function stopEc2InstanceIfNeeded_(obj)
@@ -1575,14 +1012,10 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         syscmd = syscmds{ijob} ;
         fprintf(1,'%s\n',syscmd);
         if do_call_apt_interface_dot_py ,
-%           if obj.type == DLBackEnd.Conda,
-%             [jobID{ijob},st,res] = parfevalsystem(syscmd);
-%             tfSucc(ijob) = st == 0;
-%           else
           [st,res] = apt.syscmd(syscmd, 'failbehavior', 'silent');
           tfSucc(ijob) = (st == 0) ;
           if tfSucc(ijob),
-            jobID{ijob} = obj.parseJobID(res);
+            jobID{ijob} = apt.parseJobID(obj, res);
           end
         else
           % Pretend it's a failure, for expediency.

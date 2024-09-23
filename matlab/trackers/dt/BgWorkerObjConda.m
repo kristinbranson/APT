@@ -13,7 +13,7 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
       if nargin < 4,
         imov = 1;
       end
-      jID = DLBackEndClass.parseJobIDConda(res) ;
+      jID = apt.parseJobIDConda(res) ;
       obj.jobID{imov,iview} = jID ;
     end
         

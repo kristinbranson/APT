@@ -276,7 +276,8 @@ classdef DeepTracker < LabelTracker
       end
     end
     function v = get.filesep(obj)
-      v = obj.lObj.trackDLBackEnd.filesep;
+      %v = obj.lObj.trackDLBackEnd.filesep;
+      v = '/' ;
     end
     function v = get.nPts(obj)
       v = obj.lObj.nLabelPoints;
@@ -2584,8 +2585,10 @@ classdef DeepTracker < LabelTracker
           % another)
           error('Training in progress, and in-progress tracker(s) has not been saved yet. Please wait to track.') ;
         end
-        res = questdlg(sprintf('Training in progress. Tracking will use in-progress tracker, which has been trained for %s iterations. When training completes, these frames will need to be retracked. Continue?',...
-          DeepTracker.printIter(iterCurr,obj.trnLastDMC.iterFinal)),'Use in-progress tracker?','Track','Cancel','Track');
+        question = sprintf(horzcat('Training in progress. Tracking will use in-progress tracker, which has been trained for %s iterations. ', ...
+                                   'When training completes, these frames will need to be retracked. Continue?'),...
+                           DeepTracker.printIter(iterCurr,obj.trnLastDMC.iterFinal)) ;
+        res = questdlg(question,'Use in-progress tracker?','Track','Cancel','Track');
         if strcmpi(res,'Cancel'),
           error('APT:cancelled', 'Tracking cancelled') ;  % This error message will not normally be shown
         end

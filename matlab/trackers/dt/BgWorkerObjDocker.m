@@ -17,7 +17,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       if nargin < 4,
         imov = 1;
       end
-      containerID = DLBackEndClass.parseJobIDDocker(res);
+      containerID = apt.parseJobIDDocker(res);
       fprintf('Process job (movie %d, view %d) spawned, docker containerID=%s.\n\n',...
         imov,iview,containerID);
       
@@ -28,14 +28,14 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
       obj.jobID{imov,iview} = containerID;
     end
     
-    function s = dockercmd(obj)      
-      s = 'docker';
-%       if isempty(obj.dockerremotehost),
-%         s = 'docker';
-%       else
-%         s = sprintf('ssh -t %s docker',obj.dockerremotehost);
-%       end
-    end
+%     function s = dockercmd(obj)      
+%       s = 'docker';
+% %       if isempty(obj.dockerremotehost),
+% %         s = 'docker';
+% %       else
+% %         s = sprintf('ssh -t %s docker',obj.dockerremotehost);
+% %       end
+%     end
     
     function killJob(obj,jID)
       % jID: scalar jobID
@@ -49,7 +49,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         return;
       end
       
-      bkillcmd = sprintf('%s kill %s',obj.dockercmd,jID{1});
+      bkillcmd = sprintf('docker kill %s',jID{1});
         
       fprintf(1,'%s\n',bkillcmd);
       [st,res] = system(bkillcmd);
@@ -60,7 +60,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
     
     function res = queryAllJobsStatus(obj)
       
-      bjobscmd = sprintf('%s container ls',obj.dockercmd);
+      bjobscmd = sprintf('docker container ls');
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -87,7 +87,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         res = 'jID not set';
         return;
       end
-      bjobscmd = sprintf('%s container ls -a -f id=%s',obj.dockercmd,jID);
+      bjobscmd = sprintf('docker container ls -a -f id=%s',jID);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
       if st~=0
@@ -116,7 +116,7 @@ classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys
         return;
       end
       jIDshort = jID(1:8);
-      pollcmd = sprintf('%s ps -q -f "id=%s"',obj.dockercmd,jIDshort);
+      pollcmd = sprintf('docker ps -q -f "id=%s"',jIDshort);
       
       [st,res] = system(pollcmd);
       if st==0
