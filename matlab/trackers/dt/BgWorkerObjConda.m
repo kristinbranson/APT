@@ -38,31 +38,21 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
       end      
     end  % function
     
-    function res = queryAllJobsStatus(obj)  %#ok<MANU> 
-      % TODOALT: Need to implement this properly
-      warning('Need to implement BgWorkerObjConda::queryAllJobsStatus() properly') ;
-      res = {'<Not implemented>'} ;
-%       p = gcp();
-%       q = p.FevalQueue;
-%       rfs = q.RunningFutures;
-%       res = {};
-%       if isempty(rfs),
-%         res{end+1} = 'No jobs running.';
-%       else
-%         res{end+1} = 'Jobs running:';
-%         for i = 1:numel(rfs),
-%           res{end+1} = sprintf('ID %d, started %s: %s',rfs(i).ID,rfs(i).StartDateTime,rfs(i).State); %#ok<AGROW> 
-%         end
-%       end
-%       qfs = q.QueuedFutures;
-%       if isempty(qfs),
-%         res{end+1} = 'No jobs queued.';
-%       else
-%         res{end+1} = 'Jobs queued:';
-%         for i = 1:numel(qfs),
-%           res{end+1} = sprintf('ID %d, started %s: %s',qfs(i).ID,qfs(i).StartDateTime,qfs(i).State); %#ok<AGROW> 
-%         end
-%       end
+    function result = queryAllJobsStatus(obj)
+      command_line = 'pgrep conda --list-full | grep --fixed-strings ''APT_interface.py'' | awk ''{print $1}''' ;      
+      [status, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
+      if status ~= 0 ,
+        result = { 'Unable to determine whether any jobs are running.' } ;
+        return
+      end     
+      pid_from_job_index = sscanf(stdouterr, '%d')' ;  % row vector
+      job_count = numel(pid_from_job_index) ;
+      if job_count == 0 ,
+        result = { 'No jobs running.' } ;
+        return        
+      end
+      raw_result = arrayfun(@(pid)(obj.queryJobStatus(pid)), pid_from_job_index, 'UniformOutput', false) ;
+      result = raw_result(:) ;   % Want col vector of strings
     end  % function
     
     function result = queryJobStatus(obj,jID)  %#ok<INUSD> 
