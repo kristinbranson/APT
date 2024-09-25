@@ -962,14 +962,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,aptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-
-      if backend.type == DLBackEnd.Docker,
-        containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
-        logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
-        logcmd = generateLogCommandForDockerBackend(backend,containerName,logfile);
-      else
-        logcmd = '' ;
-      end
+      logcmd = apt.generateLogCommand(backend, 'train', dmcjob) ;
 
       % Add all the commands to the registry
       backend.syscmds_{end+1,1} = syscmd ;
@@ -985,14 +978,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
-
-      if backend.type == DLBackEnd.Docker,
-        containerName = totrackinfojob.containerName;
-        logfile = totrackinfojob.logfile;
-        logcmd = generateLogCommandForDockerBackend(backend,containerName,logfile);
-      else
-        logcmd = '' ;
-      end
+      logcmd = apt.generateLogCommand(backend, 'track', totrackinfojob) ;
     
       % Add all the commands to the registry
       backend.syscmds_{end+1,1} = syscmd ;
