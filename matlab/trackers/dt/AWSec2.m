@@ -709,7 +709,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     function s = remoteFileContents(obj,f,varargin)
       % First check if the file exists
       cmdremote = sprintf('[[ -e %s ]]',f);
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, varargin{:}) ;
+      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
       if st~=0 ,
         if isempty(strtrim(res)) ,
           s = '<File does not exist>' ;
@@ -719,11 +719,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         % File exists, at least
         cmdremote = sprintf('cat %s',f);
-        [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, varargin{:}) ;
+        [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
         if st==0
           s = res;
         else
-          % warning thrown etc per failbehavior
           s = sprintf('<Unable to read file: %s>', res) ;
         end
       end
@@ -820,7 +819,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       % It would be nice to get rid of this command, replace it's uses with uses of
       % DLBackEndClass:runBatchCommandOutsideContainer().  But that's a lift.  
       % -- ALT, 2024-09-29
-      command = wrapFilesystemCommandForAWSBackend(cmdremote, obj) ;        
+      command = wrapBatchCommandForAWSBackend(cmdremote, obj) ;        
       [st, res] = apt.syscmd(command, varargin{:}) ;      
 %       cmdfull = obj.wrapCommandSSH(cmdremote) ;      
 %       [st,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
@@ -1040,14 +1039,12 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function [st,res,warningstr] = syscmd(cmd,varargin)      
-      precommand = 'sleep 5 && export LD_LIBRARY_PATH= && export AWS_PAGER=' ;
+    function [st,res,warningstr] = syscmd(cmd0,varargin)      
+      cmd = sprintf('sleep 5 && export AWS_PAGER= && %s', cmd0) ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
-      [st,res,warningstr] = apt.syscmd(cmd, 'precommand', precommand, varargin{:}) ;
-        % We pass in our precommand first so that it can be overidden by one passed in
-        % in varargin
+      [st,res,warningstr] = apt.syscmd(cmd, varargin{:}) ;
     end  % function    
   end  % Static methods block
   

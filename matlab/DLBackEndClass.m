@@ -213,7 +213,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Windows).
       switch obj.type,
         case DLBackEnd.AWS
-          command = wrapFilesystemCommandForAWSBackend(basecmd, obj) ;
+          command = wrapBatchCommandForAWSBackend(basecmd, obj) ;
         case DLBackEnd.Bsub,
           % For now, we assume Matlab frontend is running on a JRC cluster node,
           % which means the filesystem is local.

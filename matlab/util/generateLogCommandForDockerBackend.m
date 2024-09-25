@@ -8,8 +8,8 @@ cmd = ...
           dockercmd, ...
           containerName, ...
           escape_string_for_bash(log_file_name)) ;
-is_docker_remote = ~isempty(obj.dockerremotehost) ;
+is_docker_remote = ~isempty(backend.dockerremotehost) ;
 if is_docker_remote
-  cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+  cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
 end
 cmd = [cmd,' &'];

@@ -52,7 +52,7 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
         return        
       end
       raw_result = arrayfun(@(pid)(obj.queryJobStatus(pid)), pid_from_job_index, 'UniformOutput', false) ;
-      result = raw_result(:) ;   % Want col vector of strings
+      result = raw_result(:) ;   % Want col vector of old-style strings
     end  % function
     
     function result = queryJobStatus(obj,jID)  %#ok<INUSD> 
