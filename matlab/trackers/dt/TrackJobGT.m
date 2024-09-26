@@ -127,37 +127,33 @@ classdef TrackJobGT < handle
       sshargs = {'prefix' prefix};
         
       codebase = obj.codegenBase(baseargs);
-      codesing = DeepTracker.codeGenSingGeneral(codebase,singargs{:});
-      codebsub = DeepTracker.codeGenBsubGeneral(codesing,bsubargs{:});
-      codestr = DeepTracker.codeGenSSHGeneral(codebsub,sshargs{:});      
+      codesing = codeGenSingGeneral(codebase,singargs{:});
+      codebsub = codeGenBsubGeneral(codesing,bsubargs{:});
+      codestr = wrapCommandSSH(codebsub,'host',DLBackEndClass.jrchost,sshargs{:});      
     end
     function [codestr,logcmd] = codegenDocker(obj,varargin)
-%       [gpuid] = myparse(varargin,...
-%         'gpuid',[] ... % {} ...  %  'containerName','' ... 'useLogFlag', ispc ...
-%         );
-      
-      %baseargs = [{'cache' cache} baseargs];
-      %filequote = bed.getFileQuoteDockerCodeGen;
+      assert(obj.backend.type==DLBackEnd.Docker) ;
       
       dmc1 = obj.dmcsrem;
       logfile = DeepModelChainOnDisk.getCheckSingle(dmc1.trkLogLnx);
-      be = obj.backend;
-      aptroot = be.getAPTRoot;
+      backend = obj.backend;
+      aptroot = backend.getAPTRoot;
       baseargs = obj.codegenBaseArgs();
       baseargs = [baseargs {'filequote' '"'}];
       bindpaths = {dmc1.getRootDir(); [aptroot '/deepnet']};
 
-      gpuids = be.gpuids;
-%       if useLogFlag
-%         baseargs = [baseargs {'log_file' obj.logfile}];
-%       end
+      gpuids = backend.gpuids;
       codebase = obj.codegenBase(baseargs);   
       containerName = sprintf('gt_%s',dmc1.getTrkTSstr());
-      codestr = be.wrapBaseCommandDocker_(codebase,containerName,...
-        'bindpath',bindpaths,'gpuid',gpuids);      
+      codestr = wrapCommandForDocker(codebase,...
+                                     'containerName', containerName,...
+                                     'bindpath',bindpaths,...
+                                     'gpuid',gpuids, ...
+                                     'dockerimg', backend.dockerimgfull, ...
+                                     'apiver', apt.docker_api_version());
       logcmd = sprintf('%s logs -f %s &> "%s" &',...
-                  be.dockercmd,containerName,logfile); 
-      be.dockercontainername = containerName;
+                       apt.dockercmd(),containerName,logfile); 
+      %backend.dockercontainername = containerName;
     end
     
   end

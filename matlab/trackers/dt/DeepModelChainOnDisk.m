@@ -777,13 +777,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s_%s.aptsnapshot',obj.modelChainID{icurr},obj.trainID{icurr});
       end
     end
-    function v = dockerImgPath(obj,backend) %#ok<INUSL> 
-      % todo: this should depend on what type of tracker
-      v = backend.dockerimgroot;
-      if ~isempty(backend.dockerimgtag)
-        v = [v ':' backend.dockerimgtag];
-      end
-    end
+%     function v = dockerImgPath(obj,backend) %#ok<INUSL> 
+%       % todo: this should depend on what type of tracker
+%       v = backend.dockerimgroot;
+%       if ~isempty(backend.dockerimgtag)
+%         v = [v ':' backend.dockerimgtag];
+%       end
+%     end
     function [v,idx] = getPrevModels(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.prev_models(idx);
@@ -1190,13 +1190,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       if obj.isRemote_ ,
         % maxiter is nan if something bad happened or if DNE
         % TODO allow polling for multiple models at once
-        aws = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
+        ec2 = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
         [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
         fspollargs = {};
         for i = 1:numel(idx),
           fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
         end
-        [tfsucc,res] = aws.remoteCallFSPoll(fspollargs);
+        [tfsucc,res] = ec2.remoteCallFSPoll(fspollargs);
         if tfsucc
           maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
         else
@@ -1304,9 +1304,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % - .rootDir updated to remote cacheloc
       % - .reader update to AWS reader
       
+      % Sanity checks
       assert(isscalar(obj));
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
 
+      % Make sure there is a trained model
       succ = obj.updateCurrInfo(backend);
       if strcmp(mode, 'tracking') && any(~succ) ,
         dmclfail = obj.dirModelChainLnx(find(~succ));
@@ -1319,84 +1321,24 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
       end
      
+      % Make sure there is a live backend
       backend.checkConnection();  % throws error if backend is not connected
       
-%       % Upload the already-existing model files
-%       mdlFilesWrapper = obj.findModelGlobsLocal();
-%       mdlFiles = cat(1,mdlFilesWrapper{:});
-%       %pat = obj.rootDir;  % e.g. /home/taylora/.apt/tpb9c364f9_46b1_4ac0_9095_11ddd5c2493c
-%       %pat = regexprep(pat,'\\','\\\\');
-%       %mdlFilesRemote = regexprep(mdlFiles,pat,DLBackEndClass.RemoteAWSCacheDir);  % DLBackEndClass.RemoteAWSCacheDir is typically '/home/ubuntu/cacheDL'
-%       mdlFilesRemoteRaw = cellfun(@(path)(FSPath.replacePrefix(path, obj.rootDir, DLBackEndClass.RemoteAWSCacheDir)), mdlFiles, 'UniformOutput', false) ;
-%       mdlFilesRemote = FSPath.standardPath(mdlFilesRemoteRaw);  % transform to linux-style path
-%       nMdlFiles = numel(mdlFiles);
-%       networkTypeAsString = charArrayFromCharArrayStringOrCellstring(obj.netType) ;
-%       fprintf(1,'Upload/mirror %d model files for net %s.\n',nMdlFiles,networkTypeAsString);
-%       descstr = sprintf('Model file: %s',networkTypeAsString);
-%       for i=1:nMdlFiles
-%         src = mdlFiles{i};
-%         info = dir(src);
-%         leafname = info.name ;
-%         filesz = round(info.bytes/2^10);
-%         dst = mdlFilesRemote{i};
-%         % We just use scpUploadOrVerify which does not confirm the identity
-%         % of file if it already exists. These model files should be
-%         % immutable once created and their naming (underneath timestamped
-%         % modelchainIDs etc) should be pretty/totally unique. 
-%         %
-%         % Only situation that might cause problems are augmentedtrains but
-%         % let's not worry about that for now.
-%         backend.scpUploadOrVerify(src, ...
-%                                   dst, ...
-%                                   sprintf('%s (%s), %d KB',descstr,leafname,filesz), ...
-%                                   'destRelative', false) ;  % throws
-%       end
-
       % To support training on AWS, and the fact that a DeepModelChainOnDisk has
       % only a single boolean to represent whether it's local or remote, we're just
       % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
       % backend.  -- ALT, 2024-06-25
       localProjectPath = fullfile(obj.rootDir, obj.projID) ;
       remoteProjectPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, obj.projID) ;  % ensure linux-style path
+      [didsucceed, msg] = backend.mkdir(remoteProjectPath) ;
+      if ~didsucceed ,
+        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
+      end
       backend.rsyncUpload(localProjectPath, remoteProjectPath) ;
 
-%       localDisFromPathIndex = enumerate_all_files_and_folders(localProjectPath) ; % nx1 "dis" struct array, same fields as result of dir()
-%       localPathFromPathIndex = path_from_dir_struct(localDisFromPathIndex) ;
-%       rawRemotePaths = cellfun(@(path)(FSPath.replacePrefix(path, obj.rootDir, DLBackEndClass.RemoteAWSCacheDir)), ...
-%                                localPathFromPathIndex, ...
-%                                'UniformOutput', false) ;
-%       remotePaths = FSPath.standardPath(rawRemotePaths) ;  % transform to linux-style paths
-%       pathCount = numel(localDisFromPathIndex) ;
-%       networkTypeAsString = charArrayFromCharArrayStringOrCellstring(obj.netType) ;
-%       fprintf('Going to upload %d project files for net %s.\n',pathCount,networkTypeAsString);
-%       descstr = sprintf('Model file: %s',networkTypeAsString);
-%       for i = 1:pathCount ,
-%         localDis = localDisFromPathIndex(i) ;        
-%         localPath = localPathFromPathIndex{i} ;  % already computed above, might as well use
-%         leafname = localDis.name ;
-%         fileSizeInMibibytes = round(localDis.bytes/2^10) ;
-%         remotePath = remotePaths{i} ;
-%         if localDis.isdir ,
-%           backend.mkdir(remotePath) ;
-%         else
-%           % We just use scpUploadOrVerify which does not confirm the identity
-%           % of file if it already exists. These model files should be
-%           % immutable once created and their naming (underneath timestamped
-%           % modelchainIDs etc) should be pretty/totally unique. 
-%           %
-%           % Only situation that might cause problems are augmentedtrains but
-%           % let's not worry about that for now.
-%           backend.scpUploadOrVerify(localPath, ...
-%                                     remotePath, ...
-%                                     sprintf('%s (%s), %d KB',descstr,leafname,fileSizeInMibibytes), ...
-%                                     'destRelative', false) ;  % throws
-%         end
-%       end
-
-      % if we made it here, upload successful
-      
+      % If we made it here, upload successful---update the state to reflect that the
+      % model is now remote.      
       obj.remoteRootDir_ = DLBackEndClass.RemoteAWSCacheDir ;
-      %obj.reader = backend.getDmcReader();
       obj.isRemote_ = true ;
     end
     
@@ -1457,7 +1399,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           % See comment in mirror2RemoteAws regarding not confirming ID of
           % files-that-already-exist
           aws.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'dispcmd' true 'failbehavior' 'err'}); % throws
+            'sysCmdArgs',{'failbehavior', 'err'}); % throws
         end
       end
       

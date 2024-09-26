@@ -2538,27 +2538,8 @@ cacheDir = lObj.DLCacheDir;
 assert(exist(cacheDir,'dir')>0,...
   'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
 
-be = lObj.trackDLBackEnd;
-be.testConfigUI(cacheDir);
-
-% % is APTCache set?
-% hedit.String{end+1} = ''; drawnow;
-% hedit.String{end+1} = '** Testing that Deep Track->Saving->CacheDir parameter is set...'; drawnow;
-% if isempty(cacheDir),
-%   hedit.String{end+1} = 'Deep Track->Saving->CacheDir tracking parameter is not set. Please go to Track->Configure tracking parameters menu to set this.'; drawnow;
-%   return;
-% end
-% % does APTCache exist?
-% if ~exist(cacheDir,'dir'),
-%   hedit.String{end+1} = sprintf('Deep Track->CacheDir %s did not exist, trying to create it...',cacheDir); drawnow;
-%   [tfsucc1,msg1] = mkdir(cacheDir);
-%   if ~tfsucc1 || ~exist(cacheDir,'dir'),
-%     hedit.String{end+1} = sprintf('Deep Track->CacheDir %s could not be created: %s. Make sure you have access to %s, and/or set CacheDir to a different directory.',cacheDir,msg1,cacheDir); drawnow;
-%     return;
-%   end
-% end
-% hedit.String{end+1} = sprintf('Deep Track->Saving->CacheDir set to %s, and exists.',cacheDir); drawnow;
-% hedit.String{end+1} = 'SUCCESS!'; drawnow;
+backend = lObj.trackDLBackEnd;
+testBackendConfigUI(backend, cacheDir);
       
       
 function cbkTrackerBackendAWSSetInstance(src,evt)
@@ -3985,8 +3966,8 @@ function cbkTrackerTrainStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 algName = lObj.tracker.algorithmName;
 %algLabel = lObj.tracker.algorithmNamePretty;
-backend = lObj.trackDLBackEnd.prettyName;
-handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend,datestr(now(),'HH:MM'));
+backend_type_string = lObj.trackDLBackEnd.prettyName();
+handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));
 handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.Visible = 'on';
@@ -4007,8 +3988,8 @@ function cbkTrackerStart(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 algName = lObj.tracker.algorithmName;
 %algLabel = lObj.tracker.algorithmNamePretty;
-backend = lObj.trackDLBackEnd.prettyName;
-handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend,datestr(now,'HH:MM'));
+backend_type_string = lObj.trackDLBackEnd.prettyName() ;
+handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend_type_string,datestr(now,'HH:MM'));
 handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.Visible = 'on';

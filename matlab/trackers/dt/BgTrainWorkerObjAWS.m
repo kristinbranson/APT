@@ -49,7 +49,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         logger = FileLogger() ;
       end
             
-      aws = obj.awsEc2;
+      ec2 = obj.awsEc2;
       nlinesperjob = 4;
       nlinespermodel = 3;
 
@@ -81,7 +81,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
           [fspollargs,{'exists',sRes.jsonPath{i},'exists',sRes.trainFinalModel{i},'contents',sRes.jsonPath{i}}]; %#ok<AGROW> 
 
       end
-      [tfpollsucc,reslines] = aws.remoteCallFSPoll(fspollargs);
+      [tfpollsucc,reslines] = ec2.remoteCallFSPoll(fspollargs);
       logger.log('aws.remoteCallFSPoll(fspollargs) tfpollsucc: %d\n',tfpollsucc) ;
       logger.log('aws.remoteCallFSPoll(fspollargs) reslines:\n%s\n',newline_out(reslines)) ;
       if tfpollsucc

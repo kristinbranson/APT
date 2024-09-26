@@ -42,15 +42,15 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
     end    
     
     function tf = fileExists(obj, f)
-      tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
+      tf = obj.awsEc2.remoteFileExists(f);
     end
     
     function tf = errFileExistsNonZeroSize(obj,errFile)
-      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',true);
+      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true);
     end    
     
     function s = fileContents(obj,f)
-      s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
+      s = obj.awsEc2.remoteFileContents(f);
     end
 
     function tfsucc = lsdir(obj,dir)
@@ -66,15 +66,15 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
 %       if ~obj.isRunning
 %         error('Training is not in progress.');
 %       end
-      aws = obj.awsEc2;
-      if isempty(aws)
+      ec2 = obj.awsEc2 ;
+      if isempty(ec2)
         error('AWSEC2 backend object is unset.');
       end
       
-      if ~aws.canKillRemoteProcess()
-        tfpid = aws.getRemotePythonPID();
+      if ~ec2.canKillRemoteProcess()
+        tfpid = ec2.getRemotePythonPID();
         if ~tfpid
-          error('Could not ascertain remote process ID in AWSEC2 instance %s.',aws.instanceID);
+          error('Could not ascertain remote process ID in AWSEC2 instance %s.',ec2.instanceID);
         end
       end
       
@@ -83,11 +83,11 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       assert(isscalar(killfile)); % for now
       killfile = killfile{1};
 
-      aws.killRemoteProcess();
+      ec2.killRemoteProcess();
 
       % expect command to fail; fail -> py proc killed
-      %pollCbk = @()~aws.cmdInstance('pgrep -o python','dispcmd',true,'failbehavior','silent');
-      pollCbk = @()aws.getNoPyProcRunning();
+      %pollCbk = @()~aws.runBatchCommandOutsideContainer('pgrep -o python','dispcmd',true,'failbehavior','silent');
+      pollCbk = @()ec2.getNoPyProcRunning();
       iterWaitTime = 1;
       maxWaitTime = 20;
       tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
@@ -102,7 +102,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       killfile_folder_path = fileparts(killfile) ;
       escaped_killfile_folder_path = escape_string_for_bash(killfile_folder_path) ;
       cmd = sprintf('mkdir -p %s',escaped_killfile_folder_path); 
-      tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
+      st = ec2.runBatchCommandOutsideContainer(cmd);
+      tfsucc = (st==0) ;
       if ~tfsucc ,
         warningNoTrace('Failed to create remote KILLED token dir: %s',killfile_folder_path);
         warnings{end+1} = sprintf('Failed to create remote KILLED token dir: %s',killfile_folder_path);          
@@ -111,7 +112,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
 
       escaped_killfile = escape_string_for_bash(killfile) ;
       cmd = sprintf('touch %s',escaped_killfile);
-      tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
+      st = ec2.runBatchCommandOutsideContainer(cmd);
+      tfsucc = (st==0) ;
       if ~tfsucc
         warningNoTrace('Failed to create remote KILLED token: %s',killfile);
         warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);

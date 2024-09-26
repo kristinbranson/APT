@@ -2123,7 +2123,7 @@ classdef Labeler < handle
     function projSaveRaw(obj,fname)
       
       try
-        [~,obj.saveVersionInfo] = GetGitMatlabStatus(APT.Root);
+        obj.saveVersionInfo = GetGitMatlabStatus(APT.Root);
       catch
         obj.saveVersionInfo = [];
       end
@@ -3494,60 +3494,59 @@ classdef Labeler < handle
       
     end
     
-    function printInfo(lObj)
-      fprintf('Lbl file: %s\n',lObj.projectfile);
+    function printInfo(obj)
+      fprintf('Lbl file: %s\n',obj.projectfile);
       fprintf('Info printed: %s\n',datestr(now,'yyyymmddTHHMMSS'));
 
       fprintf('Project type: ');
-      if lObj.labelMode == LabelMode.MULTIANIMAL,
+      if obj.labelMode == LabelMode.MULTIANIMAL,
         fprintf('Multi-animal\n');
-      elseif lObj.hasTrx,
+      elseif obj.hasTrx,
         fprintf('Trx\n');
       else
         fprintf('Single-animal\n');
       end
 
-      fprintf('Number of views: %d\n',lObj.nview);
+      fprintf('Number of views: %d\n',obj.nview);
       
-      fprintf('Number of landmarks: %d\n',lObj.nPhysPoints);
+      fprintf('Number of landmarks: %d\n',obj.nPhysPoints);
       
-      lObj.printAllTrackerInfo();
+      obj.printAllTrackerInfo();
       
-      if isempty(lObj.trackDLBackEnd),
+      if isempty(obj.trackDLBackEnd),
         fprintf('Back-end: None\n');
       else
-        fprintf('Back-end: %s\n',char(lObj.trackDLBackEnd.type));
+        fprintf('Back-end: %s\n',char(obj.trackDLBackEnd.type));
       end
       
-      fprintf('N. train movies: %d\n',lObj.nmovies);
-      [nlabels,nlabelspermovie,nlabelspertarget] = lObj.getNLabels();
+      fprintf('N. train movies: %d\n',obj.nmovies);
+      [nlabels,nlabelspermovie,nlabelspertarget] = obj.getNLabels();
       fprintf('N. train labels: %d\n',nlabels);
       fprintf('N. labeled train movies: %d\n',nnz(nlabelspermovie));
-      if lObj.hasTrx,
+      if obj.hasTrx,
         fprintf('N. labeled train trajectories: %d\n',sum(cellfun(@nnz,nlabelspertarget)));
       end
       
-      fprintf('N. GT movies: %d\n',lObj.nmoviesGT);
-      [nlabelsGT,nlabelspermovieGT,nlabelspertargetGT] = lObj.getNLabels(true);
+      fprintf('N. GT movies: %d\n',obj.nmoviesGT);
+      [nlabelsGT,nlabelspermovieGT,nlabelspertargetGT] = obj.getNLabels(true);
       fprintf('N. GT labels: %d\n',nlabelsGT);
       fprintf('N. labeled GT movies: %d\n',nnz(nlabelspermovieGT));
-      if lObj.hasTrx,
+      if obj.hasTrx,
         fprintf('N. labeled GT trajectories: %d\n',sum(cellfun(@nnz,nlabelspertargetGT)));
       end
       
       fprintf('Save code info:\n');
-      if isempty(lObj.saveVersionInfo),
+      if isempty(obj.saveVersionInfo),
         fprintf('No saved version info available.\n');
       else
-        fprintf(GitMatlabBreadCrumbString(lObj.saveVersionInfo));
+        fprintf(GitMatlabBreadCrumbString(obj.saveVersionInfo));
       end
       fprintf('Load code info:\n');
-      fprintf(GetGitMatlabStatus(fileparts(mfilename('fullpath'))));
-
-      
-    end
+      info = GetGitMatlabStatus(fileparts(mfilename('fullpath'))) ;
+      fprintf(GitMatlabBreadCrumbString(info));
+    end  % function
             
-  end
+  end  % methods
   
   methods (Static)
     
