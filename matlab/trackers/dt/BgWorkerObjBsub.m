@@ -18,13 +18,21 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
     end
     
     function killJob(obj,jID)
-      % jID: scalar jobID
+      % jID: scalar numeric jobID, or maybe a single element cell array
+      % holding a scalar numeric jobID
+      if isempty(jID) ,
+        fprintf('killJob: jID is empty!\n');
+        return
+      end
+      if iscell(jID)  ,
+        jID = jID{1};
+      end
       if isnan(jID),
         fprintf('killJob, jID is nan\n');
-        return;
+        return
       end
       if obj.isKilled(jID),
-        return;
+        return
       end
       bkillcmd = sprintf('bkill %d',jID);
       bkillcmd = wrapCommandSSH(bkillcmd,'host',DLBackEndClass.jrchost);
@@ -47,6 +55,13 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
     end
     
     function res = queryJobStatus(obj,jID)
+      if isempty(jID) ,
+        res = sprintf('jID is empty!\n');
+        return
+      end
+      if iscell(jID)  ,
+        jID = jID{1};
+      end
       try
         tfKilled = obj.isKilled(jID);
         if tfKilled,
@@ -65,11 +80,19 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end      
     end
 
-    function tf = isKilled(obj,jID)      
-      if isnan(jID) || isempty(jID),
-        fprintf('isKilled(nan)!\n');
+    function tf = isKilled(obj,jID) 
+      if isempty(jID) ,
+        fprintf('isKilled: jID is empty!\n');
         tf = false;
-        return;
+        return
+      end
+      if iscell(jID)  ,
+        jID = jID{1};
+      end        
+      if isnan(jID) || isempty(jID),
+        fprintf('isKilled: jID is nan!\n');
+        tf = false;
+        return
       end
       runStatuses = {'PEND','RUN','PROV','WAIT'};
       pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
