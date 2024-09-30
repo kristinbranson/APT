@@ -14,6 +14,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     jrchost = 'login1.int.janelia.org'
     jrcprefix = ''
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod'
+    default_jrcgpuqueue = 'gpu_a100'
+    default_jrcnslots_train = 4
+    default_jrcnslots_track = 4
 
     default_conda_env = 'APT'
     default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' 
@@ -62,6 +65,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 %       % Also, seemingly never read -- ALT, 2024-03-07
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
+    jrcgpuqueue
+    jrcnslots
+    jrcnslotstrack
 
     condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
@@ -380,6 +386,20 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.awsec2.instanceIP = [] ;
       obj.awsec2.remotePID = [] ;
       obj.awsec2.isInDebugMode = false ;
+
+      % If these JRC-backend-related things are empty, warn that we're using default values
+      if isempty(obj.jrcgpuqueue) || strcmp(obj.jrcgpuqueue,'gpu_any') || strcmp(obj.jrcgpuqueue,'gpu_tesla') || startsWith(obj.jrcgpuqueue,'gpu_rtx') ,
+        obj.jrcgpuqueue = DLBackEndClass.default_jrcgpuqueue ;
+        warningNoTrace('Updating JRC GPU cluster queue to ''%s''.', DLBackEndClass.default_jrcgpuqueue) ;
+      end
+      if isempty(obj.jrcnslots) ,
+        obj.jrcnslots = DLBackEndClass.default_jrcnslots_train ;
+        warningNoTrace('Updating JRC GPU cluster training slot count to %d.', DLBackEndClass.default_jrcnslots_train) ;
+      end
+      if isempty(obj.jrcnslotstrack) ,
+        obj.jrcnslotstrack = DLBackEndClass.default_jrcnslots_track ;
+        warningNoTrace('Updating JRC GPU cluster tracking slot count to %d.', DLBackEndClass.default_jrcnslots_track) ;
+      end      
     end  % function
     
     function [tf,reason] = getReadyTrainTrack(obj)

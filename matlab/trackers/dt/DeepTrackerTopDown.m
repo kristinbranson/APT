@@ -86,18 +86,18 @@ classdef DeepTrackerTopDown < DeepTracker
         v = 'bbox';
       end
     end
-    function setJrcgpuqueue(obj,v)
-      obj.jrcgpuqueue = v;
-      obj.stage1Tracker.jrcgpuqueue = v;      
-    end
-    function setJrcnslots(obj,v)
-      obj.jrcnslots = v;
-      obj.stage1Tracker.jrcnslots = v;      
-    end
-    function setJrcnslotstrack(obj,v)
-      obj.jrcnslotstrack = v;
-      obj.stage1Tracker.jrcnslotstrack = v;      
-    end
+%     function setJrcgpuqueue(obj,v)
+%       obj.jrcgpuqueue = v;
+%       obj.stage1Tracker.jrcgpuqueue = v;      
+%     end
+%     function setJrcnslots(obj,v)
+%       obj.jrcnslots = v;
+%       obj.stage1Tracker.jrcnslots = v;      
+%     end
+%     function setJrcnslotstrack(obj,v)
+%       obj.jrcnslotstrack = v;
+%       obj.stage1Tracker.jrcnslotstrack = v;      
+%     end
 
   end
     

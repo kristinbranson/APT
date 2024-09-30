@@ -2551,7 +2551,7 @@ error('Implemented elsewhere') ;
 function cbkTrackerBackendSetJRCNSlots(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-n = inputdlg('Number of cluster slots for training','a',1,{num2str(lObj.tracker.jrcnslots)});
+n = inputdlg('Number of cluster slots for training','a',1,{num2str(lObj.trackDLBackEnd.jrcnslots)});
 if isempty(n)
   return;
 end
@@ -2559,12 +2559,12 @@ n = str2double(n{1});
 if isnan(n)
   return;
 end
-lObj.tracker.setJrcnslots(n);
+lObj.trackDLBackEnd.jrcnslots = n ;
 
 function cbkTrackerBackendSetJRCNSlotsTrack(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
-n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.tracker.jrcnslotstrack)});
+n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.trackDLBackEnd.jrcnslotstrack)});
 if isempty(n)
   return;
 end
@@ -2572,7 +2572,7 @@ n = str2double(n{1});
 if isnan(n)
   return;
 end
-lObj.tracker.setJrcnslotstrack(n);
+lObj.trackDLBackEnd.jrcnslotstrack = n ;
 
 
 function cbkTrackerBackendAdditionalBsubArgs(src,evt)

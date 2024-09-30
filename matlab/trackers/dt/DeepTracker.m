@@ -7,8 +7,8 @@ classdef DeepTracker < LabelTracker
   end
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrmAll' 'containerBindPaths' ...
-      'trnNetType' 'trnNetMode' 'trnLastDMC' 'movIdx2trkfile' 'hideViz' ...
-      'jrcgpuqueue' 'jrcnslots' 'jrcnslotstrack'}; 
+      'trnNetType' 'trnNetMode' 'trnLastDMC' 'movIdx2trkfile' 'hideViz' }
+%       'jrcgpuqueue' 'jrcnslots' 'jrcnslotstrack'}; 
     
     pretrained_weights_urls = {...
       'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
@@ -20,17 +20,17 @@ classdef DeepTracker < LabelTracker
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     
-    default_jrcgpuqueue = 'gpu_a100';
-    default_jrcnslots_train = 1;
-    default_jrcnslots_track = 1;
+%     default_jrcgpuqueue = 'gpu_a100';
+%     default_jrcnslots_train = 1;
+%     default_jrcnslots_track = 1;
     
     MDN_OCCLUDED_THRESH = 0.5;
   end
-  properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
-    jrcgpuqueue = '';
-    jrcnslots = 4;
-    jrcnslotstrack = 4; % transient
-  end
+%   properties (GetAccess=public,SetAccess=protected) % MOVE THIS TO BE
+%     jrcgpuqueue = '';
+%     jrcnslots = 4;
+%     jrcnslotstrack = 4; % transient
+%   end
   properties
     dryRunOnly % transient, scalar logical. If true, config files, cmds 
       % are generated for DL, but actual DL train/track are not spawned
@@ -45,8 +45,8 @@ classdef DeepTracker < LabelTracker
       % to autogenerate the required bind/mount paths.
   end
   properties (Dependent)
-    condaEnv; % = 'APT'; % name of conda environment
-    configFileExt;
+    condaEnv  % = 'APT'; % name of conda environment
+    configFileExt
     backend
   end
       
@@ -275,7 +275,7 @@ classdef DeepTracker < LabelTracker
         v = DeepModelChainOnDisk.getCheckSingle(dmc.getTrainID());
       end
     end
-    function v = get.filesep(obj)
+    function v = get.filesep(obj) %#ok<MANU> 
       %v = obj.lObj.trackDLBackEnd.filesep;
       v = '/' ;
     end
@@ -293,21 +293,21 @@ classdef DeepTracker < LabelTracker
       btm = obj.bgTrkMonitor;
       v = ~isempty(btm) && btm.isRunning;
     end
-    function setJrcgpuqueue(obj,v)
-      obj.jrcgpuqueue = v;
-    end
-    function setJrcnslots(obj,v)
-      obj.jrcnslots = v;
-    end
-    function setJrcnslotstrack(obj,v)
-      obj.jrcnslotstrack = v;
-    end
+%     function setJrcgpuqueue(obj,v)
+%       obj.jrcgpuqueue = v;
+%     end
+%     function setJrcnslots(obj,v)
+%       obj.jrcnslots = v;
+%     end
+%     function setJrcnslotstrack(obj,v)
+%       obj.jrcnslotstrack = v;
+%     end
   end
   
   methods
     function obj = DeepTracker(lObj,varargin)
       obj@LabelTracker(lObj);
-      obj.setJrcgpuqueue(DeepTracker.default_jrcgpuqueue);
+      %obj.setJrcgpuqueue(DeepTracker.default_jrcgpuqueue);
       
       for i=1:2:numel(varargin)
         prop = varargin{i};
@@ -540,8 +540,13 @@ classdef DeepTracker < LabelTracker
       obj.initHook(); % maybe handled upstream
       flds = fieldnames(s);
       flds = setdiff(flds,'hideViz');
-      for f=flds(:)',f=f{1}; %#ok<FXSET>
-        obj.(f) = s.(f);
+      for f_wrapped = flds(:)' ,
+        f=f_wrapped{1};
+        if isprop(obj, f) ,
+          obj.(f) = s.(f);
+        else
+          warningNoTrace('Ignoring field ''%s'' in save token, because no such property in class DeepTracker', f) ;
+        end
       end
       
       obj.dryRunOnly = false;
@@ -641,13 +646,24 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_tesla')
-        s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
-        warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
-          s.jrcgpuqueue);
+%       if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_tesla') || startsWith(s.jrcgpuqueue,'gpu_rtx')
+%         s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
+%         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
+%                        s.jrcgpuqueue);
+%       end
+
+      % 20240930: Things that have moved to DLBackEndClass
+      if isfield(s, 'jrcgpuqueue') 
+        s = rmfield(s, 'jrcgpuqueue') ;
       end
-    end
-  end
+      if isfield(s, 'jrcnslots') 
+        s = rmfield(s, 'jrcnslots') ;
+      end
+      if isfield(s, 'jrcnslotstrack') 
+        s = rmfield(s, 'jrcnslotstrack') ;
+      end    
+    end  % function
+  end  % methods (Static)
   
   
   %% Train
@@ -1995,7 +2011,7 @@ classdef DeepTracker < LabelTracker
       % compresses the info we need for training.
       % TODO We should rename this.
       
-      [awsRemote,wbObj,ppdata,sPrmAll] = myparse(varargin,...
+      [~,wbObj,ppdata,sPrmAll] = myparse(varargin,...
         'awsRemote',false,...
         'wbObj',[],...
         'ppdata',[],...
@@ -2036,7 +2052,7 @@ classdef DeepTracker < LabelTracker
 %           s.trxFilesAll(:) = {'__UNUSED__'};
 %         end
 %       end
-    end
+    end  % function
     
 %     function trnCompleteCbkAWS(obj,res)      
 %       bgWorker = obj.bgTrnMonBGWorkerObj;
@@ -2071,7 +2087,7 @@ classdef DeepTracker < LabelTracker
     end
   end
   methods 
-    function trainsplit(obj,tblSplit,varargin)
+    function trainsplit(obj,tblSplit,varargin)  %#ok<INUSD> 
       % tblSplit: 
       %   SA: [nlbledrows x 4] table. cols are MFT and .split
       %   MA: [nlbledrows x 3] table. cols are MF and .split
@@ -2778,7 +2794,7 @@ classdef DeepTracker < LabelTracker
       sPrmLabeler = obj.lObj.trackGetParams();
       sPrmSet = obj.massageParamsIfNec(sPrmLabeler);
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-          obj.didParamsChange(sPrmSet);
+          obj.didParamsChange(sPrmSet);  %#ok<ASGLU> 
       if tfCommonChanged || tfPreProcChanged || tfSpecificChanged
         warningNoTrace('Deep Learning parameters have changed since your last retrain.');
         % Keep it simple for now. Note training might be in progress but
@@ -2930,7 +2946,7 @@ classdef DeepTracker < LabelTracker
 %       end
     end
     
-    function track2_codegen_gt(obj,tj)
+    function track2_codegen_gt(obj,tj)  %#ok<INUSD> 
       % gt-specific trksysinfo massage + codegen
       
       tj.codegen();
@@ -3142,7 +3158,7 @@ classdef DeepTracker < LabelTracker
 
       preds = gtmats(1).pred_locs.(GTMATLOCFLD);
       ndim_locs = ndims(preds);
-      isma = ndim_locs==4;
+      %isma = ndim_locs==4;
       pts_dim=ndim_locs-1;
       % labeled/pred_locs are [nfrmtrk x nphyspt x 2] for single animal.
       % [nfrmtrk x nanimals x npyspt x 2] for ma
@@ -3151,11 +3167,11 @@ classdef DeepTracker < LabelTracker
       out_sz{end+1} = [];
       gt_pred = [gtmats.pred_locs];
       ptrk = cat(pts_dim,gt_pred.(GTMATLOCFLD));
-      nfrmtrk = size(ptrk,1);
+      %nfrmtrk = size(ptrk,1);
       ptrk = reshape(ptrk,out_sz{:});
       
       tbltrkMFT = table(mIdx(:),uint32(mft(:,2)),uint32(mft(:,3)),...
-        'VariableNames',{'mov' 'frm' 'iTgt'});
+                        'VariableNames',{'mov' 'frm' 'iTgt'});
       
       sz_occ = size(ptrk);
       sz_occ(end) = sz_occ(end)/2;
@@ -4390,7 +4406,7 @@ classdef DeepTracker < LabelTracker
       % Remember/add a set of [nview] trkfiles associated with mIdx
       
       assert(isscalar(mIdx));
-      assert(iscellstr(trkfiles));
+      assert(iscellstr(trkfiles));  %#ok<ISCLSTR> 
             
       [v,id] = obj.trackResGetTrkfiles(mIdx);      
       v(end+1,:) = trkfiles(:)';
