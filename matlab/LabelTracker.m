@@ -36,7 +36,7 @@ classdef LabelTracker < handle
   properties
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
-    ax % axis for viewing tracking results
+    %ax % axis for viewing tracking results
     sPrmAll; % all parameters - KB 20190214: store all parameters with each tracker
     
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
@@ -82,7 +82,7 @@ classdef LabelTracker < handle
     
     function init(obj)
       % Called when a new project is created/loaded, etc
-      obj.ax = obj.lObj.gdata.axes_all;
+      %obj.ax = obj.lObj.gdata.axes_all;
       obj.initHook();
     end
         
