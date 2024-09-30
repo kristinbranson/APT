@@ -14,10 +14,10 @@ switch backend.type
     mntPaths = deeptracker.genContainerMountPathBsubDocker(backend,train_or_track,jobinfo);
     if isequal(train_or_track,'train'),
       logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
-      nslots = deeptracker.jrcnslots;
+      nslots = backend.jrcnslots;
     else % track
       logfile = jobinfo.logfile;
-      nslots = deeptracker.jrcnslotstrack;
+      nslots = backend.jrcnslotstrack;
     end
 
     % for printing git status? not sure why this is only in bsub and
@@ -29,7 +29,7 @@ switch backend.type
     additionalBsubArgs = backend.jrcAdditionalBsubArgs ;
     result = {...
       'singargs',{'bindpath',mntPaths,'singimg',singimg},...
-      'bsubargs',{'gpuqueue' deeptracker.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
+      'bsubargs',{'gpuqueue' backend.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
                   'additionalArgs', additionalBsubArgs},...
       'sshargs',{'extraprefix',extraprefix}...
       };

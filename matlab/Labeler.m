@@ -10085,7 +10085,7 @@ classdef Labeler < handle
       end
       obj.clearStatus;
 
-    end
+    end  % function
     
     function showGTResults(obj,varargin)
       [gtResultTbl,tblLbl,reportargs,useLabels2,doreport,doui] = myparse(varargin,...
