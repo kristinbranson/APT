@@ -66,7 +66,7 @@ classdef APT
       % p: cellstr, path entries      
       % jp: cellstr, javapath entries
       
-      m = APT.readManifest;
+      m = APT.readManifest();
       
       root = APT.Root;
       mlroot = fullfile(root,'matlab');
@@ -158,7 +158,7 @@ classdef APT
     end
     
     function jaabapath = getjaabapath()
-      m = APT.readManifest;
+      m = APT.readManifest();
       jaabaroot = m.jaaba;
       jaabapath = { ...
         fullfile(jaabaroot,'filehandling'); ...
@@ -332,12 +332,12 @@ classdef APT
       tr = fullfile(APT.getdotaptdirpath(),'torch');
     end
     
-    function s = codesnapshot
+    function s = codesnapshot()
       % This method assumes that the user has set their path using
       % APT.setpath (so that the Manifest correclty reflects
       % dependencies). Do a quick+dirty check of this assumption.
       grf = which('get_readframe_fcn');
-      manifest = APT.readManifest;
+      manifest = APT.readManifest();
       if ~isequal(fileparts(grf),fullfile(manifest.jaaba,'filehandling'))
         warning('APT:manifest',...
           'Runtime path appears to differ from that specified by Manifest. Code snapshot is likely to be incorrect.');
@@ -496,7 +496,7 @@ classdef APT
       bldnames = fieldnames(buildIfo);
       projs = fieldnames(mccProjargs);
       projs = projs(end:-1:1); % build GetMovieNFrames first
-      mnfst = APT.readManifest;
+      mnfst = APT.readManifest();
       bindir = fullfile(mnfst.build,bindirname);
       if exist(bindir,'dir')==0
         fprintf('Creating bin dir %s...\n',bindir);
