@@ -1076,7 +1076,7 @@ classdef DeepTracker < LabelTracker
     % update trackerInfo from trnLastDMC
     function updateTrackerInfo(obj)      
       % info about algorithm and training
-      info = DeepModelChainOnDisk.TrackerInfo(obj.trnLastDMC);
+      info = DeepModelChainOnDisk.trackerInfo(obj.trnLastDMC);
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
       obj.trackerInfo = info;

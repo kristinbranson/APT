@@ -18,6 +18,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     trainLocName = 'loc.json';
     trainingImagesName = 'deepnet_training_samples.mat';
 
+    % Lists of the properties of different kinds that should all have shape 1 x obj.n
     props_numeric = {'jobidx','stage','view','splitIdx','iterFinal','iterCurr','nLabels'};
     props_cell = {'netType','netMode','trainType','modelChainID','trainID','restartTS','trainConfigNameOverride','trkTaskKeyword','prev_models'};
     props_bool = {'tfFollowsObjDet'};
@@ -120,7 +121,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   end
 
   properties (Dependent)
-    n
+    n  % The number of models.  Most properties of obj should be 1 x n
     nviews
     njobs
     nstages
@@ -809,18 +810,19 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         
       nmodels = [];
       for iprop=1:2:numel(varargin)
-        prop = varargin{iprop};
+        prop = varargin{iprop} ;
+        value = varargin{iprop+1} ;
         if strcmp(prop,'nmodels'),
-          nmodels = varargin{iprop+1};
+          nmodels = value;
         else
-          obj.(varargin{iprop}) = varargin{iprop+1};
+          obj.(prop) = value;
         end
       end
 
-      obj.autoFix(nmodels);
+      obj.autoFix_(nmodels);
     end
     
-    function autoFix(obj,nmodels)
+    function autoFix_(obj,nmodels)
       if nargin < 2 || isempty(nmodels),
         nmodels = max([numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx)]);
       end
@@ -936,6 +938,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     function merge(obj,dmc)
       assert(isequaln(obj.projID,dmc.projID));
+      % Merge irreconcilable properties by warning, then keeping ours
       tocheck = {'rootDir','trkTSstr'};
       for i = 1:numel(tocheck),
         prop = tocheck{i};
@@ -943,6 +946,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           warning('Differing values for %s, using %s',prop,obj.(prop));
         end
       end
+      % Merge numeric properties
       tocat = obj.props_numeric;
       for i = 1:numel(tocat),
         prop = tocat{i};
@@ -954,6 +958,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
         obj.(prop) = [v,dmc.(prop)];
       end
+      % Merge cell array properties
       tocat = obj.props_cell;
       for i = 1:numel(tocat),
         prop = tocat{i};
@@ -965,6 +970,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
         obj.(prop) = [v,dmc.(prop)];
       end
+      % Merge boolean properties
       tocat = obj.props_bool;
       for i = 1:numel(tocat),
         prop = tocat{i};
@@ -976,12 +982,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
         obj.(prop) = [v,dmc.(prop)];
       end
+      % Recompute a bunch of things based on the now-merged properties
       obj.resetFollowsObjDet();
       obj.resetIsMultiViewTracker();
       obj.resetIsMultiStageTracker();
-    end
+    end  % function
 
     function dmc = selectSubset(obj,varargin)
+      % Return a DMC with a subset of the models in obj.
+      % The returned DMC is completely indepdent of obj, i.e.
+      % they have no shared structure.
       idx = obj.select(varargin{:});
       dmc = obj.copy();
       props = [obj.props_numeric,obj.props_cell,obj.props_bool];
@@ -1036,6 +1046,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 %     end
 
     function [fileinfo,idx] = trainFileInfo(obj,varargin) 
+      % This method is only called by trainFileInfoSingle() and trackFileInfo(),
+      % neither of which ever gets called by anyone. --ALT, 2024-10-01
       idx = obj.select(varargin{:});
       fileinfo = struct() ;
       fileinfo.modelChainID = obj.modelChainID(idx);
@@ -1055,6 +1067,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
 
     function [fileinfo,idx] = trainFileInfoSingle(obj,varargin)
+      % This method does not seem to ever get called by anyone. --ALT, 2024-10-01
       [fileinfo,idx] = obj.trainFileInfo(varargin{:});
       fileinfo.modelChainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
       fileinfo.trainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.trainID);
@@ -1072,6 +1085,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
 
     function [fileinfo,idx] = trackFileInfo(obj,varargin)
+      % This method does not seem to ever get called by anyone. --ALT, 2024-10-01
       % TODO update and test
       [fileinfo,idx] = obj.trainFileInfo(varargin{:});
       fileinfo.errfile = obj.trkErrfileLnx(idx);
@@ -1455,6 +1469,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     end
 
     function idx = selectHelper(info,varargin)
+      % Returns a numeric array suitable for indexing into dmc.view, dmc.stage, etc.
+      % The returned array is generally a numeric array of indices.
+      % Example: selectHelper(dmc, 'view', 1) => (indices of all models in dmc with view==1)
+      % Example: selectHelper(dmc, 'stage', 2) => (indices of all models in dmc with stage==1)
       if numel(varargin) == 1,
         idx = varargin{:};
         return;
@@ -1478,12 +1496,16 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         idx = idx & splitidx1 == info.splitIdx;
       end
       idx = find(idx);
-    end
+    end  % function
 
-    function obj = modernize(dmcs,varargin)
+    function result = modernize(dmcs,varargin)
+      % Return a DeepModelChainOnDisk handle array, similar to dmcs, but patched
+      % up to conform to how a DeepModelChainOnDisk should be in the current version
+      % of APT.  If dmcs is modern enough, result will be an alias for dmcs.  But if
+      % dmcs is oldish, result will be a new, independent DeepModelChainOnDisk.
 
       if isempty(dmcs)
-        obj = dmcs;
+        result = dmcs;
         return
       end
 
@@ -1582,7 +1604,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           end
           j = j + numel(dmcs(i).view);
         end
-        obj = DeepModelChainOnDisk(...
+        result = DeepModelChainOnDisk(...
           'view',view,...
           'stage',stage,...
           'jobidx',jobidx,...
@@ -1604,15 +1626,17 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           'trkTaskKeyword',trkTaskKeyword,...
           'trkTSstr',dmcs(1).trkTSstr...
           );
-        obj.resetFollowsObjDet();
-        obj.resetIsMultiViewTracker();
-        obj.resetIsMultiStageTracker();
+        result.resetFollowsObjDet();
+        result.resetIsMultiViewTracker();
+        result.resetIsMultiStageTracker();
       else
         assert(numel(dmcs)==1);
-        obj = dmcs;
+        result = dmcs;
       end
-    end
-    function info = TrackerInfo(dmc)
+    end  % function
+
+    function info = trackerInfo(dmc)
+      info = struct() ;
       if isempty(dmc),
         info.nmodels = 0;
         info.isTrainStarted = false;
@@ -1644,8 +1668,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           info.nLabels = dmc.nLabels;
         end
       end
-
-    end
+    end  % function
 
     function result = getCheckSingle(s)
       % Checks that all elements of s are the same, in some class-appropriate sense,
@@ -1681,7 +1704,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         end
         result = s(1);
       end
-    end
+    end  % function
 
     function v = toCellArray(v,ncurr,ischarcellarray)
 
@@ -1716,10 +1739,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         error('Could not convert to cell array of length %d',ncurr);
       end
 
-    end
+    end  % function
 
-  end
-end
-    
-  
-  
+  end  % methods (Static)
+end  % classdef
