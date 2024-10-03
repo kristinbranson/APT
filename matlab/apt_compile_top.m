@@ -1,3 +1,3 @@
 mfilename('fullpath')
-% tobj = testAPT;
+% tobj = TestAPT();
 % tobj.test_setup()

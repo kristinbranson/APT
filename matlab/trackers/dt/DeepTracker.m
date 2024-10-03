@@ -1373,20 +1373,19 @@ classdef DeepTracker < LabelTracker
 
     end
 
-    function [jobidx,view,stage,gpuids] = SplitTrainIntoJobs(obj,backEnd)
+    function [jobidx,view,stage,gpuids] = SplitTrainIntoJobs(obj,backend)
       nview = obj.nview; %#ok<PROPLC> 
       nstage = obj.getNumStages();
       [view,stage] = ndgrid(1:nview,1:nstage); %#ok<PROPLC> 
       view = view(:)';
       stage = stage(:)';
       nmodel = nview*nstage; %#ok<PROPLC> 
-      if backEnd.isGpuLocal(),
+      if backend.isGpuLocal(),
         % how many gpus do we have available?
-        gpuids = backEnd.getFreeGPUs(nmodel);
+        gpuids = backend.getFreeGPUs(nmodel);
         if numel(gpuids) < nmodel,
           if numel(gpuids)<1,
-            gpuids = nan;
-            warning('No GPUs with sufficient RAM available locally');
+            error('No GPUs with sufficient RAM available locally');
           else
             gpuids = gpuids(1);
             jobidx = ones([1,nmodel]);

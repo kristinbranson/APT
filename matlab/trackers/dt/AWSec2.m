@@ -24,6 +24,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     isSpecified
     isConfigured
     isInDebugMode
+    wasInstanceStarted
   end
 
   properties
@@ -39,6 +40,11 @@ classdef AWSec2 < matlab.mixin.Copyable
     isInDebugMode_ = false
   end
   
+  properties (Transient)
+    wasInstanceStarted_ = false  % We don't want this to be copied over when passing an AWSec2 in an arg to parfeval(), or
+                                 % when the object is persisted, so we make it transient
+  end
+
   properties (Constant)
     scpCmd = AWSec2.computeScpCmd()
     %sshCmd = AWSec2.computeSshCmd()
@@ -79,6 +85,10 @@ classdef AWSec2 < matlab.mixin.Copyable
 
     function set.isInDebugMode(obj, value)
       obj.isInDebugMode_ = value ;
+    end
+
+    function result = get.wasInstanceStarted(obj)
+      result = obj.wasInstanceStarted_ ;
     end
 
     function setInstanceID(obj,instanceID,instanceType)
@@ -202,12 +212,12 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,json] = stopInstance(obj)
-      if ~obj.isSpecified,
+      if ~obj.isSpecified || ~obj.wasInstanceStarted_ ,
         tfsucc = true;
         json = {};
-        return;
+        return
       end
-      %obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
+      fprintf('Stopping AWS EC2 instance %s...\n',obj.instanceID);
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
@@ -292,6 +302,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.inspectInstance();
       obj.configureAlarm();
       %obj.ClearStatus();
+      obj.wasInstanceStarted_ = true ;
     end
     
     function tfsucc = waitForInstanceStart(obj)

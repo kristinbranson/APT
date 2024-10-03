@@ -209,13 +209,13 @@ classdef APT
       end
         
       [p,jp] = APT.getpath();
-      if APT.matlabPathNotConfigured
+      if APT.matlabPathNotConfigured()
         fprintf('Configuring your MATLAB path ...\n');
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
       %MK 20190506 Add stuff to systems path for aws cli
-      if ismac
+      if ismac()
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
     end

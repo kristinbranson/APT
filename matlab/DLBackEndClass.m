@@ -931,8 +931,24 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods (Static)
     function obj = loadobj(larva)
       % We implement this to provide backwards-compatibility with older .mat files
-      obj = larva ;
-      if strcmp(larva.singularity_image_path_, '<invalid>') ,
+      if isstruct(larva) ,
+        obj = DLBackEndClass() ;
+        field_names = fieldnames(larva) ;
+        for i = 1 : numel(field_names) ,
+          field_name = field_names{i} ;
+          if isprop(obj, field_name) ,
+            value = larva.(field_name) ;
+            obj.set_property_value_(field_name, value) ;
+          else
+            warning('Unknown property %s', field_name) ;
+          end
+        end
+      elseif isa(larva, 'DLBackEndClass') ,
+        obj = larva ;
+      else
+        error('Unable to deal with a larva of class %s', class(larva)) ;
+      end       
+      if strcmp(obj.singularity_image_path_, '<invalid>') ,
         % This must come from an older .mat file, so we use the legacy values
         obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
         obj.does_have_special_singularity_detection_image_path_ = true ;
@@ -948,7 +964,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if aws.isInDebugMode ,
         return
       end
-      fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
       tfsucc = aws.stopInstance();
       if ~tfsucc
         warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);

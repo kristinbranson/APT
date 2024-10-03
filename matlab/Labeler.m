@@ -2056,6 +2056,7 @@ classdef Labeler < handle
       obj.viewCalibrationData = [];
       obj.viewCalibrationDataGT = [];
       obj.labelTemplate = []; % order important here
+      obj.gtIsGTMode = false;
       obj.movieSetNoMovie(); % order important here
 %       obj.labeledpos = cell(0,1);
       

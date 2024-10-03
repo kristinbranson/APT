@@ -1,5 +1,5 @@
 function [labeler, labelerController] = StartAPT(varargin)
-APT.setpathsmart;
+APT.setpathsmart();
 if isscalar(varargin) ,
   args = horzcat({'projfile'}, varargin) ;
 else

@@ -89,7 +89,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       if iscell(jID)  ,
         jID = jID{1};
       end        
-      if isnan(jID) || isempty(jID),
+      if isempty(jID) || isnan(jID) ,
         fprintf('isKilled: jID is nan!\n');
         tf = false;
         return
