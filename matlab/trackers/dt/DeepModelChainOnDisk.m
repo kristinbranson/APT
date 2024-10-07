@@ -1343,7 +1343,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
       % backend.  -- ALT, 2024-06-25
       localProjectPath = fullfile(obj.rootDir, obj.projID) ;
-      remoteProjectPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, obj.projID) ;  % ensure linux-style path
+      remoteProjectPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, obj.projID) ;  % ensure linux-style path
       [didsucceed, msg] = backend.mkdir(remoteProjectPath) ;
       if ~didsucceed ,
         error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
@@ -1352,7 +1352,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
-      obj.remoteRootDir_ = DLBackEndClass.RemoteAWSCacheDir ;
+      obj.remoteRootDir_ = DLBackEndClass.remoteAWSCacheDir ;
       obj.isRemote_ = true ;
     end
     

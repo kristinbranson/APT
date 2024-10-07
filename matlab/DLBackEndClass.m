@@ -9,7 +9,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
-    RemoteAWSCacheDir = '/home/ubuntu/cacheDL'
+    remoteAWSCacheDir = '/home/ubuntu/cacheDL'
 
     jrchost = 'login1.int.janelia.org'
     jrcprefix = ''
@@ -242,7 +242,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % For non-AWS backends, this is the identity function.
       if isequal(obj.type, DLBackEnd.AWS) ,
         movieName = fileparts23(localPath) ;
-        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, 'movies') ;
+        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, 'movies') ;
         rawRemotePath = linux_fullfile(remoteMovieFolderPath, movieName) ;
         result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
       else

@@ -1,9 +1,6 @@
 import pathlib
 import os
 import sys
-#AL20210629 just this relative append didn't work across bsub/singularity (could not find mmdet)
-#sys.path.append('mmdetection')
-sys.path.append(os.path.join(os.path.dirname(__file__),'mmdetection'))
 from mmcv import Config
 
 import mmcv
@@ -12,6 +9,7 @@ from mmcv import Config, DictAction
 from mmcv.runner import get_dist_info, init_dist
 from mmcv.utils import get_git_hash
 
+import mmdet
 from mmdet import __version__
 from mmdet.apis import set_random_seed, train_detector
 from mmdet.datasets import build_dataset
@@ -590,13 +588,17 @@ class APTMaxIoUAssigner(MaxIoUAssigner):
 
 
 
-def create_mmdetect_cfg(conf,mmdetection_config_file,run_name):
-    curdir = pathlib.Path(__file__).parent.absolute()
-    mmdir = os.path.join(curdir,'mmdetection')
-    mmdetect_config = os.path.join(mmdir,mmdetection_config_file)
+def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
+    # curdir = pathlib.Path(__file__).parent.absolute()
+    # mmdir = os.path.join(curdir,'mmdetection')
+    # mmdet_config_file_path = os.path.join(mmdir,mmdetection_config_file)
+    mmdet_init_file_path = mmdet.__file__
+    mmdet_dir = os.path.dirname(mmdet_init_file_path)
+    dot_mim_folder_path = os.path.join(mmdet_dir, '.mim')  # this feels not-robust
+    mmdet_config_file_path = os.path.join(dot_mim_folder_path, mmdet_config_file)
     data_bdir = conf.cachedir
 
-    cfg = Config.fromfile(mmdetect_config)
+    cfg = Config.fromfile(mmdet_config_file_path)
     cfg.checkpoint_config.interval = conf.save_step
     cfg.checkpoint_config.filename_tmpl = run_name + '-{}'
     cfg.checkpoint_config.by_epoch = False
@@ -767,7 +769,7 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
         return td_name
 
 
-    def train_wrapper(self,restore=False, model_file=None):
+    def train_wrapper(self,restore=False, model_file=None, debug=False):
 
         # From mmdetection/tools/train.py
         logging.info('Saving config to _cfg.py file')

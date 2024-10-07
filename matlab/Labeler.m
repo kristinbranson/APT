@@ -9998,8 +9998,7 @@ classdef Labeler < handle
       end
 
     end
-    function tblGTres = gtComputeGTPerformance(obj,varargin)
-      %
+    function gtComputeGTPerformance(obj,varargin)
       % Front door entry point for computing gt performance
       
       [doreport,useLabels2,doui] = myparse(varargin,...
@@ -10034,7 +10033,7 @@ classdef Labeler < handle
         movidx_new = [];
         for ndx = 1:numel(movidx)
           mn = movidx(ndx).get();
-          movidx_new(end+1) = mn;
+          movidx_new(end+1) = mn;  %#ok<AGROW> 
         end
         movidx = movidx_new;
         tblMFT.mov = newmov;
@@ -10065,19 +10064,18 @@ classdef Labeler < handle
           end
         end
 
-        totrackinfo = ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
-        'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
-        'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
+        totrackinfo = ...
+          ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
+                      'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
+                      'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
         
-        tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,...
-          varargin{:});
-%         [tfsucc] = tObj.trackGT();
+        tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
         DIALOGTTL = 'GT Tracking';
         if tfsucc
           msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
           msgbox(msg,DIALOGTTL);
         else
-          msg = sprintf('GT tracking failed: %s',msg);
+          msg = sprintf('GT tracking failed');
           warndlg(msg,DIALOGTTL);
         end
         return;
@@ -10085,13 +10083,12 @@ classdef Labeler < handle
         showGTResults('lblTbl',tblMFT,'useLabels2',true,'doreport',doreport,'doui',doui);
       end
       obj.clearStatus;
-
     end  % function
     
     function showGTResults(obj,varargin)
       [gtResultTbl,tblLbl,reportargs,useLabels2,doreport,doui] = myparse(varargin,...
         'gtResultTbl',[], 'lblTbl',[],...
-        'reportargs',{'nmontage',24},'useLabels2',false,'doreport',true,'doui',true);
+        'reportargs',cell(1,0),'useLabels2',false,'doreport',true,'doui',true);
 
       if isempty(tblLbl)
         tblLbl = obj.gtGetTblSuggAndLbled();
@@ -10107,7 +10104,7 @@ classdef Labeler < handle
           'useLabels2',true,... % in GT mode, so this compiles labels2GT
           'tblMFTrestrict',tblLbl);        
         if wbObj.isCancel
-          tblGTres = [];
+          %tblGTres = [];
           warningNoTrace('Labeler property .gtTblRes not set.');
           return;
         end
@@ -10209,11 +10206,11 @@ classdef Labeler < handle
     function h = gtReport(obj,varargin)
       t = obj.gtTblRes;
 
-      [nmontage,fcnAggOverPts,aggLabel] = myparse(varargin,...
-        'nmontage',height(t),...
-        'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
-        'aggLabel','Max' ...
-        );
+      [fcnAggOverPts,aggLabel] = ...
+        myparse(varargin,...
+                'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
+                'aggLabel','Max' ...
+                );
       
       t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
       % KB 20181022: Changed colors to match sets instead of points
@@ -10233,7 +10230,6 @@ classdef Labeler < handle
         valid = ~all(isnan(l2err),2);
         l2err = l2err(valid,:);
       end
-%%
       nviews = obj.nview;
       nphyspt = npts/nviews;
       prc_vals = [50,75,90,95,98];
@@ -10252,7 +10248,7 @@ classdef Labeler < handle
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
       for view = 1:nviews
         curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
-        [im,isrotated,xdata,ydata,A,tform] = obj.getTargetIm(abs(t.mov(1)),t.frm(1),t.iTgt(1),view,true);
+        [im,isrotated,~,~,A] = obj.getTargetIm(abs(t.mov(1)),t.frm(1),t.iTgt(1),view,true);
         if isrotated
           curl = [curl,ones(nphyspt,1)]*A;
           curl = curl(:,1:2);
@@ -10289,9 +10285,9 @@ classdef Labeler < handle
         for view = 1:nviews
           for n = 1:nphyspt
             if n==1
-              xtick_str{end+1} = sprintf('View %d -- %d',view,n);
+              xtick_str{end+1} = sprintf('View %d -- %d',view,n); %#ok<AGROW> 
             else
-              xtick_str{end+1} = sprintf('%d',n);
+              xtick_str{end+1} = sprintf('%d',n); %#ok<AGROW> 
             end
           end
         end
@@ -11244,13 +11240,14 @@ classdef Labeler < handle
     end
   
     function trackSetCurrentTracker(obj,iTrk)
-      validateattributes(iTrk,{'numeric'},...
-        {'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
+      validateattributes(iTrk,{'numeric'},{'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
       
       tAll = obj.trackersAll;
       if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
         prev = tAll{iTrk};
-        if ~DeepTrackerTopDownCustom.use_prev(prev)
+        if DeepTrackerTopDownCustom.use_prev(prev)
+          % do nothing
+        else
           ctorargs = DeepTrackerTopDownCustom.get_args(prev);
           newTracker = DeepTrackerTopDownCustom(obj,ctorargs{1},ctorargs{2});
           if newTracker.valid
@@ -11258,10 +11255,10 @@ classdef Labeler < handle
             tAll{iTrk} = newTracker;
             obj.trackersAll = tAll;
           else
-            return;
+            return
           end
         end
-      end
+      end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
       iTrk0 = obj.currTracker;
       if iTrk0>0
@@ -11272,7 +11269,7 @@ classdef Labeler < handle
         tAll{iTrk}.setHideViz(false);
       end
       obj.labelingInit('labelMode',obj.labelMode);
-    end
+    end  % function
     
     function sPrm = setTrackNFramesParams(obj,sPrm)
       obj.trackNFramesSmall = sPrm.ROOT.Track.NFramesSmall;
@@ -14776,7 +14773,7 @@ classdef Labeler < handle
         end
         gd.txPrevIm.String = [gd.txPrevIm.String,sprintf(', Movie %d',freezeInfo.iMov)];
       end
-      obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
+      obj.prevAxesSetLabels_(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
       
       gd.hLinkPrevCurr.Enabled = 'off';
       axp = gd.axes_prev;
@@ -14869,7 +14866,7 @@ classdef Labeler < handle
         return;
       end
       if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLabels(obj.currMovie,obj.prevFrame,obj.currTarget);
+        obj.prevAxesSetLabels_(obj.currMovie,obj.prevFrame,obj.currTarget);
       else
         LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
@@ -14886,11 +14883,11 @@ classdef Labeler < handle
         
         freezeInfo = obj.prevAxesModeInfo;
         try
-          obj.prevAxesSetLabels(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
+          obj.prevAxesSetLabels_(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
         catch
         end
       elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLabels(obj.currMovie,obj.prevFrame,obj.currTarget);
+        obj.prevAxesSetLabels_(obj.currMovie,obj.prevFrame,obj.currTarget);
       else
         LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
@@ -15028,8 +15025,8 @@ classdef Labeler < handle
           th = -pi/2;
         end
         A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
-        tform = maketform('affine',A);
-        [im,xdata,ydata] = imtransform(im,tform,'bicubic');
+        tform = maketform('affine',A);  %#ok<MTFA1> 
+        [im,xdata,ydata] = imtransform(im,tform,'bicubic');  %#ok<DIMTRNS> 
         isrotated = true;
       end
 
@@ -15242,40 +15239,32 @@ classdef Labeler < handle
       else
         obj.prevAxesModeInfo.iMov = newIdx;
       end
-      
-    end
-    
-  end
-  methods (Access=private)
-    function prevAxesSetLabels(obj,iMov,frm,iTgt,info)
+    end  % function
+  end  % methods
+
+  methods  % (Access=private)
+    function prevAxesSetLabels_(obj,iMov,frm,iTgt,info)
       persistent tfWarningThrownAlready
       
       if nargin < 5,
-        hasInfo = false
+        hasInfo = false ;
         info = [] ;
-        %isrotated = false;
       else
         hasInfo = true ;
-        %isrotated = info.isrotated;
       end
       
       if isempty(frm),
-%         sz = size(obj.labeledposGTaware{1});
         lpos = nan(obj.nLabelPoints,2);
         lpostag = false(obj.nLabelPoints,1);
       else
-%         lpos = obj.labeledposGTaware;
-%         lpostag = obj.labeledpostagGTaware;
-%         lpos = lpos{iMov}(:,:,frm,iTgt);
-%         lpostag = lpostag{iMov}(:,frm,iTgt);
         if hasInfo ,
-          [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',info.gtmode);
+          [~,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',info.gtmode);
           if info.isrotated,
             lpos = [lpos,ones(size(lpos,1),1)]*info.A;
             lpos = lpos(:,1:2);
           end
         else
-          [tf,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
+          [~,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
         end
       end
       ipts = 1:obj.nPhysPoints;
@@ -15297,12 +15286,12 @@ classdef Labeler < handle
       if any(lpostag(ipts))
         if isempty(tfWarningThrownAlready)
           warningNoTrace('Labeler:labelsPrev',...
-            'Label tags in previous frame not visualized.');
+                         'Label tags in previous frame not visualized.');
           tfWarningThrownAlready = true;
         end
       end
-    end
-  end
+    end  % function
+  end  % methods
   
   %% Labels2/OtherTarget labels
   
@@ -16233,7 +16222,6 @@ classdef Labeler < handle
       % non-getter methods on Labeler internals. --ALT, 2024-08-28
       t = obj.tracker;
       t.retrain('augOnly',true);
-    end
-
+    end  % function
   end  % methods
 end  % classdef

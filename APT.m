@@ -313,18 +313,17 @@ classdef APT
     end
     
     function result = getdotaptdirpath()  % returns e.g. /home/joesixpack/.apt
-      manifest = APT.readManifest() ;
-      if isfield(manifest,'dltemproot')
-        result = manifest.dltemproot;
+      envar_value = getenv('APT_DOT_APT_DIR') ;
+      if ~isempty(envar_value) ,
+        result = envar_value ;
       else
-        if ispc()
-          userDir = winqueryreg('HKEY_CURRENT_USER',...
-            ['Software\Microsoft\Windows\CurrentVersion\' ...
-            'Explorer\Shell Folders'],'Personal');
+        manifest = APT.readManifest() ;
+        if isfield(manifest,'dltemproot')
+          result = manifest.dltemproot;
         else
-          userDir = char(java.lang.System.getProperty('user.home'));
+          home_folder_path = get_home_dir_name() ;
+          result = fullfile(home_folder_path,'.apt');
         end
-        result = fullfile(userDir,'.apt');
       end
     end  % function
     

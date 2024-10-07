@@ -40,7 +40,7 @@ classdef TestAPT < handle
     old_lbl  
       % A struct that holds the output of a call to loadLbl(), or empty.  Set by a
       % call to the load_lbl_() method.
-    path_setup_done = false
+    % path_setup_done = false
   end
   
   methods
@@ -96,7 +96,7 @@ classdef TestAPT < handle
       copyfile(info.ref_lbl,tdir);
       tar(fullfile(tempdir,[proj_name '_data.tar.gz']),tdir,tdir);
       rmdir(tdir);
-    end
+    end  % function
     
 %     function setup_path_(obj)
 %       if ~obj.path_setup_done , 
@@ -203,24 +203,23 @@ classdef TestAPT < handle
       end
       info.name = name;
       obj.info = info;
-    end
+    end  % function
         
-    function ok = do_files_exist_(obj)
+    function result = do_files_exist_(obj)
       old_lbl = obj.old_lbl;
       info = obj.info;
-      ok = true;
+      result = true;
       for ndx = 1:numel(old_lbl.movieFilesAll),
         if ~exist(old_lbl.movieFilesAll{ndx},'file')
-            ok = false;
-            return;          
+            result = false;
+            return
         end
         if info.has_trx && ~exist(old_lbl.trxFilesAll{ndx},'file')
-            ok = false;
-            return;          
+            result = false;
+            return
         end        
-      end
-      
-    end
+      end      
+    end  % function
     
     function load_lbl_(obj)
       info = obj.info;
@@ -258,7 +257,7 @@ classdef TestAPT < handle
         end
       end
       obj.old_lbl = old_lbl;
-    end
+    end  % function
     
     function setup_data_(obj)
       info = obj.info;
@@ -287,7 +286,7 @@ classdef TestAPT < handle
       end
       
       untar(out_file,cacheDir);          
-    end
+    end  % function
     
     function test_full(obj,varargin)
       [all_nets,backend,params,backend_params,setup_params] = ...
@@ -297,37 +296,41 @@ classdef TestAPT < handle
                 'params',{},...
                 'backend_params',struct(),...
                 'setup_params',{});
-      obj.test_setup(setup_params{:});
+      obj.test_setup(setup_params{:});  
 
-      if ischar(all_nets) || isscalar(all_nets),
+      if ischar(all_nets) || (isscalar(all_nets) && ~iscell(all_nets)),
         all_nets = {all_nets};
       end
       if isempty(all_nets),
-        all_nets = num2cell(1:numel(obj.labeler.trackersAll));
+        %all_nets = num2cell(1:numel(obj.labeler.trackersAll));
+        all_nets = cellfun(@(tracker)(tracker.algorithmName), ...
+                           obj.labeler.trackersAll, ...
+                           'UniformOutput', false) ;
       end
       if isnumeric(all_nets),
         all_nets = num2cell(all_nets);
       end
       for nndx = 1:numel(all_nets)
         obj.test_train('net_type',all_nets{nndx},'backend',backend,...
-                        'params',params,'backend_params',backend_params);
+                       'params',params,'backend_params',backend_params);
       end
-    end
+    end  % function
     
     function test_setup(obj,varargin)
       %obj.setup_path_();
-      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots] = ...
+      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots,jrcAdditionalBsubArgs] = ...
         myparse(varargin,...
                 'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
                 'simpleprojload',false, ... % if true, just load the proj; use when proj on local filesys with all deps
                 'jrcgpuqueue','',... % override gpu queue
-                'jrcnslots',[]... % override nslots
+                'jrcnslots',[],... % override nslots
+                'jrcAdditionalBsubArgs',''...
                 );
       
       if simpleprojload
-        [labeller, controller] = StartAPT();
-        labeller.projLoad(obj.info.ref_lbl);
-        obj.labeler = labeller;
+        [labeler, controller] = StartAPT();
+        labeler.projLoad(obj.info.ref_lbl);
+        obj.labeler = labeler;
         obj.controller = controller ;
         obj.old_lbl = [];
       else
@@ -335,14 +338,14 @@ classdef TestAPT < handle
         if ~obj.do_files_exist_()
           obj.setup_data_();
         end      
-        [labeller, controller] = obj.create_project_();
-        obj.labeler = labeller;
+        [labeler, controller] = obj.create_project_();
+        obj.labeler = labeler;
         obj.controller = controller ;
         obj.add_movies_();
         obj.add_labels_quick_();
       end
       
-      if labeller.hasTrx
+      if labeler.hasTrx
         trkTypes = MFTSetEnum.TrackingMenuTrx;
       else
         trkTypes = MFTSetEnum.TrackingMenuNoTrx;
@@ -352,24 +355,19 @@ classdef TestAPT < handle
       obj.labeler.setSkeletonEdges(obj.info.op_graph);
       
       if ~isempty(jrcgpuqueue),
-        if ~isempty(labeller.trackDLBackEnd) ,
-          labeller.trackDLBackEnd.jrcgpuqueue = jrcgpuqueue ;
+        if ~isempty(labeler.trackDLBackEnd) ,
+          labeler.set_backend_property('jrcgpuqueue', jrcgpuqueue) ;
         end
-%         for i = 1:numel(labeller.trackersAll),
-%           if isprop(labeller.trackersAll{i},'jrcgpuqueue'),
-%             labeller.trackersAll{i}.jrcgpuqueue = jrcgpuqueue ;
-%           end
-%         end
       end
       if ~isempty(jrcnslots),
-        if ~isempty(labeller.trackDLBackEnd) ,
-          labeller.trackDLBackEnd.jrcnslots = jrcnslots ;
+        if ~isempty(labeler.trackDLBackEnd) ,
+          labeler.set_backend_property('jrcnslots', jrcnslots)
         end
-%         for i = 1:numel(labeller.trackersAll),
-%           if isprop(labeller.trackersAll{i},'jrcnslots'),
-%             labeller.trackersAll{i}.setJrcnslots(jrcnslots);
-%           end
-%         end
+      end
+      if ~isempty(jrcAdditionalBsubArgs),
+        if ~isempty(labeler.trackDLBackEnd) ,
+          labeler.set_backend_property('jrcAdditionalBsubArgs', jrcAdditionalBsubArgs)
+        end
       end
     end  % function
     
@@ -435,7 +433,7 @@ classdef TestAPT < handle
               labeller.notify('cropCropsChanged'); 
           end
       end
-    end
+    end  % function
     
     function add_labels_quick_(obj)
       old_lbl = obj.old_lbl;
@@ -508,19 +506,29 @@ classdef TestAPT < handle
       labeller = obj.labeler;
 
       if isnumeric(alg)
-        tndx = alg;
+        trackerIndex = alg;
       else
-        nalgs = numel(labeller.trackersAll);
-        tndx = 0;
-        for ix = 1:nalgs
-          if strcmp(labeller.trackersAll{ix}.algorithmName,alg)
-            tndx = ix;
-          end
+        algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), labeller.trackersAll, 'UniformOutput', false) ;
+        matchingIndices = find(strcmp(alg, algorithmNameFromTrackerIndex)) ;
+        if isempty(matchingIndices) ,
+          error('No algorithm named %s among the available trackers', alg) ;
+        elseif isscalar(matchingIndices) ,
+          % all is well
+        else
+          error('Internal error: More than one algorithm named %s among the available trackers', alg) ;
         end
+        trackerIndex = matchingIndices ;
+%         nalgs = numel(labeller.trackersAll);
+%         trackerIndex = 0;
+%         for ix = 1:nalgs
+%           if strcmp(labeller.trackersAll{ix}.algorithmName,alg)
+%             trackerIndex = ix;
+%           end
+%         end
       end
-      assert(tndx > 0)
-      labeller.trackSetCurrentTracker(tndx);
-    end
+      assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
+      labeller.trackSetCurrentTracker(trackerIndex);
+    end  % function
     
     function set_params_base_(obj,has_trx,dl_steps,sz, batch_size)
       labeller = obj.labeler;
@@ -544,7 +552,7 @@ classdef TestAPT < handle
 %       for ndx = 1:2:numel(params)
 %         sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
 %       end
-    end
+    end  % function
         
     function set_backend_(obj, backend_type_as_string, backend_params)
       % backend_params: structure containing name-value pairs to be set on the backend      
@@ -619,7 +627,7 @@ classdef TestAPT < handle
           obj.test_track('block',block);
         end
       end      
-    end
+    end  % function
     
     function test_track(obj,varargin)
       [block,net_type,backend,backend_params] = myparse(varargin,...
@@ -642,7 +650,7 @@ classdef TestAPT < handle
         end
         pause(10);
       end
-    end
+    end  % function
     
     function test_track_export(obj)
       labeller = obj.labeler;
@@ -659,7 +667,7 @@ classdef TestAPT < handle
         end
         disp(trk);
       end
-    end
+    end  % function
     
     function test_gtcompute(obj,varargin)
       [block,backend,backend_params] = myparse(varargin,'block',true,...
@@ -679,7 +687,7 @@ classdef TestAPT < handle
         end
         pause(10);
       end
-    end
+    end  % function
 
     function test_quick(obj, proj_file, net, backend, backend_params) 
       obj.setup_lbl(proj_file);
@@ -805,14 +813,14 @@ classdef TestAPT < handle
       elseif strcmp(info.name,'stephen')
         exp_name = fileparts(strrep(pin,exp_dir_base,''));
       end      
-    end
+    end  % function
             
     function [data_dir, lbl_file] = get_file_paths(info)
       cacheDir = APT.getdotaptdirpath();
       data_dir = fullfile(cacheDir,info.proj_name);
       [~,lbl_name,ext] = fileparts(info.ref_lbl);
       lbl_file = fullfile(data_dir,strcatg(lbl_name,ext));
-    end
+    end  % function
     
 %     function create_lbl_sh()
 %       % For Stephen's projects, we select 5 movies from the label file, add
