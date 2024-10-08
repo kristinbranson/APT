@@ -322,6 +322,31 @@ classdef LabelerController < handle
     function menu_track_backend_config_aws_setinstance_actuated(obj, source, event)  %#ok<INUSD> 
       obj.selectAwsInstance_() ;
     end
+
+    function menu_track_algorithm_actuated(obj, source, event)  %#ok<INUSD> 
+      % Get the tracker index
+      tracker_index = source.UserData;
+
+      % Validate it
+      tAll = obj.labeler_.trackersAll;
+      tracker_count = numel(tAll) ;
+      if isnumeric(tracker_index) && isscalar(tracker_index) && round(tracker_index)==tracker_index && 1<=tracker_index && tracker_index<=tracker_count ,
+        % all is well
+      else
+        error('APT:invalidPropertyValue', 'Invalid tracker index') ;
+      end
+      
+      % If a custom top-down tracker, ask if we want to keep it or make a new one.
+      if isa(tAll{tracker_index},'DeepTrackerTopDownCustom')
+        prev = tAll{tracker_index};
+        do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(prev) ;
+      else
+        do_use_previous = [] ;  % value will be ignored
+      end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
+      
+      % Finally, call the model method to se the tracker
+      obj.labeler_.trackSetCurrentTracker(tracker_index, do_use_previous);      
+    end
   end  % public methods block
 
   methods  % private by convention methods block

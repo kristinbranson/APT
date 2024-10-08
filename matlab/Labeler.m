@@ -11239,13 +11239,24 @@ classdef Labeler < handle
       iTrk = 0;
     end
   
-    function trackSetCurrentTracker(obj,iTrk)
-      validateattributes(iTrk,{'numeric'},{'nonnegative' 'integer' '<=' numel(obj.trackersAll)});
+    function trackSetCurrentTracker(obj, iTrk, do_use_previous_if_custom_top_down)
+      % Deal with optional args
+      if ~exist('do_use_previous_if_custom_top_down', 'var') || isempty(do_use_previous_if_custom_top_down) ,
+        do_use_previous_if_custom_top_down = true ;
+      end
       
+      % Validate the new value
       tAll = obj.trackersAll;
+      tracker_count = numel(tAll) ;
+      if isnumeric(iTrk) && isscalar(iTrk) && round(iTrk)==iTrk && 1<=iTrk && iTrk<=tracker_count ,
+        % all is well
+      else
+        error('APT:invalidPropertyValue', 'Invalid tracker index') ;
+      end
+      
       if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
         prev = tAll{iTrk};
-        if DeepTrackerTopDownCustom.use_prev(prev)
+        if do_use_previous_if_custom_top_down
           % do nothing
         else
           ctorargs = DeepTrackerTopDownCustom.get_args(prev);
