@@ -9,19 +9,21 @@
 % testObj.test_train('net_type',[],'params',-1,'niters',1000);  
 % testObj = [] ;
 
-% MA/roian, Kristin's suggestion:
-testObj = TestAPT('name','roianma');  
-if strcmp(get_user_name(), 'taylora') ,
-  jrcAdditionalBsubArgs = '-P scicompsoft' ;
-else
-  jrcAdditionalBsubArgs = '' ;
-end
-testObj.test_full('nets',{}, ...
-                  'setup_params',{'simpleprojload',1, ...
-                                  'jrcgpuqueue','gpu_a100', ...
-                                  'jrcnslots',4, ...
-                                  'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs}, ...
-                  'backend','bsub') ;
+% % MA/roian, Kristin's suggestion:
+% testObj = TestAPT('name','roianma');  
+% if strcmp(get_user_name(), 'taylora') ,
+%   jrcAdditionalBsubArgs = '-P scicompsoft' ;
+% else
+%   jrcAdditionalBsubArgs = '' ;
+% end
+% testObj.test_full('nets',{}, ...
+%                   'setup_params',{'simpleprojload',1, ...
+%                                   'jrcgpuqueue','gpu_a100', ...
+%                                   'jrcnslots',4, ...
+%                                   'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs}, ...
+%                   'backend','bsub') ;
+% testObj = [] ;
+
 % testObj.test_full('nets',{'ma_top_down_ht_tddht_tdpht', ...
 %                           'ma_top_down_bbox_tddobj_tdpobj', ...
 %                           'ma_top_down_custom_ht_tddht_tdpht', ...
@@ -44,9 +46,18 @@ testObj.test_full('nets',{}, ...
   % empty nets means test all nets
 % testObj = [] ;
 
-% % Carmen/GT workflow (proj on JRC/dm11)
-% testObj = TestAPT('name','carmen');
-% testObj.test_setup('simpleprojload',1);
-% testObj.test_train('backend','bsub');
-% testObj.test_track('backend','bsub');
-% testObj.test_gtcompute('backend','bsub');
+% Carmen/GT workflow (proj on JRC/dm11)
+testObj = TestAPT('name','carmen');
+if strcmp(get_user_name(), 'taylora') ,
+  jrcAdditionalBsubArgs = '-P scicompsoft' ;
+else
+  jrcAdditionalBsubArgs = '' ;
+end
+testObj.test_setup('simpleprojload',1, ...
+                   'jrcgpuqueue','gpu_a100', ...
+                   'jrcnslots',4, ...
+                   'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs) ;
+testObj.test_train('backend','bsub');
+testObj.test_track('backend','bsub');
+testObj.test_gtcompute('backend','bsub');
+% testObj = [] ;

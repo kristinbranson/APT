@@ -1573,10 +1573,11 @@ classdef Labeler < handle
 
     function delete(obj)
       obj.controller_ = [] ;  % this is a weak reference (by convention), so don't delete
-      be = obj.trackDLBackEnd;
-      if ~isempty(be)
-        be.shutdown();
-      end
+      % Backend should release resources properly when deleted now
+      % be = obj.trackDLBackEnd;
+      % if ~isempty(be)
+      %   be.shutdown();
+      % end
       if ~isempty(obj.projTempDir) 
         if obj.projTempDirDontClearOnDestructor ,
           fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
@@ -1584,9 +1585,8 @@ classdef Labeler < handle
           obj.projRemoveTempDir();
         end
       end
-    end
-    
-  end
+    end  % function    
+  end  % methods
   
         
   %% Configurations

@@ -98,7 +98,7 @@ classdef BgRunnerContinuous < handle
         logger.log('Done pausing...');
         iterations_completed = iterations_completed + 1 ;
         logger.log('iterations_completed: %d\n', iterations_completed) ;
-      end
+      end  % while true
       
       status = 1;
       logger.log('About to exit BgRunnerContinuous::run()\n') ;

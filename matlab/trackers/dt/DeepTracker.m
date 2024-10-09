@@ -3886,7 +3886,7 @@ classdef DeepTracker < LabelTracker
 %           end
 %         end
 
-      end
+      end  % if
       
       % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
       obj.updateTrackerInfo();
@@ -3900,9 +3900,9 @@ classdef DeepTracker < LabelTracker
         elseif strcmpi(res,'Save as...'),
           obj.lObj.projSaveAs();
           obj.lObj.projAssignProjNameFromProjFileIfAppropriate();
-        end
-      end
-    end
+        end  % if
+      end  % if
+    end  % function
     
     function xvStoppedCbk(obj,varargin)
       

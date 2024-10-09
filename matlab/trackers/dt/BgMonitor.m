@@ -192,7 +192,7 @@ classdef BgMonitor < handle
       if errOccurred
         obj.stop();
 
-        fprintf(1,'Error occurred during %s:\n',obj.processName);
+        fprintf('Error occurred during %s:\n',obj.processName);
         errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
         if iscell(errFile) ,
           if isscalar(errFile) ,
@@ -201,11 +201,11 @@ classdef BgMonitor < handle
             error('errFile is a non-scalar cell array')
           end
         end        
-        fprintf(1,'\n### %s\n\n',errFile);
+        fprintf('\n### %s\n\n',errFile);
         errContents = obj.bgWorkerObj.fileContents(errFile);
         disp(errContents);
-        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
-        return;
+        fprintf('\n\n. You may need to manually kill any running DeepLearning process.\n');
+        return
         
         % monitor plot stays up; reset not called etc
       end

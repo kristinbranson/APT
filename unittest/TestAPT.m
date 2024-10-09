@@ -305,7 +305,7 @@ classdef TestAPT < handle
         %all_nets = num2cell(1:numel(obj.labeler.trackersAll));
         all_nets = cellfun(@(tracker)(tracker.algorithmName), ...
                            obj.labeler.trackersAll, ...
-                           'UniformOutput', false) ;
+                           'UniformOutput', false)
       end
       if isnumeric(all_nets),
         all_nets = num2cell(all_nets);

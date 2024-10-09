@@ -92,6 +92,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     syscmds_ = cell(0,1)
     cmdfiles_ = cell(0,1)
     logcmds_ = cell(0,1)
+
+    % The job IDs.  These are protected, transient in spirit.
+    jobids_ = cell(0,1)
+
+    % This is used to keep track of whether we need to release/delete resources on
+    % delete()
+    doesOwnResources_ = true  % is obj a copy, or the original
   end
 
   properties (Dependent)
@@ -309,23 +316,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
                             remotePath, ...
                             fullFileDescription, ...
                             'destRelative',false) ;  % throws      
-    end
+    end  % function
 
-    function delete(obj)  %#ok<INUSD> 
-      % AL 20191218
-      % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
-      % sometimes this is necessary for serialization eg to disk.
-      % Since the mapping from obj<->resource is no longer 1-to-1, 
-      % destructors should no longer shut down resources.
-      %
-      % See new shutdown() call.
-      
-      % pass
-    end
-    
-    function shutdown(obj)
-      obj.stopEc2InstanceIfNeeded_() ;
-    end
+    function delete(obj)
+      if obj.doesOwnResources_ ,
+        obj.ensureAllSpawnedJobsAreDead_() ;
+        obj.stopEc2InstanceIfNeeded_() ;
+      end
+    end  % function
     
     function obj2 = copyAndDetach(obj)
       % See notes in BgClient, BgWorkerObjAWS.
@@ -337,6 +335,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       assert(isscalar(obj));
       obj2 = copy(obj);
+      obj.doesOwnResources_ = false ;
     end  % function
   end  % methods
 
@@ -969,6 +968,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
       end
     end  % function    
+
+    function ensureAllSpawnedJobsAreDead_(obj)
+    end
   end  % methods block
 
   methods
@@ -983,6 +985,8 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
   methods
     function clearRegisteredJobs(obj)
+      % Make sure all spawned jobs are dead
+      obj.ensureAllSpawnedJobsAreDead_() ;
       % Clear all registered jobs
       obj.syscmds_ = cell(0,1) ;
       obj.cmdfiles_ = cell(0,1) ;
@@ -1021,7 +1025,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       backend.cmdfiles_{end+1,1} = cmdfile ;
     end
 
-    function [tfSucc, jobID] = spawnRegisteredJobs(obj, varargin)
+    function [tfSucc, jobids] = spawnRegisteredJobs(obj, varargin)
       % Spawn all the jobs that have been previously registered.  Jobs should be
       % either all tracking jobs or all training jobs.  
       [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
@@ -1037,7 +1041,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       njobs = numel(syscmds);
       tfSucc = false(1,njobs);
       tfSuccLog = true(1,njobs);
-      jobID = cell(1,njobs);
+      jobids = cell(1,njobs);
       for ijob=1:njobs,
         syscmd = syscmds{ijob} ;
         fprintf(1,'%s\n',syscmd);
@@ -1045,7 +1049,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           [st,res] = apt.syscmd(syscmd, 'failbehavior', 'silent');
           tfSucc(ijob) = (st == 0) ;
           if tfSucc(ijob),
-            jobID{ijob} = apt.parseJobID(obj, res);
+            jobids{ijob} = apt.parseJobID(obj, res);
           end
         else
           % Pretend it's a failure, for expediency.
@@ -1055,7 +1059,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         if ~tfSucc(ijob),
           warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
         else
-          jobid = jobID{ijob};
+          jobid = jobids{ijob};
           if isnumeric(jobid),
             jobidstr = num2str(jobid);
           elseif isa(jobid, 'parallel.FevalFuture') ,
@@ -1076,8 +1080,100 @@ classdef DLBackEndClass < matlab.mixin.Copyable
               warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
             end
           end
-        end
+        end  % if
+      end  % for
+      obj.jobids_ = jobids ;  % Keep these around internally so we can kill the jobs on delete()
+    end  % function
+
+    function tf = isJobAliveBsub_(obj, jID)  %#ok<INUSD> 
+      % Returns true if there is a running job with ID jID.
+      % jID is assumed to be a single job id, represented as an old-style string.
+      if isempty(jID) ,
+        error('Job id is empty');
+      end
+      runStatuses = {'PEND','RUN','PROV','WAIT'};
+      pollcmd0 = sprintf('bjobs -o stat -noheader %d',jID);
+      pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
+      %[st,res] = system(pollcmd);
+      [st,res] = apt.syscmd(pollcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      if st==0
+        s = sprintf('(%s)|',runStatuses{:});
+        s = s(1:end-1);
+        tf = ~isempty(regexp(res,s,'once'));
+      else
+        error('Error occurred when checking if bsub job %s was running: %s', jID, res) ;
       end
     end  % function
+
+    function killJobBsub_(obj, jID)  %#ok<INUSD> 
+      % Kill the bsub job with job id jID.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jID) ,
+        error('Job id is empty') ;
+      end
+      bkillcmd0 = sprintf('bkill %d',jID);
+      bkillcmd = wrapCommandSSH(bkillcmd0,'host',DLBackEndClass.jrchost);
+      [st,res] = apt.syscmd(bkillcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      if st~=0 ,
+        error('Error occurred when trying to kill bsub job %s: %s', jID, res) ;
+      end
+    end  % function
+
+    function ensureJobIsNotAliveBsub_(obj, jID)
+      % Kill the bsub job with job id jID.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jID) ,
+        error('Job id is empty') ;
+      end
+      if obj.isJobAliveBsub_(jID) ,
+        obj.killJobBsub_(jID) ;
+      end
+    end  % function
+
+    function tf = isJobAliveDocker_(obj, jID)
+      % Returns true if there is a running job with ID jID.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jID),
+        error('Job id is empty');
+      end
+      jIDshort = jID(1:8);
+      cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jIDshort);      
+      [st,res] = obj.runBatchCommandOutsideContainer(cmd);
+      if st==0
+        tf = ~isempty(regexp(res,jIDshort,'once')) ;
+      else
+        error('Error occurred when checking if docker job %s was running: %s', jID, res) ;
+      end
+    end  % function
+    
+    function killJobDocker_(obj, jID)
+      % Kill the docker job with job id jID.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      % Errors if no such job exists.
+      if isempty(jID) ,
+        error('Job id is empty') ;
+      end
+      cmd = sprintf('%s kill %s', apt.dockercmd(), jID);        
+      [st,res] = obj.runBatchCommandOutsideContainer(cmd) ;
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
+      if st~=0 ,
+        error('Error occurred when trying to kill docker job %s: %s', jID, res) ;
+      end
+    end  % function
+
+    function ensureJobIsNotAliveDocker_(obj, jID)
+      % Ensure the docker job with job id jID is not running.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jID) ,
+        error('Job id is empty') ;
+      end
+      if obj.isJobAliveDocker_(jID) ,
+        obj.killJobDocker_(jID) ;
+      end
+    end  % function
+
+
+
   end  % methods
 end  % classdef

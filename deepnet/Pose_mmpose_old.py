@@ -321,7 +321,7 @@ class APTtransform:
 
 
 def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_prefix_override=None, debug=False):
-    curdir = pathlib.Path(__file__).parent.absolute()
+    #curdir = pathlib.Path(__file__).parent.absolute()
     mmpose_init_file_path = mmpose.__file__
     mmpose_dir = os.path.dirname(mmpose_init_file_path)
     dot_mim_folder_path = os.path.join(mmpose_dir, '.mim')  # this feels not-robust
@@ -656,7 +656,6 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             except RuntimeError as e:
                 if str(e) == 'trying to initialize the default process group twice!':
                     pass
-
         elif mmpose_net == 'cid':
             self.cfg_file = 'configs/body/2d_kpt_sview_rgb_img/cid/coco/hrnet_w32_coco_512x512.py'
         elif mmpose_net == 'dekr':

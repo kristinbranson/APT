@@ -4294,10 +4294,11 @@ def train_other_core(net_type, conf, args, restore, model_file):
     The core of train_other(), after augmentation and all that other jazz.
     '''
 
-    # At last, the main event        
+    # At last, the main event
+    #print("net_type: "+net_type)
     if net_type == 'mmpose' or net_type == 'hrformer':
         module_name = 'Pose_mmpose'
-    elif net_type == 'cid':
+    elif net_type == 'multi_cid' or net_type == 'multi_dekr':
         module_name = 'Pose_multi_mmpose'
     else :
         module_name = 'Pose_{}'.format(net_type)                    
