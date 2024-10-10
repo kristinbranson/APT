@@ -63,6 +63,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     function delete(obj)  %#ok<INUSD> 
       % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
+      %fprintf('Deleting an AWSec2 object.\n') ;
     end    
   end
 

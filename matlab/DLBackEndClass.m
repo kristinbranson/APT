@@ -320,7 +320,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function delete(obj)
       if obj.doesOwnResources_ ,
-        obj.ensureAllSpawnedJobsAreDead_() ;
+        obj.ensureAllSpawnedJobsAreNotAlive_() ;
         obj.stopEc2InstanceIfNeeded_() ;
       end
     end  % function
@@ -956,10 +956,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
   end  % methods (Static)
 
-  methods   % private by convention
-    function stopEc2InstanceIfNeeded_(obj)
-      aws = obj.awsec2;
-      % DEBUGAWS: Stopping the AWS instance takes too long when debugging.
+  methods
+    function stopEc2InstanceIfNeeded_(obj)  % private by convention
+      aws = obj.awsec2 ;
+      % Sometimes .awsec2 is empty, even though that's not supposed to be possible
+      % anymore.  Not clear to me how this happens.  -- ALT, 2024-10-09
+      if isempty(aws) ,
+        return
+      end
+      % DEBUGAWS: Stopping the AWS instance takes too long when debugging.      
       if aws.isInDebugMode ,
         return
       end
@@ -969,11 +974,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end  % function    
 
-    function ensureAllSpawnedJobsAreDead_(obj)
-    end
-  end  % methods block
-
-  methods
     function result = get.isInAwsDebugMode(obj)
       result = obj.awsec2.isInDebugMode ;
     end
@@ -981,16 +981,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function set.isInAwsDebugMode(obj, value)
       obj.awsec2.isInDebugMode = value ;
     end    
-  end  % methods block
 
-  methods
     function clearRegisteredJobs(obj)
       % Make sure all spawned jobs are dead
-      obj.ensureAllSpawnedJobsAreDead_() ;
+      obj.ensureAllSpawnedJobsAreNotAlive_() ;
       % Clear all registered jobs
       obj.syscmds_ = cell(0,1) ;
       obj.cmdfiles_ = cell(0,1) ;
-      obj.logcmds_ = cell(0,1) ;   
+      obj.logcmds_ = cell(0,1) ;
+      obj.jobids_ = cell(0,1) ;  % redundant, but whatever
     end
 
     function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
@@ -1085,12 +1084,64 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       obj.jobids_ = jobids ;  % Keep these around internally so we can kill the jobs on delete()
     end  % function
 
-    function tf = isJobAliveBsub_(obj, jID)  %#ok<INUSD> 
+    function ensureAllSpawnedJobsAreNotAlive_(obj)
+      jobids = obj.jobids_ ;
+      job_count = numel(jobids) ;
+      for i = 1 : job_count ,
+        jobid = jobids{i} ;
+        obj.ensureJobIsNotAlive(jobid) ;
+      end
+      obj.jobids_ = cell(0,1) ;
+    end  % function
+
+    function ensureJobIsNotAlive(obj, jID)
+      % Kill the job with job id jID.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jID) ,
+        error('Job id is empty') ;
+      end
+      if obj.isJobAlive(jID) ,
+        obj.killJob(jID) ;
+      end
+    end  % function
+
+    function tf = isJobAlive(obj, jID)
       % Returns true if there is a running job with ID jID.
       % jID is assumed to be a single job id, represented as an old-style string.
       if isempty(jID) ,
         error('Job id is empty');
       end
+      if obj.type == DLBackEnd.AWS || obj.type == DLBackEnd.Docker ,
+        tf = obj.isJobAliveDockerOrAWS_(jID) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        tf = obj.isJobAliveBsub_(jID) ;
+      elseif obj.type == DLBackEnd.Conda ,
+        tf = obj.isJobAliveConda_(jID) ;
+      else
+        error('Unknown DLBackEnd value') ;
+      end      
+    end  % function
+
+    function killJob(obj, jID)
+      % Kill the job with job id jID.
+      % jID is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jID) ,
+        error('Job id is empty');
+      end
+      if obj.type == DLBackEnd.AWS || obj.type == DLBackEnd.Docker ,
+        obj.killJobDockerOrAWS_(jID) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        obj.killJobBsub_(jID) ;
+      elseif obj.type == DLBackEnd.Conda ,
+        obj.killJobConda_(jID) ;
+      else
+        error('Unknown DLBackEnd value') ;
+      end      
+    end  % function
+
+    function tf = isJobAliveBsub_(obj, jID)  %#ok<INUSD> 
+      % Returns true if there is a running job with ID jID.
+      % jID is assumed to be a single job id, represented as an old-style string.
       runStatuses = {'PEND','RUN','PROV','WAIT'};
       pollcmd0 = sprintf('bjobs -o stat -noheader %d',jID);
       pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
@@ -1101,79 +1152,68 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         s = s(1:end-1);
         tf = ~isempty(regexp(res,s,'once'));
       else
-        error('Error occurred when checking if bsub job %s was running: %s', jID, res) ;
+        error('Error occurred when checking if Bsub job %s was running: %s', jID, res) ;
       end
     end  % function
 
     function killJobBsub_(obj, jID)  %#ok<INUSD> 
       % Kill the bsub job with job id jID.
       % jID is assumed to be a single job id, represented as an old-style string.      
-      if isempty(jID) ,
-        error('Job id is empty') ;
-      end
       bkillcmd0 = sprintf('bkill %d',jID);
       bkillcmd = wrapCommandSSH(bkillcmd0,'host',DLBackEndClass.jrchost);
       [st,res] = apt.syscmd(bkillcmd, 'failbehavior', 'silent', 'verbose', false) ;
       if st~=0 ,
-        error('Error occurred when trying to kill bsub job %s: %s', jID, res) ;
+        error('Error occurred when trying to kill Bsub job %s: %s', jID, res) ;
       end
     end  % function
 
-    function ensureJobIsNotAliveBsub_(obj, jID)
-      % Kill the bsub job with job id jID.
-      % jID is assumed to be a single job id, represented as an old-style string.      
-      if isempty(jID) ,
-        error('Job id is empty') ;
-      end
-      if obj.isJobAliveBsub_(jID) ,
-        obj.killJobBsub_(jID) ;
-      end
+    function tf = isJobAliveConda_(obj, jID)  %#ok<INUSD> 
+      % Returns true if there is a running conda job with ID jID.
+      % jID is assumed to be a single job id, represented as an old-style string.
+      command_line = sprintf('ps -p %d', jID) ;
+      [status, res] = system(command_line) ;  % conda is Linux-only, so can just use system()
+      if status==0 ,
+        tf = true ;
+      else
+        error('Error occurred when checking if Conda job %s was running: %s', jID, res) ;
+      end        
     end  % function
 
-    function tf = isJobAliveDocker_(obj, jID)
+    function killJobConda_(obj, jID)  %#ok<INUSD> 
+      command_line = sprintf('kill %d', jID) ;
+      [status, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
+      did_kill = (status==0) ;
+      if ~did_kill ,
+        error('Error occurred when trying to kill Conda job %s: %s', jID, stdouterr) ;
+      end      
+    end  % function
+
+    function tf = isJobAliveDockerOrAWS_(obj, jID)
       % Returns true if there is a running job with ID jID.
       % jID is assumed to be a single job id, represented as an old-style string.      
-      if isempty(jID),
-        error('Job id is empty');
-      end
       jIDshort = jID(1:8);
       cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jIDshort);      
       [st,res] = obj.runBatchCommandOutsideContainer(cmd);
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
       if st==0
         tf = ~isempty(regexp(res,jIDshort,'once')) ;
       else
-        error('Error occurred when checking if docker job %s was running: %s', jID, res) ;
+        error('Error occurred when checking if %s job %s was running: %s', char(obj.type), jID, res) ;
       end
     end  % function
     
-    function killJobDocker_(obj, jID)
+    function killJobDockerOrAWS_(obj, jID)
       % Kill the docker job with job id jID.
       % jID is assumed to be a single job id, represented as an old-style string.      
       % Errors if no such job exists.
-      if isempty(jID) ,
-        error('Job id is empty') ;
-      end
       cmd = sprintf('%s kill %s', apt.dockercmd(), jID);        
       [st,res] = obj.runBatchCommandOutsideContainer(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if st~=0 ,
-        error('Error occurred when trying to kill docker job %s: %s', jID, res) ;
+        error('Error occurred when trying to kill %s job %s: %s', char(obj.type), jID, res) ;
       end
     end  % function
-
-    function ensureJobIsNotAliveDocker_(obj, jID)
-      % Ensure the docker job with job id jID is not running.
-      % jID is assumed to be a single job id, represented as an old-style string.      
-      if isempty(jID) ,
-        error('Job id is empty') ;
-      end
-      if obj.isJobAliveDocker_(jID) ,
-        obj.killJobDocker_(jID) ;
-      end
-    end  % function
-
-
-
   end  % methods
 end  % classdef

@@ -2231,8 +2231,23 @@ classdef Labeler < handle
       s = struct();
       s.cfg = obj.getCurrentConfig();
       
-      for f=obj.SAVEPROPS, f=f{1}; %#ok<FXSET>
-        s.(f) = obj.(f);
+      for f_wrapped = obj.SAVEPROPS , 
+        f=f_wrapped{1};
+        if strcmp(f, 'trackDLBackEnd') ,
+          % Special handling for this field
+          % We want to use an "encoding container" for it, b/c saving custom objects is
+          % fraught.
+          backend = obj.(f) ;  % reference copy only
+          if isempty(backend) ,
+            s.(f) = backend ;
+          else
+            container = encode_for_persistence(backend) ;
+            s.(f) = container ;
+          end
+        else
+          % Used for most fields
+          s.(f) = obj.(f);
+        end
       end
       
       if macroreplace
@@ -2256,20 +2271,20 @@ classdef Labeler < handle
         return
       end
       
-      % Older comment: clean information we shouldn't save from AWS EC2
-      % AL 20191217: setting .awsec2 to [] breaks training, trackDLBackEnd 
-      % is a handle to a live object. 
-      %
-      % We do a deep-copy of the backend here as we are serializing the 
-      % proj either for saving or a stripped lbl etc and i) the saved 
-      % objects need sanitation and ii) conceptually the serialized object
-      % does not share handle identity with other 'live' handles to obj.
-      if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd)
-        backend = s.trackDLBackEnd.copyAndDetach();
-        % And now replace it with a structure, b/c saving custom objects is fraught.
-        container = encode_for_persistence(backend) ;
-        s.trackDLBackEnd = container ;
-      end
+%       % Older comment: clean information we shouldn't save from AWS EC2
+%       % AL 20191217: setting .awsec2 to [] breaks training, trackDLBackEnd 
+%       % is a handle to a live object. 
+%       %
+%       % We do a deep-copy of the backend here as we are serializing the 
+%       % proj either for saving or a stripped lbl etc and i) the saved 
+%       % objects need sanitation and ii) conceptually the serialized object
+%       % does not share handle identity with other 'live' handles to obj.
+%       if isfield(s,'trackDLBackEnd') && ~isempty(s.trackDLBackEnd)
+%         backend = s.trackDLBackEnd.copyAndDetach();
+%         % And now replace it with a structure, b/c saving custom objects is fraught.
+%         container = encode_for_persistence(backend) ;
+%         s.trackDLBackEnd = container ;
+%       end
       
       switch obj.labelMode
         case LabelMode.TEMPLATE

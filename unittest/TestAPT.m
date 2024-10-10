@@ -266,22 +266,23 @@ classdef TestAPT < handle
             
       try
         untar(out_file,cacheDir);
-        return;
-      catch ME  %#ok<NASGU> 
+        return
+      catch exception  
         % none, fallthru
-        fprintf('untarring failed, falling through to websave...') ;
+        fprintf('Untarring failed, falling through to websave...\n') ;
+        fprintf('%s\n', exception.getReport()) ;
       end
 
       % fallback to websave
       try
         websave(out_file,info.bundle_link);
-      catch ME
-        if endsWith(ME.identifier,'SSLConnectionSystemFailure')
+      catch exception
+        if endsWith(exception.identifier,'SSLConnectionSystemFailure')
           % JRC cluster
           wo = weboptions('CertificateFilename','/etc/ssl/certs/ca-bundle.crt');
           websave(out_file,info.bundle_link,wo);
         else
-          rethrow(ME);
+          rethrow(exception);
         end
       end
       
@@ -305,7 +306,7 @@ classdef TestAPT < handle
         %all_nets = num2cell(1:numel(obj.labeler.trackersAll));
         all_nets = cellfun(@(tracker)(tracker.algorithmName), ...
                            obj.labeler.trackersAll, ...
-                           'UniformOutput', false)
+                           'UniformOutput', false) ;
       end
       if isnumeric(all_nets),
         all_nets = num2cell(all_nets);
