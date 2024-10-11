@@ -2847,7 +2847,7 @@ classdef DeepTracker < LabelTracker
       lclCacheDir = obj.lObj.DLCacheDir;
       dmcLcl = dmc.copy();
       [dmcLcl.rootDir] = deal(lclCacheDir);
-      dlLblFileLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.lblStrippedLnx);
+      dlLblFileLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.lblStrippedLnx());
       assert(exist(dlLblFileLcl,'file')>0,...
         'Can''t find config file: %s\n',dlLblFileLcl);
       
@@ -2943,7 +2943,7 @@ classdef DeepTracker < LabelTracker
 %         trksysinfo(ivw).errfile = errfile;
 %         trksysinfo(ivw).snapshotfile = ssfile;
 %       end
-    end
+    end  % function
     
     function track2_codegen_gt(obj,tj)  %#ok<INUSD> 
       % gt-specific trksysinfo massage + codegen
@@ -3100,13 +3100,13 @@ classdef DeepTracker < LabelTracker
       
       [tfCanTrack,msg] = obj.canTrack();
       if ~tfCanTrack
-        return;
+        return
       end
       
       tblGT = obj.lObj.labelGetMFTableLabeled('useTrain',0);
       if isempty(tblGT)
         msg = 'Project has no GT frames labeled.';
-        return;
+        return
       end      
         
       obj.bgTrkReset();
@@ -3848,18 +3848,27 @@ classdef DeepTracker < LabelTracker
     end
 
     function trackCleanup(obj,varargin)
+      % Make sure all the spawned jobs are unalive
+      backend = obj.backend ;
+      backend.clearRegisteredJobs() ;
+      
+      % Do other stuff
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end
     
     function trainCleanup(obj,varargin)
-
+      % Stop any running track monitors
       if obj.bgTrkIsRunning,
         fprintf('Stopping tracking...\n');
         obj.bgTrkMonitor.stop();
         obj.bgTrkMonitor.reset();
         assert(~obj.bgTrkIsRunning);
       end
+
+      % Make sure all the spawned jobs are unalive
+      backend = obj.backend ;
+      backend.clearRegisteredJobs() ;
 
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();

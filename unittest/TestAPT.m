@@ -133,7 +133,8 @@ classdef TestAPT < handle
         info.op_graph = [1 5; 1 3; 3 4; 4 2];
         
       elseif strcmp(name,'carmen')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
+        % info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241010.lbl';
         info.exp_dir_base = '';
         info.nviews = 1;
         info.npts = 10;

@@ -3052,14 +3052,14 @@ classdef Labeler < handle
       success = false;
       
       cacheDir = obj.projTempDir;
-      
-      % I had this check commented out while working on the AWS backend, for some
-      % reason  --ALT, 2024-07-31
+   
+      % It seems like this warning is thrown often even when nothing is wrong.
+      % Disabling.  -- ALT, 2024-10-10
       % Check for exploded cache in tempdir      
       tCacheDir = fullfile(cacheDir,obj.projname);
       if ~exist(tCacheDir,'dir')
-        warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
-                       obj.projname,cacheDir);
+        % warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
+        %                obj.projname,cacheDir);
         return
       end
             

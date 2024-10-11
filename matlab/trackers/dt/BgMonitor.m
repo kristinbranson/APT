@@ -30,7 +30,7 @@ classdef BgMonitor < handle
     bgWorkerObj  % scalar "detached" object (not sure this is still true about it being 
                  % detached --ALT, 2024-06-28) that is deep-copied onto
                  % workers. Note, this is not the BgRunner obj itself.
-    monitorObj  % object with resultsreceived() method, typically a "monitor visualizer"
+    monitorVizObj  % object with resultsreceived() method, typically a "monitor visualizer"
     cbkComplete  % empty, or fcnhandle with sig cbk(res), called when operation complete
     processName  % 'train' or 'track'
     % It seems like the bgClientObj and monitorObj are owned by obj, but
@@ -40,7 +40,7 @@ classdef BgMonitor < handle
     % sense to add a "parent" field that contains a ref to the DeepTracker, and to
     % call a "didCompleteBgMonitor" method of the parent when complete.  The
     % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
-    parent_
+    parent_  % the DeepTracker object that created obj
     projTempDirMaybe_
   end
 
@@ -110,7 +110,7 @@ classdef BgMonitor < handle
       
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
-      obj.monitorObj = monVizObj;
+      obj.monitorVizObj = monVizObj;
       if exist('cbkComplete','var'),
         obj.cbkComplete = cbkComplete;
       end
@@ -138,10 +138,10 @@ classdef BgMonitor < handle
       
       obj.cbkComplete = [];
       
-      if ~isempty(obj.monitorObj)
-        delete(obj.monitorObj);
+      if ~isempty(obj.monitorVizObj)
+        delete(obj.monitorVizObj);
       end
-      obj.monitorObj = [];
+      obj.monitorVizObj = [];
     end  % delete() method
     
     function v = get.prepared(obj)
@@ -171,10 +171,10 @@ classdef BgMonitor < handle
     
     function bgResultsReceived(obj,sRes)
       % current pattern is, this meth only handles things which stop the
-      % process. everything else handled by monitor
+      % process. everything else handled by obj.monitorVizObj
 
 	    % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
-      [tfSucc,msg] = obj.monitorObj.resultsReceived(sRes);
+      [tfSucc,msg] = obj.monitorVizObj.resultsReceived(sRes);
       
       BgMonitor.debugfprintf('bgResultsReceived: tfSucc = %d\n',tfSucc);
       
@@ -184,7 +184,7 @@ classdef BgMonitor < handle
       if killOccurred
         obj.stop();        
         fprintf(1,'Process killed!\n');
-        return;
+        return
         % monitor plot stays up; reset not called etc
       end
       
@@ -204,7 +204,8 @@ classdef BgMonitor < handle
         fprintf('\n### %s\n\n',errFile);
         errContents = obj.bgWorkerObj.fileContents(errFile);
         disp(errContents);
-        fprintf('\n\n. You may need to manually kill any running DeepLearning process.\n');
+        % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
+        %fprintf('\n\nYou may need to manually kill any running DeepLearning process.\n');
         return
         
         % monitor plot stays up; reset not called etc
@@ -218,8 +219,9 @@ classdef BgMonitor < handle
           fprintf(1,'Error occurred during %s:\n',obj.processName);
           logFiles = BgMonitor.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
           displayFileOrFiles(logFiles, obj.bgWorkerObj) ;
-          fprintf(1,'\n\n. You may need to manually kill any running %s process.\n',obj.processName);
-          return;
+          % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
+          %fprintf('\n\nYou may need to manually kill any running %s process.\n',obj.processName);
+          return
           
           % monitor plot stays up; bgReset not called etc
         end
@@ -229,7 +231,7 @@ classdef BgMonitor < handle
       if tfComplete
         obj.stop();
         % % monitor plot stays up; reset not called etc
-        fprintf(1,'%s complete at %s.\n',obj.processName,datestr(now));
+        fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
         
         if ~isempty(obj.cbkComplete),
           obj.cbkComplete(sRes.result);

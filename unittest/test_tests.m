@@ -1,7 +1,7 @@
 % % Simplest way to test:
-testObj = TestAPT('name','alice'); 
-testObj.test_full('nets',{'deeplabcut'});  % took mdn out b/c deprecated and doesn't seem to work
-testObj = [] ;
+% testObj = TestAPT('name','alice'); 
+% testObj.test_full('nets',{'deeplabcut'});  % took mdn out b/c deprecated and doesn't seem to work
+% testObj = [] ;
 
 % % MA/roian
 % testObj = TestAPT('name','roianma');
@@ -46,18 +46,18 @@ testObj = [] ;
   % empty nets means test all nets
 % testObj = [] ;
 
-% % Carmen/GT workflow (proj on JRC/dm11)
-% testObj = TestAPT('name','carmen');
-% if strcmp(get_user_name(), 'taylora') ,
-%   jrcAdditionalBsubArgs = '-P scicompsoft' ;
-% else
-%   jrcAdditionalBsubArgs = '' ;
-% end
-% testObj.test_setup('simpleprojload',1, ...
-%                    'jrcgpuqueue','gpu_a100', ...
-%                    'jrcnslots',4, ...
-%                    'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs) ;
-% testObj.test_train('backend','bsub');
-% testObj.test_track('backend','bsub');
-% testObj.test_gtcompute('backend','bsub');
-% % testObj = [] ;
+% Carmen/GT workflow (proj on JRC/dm11)
+testObj = TestAPT('name','carmen');
+if strcmp(get_user_name(), 'taylora') ,
+  jrcAdditionalBsubArgs = '-P scicompsoft' ;
+else
+  jrcAdditionalBsubArgs = '' ;
+end
+testObj.test_setup('simpleprojload',1, ...
+                   'jrcgpuqueue','gpu_a100', ...
+                   'jrcnslots',4, ...
+                   'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs) ;
+testObj.test_train('backend','bsub');
+testObj.test_track('backend','bsub');
+testObj.test_gtcompute('backend','bsub');
+% testObj = [] ;
