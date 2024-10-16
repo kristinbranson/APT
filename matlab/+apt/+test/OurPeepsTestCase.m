@@ -24,14 +24,14 @@ classdef OurPeepsTestCase < matlab.unittest.TestCase
         testObj = TestAPT('name','alice');
         testObj.test_full('nets',{'deeplabcut'}, ...
                           'setup_params',{'simpleprojload',1});  % took mdn out b/c deprecated and doesn't seem to work
-        obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;          
+        obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;          
       end  % function
 
       function roianTest(obj)
         testObj = TestAPT('name','roianma');
         testObj.test_setup('simpleprojload',1);
         testObj.test_train('net_type',[],'params',-1,'niters',1000);
-        obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;          
+        obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;          
       end  % function
 
 %       function roianMAGroneTest(obj)

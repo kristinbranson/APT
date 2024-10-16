@@ -21,7 +21,7 @@ classdef CarmenTestCase < matlab.unittest.TestCase
       testObj.test_setup(setup_params{:}) ;
       testObj.test_train('backend','bsub');
       did_train_enough = (testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
-      obj.verifyTrue(did_train_enough) ;
+      obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
       if ~did_train_enough ,
         % Don't both with further stuff if training didn't work
         return

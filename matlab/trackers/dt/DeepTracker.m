@@ -1225,7 +1225,7 @@ classdef DeepTracker < LabelTracker
 %       warningNoTrace('Development/experimental codepath!');
 %       if ~DeepModelChainOnDisk.gen_strippedlblfile,
 %         warningNoTrace('Stripped lbl file is not being generated! This might break');
-%       end
+%       end%d
 %       fprintf(1,'Setting current tracking parameters; these are assumed to be the same as used to train.\n');
 %       obj.setAllParams(obj.lObj.trackGetParams());
 %       
@@ -3359,7 +3359,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % spawn the jobs
-      [tfSuccess,jobID] = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
+      [tfSuccess,jobids] = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
                                                       'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % If that succeeded, record the job identifiers
@@ -3367,7 +3367,7 @@ classdef DeepTracker < LabelTracker
         %if backend.type == DLBackEnd.Bsub || backend.type == DLBackEnd.AWS ,
         %  jobID = cell2mat(jobID);
         %end
-        bgTrkWorkerObj.jobID = jobID;
+        bgTrkWorkerObj.jobID = jobids;
       end
     end  % function setupBGTrack()
 
@@ -4268,7 +4268,6 @@ classdef DeepTracker < LabelTracker
 %     end
     
     function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
-      
       tfsuccess = false;
       isold = false;
       [p,n,e] = fileparts(trkfile);
@@ -4330,65 +4329,64 @@ classdef DeepTracker < LabelTracker
       m.ext = e;
       m.newName = fullfile(m.path,[m.base '_trn' m.trn_ts '_iter' num2str(m.iter) '_' m.trk_ts m.ext]);
       tfsuccess = true;
-    end
+    end  % function
     
-    function [tfsucc,res] = waitForBsubComplete(jobid,cmd,nout,maxWaitTime,doKill)
-      starttime = tic;
-      res = cell(1,nout);
-      bjobscmd = sprintf('bjobs %d',jobid);
-      bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
-      killcmd = sprintf('bkill %d',jobid);
-      killcmd = wrapCommandSSH(killcmd,'host',DLBackEndClass.jrchost);
-      runStatuses = {'PEND','RUN','PROV','WAIT'};
-      doneStatuses = {'DONE'};
-      tfJobRunning = false;
-      tfJobDone = false;
-      
-      while true,
-        if toc(starttime) > maxWaitTime,
-          break;
-        end
-        [tfsucc,res{:}] = cmd();
-        %[augims,tfsucc] = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
-        if tfsucc,
-          break;
-        end
-        tfJobRunning = false;
-        [st2,res2] = system(bjobscmd);
-        if st2 == 0,
-          ss = strsplit(res2,'\n');
-          ism = ~cellfun(@isempty,regexp(ss,'^JOBID','once'));
-          i = find(ism,1);
-          if ~isempty(i) && i < numel(ss),
-            
-            % make sure outout is formatted as I think it should be
-            assert(~isempty(regexp(ss{i},'^\s*JOBID\s*USER\s*STAT','once')))
-            res3 = ss{i+1};
-            m = regexp(res3,'^(?<jobid>\d+)\s+(?<user>\w+)\s+(?<stat>\w+)','names','once');
-            assert(~isempty(m));
-            tfJobRunning = ismember(m.stat,runStatuses);
-            tfJobDone = ismember(m.stat,doneStatuses);
-            %fprintf('%fs: %s\n',toc(starttime),m.stat);
-            
-          end
-        end
-        if ~tfJobRunning && ~tfJobDone,
-          warning('Could not find results. Output of bjobs:\n%s\n',res2);
-          break;
-        end
-        drawnow;
-      end
-      if ~tfsucc && tfJobRunning && doKill,
-        [st4,res4] = system(killcmd);
-        if ~st4 == 0,
-          error('Error killing:\n%s',res4);
-        end
-      end
-      
-    end
+%     function [tfsucc,res] = waitForBsubComplete(jobid,cmd,nout,maxWaitTime,doKill)
+%       starttime = tic;
+%       res = cell(1,nout);
+%       bjobscmd = sprintf('bjobs %d',jobid);
+%       bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
+%       killcmd = sprintf('bkill %d',jobid);
+%       killcmd = wrapCommandSSH(killcmd,'host',DLBackEndClass.jrchost);
+%       runStatuses = {'PEND','RUN','PROV','WAIT'};
+%       doneStatuses = {'DONE'};
+%       tfJobRunning = false;
+%       tfJobDone = false;
+%       
+%       while true,
+%         if toc(starttime) > maxWaitTime,
+%           break;
+%         end
+%         [tfsucc,res{:}] = cmd();
+%         %[augims,tfsucc] = DeepTracker.loadAugmentedData(outfile,obj.lObj.nview);
+%         if tfsucc,
+%           break;
+%         end
+%         tfJobRunning = false;
+%         [st2,res2] = system(bjobscmd);
+%         if st2 == 0,
+%           ss = strsplit(res2,'\n');
+%           ism = ~cellfun(@isempty,regexp(ss,'^JOBID','once'));
+%           i = find(ism,1);
+%           if ~isempty(i) && i < numel(ss),
+%             
+%             % make sure outout is formatted as I think it should be
+%             assert(~isempty(regexp(ss{i},'^\s*JOBID\s*USER\s*STAT','once')))
+%             res3 = ss{i+1};
+%             m = regexp(res3,'^(?<jobid>\d+)\s+(?<user>\w+)\s+(?<stat>\w+)','names','once');
+%             assert(~isempty(m));
+%             tfJobRunning = ismember(m.stat,runStatuses);
+%             tfJobDone = ismember(m.stat,doneStatuses);
+%             %fprintf('%fs: %s\n',toc(starttime),m.stat);
+%             
+%           end
+%         end
+%         if ~tfJobRunning && ~tfJobDone,
+%           warning('Could not find results. Output of bjobs:\n%s\n',res2);
+%           break;
+%         end
+%         drawnow;
+%       end
+%       if ~tfsucc && tfJobRunning && doKill,
+%         [st4,res4] = system(killcmd);
+%         if ~st4 == 0,
+%           error('Error killing:\n%s',res4);
+%         end
+%       end
+%       
+%     end  % function
+  end  % methods (Static)
 
-
-  end
   methods (Static) % train/track broker util
     function hdir = dlerrGetHomeDir
       m = getenvall;

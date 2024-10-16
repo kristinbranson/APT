@@ -13,27 +13,27 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
       if nargin < 4,
         imov = 1;
       end
-      jID = apt.parseJobIDConda(res) ;
-      obj.jobID{imov,iview} = jID ;
+      jobid = apt.parseJobIDConda(res) ;
+      obj.jobID{imov,iview} = jobid ;
     end
         
-    function killJob(obj,jID)  %#ok<INUSD> 
-      if isempty(jID) ,
-        fprintf('killJob: jID is empty!\n');
+    function killJob(obj,jobid)  %#ok<INUSD> 
+      if isempty(jobid) ,
+        fprintf('killJob: jobid is empty!\n');
         return
       end
-      if iscell(jID)  ,
-        jID = jID{1};
+      if iscell(jobid)  ,
+        jobid = jobid{1};
       end
-      if isnan(jID) ,
-        fprintf('killJob: jID is nan!\n');
+      if isempty(jobid) ,
+        fprintf('killJob: jobid is empty!\n');
         return
       end
-      command_line = sprintf('kill %d', jID) ;
+      command_line = sprintf('kill %s', jobid) ;
       [status, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
       did_kill = (status==0) ;
       if ~did_kill ,
-        msg = sprintf('Unable to kill conda process with PID %d.  Command stdout/stderr was:\n%s', jID, stdouterr) ;
+        msg = sprintf('Unable to kill conda process with PID %s.  Command stdout/stderr was:\n%s', jobid, stdouterr) ;
         warningNoTrace(msg);
       end      
     end  % function
@@ -45,35 +45,36 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
         result = { 'Unable to determine whether any jobs are running.' } ;
         return
       end     
-      pid_from_job_index = sscanf(stdouterr, '%d')' ;  % row vector
-      job_count = numel(pid_from_job_index) ;
+      numeric_pid_from_job_index = sscanf(stdouterr, '%d')' ;  % row vector
+      string_pid_from_job_index = arrayfun(@(npid)(fif(isfinite(npid), num2str(npid), '')), numeric_pid_from_job_index, 'UniformOutput', false) ;
+      job_count = numel(string_pid_from_job_index) ;
       if job_count == 0 ,
         result = { 'No jobs running.' } ;
         return        
       end
-      raw_result = arrayfun(@(pid)(obj.queryJobStatus(pid)), pid_from_job_index, 'UniformOutput', false) ;
+      raw_result = cellfun(@(pid)(obj.queryJobStatus(pid)), string_pid_from_job_index, 'UniformOutput', false) ;
       result = raw_result(:) ;   % Want col vector of old-style strings
     end  % function
     
-    function result = queryJobStatus(obj,jID)  %#ok<INUSD> 
-      % Create a string that summarizes the state of job jID, including whether it's
+    function result = queryJobStatus(obj,jobid)  %#ok<INUSD> 
+      % Create a string that summarizes the state of job jobid, including whether it's
       % running and when it was started.
-      if isempty(jID) ,
-        result = 'jID is empty!';
+      if isempty(jobid) ,
+        result = 'jobid is empty!';
         return
       end
-      if iscell(jID)  ,
-        jID = jID{1};
+      if iscell(jobid)  ,
+        jobid = jobid{1};
       end
-      if isnan(jID) ,
-        result = 'jID is nan!' ;
+      if isempty(jobid) ,
+        result = 'jobid is empty!' ;
         return
-      end      
-      command_line = sprintf('ps -p %d', jID) ;
+      end
+      command_line = sprintf('ps -p %s', jobid) ;
       [status, ~] = system(command_line) ;  % conda is Linux-only, so can just use system()
       is_running = (status==0) ;
       state_as_string = fif(is_running, 'running', 'not-running') ;
-      command_line_2 = sprintf('ps -p %d -o lstart=', jID) ;
+      command_line_2 = sprintf('ps -p %s -o lstart=', jobid) ;
       [status_2, stdouterr_2] = system(command_line_2) ;  % conda is Linux-only, so can just use system()
       if status_2==0 ,
         trimmed_line = strtrim(stdouterr_2) ;
@@ -86,32 +87,32 @@ classdef BgWorkerObjConda < BgWorkerObjLocalFilesys
       else
         start_time_as_string = '??' ;
       end
-      result = sprintf('ID %d, started %s: %s', jID, start_time_as_string, state_as_string) ;
+      result = sprintf('ID %s, started %s: %s', jobid, start_time_as_string, state_as_string) ;
     end  % function
     
-    function tf = isKilled(obj,jID)  %#ok<INUSD> 
+    function tf = isKilled(obj,jobid)  %#ok<INUSD> 
       % Returns true if the job is no longer running
-      if isempty(jID) ,
+      if isempty(jobid) ,
         tf = false;
-        fprintf('isKilled: jID is empty!\n');
+        fprintf('isKilled: jobid is empty!\n');
         return
       end
-      if iscell(jID)  ,
-        jID = jID{1};
+      if iscell(jobid)  ,
+        jobid = jobid{1};
       end
-      if isnan(jID) ,
+      if isempty(jobid) ,
         tf = false;
-        fprintf('isKilled: jID is nan!\n');
+        fprintf('isKilled: jobid is empty!\n');
         return
       end            
-      command_line = sprintf('ps -p %d', jID) ;
+      command_line = sprintf('ps -p %s', jobid) ;
       [status, ~] = system(command_line) ;  % conda is Linux-only, so can just use system()
       is_running = (status==0) ;
       tf = ~is_running ;
     end  % function
         
-    function fcn = makeJobKilledPollFcn(obj,jID)      
-      fcn = @()(obj.isKilled(jID)) ;
+    function fcn = makeJobKilledPollFcn(obj,jobid)      
+      fcn = @()(obj.isKilled(jobid)) ;
     end
     
     function tfsucc = createKillToken(obj,killtoken)  %#ok<INUSD> 

@@ -11,30 +11,30 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
         imov = 1;
       end
       jobid = apt.parseJobIDBsub(res);
-      fprintf('Process job (view %d, mov %d) spawned, jobid=%d.\n\n',...
-        iview,imov,jobid);
+      fprintf('Process job (view %d, mov %d) spawned, jobid=%s.\n\n',...
+              iview,imov,jobid);
       % assigning to 'local' workerobj, not the one copied to workers
-      obj.jobID(imov,iview) = jobid;
+      obj.jobID{imov,iview} = jobid;
     end
     
-    function killJob(obj,jID)
-      % jID: scalar numeric jobID, or maybe a single element cell array
+    function killJob(obj,jobid)
+      % jobid: scalar numeric jobID, or maybe a single element cell array
       % holding a scalar numeric jobID
-      if isempty(jID) ,
-        fprintf('killJob: jID is empty!\n');
+      if isempty(jobid) ,
+        fprintf('killJob: jobid is empty!\n');
         return
       end
-      if iscell(jID)  ,
-        jID = jID{1};
+      if iscell(jobid)  ,
+        jobid = jobid{1};
       end
-      if isnan(jID),
-        fprintf('killJob, jID is nan\n');
+      if isempty(jobid),
+        fprintf('killJob, jobid is empty\n');
         return
       end
-      if obj.isKilled(jID),
+      if obj.isKilled(jobid),
         return
       end
-      bkillcmd = sprintf('bkill %d',jID);
+      bkillcmd = sprintf('bkill %s',jobid);
       bkillcmd = wrapCommandSSH(bkillcmd,'host',DLBackEndClass.jrchost);
       fprintf(1,'%s\n',bkillcmd);
       [st,res] = system(bkillcmd);
@@ -43,7 +43,7 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
     end
     
-    function res = queryAllJobsStatus(obj)      
+    function res = queryAllJobsStatus(obj)  %#ok<MANU> 
       bjobscmd = 'bjobs';
       bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
       fprintf(1,'%s\n',bjobscmd);
@@ -54,24 +54,24 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
     end
     
-    function res = queryJobStatus(obj,jID)
-      if isempty(jID) ,
-        res = sprintf('jID is empty!\n');
+    function res = queryJobStatus(obj,jobid)
+      if isempty(jobid) ,
+        res = sprintf('jobid is empty!\n');
         return
       end
-      if iscell(jID)  ,
-        jID = jID{1};
+      if iscell(jobid)  ,
+        jobid = jobid{1};
       end
       try
-        tfKilled = obj.isKilled(jID);
+        tfKilled = obj.isKilled(jobid);
         if tfKilled,
-          res = sprintf('Job %d has been killed',jID);
+          res = sprintf('Job %s has been killed',jobid);
           return;
         end
       catch
-        fprintf('Failed to poll for job %d before killing\n',jID);
+        fprintf('Failed to poll for job %s before killing\n',jobid);
       end
-      bjobscmd = sprintf('bjobs %d; echo "More detail:"; bjobs -l %d',jID,jID);
+      bjobscmd = sprintf('bjobs %s; echo "More detail:"; bjobs -l %s',jobid,jobid);
       bjobscmd = wrapCommandSSH(bjobscmd,'host',DLBackEndClass.jrchost);
       fprintf(1,'%s\n',bjobscmd);
       [st,res] = system(bjobscmd);
@@ -80,22 +80,22 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end      
     end
 
-    function tf = isKilled(obj,jID) 
-      if isempty(jID) ,
-        fprintf('isKilled: jID is empty!\n');
+    function tf = isKilled(obj,jobid)  %#ok<INUSD> 
+      if isempty(jobid) ,
+        fprintf('isKilled: jobid is empty!\n');
         tf = false;
         return
       end
-      if iscell(jID)  ,
-        jID = jID{1};
+      if iscell(jobid)  ,
+        jobid = jobid{1};
       end        
-      if isempty(jID) || isnan(jID) ,
-        fprintf('isKilled: jID is nan!\n');
+      if isempty(jobid) ,
+        fprintf('isKilled: jobid is empty!\n');
         tf = false;
         return
       end
       runStatuses = {'PEND','RUN','PROV','WAIT'};
-      pollcmd = sprintf('bjobs -o stat -noheader %d',jID);
+      pollcmd = sprintf('bjobs -o stat -noheader %s',jobid);
       pollcmd = wrapCommandSSH(pollcmd,'host',DLBackEndClass.jrchost);
       [st,res] = system(pollcmd);
       if st==0
@@ -107,11 +107,11 @@ classdef BgWorkerObjBsub < BgWorkerObjLocalFilesys
       end
     end
     
-    function fcn = makeJobKilledPollFcn(obj,jID)      
-      fcn = @() obj.isKilled(jID);
+    function fcn = makeJobKilledPollFcn(obj,jobid)      
+      fcn = @() obj.isKilled(jobid);
     end
     
-    function tfsucc = createKillToken(obj,killtoken)
+    function tfsucc = createKillToken(obj,killtoken)  %#ok<INUSD> 
       [killdir,n] = fileparts(killtoken);
       if isempty(n),
         killdir = '.';

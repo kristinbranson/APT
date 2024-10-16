@@ -36,7 +36,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   properties  % (Transient)  Making these transient means they don't get copied over when you pass an AWSec2 in an arg to parfeval()!
               %              We'll just have to be smart about handling them when loading.
     instanceIP
-    remotePID
+    remotePID = ''  % an old-style string
     isInDebugMode_ = false
   end
   
@@ -529,9 +529,9 @@ classdef AWSec2 < matlab.mixin.Copyable
       [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python');
       tfsucc = (st==0) ;
       if tfsucc
-        pid = str2double(strtrim(res));
+        pid = strtrim(res) ;
         obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
-        fprintf('Remote PID is: %d.\n\n',pid);
+        fprintf('Remote PID is: %s.\n\n',pid);
       else
         warningNoTrace('Failed to ascertain remote PID.');
       end
@@ -843,7 +843,7 @@ classdef AWSec2 < matlab.mixin.Copyable
 %     end
         
     function tf = canKillRemoteProcess(obj)
-      tf = ~isempty(obj.remotePID) && ~isnan(obj.remotePID);
+      tf = ~isempty(obj.remotePID) ;
     end
     
     function killRemoteProcess(obj)
