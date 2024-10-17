@@ -2795,12 +2795,12 @@ function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
 lObj.trackModeIdx = hObj.Value;
 
-function mftset = getTrackMode(handles)
-idx = handles.pumTrack.Value;
-% Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
-% .TrackingMenuTrx.
-mfts = MFTSetEnum.TrackingMenuTrx;
-mftset = mfts(idx);
+% function mftset = getTrackMode(handles)
+% idx = handles.pumTrack.Value;
+% % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
+% % .TrackingMenuTrx.
+% mfts = MFTSetEnum.TrackingMenuTrx;
+% mftset = mfts(idx);
 
 function cbkMovieCenterOnTargetChanged(src,~)
 lObj = src ;
@@ -4451,14 +4451,11 @@ guidata(handles.figure,handles);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-tm = getTrackMode(handles);
 [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
-  return;
+  return
 end
-handles.labelerObj.setStatus('Tracking...');
-handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
-handles.labelerObj.clearStatus();
+lObj.trackAndExport([],'rawtrkname',rawtrkname);
 
 function menu_track_batch_track_Callback(hObject,eventdata,handles)
 

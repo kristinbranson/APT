@@ -1082,7 +1082,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       job_count = numel(jobids) ;
       for i = 1 : job_count ,
         jobid = jobids{i} ;
-        obj.ensureJobIsNotAlive(jobid) ;
+        if ~isempty(jobid) ,
+          obj.ensureJobIsNotAlive(jobid) ;
+        end
       end
       obj.jobids_ = cell(0,1) ;
     end  % function

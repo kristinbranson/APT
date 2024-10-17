@@ -146,7 +146,21 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'roianma')
         info.ref_lbl = ...
-          '/groups/branson/bransonlab/apt/unittest/four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016.lbl';
+          strcatg('/groups/branson/bransonlab/apt/unittest/', ...
+                  'four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016.lbl');
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 250;
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'roianmammpose1')
+        info.ref_lbl = ...
+          strcatg('/groups/branson/bransonlab/apt/unittest/', ...
+                  'four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016_mmpose1.lbl') ;
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -347,15 +361,21 @@ classdef TestAPT < handle
         obj.add_labels_quick_();
       end
       
+      % Set the labeler tracking mode to target_trk
       if labeler.hasTrx
         trkTypes = MFTSetEnum.TrackingMenuTrx;
       else
         trkTypes = MFTSetEnum.TrackingMenuNoTrx;
       end
       trk_pum_ndx = find(trkTypes == target_trk );      
-      set(obj.labeler.gdata.pumTrack,'Value',trk_pum_ndx);
-      obj.labeler.setSkeletonEdges(obj.info.op_graph);
-      
+      obj.labeler.trackModeIdx = trk_pum_ndx ;
+
+      % Set the skeleton edges to match obj.info.op_graph
+      if ~isempty(obj.info.op_graph) ,
+        obj.labeler.setSkeletonEdges(obj.info.op_graph);
+      end
+
+      % Set three LSF-specific parameters
       if ~isempty(jrcgpuqueue),
         if ~isempty(labeler.trackDLBackEnd) ,
           labeler.set_backend_property('jrcgpuqueue', jrcgpuqueue) ;
@@ -536,24 +556,16 @@ classdef TestAPT < handle
       labeller = obj.labeler;
       sPrm = labeller.trackGetParams();      
       
+      sbase = struct() ;
       sbase.AlignUsingTrxTheta = has_trx;
       sbase.dl_steps = dl_steps;
       sbase.ManualRadius = sz;
+        % Note 'ManualRadius' by itself may not do anything since
+        % 'AutoRadius' is on by default
       sbase.batch_size = batch_size;
-      sPrm = structsetleaf(sPrm,sbase,'verbose',true);
+      sPrm2 = structsetleaf(sPrm,sbase,'verbose',true);
 
-      % AL: Note 'ManualRadius' by itself may not do anything since
-      % 'AutoRadius' is on by default
-      labeller.trackSetParams(sPrm);
-      
-%       sPrm.ROOT.DeepTrack.GradientDescent.dl_steps = dl_steps;
-%       sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.Radius = sz;
-%       if has_trx
-%         sPrm.ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta = has_trx;
-%       end
-%       for ndx = 1:2:numel(params)
-%         sPrm = setfield(sPrm,params{ndx}{:},params{ndx+1});
-%       end
+      labeller.trackSetParams(sPrm2);
     end  % function
         
     function set_backend_(obj, backend_type_as_string, backend_params)
@@ -571,20 +583,31 @@ classdef TestAPT < handle
     end  % function
     
     function test_train(obj,varargin)
-      [net_type,backend,niters,test_tracking,block,serial2stgtrain, ...
-        batch_size, params, backend_params] = myparse(varargin,...
-            'net_type','mdn_joint_fpn','backend','docker',...
-            'niters',1000,'test_tracking',true,'block',true,...
-            'serial2stgtrain',true,...
-            'batch_size',8,...
-            'params',[],... % optional, struct; see structsetleaf
-            'backend_params',struct());
+      [net_type,...
+       backend,...
+       niters,...
+       test_tracking,...
+       block,...
+       serial2stgtrain, ...
+       batch_size, ...
+       params, ...
+       backend_params] = ...
+        myparse(varargin,...
+                'net_type','mdn_joint_fpn',...
+                'backend','docker',...
+                'niters',1000,...
+                'test_tracking',true,...
+                'block',true,...
+                'serial2stgtrain',true,...
+                'batch_size',8,...
+                'params',[],... % optional, struct; see structsetleaf
+                'backend_params',struct());
           
       if ~isempty(net_type)
         obj.setup_alg_(net_type)
       end
       fprintf('Training with tracker %s\n',obj.labeler.tracker.algorithmNamePretty);
-      obj.set_params_base_(obj.info.has_trx,niters,obj.info.sz, batch_size);
+      obj.set_params_base_(obj.info.has_trx, niters,obj.info.sz, batch_size);
       if ~isempty(params)
         sPrm = obj.labeler.trackGetParams();
         sPrm = structsetleaf(sPrm,params,'verbose',true);

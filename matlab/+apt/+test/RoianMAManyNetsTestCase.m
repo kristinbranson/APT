@@ -29,7 +29,7 @@ classdef RoianMAManyNetsTestCase < matlab.unittest.TestCase
       setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
       testObj.test_full('nets',{'maopenpose'}, ...
                         'setup_params',setup_params, ...
-                        'backend','bsub');
+                        'backend','conda');
       obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;
     end  % function
     
@@ -43,11 +43,11 @@ classdef RoianMAManyNetsTestCase < matlab.unittest.TestCase
     end  % function
     
     function multiDekrTest(obj)
-      testObj = TestAPT('name','roianma');
+      testObj = TestAPT('name','roianmammpose1');
       setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
       testObj.test_full('nets',{'multi_dekr'}, ...
                         'setup_params',setup_params, ...
-                        'backend','bsub');
+                        'backend','docker');
       obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;
     end  % function
     

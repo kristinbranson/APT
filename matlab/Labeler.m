@@ -2775,7 +2775,7 @@ classdef Labeler < handle
 
       % reset reference frame plotting
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-        obj.gdata.axes_prev,obj.labelPointsPlotInfo);
+                                   obj.gdata.axes_prev,obj.labelPointsPlotInfo);
       if ~isempty(obj.prevAxesModeInfo)
         obj.prevAxesLabelsRedraw();
       end
@@ -2814,16 +2814,11 @@ classdef Labeler < handle
       obj.doesNeedSave_ = true;     
       
       obj.lblCore.init(newnphyspts,obj.labelPointsPlotInfo);
-%       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-%         obj.gdata.axes_prev,obj.labelPointsPlotInfo);
       obj.preProcInit();
       obj.isinit = isinit0;
       obj.labelsUpdateNewFrame(true);
       set(obj.gdata.menu_setup_sequential_add_mode,'Visible','on');
-      %obj.labelingInit();
-      
-      
-    end
+    end  % function
     
 %     function projImport(obj,fname)
 %       % 'Import' the project fname, MERGING movies/labels into the current project.
@@ -4889,9 +4884,6 @@ classdef Labeler < handle
         obj.labelingInit('dosettemplate',false); 
       end
       
-      % for fun debugging
-      %       obj.gdata.axes_all.addlistener('XLimMode','PreSet',@(s,e)lclTrace('preset'));
-      %       obj.gdata.axes_all.addlistener('XLimMode','PostSet',@(s,e)lclTrace('postset'));
       obj.setFrameAndTarget(1,1);
       
       trxFile = obj.trxFilesAllFullGTaware{iMov,1};
@@ -6187,7 +6179,7 @@ classdef Labeler < handle
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-        obj.gdata.axes_prev,lblPtsPlotInfo);
+                                   obj.gdata.axes_prev,lblPtsPlotInfo);
       if ~isempty(obj.prevAxesModeInfo)
         obj.prevAxesLabelsRedraw();
       end
@@ -11729,6 +11721,9 @@ classdef Labeler < handle
     end
     
     function track(obj, tm, varargin)
+      if isempty(tm) ,
+        tm = obj.getTrackModeMFTSet() ;
+      end
       [okToProceed, message] = obj.doProjectAndMovieExist() ;
       if ~okToProceed ,
         error(message) ;
@@ -12193,6 +12188,13 @@ classdef Labeler < handle
       %
       % mftset: scalar MFTSet
 
+      obj.setStatus('Tracking...');
+      cleaner = onCleanup(@()(obj.clearStatus())) ;
+
+      if isempty(mftset) ,
+        mftset = obj.getTrackModeMFTSet() ;
+      end
+
       startTime = tic;
       
       [trackArgs,rawtrkname] = myparse(varargin,...
@@ -12249,7 +12251,7 @@ classdef Labeler < handle
         obj.ppdbInit(); % putting this here just b/c the above line, quite possibly unnec
         fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
       end
-    end
+    end  % function
     
     function trackExportResults(obj,iMovs,varargin)
       % Export tracking results to trk files.
@@ -16248,6 +16250,12 @@ classdef Labeler < handle
       % non-getter methods on Labeler internals. --ALT, 2024-08-28
       t = obj.tracker;
       t.retrain('augOnly',true);
+    end  % function
+
+    function mftset = getTrackModeMFTSet(obj)
+      % Get the current tracking mode as an MFTSetEnum
+      idx = obj.trackModeIdx ;
+      mftset = MFTSetEnum.TrackingMenuTrx(idx) ;
     end  % function
   end  % methods
 end  % classdef

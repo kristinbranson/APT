@@ -229,21 +229,20 @@ classdef LabelerController < handle
     end
     
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
-      tm = obj.get_track_mode_();
-      obj.labeler_.track(tm, varargin{:}) ;
+      obj.labeler_.track([], varargin{:}) ;
     end
 
-    function mftset = get_track_mode_(obj)
-      % This is designed to do the same thing as LabelerGUI::getTrackMode().
-      % The two methods should likely be consolidated at some point.  Private by
-      % convention
-      pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
-      idx = pumTrack.Value ;
-      % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
-      % .TrackingMenuTrx.
-      mfts = MFTSetEnum.TrackingMenuTrx;
-      mftset = mfts(idx);      
-    end
+%     function mftset = get_track_mode_(obj)
+%       % This is designed to do the same thing as LabelerGUI::getTrackMode().
+%       % The two methods should likely be consolidated at some point.  Private by
+%       % convention
+%       pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
+%       idx = pumTrack.Value ;
+%       % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
+%       % .TrackingMenuTrx.
+%       mfts = MFTSetEnum.TrackingMenuTrx;
+%       mftset = mfts(idx);      
+%     end
 
     function menu_debug_generate_db_actuated(obj, source, event)
       obj.train_core_(source, event, 'do_just_generate_db', true) ;
