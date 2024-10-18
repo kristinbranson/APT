@@ -130,11 +130,12 @@ classdef BgWorkerObj < handle
     end
     
     function tfLogErrLikely = logFileErrLikely(obj,file) % obj const
-      tfLogErrLikely = obj.fileExists(file);
-      if tfLogErrLikely
-        logContents = obj.fileContents(file);
-        tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
-      end
+      tfLogErrLikely = false ; 
+%       tfLogErrLikely = obj.fileExists(file);
+%       if tfLogErrLikely
+%         logContents = obj.fileContents(file);
+%         tfLogErrLikely = ~isempty(regexpi(logContents,'exception','once'));
+%       end
     end
 
     function lsdir(obj,dir) %#ok<INUSL> 
@@ -198,9 +199,9 @@ classdef BgWorkerObj < handle
       % not implemented
       res = true;
     
-    end
+    end  % function
     
-  end
+  end  % methods
   
   methods (Static)
     

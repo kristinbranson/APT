@@ -55,6 +55,7 @@ classdef LabelTracker < handle
     % return cellstr, (deep) nets used by this tracker
     v = getNetsUsed(obj)
   end
+  
   methods
     
     function obj = LabelTracker(labelerObj)
@@ -118,6 +119,7 @@ classdef LabelTracker < handle
       % this should only be done if one knows what one is doing! 
       obj.sPrmAll = sPrm;
     end
+
     function setTrackParams(obj,sPrmTrack)
       if ~isempty(obj.sPrmAll)
         obj.sPrmAll = APTParameters.setTrackParams(obj.sPrmAll,sPrmTrack);
