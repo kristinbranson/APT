@@ -28,7 +28,7 @@ for iLbl=1:NLBL
   lfile = LBLS{iLbl};
   lObj.projLoad(lfile);
   fprintf('Loaded %s. Training\n',lfile);
-  lObj.trackTrain();
+  lObj.trainIncremental();
   fprintf('Saving %s\n',lObj.projectfile);
   lObj.projSaveSmart();
 end

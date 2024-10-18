@@ -229,7 +229,7 @@ classdef LabelerController < handle
     end
     
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
-      obj.labeler_.track([], varargin{:}) ;
+      obj.labeler_.track(varargin{:}) ;
     end
 
 %     function mftset = get_track_mode_(obj)
@@ -297,8 +297,8 @@ classdef LabelerController < handle
       wbObj = WaitBarWithCancel('Training');
       oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
-      labeler.trackRetrain(...
-        'retrainArgs',{'wbObj',wbObj}, ...
+      labeler.train(...
+        'trainArgs',{'wbObj',wbObj}, ...
         'do_just_generate_db', do_just_generate_db, ...
         'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
       if wbObj.isCancel

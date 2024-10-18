@@ -26,7 +26,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
     function sRes = initComputeResults(obj)
       nmodels = obj.dmcs.n;
       %trainCompleteFiles = obj.getTrainCompleteArtifacts();
-      sRes = struct;
+      sRes = struct();
       sRes.identifiers = obj.dmcs.getIdentifiers();
       sRes.pollsuccess = false; % if true, remote poll cmd was successful
       sRes.pollts = now; % datenum time that poll cmd returned

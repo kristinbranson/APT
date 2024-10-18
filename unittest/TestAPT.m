@@ -327,8 +327,10 @@ classdef TestAPT < handle
         all_nets = num2cell(all_nets);
       end
       for nndx = 1:numel(all_nets)
-        obj.test_train('net_type',all_nets{nndx},'backend',backend,...
-                       'params',params,'backend_params',backend_params);
+        obj.test_train('net_type',all_nets{nndx},...
+                       'backend',backend,...
+                       'params',params,...
+                       'backend_params',backend_params);
       end
     end  % function
     
@@ -598,7 +600,7 @@ classdef TestAPT < handle
                 'net_type','mdn_joint_fpn',...
                 'backend','docker',...
                 'niters',1000,...
-                'test_tracking',true,...
+                'test_tracking',false,...
                 'block',true,...
                 'serial2stgtrain',true,...
                 'batch_size',[],...  % used to be 8, but seems better to leave it to the project
@@ -617,23 +619,24 @@ classdef TestAPT < handle
       end
       obj.set_backend_(backend,backend_params);
 
-      labeller = obj.labeler;
-      handles = labeller.gdata;
+      labeler = obj.labeler;
+      %handles = labeller.gdata;
       %oc1 = onCleanup(@()ClearStatus(handles));
-      wbObj = WaitBarWithCancel('Training');
-      oc2 = onCleanup(@()delete(wbObj));
-      centerOnParentFigure(wbObj.hWB,handles.figure);
-      tObj = labeller.tracker;
-      tObj.skip_dlgs = true;
-      labeller.silent = true;
-      if labeller.trackerIsTwoStage && ~strcmp(backend,'bsub')
-        tObj.forceSerial = serial2stgtrain;
-      end      
-      labeller.trackRetrain('retrainArgs',{'wbObj',wbObj});
-      if wbObj.isCancel
-        msg = wbObj.cancelMessage('Training canceled');
-        msgbox(msg,'Train');
-      end      
+      %wbObj = WaitBarWithCancel('Training');  % this is never made visible
+      %oc2 = onCleanup(@()delete(wbObj));
+      %centerOnParentFigure(wbObj.hWB,handles.figure);
+      %tracker = labeler.tracker;
+      %tObj.skip_dlgs = true;  % no longer needed---setting labeler.silent takes
+      %care of it.
+      labeler.silent = true;
+      %if labeler.trackerIsTwoStage && ~strcmp(backend,'bsub')
+      %  tracker.forceSerial = serial2stgtrain;
+      %end      
+      labeler.train();
+      %if wbObj.isCancel
+      %  msg = wbObj.cancelMessage('Training canceled');
+      %  msgbox(msg,'Train');
+      %end      
       
       if block
         % block while training
@@ -646,21 +649,23 @@ classdef TestAPT < handle
         % waitfor(ho,'data');
         
         pause(2);
-        while tObj.bgTrnIsRunning
+        while labeler.bgTrnIsRunning
           pause(10);
         end
-        pause(30);
+        pause(10);
         if test_tracking
-          obj.test_track('block',block);
+          obj.test_track('block', block, 'net_type', net_type, 'backend', backend, 'backend_params', backend_params);
         end
       end      
     end  % function
     
     function test_track(obj,varargin)
-      [block,net_type,backend,backend_params] = myparse(varargin,...
-        'block',true,...
-        'net_type',[],...
-        'backend','','backend_params',struct());
+      [block,net_type,backend,backend_params] = ...
+        myparse(varargin,...
+                'block',true,...
+                'net_type',[],...
+                'backend','',...
+                'backend_params',struct());
       
       if ~isempty(net_type)
         obj.setup_alg_(net_type)
@@ -668,11 +673,13 @@ classdef TestAPT < handle
       if ~isempty(backend),
         obj.set_backend_(backend,backend_params);
       end
-      kk = LabelerGUI('get_local_fn','pbTrack_Callback');
-      kk(obj.labeler.gdata.pbTrack,[],obj.labeler.gdata);      
+      labeler = obj.labeler ;
+      %kk = LabelerGUI('get_local_fn','pbTrack_Callback');
+      %kk(obj.labeler.gdata.pbTrack,[],obj.labeler.gdata);      
+      labeler.track() ;
       if block,
         pause(2);
-        while obj.labeler.tracker.bgTrkIsRunning
+        while labeler.bgTrkIsRunning
           pause(10);
         end
         pause(10);

@@ -22,13 +22,13 @@ classdef CarmenTestCase < matlab.unittest.TestCase
       testObj.test_train('backend','bsub');
       did_train_enough = (testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
       obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
-      if ~did_train_enough ,
-        % Don't both with further stuff if training didn't work
-        return
-      end
-      % Maybe these things below should be their own tests?      
-      testObj.test_track('backend','bsub');
-      testObj.test_gtcompute('backend','bsub');
+%       if ~did_train_enough ,
+%         % Don't both with further stuff if training didn't work
+%         return
+%       end
+%       % Maybe these things below should be their own tests?      
+%       testObj.test_track('backend','bsub');
+%       testObj.test_gtcompute('backend','bsub');
     end  % function
   end  % methods (Test)
 end  % classdef

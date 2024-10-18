@@ -4302,7 +4302,7 @@ lObj.tracker.trainingDataMontage();
 handles.labelerObj.clearStatus();
 
 function menu_track_trainincremental_Callback(hObject, eventdata, handles)
-handles.labelerObj.trackTrain();
+handles.labelerObj.trainIncremental();
 
 function menu_go_targets_summary_Callback(hObject, eventdata, handles)
 if handles.labelerObj.maIsMA

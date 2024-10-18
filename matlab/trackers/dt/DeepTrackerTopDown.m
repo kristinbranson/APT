@@ -48,7 +48,7 @@ classdef DeepTrackerTopDown < DeepTracker
   % - track: trkcomplete trigger.
   
   properties
-    forceSerial = false;
+    %forceSerial = false;
     
     stage1Tracker % See notes above
     

@@ -228,6 +228,8 @@ classdef Labeler < handle
     hasProject            % scalar logical
     projectfile           % Full path to current project 
     projectroot           % Parent dir of projectfile, if it exists
+    bgTrnIsRunning        % True iff background training is running
+    bgTrkIsRunning        % True iff background tracking is running
   end
 
   %% Movie/Video
@@ -633,13 +635,14 @@ classdef Labeler < handle
     selectedFrames = []     % vector of frames currently selected frames; typically t0:t1
     drag = false 
     drag_pt = [] 
-    silent = false  % Don't open dialogs. Use defaults. For testing and debugging
+    silent_ = false  % Don't open dialogs. Use defaults. For testing and debugging
   end
   properties (SetAccess=private)
     isinit = false          % scalar logical; true during initialization, when some invariants not respected
   end
   properties (Dependent)
     gdata  % handles structure for LabelerGUI
+    silent
   end
 
   
@@ -11481,7 +11484,7 @@ classdef Labeler < handle
       end      
     end  % function
     
-    function trackTrain(obj)
+    function trainIncremental(obj)
       tObj = obj.tracker;
       if isempty(tObj)
         obj.lerror('Labeler:track','No tracker set.');
@@ -11489,14 +11492,14 @@ classdef Labeler < handle
       if ~obj.hasMovie
         obj.lerror('Labeler:track','No movie.');
       end
-      tObj.train();
+      tObj.trainIncremental();
     end
         
-    function trackRetrain(obj,varargin)
-      [tblMFTtrn, retrainArgs, dontUpdateH0, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
+    function train(obj,varargin)
+      [tblMFTtrn, trainArgs, dontUpdateH0, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
         varargin,...
         'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
-        'retrainArgs',{},... % (opt) args to pass to tracker.retrain()
+        'trainArgs',{},... % (opt) args to pass to tracker.retrain()
         'dontUpdateH0',false,...
         'do_just_generate_db', false, ...
         'do_call_apt_interface_dot_py', true ...
@@ -11519,7 +11522,7 @@ classdef Labeler < handle
         assert(strcmp(tObj.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
-        retrainArgs = [retrainArgs(:)' {'tblPTrn' tblMFTp}];
+        trainArgs = [trainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
       
       % KB 20190121 moved this to within retrain, since we don't clear tracking results immediately for background deep learning
@@ -11527,10 +11530,10 @@ classdef Labeler < handle
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.retrain(retrainArgs{:}, ...
-                   'do_just_generate_db', do_just_generate_db, ...
-                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
-                   'projTempDir', obj.projTempDir);
+      tObj.train(trainArgs{:}, ...
+                 'do_just_generate_db', do_just_generate_db, ...
+                 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                 'projTempDir', obj.projTempDir);
     end  % function
 
     function dotrain = trackCheckGPUMem(obj,varargin)
@@ -11720,10 +11723,8 @@ classdef Labeler < handle
       end
     end
     
-    function track(obj, tm, varargin)
-      if isempty(tm) ,
-        tm = obj.getTrackModeMFTSet() ;
-      end
+    function track(obj, varargin)
+      tm = obj.getTrackModeMFTSet() ;
       [okToProceed, message] = obj.doProjectAndMovieExist() ;
       if ~okToProceed ,
         error(message) ;
@@ -12479,168 +12480,168 @@ classdef Labeler < handle
       obj.xvResultsTS = now;
     end
     
-    function tblRes = trackTrainTrackEval(obj,tblMFTtrn,tblMFTtrk,varargin)
-      % Like single train/track crossvalidation "fragment"
-      %
-      % tblMFTtrn: MFTable, MFTable.FLDSID only
-      % tblMFTtrk: etc
-      %
-      % tblRes: table of tracking err/results      
-      
-      wbObj = myparse(varargin,...
-        'wbObj',[]... % (opt) WaitBarWithCancel
-      );        
-      
-      tfWB = ~isempty(wbObj);
-      
-      tblfldsassert(tblMFTtrn,MFTable.FLDSID);
-      tblfldsassert(tblMFTtrk,MFTable.FLDSID);
-                  
-      tObj = obj.tracker;
-      if isempty(tObj)
-        obj.lerror('Labeler:tracker','No tracker is available for this project.');
-      end
-      if ~strcmp(tObj.algorithmName,'cpr')
-        % DeepTrackers do non-blocking/bg tracking
-        obj.lerror('Only CPR tracking currently supported.');
-      end      
-
-      obj.preProcUpdateH0IfNec();
-
-      % codepath requires CPR; allow 'treatInfPosAsOcc' to default to false 
-      tblMFTPtrn = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
-      tblMFTtrk = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrk);
-      
-      tObj.trackResInit();
-      tObj.vizInit();
-      tObj.asyncReset();
-      tObj.retrain('tblPTrn',tblMFTPtrn,'wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        % tracker obj responsible for these things
-        % tObj.trnDataInit();
-        % tObj.trnResInit();
-        tblRes = [];        
-        return;
-      end
-      
-      tObj.track(tblMFTtrk(:,MFTable.FLDSID),'wbObj',wbObj);      
-      if tfWB && wbObj.isCancel
-        tObj.trnDataInit();
-        tObj.trnResInit();
-        tObj.trackResInit();
-        tObj.vizInit();
-        tblRes = [];        
-        return;
-      end      
-      
-      tblTrkRes = tObj.getTrackingResultsTable();
-      tObj.trnDataInit();
-      tObj.trnResInit();
-      tObj.trackResInit();
-      tObj.vizInit();
-        
-      npts = obj.nLabelPoints;      
-      %assert(isequal(pTrkiPt(:)',1:npts));
-      assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
-        tblMFTtrk(:,MFTable.FLDSID)));
-      if obj.hasTrx || obj.cropProjHasCrops
-        pGT = tblMFTtrk.pAbs;
-      else
-        tblfldsdonotcontainassert(tblMFTtrk,'pAbs');
-        pGT = tblMFTtrk.p;
-      end
-      d = tblTrkRes.pTrk - pGT;
-      [ntst,Dtrk] = size(d);
-      assert(Dtrk==npts*2); % npts=nPhysPts*nview
-      d = reshape(d,ntst,npts,2);
-      d = sqrt(sum(d.^2,3)); % [ntst x npts]
-      
-      tblRes = tblTrkRes;
-      tblRes.pLbl = pGT;
-      tblRes.dLblTrk = d;
-      
-%       if tblfldscontains(tblMFgt,'roi')
-%         flds = MFTable.FLDSCOREROI;
+%     function tblRes = trackTrainTrackEval(obj,tblMFTtrn,tblMFTtrk,varargin)
+%       % Like single train/track crossvalidation "fragment"
+%       %
+%       % tblMFTtrn: MFTable, MFTable.FLDSID only
+%       % tblMFTtrk: etc
+%       %
+%       % tblRes: table of tracking err/results      
+%       
+%       wbObj = myparse(varargin,...
+%         'wbObj',[]... % (opt) WaitBarWithCancel
+%       );        
+%       
+%       tfWB = ~isempty(wbObj);
+%       
+%       tblfldsassert(tblMFTtrn,MFTable.FLDSID);
+%       tblfldsassert(tblMFTtrk,MFTable.FLDSID);
+%                   
+%       tObj = obj.tracker;
+%       if isempty(tObj)
+%         obj.lerror('Labeler:tracker','No tracker is available for this project.');
+%       end
+%       if ~strcmp(tObj.algorithmName,'cpr')
+%         % DeepTrackers do non-blocking/bg tracking
+%         obj.lerror('Only CPR tracking currently supported.');
+%       end      
+% 
+%       obj.preProcUpdateH0IfNec();
+% 
+%       % codepath requires CPR; allow 'treatInfPosAsOcc' to default to false 
+%       tblMFTPtrn = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
+%       tblMFTtrk = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrk);
+%       
+%       tObj.trackResInit();
+%       tObj.vizInit();
+%       tObj.asyncReset();
+%       tObj.retrain('tblPTrn',tblMFTPtrn,'wbObj',wbObj);
+%       if tfWB && wbObj.isCancel
+%         % tracker obj responsible for these things
+%         % tObj.trnDataInit();
+%         % tObj.trnResInit();
+%         tblRes = [];        
+%         return;
+%       end
+%       
+%       tObj.track(tblMFTtrk(:,MFTable.FLDSID),'wbObj',wbObj);      
+%       if tfWB && wbObj.isCancel
+%         tObj.trnDataInit();
+%         tObj.trnResInit();
+%         tObj.trackResInit();
+%         tObj.vizInit();
+%         tblRes = [];        
+%         return;
+%       end      
+%       
+%       tblTrkRes = tObj.getTrackingResultsTable();
+%       tObj.trnDataInit();
+%       tObj.trnResInit();
+%       tObj.trackResInit();
+%       tObj.vizInit();
+%         
+%       npts = obj.nLabelPoints;      
+%       %assert(isequal(pTrkiPt(:)',1:npts));
+%       assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
+%         tblMFTtrk(:,MFTable.FLDSID)));
+%       if obj.hasTrx || obj.cropProjHasCrops
+%         pGT = tblMFTtrk.pAbs;
 %       else
-%         flds = MFTable.FLDSCORE;
+%         tblfldsdonotcontainassert(tblMFTtrk,'pAbs');
+%         pGT = tblMFTtrk.p;
 %       end
-%       tblXVres = tblMFgt(:,flds);
-%       if tblfldscontains(tblMFgt,'pAbs')
-%         tblXVres.p = tblMFgt.pAbs;
+%       d = tblTrkRes.pTrk - pGT;
+%       [ntst,Dtrk] = size(d);
+%       assert(Dtrk==npts*2); % npts=nPhysPts*nview
+%       d = reshape(d,ntst,npts,2);
+%       d = sqrt(sum(d.^2,3)); % [ntst x npts]
+%       
+%       tblRes = tblTrkRes;
+%       tblRes.pLbl = pGT;
+%       tblRes.dLblTrk = d;
+%       
+% %       if tblfldscontains(tblMFgt,'roi')
+% %         flds = MFTable.FLDSCOREROI;
+% %       else
+% %         flds = MFTable.FLDSCORE;
+% %       end
+% %       tblXVres = tblMFgt(:,flds);
+% %       if tblfldscontains(tblMFgt,'pAbs')
+% %         tblXVres.p = tblMFgt.pAbs;
+% %       end
+% %       tblXVres.pTrk = pTrkAll.pTrk;
+% %       tblXVres.dGTTrk = dGTTrkAll;
+% %       tblXVres = [pTrkAll(:,'fold') tblXVres];      
+%     end
+%     
+%     function trackCrossValidateVizPrctiles(obj,tblXVres,varargin)
+%       ptiles = myparse(varargin,...
+%         'prctiles',[50 75 90 95]);
+%       
+%       assert(~obj.gtIsGTMode,'Not supported in GT mode.');
+%       
+%       err = tblXVres.dGTTrk;
+%       npts = obj.nLabelPoints;
+%       nphyspts = obj.nPhysPoints;
+%       assert(size(err,2)==npts);
+%       nptiles = numel(ptiles);
+%       ptl = prctile(err,ptiles,1)';
+%       szassert(ptl,[npts nptiles]);
+%       
+%       % for now always viz with first row
+%       iVizRow = 1;
+%       vizrow = tblXVres(iVizRow,:);
+%       xyLbl = Shape.vec2xy(vizrow.p);
+%       szassert(xyLbl,[npts 2]);
+%       tfRoi = tblfldscontains(vizrow,'roi');
+%       if tfRoi 
+%         [xyLbl,tfOOBview] = Shape.xy2xyROI(xyLbl,vizrow.roi,nphyspts);
+%         if any(tfOOBview)
+%           warningNoTrace('One or more landmarks lies outside ROI.');
+%         end
 %       end
-%       tblXVres.pTrk = pTrkAll.pTrk;
-%       tblXVres.dGTTrk = dGTTrkAll;
-%       tblXVres = [pTrkAll(:,'fold') tblXVres];      
-    end
-    
-    function trackCrossValidateVizPrctiles(obj,tblXVres,varargin)
-      ptiles = myparse(varargin,...
-        'prctiles',[50 75 90 95]);
-      
-      assert(~obj.gtIsGTMode,'Not supported in GT mode.');
-      
-      err = tblXVres.dGTTrk;
-      npts = obj.nLabelPoints;
-      nphyspts = obj.nPhysPoints;
-      assert(size(err,2)==npts);
-      nptiles = numel(ptiles);
-      ptl = prctile(err,ptiles,1)';
-      szassert(ptl,[npts nptiles]);
-      
-      % for now always viz with first row
-      iVizRow = 1;
-      vizrow = tblXVres(iVizRow,:);
-      xyLbl = Shape.vec2xy(vizrow.p);
-      szassert(xyLbl,[npts 2]);
-      tfRoi = tblfldscontains(vizrow,'roi');
-      if tfRoi 
-        [xyLbl,tfOOBview] = Shape.xy2xyROI(xyLbl,vizrow.roi,nphyspts);
-        if any(tfOOBview)
-          warningNoTrace('One or more landmarks lies outside ROI.');
-        end
-      end
-      for ivw=1:obj.nview
-        mr = MovieReader;
-        obj.movieMovieReaderOpen(mr,MovieIndex(vizrow.mov),ivw);
-        im = mr.readframe(vizrow.frm,'docrop',false); 
-        % want to crop via vizrow.roi (if applicable); this comes from trx
-        % most of the time
-        iptsvw = (1:nphyspts)' + nphyspts*(ivw-1);
-        xyLblVw = xyLbl(iptsvw,:); 
-        ptlVw = ptl(iptsvw,:);
-        if tfRoi
-          roiVw = vizrow.roi((1:4)+(ivw-1)*4);
-          im = padgrab2(im,0,roiVw(3),roiVw(4),roiVw(1),roiVw(2));
-        end
-      
-        if obj.nview==1
-          figure('Name','Tracker performance');
-        else
-          figure('Name',sprintf('Tracker performance (view %d)',ivw));
-        end          
-        imagesc(im);
-        colormap gray;
-        hold on;
-        clrs = hsv(nptiles)*.75;
-        for ipt=1:nphyspts
-          for iptile=1:nptiles        
-            r = ptlVw(ipt,iptile);
-            pos = [xyLblVw(ipt,:)-r 2*r 2*r];
-             rectangle('position',pos,'curvature',1,'edgecolor',clrs(iptile,:));
-          end
-        end
-        axis image ij
-        grid on;
-        if ivw==1
-          tstr = sprintf('Cross-validation ptiles: %s. n=%d, mean err=%.3fpx.',...
-            mat2str(ptiles),height(tblXVres),mean(err(:)));
-          title(tstr,'fontweight','bold','interpreter','none');
-          hLeg = arrayfun(@(x)plot(nan,nan,'-','Color',clrs(x,:)),1:nptiles,...
-            'uni',0);      
-          legend([hLeg{:}],arrayfun(@num2str,ptiles,'uni',0));
-        end
-      end
-    end
+%       for ivw=1:obj.nview
+%         mr = MovieReader;
+%         obj.movieMovieReaderOpen(mr,MovieIndex(vizrow.mov),ivw);
+%         im = mr.readframe(vizrow.frm,'docrop',false); 
+%         % want to crop via vizrow.roi (if applicable); this comes from trx
+%         % most of the time
+%         iptsvw = (1:nphyspts)' + nphyspts*(ivw-1);
+%         xyLblVw = xyLbl(iptsvw,:); 
+%         ptlVw = ptl(iptsvw,:);
+%         if tfRoi
+%           roiVw = vizrow.roi((1:4)+(ivw-1)*4);
+%           im = padgrab2(im,0,roiVw(3),roiVw(4),roiVw(1),roiVw(2));
+%         end
+%       
+%         if obj.nview==1
+%           figure('Name','Tracker performance');
+%         else
+%           figure('Name',sprintf('Tracker performance (view %d)',ivw));
+%         end          
+%         imagesc(im);
+%         colormap gray;
+%         hold on;
+%         clrs = hsv(nptiles)*.75;
+%         for ipt=1:nphyspts
+%           for iptile=1:nptiles        
+%             r = ptlVw(ipt,iptile);
+%             pos = [xyLblVw(ipt,:)-r 2*r 2*r];
+%              rectangle('position',pos,'curvature',1,'edgecolor',clrs(iptile,:));
+%           end
+%         end
+%         axis image ij
+%         grid on;
+%         if ivw==1
+%           tstr = sprintf('Cross-validation ptiles: %s. n=%d, mean err=%.3fpx.',...
+%             mat2str(ptiles),height(tblXVres),mean(err(:)));
+%           title(tstr,'fontweight','bold','interpreter','none');
+%           hLeg = arrayfun(@(x)plot(nan,nan,'-','Color',clrs(x,:)),1:nptiles,...
+%             'uni',0);      
+%           legend([hLeg{:}],arrayfun(@num2str,ptiles,'uni',0));
+%         end
+%       end
+%     end
     
     function [tf,lposTrk,occTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
       % tf: scalar logical, true if tracker has results/predictions for 
@@ -16257,5 +16258,36 @@ classdef Labeler < handle
       idx = obj.trackModeIdx ;
       mftset = MFTSetEnum.TrackingMenuTrx(idx) ;
     end  % function
+
+    function result = get.bgTrnIsRunning(obj)        
+      % True iff background training is running
+      if isempty(obj.tracker) ,
+        result = false ;
+      else
+        result = obj.tracker.bgTrnIsRunning ;
+      end
+    end  % function
+
+    function result = get.bgTrkIsRunning(obj)        
+      % True iff background tracking is running
+      if isempty(obj.tracker) ,
+        result = false ;
+      else
+        result = obj.tracker.bgTrkIsRunning ;
+      end
+    end  % function
+
+    function result = get.silent(obj)        
+      result = obj.silent_ ;
+    end  % function
+    
+    function set.silent(obj, newValue)        
+      obj.silent_ = newValue ;
+      tracker = obj.tracker;
+      if ~isempty(tracker) ,        
+        tracker.skip_dlgs = newValue ;
+      end      
+    end  % function
+    
   end  % methods
 end  % classdef

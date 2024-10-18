@@ -669,7 +669,7 @@ classdef DeepTracker < LabelTracker
   %% Train
   methods
     
-    function train(obj)  %#ok<MANU> 
+    function trainIncremental(obj)  %#ok<MANU> 
       error('Incremental training is currently unsupported for Deep Learning.');
     end
     
@@ -907,9 +907,9 @@ classdef DeepTracker < LabelTracker
       backend.uploadMovies(localPathFromMovieIndex) ;
     end
     
-    function retrain(obj,varargin)
+    function train(obj,varargin)
       % Main training function
-      % Called by Labeler.trackRetrain
+      % Called by Labeler.train
       % Checks whether tracking results already exist, and what to do about
       % them. 
       % Sets parameters. 
