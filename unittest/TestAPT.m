@@ -552,17 +552,19 @@ classdef TestAPT < handle
       labeller.trackSetCurrentTracker(trackerIndex);
     end  % function
     
-    function set_params_base_(obj,has_trx,dl_steps,sz, batch_size)
+    function set_params_base_(obj, has_trx, dl_steps, manual_radius, batch_size)
       labeller = obj.labeler;
       sPrm = labeller.trackGetParams();      
       
       sbase = struct() ;
       sbase.AlignUsingTrxTheta = has_trx;
       sbase.dl_steps = dl_steps;
-      sbase.ManualRadius = sz;
+      sbase.ManualRadius = manual_radius;
         % Note 'ManualRadius' by itself may not do anything since
         % 'AutoRadius' is on by default
-      sbase.batch_size = batch_size;
+      if ~isempty(batch_size) ,
+        sbase.batch_size = batch_size;
+      end
       sPrm2 = structsetleaf(sPrm,sbase,'verbose',true);
 
       labeller.trackSetParams(sPrm2);
@@ -599,7 +601,7 @@ classdef TestAPT < handle
                 'test_tracking',true,...
                 'block',true,...
                 'serial2stgtrain',true,...
-                'batch_size',8,...
+                'batch_size',[],...  % used to be 8, but seems better to leave it to the project
                 'params',[],... % optional, struct; see structsetleaf
                 'backend_params',struct());
           
@@ -607,7 +609,7 @@ classdef TestAPT < handle
         obj.setup_alg_(net_type)
       end
       fprintf('Training with tracker %s\n',obj.labeler.tracker.algorithmNamePretty);
-      obj.set_params_base_(obj.info.has_trx, niters,obj.info.sz, batch_size);
+      obj.set_params_base_(obj.info.has_trx, niters, obj.info.sz, batch_size);
       if ~isempty(params)
         sPrm = obj.labeler.trackGetParams();
         sPrm = structsetleaf(sPrm,params,'verbose',true);
