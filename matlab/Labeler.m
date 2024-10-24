@@ -3491,7 +3491,7 @@ classdef Labeler < handle
           continue;
         end
         for j = 1:numel(tObj.trnLastDMC.n),
-          nettype = tObj.trnLastDMC.getType(j);
+          nettype = tObj.trnLastDMC.getNetType(j);
           nettype = char(nettype{1});
           netmode = tObj.trnLastDMC.getNetMode(j);
           netmode = char(netmode{1});
