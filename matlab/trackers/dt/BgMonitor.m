@@ -2,13 +2,13 @@ classdef BgMonitor < handle
   % BGMonitor
   %
   % A BGMonitor is:
-  % 1. A BGClient/BGWorker pair comprising a client, bg worker working
+  % 1. A BgClient/BgRunner pair comprising a client, bg worker working
   % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
   % pipeline.
   %   - The initted BgWorkerObj knows how to poll the state of the process. For
   %     debugging/testing this can be done from the client machine.
   % 2. A client-side MonitorViz object that visualizes 
-  % progress sent back from the BGWorker
+  % progress sent back from the BgRunner
   % 3. Custom actions performed when process is complete
   %
   % BGMonitor does NOT know how to spawn process jobs but will know
@@ -16,7 +16,7 @@ classdef BgMonitor < handle
   % jobs and monitor them with BgMonitor.
   %
   % BGMonitor does NOT know how to probe the detailed state of the
-  % process eg on disk. That is BGWorkerObj's domain.
+  % process eg on disk. That is BgRunnerObj's domain.
   %
   % So BGMonitor is a connector/manager obj that runs the worker 
   % (knows how to poll the filesystem in detail) in the background and 
@@ -25,67 +25,107 @@ classdef BgMonitor < handle
   % See also prepare() method comments for related info.
   
   properties
-    bgContCallInterval = 30; %secs
-    
-    bgClientObj
-    bgWorkerObj % scalar "detached" object that is deep-copied onto
-    % workers. Note, this is not the BGWorker obj itself
-    monitorObj % object with resultsreceived() method
-    cbkComplete = []; % fcnhandle with sig cbk(res), called when operation complete
-    processName = 'process';
+    bgContCallInterval  % scalar double, in secs    
+    bgClientObj  % the BgClient (the BgRunner is created in the .startRunner() method of the BgClient)
+    bgWorkerObj  % scalar "detached" object (not sure this is still true about it being 
+                 % detached --ALT, 2024-06-28) that is deep-copied onto
+                 % workers. Note, this is not the BgRunner obj itself.
+    monitorObj  % object with resultsreceived() method, typically a "monitor visualizer"
+    cbkComplete  % empty, or fcnhandle with sig cbk(res), called when operation complete
+    processName  % 'train' or 'track'
+    % It seems like the bgClientObj and monitorObj are owned by obj, but
+    % bgWorkerObj is not (hence that ref should be treated as soft).  The
+    % effective parent of obj is the DeepTracker.  cbkComplete seems to usually
+    % (always?) call a method of the parent DeepTracker.  Would probably make
+    % sense to add a "parent" field that contains a ref to the DeepTracker, and to
+    % call a "didCompleteBgMonitor" method of the parent when complete.  The
+    % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
+    parent_
+    projTempDirMaybe_
   end
+
   properties (Dependent)
     prepared
     isRunning
   end
     
-  events
-    bgStart
-    bgEnd    
-  end
+%   events
+%     bgStart
+%     bgEnd    
+%   end
   
   methods
-    function v = get.prepared(obj)
-      v = ~isempty(obj.bgClientObj);
-    end
-    function v = get.isRunning(obj)
-      bgc = obj.bgClientObj;
-      v = ~isempty(bgc) && bgc.isRunning;
-    end
-  end
-
-  properties (Constant)
-    DEBUG = false;
-  end
-
-  methods (Static)
-    function debugfprintf(varargin)
-      if BgMonitor.DEBUG,
-        fprintf(varargin{:});
+    function obj = BgMonitor(parent, type_string, monVizObj, bgWorkerObj, cbkComplete, varargin)      
+      % Is obj for monitoring training or tracking?
+      obj.parent_ = parent ;
+      if strcmp(type_string, 'train') ,
+        obj.processName = 'train' ;
+        obj.bgContCallInterval = 30 ;  % secs
+      elseif strcmp(type_string, 'track') ,
+        obj.processName = 'track' ;
+        obj.bgContCallInterval = 20 ;  % secs
+      else
+        error('Internal error: BgMonitor() argument must be ''train'' or ''track''') ;
       end
-    end
-  end
-  
-  methods
-    
-    function obj = BgMonitor
-      obj.reset();
-    end
+
+      % bgWorkerObj knows how to poll the state of the process. 
+      % monVizObj knows how to vizualize this state. 
+      % bgResultsReceivedHook performs custom actions after receiving
+      % an update from bgWorkerObj. 
+      %
+      % bgWorkerObj/monVizObj should be mix+matchable as bgWorkerObj 
+      % should send a core set of 'standard' metrics that monVizObj can
+      % use.
+      %
+      % bgWorkerObj matches 1-1 with the concrete BgMonitor and its 
+      % bgResultsReceivedHook method. These work in concert and the 
+      % custom actions taken by bgResultsReceivedHook depends on custom 
+      % info supplied by bgWorkerObj.
+      [track_type, projTempDir] = myparse(varargin, ...
+                                          'track_type', 'movie', ...
+                                          'projTempDir', []);
+      if strcmp(track_type,'movie')
+        compute_fcn_name = 'compute';
+      else
+        compute_fcn_name = 'computeList';
+      end
+      if isempty(projTempDir) ,
+        obj.projTempDirMaybe_ = {} ;
+      else
+        obj.projTempDirMaybe_ = { projTempDir } ;
+      end
+
+      %obj.reset_();  % Not needed
+      
+      [tfEFE,errFile] = bgWorkerObj.errFileExists;
+      if tfEFE
+        error('Error file ''%s'' exists.',errFile);
+      end
+      
+      cbkResult = @obj.bgResultsReceived;
+
+      bgc = BgClient('projTempDirMaybe', obj.projTempDirMaybe_) ;
+      fprintf(1,'Configuring background worker...\n');
+      bgc.configure(cbkResult, bgWorkerObj, compute_fcn_name) ;
+      
+      obj.bgClientObj = bgc;
+      obj.bgWorkerObj = bgWorkerObj;
+      obj.monitorObj = monVizObj;
+      if exist('cbkComplete','var'),
+        obj.cbkComplete = cbkComplete;
+      end
+    end  % constructor
     
     function delete(obj)
-      obj.reset();
-    end
-    
-    function reset(obj)
-      % Reset BG Monitor state
-      %
-      % - TODO Note, when you change eg params, u need to call this. etc etc.
-      % Any mutation that alters PP, train/track on the BG worker...
-      
-      if obj.isRunning
-        obj.notify('bgEnd');
+      if obj.isRunning ,
+        %obj.notify('bgEnd');
+        if ~isempty(obj.parent_)  && isvalid(obj.parent_) ,
+          obj.parent_.didStopBgMonitor(obj.processName) ;
+        end
       end
       
+      % IMHO, it's a code smell that we explicitly delete() all these things in a
+      % delete() method...  -- ALT, 2024-06-28
       if ~isempty(obj.bgClientObj)
         delete(obj.bgClientObj);
       end
@@ -102,106 +142,45 @@ classdef BgMonitor < handle
         delete(obj.monitorObj);
       end
       obj.monitorObj = [];
-    end
+    end  % delete() method
     
-    function prepare(obj,monVizObj,bgWorkerObj,cbkComplete,varargin)
-      % bgWorkerObj knows how to poll the state of the process. 
-      % monVizObj knows how to vizualize this state. 
-      % bgResultsReceivedHook performs custom actions after receiving
-      % an update from bgWorkerObj. 
-      %
-      % bgWorkerObj/monVizObj should be mix+matchable as bgWorkerObj 
-      % should send a core set of 'standard' metrics that monVizObj can
-      % use.
-      %
-      % bgWorkerObj matches 1-1 with the concrete BgMonitor and its 
-      % bgResultsReceivedHook method. These work in concert and the 
-      % custom actions taken by bgResultsReceivedHook depends on custom 
-      % info supplied by bgWorkerObj.
-      [track_type] = myparse(varargin,'track_type','movie');
-      if strcmp(track_type,'movie')
-        compute_fcn = 'compute';
-      else
-        compute_fcn = 'computeList';
-      end
+    function v = get.prepared(obj)
+      v = ~isempty(obj.bgClientObj);
+    end
 
-      obj.reset();
-      
-      [tfEFE,errFile] = bgWorkerObj.errFileExists;
-      if tfEFE
-        error('Error file ''%s'' exists.',errFile);
-      end
-      
-      cbkResult = @obj.bgResultsReceived;
-
-      bgc = BGClient;
-      fprintf(1,'Configuring background worker...\n');
-      bgc.configure(cbkResult,bgWorkerObj,compute_fcn);
-      
-      obj.bgClientObj = bgc;
-      obj.bgWorkerObj = bgWorkerObj;
-      obj.monitorObj = monVizObj;
-      if exist('cbkComplete','var'),
-        obj.cbkComplete = cbkComplete;
-      end
-      
-      %obj.prepareHook(monVizObj,bgWorkerObj);
+    function v = get.isRunning(obj)
+      bgc = obj.bgClientObj;
+      v = ~isempty(bgc) && bgc.isRunning;
     end
     
     function start(obj)
       assert(obj.prepared);
       bgc = obj.bgClientObj;
-      bgc.startWorker('workerContinuous',true,...
-        'continuousCallInterval',obj.bgContCallInterval);
-      obj.notify('bgStart');
+      bgc.startRunner('runnerContinuous',true,...
+                      'continuousCallInterval',obj.bgContCallInterval) ;
+      %obj.notify('bgStart');
+      obj.parent_.didStartBgMonitor(obj.processName) ;
+    end
+    
+    function stop(obj)
+      bgc = obj.bgClientObj;
+      bgc.stopWorkerHard();
+      %obj.notify('bgEnd');
+      obj.parent_.didStopBgMonitor(obj.processName) ;
     end
     
     function bgResultsReceived(obj,sRes)
-	  % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
-      [tfSucc,msg] = obj.monitorObj.resultsReceived(sRes);
-      obj.bgResultsReceivedHook(sRes,tfSucc,msg);
-    end
-    
-    function tfpollsucc = getPollSuccess(obj,sRes)
-      if isfield(sRes.result,'pollsuccess'),
-        tfpollsucc = [sRes.result.pollsuccess];
-      else
-        tfpollsucc = true(1,numel(sRes.result));
-      end
-    end
-
-    function killOccurred = getKillOccurred(obj,sRes)
-      killOccurred = [sRes.result.killFileExists];
-    end
-
-    function errOccurred = getErrOccurred(obj,sRes)
-      errOccurred = [sRes.result.errFileExists];
-    end
-    
-    function errFile = getErrFile(obj,sRes)
-      errFile = sRes.result(1).errFile;
-    end
-    function logFile = getLogFile(obj,sRes,i)
-      logFile = sRes.result(i).logFile;
-    end
-    function logFileErrLikely = getLogFileErrLikely(obj,sRes)
-      logFileErrLikely = [sRes.result.logFileErrLikely];
-    end
-
-    function tfComplete = isComplete(obj,sRes)
-      tfComplete = [sRes.result.tfComplete];
-    end
-
-    
-    function bgResultsReceivedHook(obj,sRes,tfSucc,msg)
       % current pattern is, this meth only handles things which stop the
       % process. everything else handled by monitor
+
+	    % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
+      [tfSucc,msg] = obj.monitorObj.resultsReceived(sRes);
       
-      BgMonitor.debugfprintf('bgResultsReceivedHook: tfSucc = %d\n',tfSucc);
+      BgMonitor.debugfprintf('bgResultsReceived: tfSucc = %d\n',tfSucc);
       
-      tfpollsucc = obj.getPollSuccess(sRes);
+      tfpollsucc = BgMonitor.getPollSuccess(sRes);
       
-      killOccurred = any(tfpollsucc & obj.getKillOccurred(sRes));
+      killOccurred = any(tfpollsucc & BgMonitor.getKillOccurred(sRes));
       if killOccurred
         obj.stop();        
         fprintf(1,'Process killed!\n');
@@ -209,12 +188,12 @@ classdef BgMonitor < handle
         % monitor plot stays up; reset not called etc
       end
       
-      errOccurred = any(tfpollsucc & obj.getErrOccurred(sRes));
+      errOccurred = any(tfpollsucc & BgMonitor.getErrOccurred(sRes));
       if errOccurred
         obj.stop();
 
         fprintf(1,'Error occurred during %s:\n',obj.processName);
-        errFile = obj.getErrFile(sRes); % currently, errFiles same for all views
+        errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
         if iscell(errFile) ,
           if isscalar(errFile) ,
             errFile = errFile{1} ;
@@ -231,13 +210,13 @@ classdef BgMonitor < handle
         % monitor plot stays up; reset not called etc
       end
       
-      logFileErrLikely = obj.getLogFileErrLikely(sRes);
+      logFileErrLikely = BgMonitor.getLogFileErrLikely(sRes);
       for i=1:numel(sRes.result)
         if tfpollsucc(i) && logFileErrLikely(i),
           obj.stop();
           
           fprintf(1,'Error occurred during %s:\n',obj.processName);
-          logFiles = obj.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
+          logFiles = BgMonitor.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
           displayFileOrFiles(logFiles, obj.bgWorkerObj) ;
           fprintf(1,'\n\n. You may need to manually kill any running %s process.\n',obj.processName);
           return;
@@ -246,7 +225,7 @@ classdef BgMonitor < handle
         end
       end
             
-      tfComplete = all(tfpollsucc & obj.isComplete(sRes));
+      tfComplete = all(tfpollsucc & BgMonitor.isComplete(sRes));
       if tfComplete
         obj.stop();
         % % monitor plot stays up; reset not called etc
@@ -255,31 +234,60 @@ classdef BgMonitor < handle
         if ~isempty(obj.cbkComplete),
           obj.cbkComplete(sRes.result);
         end
-        return;
+        return
       end
       
       % KB: check if resultsReceived found a reason to stop 
       if ~tfSucc,
         if isempty(msg),
-          fprintf(1,'resultsReceived did not return success. Stopping.\n');
+          fprintf('resultsReceived did not return success. Stopping.\n');
         else
-          fprintf(1,'%s - Stopping.\n',msg);
+          fprintf('%s - Stopping.\n',msg);
         end
         obj.stop();
-        return;
-      end
-      
-    end
-    
-    function stop(obj)
-      bgc = obj.bgClientObj;
-      bgc.stopWorkerHard();
-      obj.notify('bgEnd');
-    end
-    
-  end
+        return
+      end      
+    end  % function bgResultsReceived
+  end  % methods
   
-%   methods (Abstract)
-%     prepareHook(obj,monVizObj,bgWorkerObj)    
-%   end
-end
+  methods (Static)
+    function tfpollsucc = getPollSuccess(sRes)
+      if isfield(sRes.result,'pollsuccess'),
+        tfpollsucc = [sRes.result.pollsuccess];
+      else
+        tfpollsucc = true(1,numel(sRes.result));
+      end
+    end
+
+    function killOccurred = getKillOccurred(sRes)
+      killOccurred = [sRes.result.killFileExists];
+    end
+
+    function errOccurred = getErrOccurred(sRes)
+      errOccurred = [sRes.result.errFileExists];
+    end
+    
+    function errFile = getErrFile(sRes)
+      errFile = sRes.result(1).errFile;
+    end
+
+    function logFile = getLogFile(sRes,i)
+      logFile = sRes.result(i).logFile;
+    end
+
+    function logFileErrLikely = getLogFileErrLikely(sRes)
+      logFileErrLikely = [sRes.result.logFileErrLikely];
+    end
+
+    function tfComplete = isComplete(sRes)
+      tfComplete = [sRes.result.tfComplete];
+    end
+
+    function debugfprintf(varargin)
+      DEBUG = false ;
+      if DEBUG ,
+        fprintf(varargin{:});
+      end
+    end  % function    
+  end  % methods (Static)
+end  % classdef

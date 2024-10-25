@@ -278,7 +278,7 @@ switch action
       );
     
     lObj.projLoad(lblFile);
-    tGT = lObj.gtComputeGTPerformance(); %#ok<NASGU>
+    tGT = lObj.gtComputeGTPerformance();
     
     [lblFileP,lblFileS,~] = fileparts(lblFile);
     outfile = [lblFileS '_gtcomputed_' datestr(now,'yyyymmddTHHMMSS') '.mat'];

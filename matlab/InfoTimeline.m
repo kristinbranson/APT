@@ -903,7 +903,7 @@ classdef InfoTimeline < handle
         obj.newFrame(obj.lObj.currFrame);
       end
     end
-    function cbkToggleThresholdViz(obj,src,evt)
+    function cbkToggleThresholdViz(obj,src,evt)  %#ok<INUSD> 
       tfviz = strcmp(obj.hStatThresh.Visible,'on');
       obj.setStatThreshViz(~tfviz);
     end

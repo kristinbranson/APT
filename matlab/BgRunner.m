@@ -1,5 +1,5 @@
-classdef BGWorker < handle
-  % BGWorker is a worker that idles in the background. When you send it a
+classdef BgRunner < handle
+  % BgRunner is a worker that idles in the background. When you send it a
   % command, it runs it and sends the result back and goes back to idling.
   % It runs one compute call per sent command.
   
@@ -9,11 +9,11 @@ classdef BGWorker < handle
   end
   
   properties
-    computeTimes = zeros(0,1); % vector of tic/toc compute time elapsed for each compute command received
+    computeTimes = zeros(0,1)  % vector of tic/toc compute time elapsed for each compute command received
   end
   
   methods    
-    function obj = BGWorker
+    function obj = BgRunner()
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
@@ -23,7 +23,7 @@ classdef BGWorker < handle
   
   methods     
     
-    function status = start(obj,dataQueue,cObj,cObjMeth)
+    function status = run(obj,dataQueue,cObj,cObjMeth)
       % Spin up worker; call via parfeval
       % 
       % dataQueue: parallel.pool.DataQueue created by Client
@@ -42,9 +42,9 @@ classdef BGWorker < handle
           action = data.action;          
           obj.log('Received %s',action);
           switch action
-            case BGWorker.STOPACTION
+            case BgRunner.STOPACTION
               break;
-            case BGWorker.STATACTION
+            case BgRunner.STATACTION
               sResp = struct('id',data.id,'action',action,'result',obj.computeTimes);
               dataQueue.send(sResp);
             otherwise
@@ -64,7 +64,7 @@ classdef BGWorker < handle
   methods (Access=private)    
     function log(obj,varargin) %#ok<INUSL>
       str = sprintf(varargin{:});
-      fprintf(1,'BGWorker (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
+      fprintf(1,'BgRunner (%s): %s\n',datestr(now,'yyyymmddTHHMMSS'),str);
     end    
   end
   

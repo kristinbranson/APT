@@ -1,6 +1,6 @@
 classdef BgTrainWorkerObj < BgWorkerObj
   % Object deep copied onto BG Training worker. To be used with
-  % BGWorkerContinuous
+  % BgRunnerContinuous
   % 
   % Responsibilities:
   % - Poll filesystem for training updates
@@ -77,8 +77,11 @@ classdef BgTrainWorkerObj < BgWorkerObj
 
     end
     
-    function sRes = compute(obj) % obj const except for .trnLogLastStep
+    function sRes = compute(obj, logger) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ;  %#ok<NASGU> 
+      end
             
       % - Read the json for every view and see if it has been updated.
       % - Check for completion 
@@ -109,7 +112,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
         end
       end
       sRes.pollsuccess = true;
-    end
+    end  % function
     
     function reset(obj) 
       % clears/inits .trnLogLastStep, the only mutatable prop

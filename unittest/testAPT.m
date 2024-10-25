@@ -155,7 +155,7 @@ classdef testAPT < handle
     end    
     
     function cdir = get_cache_dir()
-      cdir = APT.getdlcacheroot;
+      cdir = APT.getdotaptdirpath() ;
     end
         
   end
@@ -463,18 +463,24 @@ classdef testAPT < handle
       self.lObj.setSkeletonEdges(self.info.op_graph);
       
       if ~isempty(jrcgpuqueue),
-        for i = 1:numel(lObj.trackersAll),
-          if isprop(lObj.trackersAll{i},'jrcgpuqueue'),
-            lObj.trackersAll{i}.setJrcgpuqueue(jrcgpuqueue);
-          end
+        if ~isempty(lObj.trackDLBackEnd) ,
+          lObj.trackDLBackEnd.jrcgpuqueue = jrcgpuqueue ;
         end
+%         for i = 1:numel(lObj.trackersAll),
+%           if isprop(lObj.trackersAll{i},'jrcgpuqueue'),
+%             lObj.trackersAll{i}.jrcgpuqueue = jrcgpuqueue ;
+%           end
+%         end
       end
       if ~isempty(jrcnslots),
-        for i = 1:numel(lObj.trackersAll),
-          if isprop(lObj.trackersAll{i},'jrcnslots'),
-            lObj.trackersAll{i}.setJrcnslots(jrcnslots);
-          end
+        if ~isempty(lObj.trackDLBackEnd) ,
+          lObj.trackDLBackEnd.jrcnslots = jrcnslots ;
         end
+%         for i = 1:numel(lObj.trackersAll),
+%           if isprop(lObj.trackersAll{i},'jrcnslots'),
+%             lObj.trackersAll{i}.setJrcnslots(jrcnslots);
+%           end
+%         end
       end
     end
     

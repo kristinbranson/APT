@@ -10,7 +10,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
     % Each element of jobID corresponds to a DL process. Since serial
     % tracking across movies and views is possible, a single DL process may 
     % track across multiple moviesets or views.
-    jobID % [nmovjob x nviewJobs] bsub jobID; or docker cellstr containerID
+    jobID  % [nmovjob x nviewJobs] bsub jobID; or docker cellstr containerID
     
     killPollIterWaitTime = 1; % sec
     killPollMaxWaitTime = 12; % sec
@@ -55,7 +55,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         return;
       end
       if partFileIsTextStatus,
-        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);
+        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);  % call superclass method
       else
         try
           nframes = TrkFile.getNFramesTrackedMatFile(f);
@@ -63,7 +63,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
           fprintf('Could not read tracking progress from %s\n',f);
         end
       end
-    end
+    end  % function
     
     function [tfsucc,warnings] = killProcess(obj)
       tfsucc = false;

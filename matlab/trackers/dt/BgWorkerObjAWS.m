@@ -1,7 +1,8 @@
 classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
   
   properties
-    awsEc2 % Instance of AWSec2
+    jobID  % [nmovjob x nviewJobs] remote PIDs
+    awsEc2  % Instance of AWSec2, protected "by convention"
   end
   
   methods (Access=protected)    
@@ -15,61 +16,65 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
         obj2.awsEc2 = copy(obj.awsEc2);
       end
     end
-  end
-  methods
+  end  % protected methods block
 
-    function obj = BgWorkerObjAWS(nviews,dmcs,awsec2,varargin)
-      obj@BgWorkerObj(nviews,dmcs);
+  methods
+    function obj = BgWorkerObjAWS(dmcs,awsec2,varargin)
+      obj@BgWorkerObj(dmcs);
       obj.awsEc2 = awsec2;
     end
     
     function obj2 = copyAndDetach(obj)
-      % See note in BGClient/configure(). We create a new obj2 here that is
+      % See note in BgClient/configure(). We create a new obj2 here that is
       % a deep-copy made palatable for parfeval
       
       obj2 = copy(obj); % deep-copies obj, including .awsec2 and .dmcs if appropriate
 
-      dmcs = obj.dmcs;
-      if ~isempty(dmcs)
-        dmcs.prepareBg();
-      end
+%       dmcs = obj.dmcs;
+%       if ~isempty(dmcs)
+%         dmcs.prepareBg();
+%       end
 
-      aws = obj.awsEc2;
-      if ~isempty(aws)
-        aws.clearStatusFuns();
-      end      
+%       aws = obj.awsEc2;
+%       if ~isempty(aws)
+%         aws.clearStatusFuns();
+%       end      
     end    
     
-    function tf = fileExists(obj,f)
-      tf = obj.awsEc2.remoteFileExists(f,'dispcmd',true);
+    function tf = fileExists(obj, f)
+      tf = obj.awsEc2.remoteFileExists(f);
     end
     
     function tf = errFileExistsNonZeroSize(obj,errFile)
-      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true,'dispcmd',true);
+      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true);
     end    
     
     function s = fileContents(obj,f)
-      s = obj.awsEc2.remoteFileContents(f,'dispcmd',true);
+      s = obj.awsEc2.remoteFileContents(f);
     end
 
     function tfsucc = lsdir(obj,dir)
       tfsucc = obj.awsEc2.remoteLs(dir);
     end
     
+    function result = fileModTime(obj, filename)
+      result = obj.awsEc2.remoteFileModTime(filename) ;
+    end
+
     function [tfsucc,warnings] = killProcess(obj)
       warnings = {};
 %       if ~obj.isRunning
 %         error('Training is not in progress.');
 %       end
-      aws = obj.awsEc2;
-      if isempty(aws)
+      ec2 = obj.awsEc2 ;
+      if isempty(ec2)
         error('AWSEC2 backend object is unset.');
       end
       
-      if ~aws.canKillRemoteProcess()
-        tfpid = aws.getRemotePythonPID();
+      if ~ec2.canKillRemoteProcess()
+        tfpid = ec2.getRemotePythonPID();
         if ~tfpid
-          error('Could not ascertain remote process ID in AWSEC2 instance %s.',aws.instanceID);
+          error('Could not ascertain remote process ID in AWSEC2 instance %s.',ec2.instanceID);
         end
       end
       
@@ -78,11 +83,11 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       assert(isscalar(killfile)); % for now
       killfile = killfile{1};
 
-      aws.killRemoteProcess();
+      ec2.killRemoteProcess();
 
       % expect command to fail; fail -> py proc killed
-      %pollCbk = @()~aws.cmdInstance('pgrep -o python','dispcmd',true,'failbehavior','silent');
-      pollCbk = @()aws.getNoPyProcRunning();
+      %pollCbk = @()~aws.runBatchCommandOutsideContainer('pgrep -o python','dispcmd',true,'failbehavior','silent');
+      pollCbk = @()ec2.getNoPyProcRunning();
       iterWaitTime = 1;
       maxWaitTime = 20;
       tfsucc = waitforPoll(pollCbk,iterWaitTime,maxWaitTime);
@@ -90,21 +95,34 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       if ~tfsucc
         warningNoTrace('Could not confirm that remote process was killed.');
         warnings{end+1} = 'Could not confirm that remote process was killed.';
-      else
-        % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
-        % pick up
-        cmd = sprintf('touch ''%s''',killfile); % use single-quotes; cmdInstance will use double-quotes
-        tfsucc = aws.cmdInstance(cmd,'dispcmd',false);
-        if ~tfsucc
-          warningNoTrace('Failed to create remote KILLED token: %s',killfile);
-          warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);
-        else
-          fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge that the process has been killed!\n',killfile);
-        end
-        % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
+        return
       end
-    end
+      % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to 
+      % pick up
+      killfile_folder_path = fileparts(killfile) ;
+      escaped_killfile_folder_path = escape_string_for_bash(killfile_folder_path) ;
+      cmd = sprintf('mkdir -p %s',escaped_killfile_folder_path); 
+      st = ec2.runBatchCommandOutsideContainer(cmd);
+      tfsucc = (st==0) ;
+      if ~tfsucc ,
+        warningNoTrace('Failed to create remote KILLED token dir: %s',killfile_folder_path);
+        warnings{end+1} = sprintf('Failed to create remote KILLED token dir: %s',killfile_folder_path);          
+        return
+      end
+
+      escaped_killfile = escape_string_for_bash(killfile) ;
+      cmd = sprintf('touch %s',escaped_killfile);
+      st = ec2.runBatchCommandOutsideContainer(cmd);
+      tfsucc = (st==0) ;
+      if ~tfsucc
+        warningNoTrace('Failed to create remote KILLED token: %s',killfile);
+        warnings{end+1} = sprintf('Failed to create remote KILLED token: %s',killfile);
+        return
+      end
+      fprintf('Created remote KILLED token: %s. Please wait for your training monitor to acknowledge that the process has been killed!\n',killfile);
+      % bgTrnMonitorAWS should pick up KILL tokens and stop bg trn monitoring
+    end  % function
     
-  end
+  end  % methods
     
-end
+end  % classdef

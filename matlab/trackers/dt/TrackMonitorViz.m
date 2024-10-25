@@ -2,7 +2,7 @@ classdef TrackMonitorViz < handle
   properties
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
-    hannlastupdated % [1] textbox/annotation handle
+    %hannlastupdated % [1] textbox/annotation handle
     
     % Three modes. Here nmov=nMovSet*nView
     % - bulkAxsIsBulkMode: hline is [nmov]. One box/patch per mov. htext is
@@ -24,7 +24,7 @@ classdef TrackMonitorViz < handle
     resLast = []; % last contents received
     dtObj % DeepTracker Obj
     trackWorkerObj = [];
-    backEnd % scalar DLBackEnd
+    backEnd % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
     actions = struct(...
       'Bsub',...
       {{'List all jobs on cluster'...
@@ -101,7 +101,7 @@ classdef TrackMonitorViz < handle
       %handles.pushbutton_startstop.Enable = 'on';
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
-      obj.hannlastupdated = handles.text_clusterstatus;
+      %obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
       obj.twoStgMode = dtObj.getNumStages() > 1;
@@ -111,7 +111,10 @@ classdef TrackMonitorViz < handle
       
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
-      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      %obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
+      str = sprintf('%s status: Initializing...', clusterstr) ;
+      apt.setStatusDisplayLineBang(obj.hfig, str, true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
@@ -241,7 +244,7 @@ classdef TrackMonitorViz < handle
       % trnComplete: scalar logical, true when all views done
       
       tfSucc = false;
-      msg = '';
+      msg = '';  %#ok<NASGU> 
       
       if nargin < 3,
         forceupdate = false;
@@ -288,7 +291,7 @@ classdef TrackMonitorViz < handle
           (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
            || isdone;
         else
-          partFileExists = false;
+          partFileExists = false;  %#ok<NASGU> 
           isupdate =false;
         end
 
@@ -307,8 +310,11 @@ classdef TrackMonitorViz < handle
               if isfield(res(ijob),'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
                 obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
-                  res(ijob).trkfileNfrmtracked);
-                assert(~isnan(obj.nFramesTracked(ijob)));
+                                                  res(ijob).trkfileNfrmtracked);  %#ok<NANMAX> 
+                if isnan(obj.nFramesTracked(ijob)) ,
+                  % This used to be an assert, but those are not caught by 'dbstop if error'...
+                  error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                end
               else
                 if isdone,
                   tfile = res(ijob).trkfile;
@@ -372,21 +378,6 @@ classdef TrackMonitorViz < handle
       tfSucc = true;
       nJobs = numel(res);
       pollsuccess = true(1,nJobs);
-      
-      clusterstr = 'Cluster';
-      switch obj.backEnd
-        case DLBackEnd.Bsub
-          clusterstr = 'JRC cluster';
-        case DLBackEnd.Docker
-          clusterstr = 'Local';
-        case DLBackEnd.Conda
-          clusterstr = 'Local';
-        case DLBackEnd.AWS,
-          clusterstr = 'AWS';
-        otherwise
-          warning('Unknown back end type');
-      end
-          
       isTrackComplete = false;
       isErr = false;
       isLogFile = false;
@@ -435,17 +426,11 @@ classdef TrackMonitorViz < handle
         status = 'Initializing tracking.';
       end
       
-      str = {sprintf('%s status: %s',clusterstr,status),sprintf('Monitor updated %s.',datestr(now,'HH:MM:SS PM'))};
-      hAnn = obj.hannlastupdated;
-      hAnn.String = str;
-      
-      isok = all(pollsuccess) && ~isErr;
-      if all(isok)
-        hAnn.ForegroundColor = [0 1 0];
-      else
-        hAnn.ForegroundColor = [1 0 0];
-      end      
-    end
+      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
+      str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
+      isAllGood = all(pollsuccess) && ~isErr ;
+      apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
+    end  % function
     
     function updateErrDisplay(obj,res)
       isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
@@ -499,7 +484,7 @@ classdef TrackMonitorViz < handle
         warning('trackWorkerObj is empty -- cannot kill process');
         return;
       end
-      obj.SetBusy('Killing tracking jobs...',true);
+      apt.setStatusDisplayLineBang(obj.hfig, 'Killing tracking jobs...', false) ;
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
@@ -512,7 +497,7 @@ classdef TrackMonitorViz < handle
         warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
-      obj.ClearBusy('Tracking process killed');
+      apt.setStatusDisplayLineBang(obj.hfig, 'Tracking process killed.', false);
       drawnow;
 
     end
@@ -592,35 +577,7 @@ classdef TrackMonitorViz < handle
 
     end
     
-    function ClearBusy(obj,s)
-
-      obj.SetBusy(s,false);
-    
-    end
-
-    function SetBusy(obj,s,isbusy)
-
-      handles = guidata(obj.hfig);
-      
-      if nargin < 3
-        isbusy = true;
-      end
-      
-      if isbusy,
-        set(obj.hfig,'Pointer','watch');
-        if ~isempty(s),
-          set(handles.text_clusterstatus,'String',s,'ForegroundColor','r');
-        end
-        
-      else
-        set(obj.hfig,'Pointer','arrow');
-        set(handles.text_clusterstatus,'ForegroundColor','g');
-      end
-
-      drawnow('limitrate');
-    end
-    
-  end
+  end  % methods
   
   methods (Static)
     
@@ -712,7 +669,7 @@ classdef TrackMonitorViz < handle
         end
       end
     end
-    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)
+    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)  %#ok<INUSD> 
       hpch = gobjects(nmov,1);
       for imov = 1:nmov
         irow = ceil(imov/gridncol);
@@ -738,11 +695,11 @@ classdef TrackMonitorViz < handle
         
         [gridnrow,gridncol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);
         hpch = TrackMonitorViz.makeIndicatorPatches(nmov,...
-          gridnrow,gridncol,ax,[1 0 0],{});
+          gridnrow,gridncol,ax,[1 0 0],{});  %#ok<NASGU> 
         axis(ax,[0.5 gridncol+1.5 1 gridnrow+1]);
         
         drawnow;
-        mm(nmov) = getframe(hfig);
+        mm(nmov) = getframe(hfig);  %#ok<AGROW> 
         %input(num2str(nmov));
       end
     end

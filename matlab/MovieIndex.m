@@ -4,7 +4,9 @@ classdef MovieIndex < int32
   % For a long time, this purpose was served by a single positive (row) 
   % index into labeler.movieFilesAll ('iMov'). With the addition GT mode 
   % and the GT movielist, a single positive index is no longer sufficient.
-    
+  %
+  % Indices to non-GT movies seem to be encoded as positive int32's, indices to
+  % GT movies are encoded as negative int32's.  --ALT, 2024-05-01
   methods 
     
     function obj = MovieIndex(varargin)

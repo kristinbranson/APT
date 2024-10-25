@@ -1,13 +1,14 @@
-function checkDeleteFiles(filelocs,desc)
-if nargin < 2 || ~ischar(desc),
+function checkDeleteFiles(backend, filelocs, desc)
+if nargin < 3 || ~ischar(desc),
   desc = 'file';
 end
 for i = 1:numel(filelocs),
-  if exist(filelocs{i},'file'),
-    fprintf('Deleting %s %s',desc,filelocs{i});
-    delete(filelocs{i});
+  fileloc = filelocs{i} ;
+  if backend.exist(fileloc,'file'),
+    fprintf('Deleting %s %s',desc,fileloc);
+    backend.deleteFile(fileloc);
   end
-  if exist(filelocs{i},'file'),
-    error('Failed to delete %s: file still exists',filelocs{i});
+  if backend.exist(fileloc,'file'),
+    error('Failed to delete %s: file still exists',fileloc);
   end
 end

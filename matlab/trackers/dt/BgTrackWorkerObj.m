@@ -1,6 +1,6 @@
 classdef BgTrackWorkerObj < BgWorkerObj
   % Object deep copied onto BG Tracking worker. To be used with
-  % BGWorkerContinuous
+  % BgRunnerContinuous
   %
   % Responsibilities:
   % - Poll filesystem for tracking output files
@@ -137,8 +137,11 @@ classdef BgTrackWorkerObj < BgWorkerObj
 
     end
       
-    function sRes = compute(obj)
+    function sRes = compute(obj, logger)
       % sRes: [nMovies x nviews x nStages] struct array      
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ; %#ok<NASGU> 
+      end
 
       % Order important, check if job is running first. If we check after
       % looking at artifacts, job may stop in between time artifacts and 
@@ -212,7 +215,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'killFileExists',num2cell(obj.replicateJobs(killFileExists)),...
         'isexternal',obj.isexternal... % scalar expansion
         );
-    end
+    end  % function
 
     function sRes = computeList(obj)
       % sRes struct
@@ -279,7 +282,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         'killFileExists',num2cell(killFileExists),...
         'isexternal',obj.isexternal... % scalar expansion
         );
-    end
+    end  % function
 
     function reset(obj) %#ok<MANU> 
       % For BgTrackWorkerObjs, this appears to only be called at 

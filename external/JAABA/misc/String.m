@@ -17,12 +17,14 @@ classdef String
       end
     end
     
-    function s = cellstr2DelimList(c,d)
-      if isempty(c)
+    function s = cellstr2DelimList(lst, delimiter)
+      % Outputs a single string containing the elements of lst separated by the
+      % delimiter.  E.g. String.cellstr2DelimList({'foo', 'bar', 'baz'},'|') => 'foo|bar|baz'
+      if isempty(lst)
         s = '';
       else
-        pat = sprintf('%%s%s',d);
-        s = [sprintf(pat,c{1:end-1}) c{end}];
+        pat = sprintf('%%s%s',delimiter);
+        s = [sprintf(pat,lst{1:end-1}) lst{end}];
       end
     end
 
