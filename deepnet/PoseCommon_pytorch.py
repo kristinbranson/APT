@@ -277,7 +277,7 @@ class coco_loader(torch.utils.data.Dataset):
 
     def update_wts(self,idx,loss):
         for ix,l in zip(idx,loss):
-            self.ex_wts[ix] = l
+            self.ex_wts[ix] = torch.tensor(l)
 
 
 class PoseCommon_pytorch(object):
@@ -642,7 +642,9 @@ class PoseCommon_pytorch(object):
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
             loss_val = loss(outputs,labels)
             if self.use_hard_mining:
-                self.train_loader_raw.update_wts(inputs['item'].numpy(),loss_val.detach().cpu().numpy().copy())
+                n_ex = torch.any(inputs['locs'][:,:,:,0]>-10000,axis=-1).sum(axis=-1).cpu().numpy().copy()
+                n_ex = np.maximum(n_ex,1)
+                self.train_loader_raw.update_wts(inputs['item'].numpy(),loss_val.detach().cpu().numpy().copy()/n_ex)
             lo = time.time()
             # print(prof)
             loss_val.sum().backward()

@@ -75,6 +75,7 @@ class ma_expt(object):
                 ('dekr','nocrop'):[{'batch_size':2,'dl_steps':400000},{}],
                 ('grone','nocrop'):[{'batch_size':4,'dl_steps':200000},{}],
                 ('grone_hrnet', 'nocrop'): [{'batch_size': 4, 'dl_steps': 200000}, {}],
+                ('2stageHT','nocrop'): [{'batch_size': 4, 'dl_steps': 200000}, {}],
             }
             self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
             self.n_pts = 4
@@ -1142,5 +1143,5 @@ class ma_expt(object):
                          run_dir=run_dir,
                          queue=queue,
                          precmd='',
-                         logdir=self.log_dir, nslots=10,timeout=160*60,sing_img=sing_img)
+                         logdir=self.log_dir, nslots=11,timeout=160*60,sing_img=sing_img)
         print(f'Total jobs {len(t_types)}')
