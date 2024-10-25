@@ -439,7 +439,7 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
                                    'num_keypoints': cur_locs.shape[1], 'bbox': bbox,
                                    'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
-    if conf.multi_loss_mask:
+    if conf.multi_loss_mask and conf.is_multi:
         if extra_roi is None:
             extra_roi_use = roi
         else:
@@ -451,8 +451,8 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
         for cur_roi in extra_roi_use:
             annid = coco_info['ann_ndx']
             coco_info['ann_ndx'] += 1
-            lmin = cur_roi.min(axis=0)
-            lmax = cur_roi.max(axis=0)
+            lmin = cur_roi.min(axis=0).astype('float64')
+            lmax = cur_roi.max(axis=0).astype('float64')
             w = lmax[0] - lmin[0]
             h = lmax[1] - lmin[1]
             bbox = [lmin[0], lmin[1], w, h]
