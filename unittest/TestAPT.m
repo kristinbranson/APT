@@ -144,6 +144,18 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
+      elseif strcmp(name,'carmen_tracking')
+        % info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015_lightly_trained.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 1;
+        info.npts = 10;
+        info.has_trx = false;
+        info.proj_name = 'carmen_track_test';
+        info.sz = [];
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
       elseif strcmp(name,'roianma')
         info.ref_lbl = ...
           strcatg('/groups/branson/bransonlab/apt/unittest/', ...
@@ -592,7 +604,7 @@ classdef TestAPT < handle
        niters,...
        test_tracking,...
        block,...
-       serial2stgtrain, ...
+       ~, ...
        batch_size, ...
        params, ...
        backend_params] = ...
@@ -713,10 +725,12 @@ classdef TestAPT < handle
       %kk(obj.labeller.gdata.pbTrack,[],obj.labeller.gdata);
       obj.labeler.gtSetGTMode(1);
       drawnow;
-      obj.labeler.tracker.trackGT();
+      %obj.labeler.tracker.trackGT();  % Seems this is a deprecated way to run
+                                       % tracking for GT.  -- ALT, 2024-11-04
+      obj.labeler.gtComputeGTPerformance() ;
       if block,
         pause(2);
-        while obj.labeler.tracker.bgTrkIsRunning
+        while obj.labeler.bgTrkIsRunning
           pause(10);
         end
         pause(10);

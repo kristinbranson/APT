@@ -1388,10 +1388,10 @@ end
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;
 hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
+
 function cbkTrackerShowPredsCurrTargetOnlyChanged(src,evt,hmenu)
 tracker = evt.AffectedObject;
 hmenu.Checked = onIff(tracker.showPredsCurrTargetOnly);
-
 
 function tfKPused = cbkKPF(src,evt,lObj)
 if ~lObj.isReady ,
@@ -3946,6 +3946,7 @@ tracker = lObj.tracker;
 if ~isempty(tracker)
   tracker.hideVizToggle();
 end
+
 function menu_view_show_preds_curr_target_only_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tracker = lObj.tracker;

@@ -1011,6 +1011,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function registerTrackingJob(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
+      % track_type should be one of {'track', 'link', 'detect'}
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',ignore_local,'aptroot',aptroot,'track_type',track_type);
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;

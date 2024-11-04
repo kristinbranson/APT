@@ -138,9 +138,8 @@ classdef BgTrackWorkerObj < BgWorkerObj
     end
       
     function sRes = compute(obj, logger)
-      % sRes: [nMovies x nviews x nStages] struct array      
       if ~exist('logger', 'var') || isempty(logger) ,
-        logger = FileLogger() ; %#ok<NASGU> 
+        logger = FileLogger() ;
       end
 
       % Order important, check if job is running first. If we check after
@@ -155,7 +154,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         assert(numel(isRunning)==obj.njobs);
       end
       
-      fprintf('in bg track worker\n');
+      logger.log('in bg track worker\n');
       errfiles = obj.getErrFile(); % njobs x 1
       logfiles = obj.getErrFile(); % njobs x 1
       killfiles = obj.getKillFiles(); % njobs x 1
@@ -176,17 +175,17 @@ classdef BgTrackWorkerObj < BgWorkerObj
         if ~isempty(tmp),
           partTrkFileTimestamps(i) = tmp.datenum;
           parttrkfileNfrmtracked(i) = obj.readTrkFileStatus(trkfilecurr,obj.partFileIsTextStatus);
-          fprintf('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
+          logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
           assert(~isnan(parttrkfileNfrmtracked(i)));
         else
-          fprintf('Part trk file %s and trk file %s do not exist\n',parttrkfiles{i},trkfiles{i});
+          logger.log('Part trk file %s and trk file %s do not exist\n',parttrkfiles{i},trkfiles{i});
         end
       end
 
       isRunning = obj.replicateJobs(isRunning);
       killFileExists = cellfun(@obj.fileExists,killfiles);
       tfComplete = cellfun(@obj.fileExists,trkfiles); % nmovies x njobs x nstages
-      fprintf('tfComplete = %s\n',mat2str(tfComplete(:)'));
+      logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
       logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
@@ -217,8 +216,10 @@ classdef BgTrackWorkerObj < BgWorkerObj
         );
     end  % function
 
-    function sRes = computeList(obj)
-      % sRes struct
+    function sRes = computeList(obj, logger)
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ;
+      end
 
       % Order important, check if job is running first. If we check after
       % looking at artifacts, job may stop in between time artifacts and 
@@ -232,7 +233,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         assert(numel(isRunning)==obj.njobs);
       end
       
-      fprintf('in bg track worker\n');
+      logger.log('in bg track worker\n');
       errfiles = obj.getErrFile(); % njobs x 1
       logfiles = obj.getErrFile(); % njobs x 1
       killfiles = obj.getKillFiles(); % njobs x 1
@@ -242,21 +243,17 @@ classdef BgTrackWorkerObj < BgWorkerObj
       for i = 1:numel(outfiles),
         trkfilecurr = outfiles{i};
         tmp = dir(trkfilecurr);
-        if isempty(tmp),
-          trkfilecurr = outfiles{i};
-          tmp = dir(outfiles{i});
-        end
-        if ~isempty(tmp),
+        if ~isempty(tmp) ,
           outTrkFileTimestamps(i) = tmp.datenum;
         else
-          fprintf('Out file %s do not exist\n',outfiles{i});
+          logger.log('Output file %s does not exist\n',outfiles{i});
         end
       end
 
 %       isRunning = obj.replicateJobs(isRunning);
       killFileExists = cellfun(@obj.fileExists,killfiles);
       tfComplete = cellfun(@obj.fileExists,outfiles); % nmovies x njobs x nstages
-      fprintf('tfComplete = %s\n',mat2str(tfComplete(:)'));
+      logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
       tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
       logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1

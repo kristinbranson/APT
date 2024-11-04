@@ -6425,6 +6425,7 @@ classdef Labeler < handle
 %         lpostag = obj.(PROPS.LPOSTAG){iMov}(:,iFrm,iTrx);
 %       end
 %     end 
+
     function [tf,lpos,lpostag] = labelPosIsLabeled(obj,iFrm,iTrx,varargin)
       % For current movie. Labeled includes fullyOccluded
       %
@@ -6438,6 +6439,7 @@ classdef Labeler < handle
       lpos = reshape(p,[numel(p)/2 2]);
       lpostag = occ;
     end 
+
     function [tfperpt,lpos,lpostag] = labelPosIsPtLabeled(obj,iFrm,iTrx)
       % For current movie. Labeled includes fullyOccluded
       %
@@ -9763,9 +9765,9 @@ classdef Labeler < handle
       end
       obj.prevAxesLabelsUpdate();
       obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
-    end
+    end  % function
         
-  end
+  end  % methods (Access=private)
    
   %% GT mode
   methods
@@ -9798,19 +9800,23 @@ classdef Labeler < handle
         obj.notify('gtIsGTModeChanged');
       end
     end
+
     function gtThrowErrIfInGTMode(obj)
       if obj.gtIsGTMode
         obj.lerror('Labeler:gt','Unsupported when in GT mode.');
       end
     end
+
     function PROPS = gtGetSharedProps(obj)
       PROPS = Labeler.gtGetSharedPropsStc(obj.gtIsGTMode);
     end
+
 %     function gtInitSuggestions(obj,gtSuggType,nSamp)
 %       % Init/set GT suggestions using gtGenerateSuggestions
 %       tblMFT = obj.gtGenerateSuggestions(gtSuggType,nSamp);
 %       obj.gtSetUserSuggestions(tblMFT);
 %     end
+
     function gtSetUserSuggestions(obj,tblMFT,varargin)
       % Set user-specified/defined GT suggestions
       %
@@ -9879,6 +9885,7 @@ classdef Labeler < handle
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');      
     end
+
     function gtUpdateSuggMFTableLbledComplete(obj,varargin)
       % update .gtUpdateSuggMFTableLbled from .gtSuggMFTable/.labeledposGT
       
@@ -9909,6 +9916,7 @@ classdef Labeler < handle
         obj.notify('gtSuggUpdated'); % use this event for full/general update
       end
     end
+
     function gtUpdateSuggMFTableLbledIncremental(obj)
       % Assume that .labeledposGT and .gtSuggMFTableLbled differ at most in
       % currMov/currTarget/currFrame
@@ -9933,6 +9941,7 @@ classdef Labeler < handle
         obj.notify('gtSuggMFTableLbledUpdated');
       end
     end
+
 %     function tblMFT = gtGenerateSuggestions(obj,gtSuggType,nSamp)
 %       assert(isa(gtSuggType,'GTSuggestionType'));
 %       
@@ -9941,6 +9950,7 @@ classdef Labeler < handle
 %       tblMFT = mfts.getMFTable(obj);
 %       tblMFT = gtSuggType.sampleMFTTable(tblMFT,nSamp);
 %     end
+
     function [tf,idx] = gtCurrMovFrmTgtIsInGTSuggestions(obj)
       % Determine if current movie/frm/target is in gt suggestions.
       % 
@@ -9958,6 +9968,7 @@ classdef Labeler < handle
       assert(isempty(idx) || isscalar(idx));
       tf = ~isempty(idx);
     end
+
     function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj)
       % Compile table of GT suggestions with their labels.
       % 
@@ -10008,6 +10019,7 @@ classdef Labeler < handle
       end
 
     end
+
     function gtComputeGTPerformance(obj,varargin)
       % Front door entry point for computing gt performance
       
@@ -10129,8 +10141,7 @@ classdef Labeler < handle
       if doui        
         msgbox('GT results available in Labeler property ''gtTblRes''.');
       end      
-
-    end
+    end  % function
 
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
         tblTrkRes,varargin)
@@ -10211,7 +10222,7 @@ classdef Labeler < handle
       
       obj.gtTblRes = tblGTres;
       obj.notify('gtResUpdated');
-    end
+    end  % function
 
     function h = gtReport(obj,varargin)
       t = obj.gtTblRes;

@@ -308,7 +308,7 @@ classdef APTInterf
           code = [code {'-track_type only_link'}]; 
         case 'detect'
           code = [code {'-track_type only_predict'}]; 
-        case 'train'
+        case 'track'
           % do nothing
         otherwise
           error('track_type must be either ''track'', ''link'', or ''detect''') ;

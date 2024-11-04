@@ -3392,7 +3392,7 @@ classdef DeepTracker < LabelTracker
       gpuid =nan;
 
       backend.clearRegisteredJobs() ;
-      backend.registerTrackingJob(totrackinfo, obj, gpuid, aptroot, track_type) ;      
+      backend.registerTrackingJob(totrackinfo, obj, gpuid, aptroot, 'track') ;      
 %       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
 %       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
 %       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
