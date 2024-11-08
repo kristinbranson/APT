@@ -3,6 +3,7 @@ classdef LabelerController < handle
     labeler_  % the controlled Labeler object
     mainFigure_  % the GH to the main figure
     listeners_
+    satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
@@ -39,6 +40,10 @@ classdef LabelerController < handle
         addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(obj.updateTrxSetShowTrue(source, event))) ;      
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
+      obj.listeners_{end+1} = ...
+        addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
+      obj.listeners_{end+1} = ...
+        addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;      
       % Do this once listeners are set up
       obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
@@ -47,6 +52,7 @@ classdef LabelerController < handle
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
+      deleteValidHandles(obj.satellites_) ;
       main_figure = obj.mainFigure_ ;
       if ~isempty(main_figure) && isvalid(main_figure)
         handles = guidata(main_figure) ;
@@ -346,6 +352,181 @@ classdef LabelerController < handle
       % Finally, call the model method to se the tracker
       obj.labeler_.trackSetCurrentTracker(tracker_index, do_use_previous);      
     end
+
+    function showDialogAfterHopefullySpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
+      % Event handler that gets called after the labeler tries to spawn jobs for GT.
+      % Raises a dialog, and registers it as a 'satellite' window so we can delete
+      % it when the main window closes.
+      labeler = obj.labeler_ ;
+      tfsucc = labeler.didSpawnTrackingForGT ;
+      DIALOGTTL = 'GT Tracking';
+      if isscalar(tfsucc) && tfsucc ,
+        msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
+        h = msgbox(msg,DIALOGTTL);
+      else
+        msg = sprintf('GT tracking failed');
+        h = warndlg(msg,DIALOGTTL);
+      end
+      obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+    end
+
+    function showGTResults(obj, source, event)  %#ok<INUSD> 
+      % Event handler that gets called after the labeler finishes computing GT results.
+      % Raises a dialog, and registers it as a 'satellite' window so we can delete
+      % it when the main window closes.
+      obj.createGTResultFigures_() ;
+      h = msgbox('GT results available in Labeler property ''gtTblRes''.');
+      obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+    end
+
+    function createGTResultFigures_(obj, varargin)
+      labeler = obj.labeler_ ;      
+      t = labeler.gtTblRes;
+
+      [fcnAggOverPts,aggLabel] = ...
+        myparse(varargin,...
+                'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
+                'aggLabel','Max' ...
+                );
+      
+      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
+      % KB 20181022: Changed colors to match sets instead of points
+      clrs =  labeler.LabelPointColors;
+      nclrs = size(clrs,1);
+      lsz = size(t.L2err);
+      npts = lsz(end);
+      assert(npts==labeler.nLabelPoints);
+      if nclrs~=npts
+        warningNoTrace('Labeler:gt',...
+          'Number of colors do not match number of points.');
+      end
+
+      l2err = t.L2err;
+      if ndims(l2err) == 3
+        l2err = reshape(l2err,[],npts);
+        valid = ~all(isnan(l2err),2);
+        l2err = l2err(valid,:);
+      end
+      nviews = labeler.nview;
+      nphyspt = npts/nviews;
+      prc_vals = [50,75,90,95,98];
+      prcs = prctile(l2err,prc_vals,1);
+      prcs = reshape(prcs,[],nphyspt,nviews);
+      lpos = t(1,:).pLbl;
+      if ndims(lpos)==3
+        lpos = squeeze(lpos(1,1,:));
+      else
+        lpos = squeeze(lpos(1,:));
+      end
+      lpos = reshape(lpos,npts,2);
+%       [tf,lpos] = obj.labelPosIsLabeled(t.frm(1),t.iTgt(1),'iMov',abs(t.mov(1)),'gtmode',true);
+      allims = cell(1,nviews);
+      allpos = zeros([nphyspt,2,nviews]);
+      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
+      for view = 1:nviews
+        curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
+        [im,isrotated,~,~,A] = labeler.getTargetIm(abs(t.mov(1)),t.frm(1),t.iTgt(1),view,true);
+        if isrotated
+          curl = [curl,ones(nphyspt,1)]*A;
+          curl = curl(:,1:2);
+        end
+        minpos = min(curl,[],1);
+        maxpos = max(curl,[],1);
+        centerpos = (minpos+maxpos)/2;
+        % border defined by borderfrac
+        r = max(1,(maxpos-minpos));
+        xlim = round(centerpos(1)+[-1,1]*r(1));
+        ylim = round(centerpos(2)+[-1,1]*r(2));
+        xlim = min(size(im,2),max(1,xlim));
+        ylim = min(size(im,1),max(1,ylim));
+        im = im(ylim(1):ylim(2),xlim(1):xlim(2),:);
+        curl(:,1) = curl(:,1)-xlim(1);
+        curl(:,2) = curl(:,2)-ylim(1);
+        allpos(:,:,view) = curl;
+        allims{view} = im;
+
+      end
+      
+      fig_1 = figure('Name','GT err percentiles');
+      obj.satellites_(1,end+1) = fig_1 ;
+      plotPercentileHist(allims,prcs,allpos,prc_vals,fig_1,txtOffset)
+%%      
+
+      % Err by landmark
+      fig_2 = figure('Name','GT err by landmark');
+      obj.satellites_(1,end+1) = fig_2 ;
+      ax = axes(fig_2) ;
+      boxplot(l2err,'colors',clrs,'boxstyle','filled');
+      args = {'fontweight' 'bold' 'interpreter' 'none'};
+      xlabel(ax,'Landmark/point',args{:});
+      if nviews>1
+        xtick_str = {};
+        for view = 1:nviews
+          for n = 1:nphyspt
+            if n==1
+              xtick_str{end+1} = sprintf('View %d -- %d',view,n); %#ok<AGROW> 
+            else
+              xtick_str{end+1} = sprintf('%d',n); %#ok<AGROW> 
+            end
+          end
+        end
+        xticklabels(xtick_str)
+      end
+      ylabel(ax,'L2 err (px)',args{:});
+      title(ax,'GT err by landmark',args{:});
+      ax.YGrid = 'on';
+      
+      % AvErrAcrossPts by movie
+      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
+      fig_3 = figurecascaded(fig_2,'Name',tstr);
+      obj.satellites_(1,end+1) = fig_3 ;
+      ax = axes(fig_3);
+      [iMovAbs,gt] = t.mov.get;
+      assert(all(gt));
+      grp = categorical(iMovAbs);
+      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
+        categories(grp),countcats(grp),'uni',0);
+      taggerr = t.aggOverPtsL2err;
+      if ndims(taggerr)==3
+        taggerr = permute(taggerr,[1,3,2]);
+      end
+      boxplot(taggerr,grp,'colors',clrs,'boxstyle','filled',...
+        'labels',grplbls);
+      args = {'fontweight' 'bold' 'interpreter' 'none'};
+      xlabel(ax,'Movie',args{:});
+      ylabel(ax,'L2 err (px)',args{:});
+      title(ax,tstr,args{:});
+      ax.YGrid = 'on';
+%      
+      % Mean err by movie, pt
+%       fig_4 = figurecascaded(fig_3,'Name','Mean GT err by movie, landmark');
+%       obj.satellites_(1,end+1) = fig_4 ;
+%       ax = axes(fig_4);
+%       tblStats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
+%       tblStats.mov = tblStats.mov.get;
+%       tblStats = sortrows(tblStats,{'mov'});
+%       movUnCnt = tblStats.GroupCount; % [nmovx1]
+%       meanL2Err = tblStats.mean_L2err; % [nmovxnpt]
+%       nmovUn = size(movUnCnt,1);
+%       szassert(meanL2Err,[nmovUn npts]);
+%       meanL2Err(:,end+1) = nan; % pad for pcolor
+%       meanL2Err(end+1,:) = nan;       
+%       hPC = pcolor(meanL2Err);
+%       hPC.LineStyle = 'none';
+%       colorbar;
+%       xlabel(ax,'Landmark/point',args{:});
+%       ylabel(ax,'Movie',args{:});
+%       xticklbl = arrayfun(@num2str,1:npts,'uni',0);
+%       yticklbl = arrayfun(@(x)sprintf('mov%d (n=%d)',x,movUnCnt(x)),1:nmovUn,'uni',0);
+%       set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
+%       set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
+%       axis(ax,'ij');
+%       title(ax,'Mean GT err (px) by movie, landmark',args{:});
+%       
+%       nmontage = min(nmontage,height(t));
+%       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
+    end  % function
+    
   end  % public methods block
 
   methods  % private by convention methods block

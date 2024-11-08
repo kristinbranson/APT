@@ -161,6 +161,8 @@ classdef Labeler < handle
     didSetTrackNFramesLarge
     didSetTrackNFramesNear
     didSetTrackParams
+    didHopefullySpawnTrackingForGT
+    didComputeGTResults
   end  
 
   %% Project
@@ -460,11 +462,13 @@ classdef Labeler < handle
     isStatusBusy_ = false
     rawStatusString_  = 'Ready.'
     rawStatusStringWhenClear_ = 'Ready.'
+    didSpawnTrackingForGT_
   end
   properties (Dependent)
     isStatusBusy
     rawStatusString
     %rawStatusStringWhenClear
+    didSpawnTrackingForGT
   end
   properties (Dependent, Hidden)
     labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
@@ -7959,7 +7963,7 @@ classdef Labeler < handle
     function trkfile = defaultTrkFileName(obj,movfile)
       % Only client is GMMTracker
       trkfile = Labeler.genTrkFileName(obj.defaultExportTrkRawname(),...
-        obj.baseTrkFileMacros(),movfile);
+                                       obj.baseTrkFileMacros(),movfile);
     end
     
     function rawname = defaultExportTrkRawname(obj,varargin)
@@ -8623,10 +8627,10 @@ classdef Labeler < handle
       end
       
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,lpos,argsTrx{:},...
-        'wbObj',wbObj);
+                                              'wbObj',wbObj);
       if tfWB && wbObj.isCancel
         % tblMF (return) indeterminate
-        return;
+        return
       end
       
       if useMovNames
@@ -10023,34 +10027,37 @@ classdef Labeler < handle
     function gtComputeGTPerformance(obj,varargin)
       % Front door entry point for computing gt performance
       
-      [doreport,useLabels2,doui] = myparse(varargin,...
-        'doreport',true, ... % if true, call .gtReport at end
-        'useLabels2',false, ... % if true, use labels2 "imported preds" instead of tracking
-        'doui',true ... % if true, msgbox when done
-        );
+      % Deal with optional args
+      [useLabels2] = myparse(varargin,...
+                             'useLabels2',false);  % if true, use labels2 "imported preds" instead of tracking
 
-      backend = obj.trackDLBackEnd;
-      if backend.type == DLBackEnd.AWS
-        warning('Cannot use AWS cloud to do GT computation, using Docker backend on local computer. If no GPUs are available locally, CPUs will be used.')
-        backend = DLBackEndClass(DLBackEnd.Docker);
-      end
-
+      % Make sure in GT mode
       if ~obj.gtIsGTMode
         obj.lerror('Project is not in Ground-Truthing mode.');
-        return;
-        % Only b/c in the next .labelGet* call we want GT mode. 
-        % Pretty questionable. .labelGet* could accept GT flag
+        return
       end
 
+      % On to business...
       obj.setStatus('Compiling list of Ground Truth Labels frames and tracking them...');
-      tObj = obj.tracker;
       tblMFT = obj.gtGetTblSuggAndLbled();
 
-      if ~useLabels2 && isa(tObj,'DeepTracker')
-        % Separate codepath here. DeepTrackers run in a separate async
-        % process spawned by shell; trackGT in this process and then
-        % remaining GT computations are done at callback time (in
-        % DeepTracker.m)
+      % Either spawn the computation of the GT predictions, or import them and show the
+      % results.
+      if useLabels2 
+        % Use imported predictions
+        obj.showGTResults('lblTbl',tblMFT,'useLabels2',useLabels2);
+      else
+        % Tracking runs in a separate async process spawned by shell.
+        % .showGTResults() gets called from a callback registered on the completion of
+        % this async process.
+
+        % If backend is AWS, use a different backend
+        backend = obj.trackDLBackEnd;
+        if backend.type == DLBackEnd.AWS
+          warning('Cannot use AWS cloud to do GT computation, using Docker backend on local computer. If no GPUs are available locally, CPUs will be used.')
+          backend = DLBackEndClass(DLBackEnd.Docker);
+        end
+        
         [movidx,~,newmov] = unique(tblMFT.mov);
         movidx_new = [];
         for ndx = 1:numel(movidx)
@@ -10086,61 +10093,49 @@ classdef Labeler < handle
           end
         end
 
+        tObj = obj.tracker;
         totrackinfo = ...
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
-        
         tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
-        DIALOGTTL = 'GT Tracking';
-        if tfsucc
-          msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
-          msgbox(msg,DIALOGTTL);
-        else
-          msg = sprintf('GT tracking failed');
-          warndlg(msg,DIALOGTTL);
-        end
-        return;
-      else
-        showGTResults('lblTbl',tblMFT,'useLabels2',true,'doreport',doreport,'doui',doui);
-      end
-      obj.clearStatus;
+        obj.didSpawnTrackingForGT_ = tfsucc ;
+        obj.notify('didHopefullySpawnTrackingForGT') ;
+      end  % if
     end  % function
     
     function showGTResults(obj,varargin)
-      [gtResultTbl,tblLbl,reportargs,useLabels2,doreport,doui] = myparse(varargin,...
-        'gtResultTbl',[], 'lblTbl',[],...
-        'reportargs',cell(1,0),'useLabels2',false,'doreport',true,'doui',true);
+      [gtResultTbl,tblLbl,useLabels2] = ...
+        myparse(varargin,...
+                'gtResultTbl',[],...
+                'lblTbl',[],...
+                'useLabels2',false);
 
       if isempty(tblLbl)
         tblLbl = obj.gtGetTblSuggAndLbled();
       end
         
       if useLabels2
-        fprintf(1,'Computing GT performance with %d GT rows.\n',...
-        height(tblLbl));
+        fprintf('Computing GT performance with %d GT rows.\n',...
+                height(tblLbl));
         
         wbObj = WaitBarWithCancel('Compiling Imported Predictions');
         oc = onCleanup(@()delete(wbObj));
         gtResultTbl = obj.labelGetMFTableLabeled('wbObj',wbObj,...          
-          'useLabels2',true,... % in GT mode, so this compiles labels2GT
-          'tblMFTrestrict',tblLbl);        
+                                                 'useLabels2',true,...  % in GT mode, so this compiles labels2GT
+                                                 'tblMFTrestrict',tblLbl);
         if wbObj.isCancel
-          %tblGTres = [];
           warningNoTrace('Labeler property .gtTblRes not set.');
-          return;
+          return
         end
         
         gtResultTbl.pTrk = gtResultTbl.p; % .p is imported positions => imported tracking
         gtResultTbl(:,'p') = [];
       end
-      obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.lObj.gtTblRes
-      if doreport
-        obj.gtReport(reportargs{:});
-      end
-      if doui        
-        msgbox('GT results available in Labeler property ''gtTblRes''.');
-      end      
+      obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
+      obj.didSpawnTrackingForGT_ = [] ;  % reset this
+      obj.notify('didComputeGTResults') ;
+      obj.clearStatus();
     end  % function
 
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
@@ -10224,148 +10219,6 @@ classdef Labeler < handle
       obj.notify('gtResUpdated');
     end  % function
 
-    function h = gtReport(obj,varargin)
-      t = obj.gtTblRes;
-
-      [fcnAggOverPts,aggLabel] = ...
-        myparse(varargin,...
-                'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
-                'aggLabel','Max' ...
-                );
-      
-      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
-      % KB 20181022: Changed colors to match sets instead of points
-      clrs =  obj.LabelPointColors;
-      nclrs = size(clrs,1);
-      lsz = size(t.L2err);
-      npts = lsz(end);
-      assert(npts==obj.nLabelPoints);
-      if nclrs~=npts
-        warningNoTrace('Labeler:gt',...
-          'Number of colors do not match number of points.');
-      end
-
-      l2err = t.L2err;
-      if ndims(l2err) == 3
-        l2err = reshape(l2err,[],npts);
-        valid = ~all(isnan(l2err),2);
-        l2err = l2err(valid,:);
-      end
-      nviews = obj.nview;
-      nphyspt = npts/nviews;
-      prc_vals = [50,75,90,95,98];
-      prcs = prctile(l2err,prc_vals,1);
-      prcs = reshape(prcs,[],nphyspt,nviews);
-      lpos = t(1,:).pLbl;
-      if ndims(lpos)==3
-        lpos = squeeze(lpos(1,1,:));
-      else
-        lpos = squeeze(lpos(1,:));
-      end
-      lpos = reshape(lpos,npts,2);
-%       [tf,lpos] = obj.labelPosIsLabeled(t.frm(1),t.iTgt(1),'iMov',abs(t.mov(1)),'gtmode',true);
-      allims = cell(1,nviews);
-      allpos = zeros([nphyspt,2,nviews]);
-      txtOffset = obj.labelPointsPlotInfo.TextOffset;
-      for view = 1:nviews
-        curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
-        [im,isrotated,~,~,A] = obj.getTargetIm(abs(t.mov(1)),t.frm(1),t.iTgt(1),view,true);
-        if isrotated
-          curl = [curl,ones(nphyspt,1)]*A;
-          curl = curl(:,1:2);
-        end
-        minpos = min(curl,[],1);
-        maxpos = max(curl,[],1);
-        centerpos = (minpos+maxpos)/2;
-        % border defined by borderfrac
-        r = max(1,(maxpos-minpos));
-        xlim = round(centerpos(1)+[-1,1]*r(1));
-        ylim = round(centerpos(2)+[-1,1]*r(2));
-        xlim = min(size(im,2),max(1,xlim));
-        ylim = min(size(im,1),max(1,ylim));
-        im = im(ylim(1):ylim(2),xlim(1):xlim(2),:);
-        curl(:,1) = curl(:,1)-xlim(1);
-        curl(:,2) = curl(:,2)-ylim(1);
-        allpos(:,:,view) = curl;
-        allims{view} = im;
-
-      end
-      
-      h = figure('Name','GT err percentiles');
-      plotPercentileHist(allims,prcs,allpos,prc_vals,h,txtOffset)
-%%      
-
-      % Err by landmark
-      h = figure('Name','GT err by landmark');
-      ax = axes;
-      boxplot(l2err,'colors',clrs,'boxstyle','filled');
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Landmark/point',args{:});
-      if nviews>1
-        xtick_str = {};
-        for view = 1:nviews
-          for n = 1:nphyspt
-            if n==1
-              xtick_str{end+1} = sprintf('View %d -- %d',view,n); %#ok<AGROW> 
-            else
-              xtick_str{end+1} = sprintf('%d',n); %#ok<AGROW> 
-            end
-          end
-        end
-        xticklabels(xtick_str)
-      end
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'GT err by landmark',args{:});
-      ax.YGrid = 'on';
-      
-      % AvErrAcrossPts by movie
-      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
-      h(end+1,1) = figurecascaded(h(end),'Name',tstr);
-      ax = axes;
-      [iMovAbs,gt] = t.mov.get;
-      assert(all(gt));
-      grp = categorical(iMovAbs);
-      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
-        categories(grp),countcats(grp),'uni',0);
-      taggerr = t.aggOverPtsL2err;
-      if ndims(taggerr)==3
-        taggerr = permute(taggerr,[1,3,2]);
-      end
-      boxplot(taggerr,grp,'colors',clrs,'boxstyle','filled',...
-        'labels',grplbls);
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Movie',args{:});
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,tstr,args{:});
-      ax.YGrid = 'on';
-%      
-      % Mean err by movie, pt
-%       h(end+1,1) = figurecascaded(h(end),'Name','Mean GT err by movie, landmark');
-%       ax = axes;
-%       tblStats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
-%       tblStats.mov = tblStats.mov.get;
-%       tblStats = sortrows(tblStats,{'mov'});
-%       movUnCnt = tblStats.GroupCount; % [nmovx1]
-%       meanL2Err = tblStats.mean_L2err; % [nmovxnpt]
-%       nmovUn = size(movUnCnt,1);
-%       szassert(meanL2Err,[nmovUn npts]);
-%       meanL2Err(:,end+1) = nan; % pad for pcolor
-%       meanL2Err(end+1,:) = nan;       
-%       hPC = pcolor(meanL2Err);
-%       hPC.LineStyle = 'none';
-%       colorbar;
-%       xlabel(ax,'Landmark/point',args{:});
-%       ylabel(ax,'Movie',args{:});
-%       xticklbl = arrayfun(@num2str,1:npts,'uni',0);
-%       yticklbl = arrayfun(@(x)sprintf('mov%d (n=%d)',x,movUnCnt(x)),1:nmovUn,'uni',0);
-%       set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
-%       set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
-%       axis(ax,'ij');
-%       title(ax,'Mean GT err (px) by movie, landmark',args{:});
-%       
-%       nmontage = min(nmontage,height(t));
-%       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',h,'nplot',nmontage);
-    end    
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.
       if obj.gtIsGTMode
@@ -15886,6 +15739,10 @@ classdef Labeler < handle
 %     function result = get.rawStatusStringWhenClear(obj)
 %       result = obj.rawStatusStringWhenClear_ ;
 %     end
+
+    function result = get.didSpawnTrackingForGT(obj)
+      result = obj.didSpawnTrackingForGT_ ;
+    end
 
     function setRawStatusStringWhenClear_(obj, new_value)
       % This should go away eventually, once a few more functions in LabelerGUI get

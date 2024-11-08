@@ -4742,13 +4742,11 @@ LabelerGT.setSuggestionsToLabeledUI(lObj);
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
-% next three lines identical to GTManager:pbComputeGT_Callback
 lObj.gtComputeGTPerformance();
 
 function menu_evaluate_gtcomputeperfimported_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
-% next three lines identical to GTManager:pbComputeGT_Callback
 lObj.gtComputeGTPerformance('useLabels2',true);
 
 function menu_evaluate_gtexportresults_Callback(hObject,eventdata,handles)

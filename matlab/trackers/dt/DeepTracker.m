@@ -3681,64 +3681,26 @@ classdef DeepTracker < LabelTracker
 
 
     function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res)
-      backend  = obj.backend ;
-      if backend.type ~= DLBackEnd.AWS ,
-        isAllWell = true ;
-        message = '' ;
-        return
-      end
+      % Does what it says on the tin.
+
+      % Get some relevant paths
       remoteCacheRoot = obj.trnLastDMC.rootDir ;
       localCacheRoot = obj.lObj.DLCacheDir ;
-      remoteTrackFilePaths = {res.trkfile} ;
-      trkfilesLocal = replace_prefix_path(remoteTrackFilePaths, remoteCacheRoot, localCacheRoot) ;
-      %fprintf('AWS: tracking complete at %s\n',datestr(now));
-      %assert(numel(trkfilesLocal)==numel(res));
       
+      % Get the paths to the movies
       % Is this general enough? In my test case, res has a single element, and the
       % .movfile field is a char array, movfiles is a cell array of char arrays, but
       % with only one element (i.e. one char array).  -- ALT, 2024-06-05
       movfiles = obj.trkSysInfo.getMovfiles() ;
 
-      if all(strcmp(movfiles(:),{res.movfile}'))
-        % we perform this check b/c while tracking has been running in
-        % the bg, the project could have been updated, movies
-        % renamed/reordered etc.
-        
-        aws = backend.awsec2;
-        
-        % download trkfiles 
-        sysCmdArgs = {'failbehavior', 'err'};
-        for ivw=1:numel(res)
-          trkLcl = trkfilesLocal{ivw};
-          trkRmt = res(ivw).trkfile;
-          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
-          aws.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
-          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
-        end
-        
-%         obj.trkPostProcIfNec(mIdx,trkfilesLocal);
-%         obj.trackResAddTrkfile(mIdx,trkfilesLocal);
-%         if mIdx==obj.lObj.currMovIdx
-%           obj.trackCurrResUpdate();
-%           obj.newLabelerFrame();
-%           fprintf('Tracking complete for current movie at %s.\n',datestr(now));
-%         else
-%           iMov = mIdx.get();
-%           fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
-%         end
-        isAllWell = true ;
-        message = '' ;
-      else
-        %warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
-        %  int32(mIdx));
-        isAllWell = false ;
-        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
-        % conservative, take no action for now
-        return
-      end
+      % Ask the backend to do the heavy lifting
+      backend  = obj.backend ;
+      [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, remoteCacheRoot, localCacheRoot, movfiles) ;
 
-      % Relocate the tracking info, so that paths are right
-      obj.trkSysInfo.changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
+      % For remote file systems, relocate the tracking info, so that paths are right
+      if backend.isFilesystemRemote() ,
+        obj.trkSysInfo.changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
+      end
     end
 
 %     function trkCompleteCbkAWS(obj,backend,trkfilesLocal,res)

@@ -51,7 +51,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % docker images.
     dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
-      % (We no longer support remote docker backends.  --ALT, 2024-09-20)
       % The docker backend can run the docker container on a remote host.
       % dockerremotehost will contain the DNS name of the remote host in this case.
       % But even in this case, as with local docker, we assume that the docker
@@ -503,11 +502,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function v = isFilesystemLocal(obj)
       % The conda and bsub (i.e. Janelia LSF) and Docker backends share (mostly) the
       % same filesystem as the Matlab process.  AWS does not.
+      % Note that for bsub and remote docker backends, we return true, but we're
+      % assuming that all the files used by APT are on the part of the filesystem
+      % that is actually the same between the frontend and the backend.
       v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) || isequal(obj.type,DLBackEnd.Docker) ;
     end
     
     function v = isFilesystemRemote(obj)
-      v = ~obj.isFilesystemLocal(obj) ;
+      v = ~obj.isFilesystemLocal() ;
     end
     
     function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)
@@ -1230,5 +1232,57 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         error('Error occurred when trying to kill %s job %s: %s', char(obj.type), jobid, res) ;
       end
     end  % function
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
+      if obj.type == DLBackEnd.AWS ,
+        [isAllWell, message] = obj.downloadTrackingFilesIfNecessaryAWS_(res, remoteCacheRoot, localCacheRoot, movfiles) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
+        pause(10) ;
+        isAllWell = true ;
+        message = '' ;
+      elseif obj.type == DLBackEnd.Conda ,
+        isAllWell = true ;
+        message = '' ;
+      elseif obj.type == DLBackEnd.Docker ,
+        if ~isempty(obj.dockerremotehost) ,
+          % This path is for when the docker backend is running on a remote host.
+          % Hack: For now, just wait a bit, to let (hopefully) NFS sync up.
+          pause(10) ;
+        end          
+        isAllWell = true ;
+        message = '' ;
+      else
+        error('Internal error: Unknown DLBackEndClass type') ;
+      end
+    end  % function    
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessaryAWS_(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
+      remoteTrackFilePaths = {res.trkfile} ;
+      trkfilesLocal = replace_prefix_path(remoteTrackFilePaths, remoteCacheRoot, localCacheRoot) ;      
+      if all(strcmp(movfiles(:),{res.movfile}'))
+        % we perform this check b/c while tracking has been running in
+        % the bg, the project could have been updated, movies
+        % renamed/reordered etc.        
+        aws = obj.awsec2;        
+        % download trkfiles 
+        sysCmdArgs = {'failbehavior', 'err'};
+        for ivw=1:numel(res)
+          trkLcl = trkfilesLocal{ivw};
+          trkRmt = res(ivw).trkfile;
+          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
+          aws.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
+        end
+        isAllWell = true ;
+        message = '' ;
+      else
+        isAllWell = false ;
+        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
+        % conservative, take no action for now
+        return
+      end
+    end  % function    
+    
   end  % methods
 end  % classdef
