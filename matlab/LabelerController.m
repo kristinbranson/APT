@@ -4,6 +4,7 @@ classdef LabelerController < handle
     mainFigure_  % the GH to the main figure
     listeners_
     satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
+    %waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
@@ -44,6 +45,8 @@ classdef LabelerController < handle
         addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;      
+%       obj.listeners_{end+1} = ...
+%         addlistener(labeler, 'newProgressMeter', @(source,event)(obj.createNewWaitbar())) ;      
       % Do this once listeners are set up
       obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
@@ -296,21 +299,13 @@ classdef LabelerController < handle
         return
       end
       
-      %labeler.trackSetAutoParams();
-      
       fprintf('Training started at %s...\n',datestr(now));
       oc1 = onCleanup(@()(labeler.clearStatus()));
-      wbObj = WaitBarWithCancel('Training');
-      oc2 = onCleanup(@()delete(wbObj));
       centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
       labeler.train(...
-        'trainArgs',{'wbObj',wbObj}, ...
+        'trainArgs',{}, ...
         'do_just_generate_db', do_just_generate_db, ...
         'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-      if wbObj.isCancel
-        msg = wbObj.cancelMessage('Training canceled');
-        msgbox(msg,'Train');
-      end
     end  % method
 
     function menu_quit_but_dont_delete_temp_folder_actuated(obj, source, event)  %#ok<INUSD> 
@@ -527,6 +522,47 @@ classdef LabelerController < handle
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
     end  % function
     
+%     function createNewWaitbar(obj)
+%       labeler = ob.labeler_ ;
+%       progressMeter = labeler.progressMeter ;
+%       if progressMeter.canCancel ,
+%         args = { 'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar()) } ;
+%       else
+%         args = cell(1,0) ;
+%       end
+%       obj.waitbarFigure_ = waitbar(0, progressMeter.message, ...
+%                                    'Name', progressMeter.title, ...
+%                                    'Visible', 'off', ...
+%                                    args{:}) ;
+%       obj.waitbarFigure_.CloseRequestFcn = @(source,event)(obj.didCloseWaitbar()) ;
+%       obj.listeners_{end+1} = ...
+%         addlistener(progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;
+%       obj.listeners_{end+1} = ...
+%         addlistener(progressMeter, 'done', @(source,event)(obj.deleteWaitbar())) ;
+%     end  % function
+% 
+%     function updateWaitbar(obj)
+%       labeler = obj.labeler_ ;
+%       progressMeter = labeler.progressMeter ;
+%       x = progressMeter.fraction ;
+%       message = progressMeter.message ;
+%       waitbar(x, obj.waitbarFigure_, message) ;
+%     end
+% 
+%     function deleteWaitbar(obj) 
+%       deleteValidHandles(obj.waitbarFigure_) ;
+%       obj.waitbarFigure_ = [] ;
+%     end
+% 
+%     function didCancelWaitbar(obj)
+%       labeler = obj.labeler_ ;
+%       labeler.cancelProgressMeter() ;
+%     end
+%     
+%     function didCloseWaitbar(obj)
+%       labeler = obj.labeler_ ;
+%       labeler.closeProgressMeter() ;
+%     end    
   end  % public methods block
 
   methods  % private by convention methods block

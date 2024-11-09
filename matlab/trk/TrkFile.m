@@ -357,7 +357,7 @@ classdef TrkFile < dynamicprops
       
 %       [movfiles,nviewstrack] = ...
 %         TrkFile.convertJSONCellMatrix(s.movieFiles);
-      movfiles = s.movieFiles;
+      % movfiles = s.movieFiles;
 
       pred_locs = s.pred_locs.locs;
       ndim = ndims(pred_locs);

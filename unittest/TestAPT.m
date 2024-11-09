@@ -632,23 +632,8 @@ classdef TestAPT < handle
       obj.set_backend_(backend,backend_params);
 
       labeler = obj.labeler;
-      %handles = labeller.gdata;
-      %oc1 = onCleanup(@()ClearStatus(handles));
-      %wbObj = WaitBarWithCancel('Training');  % this is never made visible
-      %oc2 = onCleanup(@()delete(wbObj));
-      %centerOnParentFigure(wbObj.hWB,handles.figure);
-      %tracker = labeler.tracker;
-      %tObj.skip_dlgs = true;  % no longer needed---setting labeler.silent takes
-      %care of it.
       labeler.silent = true;
-      %if labeler.trackerIsTwoStage && ~strcmp(backend,'bsub')
-      %  tracker.forceSerial = serial2stgtrain;
-      %end      
       labeler.train();
-      %if wbObj.isCancel
-      %  msg = wbObj.cancelMessage('Training canceled');
-      %  msgbox(msg,'Train');
-      %end      
       
       if block
         % block while training

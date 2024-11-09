@@ -964,7 +964,7 @@ classdef DeepTracker < LabelTracker
       prev_models = [];
       switch dlTrnType
         case DLTrainType.New
-          modelChain = datestr(now,'yyyymmddTHHMMSS');
+          modelChain = datestr(now(),'yyyymmddTHHMMSS');
           if ~isempty(modelChain0) && ~augOnly
             assert(~strcmp(modelChain,modelChain0));
             fprintf('Training new model %s.\n',modelChain);
@@ -1004,22 +1004,6 @@ classdef DeepTracker < LabelTracker
                    'do_just_generate_db',do_just_generate_db, ...
                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
                    'projTempDir', projTempDir) ;
-%       switch backend.type
-%         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}
-%           obj.trnSpawn(backend, ...
-%                        dlTrnType, ...
-%                        modelChain, ...
-%                        'wbObj',wbObj, ...
-%                        'prev_models',prev_models, ...
-%                        'augOnly',augOnly, ...
-%                        'do_just_generate_db',do_just_generate_db, ...
-%                        'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-%         case DLBackEnd.AWS
-%           error('Not implemented');
-%           obj.trnSpawnAWS(backend,dlTrnType,modelChain,'wbObj',wbObj,'prev_models',prev_models);          
-%         otherwise
-%           assert(false);
-%       end
       
       % Nothing should occur here as failed trnSpawn* will early return      
     end

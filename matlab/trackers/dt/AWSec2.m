@@ -41,8 +41,11 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
   
   properties (Transient)
-    wasInstanceStarted_ = false  % We don't want this to be copied over when passing an AWSec2 in an arg to parfeval(), or
-                                 % when the object is persisted, so we make it transient
+    wasInstanceStarted_ = false  % This is true iff obj started the AWS EC2 instance.  If something/someone other than 
+                                 % *this object* started the instance, this is false. 
+                                 %
+                                 % We don't want this to be copied over when passing an AWSec2 in an arg to
+                                 % parfeval(), or when the object is persisted, so we make it transient.
   end
 
   properties (Constant)
