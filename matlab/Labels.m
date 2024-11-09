@@ -1,46 +1,49 @@
-classdef Labels
-  
-% Labels datastruct revisit 2020
+classdef Labels  
+  % A class that exists only as a holder of a bunch of static methods
+  % for dealing with labels.  -- ALT, 2024-11-08
 
-% # Narrow vs Wide. Standardize on Narrow.
-% 
-% A *row* has
-%  - (x,y) for each pt (under consid). or 'shape'
-%  - ts " (questionable utility but its there)
-%  - occ "
-% 
-% Currently we almost always consider rows as atomic in that a shape is 
-% either labeled entirely (all pts) or not. HT mode does not fit this but
-% HT mode is an edge case.
-% 
-% The Labels format is the 'narrow' fmt.
-% 
-% The TrkFile fmt is a 'wide' fmt assuming a cartesian F x T set of 
-% (frm,tgt) pairs. In the single-target case, this is the same as the
-% narrow fmt. TrkFiles were recently updated to enable a narrow fmt 'under
-% the hood' ie produced by DL; but this is converted to a wide fmt upon
-% TrkFile.load.
-%
-% The narrow fmt is more general and flexible so long term we should 
-% probably standardize to that where possible.
-% 
-% # Lbls vs Preds.
-% 
-% Training labels are sparse. Predictions tend to be 'full'. All targets 
-% are often present throughout a movie but i) this is not required and ii)
-% predictions may be done on a single or subset of targets.
-% 
-% HT labels are an edge case we do not treat as primary.
-% 
-% Manual correction of preds occurs when full preds are 
-% spot-checked/updated or "polished" manually. These corrections might tend 
-% to be sparse as well.
+  % Labels datastruct revisit 2020
+  
+  % # Narrow vs Wide. Standardize on Narrow.
+  % 
+  % A *row* has
+  %  - (x,y) for each pt (under consid). or 'shape'
+  %  - ts " (questionable utility but its there)
+  %  - occ "
+  % 
+  % Currently we almost always consider rows as atomic in that a shape is 
+  % either labeled entirely (all pts) or not. HT mode does not fit this but
+  % HT mode is an edge case.
+  % 
+  % The Labels format is the 'narrow' fmt.
+  % 
+  % The TrkFile fmt is a 'wide' fmt assuming a cartesian F x T set of 
+  % (frm,tgt) pairs. In the single-target case, this is the same as the
+  % narrow fmt. TrkFiles were recently updated to enable a narrow fmt 'under
+  % the hood' ie produced by DL; but this is converted to a wide fmt upon
+  % TrkFile.load.
+  %
+  % The narrow fmt is more general and flexible so long term we should 
+  % probably standardize to that where possible.
+  % 
+  % # Lbls vs Preds.
+  % 
+  % Training labels are sparse. Predictions tend to be 'full'. All targets 
+  % are often present throughout a movie but i) this is not required and ii)
+  % predictions may be done on a single or subset of targets.
+  % 
+  % HT labels are an edge case we do not treat as primary.
+  % 
+  % Manual correction of preds occurs when full preds are 
+  % spot-checked/updated or "polished" manually. These corrections might tend 
+  % to be sparse as well.
 
   properties (Constant)
     CLS_OCC = 'int8';
     CLS_MD = 'uint32';
     CLS_SPLIT = 'uint32';
   end
+
   methods (Static)
     function s = new(npts,n)
       if nargin<2
@@ -53,14 +56,9 @@ classdef Labels
       s.occ = zeros(npts,n,Labels.CLS_OCC); % "tag"
       s.frm = zeros(n,1,Labels.CLS_MD);
       s.tgt = zeros(n,1,Labels.CLS_MD);
-      
-      % s.split = zeros(n,1,Labels.CLS_MD);
-      
-      % size(s.p,2) is the number of labeled rows.      
     end
     
-    function s1 = remapLandmarks(s,new2oldpts)
-      
+    function s1 = remapLandmarks(s,new2oldpts)      
       oldnpts = s.npts;
       n = size(s.p,2);
       newnpts = numel(new2oldpts);
@@ -75,15 +73,17 @@ classdef Labels
       s1.ts(isold,:) = s.ts(new2oldpts(isold),:);
       s1.occ = zeros([newnpts,n],class(s.occ));
       s1.occ(isold,:) = s.occ(new2oldpts(isold),:);
-      s1.npts = newnpts;
-      
+      s1.npts = newnpts;      
     end
+
     function tf = hasLbls(s)
       tf = ~isempty(s.frm);
     end
+
     function n = numLbls(s)
       n = numel(s.frm);
     end
+
     function s = setpFT(s,frm,itgt,xy)
       i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
@@ -102,6 +102,7 @@ classdef Labels
         % s.tgt(i) "
       end
     end
+
     function s = setpFTI(s,frm,itgt,ipt,xy)
       i = find(s.frm==frm & s.tgt==itgt);
       if isempty(i)
@@ -116,27 +117,32 @@ classdef Labels
       s.p([ipt ipt+s.npts],i) = xy(:);
       s.ts(ipt,i) = now;
     end
+
     function v = getFullyOccValue()
       % v = Labels.getFullyOccValue()
       % we use infinity to signify fully occluded
       % added by KB 20220202
       v = inf; 
     end
+
     function v = getUnlabeledValue()
       % v = Labels.getUnlabeledValue()
       % we use nan to signify that a point hasn't been labeled yet
       % added by KB 20220202
       v = nan; 
     end
+
     function s = setoccFTI(s,frm,itgt,ipt)
       % ipt can be vector
       s = Labels.setoccvalFTI(s,frm,itgt,ipt,1);
     end
+
     function s = clroccFTI(s,frm,itgt,ipt)
       % ipt can be vector
       % note, this will create a new label if nec      
       s = Labels.setoccvalFTI(s,frm,itgt,ipt,0);
     end
+
     function s = setoccvalFTI(s,frm,itgt,ipt,val)
       % creates a new label if nec
       % ipt: can be vector
@@ -154,9 +160,9 @@ classdef Labels
       s.occ(ipt,i) = val;
       s.ts(:,i) = now;
     end    
+
     function [s,tfchanged] = rmFT(s,frm,itgt)
-      % remove labels for given frm/itgt
-      
+      % remove labels for given frm/itgt      
       i = find(s.frm==frm & s.tgt==itgt);
       tfchanged = ~isempty(i); % found our (frm,tgt)
       if tfchanged
@@ -167,9 +173,9 @@ classdef Labels
         s.tgt(i,:) = [];
       end
     end
+
     function [s,tfchanged] = rmFTP(s,frm,itgt,pts)
-      % remove labels for given frm/itgt
-      
+      % remove labels for given frm/itgt      
       i = find(s.frm==frm & s.tgt==itgt);
       tfchanged = ~isempty(i); % found our (frm,tgt)
       if tfchanged
@@ -191,6 +197,7 @@ classdef Labels
         % s.frm(ipt,1) and s.tgt(ipt,1) unchanged
       end
     end
+
     function [s,tfchanged,ntgts] = compact(s,frm)
       % Arbitrarily renames/remaps target indices for given frm to fall
       % into 1:ntgts. No consideration is given for continuity or
@@ -208,6 +215,7 @@ classdef Labels
         s.tgt(tf) = (1:ntgts)';
       end
     end
+
     function [s,nfrmslbl,nfrmscompact] = compactall(s)
       frmsun = unique(s.frm);
       nfrmscompact = 0;
@@ -217,6 +225,7 @@ classdef Labels
       end
       nfrmslbl = numel(frmsun);
     end
+
     function [tf,p,occ,ts] = isLabeledFT(s,frm,itgt)
       % Could get "getLabelsFT"
       %
@@ -234,12 +243,14 @@ classdef Labels
         ts = -inf(s.npts,1);
       end
     end
+
     function [tf] = isLabelerPerPt(s)
       % [tf] = isLabelerPerPt(s)
       % Added by KB 20220206
       % tf(i,j) indicates whether landmark i is labeled for label j
       tf = permute(any(~isnan(reshape(s.p,[size(s.p,1)/2, 2, size(s.p,2)])),2),[1,3,2]);      
     end
+
     function [tf,p,occ,ts] = isLabeledPerPtFT(s,frm,itgt)
       % [tf,p,occ,ts] = isLabeledPerPtFT(s,frm,itgt)
       % Added by KB 20220202, similar to isLabeledFT
@@ -260,6 +271,7 @@ classdef Labels
         ts = -inf(s.npts,1);
       end
     end
+
     function itgts = isLabeledF(s,frm)
       % Find labeled targets (if any) for frame frm
       %
@@ -268,6 +280,7 @@ classdef Labels
       tf = s.frm==frm;
       itgts = s.tgt(tf);
     end
+
     function [tf,p,occ,ts] = isLabeledFMA(s,frm)
       % Could get "getLabelsFT"
       %
@@ -285,6 +298,7 @@ classdef Labels
         ts = -inf(s.npts,1);
       end
     end
+
     function [frms,tgts] = isPartiallyLabeledT(s,itgt,nold)
       if isnan(itgt) || isempty(itgt),
         istgt = true(size(s.tgt));
@@ -296,6 +310,7 @@ classdef Labels
       frms = s.frm(ispartial);
       tgts = s.tgt(ispartial);
     end
+
     function frms = isLabeledT(s,itgt)
       % Find labeled frames (if any) for target itgt
       %
@@ -311,6 +326,7 @@ classdef Labels
         frms = s.frm(tf);
       end
     end
+
     % function getLabelsFT -- see isLabeledFT
     function [p,occ] = getLabelsT_full(s,itgt,nf)
       % get labels/occ for given target.
@@ -326,6 +342,7 @@ classdef Labels
       p(:,frms) = s.p(:,tf);
       occ(:,frms) = s.occ(:,tf);
     end
+
     function [tfhasdata,p,occ,t0,t1] = getLabelsT(s,itgt)
       % get labels/occ for given target.
       %
@@ -354,6 +371,7 @@ classdef Labels
         occ(:,idx) = s.occ(:,tf);
       end
     end
+
     function [p,occ] = getLabelsF(s,frm,ntgtsmax)
       % prob rename to "getLabelsFFull" etc
       % get labels/occ for given frame, all tgts. "All tgts" here is
@@ -387,14 +405,17 @@ classdef Labels
       p(:,itgts) = s.p(:,tf);
       occ(:,itgts) = s.occ(:,tf);
     end
+
     function iTgts = uniqueTgts(s)
       iTgts = unique(s.tgt);
     end
+
     function tf = labeledFrames(s,nfrm)
       tf = false(nfrm,1);
       tf(s.frm) = true;
       assert(numel(tf)==nfrm);
     end
+
     function tflbled = labeledTgts(s,nf)
       % nf: maximum number of frames
       %
@@ -409,6 +430,7 @@ classdef Labels
       tflbled(idx) = true;
       %ntgt = sum(tflbled,2);
     end
+
     function [tf,f0,p0] = findLabelNear(s,frm,itgt,fdir)
       % find labeled frame for itgt 'near' frm
       %
@@ -446,6 +468,7 @@ classdef Labels
         p0 = nan(s.npts*2,1);
       end
     end
+
     function t = totable(s,imov)
       frm = s.frm;
       iTgt = s.tgt;
@@ -459,6 +482,7 @@ classdef Labels
         t = table(mov,frm,iTgt,p,pTS,tfocc);
       end
     end
+
     function s = fromtable(t)
       if any(strcmp(t.Properties.VariableNames,'mov'))
         assert(all(t.mov==t.mov(1)));
@@ -477,6 +501,7 @@ classdef Labels
       s.frm(:) = t.frm;
       s.tgt(:) = t.iTgt;
     end
+
     function [lpos,lposTS,lpostag] = toarray(s,varargin)
       % Convert to old-style full arrays
       %
@@ -520,6 +545,7 @@ classdef Labels
 %         lpostag(:,f,itgt) = s.occ(:,i);
 %       end
     end
+
     function s = fromarray(lpos,varargin)
       % s = fromarray(lpos,'lposTS',lposTS,'lpostag',lpostag)
       %
@@ -575,6 +601,7 @@ classdef Labels
       s.frm(:) = frms(ifrms(:));
       s.tgt(:) = tgts(itgts(:));
     end
+
     function s = fromTrkfile(trk)
       if isfield(trk,'pTrkiPt')
         assert(isequal(trk.pTrkiPt(:)',1:size(trk.pTrk,1)),...
@@ -587,14 +614,15 @@ classdef Labels
         s = Labels.fromtable(trk.tableform('labelsColNames',true));
       end
     end
+
     function ptrx = toPTrx(s)
       tgtsUn = unique(s.tgt);
       ntgts = numel(tgtsUn);
       ptrx = TrxUtil.newptrx(ntgts,s.npts);
       
       % default x/y fcns (centroid)
-      xfcn = @(p)nanmean(p(1:s.npts,:),1);
-      yfcn = @(p)nanmean(p(s.npts+1:2*s.npts,:),1);
+      xfcn = @(p)nanmean(p(1:s.npts,:),1); %#ok<NANMEAN> 
+      yfcn = @(p)nanmean(p(s.npts+1:2*s.npts,:),1); %#ok<NANMEAN> 
       
       for jtgt=1:ntgts
         iTgt = tgtsUn(jtgt);
@@ -622,6 +650,7 @@ classdef Labels
         ptrx(jtgt).endframe = f1;
       end
     end
+
     function s2 = indexPts(s,ipts)
       % "subsidx" given pts
       
@@ -633,10 +662,7 @@ classdef Labels
       s2.frm = s.frm;
       s2.tgt = s.tgt;
     end
-%     function s = addsplitsifnec(s)
-%       n = size(s.p,2);
-%       s.split = zeros(n,1,Labels.CLS_SPLIT);
-%     end
+ 
     function s = mergeviews(sarr)
       % sarr: array of Label structures
 
@@ -663,7 +689,7 @@ classdef Labels
       % .frm, .tgt unchanged
     end
     
-    function s = rmRows(s,predicateFcn,rmDispStr)
+    function s = rmRows(s,predicateFcn,~)
       % predicateFcn: eg @isnan, @isinf
       % rmDispStr: eg 'partially-labeled', 'fully-occluded' resp
       
@@ -679,8 +705,8 @@ classdef Labels
         assert(~isfield(s,'split'));
       end
     end
-    function s = replaceInfWithNan(s)
-      
+
+    function s = replaceInfWithNan(s)      
       % Deal with full-occ rows in s in preparation from generating/writing 
       % TrnPack. infs are written as 'null' to json. match legacy SA
       % behavior by converting infs to nan. 
@@ -704,7 +730,8 @@ classdef Labels
       s.p(tfinf) = nan;
       s.occ(tfinfX) = 1;
     end
-  end
+  end  % methods (Static)
+
   methods (Static)
     % Labeler-related utils
     function [lpos,lposTS,lpostag] = lObjGetLabeledPos(lObj,labelsfld,gt)
@@ -714,6 +741,7 @@ classdef Labels
       fcn = @(zs,znfrm,zntgt)Labels.toarray(zs,'nfrm',znfrm,'ntgt',zntgt);
       [lpos,lposTS,lpostag] = cellfun(fcn,lObj.(labelsfld),nfrms(:),ntgts(:),'uni',0);
     end
+
     function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt)
       
       tf = false(height(tbl),1);
@@ -734,9 +762,9 @@ classdef Labels
         idx = idx(ism);
         j = j(ism);
         tf(idx) = ~any(isnan(lObj.(labelsfld){i}.p(:,j)));
-      end
-      
+      end      
     end
+
     function n = lObjNLabeled(lObj,labelsfld,varargin)
       [movis,itgts,gt] = myparse(varargin,'movi',[],'itgt',[],'gt',[]);
       if isempty(movis),
@@ -763,6 +791,7 @@ classdef Labels
         end
       end
     end
+
     function verifyLObj(lObj)
       Labels.verifylObjHlp(lObj.labels,...
         lObj.labeledpos,lObj.labeledposTS,lObj.labeledpostag,'labels');
@@ -771,6 +800,7 @@ classdef Labels
       Labels.verifylObjHlp(lObj.labels2,lObj.labeledpos2,[],[],'labels2');
       Labels.verifylObjHlp(lObj.labels2GT,lObj.labeledpos2GT,[],[],'labels2GT');      
     end
+
     function verifylObjHlp(labelsArr,lposArr,lposTSArr,lposTagArr,labelsField)
       for imov=1:numel(labelsArr)
         lpos0 = lposArr{imov};
@@ -798,6 +828,7 @@ classdef Labels
         fprintf(1,'Verified %s: %d\n',labelsField,imov);
       end    
     end
+
     function tblMF = labelAddLabelsMFTableStc(tblMF,lbls,varargin)
       % See <thismeth>_Old
       %
@@ -975,6 +1006,7 @@ classdef Labels
         tblMF = tblMF(~tfInvalid,:);
       end      
     end
+
     function tblMF = labelAddLabelsMFTableStc_Old(tblMF,lpos,lpostag,lposTS,...
         varargin)
       % Add label/trx information to an MFTable
@@ -1140,6 +1172,7 @@ classdef Labels
         tblMF = tblMF(~tfInvalid,:);
       end       
     end
+
     function tblMF = lblFileGetLabels(lblfile,varargin)
       % Get all labeled rows from a lblfile
       %
@@ -1193,6 +1226,7 @@ classdef Labels
         'trxCache',containers.Map(),...
         'wbObj',wbObj);      
     end
+
     function tblMF = lblFileGetLabels_Old(lblfile,varargin)
       % Get all labeled rows from a lblfile
       %
@@ -1228,7 +1262,7 @@ classdef Labels
       nmov = numel(lpos);
       for imov=1:nmov
         lp = lpos{imov};
-        [ipts,d,frm,iTgt] = ind2sub(lp.size,lp.idx);
+        [~,~,frm,iTgt] = ind2sub(lp.size,lp.idx);
         tblI = table(frm,iTgt);
         tblI = unique(tblI);
         tblI.mov = MovieIndex(repmat(imov,height(tblI),1));
@@ -1294,6 +1328,7 @@ classdef Labels
       tffound = false;
       f = nan;
     end
+
     function [tffound,f] = seekSmallLpos(lpos,f0,df)
       % lpos: [npts x nfrm]
       % f0: starting frame
@@ -1318,6 +1353,7 @@ classdef Labels
       tffound = false;
       f = nan;
     end
+
     function [tffound,f] = seekSmallLposThresh(lpos,f0,df,th,cmp)
       % lpos: [npts x nfrm]
       % f0: starting frame
@@ -1530,14 +1566,14 @@ classdef Labels
 %       end
 %       tbl = struct2table(s,'AsArray',true);      
 %     end
-      
-  end
+  end  % methods (Static)
   
   methods (Static) % MA
     function ntgt = getNumTgts(s,frm)
       tf = s.frm==frm;
       ntgt = nnz(tf);  
     end
+
     function [s,itgt] = addTgtWithP(s,frm,xy)
       % itgt: new target index (also new number of tgts in frm)
       ntgt = Labels.getNumTgts(s,frm);
@@ -1548,5 +1584,5 @@ classdef Labels
       s.frm(end+1,1) = frm;
       s.tgt(end+1,1) = itgt;
     end
-  end
-end
+  end  % methods (Static)
+end  % classdef

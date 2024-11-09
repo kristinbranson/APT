@@ -5893,6 +5893,7 @@ classdef Labeler < handle
         obj.(PROPS.TIA){i} = trxinfo;
       end
     end
+    
     function [trxinfo,tmptrx] = GetTrxInfo(obj,tFileFull,nframes)
       
       trxinfo = struct;
