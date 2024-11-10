@@ -8549,7 +8549,7 @@ classdef Labeler < handle
       % tblMF: See MFTable.FLDSFULLTRX.
       
       [wbObj,useLabels2,useMovNames,tblMFTrestrict,useTrain,tfMFTOnly] = myparse(varargin,...
-        'wbObj',[], ... % optional WaitBarWithCancel. If cancel:
+        'wbObj',[], ... % optional ProgressMeter. If canceled:
                    ... % 1. obj logically const (eg except for obj.trxCache)
                    ... % 2. tblMF (output) indeterminate
         'useLabels2',false,... % if true, use labels2 instead of labels
@@ -8640,10 +8640,6 @@ classdef Labeler < handle
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,lpos,argsTrx{:},...
                                               'wbObj',wbObj);
       if tfWB ,
-%         if wbObj.isCancel
-%           % tblMF (return) indeterminate
-%           return
-%         end
         if wbObj.wasCanceled ,
           return
         end
@@ -8795,23 +8791,28 @@ classdef Labeler < handle
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,obj.(PROPS.LBL),...
         'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
     end
-    function tblMF = labelAddLabelsMFTable_Old(obj,tblMF,varargin)
-      mIdx = tblMF.mov;
-      assert(isa(mIdx,'MovieIndex'));
-      [~,gt] = mIdx.get();
-      assert(all(gt) || all(~gt),...
-        'Currently only all-GT or all-nonGT supported.');
-      gt = gt(1);
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
-      if obj.hasTrx
-        tfaf = obj.(PROPS.TFAF);
-      else
-        tfaf = [];
-      end
-      tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,...
-        obj.(PROPS.LPOS),obj.(PROPS.LPOSTAG),obj.(PROPS.LPOSTS),...
-        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
-    end
+
+%     function tblMF = labelAddLabelsMFTable_Old(obj,tblMF,varargin)
+%       mIdx = tblMF.mov;
+%       assert(isa(mIdx,'MovieIndex'));
+%       [~,gt] = mIdx.get();
+%       assert(all(gt) || all(~gt),...
+%         'Currently only all-GT or all-nonGT supported.');
+%       gt = gt(1);
+%       PROPS = Labeler.gtGetSharedPropsStc(gt);
+%       if obj.hasTrx
+%         tfaf = obj.(PROPS.TFAF);
+%       else
+%         tfaf = [];
+%       end
+%       tblMF = Labels.labelAddLabelsMFTableStc_Old(tblMF,...
+%                                                   obj.(PROPS.LPOS),...
+%                                                   obj.(PROPS.LPOSTAG),...
+%                                                   obj.(PROPS.LPOSTS),...
+%                                                   'trxFilesAllFull',tfaf,...
+%                                                   'trxCache',obj.trxCache,...
+%                                                   varargin{:});
+%     end  % function
     
     function hFgs = labelOverlayMontage(obj,varargin)
       [ctrMeth,rotAlignMeth,roiRadius,roiPadVal,hFig0,...
@@ -9975,12 +9976,14 @@ classdef Labeler < handle
         fprintf('Computing GT performance with %d GT rows.\n',...
                 height(tblLbl));
         
-        wbObj = WaitBarWithCancel('Compiling Imported Predictions');
-        oc = onCleanup(@()delete(wbObj));
-        gtResultTbl = obj.labelGetMFTableLabeled('wbObj',wbObj,...          
+        % wbObj = WaitBarWithCancel('Compiling Imported Predictions');
+        % oc = onCleanup(@()delete(wbObj));
+        obj.progressMeter_.arm('title', 'Compiling Imported Predictions') ;
+        oc = onCleanup(@()(obj.disarmProgressMeter())) ;
+        gtResultTbl = obj.labelGetMFTableLabeled('wbObj',obj.progressMeter_,...          
                                                  'useLabels2',true,...  % in GT mode, so this compiles labels2GT
                                                  'tblMFTrestrict',tblLbl);
-        if wbObj.isCancel
+        if wbObj.wasCanceled
           warningNoTrace('Labeler property .gtTblRes not set.');
           return
         end
@@ -12025,177 +12028,177 @@ classdef Labeler < handle
       end
     end
         
-    function trackCrossValidate(obj,varargin)
-      % Run k-fold crossvalidation. Results stored in .xvResults
-      
-      [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTst,dontInitH0] = ...
-        myparse(varargin,...
-        'kfold',3,... % number of folds
-        'initData',false,... % OBSOLETE, you would never want this. if true, call .initData() between folds to minimize mem usage
-        'wbObj',[],... % (opt) WaitBarWithCancel
-        'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
-        'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
-        'partTst',[],... % (opt) pre-defined training splits. If supplied, partTst must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate test rows, false values indicate training rows.
-        'dontInitH0',true...
-      );        
-      
-      tfWB = ~isempty(wbObj);
-      tfTblMFgt = ~isempty(tblMFgt);      
-      tfPart = ~isempty(partTst);
-      
-      if obj.gtIsGTMode
-        obj.lerror('Unsupported in GT mode.');
-      end
-      
-      if ~tfTblMFgt
-        % CPR required below; allow 'treatInfPosAsOcc' to default to false
-        tblMFgt = obj.preProcGetMFTableLbled();
-      elseif ~tblMFgtIsFinal        
-        tblMFgt0 = tblMFgt; % legacy checks below
-        % CPR required below; allow 'treatInfPosAsOcc' to default to false
-        tblMFgt = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFgt);
-        % Legacy checks/assert can remove at some pt
-        assert(height(tblMFgt0)==height(tblMFgt),...
-          'Specified ''tblMFgt'' contains unlabeled row(s).');
-        assert(isequal(tblMFgt(:,MFTable.FLDSID),tblMFgt0));
-        assert(isa(tblMFgt.mov,'MovieIndex'));
-      else
-        % tblMFgt supplied, and should have labels etc.
-      end
-      assert(isa(tblMFgt.mov,'MovieIndex'));
-      [~,gt] = tblMFgt.mov.get();
-      assert(~any(gt));
-      
-      if ~tfPart
-        movC = categorical(tblMFgt.mov);
-        tgtC = categorical(tblMFgt.iTgt);
-        grpC = movC.*tgtC;
-        cvPart = cvpartition(grpC,'kfold',kFold);
-        partTrn = arrayfun(@(x)cvPart.training(x),1:kFold,'uni',0);
-        partTst = arrayfun(@(x)cvPart.test(x),1:kFold,'uni',0);
-        partTrn = cat(2,partTrn{:});
-        partTst = cat(2,partTst{:});
-      else
-        partTrn = ~partTst;
-      end
-      assert(islogical(partTrn) && islogical(partTst));
-      n = height(tblMFgt);
-      szassert(partTrn,[n kFold]);
-      szassert(partTst,[n kFold]);
-      tmp = partTrn+partTst;
-      assert(all(tmp(:)==1),'Invalid cv splits specified.'); % partTrn==~partTst
-      assert(all(sum(partTst,2)==1),...
-        'Invalid cv splits specified; each row must be tested precisely once.');
-      
-      tObj = obj.tracker;
-      if isempty(tObj)
-        obj.lerror('Labeler:tracker','No tracker is available for this project.');
-      end
-      if ~strcmp(tObj.algorithmName,'cpr')
-        % DeepTrackers do non-blocking/bg tracking
-        obj.lerror('Only CPR tracking currently supported.');
-      end      
-
-      if ~dontInitH0
-        obj.preProcUpdateH0IfNec();
-      end
-      
-      % Basically an initHook() here
-      if initData
-        obj.preProcInitData();
-        obj.ppdbInit();
-      end
-      tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
-      tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
-      tObj.trackResInit();
-      tObj.vizInit();
-      tObj.asyncReset();
-      
-      npts = obj.nLabelPoints;
-      pTrkCell = cell(kFold,1);
-      dGTTrkCell = cell(kFold,1);
-      if tfWB
-        wbObj.startPeriod('Fold','shownumden',true,'denominator',kFold);
-      end
-      for iFold=1:kFold
-        if tfWB
-          wbObj.updateFracWithNumDen(iFold);
-        end
-        tblMFgtTrain = tblMFgt(partTrn(:,iFold),:);
-        tblMFgtTrack = tblMFgt(partTst(:,iFold),:);
-        fprintf(1,'Fold %d: nTrain=%d, nTest=%d.\n',iFold,...
-          height(tblMFgtTrain),height(tblMFgtTrack));
-        if tfWB
-          wbObj.startPeriod('Training','nobar',true);
-        end
-        tObj.retrain('tblPTrn',tblMFgtTrain,'wbObj',wbObj);
-        if tfWB
-          wbObj.endPeriod();
-        end
-        tObj.track(tblMFgtTrack,'wbObj',wbObj);        
-        tblTrkRes = tObj.getTrackingResultsTable(); % if wbObj.isCancel, partial tracking results
-        if initData
-          obj.preProcInitData();
-          obj.ppdbInit();
-        end
-        tObj.trnDataInit();
-        tObj.trnResInit();
-        tObj.trackResInit();
-        if tfWB && wbObj.isCancel
-          return;
-        end
-        
-        %assert(isequal(pTrkiPt(:)',1:npts));
-        assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
-                       tblMFgtTrack(:,MFTable.FLDSID)));
-        if obj.hasTrx || obj.cropProjHasCrops
-          pGT = tblMFgtTrack.pAbs;
-        else
-          if tblfldscontains(tblMFgtTrack,'pAbs')
-            assert(isequal(tblMFgtTrack.p,tblMFgtTrack.pAbs));
-          end
-          pGT = tblMFgtTrack.p;
-        end
-        d = tblTrkRes.pTrk - pGT;
-        [ntst,Dtrk] = size(d);
-        assert(Dtrk==npts*2); % npts=nPhysPts*nview
-        d = reshape(d,ntst,npts,2);
-        d = sqrt(sum(d.^2,3)); % [ntst x npts]
-        
-        pTrkCell{iFold} = tblTrkRes;
-        dGTTrkCell{iFold} = d;
-      end
-
-      % create output table
-      for iFold=1:kFold
-        tblFold = table(repmat(iFold,height(pTrkCell{iFold}),1),...
-          'VariableNames',{'fold'});
-        pTrkCell{iFold} = [tblFold pTrkCell{iFold}];
-      end
-      pTrkAll = cat(1,pTrkCell{:});
-      dGTTrkAll = cat(1,dGTTrkCell{:});
-      assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
-      [tf,loc] = tblismember(tblMFgt,pTrkAll,MFTable.FLDSID);
-      assert(all(tf));
-      pTrkAll = pTrkAll(loc,:);
-      dGTTrkAll = dGTTrkAll(loc,:);
-      
-      if tblfldscontains(tblMFgt,'roi')
-        flds = MFTable.FLDSCOREROI;
-      else
-        flds = MFTable.FLDSCORE;
-      end
-      tblXVres = tblMFgt(:,flds);
-      if tblfldscontains(tblMFgt,'pAbs')
-        tblXVres.p = tblMFgt.pAbs;
-      end
-      tblXVres.pTrk = pTrkAll.pTrk;
-      tblXVres.dGTTrk = dGTTrkAll;
-      tblXVres = [pTrkAll(:,'fold') tblXVres];
-      
-      obj.xvResults = tblXVres;
-      obj.xvResultsTS = now;
-    end
+%     function trackCrossValidate(obj,varargin)
+%       % Run k-fold crossvalidation. Results stored in .xvResults
+%       
+%       [kFold,initData,wbObj,tblMFgt,tblMFgtIsFinal,partTst,dontInitH0] = ...
+%         myparse(varargin,...
+%         'kfold',3,... % number of folds
+%         'initData',false,... % OBSOLETE, you would never want this. if true, call .initData() between folds to minimize mem usage
+%         'wbObj',[],... % (opt) WaitBarWithCancel
+%         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
+%         'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
+%         'partTst',[],... % (opt) pre-defined training splits. If supplied, partTst must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate test rows, false values indicate training rows.
+%         'dontInitH0',true...
+%       );        
+%       
+%       tfWB = ~isempty(wbObj);
+%       tfTblMFgt = ~isempty(tblMFgt);      
+%       tfPart = ~isempty(partTst);
+%       
+%       if obj.gtIsGTMode
+%         obj.lerror('Unsupported in GT mode.');
+%       end
+%       
+%       if ~tfTblMFgt
+%         % CPR required below; allow 'treatInfPosAsOcc' to default to false
+%         tblMFgt = obj.preProcGetMFTableLbled();
+%       elseif ~tblMFgtIsFinal        
+%         tblMFgt0 = tblMFgt; % legacy checks below
+%         % CPR required below; allow 'treatInfPosAsOcc' to default to false
+%         tblMFgt = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFgt);
+%         % Legacy checks/assert can remove at some pt
+%         assert(height(tblMFgt0)==height(tblMFgt),...
+%           'Specified ''tblMFgt'' contains unlabeled row(s).');
+%         assert(isequal(tblMFgt(:,MFTable.FLDSID),tblMFgt0));
+%         assert(isa(tblMFgt.mov,'MovieIndex'));
+%       else
+%         % tblMFgt supplied, and should have labels etc.
+%       end
+%       assert(isa(tblMFgt.mov,'MovieIndex'));
+%       [~,gt] = tblMFgt.mov.get();
+%       assert(~any(gt));
+%       
+%       if ~tfPart
+%         movC = categorical(tblMFgt.mov);
+%         tgtC = categorical(tblMFgt.iTgt);
+%         grpC = movC.*tgtC;
+%         cvPart = cvpartition(grpC,'kfold',kFold);
+%         partTrn = arrayfun(@(x)cvPart.training(x),1:kFold,'uni',0);
+%         partTst = arrayfun(@(x)cvPart.test(x),1:kFold,'uni',0);
+%         partTrn = cat(2,partTrn{:});
+%         partTst = cat(2,partTst{:});
+%       else
+%         partTrn = ~partTst;
+%       end
+%       assert(islogical(partTrn) && islogical(partTst));
+%       n = height(tblMFgt);
+%       szassert(partTrn,[n kFold]);
+%       szassert(partTst,[n kFold]);
+%       tmp = partTrn+partTst;
+%       assert(all(tmp(:)==1),'Invalid cv splits specified.'); % partTrn==~partTst
+%       assert(all(sum(partTst,2)==1),...
+%         'Invalid cv splits specified; each row must be tested precisely once.');
+%       
+%       tObj = obj.tracker;
+%       if isempty(tObj)
+%         obj.lerror('Labeler:tracker','No tracker is available for this project.');
+%       end
+%       if ~strcmp(tObj.algorithmName,'cpr')
+%         % DeepTrackers do non-blocking/bg tracking
+%         obj.lerror('Only CPR tracking currently supported.');
+%       end      
+% 
+%       if ~dontInitH0
+%         obj.preProcUpdateH0IfNec();
+%       end
+%       
+%       % Basically an initHook() here
+%       if initData
+%         obj.preProcInitData();
+%         obj.ppdbInit();
+%       end
+%       tObj.trnDataInit(); % not strictly necessary as .retrain() should do it 
+%       tObj.trnResInit(); % not strictly necessary as .retrain() should do it 
+%       tObj.trackResInit();
+%       tObj.vizInit();
+%       tObj.asyncReset();
+%       
+%       npts = obj.nLabelPoints;
+%       pTrkCell = cell(kFold,1);
+%       dGTTrkCell = cell(kFold,1);
+%       if tfWB
+%         wbObj.startPeriod('Fold','shownumden',true,'denominator',kFold);
+%       end
+%       for iFold=1:kFold
+%         if tfWB
+%           wbObj.updateFracWithNumDen(iFold);
+%         end
+%         tblMFgtTrain = tblMFgt(partTrn(:,iFold),:);
+%         tblMFgtTrack = tblMFgt(partTst(:,iFold),:);
+%         fprintf(1,'Fold %d: nTrain=%d, nTest=%d.\n',iFold,...
+%           height(tblMFgtTrain),height(tblMFgtTrack));
+%         if tfWB
+%           wbObj.startPeriod('Training','nobar',true);
+%         end
+%         tObj.retrain('tblPTrn',tblMFgtTrain,'wbObj',wbObj);
+%         if tfWB
+%           wbObj.endPeriod();
+%         end
+%         tObj.track(tblMFgtTrack,'wbObj',wbObj);        
+%         tblTrkRes = tObj.getTrackingResultsTable(); % if wbObj.isCancel, partial tracking results
+%         if initData
+%           obj.preProcInitData();
+%           obj.ppdbInit();
+%         end
+%         tObj.trnDataInit();
+%         tObj.trnResInit();
+%         tObj.trackResInit();
+%         if tfWB && wbObj.isCancel
+%           return;
+%         end
+%         
+%         %assert(isequal(pTrkiPt(:)',1:npts));
+%         assert(isequal(tblTrkRes(:,MFTable.FLDSID),...
+%                        tblMFgtTrack(:,MFTable.FLDSID)));
+%         if obj.hasTrx || obj.cropProjHasCrops
+%           pGT = tblMFgtTrack.pAbs;
+%         else
+%           if tblfldscontains(tblMFgtTrack,'pAbs')
+%             assert(isequal(tblMFgtTrack.p,tblMFgtTrack.pAbs));
+%           end
+%           pGT = tblMFgtTrack.p;
+%         end
+%         d = tblTrkRes.pTrk - pGT;
+%         [ntst,Dtrk] = size(d);
+%         assert(Dtrk==npts*2); % npts=nPhysPts*nview
+%         d = reshape(d,ntst,npts,2);
+%         d = sqrt(sum(d.^2,3)); % [ntst x npts]
+%         
+%         pTrkCell{iFold} = tblTrkRes;
+%         dGTTrkCell{iFold} = d;
+%       end
+% 
+%       % create output table
+%       for iFold=1:kFold
+%         tblFold = table(repmat(iFold,height(pTrkCell{iFold}),1),...
+%           'VariableNames',{'fold'});
+%         pTrkCell{iFold} = [tblFold pTrkCell{iFold}];
+%       end
+%       pTrkAll = cat(1,pTrkCell{:});
+%       dGTTrkAll = cat(1,dGTTrkCell{:});
+%       assert(isequal(height(pTrkAll),height(tblMFgt),size(dGTTrkAll,1)));
+%       [tf,loc] = tblismember(tblMFgt,pTrkAll,MFTable.FLDSID);
+%       assert(all(tf));
+%       pTrkAll = pTrkAll(loc,:);
+%       dGTTrkAll = dGTTrkAll(loc,:);
+%       
+%       if tblfldscontains(tblMFgt,'roi')
+%         flds = MFTable.FLDSCOREROI;
+%       else
+%         flds = MFTable.FLDSCORE;
+%       end
+%       tblXVres = tblMFgt(:,flds);
+%       if tblfldscontains(tblMFgt,'pAbs')
+%         tblXVres.p = tblMFgt.pAbs;
+%       end
+%       tblXVres.pTrk = pTrkAll.pTrk;
+%       tblXVres.dGTTrk = dGTTrkAll;
+%       tblXVres = [pTrkAll(:,'fold') tblXVres];
+%       
+%       obj.xvResults = tblXVres;
+%       obj.xvResultsTS = now;
+%     end  % function
         
     function [tf,lposTrk,occTrk] = trackIsCurrMovFrmTracked(obj,iTgt)
       % tf: scalar logical, true if tracker has results/predictions for 
