@@ -1,17 +1,14 @@
 classdef ProgressMeter < handle
-  % This is a model class for a waitbar.  
+  % This is a model class for a waitbar.  Designed to be used with a Labeler and
+  % (optionaly) a LabelerController.
 
   properties
-%     parent_  % the parent object, the target of message sends when the ProgressMeter is cancelled or closed
-%     cancelMethodName_
-%     closeMethodName_
     title_ = ''
     message_ = ''
     denominator_ = nan
     numerator_ = nan
-    canCancel_ = true
-    doShowFraction_
-    isActive_ = false
+    doShowFraction_ = true
+    isActive_ = false  % maps 1-to-1 to whether the figure is Visible
     wasCanceled_ = false
   end
 
@@ -25,36 +22,29 @@ classdef ProgressMeter < handle
   end
 
   events
+    didArm
     update
-    willBeDeleted
   end
 
   methods
-    function obj = ProgressMeter(varargin)
-      [title, canCancel, doShowFraction] = ...
-        myparse(varargin , ...
-                'title', 'Progress', ...
-                'canCancel', true, ...
-                'doShowFraction', true) ;
-%       if isempty(parent) ,
-%         error('parent argument is required') ;
-%       end
-%       if isempty(cancelMethodName) ,
-%         error('cancelMethodName argument is required') ;
-%       end
-%       if isempty(closeMethodName) ,
-%         error('closeMethodName argument is required') ;
-%       end
-      %obj.parent_ = parent ;
-      obj.title_ = title ;
-      obj.canCancel_ = canCancel ;
-      obj.doShowFraction_ = doShowFraction ;
-      %obj.cancelMethodName_ = cancelMethodName ;
-      %obj.closeMethodName_ = closeMethodName ;
+    function obj = ProgressMeter()
     end
 
-    function delete(obj)
-      obj.notify('willBeDeleted') ;      
+    function delete(~)
+    end
+
+    function arm(obj, varargin)
+      [title, doShowFraction] = ...
+        myparse(varargin , ...
+                'title', 'Progress', ...
+                'doShowFraction', true) ;
+      obj.title_ = title ;
+      obj.doShowFraction_ = doShowFraction ;
+      obj.denominator_ = nan ;
+      obj.numerator_ = nan ;
+      obj.isActive_ = false ;
+      obj.wasCanceled_ = false ;      
+      obj.notify('didArm') ;
     end
 
     function start(obj, varargin)
@@ -90,13 +80,16 @@ classdef ProgressMeter < handle
       obj.notify('update') ;
     end
 
-%     function close(obj)
-%       obj.isActive_ = false ;
-%       obj.wasCanceled_ = true ;  % is this what we want?
-%       obj.notify('update') ;
-%       feval(obj.closeMethodName_, obj.parent_) ;            
-%     end
-
+    function disarm(obj, varargin)
+      obj.title_ = '' ;
+      obj.doShowFraction_ = true ;
+      obj.denominator_ = nan ;
+      obj.numerator_ = nan ;
+      obj.isActive_ = false ;
+      obj.wasCanceled_ = false ;      
+      obj.notify('update') ;
+    end
+    
     function result = get.fraction(obj) 
       protoresult = obj.numerator_ / obj.denominator_ ;
       result = fif(isfinite(protoresult), protoresult, 0) ;
@@ -111,10 +104,6 @@ classdef ProgressMeter < handle
       end
     end
 
-    function result = get.canCancel(obj)
-      result = obj.canCancel_ ;
-    end
-
     function result = get.wasCanceled(obj)
       result = obj.wasCanceled_ ;
     end
@@ -125,7 +114,7 @@ classdef ProgressMeter < handle
 
     function result = get.isActive(obj)
       result = obj.isActive_ ;
-    end
+    end  % function
 
   end  % methods
 end  % classdef

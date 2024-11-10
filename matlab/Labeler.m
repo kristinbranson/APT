@@ -1549,6 +1549,7 @@ classdef Labeler < handle
       obj.isgui = isgui ;
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
+      obj.progressMeter_ = ProgressMeter() ;
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,
@@ -5774,18 +5775,16 @@ classdef Labeler < handle
       obj.trxFilesAllGT = obj.trxFilesAllGTFull;
     end
 
-    function clearProgressMeter(obj) 
-      delete(obj.progressMeter_) ;  % have to explicitly delete b/c listeners typically still hold refs to it
-      obj.progressMeter_ = [] ;      
+    function disarmProgressMeter(obj) 
+      obj.progressMeter_.disarm() ;
     end
 
     function [tfok,tblBig] = hlpTargetsTableUIgetBigTable(obj)
       % wbObj = WaitBarWithCancel('Target Summary Table');
       % centerOnParentFigure(wbObj.hWB,obj.hFig);
       % oc = onCleanup(@()delete(wbObj));      
-      obj.progressMeter_ = ProgressMeter('title', 'Target Summary Table', 'canCancel', true) ;
-      cleaner = onCleanup(@()(obj.clearProgressMeter())) ;
-      obj.notify('newProgressMeter') ;
+      obj.progressMeter_.arm('title', 'Target Summary Table') ;
+      cleaner = onCleanup(@()(obj.disarmProgressMeter())) ;
       tblBig = obj.trackGetBigLabeledTrackedTable('wbObj',obj.progressMeter_) ;
       tfok = ~(obj.progressMeter_.wasCanceled) ;
       % if ~tfok, tblBig indeterminate
