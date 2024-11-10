@@ -163,7 +163,7 @@ classdef Labeler < handle
     didSetTrackParams
     didHopefullySpawnTrackingForGT
     didComputeGTResults
-    %newProgressMeter
+    newProgressMeter
 
     cropIsCropModeChanged  % cropIsCropMode mutated
     cropCropsChanged  % something in .movieFilesAll*CropInfo mutated
@@ -463,12 +463,14 @@ classdef Labeler < handle
     rawStatusString_  = 'Ready.'
     rawStatusStringWhenClear_ = 'Ready.'
     didSpawnTrackingForGT_
+    progressMeter_
   end
   properties (Dependent)
     isStatusBusy
     rawStatusString
     %rawStatusStringWhenClear
     didSpawnTrackingForGT
+    progressMeter
   end
   properties (Dependent, Hidden)
     labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
@@ -1537,9 +1539,7 @@ classdef Labeler < handle
     end
   end
   
-  %% Ctor/Dtor
   methods 
-  
     function obj = Labeler(varargin)
       [isgui, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
@@ -5773,13 +5773,21 @@ classdef Labeler < handle
       obj.trxFilesAll = obj.trxFilesAllFull;
       obj.trxFilesAllGT = obj.trxFilesAllGTFull;
     end
-    
+
+    function clearProgressMeter(obj) 
+      delete(obj.progressMeter_) ;  % have to explicitly delete b/c listeners typically still hold refs to it
+      obj.progressMeter_ = [] ;      
+    end
+
     function [tfok,tblBig] = hlpTargetsTableUIgetBigTable(obj)
-      wbObj = WaitBarWithCancel('Target Summary Table');
-      centerOnParentFigure(wbObj.hWB,obj.hFig);
-      oc = onCleanup(@()delete(wbObj));      
-      tblBig = obj.trackGetBigLabeledTrackedTable('wbObj',wbObj);
-      tfok = ~wbObj.isCancel;
+      % wbObj = WaitBarWithCancel('Target Summary Table');
+      % centerOnParentFigure(wbObj.hWB,obj.hFig);
+      % oc = onCleanup(@()delete(wbObj));      
+      obj.progressMeter_ = ProgressMeter('title', 'Target Summary Table', 'canCancel', true) ;
+      cleaner = onCleanup(@()(obj.clearProgressMeter())) ;
+      obj.notify('newProgressMeter') ;
+      tblBig = obj.trackGetBigLabeledTrackedTable('wbObj',obj.progressMeter_) ;
+      tfok = ~(obj.progressMeter_.wasCanceled) ;
       % if ~tfok, tblBig indeterminate
     end
 
@@ -5893,7 +5901,7 @@ classdef Labeler < handle
         obj.(PROPS.TIA){i} = trxinfo;
       end
     end
-    
+
     function [trxinfo,tmptrx] = GetTrxInfo(obj,tFileFull,nframes)
       
       trxinfo = struct;
@@ -8632,9 +8640,14 @@ classdef Labeler < handle
       
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,lpos,argsTrx{:},...
                                               'wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        % tblMF (return) indeterminate
-        return
+      if tfWB ,
+%         if wbObj.isCancel
+%           % tblMF (return) indeterminate
+%           return
+%         end
+        if wbObj.wasCanceled ,
+          return
+        end
       end
       
       if useMovNames
@@ -12457,14 +12470,16 @@ classdef Labeler < handle
       tfWB = ~isempty(wbObj);
       
       tblLbled = obj.labelGetMFTableLabeled('wbObj',wbObj);
-      if tfWB && wbObj.isCancel
-        tblBig = [];
-        return;
+      if tfWB ,
+        if wbObj.wasCanceled
+          tblBig = [];
+          return
+        end
       end      
       tblLbled = Labeler.hlpTblLbled(tblLbled);
       
       tblLbled2 = obj.labelGetMFTableLabeled('wbObj',wbObj,'useLabels2',true);
-      if tfWB && wbObj.isCancel
+      if tfWB && wbObj.wasCanceled
         tblBig = [];
         return;
       end
@@ -15844,5 +15859,8 @@ classdef Labeler < handle
       end      
     end  % function
     
+    function result = get.progressMeter(obj) 
+      result = obj.progressMeter_ ;
+    end
   end  % methods
 end  % classdef

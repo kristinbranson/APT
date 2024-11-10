@@ -867,10 +867,16 @@ classdef Labels
   
       nrow = height(tblMF);
       
-      if tfWB
-        wbObj.startPeriod('Compiling labels','shownumden',true,...
-          'denominator',nrow);
-        oc = onCleanup(@()wbObj.endPeriod);
+      if tfWB && nrow>0 ,
+        if isa(wbObj, 'ProgressMeter') ,
+          wbObj.start('message', 'Compiling labels', ...
+                      'denominator',nrow) ;
+          oc = onCleanup(@()(wbObj.finish())) ;          
+        else
+          wbObj.startPeriod('Compiling labels','shownumden',true,...
+                            'denominator',nrow);
+          oc = onCleanup(@()wbObj.endPeriod);
+        end
         wbtime = tic;
         maxwbtime = .1; % update waitbar every second
       end
@@ -921,11 +927,18 @@ classdef Labels
         for jrow = 1:numel(rowsCurr),
           irow = rowsCurr(jrow); % absolute row index into tblMF
           
-          if tfWB && toc(wbtime) >= maxwbtime,
-            wbtime = tic;
-            tfCancel = wbObj.updateFracWithNumDen(nRowsComplete);
-            if tfCancel
-              return;
+          if tfWB && nrow>0 && toc(wbtime) >= maxwbtime,
+            wbtime = tic() ;
+            if isa(wbObj, 'ProgressMeter') ,
+              wbObj.bump(nRowsComplete) ;
+              if wbObj.isCanceled ,
+                return
+              end
+            else
+              tfCancel = wbObj.updateFracWithNumDen(nRowsComplete);
+              if tfCancel
+                return
+              end
             end
           end
           

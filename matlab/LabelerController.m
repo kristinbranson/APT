@@ -4,7 +4,8 @@ classdef LabelerController < handle
     mainFigure_  % the GH to the main figure
     listeners_
     satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
-    %waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
+    waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
+    waitbarListeners_ = event.listener.empty(1,0)
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
@@ -45,8 +46,12 @@ classdef LabelerController < handle
         addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
       obj.listeners_{end+1} = ...
         addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;      
+      obj.listeners_{end+1} = ...
+        addlistener(labeler, 'newProgressMeter', @(source,event)(obj.createWaitbar())) ;      
 %       obj.listeners_{end+1} = ...
-%         addlistener(labeler, 'newProgressMeter', @(source,event)(obj.createNewWaitbar())) ;      
+%         addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
+%       obj.listeners_{end+1} = ...
+%         addlistener(labeler.progressMeter, 'delete', @(source,event)(obj.deleteWaitbar())) ;      
       % Do this once listeners are set up
       obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
@@ -522,50 +527,6 @@ classdef LabelerController < handle
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
     end  % function
     
-%     function createNewWaitbar(obj)
-%       labeler = ob.labeler_ ;
-%       progressMeter = labeler.progressMeter ;
-%       if progressMeter.canCancel ,
-%         args = { 'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar()) } ;
-%       else
-%         args = cell(1,0) ;
-%       end
-%       obj.waitbarFigure_ = waitbar(0, progressMeter.message, ...
-%                                    'Name', progressMeter.title, ...
-%                                    'Visible', 'off', ...
-%                                    args{:}) ;
-%       obj.waitbarFigure_.CloseRequestFcn = @(source,event)(obj.didCloseWaitbar()) ;
-%       obj.listeners_{end+1} = ...
-%         addlistener(progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;
-%       obj.listeners_{end+1} = ...
-%         addlistener(progressMeter, 'done', @(source,event)(obj.deleteWaitbar())) ;
-%     end  % function
-% 
-%     function updateWaitbar(obj)
-%       labeler = obj.labeler_ ;
-%       progressMeter = labeler.progressMeter ;
-%       x = progressMeter.fraction ;
-%       message = progressMeter.message ;
-%       waitbar(x, obj.waitbarFigure_, message) ;
-%     end
-% 
-%     function deleteWaitbar(obj) 
-%       deleteValidHandles(obj.waitbarFigure_) ;
-%       obj.waitbarFigure_ = [] ;
-%     end
-% 
-%     function didCancelWaitbar(obj)
-%       labeler = obj.labeler_ ;
-%       labeler.cancelProgressMeter() ;
-%     end
-%     
-%     function didCloseWaitbar(obj)
-%       labeler = obj.labeler_ ;
-%       labeler.closeProgressMeter() ;
-%     end    
-  end  % public methods block
-
-  methods  % private by convention methods block
     function selectAwsInstance_(obj, varargin)
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
@@ -680,9 +641,7 @@ classdef LabelerController < handle
         %ec2.setInstanceID(instanceID,instanceType);
       end
     end  % function selectAwsInstance_()
-  end  % private by-convention methods block
 
-  methods
     function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked
       % The advantage of passing in the controlName, rather than,
       % say always storing it in the tag of the graphics object, and
@@ -738,7 +697,55 @@ classdef LabelerController < handle
         end
       end
     end  % function
+
+    function createWaitbar(obj)
+      obj.deleteWaitbar() ;  % delete any pre-existing waitbar
+      labeler = obj.labeler_ ;
+      progressMeter = labeler.progressMeter ;
+      if progressMeter.canCancel ,
+        args = { 'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar()) } ;
+      else
+        args = cell(1,0) ;
+      end
+      obj.waitbarFigure_ = waitbar(0, '', ...
+                                   'Name', progressMeter.title, ...
+                                   'Visible', 'off', ...
+                                   args{:}) ;
+      obj.waitbarFigure_.CloseRequestFcn = @(source,event)(obj.didCloseWaitbar()) ;
+      obj.waitbarListeners_(end+1) = ...
+        addlistener(progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;
+      obj.waitbarListeners_(end+1) = ...
+        addlistener(progressMeter, 'willBeDeleted', @(source,event)(obj.deleteWaitbar())) ;
+      centerOnParentFigure(obj.waitbarFigure_, obj.mainFigure_) ;
+    end  % function
+
+    function updateWaitbar(obj)
+      labeler = obj.labeler_ ;
+      progressMeter = labeler.progressMeter ;
+      visibility = onIff(progressMeter.isActive) ;
+      x = progressMeter.fraction ;
+      message = progressMeter.message ;
+      obj.waitbarFigure_.Visible = visibility ;
+      waitbar(x, obj.waitbarFigure_, message) ;
+    end
+
+    function deleteWaitbar(obj)
+      delete(obj.waitbarListeners_) ;
+      obj.waitbarListeners_ = event.listener.empty(1,0) ;
+      deleteValidHandles(obj.waitbarFigure_) ;
+      obj.waitbarFigure_ = gobjects(1,0) ;
+    end
+
+    function didCancelWaitbar(obj)
+      labeler = obj.labeler_ ;
+      progressMeter = labeler.progressMeter ;
+      progressMeter.cancel() ;
+    end
     
-  end  % public methods block
-  
-end
+    function didCloseWaitbar(obj)
+      labeler = obj.labeler_ ;
+      progressMeter = labeler.progressMeter ;
+      progressMeter.close() ;
+    end  % function
+  end  % methods
+end  % classdef
