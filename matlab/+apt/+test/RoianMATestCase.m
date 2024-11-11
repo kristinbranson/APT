@@ -1,4 +1,4 @@
-classdef RoianMAManyNetsTestCase < matlab.unittest.TestCase
+classdef RoianMATestCase < matlab.unittest.TestCase
   methods (Static)
     function result = getSetupParams()
       if strcmp(get_user_name(), 'taylora') ,
@@ -15,6 +15,13 @@ classdef RoianMAManyNetsTestCase < matlab.unittest.TestCase
   end  % methods (Static)
   
   methods (Test)
+    function defaultTrainingTest(obj)
+        testObj = TestAPT('name','roianma');
+        testObj.test_setup('simpleprojload',1);
+        testObj.test_train('net_type',[],'params',-1,'niters',1000);
+        obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;          
+      end  % function
+
     function magroneTest(obj)
       testObj = TestAPT('name','roianma');
       setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
