@@ -315,9 +315,8 @@ classdef LabelerController < handle
         return
       end
       
-      fprintf('Training started at %s...\n',datestr(now));
+      fprintf('Training started at %s...\n',datestr(now()));
       oc1 = onCleanup(@()(labeler.clearStatus()));
-      centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
       labeler.train(...
         'trainArgs',{}, ...
         'do_just_generate_db', do_just_generate_db, ...
