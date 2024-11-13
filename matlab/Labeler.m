@@ -92,8 +92,8 @@ classdef Labeler < handle
     newProject
     projLoaded
     newMovie
-    startAddMovie
-    finishAddMovie
+    %startAddMovie
+    %finishAddMovie
     startSetMovie
       
     % This event is thrown immediately before .currMovie is updated (if 
@@ -3966,7 +3966,7 @@ classdef Labeler < handle
       % moviefile: string or cellstr (can have macros)
       % trxfile: (optional) string or cellstr 
       
-      notify(obj,'startAddMovie');      
+      %notify(obj,'startAddMovie');      
       
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
@@ -4101,7 +4101,7 @@ classdef Labeler < handle
 %         end
       end
       
-      notify(obj,'finishAddMovie');            
+      %notify(obj,'finishAddMovie');            
       
     end
     
@@ -4811,7 +4811,7 @@ classdef Labeler < handle
       end
       
       tfsuccess = true;
-    end
+    end  % function
     
     function tfsuccess = movieSet(obj,iMov,varargin)
         
