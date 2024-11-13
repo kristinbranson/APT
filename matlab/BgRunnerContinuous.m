@@ -87,8 +87,11 @@ classdef BgRunnerContinuous < handle
           % continue
         end
         
-        result = cObj.(cObjMeth)(logger);
-        result.iterations_completed = iterations_completed ;
+        result = cObj.(cObjMeth)(logger);  % this is a row struct, with length equal to the number of views
+        view_count = numel(result) ;
+        for view_index = 1 : view_count ,
+          result(view_index).iterations_completed = iterations_completed ;
+        end
         obj.computeTimes(end+1,1) = toc(tic_id) ;
         dataQueue.send(struct('id',0,'action','','result',{result}));
 %         dataQueue.send(struct('id',data.id,'action',action,'result',result));

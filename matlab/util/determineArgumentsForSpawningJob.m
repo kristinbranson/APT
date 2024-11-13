@@ -22,7 +22,7 @@ switch backend.type
 
     % for printing git status? not sure why this is only in bsub and
     % not others. 
-    aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx);
+    aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
     extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
     singimg = deeptracker.singularityImgPath();
 
