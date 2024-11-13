@@ -205,7 +205,8 @@ classdef TestAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'sam2view')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111.lbl';
         info.exp_dir_base = '';
         info.nviews = 2;
         info.npts = nan;
