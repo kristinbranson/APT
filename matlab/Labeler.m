@@ -94,7 +94,7 @@ classdef Labeler < handle
     newMovie
     %startAddMovie
     %finishAddMovie
-    startSetMovie
+    %startSetMovie
       
     % This event is thrown immediately before .currMovie is updated (if 
     % necessary). Listeners should not rely on the value of .currMovie at
@@ -4815,7 +4815,7 @@ classdef Labeler < handle
     
     function tfsuccess = movieSet(obj,iMov,varargin)
         
-      notify(obj,'startSetMovie')
+      %notify(obj,'startSetMovie')
       % iMov: If multivew, movieSet index (row index into .movieFilesAll)
             
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx

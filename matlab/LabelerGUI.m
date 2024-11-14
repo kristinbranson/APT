@@ -859,7 +859,7 @@ listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_allframes','PostSet'
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
 %listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
 %listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
-listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
+%listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'dataImported',@cbkDataImported);
 listeners{end+1,1} = addlistener(lObj,'didSetShowSkeleton',@cbkShowSkeletonChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoi',@cbkShowMaRoiChanged);
@@ -1896,15 +1896,15 @@ end
 % %     %handles.labelerObj.clearStatus();        
 % % end
 
-function cbkSetMovie(src,evt)
-% lObj=src;
-% handles = lObj.gdata;
-% 
-% if strcmp(evt.EventName,'startSetMovie')
-%     %SetStatus(handles,'Setting first movie',true); 
-% elseif strcmp(evt.EventName,'finishSetMovie')
-%     %handles.labelerObj.clearStatus();        
-% end
+% function cbkSetMovie(src,evt)
+% % lObj=src;
+% % handles = lObj.gdata;
+% % 
+% % if strcmp(evt.EventName,'startSetMovie')
+% %     %SetStatus(handles,'Setting first movie',true); 
+% % elseif strcmp(evt.EventName,'finishSetMovie')
+% %     %handles.labelerObj.clearStatus();        
+% % end
 
 function cbkProjLoaded(src,evt)
 lObj = src;
