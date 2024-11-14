@@ -21,7 +21,7 @@ classdef SamTwoViewTestCase < matlab.unittest.TestCase
       testObj.test_setup(setup_params{:}) ;
       testObj.test_train('backend','bsub');
       obj.verifyEqual(testObj.labeler.tracker.algorithmName, 'mdn_joint_fpn', 'Training was not done with GRONe aka mdn_joint_fpn') ;
-      did_train_enough = (testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
+      did_train_enough = all(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
       obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
       obj.verifyEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is nonempty---it should be empty before tracking') ;
       testObj.test_track('backend','bsub');
@@ -29,8 +29,8 @@ classdef SamTwoViewTestCase < matlab.unittest.TestCase
       obj.verifyClass(testObj.labeler.tracker.trkP, 'TrkFile', 'testObj.labeler.tracker.trkP is not of class TrkFile after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP.pTrk, 'cell', 'testObj.labeler.tracker.trkP.pTrk is not of class cell after tracking') ;
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP.pTrk, 'testObj.labeler.tracker.trkP.pTrk is empty---it should be nonempty after tracking') ;
-      obj.verifySize(testObj.labeler.tracker.trkP.pTrk{10}, [17 2 201], 'After tracking, testObj.labeler.tracker.trkP.pTrk{10} is the wrong size') ;
-      obj.verifyTrue(all(isfinite(testObj.labeler.tracker.trkP.pTrk{10}), 'all'), ...
+      obj.verifySize(testObj.labeler.tracker.trkP.pTrk{1}, [14 2 201], 'After tracking, testObj.labeler.tracker.trkP.pTrk{10} is the wrong size') ;
+      obj.verifyTrue(all(isfinite(testObj.labeler.tracker.trkP.pTrk{1}), 'all'), ...
                      'After tracking, testObj.labeler.tracker.trkP.pTrk{1} has non-finite elements') ;
     end  % function
 

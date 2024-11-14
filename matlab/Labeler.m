@@ -4099,11 +4099,11 @@ classdef Labeler < handle
 %         if ~gt
 %           obj.labeledposMarked{end+1,1} = false(nlblpts,nfrms,nTgt);
 %         end
-      end
+      end  % for iMov = ...
       
       %notify(obj,'finishAddMovie');            
       
-    end
+    end  % function
     
     function movieAddBatchFile(obj,bfile)
       % Read movies from batch file
