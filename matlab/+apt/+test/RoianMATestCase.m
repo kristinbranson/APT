@@ -24,7 +24,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
 
     function magroneTest(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'magrone'}, ...
                         'setup_params',setup_params, ...
                         'backend','bsub');
@@ -33,7 +33,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
 
     function maopenposeTest(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'maopenpose'}, ...
                         'setup_params',setup_params, ...
                         'backend','conda');
@@ -42,7 +42,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     
     function multiCiDTest(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'multi_cid'}, ...
                         'setup_params',setup_params, ...
                         'backend','bsub');
@@ -51,7 +51,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     
     function multiDekrTest(obj)
       testObj = TestAPT('name','roianmammpose1');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'multi_dekr'}, ...
                         'setup_params',setup_params, ...
                         'backend','docker');
@@ -60,7 +60,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     
     function longName1Test(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'ma_top_down_ht_tddht_tdpht'}, ...
                         'setup_params',setup_params, ...
                         'backend','bsub');
@@ -69,7 +69,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     
     function longName2Test(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'ma_top_down_bbox_tddobj_tdpobj'}, ...
                         'setup_params',setup_params, ...
                         'backend','bsub');
@@ -78,7 +78,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     
     function longName3Test(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'ma_top_down_custom_ht_tddht_tdpht'}, ...
                         'setup_params',setup_params, ...
                         'backend','bsub');
@@ -87,7 +87,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     
     function longName4Test(obj)
       testObj = TestAPT('name','roianma');
-      setup_params = apt.test.RoianMAManyNetsTestCase.getSetupParams() ;
+      setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'ma_top_down_custom_bbox_tddobj_tdpobj'}, ...
                         'setup_params',setup_params, ...
                         'backend','bsub');
