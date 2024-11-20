@@ -3415,7 +3415,7 @@ def classify_db_stage(args,view,view_ndx,db_file):
 
 def classify_list_file(args, view, view_ndx=0, conf_raw=None):
     
-    # This is obsolete. Use db_classify_all with the list file. MK 20230511
+    # This is obsolete. Use classify_db_all with the list file. MK 20230511
 
     # ivw is the index into movieFiles, trxFiles. It corresponds to view, but
     # perhaps not absolute view. E.g. if view 1 is the only view being tracked in

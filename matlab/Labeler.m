@@ -11186,7 +11186,9 @@ classdef Labeler < handle
       sPrm.ROOT.Track.NFramesSmall = obj.trackNFramesSmall;
       sPrm.ROOT.Track.NFramesLarge = obj.trackNFramesLarge;
       sPrm.ROOT.Track.NFramesNeighborhood = obj.trackNFramesNear;      
-      sPrm.ROOT.MultiAnimal.multi_crop_im_sz = obj.get_ma_crop_sz;
+      if obj.maIsMA ,
+        sPrm.ROOT.MultiAnimal.multi_crop_im_sz = obj.get_ma_crop_sz() ;
+      end
 
 %       if getall,
 %         sPrm = obj.addExtraParams(sPrm);
@@ -11489,6 +11491,7 @@ classdef Labeler < handle
 
       % which movies are we tracking?
       [movidx,~,newmov] = unique(tblMFT.mov);
+      %movidx_old = movidx ;
       movidx_new = [];
       for ndx = 1:numel(movidx)
         mn = movidx.get();
@@ -11509,12 +11512,14 @@ classdef Labeler < handle
       end
 
       % Get crop ROIs
+      movieset_count = size(movfiles,1) ;
       if obj.cropProjHasCrops,
         cropInfo = obj.getMovieFilesAllCropInfoGTAware();
-        croprois = cell([numel(movfiles),obj.nview]);
-        for i = 1:numel(movfiles),
+        croprois = cell([movieset_count,obj.nview]);
+        for i = 1:movieset_count,
+          cropInfoThisMovie = cropInfo{movidx(i)} ;
           for j = 1:obj.nview,
-            croprois{i,j} = cropInfo{movidx(i)}(j).roi;
+            croprois{i,j} = cropInfoThisMovie(j).roi;
           end
         end
       else

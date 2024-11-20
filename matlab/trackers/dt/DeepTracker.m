@@ -4590,8 +4590,8 @@ classdef DeepTracker < LabelTracker
         if rawload
           trkfileObj = load(tfile,'-mat');
         else
-          trkfileObj = TrkFile.loadsilent(tfile,'movfile',movfile,...
-            'movnframes',movnframes);
+          trkfileObj = TrkFile.load(tfile,'issilent',true,'movfile',movfile,...
+                                    'movnframes',movnframes);
         end
         tfsuccload = true;
       catch ME
@@ -4909,7 +4909,7 @@ classdef DeepTracker < LabelTracker
       
       [tf,tpdir] = obj.trainPackExists();
       if tf
-        warningNoTrace('Clearning training package image cache.');
+        warningNoTrace('Clearing training package image cache.');
         TrnPack.clearims(tpdir);
       end
     end

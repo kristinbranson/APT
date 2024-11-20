@@ -1424,9 +1424,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       obj.isRemote_ = false ;
     end
     
-    function [tf,tpdir,idx] = trnPackExists(obj,varargin)
+    function [tf,tpdir] = trnPackExists(obj,varargin)
       % Training package exists
-      [trainLocLnx,idx] = obj.trainLocLnx(varargin{:});
+      trainLocLnx = obj.trainLocLnx(varargin{:});
       tpdir = obj.dirProjLnx;
       tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
     end

@@ -26,8 +26,8 @@ def test_whatever() :
     script_folder_path = os.path.dirname(this_script_path)
     #project_folder_path = os.path.dirname(os.path.dirname(script_folder_path))  # e.g. /groups/branson/bransonlab/taylora/apt-refactoring
 
-    read_only_folder_path = os.path.join("/groups/branson/bransonlab/taylora/apt/apt-interface-repro-folders/carmen-gt-repro-read-only")
-    working_folder_path = os.path.join("/groups/branson/bransonlab/taylora/apt/apt-interface-repro-folders/carmen-gt-repro")
+    read_only_folder_path = os.path.join("/groups/branson/bransonlab/taylora/apt/apt-interface-repro-folders/carmen-gt-repro-missing-to-track-read-only")
+    working_folder_path = os.path.join("/groups/branson/bransonlab/taylora/apt/apt-interface-repro-folders/carmen-gt-repro-missing-to-track")
 
     #logging.warning('Point 1')
 
@@ -60,13 +60,27 @@ def test_whatever() :
              '-name', '20241101T143557', 
              '-type', 'mdn_joint_fpn',
              '-model_files', os.path.join(working_folder_path, 'test1/mdn_joint_fpn/view_0/20241101T143557/deepnet-1000'), 
-             '-ignore_local', '0', 
+             '-ignore_local', '1', 
              '-cache', working_folder_path,
              'track', 
-             '-config_file', os.path.join(working_folder_path, 'test1/mdn_joint_fpn/view_0/20241101T143557/trk/trkconfig_run010_pez3002_20190729_expt0204000004301139_vid0015_890796_trn20241101T143557_view0_iter1000_20241104T155906.json'),
-             '-list_file', os.path.join(working_folder_path, 'TrackList_20241101T143557_20241104T155906.json'), 
-             '-out', os.path.join(working_folder_path, 'preds_20241101T143557_20241104T155906_view1.mat')])
+             '-config_file', os.path.join(working_folder_path, 'test1/mdn_joint_fpn/view_0/20241101T143557/trk/trkconfig_run010_pez3002_20190729_expt0204000004301139_vid0015_890796_trn20241101T143557_view0_iter1000_20241120T142054.json'),
+             '-list_file', os.path.join(working_folder_path, 'TrackList_20241101T143557_20241120T142054.json'), 
+             '-out', os.path.join(working_folder_path, 'preds_20241101T143557_20241120T142054_view1.mat')])
 
+
+# python 
+#   /groups/branson/bransonlab/taylora/apt/apt-backup-model-2/deepnet/APT_interface.py 
+#     /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79/test1/20241101T143557_20241101T143557.json 
+#     -name 20241101T143557 
+#     -err_file /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79/test1/mdn_joint_fpn/view_0/20241101T143557/trk/track_20241120T142054_list.err 
+#     -type mdn_joint_fpn 
+#     -model_files /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79/test1/mdn_joint_fpn/view_0/20241101T143557/deepnet-1000 
+#     -ignore_local 1 
+#     -cache /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79 
+#     track 
+#     -config_file /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79/test1/mdn_joint_fpn/view_0/20241101T143557/trk/trkconfig_run010_pez3002_20190729_expt0204000004301139_vid0015_890796_trn20241101T143557_view0_iter1000_20241120T142054.json 
+#     -list_file /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79/TrackList_20241101T143557_20241120T142054.json 
+#     -out /groups/branson/bransonlab/taylora/.apt/tpa0ff09c7_91d6_4dd1_9d10_1f7f794afa79/preds_20241101T143557_20241120T142054_view1.mat
 
 
 # python /groups/branson/bransonlab/taylora/apt/apt-backup-model-2/deepnet/APT_interface.py 

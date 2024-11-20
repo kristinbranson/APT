@@ -399,7 +399,10 @@ classdef LabelerController < handle
                 'aggLabel','Max' ...
                 );
       
-      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);
+      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);  
+        % t.L2err, for a single-view project, seems to be 
+        % ground-truth-frame-count x target-count x keypoint-count 
+        %   -- ALT, 2024-11-19
       % KB 20181022: Changed colors to match sets instead of points
       clrs =  labeler.LabelPointColors;
       nclrs = size(clrs,1);
@@ -429,7 +432,6 @@ classdef LabelerController < handle
         lpos = squeeze(lpos(1,:));
       end
       lpos = reshape(lpos,npts,2);
-%       [tf,lpos] = obj.labelPosIsLabeled(t.frm(1),t.iTgt(1),'iMov',abs(t.mov(1)),'gtmode',true);
       allims = cell(1,nviews);
       allpos = zeros([nphyspt,2,nviews]);
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
@@ -460,7 +462,6 @@ classdef LabelerController < handle
       fig_1 = figure('Name','GT err percentiles');
       obj.satellites_(1,end+1) = fig_1 ;
       plotPercentileHist(allims,prcs,allpos,prc_vals,fig_1,txtOffset)
-%%      
 
       % Err by landmark
       fig_2 = figure('Name','GT err by landmark');
@@ -491,17 +492,23 @@ classdef LabelerController < handle
       fig_3 = figurecascaded(fig_2,'Name',tstr);
       obj.satellites_(1,end+1) = fig_3 ;
       ax = axes(fig_3);
-      [iMovAbs,gt] = t.mov.get;
+      [iMovAbs,gt] = t.mov.get();
       assert(all(gt));
       grp = categorical(iMovAbs);
       grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
         categories(grp),countcats(grp),'uni',0);
-      taggerr = t.aggOverPtsL2err;
-      if ndims(taggerr)==3
-        taggerr = permute(taggerr,[1,3,2]);
+      rawtaggerr = t.aggOverPtsL2err;
+      if ndims(rawtaggerr)==3
+        taggerr = permute(rawtaggerr,[1,3,2]);
+      else
+        taggerr = rawtaggerr ;
       end
-      boxplot(taggerr,grp,'colors',clrs,'boxstyle','filled',...
-        'labels',grplbls);
+      boxplot(ax, ...
+              taggerr,...
+              grp,...
+              'colors',clrs,...
+              'boxstyle','filled',...
+              'labels',grplbls);
       args = {'fontweight' 'bold' 'interpreter' 'none'};
       xlabel(ax,'Movie',args{:});
       ylabel(ax,'L2 err (px)',args{:});

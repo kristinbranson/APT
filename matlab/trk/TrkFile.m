@@ -51,7 +51,7 @@ classdef TrkFile < dynamicprops
   end
   properties (Dependent)
     ntracklets
-    ntlts
+    %ntlts  % Wasn't used anywhere
   end
   
   methods 
@@ -59,9 +59,9 @@ classdef TrkFile < dynamicprops
 %       % assumes at least one tracklet...
 %       v = size(obj.pTrk{1},1);
 %     end
-    function v = get.ntlts(obj)
-      v = obj.ntracklets;
-    end
+%     function v = get.ntlts(obj)
+%       v = obj.ntracklets;
+%     end
     function v = get.ntracklets(obj)
       if obj.isfull
         v = size(obj.pTrk,4);
@@ -340,10 +340,19 @@ classdef TrkFile < dynamicprops
       %
       % Note: init* methods do not clear old state that is already set
       % 
-      % this API is strange s and the pvs
+      % this API is strange s and the pvs  
+      %   -- This comment is strange.  --ALT, 2024-11-20
 
       assert(isstruct(s));
-      
+      if ~isfield(s, 'pred_locs') ,
+        s  %#ok<NOPRT> 
+        error('s lacks pred_locs field') ;
+      end
+      if ~isfield(s, 'toTrack') ,
+        s  %#ok<NOPRT> 
+        error('s lacks toTrack field') ;
+      end
+
       nArg = numel(varargin);
       for i=1:2:nArg
         prop = varargin{i};
@@ -708,7 +717,7 @@ classdef TrkFile < dynamicprops
 %         return;        
 %       end        
         
-      s = TrkFile.modernizeStruct(s,filetype);      
+      s = TrkFile.modernizeStruct(s);      
       trkfileObj = TrkFile();
       switch filetype,
         case 'tracklet'
@@ -750,14 +759,16 @@ classdef TrkFile < dynamicprops
           end
         case 'sparse',
           trkfileObj.initFromSparse(s);
-      end
-    end
+        otherwise ,
+          error('Internal error: filetype is not a known value') ;
+      end  % switch
+    end  % function
     
-    function trkfileObj = loadsilent(filename,varargin)
-      trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
-    end
+%     function trkfileObj = loadsilent(filename,varargin)
+%       trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
+%     end
     
-    function s = modernizeStruct(s,filetype)
+    function s = modernizeStruct(s)
       if isfield(s,'pred_conf'),
         s = rmfield(s,'pred_conf');
       end
@@ -1516,6 +1527,7 @@ classdef TrkFile < dynamicprops
       grid on;
     end
   end
+
   methods (Static)
     function v = isAliveHelper(xy)
       nd = ndims(xy);      
@@ -1989,7 +2001,7 @@ classdef TrkFile < dynamicprops
         end
       end
     end
-  end
+  end  % methods
   
   methods (Static)
     

@@ -122,7 +122,8 @@ classdef TestAPT < handle
         info.op_graph = [1 3; 1 2; 3 17; 2 12; 3 4; 4 10; 10 11; 11 16; 10 6; 8 6; 5 8; 8 9; 9 13;6 14;6 15; 6 7];
 
       elseif strcmp(name,'stephen')
-        info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/huston-lab-data-wrangling/sh_test_lbl_20200310_modded_resaved_tweaked.lbl' ;
         info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
         info.nviews = 2;
         info.npts = 5;
@@ -194,7 +195,7 @@ classdef TestAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'argroneSA')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -540,12 +541,12 @@ classdef TestAPT < handle
     function setup_alg_(obj,alg)
       % Set the algorithm.
 
-      labeller = obj.labeler;
+      labeler = obj.labeler;
 
       if isnumeric(alg)
         trackerIndex = alg;
       else
-        algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), labeller.trackersAll, 'UniformOutput', false) ;
+        algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), labeler.trackersAll, 'UniformOutput', false) ;
         matchingIndices = find(strcmp(alg, algorithmNameFromTrackerIndex)) ;
         if isempty(matchingIndices) ,
           error('No algorithm named %s among the available trackers', alg) ;
@@ -564,7 +565,7 @@ classdef TestAPT < handle
 %         end
       end
       assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-      labeller.trackSetCurrentTracker(trackerIndex);
+      labeler.trackSetCurrentTracker(trackerIndex);
     end  % function
     
     function set_params_base_(obj, has_trx, dl_steps, manual_radius, batch_size)

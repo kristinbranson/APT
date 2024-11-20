@@ -157,6 +157,14 @@
             "justMyCode": false
         },
         {
+            "name": "test_grone_gt_on_carmen_missing_to_track.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen_missing_to_track.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
             "name": "test_grone_tracking_on_sam2view.py",
             "type": "debugpy",
             "request": "launch",
