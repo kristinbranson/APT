@@ -395,18 +395,20 @@ classdef LabelerController < handle
 
       [fcnAggOverPts,aggLabel] = ...
         myparse(varargin,...
-                'fcnAggOverPts',@(x)max(x,[],2), ... % or eg @mean
+                'fcnAggOverPts',@(x)max(x,[],ndims(x)), ... % or eg @mean
                 'aggLabel','Max' ...
                 );
       
-      t.aggOverPtsL2err = fcnAggOverPts(t.L2err);  
-        % t.L2err, for a single-view project, seems to be 
-        % ground-truth-frame-count x target-count x keypoint-count 
+      l2err = t.L2err;  % For single-view MA, nframes x nanimals x npts.  For single-view SA, nframes x npts
+      aggOverPtsL2err = fcnAggOverPts(l2err);  
+        % t.L2err, for a single-view MA project, seems to be 
+        % ground-truth-frame-count x animal-count x keypoint-count, and
+        % aggOverPtsL2err is ground-truth-frame-count x animal-count.
         %   -- ALT, 2024-11-19
       % KB 20181022: Changed colors to match sets instead of points
       clrs =  labeler.LabelPointColors;
       nclrs = size(clrs,1);
-      lsz = size(t.L2err);
+      lsz = size(l2err);
       npts = lsz(end);
       assert(npts==labeler.nLabelPoints);
       if nclrs~=npts
@@ -414,16 +416,18 @@ classdef LabelerController < handle
           'Number of colors do not match number of points.');
       end
 
-      l2err = t.L2err;
       if ndims(l2err) == 3
-        l2err = reshape(l2err,[],npts);
-        valid = ~all(isnan(l2err),2);
-        l2err = l2err(valid,:);
+        l2err_reshaped = reshape(l2err,[],npts);  % For single-view MA, (nframes*nanimals) x npts
+        valid = ~all(isnan(l2err_reshaped),2);
+        l2err_filtered = l2err_reshaped(valid,:);  % For single-view MA, nvalidanimalframes x npts
+      else        
+        % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
+        l2err_filtered = l2err ;
       end
       nviews = labeler.nview;
       nphyspt = npts/nviews;
       prc_vals = [50,75,90,95,98];
-      prcs = prctile(l2err,prc_vals,1);
+      prcs = prctile(l2err_filtered,prc_vals,1);
       prcs = reshape(prcs,[],nphyspt,nviews);
       lpos = t(1,:).pLbl;
       if ndims(lpos)==3
@@ -456,8 +460,7 @@ classdef LabelerController < handle
         curl(:,2) = curl(:,2)-ylim(1);
         allpos(:,:,view) = curl;
         allims{view} = im;
-
-      end
+      end  % for
       
       fig_1 = figure('Name','GT err percentiles');
       obj.satellites_(1,end+1) = fig_1 ;
@@ -467,7 +470,7 @@ classdef LabelerController < handle
       fig_2 = figure('Name','GT err by landmark');
       obj.satellites_(1,end+1) = fig_2 ;
       ax = axes(fig_2) ;
-      boxplot(l2err,'colors',clrs,'boxstyle','filled');
+      boxplot(ax,l2err_filtered,'colors',clrs,'boxstyle','filled');
       args = {'fontweight' 'bold' 'interpreter' 'none'};
       xlabel(ax,'Landmark/point',args{:});
       if nviews>1
@@ -492,20 +495,28 @@ classdef LabelerController < handle
       fig_3 = figurecascaded(fig_2,'Name',tstr);
       obj.satellites_(1,end+1) = fig_3 ;
       ax = axes(fig_3);
-      [iMovAbs,gt] = t.mov.get();
+      [iMovAbs,gt] = t.mov.get();  % both outputs are nframes x 1
       assert(all(gt));
       grp = categorical(iMovAbs);
-      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
-        categories(grp),countcats(grp),'uni',0);
-      rawtaggerr = t.aggOverPtsL2err;
-      if ndims(rawtaggerr)==3
-        taggerr = permute(rawtaggerr,[1,3,2]);
+      if ndims(aggOverPtsL2err)==3
+        taggerr = permute(aggOverPtsL2err,[1,3,2]);
       else
-        taggerr = rawtaggerr ;
+        taggerr = aggOverPtsL2err ;
       end
+      % expand out grp to match elements of taggerr 1-to-1
+      assert(isequal(size(taggerr,1), size(grp,1))) ;
+      taggerr_shape = size(taggerr) ;
+      biggrp = repmat(grp, [1 taggerr_shape(2:end)]) ;
+      assert(isequal(size(taggerr), size(biggrp))) ;
+      % columnize
+      taggerr_column = taggerr(:) ;
+      grp_column = biggrp(:) ;
+      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
+                         categories(grp_column),countcats(grp_column),...
+                         'UniformOutput',false);
       boxplot(ax, ...
-              taggerr,...
-              grp,...
+              taggerr_column,...
+              grp_column,...
               'colors',clrs,...
               'boxstyle','filled',...
               'labels',grplbls);

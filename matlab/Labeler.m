@@ -9998,7 +9998,7 @@ classdef Labeler < handle
     end  % function
 
     function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
-        tblTrkRes,varargin)
+                                                    tblTrkRes,varargin)
       % Compute GT performance 
       % 
       % tblMFT_SuggAndLbled: MFTable, no shape/label field (eg .p or
@@ -10037,7 +10037,7 @@ classdef Labeler < handle
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled,'isma',obj.maIsMA,'maxanimals',maxn);
 
       if obj.maIsMA
-        err = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled);
+        err = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled);  % nframes x nanimals x nkeypoints
       else
         pTrk = tblTrkRes.pTrk; % absolute coords
         pLbl = tblMFT_SuggAndLbled.p; % absolute coords
@@ -10054,7 +10054,7 @@ classdef Labeler < handle
         err(tflblinf) = nan; % treat fully-occ err as nan here
       end
 
-      muerr = mean(err,ndims(err),'omitnan'); % and ignore in meanL2err
+      muerr = mean(err,ndims(err),'omitnan'); % and ignore in meanL2err  % in MA case, will be nframes x nanimals
           
       % ctab for occlusion pred
 %       % this is not adding value yet

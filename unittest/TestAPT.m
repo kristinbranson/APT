@@ -218,7 +218,8 @@ classdef TestAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'roianma2')
-        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
