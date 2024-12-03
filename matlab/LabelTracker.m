@@ -391,9 +391,8 @@ classdef LabelTracker < handle
       plistcodes = {plist.code}';
       % tfaux = any(strcmp(prop.code,plistcodes)) ;  
       tfaux = any(strcmp(prop.code,plistcodes)) && ~isempty(auxlbl) ;  
-        % MKCHECK: Added the ~isempty() check above b/c the lack of it was causing
-        % occasional errors.  Does this seem like a reasonable way of handling this?
-        % -- ALT, 2024-11-07
+        % Added the ~isempty() check above b/c the lack of it was causing
+        % occasional errors.  -- ALT, 2024-11-07
       if tfaux
         % 20220919: appears auxiliary props won't ever need bodytrx
         

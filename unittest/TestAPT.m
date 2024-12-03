@@ -228,6 +228,19 @@ classdef TestAPT < handle
         info.sz = 250 ; % dont set this to empty even if it is not used
         info.bundle_link = '';
         info.op_graph = [];           
+
+      elseif strcmp(name,'roianma2mmpose1')
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added-mmpose1.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'roianma2-mmpose1-test';
+        info.sz = 250 ; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];           
+
       else
         error('Unrecognized test name');
       end
