@@ -27,7 +27,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
       setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'magrone'}, ...
                         'setup_params',setup_params, ...
-                        'backend','bsub');
+                        'backend','conda');
       obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;
     end  % function
 
@@ -36,7 +36,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
       setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_full('nets',{'maopenpose'}, ...
                         'setup_params',setup_params, ...
-                        'backend','conda');
+                        'backend','bsub');
       obj.verifyTrue(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;
     end  % function
     
