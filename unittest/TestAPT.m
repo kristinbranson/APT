@@ -241,6 +241,18 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];           
 
+      elseif strcmp(name,'roianma2withrois')
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-and-rois-added.lbl';
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'roianma2-with-rois-test';
+        info.sz = 250 ; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];           
+
       else
         error('Unrecognized test name');
       end
@@ -559,27 +571,12 @@ classdef TestAPT < handle
 
       if isnumeric(alg)
         trackerIndex = alg;
+        assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
+        labeler.trackSetCurrentTracker(trackerIndex);
       else
-        algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), labeler.trackersAll, 'UniformOutput', false) ;
-        matchingIndices = find(strcmp(alg, algorithmNameFromTrackerIndex)) ;
-        if isempty(matchingIndices) ,
-          error('No algorithm named %s among the available trackers', alg) ;
-        elseif isscalar(matchingIndices) ,
-          % all is well
-        else
-          error('Internal error: More than one algorithm named %s among the available trackers', alg) ;
-        end
-        trackerIndex = matchingIndices ;
-%         nalgs = numel(labeller.trackersAll);
-%         trackerIndex = 0;
-%         for ix = 1:nalgs
-%           if strcmp(labeller.trackersAll{ix}.algorithmName,alg)
-%             trackerIndex = ix;
-%           end
-%         end
+        algName = alg ;
+        labeler.trackSetCurrentTrackerByName(algName) ;
       end
-      assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-      labeler.trackSetCurrentTracker(trackerIndex);
     end  % function
     
     function set_params_base_(obj, has_trx, dl_steps, manual_radius, batch_size)

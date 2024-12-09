@@ -29,9 +29,9 @@ classdef ARGRONeSATestCase < matlab.unittest.TestCase
       obj.verifyClass(testObj.labeler.tracker.trkP, 'TrkFile', 'testObj.labeler.tracker.trkP is not of class TrkFile after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP.pTrk, 'cell', 'testObj.labeler.tracker.trkP.pTrk is not of class cell after tracking') ;
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP.pTrk, 'testObj.labeler.tracker.trkP.pTrk is empty---it should be nonempty after tracking') ;
-      obj.verifySize(testObj.labeler.tracker.trkP.pTrk{3}, [17 2 181], 'After tracking, testObj.labeler.tracker.trkP.pTrk{10} is the wrong size') ;
+      obj.verifySize(testObj.labeler.tracker.trkP.pTrk{3}, [17 2 181], 'After tracking, testObj.labeler.tracker.trkP.pTrk{3} is the wrong size') ;
       obj.verifyTrue(all(isfinite(testObj.labeler.tracker.trkP.pTrk{3}), 'all'), ...
-                     'After tracking, testObj.labeler.tracker.trkP.pTrk{10} has non-finite elements') ;
+                     'After tracking, testObj.labeler.tracker.trkP.pTrk{3} has non-finite elements') ;
     end  % function
 
 %     function trackingTest(obj)

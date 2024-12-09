@@ -11013,7 +11013,24 @@ classdef Labeler < handle
       end
       obj.labelingInit('labelMode',obj.labelMode);
     end  % function
-    
+
+    function trackSetCurrentTrackerByName(obj, algoName, do_use_previous_if_custom_top_down)
+      if ~exist('do_use_previous_if_custom_top_down', 'var') || isempty(do_use_previous_if_custom_top_down) ,
+        do_use_previous_if_custom_top_down = [] ;
+      end
+      algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), obj.trackersAll, 'UniformOutput', false) ;
+      matchingIndices = find(strcmp(algoName, algorithmNameFromTrackerIndex)) ;
+      if isempty(matchingIndices) ,
+        error('No algorithm named %s among the available trackers', algoName) ;
+      elseif isscalar(matchingIndices) ,
+        % all is well
+      else
+        error('Internal error: More than one algorithm named %s among the available trackers', algoName) ;
+      end
+      trackerIndex = matchingIndices ;
+      obj.trackSetCurrentTracker(trackerIndex, do_use_previous_if_custom_top_down)
+    end  % function
+
     function sPrm = setTrackNFramesParams(obj,sPrm)
       obj.trackNFramesSmall = sPrm.ROOT.Track.NFramesSmall;
       obj.trackNFramesLarge = sPrm.ROOT.Track.NFramesLarge;
@@ -11199,7 +11216,12 @@ classdef Labeler < handle
       be = obj.trackDLBackEnd;
     end
     
-    function trackSetDLBackendType(obj, type)
+    function trackSetDLBackendType(obj, type_or_string)
+      if ischar(type_or_string) ,
+        type = DLBackEndFromString(type_or_string) ;
+      else
+        type = type_or_string ;
+      end
       assert(isa(type,'DLBackEnd'));      
       obj.trackDLBackEnd.type = type ;
       [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
