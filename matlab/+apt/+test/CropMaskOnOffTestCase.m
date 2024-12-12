@@ -13,12 +13,12 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
     end  % function
   end  % methods (Static)
   
-  methods (Test)
-    function cropOffMaskOffTest(obj)
-      % ALTTODO: This works, and passes, but note that I don't turn off cropping or masking yet!
+  methods  
+    function cropMaskOnOffTest_(obj, doCrop, doMask)
+      % Helper method, not itself a test method
       setup_params = apt.test.CropMaskOnOffTestCase.getSetupParams() ;
       [labeler, controller] = ...
-        StartAPT('projfile', '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-and-rois-added.lbl');
+        StartAPT('projfile', '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-and-rois-added-and-fewer-movies.lbl');
       cleaner = onCleanup(@()(delete(controller))) ;  % this will delete labeler too
 
       % Set the algo
@@ -33,8 +33,9 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
       labeler.set_backend_property('jrcAdditionalBsubArgs', setup_params.jrcAdditionalBsubArgs) ;
 
       % Modify the training parameters
-      original_training_params = labeler.trackGetParams();      
-      new_training_params = struct('dl_steps', {1000}) ;  % scalar struct
+      original_training_params = labeler.trackGetParams();
+      iterationCount = 200 ;
+      new_training_params = struct('dl_steps', {iterationCount}, 'multi_crop_ims', {doCrop}, 'multi_loss_mask', {doMask}) ;  % scalar struct
       training_params = structsetleaf(original_training_params, ...
                                       new_training_params, ...
                                       'verbose', true) ;
@@ -55,7 +56,33 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
       % blocking done
 
       % Do verification
-      obj.verifyTrue(labeler.tracker.trnLastDMC.iterCurr>=1000, 'Failed to complete all training iterations') ;
+      obj.verifyTrue(labeler.tracker.trnLastDMC.iterCurr>=iterationCount, 'Failed to complete all training iterations') ;
+    end  % function    
+  end
+
+  methods (Test)
+    function cropOffMaskOffTest(obj)
+      doCrop = 0 ;
+      doMask = 0 ;
+      obj.cropMaskOnOffTest_(doCrop, doMask) ;
+    end  % function    
+
+    function cropOnMaskOffTest(obj)
+      doCrop = 1 ;
+      doMask = 0 ;
+      obj.cropMaskOnOffTest_(doCrop, doMask) ;
+    end  % function    
+
+    function cropOnMaskOnTest(obj)
+      doCrop = 1 ;
+      doMask = 1 ;
+      obj.cropMaskOnOffTest_(doCrop, doMask) ;
+    end  % function    
+
+    function cropOffMaskOnTest(obj)
+      doCrop = 0 ;
+      doMask = 1 ;
+      obj.cropMaskOnOffTest_(doCrop, doMask) ;
     end  % function    
   end  % methods (Test)
 end  % classdef
