@@ -18,7 +18,7 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
       % Helper method, not itself a test method
       setup_params = apt.test.CropMaskOnOffTestCase.getSetupParams() ;
       [labeler, controller] = ...
-        StartAPT('projfile', '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-and-rois-added-and-fewer-movies.lbl');
+        StartAPT('projfile', '/home/taylora@hhmi.org/apt/four-points/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl');
       cleaner = onCleanup(@()(delete(controller))) ;  % this will delete labeler too
 
       % Set the algo
