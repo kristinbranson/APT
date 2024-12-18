@@ -4453,7 +4453,7 @@ classdef DeepTracker < LabelTracker
       for i=1:nMov
         mIdxI = mIdx(i);
         trkfilesI = obj.trackResGetTrkfiles(mIdxI);
-        movfile = lObj.getMovieFilesAllFullMovIdx(mIdxI);
+        movfile = getMovieFilesAllFullMovIdx(lObj,mIdxI);
         movnframes = lObj.getNFramesMovIdx(mIdxI);
         ntrk = size(trkfilesI,1);
         

@@ -769,7 +769,7 @@ classdef InfoTimeline < handle
     end
     function tfSucc = addCustomFeature(obj)
       tfSucc = false;
-      movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
+      movfile = getMovieFilesAllFullMovIdx(obj.lObj,obj.lObj.currMovIdx);
       defaultpath = fileparts(movfile{1});
       [f,p] = uigetfile('*.mat','Select .mat file with a feature value for each frame for current movie',defaultpath);
       if ~ischar(f),

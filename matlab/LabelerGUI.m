@@ -3276,6 +3276,7 @@ set(labelTLInfo.lObj.gdata.pumInfo_labels,'String',proptypes);
 function cbkFreezePrevAxesToMainWindow(src,evt)
 handles = guidata(src);
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);
+
 function cbkUnfreezePrevAxes(src,evt)
 handles = guidata(src);
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);

@@ -19,17 +19,17 @@ classdef ARGRONeSATestCase < matlab.unittest.TestCase
       testObj = TestAPT('name','argroneSA');
       setup_params = apt.test.ARGRONeSATestCase.getSetupParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_train('backend','bsub');
+      testObj.test_train('backend','conda');
       obj.verifyEqual(testObj.labeler.tracker.algorithmName, 'mdn_joint_fpn', 'Training was not done with GRONe aka mdn_joint_fpn') ;
       did_train_enough = (testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
       obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
       obj.verifyEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is nonempty---it should be empty before tracking') ;
-      testObj.test_track('backend','bsub');
+      testObj.test_track('backend','conda');
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is empty---it should be nonempty after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP, 'TrkFile', 'testObj.labeler.tracker.trkP is not of class TrkFile after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP.pTrk, 'cell', 'testObj.labeler.tracker.trkP.pTrk is not of class cell after tracking') ;
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP.pTrk, 'testObj.labeler.tracker.trkP.pTrk is empty---it should be nonempty after tracking') ;
-      obj.verifySize(testObj.labeler.tracker.trkP.pTrk{3}, [17 2 181], 'After tracking, testObj.labeler.tracker.trkP.pTrk{3} is the wrong size') ;
+      obj.verifySize(testObj.labeler.tracker.trkP.pTrk{3}, [17 2 201], 'After tracking, testObj.labeler.tracker.trkP.pTrk{3} is the wrong size') ;
       obj.verifyTrue(all(isfinite(testObj.labeler.tracker.trkP.pTrk{3}), 'all'), ...
                      'After tracking, testObj.labeler.tracker.trkP.pTrk{3} has non-finite elements') ;
     end  % function

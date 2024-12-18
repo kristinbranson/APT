@@ -93,8 +93,8 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         if lObj.currMovIdx==mIdx
           mr = lObj.movieReader(IVIEW);
         else
-          mr = MovieReader;
-          lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
+          mr = MovieReader();
+          mr.openForLabeler(lObj,mIdx,IVIEW);
         end
         [im,~,imroi] = mr.readframe(frm,'docrop',true);
         imxdata = imroi([1 2]);
