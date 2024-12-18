@@ -441,7 +441,7 @@ classdef LabelerController < handle
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
       for view = 1:nviews
         curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
-        [im,isrotated,~,~,A] = labelerGetTargetIm(labeler,t.mov(1),t.frm(1),t.iTgt(1),view);
+        [im,isrotated,~,~,A] = labeler.readTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),view);
         if isrotated
           curl = [curl,ones(nphyspt,1)]*A;
           curl = curl(:,1:2);

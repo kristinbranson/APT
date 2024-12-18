@@ -2582,7 +2582,7 @@ classdef Labeler < handle
       
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
-      [~,prevModeInfo] = fixPrevModeInfo(obj, pamode,s.cfg.PrevAxes.ModeInfo);      
+      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
       obj.setPrevAxesMode(pamode,prevModeInfo);
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
@@ -5537,6 +5537,26 @@ classdef Labeler < handle
     %   end      
     % end
     
+    function v = getMovieFilesAllFullMovIdx(obj, mIdx)
+      % mIdx: MovieIndex vector
+      % v: [numel(mIdx)xnview] movieFilesAllFull/GT 
+      % Does not mutate obj.
+      
+      assert(isa(mIdx,'MovieIndex'));
+      [iMov,gt] = mIdx.get();
+      n = numel(iMov);
+      v = cell(n,obj.nview);
+      mfaf = obj.movieFilesAllFull;
+      mfafGT = obj.movieFilesAllGTFull;
+      for i=1:n
+        if gt(i)
+          v(i,:) = mfafGT(iMov(i),:);
+        else
+          v(i,:) = mfaf(iMov(i),:);
+        end
+      end
+    end
+    
     function movieSetMovieReadPreLoadMovies(obj,tf)
       tf0 = obj.movieReadPreLoadMovies;
       if tf0~=tf && (obj.nmovies>0 || obj.nmoviesGT>0)        
@@ -6195,7 +6215,7 @@ classdef Labeler < handle
     function labelingInitTemplate(obj)
       % Call .lblCore.setTemplate based on a labeled frame in the proj
       % Uses .trx as appropriate
-      [tffound,iMov,frm,iTgt,xyLbl] = labelFindOneLabeledFrameEarliest(obj);
+      [tffound,iMov,frm,iTgt,xyLbl] = obj.labelFindOneLabeledFrameEarliest();
       if tffound
         if obj.hasTrx
           trxfname = obj.trxFilesAllFullGTaware{iMov};
@@ -6213,6 +6233,17 @@ classdef Labeler < handle
         obj.lblCore.setRandomTemplate();
       end
     end
+    
+    function [tffound,iMov,frm,iTgt,xyLbl,mints] = labelFindOneLabeledFrameEarliest(obj)
+      % Look only in labeledposGTaware, and look for the earliest labeled 
+      % frame.  Does not mutate obj.      
+      if obj.gtIsGTMode
+        lpos = obj.labelsGT;
+      else
+        lpos = obj.labels;
+      end     
+      [tffound,iMov,frm,iTgt,xyLbl,mints] = findEarliestLabeledFrameFromLabels(lpos) ;
+    end  % function
     
     %%% labelpos
         
@@ -8425,7 +8456,7 @@ classdef Labeler < handle
       
       if useMovNames
         assert(isa(tblMF.mov,'MovieIndex'));
-        tblMF.mov = getMovieFilesAllFullMovIdx(obj, tblMF.mov);
+        tblMF.mov = obj.getMovieFilesAllFullMovIdx(tblMF.mov);
       end
     end
     
@@ -14146,18 +14177,19 @@ classdef Labeler < handle
           freezeInfo.dxlim = obj.prevAxesModeInfo.dxlim;
           freezeInfo.dylim = obj.prevAxesModeInfo.dylim;
         end
-        freezeInfo = labelerSetPrevMovieInfo(obj, freezeInfo);
-        freezeInfo = getDefaultPrevAxes(obj, freezeInfo);
+        freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo);
+        freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo);
       end
       if ~isfield(freezeInfo,'gtmode')
         freezeInfo.gtmode = obj.gtIsGTMode;
       end
       
-      success = true;
-      if ~isPrevAxesModeInfoValid(freezeInfo),
-        [success,freezeInfo] = fixPrevModeInfo(obj,PrevAxesMode.FROZEN,freezeInfo);
+      if isPrevAxesModeInfoValid(freezeInfo),
+        isFreezeInfoUnchanged = true;
+      else
+        [isFreezeInfoUnchanged,freezeInfo] = obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN,freezeInfo);
       end
-      if ~success,
+      if ~isFreezeInfoUnchanged,
         freezeInfo.iMov = [];
         freezeInfo.frm = [];
         freezeInfo.iTgt = [];
@@ -14216,7 +14248,7 @@ classdef Labeler < handle
           end
         case PrevAxesMode.FROZEN,          
           if tfforce && obj.isPrevAxesModeInfoSet(),
-            obj.prevAxesModeInfo = labelerSetPrevMovieInfo(obj, obj.prevAxesModeInfo);
+            obj.prevAxesModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(obj.prevAxesModeInfo);
             obj.prevAxesFreeze(obj.prevAxesModeInfo);
           end
       end
@@ -14286,135 +14318,126 @@ classdef Labeler < handle
       else
         LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
       end
-    end
+    end  % function
     
-    % function [success,paModeInfo] = FixPrevModeInfo(obj,paMode,paModeInfo)
-    % 
-    %   if nargin < 2,
-    %     paMode = obj.prevAxesMode;
-    %     paModeInfo = obj.prevAxesModeInfo;
-    %   end
-    %   % KB 20181010 - make sure the frozen frame is labeled
-    %   if paMode~=PrevAxesMode.FROZEN,
-    %     success = true;
-    %     return
-    %   end
-    % 
-    %   % make sure the previous frame is labeled
-    %   success = false;
-    %   lpos = obj.labels;
-    %   if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
-    %     lpos = obj.labelsGT;
-    %   end
-    %   if isPrevAxesModeInfoValid(paModeInfo),
-    %     if numel(lpos) >= paModeInfo.iMov,
-    %       if isfield(paModeInfo,'iTgt'),
-    %         iTgt = paModeInfo.iTgt;
-    %       else
-    %         iTgt = 1;
-    %       end
-    %       success = Labels.isLabeledFT(lpos{paModeInfo.iMov},paModeInfo.frm,iTgt);
-    %     end
-    %     if success,
-    %       return;
-    %     end
-    %   end
-    % 
-    %   if ~isfield(paModeInfo,'axes_curr'),
-    %     paModeInfo.axes_curr = determinePrevAxesProperties(obj, paModeInfo);
-    %   end
-    % 
-    %   [tffound,iMov,frm,iTgt] = labelFindOneLabeledFrameEarliest(obj);
-    %   if ~tffound,
-    %     paModeInfo.frm = [];
-    %     paModeInfo.iTgt = [];
-    %     paModeInfo.iMov = [];
-    %     paModeInfo.gtmode = false;
-    %     if nargin < 2,
-    %       obj.prevAxesModeInfo = paModeInfo;
-    %     end
-    %     return;
-    %   end
-    %   paModeInfo.frm = frm;
-    %   paModeInfo.iTgt = iTgt;
-    %   paModeInfo.iMov = iMov;
-    %   paModeInfo.gtmode = obj.gtIsGTMode;
-    % 
-    %   tempPaModeInfo = labelerSetPrevMovieInfo(obj, paModeInfo);
-    %   paModeInfo = getDefaultPrevAxes(obj, tempPaModeInfo);
-    % 
-    %   if nargin < 2,
-    %     obj.prevAxesModeInfo = paModeInfo;
-    %   end
-    % end  % function
+    function [isInputPAModeInfoOK, outputPAModeInfo] = fixPrevAxesModeInfo(obj, paMode, inputPAModeInfo)
+      % From the current labeler state, and the arguments, try to determine a new
+      % paModeInfo stucture that is valid (I think).  On return, isInputModeInfoOK
+      % is true iff the inputModeInfo was acceptable as-is.  If isInputModeInfoOK is
+      % true, then outputModeInfo will be identical to inputModeInfo.  Otherwise,
+      % outputModeInfo will (in theory) be a fixed version of inputModeInfo.
+      % obj is not mutated at all.
     
-    % function outputModeInfo = SetPrevMovieInfo(obj,inputModeInfo,viewi)
-    %   % The returned outputModeInfo is like inputModeInfo, but it has the .im field
-    %   % and associated fields populated properly based on the other values in
-    %   % inputModeInfo.
-    %   % This is *mostly* a constant method, only updating one of the obj.movieReader
-    %   % elements if needed in the course of reading the relevant movie frame.  Otherwise
-    %   % does not modify obj.
-    %   if ~obj.hasMovie || ~isPrevAxesModeInfoValid(inputModeInfo),
-    %     outputModeInfo = inputModeInfo ;
-    %     return
-    %   end
-    %   if nargin<3
-    %     viewi = 1;
-    %   end
-    %   [im,isrotated,xdata,ydata,A,tform] = labelerGetTargetIm(obj, inputModeInfo.iMov, inputModeInfo.frm, inputModeInfo.iTgt, viewi);
-    %   outputModeInfo = inputModeInfo ;
-    %   outputModeInfo.im =  im;
-    %   outputModeInfo.isrotated =  isrotated;
-    %   outputModeInfo.xdata =  xdata;
-    %   outputModeInfo.ydata =  ydata;
-    %   outputModeInfo.A =  A;
-    %   outputModeInfo.tform =  tform;
-    % end
-
-    % function [im,isrotated,xdata,ydata,A,tform] = getTargetIm(obj,mov,frm,tgt,viewi,gtmode)
-    %   % This is *mostly* a constant method, only updating one of the obj.movieReader
-    %   % elements if needed in the course of reading the relevant movie frame.  Otherwise
-    %   % does not modify obj.
-    %   if nargin<6
-    %     gtmode = false;
-    %   end
-    %   isrotated = false;
-    %   % if (int32(mov) == obj.currMovie) && (gtmode==obj.gtIsGTMode)
-    %   %   mr = obj.movieReader(viewi) ;
-    %   % else
-    %   mr = MovieReader();
-    %   mr.openForLabeler(obj,MovieIndex(mov),viewi);
-    %   % end
-    %   [im,~,imRoi] = ...
-    %     mr.readframe(frm,...
-    %                  'doBGsub',obj.movieViewBGsubbed,...
-    %                  'docrop',~obj.cropIsCropMode);
-    % 
-    %   % to do: figure out [~,~what to do when there are multiple views
-    %   if ~obj.hasTrx,
-    %     xdata = imRoi(1:2);
-    %     ydata = imRoi(3:4);
-    %     A = [];
-    %     tform = [];
-    %   else
-    %     ydir = get(obj.gdata.axes_prev,'YDir');
-    %     if strcmpi(ydir,'normal'),
-    %       pi2sign = -1;
-    %     else
-    %       pi2sign = 1;
-    %     end
-    % 
-    %     [x,y,th] = obj.targetLoc(abs(mov),tgt,frm);
-    %     if isnan(th),
-    %       th = -pi/2;
-    %     end
-    %     A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
-    %     tform = maketform('affine',A);  %#ok<MTFA1> 
-    %     [im,xdata,ydata] = imtransform(im,tform,'bicubic');  %#ok<DIMTRNS> 
-    %     isrotated = true;
-    %   end
-    % end  % function
+      % If paMode is PrevAxesMode.LASTSEEN, nothing to do
+      if paMode ~= PrevAxesMode.FROZEN ,
+        isInputPAModeInfoOK = true;
+        outputPAModeInfo = inputPAModeInfo ;    
+        return
+      end
+        
+      % make sure the previous frame is labeled
+      isInputPAModeInfoOK = false;
+      lpos = obj.labels;
+      if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
+        lpos = obj.labelsGT;
+      end
+      if isPrevAxesModeInfoValid(inputPAModeInfo),
+        if numel(lpos) >= inputPAModeInfo.iMov,
+          if isfield(inputPAModeInfo,'iTgt'),
+            iTgt = inputPAModeInfo.iTgt;
+          else
+            iTgt = 1;
+          end
+          isInputPAModeInfoOK = Labels.isLabeledFT(lpos{inputPAModeInfo.iMov},inputPAModeInfo.frm,iTgt);
+        end
+        if isInputPAModeInfoOK,
+          outputPAModeInfo = inputPAModeInfo ;
+          return
+        end
+      end
+      
+      outputPAModeInfo = inputPAModeInfo ;
+      if ~isfield(outputPAModeInfo,'axes_curr'),
+        outputPAModeInfo.axes_curr = obj.determinePrevAxesProperties(outputPAModeInfo);
+      end
+      
+      [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
+      if ~tffound,
+        outputPAModeInfo.frm = [];
+        outputPAModeInfo.iTgt = [];
+        outputPAModeInfo.iMov = [];
+        outputPAModeInfo.gtmode = false;
+        return
+      end
+      outputPAModeInfo.frm = frm;
+      outputPAModeInfo.iTgt = iTgt;
+      outputPAModeInfo.iMov = iMov;
+      outputPAModeInfo.gtmode = obj.gtIsGTMode;
+      
+      tempPaModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(outputPAModeInfo);
+      outputPAModeInfo = obj.getDefaultPrevAxesModeInfo(tempPaModeInfo);
+    end  % function
+    
+    function outputPAModeInfo = rectifyImageFieldsInPrevAxesMovieInfo(obj, inputPAModeInfo, viewi)
+      % The returned outputModeInfo is like inputModeInfo, but it has the .im field
+      % and associated fields populated properly based on the other values in
+      % inputModeInfo.  This function does not mutate obj.
+      if ~obj.hasMovie || ~isPrevAxesModeInfoValid(inputPAModeInfo),
+        outputPAModeInfo = inputPAModeInfo ;
+        return
+      end
+      if nargin<3
+        viewi = 1;
+      end
+      [im,isrotated,xdata,ydata,A,tform] = obj.readTargetImageFromMovie(inputPAModeInfo.iMov, inputPAModeInfo.frm, inputPAModeInfo.iTgt, viewi);
+      outputPAModeInfo = inputPAModeInfo ;
+      outputPAModeInfo.im =  im;
+      outputPAModeInfo.isrotated =  isrotated;
+      outputPAModeInfo.xdata =  xdata;
+      outputPAModeInfo.ydata =  ydata;
+      outputPAModeInfo.A =  A;
+      outputPAModeInfo.tform =  tform;
+    end  % function
+    
+    function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi)
+      % Get the image (and associated data) for the reference image pane.  Does not
+      % mutate obj.
+      isrotated = false;
+      % if (int32(mov) == obj.currMovie) && (gtmode==obj.gtIsGTMode)
+      %   mr = obj.movieReader(viewi) ;
+      % else
+      mr = MovieReader();
+      mr.openForLabeler(obj,MovieIndex(mov),viewi);
+      % end
+      [im,~,imRoi] = ...
+        mr.readframe(frm,...
+                     'doBGsub',obj.movieViewBGsubbed,...
+                     'docrop',~obj.cropIsCropMode);
+        
+      % to do: figure out [~,~what to do when there are multiple views
+      if ~obj.hasTrx,
+        xdata = imRoi(1:2);
+        ydata = imRoi(3:4);
+        A = [];
+        tform = [];
+      else
+        ydir = get(obj.gdata.axes_prev,'YDir');
+        if strcmpi(ydir,'normal'),
+          pi2sign = -1;
+        else
+          pi2sign = 1;
+        end
+      
+        [x,y,th] = obj.targetLoc(abs(mov),tgt,frm);
+        if isnan(th),
+          th = -pi/2;
+        end
+        A = [1,0,0;0,1,0;-x,-y,1]*[cos(th+pi2sign*pi/2),-sin(th+pi2sign*pi/2),0;sin(th+pi2sign*pi/2),cos(th+pi2sign*pi/2),0;0,0,1];
+        tform = maketform('affine',A);  %#ok<MTFA1> 
+        [im,xdata,ydata] = imtransform(im,tform,'bicubic');  %#ok<DIMTRNS> 
+        isrotated = true;
+      end
+    end  % function
       
     function axes_curr = determinePrevAxesProperties(obj, paModeInfo)
       % Returns a struct containing several properties of the "prev" axes, 
@@ -14434,6 +14457,82 @@ classdef Labeler < handle
                          'CameraViewAngleMode','auto');
     end  % function
 
+    function paModeInfo = getDefaultPrevAxesModeInfo(obj, inputPAModeInfo)  
+      % Returns a paModeInfo that is based on inputPAModeInfo, but has its
+      % xlim, ylim, and axes_curr fields set to more default values.  Does not
+      % mutate obj.
+
+      paModeInfo = inputPAModeInfo ;
+      borderfrac = .5;
+      if ~obj.hasMovie,
+        return;
+      end
+      if ~isPrevAxesModeInfoValid(paModeInfo),
+        return
+      end
+      if ~isfield(paModeInfo,'isrotated'),
+        paModeInfo.isrotated = false;
+      end
+      viewi = 1;
+      ptidx = (obj.labeledposIPt2View == viewi) ;      
+      [~,poscurr,~] = ...
+        obj.labelPosIsLabeled(paModeInfo.frm, ...
+                              paModeInfo.iTgt, ...
+                              'iMov',paModeInfo.iMov, ...
+                              'gtmode',paModeInfo.gtmode) ;
+      poscurr = poscurr(ptidx,:);
+      if obj.hasTrx,
+        poscurr = [poscurr,ones(size(poscurr,1),1)]*paModeInfo.A;
+        poscurr = poscurr(:,1:2);
+      end
+      
+      minpos = min(poscurr,[],1);
+      maxpos = max(poscurr,[],1);
+      centerpos = (minpos+maxpos)/2;
+      % border defined by borderfrac
+      r = max(1,(maxpos-minpos)/2*(1+borderfrac));
+      xlim = centerpos(1)+[-1,1]*r(1);
+      ylim = centerpos(2)+[-1,1]*r(2);      
+      
+      [axw,axh] = obj.GetPrevAxesSizeInPixels();
+      axszratio = axw/axh;
+      dx = diff(xlim);
+      dy = diff(ylim);
+      limratio = dx / dy;
+      % need to extend 
+      if axszratio > limratio,
+        extendratio = axszratio/limratio;
+        xlim = centerpos(1)+[-1,1]*r(1)*extendratio;
+      elseif axszratio < limratio,
+        extendratio = limratio/axszratio;
+        ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
+      end
+      if isfield(paModeInfo,'dxlim'),
+        xlim0 = xlim;
+        ylim0 = ylim;
+        xlim = xlim + paModeInfo.dxlim;
+        ylim = ylim + paModeInfo.dylim;
+        % make sure all parts are visible
+        if minpos(1) < xlim(1) || minpos(2) < ylim(1) || ...
+            maxpos(1) > xlim(2) || maxpos(2) < ylim(2),
+          paModeInfo.dxlim = [0,0];
+          paModeInfo.dylim = [0,0];
+          xlim = xlim0;
+          ylim = ylim0;
+          fprintf('Templates zoomed axes would not show all labeled points, using default axes.\n');
+        end
+      else
+        paModeInfo.dxlim = [0,0];
+        paModeInfo.dylim = [0,0];
+      end
+      xlim = fixLim(xlim);
+      ylim = fixLim(ylim);
+      paModeInfo.xlim = xlim;
+      paModeInfo.ylim = ylim;
+      
+      paModeInfo.axes_curr = obj.determinePrevAxesProperties(paModeInfo);  
+    end
+    
     function [w,h] = GetPrevAxesSizeInPixels(obj)
       units = get(obj.gdata.axes_prev,'Units');
       set(obj.gdata.axes_prev,'Units','pixels');
@@ -14468,13 +14567,13 @@ classdef Labeler < handle
       
       if obj.hasTrx,
         try
-          obj.prevAxesModeInfo = labelerSetPrevMovieInfo(obj, obj.prevAxesModeInfo);
+          obj.prevAxesModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(obj.prevAxesModeInfo);
         catch ME,
           warning(['Error setting reference image information, clearing out reference image.\n',getReport(ME)]);
           obj.clearPrevAxesModeInfo();
         end
 
-        obj.prevAxesModeInfo = getDefaultPrevAxes(obj, obj.prevAxesModeInfo) ;
+        obj.prevAxesModeInfo = obj.getDefaultPrevAxesModeInfo(obj.prevAxesModeInfo) ;
         obj.prevAxesFreeze(obj.prevAxesModeInfo);
       end
 
@@ -14495,30 +14594,22 @@ classdef Labeler < handle
         end
       end
       
-    end
+    end  % function
     
-    function CheckPrevAxesTemplate(obj)
-      
+    function CheckPrevAxesTemplate(obj)      
       if obj.prevAxesMode ~= PrevAxesMode.FROZEN || ~obj.isPrevAxesModeInfoSet(),
         return;
       end
-      if obj.prevAxesModeInfo.frm == obj.currFrame && obj.prevAxesModeInfo.iMov == obj.currMovie && ...
-          obj.prevAxesModeInfo.iTgt == obj.currTarget,
-
-        % obj.FixPrevModeInfo();
-        [isModelInfoUnchanged, changedModeInfo] = fixPrevModeInfo(obj) ;
-        if ~isModelInfoUnchanged , 
-          obj.prevAxesModeInfo = changedModeInfo ;
+      if ( obj.prevAxesModeInfo.frm == obj.currFrame && obj.prevAxesModeInfo.iMov == obj.currMovie && ...
+           obj.prevAxesModeInfo.iTgt == obj.currTarget ) ,
+        [isPAModelInfoUnchanged, changedPAModeInfo] = obj.fixPrevAxesModeInfo(obj.prevAxesMode, obj.prevAxesModeInfo) ;
+        if ~isPAModelInfoUnchanged , 
+          obj.prevAxesModeInfo = changedPAModeInfo ;
         end
-
         obj.setPrevAxesMode(obj.prevAxesMode,obj.prevAxesModeInfo);
       end
       islabeled = obj.currFrameIsLabeled();
-      if islabeled,
-        set(obj.gdata.pushbutton_freezetemplate,'Enable','on');
-      else
-        set(obj.gdata.pushbutton_freezetemplate,'Enable','off');
-      end
+      set(obj.gdata.pushbutton_freezetemplate,'Enable',onIff(islabeled));
     end
     
     function prevAxesMovieRemap(obj,mIdxOrig2New)
@@ -14529,10 +14620,9 @@ classdef Labeler < handle
       if newIdx == 0,
         obj.clearPrevAxesModeInfo();
 
-        % obj.FixPrevModeInfo();
-        [isModelInfoUnchanged, changedModeInfo] = fixPrevModeInfo(obj) ;
-        if ~isModelInfoUnchanged , 
-          obj.prevAxesModeInfo = changedModeInfo ;
+        [isPAModelInfoUnchanged, fixedPAModeInfo] = obj.fixPrevAxesModeInfo(obj.prevAxesMode, obj.prevAxesModeInfo) ;
+        if ~isPAModelInfoUnchanged , 
+          obj.prevAxesModeInfo = fixedPAModeInfo ;
         end
 
         obj.setPrevAxesMode(obj.prevAxesMode,obj.prevAxesModeInfo);        
@@ -15192,7 +15282,7 @@ classdef Labeler < handle
         'targets', {cell(nget,1)},...
         'f0s', {cell(nget,1)},...
         'f1s', {cell(nget,1)});
-      toTrack.movfiles = getMovieFilesAllFullMovIdx(obj, mIdx);
+      toTrack.movfiles = obj.getMovieFilesAllFullMovIdx(mIdx);
       toTrack.trxfiles = obj.getTrxFilesAllFullMovIdx(mIdx);
       for i = 1:nget,        
         if obj.cropProjHasCrops,

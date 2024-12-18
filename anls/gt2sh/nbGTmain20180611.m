@@ -384,7 +384,7 @@ tGTMain.movFileWIntraID = MFTable.formMultiMovieIDArray(tGTMain.movFileWIntra);
 tGTsugg = lObj.gtSuggMFTable;
 tGTsugg.mIdx = tGTsugg.mov;
 tGTsugg(:,{'mov'}) = [];
-tGTsugg.movFile = getMovieFilesAllFullMovIdx(lObj, tGTsugg.mIdx);
+tGTsugg.movFile = lObj.getMovieFilesAllFullMovIdx(tGTsugg.mIdx);
 tGTsugg.movFileWIntraID = MFTable.formMultiMovieIDArray(tGTsugg.movFile);
 
 [tf,loc] = tblismember(tGTMain,tGTsugg,{'movFileWIntraID' 'frm'});

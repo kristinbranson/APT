@@ -273,7 +273,7 @@ classdef MovieReader < handle
         bgArgs = {};
       end
       
-      movfname = getMovieFilesAllFullMovIdx(labeler, mIdx);
+      movfname = labeler.getMovieFilesAllFullMovIdx(mIdx);
       obj.preload = labeler.movieReadPreLoadMovies; % must occur before .open()
       obj.open(movfname{iView},bgArgs{:});
       obj.forceGrayscale = labeler.movieForceGrayscale;

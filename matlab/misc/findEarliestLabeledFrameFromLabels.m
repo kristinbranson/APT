@@ -1,17 +1,11 @@
-function [tffound,iMov,frm,iTgt,xyLbl,mints] = labelFindOneLabeledFrameEarliest(labeler)
+function [tffound,iMov,frm,iTgt,xyLbl,mints] = findEarliestLabeledFrameFromLabels(labels)
   % Look only in labeledposGTaware, and look for the earliest labeled 
   % frame.
   
-  if labeler.gtIsGTMode
-    lpos = labeler.labelsGT;
-  else
-    lpos = labeler.labels;
-  end
-  
   tffound = false;
   mints = inf;
-  for jmov = 1:numel(lpos)
-    s = lpos{jmov};        
+  for jmov = 1:numel(labels)
+    s = labels{jmov};        
     [mintscurr,i] = min( min(s.ts,[],1) );
     if mintscurr < mints
       frm = s.frm(i);
