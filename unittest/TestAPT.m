@@ -123,7 +123,7 @@ classdef TestAPT < handle
 
       elseif strcmp(name,'stephen')
         %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/huston-lab-data-wrangling/sh_test_lbl_20200310_modded_resaved_tweaked.lbl' ;
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked.lbl' ;
         info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
         info.nviews = 2;
         info.npts = 5;
@@ -157,31 +157,31 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
-      elseif strcmp(name,'roianma')
-        info.ref_lbl = ...
-          strcatg('/groups/branson/bransonlab/apt/unittest/', ...
-                  'four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016.lbl');
-        info.exp_dir_base = '';
-        info.nviews = nan;
-        info.npts = nan;
-        info.has_trx = false;
-        info.proj_name = 'test';
-        info.sz = 250;
-        info.bundle_link = '';
-        info.op_graph = [];   
-        
-      elseif strcmp(name,'roianmammpose1')
-        info.ref_lbl = ...
-          strcatg('/groups/branson/bransonlab/apt/unittest/', ...
-                  'four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016_mmpose1.lbl') ;
-        info.exp_dir_base = '';
-        info.nviews = nan;
-        info.npts = nan;
-        info.has_trx = false;
-        info.proj_name = 'test';
-        info.sz = 250;
-        info.bundle_link = '';
-        info.op_graph = [];   
+      % elseif strcmp(name,'roianma')
+      %   info.ref_lbl = ...
+      %     strcatg('/groups/branson/bransonlab/apt/unittest/', ...
+      %             'four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016.lbl');
+      %   info.exp_dir_base = '';
+      %   info.nviews = nan;
+      %   info.npts = nan;
+      %   info.has_trx = false;
+      %   info.proj_name = 'test';
+      %   info.sz = 250;
+      %   info.bundle_link = '';
+      %   info.op_graph = [];   
+      % 
+      % elseif strcmp(name,'roianmammpose1')
+      %   info.ref_lbl = ...
+      %     strcatg('/groups/branson/bransonlab/apt/unittest/', ...
+      %             'four_points_180806_ma_bothmice_extra_labels_re_radius_150_ds2_gg_add_movie_UT_20210929_trunc_20241016_mmpose1.lbl') ;
+      %   info.exp_dir_base = '';
+      %   info.nviews = nan;
+      %   info.npts = nan;
+      %   info.has_trx = false;
+      %   info.proj_name = 'test';
+      %   info.sz = 250;
+      %   info.bundle_link = '';
+      %   info.op_graph = [];   
         
       elseif strcmp(name,'argrone')
         info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT_20210823.lbl';
@@ -218,8 +218,8 @@ classdef TestAPT < handle
         info.op_graph = [];   
         
       elseif strcmp(name,'roianma2')
-        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -230,8 +230,8 @@ classdef TestAPT < handle
         info.op_graph = [];           
 
       elseif strcmp(name,'roianma2mmpose1')
-        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added-mmpose1.lbl';
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added-mmpose1.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-mmpose1.lbl' ;
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -241,14 +241,14 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];           
 
-      elseif strcmp(name,'roianma2withrois')
+      elseif strcmp(name,'roianma2gt')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-and-rois-added.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-gt-added.lbl';
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = false;
-        info.proj_name = 'roianma2-with-rois-test';
+        info.proj_name = 'roianma2-test';
         info.sz = 250 ; % dont set this to empty even if it is not used
         info.bundle_link = '';
         info.op_graph = [];           

@@ -14531,7 +14531,7 @@ classdef Labeler < handle
       paModeInfo.ylim = ylim;
       
       paModeInfo.axes_curr = obj.determinePrevAxesProperties(paModeInfo);  
-    end
+    end  % function
     
     function [w,h] = GetPrevAxesSizeInPixels(obj)
       units = get(obj.gdata.axes_prev,'Units');

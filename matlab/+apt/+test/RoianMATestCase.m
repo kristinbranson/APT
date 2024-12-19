@@ -95,7 +95,7 @@ classdef RoianMATestCase < matlab.unittest.TestCase
     end  % function
     
     function groundTruthTest(obj)
-      testObj = TestAPT('name','roianma2');
+      testObj = TestAPT('name','roianma2gt');
       setup_params = apt.test.RoianMATestCase.getSetupParams() ;
       testObj.test_setup(setup_params{:}) ;
       testObj.test_gtcompute('backend','bsub') ;
