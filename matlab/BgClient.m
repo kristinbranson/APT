@@ -137,7 +137,7 @@ classdef BgClient < handle
       % sCmd: struct with fields {'action' 'data'}
             
       if ~obj.isRunning
-        error('BgClient:run','Worker is not running.');
+        error('BgClient:run','Runner is not running.');
       end      
       
       assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
@@ -154,29 +154,27 @@ classdef BgClient < handle
       end
     end
     
-    function stopWorker(obj)
+    function stopRunner(obj)
       % "Proper" stop; STOP message is sent to BgRunner obj; BgRunner reads
-      % STOP message and breaks from polling loop
-      
+      % STOP message and breaks from polling loop      
       if ~obj.isRunning
-        warningNoTrace('BgClient:run','Worker is not running.');
+        warningNoTrace('BgClient:run','Runner is not running.');
       else
         sCmd = struct('action',BgRunner.STOPACTION,'data',[]);
         obj.sendCommand(sCmd);
       end
-    end
+    end  % function
     
-    function stopWorkerHard(obj)
-      % Harder stop, cancel fevalFuture
-      
+    function stopRunnerHard(obj)
+      % Harder stop, cancel fevalFuture      
       if ~obj.isRunning
-        warningNoTrace('BgClient:run','Worker is not running.');
+        warningNoTrace('BgClient:run','Runner is not running.');
       else
         obj.fevalFuture.cancel();
       end
-    end    
+    end  % function    
     
-  end
+  end  % methods
   
   methods (Access=private)
     

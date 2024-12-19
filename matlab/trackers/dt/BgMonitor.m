@@ -158,14 +158,12 @@ classdef BgMonitor < handle
       bgc = obj.bgClientObj;
       bgc.startRunner('runnerContinuous',true,...
                       'continuousCallInterval',obj.bgContCallInterval) ;
-      %obj.notify('bgStart');
       obj.parent_.didStartBgMonitor(obj.processName) ;
     end
     
     function stop(obj)
       bgc = obj.bgClientObj;
-      bgc.stopWorkerHard();
-      %obj.notify('bgEnd');
+      bgc.stopRunnerHard();
       obj.parent_.didStopBgMonitor(obj.processName) ;
     end
     
