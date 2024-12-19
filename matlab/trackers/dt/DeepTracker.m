@@ -3539,7 +3539,7 @@ classdef DeepTracker < LabelTracker
           for midx = 1:nMovies
             K = TrkFile;
             K.movfile = movies{midx};
-            K.initFromTableFull(S,view,midx);
+            K.initFromTableFull(S,view,midx,outfile);  % outfile only passed for debugging purposes
             K.save(trkfiles{midx});
           end          
         end

@@ -336,20 +336,31 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function initFromTableFull(obj,s,view,movi,varargin)
+    function initFromTableFull(obj,s,view,movi,outfile,varargin)
       %
       % Note: init* methods do not clear old state that is already set
       % 
-      % this API is strange s and the pvs  
-      %   -- This comment is strange.  --ALT, 2024-11-20
+      % this API is strange s and the pvs
 
       assert(isstruct(s));
       if ~isfield(s, 'pred_locs') ,
+        outfile  %#ok<NOPRT> 
         s  %#ok<NOPRT> 
+        destination_path = fullfile(tempdir(), 'heisenbug_trk_file_missing_pred_locs.trk') ;
+        [did_copy_succeed, msg] = copyfile(outfile, destination_path) ;
+        if ~did_copy_succeed ,
+          warning('Unable to copy a suspect trk file to the temp dir: %s', msg) ;
+        end
         error('s lacks pred_locs field') ;
       end
       if ~isfield(s, 'toTrack') ,
+        outfile  %#ok<NOPRT> 
         s  %#ok<NOPRT> 
+        destination_path = fullfile(tempdir(), 'heisenbug_trk_file_missing_toTrack.trk') ;
+        [did_copy_succeed, msg] = copyfile(outfile, destination_path) ;
+        if ~did_copy_succeed ,
+          warning('Unable to copy a suspect trk file to the temp dir: %s', msg) ;
+        end
         error('s lacks toTrack field') ;
       end
 
@@ -504,7 +515,7 @@ classdef TrkFile < dynamicprops
       end
       
       obj.isfull = false;
-    end    
+    end  % function    
     
     function initFromTracklet(obj,s)
       flds = fieldnames(s);
@@ -747,7 +758,7 @@ classdef TrkFile < dynamicprops
             pTrk.pred_locs = s.pred_locs;
             pTrk.to_track = s.to_track;
             pvs = struct2pvs(srecog);
-            trkfileObj.initFromTableFull(pTrk,'movfile',movfile,pvs{:});
+            trkfileObj.initFromTableFull(pTrk,'movfile',movfile,pvs{:});  % This seems wrong, but I'm not sure how to fix -- ALT, 2024-12-19
           end
           
           if issilent,
