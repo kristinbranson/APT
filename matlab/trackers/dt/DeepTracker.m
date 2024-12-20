@@ -744,7 +744,7 @@ classdef DeepTracker < LabelTracker
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
                                   backEnd.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
                 
-      trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, [], 'projTempDir', projTempDir) ;
+      trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = trnMonObj;
       obj.bgTrnMonBGWorkerObj = trnWrkObj;
       trnMonObj.start();  % Moved this after the two lines above.  Seems wise, but...  -- ALT, 2024-07-31
@@ -3332,7 +3332,7 @@ classdef DeepTracker < LabelTracker
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
 
-      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend,track_type);
+      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       bgTrkWorkerObj.initFiles(obj.trkSysInfo);
 
@@ -3349,12 +3349,13 @@ classdef DeepTracker < LabelTracker
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'projTempDir', projTempDir) ;
+      bgTrkMonitorObj = ...
+        BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, 'projTempDir', projTempDir) ;
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % spawn the jobs
       [tfSuccess,jobids] = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
-                                                      'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+                                                       'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % If that succeeded, record the job identifiers
       if tfSuccess ,
@@ -3555,8 +3556,12 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
-    
-    function trkCompleteCbk(obj,res)
+
+    function didCompleteTraining(obj, res)  %#ok<INUSD>
+      % do nothing
+    end
+
+    function didCompleteTracking(obj, res)
 
       try
         [isAllWell, message] = obj.downloadTrackingFilesIfNecessary(res) ;

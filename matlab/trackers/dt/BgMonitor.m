@@ -31,16 +31,8 @@ classdef BgMonitor < handle
                  % detached --ALT, 2024-06-28) that is deep-copied onto
                  % workers.
     monitorVizObj  % object with resultsreceived() method, typically a "monitor visualizer"
-    cbkComplete  % empty, or fcnhandle with sig cbk(res), called when operation complete
     processName  % 'train' or 'track'
-    % It seems like the bgClientObj and monitorObj are owned by obj, but
-    % bgWorkerObj is not (hence that ref should be treated as soft).  The
-    % effective parent of obj is the DeepTracker.  cbkComplete seems to usually
-    % (always?) call a method of the parent DeepTracker.  Would probably make
-    % sense to add a "parent" field that contains a ref to the DeepTracker, and to
-    % call a "didCompleteBgMonitor" method of the parent when complete.  The
-    % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
-    parent_  % the DeepTracker object that created obj
+    parent_  % the (tpyically) DeepTracker object that created this BgMonitor
     projTempDirMaybe_
     tfComplete_  
       % Initialized to false in start() method, set to true when completion detected.
@@ -58,7 +50,7 @@ classdef BgMonitor < handle
 %   end
   
   methods
-    function obj = BgMonitor(parent, type_string, monVizObj, bgWorkerObj, cbkComplete, varargin)      
+    function obj = BgMonitor(parent, type_string, monVizObj, bgWorkerObj, varargin)      
       % Is obj for monitoring training or tracking?
       obj.parent_ = parent ;
       if strcmp(type_string, 'train') ,
@@ -107,9 +99,6 @@ classdef BgMonitor < handle
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
       obj.monitorVizObj = monVizObj;
-      if exist('cbkComplete','var'),
-        obj.cbkComplete = cbkComplete;
-      end
     end  % constructor
     
     function delete(obj)
@@ -131,8 +120,6 @@ classdef BgMonitor < handle
         delete(obj.bgWorkerObj)
       end
       obj.bgWorkerObj = [];
-      
-      obj.cbkComplete = [];
       
       if ~isempty(obj.monitorVizObj)
         delete(obj.monitorVizObj);
@@ -237,9 +224,16 @@ classdef BgMonitor < handle
           % % monitor plot stays up; reset not called etc
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
           
-          if ~isempty(obj.cbkComplete),
-            obj.cbkComplete(sRes.result);
+          % Signal to parent object, typically a DeepTracker, that tracking/training
+          % has completed.
+          if strcmp(obj.processName, 'track') ,
+            obj.parent_.didCompleteTracking(sRes.result) ;
+          elseif strcmp(obj.processName, 'train') ,
+            obj.parent_.didCompleteTraining(sRes.result) ;
+          else
+            error('Internal error: Unknown processName %s', obj.processName) ;
           end
+
           return
         end
       end
