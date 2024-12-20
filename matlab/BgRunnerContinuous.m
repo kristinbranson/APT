@@ -94,7 +94,6 @@ classdef BgRunnerContinuous < handle
         end
         obj.computeTimes(end+1,1) = toc(tic_id) ;
         dataQueue.send(struct('id',0,'action','','result',{result}));
-%         dataQueue.send(struct('id',data.id,'action',action,'result',result));
 
         logger.log('Pausing...');
         pause(callInterval);

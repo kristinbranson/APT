@@ -42,6 +42,9 @@ classdef BgMonitor < handle
     % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
     parent_  % the DeepTracker object that created obj
     projTempDirMaybe_
+    tfComplete_  
+      % Initialized to false in start() method, set to true when completion detected.
+      % Used to prevent post-completion code from running twice.
   end
 
   properties (Dependent)
@@ -104,9 +107,9 @@ classdef BgMonitor < handle
       
       cbkResult = @obj.bgResultsReceived;
 
-      bgc = BgClient('projTempDirMaybe', obj.projTempDirMaybe_) ;
       fprintf(1,'Configuring background worker...\n');
-      bgc.configure(cbkResult, bgWorkerObj, compute_fcn_name) ;
+      bgc = BgClient(cbkResult, bgWorkerObj, compute_fcn_name, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
+      %bgc.configure(cbkResult, bgWorkerObj, compute_fcn_name) ;
       
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
@@ -155,6 +158,7 @@ classdef BgMonitor < handle
     
     function start(obj)
       assert(obj.prepared);
+      obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
       bgc.startRunner('runnerContinuous',true,...
                       'continuousCallInterval',obj.bgContCallInterval) ;
@@ -165,6 +169,10 @@ classdef BgMonitor < handle
       bgc = obj.bgClientObj;
       bgc.stopRunnerHard();
       obj.parent_.didStopBgMonitor(obj.processName) ;
+    end
+    
+    function waitForJobsToExit(obj)
+      obj.parent_.waitForJobsToExit(obj.processName) ;
     end
     
     function bgResultsReceived(obj,sRes)
@@ -225,18 +233,25 @@ classdef BgMonitor < handle
         end
       end
             
-      tfComplete = all(tfpollsucc & BgMonitor.isComplete(sRes));
-      if tfComplete
-        obj.stop();
-        % % monitor plot stays up; reset not called etc
-        fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
-        
-        if ~isempty(obj.cbkComplete),
-          obj.cbkComplete(sRes.result);
+      if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
+        obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
+        if obj.tfComplete_
+          %obj.bgClientObj.stopRunnerHard();  % Stop the runner immediately, so we don't handle completion twice
+          obj.waitForJobsToExit() ;  
+            % Right now, tfComplete is true as soon as the output files *exist*.
+            % This can lead to issues if they're not done being written to, so we wait for
+            % the job(s) to exit before proceeding.
+          obj.stop();
+          % % monitor plot stays up; reset not called etc
+          fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
+          
+          if ~isempty(obj.cbkComplete),
+            obj.cbkComplete(sRes.result);
+          end
+          return
         end
-        return
       end
-      
+
       % KB: check if resultsReceived found a reason to stop 
       if ~tfSucc,
         if isempty(msg),

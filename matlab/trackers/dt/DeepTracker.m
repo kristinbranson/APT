@@ -779,6 +779,13 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function waitForJobsToExit(obj, train_or_track)  %#ok<INUSD>
+      % Wait for all registered jobs of the given type to exit.
+      % Currently the train_or_track argument is ignored.
+      backend = obj.backend ;
+      backend.waitForRegisteredJobsToExit() ;
+    end
+
     function bgTrnReset(obj)
       % stop the training monitor
       if ~isempty(obj.bgTrnMonitor)

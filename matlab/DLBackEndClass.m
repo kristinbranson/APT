@@ -319,7 +319,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function delete(obj)
       if obj.doesOwnResources_ ,
-        obj.ensureAllSpawnedJobsAreNotAlive_() ;
+        obj.clearRegisteredJobs() ;
         obj.stopEc2InstanceIfNeeded_() ;
       end
     end  % function
@@ -986,12 +986,19 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function clearRegisteredJobs(obj)
       % Make sure all spawned jobs are dead
-      obj.ensureAllSpawnedJobsAreNotAlive_() ;
+      jobids = obj.jobids_ ;
+      job_count = numel(jobids) ;
+      for i = 1 : job_count ,
+        jobid = jobids{i} ;
+        if ~isempty(jobid) ,
+          obj.ensureJobIsNotAlive(jobid) ;
+        end
+      end
       % Clear all registered jobs
       obj.syscmds_ = cell(0,1) ;
       obj.cmdfiles_ = cell(0,1) ;
       obj.logcmds_ = cell(0,1) ;
-      obj.jobids_ = cell(0,1) ;  % redundant, but whatever
+      obj.jobids_ = cell(0,1) ; 
     end
 
     function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
@@ -1079,17 +1086,27 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end  % for
       obj.jobids_ = jobids ;  % Keep these around internally so we can kill the jobs on delete()
     end  % function
-
-    function ensureAllSpawnedJobsAreNotAlive_(obj)
+    
+    function waitForRegisteredJobsToExit(obj)
       jobids = obj.jobids_ ;
       job_count = numel(jobids) ;
       for i = 1 : job_count ,
         jobid = jobids{i} ;
         if ~isempty(jobid) ,
-          obj.ensureJobIsNotAlive(jobid) ;
+          obj.waitForJobToExit(jobid) ;
         end
       end
-      obj.jobids_ = cell(0,1) ;
+    end  % function
+    
+    function waitForJobToExit(obj, jobid)
+      % Wait for the job with job id jobid to exit.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jobid) ,
+        error('Job id is empty') ;
+      end
+      while obj.isJobAlive(jobid) ,
+        pauseTight(0.25) ;
+      end
     end  % function
 
     function ensureJobIsNotAlive(obj, jobid)

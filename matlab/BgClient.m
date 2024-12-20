@@ -33,38 +33,15 @@ classdef BgClient < handle
   end
 
   methods 
-    function obj = BgClient(varargin)
+    function obj = BgClient(resultCallback, computeObj, computeObjMeth, varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
       end
       projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
-      obj.projTempDirMaybe_ = projTempDirMaybe ;
-    end
-    function delete(obj)
-      if ~isempty(obj.qWorker2Me)
-        delete(obj.qWorker2Me);
-        obj.qWorker2Me = [];
-      end
-      if ~isempty(obj.qMe2Worker)
-        delete(obj.qMe2Worker);
-        obj.qMe2Worker = [];
-      end
-      if ~isempty(obj.fevalFuture)
-        obj.fevalFuture.cancel();
-        delete(obj.fevalFuture);
-        obj.fevalFuture = [];
-      end
-    end
-  end
-  
-  methods
-    
-    function configure(obj,resultCallback,computeObj,computeObjMeth)
-      % Configure compute object and results callback
-      
-      assert(isa(resultCallback,'function_handle'));
-      
+
+      % Configure compute object and results callback      
+      assert(isa(resultCallback,'function_handle'));      
       if ismethod(computeObj,'copyAndDetach')
         % AL20191218
         % Some computeObjs have properties that don't deep-copy well over
@@ -82,12 +59,57 @@ classdef BgClient < handle
       obj.cbkResult = resultCallback;
       obj.computeObj = computeObj; % will be deep-copied onto worker
       obj.computeObjMeth = computeObjMeth;
+      
+      obj.projTempDirMaybe_ = projTempDirMaybe ;
     end
+
+    function delete(obj)
+      if ~isempty(obj.qWorker2Me)
+        delete(obj.qWorker2Me);
+        obj.qWorker2Me = [];
+      end
+      if ~isempty(obj.qMe2Worker)
+        delete(obj.qMe2Worker);
+        obj.qMe2Worker = [];
+      end
+      if ~isempty(obj.fevalFuture)
+        obj.fevalFuture.cancel();
+        delete(obj.fevalFuture);
+        obj.fevalFuture = [];
+      end
+    end
+  end
+  
+  methods    
+    % Folded all this into the constructor
+    % function configure(obj,resultCallback,computeObj,computeObjMeth)
+    %   % Configure compute object and results callback
+    % 
+    %   assert(isa(resultCallback,'function_handle'));
+    % 
+    %   if ismethod(computeObj,'copyAndDetach')
+    %     % AL20191218
+    %     % Some computeObjs have properties that don't deep-copy well over
+    %     % to the background worker via parfeval. Examples might be large UI
+    %     % objects containing java handles etc.
+    %     %
+    %     % To deal with this, computeObjs may optionally copy and mutate
+    %     % themselves to make themselves palatable for transmission through
+    %     % parfeval and subsequent computation in the bg.
+    %     %
+    %     % Note computeObj doesn't do anything in this class besides get 
+    %     % transmitted over via parfeval.
+    %     computeObj = computeObj.copyAndDetach();
+    %   end
+    %   obj.cbkResult = resultCallback;
+    %   obj.computeObj = computeObj; % will be deep-copied onto worker
+    %   obj.computeObjMeth = computeObjMeth;
+    % end
     
     function startRunner(obj,varargin)
       % Start BgRunner on new thread
       
-      [runnerContinuous,continuousCallInterval] = myparse(varargin,...
+      [isRunnerContinuous,continuousCallInterval] = myparse(varargin,...
         'runnerContinuous',false,...
         'continuousCallInterval',nan);
       
@@ -96,13 +118,13 @@ classdef BgClient < handle
           'Object unconfigured; call configure() before starting worker.');
       end
       
-      queue = parallel.pool.DataQueue;
-      if runnerContinuous
-      	queue.afterEach(@(dat)obj.afterEachContinuous(dat));
+      fromWorkerDataQueue = parallel.pool.DataQueue;
+      if isRunnerContinuous
+      	fromWorkerDataQueue.afterEach(@(dat)obj.afterEachContinuous(dat));
       else
-        queue.afterEach(@(dat)obj.afterEach(dat));
+        fromWorkerDataQueue.afterEach(@(dat)obj.afterEach(dat));
       end		
-      obj.qWorker2Me = queue;
+      obj.qWorker2Me = fromWorkerDataQueue;
       
       p = gcp() ;
       if obj.parpoolIdleTimeout > p.IdleTimeout 
@@ -111,21 +133,21 @@ classdef BgClient < handle
       end
       
       %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
-      if runnerContinuous
+      if isRunnerContinuous
         runnerObj = BgRunnerContinuous('projTempDirMaybe', obj.projTempDirMaybe_) ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
-          parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
+          parfeval(@run, 1, runnerObj, fromWorkerDataQueue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
         % foo = feval(@run, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
         %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       else      
         runnerObj = BgRunner() ;
         % computeObj deep-copied onto worker
         obj.fevalFuture = ...
-          parfeval(@run, 1, runnerObj, queue, obj.computeObj, obj.computeObjMeth) ; 
+          parfeval(@run, 1, runnerObj, fromWorkerDataQueue, obj.computeObj, obj.computeObjMeth) ; 
       end
       
-      obj.isContinuous = runnerContinuous;
+      obj.isContinuous = isRunnerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
@@ -148,7 +170,7 @@ classdef BgClient < handle
       if isempty(q)
         warningNoTrace('BgClient:queue','Send queue not configured.');
       else
-        obj.idTics(sCmd.id) = tic;
+        obj.idTics(sCmd.id) = tic();
         q.send(sCmd);
         obj.log('Sent command id %d',sCmd.id);
       end
@@ -157,9 +179,7 @@ classdef BgClient < handle
     function stopRunner(obj)
       % "Proper" stop; STOP message is sent to BgRunner obj; BgRunner reads
       % STOP message and breaks from polling loop      
-      if ~obj.isRunning
-        warningNoTrace('BgClient:run','Runner is not running.');
-      else
+      if obj.isRunning
         sCmd = struct('action',BgRunner.STOPACTION,'data',[]);
         obj.sendCommand(sCmd);
       end
@@ -167,9 +187,7 @@ classdef BgClient < handle
     
     function stopRunnerHard(obj)
       % Harder stop, cancel fevalFuture      
-      if ~obj.isRunning
-        warningNoTrace('BgClient:run','Runner is not running.');
-      else
+      if obj.isRunning
         obj.fevalFuture.cancel();
       end
     end  % function    

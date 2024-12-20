@@ -23,20 +23,20 @@ classdef BgRunner < handle
   
   methods     
     
-    function status = run(obj,dataQueue,cObj,cObjMeth)
+    function status = run(obj,toClientDataQueue,cObj,cObjMeth)
       % Spin up worker; call via parfeval
       % 
       % dataQueue: parallel.pool.DataQueue created by Client
       % cObj: object with method .compute(action,data) where action is a
       %   str
       
-      assert(isa(dataQueue,'parallel.pool.DataQueue'));
-      pdQueue = parallel.pool.PollableDataQueue;
-      dataQueue.send(pdQueue);
+      assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
+      fromClientDataQueue = parallel.pool.PollableDataQueue;
+      toClientDataQueue.send(fromClientDataQueue);
       obj.log('Done configuring queues');
             
       while true
-        [data,ok] = pdQueue.poll();
+        [data,ok] = fromClientDataQueue.poll();
         if ok
           assert(isstruct(data) && all(isfield(data,{'action' 'data' 'id'})));
           action = data.action;          
@@ -46,12 +46,12 @@ classdef BgRunner < handle
               break;
             case BgRunner.STATACTION
               sResp = struct('id',data.id,'action',action,'result',obj.computeTimes);
-              dataQueue.send(sResp);
+              toClientDataQueue.send(sResp);
             otherwise
-              tic;
+              ticId = tic();
               result = cObj.(cObjMeth)(data);
-              obj.computeTimes(end+1,1) = toc;
-              dataQueue.send(struct('id',data.id,'action',action,'result',result));
+              obj.computeTimes(end+1,1) = toc(ticId);
+              toClientDataQueue.send(struct('id',data.id,'action',action,'result',result));
           end
         end
       end
