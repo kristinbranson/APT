@@ -84,14 +84,8 @@ classdef BgMonitor < handle
       % bgResultsReceivedHook method. These work in concert and the 
       % custom actions taken by bgResultsReceivedHook depends on custom 
       % info supplied by bgWorkerObj.
-      [track_type, projTempDir] = myparse(varargin, ...
-                                          'track_type', 'movie', ...
-                                          'projTempDir', []);
-      if strcmp(track_type,'movie')
-        compute_fcn_name = 'compute';
-      else
-        compute_fcn_name = 'computeList';
-      end
+      projTempDir = myparse(varargin, ...
+                            'projTempDir', []);
       if isempty(projTempDir) ,
         obj.projTempDirMaybe_ = {} ;
       else
@@ -108,7 +102,7 @@ classdef BgMonitor < handle
       cbkResult = @obj.bgResultsReceived;
 
       fprintf(1,'Configuring background worker...\n');
-      bgc = BgClient(cbkResult, bgWorkerObj, compute_fcn_name, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
+      bgc = BgClient(cbkResult, bgWorkerObj, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
       
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;

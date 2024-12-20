@@ -3318,7 +3318,10 @@ classdef DeepTracker < LabelTracker
 
     function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,backend,varargin)
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
-        myparse(varargin,'track_type','movie','do_call_apt_interface_dot_py',true,'projTempDir',[]);
+        myparse(varargin,...
+                'track_type','movie',...
+                'do_call_apt_interface_dot_py',true,...
+                'projTempDir',[]);
 
       if obj.dryRunOnly
         fprintf('Dry run, not tracking.\n');
@@ -3329,7 +3332,7 @@ classdef DeepTracker < LabelTracker
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
 
-      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend);
+      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview,obj.trnLastDMC,backend,track_type);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       bgTrkWorkerObj.initFiles(obj.trkSysInfo);
 
@@ -3346,7 +3349,7 @@ classdef DeepTracker < LabelTracker
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
-      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'track_type', track_type, 'projTempDir', projTempDir) ;
+      bgTrkMonitorObj = BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, @obj.trkCompleteCbk, 'projTempDir', projTempDir) ;
       obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
 
       % spawn the jobs
@@ -3456,18 +3459,17 @@ classdef DeepTracker < LabelTracker
   end  % methods
 
   methods (Static)
-    function bgTrkWorkerObj = createBgTrkWorkerObj(nView,~,backend)
+    function bgTrkWorkerObj = createBgTrkWorkerObj(nView, dmc, backend, track_type)
       % dmc is not used in BgTrackWorkerObj subclasses!
-      dmcDummy = [];%nan(1,nView);
       switch backend.type
         case DLBackEnd.Bsub
-          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView,dmcDummy);
+          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc);
         case DLBackEnd.Conda,
-          bgTrkWorkerObj = BgTrackWorkerObjConda(nView,dmcDummy);
+          bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc);
         case DLBackEnd.Docker,
-          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView,dmcDummy,backend);
+          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView, track_type, dmc, backend);
         case DLBackEnd.AWS,
-           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView,dmcDummy,backend.awsec2);
+           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend.awsec2);
         otherwise
           error('Not implemented back end %s',backend.type);
       end
@@ -3694,48 +3696,6 @@ classdef DeepTracker < LabelTracker
         obj.trkSysInfo.changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
       end
     end
-
-%     function trkCompleteCbkAWS(obj,backend,trkfilesLocal,res)
-%       fprintf('AWS: tracking complete at %s\n',datestr(now));
-%       assert(numel(trkfilesLocal)==numel(res));
-%  
-%       mIdx = [res.mIdx];
-%       assert(all(mIdx==mIdx(1)));
-%       mIdx = res(1).mIdx;
-%       movsFull = obj.lObj.getMovieFilesAllFullMovIdx(mIdx);
-%       if all(strcmp(movsFull(:),{res.movfile}'))
-%         % we perform this check b/c while tracking has been running in
-%         % the bg, the project could have been updated, movies
-%         % renamed/reordered etc.
-%         
-%         aws = backend.awsec2;
-%         
-%         % download trkfiles 
-%         sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
-%         for ivw=1:numel(res)
-%           trkLcl = trkfilesLocal{ivw};
-%           trkRmt = res(ivw).trkfile;
-%           fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
-%           aws.scpDownloadOrVerify(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
-%           fprintf('downloaded...\n');
-%         end
-%         
-%         obj.trkPostProcIfNec(mIdx,trkfilesLocal);
-%         obj.trackResAddTrkfile(mIdx,trkfilesLocal);
-%         if mIdx==obj.lObj.currMovIdx
-%           obj.trackCurrResUpdate();
-%           obj.newLabelerFrame();
-%           fprintf('Tracking complete for current movie at %s.\n',datestr(now));
-%         else
-%           iMov = mIdx.get();
-%           fprintf('Tracking complete for movie %d at %s.\n',iMov,datestr(now));
-%         end
-%       else
-%         warningNoTrace('Tracking complete, but movieset %d has changed in current project.',...
-%           int32(mIdx));
-%         % conservative, take no action for now
-%       end
-%     end
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
       % When appropriate, perform postprocessing and re-save trkfiles in

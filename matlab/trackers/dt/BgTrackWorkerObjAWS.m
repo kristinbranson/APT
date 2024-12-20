@@ -1,8 +1,9 @@
 classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj 
   methods    
-    function obj = BgTrackWorkerObjAWS(nviews,varargin)
+    function obj = BgTrackWorkerObjAWS(nviews, track_type, varargin)
       obj@BgWorkerObjAWS(varargin{:});
-      obj.nviews = nviews;
+      obj.nviews = nviews ;
+      obj.track_type = track_type ;
     end
     
     function sRes = compute(obj, logger)

@@ -1,4 +1,4 @@
-function status = runPollingLoop(toClientDataQueue, worker, cObjMeth, callInterval, projTempDirMaybe)
+function status = runPollingLoop(toClientDataQueue, worker, callInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
@@ -57,7 +57,7 @@ while true
     % continue
   end
   
-  result = worker.(cObjMeth)(logger);  % this is a row struct, with length equal to the number of views
+  result = worker.work(logger);  % this is a row struct, with length equal to the number of views
   view_count = numel(result) ;
   for view_index = 1 : view_count ,
     result(view_index).iterations_completed = iterations_completed ;

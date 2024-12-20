@@ -2,8 +2,8 @@ classdef BgClient < handle
   properties
     cbkResult % function handle called when a new result is computed. 
               % Signature:  cbkResult(s) where s has fields .id, .action, .result
-    computeObj % Object with method .(computeObjMeth)(s) where s has fields .id, .action, .data
-    computeObjMeth % compute method name for computeObj
+    computeObj % Object with method .work(s) where s has fields .id, .action, .data
+    %computeObjMeth % compute method name for computeObj
 
     qWorker2Me % matlab.pool.DataQueue for receiving data from worker (interrupts)
     qMe2Worker % matlab.pool.PollableDataQueue for sending data to Worker (polled)    
@@ -25,7 +25,7 @@ classdef BgClient < handle
   
   methods 
     function v = get.isConfigured(obj)
-      v = ~isempty(obj.cbkResult) && ~isempty(obj.computeObj) && ~isempty(obj.computeObjMeth);
+      v = ~isempty(obj.cbkResult) && ~isempty(obj.computeObj) ;
     end    
     function v = get.isRunning(obj)
       v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
@@ -34,7 +34,7 @@ classdef BgClient < handle
   end
 
   methods 
-    function obj = BgClient(resultCallback, computeObj, computeObjMeth, varargin)
+    function obj = BgClient(resultCallback, computeObj, varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
@@ -59,7 +59,6 @@ classdef BgClient < handle
       end
       obj.cbkResult = resultCallback;
       obj.computeObj = computeObj; % will be deep-copied onto worker
-      obj.computeObjMeth = computeObjMeth;
       
       obj.projTempDirMaybe_ = projTempDirMaybe ;
     end
@@ -132,8 +131,8 @@ classdef BgClient < handle
       %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
       % computeObj is deep-copied onto worker
       obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 1, fromWorkerDataQueue, obj.computeObj, obj.computeObjMeth, continuousCallInterval, obj.projTempDirMaybe_) ;
-      % foo = feval(@runPollingLoop, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval, obj.projTempDirMaybe_) ; 
+        parfeval(@runPollingLoop, 1, fromWorkerDataQueue, obj.computeObj, continuousCallInterval, obj.projTempDirMaybe_) ;
+      % foo = feval(@runPollingLoop, fromWorkerDataQueue, obj.computeObj, continuousCallInterval, obj.projTempDirMaybe_) ; 
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       
       obj.idPool = uint32(1);

@@ -14,6 +14,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
     % the client has, the client can decide what to do.
 
     nviews = 0;
+    track_type = 'movie'
     totrackinfos = [];
     
     isexternal = false % whether we are tracking movies that are part of the lbl project
@@ -137,6 +138,21 @@ classdef BgTrackWorkerObj < BgWorkerObj
 
     end
       
+    function sRes = work(obj, logger)
+      % Function that calls either compute() or computeList(), depending on
+      % value of obj.track_type
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ;
+      end
+      if strcmp(obj.track_type,'movie')
+        sRes = obj.compute(logger) ;
+      elseif strcmp(obj.track_type,'list')
+        sRes = obj.computeList(logger) ;
+      else
+        error('Unknown track_type: %s', track_type) ;
+      end
+    end
+
     function sRes = compute(obj, logger)
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
