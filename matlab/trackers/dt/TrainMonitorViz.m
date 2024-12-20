@@ -517,7 +517,7 @@ classdef TrainMonitorViz < handle
     
     function updateMonitorPlots(obj)
       
-      sRes.result = obj.trainWorkerObj.compute();
+      sRes.result = obj.trainWorkerObj.work();
       obj.resultsReceived(sRes,true);
       
     end

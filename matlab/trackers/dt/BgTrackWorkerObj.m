@@ -145,15 +145,15 @@ classdef BgTrackWorkerObj < BgWorkerObj
         logger = FileLogger() ;
       end
       if strcmp(obj.track_type,'movie')
-        sRes = obj.compute(logger) ;
+        sRes = obj.workOnMovie(logger) ;
       elseif strcmp(obj.track_type,'list')
-        sRes = obj.computeList(logger) ;
+        sRes = obj.workOnList(logger) ;
       else
-        error('Unknown track_type: %s', track_type) ;
+        error('Unknown track_type: %s', obj.track_type) ;
       end
     end
 
-    function sRes = compute(obj, logger)
+    function sRes = workOnMovie(obj, logger)
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
@@ -232,7 +232,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         );
     end  % function
 
-    function sRes = computeList(obj, logger)
+    function sRes = workOnList(obj, logger)
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end

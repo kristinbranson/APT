@@ -22,7 +22,7 @@ classdef BgMonitor < handle
   % (knows how to poll the filesystem in detail) in the background and 
   % connects it with a Monitor.
   %
-  % See also prepare() method comments for related info.
+  % See also constructor method comments for related info.
   
   properties
     pollInterval  % scalar double, in secs    
@@ -32,7 +32,7 @@ classdef BgMonitor < handle
                  % workers.
     monitorVizObj  % object with resultsreceived() method, typically a "monitor visualizer"
     processName  % 'train' or 'track'
-    parent_  % the (tpyically) DeepTracker object that created this BgMonitor
+    parent_  % the (typically) DeepTracker object that created this BgMonitor
     projTempDirMaybe_
     tfComplete_  
       % Initialized to false in start() method, set to true when completion detected.
@@ -40,7 +40,6 @@ classdef BgMonitor < handle
   end
 
   properties (Dependent)
-    prepared
     isRunning
   end
     
@@ -65,7 +64,7 @@ classdef BgMonitor < handle
 
       % bgWorkerObj knows how to poll the state of the process. 
       % monVizObj knows how to vizualize this state. 
-      % bgResultsReceivedHook performs custom actions after receiving
+      % didReceivePollResults performs custom actions after receiving
       % an update from bgWorkerObj. 
       %
       % bgWorkerObj/monVizObj should be mix+matchable as bgWorkerObj 
@@ -73,8 +72,8 @@ classdef BgMonitor < handle
       % use.
       %
       % bgWorkerObj matches 1-1 with the concrete BgMonitor and its 
-      % bgResultsReceivedHook method. These work in concert and the 
-      % custom actions taken by bgResultsReceivedHook depends on custom 
+      % didReceivePollResults method. These work in concert and the 
+      % custom actions taken by didReceivePollResults depends on custom 
       % info supplied by bgWorkerObj.
       projTempDir = myparse(varargin, ...
                             'projTempDir', []);
@@ -91,10 +90,8 @@ classdef BgMonitor < handle
         error('Error file ''%s'' exists.',errFile);
       end
       
-      cbkResult = @obj.bgResultsReceived;
-
-      fprintf(1,'Configuring background worker...\n');
-      bgc = BgClient(cbkResult, bgWorkerObj, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
+      fprintf('Configuring background worker...\n');
+      bgc = BgClient(obj, bgWorkerObj, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
       
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
@@ -127,17 +124,12 @@ classdef BgMonitor < handle
       obj.monitorVizObj = [];
     end  % delete() method
     
-    function v = get.prepared(obj)
-      v = ~isempty(obj.bgClientObj);
-    end
-
     function v = get.isRunning(obj)
       bgc = obj.bgClientObj;
       v = ~isempty(bgc) && bgc.isRunning;
     end
     
     function start(obj)
-      assert(obj.prepared);
       obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
       bgc.startPollingLoop(obj.pollInterval) ;
@@ -154,14 +146,14 @@ classdef BgMonitor < handle
       obj.parent_.waitForJobsToExit(obj.processName) ;
     end
     
-    function bgResultsReceived(obj,sRes)
+    function didReceivePollResults(obj, sRes)
       % current pattern is, this meth only handles things which stop the
       % process. everything else handled by obj.monitorVizObj
 
 	    % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
       [tfSucc,msg] = obj.monitorVizObj.resultsReceived(sRes);
       
-      BgMonitor.debugfprintf('bgResultsReceived: tfSucc = %d\n',tfSucc);
+      BgMonitor.debugfprintf('BgMonitor.didReceivePollResults: tfSucc = %d\n',tfSucc);
       
       tfpollsucc = BgMonitor.getPollSuccess(sRes);
       
@@ -248,7 +240,7 @@ classdef BgMonitor < handle
         obj.stop();
         return
       end      
-    end  % function bgResultsReceived
+    end  % function didReceivePollResults
   end  % methods
   
   methods (Static)

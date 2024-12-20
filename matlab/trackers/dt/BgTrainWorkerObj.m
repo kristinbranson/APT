@@ -77,7 +77,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
 
     end
     
-    function sRes = compute(obj, logger) % obj const except for .trnLogLastStep
+    function sRes = work(obj, logger) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;  %#ok<NASGU> 

@@ -6,7 +6,7 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
       obj.track_type = track_type ;
     end
     
-    function sRes = compute(obj, logger)
+    function sRes = workOnMovie(obj, logger)
       % sRes: [nMovies x nviews x nStages] struct array      
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;

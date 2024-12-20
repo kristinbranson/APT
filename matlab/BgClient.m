@@ -1,7 +1,7 @@
 classdef BgClient < handle
   properties
-    cbkResult % function handle called when a new result is computed. 
-              % Signature:  cbkResult(s) where s has fields .id, .action, .result
+    %cbkResult % function handle called when a new result is computed. 
+    %          % Signature:  cbkResult(s) where s has fields .id, .action, .result
     worker % Object with method .work(s) where s has fields .id, .action, .data
 
     qWorker2Me % matlab.pool.DataQueue for receiving data from worker (interrupts)
@@ -15,17 +15,14 @@ classdef BgClient < handle
     
     parpoolIdleTimeout = 100*60; % bump gcp IdleTimeout to at least this value every time a worker is started
     projTempDirMaybe_ = {}
+    parent_  % The parent object, typically a BgMonitor
   end
 
   properties (Dependent)
-    isConfigured
-    isRunning 
+    isRunning  % true iff the polling loop process is running
   end
   
   methods 
-    function v = get.isConfigured(obj)
-      v = ~isempty(obj.cbkResult) && ~isempty(obj.worker) ;
-    end    
     function v = get.isRunning(obj)
       v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
       %fprintf('In BgClient::get.isRunning(), isRunning is %d\n', v) ;
@@ -33,7 +30,7 @@ classdef BgClient < handle
   end
 
   methods 
-    function obj = BgClient(resultCallback, worker, varargin)
+    function obj = BgClient(parent, worker, varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
@@ -41,7 +38,7 @@ classdef BgClient < handle
       projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
 
       % Configure compute object and results callback      
-      assert(isa(resultCallback,'function_handle'));      
+      assert(ismethod(parent,'didReceivePollResults'));      
       if ismethod(worker,'copyAndDetach')
         % AL20191218
         % Some workers have properties that don't deep-copy well over
@@ -56,8 +53,8 @@ classdef BgClient < handle
         % transmitted over via parfeval.
         worker = worker.copyAndDetach();
       end
-      obj.cbkResult = resultCallback;
-      obj.worker = worker; % will be deep-copied onto worker
+      obj.parent_ = parent ;
+      obj.worker = worker ; % will be deep-copied into background process
       
       obj.projTempDirMaybe_ = projTempDirMaybe ;
     end
@@ -83,13 +80,8 @@ classdef BgClient < handle
     function startPollingLoop(obj, pollInterval)
       % Start runPollingLoop() on new thread
       
-      if ~obj.isConfigured
-        error('BgClient:config',...
-          'Object unconfigured; call configure() before starting worker.');
-      end
-      
-      fromPollingLoopDataQueue = parallel.pool.DataQueue;
-      fromPollingLoopDataQueue.afterEach(@(dat)obj.afterEachContinuous(dat));
+      fromPollingLoopDataQueue = parallel.pool.DataQueue() ;
+      fromPollingLoopDataQueue.afterEach(@(dat)obj.didReceivePollResults(dat));
       obj.qWorker2Me = fromPollingLoopDataQueue;
       
       p = gcp() ;
@@ -102,7 +94,7 @@ classdef BgClient < handle
       % worker is deep-copied into polling loop process
       obj.fevalFuture = ...
         parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ;
-      % foo = feval(@runPollingLoop, fromWorkerDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 
+      % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       
       obj.idPool = uint32(1);
@@ -162,25 +154,27 @@ classdef BgClient < handle
       end
     end
     
-    function afterEach(obj,dat)
+    % function afterEach(obj,dat)
+    %   if isa(dat,'parallel.pool.PollableDataQueue')
+    %     obj.qMe2Worker = dat;
+    %     obj.log('Received pollableDataQueue from worker.');
+    %   else
+    %     obj.log('Received results id %d',dat.id);
+    %     obj.idTocs(dat.id) = toc(obj.idTics(dat.id));
+    %     obj.cbkResult(dat);
+    %   end
+    % end    
+    
+    function didReceivePollResults(obj,dat)
       if isa(dat,'parallel.pool.PollableDataQueue')
         obj.qMe2Worker = dat;
         obj.log('Received pollableDataQueue from worker.');
       else
-        obj.log('Received results id %d',dat.id);
-        obj.idTocs(dat.id) = toc(obj.idTics(dat.id));
-        obj.cbkResult(dat);
+        % Pass poll results on to the parent BgMonitor
+        %obj.cbkResult(dat);
+        obj.parent_.didReceivePollResults(dat) ;
       end
-    end    
-
-    function afterEachContinuous(obj,dat)
-      if isa(dat,'parallel.pool.PollableDataQueue')
-        obj.qMe2Worker = dat;
-        obj.log('Received pollableDataQueue from worker.');
-      else
-        obj.cbkResult(dat);
-      end
-    end    
+    end  % function
     
   end
   
