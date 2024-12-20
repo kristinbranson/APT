@@ -110,7 +110,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     %reader % scalar DeepModelChainReader. used to update the itercurr; 
       % knows how to read the (possibly remote) filesys etc
       
-    filesep ='/'; % file separator
+    %filesep ='/'; % file separator
 
     trkTaskKeyword = {}; % arbitrary tracking task keyword; used for tracking output files
     trkTSstr = '';% timestamp for tracking
@@ -205,7 +205,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 
     % dirProjLnx should be the same for all jobs, views, stages
     function v = dirProjLnx(obj)
-      v = [obj.rootDir obj.filesep obj.projID];
+      v = [obj.rootDir '/' obj.projID];
     end
 
     function [v,idx] = getModelChainID(obj,varargin)
@@ -275,17 +275,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function setRootDir(obj,v)
       obj.rootDir = v ;
     end
-    function v = getFileSep(obj)
-      v = obj.filesep;
-    end
-    function setFileSep(obj,v)
-      obj.filesep = v;
-    end
-    function checkFileSep(obj)
-      if isempty(obj.filesep),
-        obj.filesep = '/';
-      end
-    end
     function setPrevModels(obj,prev_models,varargin)
       idx = obj.select(varargin{:});
       assert(numel(prev_models) == numel(idx));
@@ -334,7 +323,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         icurr = idx(ii);
-        v{ii} = [obj.rootDir obj.filesep obj.projID obj.filesep char(obj.netType{icurr})];
+        v{ii} = [obj.rootDir '/' obj.projID '/' char(obj.netType{icurr})];
       end
     end
     function [v,idx] = getNetDescriptor(obj,varargin)
@@ -350,7 +339,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         icurr = idx(ii);
-        v{ii} = [obj.rootDir obj.filesep obj.projID obj.filesep char(obj.netType{icurr}) obj.filesep sprintf('view_%d',obj.view(icurr))];
+        v{ii} = [obj.rootDir '/' obj.projID '/' char(obj.netType{icurr}) '/' sprintf('view_%d',obj.view(icurr))];
       end
     end
     function [v,idx] = dirModelChainLnx(obj,varargin)
@@ -358,24 +347,24 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for ii = 1:numel(idx),
         icurr = idx(ii);
-        v{ii} = [dirViewLnxs{ii} obj.filesep obj.modelChainID{icurr}];
+        v{ii} = [dirViewLnxs{ii} '/' obj.modelChainID{icurr}];
       end
     end
     function [v,idx] = dirTrkOutLnx(obj,varargin)
       [dirModelChainLnxs,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(dirModelChainLnxs));
       for icurr = 1:numel(dirModelChainLnxs),
-        v{icurr} = [dirModelChainLnxs{icurr} obj.filesep 'trk'];
+        v{icurr} = [dirModelChainLnxs{icurr} '/' 'trk'];
       end
     end 
     function v = dirAptRootLnx(obj)
-      v = [obj.rootDir obj.filesep 'APT'];
+      v = [obj.rootDir '/' 'APT'];
     end
     function [v,idx] = trainConfigLnx(obj,varargin)
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx obj.filesep trainConfigNames{icurr} obj.configFileExt];
+        v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} obj.configFileExt];
       end
     end
     function [v,idx] = trainConfigName(obj,varargin)
@@ -395,7 +384,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx obj.filesep trainConfigNames{icurr} '.lbl'];
+        v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.lbl'];
       end
     end
     % full path to json config for this train session
@@ -403,22 +392,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx obj.filesep trainConfigNames{icurr} '.json'];
+        v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.json'];
       end
     end
      % full path to training annotations - unused
     function v = trainPackLnx(obj)
-      v = [obj.dirProjLnx obj.filesep obj.trainPackName];      
+      v = [obj.dirProjLnx '/' obj.trainPackName];      
     end
      % full path to training annotations - used - unique
     function v = trainLocLnx(obj)
-      v = [obj.dirProjLnx obj.filesep obj.trainLocName];
+      v = [obj.dirProjLnx '/' obj.trainLocName];
     end
 
     function [v,idx] = trainCmdfileLnx(obj,varargin)
       [v,idx] = obj.trainCmdfileName(varargin{:});
       for icurr = 1:numel(v),
-        v{icurr} = [obj.dirProjLnx obj.filesep v{icurr}];
+        v{icurr} = [obj.dirProjLnx '/' v{icurr}];
       end
     end
 
@@ -445,7 +434,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
     function [v,idx] = splitfileLnx(obj,varargin)
       [v,idx] = obj.splitfileName(varargin{:});
       for icurr = 1:numel(v),
-        v{icurr} = [obj.dirProjLnx obj.filesep v{icurr}];
+        v{icurr} = [obj.dirProjLnx '/' v{icurr}];
       end
     end
     function [v,idx] = splitfileName(obj,varargin)
@@ -466,7 +455,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirTrkOutLnx{icurr} obj.filesep valresultsName{icurr}];
+        v{icurr} = [dirTrkOutLnx{icurr} '/' valresultsName{icurr}];
       end
     end
 
@@ -475,7 +464,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirTrkOutLnx{icurr} obj.filesep valresultsNameBase{icurr}];
+        v{icurr} = [dirTrkOutLnx{icurr} '/' valresultsNameBase{icurr}];
       end
     end    
     function [v,idx] = valresultsName(obj,varargin)
@@ -494,7 +483,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [errfileName,idx] = obj.errfileName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx obj.filesep errfileName{icurr}];
+        v{icurr} = [obj.dirProjLnx '/' errfileName{icurr}];
       end
     end
     function [v,idx] = errfileName(obj,varargin)
@@ -547,7 +536,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainLogName,idx] = obj.trainLogName(varargin{:});
       v = cell(1,numel(trainLogName));
       for icurr = 1:numel(trainLogName),
-        v{icurr} = [obj.dirProjLnx obj.filesep trainLogName{icurr}];
+        v{icurr} = [obj.dirProjLnx '/' trainLogName{icurr}];
       end
     end
     function [v,idx] = trainLogName(obj,varargin)
@@ -585,7 +574,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [v,idx] = obj.trkExtName(ext,varargin{:});
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
       for icurr = 1:numel(idx),
-        v{icurr} = [dirTrkOutLnx{icurr} obj.filesep v{icurr}];
+        v{icurr} = [dirTrkOutLnx{icurr} '/' v{icurr}];
       end
     end
     function [v,idx] = trkExtName(obj,ext,varargin)
@@ -621,7 +610,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirTrkOutLnx{icurr} obj.filesep trkSnapshotName{icurr}];
+        v{icurr} = [dirTrkOutLnx{icurr} '/' trkSnapshotName{icurr}];
       end
     end
     function [v,idx] = trkSnapshotName(obj,varargin)
@@ -642,7 +631,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirTrkOutLnx{icurr} obj.filesep gtOutfileName{icurr}];
+        v{icurr} = [dirTrkOutLnx{icurr} '/' gtOutfileName{icurr}];
       end
     end
     function [v,idx] = gtOutfileName(obj,varargin)
@@ -662,9 +651,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       v = cell(1,numel(idx));
       for i = 1:numel(idx),
         if isMultiViewJob(i),
-          v{i} = [obj.dirProjLnx obj.filesep killTokenName{i}];
+          v{i} = [obj.dirProjLnx '/' killTokenName{i}];
         else
-          v{i} = [dirModelChainLnx{i} obj.filesep killTokenName{i}];
+          v{i} = [dirModelChainLnx{i} '/' killTokenName{i}];
         end
       end
     end    
@@ -685,7 +674,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirModelChainLnx{icurr} obj.filesep 'traindata.json'];
+        v{icurr} = [dirModelChainLnx{icurr} '/' 'traindata.json'];
       end
     end
     function v = trainContainerName(obj,varargin)
@@ -708,7 +697,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainFinalModelName] = obj.trainFinalModelName(idx);
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirModelChainLnx{icurr} obj.filesep trainFinalModelName{icurr}];
+        v{icurr} = [dirModelChainLnx{icurr} '/' trainFinalModelName{icurr}];
       end
     end
     function [v,idx] = trainCompleteArtifacts(obj,varargin)
@@ -723,7 +712,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [trainCurrModelName] = obj.trainCurrModelName(idx);
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirModelChainLnx{icurr} obj.filesep trainCurrModelName{icurr}];
+        v{icurr} = [dirModelChainLnx{icurr} '/' trainCurrModelName{icurr}];
       end
     end
     function [v,idx] = trainCurrModelSuffixlessLnx(obj,varargin)
@@ -752,7 +741,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [dirModelChainLnx{icurr} obj.filesep obj.trainingImagesName];
+        v{icurr} = [dirModelChainLnx{icurr} '/' obj.trainingImagesName];
       end
     end
     function [v,idx] = trainModelGlob(obj,varargin)
@@ -767,7 +756,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       [aptRepoSnapshotName,idx] = obj.aptRepoSnapshotName(varargin{:});
       v = cell(1,numel(idx));
       for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx obj.filesep aptRepoSnapshotName{icurr}];
+        v{icurr} = [obj.dirProjLnx '/' aptRepoSnapshotName{icurr}];
       end
     end
     function [v,idx] = aptRepoSnapshotName(obj,varargin)
@@ -914,7 +903,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
       elseif isscalar(obj.nLabels),
         obj.nLabels = repmat(obj.nLabels,[1,nmodels]);
       end
-      obj.checkFileSep();
+      %obj.checkFileSep();
       if isempty(obj.isRemote_),
         obj.isRemote_ = false ;
       end
@@ -1115,11 +1104,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         i = idx(ii);
         netty = obj.netType{i};
         gnetspecific = netty.getModelGlobs(obj.iterCurr(i));
-        gnetspecific = cellfun(@(x)[dmcl{ii} obj.filesep x],gnetspecific,'uni',0);
+        gnetspecific = cellfun(@(x)[dmcl{ii} '/' x],gnetspecific,'uni',0);
       
         g{ii} = [{ ...
-          [obj.dirProjLnx obj.filesep sprintf('%s_%s*',obj.modelChainID{i},obj.trainID{i})]; ... % lbl
-          [dmcl{ii} obj.filesep sprintf('%s*',obj.trainID{i})]; ... % toks, logs, errs
+          [obj.dirProjLnx '/' sprintf('%s_%s*',obj.modelChainID{i},obj.trainID{i})]; ... % lbl
+          [dmcl{ii} '/' sprintf('%s*',obj.trainID{i})]; ... % toks, logs, errs
           };...
           gnetspecific(:)];
       end

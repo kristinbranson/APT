@@ -638,13 +638,13 @@ classdef DeepTracker < LabelTracker
         s = rmfield(s,'movIdx2trkfile');
       end
       
-      % 20190520: filesep needed for local windows
-      if isfield(s,'trnLastDMC'),
-        % I don't see how this could happen -- filesep is by default '/'
-        if ~isempty(s.trnLastDMC),
-          s.trnLastDMC.checkFileSep();
-        end
-      end
+      % % 20190520: filesep needed for local windows
+      % if isfield(s,'trnLastDMC'),
+      %   % I don't see how this could happen -- filesep is by default '/'
+      %   if ~isempty(s.trnLastDMC),
+      %     s.trnLastDMC.checkFileSep();
+      %   end
+      % end
       
 %       if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_tesla') || startsWith(s.jrcgpuqueue,'gpu_rtx')
 %         s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
