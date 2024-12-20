@@ -2,8 +2,7 @@ classdef BgClient < handle
   properties
     cbkResult % function handle called when a new result is computed. 
               % Signature:  cbkResult(s) where s has fields .id, .action, .result
-    computeObj % Object with method .work(s) where s has fields .id, .action, .data
-    %computeObjMeth % compute method name for computeObj
+    worker % Object with method .work(s) where s has fields .id, .action, .data
 
     qWorker2Me % matlab.pool.DataQueue for receiving data from worker (interrupts)
     qMe2Worker % matlab.pool.PollableDataQueue for sending data to Worker (polled)    
@@ -25,7 +24,7 @@ classdef BgClient < handle
   
   methods 
     function v = get.isConfigured(obj)
-      v = ~isempty(obj.cbkResult) && ~isempty(obj.computeObj) ;
+      v = ~isempty(obj.cbkResult) && ~isempty(obj.worker) ;
     end    
     function v = get.isRunning(obj)
       v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
@@ -34,7 +33,7 @@ classdef BgClient < handle
   end
 
   methods 
-    function obj = BgClient(resultCallback, computeObj, varargin)
+    function obj = BgClient(resultCallback, worker, varargin)
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
@@ -43,22 +42,22 @@ classdef BgClient < handle
 
       % Configure compute object and results callback      
       assert(isa(resultCallback,'function_handle'));      
-      if ismethod(computeObj,'copyAndDetach')
+      if ismethod(worker,'copyAndDetach')
         % AL20191218
-        % Some computeObjs have properties that don't deep-copy well over
+        % Some workers have properties that don't deep-copy well over
         % to the background worker via parfeval. Examples might be large UI
         % objects containing java handles etc.
         %
-        % To deal with this, computeObjs may optionally copy and mutate
+        % To deal with this, workers may optionally copy and mutate
         % themselves to make themselves palatable for transmission through
         % parfeval and subsequent computation in the bg.
         %
-        % Note computeObj doesn't do anything in this class besides get 
+        % Note worker doesn't do anything in this class besides get 
         % transmitted over via parfeval.
-        computeObj = computeObj.copyAndDetach();
+        worker = worker.copyAndDetach();
       end
       obj.cbkResult = resultCallback;
-      obj.computeObj = computeObj; % will be deep-copied onto worker
+      obj.worker = worker; % will be deep-copied onto worker
       
       obj.projTempDirMaybe_ = projTempDirMaybe ;
     end
@@ -81,46 +80,17 @@ classdef BgClient < handle
   end
   
   methods    
-    % Folded all this into the constructor
-    % function configure(obj,resultCallback,computeObj,computeObjMeth)
-    %   % Configure compute object and results callback
-    % 
-    %   assert(isa(resultCallback,'function_handle'));
-    % 
-    %   if ismethod(computeObj,'copyAndDetach')
-    %     % AL20191218
-    %     % Some computeObjs have properties that don't deep-copy well over
-    %     % to the background worker via parfeval. Examples might be large UI
-    %     % objects containing java handles etc.
-    %     %
-    %     % To deal with this, computeObjs may optionally copy and mutate
-    %     % themselves to make themselves palatable for transmission through
-    %     % parfeval and subsequent computation in the bg.
-    %     %
-    %     % Note computeObj doesn't do anything in this class besides get 
-    %     % transmitted over via parfeval.
-    %     computeObj = computeObj.copyAndDetach();
-    %   end
-    %   obj.cbkResult = resultCallback;
-    %   obj.computeObj = computeObj; % will be deep-copied onto worker
-    %   obj.computeObjMeth = computeObjMeth;
-    % end
-    
-    function startRunner(obj,varargin)
+    function startPollingLoop(obj, pollInterval)
       % Start runPollingLoop() on new thread
-      
-      continuousCallInterval = ...
-        myparse(varargin,...
-                'continuousCallInterval',nan);
       
       if ~obj.isConfigured
         error('BgClient:config',...
           'Object unconfigured; call configure() before starting worker.');
       end
       
-      fromWorkerDataQueue = parallel.pool.DataQueue;
-      fromWorkerDataQueue.afterEach(@(dat)obj.afterEachContinuous(dat));
-      obj.qWorker2Me = fromWorkerDataQueue;
+      fromPollingLoopDataQueue = parallel.pool.DataQueue;
+      fromPollingLoopDataQueue.afterEach(@(dat)obj.afterEachContinuous(dat));
+      obj.qWorker2Me = fromPollingLoopDataQueue;
       
       p = gcp() ;
       if obj.parpoolIdleTimeout > p.IdleTimeout 
@@ -128,11 +98,11 @@ classdef BgClient < handle
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
-      %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
-      % computeObj is deep-copied onto worker
+      %fprintf('obj.worker.awsEc2.sshCmd: %s\n', obj.worker.awsEc2.sshCmd) ;
+      % worker is deep-copied into polling loop process
       obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 1, fromWorkerDataQueue, obj.computeObj, continuousCallInterval, obj.projTempDirMaybe_) ;
-      % foo = feval(@runPollingLoop, fromWorkerDataQueue, obj.computeObj, continuousCallInterval, obj.projTempDirMaybe_) ; 
+        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ;
+      % foo = feval(@runPollingLoop, fromWorkerDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       
       obj.idPool = uint32(1);
@@ -163,7 +133,7 @@ classdef BgClient < handle
       end
     end
     
-    function stopRunner(obj)
+    function stopPollingLoop(obj)
       % "Proper" stop; STOP message is sent to runPollingLoop(); it reads
       % STOP message and breaks from polling loop      
       if obj.isRunning
@@ -172,7 +142,7 @@ classdef BgClient < handle
       end
     end  % function
     
-    function stopRunnerHard(obj)
+    function stopPollingLoopHard(obj)
       % Harder stop, cancel fevalFuture      
       if obj.isRunning
         obj.fevalFuture.cancel();

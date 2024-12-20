@@ -25,7 +25,7 @@ classdef BgMonitor < handle
   % See also prepare() method comments for related info.
   
   properties
-    bgContCallInterval  % scalar double, in secs    
+    pollInterval  % scalar double, in secs    
     bgClientObj  % the BgClient
     bgWorkerObj  % scalar "detached" object (not sure this is still true about it being 
                  % detached --ALT, 2024-06-28) that is deep-copied onto
@@ -63,10 +63,10 @@ classdef BgMonitor < handle
       obj.parent_ = parent ;
       if strcmp(type_string, 'train') ,
         obj.processName = 'train' ;
-        obj.bgContCallInterval = 30 ;  % secs
+        obj.pollInterval = 30 ;  % secs
       elseif strcmp(type_string, 'track') ,
         obj.processName = 'track' ;
-        obj.bgContCallInterval = 20 ;  % secs
+        obj.pollInterval = 20 ;  % secs
       else
         error('Internal error: BgMonitor() argument must be ''train'' or ''track''') ;
       end
@@ -153,13 +153,13 @@ classdef BgMonitor < handle
       assert(obj.prepared);
       obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
-      bgc.startRunner('continuousCallInterval',obj.bgContCallInterval) ;
+      bgc.startPollingLoop(obj.pollInterval) ;
       obj.parent_.didStartBgMonitor(obj.processName) ;
     end
     
     function stop(obj)
       bgc = obj.bgClientObj;
-      bgc.stopRunnerHard();
+      bgc.stopPollingLoopHard();
       obj.parent_.didStopBgMonitor(obj.processName) ;
     end
     

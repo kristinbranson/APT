@@ -1,4 +1,4 @@
-function status = runPollingLoop(toClientDataQueue, worker, callInterval, projTempDirMaybe)
+function status = runPollingLoop(toClientDataQueue, worker, pollInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
@@ -66,7 +66,7 @@ while true
   toClientDataQueue.send(struct('id',0,'action','','result',{result}));
 
   logger.log('Pausing...');
-  pause(callInterval);
+  pause(pollInterval);
   logger.log('Done pausing...');
   iterations_completed = iterations_completed + 1 ;
   logger.log('iterations_completed: %d\n', iterations_completed) ;
