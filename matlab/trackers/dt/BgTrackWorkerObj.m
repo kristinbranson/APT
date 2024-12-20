@@ -1,6 +1,6 @@
 classdef BgTrackWorkerObj < BgWorkerObj
   % Object deep copied onto BG Tracking worker. To be used with
-  % BgRunnerContinuous
+  % runPollingLoop()
   %
   % Responsibilities:
   % - Poll filesystem for tracking output files

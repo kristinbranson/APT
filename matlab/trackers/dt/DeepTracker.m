@@ -3451,12 +3451,12 @@ classdef DeepTracker < LabelTracker
       if ~didSucceed ,
         error(message) ;
       end
-    end
+    end  % function
     
-  end
+  end  % methods
+
   methods (Static)
     function bgTrkWorkerObj = createBgTrkWorkerObj(nView,~,backend)
-
       % dmc is not used in BgTrackWorkerObj subclasses!
       dmcDummy = [];%nan(1,nView);
       switch backend.type
@@ -3471,7 +3471,8 @@ classdef DeepTracker < LabelTracker
         otherwise
           error('Not implemented back end %s',backend.type);
       end
-    end
+    end  % function
+
     function sha = getSHA(file)
       if ismac
         file = strrep(file,' ','\ ');
@@ -3495,10 +3496,10 @@ classdef DeepTracker < LabelTracker
         sha = toks{2};
         sha = regexprep(sha,' ','');
       end
-    end
-  end
-  methods
+    end  % function
+  end  % methods
 
+  methods
     function trkPrintLogs(obj)
       btm = obj.bgTrkMonitor;
       if isempty(btm)

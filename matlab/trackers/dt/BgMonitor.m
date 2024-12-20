@@ -2,13 +2,13 @@ classdef BgMonitor < handle
   % BGMonitor
   %
   % A BGMonitor is:
-  % 1. A BgClient/BgRunner pair comprising a client, bg worker working
+  % 1. A BgClient comprising a client, bg worker working
   % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
   % pipeline.
   %   - The initted BgWorkerObj knows how to poll the state of the process. For
   %     debugging/testing this can be done from the client machine.
   % 2. A client-side MonitorViz object that visualizes 
-  % progress sent back from the BgRunner
+  % progress sent back from runPollongLoop()
   % 3. Custom actions performed when process is complete
   %
   % BGMonitor does NOT know how to spawn process jobs but will know
@@ -16,7 +16,7 @@ classdef BgMonitor < handle
   % jobs and monitor them with BgMonitor.
   %
   % BGMonitor does NOT know how to probe the detailed state of the
-  % process eg on disk. That is BgRunnerObj's domain.
+  % process eg on disk. That is BgWorkerObj's domain.
   %
   % So BGMonitor is a connector/manager obj that runs the worker 
   % (knows how to poll the filesystem in detail) in the background and 
@@ -26,10 +26,10 @@ classdef BgMonitor < handle
   
   properties
     bgContCallInterval  % scalar double, in secs    
-    bgClientObj  % the BgClient (the BgRunner is created in the .startRunner() method of the BgClient)
+    bgClientObj  % the BgClient
     bgWorkerObj  % scalar "detached" object (not sure this is still true about it being 
                  % detached --ALT, 2024-06-28) that is deep-copied onto
-                 % workers. Note, this is not the BgRunner obj itself.
+                 % workers.
     monitorVizObj  % object with resultsreceived() method, typically a "monitor visualizer"
     cbkComplete  % empty, or fcnhandle with sig cbk(res), called when operation complete
     processName  % 'train' or 'track'
@@ -109,7 +109,6 @@ classdef BgMonitor < handle
 
       fprintf(1,'Configuring background worker...\n');
       bgc = BgClient(cbkResult, bgWorkerObj, compute_fcn_name, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
-      %bgc.configure(cbkResult, bgWorkerObj, compute_fcn_name) ;
       
       obj.bgClientObj = bgc;
       obj.bgWorkerObj = bgWorkerObj;
@@ -160,8 +159,7 @@ classdef BgMonitor < handle
       assert(obj.prepared);
       obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
-      bgc.startRunner('runnerContinuous',true,...
-                      'continuousCallInterval',obj.bgContCallInterval) ;
+      bgc.startRunner('continuousCallInterval',obj.bgContCallInterval) ;
       obj.parent_.didStartBgMonitor(obj.processName) ;
     end
     

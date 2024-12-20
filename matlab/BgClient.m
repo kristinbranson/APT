@@ -8,7 +8,6 @@ classdef BgClient < handle
     qWorker2Me % matlab.pool.DataQueue for receiving data from worker (interrupts)
     qMe2Worker % matlab.pool.PollableDataQueue for sending data to Worker (polled)    
     fevalFuture % FevalFuture output from parfeval
-    isContinuous = false % scalar. if true, worker is a continuous worker
     idPool % scalar uint for cmd ids
     idTics % [numIDsSent] uint64 col vec of start times for each command id sent 
     idTocs % [numIDsReceived] col vec of compute elapsed times, set when response to each command id is received
@@ -18,10 +17,12 @@ classdef BgClient < handle
     parpoolIdleTimeout = 100*60; % bump gcp IdleTimeout to at least this value every time a worker is started
     projTempDirMaybe_ = {}
   end
+
   properties (Dependent)
     isConfigured
     isRunning 
   end
+  
   methods 
     function v = get.isConfigured(obj)
       v = ~isempty(obj.cbkResult) && ~isempty(obj.computeObj) && ~isempty(obj.computeObjMeth);
@@ -107,11 +108,11 @@ classdef BgClient < handle
     % end
     
     function startRunner(obj,varargin)
-      % Start BgRunner on new thread
+      % Start runPollingLoop() on new thread
       
-      [isRunnerContinuous,continuousCallInterval] = myparse(varargin,...
-        'runnerContinuous',false,...
-        'continuousCallInterval',nan);
+      continuousCallInterval = ...
+        myparse(varargin,...
+                'continuousCallInterval',nan);
       
       if ~obj.isConfigured
         error('BgClient:config',...
@@ -119,11 +120,7 @@ classdef BgClient < handle
       end
       
       fromWorkerDataQueue = parallel.pool.DataQueue;
-      if isRunnerContinuous
-      	fromWorkerDataQueue.afterEach(@(dat)obj.afterEachContinuous(dat));
-      else
-        fromWorkerDataQueue.afterEach(@(dat)obj.afterEach(dat));
-      end		
+      fromWorkerDataQueue.afterEach(@(dat)obj.afterEachContinuous(dat));
       obj.qWorker2Me = fromWorkerDataQueue;
       
       p = gcp() ;
@@ -133,21 +130,12 @@ classdef BgClient < handle
       end
       
       %fprintf('obj.computeObj.awsEc2.sshCmd: %s\n', obj.computeObj.awsEc2.sshCmd) ;
-      if isRunnerContinuous
-        runnerObj = BgRunnerContinuous('projTempDirMaybe', obj.projTempDirMaybe_) ;
-        % computeObj deep-copied onto worker
-        obj.fevalFuture = ...
-          parfeval(@run, 1, runnerObj, fromWorkerDataQueue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ;
-        % foo = feval(@run, runnerObj, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval) ; 
-        %   % The feval() (not parfeval) line above is sometimes useful when debugging.
-      else      
-        runnerObj = BgRunner() ;
-        % computeObj deep-copied onto worker
-        obj.fevalFuture = ...
-          parfeval(@run, 1, runnerObj, fromWorkerDataQueue, obj.computeObj, obj.computeObjMeth) ; 
-      end
+      % computeObj is deep-copied onto worker
+      obj.fevalFuture = ...
+        parfeval(@runPollingLoop, 1, fromWorkerDataQueue, obj.computeObj, obj.computeObjMeth, continuousCallInterval, obj.projTempDirMaybe_) ;
+      % foo = feval(@runPollingLoop, queue, obj.computeObj, obj.computeObjMeth, continuousCallInterval, obj.projTempDirMaybe_) ; 
+      %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       
-      obj.isContinuous = isRunnerContinuous;
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;
@@ -177,10 +165,10 @@ classdef BgClient < handle
     end
     
     function stopRunner(obj)
-      % "Proper" stop; STOP message is sent to BgRunner obj; BgRunner reads
+      % "Proper" stop; STOP message is sent to runPollingLoop(); it reads
       % STOP message and breaks from polling loop      
       if obj.isRunning
-        sCmd = struct('action',BgRunner.STOPACTION,'data',[]);
+        sCmd = struct('action','STOP','data',[]);
         obj.sendCommand(sCmd);
       end
     end  % function

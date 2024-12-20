@@ -1,6 +1,6 @@
 classdef BgTrainWorkerObj < BgWorkerObj
   % Object deep copied onto BG Training worker. To be used with
-  % BgRunnerContinuous
+  % runPollingLoop()
   % 
   % Responsibilities:
   % - Poll filesystem for training updates
