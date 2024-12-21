@@ -573,11 +573,11 @@ classdef LabelerController < handle
       ec2 = backend.awsec2 ;
       if ~ec2.isConfigured || canConfigure >= 2,
         if canConfigure,
-          [tfsucc,keyName,pemFile] = ...
-            specifySSHKeyUIStc(ec2.keyName,ec2.pem);
+          [tfsucc,keypairName,pemFile] = ...
+            promptUserToSpecifyPEMFileName(ec2.keypairName,ec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
-            labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
+            labeler.setAwsPemFileAndKeypairName(pemFile, keypairName) ;
           end
           if ~tfsucc && ~ec2.isConfigured,
             reason = 'AWS EC2 instance is not configured.';
@@ -588,15 +588,15 @@ classdef LabelerController < handle
           error(reason) ;
         end
       end
-      if forceSelect || ~ec2.isSpecified,
-        if ec2.isSpecified ,
+      if forceSelect || ~ec2.isInstanceIDSet,
+        if ec2.isInstanceIDSet ,
           instanceID = ec2.instanceID;
         else
           instanceID = '';
         end
         if canLaunch,
           qstr = 'Launch a new instance or attach to an existing instance?';
-          if ~ec2.isSpecified,
+          if ~ec2.isInstanceIDSet,
             qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
           else
             qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);

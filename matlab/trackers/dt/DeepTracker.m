@@ -701,7 +701,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart(obj,backEnd,dmc,projTempDir,varargin)
+    function bgTrnStart_(obj,backEnd,dmc,projTempDir,varargin)
       % fresh start new training monitor 
             
       [trainSplits,trnVizArgs] = myparse(varargin,...
@@ -1004,13 +1004,13 @@ classdef DeepTracker < LabelTracker
       end
 
       % Spawn the training job
-      obj.trnSpawn(backend, ...
-                   dlTrnType, ...
-                   modelChain, ...
-                   'prev_models',prev_models, ...
-                   'do_just_generate_db',do_just_generate_db, ...
-                   'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
-                   'projTempDir', projTempDir) ;
+      obj.trnSpawn_(backend, ...
+                    dlTrnType, ...
+                    modelChain, ...
+                    'prev_models',prev_models, ...
+                    'do_just_generate_db',do_just_generate_db, ...
+                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                    'projTempDir', projTempDir) ;
       
       % Nothing should occur here as failed trnSpawn* will early return      
     end
@@ -1056,13 +1056,13 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trnKill(obj)
-      if ~obj.bgTrnIsRunning
-        error('Training is not in progress.');
-      end
-      
-      obj.bgTrnMonBGWorkerObj.killProcess();      
-    end
+    % function trnKill(obj)
+    %   if ~obj.bgTrnIsRunning
+    %     error('Training is not in progress.');
+    %   end
+    % 
+    %   obj.bgTrnMonBGWorkerObj.killProcess();      
+    % end
     
     % update trackerInfo from trnLastDMC
     function updateTrackerInfo(obj)      
@@ -1426,7 +1426,7 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function tfSucc = trnSpawn(obj,backend,trnType,modelChainID,varargin)
+    function tfSucc = trnSpawn_(obj,backend,trnType,modelChainID,varargin)
       % backend: scalar DLBackEndClass
       % trnType: scalar DLTrainType
       % modelChainID: trainID 
@@ -1540,7 +1540,7 @@ classdef DeepTracker < LabelTracker
         fprintf('Dry run, not spawning training jobs') ;
         %cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
       else
-        obj.bgTrnStart(backend, dmc, projTempDir) ;
+        obj.bgTrnStart_(backend, dmc, projTempDir) ;
 
         % spawn training
 %         [tfSucc, jobID] = backend.spawn(syscmds, ...
@@ -1557,7 +1557,7 @@ classdef DeepTracker < LabelTracker
         obj.bgTrnMonBGWorkerObj.jobID = jobID;
       end
       obj.trnLastDMC = dmc;
-    end  % trnSpawn() function
+    end  % trnSpawn_() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
       % trnImgMats: cellstr, or could be loaded mats

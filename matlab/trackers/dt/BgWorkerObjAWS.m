@@ -1,4 +1,4 @@
-classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
+classdef BgWorkerObjAWS < BgWorkerObj
   
   properties
     jobID  % [nmovjob x nviewJobs] remote PIDs
@@ -71,12 +71,12 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
         error('AWSEC2 backend object is unset.');
       end
       
-      if ~ec2.canKillRemoteProcess()
-        tfpid = ec2.getRemotePythonPID();
-        if ~tfpid
-          error('Could not ascertain remote process ID in AWSEC2 instance %s.',ec2.instanceID);
-        end
-      end
+      % if ~ec2.canKillRemoteProcess()
+      %   tfpid = ec2.getRemotePythonPID();
+      %   if ~tfpid
+      %     error('Could not ascertain remote process ID in AWSEC2 instance %s.',ec2.instanceID);
+      %   end
+      % end
       
       killfile = obj.getKillFiles();
       killfile = unique(killfile);

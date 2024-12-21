@@ -1,4 +1,4 @@
-classdef DeepModelChainOnDisk < matlab.mixin.Copyable
+classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable is a subclass of handle
   % DMCOD understands the filesystem structure of a deep model. This same
   % structure is used on both remote and local filesystems.
   %
@@ -7,10 +7,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
   % different but they live underneath the cache/modelchaindir at runtime.
   %
   % DMCOD does know whether the model is on a local or remote filesystem 
-  % via the .reader property. The .reader object is a delegate that knows 
-  % how to actually read the (possibly remote) filesystem. This works fine 
-  % for now future design unclear.
-  
+  % via the isRemote_ property.
+
+  % As far as I can tell, all the fields of DMCOD contain only value objects in
+  % normal usage.  Thus obj.copy() makes an entirely indepdent copy of obj, with
+  % no need to implement a custom copyElement() method.  -- ALT, 2024-12-20
+    
   properties (Constant)
     configFileExt = '.json'; % switching this to output json file in train/track commands
     gen_strippedlblfile = false; % try disabling the stripped lbl file generation!!
@@ -767,6 +769,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
         v{ii} = sprintf('%s_%s.aptsnapshot',obj.modelChainID{icurr},obj.trainID{icurr});
       end
     end
+
 %     function v = dockerImgPath(obj,backend) %#ok<INUSL> 
 %       % todo: this should depend on what type of tracker
 %       v = backend.dockerimgroot;
@@ -774,21 +777,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
 %         v = [v ':' backend.dockerimgtag];
 %       end
 %     end
+
     function [v,idx] = getPrevModels(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.prev_models(idx);
     end
-  end
-  methods (Access=protected)
-    function obj2 = copyElement(obj)
-      obj2 = copyElement@matlab.mixin.Copyable(obj);
-%       if ~isempty(obj.reader)
-%         obj2.reader = copy(obj.reader);
-%       end
-    end
-  end
-  
-  methods
+
     function obj = DeepModelChainOnDisk(varargin)
 
       % allow to call with no inputs, but then all responsibility for
@@ -1611,7 +1605,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable
           'iterCurr',iterCurr,...
           'nLabels',nLabels,...
           'prev_models',prev_models,...
-          'filesep',dmcs(1).filesep,...
           'trkTaskKeyword',trkTaskKeyword,...
           'trkTSstr',dmcs(1).trkTSstr...
           );

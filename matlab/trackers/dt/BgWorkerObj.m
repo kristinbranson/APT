@@ -1,4 +1,4 @@
-classdef BgWorkerObj < handle
+classdef BgWorkerObj < matlab.mixin.Copyable
   % Object deep copied onto BG worker. To be used with
   % runPollingLoop()
   % 

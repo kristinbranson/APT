@@ -381,9 +381,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
       % On load, clear the .awsec2 fields that should be Transient, but can't be b/c
       % we need them to survive going through parfeval()
-      obj.awsec2.instanceIP = [] ;
-      obj.awsec2.remotePID = [] ;
-      obj.awsec2.isInDebugMode = false ;
+      obj.awsec2.resetAfterLoad() ;
 
       % If these JRC-backend-related things are empty, warn that we're using default values
       if isempty(obj.jrcgpuqueue) || strcmp(obj.jrcgpuqueue,'gpu_any') || strcmp(obj.jrcgpuqueue,'gpu_tesla') || startsWith(obj.jrcgpuqueue,'gpu_rtx') ,
@@ -404,7 +402,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tf = false;
       if obj.type==DLBackEnd.AWS
         didLaunch = false;
-        if ~obj.awsec2.isConfigured || ~obj.awsec2.isSpecified,
+        if ~obj.awsec2.isConfigured || ~obj.awsec2.isInstanceIDSet ,
           [tfsucc,instanceID,~,reason,didLaunch] = ...
             obj.awsec2.selectInstance('canconfigure',1,'canlaunch',1,'forceselect',0);
           if ~tfsucc || isempty(instanceID),

@@ -92,6 +92,7 @@ classdef BgClient < handle
       
       %fprintf('obj.worker.awsEc2.sshCmd: %s\n', obj.worker.awsEc2.sshCmd) ;
       % worker is deep-copied into polling loop process
+      
       obj.fevalFuture = ...
         parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ;
       % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 

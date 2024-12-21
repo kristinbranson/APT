@@ -14,33 +14,34 @@ classdef AWSec2 < matlab.mixin.Copyable
 
   properties (Constant)
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
+    scpCmd = AWSec2.computeScpCmd()
+    rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
   properties (SetAccess=private)
-    instanceID  % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
+    instanceID = ''  % Durable identifier for the AWS EC2 instance.  E.g.'i-07a3a8281784d4a38'.
   end
 
   properties (Dependent)
-    isSpecified
-    isConfigured
-    isInDebugMode
-    wasInstanceStarted
+    isInstanceIDSet  % Whether the instanceID is set or not
+    isConfigured     % Whether the object is ready to start the instance
+    isInDebugMode    % Whether the object is in debug mode.  See isInDebugMode_
   end
 
   properties
-    keyName = ''
-    pem = ''
-    instanceType = 'p3.2xlarge';
+    keypairName = ''  % keypair name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
+    pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
+    instanceType = 'p3.2xlarge';  % the AWS EC2 machine instance type to use
   end
   
   properties  % (Transient)  Making these transient means they don't get copied over when you pass an AWSec2 in an arg to parfeval()!
               %              We'll just have to be smart about handling them when loading.
-    instanceIP
-    remotePID = ''  % an old-style string
-    isInDebugMode_ = false
+    instanceIP = '' % The IP address of the EC2 instance.  An old-style string.
+    %remotePID = ''  % The PID of the Python process on the EC2 instance.  An old-style string
+    isInDebugMode_ = false  % In debug mode or not.  In debug mode, for instance, AWS alarms are turned off.
   end
   
-  properties (Transient)
+  properties (Transient, NonCopyable)
     wasInstanceStarted_ = false  % This is true iff obj started the AWS EC2 instance.  If something/someone other than 
                                  % *this object* started the instance, this is false. 
                                  %
@@ -48,19 +49,8 @@ classdef AWSec2 < matlab.mixin.Copyable
                                  % parfeval(), or when the object is persisted, so we make it transient.
   end
 
-  properties (Constant)
-    scpCmd = AWSec2.computeScpCmd()
-    %sshCmd = AWSec2.computeSshCmd()
-    rsyncCmd = AWSec2.computeRsyncCmd()
-  end
-  
   methods    
-    function obj = AWSec2(varargin)
-      for i=1:2:numel(varargin)
-        prop = varargin{i};
-        val = varargin{i+1};
-        obj.(prop) = val;
-      end      
+    function obj = AWSec2()
     end
     
     function delete(obj)  %#ok<INUSD> 
@@ -76,10 +66,10 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function v = get.isConfigured(obj)
-      v = ~isempty(obj.pem) && ~isempty(obj.keyName);
+      v = ~isempty(obj.pem) && ~isempty(obj.keypairName);
     end
 
-    function v = get.isSpecified(obj)
+    function v = get.isInstanceIDSet(obj)
       v = ~isempty(obj.instanceID);
     end
 
@@ -89,10 +79,6 @@ classdef AWSec2 < matlab.mixin.Copyable
 
     function set.isInDebugMode(obj, value)
       obj.isInDebugMode_ = value ;
-    end
-
-    function result = get.wasInstanceStarted(obj)
-      result = obj.wasInstanceStarted_ ;
     end
 
     function setInstanceID(obj,instanceID,instanceType)
@@ -117,7 +103,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       if nargin > 3,
         obj.instanceType = instanceType;
       end
-      if obj.isSpecified,
+      if obj.isInstanceIDSet,
         obj.configureAlarm();
       end
       %obj.ClearStatus();
@@ -127,8 +113,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.pem = pemFile;
     end
     
-    function setKeyName(obj,keyName)
-      obj.keyName = keyName;
+    function setKeypairName(obj,keypairName)
+      obj.keypairName = keypairName;
     end
     
     function [tfsucc,json] = launchInstance(obj,varargin)
@@ -136,7 +122,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
       obj.ResetInstanceID();
       %obj.SetStatus('Launching new AWS EC2 instance');
-      cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
+      cmd = AWSec2.launchInstanceCmd(obj.keypairName,'instType',obj.instanceType,'dryrun',dryrun);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
@@ -166,7 +152,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       % * tfrunning is returned as true if the instance exists and is running.
       % * json is valid only if tfexist==true.
       
-      assert(obj.isSpecified,'Cannot inspect an unspecified AWSEc2 instance.');
+      assert(obj.isInstanceIDSet,'Cannot inspect an unspecified AWSEc2 instance.');
       
       % Aside: this works with empty .instanceID if there is only one 
       % instance in the cloud, but we are not interested in that for now
@@ -203,7 +189,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end  % function
     
     function [tfsucc,state,json] = getInstanceState(obj)
-      assert(obj.isSpecified);
+      assert(obj.isInstanceIDSet);
       state = '';
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
@@ -216,7 +202,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,json] = stopInstance(obj)
-      if ~obj.isSpecified || ~obj.wasInstanceStarted_ ,
+      if ~obj.isInstanceIDSet || ~obj.wasInstanceStarted_ ,
         tfsucc = true;
         json = {};
         return
@@ -239,7 +225,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       instanceIDs = {};
       instanceTypes = {};
       %obj.SetStatus('Listing AWS EC2 instances available');
-      cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',[]); % empty instType to list all instanceTypes
+      cmd = AWSec2.listInstancesCmd(obj.keypairName,'instType',[]); % empty instType to list all instanceTypes
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if tfsucc,
@@ -451,7 +437,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       tfsucc = false;
       isalarm = false;
       reason = '';
-      if ~obj.isSpecified,
+      if ~obj.isInstanceIDSet,
         reason = 'AWS EC2 instance not specified.';
         return;
       end
@@ -528,23 +514,23 @@ classdef AWSec2 < matlab.mixin.Copyable
       tfsucc = (st==0) ;
     end
     
-    function tfsucc = getRemotePythonPID(obj)
-      [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python');
-      tfsucc = (st==0) ;
-      if tfsucc
-        pid = strtrim(res) ;
-        obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
-        fprintf('Remote PID is: %s.\n\n',pid);
-      else
-        warningNoTrace('Failed to ascertain remote PID.');
-      end
-    end
+    % function tfsucc = getRemotePythonPID(obj)
+    %   [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python');
+    %   tfsucc = (st==0) ;
+    %   if tfsucc
+    %     pid = strtrim(res) ;
+    %     obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
+    %     fprintf('Remote PID is: %s.\n\n',pid);
+    %   else
+    %     warningNoTrace('Failed to ascertain remote PID.');
+    %   end
+    % end
     
     function tfnopyproc = getNoPyProcRunning(obj)
       % Return true if there appears to be no python process running on
       % instance
       [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python',...
-                                          'failbehavior','silent');
+                                                     'failbehavior','silent');
       tfsucc = (st==0) ;
         
       % AL 20200213 First clause here is legacy: "expect command to fail; 
@@ -845,20 +831,12 @@ classdef AWSec2 < matlab.mixin.Copyable
 %                     obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, logfileremote) ;
 %     end
         
-    function tf = canKillRemoteProcess(obj)
-      tf = ~isempty(obj.remotePID) ;
-    end
+    % function tf = canKillRemoteProcess(obj)
+    %   tf = ~isempty(obj.remotePID) ;
+    % end
     
     function killRemoteProcess(obj)
-      % AL 20200213: now do this in a loop, kill until no py processes
-      % remain. For some nets (eg LEAP) multiple py (sub)procs are spawned
-      % and not sure a single kill does the job.
-
-%       if isempty(obj.remotePID)
-%         error('Unknown PID for remote process.');
-%       end
-%       
-%       cmdremote = sprintf('kill %d',obj.remotePID);
+      % Just kill all the Python processes on the EC2 instance
       cmdremote = 'pkill --uid ubuntu --full python';
       [st,~] = obj.runBatchCommandOutsideContainer(cmdremote);
       if st==0 ,
@@ -866,7 +844,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         error('Kill command failed.');
       end
-    end
+    end  % function
 
     function [tfsucc,res] = remoteCallFSPoll(obj,fspollargs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
@@ -904,7 +882,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   
   methods (Static)
     
-    function cmd = launchInstanceCmd(keyName,varargin)
+    function cmd = launchInstanceCmd(keypairName,varargin)
       [ami,instType,secGrp,dryrun] = myparse(varargin,...
         'ami',APT.AMI,...
         'instType','p3.2xlarge',...
@@ -914,20 +892,21 @@ classdef AWSec2 < matlab.mixin.Copyable
       if dryrun,
         cmd = [cmd,' --dry-run'];
       end
-      if ~isempty(keyName),
-        cmd = [cmd,' --key-name ',keyName];
+      if ~isempty(keypairName),
+        cmd = [cmd,' --key-name ',keypairName];
       end
     end
     
-    function cmd = listInstancesCmd(keyName,varargin)
+    function cmd = listInstancesCmd(keypairName,varargin)      
+      [ami,instType,secGrp] = ...
+        myparse(varargin,...
+                'ami',APT.AMI,...
+                'instType','p3.2xlarge',...
+                'secGrp',APT.AWS_SECURITY_GROUP,...
+                'dryrun',false);
       
-      [ami,instType,secGrp] = myparse(varargin,...
-        'ami',APT.AMI,...
-        'instType','p3.2xlarge',...
-        'secGrp',APT.AWS_SECURITY_GROUP,...
-        'dryrun',false);
-      
-      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"',ami,secGrp,keyName);
+      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"', ...
+                    ami,secGrp,keypairName);
       if ~isempty(instType)
         cmd = [cmd sprintf(' "Name=instance-type,Values=%s"',instType)];
       end
@@ -1063,6 +1042,16 @@ classdef AWSec2 < matlab.mixin.Copyable
     end  % function    
   end  % Static methods block
   
+  methods
+    function resetAfterLoad(obj)
+      % Should be called after loading one of these, to clear out fields that
+      % should not be restored from persistence, but we want to survive
+      % serialization for transmission via parfeval().
+      obj.instanceIP = [] ;
+      obj.isInDebugMode_ = false ;
+    end  % function
+  end  % methods
+
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there
   % to remind you that these methods are only intended for "special case" uses.
