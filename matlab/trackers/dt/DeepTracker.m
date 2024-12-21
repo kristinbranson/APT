@@ -1477,7 +1477,6 @@ classdef DeepTracker < LabelTracker
                                  'trainID',trainID,... % will get copied for all models
                                  'trainType',trnType,... % will get copied for all models
                                  'iterFinal',iterFinal(stage),...
-                                 'filesep',obj.filesep,...
                                  'prev_models',prev_models ) ;
       %dmc.resetFollowsObjDet();
       % TODO figure out how to know which jobs prev_models corresponds to
