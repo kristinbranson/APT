@@ -1,18 +1,25 @@
 classdef AWSec2 < matlab.mixin.Copyable
-  % Handle to a single AWS EC2 instance. The instance may be in any state,
-  % running, stopped, etc.
-  %
-  % An AWSec2's .instanceID property is immutable. If you change it, it is 
-  % a different EC2 instance! So .instanceID is either [], indicating an 
-  % "unspecified instance", or it is specified to some fixed value. Rather 
-  % than attempt to mutate a specified instance, just create a new AWSec2
-  % object.
-  %
-  % Some methods below can specify (assign an .instanceID) to an 
-  % unspecified instance. No method however will mutate the .instanceID of 
-  % a specified instance.
+  % Object to handle specific aspects of the AWS backend.
+  % 
+  % This is copyable with the default copyElement() methods.  the only arguably
+  % sensitive thing is the instanceIP, which is only valid for a single run of
+  % the instance.  That property is Copyable but Transient.  Since Transient
+  % props don't survive getting serialized and passed to parfeval, we take steps
+  % to restore it on the other side of the parfeval call.  See the methods
+  % packParfevalSuitcase() and restoreAfterParfeval().
 
   properties (Constant)
+    AWS_SECURITY_GROUP = 'apt_dl';      % name of AWS security group
+    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
+    % AMI = 'ami-094a08ff1202856d6'; TF 1.13
+    % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
+    %AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
+    AMI = 'ami-09b1db2d5c1d91c38';  % Deep Learning Base *Proprietary* Nvidia Driver GPU AMI (Ubuntu 20.04) 20240415, with conda
+                                    % and apt_20230427_tf211_pytorch113_ampere environment, and ~/APT, and python
+                                    % links in ~/bin, and dotfiles setup to setup the the path properly for ssh
+                                    % noninteractive shells.  This was originally based on the image
+                                    % ami-09b1db2d5c1d91c38, aka "Deep Learning Base Proprietary Nvidia Driver GPU
+                                    % AMI (Ubuntu 20.04) 20240101"    
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
     scpCmd = AWSec2.computeScpCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
@@ -23,22 +30,26 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
 
   properties (Dependent)
-    isInstanceIDSet  % Whether the instanceID is set or not
-    isConfigured     % Whether the object is ready to start the instance
-    isInDebugMode    % Whether the object is in debug mode.  See isInDebugMode_
+    isInstanceIDSet    % Whether the instanceID is set or not
+    areCredentialsSet  % Whether the security credentials for the instance are set
+    isInDebugMode      % Whether the object is in debug mode.  See isInDebugMode_
   end
 
   properties
     keypairName = ''  % keypair name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
     pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
-    instanceType = 'p3.2xlarge';  % the AWS EC2 machine instance type to use
+    instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use
   end
-  
-  properties  % (Transient)  Making these transient means they don't get copied over when you pass an AWSec2 in an arg to parfeval()!
-              %              We'll just have to be smart about handling them when loading.
-    instanceIP = '' % The IP address of the EC2 instance.  An old-style string.
+
+  % Transient properties don't get copied over when you pass an AWSec2 in an arg to parfeval()!
+  % So for some properties we take steps to make sure they get restored in the
+  % background process, because we want them to survive the transit through the parfeval boundary.
+  % (See the methods packParfevalSuitcase() and restoreAfterParfeval().)
+
+  properties (Transient)  
     %remotePID = ''  % The PID of the Python process on the EC2 instance.  An old-style string
     isInDebugMode_ = false  % In debug mode or not.  In debug mode, for instance, AWS alarms are turned off.
+    instanceIP = '' % The IP address of the EC2 instance.  An old-style string.
   end
   
   properties (Transient, NonCopyable)
@@ -65,7 +76,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.instanceID = v;
     end
 
-    function v = get.isConfigured(obj)
+    function v = get.areCredentialsSet(obj)
       v = ~isempty(obj.pem) && ~isempty(obj.keypairName);
     end
 
@@ -103,7 +114,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       if nargin > 3,
         obj.instanceType = instanceType;
       end
-      if obj.isInstanceIDSet,
+      if obj.isInstanceIDSet ,
         obj.configureAlarm();
       end
       %obj.ClearStatus();
@@ -220,11 +231,9 @@ classdef AWSec2 < matlab.mixin.Copyable
     end  % function
     
 
-    function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)
-    
+    function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)    
       instanceIDs = {};
       instanceTypes = {};
-      %obj.SetStatus('Listing AWS EC2 instances available');
       cmd = AWSec2.listInstancesCmd(obj.keypairName,'instType',[]); % empty instType to list all instanceTypes
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
@@ -235,8 +244,6 @@ classdef AWSec2 < matlab.mixin.Copyable
           instanceTypes = arrayfun(@(x)x.Instances.InstanceType,info.Reservations,'uni',0);
         end
       end
-      %obj.ClearStatus();
-      
     end
 
     function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
@@ -884,9 +891,9 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     function cmd = launchInstanceCmd(keypairName,varargin)
       [ami,instType,secGrp,dryrun] = myparse(varargin,...
-        'ami',APT.AMI,...
+        'ami',AWSec2.AMI,...
         'instType','p3.2xlarge',...
-        'secGrp',APT.AWS_SECURITY_GROUP,...
+        'secGrp',AWSec2.AWS_SECURITY_GROUP,...
         'dryrun',false);
       cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s',ami,instType,secGrp);
       if dryrun,
@@ -900,9 +907,9 @@ classdef AWSec2 < matlab.mixin.Copyable
     function cmd = listInstancesCmd(keypairName,varargin)      
       [ami,instType,secGrp] = ...
         myparse(varargin,...
-                'ami',APT.AMI,...
+                'ami',AWSec2.AMI,...
                 'instType','p3.2xlarge',...
-                'secGrp',APT.AWS_SECURITY_GROUP,...
+                'secGrp',AWSec2.AWS_SECURITY_GROUP,...
                 'dryrun',false);
       
       cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"', ...
@@ -1043,12 +1050,20 @@ classdef AWSec2 < matlab.mixin.Copyable
   end  % Static methods block
   
   methods
-    function resetAfterLoad(obj)
-      % Should be called after loading one of these, to clear out fields that
-      % should not be restored from persistence, but we want to survive
-      % serialization for transmission via parfeval().
-      obj.instanceIP = [] ;
-      obj.isInDebugMode_ = false ;
+    function suitcase = packParfevalSuitcase(obj)
+      % Use before calling parfeval, to restore Transient properties that we want to
+      % survive the parfeval boundary.
+      suitcase = struct() ;
+      suitcase.instanceIP = obj.instanceIP ;
+      suitcase.isInDebugMode_ = obj.isInDebugMode_ ;
+    end  % function
+    
+    function restoreAfterParfeval(obj, suitcase)
+      % Should be called in background tasks run via parfeval, to restore fields that
+      % should not be restored from persistence, but we want to survive the parfeval
+      % boundary.
+      obj.instanceIP = suitcase.instanceIP ;
+      obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
     end  % function
   end  % methods
 

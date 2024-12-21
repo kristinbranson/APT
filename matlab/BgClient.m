@@ -92,9 +92,13 @@ classdef BgClient < handle
       
       %fprintf('obj.worker.awsEc2.sshCmd: %s\n', obj.worker.awsEc2.sshCmd) ;
       % worker is deep-copied into polling loop process
-      
+      if isa(obj.worker, 'BgWorkerObjAWS') ,
+        awsec2Suitcase = obj.worker.awsec2.packParfevalSuitcase() ;
+      else
+        awsec2Suitcase = [] ;
+      end
       obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ;
+        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, awsec2Suitcase, pollInterval, obj.projTempDirMaybe_) ;
       % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       

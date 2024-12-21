@@ -379,9 +379,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if isempty(obj.awsec2) ,
         obj.awsec2 = AWSec2() ;
       end
-      % On load, clear the .awsec2 fields that should be Transient, but can't be b/c
-      % we need them to survive going through parfeval()
-      obj.awsec2.resetAfterLoad() ;
 
       % If these JRC-backend-related things are empty, warn that we're using default values
       if isempty(obj.jrcgpuqueue) || strcmp(obj.jrcgpuqueue,'gpu_any') || strcmp(obj.jrcgpuqueue,'gpu_tesla') || startsWith(obj.jrcgpuqueue,'gpu_rtx') ,
@@ -402,7 +399,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tf = false;
       if obj.type==DLBackEnd.AWS
         didLaunch = false;
-        if ~obj.awsec2.isConfigured || ~obj.awsec2.isInstanceIDSet ,
+        if ~obj.awsec2.isInstanceIDSet || ~obj.awsec2.areCredentialsSet ,
           [tfsucc,instanceID,~,reason,didLaunch] = ...
             obj.awsec2.selectInstance('canconfigure',1,'canlaunch',1,'forceselect',0);
           if ~tfsucc || isempty(instanceID),
@@ -411,7 +408,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         end
         
-        [tfexist,tfrunning] = obj.awsec2.inspectInstance;
+        [tfexist,tfrunning] = obj.awsec2.inspectInstance() ;
         if ~tfexist,
           warning_message = ...
             sprintf('AWS EC2 instance %s could not be found or is terminated. Please configure AWS back end with a different AWS EC2 instance.',...
@@ -419,7 +416,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           uiwait(warndlg(warning_message,'AWS EC2 instance not found'));
           reason = 'Instance could not be found.';
           obj.awsec2.ResetInstanceID();
-          return;
+          return
         end
         
         tf = tfrunning;

@@ -571,7 +571,7 @@ classdef LabelerController < handle
         error('Backend is not of type AWS') ;
       end        
       ec2 = backend.awsec2 ;
-      if ~ec2.isConfigured || canConfigure >= 2,
+      if ~ec2.areCredentialsSet || canConfigure >= 2,
         if canConfigure,
           [tfsucc,keypairName,pemFile] = ...
             promptUserToSpecifyPEMFileName(ec2.keypairName,ec2.pem);
@@ -579,7 +579,7 @@ classdef LabelerController < handle
             % For changing things in the model, we go through the top-level model object
             labeler.setAwsPemFileAndKeypairName(pemFile, keypairName) ;
           end
-          if ~tfsucc && ~ec2.isConfigured,
+          if ~tfsucc && ~ec2.areCredentialsSet,
             reason = 'AWS EC2 instance is not configured.';
             error(reason) ;
           end
@@ -666,7 +666,6 @@ classdef LabelerController < handle
         end
         % For changing things in the model, we go through the top-level model object
         labeler.setAwsInstanceId(instanceID, instanceType) ;
-        %ec2.setInstanceID(instanceID,instanceType);
       end
     end  % function selectAwsInstance_()
 

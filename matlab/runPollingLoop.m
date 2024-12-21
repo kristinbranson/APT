@@ -1,10 +1,15 @@
-function status = runPollingLoop(toClientDataQueue, worker, pollInterval, projTempDirMaybe)
+function status = runPollingLoop(toClientDataQueue, worker, awsec2Suitcase, pollInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
 % worker: object with method cObjMeth
 % callInterval: time in seconds to wait between calls to
 %   worker.(cObjMeth)
+
+% Unpack the awsec2Suitcase, if needed
+if isa(worker, 'BgWorkerObjAWS') ,
+  worker.awsec2.restoreAfterParfeval(awsec2Suitcase) ;
+end
 
 % Set up the log file, if called for
 if isempty(projTempDirMaybe) ,
