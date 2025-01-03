@@ -2057,25 +2057,7 @@ classdef DeepTracker < LabelTracker
 %       end
     end  % function
     
-%     function trnCompleteCbkAWS(obj,res)      
-%       bgWorker = obj.bgTrnMonBGWorkerObj;
-%       % use the aws from here, guess .lObj.trackDLBackEnd could have changed? Hmmmmm
-%       aws = bgWorker.awsEc2; 
-%       
-%       obj.updateLastDMCsCurrInfo();
-%       
-%       dmc = obj.trnLastDMC;
-%        
-%         % download trkfiles 
-%         sysCmdArgs = {'dispcmd' true 'failbehavior' 'err'};
-%         for ivw=1:numel(res)
-%           trkLcl = trkfilesLocal{ivw};
-%           trkRmt = res(ivw).trkfile;
-%           aws.scpDownload(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs);
-%         end
-%     end
-    
-  end
+  end  % methods
   
   %% Splits
   methods (Static)

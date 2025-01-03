@@ -49,7 +49,7 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
         logger = FileLogger() ;
       end
             
-      ec2 = obj.awsEc2;
+      ec2 = obj.awsec2;
       nlinesperjob = 4;
       nlinespermodel = 3;
 

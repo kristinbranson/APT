@@ -90,7 +90,7 @@ classdef BgClient < handle
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
-      %fprintf('obj.worker.awsEc2.sshCmd: %s\n', obj.worker.awsEc2.sshCmd) ;
+      %fprintf('obj.worker.awsec2.sshCmd: %s\n', obj.worker.awsec2.sshCmd) ;
       % worker is deep-copied into polling loop process
       if isa(obj.worker, 'BgWorkerObjAWS') ,
         awsec2Suitcase = obj.worker.awsec2.packParfevalSuitcase() ;

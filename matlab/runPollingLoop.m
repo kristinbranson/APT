@@ -27,8 +27,8 @@ logger.log(formattedDisplayText(worker)) ;
 logger.log('\n') ;
 
 if isa(worker, 'BgTrackWorkerObjAWS') ,
-  logger.log('cObj.awsEc2:\n') ;
-  logger.log(formattedDisplayText(worker.awsEc2)) ;
+  logger.log('cObj.awsec2:\n') ;
+  logger.log(formattedDisplayText(worker.awsec2)) ;
   logger.log('\n') ;
 end      
 
