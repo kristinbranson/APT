@@ -573,11 +573,11 @@ classdef LabelerController < handle
       ec2 = backend.awsec2 ;
       if ~ec2.areCredentialsSet || canConfigure >= 2,
         if canConfigure,
-          [tfsucc,keypairName,pemFile] = ...
-            promptUserToSpecifyPEMFileName(ec2.keypairName,ec2.pem);
+          [tfsucc,keyName,pemFile] = ...
+            promptUserToSpecifyPEMFileName(ec2.keyName,ec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
-            labeler.setAwsPemFileAndKeypairName(pemFile, keypairName) ;
+            labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
           end
           if ~tfsucc && ~ec2.areCredentialsSet,
             reason = 'AWS EC2 instance is not configured.';

@@ -36,7 +36,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   end
 
   properties
-    keypairName = ''  % keypair name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
+    keyName = ''  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
     pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
     instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use
   end
@@ -77,7 +77,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
 
     function v = get.areCredentialsSet(obj)
-      v = ~isempty(obj.pem) && ~isempty(obj.keypairName);
+      v = ~isempty(obj.pem) && ~isempty(obj.keyName);
     end
 
     function v = get.isInstanceIDSet(obj)
@@ -120,20 +120,12 @@ classdef AWSec2 < matlab.mixin.Copyable
       %obj.ClearStatus();
     end
 
-    function setPemFile(obj,pemFile)
-      obj.pem = pemFile;
-    end
-    
-    function setKeypairName(obj,keypairName)
-      obj.keypairName = keypairName;
-    end
-    
     function [tfsucc,json] = launchInstance(obj,varargin)
       % Launch a brand-new instance to specify an unspecified instance
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
       obj.ResetInstanceID();
       %obj.SetStatus('Launching new AWS EC2 instance');
-      cmd = AWSec2.launchInstanceCmd(obj.keypairName,'instType',obj.instanceType,'dryrun',dryrun);
+      cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
@@ -234,7 +226,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)    
       instanceIDs = {};
       instanceTypes = {};
-      cmd = AWSec2.listInstancesCmd(obj.keypairName,'instType',[]); % empty instType to list all instanceTypes
+      cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',[]); % empty instType to list all instanceTypes
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if tfsucc,
@@ -889,7 +881,7 @@ classdef AWSec2 < matlab.mixin.Copyable
   
   methods (Static)
     
-    function cmd = launchInstanceCmd(keypairName,varargin)
+    function cmd = launchInstanceCmd(keyName,varargin)
       [ami,instType,secGrp,dryrun] = myparse(varargin,...
         'ami',AWSec2.AMI,...
         'instType','p3.2xlarge',...
@@ -899,12 +891,12 @@ classdef AWSec2 < matlab.mixin.Copyable
       if dryrun,
         cmd = [cmd,' --dry-run'];
       end
-      if ~isempty(keypairName),
-        cmd = [cmd,' --key-name ',keypairName];
+      if ~isempty(keyName),
+        cmd = [cmd,' --key-name ',keyName];
       end
     end
     
-    function cmd = listInstancesCmd(keypairName,varargin)      
+    function cmd = listInstancesCmd(keyName,varargin)      
       [ami,instType,secGrp] = ...
         myparse(varargin,...
                 'ami',AWSec2.AMI,...
@@ -913,7 +905,7 @@ classdef AWSec2 < matlab.mixin.Copyable
                 'dryrun',false);
       
       cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"', ...
-                    ami,secGrp,keypairName);
+                    ami,secGrp,keyName);
       if ~isempty(instType)
         cmd = [cmd sprintf(' "Name=instance-type,Values=%s"',instType)];
       end

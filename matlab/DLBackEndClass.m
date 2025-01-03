@@ -1296,5 +1296,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end  % function    
     
+    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
+      ec2 = obj.awsec2 ;
+      ec2.pem = pemFile ;
+      ec2.keyName = keyName ;
+    end
+    
   end  % methods
 end  % classdef

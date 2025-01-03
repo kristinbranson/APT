@@ -1,11 +1,11 @@
-function [tfsucc,keypairName,pemFile] = ...
-    promptUserToSpecifyPEMFileName(keypairName, pemFile)
+function [tfsucc,keyName,pemFile] = ...
+    promptUserToSpecifyPEMFileName(keyName, pemFile)
   % Prompt user to specify pemFile
   % 
   % keyName, pemFile (in): optional defaults/best guesses
   
-  if nargin<1 || isempty(keypairName),
-    keypairName = '';
+  if nargin<1 || isempty(keyName),
+    keyName = '';
   end
   if nargin<2 || isempty(pemFile),
     pemFile = '';
@@ -20,16 +20,16 @@ function [tfsucc,keypairName,pemFile] = ...
   BROWSEINFO = struct('type',{'';'uigetfile'},'filterspec',{'';'*.pem'});
 
   resp = inputdlgWithBrowse(PROMPT,NAME,repmat([1 INPUTBOXWIDTH],2,1),...
-    {keypairName;pemFile},'on',BROWSEINFO);
+    {keyName;pemFile},'on',BROWSEINFO);
   tfsucc = ~isempty(resp);      
   if tfsucc
-    keypairName = strtrim(resp{1});
+    keyName = strtrim(resp{1});
     pemFile = strtrim(resp{2});
     if exist(pemFile,'file')==0
       error('Cannot find private key (.pem or id_rsa) file %s.',pemFile);
     end
   else
-    keypairName = '';
+    keyName = '';
     pemFile = '';
   end      
 end  % function

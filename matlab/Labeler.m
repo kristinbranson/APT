@@ -15577,14 +15577,12 @@ classdef Labeler < handle
       obj.notify('didSetTrackDLBackEnd') ;
     end
 
-    function setAwsPemFileAndKeypairName(obj, pemFile, keypairName)
+    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
       backend = obj.trackDLBackEnd ;
       if isempty(backend) ,
         error('Backend not configured') ;
       end      
-      ec2 = backend.awsec2 ;
-      ec2.setPemFile(pemFile);
-      ec2.setKeyName(keypairName);
+      backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
     end
     
     function setAwsInstanceId(obj, instanceID, instanceType)
