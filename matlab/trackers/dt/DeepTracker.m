@@ -75,7 +75,7 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     trnName
     trnNameLbl
-    filesep
+    %filesep
   end
   properties
     % Notes on trnLastDMC.
@@ -275,10 +275,10 @@ classdef DeepTracker < LabelTracker
         v = DeepModelChainOnDisk.getCheckSingle(dmc.getTrainID());
       end
     end
-    function v = get.filesep(obj) %#ok<MANU> 
-      %v = obj.lObj.trackDLBackEnd.filesep;
-      v = '/' ;
-    end
+    % function v = get.filesep(obj) %#ok<MANU> 
+    %   %v = obj.lObj.trackDLBackEnd.filesep;
+    %   v = '/' ;
+    % end
     function v = get.nPts(obj)
       v = obj.lObj.nLabelPoints;
     end
@@ -1399,8 +1399,22 @@ classdef DeepTracker < LabelTracker
     end
 
     function iterFinal = getIterFinal(obj)
-      iterFinal = obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps;
-    end
+      if obj.trnNetType == DLNetType.deeplabcut
+        % DeepLabCut is special, it typically ignores a passed-in dl_steps...
+        if obj.sPrmAll.ROOT.DeepTrack.DeepLabCut.dlc_override_dlsteps
+          % ...unless dlc_override_dlsteps is true
+          iterFinal = obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps ;
+        else
+          iterFinal = 1030000 ;
+            % This is the default DeepLapCut number of iterations.
+            % If the Python code for DeepLabCut chages s.t. the number of iterations
+            % changes, this will have to change.
+        end
+      else
+        % Non-DeepLabCut models honor the provided dl_steps 
+        iterFinal = obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps ;
+      end
+    end  % function
 
     function trainID = configFile2TrainID(obj,dlConfigLcl) %#ok<INUSL> 
       % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
@@ -1623,7 +1637,7 @@ classdef DeepTracker < LabelTracker
         try
           [~,~,~,locg] = TrnPack.loadPack(tpdir);
           tfsucc = true; 
-        catch ME %#ok<NASGU>
+        catch ME
           emsg = 'Could not load training package.';
         end                
       else
