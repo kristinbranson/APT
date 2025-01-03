@@ -92,7 +92,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.isInDebugMode_ = value ;
     end
 
-    function setInstanceID(obj,instanceID,instanceType)
+    function setInstanceIDAndType(obj,instanceID,instanceType)
       %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
       if ~isempty(obj.instanceID),
         if strcmp(instanceID,obj.instanceID),
@@ -123,7 +123,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     function [tfsucc,json] = launchInstance(obj,varargin)
       % Launch a brand-new instance to specify an unspecified instance
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
-      obj.ResetInstanceID();
+      obj.clearInstanceID();
       %obj.SetStatus('Launching new AWS EC2 instance');
       cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
@@ -135,7 +135,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       json = jsondecode(json);
       instanceID = json.Instances.InstanceId;
       if dostore,
-        obj.setInstanceID(instanceID);
+        obj.setInstanceIDAndType(instanceID);
       end
       %obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
       [tfsucc] = obj.waitForInstanceStart();
@@ -869,8 +869,8 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function ResetInstanceID(obj)
-      obj.setInstanceID('');
+    function clearInstanceID(obj)
+      obj.setInstanceIDAndType('');
     end
     
 %     function tf = isSameInstance(obj,obj2)

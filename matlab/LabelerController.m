@@ -665,7 +665,7 @@ classdef LabelerController < handle
           end
         end
         % For changing things in the model, we go through the top-level model object
-        labeler.setAwsInstanceId(instanceID, instanceType) ;
+        labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
       end
     end  % function selectAwsInstance_()
 

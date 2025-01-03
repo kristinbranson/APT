@@ -415,7 +415,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
                     obj.awsec2.instanceID);
           uiwait(warndlg(warning_message,'AWS EC2 instance not found'));
           reason = 'Instance could not be found.';
-          obj.awsec2.ResetInstanceID();
+          obj.awsec2.clearInstanceID();
           return
         end
         
@@ -1300,6 +1300,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       ec2 = obj.awsec2 ;
       ec2.pem = pemFile ;
       ec2.keyName = keyName ;
+    end
+    
+    function setAWSInstanceIDAndType(obj, instanceID, instanceType)
+      ec2 = obj.awsec2 ;
+      ec2.setInstanceIDAndType(instanceID, instanceType) ;
     end
     
   end  % methods
