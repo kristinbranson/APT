@@ -31,13 +31,14 @@ classdef BgClient < handle
 
   methods 
     function obj = BgClient(parent, worker, varargin)
+      % parent is typically a BgMonitor
       tfPre2017a = verLessThan('matlab','9.2.0');
       if tfPre2017a
         error('BG:ver','Background processing requires Matlab 2017a or later.');
       end
       projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
 
-      % Configure compute object and results callback      
+      % Configure worker object
       assert(ismethod(parent,'didReceivePollResults'));      
       if ismethod(worker,'copyAndDetach')
         % AL20191218

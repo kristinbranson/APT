@@ -334,7 +334,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       assert(isscalar(obj));
       obj2 = copy(obj);
-      obj.doesOwnResources_ = false ;
+      obj2.doesOwnResources_ = false ;
     end  % function
   end  % methods
 
