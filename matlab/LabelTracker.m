@@ -1,5 +1,5 @@
 classdef LabelTracker < handle
-% Tracker base class
+  % Tracker base class
 
   % LabelTracker has two responsibilities:
   % 1. Take a bunch of images+labels and learn a classifier to 
@@ -36,7 +36,7 @@ classdef LabelTracker < handle
   properties
     lObj % (back)handle to Labeler object
     paramFile; % char, current parameter file
-    ax % axis for viewing tracking results
+    %ax % axis for viewing tracking results
     sPrmAll; % all parameters - KB 20190214: store all parameters with each tracker
     
     trkVizInterpolate % scalar logical. If true, interpolate tracking results when visualizing
@@ -55,6 +55,7 @@ classdef LabelTracker < handle
     % return cellstr, (deep) nets used by this tracker
     v = getNetsUsed(obj)
   end
+  
   methods
     
     function obj = LabelTracker(labelerObj)
@@ -82,7 +83,7 @@ classdef LabelTracker < handle
     
     function init(obj)
       % Called when a new project is created/loaded, etc
-      obj.ax = obj.lObj.gdata.axes_all;
+      %obj.ax = obj.lObj.gdata.axes_all;
       obj.initHook();
     end
         
@@ -118,6 +119,7 @@ classdef LabelTracker < handle
       % this should only be done if one knows what one is doing! 
       obj.sPrmAll = sPrm;
     end
+
     function setTrackParams(obj,sPrmTrack)
       if ~isempty(obj.sPrmAll)
         obj.sPrmAll = APTParameters.setTrackParams(obj.sPrmAll,sPrmTrack);
@@ -387,7 +389,10 @@ classdef LabelTracker < handle
       
       plist = obj.propList();
       plistcodes = {plist.code}';
-      tfaux = any(strcmp(prop.code,plistcodes));
+      % tfaux = any(strcmp(prop.code,plistcodes)) ;  
+      tfaux = any(strcmp(prop.code,plistcodes)) && ~isempty(auxlbl) ;  
+        % Added the ~isempty() check above b/c the lack of it was causing
+        % occasional errors.  -- ALT, 2024-11-07
       if tfaux
         % 20220919: appears auxiliary props won't ever need bodytrx
         

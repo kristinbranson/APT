@@ -355,7 +355,7 @@ classdef TrainMonitorViz < handle
       if any(obj.isKilled),
         status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
         tfSucc = false;
-      elseif isErr,
+      elseif any(isErr),
         status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
         tfSucc = false;
       elseif all(isTrainComplete),
@@ -375,7 +375,7 @@ classdef TrainMonitorViz < handle
 
       clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
-      isAllGood = pollsuccess && ~isErr ;
+      isAllGood = pollsuccess && ~any(isErr) ;
       apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
     end
     
@@ -517,7 +517,7 @@ classdef TrainMonitorViz < handle
     
     function updateMonitorPlots(obj)
       
-      sRes.result = obj.trainWorkerObj.compute();
+      sRes.result = obj.trainWorkerObj.work();
       obj.resultsReceived(sRes,true);
       
     end

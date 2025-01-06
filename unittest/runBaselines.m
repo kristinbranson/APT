@@ -30,7 +30,7 @@ lObj.projLoad(lblm);
 resMV = cell(nrptMV,1);
 for irpt=1:nrptMV
   lObj.tracker.init();
-  lObj.trackRetrain();
+  lObj.train();
   lObj.track(mfts);
   resMV{irpt} = lObj.tracker.getTrackingResults(MovieIndex(1));
   fprintf(1,'Done MV train/track, repeat %d/%d\n',irpt,nrptMV);
@@ -41,7 +41,7 @@ for ivw=1:2
   lblvw = fullfile(testdir,sprintf('%s_%d.lbl',lblname,ivw));
   lObj.projLoad(lblvw);
   lObj.tracker.init();
-  lObj.trackRetrain();
+  lObj.train();
   lObj.track(mfts);
   resSingVw{ivw} = lObj.tracker.getTrackingResults(MovieIndex(1));
   fprintf(1,'Done View %d train/track\n',ivw);

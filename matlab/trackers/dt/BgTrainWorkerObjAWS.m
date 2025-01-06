@@ -43,13 +43,13 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
 %       sRes.pollsuccess = true;
 %     end
 
-    function sRes = compute(obj, logger)
+    function sRes = work(obj, logger)
       % sRes: [nviewx1] struct array.
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
             
-      ec2 = obj.awsEc2;
+      ec2 = obj.awsec2;
       nlinesperjob = 4;
       nlinespermodel = 3;
 

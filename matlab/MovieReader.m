@@ -253,7 +253,39 @@ classdef MovieReader < handle
       obj.close();
     end
     
-  end
+    function openForLabeler(obj,labeler,mIdx,iView)
+      % Take a Labeler object and open a movie for movieset mIdx and view iView, being 
+      % faithful to labeler as per:
+      %   - .movieForceGrayScale 
+      %   - .movieInvert(iView)
+      %   - .preProcParams.BackSub
+      %   - .cropInfo for (mIdx,iView) as appropriate
+      %
+      % labelerr: scalar Labeler object (not mutated)
+      % mIdx: scalar MovieIndex
+      % iView: view index; used for .movieInvert
+
+      ppPrms = labeler.preProcParams;
+      if ~isempty(ppPrms)
+        bgsubPrms = ppPrms.BackSub;
+        bgArgs = {'bgType',bgsubPrms.BGType,'bgReadFcn',bgsubPrms.BGReadFcn};
+      else
+        bgArgs = {};
+      end
+      
+      movfname = labeler.getMovieFilesAllFullMovIdx(mIdx);
+      obj.preload = labeler.movieReadPreLoadMovies; % must occur before .open()
+      obj.open(movfname{iView},bgArgs{:});
+      obj.forceGrayscale = labeler.movieForceGrayscale;
+      obj.flipVert = labeler.movieInvert(iView);      
+      cInfo = labeler.getMovieFilesAllCropInfoMovIdx(mIdx);
+      if ~isempty(cInfo)
+        obj.setCropInfo(cInfo(iView));
+      else
+        obj.setCropInfo([]);
+      end      
+    end  % method    
+  end  % methods
   
   methods (Static)
     
@@ -282,8 +314,8 @@ classdef MovieReader < handle
       s = MovieReader.getInfo(movfile);
       imsz = [s.nr,s.nc,s.nchan];
 
-    end
-    
+    end    
+
   end
   
 end

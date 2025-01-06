@@ -3,6 +3,9 @@ classdef LabelerController < handle
     labeler_  % the controlled Labeler object
     mainFigure_  % the GH to the main figure
     listeners_
+    satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
+    waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
+    %waitbarListeners_ = event.listener.empty(1,0)
   end
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
@@ -19,8 +22,11 @@ classdef LabelerController < handle
                         'isInDebugMode',false, ...
                         'isInAwsDebugMode',false, ...
                         'isInYodaMode', false) ;
+
+      % Create the labeler, tell it there will be a GUI attached
       labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
-        % Create the labeler, tell it there will be a GUI attached
+
+      % Set up the main instance variables
       obj.labeler_ = labeler ;
       obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       obj.labeler_.registerController(obj) ;  % hack
@@ -28,17 +34,34 @@ classdef LabelerController < handle
       obj.isInYodaMode_ = isInYodaMode ;  
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
-      obj.listeners_ = cell(1,0) ;
-      obj.listeners_{end+1} = ...
+
+      % Create the waitbar figure, which we re-use  
+      obj.waitbarFigure_ = waitbar(0, '', ...
+                                   'Visible', 'off', ...
+                                   'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
+      obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
+        
+      % Add the listeners
+      obj.listeners_ = event.listener.empty(1,0) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
-      obj.listeners_{end+1} = ...
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateStatus', @(source,event)(obj.updateStatus(source, event))) ;      
-      obj.listeners_{end+1} = ...
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetTrx', @(source,event)(obj.didSetTrx(source, event))) ;      
-      obj.listeners_{end+1} = ...
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(obj.updateTrxSetShowTrue(source, event))) ;      
-      obj.listeners_{end+1} = ...
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
+
       % Do this once listeners are set up
       obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
@@ -47,6 +70,8 @@ classdef LabelerController < handle
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
+      deleteValidHandles(obj.satellites_) ;
+      deleteValidHandles(obj.waitbarFigure_) ;
       main_figure = obj.mainFigure_ ;
       if ~isempty(main_figure) && isvalid(main_figure)
         handles = guidata(main_figure) ;
@@ -229,21 +254,20 @@ classdef LabelerController < handle
     end
     
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
-      tm = obj.get_track_mode_();
-      obj.labeler_.track(tm, varargin{:}) ;
+      obj.labeler_.track(varargin{:}) ;
     end
 
-    function mftset = get_track_mode_(obj)
-      % This is designed to do the same thing as LabelerGUI::getTrackMode().
-      % The two methods should likely be consolidated at some point.  Private by
-      % convention
-      pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
-      idx = pumTrack.Value ;
-      % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
-      % .TrackingMenuTrx.
-      mfts = MFTSetEnum.TrackingMenuTrx;
-      mftset = mfts(idx);      
-    end
+%     function mftset = get_track_mode_(obj)
+%       % This is designed to do the same thing as LabelerGUI::getTrackMode().
+%       % The two methods should likely be consolidated at some point.  Private by
+%       % convention
+%       pumTrack = findobj(obj.mainFigure_, 'Tag', 'pumTrack') ;
+%       idx = pumTrack.Value ;
+%       % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
+%       % .TrackingMenuTrx.
+%       mfts = MFTSetEnum.TrackingMenuTrx;
+%       mftset = mfts(idx);      
+%     end
 
     function menu_debug_generate_db_actuated(obj, source, event)
       obj.train_core_(source, event, 'do_just_generate_db', true) ;
@@ -291,21 +315,12 @@ classdef LabelerController < handle
         return
       end
       
-      %labeler.trackSetAutoParams();
-      
-      fprintf('Training started at %s...\n',datestr(now));
+      fprintf('Training started at %s...\n',datestr(now()));
       oc1 = onCleanup(@()(labeler.clearStatus()));
-      wbObj = WaitBarWithCancel('Training');
-      oc2 = onCleanup(@()delete(wbObj));
-      centerOnParentFigure(wbObj.hWB,obj.mainFigure_);
-      labeler.trackRetrain(...
-        'retrainArgs',{'wbObj',wbObj}, ...
+      labeler.train(...
+        'trainArgs',{}, ...
         'do_just_generate_db', do_just_generate_db, ...
         'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-      if wbObj.isCancel
-        msg = wbObj.cancelMessage('Training canceled');
-        msgbox(msg,'Train');
-      end
     end  % method
 
     function menu_quit_but_dont_delete_temp_folder_actuated(obj, source, event)  %#ok<INUSD> 
@@ -322,9 +337,224 @@ classdef LabelerController < handle
     function menu_track_backend_config_aws_setinstance_actuated(obj, source, event)  %#ok<INUSD> 
       obj.selectAwsInstance_() ;
     end
-  end  % public methods block
 
-  methods  % private by convention methods block
+    function menu_track_algorithm_actuated(obj, source, event)  %#ok<INUSD> 
+      % Get the tracker index
+      tracker_index = source.UserData;
+
+      % Validate it
+      tAll = obj.labeler_.trackersAll;
+      tracker_count = numel(tAll) ;
+      if isnumeric(tracker_index) && isscalar(tracker_index) && round(tracker_index)==tracker_index && 1<=tracker_index && tracker_index<=tracker_count ,
+        % all is well
+      else
+        error('APT:invalidPropertyValue', 'Invalid tracker index') ;
+      end
+      
+      % If a custom top-down tracker, ask if we want to keep it or make a new one.
+      if isa(tAll{tracker_index},'DeepTrackerTopDownCustom')
+        prev = tAll{tracker_index};
+        do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(prev) ;
+      else
+        do_use_previous = [] ;  % value will be ignored
+      end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
+      
+      % Finally, call the model method to se the tracker
+      obj.labeler_.trackSetCurrentTracker(tracker_index, do_use_previous);      
+    end
+
+    function showDialogAfterHopefullySpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
+      % Event handler that gets called after the labeler tries to spawn jobs for GT.
+      % Raises a dialog, and registers it as a 'satellite' window so we can delete
+      % it when the main window closes.
+      labeler = obj.labeler_ ;
+      tfsucc = labeler.didSpawnTrackingForGT ;
+      DIALOGTTL = 'GT Tracking';
+      if isscalar(tfsucc) && tfsucc ,
+        msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
+        h = msgbox(msg,DIALOGTTL);
+      else
+        msg = sprintf('GT tracking failed');
+        h = warndlg(msg,DIALOGTTL);
+      end
+      obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+    end
+
+    function showGTResults(obj, source, event)  %#ok<INUSD> 
+      % Event handler that gets called after the labeler finishes computing GT results.
+      % Raises a dialog, and registers it as a 'satellite' window so we can delete
+      % it when the main window closes.
+      obj.createGTResultFigures_() ;
+      h = msgbox('GT results available in Labeler property ''gtTblRes''.');
+      obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+    end
+
+    function createGTResultFigures_(obj, varargin)
+      labeler = obj.labeler_ ;      
+      t = labeler.gtTblRes;
+
+      [fcnAggOverPts,aggLabel] = ...
+        myparse(varargin,...
+                'fcnAggOverPts',@(x)max(x,[],ndims(x)), ... % or eg @mean
+                'aggLabel','Max' ...
+                );
+      
+      l2err = t.L2err;  % For single-view MA, nframes x nanimals x npts.  For single-view SA, nframes x npts
+      aggOverPtsL2err = fcnAggOverPts(l2err);  
+        % t.L2err, for a single-view MA project, seems to be 
+        % ground-truth-frame-count x animal-count x keypoint-count, and
+        % aggOverPtsL2err is ground-truth-frame-count x animal-count.
+        %   -- ALT, 2024-11-19
+      % KB 20181022: Changed colors to match sets instead of points
+      clrs =  labeler.LabelPointColors;
+      nclrs = size(clrs,1);
+      lsz = size(l2err);
+      npts = lsz(end);
+      assert(npts==labeler.nLabelPoints);
+      if nclrs~=npts
+        warningNoTrace('Labeler:gt',...
+          'Number of colors do not match number of points.');
+      end
+
+      if ndims(l2err) == 3
+        l2err_reshaped = reshape(l2err,[],npts);  % For single-view MA, (nframes*nanimals) x npts
+        valid = ~all(isnan(l2err_reshaped),2);
+        l2err_filtered = l2err_reshaped(valid,:);  % For single-view MA, nvalidanimalframes x npts
+      else        
+        % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
+        l2err_filtered = l2err ;
+      end
+      nviews = labeler.nview;
+      nphyspt = npts/nviews;
+      prc_vals = [50,75,90,95,98];
+      prcs = prctile(l2err_filtered,prc_vals,1);
+      prcs = reshape(prcs,[],nphyspt,nviews);
+      lpos = t(1,:).pLbl;
+      if ndims(lpos)==3
+        lpos = squeeze(lpos(1,1,:));
+      else
+        lpos = squeeze(lpos(1,:));
+      end
+      lpos = reshape(lpos,npts,2);
+      allims = cell(1,nviews);
+      allpos = zeros([nphyspt,2,nviews]);
+      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
+      for view = 1:nviews
+        curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
+        [im,isrotated,~,~,A] = labeler.readTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),view);
+        if isrotated
+          curl = [curl,ones(nphyspt,1)]*A;
+          curl = curl(:,1:2);
+        end
+        minpos = min(curl,[],1);
+        maxpos = max(curl,[],1);
+        centerpos = (minpos+maxpos)/2;
+        % border defined by borderfrac
+        r = max(1,(maxpos-minpos));
+        xlim = round(centerpos(1)+[-1,1]*r(1));
+        ylim = round(centerpos(2)+[-1,1]*r(2));
+        xlim = min(size(im,2),max(1,xlim));
+        ylim = min(size(im,1),max(1,ylim));
+        im = im(ylim(1):ylim(2),xlim(1):xlim(2),:);
+        curl(:,1) = curl(:,1)-xlim(1);
+        curl(:,2) = curl(:,2)-ylim(1);
+        allpos(:,:,view) = curl;
+        allims{view} = im;
+      end  % for
+      
+      fig_1 = figure('Name','GT err percentiles');
+      obj.satellites_(1,end+1) = fig_1 ;
+      plotPercentileHist(allims,prcs,allpos,prc_vals,fig_1,txtOffset)
+
+      % Err by landmark
+      fig_2 = figure('Name','GT err by landmark');
+      obj.satellites_(1,end+1) = fig_2 ;
+      ax = axes(fig_2) ;
+      boxplot(ax,l2err_filtered,'colors',clrs,'boxstyle','filled');
+      args = {'fontweight' 'bold' 'interpreter' 'none'};
+      xlabel(ax,'Landmark/point',args{:});
+      if nviews>1
+        xtick_str = {};
+        for view = 1:nviews
+          for n = 1:nphyspt
+            if n==1
+              xtick_str{end+1} = sprintf('View %d -- %d',view,n); %#ok<AGROW> 
+            else
+              xtick_str{end+1} = sprintf('%d',n); %#ok<AGROW> 
+            end
+          end
+        end
+        xticklabels(xtick_str)
+      end
+      ylabel(ax,'L2 err (px)',args{:});
+      title(ax,'GT err by landmark',args{:});
+      ax.YGrid = 'on';
+      
+      % AvErrAcrossPts by movie
+      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
+      fig_3 = figurecascaded(fig_2,'Name',tstr);
+      obj.satellites_(1,end+1) = fig_3 ;
+      ax = axes(fig_3);
+      [iMovAbs,gt] = t.mov.get();  % both outputs are nframes x 1
+      assert(all(gt));
+      grp = categorical(iMovAbs);
+      if ndims(aggOverPtsL2err)==3
+        taggerr = permute(aggOverPtsL2err,[1,3,2]);
+      else
+        taggerr = aggOverPtsL2err ;
+      end
+      % expand out grp to match elements of taggerr 1-to-1
+      assert(isequal(size(taggerr,1), size(grp,1))) ;
+      taggerr_shape = size(taggerr) ;
+      biggrp = repmat(grp, [1 taggerr_shape(2:end)]) ;
+      assert(isequal(size(taggerr), size(biggrp))) ;
+      % columnize
+      taggerr_column = taggerr(:) ;
+      grp_column = biggrp(:) ;
+      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
+                         categories(grp_column),countcats(grp_column),...
+                         'UniformOutput',false);
+      boxplot(ax, ...
+              taggerr_column,...
+              grp_column,...
+              'colors',clrs,...
+              'boxstyle','filled',...
+              'labels',grplbls);
+      args = {'fontweight' 'bold' 'interpreter' 'none'};
+      xlabel(ax,'Movie',args{:});
+      ylabel(ax,'L2 err (px)',args{:});
+      title(ax,tstr,args{:});
+      ax.YGrid = 'on';
+%      
+      % Mean err by movie, pt
+%       fig_4 = figurecascaded(fig_3,'Name','Mean GT err by movie, landmark');
+%       obj.satellites_(1,end+1) = fig_4 ;
+%       ax = axes(fig_4);
+%       tblStats = grpstats(t(:,{'mov' 'L2err'}),{'mov'});
+%       tblStats.mov = tblStats.mov.get;
+%       tblStats = sortrows(tblStats,{'mov'});
+%       movUnCnt = tblStats.GroupCount; % [nmovx1]
+%       meanL2Err = tblStats.mean_L2err; % [nmovxnpt]
+%       nmovUn = size(movUnCnt,1);
+%       szassert(meanL2Err,[nmovUn npts]);
+%       meanL2Err(:,end+1) = nan; % pad for pcolor
+%       meanL2Err(end+1,:) = nan;       
+%       hPC = pcolor(meanL2Err);
+%       hPC.LineStyle = 'none';
+%       colorbar;
+%       xlabel(ax,'Landmark/point',args{:});
+%       ylabel(ax,'Movie',args{:});
+%       xticklbl = arrayfun(@num2str,1:npts,'uni',0);
+%       yticklbl = arrayfun(@(x)sprintf('mov%d (n=%d)',x,movUnCnt(x)),1:nmovUn,'uni',0);
+%       set(ax,'YTick',0.5+(1:nmovUn),'YTickLabel',yticklbl);
+%       set(ax,'XTick',0.5+(1:npts),'XTickLabel',xticklbl);
+%       axis(ax,'ij');
+%       title(ax,'Mean GT err (px) by movie, landmark',args{:});
+%       
+%       nmontage = min(nmontage,height(t));
+%       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
+    end  % function
+    
     function selectAwsInstance_(obj, varargin)
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
@@ -341,15 +571,15 @@ classdef LabelerController < handle
         error('Backend is not of type AWS') ;
       end        
       ec2 = backend.awsec2 ;
-      if ~ec2.isConfigured || canConfigure >= 2,
+      if ~ec2.areCredentialsSet || canConfigure >= 2,
         if canConfigure,
           [tfsucc,keyName,pemFile] = ...
-            specifySSHKeyUIStc(ec2.keyName,ec2.pem);
+            promptUserToSpecifyPEMFileName(ec2.keyName,ec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
             labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
           end
-          if ~tfsucc && ~ec2.isConfigured,
+          if ~tfsucc && ~ec2.areCredentialsSet,
             reason = 'AWS EC2 instance is not configured.';
             error(reason) ;
           end
@@ -358,15 +588,15 @@ classdef LabelerController < handle
           error(reason) ;
         end
       end
-      if forceSelect || ~ec2.isSpecified,
-        if ec2.isSpecified ,
+      if forceSelect || ~ec2.isInstanceIDSet,
+        if ec2.isInstanceIDSet ,
           instanceID = ec2.instanceID;
         else
           instanceID = '';
         end
         if canLaunch,
           qstr = 'Launch a new instance or attach to an existing instance?';
-          if ~ec2.isSpecified,
+          if ~ec2.isInstanceIDSet,
             qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
           else
             qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
@@ -435,13 +665,10 @@ classdef LabelerController < handle
           end
         end
         % For changing things in the model, we go through the top-level model object
-        labeler.setAwsInstanceId(instanceID, instanceType) ;
-        %ec2.setInstanceID(instanceID,instanceType);
+        labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
       end
     end  % function selectAwsInstance_()
-  end  % private by-convention methods block
 
-  methods
     function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked
       % The advantage of passing in the controlName, rather than,
       % say always storing it in the tag of the graphics object, and
@@ -497,7 +724,32 @@ classdef LabelerController < handle
         end
       end
     end  % function
-    
-  end  % public methods block
-  
-end
+
+    function armWaitbar(obj)
+      % When we arm, want to re-center figure on main window, then do a normal
+      % update.
+      centerOnParentFigure(obj.waitbarFigure_, obj.mainFigure_) ;
+      obj.updateWaitbar() ;
+    end
+
+    function updateWaitbar(obj)
+      % Update the waitbar to reflect the current state of
+      % obj.labeler_.progressMeter.  In addition to other things, makes figure
+      % visible or not depending on that state.
+      labeler = obj.labeler_ ;
+      progressMeter = labeler.progressMeter ;
+      visibility = onIff(progressMeter.isActive) ;
+      fractionDone = progressMeter.fraction ;
+      message = progressMeter.message ;
+      obj.waitbarFigure_.Name = progressMeter.title ;
+      obj.waitbarFigure_.Visible = visibility ;      
+      waitbar(fractionDone, obj.waitbarFigure_, message) ;
+    end
+
+    function didCancelWaitbar(obj)
+      labeler = obj.labeler_ ;
+      progressMeter = labeler.progressMeter ;
+      progressMeter.cancel() ;
+    end
+  end  % methods
+end  % classdef

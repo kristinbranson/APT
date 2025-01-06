@@ -24,7 +24,7 @@ lObj.trackSetDLBackend(be);
 
 %% Train
 wbObj = WaitBarWithCancel('Training');
-lObj.trackRetrain('retrainArgs',{'wbObj',wbObj});
+lObj.train('trainArgs',{'wbObj',wbObj});
 
 %% State of Train
 t.trnPrintLogs

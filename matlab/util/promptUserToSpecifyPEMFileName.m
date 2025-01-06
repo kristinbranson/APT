@@ -1,5 +1,5 @@
 function [tfsucc,keyName,pemFile] = ...
-    specifySSHKeyUIStc(keyName, pemFile)
+    promptUserToSpecifyPEMFileName(keyName, pemFile)
   % Prompt user to specify pemFile
   % 
   % keyName, pemFile (in): optional defaults/best guesses

@@ -5,7 +5,7 @@ import sys
 
 import tensorflow as tf
 K = tf.keras.backend
-# Pylance complains about all these imports b/c apparently TF uses dynamic behavior ot import keras -- ALT, 2023-03-31
+# Pylance complains about all these imports b/c apparently TF uses dynamic behavior to import keras -- ALT, 2023-03-31
 #   See: https://github.com/microsoft/pylance-release/issues/3387
 # from tf.keras.models import Model
 # from tf.keras.layers import Concatenate

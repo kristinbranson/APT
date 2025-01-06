@@ -21,7 +21,7 @@ try
   end
   
   if do_test
-    tobj = testAPT('name',test_name);
+    tobj = TestAPT('name',test_name);
     tobj.test_setup('simpleprojload',1)
     params = {};
     tobj.test_train('net_type',net_type,'params',params,'niters',100);

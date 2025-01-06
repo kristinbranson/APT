@@ -57,10 +57,10 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
             'Visualization unavailable until at least one animal is labeled.');
           return;
         end        
-        mr = MovieReader;
+        mr = MovieReader();
         assert(~lObj.isMultiView);
         IVIEW = 1;
-        lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
+        mr.openForLabeler(lObj,mIdx,IVIEW);
         im = mr.readframe(frm);
         
         obj.xyLbl = xyLbl; %#ok<PROPLC>

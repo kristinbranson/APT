@@ -1,11 +1,12 @@
 classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj 
   methods    
-    function obj = BgTrackWorkerObjAWS(nviews,varargin)
+    function obj = BgTrackWorkerObjAWS(nviews, track_type, varargin)
       obj@BgWorkerObjAWS(varargin{:});
-      obj.nviews = nviews;
+      obj.nviews = nviews ;
+      obj.track_type = track_type ;
     end
     
-    function sRes = compute(obj, logger)
+    function sRes = workOnMovie(obj, logger)
       % sRes: [nMovies x nviews x nStages] struct array      
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
@@ -139,9 +140,9 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         nframes = TrkFile.getNFramesTrackedString(str) ;
       else
         local_filename = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
-        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsEc2.scpDownloadOrVerify()...\n') ;
-        did_succeed = obj.awsEc2.scpDownloadOrVerify(filename, local_filename) ;
-        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): Returned from call to obj.awsEc2.scpDownloadOrVerify().\n') ;
+        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
+        did_succeed = obj.awsec2.scpDownloadOrVerify(filename, local_filename) ;
+        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): Returned from call to obj.awsec2.scpDownloadOrVerify().\n') ;
         if did_succeed ,
           %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
           try

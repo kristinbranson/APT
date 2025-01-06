@@ -1,5 +1,5 @@
 classdef MFTSetEnum < MFTSet
-  % Some "canned" MFTSets for eg track pulldown menu.
+  % Some "canned" MFTSets
   
   enumeration
     CurrMovTgtEveryFrame (...

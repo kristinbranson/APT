@@ -564,14 +564,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
             shash = string2hash(mov);
             shash = shash(1:6);
             trkfilestr = [movS '_' shash '_' trnstr '_' obj.trackid '.trk'];
-            obj.trkfiles{imov,ivw,istage} = [trkoutdir,obj.trainDMC.filesep,trkfilestr];
+            obj.trkfiles{imov,ivw,istage} = [trkoutdir,'/',trkfilestr];
           end
         end
       end
     end
 
     function id = getId(obj)
-
       % i don't understand why this is so complicated -- i think we could
       % just use jobid if it is unique
       %trnstr = DeepModelChainOnDisk.getCheckSingle(obj.getTrnStrs(1));
@@ -581,12 +580,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       id = obj.trackjobid;
     end
 
-    function f = getDefaultOutfile(obj)
-      
+    function f = getDefaultOutfile(obj)      
       trkoutdir1 = DeepModelChainOnDisk.getCheckSingle(obj.trainDMC.dirTrkOutLnx(1));
       id = obj.getId();
-      f = [trkoutdir1,obj.trainDMC.filesep,id];
-
+      f = [ trkoutdir1 '/' id ] ;
     end
 
 

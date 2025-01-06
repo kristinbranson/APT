@@ -552,7 +552,7 @@ classdef TrackMonitorViz < handle
     
     function updateMonitorPlots(obj)
       
-      sRes.result = obj.trackWorkerObj.compute();
+      sRes.result = obj.trackWorkerObj.work();
       obj.resultsReceived(sRes,true);
       
     end

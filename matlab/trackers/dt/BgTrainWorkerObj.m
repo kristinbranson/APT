@@ -1,6 +1,6 @@
 classdef BgTrainWorkerObj < BgWorkerObj
   % Object deep copied onto BG Training worker. To be used with
-  % BgRunnerContinuous
+  % runPollingLoop()
   % 
   % Responsibilities:
   % - Poll filesystem for training updates
@@ -26,7 +26,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
     function sRes = initComputeResults(obj)
       nmodels = obj.dmcs.n;
       %trainCompleteFiles = obj.getTrainCompleteArtifacts();
-      sRes = struct;
+      sRes = struct();
       sRes.identifiers = obj.dmcs.getIdentifiers();
       sRes.pollsuccess = false; % if true, remote poll cmd was successful
       sRes.pollts = now; % datenum time that poll cmd returned
@@ -77,7 +77,7 @@ classdef BgTrainWorkerObj < BgWorkerObj
 
     end
     
-    function sRes = compute(obj, logger) % obj const except for .trnLogLastStep
+    function sRes = work(obj, logger) % obj const except for .trnLogLastStep
       % sRes: [nviewx1] struct array.
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;  %#ok<NASGU> 

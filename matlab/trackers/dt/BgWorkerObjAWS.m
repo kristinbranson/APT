@@ -1,8 +1,8 @@
-classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
+classdef BgWorkerObjAWS < BgWorkerObj
   
   properties
     jobID  % [nmovjob x nviewJobs] remote PIDs
-    awsEc2  % Instance of AWSec2, protected "by convention"
+    awsec2  % Instance of AWSec2, protected "by convention"
   end
   
   methods (Access=protected)    
@@ -12,8 +12,8 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
       if ~isempty(obj.dmcs)
         obj2.dmcs = copy(obj.dmcs);
       end
-      if ~isempty(obj.awsEc2)
-        obj2.awsEc2 = copy(obj.awsEc2);
+      if ~isempty(obj.awsec2)
+        obj2.awsec2 = copy(obj.awsec2);
       end
     end
   end  % protected methods block
@@ -21,44 +21,33 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
   methods
     function obj = BgWorkerObjAWS(dmcs,awsec2,varargin)
       obj@BgWorkerObj(dmcs);
-      obj.awsEc2 = awsec2;
+      obj.awsec2 = awsec2;
     end
     
     function obj2 = copyAndDetach(obj)
       % See note in BgClient/configure(). We create a new obj2 here that is
-      % a deep-copy made palatable for parfeval
-      
+      % a deep-copy made palatable for parfeval      
       obj2 = copy(obj); % deep-copies obj, including .awsec2 and .dmcs if appropriate
-
-%       dmcs = obj.dmcs;
-%       if ~isempty(dmcs)
-%         dmcs.prepareBg();
-%       end
-
-%       aws = obj.awsEc2;
-%       if ~isempty(aws)
-%         aws.clearStatusFuns();
-%       end      
     end    
     
     function tf = fileExists(obj, f)
-      tf = obj.awsEc2.remoteFileExists(f);
+      tf = obj.awsec2.remoteFileExists(f);
     end
     
     function tf = errFileExistsNonZeroSize(obj,errFile)
-      tf = obj.awsEc2.remoteFileExists(errFile,'reqnonempty',true);
+      tf = obj.awsec2.remoteFileExists(errFile,'reqnonempty',true);
     end    
     
     function s = fileContents(obj,f)
-      s = obj.awsEc2.remoteFileContents(f);
+      s = obj.awsec2.remoteFileContents(f);
     end
 
     function tfsucc = lsdir(obj,dir)
-      tfsucc = obj.awsEc2.remoteLs(dir);
+      tfsucc = obj.awsec2.remoteLs(dir);
     end
     
     function result = fileModTime(obj, filename)
-      result = obj.awsEc2.remoteFileModTime(filename) ;
+      result = obj.awsec2.remoteFileModTime(filename) ;
     end
 
     function [tfsucc,warnings] = killProcess(obj)
@@ -66,17 +55,17 @@ classdef BgWorkerObjAWS < BgWorkerObj & matlab.mixin.Copyable
 %       if ~obj.isRunning
 %         error('Training is not in progress.');
 %       end
-      ec2 = obj.awsEc2 ;
+      ec2 = obj.awsec2 ;
       if isempty(ec2)
         error('AWSEC2 backend object is unset.');
       end
       
-      if ~ec2.canKillRemoteProcess()
-        tfpid = ec2.getRemotePythonPID();
-        if ~tfpid
-          error('Could not ascertain remote process ID in AWSEC2 instance %s.',ec2.instanceID);
-        end
-      end
+      % if ~ec2.canKillRemoteProcess()
+      %   tfpid = ec2.getRemotePythonPID();
+      %   if ~tfpid
+      %     error('Could not ascertain remote process ID in AWSEC2 instance %s.',ec2.instanceID);
+      %   end
+      % end
       
       killfile = obj.getKillFiles();
       killfile = unique(killfile);

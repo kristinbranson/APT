@@ -9,7 +9,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
-    RemoteAWSCacheDir = '/home/ubuntu/cacheDL'
+    remoteAWSCacheDir = '/home/ubuntu/cacheDL'
 
     jrchost = 'login1.int.janelia.org'
     jrcprefix = ''
@@ -51,7 +51,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % docker images.
     dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
-      % (We no longer support remote docker backends.  --ALT, 2024-09-20)
       % The docker backend can run the docker container on a remote host.
       % dockerremotehost will contain the DNS name of the remote host in this case.
       % But even in this case, as with local docker, we assume that the docker
@@ -92,6 +91,13 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     syscmds_ = cell(0,1)
     cmdfiles_ = cell(0,1)
     logcmds_ = cell(0,1)
+
+    % The job IDs.  These are protected, transient in spirit.
+    jobids_ = cell(0,1)
+
+    % This is used to keep track of whether we need to release/delete resources on
+    % delete()
+    doesOwnResources_ = true  % is obj a copy, or the original
   end
 
   properties (Dependent)
@@ -242,7 +248,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % For non-AWS backends, this is the identity function.
       if isequal(obj.type, DLBackEnd.AWS) ,
         movieName = fileparts23(localPath) ;
-        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.RemoteAWSCacheDir, 'movies') ;
+        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, 'movies') ;
         rawRemotePath = linux_fullfile(remoteMovieFolderPath, movieName) ;
         result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
       else
@@ -309,23 +315,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
                             remotePath, ...
                             fullFileDescription, ...
                             'destRelative',false) ;  % throws      
-    end
+    end  % function
 
-    function delete(obj)  %#ok<INUSD> 
-      % AL 20191218
-      % DLBackEndClass can now be deep-copied (see copyAndDetach below) as 
-      % sometimes this is necessary for serialization eg to disk.
-      % Since the mapping from obj<->resource is no longer 1-to-1, 
-      % destructors should no longer shut down resources.
-      %
-      % See new shutdown() call.
-      
-      % pass
-    end
-    
-    function shutdown(obj)
-      obj.stopEc2InstanceIfNeeded_() ;
-    end
+    function delete(obj)
+      if obj.doesOwnResources_ ,
+        obj.clearRegisteredJobs() ;
+        obj.stopEc2InstanceIfNeeded_() ;
+      end
+    end  % function
     
     function obj2 = copyAndDetach(obj)
       % See notes in BgClient, BgWorkerObjAWS.
@@ -337,6 +334,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       
       assert(isscalar(obj));
       obj2 = copy(obj);
+      obj2.doesOwnResources_ = false ;
     end  % function
   end  % methods
 
@@ -381,11 +379,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       if isempty(obj.awsec2) ,
         obj.awsec2 = AWSec2() ;
       end
-      % On load, clear the .awsec2 fields that should be Transient, but can't be b/c
-      % we need them to survive going through parfeval()
-      obj.awsec2.instanceIP = [] ;
-      obj.awsec2.remotePID = [] ;
-      obj.awsec2.isInDebugMode = false ;
 
       % If these JRC-backend-related things are empty, warn that we're using default values
       if isempty(obj.jrcgpuqueue) || strcmp(obj.jrcgpuqueue,'gpu_any') || strcmp(obj.jrcgpuqueue,'gpu_tesla') || startsWith(obj.jrcgpuqueue,'gpu_rtx') ,
@@ -406,7 +399,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       tf = false;
       if obj.type==DLBackEnd.AWS
         didLaunch = false;
-        if ~obj.awsec2.isConfigured || ~obj.awsec2.isSpecified,
+        if ~obj.awsec2.isInstanceIDSet || ~obj.awsec2.areCredentialsSet ,
           [tfsucc,instanceID,~,reason,didLaunch] = ...
             obj.awsec2.selectInstance('canconfigure',1,'canlaunch',1,'forceselect',0);
           if ~tfsucc || isempty(instanceID),
@@ -415,15 +408,15 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           end
         end
         
-        [tfexist,tfrunning] = obj.awsec2.inspectInstance;
+        [tfexist,tfrunning] = obj.awsec2.inspectInstance() ;
         if ~tfexist,
           warning_message = ...
             sprintf('AWS EC2 instance %s could not be found or is terminated. Please configure AWS back end with a different AWS EC2 instance.',...
                     obj.awsec2.instanceID);
           uiwait(warndlg(warning_message,'AWS EC2 instance not found'));
           reason = 'Instance could not be found.';
-          obj.awsec2.ResetInstanceID();
-          return;
+          obj.awsec2.clearInstanceID();
+          return
         end
         
         tf = tfrunning;
@@ -504,11 +497,14 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function v = isFilesystemLocal(obj)
       % The conda and bsub (i.e. Janelia LSF) and Docker backends share (mostly) the
       % same filesystem as the Matlab process.  AWS does not.
+      % Note that for bsub and remote docker backends, we return true, but we're
+      % assuming that all the files used by APT are on the part of the filesystem
+      % that is actually the same between the frontend and the backend.
       v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) || isequal(obj.type,DLBackEnd.Docker) ;
     end
     
     function v = isFilesystemRemote(obj)
-      v = ~obj.isFilesystemLocal(obj) ;
+      v = ~obj.isFilesystemLocal() ;
     end
     
     function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)
@@ -931,8 +927,24 @@ classdef DLBackEndClass < matlab.mixin.Copyable
   methods (Static)
     function obj = loadobj(larva)
       % We implement this to provide backwards-compatibility with older .mat files
-      obj = larva ;
-      if strcmp(larva.singularity_image_path_, '<invalid>') ,
+      if isstruct(larva) ,
+        obj = DLBackEndClass() ;
+        field_names = fieldnames(larva) ;
+        for i = 1 : numel(field_names) ,
+          field_name = field_names{i} ;
+          if isprop(obj, field_name) ,
+            value = larva.(field_name) ;
+            obj.set_property_value_(field_name, value) ;
+          else
+            warning('Unknown property %s', field_name) ;
+          end
+        end
+      elseif isa(larva, 'DLBackEndClass') ,
+        obj = larva ;
+      else
+        error('Unable to deal with a larva of class %s', class(larva)) ;
+      end       
+      if strcmp(obj.singularity_image_path_, '<invalid>') ,
         % This must come from an older .mat file, so we use the legacy values
         obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
         obj.does_have_special_singularity_detection_image_path_ = true ;
@@ -941,22 +953,24 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     end
   end  % methods (Static)
 
-  methods   % private by convention
-    function stopEc2InstanceIfNeeded_(obj)
-      aws = obj.awsec2;
-      % DEBUGAWS: Stopping the AWS instance takes too long when debugging.
+  methods
+    function stopEc2InstanceIfNeeded_(obj)  % private by convention
+      aws = obj.awsec2 ;
+      % Sometimes .awsec2 is empty, even though that's not supposed to be possible
+      % anymore.  Not clear to me how this happens.  -- ALT, 2024-10-09
+      if isempty(aws) ,
+        return
+      end
+      % DEBUGAWS: Stopping the AWS instance takes too long when debugging.      
       if aws.isInDebugMode ,
         return
       end
-      fprintf('Stopping AWS EC2 instance %s...\n',aws.instanceID);
       tfsucc = aws.stopInstance();
       if ~tfsucc
         warningNoTrace('Failed to stop AWS EC2 instance %s.',aws.instanceID);
       end
     end  % function    
-  end  % methods block
 
-  methods
     function result = get.isInAwsDebugMode(obj)
       result = obj.awsec2.isInDebugMode ;
     end
@@ -964,14 +978,22 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function set.isInAwsDebugMode(obj, value)
       obj.awsec2.isInDebugMode = value ;
     end    
-  end  % methods block
 
-  methods
     function clearRegisteredJobs(obj)
+      % Make sure all spawned jobs are dead
+      jobids = obj.jobids_ ;
+      job_count = numel(jobids) ;
+      for i = 1 : job_count ,
+        jobid = jobids{i} ;
+        if ~isempty(jobid) ,
+          obj.ensureJobIsNotAlive(jobid) ;
+        end
+      end
       % Clear all registered jobs
       obj.syscmds_ = cell(0,1) ;
       obj.cmdfiles_ = cell(0,1) ;
-      obj.logcmds_ = cell(0,1) ;   
+      obj.logcmds_ = cell(0,1) ;
+      obj.jobids_ = cell(0,1) ; 
     end
 
     function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
@@ -993,6 +1015,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
     function registerTrackingJob(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
+      % track_type should be one of {'track', 'link', 'detect'}
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',ignore_local,'aptroot',aptroot,'track_type',track_type);
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
@@ -1006,7 +1029,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       backend.cmdfiles_{end+1,1} = cmdfile ;
     end
 
-    function [tfSucc, jobID] = spawnRegisteredJobs(obj, varargin)
+    function [tfSucc, jobids] = spawnRegisteredJobs(obj, varargin)
       % Spawn all the jobs that have been previously registered.  Jobs should be
       % either all tracking jobs or all training jobs.  
       [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
@@ -1022,7 +1045,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       njobs = numel(syscmds);
       tfSucc = false(1,njobs);
       tfSuccLog = true(1,njobs);
-      jobID = cell(1,njobs);
+      jobids = cell(1,njobs);
       for ijob=1:njobs,
         syscmd = syscmds{ijob} ;
         fprintf(1,'%s\n',syscmd);
@@ -1030,7 +1053,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
           [st,res] = apt.syscmd(syscmd, 'failbehavior', 'silent');
           tfSucc(ijob) = (st == 0) ;
           if tfSucc(ijob),
-            jobID{ijob} = apt.parseJobID(obj, res);
+            jobids{ijob} = apt.parseJobID(obj, res);
           end
         else
           % Pretend it's a failure, for expediency.
@@ -1040,16 +1063,9 @@ classdef DLBackEndClass < matlab.mixin.Copyable
         if ~tfSucc(ijob),
           warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
         else
-          jobid = jobID{ijob};
-          if isnumeric(jobid),
-            jobidstr = num2str(jobid);
-          elseif isa(jobid, 'parallel.FevalFuture') ,
-            jobidstr = num2str(jobid.ID) ;
-          else
-            % hopefully the jobid is a string
-            jobidstr = jobid ;
-          end
-          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobidstr);
+          jobid = jobids{ijob};
+          assert(ischar(jobid)) ;
+          fprintf('%s %d spawned, ID = %s\n\n',jobdesc,ijob,jobid);
         end
         if numel(logcmds) >= ijob ,
           logcmd = logcmds{ijob} ;
@@ -1061,8 +1077,235 @@ classdef DLBackEndClass < matlab.mixin.Copyable
               warning('Failed to spawn logging for %s %d: %s.',jobdesc,ijob,res2);
             end
           end
+        end  % if
+      end  % for
+      obj.jobids_ = jobids ;  % Keep these around internally so we can kill the jobs on delete()
+    end  % function
+    
+    function waitForRegisteredJobsToExit(obj)
+      jobids = obj.jobids_ ;
+      job_count = numel(jobids) ;
+      for i = 1 : job_count ,
+        jobid = jobids{i} ;
+        if ~isempty(jobid) ,
+          obj.waitForJobToExit(jobid) ;
         end
       end
     end  % function
+    
+    function waitForJobToExit(obj, jobid)
+      % Wait for the job with job id jobid to exit.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jobid) ,
+        error('Job id is empty') ;
+      end
+      while obj.isJobAlive(jobid) ,
+        pauseTight(0.25) ;
+      end
+    end  % function
+
+    function ensureJobIsNotAlive(obj, jobid)
+      % Kill the job with job id jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jobid) ,
+        error('Job id is empty') ;
+      end
+      if obj.isJobAlive(jobid) ,
+        obj.killJob(jobid) ;
+      end
+    end  % function
+
+    function tf = isJobAlive(obj, jobid)
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.
+      if isempty(jobid) ,
+        error('Job id is empty');
+      end
+      if obj.type == DLBackEnd.AWS || obj.type == DLBackEnd.Docker ,
+        tf = obj.isJobAliveDockerOrAWS_(jobid) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        tf = obj.isJobAliveBsub_(jobid) ;
+      elseif obj.type == DLBackEnd.Conda ,
+        tf = obj.isJobAliveConda_(jobid) ;
+      else
+        error('Unknown DLBackEnd value') ;
+      end      
+    end  % function
+
+    function killJob(obj, jobid)
+      % Kill the job with job id jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      if isempty(jobid) ,
+        error('Job id is empty');
+      end
+      if obj.type == DLBackEnd.AWS || obj.type == DLBackEnd.Docker ,
+        obj.killJobDockerOrAWS_(jobid) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        obj.killJobBsub_(jobid) ;
+      elseif obj.type == DLBackEnd.Conda ,
+        obj.killJobConda_(jobid) ;
+      else
+        error('Unknown DLBackEnd value') ;
+      end      
+    end  % function
+
+    function tf = isJobAliveBsub_(obj, jobid)  %#ok<INUSD> 
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.
+      runStatuses = {'PEND','RUN','PROV','WAIT'};
+      pollcmd0 = sprintf('bjobs -o stat -noheader %s',jobid);
+      pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
+      %[st,res] = system(pollcmd);
+      [st,res] = apt.syscmd(pollcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      if st==0
+        s = sprintf('(%s)|',runStatuses{:});
+        s = s(1:end-1);
+        tf = ~isempty(regexp(res,s,'once'));
+      else
+        error('Error occurred when checking if Bsub job %s was running: %s', jobid, res) ;
+      end
+    end  % function
+
+    function killJobBsub_(obj, jobid)  %#ok<INUSD> 
+      % Kill the bsub job with job id jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      bkillcmd0 = sprintf('bkill %s',jobid);
+      bkillcmd = wrapCommandSSH(bkillcmd0,'host',DLBackEndClass.jrchost);
+      [st,res] = apt.syscmd(bkillcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      if st~=0 ,
+        error('Error occurred when trying to kill Bsub job %s: %s', jobid, res) ;
+      end
+    end  % function
+
+    function tf = isJobAliveConda_(obj, jobid)  %#ok<INUSD> 
+      % Returns true if there is a running conda job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.
+      command_line = sprintf('ps -p %s', jobid) ;
+      [status, res] = system(command_line) ;  % conda is Linux-only, so can just use system()
+      if status==0 ,
+        tf = true ;
+      else
+        % This likely means that the job does not exist, but we do some checking just
+        % to make sure.
+        lines = break_string_into_lines(res) ;
+        if numel(lines)==1 ,
+          line = lines{1} ;
+          if contains(line,'PID') && contains(line,'TTY') && contains(line,'TIME') && contains(line,'CMD') ,
+            % Looks like usual job doesn't exist case
+            is_usual = true ;
+          else
+            is_usual = false ;
+          end
+        else
+          % If zero lines or >1, something is hinky
+          is_usual = false ;
+        end
+        if is_usual ,
+          tf = false ;
+        else
+          error('Error occurred when checking if Conda job %s was running: %s', jobid, res) ;
+        end
+      end        
+    end  % function
+
+    function killJobConda_(obj, jobid)  %#ok<INUSD> 
+      command_line = sprintf('kill %s', jobid) ;
+      [status, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
+      did_kill = (status==0) ;
+      if ~did_kill ,
+        error('Error occurred when trying to kill Conda job %s: %s', jobid, stdouterr) ;
+      end      
+    end  % function
+
+    function tf = isJobAliveDockerOrAWS_(obj, jobid)
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      jobidshort = jobid(1:8);
+      cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jobidshort);      
+      [st,res] = obj.runBatchCommandOutsideContainer(cmd);
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
+      if st==0
+        tf = ~isempty(regexp(res,jobidshort,'once')) ;
+      else
+        error('Error occurred when checking if %s job %s was running: %s', char(obj.type), jobid, res) ;
+      end
+    end  % function
+    
+    function killJobDockerOrAWS_(obj, jobid)
+      % Kill the docker job with job id jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      % Errors if no such job exists.
+      cmd = sprintf('%s kill %s', apt.dockercmd(), jobid);        
+      [st,res] = obj.runBatchCommandOutsideContainer(cmd) ;
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
+      if st~=0 ,
+        error('Error occurred when trying to kill %s job %s: %s', char(obj.type), jobid, res) ;
+      end
+    end  % function
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
+      if obj.type == DLBackEnd.AWS ,
+        [isAllWell, message] = obj.downloadTrackingFilesIfNecessaryAWS_(res, remoteCacheRoot, localCacheRoot, movfiles) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
+        pause(10) ;
+        isAllWell = true ;
+        message = '' ;
+      elseif obj.type == DLBackEnd.Conda ,
+        isAllWell = true ;
+        message = '' ;
+      elseif obj.type == DLBackEnd.Docker ,
+        if ~isempty(obj.dockerremotehost) ,
+          % This path is for when the docker backend is running on a remote host.
+          % Hack: For now, just wait a bit, to let (hopefully) NFS sync up.
+          pause(10) ;
+        end          
+        isAllWell = true ;
+        message = '' ;
+      else
+        error('Internal error: Unknown DLBackEndClass type') ;
+      end
+    end  % function    
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessaryAWS_(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
+      remoteTrackFilePaths = {res.trkfile} ;
+      trkfilesLocal = replace_prefix_path(remoteTrackFilePaths, remoteCacheRoot, localCacheRoot) ;      
+      if all(strcmp(movfiles(:),{res.movfile}'))
+        % we perform this check b/c while tracking has been running in
+        % the bg, the project could have been updated, movies
+        % renamed/reordered etc.        
+        aws = obj.awsec2;        
+        % download trkfiles 
+        sysCmdArgs = {'failbehavior', 'err'};
+        for ivw=1:numel(res)
+          trkLcl = trkfilesLocal{ivw};
+          trkRmt = res(ivw).trkfile;
+          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
+          aws.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
+        end
+        isAllWell = true ;
+        message = '' ;
+      else
+        isAllWell = false ;
+        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
+        % conservative, take no action for now
+        return
+      end
+    end  % function    
+    
+    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
+      ec2 = obj.awsec2 ;
+      ec2.pem = pemFile ;
+      ec2.keyName = keyName ;
+    end
+    
+    function setAWSInstanceIDAndType(obj, instanceID, instanceType)
+      ec2 = obj.awsec2 ;
+      ec2.setInstanceIDAndType(instanceID, instanceType) ;
+    end
+    
   end  % methods
 end  % classdef

@@ -1,4 +1,4 @@
-function jobID = parseJobIDAWS(res)
-  jobID = apt.parseJobIDDocker(res) ;
+function jobid = parseJobIDAWS(res)
+  jobid = apt.parseJobIDDocker(res) ;
 end
 

@@ -17,19 +17,6 @@ classdef APT
     % for now, hard-coded to use default loc for git
     WINSCPCMD = 'C:\Program Files\Git\usr\bin\scp.exe';
     WINSSHCMD = 'C:\Program Files\Git\usr\bin\ssh.exe';
-
-    % hardcoded name of AWS security group
-    AWS_SECURITY_GROUP = 'apt_dl';
-    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
-    % AMI = 'ami-094a08ff1202856d6'; TF 1.13
-    % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
-    %AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
-    AMI = 'ami-09b1db2d5c1d91c38';  % Deep Learning Base *Proprietary* Nvidia Driver GPU AMI (Ubuntu 20.04) 20240415, with conda
-                                    % and apt_20230427_tf211_pytorch113_ampere environment, and ~/APT, and python
-                                    % links in ~/bin, and dotfiles setup to setup the the path properly for ssh
-                                    % noninteractive shells.  This was originally based on the image
-                                    % ami-09b1db2d5c1d91c38, aka "Deep Learning Base Proprietary Nvidia Driver GPU
-                                    % AMI (Ubuntu 20.04) 20240101"
   end
   
   methods (Static)
@@ -209,13 +196,13 @@ classdef APT
       end
         
       [p,jp] = APT.getpath();
-      if APT.matlabPathNotConfigured
+      if APT.matlabPathNotConfigured()
         fprintf('Configuring your MATLAB path ...\n');
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
       %MK 20190506 Add stuff to systems path for aws cli
-      if ismac
+      if ismac()
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
     end
@@ -313,18 +300,17 @@ classdef APT
     end
     
     function result = getdotaptdirpath()  % returns e.g. /home/joesixpack/.apt
-      manifest = APT.readManifest() ;
-      if isfield(manifest,'dltemproot')
-        result = manifest.dltemproot;
+      envar_value = getenv('APT_DOT_APT_DIR') ;
+      if ~isempty(envar_value) ,
+        result = envar_value ;
       else
-        if ispc()
-          userDir = winqueryreg('HKEY_CURRENT_USER',...
-            ['Software\Microsoft\Windows\CurrentVersion\' ...
-            'Explorer\Shell Folders'],'Personal');
+        manifest = APT.readManifest() ;
+        if isfield(manifest,'dltemproot')
+          result = manifest.dltemproot;
         else
-          userDir = char(java.lang.System.getProperty('user.home'));
+          home_folder_path = get_home_dir_name() ;
+          result = fullfile(home_folder_path,'.apt');
         end
-        result = fullfile(userDir,'.apt');
       end
     end  % function
     

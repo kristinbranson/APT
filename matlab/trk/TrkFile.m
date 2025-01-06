@@ -51,7 +51,7 @@ classdef TrkFile < dynamicprops
   end
   properties (Dependent)
     ntracklets
-    ntlts
+    %ntlts  % Wasn't used anywhere
   end
   
   methods 
@@ -59,9 +59,9 @@ classdef TrkFile < dynamicprops
 %       % assumes at least one tracklet...
 %       v = size(obj.pTrk{1},1);
 %     end
-    function v = get.ntlts(obj)
-      v = obj.ntracklets;
-    end
+%     function v = get.ntlts(obj)
+%       v = obj.ntracklets;
+%     end
     function v = get.ntracklets(obj)
       if obj.isfull
         v = size(obj.pTrk,4);
@@ -336,14 +336,34 @@ classdef TrkFile < dynamicprops
       
     end
     
-    function initFromTableFull(obj,s,view,movi,varargin)
+    function initFromTableFull(obj,s,view,movi,outfile,varargin)
       %
       % Note: init* methods do not clear old state that is already set
       % 
       % this API is strange s and the pvs
 
       assert(isstruct(s));
-      
+      if ~isfield(s, 'pred_locs') ,
+        outfile  %#ok<NOPRT> 
+        s  %#ok<NOPRT> 
+        destination_path = fullfile(tempdir(), 'heisenbug_trk_file_missing_pred_locs.trk') ;
+        [did_copy_succeed, msg] = copyfile(outfile, destination_path) ;
+        if ~did_copy_succeed ,
+          warning('Unable to copy a suspect trk file to the temp dir: %s', msg) ;
+        end
+        error('s lacks pred_locs field') ;
+      end
+      if ~isfield(s, 'toTrack') ,
+        outfile  %#ok<NOPRT> 
+        s  %#ok<NOPRT> 
+        destination_path = fullfile(tempdir(), 'heisenbug_trk_file_missing_toTrack.trk') ;
+        [did_copy_succeed, msg] = copyfile(outfile, destination_path) ;
+        if ~did_copy_succeed ,
+          warning('Unable to copy a suspect trk file to the temp dir: %s', msg) ;
+        end
+        error('s lacks toTrack field') ;
+      end
+
       nArg = numel(varargin);
       for i=1:2:nArg
         prop = varargin{i};
@@ -357,7 +377,7 @@ classdef TrkFile < dynamicprops
       
 %       [movfiles,nviewstrack] = ...
 %         TrkFile.convertJSONCellMatrix(s.movieFiles);
-      movfiles = s.movieFiles;
+      % movfiles = s.movieFiles;
 
       pred_locs = s.pred_locs.locs;
       ndim = ndims(pred_locs);
@@ -495,7 +515,7 @@ classdef TrkFile < dynamicprops
       end
       
       obj.isfull = false;
-    end    
+    end  % function    
     
     function initFromTracklet(obj,s)
       flds = fieldnames(s);
@@ -708,7 +728,7 @@ classdef TrkFile < dynamicprops
 %         return;        
 %       end        
         
-      s = TrkFile.modernizeStruct(s,filetype);      
+      s = TrkFile.modernizeStruct(s);      
       trkfileObj = TrkFile();
       switch filetype,
         case 'tracklet'
@@ -738,7 +758,7 @@ classdef TrkFile < dynamicprops
             pTrk.pred_locs = s.pred_locs;
             pTrk.to_track = s.to_track;
             pvs = struct2pvs(srecog);
-            trkfileObj.initFromTableFull(pTrk,'movfile',movfile,pvs{:});
+            trkfileObj.initFromTableFull(pTrk,'movfile',movfile,pvs{:});  % This seems wrong, but I'm not sure how to fix -- ALT, 2024-12-19
           end
           
           if issilent,
@@ -750,14 +770,16 @@ classdef TrkFile < dynamicprops
           end
         case 'sparse',
           trkfileObj.initFromSparse(s);
-      end
-    end
+        otherwise ,
+          error('Internal error: filetype is not a known value') ;
+      end  % switch
+    end  % function
     
-    function trkfileObj = loadsilent(filename,varargin)
-      trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
-    end
+%     function trkfileObj = loadsilent(filename,varargin)
+%       trkfileObj = TrkFile.load(filename,'issilent',true,varargin{:});
+%     end
     
-    function s = modernizeStruct(s,filetype)
+    function s = modernizeStruct(s)
       if isfield(s,'pred_conf'),
         s = rmfield(s,'pred_conf');
       end
@@ -1516,6 +1538,7 @@ classdef TrkFile < dynamicprops
       grid on;
     end
   end
+
   methods (Static)
     function v = isAliveHelper(xy)
       nd = ndims(xy);      
@@ -1989,7 +2012,7 @@ classdef TrkFile < dynamicprops
         end
       end
     end
-  end
+  end  % methods
   
   methods (Static)
     

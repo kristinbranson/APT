@@ -857,9 +857,9 @@ listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabel
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_allframes','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
-listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
-listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
-listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
+%listeners{end+1,1} = addlistener(lObj,'startAddMovie',@cbkAddMovie);
+%listeners{end+1,1} = addlistener(lObj,'finishAddMovie',@cbkAddMovie);
+%listeners{end+1,1} = addlistener(lObj,'startSetMovie',@cbkSetMovie);
 listeners{end+1,1} = addlistener(lObj,'dataImported',@cbkDataImported);
 listeners{end+1,1} = addlistener(lObj,'didSetShowSkeleton',@cbkShowSkeletonChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoi',@cbkShowMaRoiChanged);
@@ -1388,10 +1388,10 @@ end
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
 tracker = evt.AffectedObject;
 hmenu_view_hide_predictions.Checked = onIff(tracker.hideViz);
+
 function cbkTrackerShowPredsCurrTargetOnlyChanged(src,evt,hmenu)
 tracker = evt.AffectedObject;
 hmenu.Checked = onIff(tracker.showPredsCurrTargetOnly);
-
 
 function tfKPused = cbkKPF(src,evt,lObj)
 if ~lObj.isReady ,
@@ -1886,25 +1886,25 @@ if ~isempty(mname)
   % Labeler.projLoad
 end
 
-function cbkAddMovie(src,evt)
-% lObj=src;
-% %handles = lObj.gdata;
-% 
-% if strcmp(evt.EventName,'startAddMovie')
-%     %SetStatus(handles,'Adding movie',true); 
-% elseif strcmp(evt.EventName,'finishAddMovie')
-%     %handles.labelerObj.clearStatus();        
-% end
+% function cbkAddMovie(src,evt)
+% % lObj=src;
+% % %handles = lObj.gdata;
+% % 
+% % if strcmp(evt.EventName,'startAddMovie')
+% %     %SetStatus(handles,'Adding movie',true); 
+% % elseif strcmp(evt.EventName,'finishAddMovie')
+% %     %handles.labelerObj.clearStatus();        
+% % end
 
-function cbkSetMovie(src,evt)
-% lObj=src;
-% handles = lObj.gdata;
-% 
-% if strcmp(evt.EventName,'startSetMovie')
-%     %SetStatus(handles,'Setting first movie',true); 
-% elseif strcmp(evt.EventName,'finishSetMovie')
-%     %handles.labelerObj.clearStatus();        
-% end
+% function cbkSetMovie(src,evt)
+% % lObj=src;
+% % handles = lObj.gdata;
+% % 
+% % if strcmp(evt.EventName,'startSetMovie')
+% %     %SetStatus(handles,'Setting first movie',true); 
+% % elseif strcmp(evt.EventName,'finishSetMovie')
+% %     %handles.labelerObj.clearStatus();        
+% % end
 
 function cbkProjLoaded(src,evt)
 lObj = src;
@@ -2253,8 +2253,8 @@ for i=1:nTrker
   mnu = uimenu( ...
     'Parent',handles.menu_track_tracking_algorithm,...
     'Label',algLabel,...
-    'Callback',@cbkTrackerMenu,...
-    'Tag',sprintf('menu_track_%s',algName),...
+    'Callback',@LabelerGUIControlActuated,...
+    'Tag','menu_track_algorithm',...
     'UserData',i,...
     'enable',enable,...
     'Position',i);
@@ -2505,11 +2505,11 @@ set(handles.menu_track_backend_set_conda_env,'Enable',onIff(beType==DLBackEnd.Co
 % handles.menu_track_viz_dataaug.Enable = oiDckr;
 
 
-function cbkTrackerMenu(src,evt)
-handles = guidata(src);
-lObj = handles.labelerObj;
-iTracker = src.UserData;
-lObj.trackSetCurrentTracker(iTracker);
+% function cbkTrackerMenu(src,evt)
+% handles = guidata(src);
+% lObj = handles.labelerObj;
+% iTracker = src.UserData;
+% lObj.trackSetCurrentTracker(iTracker);
 
 function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
@@ -2795,12 +2795,12 @@ function pumTrack_Callback(hObj,edata,handles)
 lObj = handles.labelerObj;
 lObj.trackModeIdx = hObj.Value;
 
-function mftset = getTrackMode(handles)
-idx = handles.pumTrack.Value;
-% Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
-% .TrackingMenuTrx.
-mfts = MFTSetEnum.TrackingMenuTrx;
-mftset = mfts(idx);
+% function mftset = getTrackMode(handles)
+% idx = handles.pumTrack.Value;
+% % Note, .TrackingMenuNoTrx==.TrackingMenuTrx(1:K), so we can just index
+% % .TrackingMenuTrx.
+% mfts = MFTSetEnum.TrackingMenuTrx;
+% mftset = mfts(idx);
 
 function cbkMovieCenterOnTargetChanged(src,~)
 lObj = src ;
@@ -3276,6 +3276,7 @@ set(labelTLInfo.lObj.gdata.pumInfo_labels,'String',proptypes);
 function cbkFreezePrevAxesToMainWindow(src,evt)
 handles = guidata(src);
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.FROZEN);
+
 function cbkUnfreezePrevAxes(src,evt)
 handles = guidata(src);
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
@@ -3354,8 +3355,11 @@ if controller.raiseUnsavedChangesDialogIfNeeded() ,
   if ~isempty(currMovInfo)
     handles = lObj.gdata; % projLoad updated stuff
     handles.movieMgr.setVisible(true);
-    wstr = sprintf('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.',...
-      currMovInfo.iMov,currMovInfo.badfile);
+    wstr = ...
+      sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
+                      'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
+              currMovInfo.iMov, ...
+              currMovInfo.badfile);
     warndlg(wstr,'Movie not found','modal');
   end
 end
@@ -3943,6 +3947,7 @@ tracker = lObj.tracker;
 if ~isempty(tracker)
   tracker.hideVizToggle();
 end
+
 function menu_view_show_preds_curr_target_only_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 tracker = lObj.tracker;
@@ -4299,7 +4304,7 @@ lObj.tracker.trainingDataMontage();
 handles.labelerObj.clearStatus();
 
 function menu_track_trainincremental_Callback(hObject, eventdata, handles)
-handles.labelerObj.trackTrain();
+handles.labelerObj.trainIncremental();
 
 function menu_go_targets_summary_Callback(hObject, eventdata, handles)
 if handles.labelerObj.maIsMA
@@ -4448,14 +4453,11 @@ guidata(handles.figure,handles);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-tm = getTrackMode(handles);
 [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
 if ~tfok
-  return;
+  return
 end
-handles.labelerObj.setStatus('Tracking...');
-handles.labelerObj.trackAndExport(tm,'rawtrkname',rawtrkname);
-handles.labelerObj.clearStatus();
+lObj.trackAndExport([],'rawtrkname',rawtrkname);
 
 function menu_track_batch_track_Callback(hObject,eventdata,handles)
 
@@ -4741,13 +4743,11 @@ LabelerGT.setSuggestionsToLabeledUI(lObj);
 function menu_evaluate_gtcomputeperf_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
-% next three lines identical to GTManager:pbComputeGT_Callback
 lObj.gtComputeGTPerformance();
 
 function menu_evaluate_gtcomputeperfimported_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 assert(lObj.gtIsGTMode);
-% next three lines identical to GTManager:pbComputeGT_Callback
 lObj.gtComputeGTPerformance('useLabels2',true);
 
 function menu_evaluate_gtexportresults_Callback(hObject,eventdata,handles)

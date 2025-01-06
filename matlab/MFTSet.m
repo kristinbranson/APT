@@ -133,7 +133,7 @@ classdef MFTSet < handle
       % processed.
 
       [wbObj,istrack] = myparse(varargin,...
-        'wbObj',[], ... % (opt) WaitBarWithCancel. If cancel, tblMFT indeterminate.
+        'wbObj',[], ... % (opt) WaitBarWithCancel or ProgressMeter. If cancel, tblMFT indeterminate.
         'istrack',false ... % if true and labelerObj is MA, then 'targets' are ignored/meaningless.
         ); 
       tfWB = ~isempty(wbObj);      
@@ -163,16 +163,29 @@ classdef MFTSet < handle
         end
         
         if tfWB
-          wbObj.startPeriod('Fetching table','shownumden',true,'denominator',nMovs);
-          oc = onCleanup(@()wbObj.endPeriod());
+          if isa(wbObj, 'ProgressMeter') ,
+            wbObj.start('message', 'Fetching table', 'denominator', nMovs) ;
+            oc = onCleanup(@()wbObj.finish());
+          else
+            wbObj.startPeriod('Fetching table','shownumden',true,'denominator',nMovs);
+            oc = onCleanup(@()wbObj.endPeriod());
+          end
         end
         for i=1:nMovs
           if tfWB
-            if wbObj.isCancel
-              % tblMFT is raw/cell, return it anyway
-              return;              
-            end
-            wbObj.updateFracWithNumDen(i);
+            if isa(wbObj, 'ProgressMeter') ,
+              if wbObj.wasCanceled
+                % tblMFT is raw/cell, return it anyway
+                return
+              end
+              wbObj.bump(i);
+            else
+              if wbObj.isCancel
+                % tblMFT is raw/cell, return it anyway
+                return
+              end
+              wbObj.updateFracWithNumDen(i);
+            end              
           end
           
           mIdx = mis(i);
