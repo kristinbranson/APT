@@ -1625,7 +1625,7 @@ movies = nm
 # to do id tracking at scale 2, need to make changes in run_apt_ma_expts.py
 
 run_type = 'dry'
-tts = [('grone','crop'),('2stageBBox','first')]
+tts = [('grone','crop'),('2stageBBox','first'),('2stageBBox_hrformer','first')]
 for cur_mov in movies:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
     for curt in tts:
@@ -1633,10 +1633,11 @@ for cur_mov in movies:
         robj.track(cur_mov,out_trk,t_types=[curt,],run_type=run_type)
 
 ## Tracking without hard mining
+hm_movies = ['/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629//movie.ufmf','/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf','/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf'] # movies that have GT
 run_type = 'dry'
 tts = [('grone','crop'),('2stageBBox_hrformer','first')]
 robj.params[()][0]['link_id_mining_steps']='1'
-for cur_mov in movies[:3]:
+for cur_mov in hm_movies: #movies[:3]:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
     for curt in tts:
         out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_nohardmine.trk')

@@ -1907,5 +1907,66 @@ def get_memory_usage():
     # print(f"Peak Memory Usage: {memory_info.peak_wset} bytes")
     return memory_info.rss
 
+
+def make_vid(mov_file,trk_file,out_file,skel,st,en,x,y,fps=10,cmap='tab20',fig_size=None):
+    import movies
+    import TrkFile
+    from reuse import mdskl,msctr,dskl,sctr
+    from matplotlib import pyplot as plt
+    cap = movies.Movie(mov_file)
+    trk = TrkFile.Trk(trk_file)
+    eg_fr = cap.get_frame(0)[0]
+    h,w = eg_fr.shape[:2]
+    if x is None:
+        x = [0,w]
+        y = [0,h]
+    # open video writer
+    fourcc = cv2.VideoWriter_fourcc(*'X264')
+    fr_sz = [y[1]-y[0],x[1]-x[0]]
+    out = cv2.VideoWriter(out_file, fourcc, fps, (fr_sz[1], fr_sz[0]))
+
+    if not cap.is_open():
+        print('Error opening movie file')
+        return
+
+
+    f=plt.figure(figsize=fig_size)
+    ax = f.add_axes([0,0,1,1])
+    trk_fr = trk.getframe(np.arange(st,en),extra=True)
+    trk_occ = trk_fr[1]['pTrkTag']
+    trk_fr = trk_fr[0]
+    offset = np.array([x[0],y[0]])
+    cc = get_cmap(trk_fr.shape[3],cmap)
+
+    for fr in range(st,en):
+        ax.clear()
+        im = cap.get_frame(fr)[0]
+        if im.ndim==2:
+            im = cv2.cvtColor(im,cv2.COLOR_GRAY2RGB)
+        ax.imshow(im[y[0]:y[1],x[0]:x[1]])
+        ax.axis('off')
+
+        for ix in range(trk_fr.shape[3]):
+            if skel is None:
+                sctr(trk_fr[...,fr-st,ix]-offset[None],ax,color=cc[ix])
+            else:
+                dskl(trk_fr[...,fr-st,ix]-offset[None],skel,cc=cc[ix])
+                occ_pts = trk_occ[:,fr-st,ix]
+                sctr(trk_fr[occ_pts,:,fr-st,ix]-offset[None],ax,color=cc[ix],marker='o',facecolors='none')
+                sctr(trk_fr[~occ_pts,:,fr-st,ix]-offset[None],ax,color=cc[ix],marker='o')
+
+        ax.set_xlim([0,fr_sz[1]])
+        ax.set_ylim([fr_sz[0],0])
+        f.canvas.draw()
+        img = np.frombuffer(f.canvas.tostring_rgb(), dtype=np.uint8)
+        img = img.reshape(f.canvas.get_width_height()[::-1] + (3,))
+        img = cv2.resize(img,fr_sz)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        out.write(img)
+
+    out.release()
+
+
+
 if __name__ == "__main__":
     get_memory_usage()

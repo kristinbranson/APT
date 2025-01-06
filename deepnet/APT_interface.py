@@ -441,7 +441,7 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
 
     if conf.multi_loss_mask and conf.is_multi:
         if extra_roi is None:
-            extra_roi_use = roi
+            extra_roi_use = roi # this is for mmpose masking
         else:
             if roi is not None:
                 extra_roi_use = np.concatenate([roi, extra_roi], 0)
