@@ -1950,8 +1950,8 @@ classdef DeepTracker < LabelTracker
 %       end
 %     end  % function getBackEndArgs()
     
-    function tfsucc = updateLastDMCsCurrInfo_(obj)
-      tfsucc = obj.trnLastDMC.updateCurrInfo(obj.backend);
+    function updateLastDMCsCurrInfo_(obj)
+      obj.trnLastDMC.updateCurrInfo(obj.backend);
     end    
   end  % methods block
 
@@ -4923,7 +4923,8 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Remote model detected. This will not be migrated.');
         return
       end
-      tfsucc = obj.updateLastDMCsCurrInfo_() ;
+      obj.updateLastDMCsCurrInfo_() ;
+      tfsucc = (dmc.iterCurr >= 0) ;
       if ~all(tfsucc),
         for i = find(~tfsucc(:)'),
           warningNoTrace('Failed to update model iteration count for for net type %s.',...

@@ -1128,7 +1128,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       end      
     end
     
-    function tfSuccess = updateCurrInfo(obj, backend)
+    function updateCurrInfo(obj, backend)
       % Update .iterCurr by probing filesys
       
       assert(isscalar(obj));
@@ -1136,7 +1136,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       maxiter = backend.getMostRecentModel(obj) ;
 
       obj.iterCurr = maxiter;
-      tfSuccess = (maxiter >= 0) ;
+      %tfSuccess = (maxiter >= 0) ;
       
       if any(maxiter>obj.iterFinal),
         warningNoTrace('Current model iteration exceeds specified maximum/target iteration: %s.',...

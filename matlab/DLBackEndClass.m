@@ -1617,7 +1617,8 @@ classdef DLBackEndClass < handle
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
 
       % Make sure there is a trained model
-      succ = dmc.updateCurrInfo(obj) ;
+      dmc.updateCurrInfo(obj) ;
+      succ = (dmc.iterCurr >= 0) ;
       if strcmp(mode, 'tracking') && any(~succ) ,
         dmclfail = dmc.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dmclfail{:});
@@ -1673,7 +1674,8 @@ classdef DLBackEndClass < handle
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
       
       cacheDirLocal = dmc.rootDir ;     
-      succ = dmc.updateCurrInfo(backend) ;
+      dmc.updateCurrInfo(backend) ;
+      succ = (dmc.iterCurr >= 0) ;
       if any(~succ),
         dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dirModelChainLnx{:});
