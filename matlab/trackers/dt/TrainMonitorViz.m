@@ -400,51 +400,58 @@ classdef TrainMonitorViz < handle
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
-      [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
-      obj.isKilled(:) = tfsucc;
-      apt.setStatusDisplayLineBang(obj.hfig, 'Checking that training jobs were killed...', false);
-      wereTrainingProcessesKilledForSure = false ;
-      if tfsucc ,        
-        startTime = tic() ;
-        maxWaitTime = 30;
-        while true,
-          if toc(startTime) > maxWaitTime,
-            fprintf('Stopping training processes is taking too long, giving up.\n') ;
-            if isempty(warnings) ,
-              fprintf('But there were no warnings while trying to stop training processes.\n') ;
-            else
-              fprintf('Warning(s) while trying to stop training processes:\n') ;
-              cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
-              fprintf('\n') ;
-            end
-            warndlg('Stopping training processes took too long.  See console for details.', 'Problem stopping training', 'modal') ;
-            break
-          end
-          if ~obj.dtObj.bgTrnIsRunning,
-            wereTrainingProcessesKilledForSure = true ;
-            break
-          end
-          pause(1);
-        end        
-      else
-        %warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
-        fprintf('There was a problem stopping training processes.\n') ;
-        fprintf('Training processes may not have been killed properly.\n') ;
-        if isempty(warnings) ,
-          fprintf('But there were no warnings while trying to stop training processes.\n') ;
-        else
-          fprintf('Warning(s) while trying to stop training processes:\n') ;
-          cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
-          fprintf('\n') ;
-        end
-        warndlg('There was a problem while stopping training processes.  See console for details.', 'Problem stopping training', 'modal') ;
-      end
-      if wereTrainingProcessesKilledForSure ,
-        str = 'Training process killed.' ;
-      else
-        str = 'Tried to kill training process, but there were issues.' ;
-      end        
-      apt.setStatusDisplayLineBang(obj.hfig, str, true);
+
+      obj.dtObj.backend.clearRegisteredJobs() ;
+      obj.isKilled(:) = true ;
+      apt.setStatusDisplayLineBang(obj.hfig, 'Training process killed.', true);
+
+      % [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
+      % obj.isKilled(:) = tfsucc;
+      % apt.setStatusDisplayLineBang(obj.hfig, 'Checking that training jobs were killed...', false);
+      % wereTrainingProcessesKilledForSure = false ;
+      % if tfsucc ,        
+      %   startTime = tic() ;
+      %   maxWaitTime = 30;
+      %   while true,
+      %     if toc(startTime) > maxWaitTime,
+      %       fprintf('Stopping training processes is taking too long, giving up.\n') ;
+      %       if isempty(warnings) ,
+      %         fprintf('But there were no warnings while trying to stop training processes.\n') ;
+      %       else
+      %         fprintf('Warning(s) while trying to stop training processes:\n') ;
+      %         cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
+      %         fprintf('\n') ;
+      %       end
+      %       warndlg('Stopping training processes took too long.  See console for details.', 'Problem stopping training', 'modal') ;
+      %       break
+      %     end
+      %     if ~obj.dtObj.bgTrnIsRunning,
+      %       wereTrainingProcessesKilledForSure = true ;
+      %       break
+      %     end
+      %     pause(1);
+      %   end        
+      % else
+      %   %warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+      %   fprintf('There was a problem stopping training processes.\n') ;
+      %   fprintf('Training processes may not have been killed properly.\n') ;
+      %   if isempty(warnings) ,
+      %     fprintf('But there were no warnings while trying to stop training processes.\n') ;
+      %   else
+      %     fprintf('Warning(s) while trying to stop training processes:\n') ;
+      %     cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
+      %     fprintf('\n') ;
+      %   end
+      %   warndlg('There was a problem while stopping training processes.  See console for details.', 'Problem stopping training', 'modal') ;
+      % end
+      % if wereTrainingProcessesKilledForSure ,
+      %   str = 'Training process killed.' ;
+      % else
+      %   str = 'Tried to kill training process, but there were issues.' ;
+      % end        
+      % apt.setStatusDisplayLineBang(obj.hfig, str, true);
+
+
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
     

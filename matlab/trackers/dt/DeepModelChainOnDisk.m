@@ -1187,13 +1187,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       if obj.isRemote_ ,
         % maxiter is nan if something bad happened or if DNE
         % TODO allow polling for multiple models at once
-        ec2 = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
         [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
         fspollargs = {};
         for i = 1:numel(idx),
           fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
         end
-        [tfsucc,res] = ec2.remoteCallFSPoll(fspollargs);
+        [tfsucc,res] = backend.batchPoll(fspollargs);
         if tfsucc
           maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
         else
@@ -1359,20 +1358,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       assert(isscalar(obj));      
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
       
-      cacheDirLocal = obj.localRootDir_ ;
-      aws = backend.awsec2;  % Should probably refactor do this directly using backend methods
-      [tfexist,tfrunning] = aws.inspectInstance();
-      if ~tfexist,
-        error('AWS EC2 instance %s could not be found.',aws.instanceID);
-      end
-      if ~tfrunning,
-        [tfsucc,~,warningstr] = aws.startInstance();
-        if ~tfsucc,
-          error('Could not start AWS EC2 instance %s: %s',aws.instanceID,warningstr);
-        end
-      end      
-      %aws.checkInstanceRunning(); % harderrs if instance isn't running
-     
+      cacheDirLocal = obj.localRootDir_ ;     
       succ = obj.updateCurrInfo(backend) ;
       if any(~succ),
         dirModelChainLnx = obj.dirModelChainLnx(find(~succ));
@@ -1383,23 +1369,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
      
       modelGlobsLnx = obj.modelGlobsLnx();
-      for j = 1:obj.n,
-        mdlFilesRemote = aws.remoteGlob(modelGlobsLnx{j});
-        cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
-        mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
-        nMdlFiles = numel(mdlFilesRemote);
-        netstr = char(obj.netType{j}); 
-        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
-        for i=1:nMdlFiles
-          fsrc = mdlFilesRemote{i};
-          fdst = mdlFilesLcl{i};
-          % See comment in mirror2RemoteAws regarding not confirming ID of
-          % files-that-already-exist
-          aws.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'failbehavior', 'err'}); % throws
-        end
-      end
-      
+      n = obj.n ;
+      dmcRootDir = obj.rootDir ;
+      dmcNetType = obj.netType ;      
+      backend.mirrorModelFromRemote(cacheDirLocal, modelGlobsLnx, n, dmcRootDir, dmcNetType) ;
       % if we made it here, download successful
       
       %obj.rootDir = cacheDirLocal;

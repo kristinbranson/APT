@@ -91,15 +91,11 @@ classdef BgClient < handle
         p.IdleTimeout = obj.parpoolIdleTimeout;
       end
       
-      %fprintf('obj.worker.awsec2.sshCmd: %s\n', obj.worker.awsec2.sshCmd) ;
-      % worker is deep-copied into polling loop process
-      if isa(obj.worker, 'BgWorkerObjAWS') ,
-        awsec2Suitcase = obj.worker.awsec2.packParfevalSuitcase() ;
-      else
-        awsec2Suitcase = [] ;
-      end
+      % worker is saved a la saveobj() and then loaded a la loadobj() into polling loop process
+      % We pack a suitcase so we can restore Transient properties on the other side.
+      backendSuitcase = obj.worker.backend.packParfevalSuitcase() ;
       obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, awsec2Suitcase, pollInterval, obj.projTempDirMaybe_) ;
+        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, backendSuitcase, pollInterval, obj.projTempDirMaybe_) ;
       % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       

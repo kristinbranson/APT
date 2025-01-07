@@ -614,7 +614,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       src_d = dir(src);
       src_sz = src_d.bytes;
-      tfsucc = obj.remoteFileExists(dstAbs,'size',src_sz);
+      tfsucc = obj.remoteFileExistsAndIsGivenSize(dstAbs,src_sz);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
@@ -685,21 +685,26 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     
     function tf = remoteFileExists(obj,f,varargin)
-      [reqnonempty,size] = myparse(varargin,...
-        'reqnonempty',false,...
-        'size',-1 ...
-        );
-
-      if reqnonempty
-        script = '~/APT/matlab/misc/fileexistsnonempty.sh';
-      else
-        script = '~/APT/matlab/misc/fileexists.sh';
-      end
-      if size > 0
-        cmdremote = sprintf('%s %s %d',script,f,size);
-      else
-        cmdremote = sprintf('%s %s',script,f);
-      end
+      script = '~/APT/matlab/misc/fileexists.sh';
+      cmdremote = sprintf('%s %s',script,f);
+      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
+      tf = (res(1)=='y');      
+    end
+    
+    function tf = remoteFileExistsAndIsNonempty(obj,f)
+      script = '~/APT/matlab/misc/fileexistsnonempty.sh';
+      cmdremote = sprintf('%s %s',script,f);
+      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
+      tf = (res(1)=='y');      
+    end
+    
+    function tf = remoteFileExistsAndIsGivenSize(obj,f,size)
+      script = '~/APT/matlab/misc/fileexists.sh';
+      cmdremote = sprintf('%s %s %d',script,f,size);
       %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
       %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
@@ -712,7 +717,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
       if st~=0 ,
         if isempty(strtrim(res)) ,
-          s = '<File does not exist>' ;
+          s = '<file does not exist>' ;
         else
           s = sprintf('<Unable to determine if file exists: %s>', res) ;
         end
@@ -821,8 +826,6 @@ classdef AWSec2 < matlab.mixin.Copyable
       % -- ALT, 2024-09-29
       command = wrapBatchCommandForAWSBackend(cmdremote, obj) ;        
       [st, res] = apt.syscmd(command, varargin{:}) ;      
-%       cmdfull = obj.wrapCommandSSH(cmdremote) ;      
-%       [st,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -845,30 +848,6 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end  % function
 
-    function [tfsucc,res] = remoteCallFSPoll(obj,fspollargs)
-      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
-      %
-      % res: [n] cellstr of fspoll responses
-
-      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
-      nargsFSP = numel(fspollargs);
-      assert(mod(nargsFSP,2)==0);
-      nresps = nargsFSP/2;
-      
-      fspollstr = space_out(fspollargs);
-      cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollstr);
-
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
-      tfsucc = (st==0) ;
-      if tfsucc
-        res = regexp(res,'\n','split');
-        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
-        res = res(1:end-1);
-      else
-        res = [];
-      end
-    end
-    
     function clearInstanceID(obj)
       obj.setInstanceIDAndType('');
     end
@@ -1057,6 +1036,32 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.instanceIP = suitcase.instanceIP ;
       obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
     end  % function
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
+      remoteTrackFilePaths = {res.trkfile} ;
+      trkfilesLocal = replace_prefix_path(remoteTrackFilePaths, remoteCacheRoot, localCacheRoot) ;      
+      if all(strcmp(movfiles(:),{res.movfile}'))
+        % we perform this check b/c while tracking has been running in
+        % the bg, the project could have been updated, movies
+        % renamed/reordered etc.        
+        % download trkfiles 
+        sysCmdArgs = {'failbehavior', 'err'};
+        for ivw=1:numel(res)
+          trkLcl = trkfilesLocal{ivw};
+          trkRmt = res(ivw).trkfile;
+          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
+          obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
+        end
+        isAllWell = true ;
+        message = '' ;
+      else
+        isAllWell = false ;
+        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
+        % conservative, take no action for now
+        return
+      end
+    end  % function    
   end  % methods
 
   % These next two methods allow access to private and protected variables,

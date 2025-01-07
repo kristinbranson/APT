@@ -190,7 +190,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
         end
         if ~isempty(tmp),
           partTrkFileTimestamps(i) = tmp.datenum;
-          parttrkfileNfrmtracked(i) = obj.readTrkFileStatus(trkfilecurr,obj.partFileIsTextStatus);
+          parttrkfileNfrmtracked(i) = obj.backend.readTrkFileStatus(trkfilecurr,obj.partFileIsTextStatus);
           logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
           assert(~isnan(parttrkfileNfrmtracked(i)));
         else
@@ -202,8 +202,8 @@ classdef BgTrackWorkerObj < BgWorkerObj
       killFileExists = cellfun(@obj.fileExists,killfiles);
       tfComplete = cellfun(@obj.fileExists,trkfiles); % nmovies x njobs x nstages
       logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
-      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
+      tfErrFileErr = cellfun(@obj.fileExistsAndIsNonempty,errfiles); % njobs x 1
+      logFilesExist = cellfun(@obj.fileExistsAndIsNonempty,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages
@@ -270,8 +270,8 @@ classdef BgTrackWorkerObj < BgWorkerObj
       killFileExists = cellfun(@obj.fileExists,killfiles);
       tfComplete = cellfun(@obj.fileExists,outfiles); % nmovies x njobs x nstages
       logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
-      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
+      tfErrFileErr = cellfun(@obj.fileExistsAndIsNonempty,errfiles); % njobs x 1
+      logFilesExist = cellfun(@obj.fileExistsAndIsNonempty,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages

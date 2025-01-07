@@ -701,7 +701,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart_(obj,backEnd,dmc,projTempDir,varargin)
+    function bgTrnStart_(obj,backend,dmc,projTempDir,varargin)
       % fresh start new training monitor 
             
       [trainSplits,trnVizArgs] = myparse(varargin,...
@@ -722,27 +722,11 @@ classdef DeepTracker < LabelTracker
         assert(tf2stg);        
       end
       
-      % 20210806 At this point, the first arg to train worker obj (ndmcs)
-      % must match numel(dmcs)...
-      switch backEnd.type
-        case DLBackEnd.Bsub
-          if trainSplits
-            trnWrkObj = BgTrainSplitWorkerObjBsub(dmc);            
-          else
-            trnWrkObj = BgTrainWorkerObjBsub(dmc);
-          end
-        case DLBackEnd.Conda
-          trnWrkObj = BgTrainWorkerObjConda(dmc);
-        case DLBackEnd.Docker
-          trnWrkObj = BgTrainWorkerObjDocker(dmc,backEnd);
-        case DLBackEnd.AWS
-          trnWrkObj = BgTrainWorkerObjAWS(dmc,backEnd.awsec2);
-        otherwise
-          assert(false);
-      end
+      % Create the worker used to monitor training in the background
+      trnWrkObj = DeepTracker.createBgTrnWorkerObj(dmc, backend) ;
 
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
-                                  backEnd.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
+                                  backend.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
                 
       trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = trnMonObj;
@@ -2986,7 +2970,7 @@ classdef DeepTracker < LabelTracker
 %       % for now always true for track2* codepath
 %       %bgTrkWorkerObj.setPartfileIsTextStatus(true);
 % 
-%       tfErrFileErr = cellfun(@BgTrkWorkerObj.errFileExistsNonZeroSize,errfiles);
+%       tfErrFileErr = cellfun(@BgTrkWorkerObj.fileExistsAndIsNonempty,errfiles);
 %       if any(tfErrFileErr)
 %         error('There is an existing error in an error file: ''%s''.',...
 %           String.cellstr2CommaSepList(errfiles));
@@ -3459,13 +3443,32 @@ classdef DeepTracker < LabelTracker
       % dmc is not used in BgTrackWorkerObj subclasses!
       switch backend.type
         case DLBackEnd.Bsub
-          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc);
+          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc, backend);
         case DLBackEnd.Conda,
-          bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc);
+          bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc, backend);
         case DLBackEnd.Docker,
           bgTrkWorkerObj = BgTrackWorkerObjDocker(nView, track_type, dmc, backend);
         case DLBackEnd.AWS,
-           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend.awsec2);
+           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend);
+        otherwise
+          error('Not implemented back end %s',backend.type);
+      end
+    end  % function
+
+    function trnWrkObj = createBgTrnWorkerObj(dmc, backend)
+      switch backend.type
+        case DLBackEnd.Bsub
+          if trainSplits
+            trnWrkObj = BgTrainSplitWorkerObjBsub(dmc, backend);
+          else
+            trnWrkObj = BgTrainWorkerObjBsub(dmc, backend);
+          end
+        case DLBackEnd.Conda
+          trnWrkObj = BgTrainWorkerObjConda(dmc, backed);
+        case DLBackEnd.Docker
+          trnWrkObj = BgTrainWorkerObjDocker(dmc, backend);
+        case DLBackEnd.AWS
+          trnWrkObj = BgTrainWorkerObjAWS(dmc, backend);
         otherwise
           error('Not implemented back end %s',backend.type);
       end

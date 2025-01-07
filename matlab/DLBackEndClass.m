@@ -500,11 +500,11 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       % Note that for bsub and remote docker backends, we return true, but we're
       % assuming that all the files used by APT are on the part of the filesystem
       % that is actually the same between the frontend and the backend.
-      v = isequal(obj.type,DLBackEnd.Conda) || isequal(obj.type,DLBackEnd.Bsub) || isequal(obj.type,DLBackEnd.Docker) ;
+      v = ~obj.isFileSystemRemote() ;
     end
     
     function v = isFilesystemRemote(obj)
-      v = ~obj.isFilesystemLocal() ;
+      v = isequal(obj.type,DLBackEnd.AWS) ;
     end
     
     function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)
@@ -1247,7 +1247,7 @@ classdef DLBackEndClass < matlab.mixin.Copyable
 
     function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
       if obj.type == DLBackEnd.AWS ,
-        [isAllWell, message] = obj.downloadTrackingFilesIfNecessaryAWS_(res, remoteCacheRoot, localCacheRoot, movfiles) ;
+        [isAllWell, message] = obj.awsec2.downloadTrackingFilesIfNecessary(res, remoteCacheRoot, localCacheRoot, movfiles) ;
       elseif obj.type == DLBackEnd.Bsub ,
         % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
         pause(10) ;
@@ -1269,33 +1269,6 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end  % function    
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessaryAWS_(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
-      remoteTrackFilePaths = {res.trkfile} ;
-      trkfilesLocal = replace_prefix_path(remoteTrackFilePaths, remoteCacheRoot, localCacheRoot) ;      
-      if all(strcmp(movfiles(:),{res.movfile}'))
-        % we perform this check b/c while tracking has been running in
-        % the bg, the project could have been updated, movies
-        % renamed/reordered etc.        
-        aws = obj.awsec2;        
-        % download trkfiles 
-        sysCmdArgs = {'failbehavior', 'err'};
-        for ivw=1:numel(res)
-          trkLcl = trkfilesLocal{ivw};
-          trkRmt = res(ivw).trkfile;
-          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
-          aws.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
-          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
-        end
-        isAllWell = true ;
-        message = '' ;
-      else
-        isAllWell = false ;
-        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
-        % conservative, take no action for now
-        return
-      end
-    end  % function    
-    
     function setAwsPemFileAndKeyName(obj, pemFile, keyName)
       ec2 = obj.awsec2 ;
       ec2.pem = pemFile ;
@@ -1307,5 +1280,268 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       ec2.setInstanceIDAndType(instanceID, instanceType) ;
     end
     
+    function [tfsucc,res] = batchPoll(obj, fspollargs)
+      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
+      %
+      % res: [n] cellstr of fspoll responses
+
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
+      nargsFSP = numel(fspollargs);
+      assert(mod(nargsFSP,2)==0);
+      nresps = nargsFSP/2;
+      
+      fspollstr = space_out(fspollargs);
+      if obj.type == DLBackEnd.AWS ,
+        fspoll_script_path = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;        
+      else
+        error('Not implemented') ;        
+        %fspoll_script_path = linux_fullfile(APT.Root, 'matlab/misc/fspoll.py') ;
+      end
+
+      cmdremote = sprintf('%s %s',fspoll_script_path,fspollstr);
+
+      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
+      tfsucc = (st==0) ;
+      if tfsucc
+        res = regexp(res,'\n','split');
+        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
+        res = res(1:end-1);
+      else
+        res = [];
+      end
+    end  % function
+    
+    function result = fileExists(obj, file_name)
+      % Returns true iff the named file exists.
+      % Should be consolidated with exist(), probably.  Note, though, that probably
+      % need to be careful about checking for the file inside/outside the container.
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.remoteFileExists(file_name) ;
+      else
+        result = logical(exist(file_name,'file')) ;
+      end
+    end  % function
+
+    function result = fileExistsAndIsNonEmpty(obj, file_name)
+      % Returns true iff the named file exists and is not zero-length.
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.remoteFileExistsAndIsNonempty(file_name) ;
+      else
+        result = localFileExistsAndIsNonempty(file_name) ;
+      end
+    end  % function
+
+    function result = fileExistsAndIsGivenSize(obj, file_name, sz)
+      % Returns true iff the named file exists and is the given size (in bytes).
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.remoteFileExistsAndIsGivenSize(file_name, sz) ;
+      else
+        result = localFileExistsAndIsGivenSize(file_name, sz) ;
+      end
+    end  % function
+
+    function result = fileContents(obj, file_name)
+      % Return the contents of the named file, as an old-style string.
+      % The behavior of this function when the file does not exist is kinda weird.
+      % It is the way it is b/c it's designed for giving something helpful to
+      % display in the monitor window.
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.remoteFileContents(file_name) ;
+      else
+        if exist(file_name,'file') ,
+          result = '<file does not exist>';
+        else
+          lines = readtxtfile(file);
+          result = sprintf('%s\n',lines{:});
+        end
+      end
+    end  % function
+    
+    function lsdir(obj, dir)
+      % List the contents of directory dir.  Contents just go to stdout, nothing is
+      % returned.
+      if obj.type == DLBackEnd.AWS ,
+        obj.awsec2.remoteLs(dir);
+      else
+        if ispc
+          lscmd = 'dir';
+        else
+          lscmd = 'ls -al';
+        end
+        cmd = sprintf('%s "%s"',lscmd,dir);
+        system(cmd);
+      end
+    end  % function
+
+    function result = fileModTime(obj, file_name)
+      % Return the file-modification time (mtime) of the given file.  For an AWS
+      % backend, this is the file modification time in seconds since epoch.  For
+      % other backends, it's a Matlab datenum of the mtime.  So these should not be
+      % compared across backend types.
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.remoteFileModTime(file_name) ;
+      else
+        dir_struct = dir(file_name) ;
+        result = dir_struct.datenum ;
+      end
+    end
+
+    function suitcase = packParfevalSuitcase(obj)
+      % Use before calling parfeval, to restore Transient properties that we want to
+      % survive the parfeval boundary.
+      if obj.type == DLBackEnd.AWS ,
+        suitcase = obj.awsec2.packParfevalSuitcase() ;
+      else
+        suitcase = [] ;
+      end
+    end  % function
+    
+    function restoreAfterParfeval(obj, suitcase)
+      % Should be called in background tasks run via parfeval, to restore fields that
+      % should not be restored from persistence, but we want to survive the parfeval
+      % boundary.
+      if obj.type == DLBackEnd.AWS ,
+        obj.awsec2.restoreAfterParfeval(suitcase) ;
+      else
+        % do nothing
+      end
+    end  % function
+    
+    % function result = scpDownloadOrVerify(obj, srcAbs, dstAbs, varargin)
+    %   if obj.type == DLBackEnd.AWS ,
+    %     result = obj.awsec2.scpDownloadOrVerify(srcAbs, dstAbs, varargin) ;
+    %   else
+    %     result = true ;
+    %   end        
+    % end  % function
+    % 
+    % function result = scpDownloadOrVerifyEnsureDir(obj, srcAbs, dstAbs, varargin)
+    %   if obj.type == DLBackEnd.AWS ,
+    %     result = obj.awsec2.scpDownloadOrVerifyEnsureDir(srcAbs, dstAbs, varargin) ;
+    %   else
+    %     result = true ;
+    %   end        
+    % end  % function
+
+    function nframes = readTrkFileStatus(obj, filename, partFileIsTextStatus, logger)
+      % Read the number of frames remaining according to the remote file at location
+      % filename.  If partFileIsTextStatus is true, this file is assumed to be a
+      % text file.  Otherwise, it is assumed to be a .mat file.
+      if ~exist('partFileIsTextStatus', 'var') || isempty(partFileIsTextStatus) ,
+        partFileIsTextStatus = false;
+      end
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger(1, 'DLBackEndClass::readTrkFileStatus()') ;
+      end
+
+      if obj.type == DLBackEnd.AWS ,
+        %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
+        nframes = 0;
+        if ~obj.fileExists(filename) ,
+          return
+        end
+        if partFileIsTextStatus,
+          str = obj.fileContents(filename) ;
+          nframes = TrkFile.getNFramesTrackedString(str) ;
+        else
+          local_filename = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
+          %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
+          did_succeed = obj.awsec2.scpDownloadOrVerify(filename, local_filename) ;
+          %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): Returned from call to obj.awsec2.scpDownloadOrVerify().\n') ;
+          if did_succeed ,
+            %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
+            try
+              nframes = TrkFile.getNFramesTrackedMatFile(local_filename) ;
+            catch me
+              logger.log('Could not read tracking progress from remote file %s: %s\n', filename, me.message) ;
+            end
+            %logger.log('Read that nframes = %d\n', nframes) ;
+          else
+            logger.log('Could not download tracking progress from remote file %s\n', filename) ;
+          end
+        end
+      else
+        % If non-AWS backend
+        nframes = 0;
+        if ~exist(filename,'file'),
+          return;
+        end
+        if partFileIsTextStatus ,
+          s = obj.fileContents(filename) ;
+          nframes = TrkFile.getNFramesTrackedPartFile(s) ;
+        else
+          try
+            nframes = TrkFile.getNFramesTrackedMatFile(filename);
+          catch
+            fprintf('Could not read tracking progress from %s\n',filename);
+          end
+        end        
+      end
+    end  % function
+    
+    function mirrorModelFromRemote(obj, cacheDirLocal, modelGlobsLnx, n, dmcRootDir, dmcNetType)
+      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
+      % instance to local cache.
+      %
+      % update .rootDir, .reader appropriately to point to model in local
+      % cache.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the local cache.
+      
+      if obj.type ~= DLBackEnd.AWS ,
+        % nothing to do
+        return
+      end
+      
+      %cacheDirLocal = dmc.localRootDir_ ;
+      awsec2 = obj.awsec2;  
+      [tfexist,tfrunning] = awsec2.inspectInstance();
+      if ~tfexist,
+        error('AWS EC2 instance %s could not be found.',awsec2.instanceID);
+      end
+      if ~tfrunning,
+        [tfsucc,~,warningstr] = awsec2.startInstance();
+        if ~tfsucc,
+          error('Could not start AWS EC2 instance %s: %s',awsec2.instanceID,warningstr);
+        end
+      end      
+      %aws.checkInstanceRunning(); % harderrs if instance isn't running
+     
+      % succ = dmc.updateCurrInfo(backend) ;
+      % if any(~succ),
+      %   dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
+      %   fstr = sprintf('%s ',dirModelChainLnx{:});
+      %   error('Failed to determine latest model iteration in %s.',...
+      %     fstr);
+      % end
+      %fprintf('Current model iteration is %s.\n',mat2str(dmcIterCurr));
+     
+      %modelGlobsLnx = dmc.modelGlobsLnx();
+      %n = dmc.n ;
+      %dmcRootDir = dmc.rootDir ;
+      %dmcNetType = dmc.netType ;
+      for j = 1:n,
+        mdlFilesRemote = awsec2.remoteGlob(modelGlobsLnx{j});
+        cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
+        mdlFilesLcl = regexprep(mdlFilesRemote,dmcRootDir,cacheDirLocalEscd);
+        nMdlFiles = numel(mdlFilesRemote);
+        netstr = char(dmcNetType{j}); 
+        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
+        for i=1:nMdlFiles
+          fsrc = mdlFilesRemote{i};
+          fdst = mdlFilesLcl{i};
+          % See comment in mirror2RemoteAws regarding not confirming ID of
+          % files-that-already-exist
+          awsec2.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
+            'sysCmdArgs',{'failbehavior', 'err'}); % throws
+        end
+      end      
+      % if we made it here, download successful
+    end  % function
+    
+    function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
+      cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
+    end
   end  % methods
 end  % classdef

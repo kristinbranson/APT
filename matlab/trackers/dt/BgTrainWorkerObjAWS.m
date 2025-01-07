@@ -9,47 +9,12 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
       obj@BgWorkerObjAWS(varargin{:});
     end
             
-%     function sRes = oldcompute(obj) % obj const except for .trnLogLastStep
-%       % sRes: [nviewx1] struct array.
-%             
-%       % - Read the json for every view and see if it has been updated.
-%       % - Check for completion 
-%       nmodels = obj.dmcs.n;
-%       sRes = obj.initComputeResults();
-% 
-%       sRes(iijob).jsonPresent = cellfun(@obj.fileExists,sRes.jsonPath);
-%       for i=1:nmodels,
-%         sRes.tfComplete(i) = all(cellfun(@obj.fileExists,sRes.trainCompleteFiles{i}));
-%       end
-%       [unique_jobs,idx1,jobidx] = unique(sRes.identifiers.jobidx);
-%       % one error, log, and kill file per job
-%       errFile = sRes.errFile(idx1);
-%       logFile = sRes.logFile(idx1);
-%       killFile = sRes.killFile(idx1);
-%       for ijob = 1:numel(unique_jobs),
-%         sRes.errFileExists(jobidx==ijob) = obj.errFileExistsNonZeroSize(errFile{ijob});
-%         sRes.logFileExists(jobidx==ijob) = obj.errFileExistsNonZeroSize(logFile{ijob}); % ahem good meth name
-%         sRes.logFileErrLikely(jobidx==ijob) = obj.logFileErrLikely(logFile{ijob});
-%         sRes.killFileExists(jobidx==ijob) = obj.fileExists(killFile{ijob});
-%       end
-% 
-%       % loop through all models trained in this job
-%       for i = 1:nmodels,
-%         if sRes.jsonPresent(i),
-%           [jsoncurr] = obj.fileContents(sRes.jsonPath{i});
-%           sRes = obj.readTrainLoss(sRes,i,jsoncurr);
-%         end
-%       end
-%       sRes.pollsuccess = true;
-%     end
-
     function sRes = work(obj, logger)
       % sRes: [nviewx1] struct array.
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
             
-      ec2 = obj.awsec2;
       nlinesperjob = 4;
       nlinespermodel = 3;
 
@@ -59,10 +24,6 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
       fspollargs = {};
       
       % do this for jobs
-%       sRes(iijob).jsonPresent = cellfun(@obj.fileExists,sRes.jsonPath);
-%       for i=1:nmodels,
-%         sRes.tfComplete(i) = all(cellfun(@obj.fileExists,sRes.trainCompleteFiles{i}));
-%       end
       [unique_jobs,idx1,jobidx] = unique(sRes.identifiers.jobidx);
       njobs = numel(unique_jobs);
       % one error, log, and kill file per job
@@ -75,15 +36,12 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
       end
 
       for i = 1:nmodels,
-
-        % See AWSEC2 convenience meth
         fspollargs = ...
           [fspollargs,{'exists',sRes.jsonPath{i},'exists',sRes.trainFinalModel{i},'contents',sRes.jsonPath{i}}]; %#ok<AGROW> 
-
       end
-      [tfpollsucc,reslines] = ec2.remoteCallFSPoll(fspollargs);
-      logger.log('aws.remoteCallFSPoll(fspollargs) tfpollsucc: %d\n',tfpollsucc) ;
-      logger.log('aws.remoteCallFSPoll(fspollargs) reslines:\n%s\n',newline_out(reslines)) ;
+      [tfpollsucc,reslines] = obj.backend.batchPoll(fspollargs);
+      logger.log('obj.backend.batchPoll(fspollargs) tfpollsucc: %d\n',tfpollsucc) ;
+      logger.log('obj.backend.batchPoll(fspollargs) reslines:\n%s\n',newline_out(reslines)) ;
       if tfpollsucc
         sRes.pollsuccess = true ;
         for i = 1:njobs,
@@ -102,8 +60,8 @@ classdef BgTrainWorkerObjAWS < BgWorkerObjAWS & BgTrainWorkerObj
           end
         end
       end
-    end
+    end  % function
 
-  end
+  end  % methods
     
-end
+end  % classdef

@@ -488,14 +488,15 @@ classdef TrackMonitorViz < handle
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
-      [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
-      if tfsucc,
-        
-        % AL: .isKilled set in resultsReceived
-        %obj.isKilled = true;
-      else
-        warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
-      end
+      obj.dtObj.backend.clearRegisteredJobs() ;
+      % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
+      % if tfsucc,
+      % 
+      %   % AL: .isKilled set in resultsReceived
+      %   %obj.isKilled = true;
+      % else
+      %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
+      % end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
       apt.setStatusDisplayLineBang(obj.hfig, 'Tracking process killed.', false);
       drawnow;

@@ -47,12 +47,12 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         if does_file_exist ,
           %logger.log('BgTrackWorkerObjAWS::compute() milestone 2.5\n') ;
           partTrkFileTimestamps(i) = obj.fileModTime(parttrkfilecurr)  ;
-            % Non-AWS backend use the Matlab datenum of the mtime to compare partial trk file
+            % Non-AWS backends use the Matlab datenum of the mtime to compare partial trk file
             % modification times.  This is different (seconds since Epoch), but they're
             % only ever checked for nan and compared to each other, so as long as they're
             % internally consistent it's fine.
           %logger.log('BgTrackWorkerObjAWS::compute() milestone 2.6\n') ;
-          parttrkfileNfrmtracked(i) = obj.readTrkFileStatus(parttrkfilecurr, obj.partFileIsTextStatus, logger) ;
+          parttrkfileNfrmtracked(i) = obj.backend.readTrkFileStatus(parttrkfilecurr, obj.partFileIsTextStatus, logger) ;
           %logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),parttrkfilecurr);
           assert(~isnan(parttrkfileNfrmtracked(i)));
           %logger.log('BgTrackWorkerObjAWS::compute() milestone 2.7\n') ;
@@ -75,7 +75,7 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         tfComplete(i) = does_file_exist ;
         if does_file_exist ,
           %logger.log('BgTrackWorkerObjAWS::compute() milestone 3.5\n') ;
-          trkfileNfrmtracked(i) = obj.readTrkFileStatus(trkfilecurr, false, logger) ;
+          trkfileNfrmtracked(i) = obj.backend.readTrkFileStatus(trkfilecurr, false, logger) ;
           %logger.log('Read %d frames tracked from %s\n',trkfileNfrmtracked(i),trkfilecurr);
         else
           %logger.log('Trk file %s does not exist\n',trkfiles{i});
@@ -87,8 +87,8 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
       killFileExists = cellfun(@obj.fileExists,killfiles);
       %tfComplete = cellfun(@obj.fileExists,trkfiles); % nmovies x njobs x nstages
       %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-      tfErrFileErr = cellfun(@obj.errFileExistsNonZeroSize,errfiles); % njobs x 1
-      logFilesExist = cellfun(@obj.errFileExistsNonZeroSize,logfiles); % njobs x 1
+      tfErrFileErr = cellfun(@obj.fileExistsAndIsNonempty,errfiles); % njobs x 1
+      logFilesExist = cellfun(@obj.fileExistsAndIsNonempty,logfiles); % njobs x 1
       bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages
@@ -117,44 +117,6 @@ classdef BgTrackWorkerObjAWS < BgWorkerObjAWS & BgTrackWorkerObj
         'isexternal',obj.isexternal... % scalar expansion
         );
       %logger.log('About to exit BgTrackWorkerObjAWS::compute().') ;
-    end  % function
-   
-    function nframes = readTrkFileStatus(obj, filename, partFileIsTextStatus, logger)
-      % Read the number of frames remaining according to the remote file at location
-      % filename.  If partFileIsTextStatus is true, this file is assumed to be a
-      % text file.  Otherwise, it is assumed to be a .mat file.      
-      if ~exist('partFileIsTextStatus', 'var') || isempty(partFileIsTextStatus) ,
-        partFileIsTextStatus = false;
-      end
-      if ~exist('logger', 'var') || isempty(logger) ,
-        logger = FileLogger(1, 'BgTrackWorkerObjAWS::readTrkFileStatus()') ;
-      end
-
-      %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
-      nframes = 0;
-      if ~obj.fileExists(filename) ,
-        return
-      end
-      if partFileIsTextStatus,
-        str = obj.fileContents(filename) ;
-        nframes = TrkFile.getNFramesTrackedString(str) ;
-      else
-        local_filename = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
-        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
-        did_succeed = obj.awsec2.scpDownloadOrVerify(filename, local_filename) ;
-        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): Returned from call to obj.awsec2.scpDownloadOrVerify().\n') ;
-        if did_succeed ,
-          %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
-          try
-            nframes = TrkFile.getNFramesTrackedMatFile(local_filename) ;
-          catch me
-            logger.log('Could not read tracking progress from remote file %s: %s\n', filename, me.message) ;
-          end
-          %logger.log('Read that nframes = %d\n', nframes) ;
-        else
-          logger.log('Could not download tracking progress from remote file %s\n', filename) ;
-        end
-      end
-    end  % function
+    end  % function   
   end  % methods
 end  % classdef

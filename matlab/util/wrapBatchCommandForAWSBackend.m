@@ -1,18 +1,8 @@
-function result = wrapBatchCommandForAWSBackend(basecmd, backend_or_awsec2)
+function result = wrapBatchCommandForAWSBackend(basecmd, backend)
   % Wrap a filesystem command for AWS, returns Linux/WSL-style command string.
 
-  % Sort out the backend/ec2 nonsense
-  if isa(backend_or_awsec2, 'DLBackEndClass') ,
-    backend = backend_or_awsec2 ;
-    ec2 = backend.awsec2 ;
-  elseif isa(backend_or_awsec2, 'AWSec2') ,
-    ec2 = backend_or_awsec2 ;
-  else
-    error('The second argument must be an instance of the class DLBackEndClass or the class AWSec2') ;
-  end
-
   % Wrap for ssh'ing into an AWS instance
-  cmd1 = ec2.wrapCommandSSH(basecmd) ;  % uses fields of ec2 to set parameters for ssh command
+  cmd1 = backend.wrapCommandSSHAWS(basecmd) ;  % uses fields of awsec2 to set parameters for ssh command
 
   % Need to prepend a sleep to avoid problems
   precommand = 'sleep 5 && export AWS_PAGER=' ;

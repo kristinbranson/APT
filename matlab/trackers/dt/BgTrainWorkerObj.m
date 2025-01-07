@@ -98,8 +98,8 @@ classdef BgTrainWorkerObj < BgWorkerObj
       logFile = sRes.logFile(idx1);
       killFile = sRes.killFile(idx1);
       for ijob = 1:numel(unique_jobs),
-        sRes.errFileExists(jobidx==ijob) = obj.errFileExistsNonZeroSize(errFile{ijob});
-        sRes.logFileExists(jobidx==ijob) = obj.errFileExistsNonZeroSize(logFile{ijob}); % ahem good meth name
+        sRes.errFileExists(jobidx==ijob) = obj.fileExistsAndIsNonempty(errFile{ijob});
+        sRes.logFileExists(jobidx==ijob) = obj.fileExistsAndIsNonempty(logFile{ijob}); % ahem good meth name
         sRes.logFileErrLikely(jobidx==ijob) = obj.logFileErrLikely(logFile{ijob});
         sRes.killFileExists(jobidx==ijob) = obj.fileExists(killFile{ijob});
       end

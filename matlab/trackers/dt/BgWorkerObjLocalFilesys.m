@@ -33,8 +33,8 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       tf = exist(file,'file')>0;
     end
     
-    function tf = errFileExistsNonZeroSize(~,errFile)
-      tf = BgWorkerObjLocalFilesys.errFileExistsNonZeroSizeStc(errFile);
+    function tf = fileExistsAndIsNonempty(~,errFile)
+      tf = BgWorkerObjLocalFilesys.fileExistsAndIsNonemptyStc(errFile);
     end
         
     function s = fileContents(~,file)
@@ -46,79 +46,79 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
       end
     end
 
-    function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
-      if nargin < 2,
-        partFileIsTextStatus = false;
-      end
-      nframes = 0;
-      if ~exist(f,'file'),
-        return;
-      end
-      if partFileIsTextStatus,
-        nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);  % call superclass method
-      else
-        try
-          nframes = TrkFile.getNFramesTrackedMatFile(f);
-        catch
-          fprintf('Could not read tracking progress from %s\n',f);
-        end
-      end
-    end  % function
+    % function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
+    %   if nargin < 2,
+    %     partFileIsTextStatus = false;
+    %   end
+    %   nframes = 0;
+    %   if ~exist(f,'file'),
+    %     return;
+    %   end
+    %   if partFileIsTextStatus,
+    %     nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);  % call superclass method
+    %   else
+    %     try
+    %       nframes = TrkFile.getNFramesTrackedMatFile(f);
+    %     catch
+    %       fprintf('Could not read tracking progress from %s\n',f);
+    %     end
+    %   end
+    % end  % function
     
-    function [tfsucc,warnings] = killProcess(obj)
-      tfsucc = false;
-      warnings = {};
-      
-      killfiles = obj.getKillFiles();
-      killfiles = unique(killfiles);
-      jobids = obj.jobID;
-      % AL 20210805:
-      % for tracking, numel(jobids)==numel(killfiles)
-      % for training, this need not hold due to jobs that spawn eg two-view
-      % or two-stage tracking serially.
-      %assert(isequal(numel(jobids),numel(killfiles)));
-      tfJobsDMCsAlign = numel(jobids)==numel(killfiles);
-      % if this is true, assume jobids correspond to killfiles which may
-      % not be 100.00% true but if not it's an extreme corner
-      
-      for ijb=1:numel(jobids),
-        obj.killJob(jobids{ijb});
-      end
-
-      iterWaitTime = obj.killPollIterWaitTime;
-      maxWaitTime = obj.killPollMaxWaitTime;
-
-      for ijb=1:numel(jobids),
-        fcn = obj.makeJobKilledPollFcn(jobids{ijb});
-        tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
-        
-        if ~tfsucc
-          warnings{end+1} = 'Could not confirm that job was killed.'; %#ok<AGROW>
-          warningNoTrace('Could not confirm that job was killed.');
-        elseif tfJobsDMCsAlign
-          % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to
-          % pick up
-          kfile = killfiles{ijb};
-          tfsucc = obj.createKillToken(kfile);
-          if ~tfsucc,
-            warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile); %#ok<AGROW>
-          end
-        elseif numel(jobids)==1 % single job, assume 'scalar expansion' across killfiles
-          for ikfile=1:numel(killfiles)
-            kfile = killfiles{ikfile};
-            tfsucc = obj.createKillToken(kfile);
-            if ~tfsucc,
-              warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile); %#ok<AGROW>
-            end
-          end
-        else
-          % not sure if this can happen
-          warningNoTrace('Not creating KILLED token; unexpected job/killfile correspondence.');
-        end
-        
-        % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring
-      end
-    end
+    % function [tfsucc,warnings] = killProcess(obj)
+    %   tfsucc = false;
+    %   warnings = {};
+    % 
+    %   killfiles = obj.getKillFiles();
+    %   killfiles = unique(killfiles);
+    %   jobids = obj.jobID;
+    %   % AL 20210805:
+    %   % for tracking, numel(jobids)==numel(killfiles)
+    %   % for training, this need not hold due to jobs that spawn eg two-view
+    %   % or two-stage tracking serially.
+    %   %assert(isequal(numel(jobids),numel(killfiles)));
+    %   tfJobsDMCsAlign = numel(jobids)==numel(killfiles);
+    %   % if this is true, assume jobids correspond to killfiles which may
+    %   % not be 100.00% true but if not it's an extreme corner
+    % 
+    %   for ijb=1:numel(jobids),
+    %     obj.killJob(jobids{ijb});
+    %   end
+    % 
+    %   iterWaitTime = obj.killPollIterWaitTime;
+    %   maxWaitTime = obj.killPollMaxWaitTime;
+    % 
+    %   for ijb=1:numel(jobids),
+    %     fcn = obj.makeJobKilledPollFcn(jobids{ijb});
+    %     tfsucc = waitforPoll(fcn,iterWaitTime,maxWaitTime);
+    % 
+    %     if ~tfsucc
+    %       warnings{end+1} = 'Could not confirm that job was killed.'; %#ok<AGROW>
+    %       warningNoTrace('Could not confirm that job was killed.');
+    %     elseif tfJobsDMCsAlign
+    %       % touch KILLED tokens i) to record kill and ii) for bgTrkMonitor to
+    %       % pick up
+    %       kfile = killfiles{ijb};
+    %       tfsucc = obj.createKillToken(kfile);
+    %       if ~tfsucc,
+    %         warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile); %#ok<AGROW>
+    %       end
+    %     elseif numel(jobids)==1 % single job, assume 'scalar expansion' across killfiles
+    %       for ikfile=1:numel(killfiles)
+    %         kfile = killfiles{ikfile};
+    %         tfsucc = obj.createKillToken(kfile);
+    %         if ~tfsucc,
+    %           warnings{end+1} = sprintf('Failed to create KILLED token: %s',kfile); %#ok<AGROW>
+    %         end
+    %       end
+    %     else
+    %       % not sure if this can happen
+    %       warningNoTrace('Not creating KILLED token; unexpected job/killfile correspondence.');
+    %     end
+    % 
+    %     % bgTrnMonitor should pick up KILL tokens and stop bg trn monitoring
+    %   end
+    % end
     
     function res = queryMyJobsStatus(obj)
       % returns cellstr array same size as .jobID (nmovjob x nviewJobs)
@@ -180,7 +180,7 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
   end
     
   methods (Static)
-    function tfErrFileErr = errFileExistsNonZeroSizeStc(errFile)
+    function tfErrFileErr = fileExistsAndIsNonemptyStc(errFile)
       tfErrFileErr = exist(errFile,'file')>0;
       if tfErrFileErr
         direrrfile = dir(errFile);

@@ -1,4 +1,4 @@
-function status = runPollingLoop(toClientDataQueue, worker, awsec2Suitcase, pollInterval, projTempDirMaybe)
+function status = runPollingLoop(toClientDataQueue, worker, backendSuitcase, pollInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
@@ -6,10 +6,8 @@ function status = runPollingLoop(toClientDataQueue, worker, awsec2Suitcase, poll
 % callInterval: time in seconds to wait between calls to
 %   worker.(cObjMeth)
 
-% Unpack the awsec2Suitcase, if needed
-if isa(worker, 'BgWorkerObjAWS') ,
-  worker.awsec2.restoreAfterParfeval(awsec2Suitcase) ;
-end
+% Unpack the backend suitcase
+worker.backend.restoreAfterParfeval(backendSuitcase) ;
 
 % Set up the log file, if called for
 if isempty(projTempDirMaybe) ,
@@ -25,12 +23,6 @@ logger.log('Inside runPollingLoop()\n') ;
 logger.log('cObj:\n') ;
 logger.log(formattedDisplayText(worker)) ;
 logger.log('\n') ;
-
-if isa(worker, 'BgTrackWorkerObjAWS') ,
-  logger.log('cObj.awsec2:\n') ;
-  logger.log(formattedDisplayText(worker.awsec2)) ;
-  logger.log('\n') ;
-end      
 
 assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
 fromClientDataQueue = parallel.pool.PollableDataQueue;

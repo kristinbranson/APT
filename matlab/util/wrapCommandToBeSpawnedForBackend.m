@@ -34,7 +34,7 @@ function result = wrapCommandToBeSpawnedForAWSBackend(backend, basecmd, varargin
                       dockerargs{:}) ;
 
   % Wrap for ssh'ing into a remote docker host, if needed
-  result = backend.awsec2.wrapCommandSSH(codestr, sshargs{:}) ;
+  result = backend.wrapCommandSSHAWS(codestr, sshargs{:}) ;
 end
 
 

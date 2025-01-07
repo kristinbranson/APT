@@ -52,10 +52,9 @@ classdef BgWorkerObj < matlab.mixin.Copyable
   
   methods (Abstract)
     tf = fileExists(obj,file)
-    tf = errFileExistsNonZeroSize(obj,errFile)
+    tf = fileExistsAndIsNonempty(obj,errFile)
     s = fileContents(obj,file)
     killFiles = getKillFiles(obj)
-    [tf,warnings] = killProcess(obj)
     sRes = work(obj, logger)
   end
   
@@ -86,19 +85,19 @@ classdef BgWorkerObj < matlab.mixin.Copyable
       
     end
 
-    function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
-      nframes = 0;
-      if nargin < 3,
-        partFileIsTextStatus = false;
-      end
-      if ~exist(f,'file'),
-        return;
-      end
-      if partFileIsTextStatus,
-        s = obj.fileContents(f);
-        nframes = TrkFile.getNFramesTrackedPartFile(s);
-      end
-    end
+    % function nframes = readTrkFileStatus(obj,f,partFileIsTextStatus)
+    %   nframes = 0;
+    %   if nargin < 3,
+    %     partFileIsTextStatus = false;
+    %   end
+    %   if ~exist(f,'file'),
+    %     return;
+    %   end
+    %   if partFileIsTextStatus,
+    %     s = obj.fileContents(f);
+    %     nframes = TrkFile.getNFramesTrackedPartFile(s);
+    %   end
+    % end
        
     function printLogfiles(obj) % obj const
       logFiles = obj.getLogFiles();
@@ -118,7 +117,7 @@ classdef BgWorkerObj < matlab.mixin.Copyable
       if isempty(errFile),
         tfEFE = false;
       else
-        tfEFE = any(cellfun(@(x) obj.errFileExistsNonZeroSize(x),errFile));
+        tfEFE = any(cellfun(@(x) obj.fileExistsAndIsNonempty(x),errFile));
       end
     end
     
