@@ -2,33 +2,31 @@ classdef BgWorkerObjAWS < BgWorkerObj
   
   properties
     jobID  % [nmovjob x nviewJobs] remote PIDs
-    backend  % Instance of DLBackEndClass, protected "by convention"
   end
   
-  methods (Access=protected)    
-    function obj2 = copyElement(obj)
-      % overload so that .backend is deep-copied
-      obj2 = copyElement@matlab.mixin.Copyable(obj);
-      if ~isempty(obj.dmcs)
-        obj2.dmcs = copy(obj.dmcs);
-      end
-      if ~isempty(obj.backend)
-        obj2.backend = copy(obj.backend);
-      end
-    end
-  end  % protected methods block
+  % methods (Access=protected)    
+  %   function obj2 = copyElement(obj)
+  %     % overload so that .backend is deep-copied
+  %     obj2 = copyElement@matlab.mixin.Copyable(obj);
+  %     if ~isempty(obj.dmcs)
+  %       obj2.dmcs = copy(obj.dmcs);
+  %     end
+  %     if ~isempty(obj.backend)
+  %       obj2.backend = copy(obj.backend);
+  %     end
+  %   end
+  % end  % protected methods block
 
   methods
     function obj = BgWorkerObjAWS(dmcs,backend,varargin)
-      obj@BgWorkerObj(dmcs);
-      obj.backend = backend;
+      obj@BgWorkerObj(dmcs, backend);
     end
     
-    function obj2 = copyAndDetach(obj)
-      % See note in BgClient/configure(). We create a new obj2 here that is
-      % a deep-copy made palatable for parfeval      
-      obj2 = copy(obj); % deep-copies obj, including .backend and .dmcs if appropriate
-    end    
+    % function obj2 = copyAndDetach(obj)
+    %   % See note in BgClient/configure(). We create a new obj2 here that is
+    %   % a deep-copy made palatable for parfeval      
+    %   obj2 = copy(obj); % deep-copies obj, including .backend and .dmcs if appropriate
+    % end    
     
     function tf = fileExists(obj, f)
       tf = obj.backend.fileExists(f);

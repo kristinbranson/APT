@@ -237,7 +237,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function setTrainType(obj,v,varargin)
       idx = obj.select(varargin{:});
       ncurr = numel(idx);
-      obj.trnType(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
+      obj.trainType(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
     end
     function [v,idx] = getTrkTaskKeyword(obj,varargin)
       idx = obj.select(varargin{:});
@@ -1013,10 +1013,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       dmc2 = obj.selectSubset(idx2);
     end
 
-    function obj2 = copyAndDetach(obj)
-      obj2 = copy(obj);
-      %obj2.prepareBg();
-    end    
+    % function obj2 = copyAndDetach(obj)
+    %   obj2 = copy(obj);
+    %   %obj2.prepareBg();
+    % end    
 
 %     function prepareBg(obj)
 %       % 'Detach' a DMC for use in bg processes
@@ -1216,7 +1216,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
           end
         end
       end
-    end
+    end  % function
 
     function tf = canTrack(obj)
       % For each known model, whether or not it is in a state that allows tracking.

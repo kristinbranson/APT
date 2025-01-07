@@ -1,4 +1,4 @@
-classdef BgWorkerObj < matlab.mixin.Copyable
+classdef BgWorkerObj < handle
   % Object deep copied onto BG worker. To be used with
   % runPollingLoop()
   % 
@@ -47,7 +47,8 @@ classdef BgWorkerObj < matlab.mixin.Copyable
     
     % This belongs in a BgTrainWorkerObj subclass as it isn't used by
     % BgTrackWorkerObjs.
-    dmcs % [nview] DeepModelChainOnDisk array  
+    dmcs  % [nview] DeepModelChainOnDisk array  
+    backend  % A scalar DlBackEndClass, owned by someone else
   end
   
   methods (Abstract)
@@ -60,11 +61,12 @@ classdef BgWorkerObj < matlab.mixin.Copyable
   
   methods
     
-    function obj = BgWorkerObj(dmcs,varargin)
+    function obj = BgWorkerObj(dmcs,backend,varargin)
       if nargin == 0,
         return;
       end
       obj.dmcs = dmcs;
+      obj.backend = backend;
       obj.reset();
     end
     

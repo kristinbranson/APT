@@ -45,8 +45,8 @@ classdef DeepTracker < LabelTracker
       % to autogenerate the required bind/mount paths.
   end
   properties (Dependent)
-    condaEnv  % = 'APT'; % name of conda environment
-    configFileExt
+    % condaEnv  % = 'APT'; % name of conda environment
+    % configFileExt
     backend
   end
       
@@ -245,9 +245,9 @@ classdef DeepTracker < LabelTracker
     function v = getNetsUsed(obj)
       v = cellstr(obj.trnNetType);
     end
-    function v = get.condaEnv(obj)
-      v = obj.lObj.trackDLBackEnd.condaEnv;
-    end
+    % function v = get.condaEnv(obj)
+    %   v = obj.lObj.trackDLBackEnd.condaEnv;
+    % end
     function result = get.backend(obj)
       labeler = obj.lObj ; 
       if ~isempty(labeler) && isa(labeler, 'handle') && isvalid(labeler) ,
@@ -256,9 +256,9 @@ classdef DeepTracker < LabelTracker
         result = [] ;
       end
     end
-    function v = get.configFileExt(obj) %#ok<MANU> 
-      v = DeepModelChainOnDisk.configFileExt;
-    end
+    % function v = get.configFileExt(obj) %#ok<MANU> 
+    %   v = DeepModelChainOnDisk.configFileExt;
+    % end
     function v = get.trnName(obj)
       dmc = obj.trnLastDMC;
       if isempty(dmc)
@@ -3464,7 +3464,7 @@ classdef DeepTracker < LabelTracker
             trnWrkObj = BgTrainWorkerObjBsub(dmc, backend);
           end
         case DLBackEnd.Conda
-          trnWrkObj = BgTrainWorkerObjConda(dmc, backed);
+          trnWrkObj = BgTrainWorkerObjConda(dmc, backend);
         case DLBackEnd.Docker
           trnWrkObj = BgTrainWorkerObjDocker(dmc, backend);
         case DLBackEnd.AWS

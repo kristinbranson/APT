@@ -1,4 +1,4 @@
-classdef DLBackEndClass < matlab.mixin.Copyable
+classdef DLBackEndClass < handle
   % APT Backends specify a physical machine/server where GPU code is run.
   % This class is intended to abstract away details particular to one backend or
   % another, so that calling code doesn't need to worry about such grubby
@@ -324,29 +324,29 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       end
     end  % function
     
-    function obj2 = copyAndDetach(obj)
-      % See notes in BgClient, BgWorkerObjAWS.
-      %
-      % Sometimes we want a deep-copy of obj that is sanitized for
-      % eg serialization. This copy may still be largely functional (in the
-      % case of BgWorkerObjAWS) or perhaps it can be 'reconstituted' at
-      % load-time as here.
-      
-      assert(isscalar(obj));
-      obj2 = copy(obj);
-      obj2.doesOwnResources_ = false ;
-    end  % function
+    % function obj2 = copyAndDetach(obj)
+    %   % See notes in BgClient, BgWorkerObjAWS.
+    %   %
+    %   % Sometimes we want a deep-copy of obj that is sanitized for
+    %   % eg serialization. This copy may still be largely functional (in the
+    %   % case of BgWorkerObjAWS) or perhaps it can be 'reconstituted' at
+    %   % load-time as here.
+    % 
+    %   assert(isscalar(obj));
+    %   obj2 = copy(obj);
+    %   obj2.doesOwnResources_ = false ;
+    % end  % function
   end  % methods
 
-  methods (Access=protected)
-    function obj2 = copyElement(obj)
-      % overload so that .awsec2 is deep-copied
-      obj2 = copyElement@matlab.mixin.Copyable(obj);
-      if ~isempty(obj.awsec2)
-        obj2.awsec2 = copy(obj.awsec2);
-      end
-    end
-  end
+  % methods (Access=protected)
+  %   function obj2 = copyElement(obj)
+  %     % overload so that .awsec2 is deep-copied
+  %     obj2 = copyElement@matlab.mixin.Copyable(obj);
+  %     if ~isempty(obj.awsec2)
+  %       obj2.awsec2 = copy(obj.awsec2);
+  %     end
+  %   end
+  % end
   
   methods
     function modernize(obj)
@@ -494,17 +494,17 @@ classdef DLBackEndClass < matlab.mixin.Copyable
       v = ~obj.isGpuLocal(obj) ;
     end
     
-    function v = isFilesystemLocal(obj)
+    function v = isFilesystemRemote(obj)
       % The conda and bsub (i.e. Janelia LSF) and Docker backends share (mostly) the
       % same filesystem as the Matlab process.  AWS does not.
       % Note that for bsub and remote docker backends, we return true, but we're
       % assuming that all the files used by APT are on the part of the filesystem
       % that is actually the same between the frontend and the backend.
-      v = ~obj.isFileSystemRemote() ;
+      v = isequal(obj.type,DLBackEnd.AWS) ;
     end
     
-    function v = isFilesystemRemote(obj)
-      v = isequal(obj.type,DLBackEnd.AWS) ;
+    function v = isFilesystemLocal(obj)
+      v = ~obj.isFilesystemRemote() ;
     end
     
     function [gpuid, freemem, gpuInfo] = getFreeGPUs(obj, nrequest, varargin)

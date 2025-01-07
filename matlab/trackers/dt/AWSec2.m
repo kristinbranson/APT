@@ -1,4 +1,4 @@
-classdef AWSec2 < matlab.mixin.Copyable
+classdef AWSec2 < handle
   % Object to handle specific aspects of the AWS backend.
   % 
   % This is copyable with the default copyElement() methods.  the only arguably
@@ -129,7 +129,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
