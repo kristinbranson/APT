@@ -2603,7 +2603,7 @@ classdef Labeler < handle
               if dmc.isRemote()
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
               else
-                dmc.copyModelFiles(obj.projTempDir,true);
+                tObj.copyModelFiles(obj.projTempDir,true);
               end
             catch ME
               warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
@@ -3079,13 +3079,14 @@ classdef Labeler < handle
           % a lot of unnecessary moving around is to maintain the directory
           % structure - MK 20190204
 
-          dmc = tObj.trnGetDMCs();
+          dmc = tObj.trnLastDMC ;
           if isempty(dmc),
             continue;
           end
           try
             try
-              dmc.mirrorFromBackend(obj.trackDLBackEnd);
+              backend = obj.trackDLBackEnd ;
+              backend.mirrorDMCFromBackend(dmc);
             catch me
               warningNoTrace('Could not check if trackers had been downloaded from AWS: %s', me.message);
             end
@@ -3094,7 +3095,7 @@ classdef Labeler < handle
               fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
                       tObj.trnNetType,dmc.getRootDir);
             end
-            modelFilesDst = dmc.copyModelFiles(projtempdir,verbose);
+            modelFilesDst = tObj.copyModelFiles(projtempdir,verbose);
             allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
           catch ME
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...

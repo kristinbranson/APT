@@ -1278,12 +1278,12 @@ classdef DeepTracker < LabelTracker
 %       obj.trainCleanup();
 %     end
     
-    function dmcs = trnGetDMCs(obj)
-      % Return all DeepModelChainOnDisks for this obj
-      % Overloadable meth
-      
-      dmcs = obj.trnLastDMC;
-    end
+    % function dmcs = trnGetDMCs(obj)
+    %   % Return all DeepModelChainOnDisks for this obj
+    %   % Overloadable meth
+    % 
+    %   dmcs = obj.trnLastDMC;
+    % end
     
   end
   methods
@@ -1500,7 +1500,7 @@ classdef DeepTracker < LabelTracker
       % We have (modelChainID,trainID) config file on disk. 
 
       % Upload model to remote filesystem, if needed 
-      dmc.mirrorToBackend(backend, 'training') ;
+      backend.mirrorDMCToBackend(dmc, 'training') ;
 
       unique_jobs = unique(jobidx);
       njobs = numel(unique_jobs);
@@ -1950,8 +1950,8 @@ classdef DeepTracker < LabelTracker
 %       end
 %     end  % function getBackEndArgs()
     
-    function updateLastDMCsCurrInfo_(obj)
-      obj.trnLastDMC.updateCurrInfo(obj.backend);
+    function tfsucc = updateLastDMCsCurrInfo_(obj)
+      tfsucc = obj.trnLastDMC.updateCurrInfo(obj.backend);
     end    
   end  % methods block
 
@@ -2594,7 +2594,7 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo(localCacheDir) ;
 
       % Upload model to remote filesystem, if needed
-      dmc.mirrorToBackend(backend) ;
+      backend.mirrorDMCToBackend(dmc, 'tracking') ;
 
       % Upload the movies to the backend
       localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
@@ -4896,12 +4896,47 @@ classdef DeepTracker < LabelTracker
         TrnPack.clearims(tpdir);
       end
     end
-  end  
-  
-  methods
+
     function result = singularityImgPath(obj)
       backend = obj.backend ;  %#ok<PROP> 
       result = backend.singularity_image_path ;  %#ok<PROP> 
     end  % function
+
+    function modelFilesDst = copyModelFiles(obj,newRootDir,debug)
+      % Copy the DeepModelChainOnDisk files to newRootDir.  Part of DeepTracker b/c
+      % it's the backend that knows how to get the maxIters for all the models, and
+      % DeepTracker has easy access to both the DeepModelChainOnDisk and the
+      % backend.  -- ALT, 2025-01-07
+      if nargin < 3,
+        debug = false;
+      end
+      dmc = obj.trnLastDMC;
+      modelFiles = dmc.findModelGlobsLocal();
+      modelFiles = cat(1,modelFiles{:});
+      modelFiles = unique(modelFiles);
+      modelFilesDst = strrep(modelFiles,dmc.getRootDir(),newRootDir);
+      % nothing to do
+      if isequal(dmc.getRootDir(),newRootDir), 
+        return
+      end
+      if backend.isDMCRemote ,
+        warningNoTrace('Remote model detected. This will not be migrated.');
+        return
+      end
+      tfsucc = obj.updateLastDMCsCurrInfo_() ;
+      if ~all(tfsucc),
+        for i = find(~tfsucc(:)'),
+          warningNoTrace('Failed to update model iteration count for for net type %s.',...
+            char(dmc.netType{i}));
+        end
+      end
+      for mndx = 1:numel(modelFiles)
+        copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
+        if debug,
+          fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
+        end
+      end
+    end  % function
+    
   end  % methods    
 end  % classdef

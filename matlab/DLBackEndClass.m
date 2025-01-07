@@ -98,6 +98,15 @@ classdef DLBackEndClass < handle
     % This is used to keep track of whether we need to release/delete resources on
     % delete()
     doesOwnResources_ = true  % is obj a copy, or the original
+
+    % The backend keeps track of whether the DMCoD is local or remote.  When it's
+    % remote, we substitute the remote DMC root for the local one wherever it
+    % appears.
+    isDMCRemote_ = false
+      % True iff the "current" version of the DMC is on a remote AWS filesystem.  
+      % Underscore means "protected by convention"    
+    localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL
   end
 
   properties (Dependent)
@@ -105,6 +114,7 @@ classdef DLBackEndClass < handle
     singularity_image_path
     singularity_detection_image_path
     isInAwsDebugMode
+    isDMCRemote
   end
   
   methods
@@ -1000,7 +1010,11 @@ classdef DLBackEndClass < handle
       % Register a single training job with the backend, for later spawning via
       % spawnRegisteredJobs().
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
-      basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
+      basecmd = APTInterf.trainCodeGenBase(dmcjob,...
+                                           'ignore_local',ignore_local,...
+                                           'aptroot',aptroot,...
+                                           'do_just_generate_db',do_just_generate_db, ...
+                                           'torchhome', backend.getTorchHome_());
       args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,aptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -1017,7 +1031,11 @@ classdef DLBackEndClass < handle
       % spawnRegisteredJobs().
       % track_type should be one of {'track', 'link', 'detect'}
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
-      basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',ignore_local,'aptroot',aptroot,'track_type',track_type);
+      basecmd = APTInterf.trackCodeGenBase(totrackinfojob,...
+                                           'ignore_local',ignore_local,...
+                                           'aptroot',aptroot,...
+                                           'track_type',track_type, ...
+                                           'torchhome', backend.getTorchHome_());
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
@@ -1543,5 +1561,150 @@ classdef DLBackEndClass < handle
     function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
       cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
     end
+
+    function maxiter = getMostRecentModel(obj, dmc)
+      if obj.isDMCRemote_ ,
+        % maxiter is nan if something bad happened or if DNE
+        % TODO allow polling for multiple models at once
+        [dirModelChainLnx,idx] = dmc.dirModelChainLnx();
+        fspollargs = {};
+        for i = 1:numel(idx),
+          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
+        end
+        [tfsucc,res] = obj.batchPoll(fspollargs);
+        if tfsucc
+          maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
+        else
+          maxiter = nan(1,numel(idx));
+        end        
+      else
+        maxiter = dmc.getMostRecentModelLocal() ;
+      end
+    end  % function
+    
+    function mirrorDMCToBackend(backend, dmc, mode)
+      % mode should be 'tracking' or 'training'.
+      if ~exist('mode', 'var') || isempty(mode) ,
+        mode = 'tracking' ;
+      end
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      if ~backend.isFilesystemLocal() ,
+        if ~backend.isDMCRemote_ ,
+         backend.mirrorDMCToRemoteAws_(dmc, mode) ;
+        end
+      end
+    end
+
+    function mirrorDMCToRemoteAws_(backend, dmc, mode)
+      % Take a local DMC and mirror/upload it to the AWS instance aws; 
+      % update .rootDir, .reader appropriately to point to model on remote 
+      % disk.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the remote aws instance.
+      %
+      % PostConditions: 
+      % - remote cachedir mirrors this model for key model files; "extra"
+      % remote files not removed; identities of existing files not
+      % confirmed but naming/immutability of DL artifacts makes this seem
+      % safe
+      % - .rootDir updated to remote cacheloc
+      % - .reader update to AWS reader
+      
+      % Sanity checks
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      assert(isscalar(dmc));
+      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
+
+      % Make sure there is a trained model
+      succ = dmc.updateCurrInfo(obj) ;
+      if strcmp(mode, 'tracking') && any(~succ) ,
+        dmclfail = dmc.dirModelChainLnx(find(~succ));
+        fstr = sprintf('%s ',dmclfail{:});
+        error('Failed to determine latest model iteration in %s.',fstr);
+      end
+      if isnan(dmc.iterCurr) ,
+        fprintf('Currently, there is no trained model.\n');
+      else
+        fprintf('Current model iteration is %s.\n',mat2str(dmc.iterCurr));
+      end
+     
+      % Make sure there is a live backend
+      backend.checkConnection();  % throws error if backend is not connected
+      
+      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
+      % only a single boolean to represent whether it's local or remote, we're just
+      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
+      % backend.  -- ALT, 2024-06-25
+      localProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
+      remoteProjectPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, dmc.projID) ;  % ensure linux-style path
+      [didsucceed, msg] = backend.mkdir(remoteProjectPath) ;
+      if ~didsucceed ,
+        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
+      end
+      backend.rsyncUpload(localProjectPath, remoteProjectPath) ;
+
+      % If we made it here, upload successful---update the state to reflect that the
+      % model is now remote.      
+      backend.remoteDMCRootDir_ = DLBackEndClass.remoteAWSCacheDir ;
+      backend.isDMCRemote_ = true ;
+    end  % function
+    
+    function mirrorDMCFromBackend(backend, dmc)
+      % If the model chain is remote, download it
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      if backend.isDMCRemote_ ,
+        backend.mirrorDMCFromRemoteAws_(dmc) ;
+      end
+    end  % function
+
+    function mirrorDMCFromRemoteAws_(backend, dmc)
+      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
+      % instance to local cache.
+      %
+      % update .rootDir, .reader appropriately to point to model in local
+      % cache.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the local cache.
+      
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      assert(isscalar(dmc));      
+      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
+      
+      cacheDirLocal = dmc.rootDir ;     
+      succ = dmc.updateCurrInfo(backend) ;
+      if any(~succ),
+        dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
+        fstr = sprintf('%s ',dirModelChainLnx{:});
+        error('Failed to determine latest model iteration in %s.',...
+          fstr);
+      end
+      fprintf('Current model iteration is %s.\n',mat2str(dmc.iterCurr));
+     
+      modelGlobsLnx = dmc.modelGlobsLnx();
+      n = dmc.n ;
+      dmcRootDir = dmc.rootDir ;
+      dmcNetType = dmc.netType ;      
+      backend.mirrorModelFromRemote(cacheDirLocal, modelGlobsLnx, n, dmcRootDir, dmcNetType) ;
+      % if we made it here, download successful
+      
+      %obj.rootDir = cacheDirLocal;
+      %obj.reader = DeepModelChainReaderLocal();
+      backend.isDMCRemote_ = false ;
+    end  % function
+    
+    function result = get.isDMCRemote(obj)
+      result = obj.isDMCRemote_ ;
+    end  % function
+
+    function result = getTorchHome_(obj)
+      if obj.isDMCRemote_ ,
+        result = linux_fullfile(obj.remoteDMCRootDir_, 'torch') ;
+      else
+        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      end
+    end  % function
+    
   end  % methods
 end  % classdef
