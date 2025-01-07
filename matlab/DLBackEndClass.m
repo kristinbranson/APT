@@ -1525,16 +1525,7 @@ classdef DLBackEndClass < handle
         end
       end      
       %aws.checkInstanceRunning(); % harderrs if instance isn't running
-     
-      % succ = dmc.updateCurrInfo(backend) ;
-      % if any(~succ),
-      %   dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
-      %   fstr = sprintf('%s ',dirModelChainLnx{:});
-      %   error('Failed to determine latest model iteration in %s.',...
-      %     fstr);
-      % end
-      %fprintf('Current model iteration is %s.\n',mat2str(dmcIterCurr));
-     
+          
       %modelGlobsLnx = dmc.modelGlobsLnx();
       %n = dmc.n ;
       %dmcRootDir = dmc.rootDir ;
@@ -1559,10 +1550,15 @@ classdef DLBackEndClass < handle
     end  % function
     
     function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
-      cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
+      if obj.isDMCRemote_ ,
+        remote_command_with_file_name_substitutions = strrep(cmdremote, obj.localDMCRootDir_, obj.remoteDMCRootDir_) ;
+      else
+        remote_command_with_file_name_substitutions = cmdremote ;
+      end
+      cmdfull = obj.awsec2.wrapCommandSSH(remote_command_with_file_name_substitutions, varargin{:}) ;
     end
 
-    function maxiter = getMostRecentModel(obj, dmc)
+    function maxiter = getMostRecentModel(obj, dmc)  % constant method
       if obj.isDMCRemote_ ,
         % maxiter is nan if something bad happened or if DNE
         % TODO allow polling for multiple models at once
@@ -1617,17 +1613,17 @@ classdef DLBackEndClass < handle
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
 
       % Make sure there is a trained model
-      dmc.updateCurrInfo(obj) ;
-      succ = (dmc.iterCurr >= 0) ;
+      maxiter = backend.getMostRecentModel(dmc) ;
+      succ = (maxiter >= 0) ;
       if strcmp(mode, 'tracking') && any(~succ) ,
         dmclfail = dmc.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dmclfail{:});
         error('Failed to determine latest model iteration in %s.',fstr);
       end
-      if isnan(dmc.iterCurr) ,
+      if isnan(maxiter) ,
         fprintf('Currently, there is no trained model.\n');
       else
-        fprintf('Current model iteration is %s.\n',mat2str(dmc.iterCurr));
+        fprintf('Current model iteration is %s.\n',mat2str(maxiter));
       end
      
       % Make sure there is a live backend
@@ -1674,15 +1670,15 @@ classdef DLBackEndClass < handle
       assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
       
       cacheDirLocal = dmc.rootDir ;     
-      dmc.updateCurrInfo(backend) ;
-      succ = (dmc.iterCurr >= 0) ;
+      maxiter = backend.getMostRecentModel(dmc) ;
+      succ = (maxiter >= 0) ;
       if any(~succ),
         dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
         fstr = sprintf('%s ',dirModelChainLnx{:});
         error('Failed to determine latest model iteration in %s.',...
           fstr);
       end
-      fprintf('Current model iteration is %s.\n',mat2str(dmc.iterCurr));
+      fprintf('Current model iteration is %s.\n',mat2str(maxiter));
      
       modelGlobsLnx = dmc.modelGlobsLnx();
       n = dmc.n ;

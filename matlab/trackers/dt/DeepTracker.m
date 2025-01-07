@@ -1499,7 +1499,7 @@ classdef DeepTracker < LabelTracker
       % At this point
       % We have (modelChainID,trainID) config file on disk. 
 
-      % Upload model to remote filesystem, if needed 
+      % Upload model to remote filesystem, if needed
       backend.mirrorDMCToBackend(dmc, 'training') ;
 
       unique_jobs = unique(jobidx);
@@ -1950,9 +1950,12 @@ classdef DeepTracker < LabelTracker
 %       end
 %     end  % function getBackEndArgs()
     
-    function updateLastDMCsCurrInfo_(obj)
-      obj.trnLastDMC.updateCurrInfo(obj.backend);
-    end    
+    % function updateLastDMCsCurrInfo_(obj)
+    %   %obj.trnLastDMC.updateCurrInfo(obj.backend);
+    %   dmc = obj.trnLastDMC ;
+    %   maxiter = obj.backend.getMostRecentModel(dmc) ;
+    %   dmc.iterCurr = maxiter ;
+    % end    
   end  % methods block
 
   methods (Static)
@@ -2561,7 +2564,7 @@ classdef DeepTracker < LabelTracker
       % If training is running, do some stuff before proceeding
       if obj.bgTrnIsRunning,
         assert(backend.type~=DLBackEnd.AWS);
-        obj.updateLastDMCsCurrInfo_();
+        obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
         iterCurr = obj.trnLastDMC.iterCurr;
         iterCurr(isnan(iterCurr)) = 0;
         if min(iterCurr) == 0,
@@ -3897,7 +3900,7 @@ classdef DeepTracker < LabelTracker
     end
     
     function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
-      obj.updateLastDMCsCurrInfo_();
+      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
 
       trnstrs = cell(1,obj.trnLastDMC.n);
       modelFiles = cell(1,obj.trnLastDMC.n);
@@ -4459,7 +4462,7 @@ classdef DeepTracker < LabelTracker
     function isCurr = checkTrackingResultsCurrent(obj)
       
       isCurr = true;
-      obj.updateLastDMCsCurrInfo_();
+      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
       
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
@@ -4923,7 +4926,7 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Remote model detected. This will not be migrated.');
         return
       end
-      obj.updateLastDMCsCurrInfo_() ;
+      dmc.iterCurr = obj.backend.getMostRecentModel(dmc) ;
       tfsucc = (dmc.iterCurr >= 0) ;
       if ~all(tfsucc),
         for i = find(~tfsucc(:)'),
