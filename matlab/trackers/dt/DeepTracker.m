@@ -561,12 +561,13 @@ classdef DeepTracker < LabelTracker
       if isempty(dmc),
         return
       end
-      if obj.backend.isDMCRemote
+      if obj.backend.isDMCRemote ,
         warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
                        obj.trnNetType.displayString);
         return
       end
       dmc.rootDir = dlcachedir ;
+      obj.backend.localDMCRootDir = dlcachedir ;
 
       % At save-time we should be updating DMCs to local
 
@@ -3171,7 +3172,7 @@ classdef DeepTracker < LabelTracker
           obj.bgTrkReset
         else
           reason = 'Tracking is already in progress.';
-          return;
+          return
         end
       end
       
@@ -3181,48 +3182,46 @@ classdef DeepTracker < LabelTracker
       nrun = numel(p.FevalQueue.RunningFutures);
       if nrun>=p.NumWorkers
         reason = 'Parallel pool is full. Cannot spawn tracking monitor.';
-        return;
+        return
       end
 
       % check trained tracker
       if isempty(obj.trnName)
         reason = 'No trained tracker found.';
-        return;
+        return
       end
       
       if isempty(obj.sPrmAll),
         reason = 'Training parameters not set.';
-        return;
+        return
       end
 
       cacheDir = obj.lObj.DLCacheDir;
       if isempty(cacheDir)
         reason = 'Cache directory not set.';
-        return;
+        return
       end
       
       backend = obj.lObj.trackDLBackEnd; %#ok<PROP> 
       [tf,reasonbackend] = backend.getReadyTrainTrack(); %#ok<PROP> 
       if ~tf
         reason = reasonbackend;
-        return;
+        return
       end
             
       dmc = obj.trnLastDMC;
-      if backend.isDMCLocal && ~strcmp(dmc.rootDir,cacheDir)
+      if ~strcmp(dmc.rootDir,cacheDir)
         reason = 'Cache directory has changed since training.';
-        return;
+        return
       end
       
-      dmcLcl = dmc.copy();
-      % shouldn't be necessary, given previous line checking that these
-      % things are the same??
-      % Is necessary b/c the dmc might be remote.  dmcLcl is used to make sure the
-      % training file exists in the local cache. --ALT, 2024-04-29
-      dmcLcl.rootDir = cacheDir ;  % Ensure that dmcLcl is using the *local* version of the cache
-      dlConfigLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.trainConfigLnx);
-      if ~exist(dlConfigLcl,'file') ,
-        reason = sprintf('Cannot find training file: %s\n',dlConfigLcl);
+      % dmcLcl = dmc.copy();
+      % % shouldn't be necessary, given previous line checking that these
+      % % things are the same??
+      % dmcLcl.rootDir = cacheDir ;  % Ensure that dmcLcl is using the *local* version of the cache
+      dmcTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx);
+      if ~exist(dmcTrainConfig, 'file') ,
+        reason = sprintf('Cannot find training file: %s\n',dmcTrainConfig);
         return
       end
       
@@ -3567,7 +3566,7 @@ classdef DeepTracker < LabelTracker
     function didCompleteTracking(obj, res)
 
       try
-        [isAllWell, message] = obj.downloadTrackingFilesIfNecessary(res) ;
+        [isAllWell, message] = obj.downloadTrackingFilesIfNecessary_(res) ;
         if ~isAllWell ,
           error(message) ;
         end
@@ -3682,11 +3681,13 @@ classdef DeepTracker < LabelTracker
     end
 
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res)
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary_(obj, res)
       % Does what it says on the tin.
 
       % Get some relevant paths
-      remoteCacheRoot = obj.trnLastDMC.rootDir ;
+      backend  = obj.backend ;
+      %remoteCacheRoot = obj.trnLastDMC.rootDir ;
+      remoteCacheRoot = backend.remoteDMCRootDir ;
       localCacheRoot = obj.lObj.DLCacheDir ;
       
       % Get the paths to the movies
@@ -3696,14 +3697,13 @@ classdef DeepTracker < LabelTracker
       movfiles = obj.trkSysInfo.getMovfiles() ;
 
       % Ask the backend to do the heavy lifting
-      backend  = obj.backend ;
       [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, remoteCacheRoot, localCacheRoot, movfiles) ;
 
       % For remote file systems, relocate the tracking info, so that paths are right
       if backend.isFilesystemRemote() ,
         obj.trkSysInfo.changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
       end
-    end
+    end  % function
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
       % When appropriate, perform postprocessing and re-save trkfiles in

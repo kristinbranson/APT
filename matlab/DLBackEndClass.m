@@ -107,6 +107,8 @@ classdef DLBackEndClass < handle
     isInAwsDebugMode
     isDMCRemote
     isDMCLocal
+    localDMCRootDir
+    remoteDMCRootDir
   end
   
   methods
@@ -1551,6 +1553,18 @@ classdef DLBackEndClass < handle
           error('Failed to delete %s: file still exists',fileloc);
         end
       end
+    end  % function
+
+    function result = get.localDMCRootDir(obj) 
+      result = obj.awsec2.localDMCRootDir ;
+    end  % function
+
+    function set.localDMCRootDir(obj, value) 
+      obj.awsec2.localDMCRootDir = value ;
+    end  % function
+
+    function result = get.remoteDMCRootDir(obj)
+      result = obj.awsec2.remoteDMCRootDir ;
     end  % function
 
   end  % methods

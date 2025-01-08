@@ -55,6 +55,8 @@ classdef AWSec2 < handle
   properties (Dependent)
     isDMCRemote
     isDMCLocal    
+    localDMCRootDir
+    remoteDMCRootDir
   end
 
   % Transient properties don't get copied over when you pass an AWSec2 in an arg to parfeval()!
@@ -1284,6 +1286,18 @@ classdef AWSec2 < handle
       else
         result = fullfile(APT.getdotaptdirpath(), 'torch') ;
       end
+    end  % function
+    
+    function result = get.localDMCRootDir(obj) 
+      result = obj.localDMCRootDir_ ;
+    end  % function
+
+    function set.localDMCRootDir(obj, value) 
+      obj.localDMCRootDir_ = value ;
+    end  % function
+    
+    function result = get.remoteDMCRootDir(obj)
+      result = obj.remoteDMCRootDir_ ;
     end  % function
     
   end  % methods
