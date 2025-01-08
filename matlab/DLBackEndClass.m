@@ -98,15 +98,6 @@ classdef DLBackEndClass < handle
     % This is used to keep track of whether we need to release/delete resources on
     % delete()
     doesOwnResources_ = true  % is obj a copy, or the original
-
-    % The backend keeps track of whether the DMCoD is local or remote.  When it's
-    % remote, we substitute the remote DMC root for the local one wherever it
-    % appears.
-    isDMCRemote_ = false
-      % True iff the "current" version of the DMC is on a remote AWS filesystem.  
-      % Underscore means "protected by convention"    
-    localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
-    remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL
   end
 
   properties (Dependent)
@@ -724,13 +715,13 @@ classdef DLBackEndClass < handle
   end  % methods
   
   methods % AWS
-    function checkConnection(obj)  
-      % Errors if connection to backend is ok.  Otherwise returns nothing.
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        aws = obj.awsec2;
-        aws.checkInstanceRunning() ;
-      end
-    end
+    % function checkConnection(obj)  
+    %   % Errors if connection to backend is ok.  Otherwise returns nothing.
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     aws = obj.awsec2;
+    %     aws.checkInstanceRunning() ;
+    %   end
+    % end
 
     function scpUploadOrVerify(obj, varargin)
       if isequal(obj.type, DLBackEnd.AWS) ,
@@ -739,12 +730,12 @@ classdef DLBackEndClass < handle
       end      
     end
 
-    function rsyncUpload(obj, src, dest)
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        aws = obj.awsec2 ;
-        aws.rsyncUpload(src, dest) ;
-      end      
-    end
+    % function rsyncUpload(obj, src, dest)
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     aws = obj.awsec2 ;
+    %     aws.rsyncUpload(src, dest) ;
+    %   end      
+    % end
     
     function aptroot = awsUpdateRepo_(obj)  % throws if fails      
       % What branch do we want?
@@ -791,7 +782,7 @@ classdef DLBackEndClass < handle
       
       % Does the APT root dir exist?
       remote_apt_root = obj.getAPTRoot() ;
-      does_remote_apt_dir_exist = obj.exist(remote_apt_root) ;
+      does_remote_apt_dir_exist = obj.fileExists(remote_apt_root) ;
       
       % clone it if needed
       if does_remote_apt_dir_exist ,
@@ -811,12 +802,16 @@ classdef DLBackEndClass < handle
   methods
     function [didsucceed, msg] = mkdir(obj, dir_name)
       % Create the named directory, either locally or remotely, depending on the
-      % backend type.
-      quoted_dirloc = escape_string_for_bash(dir_name) ;
-      base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
-      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
-      didsucceed = (status==0) ;
-    end
+      % backend type.      
+      if obj.type == DLBackEnd.AWS ,
+        [didsucceed, msg] = obj.awsec2.mkdir(dir_name) ;
+      else
+        quoted_dirloc = escape_string_for_bash(dir_name) ;
+        base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
+        [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+        didsucceed = (status==0) ;
+      end
+    end  % function
 
     function [didsucceed, msg] = deleteFile(obj, file_name)
       % Delete the named file, either locally or remotely, depending on the
@@ -1018,7 +1013,7 @@ classdef DLBackEndClass < handle
                                            'ignore_local',ignore_local,...
                                            'aptroot',aptroot,...
                                            'do_just_generate_db',do_just_generate_db, ...
-                                           'torchhome', backend.getTorchHome_());
+                                           'torchhome', backend.awsec2.getTorchHome());
       args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,aptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -1039,7 +1034,7 @@ classdef DLBackEndClass < handle
                                            'ignore_local',ignore_local,...
                                            'aptroot',aptroot,...
                                            'track_type',track_type, ...
-                                           'torchhome', backend.getTorchHome_());
+                                           'torchhome', backend.awsec2.getTorchHome());
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
@@ -1307,29 +1302,11 @@ classdef DLBackEndClass < handle
       %
       % res: [n] cellstr of fspoll responses
 
-      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
-      nargsFSP = numel(fspollargs);
-      assert(mod(nargsFSP,2)==0);
-      nresps = nargsFSP/2;
-      
-      fspollstr = space_out(fspollargs);
       if obj.type == DLBackEnd.AWS ,
-        fspoll_script_path = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;        
+        [tfsucc,res] = obj.awsec2.batchPoll(obj, fspollargs) ;
       else
         error('Not implemented') ;        
         %fspoll_script_path = linux_fullfile(APT.Root, 'matlab/misc/fspoll.py') ;
-      end
-
-      cmdremote = sprintf('%s %s',fspoll_script_path,fspollstr);
-
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
-      tfsucc = (st==0) ;
-      if tfsucc
-        res = regexp(res,'\n','split');
-        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
-        res = res(1:end-1);
-      else
-        res = [];
       end
     end  % function
     
@@ -1338,7 +1315,7 @@ classdef DLBackEndClass < handle
       % Should be consolidated with exist(), probably.  Note, though, that probably
       % need to be careful about checking for the file inside/outside the container.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.remoteFileExists(file_name) ;
+        result = obj.awsec2.fileExists(file_name) ;
       else
         result = logical(exist(file_name,'file')) ;
       end
@@ -1347,7 +1324,7 @@ classdef DLBackEndClass < handle
     function result = fileExistsAndIsNonEmpty(obj, file_name)
       % Returns true iff the named file exists and is not zero-length.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.remoteFileExistsAndIsNonempty(file_name) ;
+        result = obj.awsec2.fileExistsAndIsNonempty(file_name) ;
       else
         result = localFileExistsAndIsNonempty(file_name) ;
       end
@@ -1356,7 +1333,7 @@ classdef DLBackEndClass < handle
     function result = fileExistsAndIsGivenSize(obj, file_name, sz)
       % Returns true iff the named file exists and is the given size (in bytes).
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.remoteFileExistsAndIsGivenSize(file_name, sz) ;
+        result = obj.awsec2.fileExistsAndIsGivenSize(file_name, sz) ;
       else
         result = localFileExistsAndIsGivenSize(file_name, sz) ;
       end
@@ -1368,7 +1345,7 @@ classdef DLBackEndClass < handle
       % It is the way it is b/c it's designed for giving something helpful to
       % display in the monitor window.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.remoteFileContents(file_name) ;
+        result = obj.awsec2.fileContents(file_name) ;
       else
         if exist(file_name,'file') ,
           result = '<file does not exist>';
@@ -1501,82 +1478,13 @@ classdef DLBackEndClass < handle
       end
     end  % function
     
-    function mirrorModelFromRemote(obj, cacheDirLocal, modelGlobsLnx, n, dmcRootDir, dmcNetType)
-      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
-      % instance to local cache.
-      %
-      % update .rootDir, .reader appropriately to point to model in local
-      % cache.
-      %
-      % In practice for the client, this action updates the "latest model"
-      % to point to the local cache.
-      
-      if obj.type ~= DLBackEnd.AWS ,
-        % nothing to do
-        return
-      end
-      
-      %cacheDirLocal = dmc.localRootDir_ ;
-      awsec2 = obj.awsec2;  
-      [tfexist,tfrunning] = awsec2.inspectInstance();
-      if ~tfexist,
-        error('AWS EC2 instance %s could not be found.',awsec2.instanceID);
-      end
-      if ~tfrunning,
-        [tfsucc,~,warningstr] = awsec2.startInstance();
-        if ~tfsucc,
-          error('Could not start AWS EC2 instance %s: %s',awsec2.instanceID,warningstr);
-        end
-      end      
-      %aws.checkInstanceRunning(); % harderrs if instance isn't running
-          
-      %modelGlobsLnx = dmc.modelGlobsLnx();
-      %n = dmc.n ;
-      %dmcRootDir = dmc.rootDir ;
-      %dmcNetType = dmc.netType ;
-      for j = 1:n,
-        mdlFilesRemote = awsec2.remoteGlob(modelGlobsLnx{j});
-        cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
-        mdlFilesLcl = regexprep(mdlFilesRemote,dmcRootDir,cacheDirLocalEscd);
-        nMdlFiles = numel(mdlFilesRemote);
-        netstr = char(dmcNetType{j}); 
-        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
-        for i=1:nMdlFiles
-          fsrc = mdlFilesRemote{i};
-          fdst = mdlFilesLcl{i};
-          % See comment in mirror2RemoteAws regarding not confirming ID of
-          % files-that-already-exist
-          awsec2.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'failbehavior', 'err'}); % throws
-        end
-      end      
-      % if we made it here, download successful
-    end  % function
-    
     function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
-      if obj.isDMCRemote_ ,
-        remote_command_with_file_name_substitutions = strrep(cmdremote, obj.localDMCRootDir_, obj.remoteDMCRootDir_) ;
-      else
-        remote_command_with_file_name_substitutions = cmdremote ;
-      end
-      cmdfull = obj.awsec2.wrapCommandSSH(remote_command_with_file_name_substitutions, varargin{:}) ;
+      cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
     end
 
     function maxiter = getMostRecentModel(obj, dmc)  % constant method
-      if obj.isDMCRemote_ ,
-        % maxiter is nan if something bad happened or if DNE
-        % TODO allow polling for multiple models at once
-        [dirModelChainLnx,idx] = dmc.dirModelChainLnx();
-        fspollargs = {};
-        for i = 1:numel(idx),
-          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
-        end
-        [tfsucc,res] = obj.batchPoll(fspollargs);
-        if tfsucc
-          maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
-        else
-          maxiter = nan(1,numel(idx));
-        end        
+      if obj.type == DLBackEnd.AWS ,
+        maxiter = obj.awsec2.getMostRecentModel(dmc) ;
       else
         maxiter = dmc.getMostRecentModelLocal() ;
       end
@@ -1588,129 +1496,62 @@ classdef DLBackEndClass < handle
         mode = 'tracking' ;
       end
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
-      if ~backend.isFilesystemLocal() ,
-        if ~backend.isDMCRemote_ ,
-         backend.mirrorDMCToRemoteAws_(dmc, mode) ;
-        end
+      if obj.type == DLBackEnd.AWS ,
+         backend.awsec2.mirrorDMCToBackend(dmc, mode) ;
       end
     end
 
-    function mirrorDMCToRemoteAws_(backend, dmc, mode)
-      % Take a local DMC and mirror/upload it to the AWS instance aws; 
-      % update .rootDir, .reader appropriately to point to model on remote 
-      % disk.
-      %
-      % In practice for the client, this action updates the "latest model"
-      % to point to the remote aws instance.
-      %
-      % PostConditions: 
-      % - remote cachedir mirrors this model for key model files; "extra"
-      % remote files not removed; identities of existing files not
-      % confirmed but naming/immutability of DL artifacts makes this seem
-      % safe
-      % - .rootDir updated to remote cacheloc
-      % - .reader update to AWS reader
-      
-      % Sanity checks
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
-      assert(isscalar(dmc));
-      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
-
-      % Make sure there is a trained model
-      maxiter = backend.getMostRecentModel(dmc) ;
-      succ = (maxiter >= 0) ;
-      if strcmp(mode, 'tracking') && any(~succ) ,
-        dmclfail = dmc.dirModelChainLnx(find(~succ));
-        fstr = sprintf('%s ',dmclfail{:});
-        error('Failed to determine latest model iteration in %s.',fstr);
-      end
-      if isnan(maxiter) ,
-        fprintf('Currently, there is no trained model.\n');
-      else
-        fprintf('Current model iteration is %s.\n',mat2str(maxiter));
-      end
-     
-      % Make sure there is a live backend
-      backend.checkConnection();  % throws error if backend is not connected
-      
-      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
-      % only a single boolean to represent whether it's local or remote, we're just
-      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
-      % backend.  -- ALT, 2024-06-25
-      localProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
-      remoteProjectPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, dmc.projID) ;  % ensure linux-style path
-      [didsucceed, msg] = backend.mkdir(remoteProjectPath) ;
-      if ~didsucceed ,
-        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
-      end
-      backend.rsyncUpload(localProjectPath, remoteProjectPath) ;
-
-      % If we made it here, upload successful---update the state to reflect that the
-      % model is now remote.      
-      backend.remoteDMCRootDir_ = DLBackEndClass.remoteAWSCacheDir ;
-      backend.isDMCRemote_ = true ;
-    end  % function
-    
     function mirrorDMCFromBackend(backend, dmc)
       % If the model chain is remote, download it
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
-      if backend.isDMCRemote_ ,
-        backend.mirrorDMCFromRemoteAws_(dmc) ;
+      if obj.type == DLBackEnd.AWS ,
+         backend.awsec2.mirrorDMCFromBackend(dmc) ;
       end
     end  % function
 
-    function mirrorDMCFromRemoteAws_(backend, dmc)
-      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
-      % instance to local cache.
-      %
-      % update .rootDir, .reader appropriately to point to model in local
-      % cache.
-      %
-      % In practice for the client, this action updates the "latest model"
-      % to point to the local cache.
-      
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
-      assert(isscalar(dmc));      
-      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
-      
-      cacheDirLocal = dmc.rootDir ;     
-      maxiter = backend.getMostRecentModel(dmc) ;
-      succ = (maxiter >= 0) ;
-      if any(~succ),
-        dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
-        fstr = sprintf('%s ',dirModelChainLnx{:});
-        error('Failed to determine latest model iteration in %s.',...
-          fstr);
-      end
-      fprintf('Current model iteration is %s.\n',mat2str(maxiter));
-     
-      modelGlobsLnx = dmc.modelGlobsLnx();
-      n = dmc.n ;
-      dmcRootDir = dmc.rootDir ;
-      dmcNetType = dmc.netType ;      
-      backend.mirrorModelFromRemote(cacheDirLocal, modelGlobsLnx, n, dmcRootDir, dmcNetType) ;
-      % if we made it here, download successful
-      
-      %obj.rootDir = cacheDirLocal;
-      %obj.reader = DeepModelChainReaderLocal();
-      backend.isDMCRemote_ = false ;
-    end  % function
-    
     function result = get.isDMCRemote(obj)
-      result = obj.isDMCRemote_ ;
+      result = (obj.type == DLBackEnd.AWS) && obj.awsec2.isDMCRemote ;
     end  % function
 
     function result = get.isDMCLocal(obj)
-      result = ~obj.isDMCRemote_ ;
+      result = ~obj.isDMCRemote ;
     end  % function
 
-    function result = getTorchHome_(obj)
-      if obj.isDMCRemote_ ,
-        result = linux_fullfile(obj.remoteDMCRootDir_, 'torch') ;
-      else
-        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+    function prepareFilesForTracking(backend, toTrackInfo)
+      backend.ensureFoldersNeededForTrackingExist_(toTrackInfo);
+      backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file');
+      backend.ensureFilesDoNotExist_(toTrackInfo.getParttrkfiles(), 'partial tracking result');
+      backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files');
+    end  % function
+
+    function ensureFoldersNeededForTrackingExist_(backend, toTrackInfo)
+      dirlocs = toTrackInfo.trkoutdir ;
+      desc = 'trk cache dir' ;
+      for i = 1:numel(dirlocs),
+        dirloc = dirlocs{i} ;
+        if ~backend.fileExists(dirloc) ,
+          [succ,msg] = backend.mkdir(dirloc);
+          if ~succ
+            error('Failed to create %s %s: %s',desc,dirloc,msg);
+          else
+            fprintf('Created %s: %s\n',desc,dirloc);
+          end
+        end
       end
     end  % function
-    
+
+    function ensureFilesDoNotExist_(backend, filelocs, desc)
+      for i = 1:numel(filelocs),
+        fileloc = filelocs{i} ;
+        if backend.fileExists(fileloc),
+          fprintf('Deleting %s %s',desc,fileloc);
+          backend.deleteFile(fileloc);
+        end
+        if backend.fileExists(fileloc,'file'),
+          error('Failed to delete %s: file still exists',fileloc);
+        end
+      end
+    end  % function
+
   end  % methods
 end  % classdef

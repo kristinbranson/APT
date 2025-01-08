@@ -41,6 +41,22 @@ classdef AWSec2 < handle
     instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use
   end
 
+  properties (SetAccess=protected)
+    % The backend keeps track of whether the DMCoD is local or remote.  When it's
+    % remote, we substitute the remote DMC root for the local one wherever it
+    % appears.
+    isDMCRemote_ = false
+      % True iff the "current" version of the DMC is on a remote AWS filesystem.  
+      % Underscore means "protected by convention"    
+    localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
+  end
+
+  properties (Dependent)
+    isDMCRemote
+    isDMCLocal    
+  end
+
   % Transient properties don't get copied over when you pass an AWSec2 in an arg to parfeval()!
   % So for some properties we take steps to make sure they get restored in the
   % background process, because we want them to survive the transit through the parfeval boundary.
@@ -614,7 +630,7 @@ classdef AWSec2 < handle
       
       src_d = dir(src);
       src_sz = src_d.bytes;
-      tfsucc = obj.remoteFileExistsAndIsGivenSize(dstAbs,src_sz);
+      tfsucc = obj.fileExistsAndIsGivenSize(dstAbs,src_sz);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
@@ -632,19 +648,19 @@ classdef AWSec2 < handle
       end
     end
     
-    function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
-        varargin)
-      % Upload a file to a dir which may not exist yet. Create it if 
-      % necessary. Either succeeds, or fails and harderrors.
-      
-      destRelative = myparse(varargin,...
-        'destRelative',false);
-      
-      dirRemote = fileparts(fileRemote);
-      obj.ensureRemoteDir(dirRemote,'relative',destRelative); 
-      obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
-        'destRelative',destRelative); % throws
-    end
+    % function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
+    %     varargin)
+    %   % Upload a file to a dir which may not exist yet. Create it if 
+    %   % necessary. Either succeeds, or fails and harderrors.
+    % 
+    %   destRelative = myparse(varargin,...
+    %                          'destRelative',false);
+    % 
+    %   dirRemote = fileparts(fileRemote);
+    %   obj.ensureRemoteDirExists(dirRemote,'relative',destRelative); 
+    %   obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
+    %     'destRelative',destRelative); % throws
+    % end
        
     function tfsucc = rsyncUpload(obj, src, dest)
       cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
@@ -652,7 +668,7 @@ classdef AWSec2 < handle
       tfsucc = (st==0) ;
     end
 
-    function rmRemoteFile(obj,dst,~,varargin)
+    function deleteFile(obj,dst,~,varargin)
       % Either i) confirm a remote file does not exist, or ii) deletes it.
       % This method either succeeds or fails and harderrors.
       %
@@ -683,8 +699,17 @@ classdef AWSec2 < handle
       %obj.ClearStatus();
     end    
     
-    function tf = remoteFileExists(obj,f,varargin)
-      script = '~/APT/matlab/misc/fileexists.sh';
+    function tf = fileExists(obj,f,varargin)
+      %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      cmdremote = sprintf('/usr/bin/test -e %s',f);
+      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+      rc = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
+      tf = (rc==0) ;      
+    end
+    
+    function tf = fileExistsAndIsNonempty(obj,f)
+      script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
       cmdremote = sprintf('%s %s',script,f);
       %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
@@ -692,17 +717,8 @@ classdef AWSec2 < handle
       tf = (res(1)=='y');      
     end
     
-    function tf = remoteFileExistsAndIsNonempty(obj,f)
-      script = '~/APT/matlab/misc/fileexistsnonempty.sh';
-      cmdremote = sprintf('%s %s',script,f);
-      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
-      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
-      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
-      tf = (res(1)=='y');      
-    end
-    
-    function tf = remoteFileExistsAndIsGivenSize(obj,f,size)
-      script = '~/APT/matlab/misc/fileexists.sh';
+    function tf = fileExistsAndIsGivenSize(obj,f,size)
+      script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
       cmdremote = sprintf('%s %s %d',script,f,size);
       %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
@@ -710,7 +726,7 @@ classdef AWSec2 < handle
       tf = (res(1)=='y');      
     end
     
-    function s = remoteFileContents(obj,f,varargin)
+    function s = fileContents(obj,f,varargin)
       % First check if the file exists
       cmdremote = sprintf('[[ -e %s ]]',f);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
@@ -758,37 +774,35 @@ classdef AWSec2 < handle
       % warning thrown etc per failbehavior
     end
     
-    function remoteDirFull = ensureRemoteDir(obj,remoteDir,varargin)
-      % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
-      
-      [relative,descstr] = myparse(varargin,...
-        'relative',true,...  % true if remoteDir is relative to ~
-        'descstr',''... % cosmetic, for disp/err strings
-        );
-      
-      if ~isempty(descstr)
-        descstr = [descstr ' '];
-      end
-
-      if relative
-        remoteDirFull = ['~/' remoteDir];
-      else
-        remoteDirFull = remoteDir;
-      end
-      
-      %obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
-      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
-      tfsucc = (st==0) ;
-      %obj.ClearStatus();
-      if tfsucc
-        fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
-          descstr,remoteDirFull,res);
-      else
-        error('Failed to create remote %sdirectory %s: %s',descstr,...
-          remoteDirFull,res);
-      end
-    end
+    % function remoteDirFull = ensureRemoteDirExists(obj,remoteDir,varargin)
+    %   % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
+    % 
+    %   [relative,descstr] = myparse(varargin,...
+    %     'relative',true,...  % true if remoteDir is relative to ~
+    %     'descstr',''... % cosmetic, for disp/err strings
+    %     );
+    % 
+    %   if ~isempty(descstr)
+    %     descstr = [descstr ' '];
+    %   end
+    % 
+    %   if relative
+    %     remoteDirFull = ['~/' remoteDir];
+    %   else
+    %     remoteDirFull = remoteDir;
+    %   end
+    % 
+    %   cmdremote = sprintf('mkdir -p %s',remoteDirFull);
+    %   [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
+    %   tfsucc = (st==0) ;
+    %   if tfsucc
+    %     fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
+    %       descstr,remoteDirFull,res);
+    %   else
+    %     error('Failed to create remote %sdirectory %s: %s',descstr,...
+    %       remoteDirFull,res);
+    %   end
+    % end
     
     function remotePaths = remoteGlob(obj,globs)
       % Look for remote files/paths. Either succeeds, or fails and harderrors.
@@ -810,8 +824,12 @@ classdef AWSec2 < handle
     end
     
     function cmdfull = wrapCommandSSH(obj, cmdremote, varargin)
-      %cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
-      cmdfull = wrapCommandSSH(cmdremote, ...
+      if obj.isDMCRemote_ ,
+        remote_command_with_file_name_substitutions = strrep(cmdremote, obj.localDMCRootDir_, obj.remoteDMCRootDir_) ;
+      else
+        remote_command_with_file_name_substitutions = cmdremote ;
+      end      
+      cmdfull = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
                                'host', obj.instanceIP, ...
                                'timeout',8, ...
                                'username', 'ubuntu', ...
@@ -1069,6 +1087,205 @@ classdef AWSec2 < handle
         return
       end
     end  % function    
+
+    function result = get.isDMCRemote(obj)
+      result = obj.isDMCRemote_ ;
+    end  % function
+
+    function result = get.isDMCLocal(obj)
+      result = ~obj.isDMCRemote_ ;
+    end  % function    
+
+    function [tfsucc,res] = batchPoll(obj, fspollargs)
+      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
+      %
+      % res: [n] cellstr of fspoll responses
+
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
+      nargsFSP = numel(fspollargs);
+      assert(mod(nargsFSP,2)==0);
+      nresps = nargsFSP/2;
+      
+      fspollstr = space_out(fspollargs);
+      fspoll_script_path = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
+
+      cmdremote = sprintf('%s %s',fspoll_script_path,fspollstr);
+
+      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
+      tfsucc = (st==0) ;
+      if tfsucc
+        res = regexp(res,'\n','split');
+        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
+        res = res(1:end-1);
+      else
+        res = [];
+      end
+    end  % function
+    
+    function maxiter = getMostRecentModel(obj, dmc)  % constant method
+      if obj.isDMCRemote_ ,
+        % maxiter is nan if something bad happened or if DNE
+        % TODO allow polling for multiple models at once
+        [dirModelChainLnx,idx] = dmc.dirModelChainLnx();
+        fspollargs = {};
+        for i = 1:numel(idx),
+          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
+        end
+        [tfsucc,res] = obj.batchPoll(fspollargs);
+        if tfsucc
+          maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
+        else
+          maxiter = nan(1,numel(idx));
+        end        
+      else
+        maxiter = dmc.getMostRecentModelLocal() ;
+      end
+    end  % function
+    
+    function [didsucceed, msg] = mkdir(obj, dir_name)
+      % Create the named directory, either locally or remotely, depending on the
+      % backend type.      
+      quoted_dirloc = escape_string_for_bash(dir_name) ;
+      base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+      didsucceed = (status==0) ;
+    end
+    
+    function mirrorDMCToBackend(obj, dmc, mode)
+      % Take a local DMC and mirror/upload it to the AWS instance aws; 
+      % update .rootDir, .reader appropriately to point to model on remote 
+      % disk.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the remote aws instance.
+      %
+      % PostConditions: 
+      % - remote cachedir mirrors this model for key model files; "extra"
+      % remote files not removed; identities of existing files not
+      % confirmed but naming/immutability of DL artifacts makes this seem
+      % safe
+      % - .rootDir updated to remote cacheloc
+      % - .reader update to AWS reader
+      
+      % Sanity checks
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      assert(isscalar(dmc));
+
+      % If the DMC is already remote, warn
+      if obj.isDMCRemote ,
+        warning('Mirroring DMC to backend, even though DMC is already remote.') ;
+      end
+
+      % Make sure there is a trained model
+      maxiter = obj.getMostRecentModel(dmc) ;
+      succ = (maxiter >= 0) ;
+      if strcmp(mode, 'tracking') && any(~succ) ,
+        dmclfail = dmc.dirModelChainLnx(find(~succ));
+        fstr = sprintf('%s ',dmclfail{:});
+        error('Failed to determine latest model iteration in %s.',fstr);
+      end
+      if isnan(maxiter) ,
+        fprintf('Currently, there is no trained model.\n');
+      else
+        fprintf('Current model iteration is %s.\n',mat2str(maxiter));
+      end
+     
+      % Make sure there is a live backend
+      obj.checkInstanceRunning();  % throws error if ec2 instance is not connected
+      
+      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
+      % only a single boolean to represent whether it's local or remote, we're just
+      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
+      % backend.  -- ALT, 2024-06-25
+      localProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
+      remoteProjectPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, dmc.projID) ;  % ensure linux-style path
+      [didsucceed, msg] = obj.mkdir(remoteProjectPath) ;
+      if ~didsucceed ,
+        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
+      end
+      obj.rsyncUpload(localProjectPath, remoteProjectPath) ;
+
+      % If we made it here, upload successful---update the state to reflect that the
+      % model is now remote.      
+      obj.remoteDMCRootDir_ = DLBackEndClass.remoteAWSCacheDir ;
+      obj.isDMCRemote_ = true ;
+    end  % function
+    
+    function mirrorDMCFromBackend(obj, dmc)
+      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
+      % instance to local cache.
+      %
+      % update .rootDir, .reader appropriately to point to model in local
+      % cache.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the local cache.
+      
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      assert(isscalar(dmc));      
+
+      % If the DMC is already local, warn
+      if obj.isDMCLocal ,
+        warning('Mirroring DMC from backend, even though DMC is already local.') ;
+      end
+ 
+      maxiter = obj.getMostRecentModel(dmc) ;
+      succ = (maxiter >= 0) ;
+      if any(~succ),
+        dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
+        fstr = sprintf('%s ',dirModelChainLnx{:});
+        error('Failed to determine latest model iteration in %s.',...
+          fstr);
+      end
+      fprintf('Current model iteration is %s.\n',mat2str(maxiter));
+     
+      [tfexist,tfrunning] = obj.inspectInstance();
+      if ~tfexist,
+        error('AWS EC2 instance %s could not be found.',obj.instanceID);
+      end
+      if ~tfrunning,
+        [tfsucc,~,warningstr] = obj.startInstance();
+        if ~tfsucc,
+          error('Could not start AWS EC2 instance %s: %s',obj.instanceID,warningstr);
+        end
+      end      
+          
+      localDMCRootDir = obj.localDMCRootDir_ ;
+      modelGlobsLnx = dmc.modelGlobsLnx();
+      n = dmc.n ;
+      remoteDMCRootDir = obj.remoteDMCRootDir_ ;
+      dmcNetType = dmc.netType ;
+      for j = 1:n,
+        mdlFilesRemote = obj.remoteGlob(modelGlobsLnx{j});
+        cacheDirLocalEscd = regexprep(localDMCRootDir,'\\','\\\\');
+        mdlFilesLcl = regexprep(mdlFilesRemote,remoteDMCRootDir,cacheDirLocalEscd);
+        nMdlFiles = numel(mdlFilesRemote);
+        netstr = char(dmcNetType{j}); 
+        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
+        for i=1:nMdlFiles
+          fsrc = mdlFilesRemote{i};
+          fdst = mdlFilesLcl{i};
+          % See comment in mirror2RemoteAws regarding not confirming ID of
+          % files-that-already-exist
+          obj.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
+            'sysCmdArgs',{'failbehavior', 'err'}); % throws
+        end
+      end      
+      % if we made it here, download successful
+      
+      %obj.rootDir = cacheDirLocal;
+      %obj.reader = DeepModelChainReaderLocal();
+      obj.isDMCRemote_ = false ;
+    end  % function
+        
+    function result = getTorchHome(obj)
+      if obj.isDMCRemote_ ,
+        result = linux_fullfile(obj.remoteDMCRootDir_, 'torch') ;
+      else
+        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      end
+    end  % function
+    
   end  % methods
 
   % These next two methods allow access to private and protected variables,

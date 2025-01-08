@@ -3285,7 +3285,7 @@ classdef DeepTracker < LabelTracker
 %           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
 %         end
 
-        totrackinfojob.prepareFiles(backend);
+        backend.prepareFilesForTracking(totrackinfojob);
         obj.trkCreateConfig(totrackinfojob.trackconfigfile);
 
         if ijob == 1,
@@ -3385,7 +3385,7 @@ classdef DeepTracker < LabelTracker
 %         logcmds = [];
 %       end
 
-      totrackinfo.prepareFiles(backend);
+      backend.prepareFilesForTracking(totrackinfo);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
       tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,backend,'track_type','list');
