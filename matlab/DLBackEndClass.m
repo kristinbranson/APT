@@ -115,6 +115,7 @@ classdef DLBackEndClass < handle
     singularity_detection_image_path
     isInAwsDebugMode
     isDMCRemote
+    isDMCLocal
   end
   
   methods
@@ -235,21 +236,24 @@ classdef DLBackEndClass < handle
       % Windows).
       switch obj.type,
         case DLBackEnd.AWS
-          command = wrapBatchCommandForAWSBackend(basecmd, obj) ;
+          % For AWS backend, use the AWSec2 method of the same name
+          [return_code, stdouterr] = obj.awsec2.runBatchCommandOutsideContainer(basecmd, varargin{:}) ;
         case DLBackEnd.Bsub,
           % For now, we assume Matlab frontend is running on a JRC cluster node,
           % which means the filesystem is local.
           command = basecmd ;
+          [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         case DLBackEnd.Conda
           command = basecmd ;
+          [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         case DLBackEnd.Docker
           % If docker host is remote, we assume all files we need to access are on the
           % same path on the remote host.
           command = basecmd ;
+          [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         otherwise
           error('Not implemented: %s',obj.type);
       end
-      [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         % Things passed in with varargin should overide things we set here
     end  % function
 
@@ -1694,6 +1698,10 @@ classdef DLBackEndClass < handle
     
     function result = get.isDMCRemote(obj)
       result = obj.isDMCRemote_ ;
+    end  % function
+
+    function result = get.isDMCLocal(obj)
+      result = ~obj.isDMCRemote_ ;
     end  % function
 
     function result = getTorchHome_(obj)

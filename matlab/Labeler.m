@@ -2598,9 +2598,9 @@ classdef Labeler < handle
         for iTrker = 1:numel(obj.trackersAll)
           tObj = obj.trackersAll{iTrker};
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
-            dmc = tObj.trnLastDMC;
+            backend = tObj.backend ;
             try
-              if dmc.isRemote()
+              if backend.isDMCRemote
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
               else
                 tObj.copyModelFiles(obj.projTempDir,true);

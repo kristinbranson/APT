@@ -263,12 +263,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       idx = obj.select(varargin{:});
       v = obj.tfFollowsObjDet(idx);
     end
-    function v = getRootDir(obj)
-      v = obj.rootDir ;
-    end
-    function setRootDir(obj,v)
-      obj.rootDir = v ;
-    end
+    % function v = getRootDir(obj)
+    %   v = obj.rootDir ;
+    % end
+    % function setRootDir(obj,v)
+    %   obj.rootDir = v ;
+    % end
     function setPrevModels(obj,prev_models,varargin)
       idx = obj.select(varargin{:});
       assert(numel(prev_models) == numel(idx));

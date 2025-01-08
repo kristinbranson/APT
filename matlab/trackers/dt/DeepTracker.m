@@ -558,14 +558,16 @@ classdef DeepTracker < LabelTracker
 
     function updateDLCache(obj,dlcachedir)
       dmc = obj.trnLastDMC;
-      if ~isempty(dmc),
-        if ~dmc.isRemote()
-          dmc.setRootDir(dlcachedir);
-        else
-          warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
-                         obj.trnNetType.displayString);
-        end
+      if isempty(dmc),
+        return
       end
+      if obj.backend.isDMCRemote
+        warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
+                       obj.trnNetType.displayString);
+        return
+      end
+      dmc.rootDir = dlcachedir ;
+
       % At save-time we should be updating DMCs to local
 
       % Don't update dmc(ivw).rootDir in this case
@@ -3207,7 +3209,7 @@ classdef DeepTracker < LabelTracker
       end
             
       dmc = obj.trnLastDMC;
-      if ~dmc.isRemote() && ~strcmp(dmc.rootDir,cacheDir)
+      if backend.isDMCLocal && ~strcmp(dmc.rootDir,cacheDir)
         reason = 'Cache directory has changed since training.';
         return;
       end
@@ -3217,7 +3219,7 @@ classdef DeepTracker < LabelTracker
       % things are the same??
       % Is necessary b/c the dmc might be remote.  dmcLcl is used to make sure the
       % training file exists in the local cache. --ALT, 2024-04-29
-      dmcLcl.setRootDir(cacheDir);  % Ensure that dmcLcl is using the *local* version of the cache
+      dmcLcl.rootDir = cacheDir ;  % Ensure that dmcLcl is using the *local* version of the cache
       dlConfigLcl = DeepModelChainOnDisk.getCheckSingle(dmcLcl.trainConfigLnx);
       if ~exist(dlConfigLcl,'file') ,
         reason = sprintf('Cannot find training file: %s\n',dlConfigLcl);
@@ -4917,9 +4919,9 @@ classdef DeepTracker < LabelTracker
       modelFiles = dmc.findModelGlobsLocal();
       modelFiles = cat(1,modelFiles{:});
       modelFiles = unique(modelFiles);
-      modelFilesDst = strrep(modelFiles,dmc.getRootDir(),newRootDir);
+      modelFilesDst = strrep(modelFiles,dmc.rootDir,newRootDir);
       % nothing to do
-      if isequal(dmc.getRootDir(),newRootDir), 
+      if isequal(dmc.rootDir,newRootDir), 
         return
       end
       if backend.isDMCRemote ,

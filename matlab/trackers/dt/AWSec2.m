@@ -681,8 +681,7 @@ classdef AWSec2 < handle
       %obj.SetStatus(sprintf('Deleting %s file(s) (if they exist) from AWS EC2 instance',fileDescStr));
       obj.runBatchCommandOutsideContainer(cmd,'failbehavior','err');
       %obj.ClearStatus();
-    end
-    
+    end    
     
     function tf = remoteFileExists(obj,f,varargin)
       script = '~/APT/matlab/misc/fileexists.sh';
@@ -819,13 +818,21 @@ classdef AWSec2 < handle
                                'identity', obj.pem) ;
     end
 
-    function [st,res] = runBatchCommandOutsideContainer(obj,cmdremote,varargin)      
+    function [st,res] = runBatchCommandOutsideContainer(obj, cmdremote, varargin)      
       % Runs a single command-line command on the ec2 instance.
-      % It would be nice to get rid of this command, replace it's uses with uses of
-      % DLBackEndClass:runBatchCommandOutsideContainer().  But that's a lift.  
-      % -- ALT, 2024-09-29
-      command = wrapBatchCommandForAWSBackend(cmdremote, obj) ;        
-      [st, res] = apt.syscmd(command, varargin{:}) ;      
+
+      % Wrap for ssh'ing into an AWS instance
+      cmd1 = obj.wrapCommandSSH(cmdremote) ;  % uses fields of obj to set parameters for ssh command
+    
+      % Need to prepend a sleep to avoid problems
+      precommand = 'sleep 5 && export AWS_PAGER=' ;
+        % Change the sleep value at your peril!  I changed it to 3 and everything
+        % seemed fine for a while, until it became a very hard-to-find bug!  
+        % --ALT, 2024-09-12
+      command = sprintf('%s && %s', precommand, cmd1) ;
+
+      % Issue the command, gather results
+      [st, res] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;      
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)

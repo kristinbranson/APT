@@ -28,7 +28,7 @@ classdef APTInterf
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
       trainConfig = linux_path(nativeTrainConfig) ;
-      nativeCacheRootDir = dmc.getRootDir();
+      nativeCacheRootDir = dmc.rootDir ;
       cacheRootDir = linux_path(nativeCacheRootDir) ;
       nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
       errFile = linux_path(nativeErrfile) ;
@@ -209,7 +209,7 @@ classdef APTInterf
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
       trainConfig = linux_path(nativeTrainConfig) ;
-      nativeCacheRootDir = dmc.getRootDir();  % native path
+      nativeCacheRootDir = dmc.rootDir ;  % native path
       cacheRootDir = linux_path(nativeCacheRootDir) ;      
 
       stage2models = cell(1,nstages);
