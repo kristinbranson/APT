@@ -9,8 +9,6 @@ classdef DLBackEndClass < handle
     defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
-    remoteAWSCacheDir = '/home/ubuntu/cacheDL'
-
     jrchost = 'login1.int.janelia.org'
     jrcprefix = ''
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod'
@@ -75,24 +73,17 @@ classdef DLBackEndClass < handle
     singularity_image_path_ = '<invalid>'
     does_have_special_singularity_detection_image_path_ = '<invalid>'
     singularity_detection_image_path_ = '<invalid>'
+  end
 
-    % Used to keep track of whether movies have been uploaded or not.
-    % Transient and protected in spirit.
-    didUploadMovies_ = false
-
-    % When we upload movies, keep track of the correspondence, so we can help the
-    % consumer map between the paths.  Transient, protected in spirit.
-    localPathFromMovieIndex_ = cell(1,0) ;
-    remotePathFromMovieIndex_ = cell(1,0) ;
-
-    % The job registry.  These are protected, transient in spirit.
+  properties (Transient)
+    % The job registry.  These are protected in spirit.
     % These are jobs that can be spawned with a subsequent call to
     % spawnRegisteredJobs().
     syscmds_ = cell(0,1)
     cmdfiles_ = cell(0,1)
     logcmds_ = cell(0,1)
 
-    % The job IDs.  These are protected, transient in spirit.
+    % The job IDs.  These are protected, in spirit.
     jobids_ = cell(0,1)
 
     % This is used to keep track of whether we need to release/delete resources on
@@ -254,10 +245,7 @@ classdef DLBackEndClass < handle
       % Convert a local movie path to the remote equivalent.
       % For non-AWS backends, this is the identity function.
       if isequal(obj.type, DLBackEnd.AWS) ,
-        movieName = fileparts23(localPath) ;
-        remoteMovieFolderPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, 'movies') ;
-        rawRemotePath = linux_fullfile(remoteMovieFolderPath, movieName) ;
-        result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
+        result = AWSec2.remoteMoviePathFromLocal(localPath) ;
       else
         result = localPath ;
       end
@@ -266,63 +254,40 @@ classdef DLBackEndClass < handle
     function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
       % Convert a cell array of local movie paths to their remote equivalents.
       % For non-AWS backends, this is the identity function.
-      result = cellfun(@(path)(obj.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        result = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+      else
+        result = localPathFromMovieIndex ;
+      end
     end
 
     function uploadMovies(obj, localPathFromMovieIndex)
       % Upload movies to the backend, if necessary.
-      if ~isequal(obj.type, DLBackEnd.AWS) ,
-        obj.didUploadMovies_ = true ;
-        return
+      if isequal(obj.type, DLBackEnd.AWS) ,
+        obj.awsec2.uploadMovies(localPathFromMovieIndex) ;
       end
-      if obj.didUploadMovies_ ,
-        return
-      end
-      remotePathFromMovieIndex = obj.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
-      movieCount = numel(localPathFromMovieIndex) ;
-      fprintf('Uploading %d movie files...\n', movieCount) ;
-      fileDescription = 'Movie file' ;
-      sidecarDescription = 'Movie sidecar file' ;
-      for i = 1:movieCount ,
-        localPath = localPathFromMovieIndex{i};
-        remotePath = remotePathFromMovieIndex{i};
-        obj.uploadOrVerifySingleFile_(localPath, remotePath, fileDescription) ;  % throws
-        % If there's a sidecar file, upload it too
-        [~,~,fileExtension] = fileparts(localPath) ;
-        if strcmp(fileExtension,'.mjpg') ,
-          sidecarLocalPath = FSPath.replaceExtension(localPath, '.txt') ;
-          if exist(sidecarLocalPath, 'file') ,
-            sidecarRemotePath = obj.remoteMoviePathFromLocal(sidecarLocalPath) ;
-            obj.uploadOrVerifySingleFile_(sidecarLocalPath, sidecarRemotePath, sidecarDescription) ;  % throws
-          end
-        end
-      end      
-      fprintf('Done uploading %d movie files.\n', movieCount) ;
-      obj.didUploadMovies_ = true ; 
-      obj.localPathFromMovieIndex_ = localPathFromMovieIndex ;
-      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
     end  % function
 
-    function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
-      % Upload a single file.  Protected by convention.
-      % Doesn't check to see if the backend type has a different filesystem.  That's
-      % why outsiders shouldn't call it.
-      localFileDirOutput = dir(localPath) ;
-      localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
-      % We just use scpUploadOrVerify which does not confirm the identity
-      % of file if it already exists. These movie files should be
-      % immutable once created and their naming (underneath timestamped
-      % modelchainIDs etc) should be pretty/totally unique. 
-      %
-      % Only situation that might cause problems are augmentedtrains but
-      % let's not worry about that for now.
-      localFileName = localFileDirOutput.name ;
-      fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
-      obj.scpUploadOrVerify(localPath, ...
-                            remotePath, ...
-                            fullFileDescription, ...
-                            'destRelative',false) ;  % throws      
-    end  % function
+    % function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
+    %   % Upload a single file.  Protected by convention.
+    %   % Doesn't check to see if the backend type has a different filesystem.  That's
+    %   % why outsiders shouldn't call it.
+    %   localFileDirOutput = dir(localPath) ;
+    %   localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
+    %   % We just use scpUploadOrVerify which does not confirm the identity
+    %   % of file if it already exists. These movie files should be
+    %   % immutable once created and their naming (underneath timestamped
+    %   % modelchainIDs etc) should be pretty/totally unique. 
+    %   %
+    %   % Only situation that might cause problems are augmentedtrains but
+    %   % let's not worry about that for now.
+    %   localFileName = localFileDirOutput.name ;
+    %   fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
+    %   obj.scpUploadOrVerify(localPath, ...
+    %                         remotePath, ...
+    %                         fullFileDescription, ...
+    %                         'destRelative',false) ;  % throws      
+    % end  % function
 
     function delete(obj)
       if obj.doesOwnResources_ ,
@@ -375,9 +340,9 @@ classdef DLBackEndClass < handle
       % On load, clear the fields that should be Transient, but can't be b/c
       % we need them to survive going through parfeval().  (Is this right?  Does the
       % backend need to go through parfeval?  --ALT, 2024-09-19)
-      obj.didUploadMovies_ = false ;
-      obj.localPathFromMovieIndex_ = cell(1,0) ;
-      obj.remotePathFromMovieIndex_ = cell(1,0) ;
+      %obj.didUploadMovies_ = false ;
+      %obj.localPathFromMovieIndex_ = cell(1,0) ;
+      %obj.remotePathFromMovieIndex_ = cell(1,0) ;
       obj.syscmds_ = cell(0,1) ;
       obj.cmdfiles_ = cell(0,1) ;
       obj.logcmds_ = cell(0,1) ;
@@ -633,9 +598,9 @@ classdef DLBackEndClass < handle
       end
     end
 
-    function r = getAPTDeepnetRoot(obj)
-      r = [obj.getAPTRoot '/deepnet'];
-    end
+    % function r = getAPTDeepnetRoot(obj)
+    %   r = [obj.getAPTRoot '/deepnet'];
+    % end
         
     function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)
       % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
@@ -739,7 +704,7 @@ classdef DLBackEndClass < handle
     %   end      
     % end
     
-    function aptroot = awsUpdateRepo_(obj)  % throws if fails      
+    function awsUpdateRepo_(obj)  % throws if fails      
       % What branch do we want?
       branch = 'dockerized-aws' ;  % TODO: For debugging only, set back to develop or main eventually
 
@@ -747,18 +712,18 @@ classdef DLBackEndClass < handle
       obj.cloneAWSRemoteAPTRepoIfNeeeded_(branch) ;
 
       % Determine the remote APT source root, and quote it for bash
-      aptroot = obj.getAPTRoot() ;
-      quoted_aptroot = escape_string_for_bash(aptroot) ;
+      remote_aptroot = obj.getAPTRoot() ;
+      quoted_remote_aptroot = escape_string_for_bash(remote_aptroot) ;
 
       % Checkout the correct branch
-      command_line_1 = sprintf('git -C %s checkout %s', quoted_aptroot, branch) ;
+      command_line_1 = sprintf('git -C %s checkout %s', quoted_remote_aptroot, branch) ;
       [st_1,res_1] = obj.runBatchCommandOutsideContainer(command_line_1) ;
       if st_1 ~= 0 ,
         error('Failed to update remote APT repo:\n%s', res_1);
       end
 
       % Do a git pull
-      command_line_2 = sprintf('git -C %s pull', quoted_aptroot) ;
+      command_line_2 = sprintf('git -C %s pull', quoted_remote_aptroot) ;
       [st_2,res_2] = obj.runBatchCommandOutsideContainer(command_line_2) ;
       if st_2 ~= 0 ,
         error('Failed to update remote APT repo:\n%s', res_2);
@@ -768,7 +733,7 @@ classdef DLBackEndClass < handle
       % This python script doesn't do anything fancy, apparently, so we use the
       % python interpreter provided by the plain EC2 instance, not the one inside
       % the Docker container on the instance.
-      download_script_path = linux_fullfile(aptroot, 'deepnet', 'download_pretrained.py') ;
+      download_script_path = linux_fullfile(remote_aptroot, 'deepnet', 'download_pretrained.py') ;
       quoted_download_script_path = escape_string_for_bash(download_script_path) ;      
       [st_3,res_3] = obj.runBatchCommandOutsideContainer(quoted_download_script_path) ;
       if st_3 ~= 0 ,
@@ -884,7 +849,7 @@ classdef DLBackEndClass < handle
       errorMessage = '' ;
     end  % function    
 
-    function aptroot = updateRepo(obj, localCacheDir)  %#ok<INUSD> 
+    function updateRepo(obj)
       % Update the APT repo on the backend.  While we're at it, make sure the
       % pretrained weights are downloaded.  The method formerly known as
       % setupForTrainingOrTracking().
@@ -893,32 +858,24 @@ classdef DLBackEndClass < handle
       % backend working properly for AD-linked Linux workstations.
       switch obj.type
         case DLBackEnd.Bsub ,
-          aptroot = obj.bsubSetRootUpdateRepo_();
+          obj.bsubSetRootUpdateRepo_();
         case {DLBackEnd.Conda, DLBackEnd.Docker} ,
           aptroot = APT.Root;
           apt.downloadPretrainedWeights('aptroot', aptroot) ;
         case DLBackEnd.AWS ,
           obj.awsec2.checkInstanceRunning();  % errs if instance isn't running
-          aptroot = obj.awsUpdateRepo_();  % this is the remote APT root
+          obj.awsUpdateRepo_();  % this is the remote APT root
         otherwise
           error('Unknown backend type') ;
       end
     end  % function    
 
     function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
-      if ~obj.didUploadMovies_ ,
-        error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
+      else
+        result = queryRemotePath ;
       end
-      movieCount = numel(obj.remotePathFromMovieIndex_) ;
-      for movieIndex = 1 : movieCount ,
-        remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
-        if strcmp(remotePath, queryRemotePath) ,
-          result = obj.localPathFromMovieIndex_{movieIndex} ;
-          return
-        end
-      end
-      % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
-      error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
     end  % function
   end  % methods
 
@@ -1007,16 +964,20 @@ classdef DLBackEndClass < handle
       obj.jobids_ = cell(0,1) ; 
     end
 
-    function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, aptroot, do_just_generate_db)
+    function registerTrainingJob(backend, dmcjob, deeptracker, gpuids, do_just_generate_db)
       % Register a single training job with the backend, for later spawning via
       % spawnRegisteredJobs().
+
+      % Get the root of the remote source tree
+      remoteaptroot = backend.getAPTRoot() ;
+      
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trainCodeGenBase(dmcjob,...
                                            'ignore_local',ignore_local,...
-                                           'aptroot',aptroot,...
+                                           'aptroot',remoteaptroot,...
                                            'do_just_generate_db',do_just_generate_db, ...
                                            'torchhome', backend.awsec2.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,aptroot,'train');
+      args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
       logcmd = apt.generateLogCommand(backend, 'train', dmcjob) ;
@@ -1027,20 +988,28 @@ classdef DLBackEndClass < handle
       backend.cmdfiles_{end+1,1} = cmdfile ;
     end
 
-    function registerTrackingJob(backend, totrackinfojob, deeptracker, gpuids, aptroot, track_type)
+    function registerTrackingJob(backend, totrackinfo, deeptracker, gpuids, track_type)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
       % track_type should be one of {'track', 'link', 'detect'}
+
+      % Get the root of the remote source tree
+      remoteaptroot = backend.getAPTRoot() ;
+
+      % totrackinfo has local paths, need to remotify them
+      remotetotrackinfo = totrackinfo.copy() ;
+      remotetotrackinfo.changePathsToRemoteFromLocal(localCacheRoot, backend) ;
+
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
-      basecmd = APTInterf.trackCodeGenBase(totrackinfojob,...
+      basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
                                            'ignore_local',ignore_local,...
-                                           'aptroot',aptroot,...
+                                           'aptroot',remoteaptroot,...
                                            'track_type',track_type, ...
                                            'torchhome', backend.awsec2.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfojob, aptroot, 'track') ;
+      args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfo, remoteaptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
-      logcmd = apt.generateLogCommand(backend, 'track', totrackinfojob) ;
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile) ;
+      logcmd = apt.generateLogCommand(backend, 'track', totrackinfo) ;
     
       % Add all the commands to the registry
       backend.syscmds_{end+1,1} = syscmd ;
@@ -1323,7 +1292,7 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function result = fileExistsAndIsNonEmpty(obj, file_name)
+    function result = fileExistsAndIsNonempty(obj, file_name)
       % Returns true iff the named file exists and is not zero-length.
       if obj.type == DLBackEnd.AWS ,
         result = obj.awsec2.fileExistsAndIsNonempty(file_name) ;
@@ -1492,22 +1461,22 @@ classdef DLBackEndClass < handle
       end
     end  % function
     
-    function mirrorDMCToBackend(backend, dmc, mode)
+    function mirrorDMCToBackend(obj, dmc, mode)
       % mode should be 'tracking' or 'training'.
       if ~exist('mode', 'var') || isempty(mode) ,
         mode = 'tracking' ;
       end
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
       if obj.type == DLBackEnd.AWS ,
-         backend.awsec2.mirrorDMCToBackend(dmc, mode) ;
+         obj.awsec2.mirrorDMCToBackend(dmc, mode) ;
       end
     end
 
-    function mirrorDMCFromBackend(backend, dmc)
+    function mirrorDMCFromBackend(obj, dmc)
       % If the model chain is remote, download it
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
       if obj.type == DLBackEnd.AWS ,
-         backend.awsec2.mirrorDMCFromBackend(dmc) ;
+         obj.awsec2.mirrorDMCFromBackend(dmc) ;
       end
     end  % function
 
@@ -1526,13 +1495,13 @@ classdef DLBackEndClass < handle
       backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files');
     end  % function
 
-    function ensureFoldersNeededForTrackingExist_(backend, toTrackInfo)
+    function ensureFoldersNeededForTrackingExist_(obj, toTrackInfo)
       dirlocs = toTrackInfo.trkoutdir ;
       desc = 'trk cache dir' ;
       for i = 1:numel(dirlocs),
         dirloc = dirlocs{i} ;
-        if ~backend.fileExists(dirloc) ,
-          [succ,msg] = backend.mkdir(dirloc);
+        if ~obj.fileExists(dirloc) ,
+          [succ,msg] = obj.mkdir(dirloc);
           if ~succ
             error('Failed to create %s %s: %s',desc,dirloc,msg);
           else
@@ -1542,14 +1511,14 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function ensureFilesDoNotExist_(backend, filelocs, desc)
+    function ensureFilesDoNotExist_(obj, filelocs, desc)
       for i = 1:numel(filelocs),
         fileloc = filelocs{i} ;
-        if backend.fileExists(fileloc),
+        if obj.fileExists(fileloc),
           fprintf('Deleting %s %s',desc,fileloc);
-          backend.deleteFile(fileloc);
+          obj.deleteFile(fileloc);
         end
-        if backend.fileExists(fileloc,'file'),
+        if obj.fileExists(fileloc),
           error('Failed to delete %s: file still exists',fileloc);
         end
       end
@@ -1563,8 +1532,8 @@ classdef DLBackEndClass < handle
       obj.awsec2.localDMCRootDir = value ;
     end  % function
 
-    function result = get.remoteDMCRootDir(obj)
-      result = obj.awsec2.remoteDMCRootDir ;
+    function result = get.remoteDMCRootDir(obj)  %#ok<MANU>
+      result = AWSec2.remoteDLCacheDir ;
     end  % function
 
   end  % methods

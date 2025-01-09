@@ -11316,9 +11316,9 @@ classdef Labeler < handle
       end
       movidx = movidx_new;
       tblMFT.mov = newmov;
-      localmovfiles = obj.movieFilesAllFullGTaware;
-      localmovfiles = localmovfiles(movidx,:);
-      movfiles = obj.trackDLBackEnd.remoteMoviePathsFromLocal(localmovfiles) ;
+      all_movfiles = obj.movieFilesAllFullGTaware;
+      movfiles = all_movfiles(movidx,:);
+      %remoteMovfiles = obj.trackDLBackEnd.remoteMoviePathsFromLocal(localmovfiles) ;
 
       % get data associated with those movies
       if obj.hasTrx,

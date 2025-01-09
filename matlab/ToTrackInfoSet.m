@@ -1,9 +1,7 @@
 classdef ToTrackInfoSet < matlab.mixin.Copyable
 
-  properties
-    
+  properties    
     ttis = [];
-
   end
 
   methods
@@ -12,7 +10,19 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         obj.ttis = varargin{1};
       end
     end
-    
+  end
+
+  methods (Access=protected)
+    function obj2 = copyElement(obj)
+      % overload so that .ttis is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.ttis)
+        obj2.ttis = copy(obj.ttis);
+      end
+    end  % function
+  end  % function
+  
+  methods
     function X = mergeGet(obj,propname,varargin)
 
       [movidx0,views0,stages0] = myparse(varargin,'movie',[],...

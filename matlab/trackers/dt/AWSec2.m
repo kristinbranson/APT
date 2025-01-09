@@ -21,6 +21,8 @@ classdef AWSec2 < handle
                                     % ami-09b1db2d5c1d91c38, aka "Deep Learning Base Proprietary Nvidia Driver GPU
                                     % AMI (Ubuntu 20.04) 20240101"    
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
+    remoteDLCacheDir = '/home/ubuntu/cacheDL'
+    remoteMovieCacheDir = '/home/ubuntu/movies'
     scpCmd = AWSec2.computeScpCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
   end
@@ -41,7 +43,7 @@ classdef AWSec2 < handle
     instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use
   end
 
-  properties (SetAccess=protected)
+  properties (Transient, SetAccess=protected)
     % The backend keeps track of whether the DMCoD is local or remote.  When it's
     % remote, we substitute the remote DMC root for the local one wherever it
     % appears.
@@ -50,13 +52,22 @@ classdef AWSec2 < handle
       % Underscore means "protected by convention"    
     localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
     remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
+
+    % Used to keep track of whether movies have been uploaded or not.
+    % Transient and protected in spirit.
+    didUploadMovies_ = false
+
+    % When we upload movies, keep track of the correspondence, so we can help the
+    % consumer map between the paths.  Transient, protected in spirit.
+    localPathFromMovieIndex_ = cell(1,0) ;
+    remotePathFromMovieIndex_ = cell(1,0) ;
   end
 
   properties (Dependent)
     isDMCRemote
     isDMCLocal    
     localDMCRootDir
-    remoteDMCRootDir
+    %remoteDMCRootDir
   end
 
   % Transient properties don't get copied over when you pass an AWSec2 in an arg to parfeval()!
@@ -702,12 +713,10 @@ classdef AWSec2 < handle
     end    
     
     function tf = fileExists(obj,f,varargin)
-      %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
-      cmdremote = sprintf('/usr/bin/test -e %s',f);
-      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
-      rc = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
-      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
-      tf = (rc==0) ;      
+      script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      cmdremote = sprintf('%s %s',script,f);
+      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      tf = (res(1)=='y');      
     end
     
     function tf = fileExistsAndIsNonempty(obj,f)
@@ -827,7 +836,7 @@ classdef AWSec2 < handle
     
     function cmdfull = wrapCommandSSH(obj, cmdremote, varargin)
       if obj.isDMCRemote_ ,
-        remote_command_with_file_name_substitutions = strrep(cmdremote, obj.localDMCRootDir_, obj.remoteDMCRootDir_) ;
+        remote_command_with_file_name_substitutions = strrep(cmdremote, obj.localDMCRootDir_, AWSec2.remoteDLCacheDir) ;
       else
         remote_command_with_file_name_substitutions = cmdremote ;
       end      
@@ -1064,9 +1073,11 @@ classdef AWSec2 < handle
       obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
     end  % function
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
-      remoteTrackFilePaths = {res.trkfile} ;
-      trkfilesLocal = replace_prefix_path(remoteTrackFilePaths, remoteCacheRoot, localCacheRoot) ;      
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot)
+      remoteCacheRoot = AWSec2.remoteDLCacheDir ;
+      movfiles = obj.localPathFromMovieIndex_ ;
+      localTrackFilePaths = {res.trkfile} ;
+      remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;      
       if all(strcmp(movfiles(:),{res.movfile}'))
         % we perform this check b/c while tracking has been running in
         % the bg, the project could have been updated, movies
@@ -1074,8 +1085,8 @@ classdef AWSec2 < handle
         % download trkfiles 
         sysCmdArgs = {'failbehavior', 'err'};
         for ivw=1:numel(res)
-          trkLcl = trkfilesLocal{ivw};
-          trkRmt = res(ivw).trkfile;
+          trkRmt = remoteTrackFilePaths{ivw};
+          trkLcl = res(ivw).trkfile;
           fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
           obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
           fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
@@ -1200,7 +1211,7 @@ classdef AWSec2 < handle
       % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
       % backend.  -- ALT, 2024-06-25
       localProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
-      remoteProjectPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, dmc.projID) ;  % ensure linux-style path
+      remoteProjectPath = linux_fullfile(AWSec2.remoteDLCacheDir, dmc.projID) ;  % ensure linux-style path
       [didsucceed, msg] = obj.mkdir(remoteProjectPath) ;
       if ~didsucceed ,
         error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
@@ -1209,7 +1220,7 @@ classdef AWSec2 < handle
 
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
-      obj.remoteDMCRootDir_ = DLBackEndClass.remoteAWSCacheDir ;
+      %obj.remoteDMCRootDir_ = AWSec2.remoteDLCacheDir ;
       obj.isDMCRemote_ = true ;
     end  % function
     
@@ -1255,7 +1266,7 @@ classdef AWSec2 < handle
       localDMCRootDir = obj.localDMCRootDir_ ;
       modelGlobsLnx = dmc.modelGlobsLnx();
       n = dmc.n ;
-      remoteDMCRootDir = obj.remoteDMCRootDir_ ;
+      remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
       dmcNetType = dmc.netType ;
       for j = 1:n,
         mdlFilesRemote = obj.remoteGlob(modelGlobsLnx{j});
@@ -1282,7 +1293,7 @@ classdef AWSec2 < handle
         
     function result = getTorchHome(obj)
       if obj.isDMCRemote_ ,
-        result = linux_fullfile(obj.remoteDMCRootDir_, 'torch') ;
+        result = linux_fullfile(AWSec2.remoteDLCacheDir, 'torch') ;
       else
         result = fullfile(APT.getdotaptdirpath(), 'torch') ;
       end
@@ -1296,8 +1307,73 @@ classdef AWSec2 < handle
       obj.localDMCRootDir_ = value ;
     end  % function
     
-    function result = get.remoteDMCRootDir(obj)
-      result = obj.remoteDMCRootDir_ ;
+    % function result = get.remoteDMCRootDir(obj)
+    %   result = AWSec2.remoteDLCacheDir ;
+    % end  % function
+        
+    function uploadMovies(obj, localPathFromMovieIndex)
+      % Upload movies to the backend, if necessary.
+      if obj.didUploadMovies_ ,
+        return
+      end
+      remotePathFromMovieIndex = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+      movieCount = numel(localPathFromMovieIndex) ;
+      fprintf('Uploading %d movie files...\n', movieCount) ;
+      fileDescription = 'Movie file' ;
+      sidecarDescription = 'Movie sidecar file' ;
+      for i = 1:movieCount ,
+        localPath = localPathFromMovieIndex{i};
+        remotePath = remotePathFromMovieIndex{i};
+        obj.uploadOrVerifySingleFile_(localPath, remotePath, fileDescription) ;  % throws
+        % If there's a sidecar file, upload it too
+        [~,~,fileExtension] = fileparts(localPath) ;
+        if strcmp(fileExtension,'.mjpg') ,
+          sidecarLocalPath = FSPath.replaceExtension(localPath, '.txt') ;
+          if exist(sidecarLocalPath, 'file') ,
+            sidecarRemotePath = AWSec2.remoteMoviePathFromLocal(sidecarLocalPath) ;
+            obj.uploadOrVerifySingleFile_(sidecarLocalPath, sidecarRemotePath, sidecarDescription) ;  % throws
+          end
+        end
+      end      
+      fprintf('Done uploading %d movie files.\n', movieCount) ;
+      obj.didUploadMovies_ = true ; 
+      obj.localPathFromMovieIndex_ = localPathFromMovieIndex ;
+      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
+    end  % function
+    
+    function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
+      % Upload a single file.  Protected by convention.
+      localFileDirOutput = dir(localPath) ;
+      localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
+      % We just use scpUploadOrVerify which does not confirm the identity
+      % of file if it already exists. These movie files should be
+      % immutable once created and their naming (underneath timestamped
+      % modelchainIDs etc) should be pretty/totally unique. 
+      %
+      % Only situation that might cause problems are augmentedtrains but
+      % let's not worry about that for now.
+      localFileName = localFileDirOutput.name ;
+      fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
+      obj.scpUploadOrVerify(localPath, ...
+                            remotePath, ...
+                            fullFileDescription, ...
+                            'destRelative',false) ;  % throws      
+    end  % function
+    
+    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+      if ~obj.didUploadMovies_ ,
+        error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
+      end
+      movieCount = numel(obj.remotePathFromMovieIndex_) ;
+      for movieIndex = 1 : movieCount ,
+        remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
+        if strcmp(remotePath, queryRemotePath) ,
+          result = obj.localPathFromMovieIndex_{movieIndex} ;
+          return
+        end
+      end
+      % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
+      error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
     end  % function
     
   end  % methods
@@ -1315,4 +1391,19 @@ classdef AWSec2 < handle
     end  % function
   end
   
+  methods (Static)
+    function result = remoteMoviePathFromLocal(localPath)
+      % Convert a local movie path to the remote equivalent.
+      movieName = fileparts23(localPath) ;
+      rawRemotePath = linux_fullfile(AWSec2.remoteMovieCacheDir, movieName) ;
+      result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
+    end
+
+    function result = remoteMoviePathsFromLocal(localPathFromMovieIndex)
+      % Convert a cell array of local movie paths to their remote equivalents.
+      % For non-AWS backends, this is the identity function.
+      result = cellfun(@(path)(AWSec2.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
+    end
+  end  % methods (Static)
+
 end

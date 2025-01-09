@@ -520,16 +520,27 @@ classdef DeepTracker < LabelTracker
     function tc = getTrackerClassAugmented(obj)
       tc = {class(obj) 'trnNetType' obj.trnNetType};
     end
+
     function s = getSaveToken(obj)
       s = struct();
-      props = obj.SAVEPROPS;
-      for p=props(:)',p=p{1}; %#ok<FXSET>
-        s.(p) = obj.(p);
+      prop_names = obj.SAVEPROPS;
+      for i = 1:numel(prop_names) ,
+        prop_name = prop_names{i} ;
+        if strcmp(prop_name, 'trnLastDMC') ,
+          % Handle the DMCoD in a special way, making a copy
+          value = obj.(prop_name) ;
+          if isempty(value) ,
+            s.(prop_name) = value ;
+          else
+            s.(prop_name) = value.copy() ;
+          end
+        else
+          % Normal handling, sufficient for most props
+          s.(prop_name) = obj.(prop_name) ;
+        end
       end
-      if ~isempty(obj.trnLastDMC)
-        obj.trnLastDMC = obj.trnLastDMC.copyAndDetach();
-      end
-    end
+    end  % function
+
     function s = getTrackSaveToken(obj)
       s = obj.getSaveToken();
       s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll,false);
@@ -891,7 +902,7 @@ classdef DeepTracker < LabelTracker
       fprintf(1,'\n'); 
 
       % Update code on remote filesystem, if needed
-      backend.updateRepo(cacheDir) ;
+      backend.updateRepo() ;
 
 %       % Upload model to remote filesystem, if needed
 %       dmc.mirrorToBackend(backend) ;
@@ -1485,7 +1496,7 @@ classdef DeepTracker < LabelTracker
 
       % Currently, cacheDir must be visible on the JRC shared filesys.
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
-      aptroot = backend.updateRepo(cacheDir);
+      backend.updateRepo();
             
       if ~isempty(existingTrnPackSLbl),
         assert(strcmp(dmc.trainConfigLnx,existingTrnPackSLbl));
@@ -1518,7 +1529,7 @@ classdef DeepTracker < LabelTracker
         assert(ijob==unique_jobs(ijob));
         dmcjob = dmc.selectSubset('jobidx',ijob);
 
-        backend.registerTrainingJob(dmcjob, obj, gpuids(ijob), aptroot, do_just_generate_db) ;
+        backend.registerTrainingJob(dmcjob, obj, gpuids(ijob), do_just_generate_db) ;
 %         basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
 %         % For AWS backend, need to modify the base command to run in background
 %         if backend.type == DLBackEnd.AWS ,          
@@ -2596,8 +2607,7 @@ classdef DeepTracker < LabelTracker
       end
 
       % Update code on remote filesystem, if needed
-      localCacheDir = labeler.DLCacheDir;
-      backend.updateRepo(localCacheDir) ;
+      backend.updateRepo() ;
 
       % Upload model to remote filesystem, if needed
       backend.mirrorDMCToBackend(dmc, 'tracking') ;
@@ -2790,7 +2800,7 @@ classdef DeepTracker < LabelTracker
 %       localCacheDir = obj.lObj.DLCacheDir;
 %       dmc = obj.trnLastDMC;
 %       %setStatusFcn = @(str, is_busy)(obj.lObj.setStatus(str, is_busy)) ;
-%       backend.updateRepo(localCacheDir);
+%       backend.updateRepo();
 %       dmc.mirrorToBackend(backend) ;
 % 
 %       % why not; done in track()
@@ -3242,9 +3252,7 @@ classdef DeepTracker < LabelTracker
         return 
       end
 
-      cacheDir = obj.lObj.DLCacheDir;
-      aptroot = backend.updateRepo(cacheDir);
-
+      backend.updateRepo() ;
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
 
 %       syscmds = cell(1,njobs);
@@ -3267,7 +3275,7 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setJobid(id);
         totrackinfojob.setDefaultFiles();
 
-        backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), aptroot, track_type) ;
+        backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), track_type) ;
 %         basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
 %         % For AWS backend, need to modify the base command to run in background
 %         if backend.type == DLBackEnd.AWS ,    
@@ -3353,8 +3361,8 @@ classdef DeepTracker < LabelTracker
       [isgt] = myparse(varargin,'isgt',false);
       %tfSuccess = false;
 
-      cacheDir = obj.lObj.DLCacheDir;
-      aptroot = backend.updateRepo(cacheDir);
+      backend.updateRepo() ;
+
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
 
       totrackinfo.setTrainDMC(obj.trnLastDMC);
@@ -3370,7 +3378,7 @@ classdef DeepTracker < LabelTracker
       gpuid =nan;
 
       backend.clearRegisteredJobs() ;
-      backend.registerTrackingJob(totrackinfo, obj, gpuid, aptroot, 'track') ;      
+      backend.registerTrackingJob(totrackinfo, obj, gpuid, 'track') ;      
 %       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
 %       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
 %       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
@@ -3564,9 +3572,17 @@ classdef DeepTracker < LabelTracker
     end
 
     function didCompleteTracking(obj, res)
-
       try
-        [isAllWell, message] = obj.downloadTrackingFilesIfNecessary_(res) ;
+        % Put things into some local vars
+        backend  = obj.backend ;
+        localCacheRoot = obj.lObj.DLCacheDir ;
+
+        % Ask the backend to do the heavy lifting
+        [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, localCacheRoot) ;
+
+        % For remote file systems, relocate the tracking info, so that paths are right
+        obj.trkSysInfo.changePathsToLocalFromRemote(localCacheRoot, backend) ;
+
         if ~isAllWell ,
           error(message) ;
         end
@@ -3630,9 +3646,8 @@ classdef DeepTracker < LabelTracker
 
       if obj.trkSysInfo.ttis(1).isgtjob
         obj.gtComplete();
-      end
-      
-    end
+      end      
+    end  % function
 
     function jumpToNearestTracking(obj)
       % Jump to the startframe of the first tracklet and select it. This enables the
@@ -3671,38 +3686,6 @@ classdef DeepTracker < LabelTracker
       end
 
       tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
-      %                 f0 = tv.ptrx(1).firstframe;
-      %                 if f0~=obj.lObj.currFrame
-      %                   obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
-      %                 else
-      %                   obj.newLabelerFrame();
-      %                 end
-      %                 tv.trxSelected(1,true); % the first tv.tvtrx trx should map to ptrx(1)
-    end
-
-
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary_(obj, res)
-      % Does what it says on the tin.
-
-      % Get some relevant paths
-      backend  = obj.backend ;
-      %remoteCacheRoot = obj.trnLastDMC.rootDir ;
-      remoteCacheRoot = backend.remoteDMCRootDir ;
-      localCacheRoot = obj.lObj.DLCacheDir ;
-      
-      % Get the paths to the movies
-      % Is this general enough? In my test case, res has a single element, and the
-      % .movfile field is a char array, movfiles is a cell array of char arrays, but
-      % with only one element (i.e. one char array).  -- ALT, 2024-06-05
-      movfiles = obj.trkSysInfo.getMovfiles() ;
-
-      % Ask the backend to do the heavy lifting
-      [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, remoteCacheRoot, localCacheRoot, movfiles) ;
-
-      % For remote file systems, relocate the tracking info, so that paths are right
-      if backend.isFilesystemRemote() ,
-        obj.trkSysInfo.changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
-      end
     end  % function
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const

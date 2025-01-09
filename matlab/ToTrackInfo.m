@@ -30,8 +30,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     calibrationdata = {}; % nmovies x 1
     tblMFT = 'unset'; % table of frames to track
 
-    lObj = [];
-    trainDMC = [];
+    trainDMC = [];  % empty or a DeepModelChainOnDisk.  Needs to be deep-copied when copying obj.
     trackid = ''; % for a particular track time
     jobid = ''; % for a particular job
     isma = false;
@@ -82,8 +81,20 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if obj.tblMFTIsSet,
         obj = obj.consolidateTblMFT();
       end
+    end  % function
+  end  % methods
 
-    end
+  methods (Access=protected)
+    function obj2 = copyElement(obj)
+      % overload so that .trainDMC is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.trainDMC)
+        obj2.trainDMC = copy(obj.trainDMC);
+      end
+    end  % function
+  end  % function
+
+  methods
     function convertTblMFTToContiguous(obj)
 
       if ~obj.tblMFTIsSet(),
@@ -1319,11 +1330,17 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       nframestrack = size(obj.tblMFT,1);
     end
 
-    function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
+    function changePathsToLocalFromRemote(obj, localCacheRoot, backend)
       % Assuming all the paths are paths on a remote-filesystem backend, change them
       % all to their corresponding local paths.
 
+      % If backend has local filesystem, do nothing
+      if backend.isFilesystemLocal() ,
+        return
+      end
+      
       % Generate all the relocated paths
+      remoteCacheRoot = backend.remoteDMCRootDir ;
       newmovfiles = cellfun(@(old_path)(backend.getLocalMoviePathFromRemote(old_path)), ...
                             obj.movfiles, ...
                             'UniformOutput', false) ;
@@ -1347,6 +1364,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       obj.killfile = newkillfile ;
       obj.trackconfigfile = newtrackconfigfile ;
     end  % function
+
+    function changePathsToRemoteFromLocal(obj, localCacheRoot, backend)
+      error('Not implemented yet!') ;
+    end  % function    
   end  % methods
 
   methods (Static)
