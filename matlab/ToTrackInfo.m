@@ -1288,7 +1288,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
     function nframestrack = getNFramesTrack(obj,lObj)
       if obj.islistjob
-        nframestrack = obj.getNFramesTrackList(lObj);
+        nframestrack = obj.getNFramesTrackList();
       else
         nframestrack = obj.getNFramesTrackMovie(lObj);
       end
@@ -1326,7 +1326,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
     end
 
-    function nframestrack = getNFramesTrackList(obj,lObj)  %#ok<INUSD> 
+    function nframestrack = getNFramesTrackList(obj) 
       nframestrack = size(obj.tblMFT,1);
     end
 
