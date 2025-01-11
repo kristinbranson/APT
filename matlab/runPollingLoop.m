@@ -18,11 +18,11 @@ else
   logger = FileLogger(logFilePath, 'runPollingLoop') ;
 end
 
-logger.log('Inside runPollingLoop()\n') ;
+logger.log('Inside runPollingLoop()') ;
 
-logger.log('cObj:\n') ;
+logger.log('cObj:') ;
 logger.log(formattedDisplayText(worker)) ;
-logger.log('\n') ;
+logger.log('') ;
 
 assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
 fromClientDataQueue = parallel.pool.PollableDataQueue;
@@ -62,15 +62,15 @@ while true
   computeTimes(end+1,1) = toc(tic_id) ;  %#ok<AGROW>
   toClientDataQueue.send(struct('id',0,'action','','result',{result}));
 
-  logger.log('Pausing...');
+  logger.log('Pausing...\n');  % want an extra newline here
   pause(pollInterval);
   logger.log('Done pausing...');
   iterations_completed = iterations_completed + 1 ;
-  logger.log('iterations_completed: %d\n', iterations_completed) ;
+  logger.log('iterations_completed: %d', iterations_completed) ;
 end  % while true
 
 status = 1;
-logger.log('About to exit runPollingLoop()\n') ;
+logger.log('About to exit runPollingLoop()') ;
 
 end  % function
     

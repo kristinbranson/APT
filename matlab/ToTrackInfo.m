@@ -386,7 +386,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.frm1(idx) = v;
     end
-     function v = getFrmlist(obj,varargin)
+    function v = getFrmlist(obj,varargin)
       if isempty(varargin) || isempty(obj.frmlist),
         v = obj.frmlist;
         return;
@@ -1331,8 +1331,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function changePathsToLocalFromRemote(obj, localCacheRoot, backend)
-      % Assuming all the paths are paths on a remote-filesystem backend, change them
-      % all to their corresponding local paths.
+      % Converts all paths in obj from paths on the backend's remote filesytem 
+      % to their corresponding local paths.  If backend is a local-filesystem
+      % backend, do nothing.
 
       % If backend has local filesystem, do nothing
       if backend.isFilesystemLocal() ,
@@ -1366,7 +1367,39 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end  % function
 
     function changePathsToRemoteFromLocal(obj, localCacheRoot, backend)
-      error('Not implemented yet!') ;
+      % Converts all paths in obj from paths on the backend's remote filesytem 
+      % to their corresponding local paths.  If backend is a local-filesystem
+      % backend, do nothing.
+
+      % If backend has local filesystem, do nothing
+      if backend.isFilesystemLocal() ,
+        return
+      end
+      
+      % Generate all the relocated paths
+      remoteCacheRoot = backend.remoteDMCRootDir ;
+      newmovfiles = cellfun(@(old_path)(backend.getRemoteMoviePathFromLocal(old_path)), ...
+                            obj.movfiles, ...
+                            'UniformOutput', false) ;
+      newtrkfiles = replace_prefix_path(obj.trkfiles, localCacheRoot, remoteCacheRoot) ;
+      newerrfile = replace_prefix_path(obj.errfile, localCacheRoot, remoteCacheRoot) ;
+      newlogfile = replace_prefix_path(obj.logfile, localCacheRoot, remoteCacheRoot) ;
+      newcmdfile = replace_prefix_path(obj.cmdfile, localCacheRoot, remoteCacheRoot) ;
+      newkillfile = replace_prefix_path(obj.killfile, localCacheRoot, remoteCacheRoot) ;
+      newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, localCacheRoot, remoteCacheRoot) ;
+      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+      % would need to be relocated, but so far hasn't been an issue 
+      % -- ALT, 2024-07-31
+
+      % Actually write all the new paths to the obj only after all the above things
+      % have finished, to make a borked state less likely.
+      obj.movfiles = newmovfiles ;
+      obj.trkfiles = newtrkfiles ;
+      obj.errfile = newerrfile ;
+      obj.logfile = newlogfile ;
+      obj.cmdfile = newcmdfile ;
+      obj.killfile = newkillfile ;
+      obj.trackconfigfile = newtrackconfigfile ;
     end  % function    
   end  % methods
 

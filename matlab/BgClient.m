@@ -93,10 +93,15 @@ classdef BgClient < handle
       
       % worker is saved a la saveobj() and then loaded a la loadobj() into polling loop process
       % We pack a suitcase so we can restore Transient properties on the other side.
-      backendSuitcase = obj.worker.backend.packParfevalSuitcase() ;
+      worker = obj.worker ;
+      backendSuitcase = worker.backend.packParfevalSuitcase() ;
       obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, obj.worker, backendSuitcase, pollInterval, obj.projTempDirMaybe_) ;
-      % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, obj.worker, pollInterval, obj.projTempDirMaybe_) ; 
+        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, worker, backendSuitcase, pollInterval, obj.projTempDirMaybe_) ;
+      % tempfilename = tempname() ;
+      % saveAnonymous(tempfilename, worker) ;  % simulate worker as it will be on the other side of the parfeval boundary
+      % cleaner = onCleanup(@()(delete(tempfilename))) ;
+      % bgworker = loadAnonymous(tempfilename) ;
+      % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, bgworker, backendSuitcase, pollInterval, obj.projTempDirMaybe_) ; 
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
       
       obj.idPool = uint32(1);

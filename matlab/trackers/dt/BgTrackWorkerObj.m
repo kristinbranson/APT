@@ -172,7 +172,7 @@ classdef BgTrackWorkerObj < BgWorkerObj
       
       logger.log('in bg track worker\n');
       errfiles = obj.getErrFile(); % njobs x 1
-      logfiles = obj.getErrFile(); % njobs x 1
+      logfiles = obj.getLogFiles(); % njobs x 1
       killfiles = obj.getKillFiles(); % njobs x 1
       parttrkfiles = obj.getPartTrkFile(); % nmovies x nviews x nstages
       trkfiles = obj.getTrkFile(); % nmovies x nviews x nstages

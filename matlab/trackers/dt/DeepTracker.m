@@ -3342,17 +3342,27 @@ classdef DeepTracker < LabelTracker
       trkVizObj = TrackMonitorViz(totrackinfo.nviews,obj,bgTrkWorkerObj,backend.type,nFramesTrack);
       bgTrkMonitorObj = ...
         BgMonitor(obj, 'track', trkVizObj, bgTrkWorkerObj, 'projTempDir', projTempDir) ;
-      obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      %obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      if ~isempty(obj.bgTrkMonitor)
+        error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
+      end
+      assert(isempty(obj.bgTrkMonBGWorkerObj));
+      obj.bgTrkMonitor = bgTrkMonitorObj;
+      obj.bgTrkMonBGWorkerObj = bgTrkWorkerObj;
+      % bgTrkMonitorObj.start();
 
       % spawn the jobs
       [tfSuccess,jobids] = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
                                                        'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
+      % Actually start the background tracking monitor.  We start this *after*
+      % spawning the jobs so that when we need to debug the background process by
+      % running runPollingLoop() synchronously, the tracking job(s) will already
+      % have started.
+      bgTrkMonitorObj.start();
+
       % If that succeeded, record the job identifiers
       if tfSuccess ,
-        %if backend.type == DLBackEnd.Bsub || backend.type == DLBackEnd.AWS ,
-        %  jobID = cell2mat(jobID);
-        %end
         bgTrkWorkerObj.jobID = jobids;
       end
     end  % function setupBGTrack()
@@ -3533,19 +3543,19 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonBGWorkerObj = [];
     end
     
-    function bgTrkStart(obj,trkMonitorObj,trkWorkerObj)
-      % fresh start new training monitor 
-      % trkMonitorObj: should be 'prepared'
-      
-      if ~isempty(obj.bgTrkMonitor)
-        error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
-      end
-      assert(isempty(obj.bgTrkMonBGWorkerObj));
-      
-      obj.bgTrkMonitor = trkMonitorObj;
-      obj.bgTrkMonBGWorkerObj = trkWorkerObj;
-      trkMonitorObj.start();  % Moved this down from two lines up.  Seems wise and safe, but...  --ALT, 2024-07-31
-    end
+    % function bgTrkStart(obj,bgTrkMonitorObj,bgTrkWorkerObj)
+    %   % fresh start new training monitor 
+    %   % trkMonitorObj: should be 'prepared'
+    % 
+    %   if ~isempty(obj.bgTrkMonitor)
+    %     error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
+    %   end
+    %   assert(isempty(obj.bgTrkMonBGWorkerObj));
+    % 
+    %   obj.bgTrkMonitor = bgTrkMonitorObj;
+    %   obj.bgTrkMonBGWorkerObj = bgTrkWorkerObj;
+    %   bgTrkMonitorObj.start();  % Moved this down from two lines up.  Seems wise and safe, but...  --ALT, 2024-07-31
+    % end
 
     function createTrkfilesFromListout(obj)
       njobs = obj.trkSysInfo.n;
@@ -3578,10 +3588,13 @@ classdef DeepTracker < LabelTracker
         localCacheRoot = obj.lObj.DLCacheDir ;
 
         % Ask the backend to do the heavy lifting
-        [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, localCacheRoot) ;
+        movfiles = obj.trkSysInfo.getMovfiles() ;        
+        [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
 
-        % For remote file systems, relocate the tracking info, so that paths are right
-        obj.trkSysInfo.changePathsToLocalFromRemote(localCacheRoot, backend) ;
+        % Don't need this anymore since the paths in obj.trkSysInfo are kept local in
+        % all cases now.
+        % % For remote file systems, relocate the tracking info, so that paths are right
+        % obj.trkSysInfo.changePathsToLocalFromRemote(localCacheRoot, backend) ;
 
         if ~isAllWell ,
           error(message) ;

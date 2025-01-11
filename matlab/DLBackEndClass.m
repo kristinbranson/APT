@@ -789,24 +789,24 @@ classdef DLBackEndClass < handle
       didsucceed = (status==0) ;
     end
 
-    function [doesexist, msg] = exist(obj, file_name, file_type)
-      % Check whether the named file/dir exists, either locally or remotely,
-      % depending on the backend type.
-      if ~exist('file_type', 'var') ,
-        file_type = '' ;
-      end
-      if strcmpi(file_type, 'dir') ,
-        option = '-d' ;
-      elseif strcmpi(file_type, 'file') ,
-        option = '-f' ;
-      else
-        option = '-e' ;
-      end
-      quoted_file_name = escape_string_for_bash(file_name) ;
-      base_command = sprintf('test %s %s', option, quoted_file_name) ;
-      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
-      doesexist = (status==0) ;
-    end
+    % function [doesexist, msg] = exist(obj, file_name, file_type)
+    %   % Check whether the named file/dir exists, either locally or remotely,
+    %   % depending on the backend type.
+    %   if ~exist('file_type', 'var') ,
+    %     file_type = '' ;
+    %   end
+    %   if strcmpi(file_type, 'dir') ,
+    %     option = '-d' ;
+    %   elseif strcmpi(file_type, 'file') ,
+    %     option = '-f' ;
+    %   else
+    %     option = '-e' ;
+    %   end
+    %   quoted_file_name = escape_string_for_bash(file_name) ;
+    %   base_command = sprintf('test %s %s', option, quoted_file_name) ;
+    %   [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+    %   doesexist = (status==0) ;
+    % end
 
     function [didSucceed, errorMessage] = writeStringToFile(obj, filename, str)
       % Write the given string to a file, overrwriting any previous contents.
@@ -875,6 +875,14 @@ classdef DLBackEndClass < handle
         result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
       else
         result = queryRemotePath ;
+      end
+    end  % function
+
+    function result = getRemoteMoviePathFromLocal(obj, queryLocalPath)
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
+      else
+        result = queryLocalPath ;
       end
     end  % function
   end  % methods
@@ -998,7 +1006,7 @@ classdef DLBackEndClass < handle
 
       % totrackinfo has local paths, need to remotify them
       remotetotrackinfo = totrackinfo.copy() ;
-      remotetotrackinfo.changePathsToRemoteFromLocal(localCacheRoot, backend) ;
+      remotetotrackinfo.changePathsToRemoteFromLocal(backend.localDMCRootDir, backend) ;
 
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
@@ -1006,10 +1014,10 @@ classdef DLBackEndClass < handle
                                            'aptroot',remoteaptroot,...
                                            'track_type',track_type, ...
                                            'torchhome', backend.awsec2.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, totrackinfo, remoteaptroot, 'track') ;
+      args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile) ;
-      logcmd = apt.generateLogCommand(backend, 'track', totrackinfo) ;
+      cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
+      logcmd = apt.generateLogCommand(backend, 'track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
       backend.syscmds_{end+1,1} = syscmd ;
@@ -1233,9 +1241,9 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, remoteCacheRoot, localCacheRoot, movfiles)
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
       if obj.type == DLBackEnd.AWS ,
-        [isAllWell, message] = obj.awsec2.downloadTrackingFilesIfNecessary(res, remoteCacheRoot, localCacheRoot, movfiles) ;
+        [isAllWell, message] = obj.awsec2.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
       elseif obj.type == DLBackEnd.Bsub ,
         % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
         pause(10) ;

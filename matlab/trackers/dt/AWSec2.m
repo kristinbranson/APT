@@ -51,7 +51,7 @@ classdef AWSec2 < handle
       % True iff the "current" version of the DMC is on a remote AWS filesystem.  
       % Underscore means "protected by convention"    
     localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
-    remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
+    %remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
 
     % Used to keep track of whether movies have been uploaded or not.
     % Transient and protected in spirit.
@@ -834,18 +834,17 @@ classdef AWSec2 < handle
       end      
     end
     
-    function cmdfull = wrapCommandSSH(obj, cmdremote, varargin)
-      if obj.isDMCRemote_ ,
-        remote_command_with_file_name_substitutions = strrep(cmdremote, obj.localDMCRootDir_, AWSec2.remoteDLCacheDir) ;
-      else
-        remote_command_with_file_name_substitutions = cmdremote ;
-      end      
-      cmdfull = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
-                               'host', obj.instanceIP, ...
-                               'timeout',8, ...
-                               'username', 'ubuntu', ...
-                               'identity', obj.pem) ;
-    end
+    function result = wrapCommandSSH(obj, input_command, varargin)
+      remote_command_with_file_name_substitutions = ...
+        AWSec2.applyFileNameSubstitutions(input_command, ...
+                                          obj.isDMCRemote_, obj.localDMCRootDir_, ...
+                                          obj.didUploadMovies_, obj.localPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
+      result = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
+                              'host', obj.instanceIP, ...
+                              'timeout',8, ...
+                              'username', 'ubuntu', ...
+                              'identity', obj.pem) ;
+    end  % function
 
     function [st,res] = runBatchCommandOutsideContainer(obj, cmdremote, varargin)      
       % Runs a single command-line command on the ec2 instance.
@@ -1063,6 +1062,11 @@ classdef AWSec2 < handle
       suitcase = struct() ;
       suitcase.instanceIP = obj.instanceIP ;
       suitcase.isInDebugMode_ = obj.isInDebugMode_ ;
+      suitcase.isDMCRemote_ = obj.isDMCRemote_ ;
+      suitcase.localDMCRootDir_ = obj.localDMCRootDir_ ;
+      suitcase.didUploadMovies_ = obj.didUploadMovies_ ;
+      suitcase.localPathFromMovieIndex_ = obj.localPathFromMovieIndex_ ;
+      suitcase.remotePathFromMovieIndex_ = obj.remotePathFromMovieIndex_ ;
     end  % function
     
     function restoreAfterParfeval(obj, suitcase)
@@ -1071,22 +1075,28 @@ classdef AWSec2 < handle
       % boundary.
       obj.instanceIP = suitcase.instanceIP ;
       obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
+      obj.isDMCRemote_ = suitcase.isDMCRemote_ ;
+      obj.localDMCRootDir_ = suitcase.localDMCRootDir_ ;
+      obj.didUploadMovies_ = suitcase.didUploadMovies_ ;
+      obj.localPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
+      obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
     end  % function
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot)
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
       remoteCacheRoot = AWSec2.remoteDLCacheDir ;
-      movfiles = obj.localPathFromMovieIndex_ ;
-      localTrackFilePaths = {res.trkfile} ;
-      remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;      
-      if all(strcmp(movfiles(:),{res.movfile}'))
+      currentLocalPathFromTrackedMovieIndex = movfiles(:) ;  % column cellstr
+      originalLocalPathFromTrackedMovieIndex = {res.movfile}' ;  % column cellstr
+      if all(strcmp(currentLocalPathFromTrackedMovieIndex,originalLocalPathFromTrackedMovieIndex))
         % we perform this check b/c while tracking has been running in
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.        
         % download trkfiles 
+        localTrackFilePaths = {res.trkfile} ;
+        remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;
         sysCmdArgs = {'failbehavior', 'err'};
         for ivw=1:numel(res)
           trkRmt = remoteTrackFilePaths{ivw};
-          trkLcl = res(ivw).trkfile;
+          trkLcl = localTrackFilePaths{ivw};
           fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
           obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
           fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
@@ -1376,6 +1386,22 @@ classdef AWSec2 < handle
       error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
     end  % function
     
+    function result = getRemoteMoviePathFromLocal(obj, queryLocalPath)
+      if ~obj.didUploadMovies_ ,
+        error('Can''t get a remote movie path from a local path if movies have not been uploaded.') ;
+      end
+      movieCount = numel(obj.localPathFromMovieIndex_) ;
+      for movieIndex = 1 : movieCount ,
+        localPath = obj.localPathFromMovieIndex_{movieIndex} ;
+        if strcmp(localPath, queryLocalPath) ,
+          result = obj.remotePathFromMovieIndex_{movieIndex} ;
+          return
+        end
+      end
+      % If we get here, queryLocalPath did not match any path in obj.localPathFromMovieIndex_
+      error('Query path %s does not match any local movie path known to the backend.', queryRemotePath) ;
+    end  % function
+    
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -1404,6 +1430,21 @@ classdef AWSec2 < handle
       % For non-AWS backends, this is the identity function.
       result = cellfun(@(path)(AWSec2.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
     end
-  end  % methods (Static)
 
-end
+    function result = applyFileNameSubstitutions(command, ...
+                                                 isDMCRemote, localDMCRootDir, ...
+                                                 didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
+      if isDMCRemote ,
+        result_1 = strrep(command, localDMCRootDir, AWSec2.remoteDLCacheDir) ;
+      else
+        result_1 = command ;
+      end      
+      if didUploadMovies ,
+        result_2 = strrep_multiple(result_1, localPathFromMovieIndex, remotePathFromMovieIndex) ;
+      else
+        result_2 = result_1 ;
+      end
+      result = result_2 ;
+    end  % function
+  end  % methods (Static)
+end  % classdef
