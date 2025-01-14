@@ -21,13 +21,15 @@ classdef AWSec2 < handle
                                     % ami-09b1db2d5c1d91c38, aka "Deep Learning Base Proprietary Nvidia Driver GPU
                                     % AMI (Ubuntu 20.04) 20240101"    
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
-    remoteDLCacheDir = '/home/ubuntu/cacheDL'
-    remoteMovieCacheDir = '/home/ubuntu/movies'
+    remoteHomeDir = '/home/ubuntu'
+    remoteDLCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'cacheDL')
+    remoteMovieCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'movies')
+    remoteAPTSourceRootDir = linux_fullfile(AWSec2.remoteHomeDir, 'APT')
     scpCmd = AWSec2.computeScpCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
-  properties (SetAccess=private)
+  properties
     instanceID = ''  % Durable identifier for the AWS EC2 instance.  E.g.'i-07a3a8281784d4a38'.
   end
 
@@ -249,8 +251,7 @@ classdef AWSec2 < handle
       end
       json = jsondecode(json);
       obj.stopAlarm();
-    end  % function
-    
+    end  % function    
 
     function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)    
       instanceIDs = {};
@@ -268,7 +269,6 @@ classdef AWSec2 < handle
     end
 
     function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
-
       %obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
       [doblock] = myparse(varargin,'doblock',true);
       
@@ -321,10 +321,9 @@ classdef AWSec2 < handle
       obj.configureAlarm();
       %obj.ClearStatus();
       obj.wasInstanceStarted_ = true ;
-    end
+    end  % function
     
     function tfsucc = waitForInstanceStart(obj)
-      
       maxwaittime = 100;
       iterwaittime = 5;
       
@@ -370,8 +369,7 @@ classdef AWSec2 < handle
         end
         pause(iterwaittime);
       end
-      
-    end
+    end  % function
     
     function checkInstanceRunning(obj,varargin)
       % - If runs silently, obj appears to be a running EC2 instance with 
@@ -398,8 +396,7 @@ classdef AWSec2 < handle
         throwFcn('EC2 instance id %s is not in the ''running'' state.',...
           obj.instanceID)
       end
-
-    end
+    end  % function
     
     function codestr = createShutdownAlarmCmd(obj,varargin)
       [periodsec,threshpct,evalperiods] = myparse(varargin,...
@@ -461,7 +458,6 @@ classdef AWSec2 < handle
     end
     
     function [tfsucc,isalarm,reason] = checkShutdownAlarm(obj)
-
       tfsucc = false;
       isalarm = false;
       reason = '';
@@ -493,14 +489,9 @@ classdef AWSec2 < handle
           end
       end
       tfsucc = true;
-      
     end
-
-    
-
     
     function tfsucc = stopAlarm(obj)
-
       [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
       if ~tfsucc,
         warning('Could not check for alarm: %s\n',reason);
@@ -509,9 +500,6 @@ classdef AWSec2 < handle
       if ~isalarm,
         return;
       end
-      
-      % TODO
-      
     end
     
     function tfsucc = configureAlarm(obj)
@@ -533,7 +521,7 @@ classdef AWSec2 < handle
         return
       end
       
-      codestr = obj.createShutdownAlarmCmd ;
+      codestr = obj.createShutdownAlarmCmd() ;
       
       fprintf('Setting up AWS CloudWatch alarm to auto-shutdown your instance if it is idle for too long.\n');
       
@@ -712,50 +700,53 @@ classdef AWSec2 < handle
       %obj.ClearStatus();
     end    
     
-    function tf = fileExists(obj,f,varargin)
-      script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
-      cmdremote = sprintf('%s %s',script,f);
+    function tf = fileExists(obj,f)
+      %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      %cmdremote = sprintf('%s %s',script,f);
+      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',f);
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
-      tf = (res(1)=='y');      
+      tf = strcmp(strtrim(res),'0') ;      
     end
     
     function tf = fileExistsAndIsNonempty(obj,f)
-      script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
-      cmdremote = sprintf('%s %s',script,f);
-      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+      %script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
+      %cmdremote = sprintf('%s %s',script,f);
+      cmdremote = sprintf('/usr/bin/test -s %s ; echo $?',f);
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
-      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
-      tf = (res(1)=='y');      
+      tf = strcmp(strtrim(res),'0') ;      
     end
     
-    function tf = fileExistsAndIsGivenSize(obj,f,size)
-      script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
-      cmdremote = sprintf('%s %s %d',script,f,size);
-      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+    function tf = fileExistsAndIsGivenSize(obj,f,query_byte_count)
+      %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      %cmdremote = sprintf('%s %s %d',script,f,size);
+      cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
-      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
-      tf = (res(1)=='y');      
+      actual_byte_count = str2double(res) ;
+      tf = (actual_byte_count == query_byte_count) ;      
     end
     
     function s = fileContents(obj,f,varargin)
       % First check if the file exists
-      cmdremote = sprintf('[[ -e %s ]]',f);
+      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',f);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
-      if st~=0 ,
-        if isempty(strtrim(res)) ,
-          s = '<file does not exist>' ;
+      if st==0 ,
+        % Command succeeded in determining whether the file exists
+        if strcmp(strtrim(res),'0') ,
+          % File exists
+          cmdremote = sprintf('cat %s',f);
+          [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
+          if st==0
+            s = res ;
+          else
+            s = sprintf('<Unable to read file: %s>', res) ;
+          end
         else
-          s = sprintf('<Unable to determine if file exists: %s>', res) ;
+          % File doesn't exist
+          s = '<file does not exist>' ;          
         end
       else
-        % File exists, at least
-        cmdremote = sprintf('cat %s',f);
-        [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
-        if st==0
-          s = res;
-        else
-          s = sprintf('<Unable to read file: %s>', res) ;
-        end
+        % Command failed while trying to determine if the file exists
+        s = sprintf('<Unable to determine if file exists: %s>', res) ;
       end
     end  % function
     
@@ -772,12 +763,10 @@ classdef AWSec2 < handle
       end
     end
     
-    function tfsucc = remoteLS(obj,remoteDir,varargin)
+    function tfsucc = lsdir(obj,remoteDir,varargin)
       [failbehavior,args] = myparse(varargin,...
-        'failbehavior','warn',...
-        'args','-lha'...
-        );
-      
+                                    'failbehavior','warn',...
+                                    'args','-lha') ;      
       cmdremote = sprintf('ls %s %s',args,remoteDir);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior',failbehavior);
       tfsucc = (st==0) ;
@@ -820,7 +809,7 @@ classdef AWSec2 < handle
 
       % globs: cellstr of globs
       
-      lscmd = cellfun(@(x)sprintf('ls %s 2> /dev/null;',x),globs,'uni',0);
+      lscmd = cellfun(@(glob)sprintf('ls %s 2> /dev/null ; ',glob), globs, 'uni', 0) ;
       lscmd = cat(2,lscmd{:});
       [st,res] = obj.runBatchCommandOutsideContainer(lscmd);
       tfsucc = (st==0) ;      
@@ -1046,7 +1035,7 @@ classdef AWSec2 < handle
       end
     end
     
-    function [st,res,warningstr] = syscmd(cmd0,varargin)      
+    function [st,res,warningstr] = syscmd(cmd0, varargin)      
       cmd = sprintf('sleep 5 && export AWS_PAGER= && %s', cmd0) ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
@@ -1231,6 +1220,7 @@ classdef AWSec2 < handle
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
       %obj.remoteDMCRootDir_ = AWSec2.remoteDLCacheDir ;
+      obj.localDMCRootDir_ = dmc.rootDir ;
       obj.isDMCRemote_ = true ;
     end  % function
     
@@ -1402,6 +1392,92 @@ classdef AWSec2 < handle
       error('Query path %s does not match any local movie path known to the backend.', queryRemotePath) ;
     end  % function
     
+    function [isReady, reasonNotReady] = getReadyTrainTrack(obj)
+      % Make sure the instance ID is set
+      if ~obj.isInstanceIDSet
+        isReady = false ;
+        reasonNotReady = 'AWS instance ID is not set.' ;
+        return
+      end
+
+      % Make sure the credentials are set
+      if ~obj.areCredentialsSet ,
+        isReady = false ;
+        reasonNotReady = 'AWS credentials are not set.' ;
+        return          
+      end
+      
+      % Make sure the instance exists
+      [doesInstanceExist,isInstanceRunning] = obj.inspectInstance() ;
+      if ~doesInstanceExist,
+        isReady = false;
+        reasonNotReady = sprintf('Instance %s could not be found.', obj.instanceID) ;
+        %obj.awsec2.clearInstanceID();  % Don't think we want to do this just yet
+        return
+      end
+      
+      % Make sure the instance is running.  If not, start it.
+      if ~isInstanceRunning ,
+        % Instance is not running, so try to start it
+        didStartInstance = obj.startInstance();
+        if ~didStartInstance
+          isReady = false ;
+          reasonNotReady = sprintf('Could not start AWS EC2 instance %s.',obj.instanceID) ;
+          return
+        end
+      end
+      
+      % Just because you told EC2 to start the instance, and that worked, doesn't
+      % mean the instance is truly ready.  Wait for it to be truly ready.
+      isReady = obj.waitForInstanceStart();
+      if ~isReady ,
+        reasonNotReady = 'Timed out waiting for AWS EC2 instance to be spooled up.';
+        return
+      end
+      
+      % If get here, all is well, EC2 instance is spun up and ready to go
+      reasonNotReady = '';
+    end  % function    
+
+    function updateRepo(obj)
+      % Update the APT source code on the backend.  While we're at it, make sure the
+      % pretrained weights are downloaded.
+      obj.checkInstanceRunning();  % errs if instance isn't running
+
+      % Does the APT source root dir exist?
+      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
+      
+      % Create folder if needed
+      [didsucceed, msg] = obj.mkdir(remote_apt_root) ;
+      if ~didsucceed ,
+        error('Unable to create APT source folder in AWS instance.\nStdout/stderr:\n%s\n', msg) ;
+      end
+      fprintf('APT source folder %s exists on AWS instance.\n', remote_apt_root);
+
+      % Rsync the local APT code to the remote end
+      local_apt_root = APT.Root ;
+      tfsucc = obj.rsyncUpload(local_apt_root, remote_apt_root) ;
+      if tfsucc ,
+        fprintf('Successfully rsynced remote APT source code (in %s) with local version (in %s).\n', remote_apt_root, local_apt_root) ;
+      else
+        error('Unable to rsync remote APT source code (in %s) with local version (in %s)', remote_apt_root, local_apt_root) ;
+      end
+
+      % Run the remote Python script to download the pretrained model weights
+      % This python script doesn't do anything fancy, apparently, so we use the
+      % python interpreter provided by the plain EC2 instance, not the one inside
+      % the Docker container on the instance.
+      download_script_path = linux_fullfile(remote_apt_root, 'deepnet', 'download_pretrained.py') ;
+      quoted_download_script_path = escape_string_for_bash(download_script_path) ;      
+      [st_3,res_3] = obj.runBatchCommandOutsideContainer(quoted_download_script_path) ;
+      if st_3 ~= 0 ,
+        error('Failed to download pretrained model weights:\n%s', res_3);
+      end
+      
+      % If get here, all is well
+      fprintf('Updated remote APT source code.\n\n');
+    end  % function    
+    
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -1434,17 +1510,29 @@ classdef AWSec2 < handle
     function result = applyFileNameSubstitutions(command, ...
                                                  isDMCRemote, localDMCRootDir, ...
                                                  didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
+      % Replate the local DMCoD root with the remote one
       if isDMCRemote ,
         result_1 = strrep(command, localDMCRootDir, AWSec2.remoteDLCacheDir) ;
       else
         result_1 = command ;
       end      
+      % Replace local movie paths with the corresponding remote ones
       if didUploadMovies ,
         result_2 = strrep_multiple(result_1, localPathFromMovieIndex, remotePathFromMovieIndex) ;
       else
         result_2 = result_1 ;
       end
-      result = result_2 ;
+      % Replace the local APT source root with the remote one
+      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
+      local_apt_root = APT.Root ;
+      result_3 = strrep(result_2, local_apt_root, remote_apt_root) ;
+      % Replace the local home dir with the remote one
+      % Do this last b/c e.g. the local APT source root is likely in the local home
+      % dir.
+      local_home_path = get_home_dir_name() ;
+      remote_home_path = AWSec2.remoteHomeDir ;
+      result_4 = strrep(result_3, local_home_path, remote_home_path) ;      
+      result = result_4 ;
     end  % function
   end  % methods (Static)
 end  % classdef

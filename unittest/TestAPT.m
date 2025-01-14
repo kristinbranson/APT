@@ -378,14 +378,10 @@ classdef TestAPT < handle
     
     function test_setup(obj,varargin)
       %obj.setup_path_();
-      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots,jrcAdditionalBsubArgs] = ...
+      [target_trk,simpleprojload] = ...
         myparse(varargin,...
                 'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
-                'simpleprojload',false, ... % if true, just load the proj; use when proj on local filesys with all deps
-                'jrcgpuqueue','',... % override gpu queue
-                'jrcnslots',[],... % override nslots
-                'jrcAdditionalBsubArgs',''...
-                );
+                'simpleprojload',false) ;  % if true, just load the proj; use when proj on local filesys with all deps
       
       if simpleprojload
         [labeler, controller] = StartAPT();
@@ -417,23 +413,6 @@ classdef TestAPT < handle
       % Set the skeleton edges to match obj.info.op_graph
       if ~isempty(obj.info.op_graph) ,
         obj.labeler.setSkeletonEdges(obj.info.op_graph);
-      end
-
-      % Set three LSF-specific parameters
-      if ~isempty(jrcgpuqueue),
-        if ~isempty(labeler.trackDLBackEnd) ,
-          labeler.set_backend_property('jrcgpuqueue', jrcgpuqueue) ;
-        end
-      end
-      if ~isempty(jrcnslots),
-        if ~isempty(labeler.trackDLBackEnd) ,
-          labeler.set_backend_property('jrcnslots', jrcnslots)
-        end
-      end
-      if ~isempty(jrcAdditionalBsubArgs),
-        if ~isempty(labeler.trackDLBackEnd) ,
-          labeler.set_backend_property('jrcAdditionalBsubArgs', jrcAdditionalBsubArgs)
-        end
       end
     end  % function
     
@@ -599,12 +578,19 @@ classdef TestAPT < handle
       labeller.trackSetParams(sPrm2);
     end  % function
         
-    function set_backend_(obj, backend_type_as_string, backend_params)
-      % backend_params: structure containing name-value pairs to be set on the backend      
+    function set_backend_(obj, backend_type_as_string, raw_backend_params)
+      % backend_params: structure (or cell array) containing name-value pairs to be set on the backend
+      if iscell(raw_backend_params) ,
+        backend_params = struct_from_key_value_list(raw_backend_params) ;
+      elseif isstruct(raw_backend_params)
+        backend_params = raw_backend_params ;
+      else
+        error('raw_backend_params must be a cell array or a struct') ;
+      end
       labeller = obj.labeler;
       % Set the Backend
       backend_type = DLBackEndFromString(backend_type_as_string) ;
-      labeller.trackSetDLBackendType(backend_type);
+      labeller.set_backend_property('type', backend_type);
       name_from_field_index = fieldnames(backend_params) ;
       for field_index = 1 : numel(name_from_field_index) ,
         name = name_from_field_index{field_index} ;

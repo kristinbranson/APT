@@ -359,7 +359,7 @@ classdef LabelerController < handle
         do_use_previous = [] ;  % value will be ignored
       end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
-      % Finally, call the model method to se the tracker
+      % Finally, call the model method to set the tracker
       obj.labeler_.trackSetCurrentTracker(tracker_index, do_use_previous);      
     end
 
@@ -577,7 +577,9 @@ classdef LabelerController < handle
             promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
-            labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
+            %labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
+            labeler.set_backend_property('awsPEM', pemFile) ;
+            labeler.set_backend_property('awsKeyName', keyName) ;            
           end
           if ~tfsucc && ~awsec2.areCredentialsSet,
             reason = 'AWS EC2 instance is not configured.';
@@ -665,7 +667,9 @@ classdef LabelerController < handle
           end
         end
         % For changing things in the model, we go through the top-level model object
-        labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
+        %labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
+        labeler.set_backend_property('awsInstanceID', instanceID) ;
+        labeler.set_backend_property('awsInstanceType', instanceType) ;
       end
     end  % function selectAwsInstance_()
 

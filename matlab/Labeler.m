@@ -11011,19 +11011,19 @@ classdef Labeler < handle
       be = obj.trackDLBackEnd;
     end
     
-    function trackSetDLBackendType(obj, type_or_string)
-      if ischar(type_or_string) ,
-        type = DLBackEndFromString(type_or_string) ;
-      else
-        type = type_or_string ;
-      end
-      assert(isa(type,'DLBackEnd'));      
-      obj.trackDLBackEnd.type = type ;
-      [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
-      if ~tf
-        warningNoTrace('Backend is not ready to train: %s',reason);
-      end      
-    end  % function
+    % function trackSetDLBackendType(obj, type_or_string)
+    %   if ischar(type_or_string) ,
+    %     type = DLBackEndFromString(type_or_string) ;
+    %   else
+    %     type = type_or_string ;
+    %   end
+    %   assert(isa(type,'DLBackEnd'));      
+    %   obj.trackDLBackEnd.type = type ;
+    %   [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
+    %   if ~tf
+    %     warningNoTrace('Backend is not ready to train: %s',reason);
+    %   end      
+    % end  % function
     
     function trainIncremental(obj)
       tObj = obj.tracker;
@@ -15381,6 +15381,9 @@ classdef Labeler < handle
     function set_backend_property(obj, property_name, new_value)
       backend = obj.trackDLBackEnd ;
       backend.(property_name) = new_value ;  % this can throw if value is invalid
+      if strcmp(property_name, 'type') ,
+        obj.notify('didSetTrackDLBackEnd') ;
+      end
       obj.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
     end
 
@@ -15565,34 +15568,28 @@ classdef Labeler < handle
       result.nmoviesGT = obj.nmoviesGT ;
       result.hasMovie = obj.hasMovie ;
     end  % function
-
-    function setBackendType(obj, type)
-      assert(isa(type,'DLBackEnd'));
-      obj.trackDLBackEnd.type = type ;
-%       if type ~= DLBackEnd.AWS ,
-%         [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
-%         if ~tf
-%           warningNoTrace('Backend is not ready to train: %s',reason);
-%         end
-%       end
-      obj.notify('didSetTrackDLBackEnd') ;
-    end
-
-    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
-      backend = obj.trackDLBackEnd ;
-      if isempty(backend) ,
-        error('Backend not configured') ;
-      end      
-      backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
-    end
+ 
+    % function setBackendType(obj, value)
+    %   % Set the backend type.  Accepts a DLBackEnd or a string (old- or new-style).
+    %   obj.trackDLBackEnd.type = value ;
+    %   obj.notify('didSetTrackDLBackEnd') ;
+    % end
     
-    function setAWSInstanceIDAndType(obj, instanceID, instanceType)
-      backend = obj.trackDLBackEnd ;
-      if isempty(backend) ,
-        error('Backend not configured') ;
-      end      
-      backend.setAWSInstanceIDAndType(instanceID, instanceType) ;
-    end
+    % function setAwsPemFileAndKeyName(obj, pemFile, keyName)
+    %   backend = obj.trackDLBackEnd ;
+    %   if isempty(backend) ,
+    %     error('Backend not configured') ;
+    %   end      
+    %   backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
+    % end
+    
+    % function setAWSInstanceIDAndType(obj, instanceID, instanceType)
+    %   backend = obj.trackDLBackEnd ;
+    %   if isempty(backend) ,
+    %     error('Backend not configured') ;
+    %   end      
+    %   backend.setAWSInstanceIDAndType(instanceID, instanceType) ;
+    % end
 
     function retrainAugOnly(obj)
       % No idea what this does, but I know LabelerGUI methods shouldn't be calling

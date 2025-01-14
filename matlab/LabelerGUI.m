@@ -2515,7 +2515,7 @@ function cbkTrackerBackendMenu(src,evt)
 handles = guidata(src);
 lObj = handles.labelerObj;
 beType = src.UserData;
-lObj.setBackendType(beType) ;
+lObj.set_backend_property('type', beType) ;
 
 function cbkTrackerBackendMenuMoreInfo(src,evt)
 

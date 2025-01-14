@@ -539,43 +539,35 @@ classdef TrackMonitorViz < handle
       %handles.text_clusterinfo.ForegroundColor = 'w';
     end    
     
-    function ss = getLogFilesContents(obj)
-      
-      ss = obj.trackWorkerObj.getLogfilesContent;
-      
+    function ss = getLogFilesContents(obj)      
+      ss = obj.trackWorkerObj.getLogfilesContent() ;      
     end
     
     function ss = getErrorFileContents(obj)
       
-      ss = obj.trackWorkerObj.getErrorfileContent;
+      ss = obj.trackWorkerObj.getErrorfileContent() ;
       
     end
     
-    function updateMonitorPlots(obj)
-      
+    function updateMonitorPlots(obj)      
       sRes.result = obj.trackWorkerObj.work();
-      obj.resultsReceived(sRes,true);
-      
+      obj.resultsReceived(sRes,true);      
     end
     
-    function ss = queryAllJobsStatus(obj)
-      
+    function ss = queryAllJobsStatus(obj)      
       ss = obj.trackWorkerObj.queryAllJobsStatus();
       if ischar(ss),
         ss = strsplit(ss,'\n');
-      end
-      
+      end      
     end
     
-    function ss = queryTrackJobsStatus(obj)
-      
+    function ss = queryTrackJobsStatus(obj)      
       ss = {};
       raw = obj.trackWorkerObj.queryMyJobsStatus();
       for i = 1:numel(raw),
         snew = strsplit(raw{i},'\n');
         ss(end+1:end+numel(snew)) = snew;
       end
-
     end
     
   end  % methods

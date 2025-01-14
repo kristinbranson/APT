@@ -100,6 +100,10 @@ classdef DLBackEndClass < handle
     isDMCLocal
     localDMCRootDir
     remoteDMCRootDir
+    awsInstanceID
+    awsKeyName
+    awsPEM
+    awsInstanceType
   end
   
   methods
@@ -118,8 +122,14 @@ classdef DLBackEndClass < handle
   end
   
   methods % Prop access
-    function set.type(obj, value)
-      assert(isa(value, 'DLBackEnd')) ;
+    function set.type(obj, raw_value)
+      if ischar(raw_value) || isstring(raw_value) ,
+        value = DLBackEndFromString(raw_value) ;
+      elseif isa(raw_value, 'DLBackEnd') ,
+        value = raw_value ;
+      else
+        error('Argument to DLBackEndClass::set.type() must be a row char array, a scalar string array, or a DLBackEnd') ;
+      end      
       obj.type = value ;      
     end
 
@@ -367,73 +377,20 @@ classdef DLBackEndClass < handle
       end      
     end  % function
     
-    function [tf,reason] = getReadyTrainTrack(obj)
-      tf = false;
+    function [isReady, reasonNotReady] = getReadyTrainTrack(obj)
       if obj.type==DLBackEnd.AWS
-        didLaunch = false;
-        if ~obj.awsec2.isInstanceIDSet || ~obj.awsec2.areCredentialsSet ,
-          [tfsucc,instanceID,~,reason,didLaunch] = ...
-            obj.awsec2.selectInstance('canconfigure',1,'canlaunch',1,'forceselect',0);
-          if ~tfsucc || isempty(instanceID),
-            reason = sprintf('Problem configuring: %s',reason);
-            return;
-          end
-        end
-        
-        [tfexist,tfrunning] = obj.awsec2.inspectInstance() ;
-        if ~tfexist,
-          warning_message = ...
-            sprintf('AWS EC2 instance %s could not be found or is terminated. Please configure AWS back end with a different AWS EC2 instance.',...
-                    obj.awsec2.instanceID);
-          uiwait(warndlg(warning_message,'AWS EC2 instance not found'));
-          reason = 'Instance could not be found.';
-          obj.awsec2.clearInstanceID();
-          return
-        end
-        
-        tf = tfrunning;
-        if ~tf
-          if didLaunch,
-            btn = 'Yes';
-          else
-            qstr = sprintf('AWS EC2 instance %s is not running. Start it?',obj.awsec2.instanceID);
-            tstr = 'Start AWS EC2 instance';
-            btn = questdlg(qstr,tstr,'Yes','Cancel','Cancel');
-            if isempty(btn)
-              btn = 'Cancel';
-            end
-          end
-          switch btn
-            case 'Yes'
-              tf = obj.awsec2.startInstance();
-              if ~tf
-                reason = sprintf('Could not start AWS EC2 instance %s.',obj.awsec2.instanceID);
-                return;
-              end
-            otherwise
-              reason = sprintf('AWS EC2 instance %s is not running.',obj.awsec2.instanceID);
-              return;
-          end
-        end
-        
-        [tfsucc] = obj.awsec2.waitForInstanceStart();
-        if ~tfsucc,
-          reason = 'Timed out waiting for AWS EC2 instance to be spooled up.';
-          return;
-        end
-        
-        reason = '';
+        [isReady, reasonNotReady] = obj.awsec2.getReadyTrainTrack() ;
       elseif obj.type==DLBackEnd.Conda ,
         if ispc() ,
-          tf = false ;
-          reason = 'Conda backend is not supported on Windows.' ;
+          isReady = false ;
+          reasonNotReady = 'Conda backend is not supported on Windows.' ;
         else
-          tf = true ;
-          reason = '' ;
+          isReady = true ;
+          reasonNotReady = '' ;
         end
       else
-        tf = true;
-        reason = '';
+        isReady = true;
+        reasonNotReady = '';
       end
     end  % method
     
@@ -585,12 +542,12 @@ classdef DLBackEndClass < handle
       obj.gpuids = gpuid;
     end
     
-    function r = getAPTRoot(obj)
+    function r = aptSourceDirRoot(obj)
       switch obj.type
         case DLBackEnd.Bsub
           r = obj.bsubaptroot;
         case DLBackEnd.AWS
-          r = '/home/ubuntu/APT';
+          r = AWSec2.remoteAPTSourceRootDir ;
         case DLBackEnd.Docker
           r = APT.Root;          
         case DLBackEnd.Conda
@@ -599,7 +556,7 @@ classdef DLBackEndClass < handle
     end
 
     % function r = getAPTDeepnetRoot(obj)
-    %   r = [obj.getAPTRoot '/deepnet'];
+    %   r = [obj.aptSourceDirRoot '/deepnet'];
     % end
         
     function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)
@@ -704,66 +661,6 @@ classdef DLBackEndClass < handle
     %   end      
     % end
     
-    function awsUpdateRepo_(obj)  % throws if fails      
-      % What branch do we want?
-      branch = 'dockerized-aws' ;  % TODO: For debugging only, set back to develop or main eventually
-
-      % Clone the git repo if needed
-      obj.cloneAWSRemoteAPTRepoIfNeeeded_(branch) ;
-
-      % Determine the remote APT source root, and quote it for bash
-      remote_aptroot = obj.getAPTRoot() ;
-      quoted_remote_aptroot = escape_string_for_bash(remote_aptroot) ;
-
-      % Checkout the correct branch
-      command_line_1 = sprintf('git -C %s checkout %s', quoted_remote_aptroot, branch) ;
-      [st_1,res_1] = obj.runBatchCommandOutsideContainer(command_line_1) ;
-      if st_1 ~= 0 ,
-        error('Failed to update remote APT repo:\n%s', res_1);
-      end
-
-      % Do a git pull
-      command_line_2 = sprintf('git -C %s pull', quoted_remote_aptroot) ;
-      [st_2,res_2] = obj.runBatchCommandOutsideContainer(command_line_2) ;
-      if st_2 ~= 0 ,
-        error('Failed to update remote APT repo:\n%s', res_2);
-      end
-      
-      % Run the remote Python script to download the pretrained model weights
-      % This python script doesn't do anything fancy, apparently, so we use the
-      % python interpreter provided by the plain EC2 instance, not the one inside
-      % the Docker container on the instance.
-      download_script_path = linux_fullfile(remote_aptroot, 'deepnet', 'download_pretrained.py') ;
-      quoted_download_script_path = escape_string_for_bash(download_script_path) ;      
-      [st_3,res_3] = obj.runBatchCommandOutsideContainer(quoted_download_script_path) ;
-      if st_3 ~= 0 ,
-        error('Failed to update remote APT repo:\n%s', res_3);
-      end
-      
-      % If get here, all is well
-      fprintf('Updated remote APT repo.\n\n');
-    end  % function
-    
-    function cloneAWSRemoteAPTRepoIfNeeeded_(obj, branch_name)
-      % Clone the APT source repo on the remote AWS instance, if needed.
-      
-      % Does the APT root dir exist?
-      remote_apt_root = obj.getAPTRoot() ;
-      does_remote_apt_dir_exist = obj.fileExists(remote_apt_root) ;
-      
-      % clone it if needed
-      if does_remote_apt_dir_exist ,
-        fprintf('Found JRC/APT repo at %s.\n', remote_apt_root);
-      else
-        apt_github_url = 'https://github.com/kristinbranson/APT' ;
-        command_line = sprintf('git clone -b %s %s %s', branch_name, apt_github_url, remote_apt_root);
-        [return_code, stdouterr] = obj.runBatchCommandOutsideContainer(command_line) ;
-        if return_code ~= 0 ,
-          error('Unable to clone APT git repo in AWS instance.\nReturn code: %d\nStdout/stderr:\n%s\n', return_code, stdouterr) ;
-        end
-        fprintf('Cloned APT repo into %s on AWS instance.\n', remote_apt_root);
-      end  % if
-    end  % function    
   end  % public methods block
 
   methods
@@ -863,8 +760,7 @@ classdef DLBackEndClass < handle
           aptroot = APT.Root;
           apt.downloadPretrainedWeights('aptroot', aptroot) ;
         case DLBackEnd.AWS ,
-          obj.awsec2.checkInstanceRunning();  % errs if instance isn't running
-          obj.awsUpdateRepo_();  % this is the remote APT root
+          obj.awsec2.updateRepo() ;
         otherwise
           error('Unknown backend type') ;
       end
@@ -977,14 +873,14 @@ classdef DLBackEndClass < handle
       % spawnRegisteredJobs().
 
       % Get the root of the remote source tree
-      remoteaptroot = backend.getAPTRoot() ;
+      remoteaptroot = backend.aptSourceDirRoot() ;
       
       ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trainCodeGenBase(dmcjob,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
                                            'do_just_generate_db',do_just_generate_db, ...
-                                           'torchhome', backend.awsec2.getTorchHome());
+                                           'torchhome', backend.getTorchHome());
       args = determineArgumentsForSpawningJob(backend,deeptracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -1002,7 +898,7 @@ classdef DLBackEndClass < handle
       % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
-      remoteaptroot = backend.getAPTRoot() ;
+      remoteaptroot = backend.aptSourceDirRoot() ;
 
       % totrackinfo has local paths, need to remotify them
       remotetotrackinfo = totrackinfo.copy() ;
@@ -1013,7 +909,7 @@ classdef DLBackEndClass < handle
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
                                            'track_type',track_type, ...
-                                           'torchhome', backend.awsec2.getTorchHome());
+                                           'torchhome', backend.getTorchHome());
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
@@ -1111,6 +1007,11 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
+    function result = isAliveFromRegisteredJobIndex(obj)
+      jobids = obj.jobids_ ;
+      result = cellfun(@(jobid)(obj.isJobAlive(jobid)), jobids) ;  % boolean array
+    end  % function
+    
     function tf = isJobAlive(obj, jobid)
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.
@@ -1265,16 +1166,16 @@ classdef DLBackEndClass < handle
       end
     end  % function    
 
-    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
-      ec2 = obj.awsec2 ;
-      ec2.pem = pemFile ;
-      ec2.keyName = keyName ;
-    end
+    % function setAwsPemFileAndKeyName(obj, pemFile, keyName)
+    %   ec2 = obj.awsec2 ;
+    %   ec2.pem = pemFile ;
+    %   ec2.keyName = keyName ;
+    % end
     
-    function setAWSInstanceIDAndType(obj, instanceID, instanceType)
-      ec2 = obj.awsec2 ;
-      ec2.setInstanceIDAndType(instanceID, instanceType) ;
-    end
+    % function setAWSInstanceIDAndType(obj, instanceID, instanceType)
+    %   ec2 = obj.awsec2 ;
+    %   ec2.setInstanceIDAndType(instanceID, instanceType) ;
+    % end
     
     function [tfsucc,res] = batchPoll(obj, fspollargs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
@@ -1282,7 +1183,7 @@ classdef DLBackEndClass < handle
       % res: [n] cellstr of fspoll responses
 
       if obj.type == DLBackEnd.AWS ,
-        [tfsucc,res] = obj.awsec2.batchPoll(obj, fspollargs) ;
+        [tfsucc,res] = obj.awsec2.batchPoll(fspollargs) ;
       else
         error('Not implemented') ;        
         %fspoll_script_path = linux_fullfile(APT.Root, 'matlab/misc/fspoll.py') ;
@@ -1339,9 +1240,9 @@ classdef DLBackEndClass < handle
       % List the contents of directory dir.  Contents just go to stdout, nothing is
       % returned.
       if obj.type == DLBackEnd.AWS ,
-        obj.awsec2.remoteLs(dir);
+        obj.awsec2.lsdir(dir);
       else
-        if ispc
+        if ispc()
           lscmd = 'dir';
         else
           lscmd = 'ls -al';
@@ -1544,5 +1445,45 @@ classdef DLBackEndClass < handle
       result = AWSec2.remoteDLCacheDir ;
     end  % function
 
+    function result = get.awsInstanceID(obj)
+      result = obj.awsec2.instanceID ;
+    end  % function
+
+    function result = get.awsKeyName(obj)
+      result = obj.awsec2.keyName ;
+    end  % function
+
+    function result = get.awsPEM(obj)
+      result = obj.awsec2.pem ;
+    end  % function
+
+    function result = get.awsInstanceType(obj)
+      result = obj.awsec2.instanceType ;
+    end  % function
+
+    function set.awsInstanceID(obj, value)
+      obj.awsec2.instanceID = value ;
+    end  % function
+
+    function set.awsKeyName(obj, value)
+      obj.awsec2.keyName = value ;
+    end  % function
+
+    function set.awsPEM(obj, value)
+      obj.awsec2.pem = value ;
+    end  % function
+
+    function set.awsInstanceType(obj, value)
+      obj.awsec2.instanceType = value ;
+    end  % function
+    
+    function result = getTorchHome(obj)
+      if obj.type == DLBackEnd.AWS ,
+        result = obj.awsec2.getTorchHome() ;
+      else
+        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      end
+    end  % function   
+    
   end  % methods
 end  % classdef

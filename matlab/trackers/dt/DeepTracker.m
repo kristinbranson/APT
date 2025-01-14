@@ -715,20 +715,14 @@ classdef DeepTracker < LabelTracker
       obj.bgTrnReset();
     end
 
-    function bgTrnStart_(obj,backend,dmc,projTempDir,varargin)
+    function bgTrnStart_(obj,backend,dmc,projTempDir)
       % fresh start new training monitor 
             
-      [trainSplits,trnVizArgs] = myparse(varargin,...
-        'trainSplits',false, ...  % true for splits/xv
-        'trnVizArgs',{} ...
-        );
-      
+      trainSplits = false ;      
       if ~isempty(obj.bgTrnMonitor)
         error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
       end
       assert(isempty(obj.bgTrnMonBGWorkerObj));
-
-      %nmodels = dmc.n;
       obj.isTrainingSplits_ = trainSplits ;
       netmode = obj.trnNetMode;
       tf2stg = netmode.isTwoStage;
@@ -736,12 +730,10 @@ classdef DeepTracker < LabelTracker
         assert(tf2stg);        
       end
       
-      % Create the worker used to monitor training in the background
+      % Create the worker, etc used to monitor training in the background
       trnWrkObj = DeepTracker.createBgTrnWorkerObj(dmc, backend) ;
-
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
-                                  backend.type,'trainSplits',trainSplits,trnVizArgs{:}) ;
-                
+                                  backend.type,'trainSplits',trainSplits) ;                
       trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
       obj.bgTrnMonitor = trnMonObj;
       obj.bgTrnMonBGWorkerObj = trnWrkObj;
@@ -840,10 +832,10 @@ classdef DeepTracker < LabelTracker
       end
       
       backend = lblObj.trackDLBackEnd;
-      [tf,reasonbackend] = backend.getReadyTrainTrack();
-      if ~tf
-        reason = reasonbackend;
-        return;
+      [isBackendReady,reasonBackendIsNotReady] = backend.getReadyTrainTrack();
+      if ~isBackendReady
+        reason = reasonBackendIsNotReady;
+        return
       end
       
       if isempty(obj.trnNetType)
@@ -1516,58 +1508,59 @@ classdef DeepTracker < LabelTracker
       % Upload model to remote filesystem, if needed
       backend.mirrorDMCToBackend(dmc, 'training') ;
 
-      unique_jobs = unique(jobidx);
-      njobs = numel(unique_jobs);
-      % looks like logging may be disabled for docker + win? figure out what
-      % should happen here
-%       if backend.type == DLBackEnd.Docker,
-%         logcmds = cell(njobs,1);
-%       end
+      % Clear out any old registered jobs in the backend
       backend.clearRegisteredJobs() ;
 
+      % Register the training jobs with the backend
+      unique_jobs = unique(jobidx);
+      njobs = numel(unique_jobs);
       for ijob = 1:njobs,
         assert(ijob==unique_jobs(ijob));
         dmcjob = dmc.selectSubset('jobidx',ijob);
-
         backend.registerTrainingJob(dmcjob, obj, gpuids(ijob), do_just_generate_db) ;
-%         basecmd = APTInterf.trainCodeGenBase(dmcjob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'do_just_generate_db',do_just_generate_db);
-%         % For AWS backend, need to modify the base command to run in background
-%         if backend.type == DLBackEnd.AWS ,          
-%           basecmd_escaped = escape_string_for_bash(basecmd) ;
-%           basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-%         end
-%         backendArgs = obj.getBackEndArgs(backend,gpuids(ijob),dmcjob,aptroot,'train');
-%         syscmds{ijob} = backend.wrapBaseCommand(basecmd,backendArgs{:});
-%         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-% 
-%         if backend.type == DLBackEnd.Docker,
-%           containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName);
-%           logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx);
-%           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
-%         end
       end  % for
       
+      % Stash a handle to the DMCoD in obj
+      obj.trnLastDMC = dmc;
+
+      % If a dry run, exit early
       if obj.dryRunOnly
         fprintf('Dry run, not spawning training jobs') ;
-        %cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
-      else
-        obj.bgTrnStart_(backend, dmc, projTempDir) ;
-
-        % spawn training
-%         [tfSucc, jobID] = backend.spawn(syscmds, ...
-%                                         'logcmds', logcmds, ...
-%                                         'cmdfiles', cmdfiles, ...
-%                                         'jobdesc', 'training job', ...
-%                                         'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-        [tfSucc, jobID] = backend.spawnRegisteredJobs('jobdesc', 'training job', ...
-                                                      'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
-
-%         if backend.type == DLBackEnd.Bsub ,
-%           jobID = cell2mat(jobID);
-%         end
-        obj.bgTrnMonBGWorkerObj.jobID = jobID;
+        return
       end
-      obj.trnLastDMC = dmc;
+
+      % Do various things
+      trainSplits = false ;      
+      if ~isempty(obj.bgTrnMonitor)
+        error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
+      end
+      assert(isempty(obj.bgTrnMonBGWorkerObj));
+      obj.isTrainingSplits_ = trainSplits ;
+      netmode = obj.trnNetMode;
+      tf2stg = netmode.isTwoStage;
+      if dmc.nstages > 1 ,
+        assert(tf2stg);        
+      end
+      
+      % Create the worker, etc used to monitor training in the background
+      trnWrkObj = DeepTracker.createBgTrnWorkerObj(dmc, backend) ;
+      trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
+                                  backend.type,'trainSplits',trainSplits) ;                
+      trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
+      obj.bgTrnMonitor = trnMonObj;
+      obj.bgTrnMonBGWorkerObj = trnWrkObj;
+      %trnMonObj.start();  % Moved this after spawning, see below
+
+      % spawn training
+      [tfSucc, jobID] = backend.spawnRegisteredJobs('jobdesc', 'training job', ...
+                                                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+
+      % Start the monitor.  Do this after spawning so we can do it in foreground for
+      % debuging sometimes.
+      trnMonObj.start();
+      
+      % Stash the jobids in the worker also (maybe going away in 2025...)
+      obj.bgTrnMonBGWorkerObj.jobID = jobID;
     end  % trnSpawn_() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
@@ -3213,9 +3206,9 @@ classdef DeepTracker < LabelTracker
       end
       
       backend = obj.lObj.trackDLBackEnd; %#ok<PROP> 
-      [tf,reasonbackend] = backend.getReadyTrainTrack(); %#ok<PROP> 
-      if ~tf
-        reason = reasonbackend;
+      [isBackendReady,reasonBackendIsNotReady] = backend.getReadyTrainTrack(); %#ok<PROP> 
+      if ~isBackendReady
+        reason = reasonBackendIsNotReady;
         return
       end
             
