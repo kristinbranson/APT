@@ -1,25 +1,30 @@
 classdef SamTwoViewTestCase < matlab.unittest.TestCase
   methods (Static)
     function result = getSetupParams()
+      result = ...
+        {'simpleprojload',1} ;
+    end  % function
+    function result = getBackendParams()
       if strcmp(get_user_name(), 'taylora') ,
         jrcAdditionalBsubArgs = '-P scicompsoft' ;
       else
         jrcAdditionalBsubArgs = '' ;
       end
       result = ...
-        {'simpleprojload',1, ...
-         'jrcgpuqueue','gpu_a100', ...
+        {'jrcgpuqueue','gpu_a100', ...
          'jrcnslots',4, ...
          'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs} ;
-    end  % function
+    end  % function        
   end  % methods (Static)
   
   methods (Test)
     function trainingAndTrackingTest(obj)
       testObj = TestAPT('name','sam2view');
       setup_params = apt.test.SamTwoViewTestCase.getSetupParams() ;
+      backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_train('backend','bsub');
+      testObj.test_train('backend','bsub', ...
+                         'backend_params', backend_params) ;      
       obj.verifyEqual(testObj.labeler.tracker.algorithmName, 'mdn_joint_fpn', 'Training was not done with GRONe aka mdn_joint_fpn') ;
       did_train_enough = all(testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
       obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
