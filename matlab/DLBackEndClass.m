@@ -1316,7 +1316,7 @@ classdef DLBackEndClass < handle
       % filename.  If partFileIsTextStatus is true, this file is assumed to be a
       % text file.  Otherwise, it is assumed to be a .mat file.
       if ~exist('partFileIsTextStatus', 'var') || isempty(partFileIsTextStatus) ,
-        partFileIsTextStatus = false;
+        partFileIsTextStatus = false ;
       end
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger(1, 'DLBackEndClass::readTrkFileStatus()') ;
@@ -1409,7 +1409,7 @@ classdef DLBackEndClass < handle
     function prepareFilesForTracking(backend, toTrackInfo)
       backend.ensureFoldersNeededForTrackingExist_(toTrackInfo);
       backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file');
-      backend.ensureFilesDoNotExist_(toTrackInfo.getParttrkfiles(), 'partial tracking result');
+      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result');
       backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files');
     end  % function
 

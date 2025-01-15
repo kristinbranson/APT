@@ -307,7 +307,7 @@ classdef APTInterf
       [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();
 
       % output is the final stage trk file
-      trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
+      trkfiles = totrackinfo.getTrkFiles('stage',stages(end));
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile)
@@ -326,11 +326,11 @@ classdef APTInterf
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
-          nativeTrxFiles = totrackinfo.getTrxfiles('movie',movidx) ;
+          nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         elseif nstages > 1,
-          nativeTrxFiles = totrackinfo.getTrkfiles('stage',1) ;
+          nativeTrxFiles = totrackinfo.getTrkFiles('stage',1) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         end

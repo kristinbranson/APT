@@ -351,11 +351,11 @@ classdef TrackMonitorViz < handle
           end
         end
         
-        if res(ijob).killFileExists,
-          obj.isKilled = true;
-          set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
-          obj.hfig.UserData = 'killed';
-        end
+        % if res(ijob).killFileExists,
+        %   obj.isKilled = true;
+        %   set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
+        %   obj.hfig.UserData = 'killed';
+        % end
         if ~obj.bulkAxsIsBulkMode
           TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
         end
@@ -383,9 +383,7 @@ classdef TrackMonitorViz < handle
       isLogFile = false;
       if ~isempty(res),
         isTrackComplete = all([res.tfComplete]);
-        isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
-        % to-do: figure out how to make this robust to different file
-        % systems
+        isErr = any([res.errFileExists]) ;
         isLogFile = any([res.logFileExists]);
       end
       
@@ -433,7 +431,7 @@ classdef TrackMonitorViz < handle
     end  % function
     
     function updateErrDisplay(obj,res)
-      isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
+      isErr = any([res.errFileExists]) ;
       if ~isErr,
         return;
       end
@@ -540,7 +538,7 @@ classdef TrackMonitorViz < handle
     end    
     
     function ss = getLogFilesContents(obj)      
-      ss = obj.trackWorkerObj.getLogfilesContent() ;      
+      ss = obj.trackWorkerObj.getLogFilesContent() ;      
     end
     
     function ss = getErrorFileContents(obj)

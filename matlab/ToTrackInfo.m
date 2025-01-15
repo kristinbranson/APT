@@ -70,7 +70,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.checkFix();
       if ~isempty(trkfiles),
-        obj.setTrkfiles(trkfiles);
+        obj.setTrkFiles(trkfiles);
       end
       if ~isempty(trainDMC),
         obj.setTrainDMC(trainDMC);
@@ -414,7 +414,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setErrfile(obj,v)
       obj.errfile = v;
     end
-    function v = getLogfile(obj)
+    function v = getLogFile(obj)
       v = obj.logfile;
     end
     function setLogfile(obj,v)
@@ -431,7 +431,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setCmdfile(obj,v)
       obj.cmdfile = v;
     end
-    function [v,idx] = getTrkfiles(obj,varargin)
+    function [v,idx] = getTrkFiles(obj,varargin)
       if isempty(varargin),
         v = obj.trkfiles;
         idx = 1:numel(v);
@@ -620,7 +620,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       obj.cmdfile = [obj.getDefaultOutfile,'.cmd'];
     end
 
-    function setTrkfiles(obj,v,varargin)
+    function setTrkFiles(obj,v,varargin)
       nstages = obj.nstages;
       nviews = obj.nviews;
       [stages1] = myparse_nocheck(varargin,'stage',obj.stages);
@@ -733,7 +733,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
 
     end
-    function v = getTrxfiles(obj,varargin)
+    function v = getTrxFiles(obj,varargin)
       if isempty(obj.trxfiles) || isempty(varargin),
         v = obj.trxfiles;
         return;
@@ -741,7 +741,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('trxfiles',varargin{:});
       v = obj.trxfiles(idx);
     end
-    function setTrxfiles(obj,v,varargin)
+    function setTrxFiles(obj,v,varargin)
       if isempty(varargin),
         obj.trxfiles = v;
         return;
@@ -1124,14 +1124,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tti.setFrm1(obj.getFrm1(getargs{:}),setargs{:});
       tti.setFrmlist(obj.getFrmlist(getargs{:}),setargs{:});
       tti.setErrfile(obj.getErrfile());
-      tti.setLogfile(obj.getLogfile());
+      tti.setLogfile(obj.getLogFile());
       tti.setKillfile(obj.getKillfile());
       tti.setCmdfile(obj.getCmdfile());
-      tti.setTrkfiles(obj.getTrkfiles(getargs{:}),setargs{:});
+      tti.setTrkFiles(obj.getTrkFiles(getargs{:}),setargs{:});
       tti.setListfile(obj.getListfile());
       tti.setMovfiles(obj.getMovfiles(getargs{:}),setargs{:});
       tti.movidx = obj.getMovidx(getargs{:});
-      tti.setTrxfiles(obj.getTrxfiles(getargs{:}),setargs{:});
+      tti.setTrxFiles(obj.getTrxFiles(getargs{:}),setargs{:});
       tti.setTrxids(obj.getTrxids(getargs{:}),setargs{:});
       tti.setCroprois(obj.getCroprois(getargs{:}),setargs{:});
       tti.setCalibrationfiles(obj.getCalibrationfiles(getargs{:}),setargs{:});
@@ -1165,7 +1165,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           'movfiles',tti.getMovfiles,...
           'frm0',tti.getFrm0,'frm1',tti.getFrm1,...
           'frmlist',tti.getFrmlist,...
-          'trkfiles',tti.getTrkfiles,'trxfiles',tti.getTrxfiles,...
+          'trkfiles',tti.getTrkFiles,'trxfiles',tti.getTrxFiles,...
           'trxids',tti.getTrxids,'croprois',tti.getCroprois,...
           'calibrationfiles',tti.getCalibrationfiles,...
           'calibrationdata',tti.getCalibrationdata,...
@@ -1178,12 +1178,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           assert(isequal(obj.stages,tti.stages));
           obj.addViews('views',viewsadd,...
             'movfiles',tti.getMovfiles('view',viewsadd),...
-            'trkfiles',tti.getTrkfiles('view',viewsadd),...
-            'trxfiles',tti.getTrxfiles('view',viewsadd));
+            'trkfiles',tti.getTrkFiles('view',viewsadd),...
+            'trxfiles',tti.getTrxFiles('view',viewsadd));
         else
           assert(isequal(obj.views,tti.views));
           obj.addStages('stages',stagesadd,...
-            'trkfiles',tti.getTrkfiles('stage',stagesadd));
+            'trkfiles',tti.getTrkFiles('stage',stagesadd));
         end
       end
 
@@ -1277,8 +1277,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       v = obj.trainDMC.dirTrkOutLnx('view',view-1,'stage',stage);
     end
 
-    function [v,idx] = getParttrkfiles(obj,varargin)
-      [trkfs,idx] = obj.getTrkfiles(varargin{:});
+    function [v,idx] = getPartTrkFiles(obj,varargin)
+      [trkfs,idx] = obj.getTrkFiles(varargin{:});
       v = cellfun(@(x) [x,'.part'],trkfs,'Uni',0);
     end
 
@@ -1313,7 +1313,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
          
       for i = 1:numel(movidx1),
         movi = movidx1(i);
-        trxfile = DeepModelChainOnDisk.getCheckSingle(obj.getTrxfiles('movie',movi,'view',1));
+        trxfile = DeepModelChainOnDisk.getCheckSingle(obj.getTrxFiles('movie',movi,'view',1));
         trxinfo = lObj.GetTrxInfo(trxfile);
         ids = trxids1{i};
         if isempty(ids),

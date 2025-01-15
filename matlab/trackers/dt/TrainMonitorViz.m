@@ -266,18 +266,18 @@ classdef TrainMonitorViz < handle
           lineUpdateMaxStep(i) = max(lineUpdateMaxStep(i),contents.step(end));
         end
 
-        if res.killFileExists(i),
-          obj.isKilled(i) = true;
-          if res.jsonPresent,
-            contents = res.contents{i};
-            % hmm really want to mark the last 2k interval when model is
-            % actually saved
-            set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
-            set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
-          end
-          handles = guidata(obj.hfig);
-          handles.pushbutton_startstop.Enable = 'on';
-        end
+        % if res.killFileExists(i),
+        %   obj.isKilled(i) = true;
+        %   if res.jsonPresent,
+        %     contents = res.contents{i};
+        %     % hmm really want to mark the last 2k interval when model is
+        %     % actually saved
+        %     set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
+        %     set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
+        %   end
+        %   handles = guidata(obj.hfig);
+        %   handles.pushbutton_startstop.Enable = 'on';
+        % end
         
         if res.tfComplete(i)
           contents = res.contents{i};
@@ -325,7 +325,7 @@ classdef TrainMonitorViz < handle
       if ~isempty(res),
         pollsuccess = res.pollsuccess;
         isTrainComplete = res.tfComplete;
-        isErr = res.errFileExists | res.logFileErrLikely;
+        isErr = res.errFileExists ;
         isLogFile = res.logFileExists;
         isJsonFile = res.jsonPresent;
       else
@@ -512,7 +512,7 @@ classdef TrainMonitorViz < handle
 
     function ss = getLogFilesContents(obj)
       
-      ss = obj.trainWorkerObj.getLogfilesContent;
+      ss = obj.trainWorkerObj.getLogFilesContent;
       
     end
     

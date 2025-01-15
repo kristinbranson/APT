@@ -1857,7 +1857,7 @@ classdef DeepTracker < LabelTracker
           projbps = jobinfo.getMovfiles();
           projbps = projbps(:);
           if lObj.hasTrx,
-            trxfiles = jobinfo.getTrxfiles();
+            trxfiles = jobinfo.getTrxFiles();
             trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
             if ~isempty(trxfiles),
               projbps = [projbps;trxfiles(:)];
@@ -2670,7 +2670,7 @@ classdef DeepTracker < LabelTracker
       % check if we will overwrite any existing trkfiles, prompt user about
       % deleting
       % trkfiles could be empty if not set yet
-      trkfiles = totrackinfo.getTrkfiles();
+      trkfiles = totrackinfo.getTrkFiles();
       trkfilesexist = cellfun(@exist,trkfiles);
       if any(trkfilesexist(:)),
         trkfilesdelete = trkfiles(trkfilesexist>0);
@@ -2938,9 +2938,10 @@ classdef DeepTracker < LabelTracker
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
 
-      bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
+      %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
-      bgTrkWorkerObj.initFiles(obj.trkSysInfo);
+      %bgTrkWorkerObj.initFiles(obj.trkSysInfo);
+      bgTrkWorkerObj = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
 
       % KB 20190115: adding trkviz
       nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
@@ -2967,19 +2968,14 @@ classdef DeepTracker < LabelTracker
       % bgTrkMonitorObj.start();
 
       % spawn the jobs
-      [tfSuccess,jobids] = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
-                                                       'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      tfSuccess = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
+                                              'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % Actually start the background tracking monitor.  We start this *after*
       % spawning the jobs so that when we need to debug the background process by
       % running runPollingLoop() synchronously, the tracking job(s) will already
       % have started.
       bgTrkMonitorObj.start();
-
-      % If that succeeded, record the job identifiers
-      if tfSuccess ,
-        bgTrkWorkerObj.jobID = jobids;
-      end
     end  % function setupBGTrack()
 
     function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
@@ -3181,7 +3177,7 @@ classdef DeepTracker < LabelTracker
           outfile = curj.listoutfiles{view};
           S = load(outfile);
           movies = curj.getMovfiles('view',view);
-          trkfiles = curj.getTrkfiles('view',view,'stage',curj.stages(end));
+          trkfiles = curj.getTrkFiles('view',view,'stage',curj.stages(end));
           nMovies = numel(movies);
           for midx = 1:nMovies
             K = TrkFile;
@@ -3229,7 +3225,7 @@ classdef DeepTracker < LabelTracker
         for movi = 1:nMovies,
           movfiles = obj.trkSysInfo.getMovfiles('movie',movi,'stage',stages(end));
           % seems to only be using the last stage of tracking
-          trkfiles = obj.trkSysInfo.getTrkfiles('movie',movi,'stage',stages(end));
+          trkfiles = obj.trkSysInfo.getTrkFiles('movie',movi,'stage',stages(end));
           croproi = obj.trkSysInfo.getCroprois('movie',movi);
           calibrationfile = obj.trkSysInfo.getCalibrationfiles('movie',movi);
           if ~isempty(calibrationfile),
@@ -3244,7 +3240,7 @@ classdef DeepTracker < LabelTracker
           for vwi = views,
             for stgi = stages,
               track_file_name = ...
-                DeepModelChainOnDisk.getCheckSingle(obj.trkSysInfo.getTrkfiles('movie',movi,'view',vwi,'stage',stgi)) ;
+                DeepModelChainOnDisk.getCheckSingle(obj.trkSysInfo.getTrkFiles('movie',movi,'view',vwi,'stage',stgi)) ;
               fprintf('  View %d, stage %d: %s\n',vwi,stgi,track_file_name);
             end
           end

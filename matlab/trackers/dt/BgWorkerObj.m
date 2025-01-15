@@ -108,10 +108,10 @@ classdef BgWorkerObj < handle
       BgWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
 
-    function ss = getLogfilesContent(obj) % obj const
+    function ss = getLogFilesContent(obj) % obj const
       logFiles = obj.getLogFiles();
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
-      ss = BgWorkerObj.getLogfilesContentStc(logFiles,logFileContents);
+      ss = BgWorkerObj.getLogFilesContentStc(logFiles,logFileContents);
     end
     
     function [tfEFE,errFile] = errFileExists(obj) % obj const
@@ -126,7 +126,7 @@ classdef BgWorkerObj < handle
     function ss = getErrorfileContent(obj) % obj const
       errFiles = obj.getErrFile();
       errFileContents = cellfun(@(x)obj.fileContents(x),errFiles,'uni',0);
-      ss = BgWorkerObj.getLogfilesContentStc(errFiles,errFileContents);
+      ss = BgWorkerObj.getLogFilesContentStc(errFiles,errFileContents);
       %ss = strsplit(obj.fileContents(errFile),'\n');
     end
     
@@ -216,7 +216,7 @@ classdef BgWorkerObj < handle
       end
     end
 
-    function ss = getLogfilesContentStc(logFiles,logFileContents)
+    function ss = getLogFilesContentStc(logFiles,logFileContents)
       % Print logs for all views
 
       ss = {};

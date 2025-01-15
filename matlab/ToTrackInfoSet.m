@@ -53,9 +53,9 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
           case 'movfiles',
             x = obj.ttis(i).getMovfiles();
           case 'trkfiles',
-            x = obj.ttis(i).getTrkfiles();
+            x = obj.ttis(i).getTrkFiles();
           case 'parttrkfiles',
-            x = obj.ttis(i).getParttrkfiles();
+            x = obj.ttis(i).getPartTrkFiles();
           case 'croprois',
             x = obj.ttis(i).getCroprois();
           case 'calibrationfiles',
@@ -98,11 +98,11 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       files = obj.mergeGet('movfiles',varargin{:});
     end
 
-    function files = getTrkfiles(obj,varargin)
+    function files = getTrkFiles(obj,varargin)
       files = obj.mergeGet('trkfiles',varargin{:});
     end
 
-    function files = getParttrkfiles(obj,varargin)
+    function files = getPartTrkFiles(obj,varargin)
       files = obj.mergeGet('parttrkfiles',varargin{:});
     end
 
@@ -118,13 +118,13 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       X = obj.mergeGet('calibrationdata',varargin{:});
     end
 
-    function logFiles = getLogfiles(obj)
+    function logFiles = getLogFiles(obj)
       logFiles = cell(numel(obj.ttis),1);
       for i = 1:numel(obj.ttis),
-        logFiles{i} = obj.ttis(i).getLogfile();
+        logFiles{i} = obj.ttis(i).getLogFile();
       end
     end
-    function errFiles = getErrfiles(obj)
+    function errFiles = getErrFiles(obj)
       errFiles = cell(numel(obj.ttis),1);
       for i = 1:numel(obj.ttis),
         errFiles{i} = obj.ttis(i).getErrfile();

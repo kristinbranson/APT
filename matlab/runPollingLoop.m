@@ -1,4 +1,4 @@
-function status = runPollingLoop(toClientDataQueue, worker, backendSuitcase, pollInterval, projTempDirMaybe)
+function status = runPollingLoop(toClientDataQueue, poller, suitcase, pollInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
@@ -7,7 +7,7 @@ function status = runPollingLoop(toClientDataQueue, worker, backendSuitcase, pol
 %   worker.(cObjMeth)
 
 % Unpack the backend suitcase
-worker.backend.restoreAfterParfeval(backendSuitcase) ;
+poller.restoreAfterParfeval(suitcase) ;
 
 % Set up the log file, if called for
 if isempty(projTempDirMaybe) ,
@@ -21,7 +21,7 @@ end
 logger.log('Inside runPollingLoop()') ;
 
 logger.log('cObj:') ;
-logger.log(formattedDisplayText(worker)) ;
+logger.log(formattedDisplayText(poller)) ;
 logger.log('') ;
 
 assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
@@ -54,7 +54,7 @@ while true
     % continue
   end
   
-  result = worker.work(logger);  % this is a row struct, with length equal to the number of views
+  result = poller.poll(logger);  % this is a row struct, with length equal to the number of views
   view_count = numel(result) ;
   for view_index = 1 : view_count ,
     result(view_index).iterations_completed = iterations_completed ;
