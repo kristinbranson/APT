@@ -1,14 +1,14 @@
 classdef BgWorkerObjDocker < BgWorkerObjLocalFilesys  
   
-  properties
-    backend
-  end
+  % properties
+  %   backend
+  % end
 
   methods
     
     function obj = BgWorkerObjDocker(dmcs,backend,varargin)
-      obj@BgWorkerObjLocalFilesys(dmcs,varargin{:});
-      obj.backend = backend ;
+      obj@BgWorkerObjLocalFilesys(dmcs,backend,varargin{:});
+      %obj.backend = backend ;
     end
     
     function parseJobID(obj,res,iview,imov)

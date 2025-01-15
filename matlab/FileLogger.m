@@ -19,8 +19,10 @@ classdef FileLogger < handle
         if isnumeric(filename) ,
           if filename == 1 ,
             fid = 1 ;
+            is_fid_valid = true ;
           elseif filename == 2 ,
             fid = 2 ;
+            is_fid_valid = true ;
           else
             error('Numeric filename must be 1 (for stdout) or 2 (for stderr)') ;
           end

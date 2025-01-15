@@ -9703,13 +9703,14 @@ classdef Labeler < handle
         % .showGTResults() gets called from a callback registered on the completion of
         % this async process.
 
-        % If backend is AWS, use a different backend
         backend = obj.trackDLBackEnd;
-        if backend.type == DLBackEnd.AWS
-          warning('Cannot use AWS cloud to do GT computation, using Docker backend on local computer. If no GPUs are available locally, CPUs will be used.')
-          backend = DLBackEndClass(DLBackEnd.Docker);
+
+        % If backend is AWS, abort.
+        if backend.type == DLBackEnd.AWS ,
+          error('Cannot use AWS backend to do GT computation.  Pick a different backend.')
         end
         
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         [movidx,~,newmov] = unique(tblMFT.mov);
         movidx_new = [];
         for ndx = 1:numel(movidx)
@@ -9718,15 +9719,17 @@ classdef Labeler < handle
         end
         movidx = movidx_new;
         tblMFT.mov = newmov;
-
         movfiles = obj.movieFilesAllFullGTaware(movidx,:);
 
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         if obj.hasTrx
           trxfiles = obj.trxFilesAllFullGTaware;
           trxfiles = trxfiles(movidx,:);
         else
           trxfiles = {};
         end
+
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         if obj.cropProjHasCrops
           cropInfo = obj.getMovieFilesAllCropInfoGTAware();
           croprois = cell([size(movfiles,1),obj.nview]);
@@ -9738,6 +9741,8 @@ classdef Labeler < handle
         else
           croprois = {};
         end
+
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         caldata = obj.viewCalibrationDataGTaware;
         if ~isempty(caldata)
           if ~obj.viewCalProjWide
@@ -9745,13 +9750,27 @@ classdef Labeler < handle
           end
         end
 
+        % % Check that everything is set up for tracking
+        % % (We added this mainly to spin-up the AWS backend when in use, during an
+        % % abortive attempt to AWS GT working.)
+        % [tfCanTrack,reason] = obj.trackCanTrack(tblMFT) ;
+        % if ~tfCanTrack ,
+        %   error('Setup for GT tracking failed: %s', reason) ;
+        % end
+
+        % Tell the tracker to spawn the tracking jobs
         tObj = obj.tracker;
         totrackinfo = ...
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
         tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
+
+        % Record whether that worked, so that anybody responding to the didHopefullySpawnTrackingForGT
+        % notification can find out whether it worked.
         obj.didSpawnTrackingForGT_ = tfsucc ;
+
+        % Broadcast a notification about recent events
         obj.notify('didHopefullySpawnTrackingForGT') ;
       end  % if
     end  % function
@@ -11011,20 +11030,6 @@ classdef Labeler < handle
       be = obj.trackDLBackEnd;
     end
     
-    % function trackSetDLBackendType(obj, type_or_string)
-    %   if ischar(type_or_string) ,
-    %     type = DLBackEndFromString(type_or_string) ;
-    %   else
-    %     type = type_or_string ;
-    %   end
-    %   assert(isa(type,'DLBackEnd'));      
-    %   obj.trackDLBackEnd.type = type ;
-    %   [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
-    %   if ~tf
-    %     warningNoTrace('Backend is not ready to train: %s',reason);
-    %   end      
-    % end  % function
-    
     function trainIncremental(obj)
       tObj = obj.tracker;
       if isempty(tObj)
@@ -11222,18 +11227,13 @@ classdef Labeler < handle
       if isempty(obj.tracker),
         reason = 'The tracker has not been set.';
         return;
-      end
-      
-      [tfCanTrack,reason] = obj.tracker.canTrack();
-      
+      end      
+      [tfCanTrack,reason] = obj.tracker.canTrack();      
       if ~tfCanTrack,
-        return;
-      end
-      
+        return
+      end      
       [tfCanTrack,reason] = PostProcess.canPostProcess(obj,tblMFT);
-
-      
-    end
+    end  % function
     
     function tfCanTrack = trackAllCanTrack(obj)
       tfCanTrack = false(1,numel(obj.trackersAll));
@@ -11306,9 +11306,8 @@ classdef Labeler < handle
         tblMFT = mftset.getMFTable(obj,'istrack',true);
       end
 
-      % which movies are we tracking?
+      % Which movies are we tracking?
       [movidx,~,newmov] = unique(tblMFT.mov);
-      %movidx_old = movidx ;
       movidx_new = [];
       for ndx = 1:numel(movidx)
         mn = movidx.get();
@@ -11318,7 +11317,6 @@ classdef Labeler < handle
       tblMFT.mov = newmov;
       all_movfiles = obj.movieFilesAllFullGTaware;
       movfiles = all_movfiles(movidx,:);
-      %remoteMovfiles = obj.trackDLBackEnd.remoteMoviePathsFromLocal(localmovfiles) ;
 
       % get data associated with those movies
       if obj.hasTrx,

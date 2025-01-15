@@ -68,11 +68,19 @@ end
 function codestr = wrapCommandToBeSpawnedForDockerBackend(backend, basecmd, varargin)
   % Take a base command and run it in a docker img
 
+  % Determine the fallback gpuid, keeping in mind that backend.gpuids may be
+  % empty.
+  if isempty(backend.gpuids) ,
+    fallback_gpuid = 1 ;
+  else
+    fallback_gpuid = backend.gpuids(1) ;
+  end    
+
   % Call main function, returns Linux/WSL-style command string
   codestr = ...
     wrapCommandDocker(basecmd, ...
                       'dockerimg',backend.dockerimgfull,...
-                      'gpuid',backend.gpuids(1),...
+                      'gpuid',fallback_gpuid,...
                       'apiver',apt.docker_api_version(), ...
                       varargin{:}) ;  % key-value pairs in varagin will override ones specified here
 

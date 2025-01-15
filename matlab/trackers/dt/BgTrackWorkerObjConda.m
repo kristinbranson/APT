@@ -1,9 +1,9 @@
 classdef BgTrackWorkerObjConda < BgWorkerObjConda & BgTrackWorkerObj  
   methods    
-    function obj = BgTrackWorkerObjConda(nviews,track_type,varargin)
+    function obj = BgTrackWorkerObjConda(varargin)
       obj@BgTrackWorkerObj(varargin{:});
-      obj.nviews = nviews;
-      obj.track_type = track_type ;
+      %obj.nviews = nviews;
+      %obj.track_type = track_type ;
     end    
   end
 end

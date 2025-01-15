@@ -8,16 +8,16 @@ function result = test(varargin)
     %   line.
 
     % By default include the tests that don't require AWS
-    noAWSTestSuite = matlab.unittest.TestSuite.fromPackage('ws.test.noaws');
+    coreTestSuite = matlab.unittest.TestSuite.fromPackage('apt.test');
 
     % Add the hardware tests if appropriate based on the input arguments.
     if any(strcmp('--aws', varargin)) ,
         % Add the AWS tests if requested
-        withAWSTestSuite = matlab.unittest.TestSuite.fromPackage('ws.test.aws');
-        testSuite = horzcat(withAWSTestSuite, noAWSTestSuite) ;
+        withAWSTestSuite = matlab.unittest.TestSuite.fromPackage('apt.test.aws');
+        testSuite = horzcat(withAWSTestSuite, coreTestSuite) ;
     else
         % Just the no-AWS tests 
-        testSuite = noAWSTestSuite ;
+        testSuite = coreTestSuite ;
     end
 
     % Deal with duplicate tests, which happens sometimes, for unknown

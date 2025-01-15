@@ -371,30 +371,14 @@ classdef AWSec2 < handle
       end
     end  % function
     
-    function checkInstanceRunning(obj,varargin)
-      % - If runs silently, obj appears to be a running EC2 instance with 
-      %   no issues
-      % - If harderror thrown, something appears wrong
-      %obj.SetStatus('Checking whether AWS EC2 instance is running');
-      throwErrs = myparse(varargin,...
-        'throwErrs',true... % if false, just warn if there is a problem
-        );
-      
-      if throwErrs
-        throwFcn = @error;
-      else
-        throwFcn = @warningNoTrace;
+    function errorIfInstanceNotRunning(obj)
+      [doesInstanceExist, isInstanceRunning] = obj.inspectInstance() ;
+      if ~doesInstanceExist
+        error('EC2 instance with id %s does not seem to exist', obj.instanceID);
       end
-      
-      [tfexist,tfrun] = obj.inspectInstance;
-      %obj.ClearStatus();
-
-      if ~tfexist
-        throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
-      end
-      if ~tfrun
-        throwFcn('EC2 instance id %s is not in the ''running'' state.',...
-          obj.instanceID)
+      if ~isInstanceRunning
+        error('EC2 instance with id %s is not in the ''running'' state.',...
+              obj.instanceID)
       end
     end  % function
     
@@ -1203,7 +1187,7 @@ classdef AWSec2 < handle
       end
      
       % Make sure there is a live backend
-      obj.checkInstanceRunning();  % throws error if ec2 instance is not connected
+      obj.errorIfInstanceNotRunning();  % throws error if ec2 instance is not connected
       
       % To support training on AWS, and the fact that a DeepModelChainOnDisk has
       % only a single boolean to represent whether it's local or remote, we're just
@@ -1389,29 +1373,34 @@ classdef AWSec2 < handle
         end
       end
       % If we get here, queryLocalPath did not match any path in obj.localPathFromMovieIndex_
-      error('Query path %s does not match any local movie path known to the backend.', queryRemotePath) ;
+      error('Query path %s does not match any local movie path known to the backend.', queryLocalPath) ;
     end  % function
     
-    function [isReady, reasonNotReady] = getReadyTrainTrack(obj)
+    function [isRunning, reasonNotRunning] = ensureIsRunning(obj)
+      % If the AWS EC2 instance is not running, tell it to start, and wait for it to be
+      % fully started.  On return, isRunning reflects whether this worked.  If
+      % isRunning is false, reasonNotRunning is a string that says something about
+      % what went wrong.
+
       % Make sure the instance ID is set
       if ~obj.isInstanceIDSet
-        isReady = false ;
-        reasonNotReady = 'AWS instance ID is not set.' ;
+        isRunning = false ;
+        reasonNotRunning = 'AWS instance ID is not set.' ;
         return
       end
 
       % Make sure the credentials are set
       if ~obj.areCredentialsSet ,
-        isReady = false ;
-        reasonNotReady = 'AWS credentials are not set.' ;
+        isRunning = false ;
+        reasonNotRunning = 'AWS credentials are not set.' ;
         return          
       end
       
       % Make sure the instance exists
       [doesInstanceExist,isInstanceRunning] = obj.inspectInstance() ;
       if ~doesInstanceExist,
-        isReady = false;
-        reasonNotReady = sprintf('Instance %s could not be found.', obj.instanceID) ;
+        isRunning = false;
+        reasonNotRunning = sprintf('Instance %s could not be found.', obj.instanceID) ;
         %obj.awsec2.clearInstanceID();  % Don't think we want to do this just yet
         return
       end
@@ -1421,28 +1410,28 @@ classdef AWSec2 < handle
         % Instance is not running, so try to start it
         didStartInstance = obj.startInstance();
         if ~didStartInstance
-          isReady = false ;
-          reasonNotReady = sprintf('Could not start AWS EC2 instance %s.',obj.instanceID) ;
+          isRunning = false ;
+          reasonNotRunning = sprintf('Could not start AWS EC2 instance %s.',obj.instanceID) ;
           return
         end
       end
       
       % Just because you told EC2 to start the instance, and that worked, doesn't
       % mean the instance is truly ready.  Wait for it to be truly ready.
-      isReady = obj.waitForInstanceStart();
-      if ~isReady ,
-        reasonNotReady = 'Timed out waiting for AWS EC2 instance to be spooled up.';
+      isRunning = obj.waitForInstanceStart();
+      if ~isRunning ,
+        reasonNotRunning = 'Timed out waiting for AWS EC2 instance to be spooled up.';
         return
       end
       
       % If get here, all is well, EC2 instance is spun up and ready to go
-      reasonNotReady = '';
+      reasonNotRunning = '';
     end  % function    
 
     function updateRepo(obj)
       % Update the APT source code on the backend.  While we're at it, make sure the
       % pretrained weights are downloaded.
-      obj.checkInstanceRunning();  % errs if instance isn't running
+      obj.errorIfInstanceNotRunning();  % errs if instance isn't running
 
       % Does the APT source root dir exist?
       remote_apt_root = AWSec2.remoteAPTSourceRootDir ;

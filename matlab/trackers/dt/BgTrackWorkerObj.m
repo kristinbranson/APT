@@ -60,10 +60,13 @@ classdef BgTrackWorkerObj < BgWorkerObj
     
     
   methods
-    function obj = BgTrackWorkerObj(nviews,varargin)
+    function obj = BgTrackWorkerObj(nviews, track_type, varargin)
       obj@BgWorkerObj(varargin{:});
-      if nargin > 1,
-        obj.nviews = nviews;
+      if nargin >= 1,
+        obj.nviews = nviews ;
+      end
+      if nargin >= 2,
+        obj.track_type = track_type ;
       end
     end
 

@@ -377,9 +377,16 @@ classdef DLBackEndClass < handle
       end      
     end  % function
     
-    function [isReady, reasonNotReady] = getReadyTrainTrack(obj)
+    function [isReady, reasonNotReady] = ensureIsRunning(obj)
+      % If the backend is not 'running', tell it to start, and wait for it to be
+      % fully started.  On return, isRunning reflects whether this worked.  If
+      % isRunning is false, reasonNotRunning is a string that says something about
+      % what went wrong.  This is essentially a no-op all but the AWS backends.  For
+      % the AWS backend, it actually does (try to) make sure the AWS EC2 instance is
+      % running.
+
       if obj.type==DLBackEnd.AWS
-        [isReady, reasonNotReady] = obj.awsec2.getReadyTrainTrack() ;
+        [isReady, reasonNotReady] = obj.awsec2.ensureIsRunning() ;
       elseif obj.type==DLBackEnd.Conda ,
         if ispc() ,
           isReady = false ;
@@ -710,6 +717,7 @@ classdef DLBackEndClass < handle
       % For remote backends, uses a single "ssh echo $string > $filename" to do
       % this, so limited to strings of ~10^5 bytes.
       if obj.isFilesystemLocal() ,
+        % Filesystem is local
         try
           fo = file_object(filename, 'w') ;
         catch me 
@@ -724,6 +732,7 @@ classdef DLBackEndClass < handle
         fprintf(fo, '%s', str) ;
         fclose(fo) ;
       else
+        % Filesystem is remote
         if strlength(str) > 100000 ,
           didSucceed = false ;
           errorMessage = ...

@@ -1,23 +1,27 @@
 classdef ARGRONeSATestCase < matlab.unittest.TestCase
   methods (Static)
     function result = getSetupParams()
-      if strcmp(get_user_name(), 'taylora') ,
-        jrcAdditionalBsubArgs = '-P scicompsoft' ;
-      else
-        jrcAdditionalBsubArgs = '' ;
-      end
       result = ...
-        {'simpleprojload',1, ...
-         'jrcgpuqueue','gpu_a100', ...
-         'jrcnslots',4, ...
-         'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs} ;
+        {'simpleprojload',1} ;
     end  % function
+    % function result = getBackendParams()
+    %   if strcmp(get_user_name(), 'taylora') ,
+    %     jrcAdditionalBsubArgs = '-P scicompsoft' ;
+    %   else
+    %     jrcAdditionalBsubArgs = '' ;
+    %   end
+    %   result = ...
+    %     {'jrcgpuqueue','gpu_a100', ...
+    %      'jrcnslots',4, ...
+    %      'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs} ;
+    % end  % function
   end  % methods (Static)
   
   methods (Test)
     function trainingAndTrackingTest(obj)
       testObj = TestAPT('name','argroneSA');
       setup_params = apt.test.ARGRONeSATestCase.getSetupParams() ;
+      %backend_params = apt.test.ARGRONeSATestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
       testObj.test_train('backend','conda');
       obj.verifyEqual(testObj.labeler.tracker.algorithmName, 'mdn_joint_fpn', 'Training was not done with GRONe aka mdn_joint_fpn') ;
