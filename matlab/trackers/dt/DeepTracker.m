@@ -286,10 +286,14 @@ classdef DeepTracker < LabelTracker
       v = obj.lObj.nview;
     end
     function v = get.bgTrnIsRunning(obj)
+      % Whether training is running.  Technically, only checks whether the
+      % background process that polls for training progress is running.
       btm = obj.bgTrnMonitor;
       v = ~isempty(btm) && btm.isRunning;
     end
     function v = get.bgTrkIsRunning(obj)
+      % Whether tracking is running.  Technically, only checks whether the
+      % background process that polls for tracking progress is running.      
       btm = obj.bgTrkMonitor;
       v = ~isempty(btm) && btm.isRunning;
     end
@@ -731,7 +735,7 @@ classdef DeepTracker < LabelTracker
       end
       
       % Create the worker, etc used to monitor training in the background
-      trnWrkObj = DeepTracker.createBgTrnWorkerObj(dmc, backend) ;
+      trnWrkObj = BgTrainPoller(dmc, backend) ;
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
                                   backend.type,'trainSplits',trainSplits) ;                
       trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
@@ -1543,7 +1547,7 @@ classdef DeepTracker < LabelTracker
       end
       
       % Create the worker, etc used to monitor training in the background
-      trnWrkObj = DeepTracker.createBgTrnWorkerObj(dmc, backend) ;
+      trnWrkObj = BgTrainPoller(dmc, backend) ;
       trnVizObj = TrainMonitorViz(dmc,obj,trnWrkObj,...
                                   backend.type,'trainSplits',trainSplits) ;                
       trnMonObj = BgMonitor(obj, 'train', trnVizObj, trnWrkObj, 'projTempDir', projTempDir) ;
@@ -1552,15 +1556,12 @@ classdef DeepTracker < LabelTracker
       %trnMonObj.start();  % Moved this after spawning, see below
 
       % spawn training
-      [tfSucc, jobID] = backend.spawnRegisteredJobs('jobdesc', 'training job', ...
-                                                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+      tfSucc = backend.spawnRegisteredJobs('jobdesc', 'training job', ...
+                                           'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
 
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
       trnMonObj.start();
-      
-      % Stash the jobids in the worker also (maybe going away in 2025...)
-      obj.bgTrnMonBGWorkerObj.jobID = jobID;
     end  % trnSpawn_() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
@@ -2792,13 +2793,9 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = false;
       reason = '';
       
-      if obj.bgTrkIsRunning
-        if ~obj.bgTrnMonBGWorkerObj.getIsRunning
-          obj.bgTrkReset
-        else
-          reason = 'Tracking is already in progress.';
-          return
-        end
+      if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
+        reason = 'Tracking is already in progress.';
+        return
       end
       
       % For now we do this check here even though the actual parfeval() 
@@ -3072,41 +3069,41 @@ classdef DeepTracker < LabelTracker
   end  % methods
 
   methods (Static)
-    function bgTrkWorkerObj = createBgTrkWorkerObj(nView, dmc, backend, track_type)
-      % dmc is not used in BgTrackWorkerObj subclasses!
-      switch backend.type
-        case DLBackEnd.Bsub
-          bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc, backend);
-        case DLBackEnd.Conda,
-          bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc, backend);
-        case DLBackEnd.Docker,
-          bgTrkWorkerObj = BgTrackWorkerObjDocker(nView, track_type, dmc, backend);
-        case DLBackEnd.AWS,
-           bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend);
-        otherwise
-          error('Not implemented back end %s',backend.type);
-      end
-    end  % function
+    % function bgTrkWorkerObj = createBgTrkWorkerObj(nView, dmc, backend, track_type)
+    %   % dmc is not used in BgTrackWorkerObj subclasses!
+    %   switch backend.type
+    %     case DLBackEnd.Bsub
+    %       bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc, backend);
+    %     case DLBackEnd.Conda,
+    %       bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc, backend);
+    %     case DLBackEnd.Docker,
+    %       bgTrkWorkerObj = BgTrackWorkerObjDocker(nView, track_type, dmc, backend);
+    %     case DLBackEnd.AWS,
+    %        bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend);
+    %     otherwise
+    %       error('Not implemented back end %s',backend.type);
+    %   end
+    % end  % function
 
-    function trnWrkObj = createBgTrnWorkerObj(dmc, backend)
-      switch backend.type
-        case DLBackEnd.Bsub
-          trainSplits = false ;
-          if trainSplits
-            trnWrkObj = BgTrainSplitWorkerObjBsub(dmc, backend);
-          else
-            trnWrkObj = BgTrainWorkerObjBsub(dmc, backend);
-          end
-        case DLBackEnd.Conda
-          trnWrkObj = BgTrainWorkerObjConda(dmc, backend);
-        case DLBackEnd.Docker
-          trnWrkObj = BgTrainWorkerObjDocker(dmc, backend);
-        case DLBackEnd.AWS
-          trnWrkObj = BgTrainWorkerObjAWS(dmc, backend);
-        otherwise
-          error('Not implemented back end %s',backend.type);
-      end
-    end  % function
+    % function trnWrkObj = createBgTrnWorkerObj(dmc, backend)
+    %   switch backend.type
+    %     case DLBackEnd.Bsub
+    %       trainSplits = false ;
+    %       if trainSplits
+    %         trnWrkObj = BgTrainSplitWorkerObjBsub(dmc, backend);
+    %       else
+    %         trnWrkObj = BgTrainWorkerObjBsub(dmc, backend);
+    %       end
+    %     case DLBackEnd.Conda
+    %       trnWrkObj = BgTrainWorkerObjConda(dmc, backend);
+    %     case DLBackEnd.Docker
+    %       trnWrkObj = BgTrainWorkerObjDocker(dmc, backend);
+    %     case DLBackEnd.AWS
+    %       trnWrkObj = BgTrainWorkerObjAWS(dmc, backend);
+    %     otherwise
+    %       error('Not implemented back end %s',backend.type);
+    %   end
+    % end  % function
 
     function sha = getSHA(file)
       if ismac
@@ -4559,22 +4556,64 @@ classdef DeepTracker < LabelTracker
       statusStringFromJobIndex = backend.queryAllJobsStatus() ;
     end  % function    
 
-    function result = getLogFilesSummary(obj)  % const method
+    function result = getTrackingLogFilesSummary(obj)  % const method
       % Returns a (long) string with a summary of the content of the log files for
       % all the running jobs.
       logFiles = obj.trkSysInfo.getLogFiles() ;
       backend = obj.backend ;
-      logFileContents = cellfun(@(x)backend.fileContents(x),logFiles,'uni',0) ;  % cell array of strings
+      logFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
       result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
     end  % function
     
-    function result = getErrorFilesSummary(obj)  % const method
+    function result = getTrackingErrorFilesSummary(obj)  % const method
       errFiles = obj.trkSysInfo.getErrFiles();
       backend = obj.backend ;
-      errFileContents = cellfun(@(x)backend.fileContents(x),errFiles,'uni',0);
+      errFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),errFiles,'uni',0);
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
-    end
+    end  % function
     
+    function result = isAliveFromRegisteredJobIndex(obj)
+      backend = obj.backend ;
+      result = backend.isAliveFromRegisteredJobIndex() ;
+    end  % function
+    
+    function result = getTrainingLogFilesSummary(obj)  % const method
+      % Returns a (long) string with a summary of the content of the log files for
+      % all the running jobs.
+      logFiles = unique(obj.trnLastDMC.trainLogLnx)' ;
+      backend = obj.backend ;
+      logFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
+      result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
+    end  % function
+    
+    function result = getTrainingErrorFilesSummary(obj)  % const method
+      errFiles = unique(obj.trnLastDMC.errfileLnx)' ;
+      backend = obj.backend ;
+      errFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),errFiles,'uni',0);
+      result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
+    end  % function
+    
+    function trnImgInfo = loadTrainingImages(obj)
+      dmcs = obj.trnLastDMC ;
+      trnImgInfo = cell(1,dmcs.n);
+      necfields = {'idx','ims','locs'};
+      for i=1:dmcs.n,
+        f = dmcs.trainImagesNameLnx(i);
+        f = f{1};
+        if obj.backend.fileExists(f) ,
+          infocurr = load(f,'-mat');  % ALTTODO: Make this work for AWS backend
+          if ~all(isfield(infocurr,necfields)),
+            warningNoTrace('Training image file ''%s'' exists, but not all fields (yet) saved in it.',f);
+            continue
+          end
+          trnImgInfo{i} = infocurr;          
+          trnImgInfo{i}.name = dmcs.getNetDescriptor(i);
+          trnImgInfo{i}.name = trnImgInfo{i}.name{1};
+        else
+          warningNoTrace('Training image file ''%s'' does not exist yet.',f);
+        end
+      end
+    end  % function
     
   end  % methods    
 end  % classdef

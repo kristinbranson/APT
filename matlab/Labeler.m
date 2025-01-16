@@ -11159,17 +11159,13 @@ classdef Labeler < handle
       end
     end
     
-    function [bgTrnIsRunning] = trackBGTrnIsRunning(obj)
-      
-      bgTrnIsRunning = false(1,numel(obj.trackersAll));
+    function result = bgTrnIsRunningFromTrackerIndex(obj)
+      result = false(1,numel(obj.trackersAll));
       for i = 1:numel(obj.trackersAll),
-        if isprop(obj.trackersAll{i},'bgTrnIsRunning'),
-          bgTrnIsRunning(i) = obj.trackersAll{i}.bgTrnIsRunning;
-        end
-          
-      end
-      
-    end
+        tracker = obj.trackersAll{i} ;
+        result(i) = tracker.bgTrnIsRunning ;
+      end      
+    end  % function
     
     function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
       
@@ -15603,7 +15599,8 @@ classdef Labeler < handle
     end  % function
 
     function result = get.bgTrnIsRunning(obj)        
-      % True iff background training is running
+      % Whether training is running.  Technically, only checks whether the
+      % background process that polls for training progress is running.
       if isempty(obj.tracker) ,
         result = false ;
       else
@@ -15612,7 +15609,8 @@ classdef Labeler < handle
     end  % function
 
     function result = get.bgTrkIsRunning(obj)        
-      % True iff background tracking is running
+      % Whether tracking is running.  Technically, only checks whether the
+      % background process that polls for tracking progress is running.
       if isempty(obj.tracker) ,
         result = false ;
       else

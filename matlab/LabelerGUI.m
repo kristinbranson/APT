@@ -4177,7 +4177,7 @@ function menu_track_setparametersfile_Callback(hObject, eventdata, handles)
 % Really, "configure parameters"
 
 lObj = handles.labelerObj;
-if any(lObj.trackBGTrnIsRunning),
+if any(lObj.bgTrnIsRunningFromTrackerIndex()),
   warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
   return;
 end

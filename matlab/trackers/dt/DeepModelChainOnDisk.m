@@ -179,12 +179,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function idx = select(obj,varargin)
       idx = DeepModelChainOnDisk.selectHelper(obj,varargin{:});
     end
-    function info = getIdentifiers(obj)
-      info = struct;
-      info.jobidx = obj.jobidx;
-      info.view = obj.view;
-      info.stage = obj.stage;
-      info.splitIdx = obj.splitIdx;
+    function result = getIdentifiers(obj)
+      result = struct();
+      result.jobidx = obj.jobidx;
+      result.view = obj.view;
+      result.stage = obj.stage;
+      result.splitIdx = obj.splitIdx;
     end
     function [ijob,ivw,istage,isplit] = ind2sub(obj,idx)
       ijob = obj.jobidx(idx);

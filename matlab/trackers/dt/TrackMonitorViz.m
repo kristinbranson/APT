@@ -368,10 +368,10 @@ classdef TrackMonitorViz < handle
       end
       
       obj.updateErrDisplay(res);
-      [tfSucc,msg] = obj.updateAnn(res);      
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(res);      
     end
     
-    function [tfSucc,status] = updateAnn(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
@@ -539,13 +539,11 @@ classdef TrackMonitorViz < handle
     end    
     
     function ss = getLogFilesSummary(obj)      
-      ss = obj.dtObj.getLogFilesSummary() ;      
+      ss = obj.dtObj.getTrackingLogFilesSummary() ;      
     end
     
-    function ss = getErrorFilesSummary(obj)
-      
-      ss = obj.dtObj.getErrorFilesSummary() ;
-      
+    function ss = getErrorFilesSummary(obj)      
+      ss = obj.dtObj.getTrackingErrorFilesSummary() ;      
     end
     
     function updateMonitorPlots(obj)      
