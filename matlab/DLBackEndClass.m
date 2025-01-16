@@ -1237,10 +1237,10 @@ classdef DLBackEndClass < handle
         result = obj.awsec2.fileContents(file_name) ;
       else
         if exist(file_name,'file') ,
-          result = '<file does not exist>';
-        else
-          lines = readtxtfile(file);
+          lines = readtxtfile(file_name);
           result = sprintf('%s\n',lines{:});
+        else
+          result = '<file does not exist>';
         end
       end
     end  % function
@@ -1493,6 +1493,17 @@ classdef DLBackEndClass < handle
         result = fullfile(APT.getdotaptdirpath(), 'torch') ;
       end
     end  % function   
+    
+    function statusStringFromJobIndex = queryAllJobsStatus(obj)
+      % Returns a cell array of status strings, one for each spawned job.
+      % Each line is of the form 'Job 12345 is alive' or 'Job 12345 is dead'.
+      jobIDFromJobIndex = obj.jobids_ ;
+      isAliveFromJobIndex = obj.isAliveFromRegisteredJobIndex() ;
+      livenessStringFromJobIndex = arrayfun(@(isAlive)(fif(isAlive, 'alive', 'dead')), isAliveFromJobIndex, 'UniformOutput', false) ;
+      statusStringFromJobIndex = cellfun(@(jobID, livenessString)(sprintf('Job %s is %s', jobID, livenessString)), ...
+                                         jobIDFromJobIndex, livenessStringFromJobIndex, ...
+                                         'UniformOutput', false) ;
+    end  % function    
     
   end  % methods
 end  % classdef

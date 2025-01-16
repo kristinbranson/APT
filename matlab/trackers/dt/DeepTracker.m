@@ -4552,5 +4552,29 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
     
+    function statusStringFromJobIndex = queryAllJobsStatus(obj)
+      % Returns a cell array of status strings, one for each spawned job.
+      % Each line is of the form 'Job 12345 is alive' or 'Job 12345 is dead'.
+      backend = obj.backend ;
+      statusStringFromJobIndex = backend.queryAllJobsStatus() ;
+    end  % function    
+
+    function result = getLogFilesSummary(obj)  % const method
+      % Returns a (long) string with a summary of the content of the log files for
+      % all the running jobs.
+      logFiles = obj.trkSysInfo.getLogFiles() ;
+      backend = obj.backend ;
+      logFileContents = cellfun(@(x)backend.fileContents(x),logFiles,'uni',0) ;  % cell array of strings
+      result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
+    end  % function
+    
+    function result = getErrorFilesSummary(obj)  % const method
+      errFiles = obj.trkSysInfo.getErrFiles();
+      backend = obj.backend ;
+      errFileContents = cellfun(@(x)backend.fileContents(x),errFiles,'uni',0);
+      result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
+    end
+    
+    
   end  % methods    
 end  % classdef

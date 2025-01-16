@@ -509,7 +509,7 @@ classdef TrackMonitorViz < handle
       action = actions{v}; %#ok<PROP>
       switch action
         case 'Show log files',
-         ss = obj.getLogFilesContents();
+         ss = obj.getLogFilesSummary();
          handles.text_clusterinfo.String = ss;
          drawnow;
         case 'Update tracking monitor',
@@ -520,16 +520,17 @@ classdef TrackMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show tracking jobs'' status',
-          ss = obj.queryTrackJobsStatus();
+          ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
           if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
             ss = 'No error messages.';
           else
-            ss = obj.getErrorFileContents();
+            ss = obj.getErrorFilesSummary() ;
           end
           handles.text_clusterinfo.String = ss;
+          drawnow;
         otherwise
           fprintf('%s not implemented\n',action);
           return;
@@ -537,37 +538,31 @@ classdef TrackMonitorViz < handle
       %handles.text_clusterinfo.ForegroundColor = 'w';
     end    
     
-    function ss = getLogFilesContents(obj)      
-      ss = obj.trackWorkerObj.getLogFilesContent() ;      
+    function ss = getLogFilesSummary(obj)      
+      ss = obj.dtObj.getLogFilesSummary() ;      
     end
     
-    function ss = getErrorFileContents(obj)
+    function ss = getErrorFilesSummary(obj)
       
-      ss = obj.trackWorkerObj.getErrorfileContent() ;
+      ss = obj.dtObj.getErrorFilesSummary() ;
       
     end
     
     function updateMonitorPlots(obj)      
-      sRes.result = obj.trackWorkerObj.work();
+      result = obj.trackWorkerObj.poll();
+      sRes = struct('result', {result}) ;
       obj.resultsReceived(sRes,true);      
     end
     
-    function ss = queryAllJobsStatus(obj)      
-      ss = obj.trackWorkerObj.queryAllJobsStatus();
-      if ischar(ss),
-        ss = strsplit(ss,'\n');
-      end      
-    end
-    
-    function ss = queryTrackJobsStatus(obj)      
-      ss = {};
-      raw = obj.trackWorkerObj.queryMyJobsStatus();
-      for i = 1:numel(raw),
-        snew = strsplit(raw{i},'\n');
-        ss(end+1:end+numel(snew)) = snew;
+    function result = queryAllJobsStatus(obj)      
+      ss = obj.dtObj.queryAllJobsStatus() ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
+      else
+        result = ss ;
       end
-    end
-    
+    end  % function
+        
   end  % methods
   
   methods (Static)

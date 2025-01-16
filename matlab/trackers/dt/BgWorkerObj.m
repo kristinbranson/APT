@@ -108,7 +108,7 @@ classdef BgWorkerObj < handle
       BgWorkerObj.printLogfilesStc(logFiles,logFileContents)
     end
 
-    function ss = getLogFilesContent(obj) % obj const
+    function ss = getLogFilesContent(obj)  % const method
       logFiles = obj.getLogFiles();
       logFileContents = cellfun(@(x)obj.fileContents(x),logFiles,'uni',0);
       ss = BgWorkerObj.getLogFilesContentStc(logFiles,logFileContents);
@@ -216,9 +216,8 @@ classdef BgWorkerObj < handle
       end
     end
 
-    function ss = getLogFilesContentStc(logFiles,logFileContents)
+    function ss = getLogFilesContentStc(logFiles, logFileContents)
       % Print logs for all views
-
       ss = {};
       for ivw=1:numel(logFiles)
         logfile = logFiles{ivw};
@@ -227,9 +226,9 @@ classdef BgWorkerObj < handle
         ss{end+1} = ''; %#ok<AGROW>
         ss = [ss,strsplit(logFileContents{ivw},'\n')]; %#ok<AGROW>
       end
-    end
+    end  % function
 
     
-  end
+  end  % methods (Static)  
   
-end
+end  % classdef
