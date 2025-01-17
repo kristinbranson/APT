@@ -84,6 +84,10 @@ classdef DLBackEndClass < handle
     logcmds_ = cell(0,1)
 
     % The job IDs.  These are protected, in spirit.
+    % Each job id is represented as an old-style *string*.  What exactly they mean
+    % depends on the backend.  For conda backend, the job id is the PGID of the
+    % process group of the Python APT_interface.py invocation.  For Docker and
+    % AWS, it's the Docker process ID.  For bsub, it's the LSF job number.
     jobids_ = cell(0,1)
 
     % This is used to keep track of whether we need to release/delete resources on
@@ -832,6 +836,23 @@ classdef DLBackEndClass < handle
         obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
       end  
     end
+
+    function jobid = parseJobID(backend_type, response)
+      % Return the job id (as an old-style string) from the response to the system()
+      % command spawning the job.
+      switch backend_type
+        case DLBackEnd.AWS,
+          jobid = apt.parseJobIDAWS(response) ;
+        case DLBackEnd.Bsub,
+          jobid = apt.parseJobIDBsub(response) ;
+        case DLBackEnd.Conda,
+          jobid = apt.parseJobIDConda(response) ;
+        case DLBackEnd.Docker,
+          jobid = apt.parseJobIDDocker(response) ;
+        otherwise
+          error('Not implemented: %s',backend_type);
+      end
+    end    
   end  % methods (Static)
 
   methods
@@ -951,18 +972,18 @@ classdef DLBackEndClass < handle
         syscmd = syscmds{ijob} ;
         fprintf(1,'%s\n',syscmd);
         if do_call_apt_interface_dot_py ,
-          [st,res] = apt.syscmd(syscmd, 'failbehavior', 'silent');
-          tfSucc(ijob) = (st == 0) ;
+          [rc,stdouterr] = apt.syscmd(syscmd, 'failbehavior', 'silent');
+          tfSucc(ijob) = (rc == 0) ;
           if tfSucc(ijob),
-            jobids{ijob} = apt.parseJobID(obj, res);
+            jobids{ijob} = DLBackEndClass.parseJobID(obj.type, stdouterr);
           end
         else
           % Pretend it's a failure, for expediency.
           tfSucc(ijob) = false ;
-          res = 'do_call_apt_interface_dot_py is false' ;
+          stdouterr = 'do_call_apt_interface_dot_py is false' ;
         end
         if ~tfSucc(ijob),
-          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,res);
+          warning('Failed to spawn %s %d:\n%s',jobdesc,ijob,stdouterr);
         else
           jobid = jobids{ijob};
           assert(ischar(jobid)) ;
@@ -1086,41 +1107,20 @@ classdef DLBackEndClass < handle
     function tf = isJobAliveConda_(obj, jobid)  %#ok<INUSD> 
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.
-      command_line = sprintf('ps -p %s', jobid) ;
-      [status, res] = system(command_line) ;  % conda is Linux-only, so can just use system()
-      if status==0 ,
-        tf = true ;
-      else
-        % This likely means that the job does not exist, but we do some checking just
-        % to make sure.
-        lines = break_string_into_lines(res) ;
-        if numel(lines)==1 ,
-          line = lines{1} ;
-          if contains(line,'PID') && contains(line,'TTY') && contains(line,'TIME') && contains(line,'CMD') ,
-            % Looks like usual job doesn't exist case
-            is_usual = true ;
-          else
-            is_usual = false ;
-          end
-        else
-          % If zero lines or >1, something is hinky
-          is_usual = false ;
-        end
-        if is_usual ,
-          tf = false ;
-        else
-          error('Error occurred when checking if Conda job %s was running: %s', jobid, res) ;
-        end
-      end        
+      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;
+      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
+      % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
+      % detecting when something *else* has gone wrong, but whaddayagonnado?
+      % We capture stdouterr to prevent it getting spit out to the Matlab console.
+      % We use a variable name instead of ~ in case we need to debug in here at some
+      % point.
+      tf = (return_code == 0) ;
     end  % function
 
     function killJobConda_(obj, jobid)  %#ok<INUSD> 
-      command_line = sprintf('kill %s', jobid) ;
-      [status, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
-      did_kill = (status==0) ;
-      if ~did_kill ,
-        error('Error occurred when trying to kill Conda job %s: %s', jobid, stdouterr) ;
-      end      
+      pgid = jobid ;  % conda backend uses PGID as the job id
+      command_line = sprintf('kill -- -%s', pgid) ;  % kill all processes in the process group
+      system_with_error_handling(command_line) ;  % conda is Linux-only, so can just use system()
     end  % function
 
     function tf = isJobAliveDockerOrAWS_(obj, jobid)
@@ -1272,7 +1272,7 @@ classdef DLBackEndClass < handle
         dir_struct = dir(file_name) ;
         result = dir_struct.datenum ;
       end
-    end
+    end  % function
 
     function suitcase = packParfevalSuitcase(obj)
       % Use before calling parfeval, to restore Transient properties that we want to
