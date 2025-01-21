@@ -97,13 +97,15 @@ classdef BgClient < handle
       parfevalSuitcase = worker.packParfevalSuitcase() ;
       obj.fevalFuture = ...
         parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, worker, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
+      % % Start debug code
       % tempfilename = tempname() ;
       % saveAnonymous(tempfilename, worker) ;  % simulate worker as it will be on the other side of the parfeval boundary
       % cleaner = onCleanup(@()(delete(tempfilename))) ;
       % bgworker = loadAnonymous(tempfilename) ;
-      % foo = feval(@runPollingLoop, fromPollingLoopDataQueue, bgworker, backendSuitcase, pollInterval, obj.projTempDirMaybe_) ; 
+      % feval(@runPollingLoop, fromPollingLoopDataQueue, bgworker, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
       %   % The feval() (not parfeval) line above is sometimes useful when debugging.
-      
+      % % End debug code
+
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;

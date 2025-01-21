@@ -8,7 +8,7 @@ classdef BgTrackPoller < handle
     % There are bookkeeping issues to worry about -- what if the user
     % changes a movie name, reorders/deletes movies etc while tracking is
     % running. Rather than keep track of this, we store mIdx/movfile in the
-    % worker. When tracking is done, if the metadata doesn't match what
+    % poller. When tracking is done, if the metadata doesn't match what
     % the client has, the client can decide what to do.
 
     dmcs_  % [nviews] DeepModelChainOnDisk array
@@ -88,7 +88,7 @@ classdef BgTrackPoller < handle
         logger = FileLogger() ;
       end
       
-      logger.log('in bg track worker\n');
+      logger.log('in bg track poller\n');
       errfiles = obj.toTrackInfos_.getErrFiles(); % njobs x 1
       logfiles = obj.toTrackInfos_.getLogFiles(); % njobs x 1
       %killfiles = obj.toTrackInfos_.getKillFiles(); % njobs x 1
@@ -154,7 +154,7 @@ classdef BgTrackPoller < handle
         logger = FileLogger() ;
       end
 
-      logger.log('in bg track worker\n');
+      logger.log('in BgTrackPoller::pollForList()\n');
       errfiles = obj.toTrackInfos_.getErrFiles() ; % njobs x 1
       logfiles = obj.toTrackInfos_.getLogFiles() ; % njobs x 1
       % killfiles = obj.getKillFiles(); % njobs x 1
@@ -171,12 +171,12 @@ classdef BgTrackPoller < handle
         end
       end
 
-      isRunning = obj.replicateJobs_(true);  % TODO: Make this actually check if the spawned jobs are running
+      isRunning = true(obj.njobs,1) ;  % TODO: Make this actually check if the spawned jobs are running
       %killFileExists = cellfun(@obj.backend_.fileExists, killfiles) ;
-      tfComplete = cellfun(@obj.backend_.fileExists,outfiles); % nmovies x njobs x nstages
+      tfComplete = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % nmovies x njobs x nstages
       logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-      tfErrFileErr = cellfun(@obj.backend_.fileExistsAndIsNonempty,errfiles); % njobs x 1
-      logFilesExist = cellfun(@obj.backend_.fileExistsAndIsNonempty,logfiles); % njobs x 1
+      tfErrFileErr = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+      logFilesExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
       %bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages
