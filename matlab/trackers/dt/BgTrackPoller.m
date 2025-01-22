@@ -116,7 +116,8 @@ classdef BgTrackPoller < handle
         end
       end
 
-      isRunning = obj.replicateJobs_(true);  % TODO: Make this actually check if the spawned jobs are running
+      nJobs = obj.toTrackInfos_.n ;
+      isRunning = obj.replicateJobs_(true([nJobs, 1]));  % TODO: Make this actually check if the spawned jobs are running
       %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
       tfComplete = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x njobs x nstages
       %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
@@ -209,19 +210,41 @@ classdef BgTrackPoller < handle
       obj.backend_.restoreAfterParfeval(suitcase) ;
     end
    
-    function vout = replicateJobs_(obj, vin)  % const method
+    function result = replicateJobs_(obj, valueFromJobIndex)  % const method
+      % Convert valueFromJobIndex, an array with nJobs elements, to result, a
+      % nMovies x nViews x nStages array.  Each job has a movie index, view index,
+      % and stage index associated with it.  Only the elements of result which
+      % correspond to (movieIndex, viewIndex, stageIndex) triples that match those
+      % of some job will be populated with meaningful values.
       movfiles = obj.movfiles ;
       nMovies = size(movfiles,1) ;
+      nViews = obj.nViews ;
       stages = obj.stages ;
       nStages = numel(stages) ;
-      vout = repmat(vin(1), [nMovies, obj.nViews, nStages]);
-      for i = 1:obj.toTrackInfos_.n,
-        movidxcurr = obj.toTrackInfos_.ttis(i).getMovidx();
-        viewscurr = obj.toTrackInfos_.ttis(i).views();
-        stagescurr = obj.toTrackInfos_.ttis(i).stages();
-        vout(movidxcurr,viewscurr,stagescurr) = vin(i,:);        
+      if isempty(valueFromJobIndex) ,
+        if islogical(valueFromJobIndex) , 
+          result = false([nMovies, nViews, nStages]) ;
+        elseif iscell(valueFromJobIndex) ,
+          result = repmat({''}, [nMovies, nViews, nStages]) ;
+        else
+          error('BgTrackPoller:emptyArgumentOfUnhandledType', ...
+                'BgTrackPoller::replicateJobs_ given empty argument of unhandled type %s', class(valueFromJobIndex)) ;
+        end
+      else
+        % vin is nonempty
+        result = repmat(valueFromJobIndex(1), [nMovies, nViews, nStages]);
       end
-    end
+      nJobs = obj.toTrackInfos_.n ;
+      if nJobs > 0 ,
+        ttis = obj.toTrackInfos_.ttis ;
+        for jobIndex = 1:nJobs ,
+          movidxcurr = ttis(jobIndex).getMovidx() ;
+          viewscurr = ttis(jobIndex).views() ;
+          stagescurr = ttis(jobIndex).stages() ;
+          result(movidxcurr,viewscurr,stagescurr) = valueFromJobIndex(jobIndex) ;
+        end
+      end
+    end  % function
       
     % function logFiles = getLogFiles(obj)
     %   logFiles = obj.toTrackInfos_.getLogFiles();

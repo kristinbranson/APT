@@ -95,8 +95,10 @@ classdef BgClient < handle
       % We pack a suitcase so we can restore Transient properties on the other side.
       worker = obj.worker ;
       parfevalSuitcase = worker.packParfevalSuitcase() ;
+      % Start production code
       obj.fevalFuture = ...
         parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, worker, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
+      % End production code
       % % Start debug code
       % tempfilename = tempname() ;
       % saveAnonymous(tempfilename, worker) ;  % simulate worker as it will be on the other side of the parfeval boundary

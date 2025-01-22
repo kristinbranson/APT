@@ -133,6 +133,30 @@ classdef TestAPT < handle
         info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
         info.op_graph = [1 5; 1 3; 3 4; 4 2];
         
+      elseif strcmp(name,'stephen_training')
+        %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_20240122.lbl' ;
+        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.nviews = 2;
+        info.npts = 5;
+        info.has_trx = false;
+        info.proj_name = 'stephen_test';
+        info.sz = [];
+        info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
+        info.op_graph = [1 5; 1 3; 3 4; 4 2];
+        
+      elseif strcmp(name,'stephen_tracking')
+        %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_lightly_trained_20240122.lbl' ;
+        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.nviews = 2;
+        info.npts = 5;
+        info.has_trx = false;
+        info.proj_name = 'stephen_test';
+        info.sz = [];
+        info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
+        info.op_graph = [1 5; 1 3; 3 4; 4 2];
+        
       elseif strcmp(name,'carmen')
         % info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
         info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015.lbl';

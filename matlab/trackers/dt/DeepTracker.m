@@ -2593,11 +2593,13 @@ classdef DeepTracker < LabelTracker
       % Make sure the model chain is ready to track
       dmc = obj.trnLastDMC ;
       canTrackFromModelIndex = dmc.canTrack() ;
-      if isempty(canTrackFromModelIndex) || any(~canTrackFromModelIndex) ,
-        error('Tracker is invalid.') ;
-        %h = warndlg('Tracker is invalid.','Tracker invalid','modal') ;
-        %waitfor(h) ;
-        %return
+      if isempty(canTrackFromModelIndex) 
+        error('DeepTracker:noTrainedTrackers', 'There are no trained trackers.') ;
+      end
+      untrainedTrackerCount = sum(~canTrackFromModelIndex) ;
+      if untrainedTrackerCount > 0 ,
+        trackerCount = numel(canTrackFromModelIndex) ;
+        error('DeepTracker:thereAreUntrainedTrackers', 'There are %d trackers, but %d of them are untrained.', trackerCount, untrainedTrackerCount) ;
       end
 
       % Update code on remote filesystem, if needed
