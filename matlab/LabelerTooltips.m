@@ -24,6 +24,11 @@ set(handles.pbRecallZoom,'TooltipString','Recall stored zoom level');
 set(handles.tbAdjustCropSize,'TooltipString','Toggle on/off whether crop size(s) can be adjusted');
 set(handles.pbClearAllCrops,'TooltipString','Clear cropping information for all videos');
 
+% Below here, there's a bunch of Java stuff that seems to cause issues in
+% Matlab 2024b.  So we'll skip that stuff for now, possibly return to it
+% later.  -- ALT, 2025-01-22
+return
+
 dotooltips = lcl('jvm') && lcl('awt') && lcl('swing');
 
 if ~dotooltips,

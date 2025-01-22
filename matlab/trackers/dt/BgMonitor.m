@@ -179,7 +179,7 @@ classdef BgMonitor < handle
           end
         end        
         fprintf('\n### %s\n\n',errFile);
-        errContents = obj.bgWorkerObj.fileContents(errFile);
+        errContents = obj.parent_.backend.fileContents(errFile) ;
         disp(errContents);
         % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
         %fprintf('\n\nYou may need to manually kill any running DeepLearning process.\n');
