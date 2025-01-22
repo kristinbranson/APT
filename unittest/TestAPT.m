@@ -241,6 +241,30 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
+      elseif strcmp(name,'sam2view_training')
+        %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'sam2view_tracking')
+        %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded_lightly_trained.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
       elseif strcmp(name,'roianma2')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
         info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
@@ -750,18 +774,18 @@ classdef TestAPT < handle
       end
     end  % function
 
-    function test_quick(obj, proj_file, net, backend, backend_params) 
-      obj.setup_lbl(proj_file);
-      %lObj = tobj.lObj;
-      % s=lObj.trackGetParams;
-      % s.ROOT.DeepTrack.DataAugmentation.rrange = 10;
-      % s.ROOT.DeepTrack.DataAugmentation.trange = 5;
-      % s.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1.1;
-      % s.ROOT.DeepTrack.ImageProcessing.scale = 1.;
-      % lObj.trackSetParams(s);
-      obj.setup_alg_(net);
-      obj.setup_backend_(backend,backend_params);
-    end  % function
+    % function test_quick(obj, proj_file, net, backend, backend_params) 
+    %   obj.setup_lbl(proj_file);
+    %   %lObj = tobj.lObj;
+    %   % s=lObj.trackGetParams;
+    %   % s.ROOT.DeepTrack.DataAugmentation.rrange = 10;
+    %   % s.ROOT.DeepTrack.DataAugmentation.trange = 5;
+    %   % s.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1.1;
+    %   % s.ROOT.DeepTrack.ImageProcessing.scale = 1.;
+    %   % lObj.trackSetParams(s);
+    %   obj.setup_alg_(net);
+    %   obj.setup_backend_(backend,backend_params);
+    % end  % function
   end  % methods
   
   methods (Static) 
