@@ -553,7 +553,7 @@ classdef TrackMonitorViz < handle
     end
     
     function result = queryAllJobsStatus(obj)      
-      ss = obj.dtObj.queryAllJobsStatus() ;
+      ss = obj.dtObj.queryAllJobsStatus('track') ;
       if isempty(ss) ,
         result = {'(No active jobs.)'} ;
       else

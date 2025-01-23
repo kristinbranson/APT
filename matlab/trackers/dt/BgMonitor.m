@@ -208,7 +208,7 @@ classdef BgMonitor < handle
         obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
         if obj.tfComplete_
           %obj.bgClientObj.stopRunnerHard();  % Stop the runner immediately, so we don't handle completion twice
-          obj.waitForJobsToExit() ;  
+          obj.waitForJobsToExit(obj.processName) ;  
             % Right now, tfComplete is true as soon as the output files *exist*.
             % This can lead to issues if they're not done being written to, so we wait for
             % the job(s) to exit before proceeding.

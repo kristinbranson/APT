@@ -336,7 +336,7 @@ classdef TrainMonitorViz < handle
         isJsonFile = false(1,obj.nmodels);
       end
       
-      isRunning0 = obj.dtObj.isAliveFromRegisteredJobIndex() ;
+      isRunning0 = obj.dtObj.isAliveFromRegisteredJobIndex('train') ;
       %isRunning0 = obj.trainWorkerObj.getIsRunning();
       if isempty(isRunning0),
         isRunning = true;
@@ -538,7 +538,7 @@ classdef TrainMonitorViz < handle
     end  % function
     
     function result = queryAllJobsStatus(obj)      
-      ss = obj.dtObj.queryAllJobsStatus() ;
+      ss = obj.dtObj.queryAllJobsStatus('train') ;
       if isempty(ss) ,
         result = {'(No active jobs.)'} ;
       else

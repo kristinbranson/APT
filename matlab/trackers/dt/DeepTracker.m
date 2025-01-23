@@ -773,11 +773,10 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function waitForJobsToExit(obj, train_or_track)  %#ok<INUSD>
+    function waitForJobsToExit(obj, train_or_track)
       % Wait for all registered jobs of the given type to exit.
-      % Currently the train_or_track argument is ignored.
       backend = obj.backend ;
-      backend.waitForRegisteredJobsToExit() ;
+      backend.waitForRegisteredJobsToExit(train_or_track) ;
     end
 
     function bgTrnReset(obj)
@@ -4551,11 +4550,11 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
     
-    function statusStringFromJobIndex = queryAllJobsStatus(obj)
+    function statusStringFromJobIndex = queryAllJobsStatus(obj, train_or_track)
       % Returns a cell array of status strings, one for each spawned job.
       % Each line is of the form 'Job 12345 is alive' or 'Job 12345 is dead'.
       backend = obj.backend ;
-      statusStringFromJobIndex = backend.queryAllJobsStatus() ;
+      statusStringFromJobIndex = backend.queryAllJobsStatus(train_or_track) ;
     end  % function    
 
     function result = getTrackingLogFilesSummary(obj)  % const method
@@ -4574,9 +4573,9 @@ classdef DeepTracker < LabelTracker
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
     end  % function
     
-    function result = isAliveFromRegisteredJobIndex(obj)
+    function result = isAliveFromRegisteredJobIndex(obj, train_or_track)
       backend = obj.backend ;
-      result = backend.isAliveFromRegisteredJobIndex() ;
+      result = backend.isAliveFromRegisteredJobIndex(train_or_track) ;
     end  % function
     
     function result = getTrainingLogFilesSummary(obj)  % const method
