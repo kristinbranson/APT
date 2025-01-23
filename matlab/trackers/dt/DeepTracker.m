@@ -4559,6 +4559,14 @@ classdef DeepTracker < LabelTracker
       statusStringFromJobIndex = backend.queryAllJobsStatus(train_or_track) ;
     end  % function    
 
+    function statusStringFromJobIndex = detailedStatusStringFromRegisteredJobIndex(obj, train_or_track)
+      % Returns a cell array of *detailed* status strings, one for each spawned job.
+      % E.g. in the case of the bsub backend, these are the full output of 'bjobs
+      % <jobid>'.
+      backend = obj.backend ;
+      statusStringFromJobIndex = backend.detailedStatusStringFromRegisteredJobIndex(train_or_track) ;
+    end  % function    
+    
     function result = getTrackingLogFilesSummary(obj)  % const method
       % Returns a (long) string with a summary of the content of the log files for
       % all the running jobs.

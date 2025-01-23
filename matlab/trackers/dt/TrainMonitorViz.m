@@ -489,7 +489,7 @@ classdef TrainMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show training jobs'' status',
-          ss = obj.queryTrainJobsStatus();
+          ss = obj.detailedStatusStringFromRegisteredJobIndex_();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
@@ -546,14 +546,13 @@ classdef TrainMonitorViz < handle
       end
     end  % function
     
-    function ss = queryTrainJobsStatus(obj)      
-      ss = obj.queryAllJobsStatus() ;
-      % ss = {};
-      % raw = obj.trainWorkerObj.queryMyJobsStatus();
-      % for i = 1:numel(raw),
-      %   snew = strsplit(raw{i},'\n');
-      %   ss(end+1:end+numel(snew)) = snew;
-      % end
+    function result = detailedStatusStringFromRegisteredJobIndex_(obj)      
+      ss = obj.dtObj.detailedStatusStringFromRegisteredJobIndex('train') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
+      else
+        result = ss ;
+      end
     end  % function
     
   end  % methods

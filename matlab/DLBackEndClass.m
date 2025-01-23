@@ -226,7 +226,7 @@ classdef DLBackEndClass < handle
       % backend.  But as the name implies, commands are run outside the backend
       % container/environment.  For the AWS backend, this means commands are run
       % outside the Docker environment.  For the Bsub backend, commands are run
-      % outside the Apptainer containter.  For the Conda backend, commands are run
+      % outside the Apptainer container.  For the Conda backend, commands are run
       % outside the conda environment (i.e. they are simply run).  For the Docker
       % backend, commands are run outside the Docker container (for local Docker,
       % this means they are simply run; for remote Docker, this means they are run
@@ -1138,6 +1138,51 @@ classdef DLBackEndClass < handle
       end      
     end  % function
 
+    function tf = isJobAliveDockerOrAWS_(obj, jobid)
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      jobidshort = jobid(1:8);
+      cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jobidshort);      
+      [st,res] = obj.runBatchCommandOutsideContainer(cmd);
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
+      if st==0
+        tf = ~isempty(regexp(res,jobidshort,'once')) ;
+      else
+        error('Error occurred when checking if %s job %s was running: %s', char(obj.type), jobid, res) ;
+      end
+    end  % function   
+    
+    function tf = isJobAliveBsub_(obj, jobid)  %#ok<INUSD> 
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.
+      runStatuses = {'PEND','RUN','PROV','WAIT'};
+      pollcmd0 = sprintf('bjobs -o stat -noheader %s',jobid);
+      pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
+      %[st,res] = system(pollcmd);
+      [st,res] = apt.syscmd(pollcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      if st==0
+        s = sprintf('(%s)|',runStatuses{:});
+        s = s(1:end-1);
+        tf = ~isempty(regexp(res,s,'once'));
+      else
+        error('Error occurred when checking if bsub job %s was running: %s', jobid, res) ;
+      end
+    end  % function
+
+    function tf = isJobAliveConda_(obj, jobid)  %#ok<INUSD>
+      % Returns true if there is a running conda job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
+      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
+      % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
+      % detecting when something *else* has gone wrong, but whaddayagonnado?
+      % We capture stdouterr to prevent it getting spit out to the Matlab console.
+      % We use a variable name instead of ~ in case we need to debug in here at some
+      % point.
+      tf = (return_code == 0) ;
+    end  % function
+
     function killJob(obj, jobid)
       % Kill the job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
@@ -1155,23 +1200,6 @@ classdef DLBackEndClass < handle
       end      
     end  % function
 
-    function tf = isJobAliveBsub_(obj, jobid)  %#ok<INUSD> 
-      % Returns true if there is a running job with ID jobid.
-      % jobid is assumed to be a single job id, represented as an old-style string.
-      runStatuses = {'PEND','RUN','PROV','WAIT'};
-      pollcmd0 = sprintf('bjobs -o stat -noheader %s',jobid);
-      pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
-      %[st,res] = system(pollcmd);
-      [st,res] = apt.syscmd(pollcmd, 'failbehavior', 'silent', 'verbose', false) ;
-      if st==0
-        s = sprintf('(%s)|',runStatuses{:});
-        s = s(1:end-1);
-        tf = ~isempty(regexp(res,s,'once'));
-      else
-        error('Error occurred when checking if Bsub job %s was running: %s', jobid, res) ;
-      end
-    end  % function
-
     function killJobBsub_(obj, jobid)  %#ok<INUSD> 
       % Kill the bsub job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
@@ -1179,21 +1207,8 @@ classdef DLBackEndClass < handle
       bkillcmd = wrapCommandSSH(bkillcmd0,'host',DLBackEndClass.jrchost);
       [st,res] = apt.syscmd(bkillcmd, 'failbehavior', 'silent', 'verbose', false) ;
       if st~=0 ,
-        error('Error occurred when trying to kill Bsub job %s: %s', jobid, res) ;
+        error('Error occurred when trying to kill bsub job %s: %s', jobid, res) ;
       end
-    end  % function
-
-    function tf = isJobAliveConda_(obj, jobid)  %#ok<INUSD> 
-      % Returns true if there is a running conda job with ID jobid.
-      % jobid is assumed to be a single job id, represented as an old-style string.      
-      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
-      % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
-      % detecting when something *else* has gone wrong, but whaddayagonnado?
-      % We capture stdouterr to prevent it getting spit out to the Matlab console.
-      % We use a variable name instead of ~ in case we need to debug in here at some
-      % point.
-      tf = (return_code == 0) ;
     end  % function
 
     function killJobConda_(obj, jobid)  %#ok<INUSD> 
@@ -1202,21 +1217,6 @@ classdef DLBackEndClass < handle
       system_with_error_handling(command_line) ;  % conda is Linux-only, so can just use system()
     end  % function
 
-    function tf = isJobAliveDockerOrAWS_(obj, jobid)
-      % Returns true if there is a running job with ID jobid.
-      % jobid is assumed to be a single job id, represented as an old-style string.      
-      jobidshort = jobid(1:8);
-      cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jobidshort);      
-      [st,res] = obj.runBatchCommandOutsideContainer(cmd);
-        % It uses the docker executable, but it still runs outside the docker
-        % container.
-      if st==0
-        tf = ~isempty(regexp(res,jobidshort,'once')) ;
-      else
-        error('Error occurred when checking if %s job %s was running: %s', char(obj.type), jobid, res) ;
-      end
-    end  % function
-    
     function killJobDockerOrAWS_(obj, jobid)
       % Kill the docker job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
@@ -1629,6 +1629,83 @@ classdef DLBackEndClass < handle
       end
       cmd = sprintf('%s &', cmd);
     end  % function
+
+    function result = detailedStatusStringFromRegisteredJobIndex(obj, train_or_track)
+      if strcmp(train_or_track, 'train') ,
+        jobids = obj.training_jobids_ ;
+      elseif strcmp(train_or_track, 'track') ,
+        jobids = obj.tracking_jobids_ ;
+      else
+        error('DLBackEndClass:unknownJobType', 'The job type ''%s'' is not valid', train_or_track) ;
+      end
+      result = cellfun(@(jobid)(obj.detailedStatusString(jobid)), jobids, 'UniformOutput', false) ;  % cell array of old-style strings
+    end  % function
+    
+    function result = detailedStatusString(obj, jobid)
+      % Returns a detailed status string for the job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.
+      if isempty(jobid) ,
+        error('Job id is empty');
+      end
+      if obj.type == DLBackEnd.AWS || obj.type == DLBackEnd.Docker ,
+        result = obj.detailedStatusStringDockerOrAWS_(jobid) ;
+      elseif obj.type == DLBackEnd.Bsub ,
+        result = obj.detailedStatusStringBsub_(jobid) ;
+      elseif obj.type == DLBackEnd.Conda ,
+        result = obj.detailedStatusStringConda_(jobid) ;
+      else
+        error('Unknown DLBackEnd value') ;
+      end      
+    end  % function
+
+    function result = detailedStatusStringDockerOrAWS_(obj, jobid)
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      jobidshort = jobid(1:8) ;
+      cmd = sprintf('%s ps --filter "id=%s"', apt.dockercmd(), jobidshort) ;      
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer(cmd) ;
+        % It uses the docker executable, but it still runs outside the docker
+        % container.
+      if rc==0
+        result = stdouterr ;
+      else
+        result = sprintf('Error occurred when checking if docker job %s was running: %s', jobid, stdouterr) ;
+      end
+    end  % function   
+    
+    function result = detailedStatusStringBsub_(obj, jobid)
+      % Returns true if there is a running job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.
+      cmd0 = sprintf('bjobs %s', jobid) ;
+      cmd1 = wrapCommandSSH(cmd0, 'host', DLBackEndClass.jrchost) ;
+        % For the bsub backend, obj.runBatchCommandOutsideContainer() still runs
+        % things locally, since that's what you want for e.g. commands that check on
+        % file status.
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer(cmd1) ;
+      if rc==0 ,
+        result = stdouterr ;
+      else
+        result = sprintf('Error occurred when checking status of bsub job %s: %s', jobid, stdouterr) ;
+      end
+    end  % function
+
+    function result = detailedStatusStringConda_(obj, jobid)  %#ok<INUSD>
+      % Returns true if there is a running conda job with ID jobid.
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
+      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
+      % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
+      % detecting when something *else* has gone wrong, but whaddayagonnado?
+      % We capture stdouterr to prevent it getting spit out to the Matlab console.
+      % We use a variable name instead of ~ in case we need to debug in here at some
+      % point.
+      if rc==0 ,
+        result = stdouterr ;
+      else
+        result = sprintf('Error occurred when checking status of conda job %s: %s', jobid, stdouterr) ;
+      end
+    end  % function
+
 
   end  % methods
 end  % classdef
