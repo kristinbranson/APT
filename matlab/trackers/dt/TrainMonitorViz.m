@@ -402,7 +402,7 @@ classdef TrainMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
 
-      obj.dtObj.backend.clearRegisteredJobs() ;
+      obj.dtObj.backend.clearRegisteredJobs('train') ;
       obj.isKilled(:) = true ;
       apt.setStatusDisplayLineBang(obj.hfig, 'Training process killed.', true);
 

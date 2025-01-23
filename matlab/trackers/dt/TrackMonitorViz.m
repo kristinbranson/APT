@@ -486,7 +486,7 @@ classdef TrackMonitorViz < handle
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
-      obj.dtObj.backend.clearRegisteredJobs() ;
+      obj.dtObj.backend.clearRegisteredJobs('track') ;
       % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       % if tfsucc,
       % 

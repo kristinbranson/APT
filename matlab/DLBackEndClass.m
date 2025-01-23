@@ -309,8 +309,8 @@ classdef DLBackEndClass < handle
 
     function delete(obj)
       if obj.doesOwnResources_ ,
-        obj.clearRegisteredTrackingJobs() ;
-        obj.clearRegisteredTrainingJobs() ;
+        obj.clearRegisteredJobs('track') ;
+        obj.clearRegisteredJobs('train') ;
         obj.stopEc2InstanceIfNeeded_() ;
       end
     end  % function
@@ -876,8 +876,19 @@ classdef DLBackEndClass < handle
       obj.awsec2.isInDebugMode = value ;
     end    
 
-    function clearRegisteredTrainingJobs(obj)
-      jobids = obj.training_jobids_ ;
+    function clearRegisteredJobs(obj, train_or_track)
+      if strcmp(train_or_track, 'train') ,
+        isTrain = true ;
+      elseif strcmp(train_or_track, 'track') ,
+        isTrain = false ;
+      else
+        error('DLBackEndClass:unknownJobType', 'The job type ''%s'' is not valid', train_or_track) ;
+      end
+      if isTrain 
+        jobids = obj.training_jobids_ ;
+      else
+        jobids = obj.tracking_jobids_ ;
+      end
       job_count = numel(jobids) ;
       for i = 1 : job_count ,
         jobid = jobids{i} ;
@@ -885,27 +896,18 @@ classdef DLBackEndClass < handle
           obj.ensureJobIsNotAlive(jobid) ;
         end
       end
-      % Clear all registered jobs of this type
-      obj.training_syscmds_ = cell(1,0) ;
-      obj.training_cmdfiles_ = cell(1,0) ;
-      obj.training_logcmds_ = cell(1,0) ;
-      obj.training_jobids_ = cell(1,0) ;
-    end  % function
-
-    function clearRegisteredTrackingJobs(obj)
-      jobids = obj.tracking_jobids_ ;
-      job_count = numel(jobids) ;
-      for i = 1 : job_count ,
-        jobid = jobids{i} ;
-        if ~isempty(jobid) ,
-          obj.ensureJobIsNotAlive(jobid) ;
-        end
+      % Clear all registered jobs of the given type
+      if isTrain
+        obj.training_syscmds_ = cell(0,1) ;
+        obj.training_cmdfiles_ = cell(0,1) ;
+        obj.training_logcmds_ = cell(0,1) ;
+        obj.training_jobids_ = cell(0,1) ;
+      else
+        obj.tracking_syscmds_ = cell(0,1) ;
+        obj.tracking_cmdfiles_ = cell(0,1) ;
+        obj.tracking_logcmds_ = cell(0,1) ;
+        obj.tracking_jobids_ = cell(0,1) ;
       end
-      % Clear all registered jobs of this type
-      obj.tracking_syscmds_ = cell(1,0) ;
-      obj.tracking_cmdfiles_ = cell(1,0) ;
-      obj.tracking_logcmds_ = cell(1,0) ;
-      obj.tracking_jobids_ = cell(1,0) ;
     end  % function
 
     function registerTrainingJob(backend, dmcjob, tracker, gpuids, do_just_generate_db)
@@ -924,7 +926,7 @@ classdef DLBackEndClass < handle
       args = determineArgumentsForSpawningJob(backend,tracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      logcmd = backend.generateLogCommand_(backend, 'train', dmcjob) ;
+      logcmd = backend.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
       backend.training_syscmds_{end+1,1} = syscmd ;
@@ -954,7 +956,7 @@ classdef DLBackEndClass < handle
       args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      logcmd = backend.generateLogCommand_(backend, 'track', remotetotrackinfo) ;
+      logcmd = backend.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
       backend.tracking_syscmds_{end+1,1} = syscmd ;
@@ -990,7 +992,7 @@ classdef DLBackEndClass < handle
       end
 
       % Actually spawn the jobs
-      [didSpawnAllJobs, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, jobdesc, do_call_apt_interface_dot_py) ;
+      [didSpawnAllJobs, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
 
       % If all went well, record the spawned jobids.  If not, kill any straggler
       % jobs.
@@ -1016,13 +1018,13 @@ classdef DLBackEndClass < handle
   end  % methods
 
   methods (Static)
-    function [didSpawnAllJobs, jobidFromJobIndex] = spawnJobs(syscmds, logcmds, jobdesc, do_call_apt_interface_dot_py)
+    function [didSpawnAllJobs, jobidFromJobIndex] = spawnJobs(syscmds, logcmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
       % Spawn the jobs specified in syscmds.  On return, didSpawnAllJobs indicates
       % whether all went well.  *Regardless of the value of didSpawnAllJobs,*
       % jobidFromJobIndex contains the jobids of all the jobs that were successfully
       % spawned.  
       jobCount = numel(syscmds) ;
-      jobidFromJobIndex = cell(1,0) ;  % We only add jobids to this once they have successfully been spawned.
+      jobidFromJobIndex = cell(0,1) ;  % We only add jobids to this once they have successfully been spawned.
       for jobIndex = 1:jobCount ,
         syscmd = syscmds{jobIndex} ;
         fprintf('%s\n',syscmd);
@@ -1030,7 +1032,7 @@ classdef DLBackEndClass < handle
           [rc,stdouterr] = apt.syscmd(syscmd, 'failbehavior', 'silent');
           didSpawn = (rc == 0) ;
           if didSpawn ,
-            jobid = DLBackEndClass.parseJobID(obj.type, stdouterr);
+            jobid = DLBackEndClass.parseJobID(backend_type, stdouterr);
           else
             didSpawnAllJobs = false ;
             return
@@ -1042,7 +1044,7 @@ classdef DLBackEndClass < handle
         end
 
         % If get here, this job spawn succeeded
-        jobidFromJobIndex{1,jobIndex} = jobid ;  % Add to end, keeping it a row vector
+        jobidFromJobIndex{jobIndex,1} = jobid ;  % Add to end, keeping it a col vector
         assert(ischar(jobid)) ;
         fprintf('%s %d spawned, ID = %s\n\n',jobdesc,jobIndex,jobid);
 
@@ -1063,6 +1065,7 @@ classdef DLBackEndClass < handle
           end
         end  % if
       end  % for      
+      didSpawnAllJobs = true ;  % if get here, all is well
     end  % function
   end  % methods (Static)
 
@@ -1182,8 +1185,8 @@ classdef DLBackEndClass < handle
 
     function tf = isJobAliveConda_(obj, jobid)  %#ok<INUSD> 
       % Returns true if there is a running conda job with ID jobid.
-      % jobid is assumed to be a single job id, represented as an old-style string.
-      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;
+      % jobid is assumed to be a single job id, represented as an old-style string.      
+      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
       [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
@@ -1593,7 +1596,7 @@ classdef DLBackEndClass < handle
         if obj.type == DLBackEnd.Docker ,
           containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName) ;
           logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
-          logcmd = obj.generateLogCommandForDockerBackend_(obj, containerName, logfile) ;
+          logcmd = obj.generateLogCommandForDockerBackend_(containerName, logfile) ;
         else
           logcmd = '' ;
         end
@@ -1602,7 +1605,7 @@ classdef DLBackEndClass < handle
         if obj.type == DLBackEnd.Docker ,
           containerName = totrackinfojob.containerName ;
           logfile = totrackinfojob.logfile ;
-          logcmd = generateLogCommandForDockerBackend_(obj, containerName, logfile) ;
+          logcmd = obj.generateLogCommandForDockerBackend_(containerName, logfile) ;
         else
           logcmd = '' ;
         end

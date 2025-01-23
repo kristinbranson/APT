@@ -1512,7 +1512,7 @@ classdef DeepTracker < LabelTracker
       backend.mirrorDMCToBackend(dmc, 'training') ;
 
       % Clear out any old registered jobs in the backend
-      backend.clearRegisteredJobs() ;
+      backend.clearRegisteredJobs('train') ;
 
       % Register the training jobs with the backend
       unique_jobs = unique(jobidx);
@@ -1555,7 +1555,8 @@ classdef DeepTracker < LabelTracker
       %trnMonObj.start();  % Moved this after spawning, see below
 
       % spawn training
-      tfSucc = backend.spawnRegisteredJobs('jobdesc', 'training job', ...
+      tfSucc = backend.spawnRegisteredJobs('train', ...
+                                           'jobdesc', 'training job', ...
                                            'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
 
       % Start the monitor.  Do this after spawning so we can do it in foreground for
@@ -2878,7 +2879,7 @@ classdef DeepTracker < LabelTracker
       totrackinfo.setTrackid(nowstr);
       totrackinfo.setDefaultFiles();
 
-      backend.clearRegisteredJobs() ;
+      backend.clearRegisteredJobs('track') ;
       for ijob = 1:numel(jobs),
         [imovjob,ivwjob] = ind2sub(size(jobs),ijob);
         id = sprintf('mov%d_vw%d',imovjob,ivwjob);
@@ -2966,7 +2967,8 @@ classdef DeepTracker < LabelTracker
       % bgTrkMonitorObj.start();
 
       % spawn the jobs
-      tfSuccess = backend.spawnRegisteredJobs('jobdesc','tracking job', ...
+      tfSuccess = backend.spawnRegisteredJobs('track', ...
+                                              'jobdesc','tracking job', ...
                                               'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % Actually start the background tracking monitor.  We start this *after*
@@ -2996,7 +2998,7 @@ classdef DeepTracker < LabelTracker
       totrackinfo.makeListFile(isgt);
       gpuid =nan;
 
-      backend.clearRegisteredJobs() ;
+      backend.clearRegisteredJobs('track') ;
       backend.registerTrackingJob(totrackinfo, obj, gpuid, 'track') ;      
 %       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
 %       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
@@ -3378,7 +3380,7 @@ classdef DeepTracker < LabelTracker
     function trackCleanup(obj,varargin)
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
-      backend.clearRegisteredJobs() ;
+      backend.clearRegisteredJobs('track') ;
       
       % Do other stuff
       obj.trackCurrResUpdate();
@@ -3396,7 +3398,7 @@ classdef DeepTracker < LabelTracker
 
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
-      backend.clearRegisteredJobs() ;
+      backend.clearRegisteredJobs('train') ;
 
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
