@@ -1,7 +1,8 @@
 function result = test(varargin)
     % apt.test()  Run APT automated tests.
     %
-    %   apt.test() runs all APT automated tests.
+    %   apt.test() runs all APT automated tests, except the AWS ones.
+    %   apt.test('--aws') runs all APT automated tests, including the AWS ones.
     %
     %   res = apt.test() returns test results in the result
     %   structure, res, rather than displaying the results at the command
@@ -10,7 +11,7 @@ function result = test(varargin)
     % By default include the tests that don't require AWS
     coreTestSuite = matlab.unittest.TestSuite.fromPackage('apt.test');
 
-    % Add the hardware tests if appropriate based on the input arguments.
+    % Add the AWS tests if appropriate based on the input arguments.
     if any(strcmp('--aws', varargin)) ,
         % Add the AWS tests if requested
         withAWSTestSuite = matlab.unittest.TestSuite.fromPackage('apt.test.aws');
