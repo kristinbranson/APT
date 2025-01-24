@@ -870,8 +870,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrain = true;      
     end
     
-    % there seems to be overlap between canTrain and pretrain -- why? 
-    function preretrain(obj)      
+    function pretrain_(obj)      
       if obj.bgTrnIsRunning
         error('Training is already in progress.');
       end
@@ -885,22 +884,19 @@ classdef DeepTracker < LabelTracker
         error('No cache directory has been set.');
       end
       
-      lblObj = obj.lObj;
-      projname = lblObj.projname;
+      labeler = obj.lObj;
+      projname = labeler.projname;
       if isempty(projname)
         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
       end      
       
-      backend = lblObj.trackDLBackEnd;
+      backend = labeler.trackDLBackEnd;
       fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
       fprintf('Your training backend is: %s\n',char(backend.type));
       fprintf(1,'\n'); 
 
       % Update code on remote filesystem, if needed
       backend.updateRepo() ;
-
-%       % Upload model to remote filesystem, if needed
-%       dmc.mirrorToBackend(backend) ;
 
       % Upload the movies to the backend
       localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
@@ -927,9 +923,8 @@ classdef DeepTracker < LabelTracker
                 'do_call_apt_interface_dot_py', true, ...
                 'projTempDir', '') ;
      
-      obj.preretrain();
-      lblObj = obj.lObj;
-      backend = lblObj.trackDLBackEnd;
+      obj.pretrain_();
+      backend = obj.backend ;
       
       if obj.isTrkFiles() ,
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
@@ -944,13 +939,14 @@ classdef DeepTracker < LabelTracker
         end        
       end
       
-      allParamsRaw=lblObj.trackGetParams();
+      labeler = obj.lObj;
+      allParamsRaw=labeler.trackGetParams();
       obj.setAllParams(allParamsRaw);
       paramsAll=obj.sPrmAll;
       if isempty(paramsAll)
         error('No tracking parameters have been set.');
       end
-      if lblObj.maIsMA && strcmp(lblObj.trackerAlgo, 'multi_cid') && paramsAll.ROOT.MultiAnimal.multi_loss_mask ,
+      if labeler.maIsMA && strcmp(labeler.trackerAlgo, 'multi_cid') && paramsAll.ROOT.MultiAnimal.multi_loss_mask ,
         error(['For the CiD model, cannot have frames with both lableled and unlabeled animals.  ' ...
                'If all animals are labelled in each frame with any labels, set the tracking parameter "Unlabeled animals present" to false.']) ;
       end

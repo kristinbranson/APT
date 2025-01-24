@@ -2681,7 +2681,7 @@ classdef Labeler < handle
       set(obj.gdata.menu_setup_sequential_add_mode,'Visible','off');
       
       
-    end
+    end  % function
     
     function projAddLandmarks(obj,nadd)
       
@@ -9225,44 +9225,10 @@ classdef Labeler < handle
           warndlg(warnstr,'Image sizes vary','modal');
         end
       end
-    end
-    
-%     function viewCalSetCheckViewSizes(obj,iMov,crObj,tfSet)
-%       % Check/set movie image size for movie iMov on calrig object 
-%       %
-%       % The raw movie sizes are used here, ignoring any cropping.
-%       % 
-%       % iMov: movie index, applied in GT-aware fashion (eg .currMovie)
-%       % crObj: scalar calrig object
-%       % tfSet: if true, set the movie size on the calrig (with diagnostic
-%       % printf); if false, throw warndlg if the sizes don't match
-%             
-%       assert(iMov>0);
-%       movInfo = obj.movieInfoAllGTaware(iMov,:);
-%       movWidths = cellfun(@(x)x.info.Width,movInfo); % raw movie width/height
-%       movHeights = cellfun(@(x)x.info.Height,movInfo); % etc
-%       vwSizes = [movWidths(:) movHeights(:)];
-%       if tfSet
-%         % If movie sizes differ in this project, setting of viewsizes may
-%         % be hazardous. Assume warning has been thrown if necessary
-%         crObj.viewSizes = vwSizes;
-%         for iVw=1:obj.nview
-%           fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
-%             vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
-%         end
-%       else
-%         % Check view sizes
-%         if ~isequal(crObj.viewSizes,vwSizes)
-%           warnstr = sprintf('View sizes in calibration object (%s) do not match movie %d (%s).',...
-%             mat2str(crObj.viewSizes),iMov,mat2str(vwSizes));
-%           warndlg(warnstr,'View size mismatch','non-modal');
-%         end
-%       end
-%     end
-    
-  end
-  methods
-    
+    end  % function
+  end  % methods (Access=private
+
+  methods   
     function viewCalClear(obj)
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
@@ -10915,6 +10881,8 @@ classdef Labeler < handle
       % tracker; if a user uses multiple tracker types (eg: MA-BU and 
       % MA-TD) and switches between them, the behavior may be odd (eg the
       % user may get prompted constantly about "changed suggestions" etc)
+      %
+      % ALT: Does UI stuff, should be moved into controller
 
       silent = myparse(varargin,'silent',false) | obj.silent;
         
@@ -11051,36 +11019,52 @@ classdef Labeler < handle
         'do_call_apt_interface_dot_py', true ...
         );
       
-      tObj = obj.tracker;
-      if isempty(tObj)
-        obj.lerror('Labeler:track','No tracker set.');
+      % Do a few checks
+      tracker = obj.tracker;
+      if isempty(tracker)
+        error('Labeler:track','No tracker set.');
       end
       if ~obj.hasMovie
-        obj.lerror('Labeler:track','No movie.');
+        error('Labeler:track','No movie.');
       end
       
-      obj.trackSetAutoParams();
-      if ~obj.trackCheckGPUMem()
-        return;
+      obj.trackSetAutoParams();  % Does UI stuff, should be moved into controller
+      if ~obj.trackCheckGPUMem()  % Does UI stuff, should be moved into controller
+        return
       end
       
+      % Do something, for some reason.  Maybe vestigial?  -- ALT, 2025-01-24
       if ~isempty(tblMFTtrn)
-        assert(strcmp(tObj.algorithmName,'cpr'));
+        assert(strcmp(tracker.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
         trainArgs = [trainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
       
+      % This is vestigial, can be removed.  -- ALT, 2025-01-24
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.train(trainArgs{:}, ...
-                 'do_just_generate_db', do_just_generate_db, ...
-                 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
-                 'projTempDir', obj.projTempDir);
+
+      % Spin up the backend in preparation for training
+      backend = obj.trackDLBackEnd ;
+      [isReady, reasonNotReady] = backend.ensureIsRunning() ;
+      if ~isReady ,
+        error('Labeler:unableToStartBackend', 'Unable to start backend: %s', reasonNotReady) ;
+      end
+
+      % Call the tracker to do the heavy lifting
+      tracker.train(trainArgs{:}, ...
+                    'do_just_generate_db', do_just_generate_db, ...
+                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                    'projTempDir', obj.projTempDir);
     end  % function
 
     function dotrain = trackCheckGPUMem(obj,varargin)
+      % Check for a GPU, and check the GPU memory against an estimate of the
+      % required GPU memory.
+      %
+      % Does UI stuff, should be moved into controller
       silent = myparse(varargin,'silent',false) || obj.silent ;
       dotrain = true;
       sPrm = obj.trackGetParams();
@@ -11157,7 +11141,7 @@ classdef Labeler < handle
           end
         end
       end
-    end
+    end  % function
     
     function result = bgTrnIsRunningFromTrackerIndex(obj)
       result = false(1,numel(obj.trackersAll));
