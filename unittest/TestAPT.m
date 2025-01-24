@@ -277,6 +277,18 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];           
 
+      elseif strcmp(name,'roianma2_tracking')
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-lightly-trained.lbl' ;
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'roianma2-test';
+        info.sz = 250 ; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];           
+
       elseif strcmp(name,'roianma2mmpose1')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added-mmpose1.lbl';
         info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-mmpose1.lbl' ;

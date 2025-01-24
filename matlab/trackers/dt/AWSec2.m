@@ -560,10 +560,10 @@ classdef AWSec2 < handle
                                     'scpcmd', obj.scpCmd) ;
         %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
         st = AWSec2.syscmd(cmd,sysCmdArgs{:});
-        tfsucc = (st==0) ;        
-        tfsucc = tfsucc && (exist(dstAbs,'file')>0);
+        tfsucc0 = (st==0) ;        
+        tfsucc = tfsucc0 && logical(exist(dstAbs,'file')) ;
       end
-    end
+    end  % function
     
     function tfsucc = scpDownloadOrVerifyEnsureDir(obj,srcAbs,dstAbs,varargin)
       dirLcl = fileparts(dstAbs);
@@ -649,8 +649,8 @@ classdef AWSec2 < handle
        
     function tfsucc = rsyncUpload(obj, src, dest)
       cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
-      st = AWSec2.syscmd(cmd) ;
-      tfsucc = (st==0) ;
+      rc = AWSec2.syscmd(cmd) ;
+      tfsucc = (rc==0) ;
     end
 
     function deleteFile(obj,dst,~,varargin)
@@ -700,13 +700,14 @@ classdef AWSec2 < handle
       tf = strcmp(strtrim(res),'0') ;      
     end
     
-    function tf = fileExistsAndIsGivenSize(obj,f,query_byte_count)
-      %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
-      %cmdremote = sprintf('%s %s %d',script,f,size);
-      cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;
-      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+    function tf = fileExistsAndIsGivenSize(obj, file_name, query_byte_count)
+      script_path = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      cmdremote = sprintf('%s %s %d', script_path, file_name, query_byte_count) ;
+      %cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;  
+        % stat return code is nonzero if file is missing---annoying
+      [~, res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err');
       actual_byte_count = str2double(res) ;
-      tf = (actual_byte_count == query_byte_count) ;      
+      tf = (actual_byte_count == query_byte_count) ;
     end
     
     function s = fileContents(obj,f,varargin)
@@ -1264,6 +1265,7 @@ classdef AWSec2 < handle
           fdst = mdlFilesLcl{i};
           % See comment in mirror2RemoteAws regarding not confirming ID of
           % files-that-already-exist
+          % We should switch to using rsync for this.  -- ALT, 2025-01-24
           obj.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
             'sysCmdArgs',{'failbehavior', 'err'}); % throws
         end
