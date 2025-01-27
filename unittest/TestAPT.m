@@ -133,6 +133,30 @@ classdef TestAPT < handle
         info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
         info.op_graph = [1 5; 1 3; 3 4; 4 2];
         
+      elseif strcmp(name,'stephen_training')
+        %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_20240122.lbl' ;
+        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.nviews = 2;
+        info.npts = 5;
+        info.has_trx = false;
+        info.proj_name = 'stephen_test';
+        info.sz = [];
+        info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
+        info.op_graph = [1 5; 1 3; 3 4; 4 2];
+        
+      elseif strcmp(name,'stephen_tracking')
+        %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_lightly_trained_20240122.lbl' ;
+        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.nviews = 2;
+        info.npts = 5;
+        info.has_trx = false;
+        info.proj_name = 'stephen_test';
+        info.sz = [];
+        info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
+        info.op_graph = [1 5; 1 3; 3 4; 4 2];
+        
       elseif strcmp(name,'carmen')
         % info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
         info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015.lbl';
@@ -217,9 +241,45 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
+      elseif strcmp(name,'sam2view_training')
+        %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
+      elseif strcmp(name,'sam2view_tracking')
+        %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded_lightly_trained.lbl';
+        info.exp_dir_base = '';
+        info.nviews = 2;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'test';
+        info.sz = 100; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];   
+        
       elseif strcmp(name,'roianma2')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
         info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
+        info.exp_dir_base = '';
+        info.nviews = nan;
+        info.npts = nan;
+        info.has_trx = false;
+        info.proj_name = 'roianma2-test';
+        info.sz = 250 ; % dont set this to empty even if it is not used
+        info.bundle_link = '';
+        info.op_graph = [];           
+
+      elseif strcmp(name,'roianma2_tracking')
+        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
+        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-lightly-trained.lbl' ;
         info.exp_dir_base = '';
         info.nviews = nan;
         info.npts = nan;
@@ -378,14 +438,10 @@ classdef TestAPT < handle
     
     function test_setup(obj,varargin)
       %obj.setup_path_();
-      [target_trk,simpleprojload,jrcgpuqueue,jrcnslots,jrcAdditionalBsubArgs] = ...
+      [target_trk,simpleprojload] = ...
         myparse(varargin,...
                 'target_trk',MFTSetEnum.CurrMovTgtNearCurrFrame,...
-                'simpleprojload',false, ... % if true, just load the proj; use when proj on local filesys with all deps
-                'jrcgpuqueue','',... % override gpu queue
-                'jrcnslots',[],... % override nslots
-                'jrcAdditionalBsubArgs',''...
-                );
+                'simpleprojload',false) ;  % if true, just load the proj; use when proj on local filesys with all deps
       
       if simpleprojload
         [labeler, controller] = StartAPT();
@@ -417,23 +473,6 @@ classdef TestAPT < handle
       % Set the skeleton edges to match obj.info.op_graph
       if ~isempty(obj.info.op_graph) ,
         obj.labeler.setSkeletonEdges(obj.info.op_graph);
-      end
-
-      % Set three LSF-specific parameters
-      if ~isempty(jrcgpuqueue),
-        if ~isempty(labeler.trackDLBackEnd) ,
-          labeler.set_backend_property('jrcgpuqueue', jrcgpuqueue) ;
-        end
-      end
-      if ~isempty(jrcnslots),
-        if ~isempty(labeler.trackDLBackEnd) ,
-          labeler.set_backend_property('jrcnslots', jrcnslots)
-        end
-      end
-      if ~isempty(jrcAdditionalBsubArgs),
-        if ~isempty(labeler.trackDLBackEnd) ,
-          labeler.set_backend_property('jrcAdditionalBsubArgs', jrcAdditionalBsubArgs)
-        end
       end
     end  % function
     
@@ -599,12 +638,19 @@ classdef TestAPT < handle
       labeller.trackSetParams(sPrm2);
     end  % function
         
-    function set_backend_(obj, backend_type_as_string, backend_params)
-      % backend_params: structure containing name-value pairs to be set on the backend      
+    function set_backend_(obj, backend_type_as_string, raw_backend_params)
+      % backend_params: structure (or cell array) containing name-value pairs to be set on the backend
+      if iscell(raw_backend_params) ,
+        backend_params = struct_from_key_value_list(raw_backend_params) ;
+      elseif isstruct(raw_backend_params)
+        backend_params = raw_backend_params ;
+      else
+        error('raw_backend_params must be a cell array or a struct') ;
+      end
       labeller = obj.labeler;
       % Set the Backend
       backend_type = DLBackEndFromString(backend_type_as_string) ;
-      labeller.trackSetDLBackendType(backend_type);
+      labeller.set_backend_property('type', backend_type);
       name_from_field_index = fieldnames(backend_params) ;
       for field_index = 1 : numel(name_from_field_index) ,
         name = name_from_field_index{field_index} ;
@@ -716,8 +762,11 @@ classdef TestAPT < handle
     end  % function
     
     function test_gtcompute(obj,varargin)
-      [block,backend,backend_params] = myparse(varargin,'block',true,...
-        'backend','','backend_params',struct());
+      [block, backend, backend_params] = ...
+       myparse(varargin, ...
+               'block',true, ...
+               'backend','', ...
+               'backend_params',struct());
       if ~isempty(backend),
         obj.set_backend_(backend,backend_params);
       end
@@ -737,18 +786,18 @@ classdef TestAPT < handle
       end
     end  % function
 
-    function test_quick(obj, proj_file, net, backend, backend_params) 
-      obj.setup_lbl(proj_file);
-      %lObj = tobj.lObj;
-      % s=lObj.trackGetParams;
-      % s.ROOT.DeepTrack.DataAugmentation.rrange = 10;
-      % s.ROOT.DeepTrack.DataAugmentation.trange = 5;
-      % s.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1.1;
-      % s.ROOT.DeepTrack.ImageProcessing.scale = 1.;
-      % lObj.trackSetParams(s);
-      obj.setup_alg_(net);
-      obj.setup_backend_(backend,backend_params);
-    end  % function
+    % function test_quick(obj, proj_file, net, backend, backend_params) 
+    %   obj.setup_lbl(proj_file);
+    %   %lObj = tobj.lObj;
+    %   % s=lObj.trackGetParams;
+    %   % s.ROOT.DeepTrack.DataAugmentation.rrange = 10;
+    %   % s.ROOT.DeepTrack.DataAugmentation.trange = 5;
+    %   % s.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1.1;
+    %   % s.ROOT.DeepTrack.ImageProcessing.scale = 1.;
+    %   % lObj.trackSetParams(s);
+    %   obj.setup_alg_(net);
+    %   obj.setup_backend_(backend,backend_params);
+    % end  % function
   end  % methods
   
   methods (Static) 

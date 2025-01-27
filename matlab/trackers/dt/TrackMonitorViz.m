@@ -351,11 +351,11 @@ classdef TrackMonitorViz < handle
           end
         end
         
-        if res(ijob).killFileExists,
-          obj.isKilled = true;
-          set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
-          obj.hfig.UserData = 'killed';
-        end
+        % if res(ijob).killFileExists,
+        %   obj.isKilled = true;
+        %   set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
+        %   obj.hfig.UserData = 'killed';
+        % end
         if ~obj.bulkAxsIsBulkMode
           TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
         end
@@ -368,10 +368,10 @@ classdef TrackMonitorViz < handle
       end
       
       obj.updateErrDisplay(res);
-      [tfSucc,msg] = obj.updateAnn(res);      
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(res);      
     end
     
-    function [tfSucc,status] = updateAnn(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj,res)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
@@ -383,9 +383,7 @@ classdef TrackMonitorViz < handle
       isLogFile = false;
       if ~isempty(res),
         isTrackComplete = all([res.tfComplete]);
-        isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
-        % to-do: figure out how to make this robust to different file
-        % systems
+        isErr = any([res.errFileExists]) ;
         isLogFile = any([res.logFileExists]);
       end
       
@@ -433,7 +431,7 @@ classdef TrackMonitorViz < handle
     end  % function
     
     function updateErrDisplay(obj,res)
-      isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
+      isErr = any([res.errFileExists]) ;
       if ~isErr,
         return;
       end
@@ -488,14 +486,15 @@ classdef TrackMonitorViz < handle
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
-      [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
-      if tfsucc,
-        
-        % AL: .isKilled set in resultsReceived
-        %obj.isKilled = true;
-      else
-        warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
-      end
+      obj.dtObj.backend.clearRegisteredJobs('track') ;
+      % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
+      % if tfsucc,
+      % 
+      %   % AL: .isKilled set in resultsReceived
+      %   %obj.isKilled = true;
+      % else
+      %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
+      % end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
       apt.setStatusDisplayLineBang(obj.hfig, 'Tracking process killed.', false);
       drawnow;
@@ -510,7 +509,7 @@ classdef TrackMonitorViz < handle
       action = actions{v}; %#ok<PROP>
       switch action
         case 'Show log files',
-         ss = obj.getLogFilesContents();
+         ss = obj.getLogFilesSummary();
          handles.text_clusterinfo.String = ss;
          drawnow;
         case 'Update tracking monitor',
@@ -521,16 +520,17 @@ classdef TrackMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show tracking jobs'' status',
-          ss = obj.queryTrackJobsStatus();
+          ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
           if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
             ss = 'No error messages.';
           else
-            ss = obj.getErrorFileContents();
+            ss = obj.getErrorFilesSummary() ;
           end
           handles.text_clusterinfo.String = ss;
+          drawnow;
         otherwise
           fprintf('%s not implemented\n',action);
           return;
@@ -538,45 +538,29 @@ classdef TrackMonitorViz < handle
       %handles.text_clusterinfo.ForegroundColor = 'w';
     end    
     
-    function ss = getLogFilesContents(obj)
-      
-      ss = obj.trackWorkerObj.getLogfilesContent;
-      
+    function ss = getLogFilesSummary(obj)      
+      ss = obj.dtObj.getTrackingLogFilesSummary() ;      
     end
     
-    function ss = getErrorFileContents(obj)
-      
-      ss = obj.trackWorkerObj.getErrorfileContent;
-      
+    function ss = getErrorFilesSummary(obj)      
+      ss = obj.dtObj.getTrackingErrorFilesSummary() ;      
     end
     
-    function updateMonitorPlots(obj)
-      
-      sRes.result = obj.trackWorkerObj.work();
-      obj.resultsReceived(sRes,true);
-      
+    function updateMonitorPlots(obj)      
+      result = obj.trackWorkerObj.poll();
+      sRes = struct('result', {result}) ;
+      obj.resultsReceived(sRes,true);      
     end
     
-    function ss = queryAllJobsStatus(obj)
-      
-      ss = obj.trackWorkerObj.queryAllJobsStatus();
-      if ischar(ss),
-        ss = strsplit(ss,'\n');
+    function result = queryAllJobsStatus(obj)      
+      ss = obj.dtObj.queryAllJobsStatus('track') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
+      else
+        result = ss ;
       end
-      
-    end
-    
-    function ss = queryTrackJobsStatus(obj)
-      
-      ss = {};
-      raw = obj.trackWorkerObj.queryMyJobsStatus();
-      for i = 1:numel(raw),
-        snew = strsplit(raw{i},'\n');
-        ss(end+1:end+numel(snew)) = snew;
-      end
-
-    end
-    
+    end  % function
+        
   end  % methods
   
   methods (Static)

@@ -85,10 +85,10 @@ classdef BgMonitor < handle
 
       %obj.reset_();  % Not needed
       
-      [tfEFE,errFile] = bgWorkerObj.errFileExists;
-      if tfEFE
-        error('Error file ''%s'' exists.',errFile);
-      end
+      % [tfEFE,errFile] = bgWorkerObj.errFileExists;
+      % if tfEFE
+      %   error('Error file ''%s'' exists.',errFile);
+      % end
       
       fprintf('Configuring background worker...\n');
       bgc = BgClient(obj, bgWorkerObj, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
@@ -157,13 +157,13 @@ classdef BgMonitor < handle
       
       tfpollsucc = BgMonitor.getPollSuccess(sRes);
       
-      killOccurred = any(tfpollsucc & BgMonitor.getKillOccurred(sRes));
-      if killOccurred
-        obj.stop();        
-        fprintf(1,'Process killed!\n');
-        return
-        % monitor plot stays up; reset not called etc
-      end
+      % killOccurred = any(tfpollsucc & BgMonitor.getKillOccurred(sRes));
+      % if killOccurred
+      %   obj.stop();        
+      %   fprintf(1,'Process killed!\n');
+      %   return
+      %   % monitor plot stays up; reset not called etc
+      % end
       
       errOccurred = any(tfpollsucc & BgMonitor.getErrOccurred(sRes));
       if errOccurred
@@ -179,7 +179,7 @@ classdef BgMonitor < handle
           end
         end        
         fprintf('\n### %s\n\n',errFile);
-        errContents = obj.bgWorkerObj.fileContents(errFile);
+        errContents = obj.parent_.backend.fileContents(errFile) ;
         disp(errContents);
         % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
         %fprintf('\n\nYou may need to manually kill any running DeepLearning process.\n');
@@ -188,21 +188,21 @@ classdef BgMonitor < handle
         % monitor plot stays up; reset not called etc
       end
       
-      logFileErrLikely = BgMonitor.getLogFileErrLikely(sRes);
-      for i=1:numel(sRes.result)
-        if tfpollsucc(i) && logFileErrLikely(i),
-          obj.stop();
-          
-          fprintf(1,'Error occurred during %s:\n',obj.processName);
-          logFiles = BgMonitor.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
-          displayFileOrFiles(logFiles, obj.bgWorkerObj) ;
-          % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
-          %fprintf('\n\nYou may need to manually kill any running %s process.\n',obj.processName);
-          return
-          
-          % monitor plot stays up; bgReset not called etc
-        end
-      end
+      % logFileErrLikely = false(size(sRes.result)) ;  % vestigial
+      % for i=1:numel(sRes.result)
+      %   if tfpollsucc(i) && logFileErrLikely(i),
+      %     obj.stop();
+      % 
+      %     fprintf(1,'Error occurred during %s:\n',obj.processName);
+      %     logFiles = BgMonitor.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
+      %     displayFileOrFiles(logFiles, obj.bgWorkerObj) ;
+      %     % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
+      %     %fprintf('\n\nYou may need to manually kill any running %s process.\n',obj.processName);
+      %     return
+      % 
+      %     % monitor plot stays up; bgReset not called etc
+      %   end
+      % end
             
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
         obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
@@ -252,9 +252,9 @@ classdef BgMonitor < handle
       end
     end
 
-    function killOccurred = getKillOccurred(sRes)
-      killOccurred = [sRes.result.killFileExists];
-    end
+    % function killOccurred = getKillOccurred(sRes)
+    %   killOccurred = [sRes.result.killFileExists];
+    % end
 
     function errOccurred = getErrOccurred(sRes)
       errOccurred = [sRes.result.errFileExists];
@@ -268,8 +268,8 @@ classdef BgMonitor < handle
       logFile = sRes.result(i).logFile;
     end
 
-    function logFileErrLikely = getLogFileErrLikely(sRes)
-      logFileErrLikely = [sRes.result.logFileErrLikely];
+    function result = getLogFileErrLikely(sRes)
+      result = false(size(sRes.result)) ;
     end
 
     function tfComplete = isComplete(sRes)

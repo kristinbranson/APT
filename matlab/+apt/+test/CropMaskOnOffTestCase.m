@@ -25,8 +25,8 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
       % Set the algo
       labeler.trackSetCurrentTrackerByName('magrone') ;
 
-      % Set the backend
-      labeler.trackSetDLBackendType('bsub');
+      % Set the backend type
+      labeler.set_backend_property('type', 'bsub');
 
       % Set backend properties
       labeler.set_backend_property('jrcgpuqueue', setup_params.jrcgpuqueue) ;

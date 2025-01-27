@@ -1,4 +1,4 @@
-function status = runPollingLoop(toClientDataQueue, worker, awsec2Suitcase, pollInterval, projTempDirMaybe)
+function status = runPollingLoop(toClientDataQueue, poller, suitcase, pollInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
@@ -6,10 +6,8 @@ function status = runPollingLoop(toClientDataQueue, worker, awsec2Suitcase, poll
 % callInterval: time in seconds to wait between calls to
 %   worker.(cObjMeth)
 
-% Unpack the awsec2Suitcase, if needed
-if isa(worker, 'BgWorkerObjAWS') ,
-  worker.awsec2.restoreAfterParfeval(awsec2Suitcase) ;
-end
+% Unpack the backend suitcase
+poller.restoreAfterParfeval(suitcase) ;
 
 % Set up the log file, if called for
 if isempty(projTempDirMaybe) ,
@@ -20,17 +18,11 @@ else
   logger = FileLogger(logFilePath, 'runPollingLoop') ;
 end
 
-logger.log('Inside runPollingLoop()\n') ;
+logger.log('Inside runPollingLoop()') ;
 
-logger.log('cObj:\n') ;
-logger.log(formattedDisplayText(worker)) ;
-logger.log('\n') ;
-
-if isa(worker, 'BgTrackWorkerObjAWS') ,
-  logger.log('cObj.awsec2:\n') ;
-  logger.log(formattedDisplayText(worker.awsec2)) ;
-  logger.log('\n') ;
-end      
+logger.log('cObj:') ;
+logger.log(formattedDisplayText(poller)) ;
+logger.log('') ;
 
 assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
 fromClientDataQueue = parallel.pool.PollableDataQueue;
@@ -62,7 +54,7 @@ while true
     % continue
   end
   
-  result = worker.work(logger);  % this is a row struct, with length equal to the number of views
+  result = poller.poll(logger);  % this is a row struct, with length equal to the number of views
   view_count = numel(result) ;
   for view_index = 1 : view_count ,
     result(view_index).iterations_completed = iterations_completed ;
@@ -70,15 +62,15 @@ while true
   computeTimes(end+1,1) = toc(tic_id) ;  %#ok<AGROW>
   toClientDataQueue.send(struct('id',0,'action','','result',{result}));
 
-  logger.log('Pausing...');
+  logger.log('Pausing...\n');  % want an extra newline here
   pause(pollInterval);
   logger.log('Done pausing...');
   iterations_completed = iterations_completed + 1 ;
-  logger.log('iterations_completed: %d\n', iterations_completed) ;
+  logger.log('iterations_completed: %d', iterations_completed) ;
 end  % while true
 
 status = 1;
-logger.log('About to exit runPollingLoop()\n') ;
+logger.log('About to exit runPollingLoop()') ;
 
 end  % function
     

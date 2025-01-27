@@ -2598,12 +2598,12 @@ classdef Labeler < handle
         for iTrker = 1:numel(obj.trackersAll)
           tObj = obj.trackersAll{iTrker};
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
-            dmc = tObj.trnLastDMC;
+            backend = tObj.backend ;
             try
-              if dmc.isRemote()
+              if backend.isDMCRemote
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tObj.trnNetType);
               else
-                dmc.copyModelFiles(obj.projTempDir,true);
+                tObj.copyModelFiles(obj.projTempDir,true);
               end
             catch ME
               warningNoTrace('Nettype ''%s'': error caught trying to save model. Trained model will not be migrated for this net type:\n%s',...
@@ -2681,7 +2681,7 @@ classdef Labeler < handle
       set(obj.gdata.menu_setup_sequential_add_mode,'Visible','off');
       
       
-    end
+    end  % function
     
     function projAddLandmarks(obj,nadd)
       
@@ -3079,13 +3079,14 @@ classdef Labeler < handle
           % a lot of unnecessary moving around is to maintain the directory
           % structure - MK 20190204
 
-          dmc = tObj.trnGetDMCs();
+          dmc = tObj.trnLastDMC ;
           if isempty(dmc),
             continue;
           end
           try
             try
-              dmc.mirrorFromBackend(obj.trackDLBackEnd);
+              backend = obj.trackDLBackEnd ;
+              backend.mirrorDMCFromBackend(dmc);
             catch me
               warningNoTrace('Could not check if trackers had been downloaded from AWS: %s', me.message);
             end
@@ -3094,7 +3095,7 @@ classdef Labeler < handle
               fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
                       tObj.trnNetType,dmc.getRootDir);
             end
-            modelFilesDst = dmc.copyModelFiles(projtempdir,verbose);
+            modelFilesDst = tObj.copyModelFiles(projtempdir,verbose);
             allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
           catch ME
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
@@ -9224,44 +9225,10 @@ classdef Labeler < handle
           warndlg(warnstr,'Image sizes vary','modal');
         end
       end
-    end
-    
-%     function viewCalSetCheckViewSizes(obj,iMov,crObj,tfSet)
-%       % Check/set movie image size for movie iMov on calrig object 
-%       %
-%       % The raw movie sizes are used here, ignoring any cropping.
-%       % 
-%       % iMov: movie index, applied in GT-aware fashion (eg .currMovie)
-%       % crObj: scalar calrig object
-%       % tfSet: if true, set the movie size on the calrig (with diagnostic
-%       % printf); if false, throw warndlg if the sizes don't match
-%             
-%       assert(iMov>0);
-%       movInfo = obj.movieInfoAllGTaware(iMov,:);
-%       movWidths = cellfun(@(x)x.info.Width,movInfo); % raw movie width/height
-%       movHeights = cellfun(@(x)x.info.Height,movInfo); % etc
-%       vwSizes = [movWidths(:) movHeights(:)];
-%       if tfSet
-%         % If movie sizes differ in this project, setting of viewsizes may
-%         % be hazardous. Assume warning has been thrown if necessary
-%         crObj.viewSizes = vwSizes;
-%         for iVw=1:obj.nview
-%           fprintf(1,'Calibration obj: set [width height] = [%d %d] for view %d (%s).\n',...
-%             vwSizes(iVw,1),vwSizes(iVw,2),iVw,crObj.viewNames{iVw});
-%         end
-%       else
-%         % Check view sizes
-%         if ~isequal(crObj.viewSizes,vwSizes)
-%           warnstr = sprintf('View sizes in calibration object (%s) do not match movie %d (%s).',...
-%             mat2str(crObj.viewSizes),iMov,mat2str(vwSizes));
-%           warndlg(warnstr,'View size mismatch','non-modal');
-%         end
-%       end
-%     end
-    
-  end
-  methods
-    
+    end  % function
+  end  % methods (Access=private
+
+  methods   
     function viewCalClear(obj)
       obj.viewCalProjWide = [];
       obj.viewCalibrationData = [];
@@ -9702,13 +9669,14 @@ classdef Labeler < handle
         % .showGTResults() gets called from a callback registered on the completion of
         % this async process.
 
-        % If backend is AWS, use a different backend
         backend = obj.trackDLBackEnd;
-        if backend.type == DLBackEnd.AWS
-          warning('Cannot use AWS cloud to do GT computation, using Docker backend on local computer. If no GPUs are available locally, CPUs will be used.')
-          backend = DLBackEndClass(DLBackEnd.Docker);
+
+        % If backend is AWS, abort.
+        if backend.type == DLBackEnd.AWS ,
+          error('Cannot use AWS backend to do GT computation.  Pick a different backend.')
         end
         
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         [movidx,~,newmov] = unique(tblMFT.mov);
         movidx_new = [];
         for ndx = 1:numel(movidx)
@@ -9717,15 +9685,17 @@ classdef Labeler < handle
         end
         movidx = movidx_new;
         tblMFT.mov = newmov;
-
         movfiles = obj.movieFilesAllFullGTaware(movidx,:);
 
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         if obj.hasTrx
           trxfiles = obj.trxFilesAllFullGTaware;
           trxfiles = trxfiles(movidx,:);
         else
           trxfiles = {};
         end
+
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         if obj.cropProjHasCrops
           cropInfo = obj.getMovieFilesAllCropInfoGTAware();
           croprois = cell([size(movfiles,1),obj.nview]);
@@ -9737,6 +9707,8 @@ classdef Labeler < handle
         else
           croprois = {};
         end
+
+        % What exactly are we doing here?  -- ALT, 2025-01-14
         caldata = obj.viewCalibrationDataGTaware;
         if ~isempty(caldata)
           if ~obj.viewCalProjWide
@@ -9744,13 +9716,27 @@ classdef Labeler < handle
           end
         end
 
+        % % Check that everything is set up for tracking
+        % % (We added this mainly to spin-up the AWS backend when in use, during an
+        % % abortive attempt to AWS GT working.)
+        % [tfCanTrack,reason] = obj.trackCanTrack(tblMFT) ;
+        % if ~tfCanTrack ,
+        %   error('Setup for GT tracking failed: %s', reason) ;
+        % end
+
+        % Tell the tracker to spawn the tracking jobs
         tObj = obj.tracker;
         totrackinfo = ...
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
         tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
+
+        % Record whether that worked, so that anybody responding to the didHopefullySpawnTrackingForGT
+        % notification can find out whether it worked.
         obj.didSpawnTrackingForGT_ = tfsucc ;
+
+        % Broadcast a notification about recent events
         obj.notify('didHopefullySpawnTrackingForGT') ;
       end  % if
     end  % function
@@ -10895,6 +10881,8 @@ classdef Labeler < handle
       % tracker; if a user uses multiple tracker types (eg: MA-BU and 
       % MA-TD) and switches between them, the behavior may be odd (eg the
       % user may get prompted constantly about "changed suggestions" etc)
+      %
+      % ALT: Does UI stuff, should be moved into controller
 
       silent = myparse(varargin,'silent',false) | obj.silent;
         
@@ -11010,20 +10998,6 @@ classdef Labeler < handle
       be = obj.trackDLBackEnd;
     end
     
-    function trackSetDLBackendType(obj, type_or_string)
-      if ischar(type_or_string) ,
-        type = DLBackEndFromString(type_or_string) ;
-      else
-        type = type_or_string ;
-      end
-      assert(isa(type,'DLBackEnd'));      
-      obj.trackDLBackEnd.type = type ;
-      [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
-      if ~tf
-        warningNoTrace('Backend is not ready to train: %s',reason);
-      end      
-    end  % function
-    
     function trainIncremental(obj)
       tObj = obj.tracker;
       if isempty(tObj)
@@ -11045,36 +11019,52 @@ classdef Labeler < handle
         'do_call_apt_interface_dot_py', true ...
         );
       
-      tObj = obj.tracker;
-      if isempty(tObj)
-        obj.lerror('Labeler:track','No tracker set.');
+      % Do a few checks
+      tracker = obj.tracker;
+      if isempty(tracker)
+        error('Labeler:track','No tracker set.');
       end
       if ~obj.hasMovie
-        obj.lerror('Labeler:track','No movie.');
+        error('Labeler:track','No movie.');
       end
       
-      obj.trackSetAutoParams();
-      if ~obj.trackCheckGPUMem()
-        return;
+      obj.trackSetAutoParams();  % Does UI stuff, should be moved into controller
+      if ~obj.trackCheckGPUMem()  % Does UI stuff, should be moved into controller
+        return
       end
       
+      % Do something, for some reason.  Maybe vestigial?  -- ALT, 2025-01-24
       if ~isempty(tblMFTtrn)
-        assert(strcmp(tObj.algorithmName,'cpr'));
+        assert(strcmp(tracker.algorithmName,'cpr'));
         % assert this as we do not fetch tblMFTp to treatInfPosAsOcc
         tblMFTp = obj.preProcGetMFTableLbled('tblMFTrestrict',tblMFTtrn);
         trainArgs = [trainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
       
+      % This is vestigial, can be removed.  -- ALT, 2025-01-24
       if ~dontUpdateH0
         obj.preProcUpdateH0IfNec();
       end
-      tObj.train(trainArgs{:}, ...
-                 'do_just_generate_db', do_just_generate_db, ...
-                 'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
-                 'projTempDir', obj.projTempDir);
+
+      % Spin up the backend in preparation for training
+      backend = obj.trackDLBackEnd ;
+      [isReady, reasonNotReady] = backend.ensureIsRunning() ;
+      if ~isReady ,
+        error('Labeler:unableToStartBackend', 'Unable to start backend: %s', reasonNotReady) ;
+      end
+
+      % Call the tracker to do the heavy lifting
+      tracker.train(trainArgs{:}, ...
+                    'do_just_generate_db', do_just_generate_db, ...
+                    'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
+                    'projTempDir', obj.projTempDir);
     end  % function
 
     function dotrain = trackCheckGPUMem(obj,varargin)
+      % Check for a GPU, and check the GPU memory against an estimate of the
+      % required GPU memory.
+      %
+      % Does UI stuff, should be moved into controller
       silent = myparse(varargin,'silent',false) || obj.silent ;
       dotrain = true;
       sPrm = obj.trackGetParams();
@@ -11151,19 +11141,15 @@ classdef Labeler < handle
           end
         end
       end
-    end
+    end  % function
     
-    function [bgTrnIsRunning] = trackBGTrnIsRunning(obj)
-      
-      bgTrnIsRunning = false(1,numel(obj.trackersAll));
+    function result = bgTrnIsRunningFromTrackerIndex(obj)
+      result = false(1,numel(obj.trackersAll));
       for i = 1:numel(obj.trackersAll),
-        if isprop(obj.trackersAll{i},'bgTrnIsRunning'),
-          bgTrnIsRunning(i) = obj.trackersAll{i}.bgTrnIsRunning;
-        end
-          
-      end
-      
-    end
+        tracker = obj.trackersAll{i} ;
+        result(i) = tracker.bgTrnIsRunning ;
+      end      
+    end  % function
     
     function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
       
@@ -11221,18 +11207,13 @@ classdef Labeler < handle
       if isempty(obj.tracker),
         reason = 'The tracker has not been set.';
         return;
-      end
-      
-      [tfCanTrack,reason] = obj.tracker.canTrack();
-      
+      end      
+      [tfCanTrack,reason] = obj.tracker.canTrack();      
       if ~tfCanTrack,
-        return;
-      end
-      
+        return
+      end      
       [tfCanTrack,reason] = PostProcess.canPostProcess(obj,tblMFT);
-
-      
-    end
+    end  % function
     
     function tfCanTrack = trackAllCanTrack(obj)
       tfCanTrack = false(1,numel(obj.trackersAll));
@@ -11305,9 +11286,8 @@ classdef Labeler < handle
         tblMFT = mftset.getMFTable(obj,'istrack',true);
       end
 
-      % which movies are we tracking?
+      % Which movies are we tracking?
       [movidx,~,newmov] = unique(tblMFT.mov);
-      %movidx_old = movidx ;
       movidx_new = [];
       for ndx = 1:numel(movidx)
         mn = movidx.get();
@@ -11315,9 +11295,8 @@ classdef Labeler < handle
       end
       movidx = movidx_new;
       tblMFT.mov = newmov;
-      localmovfiles = obj.movieFilesAllFullGTaware;
-      localmovfiles = localmovfiles(movidx,:);
-      movfiles = obj.trackDLBackEnd.remoteMoviePathsFromLocal(localmovfiles) ;
+      all_movfiles = obj.movieFilesAllFullGTaware;
+      movfiles = all_movfiles(movidx,:);
 
       % get data associated with those movies
       if obj.hasTrx,
@@ -15380,6 +15359,9 @@ classdef Labeler < handle
     function set_backend_property(obj, property_name, new_value)
       backend = obj.trackDLBackEnd ;
       backend.(property_name) = new_value ;  % this can throw if value is invalid
+      if strcmp(property_name, 'type') ,
+        obj.notify('didSetTrackDLBackEnd') ;
+      end
       obj.setDoesNeedSave(true, 'Changed backend parameter') ;  % this is a public method, will send update notification
     end
 
@@ -15564,34 +15546,28 @@ classdef Labeler < handle
       result.nmoviesGT = obj.nmoviesGT ;
       result.hasMovie = obj.hasMovie ;
     end  % function
-
-    function setBackendType(obj, type)
-      assert(isa(type,'DLBackEnd'));
-      obj.trackDLBackEnd.type = type ;
-%       if type ~= DLBackEnd.AWS ,
-%         [tf,reason] = obj.trackDLBackEnd.getReadyTrainTrack();
-%         if ~tf
-%           warningNoTrace('Backend is not ready to train: %s',reason);
-%         end
-%       end
-      obj.notify('didSetTrackDLBackEnd') ;
-    end
-
-    function setAwsPemFileAndKeyName(obj, pemFile, keyName)
-      backend = obj.trackDLBackEnd ;
-      if isempty(backend) ,
-        error('Backend not configured') ;
-      end      
-      backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
-    end
+ 
+    % function setBackendType(obj, value)
+    %   % Set the backend type.  Accepts a DLBackEnd or a string (old- or new-style).
+    %   obj.trackDLBackEnd.type = value ;
+    %   obj.notify('didSetTrackDLBackEnd') ;
+    % end
     
-    function setAWSInstanceIDAndType(obj, instanceID, instanceType)
-      backend = obj.trackDLBackEnd ;
-      if isempty(backend) ,
-        error('Backend not configured') ;
-      end      
-      backend.setAWSInstanceIDAndType(instanceID, instanceType) ;
-    end
+    % function setAwsPemFileAndKeyName(obj, pemFile, keyName)
+    %   backend = obj.trackDLBackEnd ;
+    %   if isempty(backend) ,
+    %     error('Backend not configured') ;
+    %   end      
+    %   backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
+    % end
+    
+    % function setAWSInstanceIDAndType(obj, instanceID, instanceType)
+    %   backend = obj.trackDLBackEnd ;
+    %   if isempty(backend) ,
+    %     error('Backend not configured') ;
+    %   end      
+    %   backend.setAWSInstanceIDAndType(instanceID, instanceType) ;
+    % end
 
     function retrainAugOnly(obj)
       % No idea what this does, but I know LabelerGUI methods shouldn't be calling
@@ -15607,7 +15583,8 @@ classdef Labeler < handle
     end  % function
 
     function result = get.bgTrnIsRunning(obj)        
-      % True iff background training is running
+      % Whether training is running.  Technically, only checks whether the
+      % background process that polls for training progress is running.
       if isempty(obj.tracker) ,
         result = false ;
       else
@@ -15616,7 +15593,8 @@ classdef Labeler < handle
     end  % function
 
     function result = get.bgTrkIsRunning(obj)        
-      % True iff background tracking is running
+      % Whether tracking is running.  Technically, only checks whether the
+      % background process that polls for tracking progress is running.
       if isempty(obj.tracker) ,
         result = false ;
       else

@@ -1,21 +1,23 @@
-function jobid = parseJobIDConda(res)
-  % Returned jobid is an old-style string.
-  % We look for the first line of res that cleanly converts to an integer. If we can't find such
-  % a line, we throw a warning and return an empty string.
+function jobid = parseJobIDConda(response)
+  % Attempt to process the (old-style) string in response to extract a process
+  % ID (PID).  Then lookup the process group ID (PGID) to which that process belongs.
+  % The PGID is used as the job id for conda jobs.  The PGID is returned as an
+  % old-style string.  Throws an error if anything goes wrong.
 
-  %fprintf('res: %s', res) ;      
-  line_from_line_index = break_string_into_lines(res) ;
+  % Split response into lines, then look for the first line that cleanly
+  % converts to an integer.  That integer is taken to be the process ID.
+  line_from_line_index = break_string_into_lines(response) ;
   line_count = numel(line_from_line_index) ;
   for line_index = 1 : line_count ,
     line = line_from_line_index{line_index} ;
-    maybe_jobid = strtrim(line) ;
-    maybe_jobid_as_double = str2double(maybe_jobid) ;
-    if isfinite(maybe_jobid_as_double) && round(maybe_jobid_as_double)==maybe_jobid_as_double ,
-      jobid = maybe_jobid ;
+    maybe_pid = strtrim(line) ;
+    maybe_pid_as_double = str2double(maybe_pid) ;
+    if isfinite(maybe_pid_as_double) && round(maybe_pid_as_double)==maybe_pid_as_double ,
+      pid = maybe_pid ;
+      jobid = apt.pgid_from_pid(pid) ;
       return
     end
   end
   % If get here, we have failed to read a job id
-  warning('Could not parse job id from:\n%s\n',res) ;
-  jobid = '' ;
+  error('Could not parse job id from:\n%s', response) ;
 end

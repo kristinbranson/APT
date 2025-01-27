@@ -1,25 +1,30 @@
 classdef CarmenTestCase < matlab.unittest.TestCase
   methods (Static)
     function result = getSetupParams()
+      result = ...
+        {'simpleprojload',1} ;
+    end  % function
+    function result = getBackendParams()
       if strcmp(get_user_name(), 'taylora') ,
         jrcAdditionalBsubArgs = '-P scicompsoft' ;
       else
         jrcAdditionalBsubArgs = '' ;
       end
       result = ...
-        {'simpleprojload',1, ...
-         'jrcgpuqueue','gpu_a100', ...
+        {'jrcgpuqueue','gpu_a100', ...
          'jrcnslots',4, ...
          'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs} ;
-    end  % function
+    end  % function    
   end  % methods (Static)
   
   methods (Test)
     function trainingTest(obj)
       testObj = TestAPT('name','carmen');
       setup_params = apt.test.CarmenTestCase.getSetupParams() ;
+      backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_train('backend','bsub');
+      testObj.test_train('backend','bsub', ...
+                         'backend_params', backend_params);
       did_train_enough = (testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
       obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
     end  % function
@@ -27,8 +32,10 @@ classdef CarmenTestCase < matlab.unittest.TestCase
     function trackingTest(obj)
       testObj = TestAPT('name','carmen_tracking');
       setup_params = apt.test.CarmenTestCase.getSetupParams() ;
+      backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_track('backend','bsub');
+      testObj.test_track('backend','bsub', ...
+                         'backend_params', backend_params);
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is empty---it should be nonempty after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP, 'TrkFile', 'testObj.labeler.tracker.trkP is not of class TrkFile after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP.pTrk, 'cell', 'testObj.labeler.tracker.trkP.pTrk is not of class cell after tracking') ;
@@ -41,8 +48,10 @@ classdef CarmenTestCase < matlab.unittest.TestCase
     function groundTruthTest(obj)
       testObj = TestAPT('name','carmen_tracking');
       setup_params = apt.test.CarmenTestCase.getSetupParams() ;
+      backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_gtcompute('backend','bsub') ;
+      testObj.test_gtcompute('backend','bsub', ...
+                             'backend_params', backend_params);
       tbl = testObj.labeler.gtTblRes ;
       obj.verifyTrue(isequal(size(tbl), [1539 11]), ...
                      'After GT tracking, testObj.labeler.gtTblRes is the wrong size') ;      

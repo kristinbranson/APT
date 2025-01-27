@@ -359,7 +359,7 @@ classdef LabelerController < handle
         do_use_previous = [] ;  % value will be ignored
       end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
-      % Finally, call the model method to se the tracker
+      % Finally, call the model method to set the tracker
       obj.labeler_.trackSetCurrentTracker(tracker_index, do_use_previous);      
     end
 
@@ -570,16 +570,18 @@ classdef LabelerController < handle
       if backend.type ~= DLBackEnd.AWS ,
         error('Backend is not of type AWS') ;
       end        
-      ec2 = backend.awsec2 ;
-      if ~ec2.areCredentialsSet || canConfigure >= 2,
+      awsec2 = backend.awsec2 ;
+      if ~awsec2.areCredentialsSet || canConfigure >= 2,
         if canConfigure,
           [tfsucc,keyName,pemFile] = ...
-            promptUserToSpecifyPEMFileName(ec2.keyName,ec2.pem);
+            promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
-            labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
+            %labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
+            labeler.set_backend_property('awsPEM', pemFile) ;
+            labeler.set_backend_property('awsKeyName', keyName) ;            
           end
-          if ~tfsucc && ~ec2.areCredentialsSet,
+          if ~tfsucc && ~awsec2.areCredentialsSet,
             reason = 'AWS EC2 instance is not configured.';
             error(reason) ;
           end
@@ -588,15 +590,15 @@ classdef LabelerController < handle
           error(reason) ;
         end
       end
-      if forceSelect || ~ec2.isInstanceIDSet,
-        if ec2.isInstanceIDSet ,
-          instanceID = ec2.instanceID;
+      if forceSelect || ~awsec2.isInstanceIDSet,
+        if awsec2.isInstanceIDSet ,
+          instanceID = awsec2.instanceID;
         else
           instanceID = '';
         end
         if canLaunch,
           qstr = 'Launch a new instance or attach to an existing instance?';
-          if ~ec2.isInstanceIDSet,
+          if ~awsec2.isInstanceIDSet,
             qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
           else
             qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
@@ -612,14 +614,14 @@ classdef LabelerController < handle
         while true,
           switch btn
             case 'Launch New'
-              tf = ec2.launchInstance();
+              tf = awsec2.launchInstance();
               if ~tf
                 reason = 'Could not launch AWS EC2 instance.';
                 error(reason) ;
               end
               break
             case 'Attach to Existing',
-              [tfsucc,instanceIDs,instanceTypes] = ec2.listInstances();
+              [tfsucc,instanceIDs,instanceTypes] = awsec2.listInstances();
               if ~tfsucc,
                 reason = 'Error listing instances.';
                 error(reason) ;
@@ -642,8 +644,8 @@ classdef LabelerController < handle
               BROWSEINFO = struct('type',{'popupmenu'});
               s = cellfun(@(x,y) sprintf('%s (%s)',x,y),instanceIDs,instanceTypes,'Uni',false);
               v = 1;
-              if ~isempty(ec2.instanceID),
-                v = find(strcmp(instanceIDs,ec2.instanceID),1);
+              if ~isempty(awsec2.instanceID),
+                v = find(strcmp(instanceIDs,awsec2.instanceID),1);
                 if isempty(v),
                   v = 1;
                 end
@@ -665,7 +667,9 @@ classdef LabelerController < handle
           end
         end
         % For changing things in the model, we go through the top-level model object
-        labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
+        %labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
+        labeler.set_backend_property('awsInstanceID', instanceID) ;
+        labeler.set_backend_property('awsInstanceType', instanceType) ;
       end
     end  % function selectAwsInstance_()
 
@@ -685,6 +689,7 @@ classdef LabelerController < handle
           obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
           exceptionMaybe = {} ;
         catch exception
+          obj.labeler_.clearStatus() ;
           if isequal(exception.identifier,'APT:invalidPropertyValue') || isequal(exception.identifier,'APT:cancelled'),
             % ignore completely, don't even pass on to output
             exceptionMaybe = {} ;

@@ -5,14 +5,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
   % DMCOD also now handles tracking output: eg trkfiles and associated
   % log/errfiles/etc; gt results files etc. These are a bit conceptually
   % different but they live underneath the cache/modelchaindir at runtime.
-  %
-  % DMCOD does know whether the model is on a local or remote filesystem 
-  % via the isRemote_ property.
 
   % As far as I can tell, all the fields of DMCOD contain only value objects in
   % normal usage.  Thus obj.copy() makes an entirely indepdent copy of obj, with
   % no need to implement a custom copyElement() method.  -- ALT, 2024-12-20
-    
+  
+  % Note that this is copyable, and we want it to stay that way.  So think
+  % before adding properties to it.  -- ALT, 2025-01-07
+
   properties (Constant)
     configFileExt = '.json'; % switching this to output json file in train/track commands
     gen_strippedlblfile = false; % try disabling the stripped lbl file generation!!
@@ -64,7 +64,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     % Example: `/groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5`
     % This will be the same for all stages/views.
     localRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
-    remoteRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL
+    %remoteRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL
     % Underscore means "protected by convention"
     %rootDir = '';
 
@@ -117,9 +117,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     trkTaskKeyword = {}; % arbitrary tracking task keyword; used for tracking output files
     trkTSstr = '';% timestamp for tracking
     prev_models = []; % prev model to start training from
-    isRemote_ = false  
-      % True iff the "current" version of the model is on a remote AWS filesystem.  
-      % Underscore means "protected by convention"
+    % isRemote_ = false  
+    %   % True iff the "current" version of the model is on a remote AWS filesystem.  
+    %   % Underscore means "protected by convention"
   end
 
   properties (Dependent)
@@ -127,9 +127,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     nviews
     njobs
     nstages
-    rootDir
-    localRootDir
-    remoteRootDir
+    rootDir  % The (local) root dir of the DMCoD
+    %localRootDir
+    %remoteRootDir
   end
 
   methods
@@ -146,25 +146,17 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       v = numel(unique(obj.jobidx));
     end
     function v = get.rootDir(obj)
-      if obj.isRemote_ ,
-        v = obj.remoteRootDir_ ;
-      else
-        v = obj.localRootDir_ ;        
-      end
-    end
-    function set.rootDir(obj,v)
-      if obj.isRemote_ ,
-        obj.remoteRootDir_ = v ;
-      else
-        obj.localRootDir_ = v ;
-      end
-    end    
-    function v = get.remoteRootDir(obj)
-      v = obj.remoteRootDir_ ;
-    end
-    function v = get.localRootDir(obj)
       v = obj.localRootDir_ ;
     end
+    function set.rootDir(obj,v)
+      obj.localRootDir_ = v ;
+    end    
+    % function v = get.remoteRootDir(obj)
+    %   v = obj.remoteRootDir_ ;
+    % end
+    % function v = get.localRootDir(obj)
+    %   v = obj.localRootDir_ ;
+    % end
     function [v,idx] = getJobs(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.jobidx(idx);
@@ -181,18 +173,18 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       idx = obj.select(varargin{:});
       v = obj.splitIdx(idx);
     end
-    function v = isRemote(obj)
-      v = obj.isRemote_ ;
-    end
+    % function v = isRemote(obj)
+    %   v = obj.isRemote_ ;
+    % end
     function idx = select(obj,varargin)
       idx = DeepModelChainOnDisk.selectHelper(obj,varargin{:});
     end
-    function info = getIdentifiers(obj)
-      info = struct;
-      info.jobidx = obj.jobidx;
-      info.view = obj.view;
-      info.stage = obj.stage;
-      info.splitIdx = obj.splitIdx;
+    function result = getIdentifiers(obj)
+      result = struct();
+      result.jobidx = obj.jobidx;
+      result.view = obj.view;
+      result.stage = obj.stage;
+      result.splitIdx = obj.splitIdx;
     end
     function [ijob,ivw,istage,isplit] = ind2sub(obj,idx)
       ijob = obj.jobidx(idx);
@@ -237,7 +229,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function setTrainType(obj,v,varargin)
       idx = obj.select(varargin{:});
       ncurr = numel(idx);
-      obj.trnType(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
+      obj.trainType(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
     end
     function [v,idx] = getTrkTaskKeyword(obj,varargin)
       idx = obj.select(varargin{:});
@@ -271,12 +263,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       idx = obj.select(varargin{:});
       v = obj.tfFollowsObjDet(idx);
     end
-    function v = getRootDir(obj)
-      v = obj.rootDir ;
-    end
-    function setRootDir(obj,v)
-      obj.rootDir = v ;
-    end
+    % function v = getRootDir(obj)
+    %   v = obj.rootDir ;
+    % end
+    % function setRootDir(obj,v)
+    %   obj.rootDir = v ;
+    % end
     function setPrevModels(obj,prev_models,varargin)
       idx = obj.select(varargin{:});
       assert(numel(prev_models) == numel(idx));
@@ -898,9 +890,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         obj.nLabels = repmat(obj.nLabels,[1,nmodels]);
       end
       %obj.checkFileSep();
-      if isempty(obj.isRemote_),
-        obj.isRemote_ = false ;
-      end
+      % if isempty(obj.isRemote_),
+      %   obj.isRemote_ = false ;
+      % end
 %       if isempty(obj.reader),
 %         obj.reader = DeepModelChainReaderLocal();
 %       end
@@ -1013,10 +1005,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       dmc2 = obj.selectSubset(idx2);
     end
 
-    function obj2 = copyAndDetach(obj)
-      obj2 = copy(obj);
-      %obj2.prepareBg();
-    end    
+    % function obj2 = copyAndDetach(obj)
+    %   obj2 = copy(obj);
+    %   %obj2.prepareBg();
+    % end    
 
 %     function prepareBg(obj)
 %       % 'Detach' a DMC for use in bg processes
@@ -1135,89 +1127,61 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         end
       end      
     end
-
-    function modelFilesDst = copyModelFiles(obj,newRootDir,debug)
-      if nargin < 3,
-        debug = false;
-      end
-      modelFiles = obj.findModelGlobsLocal();
-      modelFiles = cat(1,modelFiles{:});
-      modelFiles = unique(modelFiles);
-      modelFilesDst = strrep(modelFiles,obj.getRootDir(),newRootDir);
-      % nothing to do
-      if isequal(obj.getRootDir(),newRootDir), 
-        return
-      end
-      if obj.isRemote_
-        warningNoTrace('Remote model detected. This will not be migrated.');
-        return
-      end
-      backend = [] ;  % we know we don't need a backend, b/c isRemote is false
-      tfsucc = obj.updateCurrInfo(backend);
-      if ~all(tfsucc),
-        for i = find(~tfsucc(:)'),
-          warningNoTrace('Failed to update model iteration count for for net type %s.',...
-            char(obj.netType{i}));
-        end
-      end
-      for mndx = 1:numel(modelFiles)
-        copyfileensuredir(modelFiles{mndx},modelFilesDst{mndx}); % throws
-        if debug,
-          fprintf(1,'%s -> %s\n',modelFiles{mndx},modelFilesDst{mndx});
-        end
-      end
-    end
     
-    function tfSuccess = updateCurrInfo(obj, backend, varargin)
-      % Update .iterCurr by probing filesys
-      
-      assert(isscalar(obj));
-      % will update for all
-      maxiter = obj.getMostRecentModel_(backend, varargin{:});
-      obj.iterCurr = maxiter;
-      tfSuccess = (maxiter >= 0) ;
-      
-      if any(maxiter>obj.iterFinal),
-        warningNoTrace('Current model iteration exceeds specified maximum/target iteration: %s.',...
-           DeepTracker.printIter(maxiter,obj.iterFinal));
-      end
-    end
+    % function updateCurrInfo(obj, backend)
+    %   % Update .iterCurr by probing filesys
+    % 
+    %   assert(isscalar(obj));
+    %   % will update for all
+    %   maxiter = backend.getMostRecentModel(obj) ;
+    % 
+    %   obj.iterCurr = maxiter;
+    %   %tfSuccess = (maxiter >= 0) ;
+    % 
+    %   if any(maxiter>obj.iterFinal),
+    %     warningNoTrace('Current model iteration exceeds specified maximum/target iteration: %s.',...
+    %        DeepTracker.printIter(maxiter,obj.iterFinal));
+    %   end
+    % end  % function
 
-    function [maxiter,idx] = getMostRecentModel_(obj, backend, varargin)
-      if obj.isRemote_ ,
-        % maxiter is nan if something bad happened or if DNE
-        % TODO allow polling for multiple models at once
-        ec2 = backend.awsec2 ;  % Should probably refactor to do directly using backend methods
-        [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
-        fspollargs = {};
-        for i = 1:numel(idx),
-          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
-        end
-        [tfsucc,res] = ec2.remoteCallFSPoll(fspollargs);
-        if tfsucc
-          maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
-        else
-          maxiter = nan(1,numel(idx));
-        end        
-      else
-        [modelglob,idx] = obj.trainModelGlob(varargin{:});
-        [dirModelChainLnx] = obj.dirModelChainLnx(idx);
+    % function maxiter = getMostRecentModel_(obj, backend)  % constant method
+    %   if obj.isRemote_ ,
+    %     % maxiter is nan if something bad happened or if DNE
+    %     % TODO allow polling for multiple models at once
+    %     [dirModelChainLnx,idx] = obj.dirModelChainLnx();
+    %     fspollargs = {};
+    %     for i = 1:numel(idx),
+    %       fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
+    %     end
+    %     [tfsucc,res] = backend.batchPoll(fspollargs);
+    %     if tfsucc
+    %       maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
+    %     else
+    %       maxiter = nan(1,numel(idx));
+    %     end        
+    %   else
+    %     maxiter = obj.getMostRecentModelLocal_() ;
+    %   end
+    % end  % function
 
-        maxiter = nan(1,numel(idx));
-        for i = 1:numel(idx),
-          modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
-          if isempty(modelfiles),
-            continue;
-          end
-          for j = 1:numel(modelfiles),
-            iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
-            if ~isempty(iter),
-              maxiter(i) = max(maxiter(i),iter);
-            end
+    function maxiter = getMostRecentModelLocal(obj)  % constant method
+      [modelglob,idx] = obj.trainModelGlob();
+      [dirModelChainLnx] = obj.dirModelChainLnx(idx);
+
+      maxiter = nan(1,numel(idx));
+      for i = 1:numel(idx),
+        modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
+        if isempty(modelfiles),
+          continue;
+        end
+        for j = 1:numel(modelfiles),
+          iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
+          if ~isempty(iter),
+            maxiter(i) = max(maxiter(i),iter);
           end
         end
       end
-    end
+    end  % function
 
     function tf = canTrack(obj)
       % For each known model, whether or not it is in a state that allows tracking.
@@ -1272,141 +1236,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function tf = isPartiallyTrained(obj)      
       tf = ~isempty(obj.iterCurr) & ~isnan(obj.iterCurr);
     end
-    
-    function mirrorToBackend(obj, backend, mode)
-      % mode should be 'tracking' or 'training'.
-      if ~exist('mode', 'var') || isempty(mode) ,
-        mode = 'tracking' ;
-      end
-      if ~backend.isFilesystemLocal() ,
-        if ~obj.isRemote_ ,
-          obj.mirrorToRemoteAws_(backend, mode) ;
-        end
-      end
-    end
-
-    function mirrorToRemoteAws_(obj, backend, mode)
-      % Take a local DMC and mirror/upload it to the AWS instance aws; 
-      % update .rootDir, .reader appropriately to point to model on remote 
-      % disk.
-      %
-      % In practice for the client, this action updates the "latest model"
-      % to point to the remote aws instance.
-      %
-      % PostConditions: 
-      % - remote cachedir mirrors this model for key model files; "extra"
-      % remote files not removed; identities of existing files not
-      % confirmed but naming/immutability of DL artifacts makes this seem
-      % safe
-      % - .rootDir updated to remote cacheloc
-      % - .reader update to AWS reader
-      
-      % Sanity checks
-      assert(isscalar(obj));
-      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/upload.');      
-
-      % Make sure there is a trained model
-      succ = obj.updateCurrInfo(backend);
-      if strcmp(mode, 'tracking') && any(~succ) ,
-        dmclfail = obj.dirModelChainLnx(find(~succ));
-        fstr = sprintf('%s ',dmclfail{:});
-        error('Failed to determine latest model iteration in %s.',fstr);
-      end
-      if isnan(obj.iterCurr) ,
-        fprintf('Currently, there is no trained model.\n');
-      else
-        fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
-      end
-     
-      % Make sure there is a live backend
-      backend.checkConnection();  % throws error if backend is not connected
-      
-      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
-      % only a single boolean to represent whether it's local or remote, we're just
-      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
-      % backend.  -- ALT, 2024-06-25
-      localProjectPath = fullfile(obj.rootDir, obj.projID) ;
-      remoteProjectPath = linux_fullfile(DLBackEndClass.remoteAWSCacheDir, obj.projID) ;  % ensure linux-style path
-      [didsucceed, msg] = backend.mkdir(remoteProjectPath) ;
-      if ~didsucceed ,
-        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
-      end
-      backend.rsyncUpload(localProjectPath, remoteProjectPath) ;
-
-      % If we made it here, upload successful---update the state to reflect that the
-      % model is now remote.      
-      obj.remoteRootDir_ = DLBackEndClass.remoteAWSCacheDir ;
-      obj.isRemote_ = true ;
-    end
-    
-    function mirrorFromBackend(obj, backend)
-      % If the model chain is remote, download it
-      if obj.isRemote_ ,
-        obj.mirrorFromRemoteAws_(backend) ;
-      end
-    end
-
-    function mirrorFromRemoteAws_(obj, backend)
-      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
-      % instance to local cache.
-      %
-      % update .rootDir, .reader appropriately to point to model in local
-      % cache.
-      %
-      % In practice for the client, this action updates the "latest model"
-      % to point to the local cache.
-      
-      assert(isscalar(obj));      
-      assert(isequal(backend.type, DLBackEnd.AWS), 'Backend must be AWS in order to mirror/download.');      
-      
-      cacheDirLocal = obj.localRootDir_ ;
-      aws = backend.awsec2;  % Should probably refactor do this directly using backend methods
-      [tfexist,tfrunning] = aws.inspectInstance();
-      if ~tfexist,
-        error('AWS EC2 instance %s could not be found.',aws.instanceID);
-      end
-      if ~tfrunning,
-        [tfsucc,~,warningstr] = aws.startInstance();
-        if ~tfsucc,
-          error('Could not start AWS EC2 instance %s: %s',aws.instanceID,warningstr);
-        end
-      end      
-      %aws.checkInstanceRunning(); % harderrs if instance isn't running
-     
-      succ = obj.updateCurrInfo(backend) ;
-      if any(~succ),
-        dirModelChainLnx = obj.dirModelChainLnx(find(~succ));
-        fstr = sprintf('%s ',dirModelChainLnx{:});
-        error('Failed to determine latest model iteration in %s.',...
-          fstr);
-      end
-      fprintf('Current model iteration is %s.\n',mat2str(obj.iterCurr));
-     
-      modelGlobsLnx = obj.modelGlobsLnx();
-      for j = 1:obj.n,
-        mdlFilesRemote = aws.remoteGlob(modelGlobsLnx{j});
-        cacheDirLocalEscd = regexprep(cacheDirLocal,'\\','\\\\');
-        mdlFilesLcl = regexprep(mdlFilesRemote,obj.rootDir,cacheDirLocalEscd);
-        nMdlFiles = numel(mdlFilesRemote);
-        netstr = char(obj.netType{j}); 
-        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
-        for i=1:nMdlFiles
-          fsrc = mdlFilesRemote{i};
-          fdst = mdlFilesLcl{i};
-          % See comment in mirror2RemoteAws regarding not confirming ID of
-          % files-that-already-exist
-          aws.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'failbehavior', 'err'}); % throws
-        end
-      end
-      
-      % if we made it here, download successful
-      
-      %obj.rootDir = cacheDirLocal;
-      %obj.reader = DeepModelChainReaderLocal();
-      obj.isRemote_ = false ;
-    end
-    
+        
     function [tf,tpdir] = trnPackExists(obj,varargin)
       % Training package exists
       trainLocLnx = obj.trainLocLnx(varargin{:});
@@ -1414,15 +1244,15 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
     end
 
-    function result = getTorchHome(obj)
-      if obj.isRemote_ ,
-        result = linux_fullfile(obj.remoteRootDir_, 'torch') ;
-      else
-        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
-      end
-    end
+    % function result = getTorchHome(obj)
+    %   if obj.isRemote_ ,
+    %     result = linux_fullfile(obj.remoteRootDir_, 'torch') ;
+    %   else
+    %     result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+    %   end
+    % end
 
-  end
+  end  % methods
   
   
   methods (Static)

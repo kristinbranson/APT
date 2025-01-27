@@ -9,7 +9,7 @@ classdef APTInterf
   methods (Static)
 
     function codestr = trainCodeGenBase(dmc,varargin)
-      torchhome_fallback = dmc.getTorchHome() ;
+      torchhome_fallback = fullfile(APT.getdotaptdirpath(), 'torch') ;
       [aptroot,confparamsextra,...
         torchhome,val_split,...
         ignore_local,...
@@ -28,7 +28,7 @@ classdef APTInterf
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
       trainConfig = linux_path(nativeTrainConfig) ;
-      nativeCacheRootDir = dmc.getRootDir();
+      nativeCacheRootDir = dmc.rootDir ;
       cacheRootDir = linux_path(nativeCacheRootDir) ;
       nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
       errFile = linux_path(nativeErrfile) ;
@@ -192,7 +192,7 @@ classdef APTInterf
 
       % Process optional arguments
       dmc = totrackinfo.trainDMC ;
-      torchhome_fallback = dmc.getTorchHome() ;
+      torchhome_fallback = fullfile(APT.getdotaptdirpath(), 'torch') ;
       [track_type,...
        aptroot,...
        torchhome,...
@@ -209,7 +209,7 @@ classdef APTInterf
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
       trainConfig = linux_path(nativeTrainConfig) ;
-      nativeCacheRootDir = dmc.getRootDir();  % native path
+      nativeCacheRootDir = dmc.rootDir ;  % native path
       cacheRootDir = linux_path(nativeCacheRootDir) ;      
 
       stage2models = cell(1,nstages);
@@ -307,7 +307,7 @@ classdef APTInterf
       [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();
 
       % output is the final stage trk file
-      trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
+      trkfiles = totrackinfo.getTrkFiles('stage',stages(end));
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile)
@@ -326,11 +326,11 @@ classdef APTInterf
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
-          nativeTrxFiles = totrackinfo.getTrxfiles('movie',movidx) ;
+          nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         elseif nstages > 1,
-          nativeTrxFiles = totrackinfo.getTrkfiles('stage',1) ;
+          nativeTrxFiles = totrackinfo.getTrkFiles('stage',1) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         end
