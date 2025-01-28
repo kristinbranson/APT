@@ -2542,7 +2542,8 @@ classdef Labeler < handle
           obj.movieSet(s.currMovie);
           [tfok] = obj.checkFrameAndTargetInBounds(s.currFrame,s.currTarget);
           if ~tfok,
-            warning('Cached frame number %d and target number %d are out of bounds for movie %d, reverting to using first frame of first target.',s.currFrame,s.currTarget,s.currMovie);
+            warning('Cached frame number %d and target number %d are out of bounds for movie %d, reverting to using first frame of first target.',...
+                    s.currFrame,s.currTarget,s.currMovie);
             s.currFrame = 1;
             s.currTarget = 1;
           end
@@ -14650,17 +14651,7 @@ classdef Labeler < handle
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
       % if any points are nan, set them to be somewhere ...
-      ismissing = any(isnan(lpos),2);
-      if nnz(~ismissing) > 1 && any(ismissing),
-        k = convhull(lpos(~ismissing,1),lpos(~ismissing,2));
-        for j = find(ismissing)',
-          i1 = randsample(numel(k)-1,1);
-          i2 = i1 + 1;
-          lambda = .25+.5*rand(1);
-          p = lpos(k(i1),:)*lambda + lpos(k(i2),:)*(1-lambda);
-          lpos(j,:) = p;
-        end
-      end
+      lpos = apt.patch_lpos(lpos) ;
       LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
         obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
       if any(lpostag(ipts))
@@ -15651,5 +15642,10 @@ classdef Labeler < handle
     function result = get.progressMeter(obj) 
       result = obj.progressMeter_ ;
     end
+
+    function set.currFrame(obj, newValue)
+      obj.currFrame = newValue ;
+      sendMaybe(obj.tracker, 'newLabelerFrame') ;
+    end    
   end  % methods
 end  % classdef
