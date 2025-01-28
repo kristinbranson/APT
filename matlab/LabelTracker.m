@@ -43,7 +43,7 @@ classdef LabelTracker < handle
     
     lastTrainStats = []; % struct with information about the last training for visualization
     
-    hListeners; % cell vec of Labeler listeners
+    % hListeners  % cell vec of Labeler listeners
   end  
   
   properties (SetObservable, SetAccess=protected)
@@ -71,14 +71,14 @@ classdef LabelTracker < handle
       end
       obj.trkVizInterpolate = val;
       
-      listeners = { ...
-        addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
-        %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
-        addlistener(labelerObj,'didSetCurrTarget',@(s,e)(obj.newLabelerTarget()));
-        addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
-        addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
-        };
-      obj.hListeners = listeners;
+      % listeners = { ...
+      %   addlistener(labelerObj,'newMovie',@(s,e)obj.newLabelerMovie());
+      %   %addlistener(labelerObj,'currFrame','PostSet',@(s,e)obj.newLabelerFrame());
+      %   addlistener(labelerObj,'didSetCurrTarget',@(s,e)(obj.newLabelerTarget()));
+      %   addlistener(labelerObj,'movieRemoved',@(s,e)obj.labelerMovieRemoved(e));
+      %   addlistener(labelerObj,'moviesReordered',@(s,e)obj.labelerMoviesReordered(e));
+      %   };
+      % obj.hListeners = listeners;
     end
     
     function init(obj)
@@ -92,15 +92,15 @@ classdef LabelTracker < handle
     end    
     
     function deleteListeners(obj)
-      cellfun(@delete,obj.hListeners);
-      obj.hListeners = cell(0,1);
+      % cellfun(@delete,obj.hListeners);
+      % obj.hListeners = cell(0,1);
     end
     
     function setEnableListeners(obj,val)
-      hs = obj.hListeners;
-      for i=1:numel(hs)
-        hs{i}.Enabled = val;
-      end
+      % hs = obj.hListeners;
+      % for i=1:numel(hs)
+      %   hs{i}.Enabled = val;
+      % end
     end
 	
   end

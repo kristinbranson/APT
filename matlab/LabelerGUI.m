@@ -2716,15 +2716,15 @@ if ~lObj.isinit ,
 end
 
 
-function cbkCurrTrackerPreChanged(src,evt)
-lObj = src ;
-if lObj.isinit ,
-  return
-end 
-tObj = lObj.tracker ;
-if ~isempty(tObj) ,
-  tObj.deactivate() ;
-end
+% function cbkCurrTrackerPreChanged(src,evt)
+% lObj = src ;
+% if lObj.isinit ,
+%   return
+% end 
+% tObj = lObj.tracker ;
+% if ~isempty(tObj) ,
+%   tObj.deactivate() ;
+% end
 
 
 function cbkCurrTrackerChanged(src, evt)
@@ -2736,11 +2736,12 @@ handles = lObj.gdata ;
 tObj = lObj.tracker ;
 iTrker = lObj.currTracker ;
 handles = setupTrackerMenusListeners(handles, tObj, iTrker) ;
-% tracker changed, update tracker info
-if ~isempty(tObj),
-  tObj.activate();
-  tObj.updateTrackerInfo();
-end
+% % tracker changed, update tracker info.  
+% (Moved this stuff to Labeler::set.currTracker(), a better place for it.)
+% if ~isempty(tObj),
+%   tObj.activate();
+%   tObj.updateTrackerInfo();
+% end
 handles.labelTLInfo.setTracker(tObj);
 guidata(handles.figure,handles);
 

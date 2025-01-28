@@ -1519,7 +1519,7 @@ classdef DeepTracker < LabelTracker
         backend.registerTrainingJob(dmcjob, obj, gpuids(ijob), do_just_generate_db) ;
       end  % for
       
-      % Stash a handle to the DMCoD in obj
+      % Maintain a handle to the DMCoD in obj
       obj.trnLastDMC = dmc;
 
       % If a dry run, exit early
@@ -3544,6 +3544,8 @@ classdef DeepTracker < LabelTracker
     function downloadPretrainedExec(aptroot)
       % kb investigate: This doesn't work well on the cluster due to tf 
       % being a restricted site, plus /tmp acts weird
+      % This method is not called from anywhere.  Is it intended to be called
+      % interactively?  -- ALT, 2025-01-28
       assert(isunix,'Only supported on *nix platforms.');
       deepnetroot = [aptroot '/deepnet'];
       cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);

@@ -86,7 +86,7 @@ classdef Labeler < handle
              'LPOS2','labeledpos2GT',...
              'VCD','viewCalibrationDataGT',...
              'TRKRES','trkResGT'));
-  end
+  end  % properties (Constant, Hidden)
   
   events
     newProject
@@ -563,7 +563,7 @@ classdef Labeler < handle
   end  
   %% Tracking
   properties
-    trackersAll  % cell vec of concrete LabelTracker objects. init: PNPL
+    trackersAll  % cell row vector of concrete LabelTracker objects. init: PNPL  -- What does "init: PNPL" mean?  -- ALT, 2025-01-27
     currTracker  % scalar int, either 0 for "no tracker" or index into trackersAll
   end
   properties (Dependent)
@@ -2095,7 +2095,7 @@ classdef Labeler < handle
         obj.trackersAll = tAll;
         obj.currTracker = 1;
         
-        tPrm = APTParameters.defaultParamsTree;
+        tPrm = APTParameters.defaultParamsTree() ;
         sPrm = tPrm.structize();
         obj.trackParams = sPrm;
       else
@@ -2359,7 +2359,7 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
-      starttime = tic;
+      starttime = tic();
       
       [nomovie, replace_path] = myparse(varargin,...
         'nomovie',false, ... % If true, call movieSetNoMovie() instead of movieSet(currMovie)
@@ -2646,6 +2646,8 @@ classdef Labeler < handle
     end
     
     function printPartiallyLabeledFrameInfo(obj)
+      % Get a list of what movies, targets, frames are still only partially labeled.
+      % Not exposed in GUI, but used in important user workflows.
       [movs,tgts,frms] = obj.findPartiallyLabeledFrames();
       if isempty(frms),
         fprintf('No partially labeled frames left.\n');
@@ -2659,6 +2661,9 @@ classdef Labeler < handle
     end
     
     function projAddLandmarksFinished(obj)
+      % Used in conjunction with projAddLandmarks().  Function to finish a session
+      % of adding new kinds of landmarks to an existing project. Currently not
+      % exposed in the GUI, probably should be eventually.
       
       if obj.nLabelPointsAdd == 0,
         return;
@@ -2684,7 +2689,11 @@ classdef Labeler < handle
     end  % function
     
     function projAddLandmarks(obj,nadd)
-      
+      % Function to add new kinds of landmarks to an existing project.  E.g. If you
+      % had a fly .lbl file where you weren't tracking the wing tips, but then you
+      % wanted to start tracking the wingtips, you would call this function.
+      % Currently not exposed in the GUI, probably should be eventually.
+
       if obj.nLabelPointsAdd > 0,
         warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.','Cannot add landmarks twice');
         return;
@@ -3453,10 +3462,10 @@ classdef Labeler < handle
       
     end
     
-    function printAllTrackerInfo(obj,fileinfo)
+    function printAllTrackerInfo_(obj,do_include_fileinfo)
       
       if nargin < 2,
-        fileinfo = false;
+        do_include_fileinfo = false;
       end
       
       for i = 1:numel(obj.trackersAll),
@@ -3473,7 +3482,7 @@ classdef Labeler < handle
           trainid = trainid{1};
           fprintf('Tracker %d: %s, view %d, stage %d, mode %s\n',i,nettype,tObj.trnLastDMC.getView(j),tObj.trnLastDMC.getStages(j),netmode);
           fprintf('  Trained %s for %d iterations on %d labels\n',trainid,tObj.trnLastDMC.getIterCurr(j),tObj.trnLastDMC.getNLabels(j));
-          if fileinfo,
+          if do_include_fileinfo,
             fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx(j));
             fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx(j));
           end
@@ -3483,6 +3492,8 @@ classdef Labeler < handle
     end
     
     function printInfo(obj)
+      % This method is refered to in user-facing docs, so need to keep it.
+
       fprintf('Lbl file: %s\n',obj.projectfile);
       fprintf('Info printed: %s\n',datestr(now,'yyyymmddTHHMMSS'));
 
@@ -3499,7 +3510,7 @@ classdef Labeler < handle
       
       fprintf('Number of landmarks: %d\n',obj.nPhysPoints);
       
-      obj.printAllTrackerInfo();
+      obj.printAllTrackerInfo_();
       
       if isempty(obj.trackDLBackEnd),
         fprintf('Back-end: None\n');
@@ -3654,7 +3665,7 @@ classdef Labeler < handle
           end
           s.trackerData{i} = rmfield(s.trackerData{i},'trnNameLbl');
         end
-      end
+      end  % for
       
 %         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       % 20181215 factor dlbackend out of DeepTrackers into single/common
@@ -3883,7 +3894,7 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end
-    end  % lblModernize()
+    end  % function lblModernize()
     
     function s = resetTrkResFieldsStruct(s)
       % see .trackResInit, maybe can combine
@@ -3924,7 +3935,7 @@ classdef Labeler < handle
 
     end
 
-  end 
+  end  % methods (Static) 
   
   %% Movie
   methods
@@ -4403,6 +4414,7 @@ classdef Labeler < handle
         obj.prevAxesMovieRemap(edata.mIdxOrig2New);
         
         % Note, obj.currMovie is not yet updated when this event goes out
+        sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
         notify(obj,'movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
@@ -4475,6 +4487,7 @@ classdef Labeler < handle
         p,nmov,obj.nmoviesGT);
       obj.preProcData.movieRemap(edata.mIdxOrig2New);
       obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
+      sendMaybe(obj.tracker, 'labelerMoviesReordered', edata) ;
       notify(obj,'moviesReordered',edata);
 
       if ~obj.gtIsGTMode
@@ -4910,6 +4923,7 @@ classdef Labeler < handle
 %       assert(~isempty(obj.labeledpos2{iMov}));
            
       edata = NewMovieEventData(isFirstMovie);
+      sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
       
       % Not a huge fan of this, maybe move to UI
@@ -4974,6 +4988,7 @@ classdef Labeler < handle
       obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
       edata = NewMovieEventData(false);
+      sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
       obj.updateFrameTableComplete();
 
@@ -7539,6 +7554,7 @@ classdef Labeler < handle
     end
     
     function updateLandmarkLabelColors(obj,colors,colormapname)
+      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
       % colors: "setwise" colors
 
       szassert(colors,[obj.nPhysPoints 3]);
@@ -7554,6 +7570,8 @@ classdef Labeler < handle
     end
     
     function updateLandmarkPredictionColors(obj,colors,colormapname)
+      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
+      
       % colors: "setwise" colors
       szassert(colors,[obj.nPhysPoints 3]);
       
@@ -7569,6 +7587,7 @@ classdef Labeler < handle
     end
     
     function updateLandmarkImportedColors(obj,colors,colormapname)
+      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
       % colors: "setwise" colors
       szassert(colors,[obj.nPhysPoints 3]);
       
@@ -7586,6 +7605,7 @@ classdef Labeler < handle
     end
 
     function updateLandmarkLabelCosmetics(obj,pvMarker,pvText,textOffset)
+      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
 
       lc = obj.lblCore;
       
@@ -7608,6 +7628,7 @@ classdef Labeler < handle
       lc.updateTextLabelCosmetics(pvText,textOffset);
       %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
+
     function [tfHideTxt,pvText] = hlpUpdateLandmarkCosmetics(obj,...
         pvMarker,pvText,textOffset,ptsPlotInfoFld)
       % set PVs on .ptsPlotInfo field; mild massage
@@ -7627,7 +7648,10 @@ classdef Labeler < handle
       tfHideTxt = strcmp(pvText.Visible,'off'); % could make .Visible field optional 
       pvText = rmfield(pvText,'Visible');
     end 
+
     function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)
+      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
+      
       [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
         pvMarker,pvText,textOffset,'predPointsPlotInfo');
       tAll = obj.trackersAll;
@@ -7645,6 +7669,8 @@ classdef Labeler < handle
     end
     
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
+      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
+      
        [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
         pvMarker,pvText,textOffset,'impPointsPlotInfo');      
       
@@ -15481,21 +15507,29 @@ classdef Labeler < handle
     function set.currTracker(obj, newValue)
       % Want to do some stuff before the set, apparently
       if ~obj.isinit ,
-        tObj = obj.tracker ;
-        if ~isempty(tObj) ,
-          tObj.deactivate() ;
+        oldTracker = obj.tracker ;
+        if ~isempty(oldTracker) ,
+          oldTracker.deactivate() ;
         end
       end
     
       % Set the value
       obj.currTracker = newValue ;
 
+      % Activate the newly-selected tracker
+      newTracker = obj.tracker ;
+      if ~isempty(newTracker),
+        newTracker.activate();
+        newTracker.updateTrackerInfo();
+      end
+      
       % Send the notification
       obj.notify('didSetCurrTracker') ;
     end
 
     function set.currTarget(obj, newValue)
       obj.currTarget = newValue ;
+      sendMaybe(obj.tracker, 'newLabelerTarget')
       obj.notify('didSetCurrTarget') ;
     end
 
