@@ -67,7 +67,7 @@ classdef MovieManagerController < handle
       lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.lblerLstnCbkUpdateTableGT(s,e)));      
       %lObjs{end+1,1} = listenPropsPostSet(lObj,GTPROPS,@(s,e)obj.lblerLstnCbkUpdateTableGT(s,e));
 
-      lObjs{end+1,1} = addlistener(lObj,'projLoaded',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
       lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
       lObjs{end+1,1} = lObj.addlistener('gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
       obj.listeners = lObjs;

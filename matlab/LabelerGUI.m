@@ -851,7 +851,7 @@ listeners{end+1,1} = addlistener(lObj,'cropUpdateCropGUITools',@cbkUpdateCropGUI
 listeners{end+1,1} = addlistener(lObj,'cropCropsChanged',@cbkCropCropsChanged);
 listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
-listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
+%listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
@@ -1021,6 +1021,9 @@ fprintf('Labeler GUI created.\n');
 % uiwait(handles.figure);
 
 function EnableControls(handles,state)
+% This function is deprecated.  Uses of it should be slowly but surely
+% replaced with calls to LabelerContoller::enableControls_().  In the
+% meantime, the two must be kept in sync.  (Boo.)
 
 switch lower(state),
   case 'init',
@@ -1890,15 +1893,11 @@ end
 % %     %handles.labelerObj.clearStatus();        
 % % end
 
-function cbkProjLoaded(src,evt)
-lObj = src;
-handles = lObj.gdata;
-cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
-EnableControls(handles,'projectloaded');
-% update tracker info when loading in new trackers
-if ~isempty(lObj.tracker)
-  lObj.tracker.updateTrackerInfo();  % This should be moved into Labeler
-end
+% function cbkProjLoaded(src,evt)
+% lObj = src;
+% handles = lObj.gdata;
+% cbkCurrTargetChanged(lObj,struct('AffectedObject',lObj));
+% EnableControls(handles,'projectloaded');
 
 function cbkDataImported(src,evt)
 lObj = src;
@@ -2412,7 +2411,7 @@ if tfTracker
     updateTrackBackendConfigMenuChecked(handles,tObj.lObj);
   end
   
-  listenersNew{end+1,1} = tObj.addlistener('trackerInfo','PostSet',@(src1,evt1) cbkTrackerInfoChanged(src1,evt1));
+  %listenersNew{end+1,1} = tObj.addlistener('trackerInfo','PostSet',@(src1,evt1) cbkTrackerInfoChanged(src1,evt1));
   
   % Listeners, general tracker
   listenersNew{end+1,1} = tObj.addlistener('hideViz','PostSet',...
@@ -4022,11 +4021,11 @@ handles = lObj.gdata;
 handles.menu_view_show_imported_preds_curr_target_only.Checked = ...
     onIff(lObj.labels2ShowCurrTargetOnly);
 
-% when trackerInfo is updated, update the tracker info text in the main APT window
-function cbkTrackerInfoChanged(src,evt)
-
-tObj = evt.AffectedObject;
-tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
+% % when trackerInfo is updated, update the tracker info text in the main APT window
+% function cbkTrackerInfoChanged(src,evt)
+% 
+% tObj = evt.AffectedObject;
+% tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
 
 % when lastLabelChangeTS is updated, update the tracker info text in the main APT window
 function cbkLastLabelChangeTS(src, evt)

@@ -152,11 +152,11 @@ classdef DeepTracker < LabelTracker
     trkGTtrkTbl % transient, table of gt results
    
     trkSysInfo % [nview] transient, unmanaged. struct array of info used 
-    % for current or most recent tracking codegen/system call. currently 
-    % only used for debugging, printing logfiles etc.
+               % for current or most recent tracking codegen/system call. currently 
+               % only used for debugging, printing logfiles etc.
     
     bgTrkMonitor % BgMonitor obj
-    bgTrkMonBGWorkerObj % bgTrackWorkerObj for last/current rack
+    bgTrkMonBGWorkerObj % bgTrackWorkerObj for last/current track
     %bgTrkMonitorVizClass % class of trackMonitorViz object to use to monitor tracking
     
     % trackres: tracking results DB is in filesys
@@ -164,17 +164,15 @@ classdef DeepTracker < LabelTracker
   end
   
   properties (SetObservable)
-    
-    trackerInfo = [];% information about the current tracker being used for tracking
-    
+    trackerInfo = []  % information about the current tracker being used for tracking
   end
+
   properties (Dependent)
     bgTrnIsRunning
     bgTrkIsRunning 
   end
 
-  properties
-    
+  properties    
     % track curr res -- in-mem tracking results for current mov    
     %
     % The raw tracking DB are trkfiles on disk. Trkfiles are single-view,
@@ -196,6 +194,7 @@ classdef DeepTracker < LabelTracker
     %trkAuxLbl % [naux] labels for 4th dim of trxAux
               % naux given in DLNetType
   end
+
   properties (Dependent)
     nPts % number of label points     
     nview 
@@ -1060,24 +1059,25 @@ classdef DeepTracker < LabelTracker
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
       obj.trackerInfo = info;
+      obj.lObj.didUpdateTrackerInfo() ;  % causes a notification to be generated
     end  % function
     
-    % set select properties of trackerInfo 
-    function setTrackerInfo(obj,varargin)
-      
-      [iterCurr] = myparse(varargin,'iterCurr',[]);
-      ischange = false;
-      
-      trackerInfo = obj.trackerInfo; %#ok<PROPLC>
-      if ~isempty(iterCurr),
-        ischange = ischange || ~isequaln(iterCurr,trackerInfo.iterCurr); %#ok<PROPLC>
-        trackerInfo.iterCurr = iterCurr; %#ok<PROPLC>
-      end
-      if ischange,
-        obj.trackerInfo = trackerInfo; %#ok<PROPLC>
-      end
-      
-    end
+    % % set select properties of trackerInfo 
+    % function setTrackerInfo(obj,varargin)
+    % 
+    %   [iterCurr] = myparse(varargin,'iterCurr',[]);
+    %   ischange = false;
+    % 
+    %   trackerInfo = obj.trackerInfo; %#ok<PROPLC>
+    %   if ~isempty(iterCurr),
+    %     ischange = ischange || ~isequaln(iterCurr,trackerInfo.iterCurr); %#ok<PROPLC>
+    %     trackerInfo.iterCurr = iterCurr; %#ok<PROPLC>
+    %   end
+    %   if ischange,
+    %     obj.trackerInfo = trackerInfo; %#ok<PROPLC>
+    %   end
+    % 
+    % end
     
     % return a cell array of strings with information about current tracker
     function [infos] = getTrackerInfoString(obj,doupdate)

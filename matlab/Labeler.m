@@ -90,7 +90,7 @@ classdef Labeler < handle
   
   events
     newProject
-    projLoaded
+    didLoadProject
     newMovie
     %startAddMovie
     %finishAddMovie
@@ -168,6 +168,8 @@ classdef Labeler < handle
     cropIsCropModeChanged  % cropIsCropMode mutated
     cropCropsChanged  % something in .movieFilesAll*CropInfo mutated
     cropUpdateCropGUITools
+
+    updateTrackerInfoText
   end
 
   %% Project
@@ -2602,10 +2604,16 @@ classdef Labeler < handle
           end
         end
       end
-      fprintf(1,'\n\n');
+      fprintf('\n\n');
       obj.projUpdateDLCache(); % this can fail (output arg not checked)
       
-      obj.notify('projLoaded');
+      obj.notify('didLoadProject');
+
+      % Update the tracker info (are we sure this didn't happen already?)
+      if ~isempty(obj.tracker)
+        obj.tracker.updateTrackerInfo();
+      end
+      
       obj.notify('cropUpdateCropGUITools');
       %obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
@@ -15662,5 +15670,10 @@ classdef Labeler < handle
       end
     end  % function
     
+    function didUpdateTrackerInfo(obj)
+      % Notify listeners that trackerInfo was updated in obj.tracker.
+      % Called by the current tracker when this happens.
+      obj.notify('updateTrackerInfoText') ;
+    end
   end  % methods
 end  % classdef

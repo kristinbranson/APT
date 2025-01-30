@@ -56,7 +56,11 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;      
+        addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didLoadProject',@(source,event)(obj.didLoadProject()));
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrackerInfoText',@(source,event)(obj.updateTrackerInfoText()));
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
@@ -756,5 +760,267 @@ classdef LabelerController < handle
       progressMeter = labeler.progressMeter ;
       progressMeter.cancel() ;
     end
+
+    function didLoadProject(obj)
+      obj.updateTarget_();
+      obj.enableControls_('projectloaded') ;
+    end
+    
+    function updateTarget_(obj)
+      % Get the handles out of the main figure
+      main_figure = obj.mainFigure_ ;
+      if isempty(main_figure) || ~isvalid(main_figure)
+        return
+      end      
+      handles = guidata(main_figure) ;
+      
+      lObj = obj.labeler_ ;
+      if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit ,
+        iTgt = lObj.currTarget;
+        lObj.currImHud.updateTarget(iTgt);
+          % lObj.currImHud is really a view object, but is stored in the Labeler for
+          % historical reasons.  It should probably be stored in obj (the
+          % LabelerController).  Someday we will move it, but right now it's referred to
+          % by so many places in Labeler, and LabelCore, etc that I don't want to start
+          % shaving that yak right now.  -- ALT, 2025-01-30
+        handles.labelTLInfo.newTarget();
+        if lObj.gtIsGTMode
+          tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
+        else
+          tfHilite = false;
+        end
+        handles.allAxHiliteMgr.setHighlight(tfHilite);
+      end
+    end  % function
+
+    function enableControls_(obj, state)
+      % Enable controls.  This method needs to be kept in sync with EnableControls()
+      % in LabelerGUI.m, until in the fullness of time EnableControls() gets
+      % deleted.
+
+      % Get the handles out of the main figure
+      main_figure = obj.mainFigure_ ;
+      if isempty(main_figure) || ~isvalid(main_figure)
+        return
+      end      
+      handles = guidata(main_figure) ;
+
+      % Update the enablement of the handles, depending on the state
+      switch lower(state),
+        case 'init',
+          
+          set(handles.menu_file,'Enable','off');
+          set(handles.menu_view,'Enable','off');
+          set(handles.menu_labeling_setup,'Enable','off');
+          set(handles.menu_track,'Enable','off');
+          set(handles.menu_go,'Enable','off');
+          set(handles.menu_evaluate,'Enable','off');
+          set(handles.menu_help,'Enable','off');
+          
+          set(handles.tbAdjustCropSize,'Enable','off');
+          set(handles.pbClearAllCrops,'Enable','off');
+          set(handles.pushbutton_exitcropmode,'Enable','off');
+          set(handles.uipanel_cropcontrols,'Visible','off');
+          set(handles.text_trackerinfo,'Visible','on');
+          
+          set(handles.pbClearSelection,'Enable','off');
+          set(handles.pumInfo,'Enable','off');
+          set(handles.pumInfo_labels,'Enable','off');
+          set(handles.tbTLSelectMode,'Enable','off');
+          set(handles.pumTrack,'Enable','off');
+          set(handles.pbTrack,'Enable','off');
+          set(handles.pbTrain,'Enable','off');
+          set(handles.pbClear,'Enable','off');
+          set(handles.tbAccept,'Enable','off');
+          set(handles.pbRecallZoom,'Enable','off');
+          set(handles.pbSetZoom,'Enable','off');
+          set(handles.pbResetZoom,'Enable','off');
+          set(handles.sldZoom,'Enable','off');
+          set(handles.pbPlaySegBoth,'Enable','off');
+          set(handles.pbPlay,'Enable','off');
+          set(handles.slider_frame,'Enable','off');
+          set(handles.edit_frame,'Enable','off');
+          set(handles.popupmenu_prevmode,'Enable','off');
+          set(handles.pushbutton_freezetemplate,'Enable','off');
+          set(handles.FigureToolBar,'Visible','off')
+      
+        case 'tooltipinit',
+          
+          set(handles.menu_file,'Enable','on');
+          set(handles.menu_view,'Enable','on');
+          set(handles.menu_labeling_setup,'Enable','on');
+          set(handles.menu_track,'Enable','on');
+          set(handles.menu_go,'Enable','on');
+          set(handles.menu_evaluate,'Enable','on');
+          set(handles.menu_help,'Enable','on');
+          
+          set(handles.tbAdjustCropSize,'Enable','off');
+          set(handles.pbClearAllCrops,'Enable','off');
+          set(handles.pushbutton_exitcropmode,'Enable','off');
+          set(handles.uipanel_cropcontrols,'Visible','off');
+          set(handles.text_trackerinfo,'Visible','off');
+          
+          set(handles.pbClearSelection,'Enable','off');
+          set(handles.pumInfo,'Enable','off');
+          set(handles.pumInfo_labels,'Enable','off');
+          set(handles.tbTLSelectMode,'Enable','off');
+          set(handles.pumTrack,'Enable','off');
+          set(handles.pbTrack,'Enable','off');
+          set(handles.pbTrain,'Enable','off');
+          set(handles.pbClear,'Enable','off');
+          set(handles.tbAccept,'Enable','off');
+          set(handles.pbRecallZoom,'Enable','off');
+          set(handles.pbSetZoom,'Enable','off');
+          set(handles.pbResetZoom,'Enable','off');
+          set(handles.sldZoom,'Enable','off');
+          set(handles.pbPlaySegBoth,'Enable','off');
+          set(handles.pbPlay,'Enable','off');
+          set(handles.slider_frame,'Enable','off');
+          set(handles.edit_frame,'Enable','off');
+          set(handles.popupmenu_prevmode,'Enable','off');
+          set(handles.pushbutton_freezetemplate,'Enable','off');
+          set(handles.FigureToolBar,'Visible','off')
+          
+        case 'noproject',
+          set(handles.menu_file,'Enable','on');
+          set(handles.menu_view,'Enable','off');
+          set(handles.menu_labeling_setup,'Enable','off');
+          set(handles.menu_track,'Enable','off');
+          set(handles.menu_evaluate,'Enable','off');
+          set(handles.menu_go,'Enable','off');
+          set(handles.menu_help,'Enable','off');
+      
+          set(handles.menu_file_quit,'Enable','on');
+          set(handles.menu_file_crop_mode,'Enable','off');
+          set(handles.menu_file_importexport,'Enable','off');
+          set(handles.menu_file_managemovies,'Enable','off');
+          set(handles.menu_file_load,'Enable','on');
+          set(handles.menu_file_saveas,'Enable','off');
+          set(handles.menu_file_save,'Enable','off');
+          set(handles.menu_file_shortcuts,'Enable','off');
+          set(handles.menu_file_new,'Enable','on');
+          %set(handles.menu_file_quick_open,'Enable','on','Visible','on');
+          
+          set(handles.tbAdjustCropSize,'Enable','off');
+          set(handles.pbClearAllCrops,'Enable','off');
+          set(handles.pushbutton_exitcropmode,'Enable','off');
+          set(handles.uipanel_cropcontrols,'Visible','off');    
+          set(handles.text_trackerinfo,'Visible','off');
+      
+          
+          set(handles.pbClearSelection,'Enable','off');
+          set(handles.pumInfo,'Enable','off');
+          set(handles.tbTLSelectMode,'Enable','off');
+          set(handles.pumTrack,'Enable','off');
+          set(handles.pbTrack,'Enable','off');
+          set(handles.pbTrain,'Enable','off');
+          set(handles.pbClear,'Enable','off');
+          set(handles.tbAccept,'Enable','off');
+          set(handles.pbRecallZoom,'Enable','off');
+          set(handles.pbSetZoom,'Enable','off');
+          set(handles.pbResetZoom,'Enable','off');
+          set(handles.sldZoom,'Enable','off');
+          set(handles.pbPlaySegBoth,'Enable','off');
+          set(handles.pbPlay,'Enable','off');
+          set(handles.slider_frame,'Enable','off');
+          set(handles.edit_frame,'Enable','off');
+          set(handles.popupmenu_prevmode,'Enable','off');
+          set(handles.pushbutton_freezetemplate,'Enable','off');
+          set(handles.FigureToolBar,'Visible','off')
+      
+        case 'projectloaded'
+      
+          set(findobj(handles.menu_file,'-property','Enable'),'Enable','on');
+          set(handles.menu_view,'Enable','on');
+          set(handles.menu_labeling_setup,'Enable','on');
+          set(handles.menu_track,'Enable','on');
+          set(handles.menu_evaluate,'Enable','on');
+          set(handles.menu_go,'Enable','on');
+          set(handles.menu_help,'Enable','on');
+          
+          % KB 20200504: I think this is confusing when a project is already open
+          % AL 20220719: now always hiding
+          % set(handles.menu_file_quick_open,'Visible','off');
+          
+          set(handles.tbAdjustCropSize,'Enable','on');
+          set(handles.pbClearAllCrops,'Enable','on');
+          set(handles.pushbutton_exitcropmode,'Enable','on');
+          %set(handles.uipanel_cropcontrols,'Visible','on');
+      
+          set(handles.pbClearSelection,'Enable','on');
+          set(handles.pumInfo,'Enable','on');
+          set(handles.pumInfo_labels,'Enable','on');
+          set(handles.tbTLSelectMode,'Enable','on');
+          set(handles.pumTrack,'Enable','on');
+          %set(handles.pbTrack,'Enable','on');
+          %set(handles.pbTrain,'Enable','on');
+          set(handles.pbClear,'Enable','on');
+          set(handles.tbAccept,'Enable','on');
+          set(handles.pbRecallZoom,'Enable','on');
+          set(handles.pbSetZoom,'Enable','on');
+          set(handles.pbResetZoom,'Enable','on');
+          set(handles.sldZoom,'Enable','on');
+          set(handles.pbPlaySegBoth,'Enable','on');
+          set(handles.pbPlay,'Enable','on');
+          set(handles.slider_frame,'Enable','on');
+          set(handles.edit_frame,'Enable','on');
+          set(handles.popupmenu_prevmode,'Enable','on');
+          set(handles.pushbutton_freezetemplate,'Enable','on');
+          set(handles.FigureToolBar,'Visible','on')
+          
+          lObj = handles.labelerObj;
+          tObj = lObj.tracker;    
+          tfTracker = ~isempty(tObj);
+          onOff = onIff(tfTracker);
+          handles.menu_track.Enable = onOff;
+          handles.pbTrain.Enable = onOff;
+          handles.pbTrack.Enable = onOff;
+          handles.menu_view_hide_predictions.Enable = onOff;    
+          set(handles.menu_track_auto_params_update, 'Checked', lObj.trackAutoSetParams) ;
+      
+          tfGoTgts = ~lObj.gtIsGTMode;
+          set(handles.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
+          
+          if lObj.nview == 1,
+            set(handles.h_multiview_only,'Enable','off');
+          elseif lObj.nview > 1,
+            set(handles.h_singleview_only,'Enable','off');
+          else
+            handles.labelerObj.lerror('Sanity check -- nview = 0');
+          end
+          if lObj.maIsMA
+            set(handles.h_nonma_only,'Enable','off');
+      %      set(handles.menu_track_id,'Checked',handles.labelerObj.track_id,'Visible','on');
+          else
+            set(handles.h_ma_only,'Enable','off');
+      %      set(handles.menu_track_id,'Visible','off');
+          end
+          if lObj.nLabelPointsAdd == 0,
+            set(handles.h_addpoints_only,'Visible','off');
+          else
+            set(handles.h_addpoints_only,'Visible','on');
+          end
+      
+        otherwise
+          fprintf('Not implemented\n');
+      end
+    end  % function
+
+    function updateTrackerInfoText(obj)
+      % Updates the tracker info string to match what's in 
+      % obj.labeler_.tracker.trackerInfo.
+      % Called via notify() when labeler.tracker.trackerInfo is changed.
+      
+      % Get the handles out of the main figure
+      main_figure = obj.mainFigure_ ;
+      if isempty(main_figure) || ~isvalid(main_figure)
+        return
+      end      
+      handles = guidata(main_figure) ;
+      
+      % Update the relevant text object
+      tObj = obj.labeler_.tracker ;      
+      handles.text_trackerinfo.String = tObj.getTrackerInfoString();
+    end  % function
   end  % methods
 end  % classdef
