@@ -874,22 +874,6 @@ hZ.ActionPostCallback = @cbkPostZoom;
 hP = pan(hObject);
 hP.ActionPostCallback = @cbkPostPan;
 
-% These Labeler properties need their callbacks fired to properly init UI.
-% Labeler will read .propsNeedInit from the GUIData to comply.
-handles.propsNeedInit = {
-  'labelMode' 
-  'suspScore' 
-  'showTrx' 
-  'showTrxCurrTargetOnly' %  'showPredTxtLbl'
-  'trackersAll' % AL20190606: trackersAll cbk calls 'currTracker' cbk
-  'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
-  'trackModeIdx'
-  'movieCenterOnTarget'
-  'movieForceGrayscale' 
-  'movieInvert'
-  'showOccludedBox'
-  };
-
 % handles that are only enabled in multi-view or single-view mode
 
 handles.h_multiview_only = [...
@@ -1913,7 +1897,7 @@ cbkCurrTargetChanged(src,struct('AffectedObject',lObj));
 EnableControls(handles,'projectloaded');
 % update tracker info when loading in new trackers
 if ~isempty(lObj.tracker)
-  lObj.tracker.updateTrackerInfo();
+  lObj.tracker.updateTrackerInfo();  % This should be moved into Labeler
 end
 
 function cbkDataImported(src,evt)

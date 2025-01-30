@@ -29,8 +29,8 @@ classdef LabelTracker < handle
   % 2-ple ID etc.
   
   properties (Abstract)
-    algorithmName % char
-    trackerInfo; % struct with whatever information we want to save about the current tracker.     
+    algorithmName  % char
+    trackerInfo  % struct with whatever information we want to save about the current tracker.     
   end  
   
   properties
@@ -88,20 +88,20 @@ classdef LabelTracker < handle
     end
         
     function delete(obj)
-      obj.deleteListeners();
+      %obj.deleteListeners();
     end    
     
-    function deleteListeners(obj)
-      % cellfun(@delete,obj.hListeners);
-      % obj.hListeners = cell(0,1);
-    end
+    % function deleteListeners(obj)
+    %   % cellfun(@delete,obj.hListeners);
+    %   % obj.hListeners = cell(0,1);
+    % end
     
-    function setEnableListeners(obj,val)
-      % hs = obj.hListeners;
-      % for i=1:numel(hs)
-      %   hs{i}.Enabled = val;
-      % end
-    end
+    % function setEnableListeners(obj,val)
+    %   % hs = obj.hListeners;
+    %   % for i=1:numel(hs)
+    %   %   hs{i}.Enabled = val;
+    %   % end
+    % end
 	
   end
   
@@ -340,12 +340,12 @@ classdef LabelTracker < handle
     end
     
     function deactivate(obj)
-      % called when a tracker is no longer active. for performance      
-      obj.setEnableListeners(false);      
+      % called when a tracker is no longer active.
+      %obj.setEnableListeners(false);      
     end
     
     function activate(obj)
-      obj.setEnableListeners(true);
+      %obj.setEnableListeners(true);
     end
     
   end
@@ -439,16 +439,19 @@ classdef LabelTracker < handle
   methods (Static)
     
     function tObj = create(lObj,trkClsAug,trkData)
-      % Factory meth
+      % Factory method
       
-      tCls = trkClsAug{1};
-      tClsArgs = trkClsAug(2:end);
-      
-      if exist(tCls,'class')==0
-        error('Labeler:projLoad',...
-          'Project tracker class ''%s'' cannot be found.',tCls);
+      if nargin<3 ,
+        trkData = [] ;
       end
-      tObj = feval(tCls,lObj,tClsArgs{:});
+      trackerClassName = trkClsAug{1};
+      trackerClassConstructorArgs = trkClsAug(2:end);
+      
+      if ~exist(trackerClassName,'class') ,
+        error('Labeler:projLoad',...
+              'Project tracker class ''%s'' cannot be found.',trackerClassName);
+      end
+      tObj = feval(trackerClassName,lObj,trackerClassConstructorArgs{:});
       tObj.init();
       if ~isempty(trkData)
         tObj.loadSaveToken(trkData);
@@ -456,6 +459,9 @@ classdef LabelTracker < handle
     end
     
     function info = getAllTrackersCreateInfo(isMA)
+      % Get information about all of the kinds of trackers that the user can choose
+      % from.
+      %
       % This will need updating. DLNetType will include all types of nets
       % such as objdetect which will not qualify as eg regular/SA trackers.
       if isMA
@@ -463,7 +469,7 @@ classdef LabelTracker < handle
                    DeepTrackerBottomUp.getTrackerInfos(), ...
                    DeepTrackerTopDown.getTrackerInfos(), ...
                    DeepTrackerTopDownCustom.getTrackerInfos() ) ;
-        % For custom 2stage trackers add the DeepTrackerTownDown again.
+        % For custom 2-stage trackers add the DeepTrackerTopDown again.
       else        
         dlnets = enumeration('DLNetType');
         dlnets = dlnets(~[dlnets.isMultiAnimal]);
@@ -473,34 +479,47 @@ classdef LabelTracker < handle
     end
     
     function [tf,loc] = trackersCreateInfoIsMember(infocell1,infocell2)
+      % For each element of infocell1, determine whether some element of infocell2
+      % matches it, and if so, at what index into infocell2 the matching element is
+      % found at.  If infocell1 has n elements, on return tf is an n x 1 logical
+      % array, and loc is an n x 1 double array of indices into infocell2.  Used to
+      % match up trackers in a being-loaded .lbl file to the list of available
+      % trackers according to LabelTracker.getAllTrackersCreateInfo().  infocell1
+      % should come from the read-in .lbl file, and infocell2 from a call to
+      % LablerTracker.getAllTrackersCreateInfo().
       n1 = numel(infocell1);
       n2 = numel(infocell2);
       tf = false(n1,1);
       loc = zeros(n1,1);
       for i=1:n1
+        tci1 = infocell1{i} ;  % "tci" for Tracker Create Info
         for j=1:n2
-          if isequal(infocell1{i},infocell2{j})
+          tci2 = infocell2{j} ;
+          if isequal(tci1,tci2)
             tf(i) = true;
             loc(i) = j;
-            break;
-          elseif strcmp(infocell1{i}{1},'DeepTrackerTopDownCustom') && ...
-              strcmp(infocell2{j}{1},'DeepTrackerTopDownCustom')
-            % since custom don't have trnnetype defined. MK 20240228
-            if isequal(infocell1{i}{2}(3:end),infocell2{j}{2}) && ...
-                isequal(infocell1{i}{3}(3:end),infocell2{j}{3})
+            break
+          end
+          tci1_class_name = tci1{1} ;
+          tci2_class_name = tci2{1} ;
+          if strcmp(tci1_class_name,'DeepTrackerTopDownCustom') && ...
+             strcmp(tci2_class_name,'DeepTrackerTopDownCustom')
+            % since custom don't have trnNetType defined. MK 20240228
+            tci1_stage_1_trnNetMode = tci1{2}(3:end) ;
+            tci1_stage_2_trnNetMode = tci1{3}(3:end) ;                       
+            tci2_stage_1_trnNetMode = tci2{2} ;
+            tci2_stage_2_trnNetMode = tci2{3} ;           
+            if isequal(tci1_stage_1_trnNetMode,tci2_stage_1_trnNetMode) && ...
+               isequal(tci1_stage_2_trnNetMode,tci2_stage_2_trnNetMode)
               tf(i) = true;
               loc(i) = j;  
-              break;
+              break
             end
           end
-        end
-      end
-%       keyfcn = @(infocell)cellfun(@(x)sprintf('%s#',x{:}),infocell,'uni',0);
-%       keys1 = keyfcn(infocell1);
-%       keys2 = keyfcn(infocell2);
-%       [tf,loc] = ismember(keys1,keys2);      
-    end
+        end  % for j
+      end  % for i
+    end  % function
     
-  end
+  end  % methods (Static)
   
-end
+end  % classdef

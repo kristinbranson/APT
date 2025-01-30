@@ -20,7 +20,7 @@ classdef Labeler < handle
       'cropIsCropMode' ...
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
-      'labels' 'labels2' 'labelsGT' 'labels2GT' ...       %'labeledpos2' ...  % 'labeledpos' 'labeledpostag' 'labeledposTS' % 'labeledposMarked'        % 'labeledposGT' 'labeledpostagGT' 'labeledposTSGT'        %'labeledpos2GT'...
+      'labels' 'labels2' 'labelsGT' 'labels2GT' ...
       'labelsRoi' ...
       'currMovie' 'currFrame' 'currTarget' 'currTracker' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
@@ -473,10 +473,11 @@ classdef Labeler < handle
     progressMeter
   end
   properties (Dependent, Hidden)
-    labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
+    labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; 
+                          % labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
     labeledposTS          % labeledposTS{iMov} is nptsxnFrm(iMov)xnTrx(iMov). It is the last time .labeledpos or .labeledpostag was touched. init: PN
-%     labeledposMarked      % labeledposMarked{iMov} is a nptsxnFrm(iMov)xnTrx(iMov) logical array. Elements are set to true when the corresponding pts have their labels set; users can set elements to false at random. init: PN
-    labeledpostag         % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. ("tag" for legacy reasons) init: PN
+    labeledpostag         % column cell vec with .nmovies elements. labeledpostag{iMov} is npts x nFrm(iMov) x nTrx(iMov) logical indicating *occludedness*. 
+                          % ("tag" for legacy reasons) init: PN
     labeledposGT          % like .labeledpos    
     labeledposTSGT        % like .labeledposTS
     labeledpostagGT       % like .labeledpostag
@@ -2083,15 +2084,10 @@ classdef Labeler < handle
       if trkPrefs.Enable
         % Create default trackers
         assert(isempty(obj.trackersAll));
-        trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo(obj.maIsMA);
-        nTrkers = numel(trkersCreateInfo);
-        tAll = cell(1,nTrkers);
-        for i=1:nTrkers
-          trkerCls = trkersCreateInfo{i}{1};
-          trkerClsArgs = trkersCreateInfo{i}(2:end);
-          tAll{i} = feval(trkerCls,obj,trkerClsArgs{:});
-          tAll{i}.init();
-        end
+        trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo(obj.maIsMA);  % number-of-trackers x 1
+        tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
+                       trkersCreateInfo', ...
+                       'UniformOutput', false) ;  % 1 x number-of-trackers
         obj.trackersAll = tAll;
         obj.currTracker = 1;
         
@@ -2102,16 +2098,12 @@ classdef Labeler < handle
         obj.currTracker = 0;
       end
 
-      props = obj.gdata.propsNeedInit;
-      for p = props(:)', p=p{1}; %#ok<FXSET>
-        obj.(p) = obj.(p);
-      end
-%       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
+      obj.setPropertiesToFireCallbacksToInitializeUI_() ;
       
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
     end
-      
+    
     function projSaveRaw(obj,fname)
       
       try
@@ -2500,13 +2492,13 @@ classdef Labeler < handle
 %       obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
       obj.gtUpdateSuggMFTableLbledComplete();      
 
-      % Tracker.
+      % Populate obj.trackersAll
       nTracker = numel(s.trackerData);
       assert(nTracker==numel(s.trackerClass));
       assert(isempty(obj.trackersAll));
       tAll = cell(1,nTracker);
       for i=1:nTracker 
-        tAll{i} = LabelTracker.create(obj,s.trackerClass{i},s.trackerData{i});
+        tAll{i} = LabelTracker.create(obj, s.trackerClass{i}, s.trackerData{i});
       end
       obj.trackersAll = tAll;
       
@@ -2575,10 +2567,7 @@ classdef Labeler < handle
       % mode
       obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
  
-      props = obj.gdata.propsNeedInit;
-      for p = props(:)', p=p{1}; %#ok<FXSET>
-        obj.(p) = obj.(p);
-      end
+      obj.setPropertiesToFireCallbacksToInitializeUI_() ;
       
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
@@ -2673,7 +2662,8 @@ classdef Labeler < handle
       % check if there are no partially labeled frames
       [~,~,frms] = obj.findPartiallyLabeledFrames();
       if numel(frms) > 0,
-        warndlg('There are still some partially labeled frames. You must label all partially labeled frames before finishing.','Not all frames completely labeled');
+        warndlg('There are still some partially labeled frames. You must label all partially labeled frames before finishing.', ...
+                'Not all frames completely labeled');
         return;
       end
       
@@ -2696,7 +2686,8 @@ classdef Labeler < handle
       % Currently not exposed in the GUI, probably should be eventually.
 
       if obj.nLabelPointsAdd > 0,
-        warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.','Cannot add landmarks twice');
+        warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.', ...
+                'Cannot add landmarks twice');
         return;
       end
       
@@ -3563,10 +3554,12 @@ classdef Labeler < handle
         s.maIsMA = false;
       end
       
-      trkersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
-      nDfltTrkers = numel(trkersInfo);
+      defaultTrackersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
+      nDfltTrkers = numel(defaultTrackersInfo);
       assert(iscell(s.trackerClass));
       %nExistingTrkers = numel(s.trackerClass);
+
+      % s.trackerClass and s.trackerData are eventually used to restore labeler.trackersAll
 
       % update interim/dev MA-BU projs
       for i=1:numel(s.trackerClass)
@@ -3577,8 +3570,11 @@ classdef Labeler < handle
             {'DeepTrackerBottomUp' 'trnNetMode' DLNetMode.multiAnimalBU};
         end
       end
+
+      % Determine which elements of s.trackerClass match some default tracker kind
       [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
-        trkersInfo);
+                                                         defaultTrackersInfo);
+
       %assert(all(tf));
       % AL: removing CPR for now until if/when updated 
       % AL 20210923: Net removal
@@ -3601,15 +3597,21 @@ classdef Labeler < handle
         end
       end
       
+      % Delete elements of s.trackerClass, s.trackerData that do not match a default
+      % kind of tracker.
       s.trackerClass(~tf) = [];
       s.trackerData(~tf) = [];
+
+      % Bring loc into register with s.trackerClass, s.trackerData
       loc(~tf) = [];      
-      tclass = trkersInfo;
-      tclass(loc) = s.trackerClass(:);
+
+      tclass = defaultTrackersInfo;
+      tclass(loc) = s.trackerClass(:);  % If a default tracker kind matches one in s.trackerClass, replace the default tracker with the one in s.trackerClass
       tdata = repmat({[]},1,nDfltTrkers);
-      tdata(loc) = s.trackerData(:);
+      tdata(loc) = s.trackerData(:);  % If a default tracker kind matches one in s.trackerClass, replace the default tracker with the one in s.trackerClass
       s.trackerClass = tclass;
       s.trackerData = tdata;      
+
       % KB 20201216 update currTracker as well
       oldCurrTracker = s.currTracker;
       if oldCurrTracker>0 && ~isempty(loc) && oldCurrTracker <= numel(loc),
@@ -3620,32 +3622,12 @@ classdef Labeler < handle
       % 20190404: remove .trnName, .trnNameLbl as these dup DMC
       for i = 1:numel(s.trackerData),
         
-%         AL20200312: This update will never work in the regular 
-%         projLoad codepath because at this time the dmcs do not have 
-%         their .rootDirs updated appropriately for the newly-exploded
-%         bundled models. For now skip this update, .nLabels appears
-%         noncritical (used for display/cosmetics only)
-%         if isfield(s.trackerData{i},'trnLastDMC'),
-%           for j = 1:numel(s.trackerData{i}.trnLastDMC),
-%             dmc = s.trackerData{i}.trnLastDMC(j);
-%             if isempty(dmc.nLabels) && (isempty(dmc.reader) || ~dmc.isRemote)
-%               % dmc.reader is empty for legacy projs; which will be assumed 
-%               % to be local in DeepTracker/modernizeSaveToken
-%               try
-%                 fprintf('Modernize: Reading nLabels for deep tracker\n');
-%                 dmc.readNLabels();
-%               catch ME
-%                 warning('Could not read nLabels from trnLastDMC:\n%s',getReport(ME));
-%               end
-%             end
-%           end
-%         end
-
         % KB 20220804 refactor DMC
         if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
           try
-            s.trackerData{i}.trnLastDMC = DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
-              'netmode',[s.trackerData{1}.trnNetMode]);
+            s.trackerData{i}.trnLastDMC = ...
+              DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
+                                             'netmode',[s.trackerData{1}.trnNetMode]);
           catch ME
             warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
             s.trackerData{i}.trnLastDMC = [];
@@ -3668,7 +3650,6 @@ classdef Labeler < handle
         end
       end  % for
       
-%         s.trackDLBackEnd = DLBackEndClass(DLBackEnd.Bsub);
       % 20181215 factor dlbackend out of DeepTrackers into single/common
       % prop on Labeler
       if ~isfield(s,'trackDLBackEnd') || ~isa(s.trackDLBackEnd, 'DLBackEndClass') ,
@@ -7836,8 +7817,9 @@ classdef Labeler < handle
       % tfok: user canceled or similar
       % rawtrkname: use only if tfok==true
       
-      rawtrkname = inputdlg('Enter name/pattern for trkfile(s) to be exported. Available macros: $movdir, $movfile, $projdir, $projfile, $projname, $trackertype.',...
-        'Export Trk File',1,{obj.defaultExportTrkRawname(varargin{:})});
+      rawtrkname = inputdlg(strcatg('Enter name/pattern for trkfile(s) to be exported. Available macros: ', ...
+                                    '$movdir, $movfile, $projdir, $projfile, $projname, $trackertype.'),...
+                            'Export Trk File',1,{obj.defaultExportTrkRawname(varargin{:})});
       tfok = ~isempty(rawtrkname);
       if tfok
         rawtrkname = rawtrkname{1};
@@ -8313,8 +8295,9 @@ classdef Labeler < handle
         obj.lerror('Labeler:noMovie','No movie currently open.');
       end
       if exist(fname,'file')>0
-        obj.lerror('Labeler:movie','Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
-          fname);
+        obj.lerror('Labeler:movie', ...
+                   'Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
+                   fname);
       end
       
       switch frms2inc
@@ -8641,7 +8624,8 @@ classdef Labeler < handle
         addMarkerSizeSlider] = myparse(varargin,...
         'ctrMeth','none',... % {'none' 'trx' 'centroid'}; see hlpOverlay...
         'rotAlignMeth','none',... % Rotational alignment method when ctrMeth is not 'none'. One of {'none','headtail','trxtheta'}. 
-        ... % 'trxCtredSizeNorm',false,... True to normalize shapes by trx.a, trx.b. SKIP THIS for now. Have found that doing this normalization tightens shape distributions a bit (when tracking/trx is good)
+        ... % 'trxCtredSizeNorm',false,... True to normalize shapes by trx.a, trx.b. SKIP THIS for now. Have found that doing this normalization 
+        ... % tightens shape distributions a bit (when tracking/trx is good)
         'roiRadius',nan,... % A little unusual, used if .preProcParams.TargetCrop.Radius is not avail
         'roiPadVal',0,...% A little unsuual, used if .preProcParams.TargetCrop.PadBkgd is not avail
         'hFig0',[],... % Optional, previous figure to use with figurecascaded
@@ -10793,15 +10777,17 @@ classdef Labeler < handle
         error('APT:invalidPropertyValue', 'Invalid tracker index') ;
       end
       
+      % If the indicated tracker is a custom tracker, then we may have to replace
+      % the existing tracker with a new one that has the same stage-types.
       if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
-        prev = tAll{iTrk};
+        previous_tracker = tAll{iTrk};
         if do_use_previous_if_custom_top_down
           % do nothing
         else
-          ctorargs = DeepTrackerTopDownCustom.get_args(prev);
+          ctorargs = previous_tracker.get_constructor_args_to_match_stage_types() ;
           newTracker = DeepTrackerTopDownCustom(obj,ctorargs{1},ctorargs{2});
           if newTracker.valid
-            newTracker.initHook();
+            newTracker.init();
             tAll{iTrk} = newTracker;
             obj.trackersAll = tAll;
           else
@@ -10825,7 +10811,9 @@ classdef Labeler < handle
       if ~exist('do_use_previous_if_custom_top_down', 'var') || isempty(do_use_previous_if_custom_top_down) ,
         do_use_previous_if_custom_top_down = [] ;
       end
-      algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), obj.trackersAll, 'UniformOutput', false) ;
+      algorithmNameFromTrackerIndex = cellfun(@(tracker)(tracker.algorithmName), ...
+                                              obj.trackersAll, ...
+                                              'UniformOutput', false) ;
       matchingIndices = find(strcmp(algoName, algorithmNameFromTrackerIndex)) ;
       if isempty(matchingIndices) ,
         error('No algorithm named %s among the available trackers', algoName) ;
@@ -11393,13 +11381,13 @@ classdef Labeler < handle
     function clearAllTrackers(obj)
       for i = 1:numel(obj.trackersAll),
         tObj = obj.trackersAll{i};
-        tObj.initHook();
+        tObj.init();
       end
     end
     
     function clearCurrentTracker(obj)
       tObj = obj.tracker;
-      tObj.initHook();
+      tObj.init();
     end
     
     function [tfsucc,tblPCache,s] = ...
@@ -11863,9 +11851,11 @@ classdef Labeler < handle
 %         'kfold',3,... % number of folds
 %         'initData',false,... % OBSOLETE, you would never want this. if true, call .initData() between folds to minimize mem usage
 %         'wbObj',[],... % (opt) WaitBarWithCancel
-%         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
+%         'tblMFgt',[],... % (opt), MFTable of data to consider. Defaults to all labeled rows. 
+%                          % tblMFgt should only contain fields .mov, .frm, .iTgt. labels, rois, etc will be assembled from proj
 %         'tblMFgtIsFinal',false,... % a bit silly, for APT developers only. Set to true if your tblMFgt is in final form.
-%         'partTst',[],... % (opt) pre-defined training splits. If supplied, partTst must be a [height(tblMFgt) x kfold] logical. tblMFgt should be supplied. true values indicate test rows, false values indicate training rows.
+%         'partTst',[],... % (opt) pre-defined training splits. If supplied, partTst must be a [height(tblMFgt) x kfold] logical. 
+%                          % tblMFgt should be supplied. true values indicate test rows, false values indicate training rows.
 %         'dontInitH0',true...
 %       );        
 %       
@@ -14380,7 +14370,8 @@ classdef Labeler < handle
       if nargin<3
         viewi = 1;
       end
-      [im,isrotated,xdata,ydata,A,tform] = obj.readTargetImageFromMovie(inputPAModeInfo.iMov, inputPAModeInfo.frm, inputPAModeInfo.iTgt, viewi);
+      [im,isrotated,xdata,ydata,A,tform] = ...
+        obj.readTargetImageFromMovie(inputPAModeInfo.iMov, inputPAModeInfo.frm, inputPAModeInfo.iTgt, viewi);
       outputPAModeInfo = inputPAModeInfo ;
       outputPAModeInfo.im =  im;
       outputPAModeInfo.isrotated =  isrotated;
@@ -14984,7 +14975,8 @@ classdef Labeler < handle
 %       prmBackSub = prmPP.BackSub;
 %       prmNborMask = prmPP.NeighborMask;
 %       if isempty(prmBackSub.BGType) || isempty(prmBackSub.BGReadFcn)
-%         obj.lerror('Computing the empirical foreground PDF requires a background type and background read function to be defined in the tracking parameters.');
+%         obj.lerror(strcatg('Computing the empirical foreground PDF requires a background type and ', ...
+%                            'background read function to be defined in the tracking parameters.'));
 %       end
 %       if ~prmNborMask.Use
 %         warningNoTrace('Neighbor masking is currently not turned on in your tracking parameters.');
@@ -15511,7 +15503,6 @@ classdef Labeler < handle
       newTracker = obj.tracker ;
       if ~isempty(newTracker),
         newTracker.activate();
-        newTracker.updateTrackerInfo();
       end
       
       % Send the notification
@@ -15647,5 +15638,29 @@ classdef Labeler < handle
       obj.currFrame = newValue ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
     end    
+
+    function setPropertiesToFireCallbacksToInitializeUI_(obj)
+      % These properties need their callbacks fired to properly init UI.  (For
+      % now...)
+      propsNeedInit = {
+        'labelMode'
+        'suspScore'
+        'showTrx'
+        'showTrxCurrTargetOnly' %  'showPredTxtLbl'
+        'trackersAll' % AL20190606: trackersAll cbk calls 'currTracker' cbk
+        'trackNFramesSmall' % trackNFramesLarge, trackNframesNear currently share same callback
+        'trackModeIdx'
+        'movieCenterOnTarget'
+        'movieForceGrayscale'
+        'movieInvert'
+        'showOccludedBox'
+        } ;
+      propCount = numel(propsNeedInit) ;
+      for i = 1 : propCount ,
+        propName = propsNeedInit{i} ;
+        obj.(propName) = obj.(propName) ;
+      end
+    end  % function
+    
   end  % methods
 end  % classdef

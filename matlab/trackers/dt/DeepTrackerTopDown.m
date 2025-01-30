@@ -114,7 +114,7 @@ classdef DeepTrackerTopDown < DeepTracker
     
     function initHook(obj)
       initHook@DeepTracker(obj);
-      obj.stage1Tracker.initHook();      
+      obj.stage1Tracker.init();      
     end
     
     function setAllParams(obj,sPrmAll)
@@ -313,7 +313,7 @@ classdef DeepTrackerTopDown < DeepTracker
   
   methods (Static)
     
-    function trkClsAug = getTrackerInfos
+    function trkClsAug = getTrackerInfos()
       % Currently-available TD trackers. Can consider moving to eg yaml later.
       trkClsAug = { ...
           {'DeepTrackerTopDown' ...

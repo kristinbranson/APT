@@ -352,9 +352,9 @@ classdef LabelerController < handle
       end
       
       % If a custom top-down tracker, ask if we want to keep it or make a new one.
-      if isa(tAll{tracker_index},'DeepTrackerTopDownCustom')
-        prev = tAll{tracker_index};
-        do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(prev) ;
+      previousTracker = tAll{tracker_index};
+      if isa(previousTracker,'DeepTrackerTopDownCustom')
+        do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(previousTracker) ;
       else
         do_use_previous = [] ;  % value will be ignored
       end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')

@@ -323,8 +323,7 @@ classdef DeepTracker < LabelTracker
       if lObj.projectHasTrx
         % Has to be SA
         obj.trnNetMode = DLNetMode.multiAnimalTDPoseTrx;
-      end
-        
+      end        
               
       obj.bgTrnMonitor = [];
       %obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
@@ -356,6 +355,7 @@ classdef DeepTracker < LabelTracker
     function activate(obj)
       activate@LabelTracker(obj);
       obj.vizInit(false);
+      obj.updateTrackerInfo();
     end
   end
   
