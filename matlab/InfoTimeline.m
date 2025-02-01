@@ -250,7 +250,7 @@ classdef InfoTimeline < handle
     end
     
     function delete(obj)
-      deleteValidHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh]);
+      deleteValidGraphicsHandles([obj.hCurrFrame,obj.hCurrFrameL,obj.hStatThresh]);
       obj.hCurrFrame = [];
       obj.hCurrFrameL = [];
       obj.hStatThresh = [];
@@ -260,11 +260,11 @@ classdef InfoTimeline < handle
       if ~isempty(obj.hPan)
         delete(obj.hPan);
       end
-      deleteValidHandles(obj.hPts);
-      deleteValidHandles(obj.hPtStat);
+      deleteValidGraphicsHandles(obj.hPts);
+      deleteValidGraphicsHandles(obj.hPtStat);
       obj.hPts = [];
       obj.hPtStat = [];
-      deleteValidHandles(obj.hPtsL);
+      deleteValidGraphicsHandles(obj.hPtsL);
       obj.hPtsL = [];
       if ~isempty(obj.listeners),
         cellfun(@delete,obj.listeners);
@@ -274,11 +274,11 @@ classdef InfoTimeline < handle
         cellfun(@delete,obj.listenersTracker);
       end
       obj.listenersTracker = [];
-      deleteValidHandles(obj.hSelIm);
+      deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = [];
-      deleteValidHandles(obj.hSegLineGT);
+      deleteValidGraphicsHandles(obj.hSegLineGT);
       obj.hSegLineGT = [];
-      deleteValidHandles(obj.hSegLineGTLbled);
+      deleteValidGraphicsHandles(obj.hSegLineGTLbled);
       obj.hSegLineGTLbled = [];
     end
     
@@ -311,9 +311,9 @@ classdef InfoTimeline < handle
     function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
 
-      deleteValidHandles(obj.hPts);
-      deleteValidHandles(obj.hPtStat);
-      deleteValidHandles(obj.hPtsL);
+      deleteValidGraphicsHandles(obj.hPts);
+      deleteValidGraphicsHandles(obj.hPtStat);
+      deleteValidGraphicsHandles(obj.hPtsL);
       obj.hPts = gobjects(obj.npts,1);
       obj.hPtStat = gobjects(1);
       colors = obj.lObj.LabelPointColors;
@@ -600,7 +600,7 @@ classdef InfoTimeline < handle
     function selectInit(obj)
       if obj.lObj.isinit || isnan(obj.nfrm), return; end
 
-      deleteValidHandles(obj.hSelIm);
+      deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = image(1:obj.nfrm,obj.hAx.YLim,uint8(zeros(1,obj.nfrm)),...
         'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');

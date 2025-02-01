@@ -22,7 +22,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
     end
     
     function propUnselected(obj)
-      deleteValidHandles(obj.hPlot);
+      deleteValidGraphicsHandles(obj.hPlot);
       obj.hPlot = [];
       obj.initSuccessful = false;
       obj.initFtrVizInfo = [];
@@ -57,7 +57,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       obj.initSuccessful = false;
       obj.initFeatureType = [];
       obj.initFtrVizInfo = [];
-      deleteValidHandles(obj.hPlot);
+      deleteValidGraphicsHandles(obj.hPlot);
       obj.hPlot = [];
             
       if ~lObj.hasMovie

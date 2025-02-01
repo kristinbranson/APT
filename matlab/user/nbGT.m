@@ -184,7 +184,7 @@ end
 assert(exist('lObj','var')>0);
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 NPTS = 6;
 NRES = size(pResBig,1);

@@ -85,14 +85,14 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
 %       axis(hAx,'auto');
       title(hAx,tstr,'interpreter','none','fontweight','normal',...
         'fontsize',10);
-      deleteValidHandles(obj.hRect);
+      deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = plot(rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
       
       obj.initSuccessful = true;
     end
     
     function propUnselected(obj)
-      deleteValidHandles(obj.hRect);
+      deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = [];
       obj.initSuccessful = false;
     end

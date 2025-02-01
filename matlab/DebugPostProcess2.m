@@ -631,7 +631,7 @@ kdeweights = kdeweights(:);
 reps = squeeze(pp.sampledata.x(isamp,:,ipt,:));
 
 ax = lObj.gdata.axes_curr;
-deleteValidHandles(hS);
+deleteValidGraphicsHandles(hS);
 hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1e3,'r');
 
 

@@ -360,7 +360,7 @@ lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,NPTS);
 for iAx = 1:3

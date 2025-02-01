@@ -15150,10 +15150,10 @@ classdef Labeler < handle
     end
     
     function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)
-      deleteValidHandles(obj.(hProp));
+      deleteValidGraphicsHandles(obj.(hProp));
       obj.(hProp) = gobjects(obj.nLabelPoints,1);
       if ~isempty(hTxtProp)
-        deleteValidHandles(obj.(hTxtProp));
+        deleteValidGraphicsHandles(obj.(hTxtProp));
         obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
       end
       

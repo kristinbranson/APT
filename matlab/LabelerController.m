@@ -87,10 +87,10 @@ classdef LabelerController < handle
       % Having the figure without a controller would be bad, so we make sure to
       % delete the figure (and subfigures) in our destructor.
       % We also delete the model.
-      deleteValidHandles(obj.satellites_) ;
-      deleteValidHandles(obj.waitbarFigure_) ;
-      deleteValidHandles(obj.trackingMonitorVisualizer_) ;
-      deleteValidHandles(obj.trainingMonitorVisualizer_) ;
+      deleteValidGraphicsHandles(obj.satellites_) ;
+      deleteValidGraphicsHandles(obj.waitbarFigure_) ;
+      deleteValidGraphicsHandles(obj.trackingMonitorVisualizer_) ;
+      deleteValidGraphicsHandles(obj.trainingMonitorVisualizer_) ;
       main_figure = obj.mainFigure_ ;
       if ~isempty(main_figure) && isvalid(main_figure)
         handles = guidata(main_figure) ;
@@ -98,8 +98,13 @@ classdef LabelerController < handle
           delete(handles.movieMgr);
         end        
         handles.movieMgr = [] ;
-        deleteValidHandles(main_figure) ;
-        delete(obj.labeler_) ;  % We don't want the model to hang around
+        deleteValidGraphicsHandles(main_figure) ;
+        % In principle, a controller shouldn't delete its model---the model should be
+        % allowed to persist until there are no more references to it.  
+        % But it seems like this might surprise & annoy clients, b/c they expect that
+        % when they quit APT via the GUI, the model should be deleted, even if (say)
+        % there's still a reference to it in the top level scope.
+        delete(obj.labeler_) ;
       end
     end  % function
     
@@ -1223,7 +1228,7 @@ classdef LabelerController < handle
     end  % function
 
     function clearSatellites(obj)
-      deleteValidHandles(obj.satellites_);
+      deleteValidGraphicsHandles(obj.satellites_);
       obj.satellites_ = gobjects(1,0);
     end  % function
 

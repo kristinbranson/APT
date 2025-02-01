@@ -356,7 +356,7 @@ handles.menu_view_show_imported_preds_curr_target_only = uimenu('Parent',handles
   'Checked','off');
 moveMenuItemAfter(handles.menu_view_show_imported_preds_curr_target_only,handles.menu_view_show_preds_curr_target_only);
 
-deleteValidHandles(handles.menu_view_landmark_colors.Children);
+deleteValidGraphicsHandles(handles.menu_view_landmark_colors.Children);
 set(handles.menu_view_landmark_colors,'Callback',@menu_view_landmark_colors_Callback);
 
 handles.menu_view_showhide_skeleton = uimenu('Parent',handles.menu_view,...
@@ -1296,7 +1296,7 @@ function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INU
 varargout{1} = handles.output;
 
 % function handles = clearDepHandles(handles)
-% deleteValidHandles(handles.depHandles);
+% deleteValidGraphicsHandles(handles.depHandles);
 % handles.depHandles = gobjects(0,1);
 % 
 % function handles = addDepHandle(handles,h)
@@ -1527,7 +1527,7 @@ handles = initTblFrames(handles,lObj.maIsMA);
 %SetStatus(handles,curr_status_string,true);
 
 % figs, axes, images
-deleteValidHandles(handles.figs_all(2:end));
+deleteValidGraphicsHandles(handles.figs_all(2:end));
 handles.figs_all = handles.figs_all(1);
 handles.axes_all = handles.axes_all(1);
 handles.images_all = handles.images_all(1);
@@ -4072,7 +4072,7 @@ end
 %
 % function menu_view_show_3D_axes_Callback(hObject,eventdata,handles)
 % if isfield(handles,'hShow3D')
-%   deleteValidHandles(handles.hShow3D);
+%   deleteValidGraphicsHandles(handles.hShow3D);
 % end
 % handles.hShow3D = gobjects(0,1);
 % 
@@ -4845,7 +4845,7 @@ tfok = true;
 
 %% Cropping
 function handles = cropInitImRects(handles)
-deleteValidHandles(handles.cropHRect);
+deleteValidGraphicsHandles(handles.cropHRect);
 handles.cropHRect = ...
   arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all,'uni',0); %#ok<IMRECT> 
 handles.cropHRect = cat(1,handles.cropHRect{:}); % ML 2016a ish can't concat imrects in arrayfun output

@@ -18,9 +18,9 @@ classdef LabelCoreCPRView < LabelCore
       obj@LabelCore(lObj);
     end
     function delete(obj)
-      deleteValidHandles(obj.hPtsGT);
-      deleteValidHandles(obj.hPtsRep);
-      deleteValidHandles(obj.hPtsRepRed);
+      deleteValidGraphicsHandles(obj.hPtsGT);
+      deleteValidGraphicsHandles(obj.hPtsRep);
+      deleteValidGraphicsHandles(obj.hPtsRepRed);
     end
   end
   methods

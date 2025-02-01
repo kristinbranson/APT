@@ -596,7 +596,7 @@ lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,NPTS);
 for iAx = 1:3
@@ -669,7 +669,7 @@ pTstTRedFinalT = pTstTRed(:,:,end);
 %% Browse test frames in Labeler
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 
 hLine = gobjects(3,NPTS);
@@ -916,7 +916,7 @@ frame = tbl.frm(TROWIDX);
 lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
-deleteValidHandles(hLine);
+deleteValidGraphicsHandles(hLine);
 hLine = gobjects(3,3);
 for iAx = 1:3
   ax = axAll(iAx);
@@ -970,7 +970,7 @@ lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,3);
 for iAx = 1:3
@@ -1022,7 +1022,7 @@ pTstTRedFinalT = pTstTRed(:,:,end);
 %% Browse test frames
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,3);
 for iAx = 1:3

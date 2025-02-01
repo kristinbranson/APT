@@ -193,7 +193,7 @@ classdef TrainMonitorViz < handle
     end
     
     function delete(obj)
-      deleteValidHandles(obj.hfig);
+      deleteValidGraphicsHandles(obj.hfig);
       obj.hfig = [];
     end
     

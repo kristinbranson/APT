@@ -213,6 +213,10 @@ classdef DeepTracker < LabelTracker
     % trkVizer) based on trkP.    
   end
   
+  properties (Transient)
+    nFramesTrack
+  end
+
   events
     % Thrown when new tracking results are loaded for the current lObj
     % movie
