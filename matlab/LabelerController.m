@@ -8,6 +8,7 @@ classdef LabelerController < handle
     %waitbarListeners_ = event.listener.empty(1,0)
     trackingMonitorVisualizer_
     trainingMonitorVisualizer_
+    movieManagerController
   end
 
   properties  % private/protected by convention
@@ -91,21 +92,14 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
-      main_figure = obj.mainFigure_ ;
-      if ~isempty(main_figure) && isvalid(main_figure)
-        handles = guidata(main_figure) ;
-        if isfield(handles,'movieManagerController') && ~isempty(handles.movieManagerController) && isvalid(handles.movieManagerController) ,
-          delete(handles.movieManagerController);
-        end        
-        handles.movieManagerController = [] ;
-        deleteValidGraphicsHandles(main_figure) ;
-        % In principle, a controller shouldn't delete its model---the model should be
-        % allowed to persist until there are no more references to it.  
-        % But it seems like this might surprise & annoy clients, b/c they expect that
-        % when they quit APT via the GUI, the model should be deleted, even if (say)
-        % there's still a reference to it in the top level scope.
-        delete(obj.labeler_) ;
-      end
+      delete(obj.movieManagerController) ;
+      deleteValidGraphicsHandles(obj.mainFigure_) ;
+      % In principle, a controller shouldn't delete its model---the model should be
+      % allowed to persist until there are no more references to it.  
+      % But it seems like this might surprise & annoy clients, b/c they expect that
+      % when they quit APT via the GUI, the model should be deleted, even if (say)
+      % there's still a reference to it in the top level scope.
+      delete(obj.labeler_) ;
     end  % function
     
     function updateDoesNeedSave(obj, ~, ~)      

@@ -45,13 +45,12 @@ end
 
 % GTSuggest(lObj)
 function GTSuggest_OpeningFcn(hObject, eventdata, handles, varargin)
-lObj = varargin{1};
-gdata = lObj.gdata;
+lObj = varargin{1};  % Should change things so we pass in the LabelerController, not the Labeler
 
 centerOnParentFigure(hObject,lObj.hFig);
 
 handles.lObj = lObj;
-handles.movMgrCtrler = gdata.movieManagerController;
+handles.movMgrCtrler = lObj.controller_.movieManagerController ;  % subpoptimal to have to touch lObj.controller_, which is deprecated
 handles.listener = event.listener(handles.movMgrCtrler,'tableClicked',...
   @(s,e)cbkTableClicked(hObject));
 

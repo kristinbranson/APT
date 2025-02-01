@@ -1634,14 +1634,12 @@ handles = setShortcuts(handles);
 
 handles.labelTLInfo.initNewProject();
 
-if isfield(handles,'movieManagerController') && isvalid(handles.movieManagerController)
-  delete(handles.movieManagerController);
-end
-handles.movieManagerController = MovieManagerController(handles.labelerObj);
+delete(handles.controller.movieManagerController) ;
+handles.controller.movieManagerController = MovieManagerController(handles.labelerObj);
 drawnow; % 20171002 Without this, new tabbed MovieManager shows up with 
   % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
   % buttons/figure back into a good state)   
-handles.movieManagerController.setVisible(false);
+handles.controller.movieManagerController.setVisible(false);
 
 handles.GTMgr = GTManager(handles.labelerObj);
 handles.GTMgr.Visible = 'off';
@@ -3328,15 +3326,14 @@ handles.labelerObj.clearStatus()
 
 function menu_file_load_Callback(hObject, eventdata, handles)
 
-handles.labelerObj.setStatus('Loading Project...') ;
-%EnableControls(handles,'projectloaded');
 lObj = handles.labelerObj;
 controller = handles.controller ;
+lObj.setStatus('Loading Project...') ;
+%EnableControls(handles,'projectloaded');
 if controller.raiseUnsavedChangesDialogIfNeeded() ,
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
-    handles = lObj.gdata; % projLoad updated stuff
-    handles.movieManagerController.setVisible(true);
+    controller.movieManagerController.setVisible(true);
     wstr = ...
       sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
                       'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
@@ -3345,7 +3342,7 @@ if controller.raiseUnsavedChangesDialogIfNeeded() ,
     warndlg(wstr,'Movie not found','modal');
   end
 end
-handles.labelerObj.clearStatus()
+lObj.clearStatus()
 
 function tfcontinue = hlpSave(labelerObj)
 tfcontinue = true;
@@ -3372,8 +3369,8 @@ if labelerObj.doesNeedSave ,
 end
 
 function menu_file_managemovies_Callback(~,~,handles)
-if isfield(handles,'movieManagerController')
-  handles.movieManagerController.setVisible(true);
+if ~isempty(handles.controller.movieManagerController) && isvalid(handles.controller.movieManagerController) ,
+  handles.controller.movieManagerController.setVisible(true);
 else
   handles.labelerObj.lerror('LabelerGUI:movieManagerController','Please create or load a project.');
 end
@@ -4698,18 +4695,19 @@ else
 end
 
 function menu_evaluate_gtmode_Callback(hObject,eventdata,handles)
-lObj = handles.labelerObj;
+labeler = handles.labelerObj;
+controller = handles.controller ;
 
 handles.labelerObj.setStatus('Switching between Labeling and Ground Truth Mode...');
 
-gt = lObj.gtIsGTMode;
+gt = labeler.gtIsGTMode;
 gtNew = ~gt;
-lObj.gtSetGTMode(gtNew);
+labeler.gtSetGTMode(gtNew);
 % hGTMgr = lObj.gdata.GTMgr;
 if gtNew
-  hMovMgr = lObj.gdata.movieManagerController;
-  hMovMgr.setVisible(true);
-  figure(hMovMgr.hFig);
+  mmc = controller.movieManagerController;
+  mmc.setVisible(true);
+  figure(mmc.hFig);
 end
 handles.labelerObj.clearStatus();
 
@@ -4770,21 +4768,8 @@ handles.GTMgr.Visible = onIffGT;
 hlpGTUpdateAxHilite(lObj);
 
 function figure_CloseRequestFcn(hObject, eventdata, handles)
-%CloseGUI(handles);
 controller = handles.controller ;
 controller.quitRequested() ;
-
-% function CloseGUI(handles)
-% if hlpSave(handles.labelerObj)
-%   handles = clearDepHandles(handles);
-%   if isfield(handles,'movieManagerController') && ~isempty(handles.movieManagerController) ...
-%       && isvalid(handles.movieManagerController)
-%     delete(handles.movieManagerController);
-%   end  
-%   delete(findall(0,'tag','TrkInfoUI'));
-%   delete(handles.figure);
-%   delete(handles.labelerObj);
-% end
 
 function pumInfo_Callback(hObject, eventdata, handles)
 cprop = get(hObject,'Value');

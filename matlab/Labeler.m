@@ -1005,19 +1005,20 @@ classdef Labeler < handle
     end    
     
     function v = get.moviesSelected(obj) %#%GUIREQ
-      % Find MovieManager in LabelerGUI
+      % Get the currently selected movies.
+      
+      % Need to restructure code s.t. the MovieManagerController sets an instance
+      % variable in Labeler when the selected movies changes.  Then this function
+      % will return the value of that instance variable.  Having the Labeller touch
+      % a controller (other than via notify()) breaks the view-independence of the
+      % Labeler.
       
       if ~obj.isinit,
         v = [];
         return;
       end
       
-      handles = obj.gdata;
-      if isfield(handles,'movieManagerController')
-        mmc = handles.movieManagerController;
-      else
-        mmc = [];
-      end
+      mmc = obj.controller_.movieManagerController ;  % suboptimal to have to touch obj.controller_, which is deprecated
       if ~isempty(mmc) && isvalid(mmc)
         v = mmc.getSelectedMovies();
       else
