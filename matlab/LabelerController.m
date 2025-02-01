@@ -89,15 +89,15 @@ classdef LabelerController < handle
       % We also delete the model.
       deleteValidGraphicsHandles(obj.satellites_) ;
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
-      deleteValidGraphicsHandles(obj.trackingMonitorVisualizer_) ;
-      deleteValidGraphicsHandles(obj.trainingMonitorVisualizer_) ;
+      delete(obj.trackingMonitorVisualizer_) ;
+      delete(obj.trainingMonitorVisualizer_) ;
       main_figure = obj.mainFigure_ ;
       if ~isempty(main_figure) && isvalid(main_figure)
         handles = guidata(main_figure) ;
-        if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) && isvalid(handles.movieMgr) ,
-          delete(handles.movieMgr);
+        if isfield(handles,'movieManagerController') && ~isempty(handles.movieManagerController) && isvalid(handles.movieManagerController) ,
+          delete(handles.movieManagerController);
         end        
-        handles.movieMgr = [] ;
+        handles.movieManagerController = [] ;
         deleteValidGraphicsHandles(main_figure) ;
         % In principle, a controller shouldn't delete its model---the model should be
         % allowed to persist until there are no more references to it.  

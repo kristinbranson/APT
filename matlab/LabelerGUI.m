@@ -1634,14 +1634,14 @@ handles = setShortcuts(handles);
 
 handles.labelTLInfo.initNewProject();
 
-if isfield(handles,'movieMgr') && isvalid(handles.movieMgr)
-  delete(handles.movieMgr);
+if isfield(handles,'movieManagerController') && isvalid(handles.movieManagerController)
+  delete(handles.movieManagerController);
 end
-handles.movieMgr = MovieManagerController(handles.labelerObj);
+handles.movieManagerController = MovieManagerController(handles.labelerObj);
 drawnow; % 20171002 Without this, new tabbed MovieManager shows up with 
   % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
   % buttons/figure back into a good state)   
-handles.movieMgr.setVisible(false);
+handles.movieManagerController.setVisible(false);
 
 handles.GTMgr = GTManager(handles.labelerObj);
 handles.GTMgr.Visible = 'off';
@@ -3336,7 +3336,7 @@ if controller.raiseUnsavedChangesDialogIfNeeded() ,
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
     handles = lObj.gdata; % projLoad updated stuff
-    handles.movieMgr.setVisible(true);
+    handles.movieManagerController.setVisible(true);
     wstr = ...
       sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
                       'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
@@ -3372,10 +3372,10 @@ if labelerObj.doesNeedSave ,
 end
 
 function menu_file_managemovies_Callback(~,~,handles)
-if isfield(handles,'movieMgr')
-  handles.movieMgr.setVisible(true);
+if isfield(handles,'movieManagerController')
+  handles.movieManagerController.setVisible(true);
 else
-  handles.labelerObj.lerror('LabelerGUI:movieMgr','Please create or load a project.');
+  handles.labelerObj.lerror('LabelerGUI:movieManagerController','Please create or load a project.');
 end
 
 function menu_file_import_labels_trk_curr_mov_Callback(hObject, eventdata, handles)
@@ -4707,7 +4707,7 @@ gtNew = ~gt;
 lObj.gtSetGTMode(gtNew);
 % hGTMgr = lObj.gdata.GTMgr;
 if gtNew
-  hMovMgr = lObj.gdata.movieMgr;
+  hMovMgr = lObj.gdata.movieManagerController;
   hMovMgr.setVisible(true);
   figure(hMovMgr.hFig);
 end
@@ -4777,9 +4777,9 @@ controller.quitRequested() ;
 % function CloseGUI(handles)
 % if hlpSave(handles.labelerObj)
 %   handles = clearDepHandles(handles);
-%   if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) ...
-%       && isvalid(handles.movieMgr)
-%     delete(handles.movieMgr);
+%   if isfield(handles,'movieManagerController') && ~isempty(handles.movieManagerController) ...
+%       && isvalid(handles.movieManagerController)
+%     delete(handles.movieManagerController);
 %   end  
 %   delete(findall(0,'tag','TrkInfoUI'));
 %   delete(handles.figure);

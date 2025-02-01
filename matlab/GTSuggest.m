@@ -51,7 +51,7 @@ gdata = lObj.gdata;
 centerOnParentFigure(hObject,lObj.hFig);
 
 handles.lObj = lObj;
-handles.movMgrCtrler = gdata.movieMgr;
+handles.movMgrCtrler = gdata.movieManagerController;
 handles.listener = event.listener(handles.movMgrCtrler,'tableClicked',...
   @(s,e)cbkTableClicked(hObject));
 

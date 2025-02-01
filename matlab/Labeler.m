@@ -1013,8 +1013,8 @@ classdef Labeler < handle
       end
       
       handles = obj.gdata;
-      if isfield(handles,'movieMgr')
-        mmc = handles.movieMgr;
+      if isfield(handles,'movieManagerController')
+        mmc = handles.movieManagerController;
       else
         mmc = [];
       end
