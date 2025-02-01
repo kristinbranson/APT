@@ -6,7 +6,10 @@ classdef LabelerController < handle
     satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
     %waitbarListeners_ = event.listener.empty(1,0)
+    trackingMonitorVisualizer_
+    trainingMonitorVisualizer_
   end
+
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
     isInYodaMode_ = false  
@@ -62,6 +65,16 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTrackerInfoText',@(source,event)(obj.updateTrackerInfoText()));
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'refreshTrackMonitorViz',@(source,event)(obj.refreshTrackMonitorViz()));      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrackMonitorViz',@(source,event)(obj.updateTrackMonitorViz()));      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'refreshTrainMonitorViz',@(source,event)(obj.refreshTrainMonitorViz()));      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrainMonitorViz',@(source,event)(obj.updateTrainMonitorViz()));      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingStoppedDialog()));      
+      obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
@@ -76,11 +89,11 @@ classdef LabelerController < handle
       % We also delete the model.
       deleteValidHandles(obj.satellites_) ;
       deleteValidHandles(obj.waitbarFigure_) ;
+      deleteValidHandles(obj.trackingMonitorVisualizer_) ;
+      deleteValidHandles(obj.trainingMonitorVisualizer_) ;
       main_figure = obj.mainFigure_ ;
       if ~isempty(main_figure) && isvalid(main_figure)
         handles = guidata(main_figure) ;
-        deleteValidHandles(handles.depHandles);
-        handles.depHandles = [] ;
         if isfield(handles,'movieMgr') && ~isempty(handles.movieMgr) && isvalid(handles.movieMgr) ,
           delete(handles.movieMgr);
         end        
@@ -88,7 +101,7 @@ classdef LabelerController < handle
         deleteValidHandles(main_figure) ;
         delete(obj.labeler_) ;  % We don't want the model to hang around
       end
-    end
+    end  % function
     
     function updateDoesNeedSave(obj, ~, ~)      
       labeler = obj.labeler_ ;
@@ -381,7 +394,8 @@ classdef LabelerController < handle
         msg = sprintf('GT tracking failed');
         h = warndlg(msg,DIALOGTTL);
       end
-      obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+      obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
+      %obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
     end
 
     function showGTResults(obj, source, event)  %#ok<INUSD> 
@@ -390,7 +404,8 @@ classdef LabelerController < handle
       % it when the main window closes.
       obj.createGTResultFigures_() ;
       h = msgbox('GT results available in Labeler property ''gtTblRes''.');
-      obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+      % obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
+      obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
     end
 
     function createGTResultFigures_(obj, varargin)
@@ -467,12 +482,14 @@ classdef LabelerController < handle
       end  % for
       
       fig_1 = figure('Name','GT err percentiles');
-      obj.satellites_(1,end+1) = fig_1 ;
+      %obj.satellites_(1,end+1) = fig_1 ;
+      obj.addSatellite(fig_1) ;
       plotPercentileHist(allims,prcs,allpos,prc_vals,fig_1,txtOffset)
 
       % Err by landmark
       fig_2 = figure('Name','GT err by landmark');
-      obj.satellites_(1,end+1) = fig_2 ;
+      %obj.satellites_(1,end+1) = fig_2 ;
+      obj.addSatellite(fig_2) ;
       ax = axes(fig_2) ;
       boxplot(ax,l2err_filtered,'colors',clrs,'boxstyle','filled');
       args = {'fontweight' 'bold' 'interpreter' 'none'};
@@ -497,7 +514,8 @@ classdef LabelerController < handle
       % AvErrAcrossPts by movie
       tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
       fig_3 = figurecascaded(fig_2,'Name',tstr);
-      obj.satellites_(1,end+1) = fig_3 ;
+      % obj.satellites_(1,end+1) = fig_3 ;
+      obj.addSatellite(fig_3) ;      
       ax = axes(fig_3);
       [iMovAbs,gt] = t.mov.get();  % both outputs are nframes x 1
       assert(all(gt));
@@ -707,7 +725,7 @@ classdef LabelerController < handle
 
     function controlActuatedCore_(obj, controlName, source, event, varargin)
       if isempty(source) ,
-        % this means the control actuated was a 'faux' control
+        % This means the control actuated was a 'faux' control, or in some cases 
         methodName=[controlName '_actuated'] ;
         if ismethod(obj,methodName) ,
           obj.(methodName)(source, event, varargin{:});
@@ -1019,8 +1037,216 @@ classdef LabelerController < handle
       handles = guidata(main_figure) ;
       
       % Update the relevant text object
-      tObj = obj.labeler_.tracker ;      
-      handles.text_trackerinfo.String = tObj.getTrackerInfoString();
+      tracker = obj.labeler_.tracker ;
+      if ~isempty(tracker) ,
+        handles.text_trackerinfo.String = tracker.getTrackerInfoString();
+      end
     end  % function
-  end  % methods
+
+    function raiseTargetsTableFigure(obj)
+      labeler = obj.labeler_ ;
+      main_figure = obj.mainFigure_ ;
+      [tfok,tblBig] = labeler.hlpTargetsTableUIgetBigTable();
+      if ~tfok
+        return
+      end
+      
+      tblSumm = labeler.trackGetSummaryTable(tblBig) ;
+      hF = figure('Name','Target Summary (click row to navigate)',...
+                  'MenuBar','none','Visible','off', ...
+                  'Tag', 'target_table_figure');
+      hF.Position(3:4) = [1280 500];
+      centerfig(hF, main_figure);
+      hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92],'Tag','uipanel_TargetsTable');
+      BTNWIDTH = 100;
+      DXY = 4;
+      btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
+      btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];      
+      hBtn = uicontrol('Style','pushbutton','Parent',hF,...
+                       'Position',btnPos,'String','Update',...
+                       'fontsize',12, ...
+                       'Tag', 'target_table_update_button');
+      FLDINFO = {
+        'mov' 'Movie' 'integer' 30
+        'iTgt' 'Target' 'integer' 30
+        'trajlen' 'Traj. Length' 'integer' 45
+        'frm1' 'Start Frm' 'integer' 30
+        'nFrmLbl' '# Frms Lbled' 'integer' 60
+        'nFrmTrk' '# Frms Trked' 'integer' 60
+        'nFrmImported' '# Frms Imported' 'integer' 90
+        'nFrmLblTrk' '# Frms Lbled&Trked' 'integer' 120
+        'lblTrkMeanErr' 'Track Err' 'float' 60
+        'nFrmLblImported' '# Frms Lbled&Imported' 'integer'  120
+        'lblImportedMeanErr' 'Imported Err' 'float' 60
+        'nFrmXV' '# Frms XV' 'integer' 40
+        'xvMeanErr' 'XV Err' 'float' 40 };
+      tblfldsassert(tblSumm,FLDINFO(:,1));
+      nt = NavigationTable(hPnl,...
+                           [0 0 1 1],...
+                           @(row,rowdata)(obj.controlActuated('target_table_row', [], [], row, rowdata)),...
+                           'ColumnName',FLDINFO(:,2)',...
+                           'ColumnFormat',FLDINFO(:,3)',...
+                           'ColumnPreferredWidth',cell2mat(FLDINFO(:,4)'));
+      %                    @(row,rowdata)(labeler.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt)),...
+      nt.setData(tblSumm);
+      
+      hF.UserData = nt;
+      %hBtn.Callback = @(s,e)labeler.hlpTargetsTableUIupdate(nt);
+      hBtn.Callback = @(source,event)(obj.controlActuated(hBtn.Tag, source, event)) ;
+      hF.Units = 'normalized';
+      hBtn.Units = 'normalized';
+      hF.Visible = 'on';
+
+      obj.addSatellite(hF) ;
+    end  % function
+    
+    function target_table_row_actuated(obj, source, event, row, rowdata)  %#ok<INUSD>
+      % Does what needs doing when the target table row is selected.
+      labeler = obj.labeler_ ;
+      labeler.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt) ;
+    end  % function
+
+    function target_table_update_button_actuated(obj, source, event)  %#ok<INUSD>
+      % Does what needs doing when the target table update button is actuated.
+      labeler = obj.labeler_ ;      
+      [tfok, tblBig] = labeler.hlpTargetsTableUIgetBigTable() ;
+      if tfok
+        fig = obj.findSatelliteByTag_('target_table_figure') ;
+        if ~isempty(fig) ,
+          navTbl = fig.UserData ;
+          navTbl.setData(labeler.trackGetSummaryTable(tblBig)) ;
+        end
+      end
+    end  % function
+    
+    % function addDepHandle_(obj, h)
+    %   % Add the figure handle h to the list of dependent figures
+    %   main_figure = obj.mainFigure_ ;
+    %   handles = guidata(main_figure) ;
+    %   handles.depHandles(end+1,1) = h ;
+    %   guidata(main_figure,handles) ;
+    % end  % function
+    
+    function result = isSatellite(obj, h)
+      result = any(obj.satellites_ == h) ;
+    end
+
+    function h = findSatelliteByTag_(obj, query_tag)
+      % Find the handle with Tag query_tag in handles.depHandles.
+      % If no matching tag, returns [].
+      tags = arrayfun(@(h)(h.Tag), obj.satellites_, 'UniformOutput', false) ;
+      is_match = strcmp(query_tag, tags) ;
+      index = find(is_match,1) ;
+      if isempty(index) ,
+        h = [] ;
+      else
+        h = obj.satellites_(index) ;
+      end
+    end  % function
+
+    function suspComputeUI(obj)
+      labeler = obj.labeler_ ;      
+      tfsucc = labeler.suspCompute();
+      if ~tfsucc
+        return
+      end
+      title = sprintf('Suspicious frames: %s',labeler.suspDiag) ;
+      hF = figure('Name',title);
+      tbl = labeler.suspSelectedMFT ;
+      tblFlds = tbl.Properties.VariableNames;
+      nt = NavigationTable(hF, ...
+                           [0 0 1 1], ...
+                           @(row,rowdata)(obj.controlActuated('susp_frame_table_row', [], [], row, rowdata)),...
+                           'ColumnName',tblFlds);
+                           % @(i,rowdata)(obj.suspCbkTblNaved(i)),...
+      nt.setData(tbl);
+      hF.UserData = nt;
+      obj.addSatellite(hF);
+    end  % function
+
+    function susp_frame_table_row_actuated(obj, source, event, row, rowdata)  %#ok<INUSD>
+      % Does what needs doing when the suspicious frame table row is selected.
+      labeler = obj.labeler_ ;
+      labeler.suspCbkTblNaved(row) ;
+    end  % function
+    
+    function refreshTrackMonitorViz(obj)
+      % Create a TrackMonitorViz (very similar to a controller) if one doesn't
+      % exist.  If one *does* exist, delete that one first.
+      labeler = obj.labeler_ ;
+      if ~isempty(obj.trackingMonitorVisualizer_) 
+        if isvalid(obj.trackingMonitorVisualizer_) ,
+          delete(obj.trackingMonitorVisualizer_) ;
+        end
+        obj.trackingMonitorVisualizer_ = [] ;
+      end
+      obj.trackingMonitorVisualizer_ = TrackMonitorViz(obj, labeler) ;
+    end  % function
+
+    function updateTrackMonitorViz(obj)
+      labeler = obj.labeler_ ;
+      sRes = labeler.tracker.bgTrkMonitor.sRes ;
+      obj.trackingMonitorVisualizer_.resultsReceived(sRes) ;
+    end  % function
+
+    function refreshTrainMonitorViz(obj)
+      % Create a TrainMonitorViz (very similar to a controller) if one doesn't
+      % exist.  If one *does* exist, delete that one first.
+      labeler = obj.labeler_ ;
+      if ~isempty(obj.trainingMonitorVisualizer_) 
+        if isvalid(obj.trainingMonitorVisualizer_) ,
+          delete(obj.trainingMonitorVisualizer_) ;
+        end
+        obj.trainingMonitorVisualizer_ = [] ;
+      end
+      obj.trainingMonitorVisualizer_ = TrainMonitorViz(obj, labeler) ;
+    end  % function
+
+    function updateTrainMonitorViz(obj)
+      labeler = obj.labeler_ ;
+      sRes = labeler.tracker.bgTrnMonitor.sRes ;
+      obj.trainingMonitorVisualizer_.resultsReceived(sRes) ;
+    end  % function
+
+    function addSatellite(obj, h)
+      % Add a 'satellite' figure, so we don't lose track of them
+
+      % 'GC' dead handles
+      isValid = arrayfun(@isvalid, obj.satellites_) ;
+      obj.satellites_ = obj.satellites_(isValid) ;
+
+      % Make sure it's really a new one, then add it
+      isSameAsNewGuy = arrayfun(@(sat)(sat==h), obj.satellites_);
+      if ~any(isSameAsNewGuy)
+        obj.satellites_(1, end+1) = h ;
+      end
+    end  % function
+
+    function clearSatellites(obj)
+      deleteValidHandles(obj.satellites_);
+      obj.satellites_ = gobjects(1,0);
+    end  % function
+
+    function raiseTrainingStoppedDialog(obj)
+      % Raise a dialog that reports how many training iterations have completed, and
+      % ask if the user wants to save the project.  Normally called via event
+      % notification after training is stopped early via user pressing the "Stop
+      % training" button in the "Training Monitor" window.
+      labeler = obj.labeler_ ;
+      tracker = labeler.tracker ;
+      iterCurr = tracker.trackerInfo.iterCurr ;
+      iterFinal = tracker.trackerInfo.iterFinal ;
+      n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
+      question_string = sprintf('Training stopped after %s iterations. Save project now?',...
+                                n_out_of_d_string) ;
+      res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
+      if strcmpi(res,'Save'),
+        labeler.projSaveSmart();
+        labeler.projAssignProjNameFromProjFileIfAppropriate();
+      elseif strcmpi(res,'Save as...'),
+        labeler.projSaveAs();
+        labeler.projAssignProjNameFromProjFileIfAppropriate();
+      end  % if      
+    end
+  end  % methods  
 end  % classdef

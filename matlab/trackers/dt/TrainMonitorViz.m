@@ -26,10 +26,10 @@ classdef TrainMonitorViz < handle
     % (Default polling time is 20-30seconds). 
     jobStoppedRepeatsReqd = 2; 
     
-    resLast % last training json contents received
-    dtObj % DeepTracker Obj
-    trainWorkerObj = [];
-    backEnd % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
+    resLast  % last training json contents received
+    dtObj  % DeepTracker Obj
+    poller = []
+    backendType  % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
     actions = struct(...
       'Bsub',...
         {{...
@@ -60,6 +60,12 @@ classdef TrainMonitorViz < handle
           'Show log files'...
           'Show error messages'}});
   end
+
+  properties (Transient) 
+    parent_
+    labeler_
+  end
+
   properties (Dependent)
     nmodels
     nset
@@ -87,9 +93,12 @@ classdef TrainMonitorViz < handle
   
   methods
     
-    function obj = TrainMonitorViz(dmc,dtObj,trainWorkerObj,backEnd,...
-        varargin)
-            
+    function obj = TrainMonitorViz(parent, labeler)
+
+      obj.parent_ = parent ;
+      obj.labeler_ = labeler ;
+
+      dmc = labeler.tracker.trnLastDMC ;
       stage = dmc.getStages();
       view = dmc.getViews();
       splitidx = dmc.getSplits();
@@ -103,12 +112,11 @@ classdef TrainMonitorViz < handle
         set_names = {''};
       end
 
-      lObj = dtObj.lObj;
-      obj.dtObj = dtObj;
-      obj.trainWorkerObj = trainWorkerObj;
-      obj.backEnd = backEnd;
+      obj.dtObj = labeler.tracker ;
+      obj.poller = labeler.tracker.bgTrainPoller ;
+      obj.backendType = labeler.backend.type ;
       obj.hfig = TrainMonitorGUI(obj);
-      lObj.addDepHandle(obj.hfig);
+      % parent.addSatellite(obj.hfig);  % Don't think we need this
       
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles,true,false);
@@ -123,12 +131,12 @@ classdef TrainMonitorViz < handle
       
       % reset
       arrayfun(@(x)cla(x),obj.haxs);
-      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
+      clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
       apt.setStatusDisplayLineBang(obj.hfig, str, true) ;
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
-      handles.popupmenu_actions.String = obj.actions.(char(backEnd));
+      handles.popupmenu_actions.String = obj.actions.(char(obj.backendType));
       handles.popupmenu_actions.Value = 1;
       
       arrayfun(@(x)grid(x,'on'),obj.haxs);
@@ -233,7 +241,7 @@ classdef TrainMonitorViz < handle
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
-        TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
+        TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return
       end
       
@@ -374,7 +382,7 @@ classdef TrainMonitorViz < handle
         status = 'Initializing training.';
       end
 
-      clusterstr = apt.monitorBackendDescription(obj.backEnd) ;
+      clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
       isAllGood = pollsuccess && ~any(isErr) ;
       apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
@@ -392,17 +400,19 @@ classdef TrainMonitorViz < handle
     end
     
     function stopTraining(obj)
-      if isempty(obj.trainWorkerObj),
-        warning('trainWorkerObj is empty -- cannot kill process');
-        return
-      end
+      % if isempty(obj.trainWorkerObj),
+      %   warning('trainWorkerObj is empty -- cannot kill process');
+      %   return
+      % end
       apt.setStatusDisplayLineBang(obj.hfig, 'Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
 
-      obj.dtObj.backend.clearRegisteredJobs('train') ;
+      obj.dtObj.killAndClearRegisteredJobs('train') ;
+      obj.dtObj.bgTrnMonitor.stop() ;
+
       obj.isKilled(:) = true ;
       apt.setStatusDisplayLineBang(obj.hfig, 'Training process killed.', true);
 
@@ -528,7 +538,7 @@ classdef TrainMonitorViz < handle
     end
     
     function updateMonitorPlots(obj)      
-      sRes.result = obj.trainWorkerObj.poll();
+      sRes.result = obj.poller.poll() ;
       obj.resultsReceived(sRes,true);      
     end  % function
     

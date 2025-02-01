@@ -914,7 +914,8 @@ handles.sldZoom.Min = 0;
 handles.sldZoom.Max = 1;
 handles.sldZoom.Value = 0;
 
-handles.depHandles = gobjects(0,1);
+%handles.depHandles = gobjects(0,1);  
+% keep these in labelerController.satellites_ now
 
 handles.isPlaying = false;
 handles.pbPlay.CData = Icons.ims.play;
@@ -1294,19 +1295,19 @@ set(tbl0,...
 function varargout = LabelerGUI_OutputFcn(hObject, eventdata, handles) %#ok<*INUSL>
 varargout{1} = handles.output;
 
-function handles = clearDepHandles(handles)
-deleteValidHandles(handles.depHandles);
-handles.depHandles = gobjects(0,1);
-
-function handles = addDepHandle(handles,h)
-% GC dead handles
-tfValid = arrayfun(@isvalid,handles.depHandles);
-handles.depHandles = handles.depHandles(tfValid,:);
-    
-tfSame = arrayfun(@(x)x==h,handles.depHandles);
-if ~any(tfSame)
-  handles.depHandles(end+1,1) = h;
-end
+% function handles = clearDepHandles(handles)
+% deleteValidHandles(handles.depHandles);
+% handles.depHandles = gobjects(0,1);
+% 
+% function handles = addDepHandle(handles,h)
+% % GC dead handles
+% tfValid = arrayfun(@isvalid,handles.depHandles);
+% handles.depHandles = handles.depHandles(tfValid,:);
+% 
+% tfSame = arrayfun(@(x)x==h,handles.depHandles);
+% if ~any(tfSame)
+%   handles.depHandles(end+1,1) = h;
+% end
 
 function handles = setShortcuts(handles)
 
@@ -1344,12 +1345,11 @@ ax = findall(src,'type','axes');
 axis(ax,'image')
 axis(ax,'auto');
 
-function cbkAuxFigCloseReq(src,data,lObj)
+function cbkAuxFigCloseReq(src,data,controller)
 
-handles = lObj.gdata;
-if ~any(src==handles.depHandles)
-  delete(gcf);
-  return;  
+if ~controller.isSatellite(src) 
+  delete(src);
+  return  
 end
 
 CLOSESTR = 'Close anyway';
@@ -1369,7 +1369,7 @@ switch sel
   case DONTCLOSESTR
     % none
   case CLOSESTR
-    delete(gcf)
+    delete(src)
 end
 
 function cbkTrackerHideVizChanged(src,evt,hmenu_view_hide_predictions)
@@ -1518,7 +1518,8 @@ function cbkNewProject(src,evt)
 lObj = src;
 handles = lObj.gdata;
 
-handles = clearDepHandles(handles);
+%handles = clearDepHandles(handles);
+handles.controller.clearSatellites() ;
 
 handles = initTblFrames(handles,lObj.maIsMA);
 
@@ -1550,16 +1551,17 @@ axOccSzRatios = axsOcc1Pos(3:4)./ax1Pos(3:4);
 axOcc1XColor = axsOcc(1).XColor;
 
 set(ims(1),'CData',0); % reset image
+controller = handles.controller ;
 for iView=2:nview
   figs(iView) = figure(...
-    'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,lObj),...
+    'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,controller),...
     'Color',figs(1).Color,...
     'Menubar','none',...
     'Toolbar','figure',...
     'UserData',struct('view',iView)...
     );
   axs(iView) = axes;
-  handles = addDepHandle(handles,figs(iView));
+  handles.controller.addSatellite(figs(iView)) ;
   
   ims(iView) = imagesc(0,'Parent',axs(iView));
   set(ims(iView),'PickableParts','none');
@@ -1643,7 +1645,7 @@ handles.movieMgr.setVisible(false);
 
 handles.GTMgr = GTManager(handles.labelerObj);
 handles.GTMgr.Visible = 'off';
-handles = addDepHandle(handles,handles.GTMgr);
+handles.controller.addSatellite(handles.GTMgr) ;
 
 guidata(handles.figure,handles);
 
@@ -1965,8 +1967,8 @@ try
     assert(numel(i) == 1);
     lObj.gdata.tblTrx.SelectedRows = i;
   end
-catch ME  %#ok<NASGU> 
-  warningNoTrace('Error caught updating highlight row in Targets Table.');
+catch exception
+  warningNoTrace('Error caught updating highlight row in Targets Table:\n%s\n', exception.getReport());
 end
 
 
@@ -2383,11 +2385,7 @@ handles.menu_view_show_preds_curr_target_only.Enable = onOff;
 menuTrkers = handles.menu_track_trackers;
 for i=1:numel(menuTrkers)
   mnu = menuTrkers{i};
-  if i==iTrker
-    mnu.Checked = 'on';
-  else
-    mnu.Checked = 'off';
-  end
+  mnu.Checked = onIff(i==iTrker) ;
 end
 
 listenersNew = cell(0,1);
@@ -2440,8 +2438,8 @@ if tfTracker
         @(src1,evt1) cbkTrackerStart(src1,evt1,handles));
       listenersNew{end+1,1} = tObj.addlistener('trackEnd',...
         @(src1,evt1) cbkTrackerEnd(src1,evt1,handles));
-  end
-end
+  end  % switch
+end  % if
 
 handles.listenersTracker = listenersNew;
 
@@ -4294,7 +4292,7 @@ function menu_go_targets_summary_Callback(hObject, eventdata, handles)
 if handles.labelerObj.maIsMA
   TrkInfoUI(handles.labelerObj);
 else
-  handles.labelerObj.targetsTableUI();
+  handles.controller.raiseTargetsTableFigure();
 end
 
 function menu_go_nav_prefs_Callback(hObject, eventdata, handles)
@@ -4418,12 +4416,10 @@ function menu_track_cpr_view_diagnostics_Callback(...
 lObj = handles.labelerObj;
 
 % Look for existing/open CPRVizTrackDiagsGUI
-for i=1:numel(handles.depHandles)
-  h = handles.depHandles(i);
-  if isvalid(h) && strcmp(h.Tag,'figCPRVizTrackDiagsGUI')
-    figure(h);
-    return;
-  end
+h = handles.controller.findSatelliteByTag_('figCPRVizTrackDiagsGUI') ;
+if ~isempty(h) && isvalid(h) ,
+  figure(h) ;
+  return
 end
 
 lc = lObj.lblCore;
@@ -4432,7 +4428,7 @@ if ~isempty(lc) && ~lc.hideLabels
   lc.labelsHide();
 end
 hVizGUI = CPRVizTrackDiagsGUI(handles.labelerObj);
-handles = addDepHandle(handles,hVizGUI);
+handles.controller.addSatellite(hVizGUI) ;
 guidata(handles.figure,handles);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
@@ -4475,7 +4471,8 @@ lObj = handles.labelerObj;
 mIdx = lObj.allMovIdx();
 toTrackIn = lObj.mIdx2TrackList(mIdx);
 tbobj = TrackBatchGUI(lObj,'toTrack',toTrackIn);
-[toTrackOut] = tbobj.run(); %#ok<NASGU>
+% [toTrackOut] = tbobj.run();
+tbobj.run();
 % todo: import predictions
 
 function menu_track_current_movie_Callback(hObject,eventdata,handles)

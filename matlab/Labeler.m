@@ -170,6 +170,11 @@ classdef Labeler < handle
     cropUpdateCropGUITools
 
     updateTrackerInfoText
+    refreshTrackMonitorViz
+    updateTrackMonitorViz
+    refreshTrainMonitorViz
+    updateTrainMonitorViz
+    raiseTrainingStoppedDialog
   end
 
   %% Project
@@ -239,6 +244,10 @@ classdef Labeler < handle
     projectroot           % Parent dir of projectfile, if it exists
     bgTrnIsRunning        % True iff background training is running
     bgTrkIsRunning        % True iff background tracking is running
+  end
+
+  properties (Dependent, Hidden)
+    backend
   end
 
   %% Movie/Video
@@ -353,6 +362,7 @@ classdef Labeler < handle
     nmoviesGTaware 
     moviesSelected  % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
     doesNeedSave
+    isTrainingSplits
   end
   
   %% Crop
@@ -992,8 +1002,7 @@ classdef Labeler < handle
 %       mr.open(movfilefull);
 %       v = mr.nframes;
 %       mr.close();
-    end
-    
+    end    
     
     function v = get.moviesSelected(obj) %#%GUIREQ
       % Find MovieManager in LabelerGUI
@@ -1016,9 +1025,11 @@ classdef Labeler < handle
           'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
       end
     end
+
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
     end
+
     function v = get.currTrx(obj)
       if obj.hasTrx
         v = obj.trx(obj.currTarget);
@@ -1026,9 +1037,11 @@ classdef Labeler < handle
         v = [];
       end
     end
+
     function v = get.nTrx(obj)
       v = numel(obj.trx);
     end
+
     function v = getnTrxMovIdx(obj,mIdx)
       % Warning: Slow/expensive, call in bulk and index rather than calling
       % piecemeal 
@@ -1043,6 +1056,7 @@ classdef Labeler < handle
       
       [~,v] = obj.getNFrmNTrx(gt,iMov);      
     end
+
     function [nfrms,ntgts] = getNFrmNTrx(obj,gt,iMov)
       % Both gt, iMov optional
       %
@@ -1075,6 +1089,7 @@ classdef Labeler < handle
 %         end
       end
     end
+
     function v = get.nTargets(obj)
       if obj.hasTrx
         v = obj.nTrx;
@@ -5785,67 +5800,67 @@ classdef Labeler < handle
       % if ~tfok, tblBig indeterminate
     end
 
-    function hlpTargetsTableUIupdate(obj,navTbl)
-      [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
-      if tfok
-        navTbl.setData(obj.trackGetSummaryTable(tblBig));
-      end
-    end
+    % function hlpTargetsTableUIupdate(obj,navTbl)
+    %   [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
+    %   if tfok
+    %     navTbl.setData(obj.trackGetSummaryTable(tblBig));
+    %   end
+    % end
 
-    function targetsTableUI(obj)
-      [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
-      if ~tfok
-        return;
-      end
-      
-      tblSumm = obj.trackGetSummaryTable(tblBig);
-      hF = figure('Name','Target Summary (click row to navigate)',...
-        'MenuBar','none','Visible','off');
-      hF.Position(3:4) = [1280 500];
-      centerfig(hF,obj.hFig);
-      hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92],'Tag','uipanel_TargetsTable');
-      BTNWIDTH = 100;
-      DXY = 4;
-      btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
-      btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];      
-      hBtn = uicontrol('Style','pushbutton','Parent',hF,...
-        'Position',btnPos,'String','Update',...
-        'fontsize',12);
-      FLDINFO = {
-        'mov' 'Movie' 'integer' 30
-        'iTgt' 'Target' 'integer' 30
-        'trajlen' 'Traj. Length' 'integer' 45
-        'frm1' 'Start Frm' 'integer' 30
-        'nFrmLbl' '# Frms Lbled' 'integer' 60
-        'nFrmTrk' '# Frms Trked' 'integer' 60
-        'nFrmImported' '# Frms Imported' 'integer' 90
-        'nFrmLblTrk' '# Frms Lbled&Trked' 'integer' 120
-        'lblTrkMeanErr' 'Track Err' 'float' 60
-        'nFrmLblImported' '# Frms Lbled&Imported' 'integer'  120
-        'lblImportedMeanErr' 'Imported Err' 'float' 60
-        'nFrmXV' '# Frms XV' 'integer' 40
-        'xvMeanErr' 'XV Err' 'float' 40};
-      tblfldsassert(tblSumm,FLDINFO(:,1));
-      nt = NavigationTable(hPnl,[0 0 1 1],...
-        @(row,rowdata)obj.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt),...
-        'ColumnName',FLDINFO(:,2)',...
-        'ColumnFormat',FLDINFO(:,3)',...
-        'ColumnPreferredWidth',cell2mat(FLDINFO(:,4)'));
-%      jt = nt.jtable;
-      nt.setData(tblSumm);
-%      cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
-%      h = jt.JTable.getTableHeader;
-%      h.setPreferredSize(java.awt.Dimension(225,22));
-%      jt.JTable.repaint;
-      
-      hF.UserData = nt;
-      hBtn.Callback = @(s,e)obj.hlpTargetsTableUIupdate(nt);
-      hF.Units = 'normalized';
-      hBtn.Units = 'normalized';
-      hF.Visible = 'on';
-
-      obj.addDepHandle(hF);
-    end
+%     function targetsTableUI(obj)
+%       [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
+%       if ~tfok
+%         return;
+%       end
+% 
+%       tblSumm = obj.trackGetSummaryTable(tblBig);
+%       hF = figure('Name','Target Summary (click row to navigate)',...
+%         'MenuBar','none','Visible','off');
+%       hF.Position(3:4) = [1280 500];
+%       centerfig(hF,obj.hFig);
+%       hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92],'Tag','uipanel_TargetsTable');
+%       BTNWIDTH = 100;
+%       DXY = 4;
+%       btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
+%       btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];      
+%       hBtn = uicontrol('Style','pushbutton','Parent',hF,...
+%         'Position',btnPos,'String','Update',...
+%         'fontsize',12);
+%       FLDINFO = {
+%         'mov' 'Movie' 'integer' 30
+%         'iTgt' 'Target' 'integer' 30
+%         'trajlen' 'Traj. Length' 'integer' 45
+%         'frm1' 'Start Frm' 'integer' 30
+%         'nFrmLbl' '# Frms Lbled' 'integer' 60
+%         'nFrmTrk' '# Frms Trked' 'integer' 60
+%         'nFrmImported' '# Frms Imported' 'integer' 90
+%         'nFrmLblTrk' '# Frms Lbled&Trked' 'integer' 120
+%         'lblTrkMeanErr' 'Track Err' 'float' 60
+%         'nFrmLblImported' '# Frms Lbled&Imported' 'integer'  120
+%         'lblImportedMeanErr' 'Imported Err' 'float' 60
+%         'nFrmXV' '# Frms XV' 'integer' 40
+%         'xvMeanErr' 'XV Err' 'float' 40};
+%       tblfldsassert(tblSumm,FLDINFO(:,1));
+%       nt = NavigationTable(hPnl,[0 0 1 1],...
+%         @(row,rowdata)obj.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt),...
+%         'ColumnName',FLDINFO(:,2)',...
+%         'ColumnFormat',FLDINFO(:,3)',...
+%         'ColumnPreferredWidth',cell2mat(FLDINFO(:,4)'));
+% %      jt = nt.jtable;
+%       nt.setData(tblSumm);
+% %      cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
+% %      h = jt.JTable.getTableHeader;
+% %      h.setPreferredSize(java.awt.Dimension(225,22));
+% %      jt.JTable.repaint;
+% 
+%       hF.UserData = nt;
+%       hBtn.Callback = @(s,e)obj.hlpTargetsTableUIupdate(nt);
+%       hF.Units = 'normalized';
+%       hBtn.Units = 'normalized';
+%       hF.Visible = 'on';
+% 
+%       obj.addDepHandle(hF);
+%     end
     
     % initTrxInfo(obj)
     % read in trx files and store number of targets and start and end
@@ -9987,40 +10002,20 @@ classdef Labeler < handle
       tfsucc = true;
     end
     
-    function suspComputeUI(obj)
-      tfsucc = obj.suspCompute();
-      if ~tfsucc
-        return;
-      end
-      figtitle = sprintf('Suspicious frames: %s',obj.suspDiag);
-      hF = figure('Name',figtitle);
-      tbl = obj.suspSelectedMFT;
-      tblFlds = tbl.Properties.VariableNames;
-      nt = NavigationTable(hF,[0 0 1 1],@(i,rowdata)obj.suspCbkTblNaved(i),...
-        'ColumnName',tblFlds);
-      nt.setData(tbl);
-%       nt.navOnSingleClick = true;
-      hF.UserData = nt;
-%       kph = SuspKeyPressHandler(nt);
-%       setappdata(hF,'keyPressHandler',kph);
-
-      obj.addDepHandle(hF);
-    end
-    
-    function suspCbkTblNaved(obj,i)
+    function suspCbkTblNaved(obj, row_index)
       % i: row index into .suspSelectedMFT;
       tbl = obj.suspSelectedMFT;
       nrow = height(tbl);
-      if i<1 || i>nrow
-        obj.lerror('Labeler:susp','Row ''%d'' out of bounds.',i);
+      if row_index<1 || row_index>nrow
+        obj.lerror('Labeler:susp','Row ''%d'' out of bounds.',row_index);
       end
-      mftrow = tbl(i,:);
+      mftrow = tbl(row_index,:);
       if obj.currMovie~=mftrow.mov
         obj.movieSet(mftrow.mov);
       end
       obj.setFrameAndTarget(mftrow.frm,mftrow.iTgt);
     end
-  end
+  end  % function
   
   methods (Hidden)
     
@@ -12450,7 +12445,8 @@ classdef Labeler < handle
       tblSumm.nFrmLblImported(tfNoStats) = 0;
       tblSumm.nFrmXV(tfNoStats) = 0;
     end  
-  end
+  end  % methods
+
   methods (Static)
       function [nFrmLbl,nFrmTrk,nFrmImported,...
           nFrmLblTrk,lblTrkMeanErr,...
@@ -15228,16 +15224,16 @@ classdef Labeler < handle
       obj.rawStatusStringWhenClear_ = new_value ;
     end
 
-    function raiseAllFigs(obj)
-      h = obj.gdata.figs_all;
-      arrayfun(@figure,h);
-    end
+    % function raiseAllFigs(obj)
+    %   h = obj.gdata.figs_all;
+    %   arrayfun(@figure,h);
+    % end
     
-    function addDepHandle(obj,h)
-      handles = obj.gdata;
-      handles.depHandles(end+1,1) = h;
-      guidata(obj.hFig,handles);      
-    end
+    % function addDepHandle(obj,h)
+    %   handles = obj.gdata;
+    %   handles.depHandles(end+1,1) = h;
+    %   guidata(obj.hFig,handles);      
+    % end
     
     function v = allMovIdx(obj)
       
@@ -15674,6 +15670,34 @@ classdef Labeler < handle
       % Notify listeners that trackerInfo was updated in obj.tracker.
       % Called by the current tracker when this happens.
       obj.notify('updateTrackerInfoText') ;
+    end
+    
+    function needRefreshTrackMonitorViz(obj)
+      obj.notify('refreshTrackMonitorViz') ;
+    end
+
+    function didReceiveTrackingPollResults_(obj)
+      obj.notify('updateTrackMonitorViz') ;
+    end
+
+    function didReceiveTrainingPollResults_(obj)
+      obj.notify('updateTrainMonitorViz') ;
+    end    
+
+    function needRefreshTrainMonitorViz(obj)
+      obj.notify('refreshTrainMonitorViz') ;
+    end
+
+    function result = get.backend(obj)
+      result = obj.trackDLBackEnd ;
+    end
+
+    function killAndClearRegisteredJobs(obj, train_or_track)
+      obj.trackDLBackEnd.killAndClearRegisteredJobs(train_or_track) ;
+    end    
+    
+    function raiseTrainingStoppedDialog_(obj) 
+      obj.notify('raiseTrainingStoppedDialog') ;      
     end
   end  % methods
 end  % classdef

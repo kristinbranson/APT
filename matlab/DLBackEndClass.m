@@ -309,36 +309,13 @@ classdef DLBackEndClass < handle
 
     function delete(obj)
       if obj.doesOwnResources_ ,
-        obj.clearRegisteredJobs('track') ;
-        obj.clearRegisteredJobs('train') ;
+        obj.killAndClearRegisteredJobs('track') ;
+        obj.killAndClearRegisteredJobs('train') ;
         obj.stopEc2InstanceIfNeeded_() ;
       end
-    end  % function
-    
-    % function obj2 = copyAndDetach(obj)
-    %   % See notes in BgClient, BgWorkerObjAWS.
-    %   %
-    %   % Sometimes we want a deep-copy of obj that is sanitized for
-    %   % eg serialization. This copy may still be largely functional (in the
-    %   % case of BgWorkerObjAWS) or perhaps it can be 'reconstituted' at
-    %   % load-time as here.
-    % 
-    %   assert(isscalar(obj));
-    %   obj2 = copy(obj);
-    %   obj2.doesOwnResources_ = false ;
-    % end  % function
+    end  % function    
   end  % methods
 
-  % methods (Access=protected)
-  %   function obj2 = copyElement(obj)
-  %     % overload so that .awsec2 is deep-copied
-  %     obj2 = copyElement@matlab.mixin.Copyable(obj);
-  %     if ~isempty(obj.awsec2)
-  %       obj2.awsec2 = copy(obj.awsec2);
-  %     end
-  %   end
-  % end
-  
   methods
     function modernize(obj)
       % 20220728 Win/Conda migration to WSL2/Docker
@@ -876,7 +853,7 @@ classdef DLBackEndClass < handle
       obj.awsec2.isInDebugMode = value ;
     end    
 
-    function clearRegisteredJobs(obj, train_or_track)
+    function killAndClearRegisteredJobs(obj, train_or_track)
       if strcmp(train_or_track, 'train') ,
         isTrain = true ;
       elseif strcmp(train_or_track, 'track') ,
