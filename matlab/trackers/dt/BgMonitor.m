@@ -113,10 +113,6 @@ classdef BgMonitor < handle
       sendMaybe(obj.bgClientObj, 'stopPollingLoopHard') ;
     end
     
-    % function waitForJobsToExit(obj)
-    %   obj.parent_.waitForJobsToExit(obj.processName) ;
-    % end
-    
     function didReceivePollResults(obj, sRes)
       % Called by the BgClient when a polling result is received.  Checks for error
       % or completion and notifies the parent DeepTracker accordingly.

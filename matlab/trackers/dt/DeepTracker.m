@@ -3167,22 +3167,22 @@ classdef DeepTracker < LabelTracker
     function didCompleteTraining(obj, res)  %#ok<INUSD>
       % Called by the child BgMonitor when the latest poll result indicates that
       % training is complete.
-      obj.waitForJobsToExit() ;
+      obj.bgTrnMonitor.stop() ;  % stop monitoring
+      obj.waitForJobsToExit('train') ;
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.bgTrnMonitor.stop() ;  % stop monitoring
       obj.killJobsAndPerformPostTrainingCleanup() ;     
     end
 
     function didCompleteTracking(obj, res)
       % Called by the child BgMonitor when the latest poll result indicates that
       % tracking is complete.
-      obj.waitForJobsToExit() ;
+      obj.bgTrkMonitor.stop() ;  % stop monitoring
+      obj.waitForJobsToExit('track') ;
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.bgTrkMonitor.stop() ;  % stop monitoring
       obj.killJobsAndPerformPostTrackingCleanup() ;
 
       try
