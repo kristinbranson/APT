@@ -110,7 +110,7 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 
 switch hObject.UserData
   case 'stop'
-    handles.vizobj.stopTracking();
+    handles.vizobj.abortTracking();
   case 'start'
     warning('not implemented');
   otherwise

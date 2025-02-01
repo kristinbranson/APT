@@ -15699,5 +15699,18 @@ classdef Labeler < handle
     function raiseTrainingStoppedDialog_(obj) 
       obj.notify('raiseTrainingStoppedDialog') ;      
     end
+
+    function abortTraining(obj)
+      % Abort the in-progress training.  Called when the user presses the "Stop
+      % training" button during training.
+      sendMaybe(obj.tracker, 'abortTraining') ;
+    end
+    
+    function abortTracking(obj)
+      % Abort the in-progress tracking.  Called when the user presses the "Stop
+      % tracking" button during tracking.
+      sendMaybe(obj.tracker, 'abortTraining') ;
+    end
+    
   end  % methods
 end  % classdef

@@ -483,7 +483,7 @@ classdef TrackMonitorViz < handle
       TrackMonitorViz.updateStartStopButton(handles,false,true);
     end  % function
         
-    function stopTracking(obj)
+    function abortTracking(obj)
       if isempty(obj.poller),
         warning('trackWorkerObj is empty -- cannot kill process');
         return;
@@ -492,8 +492,8 @@ classdef TrackMonitorViz < handle
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
-      obj.dtObj.killAndClearRegisteredJobs('track') ;
-      obj.dtObj.bgTrkMonitor.stop() ;
+      obj.labeler_.abortTracking() ;
+
       % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
       % if tfsucc,
       % 

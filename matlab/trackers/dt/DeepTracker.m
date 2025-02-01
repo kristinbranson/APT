@@ -742,35 +742,6 @@ classdef DeepTracker < LabelTracker
     %   trnMonObj.start();  % Moved this after the two lines above.  Seems wise, but...  -- ALT, 2024-07-31
     % end
     
-    function didStartBgMonitor(obj, train_or_track)
-      % Normally called by the child BgMonitor when starting
-      if strcmp(train_or_track, 'train') ,
-        obj.notify('trainStart') ;
-      elseif strcmp(train_or_track, 'track') ,
-        obj.notify('trackStart') ;
-      else
-        error('Internal error: Argument to didStartBgMonitor() must be ''train'' or ''track''') ;
-      end
-    end
-
-    function didStopBgMonitor(obj, train_or_track)
-      % Normally called by the child BgMonitor when stopping
-      if strcmp(train_or_track, 'train') ,
-        trainSplits = obj.isTrainingSplits_ ;
-        if trainSplits
-          % unchecked codepath 20210806
-          assert(backEnd.type==DLBackEnd.Bsub);
-          obj.xvStoppedCbk() ;
-        else
-          obj.trainStoppedCbk() ;
-        end
-      elseif strcmp(train_or_track, 'track') ,
-        obj.trackStoppedCbk() ;        
-      else
-        error('Internal error: Argument to didStopBgMonitor() must be ''train'' or ''track''') ;
-      end
-    end
-
     function waitForJobsToExit(obj, train_or_track)
       % Wait for all registered jobs of the given type to exit.
       backend = obj.backend ;
@@ -1543,8 +1514,8 @@ classdef DeepTracker < LabelTracker
       % Create the worker, etc used to monitor training in the background
       trnWrkObj = BgTrainPoller(dmc, backend) ;
       obj.bgTrainPoller = trnWrkObj;
-      trnMonObj = BgMonitor(obj, 'train', trnWrkObj, 'projTempDir', projTempDir) ;
-      obj.bgTrnMonitor = trnMonObj;
+      bgTrnMonitor = BgMonitor(obj, 'train', trnWrkObj, 'projTempDir', projTempDir) ;
+      obj.bgTrnMonitor = bgTrnMonitor;
       % trnVizObj = TrainMonitorViz(dmc, ...
       %                             obj, ...
       %                             trnWrkObj,...
@@ -1560,7 +1531,8 @@ classdef DeepTracker < LabelTracker
 
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
-      trnMonObj.start();
+      bgTrnMonitor.start();
+      obj.notify('trainStart') ;
     end  % trnSpawn_() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
@@ -2977,7 +2949,8 @@ classdef DeepTracker < LabelTracker
       % spawning the jobs so that when we need to debug the background process by
       % running runPollingLoop() synchronously, the tracking job(s) will already
       % have started.
-      bgTrkMonitorObj.start();
+      bgTrkMonitorObj.start() ;
+      obj.notify('trackStart') ;      
     end  % function setupBGTrack()
 
     function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
@@ -3192,10 +3165,26 @@ classdef DeepTracker < LabelTracker
     end
 
     function didCompleteTraining(obj, res)  %#ok<INUSD>
-      % do nothing
+      % Called by the child BgMonitor when the latest poll result indicates that
+      % training is complete.
+      obj.waitForJobsToExit() ;
+        % Right now, tfComplete is true as soon as the output files *exist*.
+        % This can lead to issues if they're not done being written to, so we wait for
+        % the job(s) to exit before proceeding.
+      obj.bgTrnMonitor.stop() ;  % stop monitoring
+      obj.killJobsAndPerformPostTrainingCleanup() ;     
     end
 
     function didCompleteTracking(obj, res)
+      % Called by the child BgMonitor when the latest poll result indicates that
+      % tracking is complete.
+      obj.waitForJobsToExit() ;
+        % Right now, tfComplete is true as soon as the output files *exist*.
+        % This can lead to issues if they're not done being written to, so we wait for
+        % the job(s) to exit before proceeding.
+      obj.bgTrkMonitor.stop() ;  % stop monitoring
+      obj.killJobsAndPerformPostTrackingCleanup() ;
+
       try
         % Put things into some local vars
         backend  = obj.backend ;
@@ -3369,11 +3358,23 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function trainStoppedCbk(obj,varargin)
+    function killJobsAndPerformPostTrainingCleanup(obj, varargin)
+      % Does what it says on the tin.
+
+      % Someday, training splits will return!
+      trainSplits = obj.isTrainingSplits_ ;
+      if trainSplits
+        % unchecked codepath 20210806
+        assert(backEnd.type==DLBackEnd.Bsub);
+        obj.killJobsAndPerformPostCrossValidationCleanup() ;
+        return
+      end
+      
       % Stop any running track monitors
       if obj.bgTrkIsRunning,
         fprintf('Stopping training...\n');
         obj.bgTrkMonitor.stop();
+        obj.killJobsAndPerformPostTrackingCleanup() ;      
         obj.bgTrkMonitor.reset();
         assert(~obj.bgTrkIsRunning);
       end
@@ -3393,20 +3394,18 @@ classdef DeepTracker < LabelTracker
         obj.cleanOutOfDateTrackingResults(isCurr);
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
-
-        %MK 20230301 -- tried to make it work for single animal projects
-        %but couldn't create tinfo properly enough after a few feeble
-        %attempts. Abandoing it for someone more valorous
-%         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
-%           res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
-%           if strcmpi(res,'Retrack'),
-%             tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
-%             tinfo = ToTrackInfo('tblMFT',tblMFTRetrack,'trainDMC',obj.trnLastDMC,...
-%               'moviefiles',obj.lObj.movieFilesAll,'trxfiles',obj.lObj.trxF);
-%             obj.track('totrackinfo',tinfo);
-%           end
-%         end
-
+        % % MK 20230301 -- tried to make it work for single animal projects
+        % % but couldn't create tinfo properly enough after a few feeble
+        % % attempts. Abandoning it for someone more valorous.
+        % if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+        %   res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?','Previous tracking results exist','Delete','Retrack','Delete');
+        %   if strcmpi(res,'Retrack'),
+        %     tblMFTRetrack = obj.getTrackingResultsTable([],'ftonly',true);
+        %     tinfo = ToTrackInfo('tblMFT',tblMFTRetrack,'trainDMC',obj.trnLastDMC,...
+        %       'moviefiles',obj.lObj.movieFilesAll,'trxfiles',obj.lObj.trxF);
+        %     obj.track('totrackinfo',tinfo);
+        %   end
+        % end
       end  % if
       
       % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
@@ -3422,7 +3421,7 @@ classdef DeepTracker < LabelTracker
       obj.notify('trainEnd');
     end  % function
     
-    function trackStoppedCbk(obj,varargin)
+    function killJobsAndPerformPostTrackingCleanup(obj,varargin)
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('track') ;
@@ -3435,7 +3434,7 @@ classdef DeepTracker < LabelTracker
       obj.notify('trackEnd');
     end  % function
 
-    function xvStoppedCbk(obj,varargin)      
+    function killJobsAndPerformPostCrossValidationCleanup(obj,varargin)      
       % load xv res
       % KB TODO update this code once cross-val is debugged
       dmc = obj.trnSplitLastDMC;
@@ -4630,5 +4629,58 @@ classdef DeepTracker < LabelTracker
     function killAndClearRegisteredJobs(obj, train_or_track)
       obj.backend.killAndClearRegisteredJobs(train_or_track) ;
     end    
+
+    function didErrorDuringTraining(obj, sRes)
+      % Called by the BgMonitor when the poll response (sRes) indicates an error has
+      % occurrred.
+      obj.bgTrnMonitor.stop();
+      obj.killJobsAndPerformPostTrainingCleanup() ;     
+
+      fprintf('Error occurred during training:\n') ;
+      errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
+      if iscell(errFile) ,
+        if isscalar(errFile) ,
+          errFile = errFile{1} ;
+        else
+          error('errFile is a non-scalar cell array')
+        end
+      end        
+      fprintf('\n### %s\n\n',errFile);
+      errContents = obj.backend.fileContents(errFile) ;
+      disp(errContents);
+    end  % function
+
+    function didErrorDuringTracking(obj, sRes)
+      % Called by the BgMonitor when the poll response (sRes) indicates an error has
+      % occurrred.
+      obj.bgTrkMonitor.stop();
+      obj.killJobsAndPerformPostTrackingCleanup() ;     
+
+      fprintf('Error occurred during tracking:\n') ;
+      errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
+      if iscell(errFile) ,
+        if isscalar(errFile) ,
+          errFile = errFile{1} ;
+        else
+          error('errFile is a non-scalar cell array')
+        end
+      end        
+      fprintf('\n### %s\n\n',errFile);
+      errContents = obj.backend.fileContents(errFile) ;
+      disp(errContents);
+    end  % function
+
+    function abortTraining(obj)
+      %obj.killAndClearRegisteredJobs('train') ;
+      obj.bgTrnMonitor.stop() ;
+      obj.killJobsAndPerformPostTrainingCleanup() ;
+    end
+
+    function abortTracking(obj)
+      %obj.killAndClearRegisteredJobs('track') ;
+      obj.bgTrkMonitor.stop() ;
+      obj.killJobsAndPerformPostTrackingCleanup() ;
+    end
+
   end  % methods    
 end  % classdef

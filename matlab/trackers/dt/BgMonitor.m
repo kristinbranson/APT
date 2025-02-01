@@ -103,80 +103,70 @@ classdef BgMonitor < handle
       obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
       bgc.startPollingLoop(obj.pollInterval) ;
-      obj.parent_.didStartBgMonitor(obj.processName) ;
     end
     
     function stop(obj)
+      % Stop polling for training/tracking results.
+
       % This can be called from the delete() method, so we are extra careful about
       % making sure the message targets are valid.
       sendMaybe(obj.bgClientObj, 'stopPollingLoopHard') ;
-      sendMaybe(obj.parent_, 'didStopBgMonitor', obj.processName) ;
     end
     
-    function waitForJobsToExit(obj)
-      obj.parent_.waitForJobsToExit(obj.processName) ;
-    end
+    % function waitForJobsToExit(obj)
+    %   obj.parent_.waitForJobsToExit(obj.processName) ;
+    % end
     
     function didReceivePollResults(obj, sRes)
-      % current pattern is, this meth only handles things which stop the
-      % process. everything else handled by obj.monitorVizObj
+      % Called by the BgClient when a polling result is received.  Checks for error
+      % or completion and notifies the parent DeepTracker accordingly.
 
-	    % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
+      % Produce some debugging output
+      BgMonitor.debugfprintf('Inside BgMonitor.didReceivePollResults()\n') ;
+      
+      % Cause views/controllers to be updated with the latest poll results
       obj.sRes = sRes ;  % Stash so to controllers/views have access to it.
       if strcmp(obj.processName, 'track') 
-        obj.parent_.didReceiveTrackingPollResults_() ;
+        obj.parent_.didReceiveTrackingPollResults_() ;  
+          % This call causes (through a child-to-parent call chain) the labeler to
+          % notify() views/controllers that there's a tracking result, and that they should
+          % update themselves accordingly.  But that's it. Determining that tracking is
+          % complete is done below.
       elseif strcmp(obj.processName, 'train') 
         obj.parent_.didReceiveTrainingPollResults_() ;
+          % This call causes (through a child-to-parent call chain) the labeler to
+          % notify() views/controllers that there's a training result, and that they should
+          % update themselves accordingly.  But that's it. Determining that training is
+          % complete is done below.
       else
-        error('Internal error.  Tell Adam he''s fired.') ;
+          error('Internal error: Unknown processName %s', obj.processName) ;
       end
-      %[tfSucc,msg] = obj.monitorVizObj.resultsReceived(sRes);
-      tfSucc = true ;
       
-      BgMonitor.debugfprintf('BgMonitor.didReceivePollResults: tfSucc = %d\n',tfSucc);
+      % Determine whether the polling itself was successful or not
+      tfpollsucc = BgMonitor.getPollSuccess(sRes);     
       
-      tfpollsucc = BgMonitor.getPollSuccess(sRes);
-      
-      % killOccurred = any(tfpollsucc & BgMonitor.getKillOccurred(sRes));
-      % if killOccurred
-      %   obj.stop();        
-      %   fprintf(1,'Process killed!\n');
-      %   return
-      %   % monitor plot stays up; reset not called etc
-      % end
-      
+      % Check for errors.
       errOccurred = any(tfpollsucc & BgMonitor.getErrOccurred(sRes));
       if errOccurred
-        obj.stop();
+        % Signal to parent object, typically a DeepTracker, that tracking/training
+        % has errored.
+        if strcmp(obj.processName, 'track') ,
+          obj.parent_.didErrorDuringTracking(sRes) ;
+        elseif strcmp(obj.processName, 'train') ,
+          obj.parent_.didErrorDuringTraining(sRes) ;
+        else
+          error('Internal error: Unknown processName %s', obj.processName) ;
+        end
 
-        fprintf('Error occurred during %s:\n',obj.processName);
-        errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
-        if iscell(errFile) ,
-          if isscalar(errFile) ,
-            errFile = errFile{1} ;
-          else
-            error('errFile is a non-scalar cell array')
-          end
-        end        
-        fprintf('\n### %s\n\n',errFile);
-        errContents = obj.parent_.backend.fileContents(errFile) ;
-        disp(errContents);
-        % We've taked steps to kill any running DL processes -- ALT, 2024-10-10
-        %fprintf('\n\nYou may need to manually kill any running DeepLearning process.\n');
+        % If we get here, we're done dealing with the current polling result        
         return
-        
-        % monitor plot stays up; reset not called etc
       end
                   
+      % Check for completion.
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
         obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
         if obj.tfComplete_
-          obj.waitForJobsToExit() ;  
-            % Right now, tfComplete is true as soon as the output files *exist*.
-            % This can lead to issues if they're not done being written to, so we wait for
-            % the job(s) to exit before proceeding.
-          obj.stop();
-          % % monitor plot stays up; reset not called etc
+          % Send message to console
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
           
           % Signal to parent object, typically a DeepTracker, that tracking/training
@@ -189,20 +179,10 @@ classdef BgMonitor < handle
             error('Internal error: Unknown processName %s', obj.processName) ;
           end
 
+          % If we get here, we're done dealing with the current polling result
           return
         end
       end
-
-      % KB: check if resultsReceived found a reason to stop 
-      if ~tfSucc,
-        if isempty(msg),
-          fprintf('resultsReceived did not return success. Stopping.\n');
-        else
-          fprintf('%s - Stopping.\n',msg);
-        end
-        obj.stop();
-        return
-      end      
     end  % function didReceivePollResults
   end  % methods
   

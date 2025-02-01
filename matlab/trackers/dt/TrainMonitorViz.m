@@ -399,7 +399,7 @@ classdef TrainMonitorViz < handle
       end
     end
     
-    function stopTraining(obj)
+    function abortTraining(obj)
       % if isempty(obj.trainWorkerObj),
       %   warning('trainWorkerObj is empty -- cannot kill process');
       %   return
@@ -410,8 +410,7 @@ classdef TrainMonitorViz < handle
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
 
-      obj.dtObj.killAndClearRegisteredJobs('train') ;
-      obj.dtObj.bgTrnMonitor.stop() ;
+      obj.labeler_.abortTraining() ;
 
       obj.isKilled(:) = true ;
       apt.setStatusDisplayLineBang(obj.hfig, 'Training process killed.', true);
