@@ -849,7 +849,7 @@ listeners{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@cbkGtIsGTModeChanged)
 listeners{end+1,1} = addlistener(lObj,'cropIsCropModeChanged',@cbkCropIsCropModeChanged);
 listeners{end+1,1} = addlistener(lObj,'cropUpdateCropGUITools',@cbkUpdateCropGUITools);
 listeners{end+1,1} = addlistener(lObj,'cropCropsChanged',@cbkCropCropsChanged);
-listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
+%listeners{end+1,1} = addlistener(lObj,'newProject',@cbkNewProject);
 listeners{end+1,1} = addlistener(lObj,'newMovie',@cbkNewMovie);
 %listeners{end+1,1} = addlistener(lObj,'projLoaded',@cbkProjLoaded);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
@@ -1513,141 +1513,6 @@ if tfMod
 else
   lObj.setFrameProtected(f);
 end
-
-function cbkNewProject(src,evt)
-lObj = src;
-handles = lObj.gdata;
-
-%handles = clearDepHandles(handles);
-handles.controller.clearSatellites() ;
-
-handles = initTblFrames(handles,lObj.maIsMA);
-
-%curr_status_string=handles.txStatus.String;
-%SetStatus(handles,curr_status_string,true);
-
-% figs, axes, images
-deleteValidGraphicsHandles(handles.figs_all(2:end));
-handles.figs_all = handles.figs_all(1);
-handles.axes_all = handles.axes_all(1);
-handles.images_all = handles.images_all(1);
-handles.axes_occ = handles.axes_occ(1);
-
-nview = lObj.nview;
-figs = gobjects(1,nview);
-axs = gobjects(1,nview);
-ims = gobjects(1,nview);
-axsOcc = gobjects(1,nview);
-figs(1) = handles.figs_all;
-axs(1) = handles.axes_all;
-ims(1) = handles.images_all;
-axsOcc(1) = handles.axes_occ;
-
-% all occluded-axes will have ratios widthAxsOcc:widthAxs and 
-% heightAxsOcc:heightAxs equal to that of axsOcc(1):axs(1)
-axsOcc1Pos = axsOcc(1).Position;
-ax1Pos = axs(1).Position;
-axOccSzRatios = axsOcc1Pos(3:4)./ax1Pos(3:4);
-axOcc1XColor = axsOcc(1).XColor;
-
-set(ims(1),'CData',0); % reset image
-controller = handles.controller ;
-for iView=2:nview
-  figs(iView) = figure(...
-    'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,controller),...
-    'Color',figs(1).Color,...
-    'Menubar','none',...
-    'Toolbar','figure',...
-    'UserData',struct('view',iView)...
-    );
-  axs(iView) = axes;
-  handles.controller.addSatellite(figs(iView)) ;
-  
-  ims(iView) = imagesc(0,'Parent',axs(iView));
-  set(ims(iView),'PickableParts','none');
-  %axisoff(axs(iView));
-  hold(axs(iView),'on');
-  set(axs(iView),'Color',[0 0 0]);
-  
-  axparent = axs(iView).Parent;
-  axpos = axs(iView).Position;
-  axunits = axs(iView).Units;
-  axpos(3:4) = axpos(3:4).*axOccSzRatios;
-  axsOcc(iView) = axes('Parent',axparent,'Position',axpos,'Units',axunits,...
-    'Color',[0 0 0],'Box','on','XTick',[],'YTick',[],'XColor',axOcc1XColor,...
-    'YColor',axOcc1XColor);
-  hold(axsOcc(iView),'on');
-  axis(axsOcc(iView),'ij');
-end
-handles.figs_all = figs;
-handles.axes_all = axs;
-handles.images_all = ims;
-handles.axes_occ = axsOcc;
-
-% AL 20191002 This is to enable labeling simple projs without the Image
-% toolbox (crop init uses imrect)
-try
-  handles = cropInitImRects(handles);
-catch ME
-  fprintf(2,'Crop Mode initialization error: %s\n',ME.message);
-end
-
-if isfield(handles,'allAxHiliteMgr') && ~isempty(handles.allAxHiliteMgr)
-  % Explicit deletion not supposed to be nec
-  delete(handles.allAxHiliteMgr);
-end
-handles.allAxHiliteMgr = AxesHighlightManager(axs);
-
-axis(handles.axes_occ,[0 lObj.nLabelPoints+1 0 2]);
-
-% The link destruction/recreation may not be necessary
-if isfield(handles,'hLinkPrevCurr') && isvalid(handles.hLinkPrevCurr)
-  delete(handles.hLinkPrevCurr);
-end
-viewCfg = lObj.projPrefs.View;
-handles.newProjAxLimsSetInConfig = hlpSetConfigOnViews(viewCfg,handles,...
-  viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
-AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
-handles.hLinkPrevCurr = ...
-  linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
-
-arrayfun(@(x)colormap(x,gray),figs);
-setGUIFigureNames(handles,lObj,figs);
-setMainAxesName(handles,lObj);
-
-arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
-arrayfun(@(x)pan(x,'off'),handles.figs_all);
-hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
-set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,lObj));
-handles.h_ignore_arrows = [handles.slider_frame];
-%set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
-%set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
-% if ispc
-%   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
-% end
-
-% eg when going from proj-with-trx to proj-no-trx, targets table needs to
-% be cleared
-set(handles.tblTrx,'Data',cell(0,size(handles.tblTrx.ColumnName,2)));
-
-handles = setShortcuts(handles);
-
-handles.labelTLInfo.initNewProject();
-
-delete(handles.controller.movieManagerController) ;
-handles.controller.movieManagerController = MovieManagerController(handles.labelerObj);
-drawnow; % 20171002 Without this, new tabbed MovieManager shows up with 
-  % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
-  % buttons/figure back into a good state)   
-handles.controller.movieManagerController.setVisible(false);
-
-handles.GTMgr = GTManager(handles.labelerObj);
-handles.GTMgr.Visible = 'off';
-handles.controller.addSatellite(handles.GTMgr) ;
-
-guidata(handles.figure,handles);
-
-%handles.labelerObj.clearStatus();
 
 function setGUIMainFigureName(lObj)
 
@@ -3333,7 +3198,7 @@ lObj.setStatus('Loading Project...') ;
 if controller.raiseUnsavedChangesDialogIfNeeded() ,
   currMovInfo = lObj.projLoad();
   if ~isempty(currMovInfo)
-    controller.movieManagerController.setVisible(true);
+    controller.movieManagerController_.setVisible(true);
     wstr = ...
       sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
                       'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
@@ -3369,8 +3234,8 @@ if labelerObj.doesNeedSave ,
 end
 
 function menu_file_managemovies_Callback(~,~,handles)
-if ~isempty(handles.controller.movieManagerController) && isvalid(handles.controller.movieManagerController) ,
-  handles.controller.movieManagerController.setVisible(true);
+if ~isempty(handles.controller.movieManagerController_) && isvalid(handles.controller.movieManagerController_) ,
+  handles.controller.movieManagerController_.setVisible(true);
 else
   handles.labelerObj.lerror('LabelerGUI:movieManagerController','Please create or load a project.');
 end
@@ -4705,7 +4570,7 @@ gtNew = ~gt;
 labeler.gtSetGTMode(gtNew);
 % hGTMgr = lObj.gdata.GTMgr;
 if gtNew
-  mmc = controller.movieManagerController;
+  mmc = controller.movieManagerController_ ;
   mmc.setVisible(true);
   figure(mmc.hFig);
 end

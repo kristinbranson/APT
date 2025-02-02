@@ -8,7 +8,7 @@ classdef LabelerController < handle
     %waitbarListeners_ = event.listener.empty(1,0)
     trackingMonitorVisualizer_
     trainingMonitorVisualizer_
-    movieManagerController
+    movieManagerController_
   end
 
   properties  % private/protected by convention
@@ -76,6 +76,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingStoppedDialog()));      
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'newProject',@(source,event)(obj.didCreateNewProject()));
+      obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
@@ -92,7 +94,7 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
-      delete(obj.movieManagerController) ;
+      delete(obj.movieManagerController_) ;
       deleteValidGraphicsHandles(obj.mainFigure_) ;
       % In principle, a controller shouldn't delete its model---the model should be
       % allowed to persist until there are no more references to it.  
@@ -124,14 +126,14 @@ classdef LabelerController < handle
         if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
           set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','watch');
         else
-          set(handles.figure,'Pointer','watch');
+          set(obj.mainFigure_,'Pointer','watch');
         end
       else
         color = handles.idlestatuscolor;
         if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
           set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
         else
-          set(handles.figure,'Pointer','arrow');
+          set(obj.mainFigure_,'Pointer','arrow');
         end
       end
       set(handles.txStatus,'ForegroundColor',color);
@@ -1247,5 +1249,141 @@ classdef LabelerController < handle
         labeler.projAssignProjNameFromProjFileIfAppropriate();
       end  % if      
     end
+
+    function didCreateNewProject(obj)
+      labeler =  obj.labeler_ ;
+      handles = guidata(obj.mainFigure_) ;
+      
+      %handles = clearDepHandles(handles);
+      obj.clearSatellites() ;
+      
+      handles = initTblFrames(handles,labeler.maIsMA);
+      
+      %curr_status_string=handles.txStatus.String;
+      %SetStatus(handles,curr_status_string,true);
+      
+      % figs, axes, images
+      deleteValidGraphicsHandles(handles.figs_all(2:end));
+      handles.figs_all = handles.figs_all(1);
+      handles.axes_all = handles.axes_all(1);
+      handles.images_all = handles.images_all(1);
+      handles.axes_occ = handles.axes_occ(1);
+      
+      nview = labeler.nview;
+      figs = gobjects(1,nview);
+      axs = gobjects(1,nview);
+      ims = gobjects(1,nview);
+      axsOcc = gobjects(1,nview);
+      figs(1) = handles.figs_all;
+      axs(1) = handles.axes_all;
+      ims(1) = handles.images_all;
+      axsOcc(1) = handles.axes_occ;
+      
+      % all occluded-axes will have ratios widthAxsOcc:widthAxs and 
+      % heightAxsOcc:heightAxs equal to that of axsOcc(1):axs(1)
+      axsOcc1Pos = axsOcc(1).Position;
+      ax1Pos = axs(1).Position;
+      axOccSzRatios = axsOcc1Pos(3:4)./ax1Pos(3:4);
+      axOcc1XColor = axsOcc(1).XColor;
+      
+      set(ims(1),'CData',0); % reset image
+      %controller = handles.controller ;
+      for iView=2:nview
+        figs(iView) = figure(...
+          'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,obj),...
+          'Color',figs(1).Color,...
+          'Menubar','none',...
+          'Toolbar','figure',...
+          'UserData',struct('view',iView)...
+          );
+        axs(iView) = axes;
+        obj.addSatellite(figs(iView)) ;
+        
+        ims(iView) = imagesc(0,'Parent',axs(iView));
+        set(ims(iView),'PickableParts','none');
+        %axisoff(axs(iView));
+        hold(axs(iView),'on');
+        set(axs(iView),'Color',[0 0 0]);
+        
+        axparent = axs(iView).Parent;
+        axpos = axs(iView).Position;
+        axunits = axs(iView).Units;
+        axpos(3:4) = axpos(3:4).*axOccSzRatios;
+        axsOcc(iView) = axes('Parent',axparent,'Position',axpos,'Units',axunits,...
+          'Color',[0 0 0],'Box','on','XTick',[],'YTick',[],'XColor',axOcc1XColor,...
+          'YColor',axOcc1XColor);
+        hold(axsOcc(iView),'on');
+        axis(axsOcc(iView),'ij');
+      end
+      handles.figs_all = figs;
+      handles.axes_all = axs;
+      handles.images_all = ims;
+      handles.axes_occ = axsOcc;
+      
+      % AL 20191002 This is to enable labeling simple projs without the Image
+      % toolbox (crop init uses imrect)
+      try
+        handles = cropInitImRects(handles);
+      catch ME
+        fprintf(2,'Crop Mode initialization error: %s\n',ME.message);
+      end
+      
+      if isfield(handles,'allAxHiliteMgr') && ~isempty(handles.allAxHiliteMgr)
+        % Explicit deletion not supposed to be nec
+        delete(handles.allAxHiliteMgr);
+      end
+      handles.allAxHiliteMgr = AxesHighlightManager(axs);
+      
+      axis(handles.axes_occ,[0 labeler.nLabelPoints+1 0 2]);
+      
+      % The link destruction/recreation may not be necessary
+      if isfield(handles,'hLinkPrevCurr') && isvalid(handles.hLinkPrevCurr)
+        delete(handles.hLinkPrevCurr);
+      end
+      viewCfg = labeler.projPrefs.View;
+      handles.newProjAxLimsSetInConfig = hlpSetConfigOnViews(viewCfg,handles,...
+        viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
+      AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
+      handles.hLinkPrevCurr = ...
+        linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
+      
+      arrayfun(@(x)colormap(x,gray),figs);
+      setGUIFigureNames(handles,labeler,figs);
+      setMainAxesName(handles,labeler);
+      
+      arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
+      arrayfun(@(x)pan(x,'off'),handles.figs_all);
+      hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
+      set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,labeler));
+      handles.h_ignore_arrows = [handles.slider_frame];
+      %set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
+      %set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
+      % if ispc
+      %   set(handles.figs_all,'WindowScrollWheelFcn',@(src,evt)cbkWSWF(src,evt,lObj));
+      % end
+      
+      % eg when going from proj-with-trx to proj-no-trx, targets table needs to
+      % be cleared
+      set(handles.tblTrx,'Data',cell(0,size(handles.tblTrx.ColumnName,2)));
+      
+      handles = setShortcuts(handles);
+      
+      handles.labelTLInfo.initNewProject();
+      
+      delete(obj.movieManagerController_) ;
+      obj.movieManagerController_ = MovieManagerController(labeler) ;
+      drawnow(); 
+        % 20171002 Without this drawnow(), new tabbed MovieManager shows up with 
+        % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
+        % buttons/figure back into a good state)   
+      obj.movieManagerController_.setVisible(false);
+      
+      handles.GTMgr = GTManager(labeler);
+      handles.GTMgr.Visible = 'off';
+      obj.addSatellite(handles.GTMgr) ;
+      
+      % Re-store the modified guidata in the figure
+      guidata(obj.mainFigure_, handles) ;
+    end  % function
   end  % methods  
 end  % classdef

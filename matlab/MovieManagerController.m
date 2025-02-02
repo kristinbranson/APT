@@ -205,7 +205,7 @@ classdef MovieManagerController < handle
       lObj.clearStatus();
     end
     
-    function cbkPushButton(obj,src,evt)
+    function cbkPushButton(obj,src,~)
       iTab = find(src.Parent==obj.hTabs);
       lObj = obj.labeler;
       tfGT = lObj.gtIsGTMode;

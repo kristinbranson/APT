@@ -50,7 +50,10 @@ lObj = varargin{1};  % Should change things so we pass in the LabelerController,
 centerOnParentFigure(hObject,lObj.hFig);
 
 handles.lObj = lObj;
-handles.movMgrCtrler = lObj.controller_.movieManagerController ;  % subpoptimal to have to touch lObj.controller_, which is deprecated
+handles.movMgrCtrler = lObj.controller_.movieManagerController_ ;  
+  % subpoptimal to have to touch lObj.controller_, which is deprecated
+  % also suboptimal to be touching movieManagerController_, which is
+  % private-by-convention
 handles.listener = event.listener(handles.movMgrCtrler,'tableClicked',...
   @(s,e)cbkTableClicked(hObject));
 

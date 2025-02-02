@@ -1006,7 +1006,7 @@ classdef Labeler < handle
     
     function v = get.moviesSelected(obj) %#%GUIREQ
       % Get the currently selected movies.
-      
+
       % Need to restructure code s.t. the MovieManagerController sets an instance
       % variable in Labeler when the selected movies changes.  Then this function
       % will return the value of that instance variable.  Having the Labeller touch
@@ -1018,7 +1018,7 @@ classdef Labeler < handle
         return;
       end
       
-      mmc = obj.controller_.movieManagerController ;  % suboptimal to have to touch obj.controller_, which is deprecated
+      mmc = obj.controller_.movieManagerController_ ;  % suboptimal to have to touch obj.controller_, which is deprecated
       if ~isempty(mmc) && isvalid(mmc)
         v = mmc.getSelectedMovies();
       else
