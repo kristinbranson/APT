@@ -4454,9 +4454,21 @@ classdef Labeler < handle
       tfok = true;
     end
     
-    function [tfok,badfile] = movieCheckFilesExistSimple(obj,iMov,gt) % obj const
+    function [tfok,badfile] = movieCheckFilesExistSimple(obj, varargin)  % obj const
+      % Check if the movie files and trx files exist.  This version does not present
+      % any UI to help the user correct missing files, if just does what it says on
+      % the tin.
       % tfok: true if movie/trxfiles for iMov all exist, false otherwise.
       % badfile: if ~tfok, badfile contains a file that could not be found.
+
+      % Process args, deal with possible MovieIndex input
+      whatAmI = varargin{1} ;
+      if isa(whatAmI, 'MovieIndex') ,
+        [iMov,gt] = whatAmI.get();
+      else
+        iMov = whatAmI ;
+        gt = varargin{2} ;
+      end
 
       PROPS = Labeler.gtGetSharedPropsStc(gt);
       
@@ -4468,14 +4480,14 @@ classdef Labeler < handle
       for iView = 1:obj.nview
         movfileFull = obj.(PROPS.MFAF){iMov,iView};
         trxFileFull = obj.(PROPS.TFAF){iMov,iView};
-        if exist(movfileFull,'file')==0
+        if ~exist(movfileFull,'file')
           tfok = false;
           badfile = movfileFull;
-          return;
-        elseif ~isempty(trxFileFull) && exist(trxFileFull,'file')==0
+          return
+        elseif ~isempty(trxFileFull) && ~exist(trxFileFull,'file')
           tfok = false;
           badfile = trxFileFull;
-          return;
+          return
         end
       end
       
@@ -4788,7 +4800,7 @@ classdef Labeler < handle
         obj.setFrameAndTarget(1,1);
       end
             
-    end
+    end  % function
     
     function tfsuccess = movieSetMIdx(obj,mIdx,varargin)
       assert(isa(mIdx,'MovieIndex'));
@@ -7676,23 +7688,6 @@ classdef Labeler < handle
       end
       
       rawname = fullfile('$movdir',basename);
-    end
-    
-    function [tfok,rawtrkname] = getExportTrkRawnameUI(obj,varargin)
-      % Prompt the user to get a raw/base trkfilename.
-      %
-      % varargin: see defaultExportTrkRawname
-      % 
-      % tfok: user canceled or similar
-      % rawtrkname: use only if tfok==true
-      
-      rawtrkname = inputdlg(strcatg('Enter name/pattern for trkfile(s) to be exported. Available macros: ', ...
-                                    '$movdir, $movfile, $projdir, $projfile, $projname, $trackertype.'),...
-                            'Export Trk File',1,{obj.defaultExportTrkRawname(varargin{:})});
-      tfok = ~isempty(rawtrkname);
-      if tfok
-        rawtrkname = rawtrkname{1};
-      end
     end
     
     function fname = getDefaultFilenameExportStrippedLbl(obj)
@@ -13620,6 +13615,7 @@ classdef Labeler < handle
       y = double(ctrx.y(i));
       th = double(ctrx.theta(i));
     end
+
     function setSelectedFrames(obj,frms)
       if isempty(frms)
         obj.selectedFrames = frms;        
@@ -13641,6 +13637,7 @@ classdef Labeler < handle
         % none
       end
     end
+
     function updateTrxTable_Trx(obj)
       % based on .frm2trxm, .currFrame, .labeledpos
       

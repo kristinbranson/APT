@@ -2775,7 +2775,7 @@ handles.labelerObj.clearStatus();
 
 function menu_file_export_labels_trks_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-[tfok,rawtrkname] = lObj.getExportTrkRawnameUI('labels',true);
+[tfok,rawtrkname] = handles.controller.getExportTrkRawNameUI('labels',true);
 if ~tfok
   return;
 end
@@ -3767,7 +3767,7 @@ guidata(handles.figure,handles);
 
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
-[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+[tfok,rawtrkname] = handles.controller.getExportTrkRawNameUI();
 if ~tfok
   return
 end
@@ -3833,7 +3833,7 @@ set(handles.menu_track_id,'checked',lObj.track_id);
 % if iMov==0
 %   handles.labelerObj.lerror('LabelerGUI:noMov','No movie currently set.');
 % end
-% [tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+% [tfok,rawtrkname] = handles.controller.getExportTrkRawnameUI();
 % if ~tfok
 %   return;
 % end
@@ -3850,7 +3850,7 @@ if nMov==0
   handles.labelerObj.lerror('LabelerGUI:noMov','No movies in project.');
 end
 iMov = 1:nMov;
-[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+[tfok,rawtrkname] = handles.controller.getExportTrkRawNameUI();
 if ~tfok
   return;
 end
@@ -4446,7 +4446,7 @@ iMov = lObj.currMovie;
 if iMov==0
   handles.labelerObj.lerror('LabelerGUI:noMov','No movie currently set.');
 end
-[tfok,rawtrkname] = lObj.getExportTrkRawnameUI();
+[tfok,rawtrkname] = handles.controller.getExportTrkRawNameUI();
 if ~tfok
   return;
 end

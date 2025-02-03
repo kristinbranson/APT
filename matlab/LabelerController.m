@@ -1889,5 +1889,23 @@ classdef LabelerController < handle
       set(handles.menu_setup_sequential_add_mode,'Visible','off');
     end  % function
     
+    function [tfok,rawtrkname] = getExportTrkRawNameUI(obj, varargin)
+      % Prompt the user to get a raw/base trkfilename.
+      %
+      % varargin: see defaultExportTrkRawname
+      % 
+      % tfok: user canceled or similar
+      % rawtrkname: use only if tfok==true
+      
+      labeler = obj.labeler_ ;
+      rawtrkname = inputdlg(strcatg('Enter name/pattern for trkfile(s) to be exported. Available macros: ', ...
+                                    '$movdir, $movfile, $projdir, $projfile, $projname, $trackertype.'),...
+                            'Export Trk File',1,{labeler.defaultExportTrkRawname(varargin{:})});
+      tfok = ~isempty(rawtrkname);
+      if tfok
+        rawtrkname = rawtrkname{1};
+      end
+    end  % function
+    
   end  % methods  
 end  % classdef
