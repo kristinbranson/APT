@@ -971,6 +971,7 @@ end
 % Change some controls to use LabelerGUIControlActuated()
 handles.menu_file_new.Callback = @LabelerGUIControlActuated ;
 handles.menu_file_shortcuts.Callback = @LabelerGUIControlActuated ;
+handles.menu_view_reset_views.Callback = @LabelerGUIControlActuated ;
 handles.pbTrain.Callback = @LabelerGUIControlActuated ;
 handles.pbTrack.Callback = @LabelerGUIControlActuated ;
 
@@ -3380,15 +3381,6 @@ assert(numel(hAxs)==numel(hIms));
 arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
 handles.labelerObj.movieCenterOnTarget = false;
 
-
-function menu_view_reset_views_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-viewCfg = lObj.projPrefs.View;
-apt.hlpSetConfigOnViews(viewCfg,handles,lObj.movieCenterOnTarget);
-movInvert = ViewConfig.getMovieInvert(viewCfg);
-lObj.movieInvert = movInvert;
-lObj.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
-lObj.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
 
 function menu_view_hide_labels_Callback(hObject, eventdata, handles)
 lblCore = handles.labelerObj.lblCore;

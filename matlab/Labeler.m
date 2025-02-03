@@ -115,7 +115,7 @@ classdef Labeler < handle
     updateTrxSetShowTrue
     updateTrxSetShowFalse
 
-    didSetProjname
+    didSetProjectName
     didSetProjFSInfo
     didSetMovieFilesAll
     didSetMovieFilesAllGT
@@ -1022,7 +1022,7 @@ classdef Labeler < handle
         v = mmc.getSelectedMovies();
       else
         obj.lerror('Labeler:getMoviesSelected',...
-          'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
+                   'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
       end
     end
 
@@ -6216,7 +6216,7 @@ classdef Labeler < handle
         % sometimes labelcore need this kick to get properly set up
         obj.labelsUpdateNewFrame(true);
       end
-    end
+    end  % function
     
     function labelingInitTemplate(obj)
       % Call .lblCore.setTemplate based on a labeled frame in the proj
@@ -15380,11 +15380,18 @@ classdef Labeler < handle
 
     function set.projname(obj, newValue)
       obj.projname = newValue ;
-      obj.notify('didSetProjname') ;
+      str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now(),16));
+      obj.setRawStatusStringWhenClear_(str) ;      
+      obj.notify('didSetProjectName') ;
     end
 
     function set.projFSInfo(obj, newValue)
       obj.projFSInfo = newValue ;
+      info = obj.projFSInfo ;
+      if ~isempty(info)
+        str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16)) ;
+        obj.setRawStatusStringWhenClear_(str) ;
+      end
       obj.notify('didSetProjFSInfo') ;
     end
 

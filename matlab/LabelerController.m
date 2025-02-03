@@ -78,11 +78,11 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'newProject',@(source,event)(obj.didCreateNewProject()));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetProjname',@(source,event)(obj.didChangeProjectName()));      
+        addlistener(labeler,'didSetProjectName',@(source,event)(obj.didChangeProjectName()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetProjFSInfo',@(source,event)(obj.cbkProjFSInfoChanged()));      
+        addlistener(labeler,'didSetProjFSInfo',@(source,event)(obj.didChangeProjFSInfo()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.cbkMovieInvertChanged()));      
+        addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
@@ -1345,15 +1345,16 @@ classdef LabelerController < handle
         delete(handles.hLinkPrevCurr);
       end
       viewCfg = labeler.projPrefs.View;
-      handles.newProjAxLimsSetInConfig = apt.hlpSetConfigOnViews(viewCfg,handles,...
-        viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
+      handles.newProjAxLimsSetInConfig = ...
+        obj.hlpSetConfigOnViews_(viewCfg,...
+                                 viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
       AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
       handles.hLinkPrevCurr = ...
         linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
       
       arrayfun(@(x)colormap(x,gray),figs);
-      obj.setGUIFigureNames_() ;
-      obj.setMainAxesName_();
+      obj.updateGUIFigureNames_() ;
+      obj.updateMainAxesName_();
       
       arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
       arrayfun(@(x)pan(x,'off'),handles.figs_all);
@@ -1419,53 +1420,27 @@ classdef LabelerController < handle
       elseif numel(labeler.projectfile) <= maxlength,
         projname = labeler.projectfile;
       else
-        [~,projname,ext] = fileparts(labeler.projectfile);
-        projname = [projname,ext];
+        [~,projname] = fileparts2(labeler.projectfile);
       end
       obj.mainFigure_.Name = sprintf('APT - Project %s',projname) ;
     end  % function
 
     function didChangeProjectName(obj)
-      labeler = obj.labeler_ ;
-      str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now(),16));
-      labeler.setRawStatusStringWhenClear_(str) ;
-      obj = labeler.controller_ ;
       obj.updateMainFigureName() ;
+      obj.updateStatus() ;      
     end  % function
 
-    function cbkProjFSInfoChanged(obj)
-      labeler = obj.labeler_ ;
-      info = labeler.projFSInfo ;
-      if ~isempty(info)
-        str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16)) ;
-        labeler.setRawStatusStringWhenClear_(str) ;
-      end
+    function didChangeProjFSInfo(obj)
       obj.updateMainFigureName() ;
+      obj.updateStatus() ;      
     end  % function
 
-    function cbkMovieInvertChanged(obj)
-      labeler = obj.labeler_ ;
-      handles = guidata(obj.mainFigure_) ;
-      figs = handles.figs_all ;
-      obj.setGUIFigureNames_() ;
-      obj.setMainAxesName_() ;
-      movInvert = labeler.movieInvert ;
-      viewNames = labeler.viewNames ;
-      for i=1:labeler.nview
-        name = viewNames{i};
-        if isempty(name)
-          name = '';
-        else
-          name = sprintf('View: %s',name);
-        end
-        if movInvert(i)
-          name = [name ' (movie inverted)']; %#ok<AGROW>
-        end
-        figs(i).Name = name;
-      end      
+    function didChangeMovieInvert(obj)
+      obj.updateGUIFigureNames_() ;
+      obj.updateMainAxesName_() ;
     end  % function
 
-    function setGUIFigureNames_(obj)
+    function updateGUIFigureNames_(obj)
       labeler = obj.labeler_ ;
       handles = guidata(obj.mainFigure_) ;
       figs = handles.figs_all ;
@@ -1487,7 +1462,7 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function setMainAxesName_(obj)
+    function updateMainAxesName_(obj)
       labeler = obj.labeler_ ;
       viewNames = labeler.viewNames ;
       if labeler.nview > 1 ,
@@ -1544,7 +1519,7 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function menu_file_shortcuts_actuated(obj)
+    function menu_file_shortcuts_actuated(obj, source, event)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       while true,
         [~,newShortcuts] = propertiesGUI([],labeler.projPrefs.Shortcuts);
@@ -1596,5 +1571,37 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function menu_view_reset_views_actuated(obj, source, event)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      viewCfg = labeler.projPrefs.View;
+      obj.hlpSetConfigOnViews_(viewCfg, labeler.movieCenterOnTarget) ;
+      movInvert = ViewConfig.getMovieInvert(viewCfg);
+      labeler.movieInvert = movInvert;
+      labeler.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
+      labeler.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
+    end  % function
+    
+    function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews_(obj, viewCfg, centerOnTarget)
+      %labeler = obj.labeler_ ;
+      hFig = obj.mainFigure_ ;
+      handles = guidata(hFig) ;
+      axes_all = handles.axes_all;
+      tfAxLimsSpecifiedInCfg = ...
+        ViewConfig.setCfgOnViews(viewCfg, ...
+                                 handles.figs_all, ...
+                                 axes_all, ...
+                                 handles.images_all, ...
+                                 handles.axes_prev) ;
+      if ~centerOnTarget
+        [axes_all.CameraUpVectorMode] = deal('auto');
+        [axes_all.CameraViewAngleMode] = deal('auto');
+        [axes_all.CameraTargetMode] = deal('auto');
+        [axes_all.CameraPositionMode] = deal('auto');
+      end
+      [axes_all.DataAspectRatio] = deal([1 1 1]);
+      handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axes_all(1).XTickLabel));
+      handles.menu_view_show_grid.Checked = axes_all(1).XGrid;
+    end  % function
+    
   end  % methods  
 end  % classdef
