@@ -972,6 +972,7 @@ end
 handles.menu_file_new.Callback = @LabelerGUIControlActuated ;
 handles.menu_file_shortcuts.Callback = @LabelerGUIControlActuated ;
 handles.menu_view_reset_views.Callback = @LabelerGUIControlActuated ;
+handles.menu_file_quick_open.Callback = @LabelerGUIControlActuated ;
 handles.pbTrain.Callback = @LabelerGUIControlActuated ;
 handles.pbTrack.Callback = @LabelerGUIControlActuated ;
 
@@ -2671,38 +2672,6 @@ handles = guidata(src);
 handles.labelerObj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 
 %% menu
-function menu_file_quick_open_Callback(hObject, eventdata, handles)
-lObj = handles.labelerObj;
-controller = handles.controller ;
-if controller.raiseUnsavedChangesDialogIfNeeded() ,
-  [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
-  if ~tfsucc
-    return;
-  end
-  
-  movfile = movfile{1};
-  trxfile = trxfile{1};
-  
-  cfg = Labeler.cfgGetLastProjectConfigNoView;
-  if cfg.NumViews>1
-    warndlg('Your last project had multiple views. Opening movie with single view.');
-    cfg.NumViews = 1;
-    cfg.ViewNames = cfg.ViewNames(1);
-    cfg.View = cfg.View(1);
-  end
-  lm = LabelMode.(cfg.LabelMode);
-  if lm.multiviewOnly
-    cfg.LabelMode = char(LabelMode.TEMPLATE);
-  end
-  
-  lObj.initFromConfig(cfg);
-    
-  [~,projName,~] = fileparts(movfile);
-  lObj.projNew(projName);
-  lObj.movieAdd(movfile,trxfile);
-  lObj.movieSet(1,'isFirstMovie',true);      
-end
-
 function menu_file_save_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj ;
 lObj.setStatus('Saving project...');

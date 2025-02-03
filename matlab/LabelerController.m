@@ -991,7 +991,7 @@ classdef LabelerController < handle
           set(handles.pushbutton_freezetemplate,'Enable','on');
           set(handles.FigureToolBar,'Visible','on')
           
-          lObj = handles.labelerObj;
+          lObj = obj.labeler_ ;
           tObj = lObj.tracker;    
           tfTracker = ~isempty(tObj);
           onOff = onIff(tfTracker);
@@ -1708,5 +1708,186 @@ classdef LabelerController < handle
       end
     end  % function
           
+    function menu_file_quick_open_actuated(obj, source, event)  %#ok<INUSD>
+      lObj = obj.labeler_ ;
+      if obj.raiseUnsavedChangesDialogIfNeeded() ,
+        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
+        if ~tfsucc
+          return;
+        end
+        
+        movfile = movfile{1};
+        trxfile = trxfile{1};
+        
+        cfg = Labeler.cfgGetLastProjectConfigNoView;
+        if cfg.NumViews>1
+          warndlg('Your last project had multiple views. Opening movie with single view.');
+          cfg.NumViews = 1;
+          cfg.ViewNames = cfg.ViewNames(1);
+          cfg.View = cfg.View(1);
+        end
+        lm = LabelMode.(cfg.LabelMode);
+        if lm.multiviewOnly
+          cfg.LabelMode = char(LabelMode.TEMPLATE);
+        end
+        
+        lObj.initFromConfig(cfg);
+          
+        [~,projName,~] = fileparts(movfile);
+        lObj.projNew(projName);
+        lObj.movieAdd(movfile,trxfile);
+        lObj.movieSet(1,'isFirstMovie',true);      
+      end
+    end  % function
+    
+    function projAddLandmarks(obj, nadd)
+      % Function to add new kinds of landmarks to an existing project.  E.g. If you
+      % had a fly .lbl file where you weren't tracking the wing tips, but then you
+      % wanted to start tracking the wingtips, you would call this function.
+      % Currently not exposed in the GUI, probably should be eventually.
+
+      labeler = obj.labeler_ ;
+      if labeler.nLabelPointsAdd > 0,
+        warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.', ...
+                'Cannot add landmarks twice');
+        return;
+      end
+            
+%       % if labeling mode is sequential, set to template
+%       if strcmpi(obj.labelMode,'SEQUENTIAL'),
+%         obj.labelingInit('labelMode',LabelMode.TEMPLATE,'dosettemplate',false);
+%       end
+      
+      if labeler.nview>1,
+        warning('Adding landmarks for multiview projects not yet tested. Not sure if this will work!!');
+      end
+
+      isinit0 = labeler.isinit;
+      labeler.isinit = true;
+      %delete(obj.lblCore);
+      %obj.lblCore = [];
+      labeler.preProcData = [];
+      labeler.ppdb = [];
+
+      
+      oldnphyspts = labeler.nPhysPoints;
+      oldnpts = labeler.nLabelPoints;
+      nptsperset = size(labeler.labeledposIPtSetMap,2);
+
+      newnphyspts = oldnphyspts+nadd;
+      newnpts = oldnpts + nadd*nptsperset;
+           
+      % update landmark info
+      
+      % landmark names - one per set
+      newnames = Labeler.defaultLandmarkNames(oldnphyspts+1:oldnphyspts+nadd);
+      labeler.skelNames = cat(1,labeler.skelNames,newnames);
+      
+      % pt2set
+      oldipt2set = reshape(labeler.labeledposIPt2Set,[oldnphyspts,nptsperset]);
+      newipt2set = repmat(oldnphyspts+(1:nadd)',[1,nptsperset]);
+      labeler.labeledposIPt2Set = reshape(cat(1,oldipt2set,newipt2set),[newnpts,1]);
+      
+      % pt2view
+      oldipt2view = reshape(labeler.labeledposIPt2View,[oldnphyspts,nptsperset]);
+      newipt2view = repmat(1:nptsperset,[nadd,1]);
+      labeler.labeledposIPt2View = reshape(cat(1,oldipt2view,newipt2view),[newnpts,1]);
+      
+      % this is changing for existing points if nview > 1
+      labeler.labeledposIPtSetMap = reshape(1:newnpts,[newnphyspts,nptsperset]);
+      old2newpt = reshape(labeler.labeledposIPtSetMap(1:oldnphyspts,:),[oldnpts,1]);
+      [~,new2oldpt] = ismember((1:newnpts)',old2newpt);
+      
+      % update labels
+      labeler.labelPosAddLandmarks(new2oldpt);
+
+      % skeletonEdges and flipLandmarkMatches should not change
+      
+      labeler.nLabelPoints = newnpts;
+      labeler.nLabelPointsAdd = nadd*nptsperset;
+      
+      % reset colors to defaults
+      labeler.labelPointsPlotInfo.Colors = feval(labeler.labelPointsPlotInfo.ColorMapName,newnphyspts);
+      labeler.predPointsPlotInfo.Colors = feval(labeler.predPointsPlotInfo.ColorMapName,newnphyspts);
+      labeler.impPointsPlotInfo.Colors = feval(labeler.impPointsPlotInfo.ColorMapName,newnphyspts);
+
+      % reset reference frame plotting
+      labeler.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
+                                   labeler.gdata.axes_prev,labeler.labelPointsPlotInfo);
+      if ~isempty(labeler.prevAxesModeInfo)
+        labeler.prevAxesLabelsRedraw();
+      end
+      
+      % remake info timeline
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure);
+%      handles.labelTLInfo.delete();
+%       handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
+%         handles.axes_timeline_islabeled);
+      handles.labelTLInfo.initNewProject();
+      handles.labelTLInfo.setLabelsFull(true);
+      guidata(mainFigure,handles);
+      
+      % clear tracking data
+      cellfun(@(x)x.clearTracklet(),labeler.labels2);
+      cellfun(@(x)x.clearTracklet(),labeler.labels2GT);
+            
+      % Reset .trackersAll
+      for i=1:numel(labeler.trackersAll)
+        % explicitly delete, conservative cleanup
+        delete(labeler.trackersAll{i}); % delete([]) does not err
+      end
+      labeler.trackersAll = cell(1,0);
+      labeler.trackInitAllTrackers();
+      % Trackers created/initted in projLoad and projNew; eg when loading,
+      % the loaded .lbl knows what trackers to create.
+      labeler.currTracker = 1;
+      
+      labeler.trackDLBackEnd = DLBackEndClass() ;  % This seems...  odd?  -- ALT, 2025-02-03
+      labeler.trackDLBackEnd.isInAwsDebugMode = labeler.isInAwsDebugMode ;
+      % not resetting trackParams, hopefully nothing in here that depends
+      % on number of landmarks
+      %obj.trackParams = [];
+      
+      labeler.labeledposNeedsSave = true;
+      labeler.doesNeedSave_ = true;     
+      
+      labeler.lblCore.init(newnphyspts,labeler.labelPointsPlotInfo);
+      labeler.preProcInit();
+      labeler.isinit = isinit0;
+      labeler.labelsUpdateNewFrame(true);
+      set(labeler.gdata.menu_setup_sequential_add_mode,'Visible','on');
+    end  % function
+    
+    function projAddLandmarksFinished(obj)
+      % Used in conjunction with projAddLandmarks().  Function to finish a session
+      % of adding new kinds of landmarks to an existing project. Currently not
+      % exposed in the GUI, probably should be eventually.
+      
+      labeler = obj.labeler_ ;
+      if labeler.nLabelPointsAdd == 0,
+        return;
+      end
+      
+      % check if there are no partially labeled frames
+      [~,~,frms] = labeler.findPartiallyLabeledFrames();
+      if numel(frms) > 0,
+        warndlg('There are still some partially labeled frames. You must label all partially labeled frames before finishing.', ...
+                'Not all frames completely labeled');
+        return;
+      end
+      
+      labeler.nLabelPointsAdd = 0;
+      
+      % set label mode to sequential if sequential add
+      if labeler.labelMode == LabelMode.SEQUENTIALADD,
+        labeler.labelingInit('labelMode',LabelMode.SEQUENTIAL);
+      end
+      % hide sequential add mode
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      set(handles.menu_setup_sequential_add_mode,'Visible','off');
+    end  % function
+    
   end  % methods  
 end  % classdef

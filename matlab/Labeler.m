@@ -449,7 +449,7 @@ classdef Labeler < handle
   properties (SetAccess=private)
     nLabelPoints          % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
     labelTemplate 
-    nLabelPointsAdd = 0   % scalar integer. This is set when projAddLandmarks is called
+    nLabelPointsAdd = 0   % scalar integer. This is set when LabelController::projAddLandmarks() is called
     
     labeledposIPtSetMap   % [nptsets x nview] 3d 'point set' identifications. labeledposIPtSetMap(iSet,:) gives
                           % point indices for set iSet in various views. init: C
@@ -2024,19 +2024,12 @@ classdef Labeler < handle
   %% Project/Lbl files
   methods
    
-    function projNew(obj,name)
+    function projNew(obj, name)
       % Create new project based on current configuration
       
-      if exist('name','var')==0
-        resp = inputdlg('Project name:','New Project');
-        if isempty(resp)
-          return;
-        end
-        name = resp{1};
-      end
       % AL empty projnames can cause trouble lets just set a default now if 
       % nec
-      if isempty(name)
+      if ~isexist('name', 'var') || isempty(name)
         name = 'APTproject';
       end
 
@@ -2672,154 +2665,7 @@ classdef Labeler < handle
         fprintf('%d\t%d\t%d\n',movs(i),tgts(i),frms(i));
       end
     end
-    
-    function projAddLandmarksFinished(obj)
-      % Used in conjunction with projAddLandmarks().  Function to finish a session
-      % of adding new kinds of landmarks to an existing project. Currently not
-      % exposed in the GUI, probably should be eventually.
-      
-      if obj.nLabelPointsAdd == 0,
-        return;
-      end
-      
-      % check if there are no partially labeled frames
-      [~,~,frms] = obj.findPartiallyLabeledFrames();
-      if numel(frms) > 0,
-        warndlg('There are still some partially labeled frames. You must label all partially labeled frames before finishing.', ...
-                'Not all frames completely labeled');
-        return;
-      end
-      
-      obj.nLabelPointsAdd = 0;
-      
-      % set label mode to sequential if sequential add
-      if obj.labelMode == LabelMode.SEQUENTIALADD,
-        obj.labelingInit('labelMode',LabelMode.SEQUENTIAL);
-      end
-      % hide sequential add mode
-      set(obj.gdata.menu_setup_sequential_add_mode,'Visible','off');
-      
-      
-    end  % function
-    
-    function projAddLandmarks(obj,nadd)
-      % Function to add new kinds of landmarks to an existing project.  E.g. If you
-      % had a fly .lbl file where you weren't tracking the wing tips, but then you
-      % wanted to start tracking the wingtips, you would call this function.
-      % Currently not exposed in the GUI, probably should be eventually.
-
-      if obj.nLabelPointsAdd > 0,
-        warndlg('Cannot add more landmarks twice in a row. If there are no more partially labeled frames, run projAddLandmarksFinished() to finish.', ...
-                'Cannot add landmarks twice');
-        return;
-      end
-      
-      
-%       % if labeling mode is sequential, set to template
-%       if strcmpi(obj.labelMode,'SEQUENTIAL'),
-%         obj.labelingInit('labelMode',LabelMode.TEMPLATE,'dosettemplate',false);
-%       end
-      
-      if obj.nview>1,
-        warning('Adding landmarks for multiview projects not yet tested. Not sure if this will work!!');
-      end
-
-      isinit0 = obj.isinit;
-      obj.isinit = true;
-      %delete(obj.lblCore);
-      %obj.lblCore = [];
-      obj.preProcData = [];
-      obj.ppdb = [];
-
-      
-      oldnphyspts = obj.nPhysPoints;
-      oldnpts = obj.nLabelPoints;
-      nptsperset = size(obj.labeledposIPtSetMap,2);
-
-      newnphyspts = oldnphyspts+nadd;
-      newnpts = oldnpts + nadd*nptsperset;
-           
-      % update landmark info
-      
-      % landmark names - one per set
-      newnames = Labeler.defaultLandmarkNames(oldnphyspts+1:oldnphyspts+nadd);
-      obj.skelNames = cat(1,obj.skelNames,newnames);
-      
-      % pt2set
-      oldipt2set = reshape(obj.labeledposIPt2Set,[oldnphyspts,nptsperset]);
-      newipt2set = repmat(oldnphyspts+(1:nadd)',[1,nptsperset]);
-      obj.labeledposIPt2Set = reshape(cat(1,oldipt2set,newipt2set),[newnpts,1]);
-      
-      % pt2view
-      oldipt2view = reshape(obj.labeledposIPt2View,[oldnphyspts,nptsperset]);
-      newipt2view = repmat(1:nptsperset,[nadd,1]);
-      obj.labeledposIPt2View = reshape(cat(1,oldipt2view,newipt2view),[newnpts,1]);
-      
-      % this is changing for existing points if nview > 1
-      obj.labeledposIPtSetMap = reshape(1:newnpts,[newnphyspts,nptsperset]);
-      old2newpt = reshape(obj.labeledposIPtSetMap(1:oldnphyspts,:),[oldnpts,1]);
-      [~,new2oldpt] = ismember((1:newnpts)',old2newpt);
-      
-      % update labels
-      obj.labelPosAddLandmarks(new2oldpt);
-
-      % skeletonEdges and flipLandmarkMatches should not change
-      
-      obj.nLabelPoints = newnpts;
-      obj.nLabelPointsAdd = nadd*nptsperset;
-      
-      % reset colors to defaults
-      obj.labelPointsPlotInfo.Colors = feval(obj.labelPointsPlotInfo.ColorMapName,newnphyspts);
-      obj.predPointsPlotInfo.Colors = feval(obj.predPointsPlotInfo.ColorMapName,newnphyspts);
-      obj.impPointsPlotInfo.Colors = feval(obj.impPointsPlotInfo.ColorMapName,newnphyspts);
-
-      % reset reference frame plotting
-      obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-                                   obj.gdata.axes_prev,obj.labelPointsPlotInfo);
-      if ~isempty(obj.prevAxesModeInfo)
-        obj.prevAxesLabelsRedraw();
-      end
-      
-      % remake info timeline
-      handles = guidata(obj.hFig);
-%      handles.labelTLInfo.delete();
-%       handles.labelTLInfo = InfoTimeline(obj,handles.axes_timeline_manual,...
-%         handles.axes_timeline_islabeled);
-      handles.labelTLInfo.initNewProject();
-      handles.labelTLInfo.setLabelsFull(true);
-      guidata(obj.hFig,handles);
-      
-      % clear tracking data
-      cellfun(@(x)x.clearTracklet(),obj.labels2);
-      cellfun(@(x)x.clearTracklet(),obj.labels2GT);
-            
-      % Reset .trackersAll
-      for i=1:numel(obj.trackersAll)
-        % explicitly delete, conservative cleanup
-        delete(obj.trackersAll{i}); % delete([]) does not err
-      end
-      obj.trackersAll = cell(1,0);
-      obj.trackInitAllTrackers();
-      % Trackers created/initted in projLoad and projNew; eg when loading,
-      % the loaded .lbl knows what trackers to create.
-      obj.currTracker = 1;
-      
-      obj.trackDLBackEnd = DLBackEndClass() ;
-      obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
-      % not resetting trackParams, hopefully nothing in here that depends
-      % on number of landmarks
-      %obj.trackParams = [];
-      
-      obj.labeledposNeedsSave = true;
-      obj.doesNeedSave_ = true;     
-      
-      obj.lblCore.init(newnphyspts,obj.labelPointsPlotInfo);
-      obj.preProcInit();
-      obj.isinit = isinit0;
-      obj.labelsUpdateNewFrame(true);
-      set(obj.gdata.menu_setup_sequential_add_mode,'Visible','on');
-    end  % function
-    
+        
 %     function projImport(obj,fname)
 %       % 'Import' the project fname, MERGING movies/labels into the current project.
 %           
