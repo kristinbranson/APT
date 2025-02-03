@@ -104,7 +104,7 @@ if exist('OCTAVE_VERSION','builtin')
     PLOT2SVG_globals.octave = true;
     disp('   Info: PLOT2SVG runs in Octave mode.')
 else
-    if str2num(matversion(1))<6 % Check for matlab version and print warning if matlab version lower than version 6.0 (R.12)
+    if str2double(matversion(1))<6 % Check for matlab version and print warning if matlab version lower than version 6.0 (R.12)
         disp('   Warning: Future versions may no more support older versions than MATLAB R12.')
     end
 end
@@ -2380,7 +2380,7 @@ if strcmp(get(ax,'XTickLabelMode'),'auto') && strcmp(get(ax,'XScale'),'linear')
     fontsize=convertunit(get(ax,'FontSize'),get(ax,'FontUnits'),'points');   % convert fontsize to inches
     font_color=searchcolor(ax,get(ax,'XColor'));
     if PLOT2SVG_globals.octave
-        % Octave stores XTickLabel in a cell array, which does not work nicely with str2num. --Jakob Malm
+        % Octave stores XTickLabel in a cell array, which does not work nicely with str2double. --Jakob Malm
         axlabelx = get(ax, 'XTickLabel');
         numlabels = zeros(length(axlabelx), 1);
         for ix = 1:length (axlabelx)
@@ -2405,14 +2405,14 @@ if strcmp(get(ax,'YTickLabelMode'),'auto') && strcmp(get(ax,'YScale'),'linear')
     fontsize=convertunit(get(ax,'FontSize'),get(ax,'FontUnits'),'points');
     font_color=searchcolor(ax,get(ax,'YColor'));
     if PLOT2SVG_globals.octave
-        % Octave stores YTickLabel in a cell array, which does not work nicely with str2num. --Jakob Malm
+        % Octave stores YTickLabel in a cell array, which does not work nicely with str2double. --Jakob Malm
         axlabely = get(ax, 'YTickLabel');
         numlabels = zeros(length(axlabely), 1);
         for ix = 1:length(axlabely)
-            numlabels(ix) = str2num(axlabely{ix});
+            numlabels(ix) = str2double(axlabely{ix});
         end        
     else
-        numlabels = str2num(get(ax,'YTickLabel'));
+        numlabels = str2double(get(ax,'YTickLabel'));
     end
     labelpos = get(ax,'YTick');
     numlabels = numlabels(:);
@@ -2429,26 +2429,28 @@ end
 if strcmp(get(ax,'ZTickLabelMode'),'auto') && strcmp(get(ax,'ZScale'),'linear')
     fontsize=convertunit(get(ax,'FontSize'),get(ax,'FontUnits'),'points');
     font_color=searchcolor(ax,get(ax,'ZColor'));
-    if PLOT2SVG_globals.octave
-        % Octave stores ZTickLabel in a cell array, which does not work nicely with str2num. --Jakob Malm
-        axlabelz = get (ax, 'ZTickLabel');
+    axlabelz = get (ax, 'ZTickLabel');
+    if ~isempty(axlabelz),
+      if PLOT2SVG_globals.octave
+        % Octave stores ZTickLabel in a cell array, which does not work nicely with str2double. --Jakob Malm
         numlabels = zeros(length(axlabelz), 1);
         for ix = 1:length(axlabelz)
-            numlabels(ix) = str2num(axlabelz{ix});
+          numlabels(ix) = str2double(axlabelz{ix});
         end
-    else
-        numlabels = str2num(get(ax,'ZTickLabel'));
-    end
-    labelpos = get(ax,'ZTick');
-    numlabels = numlabels(:);
-    labelpos = labelpos(:);
-    indexnz = find(labelpos ~= 0);
-    if (~isempty(indexnz) && ~isempty(numlabels))
+      else
+        numlabels = str2double(axlabelz);
+      end
+      labelpos = get(ax,'ZTick');
+      numlabels = numlabels(:);
+      labelpos = labelpos(:);
+      indexnz = find(labelpos ~= 0);
+      if (~isempty(indexnz) && ~isempty(numlabels))
         ratio = numlabels(indexnz)./labelpos(indexnz);
         if round(log10(ratio(1))) ~= 0
-            exptext = sprintf('&#215; 10<tspan font-size="%0.1fpt" dy="%0.1fpt">%g</tspan>',0.7*fontsize,-0.7*fontsize,-log10(ratio(1)));
-            label2svg(fid,group,axpos,ax,axpos(1)*paperpos(3),(1-(axpos(2)+axpos(4)))*paperpos(4)-0.5*fontsize,exptext,'left',0,'top',1,paperpos,font_color,0)           
+          exptext = sprintf('&#215; 10<tspan font-size="%0.1fpt" dy="%0.1fpt">%g</tspan>',0.7*fontsize,-0.7*fontsize,-log10(ratio(1)));
+          label2svg(fid,group,axpos,ax,axpos(1)*paperpos(3),(1-(axpos(2)+axpos(4)))*paperpos(4)-0.5*fontsize,exptext,'left',0,'top',1,paperpos,font_color,0)
         end
+      end
     end
 end
 

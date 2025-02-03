@@ -3464,7 +3464,7 @@ classdef Labeler < handle
           continue;
         end
         for j = 1:numel(tObj.trnLastDMC.n),
-          nettype = tObj.trnLastDMC.getType(j);
+          nettype = tObj.trnLastDMC.getNetType(j);
           nettype = char(nettype{1});
           netmode = tObj.trnLastDMC.getNetMode(j);
           netmode = char(netmode{1});
@@ -3473,8 +3473,8 @@ classdef Labeler < handle
           fprintf('Tracker %d: %s, view %d, stage %d, mode %s\n',i,nettype,tObj.trnLastDMC.getView(j),tObj.trnLastDMC.getStages(j),netmode);
           fprintf('  Trained %s for %d iterations on %d labels\n',trainid,tObj.trnLastDMC.getIterCurr(j),tObj.trnLastDMC.getNLabels(j));
           if fileinfo,
-            fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx(j));
-            fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx(j));
+            fprintf('  Train config file: %s\n',tObj.trnLastDMC.trainConfigLnx{j});
+            fprintf('  Current trained model: %s\n',tObj.trnLastDMC.trainCurrModelLnx{j});
           end
         end
       end
