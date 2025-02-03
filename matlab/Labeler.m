@@ -362,7 +362,6 @@ classdef Labeler < handle
     nmoviesGTaware 
     moviesSelected  % [nSel] vector of MovieIndices currently selected in MovieManager. GT mode ok.
     doesNeedSave
-    isTrainingSplits
   end
   
   %% Crop
@@ -1810,7 +1809,7 @@ classdef Labeler < handle
       
       obj.isinit = isinit0;
       
-    end
+    end  % function
     
     function cfg = getCurrentConfig(obj)
       % cfg is modernized
@@ -3309,7 +3308,7 @@ classdef Labeler < handle
           end
         end
       end     
-    end
+    end  % function
     
     function s = projMacrosGetWithAuto(obj)
       % append auto-generated macros to .projMacros

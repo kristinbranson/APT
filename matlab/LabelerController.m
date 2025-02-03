@@ -78,6 +78,12 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'newProject',@(source,event)(obj.didCreateNewProject()));
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetProjname',@(source,event)(obj.didChangeProjectName()));      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetProjFSInfo',@(source,event)(obj.cbkProjFSInfoChanged()));      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.cbkMovieInvertChanged()));      
+      obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
@@ -813,9 +819,7 @@ classdef LabelerController < handle
     end  % function
 
     function enableControls_(obj, state)
-      % Enable controls.  This method needs to be kept in sync with EnableControls()
-      % in LabelerGUI.m, until in the fullness of time EnableControls() gets
-      % deleted.
+      % Enable/disable controls, as appropriate.
 
       % Get the handles out of the main figure
       main_figure = obj.mainFigure_ ;
@@ -1257,7 +1261,7 @@ classdef LabelerController < handle
       %handles = clearDepHandles(handles);
       obj.clearSatellites() ;
       
-      handles = initTblFrames(handles,labeler.maIsMA);
+      handles = apt.initTblFrames(handles, labeler.maIsMA) ;
       
       %curr_status_string=handles.txStatus.String;
       %SetStatus(handles,curr_status_string,true);
@@ -1323,7 +1327,7 @@ classdef LabelerController < handle
       % AL 20191002 This is to enable labeling simple projs without the Image
       % toolbox (crop init uses imrect)
       try
-        handles = cropInitImRects(handles);
+        handles = obj.cropInitImRects(handles);
       catch ME
         fprintf(2,'Crop Mode initialization error: %s\n',ME.message);
       end
@@ -1341,15 +1345,15 @@ classdef LabelerController < handle
         delete(handles.hLinkPrevCurr);
       end
       viewCfg = labeler.projPrefs.View;
-      handles.newProjAxLimsSetInConfig = hlpSetConfigOnViews(viewCfg,handles,...
+      handles.newProjAxLimsSetInConfig = apt.hlpSetConfigOnViews(viewCfg,handles,...
         viewCfg(1).CenterOnTarget); % lObj.CenterOnTarget is not set yet
       AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
       handles.hLinkPrevCurr = ...
         linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
       
       arrayfun(@(x)colormap(x,gray),figs);
-      setGUIFigureNames(handles,labeler,figs);
-      setMainAxesName(handles,labeler);
+      obj.setGUIFigureNames_() ;
+      obj.setMainAxesName_();
       
       arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
       arrayfun(@(x)pan(x,'off'),handles.figs_all);
@@ -1366,7 +1370,7 @@ classdef LabelerController < handle
       % be cleared
       set(handles.tblTrx,'Data',cell(0,size(handles.tblTrx.ColumnName,2)));
       
-      handles = setShortcuts(handles);
+      handles = obj.setShortcuts_(handles);
       
       handles.labelTLInfo.initNewProject();
       
@@ -1385,5 +1389,212 @@ classdef LabelerController < handle
       % Re-store the modified guidata in the figure
       guidata(obj.mainFigure_, handles) ;
     end  % function
+
+    function menu_file_new_actuated(obj)
+      % Create a new project
+      lableler = obj.labeler_ ;
+      lableler.setStatus('Starting New Project');
+      if obj.raiseUnsavedChangesDialogIfNeeded() ,
+        cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
+        if ~isempty(cfg)    
+          lableler.setStatus('Configuring New Project') ;
+          lableler.initFromConfig(cfg);
+          lableler.projNew(cfg.ProjectName);
+          lableler.setStatus('Adding Movies') ;
+          if ~isempty(controller.movieManagerController_) && isvalid(controller.movieManagerController_) ,
+            controller.movieManagerController_.setVisible(true);
+          else
+            error('LabelerController:menu_file_new_actuated', 'Please create or load a project.') ;
+          end
+        end  
+      end
+      labeler.clearStatus();
+    end  % function
+
+    function updateMainFigureName(obj)    
+      labeler = obj.labeler_ ;
+      maxlength = 80;
+      if isempty(labeler.projectfile),
+        projname = [labeler.projname,' (unsaved)'];
+      elseif numel(labeler.projectfile) <= maxlength,
+        projname = labeler.projectfile;
+      else
+        [~,projname,ext] = fileparts(labeler.projectfile);
+        projname = [projname,ext];
+      end
+      obj.mainFigure_.Name = sprintf('APT - Project %s',projname) ;
+    end  % function
+
+    function didChangeProjectName(obj)
+      labeler = obj.labeler_ ;
+      str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now(),16));
+      labeler.setRawStatusStringWhenClear_(str) ;
+      obj = labeler.controller_ ;
+      obj.updateMainFigureName() ;
+    end  % function
+
+    function cbkProjFSInfoChanged(obj)
+      labeler = obj.labeler_ ;
+      info = labeler.projFSInfo ;
+      if ~isempty(info)
+        str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16)) ;
+        labeler.setRawStatusStringWhenClear_(str) ;
+      end
+      obj.updateMainFigureName() ;
+    end  % function
+
+    function cbkMovieInvertChanged(obj)
+      labeler = obj.labeler_ ;
+      handles = guidata(obj.mainFigure_) ;
+      figs = handles.figs_all ;
+      obj.setGUIFigureNames_() ;
+      obj.setMainAxesName_() ;
+      movInvert = labeler.movieInvert ;
+      viewNames = labeler.viewNames ;
+      for i=1:labeler.nview
+        name = viewNames{i};
+        if isempty(name)
+          name = '';
+        else
+          name = sprintf('View: %s',name);
+        end
+        if movInvert(i)
+          name = [name ' (movie inverted)']; %#ok<AGROW>
+        end
+        figs(i).Name = name;
+      end      
+    end  % function
+
+    function setGUIFigureNames_(obj)
+      labeler = obj.labeler_ ;
+      handles = guidata(obj.mainFigure_) ;
+      figs = handles.figs_all ;
+
+      obj.updateMainFigureName() ;
+      viewNames = labeler.viewNames ;
+      for i=2:labeler.nview ,
+        vname = viewNames{i} ;
+        if isempty(vname)
+          str = sprintf('View %d',i) ;
+        else
+          str = sprintf('View: %s',vname) ;
+        end
+        if numel(labeler.movieInvert) >= i && labeler.movieInvert(i) ,
+          str = [str,' (inverted)'] ;  %#ok<AGROW>
+        end
+        figs(i).Name = str ;
+        figs(i).NumberTitle = 'off' ;
+      end
+    end  % function
+
+    function setMainAxesName_(obj)
+      labeler = obj.labeler_ ;
+      viewNames = labeler.viewNames ;
+      if labeler.nview > 1 ,
+        if isempty(viewNames{1}) ,
+          str = 'View 1, ' ;
+        else
+          str = sprintf('View: %s, ',viewNames{1}) ;
+        end
+      else
+        str = '' ;
+      end
+      mname = labeler.moviename ;
+      if labeler.nview>1
+        str = [str,sprintf('Movieset %d',labeler.currMovie)] ;
+      else
+        str = [str,sprintf('Movie %d',labeler.currMovie)] ;
+      end
+      if labeler.gtIsGTMode
+        str = [str,' (GT)'] ;
+      end
+      str = [str,': ',mname] ;
+      if ~isempty(labeler.movieInvert) && labeler.movieInvert(1) ,
+        str = [str,' (inverted)'] ;
+      end
+      handles = guidata(obj.mainFigure_) ;
+      set(handles.txMoviename,'String',str) ;
+    end  % function
+    
+    function handles = setShortcuts_(obj, handles)
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      prefs = labeler.projPrefs;
+      if ~isfield(prefs,'Shortcuts')
+        return;
+      end
+      prefs = prefs.Shortcuts;
+      fns = fieldnames(prefs);
+      ismenu = false(1,numel(fns));
+      for i = 1:numel(fns)
+        h = findobj(mainFigure,'Tag',fns{i},'-property','Accelerator');
+        if isempty(h) || ~ishandle(h)
+          continue;
+        end
+        ismenu(i) = true;
+        set(h,'Accelerator',prefs.(fns{i}));
+      end
+      handles.shortcutkeys = cell(1,nnz(~ismenu));
+      handles.shortcutfns = cell(1,nnz(~ismenu));
+      idxnotmenu = find(~ismenu);
+      for ii = 1:numel(idxnotmenu)
+        i = idxnotmenu(ii);
+        handles.shortcutkeys{ii} = prefs.(fns{i});
+        handles.shortcutfns{ii} = fns{i};
+      end
+    end  % function
+
+    function menu_file_shortcuts_actuated(obj)
+      labeler = obj.labeler_ ;
+      while true,
+        [~,newShortcuts] = propertiesGUI([],labeler.projPrefs.Shortcuts);
+        shs = struct2cell(newShortcuts);
+        % everything should just be one character
+        % no repeats
+        uniqueshs = unique(shs);
+        isproblem = any(cellfun(@numel,shs) ~= 1) || numel(uniqueshs) < numel(shs);
+        if ~isproblem,
+          break;
+        end
+        res = questdlg('All shortcuts must be unique, single-character letters','Error setting shortcuts','Try again','Cancel','Try again');
+        if strcmpi(res,'Cancel'),
+          return;
+        end
+      end
+      %oldShortcuts = lObj.projPrefs.Shortcuts;
+      labeler.projPrefs.Shortcuts = newShortcuts ;
+      handles = guidata(obj.mainFigure_) ;
+      handles = obj.setShortcuts_(handles);
+      guidata(obj.mainFigure_, handles) ;
+    end  % function
+
+    function handles = cropInitImRects(obj, handles)
+      deleteValidGraphicsHandles(handles.cropHRect);
+      handles.cropHRect = ...
+        arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all,'uni',0); %#ok<IMRECT>
+      handles.cropHRect = cat(1,handles.cropHRect{:}); % ML 2016a ish can't concat imrects in arrayfun output
+      arrayfun(@(x)set(x,'Visible','off','PickableParts','none','UserData',true),...
+        handles.cropHRect); % userdata: see cropImRectSetPosnNoPosnCallback
+      for ivw=1:numel(handles.axes_all)
+        posnCallback = @(zpos)cbkCropPosn(obj,zpos,ivw);
+        handles.cropHRect(ivw).addNewPositionCallback(posnCallback);
+      end
+    end  % function
+
+    function cbkCropPosn(obj,posn,iview)
+      labeler = obj.labeler_ ;
+      hFig = obj.mainFigure_ ;
+      handles = guidata(hFig) ;
+      tfSetPosnLabeler = get(handles.cropHRect(iview),'UserData');
+      if tfSetPosnLabeler
+        [roi,roiw,roih] = CropInfo.rectPos2roi(posn);
+        tb = handles.tbAdjustCropSize;
+        if tb.Value==tb.Max  % tbAdjustCropSizes depressed; using as proxy for, imrect is resizable
+          fprintf('roi (width,height): (%d,%d)\n',roiw,roih);
+        end
+        labeler.cropSetNewRoiCurrMov(iview,roi);
+      end
+    end  % function
+
   end  % methods  
 end  % classdef
