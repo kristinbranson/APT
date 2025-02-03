@@ -2911,6 +2911,7 @@ classdef DeepTracker < LabelTracker
 
       % start track monitor
       assert(isempty(obj.bgTrkMonitor));
+      assert(isempty(obj.bgTrackPoller));
 
       %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
@@ -2940,7 +2941,6 @@ classdef DeepTracker < LabelTracker
       if ~isempty(obj.bgTrkMonitor)
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
       end
-      assert(isempty(obj.bgTrackPoller));
       obj.bgTrkMonitor = bgTrkMonitorObj;
       % bgTrkMonitorObj.start();
 

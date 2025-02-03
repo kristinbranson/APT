@@ -93,7 +93,7 @@ classdef TrackMonitorViz < handle
       obj.parent_ = parent ;
       obj.labeler_ = labeler ;
 
-      nview = labeler.nviews ;
+      nview = labeler.nview ;
       dtObj = labeler.tracker ;
       poller = labeler.tracker.bgTrackPoller ;
       backendType = labeler.backend.type ;

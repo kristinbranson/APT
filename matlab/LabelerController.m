@@ -1191,7 +1191,9 @@ classdef LabelerController < handle
     function updateTrackMonitorViz(obj)
       labeler = obj.labeler_ ;
       sRes = labeler.tracker.bgTrkMonitor.sRes ;
-      obj.trackingMonitorVisualizer_.resultsReceived(sRes) ;
+      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_) ,
+        obj.trackingMonitorVisualizer_.resultsReceived(sRes) ;
+      end
     end  % function
 
     function refreshTrainMonitorViz(obj)
@@ -1359,7 +1361,7 @@ classdef LabelerController < handle
       arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
       arrayfun(@(x)pan(x,'off'),handles.figs_all);
       hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
-      set(hTmp,'KeyPressFcn',@(src,evt)cbkKPF(src,evt,labeler));
+      set(hTmp,'KeyPressFcn',@(src,evt)(obj.cbkKPF(src,evt))) ;
       handles.h_ignore_arrows = [handles.slider_frame];
       %set(handles.figs_all,'WindowButtonMotionFcn',@(src,evt)cbkWBMF(src,evt,lObj));
       %set(handles.figs_all,'WindowButtonUpFcn',@(src,evt)cbkWBUF(src,evt,lObj));
@@ -1603,5 +1605,108 @@ classdef LabelerController < handle
       handles.menu_view_show_grid.Checked = axes_all(1).XGrid;
     end  % function
     
+    function tfKPused = cbkKPF(obj, source, event)
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.isReady ,
+        return
+      end
+      
+      tfKPused = false;
+      isarrow = ismember(event.Key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'});
+      if isarrow && ismember(source,handles.h_ignore_arrows),
+        return
+      end
+      
+      % % first try user-defined KeyPressHandlers
+      % kph = lObj.keyPressHandlers ;
+      % for i = 1:numel(kph) ,
+      %   tfKPused = kph(i).handleKeyPress(evt, lObj) ;
+      %   if tfKPused ,
+      %     return
+      %   end
+      % end
+      
+      tfShift = any(strcmp('shift',event.Modifier));
+      tfCtrl = any(strcmp('control',event.Modifier));
+      
+      isMA = labeler.maIsMA;
+      % KB20160724: shortcuts from preferences
+      % skip this for MA projs where we need separate hotkey mappings
+      if ~isMA && all(isfield(handles,{'shortcutkeys','shortcutfns'}))
+        % control key pressed?
+        if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,handles.shortcutkeys))
+          i = find(strcmpi(event.Key,handles.shortcutkeys),1);
+          h = findobj(handles.figure,'Tag',handles.shortcutfns{i},'-property','Callback');
+          if isempty(h)
+            fprintf('Unknown shortcut handle %s\n',handles.shortcutfns{i});
+          else
+            cb = get(h,'Callback');
+            if isa(cb,'function_handle')
+              cb(h,[]);
+              tfKPused = true;
+            elseif iscell(cb)
+              cb{1}(cb{2:end});
+              tfKPused = true;
+            elseif ischar(cb)
+              evalin('base',[cb,';']);
+              tfKPused = true;
+            end
+          end
+        end  
+      end
+      if tfKPused
+        return
+      end
+      
+      lcore = labeler.lblCore;
+      if ~isempty(lcore)
+        tfKPused = lcore.kpf(source,event);
+        if tfKPused
+          return
+        end
+      end
+      
+      %disp(evt);
+      if any(strcmp(event.Key,{'leftarrow' 'rightarrow'}))
+        switch event.Key
+          case 'leftarrow'
+            if tfShift
+              sam = labeler.movieShiftArrowNavMode;
+              samth = labeler.movieShiftArrowNavModeThresh;
+              samcmp = labeler.movieShiftArrowNavModeThreshCmp;
+              [tffound,f] = sam.seekFrame(labeler,-1,samth,samcmp);
+              if tffound
+                labeler.setFrameProtected(f);
+              end
+            else
+              labeler.frameDown(tfCtrl);
+            end
+            tfKPused = true;
+          case 'rightarrow'
+            if tfShift
+              sam = labeler.movieShiftArrowNavMode;
+              samth = labeler.movieShiftArrowNavModeThresh;
+              samcmp = labeler.movieShiftArrowNavModeThreshCmp;
+              [tffound,f] = sam.seekFrame(labeler,1,samth,samcmp);
+              if tffound
+                labeler.setFrameProtected(f);
+              end
+            else
+              labeler.frameUp(tfCtrl);
+            end
+            tfKPused = true;
+        end
+        return
+      end
+      
+      if labeler.gtIsGTMode && strcmp(event.Key,{'r'})
+        labeler.gtNextUnlabeledUI();
+        return
+      end
+    end  % function
+          
   end  % methods  
 end  % classdef
