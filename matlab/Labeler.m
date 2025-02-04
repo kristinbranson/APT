@@ -4671,10 +4671,9 @@ classdef Labeler < handle
       tfsuccess = true;
     end  % function
     
-    function tfsuccess = movieSet(obj,iMov,varargin)
-        
-      %notify(obj,'startSetMovie')
-      % iMov: If multivew, movieSet index (row index into .movieFilesAll)
+    function tfsuccess = movieSet(obj, iMov, varargin)
+      % Set the current movie to the one indicated by iMov.
+      % iMov: If multiview, movieSet index (row index into .movieFilesAll)
             
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
       assert(any(iMov==1:obj.nmoviesGTaware),...

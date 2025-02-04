@@ -1093,33 +1093,6 @@ ax = findall(src,'type','axes');
 axis(ax,'image')
 axis(ax,'auto');
 
-function cbkAuxFigCloseReq(src,data,controller)
-
-if ~controller.isSatellite(src) 
-  delete(src);
-  return  
-end
-
-CLOSESTR = 'Close anyway';
-DONTCLOSESTR = 'Cancel, don''t close';
-tfbatch = batchStartupOptionUsed; % ci
-if tfbatch
-  sel = CLOSESTR;
-else
-  sel = questdlg('This figure is required for your current multiview project.',...
-    'Close Request Function',...
-    DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
-  if isempty(sel)
-    sel = DONTCLOSESTR;
-  end
-end
-switch sel
-  case DONTCLOSESTR
-    % none
-  case CLOSESTR
-    delete(src)
-end
-
 function cbkWBMF(src,evt,lObj)
 lcore = lObj.lblCore;
 if ~isempty(lcore)

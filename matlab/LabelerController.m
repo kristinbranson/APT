@@ -1267,12 +1267,14 @@ classdef LabelerController < handle
 
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
-      handles = guidata(obj.mainFigure_) ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
       
       %handles = clearDepHandles(handles);
       obj.clearSatellites() ;
       
-      handles = apt.initTblFrames(handles, labeler.maIsMA) ;
+      % Initialize the uitable of labeled frames
+      obj.initTblFrames_() ;
       
       %curr_status_string=handles.txStatus.String;
       %SetStatus(handles,curr_status_string,true);
@@ -1304,14 +1306,15 @@ classdef LabelerController < handle
       set(ims(1),'CData',0); % reset image
       %controller = handles.controller ;
       for iView=2:nview
-        figs(iView) = figure(...
-          'CloseRequestFcn',@(s,e)cbkAuxFigCloseReq(s,e,obj),...
-          'Color',figs(1).Color,...
-          'Menubar','none',...
-          'Toolbar','figure',...
-          'UserData',struct('view',iView)...
-          );
-        axs(iView) = axes;
+        figs(iView) = ...
+          figure('CloseRequestFcn',@(s,e)(obj.cbkAuxFigCloseReq(s,e)),...
+                 'Color',figs(1).Color, ...
+                 'Menubar','none', ...
+                 'Toolbar','figure', ...
+                 'UserData',struct('view',iView), ...
+                 'Tag', sprintf('figs_all(%d)', iView) ...
+                 );
+        axs(iView) = axes('Parent', figs(iView));
         obj.addSatellite(figs(iView)) ;
         
         ims(iView) = imagesc(0,'Parent',axs(iView));
@@ -1324,9 +1327,10 @@ classdef LabelerController < handle
         axpos = axs(iView).Position;
         axunits = axs(iView).Units;
         axpos(3:4) = axpos(3:4).*axOccSzRatios;
-        axsOcc(iView) = axes('Parent',axparent,'Position',axpos,'Units',axunits,...
-          'Color',[0 0 0],'Box','on','XTick',[],'YTick',[],'XColor',axOcc1XColor,...
-          'YColor',axOcc1XColor);
+        axsOcc(iView) = ...
+          axes('Parent',axparent,'Position',axpos,'Units',axunits,...
+               'Color',[0 0 0],'Box','on','XTick',[],'YTick',[],'XColor',axOcc1XColor,...
+               'YColor',axOcc1XColor);
         hold(axsOcc(iView),'on');
         axis(axsOcc(iView),'ij');
       end
@@ -1338,7 +1342,7 @@ classdef LabelerController < handle
       % AL 20191002 This is to enable labeling simple projs without the Image
       % toolbox (crop init uses imrect)
       try
-        handles = obj.cropInitImRects(handles);
+        handles = obj.cropInitImRects_(handles) ;
       catch ME
         fprintf(2,'Crop Mode initialization error: %s\n',ME.message);
       end
@@ -1351,19 +1355,28 @@ classdef LabelerController < handle
       
       axis(handles.axes_occ,[0 labeler.nLabelPoints+1 0 2]);
       
+      % Delete handles.hLinkPrevCurr
       % The link destruction/recreation may not be necessary
       if isfield(handles,'hLinkPrevCurr') && isvalid(handles.hLinkPrevCurr)
         delete(handles.hLinkPrevCurr);
       end
+
+      % Copy the handles back to the figure guidata, b/c obj.hlpSetConfigOnViews()
+      % needs them to be up-to-date
+      guidata(mainFigure, handles) ;
+      
+      % Configure the non-primary view windows
       viewCfg = labeler.projPrefs.View;
       handles.newProjAxLimsSetInConfig = ...
-        obj.hlpSetConfigOnViews_(viewCfg,...
+        obj.hlpSetConfigOnViews_(viewCfg, ...
                                  viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
+        % This use of apt.hlpSetConfigOnViews() is a bit sketchy, but if you change
+        % it, note that handles at this point is out-of-sync with guidata(mainFigure)
       AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
       handles.hLinkPrevCurr = ...
         linkprop([handles.axes_curr,handles.axes_prev],AX_LINKPROPS);
       
-      arrayfun(@(x)colormap(x,gray),figs);
+      arrayfun(@(x)(colormap(x,gray())),figs);
       obj.updateGUIFigureNames_() ;
       obj.updateMainAxesName_();
       
@@ -1399,7 +1412,7 @@ classdef LabelerController < handle
       obj.addSatellite(handles.GTMgr) ;
       
       % Re-store the modified guidata in the figure
-      guidata(obj.mainFigure_, handles) ;
+      guidata(mainFigure, handles) ;
     end  % function
 
     function menu_file_new_actuated(obj, ~, ~)
@@ -1550,7 +1563,7 @@ classdef LabelerController < handle
       guidata(obj.mainFigure_, handles) ;
     end  % function
 
-    function handles = cropInitImRects(obj, handles)
+    function handles = cropInitImRects_(obj, handles)
       deleteValidGraphicsHandles(handles.cropHRect);
       handles.cropHRect = ...
         arrayfun(@(x)imrect(x,[nan nan nan nan]),handles.axes_all,'uni',0); %#ok<IMRECT>
@@ -1580,34 +1593,14 @@ classdef LabelerController < handle
 
     function menu_view_reset_views_actuated(obj, source, event)  %#ok<INUSD>
       labeler = obj.labeler_ ;
+      %mainFigure = obj.mainFigure_ ;
+      %handles = guidata(mainFigure) ;
       viewCfg = labeler.projPrefs.View;
       obj.hlpSetConfigOnViews_(viewCfg, labeler.movieCenterOnTarget) ;
       movInvert = ViewConfig.getMovieInvert(viewCfg);
       labeler.movieInvert = movInvert;
       labeler.movieCenterOnTarget = viewCfg(1).CenterOnTarget;
       labeler.movieRotateTargetUp = viewCfg(1).RotateTargetUp;
-    end  % function
-    
-    function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews_(obj, viewCfg, centerOnTarget)
-      %labeler = obj.labeler_ ;
-      hFig = obj.mainFigure_ ;
-      handles = guidata(hFig) ;
-      axes_all = handles.axes_all;
-      tfAxLimsSpecifiedInCfg = ...
-        ViewConfig.setCfgOnViews(viewCfg, ...
-                                 handles.figs_all, ...
-                                 axes_all, ...
-                                 handles.images_all, ...
-                                 handles.axes_prev) ;
-      if ~centerOnTarget
-        [axes_all.CameraUpVectorMode] = deal('auto');
-        [axes_all.CameraViewAngleMode] = deal('auto');
-        [axes_all.CameraTargetMode] = deal('auto');
-        [axes_all.CameraPositionMode] = deal('auto');
-      end
-      [axes_all.DataAspectRatio] = deal([1 1 1]);
-      handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axes_all(1).XTickLabel));
-      handles.menu_view_show_grid.Checked = axes_all(1).XGrid;
     end  % function
     
     function tfKPused = cbkKPF(obj, source, event)
@@ -2480,5 +2473,89 @@ classdef LabelerController < handle
       handles.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
     end  % function
     
+    function initTblFrames_(obj)
+      % Initialize the uitable of labeled frames in the 'Labeled Frames' window.
+
+      labeler = obj.labeler_ ;      
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tbl0 = handles.tblFrames ;
+      isMA = labeler.maIsMA ;
+
+      tbl0.Units = 'pixel';
+      tw = tbl0.Position(3);
+      if tw<50,  tw= 50; end
+      tbl0.Units = 'normalized';
+      if isMA
+        COLNAMES = {'Frm' 'Tgts' 'Pts' 'ROIs'};
+        COLWIDTH = {min(tw/4-1,80) min(tw/4-5,40) max(tw/4-7,10) max(tw/4-7,10)};
+      else
+        COLNAMES = {'Frame' 'Tgts' 'Pts'};
+        COLWIDTH = {100 50 'auto'};
+      end
+
+      set(tbl0,...
+        'ColumnWidth',COLWIDTH,...
+        'ColumnName',COLNAMES,...
+        'Data',cell(0,numel(COLNAMES)),...
+        'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
+        'FontUnits','points',...
+        'FontSize',9.75,... % matches .tblTrx
+        'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
+    end  % function
+    
+    function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews_(obj, viewCfg, centerOnTarget)
+      % Configure the figures and axes showing the different views of the animal(s)
+      % according to the specification in viewCfg.
+
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      axes_all = handles.axes_all;
+      tfAxLimsSpecifiedInCfg = ...
+        ViewConfig.setCfgOnViews(viewCfg, ...
+                                 handles.figs_all, ...
+                                 axes_all, ...
+                                 handles.images_all, ...
+                                 handles.axes_prev) ;
+      if ~centerOnTarget
+        [axes_all.CameraUpVectorMode] = deal('auto');
+        [axes_all.CameraViewAngleMode] = deal('auto');
+        [axes_all.CameraTargetMode] = deal('auto');
+        [axes_all.CameraPositionMode] = deal('auto');
+      end
+      [axes_all.DataAspectRatio] = deal([1 1 1]);
+      handles.menu_view_show_tick_labels.Checked = onIff(~isempty(axes_all(1).XTickLabel));
+      handles.menu_view_show_grid.Checked = axes_all(1).XGrid;
+    end  % function
+    
+    function cbkAuxFigCloseReq(controller, src, evt)    
+      if ~controller.isSatellite(src) 
+        delete(src);
+        return  
+      end
+      
+      CLOSESTR = 'Close anyway';
+      DONTCLOSESTR = 'Cancel, don''t close';
+      tfbatch = batchStartupOptionUsed() ; % ci
+      if tfbatch
+        sel = CLOSESTR;
+      else
+        sel = questdlg('This figure is required for your current multiview project.',...
+          'Close Request Function',...
+          DONTCLOSESTR,CLOSESTR,DONTCLOSESTR);
+        if isempty(sel)
+          sel = DONTCLOSESTR;
+        end
+      end
+      switch sel
+        case DONTCLOSESTR
+          % none
+        case CLOSESTR
+          delete(src)
+      end    
+    end   % function
+
   end  % methods  
 end  % classdef
