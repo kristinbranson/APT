@@ -764,7 +764,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrainPoller = [];
     end    
     
-    function tf = getHasTrained(obj)
+    function tf = hasBeenTrained(obj)
       tf = ~isempty(obj.trnLastDMC);
     end
     

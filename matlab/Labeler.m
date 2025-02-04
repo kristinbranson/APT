@@ -2973,7 +2973,7 @@ classdef Labeler < handle
             end
 
             if verbose,
-              fprintf(1,'Saving model for nettype ''%s'' from %s.\n',...
+              fprintf('Saving model for nettype ''%s'' from %s.\n',...
                       tObj.trnNetType,dmc.getRootDir);
             end
             modelFilesDst = tObj.copyModelFiles(projtempdir,verbose);
@@ -2982,6 +2982,8 @@ classdef Labeler < handle
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
                            tObj.trnNetType,ndx,ME.getReport());
           end
+        else
+          error('Not implemented') ;
         end
       end
       
@@ -10061,7 +10063,7 @@ classdef Labeler < handle
       obj.preProcInitData();
       obj.ppdbInit();
       for i=1:numel(obj.trackersAll)
-        if obj.trackersAll{i}.getHasTrained()
+        if obj.trackersAll{i}.hasBeenTrained()
           warningNoTrace('Trained tracker(s) and tracking results cleared.');
           break;
         end
@@ -10600,7 +10602,7 @@ classdef Labeler < handle
   %% Tracker
   methods
     
-    function [tObj,iTrk] = trackGetTracker(obj,algoName)
+    function [tObj,iTrk] = trackGetTracker(obj, algoName)
       % Find a particular tracker
       %
       % algoName: char, to match LabelTracker.algorithmName
@@ -10610,7 +10612,7 @@ classdef Labeler < handle
       for iTrk=1:numel(obj.trackersAll)
         if strcmp(obj.trackersAll{iTrk}.algorithmName,algoName)
           tObj = obj.trackersAll{iTrk};
-          return;
+          return
         end
       end
       tObj = [];

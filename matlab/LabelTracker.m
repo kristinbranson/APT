@@ -162,7 +162,7 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function tf = getHasTrained(obj)
+    function tf = hasBeenTrained(obj)
       %
     end
     

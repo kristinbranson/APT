@@ -3257,7 +3257,7 @@ if lObj.gtIsGTMode
   handles.labelerObj.lerror('LabelerGUI:gt','Unsupported in GT mode.');
 end
 
-if ~isempty(tObj) && tObj.getHasTrained() && (~lObj.maIsMA)
+if ~isempty(tObj) && tObj.hasBeenTrained() && (~lObj.maIsMA)
   % single animal. Use prediction if available else use imported below
   [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
   itgt = lObj.currTarget;
