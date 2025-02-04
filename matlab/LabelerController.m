@@ -2106,7 +2106,7 @@ classdef LabelerController < handle
         return
       end
       lObj.trackDLBackEnd.jrcnslots = n ;
-    end
+    end  % function
 
     function cbkTrackerBackendSetJRCNSlotsTrack(obj)
       lObj = obj.labeler_ ;
@@ -2119,7 +2119,7 @@ classdef LabelerController < handle
         return
       end
       lObj.trackDLBackEnd.jrcnslotstrack = n ;
-    end
+    end  % function
     
     function cbkTrackerBackendAdditionalBsubArgs(obj)
       lObj = obj.labeler_ ;

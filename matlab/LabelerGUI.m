@@ -3121,6 +3121,7 @@ tbl.split = ceil(nfold*rand(n,1));
 t = lObj.tracker;
 t.trainsplit(tbl);
 
+
 function menu_track_clear_tracking_results_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
@@ -3134,6 +3135,7 @@ tObj = lObj.tracker;
 tObj.clearTrackingResults();
 handles.labelerObj.clearStatus();
 %msgbox('Tracking results cleared.','Done');
+
 
 function menu_track_clear_tracker_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
@@ -3168,15 +3170,18 @@ if svr
 end
 tObj.storeFullTracking = StoreFullTrackingType.NONE;
 
+
 function menu_track_cpr_storefull_store_final_iteration_Callback(...
   hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 tObj.storeFullTracking = StoreFullTrackingType.FINALITER;
 
+
 function menu_track_cpr_storefull_store_all_iterations_Callback(...
   hObject, eventdata, handles)
 tObj = handles.labelerObj.tracker;
 tObj.storeFullTracking = StoreFullTrackingType.ALLITERS;
+
 
 function menu_track_cpr_view_diagnostics_Callback(...
   hObject, eventdata, handles)
@@ -3198,6 +3203,7 @@ hVizGUI = CPRVizTrackDiagsGUI(handles.labelerObj);
 handles.controller.addSatellite(hVizGUI) ;
 guidata(handles.figure,handles);
 
+
 function menu_track_track_and_export_Callback(hObject, eventdata, handles)
 lObj = handles.labelerObj;
 [tfok,rawtrkname] = handles.controller.getExportTrkRawNameUI();
@@ -3206,34 +3212,14 @@ if ~tfok
 end
 lObj.trackAndExport([],'rawtrkname',rawtrkname);
 
-function menu_track_batch_track_Callback(hObject,eventdata,handles)
 
+function menu_track_batch_track_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 tbobj = TrackBatchGUI(lObj);
 tbobj.run();
 
-% 
-% persistent jsonfile;
-% if isempty(jsonfile),
-%   jsonfile = '';
-% end
-% 
-% [filename,pathname] = uigetfile('*.json','Select json batch tracking file',jsonfile);
-% if ~ischar(filename),
-%   return;
-% end
-% jsonfile1 = fullfile(pathname,filename);
-% if ~exist(jsonfile1,'file'),
-%   warndlg(sprintf('File %s does not exist',jsonfile1));
-%   return;
-% end
-% jsonfile = jsonfile1;
-% handles.labelerObj.setStatus('Tracking a batch of videos...');
-% trackBatch('lObj',handles.labelerObj,'jsonfile',jsonfile);
-% handles.labelerObj.clearStatus();
 
 function menu_track_all_movies_Callback(hObject,eventdata,handles)
-
 lObj = handles.labelerObj;
 mIdx = lObj.allMovIdx();
 toTrackIn = lObj.mIdx2TrackList(mIdx);
@@ -3242,8 +3228,8 @@ tbobj = TrackBatchGUI(lObj,'toTrack',toTrackIn);
 tbobj.run();
 % todo: import predictions
 
-function menu_track_current_movie_Callback(hObject,eventdata,handles)
 
+function menu_track_current_movie_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 mIdx = lObj.currMovIdx;
 toTrackIn = lObj.mIdx2TrackList(mIdx);
@@ -3254,23 +3240,12 @@ if ~dostore,
 end
 trackBatch('lObj',lObj,'toTrack',toTrackOut);
 
-function menu_track_id_Callback(hObject,eventdata,handles)
 
+function menu_track_id_Callback(hObject,eventdata,handles)
 lObj = handles.labelerObj;
 lObj.track_id = ~lObj.track_id;
 set(handles.menu_track_id,'checked',lObj.track_id);
 
-% function menu_track_export_current_movie_Callback(hObject,eventdata,handles)
-% lObj = handles.labelerObj;
-% iMov = lObj.currMovie;
-% if iMov==0
-%   handles.labelerObj.lerror('LabelerGUI:noMov','No movie currently set.');
-% end
-% [tfok,rawtrkname] = handles.controller.getExportTrkRawnameUI();
-% if ~tfok
-%   return;
-% end
-% lObj.trackExportResults(iMov,'rawtrkname',rawtrkname);
 
 function menu_file_clear_imported_Callback(hObject,evtdata,handles)
 lObj = handles.labelerObj;
@@ -3656,6 +3631,7 @@ handles.menu_file_crop_mode.Checked = onIfTrue;
 cropUpdateCropHRects(handles);
 cropUpdateCropAdjustingCropSize(handles,false);
 
+
 function cropUpdateCropHRects(handles)
 % Update handles.cropHRect from lObj.cropIsCropMode, lObj.currMovie and
 % lObj.movieFilesAll*cropInfo
@@ -3690,6 +3666,7 @@ else
   arrayfun(@(x)set(x,'Visible','off','PickableParts','none'),handles.cropHRect);
 end
 
+
 function cropImRectSetPosnNoPosnCallback(hRect,pos)
 % Set the hRect's graphics position without triggering its
 % PositionCallback. Works in concert with cbkCropPosn
@@ -3697,6 +3674,7 @@ tfSetPosnLabeler0 = get(hRect,'UserData');
 set(hRect,'UserData',false);
 hRect.setPosition(pos);
 set(hRect,'UserData',tfSetPosnLabeler0);
+
 
 function cropUpdateCropAdjustingCropSize(handles,tfAdjust)
 % cropUpdateCropAdjustingCropSize(handles) --
@@ -3720,17 +3698,6 @@ else
 end
 arrayfun(@(x)x.setResizable(tfAdjust),handles.cropHRect);
 
-% function cbkCropPosn(posn,iview,hFig)
-% handles = guidata(hFig);
-% tfSetPosnLabeler = get(handles.cropHRect(iview),'UserData');
-% if tfSetPosnLabeler
-%   [roi,roiw,roih] = CropInfo.rectPos2roi(posn);
-%   tb = handles.tbAdjustCropSize;
-%   if tb.Value==tb.Max % tbAdjustCropSizes depressed; using as proxy for, imrect is resizable
-%     fprintf(1,'roi (width,height): (%d,%d)\n',roiw,roih);
-%   end
-%   handles.labelerObj.cropSetNewRoiCurrMov(iview,roi);
-% end
 
 function tbAdjustCropSize_Callback(hObject, eventdata, handles)
 cropUpdateCropAdjustingCropSize(handles);
@@ -3750,123 +3717,6 @@ end
 function pbClearAllCrops_Callback(hObject, eventdata, handles)
 handles.labelerObj.cropClearAllCrops();
 
-% % -------------------------------------------------------------------------
-% function SetStatus(handles, str, isbusy)
-% 
-% if nargin<3 ,
-%   isbusy = true;
-% end
-% istemp = false;
-% if isempty(isbusy)
-%   color = get(handles.txStatus,'ForegroundColor');
-% elseif isbusy
-%   color = handles.busystatuscolor;
-%   if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
-%     set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','watch');
-%   else
-%     set(handles.figure,'Pointer','watch');
-%   end
-% else
-%   color = handles.idlestatuscolor;
-%   if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
-%     set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
-%   else
-%     set(handles.figure,'Pointer','arrow');
-%   end
-% end
-% set(handles.txStatus,'ForegroundColor',color);
-% SetStatusText(handles,str);
-% drawnow('limitrate');
-% if ~isbusy && ~istemp,  syncStatusBarTextWhenClear(handles);
-% end
-% 
-% function RefreshStatus(handles)
-% 
-% s = getappdata(handles.txStatus,'InputString');
-% if ischar(s),
-%   SetStatusText(handles,s);
-% end
-% 
-% function SetStatusText(handles,s)
-% 
-% setappdata(handles.txStatus,'InputString',s);
-% isprojname = contains(s,'$PROJECTNAME');
-% if isprojname && isfield(handles,'labelerObj') && handles.labelerObj.hasProject,
-%   if ~ischar(handles.labelerObj.projectfile),
-%     projfile = '';
-%   else
-%     projfile = handles.labelerObj.projectfile;
-%     if numel(projfile) > 100,
-%       projfile = ['..',projfile(end-97:end)];
-%     end
-%   end
-%   s1 = strrep(s,'$PROJECTNAME',projfile);
-%   [~,n,ext] = fileparts(projfile);
-%   n = [n,ext];
-%   s2 = strrep(s,'$PROJECTNAME',n);
-%   if ~isempty(handles.jtxStatus),
-%     set(handles.txStatus,'String',s1);
-%     drawnow;
-%     pos1 = get(handles.jtxStatus,'PreferredSize');
-%     w = get(handles.jtxStatus,'Width');
-%     %fprintf('width = %f, preferredwidth = %f\n',w,pos1.width);
-%     if pos1.width > w*.95,
-%       set(handles.txStatus,'String',s2);
-%     end
-%   else
-%     set(handles.txStatus,'String',s2);
-%   end
-% else
-%   set(handles.txStatus,'String',s);
-% end
-% 
-% % -------------------------------------------------------------------------
-% function ClearStatus(handles)
-% 
-% cleartext = getStatusBarTextWhenClear(handles);
-% set(handles.txStatus, ...
-%     'ForegroundColor',handles.idlestatuscolor);
-% SetStatusText(handles,cleartext);
-% if isfield(handles,'figs_all') && any(ishandle(handles.figs_all))
-%   set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
-% else
-%   set(handles.figure,'Pointer','arrow');
-% end
-% drawnow('limitrate');
-% 
-% function syncStatusBarTextWhenClear(handles,s)
-% 
-% try
-%   s = getappdata(handles.txStatus,'InputString');
-%   if isempty(s),
-%     s = get(handles.txStatus,'string');
-%   end
-%   setStatusBarTextWhenClear(handles,s);
-% catch
-% end
-% 
-% function setStatusBarTextWhenClear(handles,s)
-% 
-% try
-%   setappdata(handles.txStatus,'text_when_clear',s);
-% catch
-% end
-% 
-% function s = getStatusBarTextWhenClear(handles)
-% 
-% try
-%   s = getappdata(handles.txStatus,'text_when_clear');
-% catch
-%   warning('Could not get text_when_clear appdata for status bar');
-%   s = '';
-% end
-% 
-% function refreshStatus(handles)
-% s = getappdata(handles.txStatus,'InputString');
-% if isempty(s),
-%   s = get(handles.txStatus,'string');
-% end
-% SetStatusText(handles,s);
 
 % --------------------------------------------------------------------
 function menu_file_export_labels2_trk_curr_mov_Callback(hObject, eventdata, handles)
