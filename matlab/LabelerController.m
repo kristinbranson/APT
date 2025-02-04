@@ -1402,25 +1402,21 @@ classdef LabelerController < handle
       guidata(obj.mainFigure_, handles) ;
     end  % function
 
-    function menu_file_new_actuated(obj)
+    function menu_file_new_actuated(obj, ~, ~)
       % Create a new project
-      lableler = obj.labeler_ ;
-      lableler.setStatus('Starting New Project');
+      labeler = obj.labeler_ ;
+      labeler.setStatus('Starting New Project');
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
         if ~isempty(cfg)    
-          lableler.setStatus('Configuring New Project') ;
-          lableler.initFromConfig(cfg);
-          lableler.projNew(cfg.ProjectName);
-          lableler.setStatus('Adding Movies') ;
-          if ~isempty(controller.movieManagerController_) && isvalid(controller.movieManagerController_) ,
-            controller.movieManagerController_.setVisible(true);
+          labeler.projNew(cfg);
+          if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+            obj.movieManagerController_.setVisible(true);
           else
             error('LabelerController:menu_file_new_actuated', 'Please create or load a project.') ;
           end
         end  
       end
-      labeler.clearStatus();
     end  % function
 
     function updateMainFigureName(obj)    
@@ -1728,7 +1724,7 @@ classdef LabelerController < handle
         movfile = movfile{1};
         trxfile = trxfile{1};
         
-        cfg = Labeler.cfgGetLastProjectConfigNoView;
+        cfg = Labeler.cfgGetLastProjectConfigNoView() ;
         if cfg.NumViews>1
           warndlg('Your last project had multiple views. Opening movie with single view.');
           cfg.NumViews = 1;
@@ -1740,10 +1736,9 @@ classdef LabelerController < handle
           cfg.LabelMode = char(LabelMode.TEMPLATE);
         end
         
-        lObj.initFromConfig(cfg);
-          
         [~,projName,~] = fileparts(movfile);
-        lObj.projNew(projName);
+        cfg.ProjectName = projName ;
+        lObj.projNew(cfg);
         lObj.movieAdd(movfile,trxfile);
         lObj.movieSet(1,'isFirstMovie',true);      
       end

@@ -1602,18 +1602,20 @@ classdef Labeler < handle
   methods (Hidden)
 
   % Property init legend
-  % IFC: property initted during initFromConfig()
+  % IFC: property initted during initFromConfig_()
   % PNPL: property initted during projectNew() or projLoad()
   % L: property initted during labelingInit()
   % (todo) TI: property initted during trackingInit()
   %
   % There are only two ways to start working on a project.
-  % 1. New/blank project: initFromConfig(), then projNew().
+  % 1. New/blank project: projNew().
   % 2. Existing project: projLoad(), which is (initFromConfig(), then
-  % property-initialization-equivalent-to-projNew().)
+  %    property-initialization-equivalent-to-projNewCore_().)
   
-    function initFromConfig(obj,cfg)
-      % Note: Config must be modernized
+    function initFromConfig_(obj,cfg)
+      % Initialize obj from cfg, a configuration struct.  This is used e.g. when loading
+      % a project from a .lbl file, or when creating a new project.
+      % Note: Configuration struct must be modernized
     
       isinit0 = obj.isinit;
       obj.isinit = true;
@@ -2024,18 +2026,27 @@ classdef Labeler < handle
   %% Project/Lbl files
   methods
    
-    function projNew(obj, name)
+    function projNew(obj, cfg)
+      % Create new project based on configuration in cfg.
+      obj.setStatus('Configuring New Project') ;
+      obj.initFromConfig_(cfg) ;
+      obj.projNewCore_(cfg.ProjectName) ;
+      obj.setDoesNeedSave(true, 'New project') ;      
+      obj.clearStatus() ;
+    end
+
+    function projNewCore_(obj, projectName)
       % Create new project based on current configuration
       
       % AL empty projnames can cause trouble lets just set a default now if 
       % nec
-      if ~isexist('name', 'var') || isempty(name)
-        name = 'APTproject';
+      if ~exist('name', 'var') || isempty(projectName)
+        projectName = 'APTproject';
       end
 
       obj.isinit = true;
 
-      obj.projname = name;
+      obj.projname = projectName;
       obj.projFSInfo = [];
       obj.projGetEnsureTempDir('cleartmp',true);
       obj.movieFilesAll = cell(0,obj.nview);
@@ -2094,9 +2105,9 @@ classdef Labeler < handle
       if trkPrefs.Enable
         % Create default trackers
         assert(isempty(obj.trackersAll));
-        trkersCreateInfo = LabelTracker.getAllTrackersCreateInfo(obj.maIsMA);  % number-of-trackers x 1
+        trackersCreateInfo = LabelTracker.getAllTrackersCreateInfo(obj.maIsMA);  % number-of-trackers x 1
         tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
-                       trkersCreateInfo', ...
+                       trackersCreateInfo', ...
                        'UniformOutput', false) ;  % 1 x number-of-trackers
         obj.trackersAll = tAll;
         obj.currTracker = 1;
@@ -2432,10 +2443,10 @@ classdef Labeler < handle
       
       obj.isinit = true;
 
-      obj.initFromConfig(s.cfg);
+      obj.initFromConfig_(s.cfg);
       
       % From here to the end of this method is a parallel initialization to
-      % projNew()
+      % projNewCore_()
       
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
@@ -3238,7 +3249,7 @@ classdef Labeler < handle
 % %       assert(false,'Unsupported: todo gt');
 % %       assert(~obj.isMultiView);
 % %       
-% %       obj.projNew('IMSTACK__DEVONLY');
+% %       obj.projNewCore_('IMSTACK__DEVONLY');
 % % 
 % %       mr = MovieReaderImStack;
 % %       mr.open(ims);
