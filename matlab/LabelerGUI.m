@@ -824,8 +824,8 @@ listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescu
 listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 % listeners{end+1,1} = addlistener(lObj,'didSetProjname',@cbkProjNameChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetCurrTarget',@cbkCurrTargetChanged);
-listeners{end+1,1} = addlistener(lObj,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
-listeners{end+1,1} = addlistener(lObj,'didSetTrackParams',@cbkParameterChange);
+% listeners{end+1,1} = addlistener(lObj,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
+% listeners{end+1,1} = addlistener(lObj,'didSetTrackParams',@cbkParameterChange);
 listeners{end+1,1} = addlistener(lObj,'didSetLabelMode',@cbkLabelModeChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2Hide',@cbkLabels2HideChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetLabels2ShowCurrTargetOnly',@cbkLabels2ShowCurrTargetOnlyChanged);
@@ -2813,20 +2813,6 @@ handles.menu_view_show_imported_preds_curr_target_only.Checked = ...
 % 
 % tObj = evt.AffectedObject;
 % tObj.lObj.gdata.text_trackerinfo.String = tObj.getTrackerInfoString();
-
-% when lastLabelChangeTS is updated, update the tracker info text in the main APT window
-function cbkLastLabelChangeTS(src, evt)
-lObj = src ;
-if ~isempty(lObj.trackersAll) && ~isempty(lObj.tracker),
-  lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
-end
-
-function cbkParameterChange(src, evt)
-lObj = src ;
-if isempty(lObj.trackersAll) || isempty(lObj.tracker) ,
-  return
-end
-lObj.gdata.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
 
 function menu_view_show_tick_labels_Callback(hObject, eventdata, handles)
 % just use checked state of menu for now, no other state

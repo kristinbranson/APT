@@ -88,6 +88,11 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetCurrTracker',@(source,event)(obj.cbkCurrTrackerChanged()));            
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetLastLabelChangeTS',@(source,event)(obj.cbkLastLabelChangeTS()));            
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetTrackParams',@(source,event)(obj.cbkParameterChange()));            
+      
+      obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
@@ -2460,6 +2465,25 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function cbkLastLabelChangeTS(obj)
+      % when lastLabelChangeTS is updated, update the tracker info text in the main APT window
+      lObj = obj.labeler_ ;      
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      if ~isempty(lObj.trackersAll) && ~isempty(lObj.tracker),
+        handles.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
+      end
+    end  % function
+    
+    function cbkParameterChange(obj)
+      lObj = obj.labeler_ ;      
+      if isempty(lObj.trackersAll) || isempty(lObj.tracker) ,
+        return
+      end
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      handles.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
+    end  % function
     
   end  % methods  
 end  % classdef
