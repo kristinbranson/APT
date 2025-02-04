@@ -84,6 +84,10 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetTrackersAll',@(source,event)(obj.cbkTrackersAllChanged()));            
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetCurrTracker',@(source,event)(obj.cbkCurrTrackerChanged()));            
+      obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'update', @(source,event)(obj.updateWaitbar())) ;      
@@ -1906,6 +1910,556 @@ classdef LabelerController < handle
         rawtrkname = rawtrkname{1};
       end
     end  % function
+    
+    function cbkTrackersAllChanged(obj)      
+      lObj = obj.labeler_ ;
+      if ~lObj.isinit ,
+        obj.setupAvailTrackersMenu_() ;
+        cellfun(@deactivate, lObj.trackersAll) ;
+        obj.cbkCurrTrackerChanged() ;  % current tracker object depends on lObj.trackersAll
+      end
+    end  % function
+    
+    function handles = setupAvailTrackersMenu_(obj)
+      % set up menus and put in handles.menu_track_trackers (cell arr)
+
+      lObj = obj.labeler_ ;
+      tObjs = lObj.trackersAll ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      cellfun(@delete,handles.menu_track_trackers);
+      
+      nTrker = numel(tObjs);
+      menuTrks = cell(nTrker,1);
+      for i=1:nTrker  
+        algName = tObjs{i}.algorithmName;
+        algLabel = tObjs{i}.algorithmNamePretty;
+        enable = onIff(~strcmp(algName,'dpk'));
+        mnu = uimenu( ...
+          'Parent',handles.menu_track_tracking_algorithm,...
+          'Label',algLabel,...
+          'Callback',@LabelerGUIControlActuated,...
+          'Tag','menu_track_algorithm',...
+          'UserData',i,...
+          'enable',enable,...
+          'Position',i);
+        menuTrks{i} = mnu;
+      end
+      handles.menu_track_trackers = menuTrks;
+      
+      if ~isfield(handles,'menu_track_backend_config')
+        % set up first time only, should not change
+        handles.menu_track_backend_config = uimenu( ...
+          'Parent',handles.menu_track,...
+          'Label','GPU/Backend Configuration',...
+          'Visible','off',...
+          'Tag','menu_track_backend_config');
+        moveMenuItemAfter(handles.menu_track_backend_config,handles.menu_track_tracking_algorithm);
+        handles.menu_track_backend_config_jrc = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','JRC Cluster',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
+          'Tag','menu_track_backend_config_jrc',...
+          'userdata',DLBackEnd.Bsub);
+        handles.menu_track_backend_config_aws = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','AWS Cloud',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
+          'Tag','menu_track_backend_config_aws',...
+          'userdata',DLBackEnd.AWS);
+        handles.menu_track_backend_config_docker = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','Docker',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
+          'Tag','menu_track_backend_config_docker',...
+          'userdata',DLBackEnd.Docker);  
+        handles.menu_track_backend_config_conda = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','Conda',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
+          'Tag','menu_track_backend_config_conda',...
+          'userdata',DLBackEnd.Conda,...
+          'Visible',true);
+      %   if false %ispc,
+      %     handles.menu_track_backend_config_docker.Enable = 'off';
+      %   else
+      %     handles.menu_track_backend_config_conda.Enable = 'off';
+      %   end
+        handles.menu_track_backend_config_conda.Enable = 'on';
+        % KB added menu item to get more info about how to set up
+        handles.menu_track_backend_config_moreinfo = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','on',...
+          'Label','More information...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendMenuMoreInfo()),...
+          'Tag','menu_track_backend_config_moreinfo');  
+        handles.menu_track_backend_config_test = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','Test backend configuration',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendTest()),...
+          'Tag','menu_track_backend_config_test');
+        
+        % JRC Cluster 'submenu'
+        handles.menu_track_backend_config_jrc_setconfig = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','on',...
+          'Label','(JRC) Set number of slots for training...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendSetJRCNSlots()),...
+          'Tag','menu_track_backend_config_jrc_setconfig');  
+      
+        handles.menu_track_backend_config_jrc_setconfig_track = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','off',...
+          'Label','(JRC) Set number of slots for tracking...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendSetJRCNSlotsTrack()),...
+          'Tag','menu_track_backend_config_jrc_setconfig_track');  
+      
+        handles.menu_track_backend_config_jrc_additional_bsub_args = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','(JRC) Additional bsub arguments...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendAdditionalBsubArgs()),...
+          'Tag','menu_track_backend_config_jrc_additional_bsub_args');  
+      
+        handles.menu_track_backend_config_jrc_set_singularity_image = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','off',...
+          'Label','(JRC) Set Singularity image...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendSetSingularityImage()),...
+          'Tag','menu_track_backend_config_jrc_set_singularity_image');  
+      
+        % AWS submenu (enabled when backend==AWS)
+        handles.menu_track_backend_config_aws_configure = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','on',...
+          'Label','(AWS) Configure...',...
+          'Callback',@LabelerGUIControlActuated,...
+          'Tag','menu_track_backend_config_aws_configure');  
+      
+        handles.menu_track_backend_config_aws_setinstance = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','(AWS) Set EC2 instance',...
+          'Callback',@LabelerGUIControlActuated,...
+          'Tag','menu_track_backend_config_aws_setinstance');  
+        
+        % Docker 'submenu' (added by KB)
+        handles.menu_track_backend_config_setdockerssh = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','on',...
+          'Label','(Docker) Set remote host...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendSetDockerSSH()),...
+          'Tag','menu_track_backend_config_setdockerssh');  
+      
+        handles.menu_track_backend_config_docker_image_spec = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Label','(Docker) Set image spec...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendSetDockerImageSpec()),...
+          'Tag','menu_track_backend_config_docker_image_spec');  
+      
+        % Conda submenu
+        handles.menu_track_backend_set_conda_env = uimenu( ...
+          'Parent',handles.menu_track_backend_config,...
+          'Separator','on', ...
+          'Label','(Conda) Set environment...',...
+          'Callback',@(s,e)(obj.cbkTrackerBackendSetCondaEnv()),...
+          'Tag','menu_track_backend_set_conda_env');  
+      
+      end
+      guidata(mainFigure, handles) ;      
+    end  % function
+
+    function cbkTrackerBackendMenu(obj, source, event)  %#ok<INUSD>
+      lObj = obj.labeler_ ;
+      %mainFigure = obj.mainFigure_ ;
+      %handles = guidata(mainFigure) ;
+      beType = source.UserData;
+      lObj.set_backend_property('type', beType) ;
+    end  % function
+
+    function cbkTrackerBackendMenuMoreInfo(obj)
+      lObj = obj.labeler_ ;
+      res = web(lObj.DLCONFIGINFOURL,'-new');
+      if res ~= 0,
+        msgbox({'Information on configuring Deep Learning GPU/Backends can be found at'
+                'https://github.com/kristinbranson/APT/wiki/Deep-Neural-Network-Tracking.'},...
+                'Deep Learning GPU/Backend Information','replace');
+      end
+    end  % function
+
+    function cbkTrackerBackendTest(obj)
+      lObj = obj.labeler_ ;
+      cacheDir = lObj.DLCacheDir;
+      assert(exist(cacheDir,'dir'),...
+             'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
+      backend = lObj.trackDLBackEnd;
+      testBackendConfigUI(backend, cacheDir);
+    end  % function
+      
+    function cbkTrackerBackendSetJRCNSlots(obj)
+      lObj = obj.labeler_ ;
+      n = inputdlg('Number of cluster slots for training','a',1,{num2str(lObj.trackDLBackEnd.jrcnslots)});
+      if isempty(n)
+        return
+      end
+      n = str2double(n{1});
+      if isnan(n)
+        return
+      end
+      lObj.trackDLBackEnd.jrcnslots = n ;
+    end
+
+    function cbkTrackerBackendSetJRCNSlotsTrack(obj)
+      lObj = obj.labeler_ ;
+      n = inputdlg('Number of cluster slots for tracking','a',1,{num2str(lObj.trackDLBackEnd.jrcnslotstrack)});
+      if isempty(n)
+        return
+      end
+      n = str2double(n{1});
+      if isnan(n)
+        return
+      end
+      lObj.trackDLBackEnd.jrcnslotstrack = n ;
+    end
+    
+    function cbkTrackerBackendAdditionalBsubArgs(obj)
+      lObj = obj.labeler_ ;
+      original_value = lObj.get_backend_property('jrcAdditionalBsubArgs') ;
+      dialog_result = inputdlg({'Addtional bsub arguments:'},'Additional bsub arguments...',1,{original_value});
+      if isempty(dialog_result)
+        return
+      end
+      new_value = dialog_result{1};
+      try
+        lObj.set_backend_property('jrcAdditionalBsubArgs', new_value) ;
+      catch exception
+        if strcmp(exception.identifier, 'APT:invalidValue') ,
+          uiwait(errordlg(exception.message));
+        else
+          rethrow(exception);
+        end
+      end
+    end  % function
+
+    function cbkTrackerBackendSetSingularityImage(obj)
+      lObj = obj.labeler_ ;
+      original_value = lObj.get_backend_property('singularity_image_path') ;
+      filter_spec = {'*.sif','Singularity Images (*.sif)'; ...
+                    '*',  'All Files (*)'} ;
+      [file_name, path_name] = uigetfile(filter_spec, 'Set Singularity Image...', original_value) ;
+      if isnumeric(file_name)
+        return
+      end
+      new_value = fullfile(path_name, file_name) ;
+      try
+        lObj.set_backend_property('singularity_image_path', new_value) ;
+      catch exception
+        if strcmp(exception.identifier, 'APT:invalidValue') ,
+          uiwait(errordlg(exception.message));
+        else
+          rethrow(exception);
+        end
+      end
+    end  % function
+
+    function cbkCurrTrackerChanged(obj)
+      lObj = obj.labeler_ ;
+      if lObj.isinit ,
+        return
+      end 
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      tObj = lObj.tracker ;
+      iTrker = lObj.currTracker ;
+
+      %
+      % Set up tracker menu listeners
+      % 
+      % delete all existing listeners-to-trackers
+      cellfun(@delete,handles.listenersTracker);
+      handles.listenersTracker = cell(0,1);
+      
+      % UI, is a tracker available
+      tfTracker = ~isempty(tObj);
+      onOff = onIff(tfTracker&&handles.labelerObj.isReady);
+      handles.menu_track.Enable = onOff;
+      handles.pbTrain.Enable = onOff;
+      handles.pbTrack.Enable = onOff;
+      handles.menu_view_hide_predictions.Enable = onOff;
+      handles.menu_view_show_preds_curr_target_only.Enable = onOff;
+      
+      menuTrkers = handles.menu_track_trackers;
+      for i=1:numel(menuTrkers)
+        mnu = menuTrkers{i};
+        mnu.Checked = onIff(i==iTrker) ;
+      end
+      
+      listenersNew = cell(0,1);
+      
+      if tfTracker
+        % UI, tracker-specific
+        iscpr = strcmp('cpr',tObj.algorithmName);
+        onOffCpr = onIff(iscpr);
+        handles.menu_track_cpr_show_replicates.Visible = onOffCpr;
+        handles.menu_track_cpr_storefull.Visible = onOffCpr;
+        handles.menu_track_cpr_view_diagnostics.Visible = onOffCpr;
+        
+        % FUTURE TODO, enable for DL
+        % I think these are obsolete, semi-removing them
+        handles.menu_track_training_data_montage.Visible = onOffCpr;
+        handles.menu_track_track_and_export.Visible = onOffCpr;
+        isDL = ~iscpr;
+        onOffDL = onIff(isDL);
+        handles.menu_track_backend_config.Visible = onOffDL;
+        if isDL
+          obj.updateTrackBackendConfigMenuChecked_();
+        end
+        
+        %listenersNew{end+1,1} = tObj.addlistener('trackerInfo','PostSet',@(src1,evt1) cbkTrackerInfoChanged(src1,evt1));
+        
+        % Listeners, general tracker
+        listenersNew{end+1,1} = ...
+          tObj.addlistener('hideViz','PostSet',@(src,evt)(obj.cbkTrackerHideVizChanged())) ; 
+        listenersNew{end+1,1} = ...
+          tObj.addlistener('showPredsCurrTargetOnly','PostSet',@(src,evt)(obj.cbkTrackerShowPredsCurrTargetOnlyChanged())) ; 
+              
+        % Listeners, algo-specific
+        switch tObj.algorithmName
+          case 'cpr'
+            % NOTE: handles here can get out-of-date but that is ok for now
+            listenersNew{end+1,1} = ...
+              tObj.addlistener('showVizReplicates','PostSet', @(src1,evt1) (obj.cbkTrackerShowVizReplicatesChanged())) ;
+            listenersNew{end+1,1} = ...
+              tObj.addlistener('storeFullTracking','PostSet', @(src1,evt1) (obj.cbkTrackerStoreFullTrackingChanged())) ;
+          otherwise
+            listenersNew{end+1,1} = ...
+              tObj.addlistener('trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+            listenersNew{end+1,1} = ...
+              tObj.addlistener('trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
+            listenersNew{end+1,1} = ...
+              lObj.addlistener('didSetTrackDLBackEnd', @(src,evt) (obj.cbkTrackerBackEndChanged()) ) ;
+            listenersNew{end+1,1} = ...
+              tObj.addlistener('trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+            listenersNew{end+1,1} = ...
+              tObj.addlistener('trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
+        end  % switch
+      end  % if      
+      handles.listenersTracker = listenersNew;
+
+      handles.labelTLInfo.setTracker(tObj);
+      guidata(mainFigure, handles) ;
+    end  % function
+    
+    function cbkTrackerShowVizReplicatesChanged(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      handles.menu_track_cpr_show_replicates.Checked = onIff(lObj.tracker.showVizReplicates) ;
+    end  % function
+    
+    function cbkTrackerStoreFullTrackingChanged(obj)
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      sft = labeler.tracker.storeFullTracking;
+      switch sft
+        case StoreFullTrackingType.NONE
+          handles.menu_track_cpr_storefull_dont_store.Checked = 'on';
+          handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
+          handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
+          handles.menu_track_cpr_view_diagnostics.Enable = 'off';
+        case StoreFullTrackingType.FINALITER
+          handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
+          handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'on';
+          handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
+          handles.menu_track_cpr_view_diagnostics.Enable = 'on';
+        case StoreFullTrackingType.ALLITERS
+          handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
+          handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
+          handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'on';
+          handles.menu_track_cpr_view_diagnostics.Enable = 'on';
+        otherwise
+          assert(false);
+      end
+    end  % function
+    
+    function cbkTrackerTrainStart(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      algName = lObj.tracker.algorithmName;
+      %algLabel = lObj.tracker.algorithmNamePretty;
+      backend_type_string = lObj.trackDLBackEnd.prettyName();
+      handles.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));
+      handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
+      handles.txBGTrain.FontWeight = 'normal';
+      handles.txBGTrain.Visible = 'on';
+    end  % function
+
+    function cbkTrackerTrainEnd(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      handles.txBGTrain.Visible = 'off';
+      handles.txBGTrain.String = 'Idle';
+      handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
+      val = true;
+      str = 'Tracker trained';
+      lObj.setDoesNeedSave(val, str) ;
+    end  % function
+
+    function cbkTrackerStart(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      algName = lObj.tracker.algorithmName;
+      %algLabel = lObj.tracker.algorithmNamePretty;
+      backend_type_string = lObj.trackDLBackEnd.prettyName() ;
+      handles.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend_type_string,datestr(now,'HH:MM'));
+      handles.txBGTrain.ForegroundColor = handles.busystatuscolor;
+      handles.txBGTrain.FontWeight = 'normal';
+      handles.txBGTrain.Visible = 'on';
+    end  % function
+
+    function cbkTrackerEnd(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      handles.txBGTrain.Visible = 'off';
+      handles.txBGTrain.String = 'Idle';
+      handles.txBGTrain.ForegroundColor = handles.idlestatuscolor;
+      val = true;
+      str = 'New frames tracked';
+      lObj.setDoesNeedSave(val, str) ;
+    end  % function
+
+    function cbkTrackerBackEndChanged(obj)
+      obj.updateTrackBackendConfigMenuChecked_() ;
+    end  % function
+
+    function cbkTrackerHideVizChanged(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;      
+      tracker = lObj.tracker ;
+      handles.menu_view_hide_predictions.Checked = onIff(tracker.hideViz) ;
+    end  % function
+
+    function cbkTrackerShowPredsCurrTargetOnlyChanged(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      tracker = lObj.tracker ;
+      handles.menu_view_show_preds_curr_target_only.Checked = onIff(tracker.showPredsCurrTargetOnly) ;
+    end  % function
+
+    function updateTrackBackendConfigMenuChecked_(obj)
+      lObj = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      beType = lObj.trackDLBackEnd.type;
+      oiBsub = onIff(beType==DLBackEnd.Bsub);
+      oiDckr = onIff(beType==DLBackEnd.Docker);
+      oiCnda = onIff(beType==DLBackEnd.Conda);
+      oiAWS = onIff(beType==DLBackEnd.AWS);
+      set(handles.menu_track_backend_config_jrc,'checked',oiBsub);
+      set(handles.menu_track_backend_config_docker,'checked',oiDckr);
+      set(handles.menu_track_backend_config_conda,'checked',oiCnda, 'Enable', onIff(~ispc()));
+      set(handles.menu_track_backend_config_aws,'checked',oiAWS);
+      set(handles.menu_track_backend_config_aws_setinstance,'Enable',oiAWS);
+      set(handles.menu_track_backend_config_aws_configure,'Enable',oiAWS);
+      set(handles.menu_track_backend_config_setdockerssh,'Enable',oiDckr);
+      set(handles.menu_track_backend_config_docker_image_spec,'Enable',oiDckr);
+      set(handles.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
+      set(handles.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
+      set(handles.menu_track_backend_config_jrc_additional_bsub_args,'Enable',oiBsub);
+      set(handles.menu_track_backend_config_jrc_set_singularity_image,'Enable',oiBsub);
+      set(handles.menu_track_backend_set_conda_env,'Enable',onIff(beType==DLBackEnd.Conda&&~ispc())) ;
+    end  % function
+    
+    function cbkTrackerBackendSetDockerSSH(obj)
+      lObj = obj.labeler_ ;
+      assert(lObj.trackDLBackEnd.type==DLBackEnd.Docker);
+      drh = lObj.trackDLBackEnd.dockerremotehost;
+      if isempty(drh),
+        defans = 'Local';
+      else
+        defans = 'Remote';
+      end
+      
+      res = questdlg('Run docker on your Local machine, or SSH to a Remote machine?',...
+        'Set Docker Remote Host','Local','Remote','Cancel',defans);
+      if strcmpi(res,'Cancel'),
+        return;
+      end
+      if strcmpi(res,'Remote'),
+        res = inputdlg({'Remote Host Name:'},'Set Docker Remote Host',1,{drh});
+        if isempty(res) || isempty(res{1}),
+          return;
+        end
+        lObj.trackDLBackEnd.dockerremotehost = res{1};
+      else
+        lObj.trackDLBackEnd.dockerremotehost = '';
+      end
+      
+      ischange = ~strcmp(drh,lObj.trackDLBackEnd.dockerremotehost);
+      
+      if ischange,
+        res = questdlg('Test new Docker configuration now?','Test Docker configuration','Yes','No','Yes');
+        if strcmpi(res,'Yes'),
+          try
+            tfsucc = lObj.trackDLBackEnd.testDockerConfig();
+          catch ME,
+            tfsucc = false;
+            disp(getReport(ME));
+          end
+          if ~tfsucc,
+            res = questdlg('Test failed. Revert to previous Docker settings?','Backend test failed','Yes','No','Yes');
+            if strcmpi(res,'Yes'),
+              lObj.trackDLBackEnd.dockerremotehost = drh;
+            end
+          end
+        end
+      end
+    end  % function
+    
+    function cbkTrackerBackendSetDockerImageSpec(obj)
+      lObj = obj.labeler_ ;      
+      original_full_image_spec = lObj.get_backend_property('dockerimgfull') ;
+      dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec});
+      if isempty(dialog_result)
+        return
+      end
+      new_full_image_spec = dialog_result{1};
+      try
+        lObj.set_backend_property('dockerimgfull', new_full_image_spec) ;
+      catch exception
+        if strcmp(exception.identifier, 'APT:invalidValue') ,
+          uiwait(errordlg(exception.message));
+        else
+          rethrow(exception);
+        end
+      end
+    end  % function
+    
+    function cbkTrackerBackendSetCondaEnv(obj)
+      lObj = obj.labeler_ ;      
+      original_value = lObj.get_backend_property('condaEnv') ;
+      dialog_result = inputdlg({'Conda environment:'},'Set environment...',1,{original_value});
+      if isempty(dialog_result)
+        return
+      end
+      new_value = dialog_result{1};
+      try
+        lObj.set_backend_property('condaEnv', new_value) ;
+      catch exception
+        if strcmp(exception.identifier, 'APT:invalidValue') ,
+          uiwait(errordlg(exception.message));
+        else
+          rethrow(exception);
+        end
+      end
+    end  % function
+
     
   end  % methods  
 end  % classdef
