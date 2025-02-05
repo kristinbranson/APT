@@ -427,8 +427,8 @@ classdef InfoTimeline < handle
         end
         obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
         obj.initializePropsTracker();
-        obj.listenersTracker{end+1,1} = addlistener(tracker,...
-          'newTrackingResults',@obj.cbkNewTrackingResults);
+        obj.listenersTracker{end+1,1} = ...
+          addlistener(obj.lObj,'newTrackingResults',@obj.cbkNewTrackingResults);
       end
       
       obj.enforcePropConsistencyWithUI(false);

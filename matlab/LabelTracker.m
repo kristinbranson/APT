@@ -46,7 +46,7 @@ classdef LabelTracker < handle
     % hListeners  % cell vec of Labeler listeners
   end  
   
-  properties (SetObservable, SetAccess=protected)
+  properties (SetAccess=protected)
     hideViz = false; % scalar logical. If true, hide visualizations
     showPredsCurrTargetOnly = false;
   end
@@ -126,7 +126,7 @@ classdef LabelTracker < handle
       end
     end
        
-    function ppdata = fetchPreProcData(obj,tblP,ppPrms)
+    function ppdata = fetchPreProcData(obj,tblP,ppPrms)  %#ok<STOUT>
       % Fetch preprocessed data per this tracker. Don't update any cache
       % b/c the preproc params supplied may be "trial"/random.
       % 
@@ -162,7 +162,7 @@ classdef LabelTracker < handle
       % Full Train from scratch; existing/previous results cleared 
     end
     
-    function tf = hasBeenTrained(obj)
+    function tf = hasBeenTrained(obj)  %#ok<STOUT>
       %
     end
     
@@ -417,7 +417,7 @@ classdef LabelTracker < handle
         
         data = padData(data,sf,ef,nfrms);
       else
-        [data,units] = ComputeLandmarkFeatureFromPos(xy,occ,sf,ef,nfrms,bodytrx,prop);
+        [data,~] = ComputeLandmarkFeatureFromPos(xy,occ,sf,ef,nfrms,bodytrx,prop);
       end
     end
     
@@ -522,4 +522,16 @@ classdef LabelTracker < handle
     
   end  % methods (Static)
   
+  methods
+    function set.hideViz(obj, value)
+      obj.hideViz = value ;
+      obj.lObj.doNotify('didSetTrackerHideViz') ;
+    end    
+
+    function set.showPredsCurrTargetOnly(obj, value)
+      obj.showPredsCurrTargetOnly = value ;
+      obj.lObj.doNotify('didSetTrackerShowPredsCurrTargetOnly') ;
+    end    
+    
+  end  % methods
 end  % classdef

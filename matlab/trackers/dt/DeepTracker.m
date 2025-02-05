@@ -217,17 +217,6 @@ classdef DeepTracker < LabelTracker
     nFramesTrack
   end
 
-  events
-    % Thrown when new tracking results are loaded for the current lObj
-    % movie
-    newTrackingResults 
-    
-    trainStart
-    trainEnd
-    trackStart
-    trackEnd    
-  end
-  
   methods
     function v = get.algorithmName(obj)
       v = getAlgorithmNameHook(obj);
@@ -450,8 +439,11 @@ classdef DeepTracker < LabelTracker
     % .rootDir of any local DMCs to be used
     
     function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-        didParamsChange(obj,sPrmAll)  % obj const
-      
+        didParamsChange_(obj, sPrmAll)  % obj const
+      % Compare sPrmAll to obj.sPrmAll, reporting if various parts are different.
+      % This is used to determine what follow-on actions are needed after
+      % obj.sPrmAll is set to sPrmAll.
+
       tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
       tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
       tfPreProcChanged = tfDiffEmptiness || ~APTParameters.isEqualPreProcParams(obj.sPrmAll,sPrmAll);
@@ -474,19 +466,18 @@ classdef DeepTracker < LabelTracker
       sPrmAll = obj.massageParamsIfNec(sPrmAll);
       
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-        obj.didParamsChange(sPrmAll);
+        obj.didParamsChange_(sPrmAll);
       
       obj.sPrmAll = sPrmAll;
       
       if tfCommonChanged || tfSpecificChanged
-        obj.initHook();
+        obj.init();
       elseif tfPreProcChanged
         % This is likely if the targetcrop size changes in which case 
         % we should only reset the second stage but for now resetting the
         % both the stages -- MK 20220520
-        if (obj.lObj.maIsMA && (obj.getNumStages > 1)) ||...
-            ~obj.lObj.maIsMA
-          obj.initHook();
+        if (obj.lObj.maIsMA && (obj.getNumStages > 1)) || ~obj.lObj.maIsMA
+          obj.init();
         end
       end
       if tfPostProcChanged
@@ -555,7 +546,7 @@ classdef DeepTracker < LabelTracker
       s = obj.getSaveToken();
       s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll,false);
     end
-    
+
     function loadSaveToken(obj,s)
       s = DeepTracker.modernizeSaveToken(s);
       
@@ -723,7 +714,7 @@ classdef DeepTracker < LabelTracker
     
     function trnResInit(obj)
       obj.trnLastDMC = [];
-      obj.bgTrnReset();
+      obj.bgTrnReset_();
     end
 
     % function bgTrnStart_(obj,backend,dmc,projTempDir)
@@ -757,7 +748,7 @@ classdef DeepTracker < LabelTracker
       backend.waitForRegisteredJobsToExit(train_or_track) ;
     end
 
-    function bgTrnReset(obj)
+    function bgTrnReset_(obj)
       % stop the training monitor
       if ~isempty(obj.bgTrnMonitor)
         delete(obj.bgTrnMonitor);
@@ -929,7 +920,7 @@ classdef DeepTracker < LabelTracker
                'If all animals are labelled in each frame with any labels, set the tracking parameter "Unlabeled animals present" to false.']) ;
       end
 
-      obj.bgTrnReset();
+      obj.bgTrnReset_();
       if ~isempty(oldVizObj),
         delete(oldVizObj);
       end
@@ -1541,7 +1532,7 @@ classdef DeepTracker < LabelTracker
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
       bgTrnMonitor.start();
-      obj.notify('trainStart') ;
+      obj.lObj.doNotify('trainStart') ;
     end  % trnSpawn_() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
@@ -2535,12 +2526,12 @@ classdef DeepTracker < LabelTracker
       % Make sure the deep learning parameters have not changed since last training
       % bout
       labeler = obj.lObj ;
-      sPrmLabeler = labeler.trackGetParams();
-      sPrmSet = obj.massageParamsIfNec(sPrmLabeler);
+      sPrmFromLabeler = labeler.trackGetParams();
+      sPrmSet = obj.massageParamsIfNec(sPrmFromLabeler);
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged] = ...
-          obj.didParamsChange(sPrmSet);
+          obj.didParamsChange_(sPrmSet);
       if tfCommonChanged || tfPreProcChanged || tfSpecificChanged
-        warningNoTrace('Deep Learning parameters have changed since your last retrain.');
+        warningNoTrace('Deep Learning parameters have changed since your last training bout.');
       end
 
       % Set the post-processing parameters
@@ -2959,7 +2950,7 @@ classdef DeepTracker < LabelTracker
       % running runPollingLoop() synchronously, the tracking job(s) will already
       % have started.
       bgTrkMonitorObj.start() ;
-      obj.notify('trackStart') ;      
+      obj.lObj.doNotify('trackStart') ;      
     end  % function setupBGTrack()
 
     function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
@@ -3427,7 +3418,7 @@ classdef DeepTracker < LabelTracker
       end  % if
 
       % Finally, signal the controller/view that training has ended
-      obj.notify('trainEnd');
+      obj.lObj.doNotify('trainEnd');
     end  % function
     
     function killJobsAndPerformPostTrackingCleanup(obj,varargin)
@@ -3440,7 +3431,7 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
 
       % Notify whomever that tracking has ended
-      obj.notify('trackEnd');
+      obj.lObj.doNotify('trackEnd');
     end  % function
 
     function killJobsAndPerformPostCrossValidationCleanup(obj,varargin)      
@@ -3496,7 +3487,7 @@ classdef DeepTracker < LabelTracker
         obj.lObj.xvResultsTS = now;
         fprintf(1,'Set XV results on lObj.xvResults.*\n');
 
-        obj.notify('trainEnd');
+        obj.lObj.doNotify('trainEnd');
 
         splitProjDirs = fileparts(fileparts(valresfiles));
         imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
@@ -4324,7 +4315,7 @@ classdef DeepTracker < LabelTracker
         obj.trackCurrResInit();
         obj.vizInit();
       end
-      notify(obj,'newTrackingResults');
+      obj.lObj.doNotify('newTrackingResults');
     end
     
     function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)

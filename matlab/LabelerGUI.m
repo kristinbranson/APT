@@ -806,7 +806,7 @@ handles.pumTrack.Callback = ...
 lObj = handles.labelerObj;
 
 handles.labelTLInfo = InfoTimeline(lObj,handles.axes_timeline_manual,...
-  handles.axes_timeline_islabeled);
+                                   handles.axes_timeline_islabeled);
 
 set(handles.pumInfo,'String',handles.labelTLInfo.getPropsDisp(),...
   'Value',handles.labelTLInfo.curprop);
@@ -866,7 +866,7 @@ listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoi',@cbkShowMaRoiChanged);
 listeners{end+1,1} = addlistener(lObj,'didSetShowMaRoiAux',@cbkShowMaRoiAuxChanged);
 
 handles.listeners = listeners;
-handles.listenersTracker = cell(0,1); % listeners added in LabelerController::cbkCurrTrackerChanged
+%handles.listenersTracker = cell(0,1); % listeners added in LabelerController::cbkCurrTrackerChanged
 handles.menu_track_trackers = cell(0,1); % menus added in LabelerController::cbkTrackersAllChanged()
 
 hZ = zoom(hObject);

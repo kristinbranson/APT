@@ -177,6 +177,20 @@ classdef Labeler < handle
     raiseTrainingStoppedDialog
   end
 
+  events  % used to come from labeler.tracker
+    % Thrown when new tracking results are loaded for the current lObj
+    % movie
+    newTrackingResults 
+    
+    trainStart
+    trainEnd
+    trackStart
+    trackEnd    
+
+    didSetTrackerHideViz
+    didSetTrackerShowPredsCurrTargetOnly
+  end
+  
   %% Project
   properties
     projname              % init: PN
@@ -15571,5 +15585,9 @@ classdef Labeler < handle
       sendMaybe(obj.tracker, 'abortTraining') ;
     end
     
+    function doNotify(obj, eventName)
+      % Used by child objects to fire events from the Labeler
+      obj.notify(eventName) ;
+    end
   end  % methods
 end  % classdef

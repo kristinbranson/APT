@@ -91,6 +91,21 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetLastLabelChangeTS',@(source,event)(obj.cbkLastLabelChangeTS()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetTrackParams',@(source,event)(obj.cbkParameterChange()));            
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.cbkTrackerBackEndChanged()) ) ;
+
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetTrackerHideViz', @(src,evt) (obj.cbkTrackerHideVizChanged())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetTrackerShowPredsCurrTargetOnly', @(src,evt) (obj.cbkTrackerShowPredsCurrTargetOnlyChanged())) ;
       
       obj.listeners_(end+1) = ...
         addlistener(labeler.progressMeter, 'didArm', @(source,event)(obj.armWaitbar())) ;      
@@ -2168,8 +2183,8 @@ classdef LabelerController < handle
       % Set up tracker menu listeners
       % 
       % delete all existing listeners-to-trackers
-      cellfun(@delete,handles.listenersTracker);
-      handles.listenersTracker = cell(0,1);
+      %cellfun(@delete,handles.listenersTracker);
+      %handles.listenersTracker = cell(0,1);
       
       % UI, is a tracker available
       tfTracker = ~isempty(tObj);
@@ -2186,7 +2201,7 @@ classdef LabelerController < handle
         mnu.Checked = onIff(i==iTrker) ;
       end
       
-      listenersNew = cell(0,1);
+      %listenersNew = cell(0,1);
       
       if tfTracker
         % UI, tracker-specific
@@ -2205,38 +2220,9 @@ classdef LabelerController < handle
         handles.menu_track_backend_config.Visible = onOffDL;
         if isDL
           obj.updateTrackBackendConfigMenuChecked_();
-        end
-        
-        %listenersNew{end+1,1} = tObj.addlistener('trackerInfo','PostSet',@(src1,evt1) cbkTrackerInfoChanged(src1,evt1));
-        
-        % Listeners, general tracker
-        listenersNew{end+1,1} = ...
-          tObj.addlistener('hideViz','PostSet',@(src,evt)(obj.cbkTrackerHideVizChanged())) ; 
-        listenersNew{end+1,1} = ...
-          tObj.addlistener('showPredsCurrTargetOnly','PostSet',@(src,evt)(obj.cbkTrackerShowPredsCurrTargetOnlyChanged())) ; 
-              
-        % Listeners, algo-specific
-        switch tObj.algorithmName
-          case 'cpr'
-            % NOTE: handles here can get out-of-date but that is ok for now
-            listenersNew{end+1,1} = ...
-              tObj.addlistener('showVizReplicates','PostSet', @(src1,evt1) (obj.cbkTrackerShowVizReplicatesChanged())) ;
-            listenersNew{end+1,1} = ...
-              tObj.addlistener('storeFullTracking','PostSet', @(src1,evt1) (obj.cbkTrackerStoreFullTrackingChanged())) ;
-          otherwise
-            listenersNew{end+1,1} = ...
-              tObj.addlistener('trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
-            listenersNew{end+1,1} = ...
-              tObj.addlistener('trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
-            listenersNew{end+1,1} = ...
-              lObj.addlistener('didSetTrackDLBackEnd', @(src,evt) (obj.cbkTrackerBackEndChanged()) ) ;
-            listenersNew{end+1,1} = ...
-              tObj.addlistener('trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
-            listenersNew{end+1,1} = ...
-              tObj.addlistener('trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
-        end  % switch
+        end        
       end  % if      
-      handles.listenersTracker = listenersNew;
+      %handles.listenersTracker = listenersNew;
 
       handles.labelTLInfo.setTracker(tObj);
       guidata(mainFigure, handles) ;
@@ -2530,7 +2516,7 @@ classdef LabelerController < handle
       handles.menu_view_show_grid.Checked = axes_all(1).XGrid;
     end  % function
     
-    function cbkAuxFigCloseReq(controller, src, evt)    
+    function cbkAuxFigCloseReq(controller, src, evt)  %#ok<INUSD>
       if ~controller.isSatellite(src) 
         delete(src);
         return  

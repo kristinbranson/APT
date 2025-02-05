@@ -344,7 +344,7 @@ tObj.setAllTrackResTable(tblTrkRes,1:2);
 tObj.trkPFull = pTrkFull(tfLbled,:,:);
 tObj.vizLoadXYPrdCurrMovieTarget();
 tObj.newLabelerFrame();
-notify(tObj,'newTrackingResults');
+notify(lObj,'newTrackingResults');
 
 %% Find pts where kde does poorly but traj does well
 difftrk = eTrk_kde_best-eTrk_traj_best;
