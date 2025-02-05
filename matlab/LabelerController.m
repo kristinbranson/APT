@@ -2335,6 +2335,10 @@ classdef LabelerController < handle
       lObj = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       handles = guidata(mainFigure) ;
+      if ~isfield(handles, 'menu_track_backend_config_jrc') 
+        % Early return if the menus have not been set up yet
+        return
+      end      
       beType = lObj.trackDLBackEnd.type;
       oiBsub = onIff(beType==DLBackEnd.Bsub);
       oiDckr = onIff(beType==DLBackEnd.Docker);
