@@ -589,7 +589,7 @@ classdef Labeler < handle
   end  
   %% Tracking
   properties
-    trackersAll  % cell row vector of concrete LabelTracker objects. init: PNPL  -- What does "init: PNPL" mean?  -- ALT, 2025-01-27
+    trackersAll  % cell row vector of concrete LabelTracker objects. init: PNPL
     currTracker  % scalar int, either 0 for "no tracker" or index into trackersAll
   end
   properties (Dependent)
@@ -1035,10 +1035,11 @@ classdef Labeler < handle
       if ~isempty(mmc) && isvalid(mmc)
         v = mmc.getSelectedMovies();
       else
-        obj.lerror('Labeler:getMoviesSelected',...
-                   'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
+        v = [] ;
+        % obj.lerror('Labeler:getMoviesSelected',...
+        %            'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
       end
-    end
+    end  % function
 
     function v = get.hasTrx(obj)
       v = ~isempty(obj.trx);
@@ -1616,8 +1617,10 @@ classdef Labeler < handle
   methods (Hidden)
 
   % Property init legend
-  % IFC: property initted during initFromConfig_()
-  % PNPL: property initted during projectNew() or projLoad()
+  % IFC: property initted during initFromConfig_()  
+  %      (but initFromConfig_ is called from both projNew() and projLoad()...
+  %       -- ALT, 2025-02-05)
+  % PNPL: property initted during projNew() or projLoad()
   % L: property initted during labelingInit()
   % (todo) TI: property initted during trackingInit()
   %
@@ -2133,14 +2136,13 @@ classdef Labeler < handle
         obj.currTracker = 0;
       end
 
-      obj.setPropertiesToFireCallbacksToInitializeUI_() ;
-      
+      % Fire a bunch of notifications to get the view to sync up with the model
+      obj.setPropertiesToFireCallbacksToInitializeUI_() ;      
       obj.notify('cropIsCropModeChanged');
       obj.notify('gtIsGTModeChanged');
-    end
+    end  % function projNewCore_
     
-    function projSaveRaw(obj,fname)
-      
+    function projSaveRaw(obj,fname)      
       try
         obj.saveVersionInfo = GetGitMatlabStatus(APT.Root);
       catch
@@ -2164,7 +2166,7 @@ classdef Labeler < handle
       obj.projFSInfo = ProjectFSInfo('saved',fname);
 
       RC.saveprop('lastLblFile',fname);      
-    end
+    end  % function
     
 %     function projSaveModified(obj,fname,varargin)
 %       try
@@ -2618,8 +2620,8 @@ classdef Labeler < handle
         % Immediately modernize model wrt dl-cache-related invariants
         % After this branch the model is as good as a bundled load
         
-        fprintf(1,'\n\n### Raw/unbundled project migration.\n');
-        fprintf(1,'Copying Deep Models into %s.\n',obj.projTempDir);
+        fprintf('\n\n### Raw/unbundled project migration.\n');
+        fprintf('Copying Deep Models into %s.\n',obj.projTempDir);
         for iTrker = 1:numel(obj.trackersAll)
           tObj = obj.trackersAll{iTrker};
           if isprop(tObj,'trnLastDMC') && ~isempty(tObj.trnLastDMC)            
