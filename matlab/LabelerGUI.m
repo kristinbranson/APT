@@ -2913,21 +2913,6 @@ if any(lObj.bgTrnIsRunningFromTrackerIndex()),
 end
 handles.labelerObj.setStatus('Setting training parameters...');
 
-
-% tObj = lObj.tracker;
-% assert(~isempty(tObj));
-
-% KB 20190214 - don't delete trackers anymore!
-% tfCanTrack = lObj.trackAllCanTrack();
-% if any(tfCanTrack),
-%   nTrackers = nnz(tfCanTrack);
-%   res = questdlg(sprintf('%d trackers have been trained. Updating parameters will result in one or more of them being deleted, and they will need to be retrained.',nTrackers),...
-%     'Update tracking parameters','Continue','Cancel','Continue');
-%   if strcmpi(res,'Cancel'),
-%     return;
-%   end
-% end
-
 [tPrm,do_update] = lObj.trackSetAutoParams();
 
 sPrmNew = ParameterSetup(handles.figure,tPrm,'labelerObj',lObj); % modal
@@ -2947,6 +2932,7 @@ else
 end
 
 handles.labelerObj.clearStatus();
+
 
 function menu_track_settrackparams_Callback(hObject, eventdata, handles)
 

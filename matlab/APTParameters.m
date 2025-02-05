@@ -79,6 +79,7 @@ classdef APTParameters
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
+
     function tPrm0 = defaultTrackParamsTree(varargin)
       tPrm0 = APTParameters.defaultParamsTree(varargin{:});
       tPrmTrack = tPrm0.findnode('ROOT.Track');
@@ -93,8 +94,8 @@ classdef APTParameters
       if nargin < 2,
         compress = true;
       end
-      v = struct;
-      v.ROOT = struct;
+      v = struct() ;
+      v.ROOT = struct();
       v.ROOT.Track = sPrmAll.ROOT.Track;
       if compress,
         v.ROOT.MultiAnimal = sPrmAll.ROOT.MultiAnimal.Track;

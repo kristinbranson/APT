@@ -10689,7 +10689,7 @@ classdef Labeler < handle
       sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
     end
     
-    function trackSetParams(obj,sPrm,varargin)
+    function trackSetParams(obj, sPrm, varargin)
       % Set all parameters:
       %  - preproc
       %  - cpr
@@ -10701,10 +10701,11 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
-      [setall,istrack] = myparse(varargin,...
-        'all',false,... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
-        'istrack',false... % if true, this is being called by the trackSetTrackParams function
-        ); 
+      [setall, istrack] = ...
+        myparse(varargin, ...
+                'all',false, ... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
+                'istrack',false ... % if true, this is being called by the trackSetTrackParams function
+                ) ;
       sPrm = APTParameters.enforceConsistency(sPrm);
 
       [tfOK,msgs] = APTParameters.checkParams(sPrm);
@@ -10712,10 +10713,10 @@ classdef Labeler < handle
         obj.lerror('%s. ',msgs{:});
       end
       
-      sPrm0 = obj.trackParams;
-      tfPPprmsChanged = ...
+      sPrm0 = obj.trackParams;  % original params
+      tfPreprocesssingParamsChanged = ...
         xor(isempty(sPrm0),isempty(sPrm)) || ...
-        ~APTParameters.isEqualPreProcParams(sPrm0,sPrm);
+        ~APTParameters.isEqualPreProcParams(sPrm0,sPrm) ;
       sPrm = obj.setTrackNFramesParams(sPrm);      
       if setall,
         sPrm = obj.setExtraParams(sPrm);
@@ -10723,7 +10724,7 @@ classdef Labeler < handle
       
       obj.trackParams = sPrm;
       
-      if tfPPprmsChanged
+      if tfPreprocesssingParamsChanged
         assert(~istrack);
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
         obj.preProcInitData();
@@ -10732,8 +10733,9 @@ classdef Labeler < handle
         bgPrms = sPrm.ROOT.ImageProcessing.BackSub;
         mrs = obj.movieReader;
         for i=1:numel(mrs)
-          mrs(i).open(mrs(i).filename,'bgType',bgPrms.BGType,...
-            'bgReadFcn',bgPrms.BGReadFcn);
+          mrs(i).open(mrs(i).filename,...
+                      'bgType',bgPrms.BGType,...
+                      'bgReadFcn',bgPrms.BGReadFcn);
           % mrs(i) should already be faithful to .forceGrayscale,
           % .movieInvert, cropInfo
         end
@@ -10743,7 +10745,7 @@ classdef Labeler < handle
         end
       end
       
-    end
+    end  % function trackSetParams
     
     function [tPrm,do_update] = trackSetAutoParams(obj,varargin)
       % Compute auto parameters and update them based on user feedback
@@ -10799,14 +10801,13 @@ classdef Labeler < handle
       sPrmCurrent = obj.trackGetParams();
       sPrmCurrent = APTParameters.all2TrackParams(sPrmCurrent);
       % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultTrackParamsTree();
+      tPrm = APTParameters.defaultTrackParamsTree();  % object of class TreeNode
       % Overlay our starting pt
       tPrm.structapply(sPrmCurrent);
       
     end
     
-    function [sPrmAll] = trackSetTrackParams(obj,sPrmTrack,varargin)
-      
+    function [sPrmAll] = trackSetTrackParams(obj,sPrmTrack,varargin)      
       sPrmAll = obj.trackGetParams();
       sPrmAll = APTParameters.setTrackParams(sPrmAll,sPrmTrack);
       
@@ -10816,11 +10817,7 @@ classdef Labeler < handle
       for i = 1:numel(obj.trackersAll),
         obj.trackersAll{i}.setTrackParams(sPrmTrack);
       end
-%       if ~isempty(obj.tracker),
-%         obj.tracker.setParams(sPrmAll);
-%       end
-      
-    end
+    end  % function
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
         trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST

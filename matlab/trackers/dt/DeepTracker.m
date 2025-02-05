@@ -450,7 +450,7 @@ classdef DeepTracker < LabelTracker
     % .rootDir of any local DMCs to be used
     
     function [tfCommonChanged,tfPreProcChanged,tfSpecificChanged,tfPostProcChanged] = ...
-        didParamsChange(obj,sPrmAll) % obj const
+        didParamsChange(obj,sPrmAll)  % obj const
       
       tfDiffEmptiness = xor(isempty(obj.sPrmAll),isempty(sPrmAll));
       tfCommonChanged = tfDiffEmptiness || ~APTParameters.isEqualTrackDLParams(obj.sPrmAll,sPrmAll);
@@ -467,7 +467,7 @@ classdef DeepTracker < LabelTracker
       net = obj.trnNetType;
       netmode = obj.trnNetMode;
       sPrmAll = DeepTracker.massageParamsIfNecStc(net,netmode,...
-        sPrmAll,varargin{:});
+                                                  sPrmAll,varargin{:});
     end
       
     function setAllParams(obj,sPrmAll)
@@ -481,7 +481,7 @@ classdef DeepTracker < LabelTracker
       if tfCommonChanged || tfSpecificChanged
         obj.initHook();
       elseif tfPreProcChanged
-        % This is likeyly if the tragetcrop size changes in which case 
+        % This is likely if the targetcrop size changes in which case 
         % we should only reset the second stage but for now resetting the
         % both the stages -- MK 20220520
         if (obj.lObj.maIsMA && (obj.getNumStages > 1)) ||...
@@ -497,9 +497,11 @@ classdef DeepTracker < LabelTracker
         obj.newLabelerFrame();
       end
     end
+
     function sPrmAll = getAllParams(obj)
       sPrmAll = obj.sPrmAll;     
     end
+
     function tfPostProcChanged = setPostProcParams(obj,sPrmAll)
       tfPostProcChanged = ~APTParameters.isEqualPostProcParams(obj.sPrmAll,sPrmAll);
       obj.sPrmAll.ROOT.PostProcess = sPrmAll.ROOT.PostProcess;
@@ -520,9 +522,11 @@ classdef DeepTracker < LabelTracker
         v = obj.sPrmAll.ROOT.DeepTrack.(prmField);
       end
     end
+
     function sPrm = getParams(obj)
       sPrm = obj.sPrm;
     end    
+
     function tc = getTrackerClassAugmented(obj)
       tc = {class(obj) 'trnNetType' obj.trnNetType};
     end
@@ -551,6 +555,7 @@ classdef DeepTracker < LabelTracker
       s = obj.getSaveToken();
       s.sPrmAll = APTParameters.all2TrackParams(s.sPrmAll,false);
     end
+    
     function loadSaveToken(obj,s)
       s = DeepTracker.modernizeSaveToken(s);
       
