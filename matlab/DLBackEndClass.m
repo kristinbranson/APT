@@ -326,7 +326,8 @@ classdef DLBackEndClass < handle
              'If you have not already, please see the documentation for Windows/WSL2 setup instructions.']);
           obj.type = DLBackEnd.Docker;
         else
-          warningNoTrace('Current backend is Conda.  This is only intended for developers.  Be careful.');
+          % Going to skip this warning.  Conda backend is fine.
+          %warningNoTrace('Current backend is Conda.  This is only intended for developers.  Be careful.');
         end
       end
 
