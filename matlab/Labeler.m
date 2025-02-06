@@ -260,7 +260,8 @@ classdef Labeler < handle
     projectroot           % Parent dir of projectfile, if it exists
     bgTrnIsRunning        % True iff background training is running
     bgTrkIsRunning        % True iff background tracking is running
-    trackersAll           % All the 
+    trackersAll           % All the 'template' trackers
+    trackerHistory        
   end
 
   properties (Dependent, Hidden)
@@ -592,15 +593,15 @@ classdef Labeler < handle
   end  
   %% Tracking
   properties
-    trackersAll_
+    trackersAll_ = cell(1,0)
       % cell row vector of concrete LabelTracker objects. init: PNPL
       % Since the introduction of trackerHistory_, these are used only as templates.
       % Calling .hasBeenTrained() on any of these should return false, always.
-    trackersAllCreateInfo_
+    trackersAllCreateInfo_ = cell(1,0)
       % cell row vector of "tracker-create-info" structs, with same number of
       % elements are trackersAll, and with a one-to-one correspondence between them.
       % Exists to ease creation of new working trackers.
-    trackerHistory_  
+    trackerHistory_ = cell(1,0)
       % Cell row vector of concrete LabelTracker objects.  Contains a history of all
       % trained trackers, with age increasing with index.  trackerHistory_{1} is the
       % current tracker.
@@ -1795,8 +1796,6 @@ classdef Labeler < handle
       
       % Reset .trackersAll
       cellfun(@delete, obj.trackersAll_) ;
-        % explicitly delete, conservative cleanup
-        % delete([]) does not err
       obj.trackersAll_ = cell(1,0);
       % Trackers created/initted in projLoad() and projNew(); eg when loading,
       % the loaded .lbl knows what trackers to create.
@@ -2475,6 +2474,10 @@ classdef Labeler < handle
       RC.saveprop('lastLblFile',fname);
 
       s = Labeler.lblModernize(s);
+
+      % Set this so all the prop-setting below doesn't create issues 
+      % when the associated events fire.
+      obj.isinit = true;
       
       obj.initFromConfig_(s.cfg);
       
@@ -2553,10 +2556,11 @@ classdef Labeler < handle
       nTracker = numel(s.trackerData);
       assert(nTracker==numel(s.trackerClass));
       assert(isempty(obj.trackerHistory_));
-      trackerHistory = ...
+      rawTrackerHistory = ...
         cellfun(@(tc,td)(LabelTracker.create(obj, tc, td)), ...
-                s.trackerClass, s.trackerData, ...
+                s.trackerClass(:)', s.trackerData(:)', ...
                 'UniformOutput', false) ;
+      trackerHistory = apt.trimTrackerHistoryAfterLoad(rawTrackerHistory) ;
       obj.trackerHistory_ = trackerHistory;
       
       obj.isinit = false;
@@ -15673,6 +15677,10 @@ classdef Labeler < handle
       obj.trackersAllCreateInfo_ = trackersCreateInfo ;
       obj.trackersAll_ = tAll;
       obj.notify('updateAvailableTrackersMenu') ;
+    end
+
+    function result = get.trackerHistory(obj)
+      result = obj.trackerHistory_ ;
     end
   end  % methods
 end  % classdef

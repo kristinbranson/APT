@@ -117,16 +117,15 @@ handles.txBGTrain.Position = pos2;
 handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.FontSize = handles.txStatus.FontSize;
 
-handles.labelerObj.setStatus('Initializing APT...');
-% handles.SetStatusFun = @SetStatus;
-% handles.ClearStatusFun = @ClearStatus;
-% handles.SetStatusBarTextWhenClearFun = @setStatusBarTextWhenClear;
-% handles.RefreshStatusFun = @refreshStatus;
+% Do a poor-man's labeler.setStatus()
+if isfield(handles,'figs_all') && any(isgraphics(handles.figs_all)) ,
+  set(handles.figs_all(isgraphics(handles.figs_all)),'Pointer','watch') ;
+end
+set(handles.txStatus,'ForegroundColor',handles.busystatuscolor) ;
+set(handles.txStatus,'String','Initializing APT...') ;
 
-%handles.pnlSusp.Visible = 'off';
-
-PURP = [80 31 124]/256;
-handles.tbTLSelectMode.BackgroundColor = PURP;
+PURPLE = [80 31 124]/256;
+handles.tbTLSelectMode.BackgroundColor = PURPLE;
 
 handles.output = hObject;
 
@@ -882,9 +881,9 @@ dx = hps1right1 - hps0right0; % edit_frame, slider_frame shifted to right by thi
 handles.edit_frame.Position(1) = handles.edit_frame.Position(1) + dx;
 handles.slider_frame.Position([1 3]) = handles.slider_frame.Position([1 3]) + dx*[1 -1];
 
-handles.controller.enableControls_('tooltipinit');
+%handles.controller.enableControls_('tooltipinit');
 set(handles.figure,'Visible','on');
-if handles.labelerObj.isgui,
+if handles.labelerObj.isgui ,
   RefocusSplashScreen(hfigsplash,handles);
 end
 
@@ -942,10 +941,7 @@ if lObj.isInDebugMode ,
            'Callback', @LabelerGUIControlActuated) ;
 end
 
-lObj.clearStatus();
-handles.controller.enableControls_('noproject');
-
-if ismac % Change color of buttons 
+if ismac()  % Change color of buttons 
  toChange = {'pbClear','tbAccept','pbTrain','pbTrack',...
      'pumTrack','tbTLSelectMode','pbClearSelection',...
      'pumInfo_labels','pumInfo'};
@@ -3736,9 +3732,9 @@ s = {'APT: The Animal Part Tracker'
   'http://kristinbranson.github.io/APT/'
   ''
   'Developed and tested by Allen Lee, Mayank Kabra,'
-  'Alice Robie, Felipe Rodriguez, Stephen Huston,'
-  'Roian Egnor, Austin Edwards, Caroline Maloney,'
-  'and Kristin Branson'};
+  'Adam Taylor, Alice Robie, Felipe Rodriguez,'
+  'Stephen Huston, Roian Egnor, Austin Edwards,'
+  'Caroline Maloney, and Kristin Branson'};
 
 border = 20;
 w0 = 400;

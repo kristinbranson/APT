@@ -39,6 +39,12 @@ classdef LabelerController < handle
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
 
+      % Update the controls enablement  
+      obj.enableControls_('noproject') ;
+      
+      % Update the status
+      obj.updateStatus([],[]) ;
+
       % Create the waitbar figure, which we re-use  
       obj.waitbarFigure_ = waitbar(0, '', ...
                                    'Visible', 'off', ...
@@ -46,7 +52,7 @@ classdef LabelerController < handle
       obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
         
       % Add some controls to the UI that we can set up before there is a project
-      obj.setup_menu_track_backend_config_submenu_()
+      obj.setup_menu_track_backend_config_submenu_() ;
 
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
@@ -158,15 +164,15 @@ classdef LabelerController < handle
       is_busy = labeler.isStatusBusy ;
       if is_busy
         color = handles.busystatuscolor;
-        if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
-          set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','watch');
+        if isfield(handles,'figs_all') && any(isgraphics(handles.figs_all)),
+          set(handles.figs_all(isgraphics(handles.figs_all)),'Pointer','watch');
         else
           set(obj.mainFigure_,'Pointer','watch');
         end
       else
         color = handles.idlestatuscolor;
-        if isfield(handles,'figs_all') && any(ishandle(handles.figs_all)),
-          set(handles.figs_all(ishandle(handles.figs_all)),'Pointer','arrow');
+        if isfield(handles,'figs_all') && any(isgraphics(handles.figs_all)),
+          set(handles.figs_all(isgraphics(handles.figs_all)),'Pointer','arrow');
         else
           set(obj.mainFigure_,'Pointer','arrow');
         end
@@ -399,22 +405,20 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       trackers = labeler.trackersAll;
       tracker_count = numel(trackers) ;
-      if is_index_in_range(tracker_index, tracker_count)
-        % all is well
-      else
+      if ~is_index_in_range(tracker_index, tracker_count)
         error('APT:invalidPropertyValue', 'Invalid tracker index') ;
       end
       
-      % If a custom top-down tracker, ask if we want to keep it or make a new one.
-      previousTracker = trackers{tracker_index};
-      if isa(previousTracker,'DeepTrackerTopDownCustom')
-        do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(previousTracker) ;
-      else
-        do_use_previous = [] ;  % value will be ignored
-      end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
+      % % If a custom top-down tracker, ask if we want to keep it or make a new one.
+      % previousTracker = trackers{tracker_index};
+      % if isa(previousTracker,'DeepTrackerTopDownCustom')
+      %   do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(previousTracker) ;
+      % else
+      %   do_use_previous = [] ;  % value will be ignored
+      % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
       % Finally, call the model method to set the tracker
-      labeler.trackSetCurrentTracker(tracker_index, do_use_previous);      
+      labeler.trackMakeNewTrackerCurrent(tracker_index) ;      
     end
 
     function showDialogAfterHopefullySpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
@@ -895,8 +899,11 @@ classdef LabelerController < handle
           set(handles.edit_frame,'Enable','off');
           set(handles.popupmenu_prevmode,'Enable','off');
           set(handles.pushbutton_freezetemplate,'Enable','off');
-          set(handles.FigureToolBar,'Visible','off')
-      
+          set(handles.FigureToolBar,'Visible','off') ;
+          if isfield(handles, 'menu_debug') && isgraphics(handles.menu_debug)
+            set(handles.menu_debug,'Enable','off') ;
+          end
+            
         case 'tooltipinit',
           
           set(handles.menu_file,'Enable','on');
@@ -933,6 +940,9 @@ classdef LabelerController < handle
           set(handles.popupmenu_prevmode,'Enable','off');
           set(handles.pushbutton_freezetemplate,'Enable','off');
           set(handles.FigureToolBar,'Visible','off')
+          if isfield(handles, 'menu_debug') && isgraphics(handles.menu_debug)
+            set(handles.menu_debug,'Enable','off') ;
+          end
           
         case 'noproject',
           set(handles.menu_file,'Enable','on');
@@ -980,6 +990,9 @@ classdef LabelerController < handle
           set(handles.popupmenu_prevmode,'Enable','off');
           set(handles.pushbutton_freezetemplate,'Enable','off');
           set(handles.FigureToolBar,'Visible','off')
+          if isfield(handles, 'menu_debug') && isgraphics(handles.menu_debug)
+            set(handles.menu_debug,'Enable','off') ;
+          end
       
         case 'projectloaded'
       
@@ -1019,7 +1032,10 @@ classdef LabelerController < handle
           set(handles.edit_frame,'Enable','on');
           set(handles.popupmenu_prevmode,'Enable','on');
           set(handles.pushbutton_freezetemplate,'Enable','on');
-          set(handles.FigureToolBar,'Visible','on')
+          set(handles.FigureToolBar,'Visible','on')         
+          if isfield(handles, 'menu_debug') && isgraphics(handles.menu_debug)
+            set(handles.menu_debug,'Enable','on') ;
+          end
           
           lObj = obj.labeler_ ;
           tObj = lObj.tracker;    
@@ -1043,19 +1059,17 @@ classdef LabelerController < handle
           end
           if lObj.maIsMA
             set(handles.h_nonma_only,'Enable','off');
-      %      set(handles.menu_track_id,'Checked',handles.labelerObj.track_id,'Visible','on');
           else
             set(handles.h_ma_only,'Enable','off');
-      %      set(handles.menu_track_id,'Visible','off');
           end
           if lObj.nLabelPointsAdd == 0,
             set(handles.h_addpoints_only,'Visible','off');
           else
             set(handles.h_addpoints_only,'Visible','on');
           end
-      
+
         otherwise
-          fprintf('Not implemented\n');
+          error('Not implemented') ;
       end
     end  % function
 
@@ -1927,7 +1941,7 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function handles = setup_menu_track_tracking_algorithm_submenu_(obj)
+    function setup_menu_track_tracking_algorithm_submenu_(obj)
       % Populate the Track > 'Tracking algorithm' submenu.
 
       % Get out the main objects
@@ -1959,7 +1973,7 @@ classdef LabelerController < handle
       % guidata(mainFigure, handles) ;      
     end  % function
 
-    function handles = setup_menu_track_tracker_history_submenu_(obj)
+    function setup_menu_track_tracker_history_submenu_(obj)
       % Populate the Track > 'Tracking algorithm' submenu.
 
       % Get out the main objects
@@ -1968,20 +1982,21 @@ classdef LabelerController < handle
       handles = guidata(mainFigure) ;
 
       % Delete the old submenu items
-      menu_track_tracking_history = handles.menu_track_tracking_history ;
-      old_submenu_items = menu_track_tracking_history.Children ;
+      menu_track_tracker_history = handles.menu_track_tracker_history ;
+      old_submenu_items = menu_track_tracker_history.Children ;
       deleteValidGraphicsHandles(old_submenu_items) ;
       
       % Remake the submenu items
       trackers = labeler.trackerHistory ;
       trackerCount = numel(trackers) ;
-      tag = 'menu_track_tracking_history_item' ;
+      tag = 'menu_track_tracker_history_item' ;
       for i = 1:trackerCount  
         tracker = trackers{i} ;
         algNamePretty = tracker.algorithmNamePretty ;
-        trnNameLbl = tracker.trnNameLbl ;
+        rawTrnNameLbl = tracker.trnNameLbl ;
+        trnNameLbl = fif(isempty(rawTrnNameLbl), 'untrained', rawTrnNameLbl) ;
         menuItemLabel = sprintf('%s (%s)', algNamePretty, trnNameLbl) ;
-        uimenu('Parent',menu_track_tracking_history, ...
+        uimenu('Parent',menu_track_tracker_history, ...
                'Label',menuItemLabel, ...
                'Callback',@(s,e)(obj.controlActuated(tag, s, e)), ...
                'Tag',tag, ...
@@ -1995,7 +2010,7 @@ classdef LabelerController < handle
       % guidata(mainFigure, handles) ;      
     end  % function
 
-    function handles = setup_menu_track_backend_config_submenu_(obj)
+    function setup_menu_track_backend_config_submenu_(obj)
       % Populate the Track > Backend menu
 
       % Get out the main objects
@@ -2009,7 +2024,7 @@ classdef LabelerController < handle
           'Label','GPU/Backend Configuration',...
           'Visible','off',...
           'Tag','menu_track_backend_config');
-        moveMenuItemAfter(handles.menu_track_backend_config, handles.menu_track_tracking_algorithm) ;
+        moveMenuItemAfter(handles.menu_track_backend_config, handles.menu_track_tracker_history) ;
         handles.menu_track_backend_config_jrc = uimenu( ...
           'Parent',handles.menu_track_backend_config,...
           'Label','JRC Cluster',...
