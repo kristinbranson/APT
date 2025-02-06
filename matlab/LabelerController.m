@@ -45,6 +45,9 @@ classdef LabelerController < handle
                                    'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
       obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
         
+      % Add some controls to the UI that we can set up before there is a project
+      obj.setup_menu_track_backend_config_submenu_()
+
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
       obj.listeners_(end+1) = ...
@@ -84,7 +87,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetTrackersAll',@(source,event)(obj.cbkTrackersAllChanged()));            
+        addlistener(labeler,'updateAvailableTrackersMenu',@(source,event)(obj.updateAvailableTrackersMenu()));            
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrackerHistoryMenu',@(source,event)(obj.setup_menu_track_tracker_history_submenu_()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetCurrTracker',@(source,event)(obj.cbkCurrTrackerChanged()));            
       obj.listeners_(end+1) = ...
@@ -386,21 +391,22 @@ classdef LabelerController < handle
       obj.selectAwsInstance_() ;
     end
 
-    function menu_track_algorithm_actuated(obj, source, event)  %#ok<INUSD> 
+    function menu_track_tracking_algorithm_item_actuated(obj, source, event)  %#ok<INUSD> 
       % Get the tracker index
       tracker_index = source.UserData;
 
       % Validate it
-      tAll = obj.labeler_.trackersAll;
-      tracker_count = numel(tAll) ;
-      if isnumeric(tracker_index) && isscalar(tracker_index) && round(tracker_index)==tracker_index && 1<=tracker_index && tracker_index<=tracker_count ,
+      labeler = obj.labeler_ ;
+      trackers = labeler.trackersAll;
+      tracker_count = numel(trackers) ;
+      if is_index_in_range(tracker_index, tracker_count)
         % all is well
       else
         error('APT:invalidPropertyValue', 'Invalid tracker index') ;
       end
       
       % If a custom top-down tracker, ask if we want to keep it or make a new one.
-      previousTracker = tAll{tracker_index};
+      previousTracker = trackers{tracker_index};
       if isa(previousTracker,'DeepTrackerTopDownCustom')
         do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(previousTracker) ;
       else
@@ -408,7 +414,7 @@ classdef LabelerController < handle
       end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
       % Finally, call the model method to set the tracker
-      obj.labeler_.trackSetCurrentTracker(tracker_index, do_use_previous);      
+      labeler.trackSetCurrentTracker(tracker_index, do_use_previous);      
     end
 
     function showDialogAfterHopefullySpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
@@ -1844,16 +1850,10 @@ classdef LabelerController < handle
       cellfun(@(x)x.clearTracklet(),labeler.labels2);
       cellfun(@(x)x.clearTracklet(),labeler.labels2GT);
             
-      % Reset .trackersAll
-      for i=1:numel(labeler.trackersAll)
-        % explicitly delete, conservative cleanup
-        delete(labeler.trackersAll{i}); % delete([]) does not err
-      end
-      labeler.trackersAll = cell(1,0);
-      labeler.trackInitAllTrackers();
+      % Clear all the trained trackers
+      labeler.clearAllTrackers();
       % Trackers created/initted in projLoad and projNew; eg when loading,
       % the loaded .lbl knows what trackers to create.
-      labeler.currTracker = 1;
       
       labeler.trackDLBackEnd = DLBackEndClass() ;  % This seems...  odd?  -- ALT, 2025-02-03
       labeler.trackDLBackEnd.isInAwsDebugMode = labeler.isInAwsDebugMode ;
@@ -1919,42 +1919,88 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function cbkTrackersAllChanged(obj)      
+    function updateAvailableTrackersMenu(obj)      
       lObj = obj.labeler_ ;
       if ~lObj.isinit ,
-        obj.setupAvailTrackersMenu_() ;
-        cellfun(@deactivate, lObj.trackersAll) ;
-        obj.cbkCurrTrackerChanged() ;  % current tracker object depends on lObj.trackersAll
+        obj.setup_menu_track_tracking_algorithm_submenu_() ;
+        %obj.cbkCurrTrackerChanged() ;  % Don't think we need this anymore
       end
     end  % function
     
-    function handles = setupAvailTrackersMenu_(obj)
-      % set up menus and put in handles.menu_track_trackers (cell arr)
+    function handles = setup_menu_track_tracking_algorithm_submenu_(obj)
+      % Populate the Track > 'Tracking algorithm' submenu.
 
-      lObj = obj.labeler_ ;
-      tObjs = lObj.trackersAll ;
+      % Get out the main objects
+      labeler = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       handles = guidata(mainFigure) ;
 
-      cellfun(@delete,handles.menu_track_trackers);
+      % Delete the old submenu items
+      old_menu_track_trackers = handles.menu_track_tracking_algorithm.Children ;
+      deleteValidGraphicsHandles(old_menu_track_trackers) ;
       
-      nTrker = numel(tObjs);
-      menuTrks = cell(nTrker,1);
-      for i=1:nTrker  
-        algName = tObjs{i}.algorithmName;
-        algLabel = tObjs{i}.algorithmNamePretty;
+      % Remake the submenu items
+      trackers = labeler.trackersAll ;
+      trackerCount = numel(trackers) ;
+      for i=1:trackerCount  
+        algName = trackers{i}.algorithmName;
+        algLabel = trackers{i}.algorithmNamePretty;
         enable = onIff(~strcmp(algName,'dpk'));
-        mnu = uimenu( ...
-          'Parent',handles.menu_track_tracking_algorithm,...
-          'Label',algLabel,...
-          'Callback',@LabelerGUIControlActuated,...
-          'Tag','menu_track_algorithm',...
-          'UserData',i,...
-          'enable',enable,...
-          'Position',i);
-        menuTrks{i} = mnu;
+        uimenu('Parent',handles.menu_track_tracking_algorithm,...
+               'Label',algLabel,...
+               'Callback',@LabelerGUIControlActuated,...
+               'Tag','menu_track_tracking_algorithm_item',...
+               'UserData',i,...
+               'Enable',enable,...
+               'Position',i);
       end
-      handles.menu_track_trackers = menuTrks;
+      
+      % % Store the modified handles struct
+      % guidata(mainFigure, handles) ;      
+    end  % function
+
+    function handles = setup_menu_track_tracker_history_submenu_(obj)
+      % Populate the Track > 'Tracking algorithm' submenu.
+
+      % Get out the main objects
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % Delete the old submenu items
+      menu_track_tracking_history = handles.menu_track_tracking_history ;
+      old_submenu_items = menu_track_tracking_history.Children ;
+      deleteValidGraphicsHandles(old_submenu_items) ;
+      
+      % Remake the submenu items
+      trackers = labeler.trackerHistory ;
+      trackerCount = numel(trackers) ;
+      tag = 'menu_track_tracking_history_item' ;
+      for i = 1:trackerCount  
+        tracker = trackers{i} ;
+        algNamePretty = tracker.algorithmNamePretty ;
+        trnNameLbl = tracker.trnNameLbl ;
+        menuItemLabel = sprintf('%s (%s)', algNamePretty, trnNameLbl) ;
+        uimenu('Parent',menu_track_tracking_history, ...
+               'Label',menuItemLabel, ...
+               'Callback',@(s,e)(obj.controlActuated(tag, s, e)), ...
+               'Tag',tag, ...
+               'UserData',i, ...
+               'Position',i, ...
+               'Checked', onIff(i==1)) ;  
+          % The first element of labeler.trackerHistory is always the current one
+      end
+      
+      % % Store the modified handles struct
+      % guidata(mainFigure, handles) ;      
+    end  % function
+
+    function handles = setup_menu_track_backend_config_submenu_(obj)
+      % Populate the Track > Backend menu
+
+      % Get out the main objects
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
       
       if ~isfield(handles,'menu_track_backend_config')
         % set up first time only, should not change
@@ -1963,7 +2009,7 @@ classdef LabelerController < handle
           'Label','GPU/Backend Configuration',...
           'Visible','off',...
           'Tag','menu_track_backend_config');
-        moveMenuItemAfter(handles.menu_track_backend_config,handles.menu_track_tracking_algorithm);
+        moveMenuItemAfter(handles.menu_track_backend_config, handles.menu_track_tracking_algorithm) ;
         handles.menu_track_backend_config_jrc = uimenu( ...
           'Parent',handles.menu_track_backend_config,...
           'Label','JRC Cluster',...
@@ -1989,11 +2035,6 @@ classdef LabelerController < handle
           'Tag','menu_track_backend_config_conda',...
           'userdata',DLBackEnd.Conda,...
           'Visible',true);
-      %   if false %ispc,
-      %     handles.menu_track_backend_config_docker.Enable = 'off';
-      %   else
-      %     handles.menu_track_backend_config_conda.Enable = 'off';
-      %   end
         handles.menu_track_backend_config_conda.Enable = 'on';
         % KB added menu item to get more info about how to set up
         handles.menu_track_backend_config_moreinfo = uimenu( ...
@@ -2070,9 +2111,10 @@ classdef LabelerController < handle
           'Separator','on', ...
           'Label','(Conda) Set environment...',...
           'Callback',@(s,e)(obj.cbkTrackerBackendSetCondaEnv()),...
-          'Tag','menu_track_backend_set_conda_env');  
-      
+          'Tag','menu_track_backend_set_conda_env');        
       end
+
+      % Store the modified handles struct
       guidata(mainFigure, handles) ;      
     end  % function
 
@@ -2170,6 +2212,10 @@ classdef LabelerController < handle
     end  % function
 
     function cbkCurrTrackerChanged(obj)
+      % Update the controls that need to be updated after the current tracker
+      % changes
+
+      % Get the objects we need to mess with
       lObj = obj.labeler_ ;
       if lObj.isinit ,
         return
@@ -2177,32 +2223,21 @@ classdef LabelerController < handle
       mainFigure = obj.mainFigure_ ;
       handles = guidata(mainFigure) ;
       tObj = lObj.tracker ;
-      iTrker = lObj.currTracker ;
+      %iTrker = lObj.currTracker ;
 
-      %
-      % Set up tracker menu listeners
-      % 
-      % delete all existing listeners-to-trackers
-      %cellfun(@delete,handles.listenersTracker);
-      %handles.listenersTracker = cell(0,1);
-      
-      % UI, is a tracker available
-      tfTracker = ~isempty(tObj);
-      onOff = onIff(tfTracker&&handles.labelerObj.isReady);
+      % Enable/disable controls that depend on whether a tracker is available
+      tfTracker = ~isempty(tObj) ;
+      onOff = onIff(tfTracker && handles.labelerObj.isReady) ;
       handles.menu_track.Enable = onOff;
       handles.pbTrain.Enable = onOff;
       handles.pbTrack.Enable = onOff;
       handles.menu_view_hide_predictions.Enable = onOff;
       handles.menu_view_show_preds_curr_target_only.Enable = onOff;
-      
-      menuTrkers = handles.menu_track_trackers;
-      for i=1:numel(menuTrkers)
-        mnu = menuTrkers{i};
-        mnu.Checked = onIff(i==iTrker) ;
-      end
-      
-      %listenersNew = cell(0,1);
-      
+
+      % Remake the tracker history submenu
+      obj.setup_menu_track_tracker_history_submenu_() ;
+
+      % Do some other stuff, some of it obsolete
       if tfTracker
         % UI, tracker-specific
         iscpr = strcmp('cpr',tObj.algorithmName);
@@ -2222,9 +2257,11 @@ classdef LabelerController < handle
           obj.updateTrackBackendConfigMenuChecked_();
         end        
       end  % if      
-      %handles.listenersTracker = listenersNew;
 
-      handles.labelTLInfo.setTracker(tObj);
+      % Update the InfoTimeline
+      handles.labelTLInfo.didChangeCurrentTracker();
+
+      % Update the guidata
       guidata(mainFigure, handles) ;
     end  % function
     
@@ -2448,14 +2485,14 @@ classdef LabelerController < handle
       lObj = obj.labeler_ ;      
       mainFigure = obj.mainFigure_ ;
       handles = guidata(mainFigure) ;
-      if ~isempty(lObj.trackersAll) && ~isempty(lObj.tracker),
+      if ~isempty(lObj.tracker) ,
         handles.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
       end
     end  % function
     
     function cbkParameterChange(obj)
       lObj = obj.labeler_ ;      
-      if isempty(lObj.trackersAll) || isempty(lObj.tracker) ,
+      if isempty(lObj.tracker) ,
         return
       end
       mainFigure = obj.mainFigure_ ;

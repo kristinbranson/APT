@@ -336,7 +336,7 @@ classdef DeepTracker < LabelTracker
       obj.trackResInit();
       obj.trackCurrResInit();
       obj.vizInit();
-      obj.updateTrackerInfo();
+      obj.syncInfoFromDMC_();
     end
     function deactivate(obj)
       deactivate@LabelTracker(obj);
@@ -346,7 +346,7 @@ classdef DeepTracker < LabelTracker
     function activate(obj)
       activate@LabelTracker(obj);
       obj.vizInit(false);
-      obj.updateTrackerInfo();
+      obj.syncInfoFromDMC_();
     end
   end
   
@@ -484,7 +484,7 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
         obj.trackCurrResUpdate();
-        obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
+        obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
         obj.newLabelerFrame();
       end
     end
@@ -500,7 +500,7 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
         obj.trackCurrResUpdate();
-        obj.updateTrackerInfo(); % AL: prob unnec but also prob doesn't hurt
+        obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
         obj.newLabelerFrame();
       end
     end
@@ -780,7 +780,7 @@ classdef DeepTracker < LabelTracker
       % call for the tracking monitor is made in downstream code.
       p = gcp;
       nrun = numel(p.FevalQueue.RunningFutures);
-      if nrun>=p.NumWorkers
+      if nrun >= p.NumWorkers
         reason = 'Parallel pool is full. Cannot spawn training monitor.';
         return
       end
@@ -837,7 +837,7 @@ classdef DeepTracker < LabelTracker
       end
       
       tfCanTrain = true;      
-    end
+    end  % function
     
     function pretrain_(obj)      
       if obj.bgTrnIsRunning
@@ -862,7 +862,7 @@ classdef DeepTracker < LabelTracker
       backend = labeler.trackDLBackEnd;
       fprintf('Your deep net type is: %s\n',char(obj.trnNetType));
       fprintf('Your training backend is: %s\n',char(backend.type));
-      fprintf(1,'\n'); 
+      fprintf('\n'); 
 
       % Update code on remote filesystem, if needed
       backend.updateRepo() ;
@@ -1023,13 +1023,13 @@ classdef DeepTracker < LabelTracker
     % end
     
     % update trackerInfo from trnLastDMC
-    function updateTrackerInfo(obj)      
+    function syncInfoFromDMC_(obj)      
       % info about algorithm and training
       info = DeepModelChainOnDisk.trackerInfo(obj.trnLastDMC);
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
       obj.trackerInfo = info;
-      obj.lObj.didUpdateTrackerInfo() ;  % causes a notification to be generated
+      obj.lObj.doNotify('updateTrackerInfoText') ;
     end  % function
     
     % % set select properties of trackerInfo 
@@ -1057,7 +1057,7 @@ classdef DeepTracker < LabelTracker
         doupdate = false;
       end
       if doupdate,
-        obj.updateTrackerInfo();
+        obj.syncInfoFromDMC_();
       end
       infos = {};
       infos{end+1} = obj.trackerInfo.algorithm;
@@ -2467,7 +2467,7 @@ classdef DeepTracker < LabelTracker
         end
         if ~fortracking,
           tdata(i).sPrmAll = lObj.addExtraParams(tdata(i).sPrmAll,...
-            tdata(i).trnNetMode);
+                                                 tdata(i).trnNetMode);
         end
         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
       end
@@ -2585,7 +2585,7 @@ classdef DeepTracker < LabelTracker
       backend.uploadMovies(localPathFromMovieIndex) ;
 
       % Update the tracker info based on the trained model
-      obj.updateTrackerInfo() ;
+      obj.syncInfoFromDMC_() ;
     end  % function
     
     function track(obj,varargin)
@@ -3032,8 +3032,11 @@ classdef DeepTracker < LabelTracker
       s.projname = obj.lObj.projname;
       %s.cfg = obj.lObj.getCurrentConfig();
       tdata = obj.getTrackSaveToken();
-      s.trackerData = DeepTracker.massageTrackerData(tdata,...
-        obj.lObj,'sPrmAll',sPrmAll,'fortracking',true);
+      s.trackerData = ...
+        DeepTracker.massageTrackerData(tdata,...
+                                       obj.lObj,...
+                                       'sPrmAll',sPrmAll,...
+                                       'fortracking',true);
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
       jsonoutf = configfile;
@@ -3409,7 +3412,7 @@ classdef DeepTracker < LabelTracker
       end  % if
       
       % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
-      obj.updateTrackerInfo();
+      obj.syncInfoFromDMC_();
 
       % Possibly signal the controller/view to raise a dialog asking if the user wants to
       % save the project.
@@ -4115,7 +4118,7 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResInit();
       % deleting old tracking results, so can switch to new tracker info
       obj.vizInit();
-      obj.updateTrackerInfo();      
+      obj.syncInfoFromDMC_();      
     end
     
     function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)

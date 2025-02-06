@@ -39,7 +39,7 @@ classdef InfoTimeline < handle
     listeners % [nlistener] col cell array of labeler prop listeners
     listenersTracker % col cell array of tracker listeners
 
-    tracker % scalar LabelTracker obj
+    %tracker % scalar LabelTracker obj
     
     color = [1,1,1]; % color when there is only one statistic for all landmarks
   end
@@ -184,7 +184,7 @@ classdef InfoTimeline < handle
       obj.listeners = listeners;      
       obj.listenersTracker = cell(0,1);
       
-      obj.tracker = [];
+      %obj.tracker = [];
     
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
       obj.readTimelinePropsNew();
@@ -408,9 +408,10 @@ classdef InfoTimeline < handle
       obj.initializePropsAllFrames();
     end
         
-    function setTracker(obj,tracker)
+    function didChangeCurrentTracker(obj)
       
-      obj.tracker = tracker;
+      tracker = obj.lObj.tracker ;
+      %obj.tracker = tracker;
       if ~isempty(obj.listenersTracker),
         cellfun(@delete,obj.listenersTracker);
         obj.listenersTracker = cell(0,1);

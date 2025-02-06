@@ -82,8 +82,9 @@ classdef LabelTracker < handle
     end
     
     function init(obj)
-      % Called when a new project is created/loaded, etc
-      %obj.ax = obj.lObj.gdata.axes_all;
+      % Called when a new project is created/loaded, etc.
+      % Also used to reset a tracker to a state with no trained models, no tracking
+      % results, etc.
       obj.initHook();
     end
         
