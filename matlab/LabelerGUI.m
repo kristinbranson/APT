@@ -2230,7 +2230,7 @@ lObj = handles.labelerObj;
 fname = lObj.getDefaultFilenameExportStrippedLbl();
 [f,p] = uiputfile(fname,'Export File');
 if isequal(f,0)
-  return;
+  return
 end
 fname = fullfile(p,f);
 handles.labelerObj.setStatus(sprintf('Exporting training data to %s',fname));

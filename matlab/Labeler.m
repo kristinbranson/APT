@@ -152,8 +152,9 @@ classdef Labeler < handle
     gtSuggMFTableLbledUpdated  % incremental update of gtSuggMFTableLbled occurred
     gtResUpdated  % update of GT performance results occurred
     
-    updateAvailableTrackersMenu
-    updateTrackerHistoryMenu
+    initialize_menu_track_tracking_algorithm
+    update_menu_track_tracking_algorithm
+    update_menu_track_tracker_history
     didSetCurrTracker
     didSetCurrTarget
 
@@ -253,6 +254,7 @@ classdef Labeler < handle
     projRngSeed = 17 
     
     saveVersionInfo  % info about versions of stuff when proj last saved
+    currentTrackerIndexInTrackersAll_
   end
   properties (Dependent)
     hasProject            % scalar logical
@@ -1642,7 +1644,7 @@ classdef Labeler < handle
   % There are only two ways to start working on a project.
   % 1. New/blank project: projNew().
   % 2. Existing project: projLoad(), which is (initFromConfig(), then
-  %    property-initialization-equivalent-to-projNewCore_().)
+  %    property-initialization-equivalent-to-projNew().)
   
     function initFromConfig_(obj, cfg)
       % Initialize obj from cfg, a configuration struct.  This is used e.g. when loading
@@ -1657,7 +1659,7 @@ classdef Labeler < handle
       if isempty(cfg.ViewNames)
         obj.viewNames = arrayfun(@(x)sprintf('view%d',x),1:obj.nview,'uni',0);
       else
-        if numel(cfg.ViewNames)~=obj.nview
+        if numel(cfg.ViewNames) ~= obj.nview
           obj.lerror('Labeler:prefs',...
             'ViewNames: must specify %d names (one for each view)',obj.nview);
         end
@@ -1843,10 +1845,6 @@ classdef Labeler < handle
       end
       
       obj.isinit = isinit0;
-      
-      % do this b/c we set trackerAll_ above.  Is there a better place to do this?
-      obj.notify('updateAvailableTrackersMenu') ;
-      obj.notify('updateTrackerHistoryMenu') ;
     end  % function
     
     function cfg = getCurrentConfig(obj)
@@ -2065,24 +2063,13 @@ classdef Labeler < handle
     function projNew(obj, cfg)
       % Create new project based on configuration in cfg.
       obj.setStatus('Configuring New Project') ;
-      obj.initFromConfig_(cfg) ;
-      obj.projNewCore_(cfg.ProjectName) ;
-      obj.setDoesNeedSave(true, 'New project') ;      
-      obj.clearStatus() ;
-    end
+      oc = onCleanup(@()(obj.clearStatus())) ;
 
-    function projNewCore_(obj, projectName)
-      % Create new project based on current configuration
-      
-      % AL empty projnames can cause trouble lets just set a default now if 
-      % nec
-      if ~exist('name', 'var') || isempty(projectName)
-        projectName = 'APTproject';
-      end
+      obj.initFromConfig_(cfg) ;
 
       obj.isinit = true;
 
-      obj.projname = projectName;
+      obj.projname = cfg.ProjectName ;
       obj.projFSInfo = [];
       obj.projGetEnsureTempDir('cleartmp',true);
       obj.movieFilesAll = cell(0,obj.nview);
@@ -2106,24 +2093,13 @@ classdef Labeler < handle
       obj.viewCalibrationDataGT = [];
       obj.labelTemplate = []; % order important here
       obj.gtIsGTMode = false;
-      obj.movieSetNoMovie(); % order important here
-%       obj.labeledpos = cell(0,1);
-      
+      obj.movieSetNoMovie(); % order important here      
       obj.labels = cell(0,1);
       obj.labels2 = cell(0,1);
       obj.labelsGT = cell(0,1);
-      obj.labels2GT = cell(0,1);
-      
+      obj.labels2GT = cell(0,1);      
       obj.labelsRoi = cell(0,1);
-%       obj.labeledposGT = cell(0,1);
-%       obj.labeledposTS = cell(0,1);
       obj.lastLabelChangeTS = 0;
-%       obj.labeledposTSGT = cell(0,1);
-%       obj.labeledposMarked = cell(0,1);
-%       obj.labeledpostag = cell(0,1);
-%       obj.labeledpostagGT = cell(0,1);
-%       obj.labeledpos2 = cell(0,1);
-%       obj.labeledpos2GT = cell(0,1);
       obj.gtIsGTMode = false;
       obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
       obj.gtSuggMFTableLbled = false(0,1);
@@ -2137,7 +2113,7 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
 
-      trkPrefs = obj.projPrefs.Track;
+      trkPrefs = obj.projPrefs.Track ;
       if trkPrefs.Enable
         % Create default trackers (now only used as templates)
         assert(isempty(obj.trackersAll_));
@@ -2152,13 +2128,17 @@ classdef Labeler < handle
         obj.trackParams = sPrm;
       end
 
+      % Note that the project now needs saving
+      obj.setDoesNeedSave(true, 'New project') ;      
+      
       % Fire a bunch of notifications to get the view to sync up with the model
       obj.setPropertiesToFireCallbacksToInitializeUI_() ;      
-      obj.notify('cropIsCropModeChanged');
-      obj.notify('gtIsGTModeChanged');
-      obj.notify('updateAvailableTrackersMenu') ;      
-      obj.notify('updateTrackerHistoryMenu') ;      
-    end  % function projNewCore_
+      obj.notify('cropIsCropModeChanged') ;
+      obj.notify('gtIsGTModeChanged') ;
+      obj.notify('initialize_menu_track_tracking_algorithm') ;      
+      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify('updateTrackerInfoText') ;      
+    end
     
     function projSaveRaw(obj,fname)      
       try
@@ -2482,7 +2462,7 @@ classdef Labeler < handle
       obj.initFromConfig_(s.cfg);
       
       % From here to the end of this method is a parallel initialization to
-      % projNewCore_()
+      % projNew()
       
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
@@ -2678,8 +2658,11 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged');
       obj.notify('gtSuggUpdated');
       obj.notify('gtResUpdated');
-      obj.notify('updateAvailableTrackersMenu') ;
+      obj.notify('initialize_menu_track_tracking_algorithm') ;
+      obj.notify('update_menu_track_tracker_history') ;
       obj.notify('didSetCurrTracker') ;
+      obj.notify('updateTrackerInfoText') ;
+
 
       % Final sign-off
       fprintf('Finished loading project, elapsed time %f s.\n',toc(starttime));      
@@ -3258,97 +3241,6 @@ classdef Labeler < handle
     function p = projLocalizePath(obj,p)
       p = FSPath.fullyLocalizeStandardizeChar(p,obj.projMacros);
     end
-    
-%     function projNewImStack(obj,ims,varargin)
-%       % DEVELOPMENT ONLY
-%       %
-%       % Same as projNew, but initialize project to have a single 'movie'
-%       % consisting of an image stack. 
-%       %
-%       % Optional PVs. Let N=numel(ims).
-%       % - xyGT. [Nxnptx2], gt labels. 
-%       % - xyTstT. [Nxnptx2xRT], CPR test results (replicats)
-%       % - xyTstTRed. [Nxnptx2], CPR test results (selected/final).
-%       % - tstITst. [K] indices into 1:N. If provided, xyTstT and xyTstTRed
-%       %   should have K rows. xyTstTITst specify frames to which tracking 
-%       %   results apply.
-%       %
-%       % If xyGT/xyTstT/xyTstTRed provided, they are viewed with
-%       % LabelCoreCPRView. 
-%       %
-%       % TODO: Prob should set pGT onto .labeledpos, and let
-%       % LabelCoreCPRView handle replicates etc.
-%       
-%       assert(false,'Unsupported');
-%       
-% %       [xyGT,xyTstT,xyTstTRed,tstITst] = myparse(varargin,...
-% %         'xyGT',[],...
-% %         'xyTstT',[],...
-% %         'xyTstTRed',[],...
-% %         'tstITst',[]);
-% % 
-% %       assert(false,'Unsupported: todo gt');
-% %       assert(~obj.isMultiView);
-% %       
-% %       obj.projNewCore_('IMSTACK__DEVONLY');
-% % 
-% %       mr = MovieReaderImStack;
-% %       mr.open(ims);
-% %       obj.movieReader = mr;
-% %       movieInfo = struct();
-% %       movieInfo.nframes = mr.nframes;
-% %       
-% %       obj.movieFilesAll{end+1,1} = '__IMSTACK__';
-% %       obj.movieFilesAllHaveLbls(end+1,1) = false; % note, this refers to .labeledpos
-% %       obj.movieInfoAll{end+1,1} = movieInfo;
-% %       obj.trxFilesAll{end+1,1} = '__IMSTACK__';
-% %       obj.currMovie = 1; % HACK
-% %       obj.currTarget = 1;
-% % %       obj.labeledpos{end+1,1} = [];
-% % %       obj.labeledpostag{end+1,1} = [];
-% %       
-% %       N = numel(ims);
-% %       tfGT = ~isempty(xyGT);
-% %       if tfGT
-% %         [Ntmp,npt,d] = size(xyGT); % npt equal nLabelPoint?
-% %         assert(Ntmp==N && d==2);
-% %       end
-% %       
-% %       tfTst = ~isempty(xyTstT);
-% %       tfITst = ~isempty(tstITst);
-% %       if tfTst
-% %         sz1 = size(xyTstT);
-% %         sz2 = size(xyTstTRed);
-% %         RT = size(xyTstT,4);
-% %         if tfITst
-% %           k = numel(tstITst);
-% %           assert(isequal([k npt d],sz1(1:3),sz2));
-% %           xyTstTPad = nan(N,npt,d,RT);
-% %           xyTstTRedPad = nan(N,npt,d);
-% %           xyTstTPad(tstITst,:,:,:) = xyTstT;
-% %           xyTstTRedPad(tstITst,:,:) = xyTstTRed;
-% %           
-% %           xyTstT = xyTstTPad;
-% %           xyTstTRed = xyTstTRedPad;
-% %         else
-% %           assert(isequal([N npt d],sz1(1:3),sz2));          
-% %         end
-% %       else
-% %         xyTstT = nan(N,npt,d,1);
-% %         xyTstTRed = nan(N,npt,d);
-% %       end
-% %       
-% %       if tfGT
-% %         lc = LabelCoreCPRView(obj);
-% %         lc.setPs(xyGT,xyTstT,xyTstTRed);
-% %         delete(obj.lblCore);
-% %         obj.lblCore = lc;
-% %         lpp = obj.labelPointsPlotInfo;
-% %         lpp.Colors = obj.LabelPointColors();
-% %         lc.init(obj.nLabelPoints,lpp);
-% %         obj.setFrame(1);
-% %       end
-%     end
     
     function [nlabels,nlabelspermovie,nlabelspertarget] = getNLabels(obj,gt)
       
@@ -10706,14 +10598,17 @@ classdef Labeler < handle
         newCurrentTracker.activate() ;
       end
       
-      % Send the notification
-      obj.notify('didSetCurrTracker') ;
-      
       % Turn the visualization back on for the new current tracker
       newCurrentTracker.setHideViz(false);
 
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);      
+
+      % Send the notifications
+      obj.notify('didSetCurrTracker') ;
+      obj.notify('update_menu_track_tracking_algorithm') ;      
+      obj.notify('update_menu_track_tracker_history') ;
+      obj.notify('updateTrackerInfoText') ;
     end  % function
 
     function trackMakeNewTrackerCurrent(obj, tciIndex)
@@ -10750,14 +10645,17 @@ classdef Labeler < handle
         newTracker.activate() ;
       end
       
-      % Send the notification
-      obj.notify('didSetCurrTracker') ;
-      
       % Turn the visualization back on for the new current tracker
       newTracker.setHideViz(false);
 
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);
+
+      % Send the notification
+      obj.notify('didSetCurrTracker') ;      
+      obj.notify('update_menu_track_tracking_algorithm') ;
+      obj.notify('update_menu_track_tracker_history') ;      
+      obj.notify('updateTrackerInfoText') ;      
     end  % function
 
     function trackMakeNewTrackerCurrentByName(obj, algoName)
@@ -10985,12 +10883,20 @@ classdef Labeler < handle
       % Do a few checks
       tracker = obj.tracker;
       if isempty(tracker)
-        error('Labeler:track','No tracker set.');
+        error('Labeler:train','No tracker set.');
       end
       if ~obj.hasMovie
-        error('Labeler:track','No movie.');
+        error('Labeler:train','No movie.');
       end
+
+      % Update the status
+      obj.setStatus('Training...') ;
+      oc = onCleanup(@()(obj.clearStatus()));
+
+      % Update the 'status' on the console
+      fprintf('Training started at %s...\n',datestr(now()));
       
+      % Do stuff that should be done in the controller
       obj.trackSetAutoParams();  % Does UI stuff, should be moved into controller
       if ~obj.trackCheckGPUMem()  % Does UI stuff, should be moved into controller
         return
@@ -11322,12 +11228,13 @@ classdef Labeler < handle
       trackersNew = trackers{1} ;
       obj.trackerHistory_ = trackersNew ;
       obj.clearCurrentTracker() ;
-      obj.notify('updateTrackerHistoryMenu') ;
+      obj.notify('update_menu_track_tracker_history') ;
     end
     
     function clearCurrentTracker(obj)
-      tObj = obj.tracker ;
-      tObj.init() ;
+      traacker = obj.tracker ;
+      traacker.init() ;
+      obj.notify('update_menu_track_tracker_history') ;
     end
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
@@ -15659,6 +15566,8 @@ classdef Labeler < handle
     
     function doNotify(obj, eventName)
       % Used by child objects to fire events from the Labeler
+      dbstack
+      fprintf('About to call tracker.doNotify(''%s'')\n', eventName) ;
       obj.notify(eventName) ;
     end
 
@@ -15669,18 +15578,29 @@ classdef Labeler < handle
       cellfun(@delete, obj.trackersAll_) ;
 
       % Create new templates, trackers
-      trackersCreateInfo = ...
-        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA);  % number-of-trackers x 1
+      rawTrackersCreateInfo = ...
+        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % number-of-trackers x 1
+      trackersCreateInfo = rawTrackersCreateInfo(:)' ;  % want a row vector
       tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
-                     trackersCreateInfo', ...
+                     trackersCreateInfo, ...
                      'UniformOutput', false) ;  % 1 x number-of-trackers
       obj.trackersAllCreateInfo_ = trackersCreateInfo ;
       obj.trackersAll_ = tAll;
-      obj.notify('updateAvailableTrackersMenu') ;
+      %obj.notify('update_menu_track_tracking_algorithm') ;
     end
 
     function result = get.trackerHistory(obj)
       result = obj.trackerHistory_ ;
     end
+
+    function result = doesCurrentTrackerMatchFromTrackersAllIndex(obj)
+      % Returns a logical row array specifying whether the current tracker matches
+      % each of the trackers in obj.trackersAll
+      currentTrackerAlgoName = obj.tracker.algorithmName ;
+      trackersAll = obj.trackersAll_ ;
+      algoNameFromTrackersAllIndex = cellfun(@(t)(t.algorithmName), trackersAll, 'UniformOutput', false) ;
+      result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
+    end
+    
   end  % methods
 end  % classdef

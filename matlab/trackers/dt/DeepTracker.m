@@ -162,10 +162,14 @@ classdef DeepTracker < LabelTracker
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
   end
   
-  properties (SetObservable)
-    trackerInfo = []  % information about the current tracker being used for tracking
-  end
+  % properties (SetObservable)
+  %   trackerInfo = []  % information about the current tracker being used for tracking
+  % end
 
+  properties (Dependent)
+    trackerInfo  % information about the current tracker being used for tracking
+  end
+  
   properties (Dependent)
     bgTrnIsRunning
     bgTrkIsRunning 
@@ -336,7 +340,7 @@ classdef DeepTracker < LabelTracker
       obj.trackResInit();
       obj.trackCurrResInit();
       obj.vizInit();
-      obj.syncInfoFromDMC_();
+      % obj.syncInfoFromDMC_();
     end
     function deactivate(obj)
       deactivate@LabelTracker(obj);
@@ -346,7 +350,7 @@ classdef DeepTracker < LabelTracker
     function activate(obj)
       activate@LabelTracker(obj);
       obj.vizInit(false);
-      obj.syncInfoFromDMC_();
+      % obj.syncInfoFromDMC_();
     end
   end
   
@@ -484,7 +488,7 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
         obj.trackCurrResUpdate();
-        obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
+        % obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
         obj.newLabelerFrame();
       end
     end
@@ -500,7 +504,7 @@ classdef DeepTracker < LabelTracker
         warningNoTrace('Postprocessing parameters changed; clearing existing tracking results.');
         obj.trackResInit();
         obj.trackCurrResUpdate();
-        obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
+        % obj.syncInfoFromDMC_(); % AL: prob unnec but also prob doesn't hurt
         obj.newLabelerFrame();
       end
     end
@@ -1022,15 +1026,25 @@ classdef DeepTracker < LabelTracker
     %   obj.bgTrainPoller.killProcess();      
     % end
     
-    % update trackerInfo from trnLastDMC
-    function syncInfoFromDMC_(obj)      
+    % % update trackerInfo from trnLastDMC
+    % function syncInfoFromDMC_(obj)      
+    %   % info about algorithm and training
+    %   info = DeepModelChainOnDisk.trackerInfo(obj.trnLastDMC);
+    %   info.algorithm = obj.algorithmNamePretty;
+    %   info.isTraining = obj.bgTrnIsRunning;      
+    %   obj.trackerInfo = info;
+    %   %obj.lObj.doNotify('updateTrackerInfoText') ;
+    % end  % function
+    
+    function info = get.trackerInfo(obj)      
       % info about algorithm and training
       info = DeepModelChainOnDisk.trackerInfo(obj.trnLastDMC);
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
-      obj.trackerInfo = info;
-      obj.lObj.doNotify('updateTrackerInfoText') ;
+      % obj.trackerInfo = info;
+      % obj.lObj.doNotify('updateTrackerInfoText') ;
     end  % function
+    
     
     % % set select properties of trackerInfo 
     % function setTrackerInfo(obj,varargin)
@@ -1050,42 +1064,37 @@ classdef DeepTracker < LabelTracker
     % end
     
     % return a cell array of strings with information about current tracker
-    function [infos] = getTrackerInfoString(obj,doupdate)
+    function result = getTrackerInfoString(obj)
       % For OpenPose, consider adding blurb about massaged params
       
-      if nargin < 2,
-        doupdate = false;
-      end
-      if doupdate,
-        obj.syncInfoFromDMC_();
-      end
-      infos = {};
-      infos{end+1} = obj.trackerInfo.algorithm;
-      if obj.trackerInfo.isTrainStarted,
-        isNewLabels = any(obj.trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS);
+      result = {};
+      trackerInfo = obj.trackerInfo ;
+      result{end+1} = trackerInfo.algorithm;
+      if trackerInfo.isTrainStarted ,
+        isNewLabels = any(trackerInfo.trainStartTS < obj.lObj.lastLabelChangeTS);
 
         s = '';
-        for i = 1:numel(obj.trackerInfo.trainStartTS),
-          s = [s,datestr(obj.trackerInfo.trainStartTS(i)),', ']; %#ok<AGROW> 
+        for i = 1:numel(trackerInfo.trainStartTS),
+          s = [s,datestr(trackerInfo.trainStartTS(i)),', ']; %#ok<AGROW> 
         end
         if ~isempty(s), s = s(1:end-2); end
-        infos{end+1} = sprintf('Train start: %s',s);
-        s = DeepTracker.printIter(obj.trackerInfo.iterCurr,obj.trackerInfo.iterFinal);
-        infos{end+1} = sprintf('N. iterations: %s',s);
-        if isempty(obj.trackerInfo.nLabels),
+        result{end+1} = sprintf('Train start: %s',s);
+        s = DeepTracker.printIter(trackerInfo.iterCurr,trackerInfo.iterFinal);
+        result{end+1} = sprintf('N. iterations: %s',s);
+        if isempty(trackerInfo.nLabels),
           nlabelstr = '?';
-        elseif numel(obj.trackerInfo.nLabels) == 1,
-          nlabelstr = num2str(obj.trackerInfo.nLabels);
+        elseif numel(trackerInfo.nLabels) == 1,
+          nlabelstr = num2str(trackerInfo.nLabels);
         else
-          nlabelstr = mat2str(obj.trackerInfo.nLabels);
+          nlabelstr = mat2str(trackerInfo.nLabels);
         end          
-        infos{end+1} = sprintf('N. labels: %s',nlabelstr);
+        result{end+1} = sprintf('N. labels: %s',nlabelstr);
         if isNewLabels,
           s = 'Yes';
         else
           s = 'No';
         end
-        infos{end+1} = sprintf('New labels since training: %s',s);
+        result{end+1} = sprintf('New labels since training: %s',s);
         
         sPrmAllLabeler = obj.lObj.trackGetParams();
         sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
@@ -1105,16 +1114,16 @@ classdef DeepTracker < LabelTracker
         else
           s = 'No';
         end
-        infos{end+1} = sprintf('Parameters changed since training: %s',s);
+        result{end+1} = sprintf('Parameters changed since training: %s',s);
         
         if isParamChangeLbler
 %           if ~isParamChange
 %             assert(obj.trnNetType==DLNetType.openpose || obj.trnNetType==DLNetType.leap);
 %           end
-          infos{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.displayString);
+          result{end+1} = sprintf('Parameter adjustment: %s',obj.trnNetType.displayString);
         end        
       else
-        infos{end+1} = 'No tracker trained.';
+        result{end+1} = 'No tracker trained.';
       end
       
     end
@@ -2584,8 +2593,8 @@ classdef DeepTracker < LabelTracker
       localPathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
       backend.uploadMovies(localPathFromMovieIndex) ;
 
-      % Update the tracker info based on the trained model
-      obj.syncInfoFromDMC_() ;
+      % % Update the tracker info based on the trained model
+      % obj.syncInfoFromDMC_() ;
     end  % function
     
     function track(obj,varargin)
@@ -2619,7 +2628,7 @@ classdef DeepTracker < LabelTracker
             totrackinfo.addTblMFT(tblMFTRetrack);
           end
         end
-        obj.cleanOutOfDateTrackingResults(isCurr);
+        obj.cleanOutOfDateTrackingResults_(isCurr);
       end
       if ~isexternal && isCurr, % saving somewhere
         % remove frames that are already tracked
@@ -3394,7 +3403,7 @@ classdef DeepTracker < LabelTracker
       % be mixed up tracking results, so let's always check. 
       isCurr = obj.checkTrackingResultsCurrent();
       if ~isCurr
-        obj.cleanOutOfDateTrackingResults(isCurr);
+        obj.cleanOutOfDateTrackingResults_(isCurr);
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
         % % MK 20230301 -- tried to make it work for single animal projects
@@ -3411,8 +3420,8 @@ classdef DeepTracker < LabelTracker
         % end
       end  % if
       
-      % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
-      obj.syncInfoFromDMC_();
+      % % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
+      % obj.syncInfoFromDMC_();
 
       % Possibly signal the controller/view to raise a dialog asking if the user wants to
       % save the project.
@@ -4106,8 +4115,7 @@ classdef DeepTracker < LabelTracker
       
     end
         
-    function cleanOutOfDateTrackingResults(obj,isCurr)
-
+    function cleanOutOfDateTrackingResults_(obj,isCurr)
       if nargin < 2,
         isCurr = obj.checkTrackingResultsCurrent();
       end
@@ -4118,7 +4126,7 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResInit();
       % deleting old tracking results, so can switch to new tracker info
       obj.vizInit();
-      obj.syncInfoFromDMC_();      
+      % obj.syncInfoFromDMC_();      
     end
     
     function [isCurr,tfSuccess,isOldFileName,trkInfo] = checkTrkFileCurrent(obj,trkfile,ivw)
@@ -4684,6 +4692,5 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkMonitor.stop() ;
       obj.killJobsAndPerformPostTrackingCleanup() ;
     end
-
   end  % methods    
 end  % classdef

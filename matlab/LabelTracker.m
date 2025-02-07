@@ -475,7 +475,6 @@ classdef LabelTracker < handle
         dlnets = enumeration('DLNetType');
         dlnets = dlnets(~[dlnets.isMultiAnimal]);
         info = arrayfun(@(x){'DeepTracker' 'trnNetType' x}, dlnets, 'UniformOutput', false) ;
-        %info = [info; {{'CPRLabelTracker'}}];
       end
     end
     
