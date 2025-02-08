@@ -861,10 +861,10 @@ classdef InfoTimeline < handle
       tf = ~isempty(obj.TLPROPS_TRACKER);
     end
     function tf = hasPrediction(obj)
-      tf = ismember('Predictions',obj.proptypes) && isvalid(obj.tracker);
+      tf = ismember('Predictions',obj.proptypes) && isvalid(obj.lObj.tracker);
       if tf,
         pcode = obj.props_tracker(1);
-        data = obj.tracker.getPropValues(pcode);
+        data = obj.lObj.tracker.getPropValues(pcode);
         tf = ~isempty(data) && any(~isnan(data(:)));
       end
     end
@@ -1073,8 +1073,9 @@ classdef InfoTimeline < handle
             % the trackers are not updated (via
             % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
             % call which leads here.
-            if ~isempty(obj.tracker) && isvalid(obj.tracker)
-              data = obj.tracker.getPropValues(pcode);
+            tracker = obj.lObj.tracker ;
+            if ~isempty(tracker) && isvalid(tracker)
+              data = tracker.getPropValues(pcode);
             else
               data = nan(obj.npts,1);
             end

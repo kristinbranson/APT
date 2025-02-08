@@ -613,10 +613,10 @@ classdef TestAPT < handle
       if isnumeric(alg)
         trackerIndex = alg;
         assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-        labeler.trackSetCurrentTracker(trackerIndex);
+        labeler.trackMakeNewTrackerCurrent(trackerIndex);
       else
         algName = alg ;
-        labeler.trackSetCurrentTrackerByName(algName) ;
+        labeler.trackMakeNewTrackerCurrentByName(algName) ;
       end
     end  % function
     
