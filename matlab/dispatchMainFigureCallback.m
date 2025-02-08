@@ -968,17 +968,6 @@ ax = findall(src,'type','axes');
 axis(ax,'image')
 axis(ax,'auto');
 
-function cbkWBMF(src,evt,labeler)
-lcore = labeler.lblCore;
-if ~isempty(lcore)
-  lcore.wbmf(src,evt);
-end
-
-function cbkWBUF(src,evt,labeler)
-if ~isempty(labeler.lblCore)
-  labeler.lblCore.wbuf(src,evt);
-end
-
 function cbkWSWF(src,evt,labeler)
 
 if ~labeler.hasMovie
@@ -1461,33 +1450,6 @@ if (strcmp(ax.XDir,'reverse') || strcmp(ax.YDir,'normal')) && ...
     'Main axis ''XDir'' or ''YDir'' is set to be flipped and .movieRotateTargetUp is set. Graphics behavior may be unexpected; proceed at your own risk.');
 end
 
-function scroll_callback(hObject,eventdata,labeler)
-gdata = labeler.gdata;
-ivw = find(hObject==gdata.figs_all);
-ax = gdata.axes_all(ivw);
-curp = get(ax,'CurrentPoint');
-xlim = get(ax,'XLim');
-ylim = get(ax,'YLim');
-if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
-  return
-end
-if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
-  return
-end
-scrl = 1.2;
-% scrl = scrl^eventdata.VerticalScrollAmount;
-if eventdata.VerticalScrollCount>0
-  scrl = 1/scrl;
-end
-him = gdata.images_all(ivw);
-imglimx = get(him,'XData');
-imglimy = get(him,'YData');
-xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
-xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
-ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
-ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
-axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
-% fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
 
 % function dragstart_callback(hObject,eventdata,~)
 % fprintf('Drag on\n')
@@ -1617,7 +1579,7 @@ tl.selectClearSelection();
 
 function cbklabelTLInfoSelectOn(src,evt)
 lblTLObj = evt.AffectedObject;
-tb = lblTLObj.labeler.gdata.tbTLSelectMode;
+tb = lblTLObj.lObj.gdata.tbTLSelectMode;
 tb.Value = lblTLObj.selectOn;
 
 function cbklabelTLInfoPropsUpdated(src,evt)

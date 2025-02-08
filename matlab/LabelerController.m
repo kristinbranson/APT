@@ -3060,8 +3060,8 @@ classdef LabelerController < handle
         set(handles.menu_go_targets_summary,'Enable','off');
       end
 
-      wbmf = @(src,evt)cbkWBMF(src,evt,labeler);
-      wbuf = @(src,evt)cbkWBUF(src,evt,labeler);
+      wbmf = @(src,evt)(obj.cbkWBMF(src,evt));
+      wbuf = @(src,evt)(obj.cbkWBUF(src,evt));
       movnr = labeler.movienr;
       movnc = labeler.movienc;
       figs = handles.figs_all;
@@ -3071,7 +3071,7 @@ classdef LabelerController < handle
         % this wouldn't matter as the next imgzoompan created (when movie
         % actually added) should be properly initted...
         for ivw=1:labeler.nview
-          set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)scroll_callback(src,evt,labeler));
+          set(figs(ivw),'WindowScrollWheelFcn',@(src,evt)(obj.scroll_callback(src,evt)));
           set(figs(ivw),'WindowButtonMotionFcn',wbmf,'WindowButtonUpFcn',wbuf);
 
           [hascrop,cropInfo] = labeler.cropGetCropCurrMovie();
@@ -3348,5 +3348,52 @@ classdef LabelerController < handle
       arrayfun(@(x)x.setResizable(tfAdjust),handles.cropHRect);
     end
     
+    function cbkWBMF(obj, src, evt)
+      labeler = obj.labeler_ ;      
+      lcore = labeler.lblCore;
+      if ~isempty(lcore)
+        lcore.wbmf(src,evt);
+      end
+    end
+    
+    function cbkWBUF(obj, src, evt)
+      labeler = obj.labeler_ ;      
+      if ~isempty(labeler.lblCore)
+        labeler.lblCore.wbuf(src,evt);
+      end
+    end
+    
+    function scroll_callback(obj, hObject, eventdata)
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      ivw = find(hObject==handles.figs_all);
+      ax = handles.axes_all(ivw);
+      curp = get(ax,'CurrentPoint');
+      xlim = get(ax,'XLim');
+      ylim = get(ax,'YLim');
+      if (curp(1,1)< xlim(1)) || (curp(1,1)>xlim(2))
+        return
+      end
+      if (curp(1,2)< ylim(1)) || (curp(1,2)>ylim(2))
+        return
+      end
+      scrl = 1.2;
+      % scrl = scrl^eventdata.VerticalScrollAmount;
+      if eventdata.VerticalScrollCount>0
+        scrl = 1/scrl;
+      end
+      him = handles.images_all(ivw);
+      imglimx = get(him,'XData');
+      imglimy = get(him,'YData');
+      xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
+      xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
+      ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
+      ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
+      axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+      % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
+    end
+
   end  % methods  
 end  % classdef
