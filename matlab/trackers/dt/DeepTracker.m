@@ -1033,7 +1033,7 @@ classdef DeepTracker < LabelTracker
     %   info.algorithm = obj.algorithmNamePretty;
     %   info.isTraining = obj.bgTrnIsRunning;      
     %   obj.trackerInfo = info;
-    %   %obj.lObj.doNotify('updateTrackerInfoText') ;
+    %   %obj.lObj.doNotify('update_text_trackerinfo') ;
     % end  % function
     
     function info = get.trackerInfo(obj)      
@@ -1042,7 +1042,7 @@ classdef DeepTracker < LabelTracker
       info.algorithm = obj.algorithmNamePretty;
       info.isTraining = obj.bgTrnIsRunning;      
       % obj.trackerInfo = info;
-      % obj.lObj.doNotify('updateTrackerInfoText') ;
+      % obj.lObj.doNotify('update_text_trackerinfo') ;
     end  % function
     
     

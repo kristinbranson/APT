@@ -172,7 +172,7 @@ classdef Labeler < handle
     cropCropsChanged  % something in .movieFilesAll*CropInfo mutated
     cropUpdateCropGUITools
 
-    updateTrackerInfoText
+    update_text_trackerinfo
     refreshTrackMonitorViz
     updateTrackMonitorViz
     refreshTrainMonitorViz
@@ -2137,7 +2137,7 @@ classdef Labeler < handle
       obj.notify('gtIsGTModeChanged') ;
       obj.notify('initialize_menu_track_tracking_algorithm') ;      
       obj.notify('update_menu_track_tracker_history') ;
-      obj.notify('updateTrackerInfoText') ;      
+      obj.notify('update_text_trackerinfo') ;      
     end
     
     function projSaveRaw(obj,fname)      
@@ -2661,7 +2661,7 @@ classdef Labeler < handle
       obj.notify('initialize_menu_track_tracking_algorithm') ;
       obj.notify('update_menu_track_tracker_history') ;
       obj.notify('didSetCurrTracker') ;
-      obj.notify('updateTrackerInfoText') ;
+      obj.notify('update_text_trackerinfo') ;
 
 
       % Final sign-off
@@ -9995,7 +9995,8 @@ classdef Labeler < handle
           break
         end
       end
-      obj.clearAllTrackers();
+      obj.deleteOldTrackers();
+      obj.resetCurrentTracker() ;
     end
     
     function tblP = preProcCropLabelsToRoiIfNec(obj,tblP,varargin)
@@ -10608,7 +10609,7 @@ classdef Labeler < handle
       obj.notify('didSetCurrTracker') ;
       obj.notify('update_menu_track_tracking_algorithm') ;      
       obj.notify('update_menu_track_tracker_history') ;
-      obj.notify('updateTrackerInfoText') ;
+      obj.notify('update_text_trackerinfo') ;
     end  % function
 
     function trackMakeNewTrackerCurrent(obj, tciIndex)
@@ -10624,19 +10625,24 @@ classdef Labeler < handle
         error('APT:invalidPropertyValue', 'Invalid tracker template index') ;
       end
       
-      % Create the new tracker
-      tci = tcis{tciIndex} ;
-      newTracker = LabelTracker.create(obj, tci) ;
-      
       % Want to do some stuff before the set, apparently
       trackers = obj.trackerHistory_ ;
       if ~isempty(trackers) ,
         oldCurrentTracker = trackers{1} ;
         oldCurrentTracker.deactivate() ;
         oldCurrentTracker.setHideViz(true);
+        if ~oldCurrentTracker.hasBeenTrained() ,
+          % If the current model is untrained, don't keep it in the history
+          delete(oldCurrentTracker) ;          
+          trackers = trackers(2:end) ;
+        end
       end
-   
-      % Shuffle trackersAll to bring iTrk to the front
+
+      % Create the new tracker
+      tci = tcis{tciIndex} ;
+      newTracker = LabelTracker.create(obj, tci) ;     
+      
+      % Put the new tracker at the front of the history
       trackersNew = horzcat({newTracker}, trackers) ;
       obj.trackerHistory_ = trackersNew ;
 
@@ -10655,7 +10661,7 @@ classdef Labeler < handle
       obj.notify('didSetCurrTracker') ;      
       obj.notify('update_menu_track_tracking_algorithm') ;
       obj.notify('update_menu_track_tracker_history') ;      
-      obj.notify('updateTrackerInfoText') ;      
+      obj.notify('update_text_trackerinfo') ;      
     end  % function
 
     function trackMakeNewTrackerCurrentByName(obj, algoName)
@@ -11222,20 +11228,38 @@ classdef Labeler < handle
       fprintf('Tracking complete at %s.\n',datestr(now));
     end
     
-    function clearAllTrackers(obj)
+    function deleteOldTrackers(obj)
+      obj.setStatus('Deleting old trained trackers and all tracking results...');
+      oc = onCleanup(@()(obj.clearStatus())) ;      
       trackers = obj.trackerHistory_ ;
       cellfun(@delete, trackers(2:end)) ;
-      trackersNew = trackers{1} ;
-      obj.trackerHistory_ = trackersNew ;
-      obj.clearCurrentTracker() ;
+      currentTracker = trackers(1) ;  % singleton cell array
+      obj.trackerHistory_ = currentTracker ;
       obj.notify('update_menu_track_tracker_history') ;
     end
     
-    function clearCurrentTracker(obj)
-      traacker = obj.tracker ;
-      traacker.init() ;
+    function resetCurrentTracker(obj)
+      obj.setStatus('Resetting current trained tracker and all tracking results...');      
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      tracker = obj.tracker ;
+      tracker.init() ;
+      obj.notify('update_text_trackerinfo') ;
       obj.notify('update_menu_track_tracker_history') ;
     end
+    
+    function deleteCurrentTracker(obj)
+      obj.setStatus('Deleting current tracker and all tracking results...');
+      oc = onCleanup(@()(obj.clearStatus())) ;      
+      trackers = obj.trackerHistory_ ;
+      if numel(trackers) > 1 ,
+        delete(trackers{1}) ;
+        obj.trackerHistory_ = trackers(2:end) ;
+        obj.notify('update_text_trackerinfo') ;
+        obj.notify('update_menu_track_tracker_history') ;
+      else
+        error('Can''t delete the current tracker if it''s the only tracker in the history') ;
+      end
+    end  % function
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
       % For use with DeepTrackers. Create stripped lbl based on
@@ -15521,7 +15545,7 @@ classdef Labeler < handle
     % function didUpdateTrackerInfo(obj)
     %   % Notify listeners that trackerInfo was updated in obj.tracker.
     %   % Called by the current tracker when this happens.
-    %   obj.notify('updateTrackerInfoText') ;
+    %   obj.notify('update_text_trackerinfo') ;
     % end
     
     function needRefreshTrackMonitorViz(obj)
@@ -15566,8 +15590,8 @@ classdef Labeler < handle
     
     function doNotify(obj, eventName)
       % Used by child objects to fire events from the Labeler
-      dbstack
-      fprintf('About to call tracker.doNotify(''%s'')\n', eventName) ;
+      % dbstack
+      % fprintf('About to call tracker.doNotify(''%s'')\n', eventName) ;
       obj.notify(eventName) ;
     end
 
