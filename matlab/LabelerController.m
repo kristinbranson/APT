@@ -10,10 +10,10 @@ classdef LabelerController < handle
     trainingMonitorVisualizer_
     movieManagerController_
     % Things related to resizing
-    pxTxUnsavedChangesWidth_
-    pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge_
-    pumTrackInitFontSize_
-    pumTrackInitHeight_
+    pxTxUnsavedChangesWidth_  % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed
+    %pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge_
+    %pumTrackInitFontSize_
+    %pumTrackInitHeight_
   end
 
   properties  % private/protected by convention
@@ -3217,7 +3217,8 @@ classdef LabelerController < handle
     function initializeResizeInfo_(obj)
       mainFigure = obj.mainFigure_ ;  
       handles = guidata(mainFigure) ;
-      % record state for txUnsavedChanges
+
+      % Record the width of txUnsavedChanges, so we can keep it fixed
       hTx = handles.txUnsavedChanges;
       hPnlPrev = handles.uipanel_prev;
       
@@ -3225,38 +3226,32 @@ classdef LabelerController < handle
       hPnlPrevUnits0 = hPnlPrev.Units;
       hTx.Units = 'pixels';
       hPnlPrev.Units = 'pixels';
-      uiPnlPrevRightEdge = hPnlPrev.Position(1)+hPnlPrev.Position(3);
-      obj.pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge_ = ...
-        uiPnlPrevRightEdge-hTx.Position(1);
-      obj.pxTxUnsavedChangesWidth_ = hTx.Position(3);
+      pxTxUnsavedChangesWidth = hTx.Position(3);
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
-      
-      pumTrack = handles.pumTrack;
 
-      % Iss #116. Appears nec to get proper resize behavior
-      pumTrack.Max = 2;
-      
-      obj.pumTrackInitFontSize_ = pumTrack.FontSize;
-      obj.pumTrackInitHeight_ = pumTrack.Position(4);
+      obj.pxTxUnsavedChangesWidth_ = pxTxUnsavedChangesWidth ;
     end
     
     function resize(obj)
       mainFigure = obj.mainFigure_ ;  
       handles = guidata(mainFigure) ;
 
+      % Take steps to keep right edge of unsaved changes text box aligned with right
+      % edge of the previous/reference frame panel
+      pxTxUnsavedChangesWidth = obj.pxTxUnsavedChangesWidth_ ;
       hTx = handles.txUnsavedChanges;
       hPnlPrev = handles.uipanel_prev;
       hTxUnits0 = hTx.Units;
       hPnlPrevUnits0 = hPnlPrev.Units;
       hTx.Units = 'pixels';
       hPnlPrev.Units = 'pixels';
-      uiPnlPrevRightEdge = hPnlPrev.Position(1)+hPnlPrev.Position(3);
-      hTx.Position(1) = uiPnlPrevRightEdge-obj.pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge_;
-      hTx.Position(3) = obj.pxTxUnsavedChangesWidth_;
+      uiPnlPrevRightEdge = hPnlPrev.Position(1) + hPnlPrev.Position(3) ;
+      hTx.Position(1) = uiPnlPrevRightEdge - pxTxUnsavedChangesWidth ;
+      hTx.Position(3) = pxTxUnsavedChangesWidth ;
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
-      obj.updateStatus() ;
+      %obj.updateStatus() ;  % do we need this here?
     end
     
     function cropReactNewCropMode_(obj, tf)

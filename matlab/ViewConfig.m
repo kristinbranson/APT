@@ -176,7 +176,7 @@ classdef ViewConfig
           grid(ax,'off');
         end        
       end
-    end
+    end  % function
     
     function viewCfg = readCfgOffViews(hFig,hAx)
       % viewCfg: currently just a struct array
