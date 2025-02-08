@@ -3,13 +3,13 @@ feval(callbackName, varargin{:}) ;
 
 
 
-function cbkAuxAxResize(src,data)
-% AL 20160628: voodoo that may help make points more clickable. Sometimes
-% pt clickability in MultiViewCalibrated mode is unstable (eg to anchor
-% points etc)
-ax = findall(src,'type','axes');
-axis(ax,'image')
-axis(ax,'auto');
+% function cbkAuxAxResize(src,data)
+% % AL 20160628: voodoo that may help make points more clickable. Sometimes
+% % pt clickability in MultiViewCalibrated mode is unstable (eg to anchor
+% % points etc)
+% ax = findall(src,'type','axes');
+% axis(ax,'image')
+% axis(ax,'auto');
 
 function cbkWSWF(src,evt,labeler)
 
