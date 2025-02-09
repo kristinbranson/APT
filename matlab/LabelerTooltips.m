@@ -134,13 +134,13 @@ end
 if isfield(handles,'menu_track_tracking_algorithm'),
   SetTooltip(handles.menu_track_tracking_algorithm,'Algorithm used to train tracker',jobjs,jobjnames);
 end
-if isfield(handles,'menu_track_training_data_montage'),
-  SetTooltip(handles.menu_track_training_data_montage,'Plot sampled training examples',jobjs,jobjnames);
-end
+% if isfield(handles,'menu_track_training_data_montage'),
+%   SetTooltip(handles.menu_track_training_data_montage,'Plot sampled training examples',jobjs,jobjnames);
+% end
 
-if isfield(handles,'menu_track_track_and_export'),
-  SetTooltip(handles.menu_track_track_and_export,'Track current selection of videos, targets, and frames, and export results to .trk files.',jobjs,jobjnames);
-end
+% if isfield(handles,'menu_track_track_and_export'),
+%   SetTooltip(handles.menu_track_track_and_export,'Track current selection of videos, targets, and frames, and export results to .trk files.',jobjs,jobjnames);
+% end
 if isfield(handles,'menu_track_clear_tracking_results'),
   SetTooltip(handles.menu_track_clear_tracking_results,'Remove all tracking results from the current project.',jobjs,jobjnames);
 end

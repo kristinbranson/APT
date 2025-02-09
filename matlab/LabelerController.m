@@ -2383,38 +2383,38 @@ classdef LabelerController < handle
       guidata(mainFigure, handles) ;
     end  % function
     
-    function cbkTrackerShowVizReplicatesChanged(obj)
-      lObj = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-      handles = guidata(mainFigure) ;
-      handles.menu_track_cpr_show_replicates.Checked = onIff(lObj.tracker.showVizReplicates) ;
-    end  % function
+    % function cbkTrackerShowVizReplicatesChanged(obj)
+    %   lObj = obj.labeler_ ;
+    %   mainFigure = obj.mainFigure_ ;
+    %   handles = guidata(mainFigure) ;
+    %   handles.menu_track_cpr_show_replicates.Checked = onIff(lObj.tracker.showVizReplicates) ;
+    % end  % function
     
-    function cbkTrackerStoreFullTrackingChanged(obj)
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-      handles = guidata(mainFigure) ;
-      sft = labeler.tracker.storeFullTracking;
-      switch sft
-        case StoreFullTrackingType.NONE
-          handles.menu_track_cpr_storefull_dont_store.Checked = 'on';
-          handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
-          handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
-          handles.menu_track_cpr_view_diagnostics.Enable = 'off';
-        case StoreFullTrackingType.FINALITER
-          handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
-          handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'on';
-          handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
-          handles.menu_track_cpr_view_diagnostics.Enable = 'on';
-        case StoreFullTrackingType.ALLITERS
-          handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
-          handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
-          handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'on';
-          handles.menu_track_cpr_view_diagnostics.Enable = 'on';
-        otherwise
-          assert(false);
-      end
-    end  % function
+    % function cbkTrackerStoreFullTrackingChanged(obj)
+    %   labeler = obj.labeler_ ;
+    %   mainFigure = obj.mainFigure_ ;
+    %   handles = guidata(mainFigure) ;
+    %   sft = labeler.tracker.storeFullTracking;
+    %   switch sft
+    %     case StoreFullTrackingType.NONE
+    %       handles.menu_track_cpr_storefull_dont_store.Checked = 'on';
+    %       handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
+    %       handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
+    %       handles.menu_track_cpr_view_diagnostics.Enable = 'off';
+    %     case StoreFullTrackingType.FINALITER
+    %       handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
+    %       handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'on';
+    %       handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'off';
+    %       handles.menu_track_cpr_view_diagnostics.Enable = 'on';
+    %     case StoreFullTrackingType.ALLITERS
+    %       handles.menu_track_cpr_storefull_dont_store.Checked = 'off';
+    %       handles.menu_track_cpr_storefull_store_final_iteration.Checked = 'off';
+    %       handles.menu_track_cpr_storefull_store_all_iterations.Checked = 'on';
+    %       handles.menu_track_cpr_view_diagnostics.Enable = 'on';
+    %     otherwise
+    %       assert(false);
+    %   end
+    % end  % function
     
     function cbkTrackerTrainStart(obj)
       lObj = obj.labeler_ ;
@@ -3390,5 +3390,70 @@ classdef LabelerController < handle
       % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
     end
 
+    function closeImContrast(obj, iAxRead, iAxApply)
+      % ReadClim from axRead and apply to axApply
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      axAll = handles.axes_all;
+      axRead = axAll(iAxRead);
+      axApply = axAll(iAxApply);
+      tfApplyAxPrev = any(iAxApply==1); % axes_prev mirrors axes_curr
+
+      clim = get(axRead,'CLim');
+      if isempty(clim)
+      	% none; can occur when Labeler is closed
+      else
+        labeler.clim_manual = clim;
+        warnst = warning('off','MATLAB:graphicsversion:GraphicsVersionRemoval');
+      	set(axApply,'CLim',clim);
+      	warning(warnst);
+      	if tfApplyAxPrev
+      		set(labeler.gdata.axes_prev,'CLim',clim);
+      	end
+      end
+    end
+
+    function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(obj)
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      if ~labeler.isMultiView
+      	tfproceed = 1;
+      	iAxRead = 1;
+      	iAxApply = 1;
+      else
+        fignames = {handles.figs_all.Name}';
+        fignames{1} = handles.txMoviename.String;
+        for iFig = 1:numel(fignames)
+          if isempty(fignames{iFig})
+            fignames{iFig} = sprintf('<unnamed view %d>',iFig);
+          end
+        end
+        opts = [{'All views together'}; fignames];
+        [sel,tfproceed] = listdlg(...
+          'PromptString','Select view(s) to adjust',...
+          'ListString',opts,...
+          'SelectionMode','single');
+        if tfproceed
+          switch sel
+            case 1
+              iAxRead = 1;
+              iAxApply = 1:numel(handles.axes_all);
+            otherwise
+              iAxRead = sel-1;
+              iAxApply = sel-1;
+          end
+        else
+          iAxRead = nan;
+          iAxApply = nan;
+        end
+      end
+    end
+    
   end  % methods  
 end  % classdef

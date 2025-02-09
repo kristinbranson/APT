@@ -993,6 +993,7 @@ classdef Labeler < handle
     function v = get.hasMovie(obj)
       v = obj.hasProject && obj.movieReader(1).isOpen;
     end    
+    
     function v = get.moviefile(obj)
       mr = obj.movieReader(1);
       if isempty(mr)
@@ -15626,5 +15627,11 @@ classdef Labeler < handle
       result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
     end
     
+    function hlpApplyCosmetics(obj,colorSpecs,mrkrSpecs,skelSpecs)
+      obj.updateLandmarkColors(colorSpecs);
+      obj.updateLandmarkCosmetics(mrkrSpecs);
+      obj.updateSkeletonCosmetics(skelSpecs);
+    end
+
   end  % methods
 end  % classdef
