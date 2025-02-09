@@ -74,6 +74,10 @@ classdef LabelerController < handle
       % Get the handles out of the figure
       handles = guidata(obj.mainFigure_) ;
 
+      % Set up the figure callbacks to call obj, using the tag to determine the
+      % method name.
+      visit_children(main_figure, @set_standard_callback_if_none_bang, obj) ;
+
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
       obj.listeners_(end+1) = ...
