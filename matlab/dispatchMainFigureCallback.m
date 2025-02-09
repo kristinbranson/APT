@@ -56,11 +56,6 @@ if debugtiming,
   fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
 end
 
-function slider_frame_CreateFcn(hObject,~,~)
-% Hint: slider controls usually have a light gray background.
-if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor',[.9 .9 .9]);
-end
 
 function edit_frame_Callback(hObject,~,handles)
 if ~handles.labeler.doProjectAndMovieExist()
@@ -86,11 +81,6 @@ if f ~= labeler.currFrame
   labeler.setFrame(f)
 end 
   
-function edit_frame_CreateFcn(src,~,~)
-if ispc && isequal(get(src,'BackgroundColor'), ...
-                   get(0,'defaultUicontrolBackgroundColor'))
-  set(src,'BackgroundColor','white');
-end
 
 
 function pbClear_Callback(hObject, eventdata, handles)
@@ -126,7 +116,7 @@ end
 %   fprintf('toggleAccept took %f seconds\n',toc(starttime));
 % end
 
-function cbkTblTrxCellSelection(src,evt) %#ok<*DEFNU>
+function tblTrx_cell_selected_(src,evt) %#ok<*DEFNU>
 % Current/last row selection is maintained in hObject.UserData
 
 handles = guidata(src.Parent);
@@ -157,18 +147,6 @@ end
 hlpRemoveFocus(src,handles);
 
 
-function cbkTblFramesCellSelection(src,evt)
-handles = guidata(src.Parent);
-labeler = handles.labeler;
-row = evt.Indices;
-if ~isempty(row)
-  row = row(1);
-  dat = get(src,'Data');
-  labeler.setFrame(dat{row,1},'changeTgtsIfNec',true);
-end
-
-hlpRemoveFocus(src,handles);
-
 
 % 20170428
 % Notes -- Zooms Views Angles et al
@@ -198,26 +176,6 @@ hlpRemoveFocus(src,handles);
 % bit distracting so currently we choose a smaller CamViewAngle (very 
 % arbitrarily). There may be a better way to handle this.
 
-function axescurrXLimChanged(hObject,eventdata,handles)
-% log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
-ax = eventdata.AffectedObject;
-radius = diff(ax.XLim)/2;
-hSld = handles.sldZoom;
-if ~isempty(hSld.UserData) % empty during init
-  userdata = hSld.UserData;
-  logzoomradmin = userdata(1);
-  logzoomradmax = userdata(2);
-  sldval = (log(radius)-logzoomradmax)/(logzoomradmin-logzoomradmax);
-  sldval = min(max(sldval,0),1);
-  hSld.Value = sldval;
-end
-
-function axescurrXDirChanged(hObject,eventdata,handles)
-videoRotateTargetUpAxisDirCheckWarn(handles);
-
-function axescurrYDirChanged(hObject,eventdata,handles)
-videoRotateTargetUpAxisDirCheckWarn(handles);
-
 function sldZoom_Callback(hObject, eventdata, ~)
 % log(zoomrad) = logzoomradmax + sldval*(logzoomradmin-logzoomradmax)
 handles = guidata(hObject);
@@ -233,18 +191,6 @@ logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
 zoomRad = exp(logzoomrad);
 labeler.videoZoom(zoomRad);
 hlpRemoveFocus(hObject,handles);
-
-function cbkPostZoom(src,evt)
-handles = guidata(src);
-if evt.Axes == handles.axes_prev,
-  handles.labeler.UpdatePrevAxesLimits();
-end
-
-function cbkPostPan(src,evt)
-handles = guidata(src);
-if evt.Axes == handles.axes_prev,
-  handles.labeler.UpdatePrevAxesLimits();
-end
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
 hAxs = handles.axes_all;
@@ -1442,6 +1388,7 @@ if ~handles.labeler.doProjectAndMovieExist()
   return;
 end
 play(hObject,handles,'playsegment','videoPlaySegFwdEnding');
+
 function pbPlaySegRev_Callback(hObject, eventdata, handles)
 if ~handles.labeler.doProjectAndMovieExist()
   return;
@@ -1741,9 +1688,9 @@ set(handles.pumInfo_labels,'String',handles.labelTLInfo.getPropTypesDisp(),...
 listeners = cell(0,1);
 listeners{end+1,1} = addlistener(handles.slider_frame,'ContinuousValueChange',@slider_frame_Callback);
 listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoom_Callback);
-listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
-listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
-listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
+% listeners{end+1,1} = addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)axescurrXLimChanged(s,e,handles));
+% listeners{end+1,1} = addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)axescurrXDirChanged(s,e,handles));
+% listeners{end+1,1} = addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)axescurrYDirChanged(s,e,handles));
 % % listeners{end+1,1} = addlistener(labeler,'didSetProjname',@cbkProjNameChanged);
 % listeners{end+1,1} = addlistener(labeler,'didSetCurrTarget',@cbkCurrTargetChanged);
 % % listeners{end+1,1} = addlistener(labeler,'didSetLastLabelChangeTS',@cbkLastLabelChangeTS);
@@ -1797,7 +1744,15 @@ guidata(figure, handles) ;
 
 
 
-function register_controller(figure, controller)
-handles = guidata(figure) ;
+function register_controller(main_figure, controller)
+handles = guidata(main_figure) ;
 handles.controller = controller ;
-guidata(figure, handles) ;
+set(handles.tblTrx, 'CellSelectionCallback', @(s,e)(controller.controlActuated('tblTrx', s, e))) ;
+set(handles.tblFrames, 'CellSelectionCallback',@(s,e)(controller.controlActuated('tblFrames', s, e))) ;
+
+hZ = zoom(main_figure);  % hZ is a "zoom object"
+hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
+hP = pan(main_figure);  % hP is a "pan object"
+hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
+
+guidata(main_figure, handles) ;

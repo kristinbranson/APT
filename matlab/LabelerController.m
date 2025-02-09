@@ -69,6 +69,9 @@ classdef LabelerController < handle
         
       % Add some controls to the UI that we can set up before there is a project
       obj.initialize_menu_track_backend_config_() ;
+      
+      % Get the handles out of the figure
+      handles = guidata(obj.mainFigure_) ;
 
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
@@ -191,6 +194,13 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoiAux',@(s,e)(obj.cbkShowMaRoiAuxChanged(s,e)));
+
+      obj.listeners_(end+1) = ...
+        addlistener(handles.axes_curr,'XLim','PostSet',@(s,e)(obj.axescurrXLimChanged(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.axes_curr,'XDir','PostSet',@(s,e)(obj.axescurrXDirChanged(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)(obj.axescurrYDirChanged(s,e))) ;
 
 
       % Do this once listeners are set up
@@ -2640,7 +2650,6 @@ classdef LabelerController < handle
         'ColumnWidth',COLWIDTH,...
         'ColumnName',COLNAMES,...
         'Data',cell(0,numel(COLNAMES)),...
-        'CellSelectionCallback',@(src,evt)cbkTblFramesCellSelection(src,evt),...
         'FontUnits','points',...
         'FontSize',9.75,... % matches .tblTrx
         'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
@@ -3455,5 +3464,86 @@ classdef LabelerController < handle
       end
     end
     
+    function hlpRemoveFocus(obj)
+      % Hack to manage focus. As usual the uitable is causing problems. The
+      % tables used for Target/Frame nav cause problems with focus/Keypresses as
+      % follows:
+      % 1. A row is selected in the target table, selecting that target.
+      % 2. If nothing else is done, the table has focus and traps arrow
+      % keypresses to navigate the table, instead of doing LabelCore stuff
+      % (moving selected points, changing frames, etc).
+      % 3. The following lines of code force the focus off the uitable.
+      %
+      % Other possible solutions:
+      % - Figure out how to disable arrow-key nav in uitables. Looks like need to
+      % drop into Java and not super simple.
+      % - Don't use uitables, or use them in a separate figure window.
+
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      uicontrol(handles.txStatus);
+    end
+
+    function tblFrames_cell_selected_(obj, src, evt)
+      labeler = obj.labeler_ ;
+      %mainFigure = obj.mainFigure_ ;  
+      %handles = guidata(mainFigure) ;
+      row = evt.Indices;
+      if ~isempty(row)
+        row = row(1);
+        dat = get(src,'Data');
+        labeler.setFrame(dat{row,1},'changeTgtsIfNec',true);
+      end
+      obj.hlpRemoveFocus() ;
+    end
+
+    function axescurrXLimChanged(obj, hObject, eventdata)  %#ok<INUSD>
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      ax = eventdata.AffectedObject;
+      radius = diff(ax.XLim)/2;
+      hSld = handles.sldZoom;
+      if ~isempty(hSld.UserData) % empty during init
+        userdata = hSld.UserData;
+        logzoomradmin = userdata(1);
+        logzoomradmax = userdata(2);
+        sldval = (log(radius)-logzoomradmax)/(logzoomradmin-logzoomradmax);
+        sldval = min(max(sldval,0),1);
+        hSld.Value = sldval;
+      end
+    end
+
+    function axescurrXDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      videoRotateTargetUpAxisDirCheckWarn(handles);
+    end
+
+    function axescurrYDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      videoRotateTargetUpAxisDirCheckWarn(handles);
+    end
+    
+    function cbkPostZoom(obj,src,evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      if evt.Axes == handles.axes_prev,
+        labeler.UpdatePrevAxesLimits();
+      end
+    end
+
+    function cbkPostPan(obj,src,evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      if evt.Axes == handles.axes_prev,
+        labeler.UpdatePrevAxesLimits();
+      end
+    end
+
   end  % methods  
 end  % classdef
