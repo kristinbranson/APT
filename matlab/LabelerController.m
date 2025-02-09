@@ -3938,5 +3938,2503 @@ classdef LabelerController < handle
       obj.isPlaying_ = false ;
     end
 
+    function tblTrx_cell_selected_(obj, src, evt) %#ok<*DEFNU>
+      % Current/last row selection is maintained in hObject.UserData
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~(labeler.hasTrx || labeler.maIsMA)
+        return
+      end
+
+      rows = evt.Indices;
+      rows = rows(:,1); % AL20210514: rows is nx2; columns are {rowidxs,colidxs} at least in 2020b
+      %rowsprev = src.UserData;
+      src.UserData = rows;
+      dat = get(src,'Data');
+
+      if isscalar(rows)
+        idx = dat{rows(1),1};
+        labeler.setTarget(idx);
+        %labeler.labelsOtherTargetHideAll();
+      else
+        % 20210514 Skipping this for now; possible performance hit
+
+        % addon to existing selection
+        %rowsnew = setdiff(rows,rowsprev);
+        %idxsnew = cell2mat(dat(rowsnew,1));
+        %labeler.labelsOtherTargetShowIdxs(idxsnew);
+      end
+
+      hlpRemoveFocus(src,handles);
+    end
+
+    %
+    % This is where the insertion of the dispatchMainFigureCallback.m methods
+    % starts.
+    %
+
+
+
+    function pumTrack_actuated_(obj, src,evt)  %#ok<INUSD>
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+      labeler.trackModeIdx = src.Value;
+    end
+
+
+
+    function slider_frame_actuated_(obj, src,evt,varargin)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % Hints: get(src,'Value') returns position of slider
+      %        get(src,'Min') and get(src,'Max') to determine range of slider
+
+      debugtiming = false;
+      if debugtiming,
+        starttime = tic() ;
+      end
+
+
+
+      if ~labeler.hasProject
+        set(src,'Value',0);
+        return;
+      end
+      if ~labeler.hasMovie
+        set(src,'Value',0);
+        msgbox('There is no movie open.');
+        return;
+      end
+
+      v = get(src,'Value');
+      f = round(1 + v * (labeler.nframes - 1));
+
+      cmod = handles.figure.CurrentModifier;
+      if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
+        if f>labeler.currFrame
+          tfSetOccurred = labeler.frameUp(true);
+        else
+          tfSetOccurred = labeler.frameDown(true);
+        end
+      else
+        tfSetOccurred = labeler.setFrameProtected(f);
+      end
+
+      if ~tfSetOccurred
+        sldval = (labeler.currFrame-1)/(labeler.nframes-1);
+        if isnan(sldval)
+          sldval = 0;
+        end
+        set(src,'Value',sldval);
+      end
+
+      if debugtiming,
+        fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+      end
+
+
+    end
+
+
+
+    function edit_frame_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return;
+      end
+
+
+
+      f = str2double(get(src,'String'));
+      if isnan(f)
+        set(src,'String',num2str(labeler.currFrame));
+        return;
+      end
+      f = min(max(1,round(f)),labeler.nframes);
+      if ~labeler.trxCheckFramesLive(f)
+        set(src,'String',num2str(labeler.currFrame));
+        warnstr = sprintf('Frame %d is out-of-range for current target.',f);
+        warndlg(warnstr,'Out of range');
+        return;
+      end
+      set(src,'String',num2str(f));
+      if f ~= labeler.currFrame
+        labeler.setFrame(f)
+      end
+
+
+
+    end
+
+
+
+    function pbClear_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return;
+      end
+      labeler.lblCore.clearLabels();
+      labeler.CheckPrevAxesTemplate();
+
+
+    end
+
+
+
+    function tbAccept_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % debugtiming = false;
+      % if debugtiming,
+      %   starttime = tic;
+      % end
+
+      if ~labeler.doProjectAndMovieExist()
+        return;
+      end
+      lc = labeler.lblCore;
+      switch lc.state
+        case LabelState.ADJUST
+          lc.acceptLabels();
+          %labeler.InitializePrevAxesTemplate();
+        case LabelState.ACCEPTED
+          lc.unAcceptLabels();
+          %labeler.CheckPrevAxesTemplate();
+        otherwise
+          assert(false);
+      end
+
+      % if debugtiming,
+      %   fprintf('toggleAccept took %f seconds\n',toc(starttime));
+      % end
+
+    end
+
+    % 20170428
+    % Notes -- Zooms Views Angles et al
+    %
+    % Zoom.
+    % In APT we refer to the "zoom" as effective magnification determined by
+    % the axis limits, ie how many pixels are shown along x and y. Currently
+    % the pixels and axis are always square.
+    %
+    % The zoom level can be adjusted in a variety of ways: via the zoom slider,
+    % the Unzoom button, the manual zoom tools in the toolbar, or
+    % View > Zoom out.
+    %
+    % Camroll.
+    % When Trx are available, the movie can be rotated so that the Trx are
+    % always at a given orientation (currently, "up"). This is achieved by
+    % "camrolling" the axes, ie setting axes.CameraUpVector. Currently
+    % manually camrolling is not available.
+    %
+    % CamViewAngle.
+    % The CameraViewAngle is the AOV of the 'camera' viewing the axes. When
+    % "camroll" is off (either there are no Trx, or rotateSoTargetIsUp is
+    % off), axis.CameraViewAngleMode is set to 'auto' and MATLAB selects a
+    % CameraViewAngle so that the axis fills its outerposition. When camroll is
+    % on, MATLAB by default chooses a CameraViewAngle that is relatively wide,
+    % so that the square axes is very visible as it rotates around. This is a
+    % bit distracting so currently we choose a smaller CamViewAngle (very
+    % arbitrarily). There may be a better way to handle this.
+
+
+
+
+    function sldZoom_actuated_(obj, src, evt, ~)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      if ~labeler.doProjectAndMovieExist()
+        return;
+      end
+
+
+      v = src.Value;
+      userdata = src.UserData;
+      logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
+      zoomRad = exp(logzoomrad);
+      obj.videoZoom(zoomRad);
+      hlpRemoveFocus(src,handles);
+
+    end
+
+
+
+    function pbResetZoom_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      hAxs = handles.axes_all;
+      hIms = handles.images_all;
+      assert(numel(hAxs)==numel(hIms));
+      arrayfun(@zoomOutFullView,hAxs,hIms,false(1,numel(hIms)));
+
+    end
+
+
+
+    function pbSetZoom_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
+
+    end
+
+
+
+    function pbRecallZoom_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      % TODO this is broken!!
+      obj.videoCenterOnCurrTarget();
+      obj.videoZoom(labeler.targetZoomRadiusDefault);
+    end
+
+
+
+    function tbTLSelectMode_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return;
+      end
+      tl = handles.labelTLInfo;
+      tl.selectOn = src.Value;
+
+    end
+
+
+
+    function pbClearSelection_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return;
+      end
+      tl = handles.labelTLInfo;
+      tl.selectClearSelection();
+
+      % function cbkFreezePrevAxesToMainWindow(src,evt)
+      % handles = guidata(src);
+      % labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
+
+      % function cbkUnfreezePrevAxes(src,evt)
+      % handles = guidata(src);
+      % labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
+
+      %% menu
+    end
+
+
+
+    function menu_file_save_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.setStatus('Saving project...');
+      labeler.projSaveSmart();
+      labeler.projAssignProjNameFromProjFileIfAppropriate();
+      labeler.clearStatus()
+
+    end
+
+
+
+    function menu_file_saveas_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.setStatus('Saving project...');
+      labeler.projSaveAs();
+      labeler.projAssignProjNameFromProjFileIfAppropriate();
+      labeler.clearStatus()
+
+    end
+
+
+
+    function menu_file_load_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+
+      labeler.setStatus('Loading Project...') ;
+      if obj.raiseUnsavedChangesDialogIfNeeded() ,
+        currMovInfo = labeler.projLoad();
+        if ~isempty(currMovInfo)
+          obj.movieManagerController_.setVisible(true);
+          wstr = ...
+            sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
+            'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
+            currMovInfo.iMov, ...
+            currMovInfo.badfile);
+          warndlg(wstr,'Movie not found','modal');
+        end
+      end
+      labeler.clearStatus()
+
+      % function tfcontinue = hlpSave(labelerObj)
+      % tfcontinue = true;
+      %
+      % if ~verLessThan('matlab','9.6') && batchStartupOptionUsed
+      %   return;
+      % end
+      %
+      % OPTION_SAVE = 'Save first';
+      % OPTION_PROC = 'Proceed without saving';
+      % OPTION_CANC = 'Cancel';
+      % if labelerObj.doesNeedSave ,
+      %   res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
+      %     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
+      %   switch res
+      %     case OPTION_SAVE
+      %       labelerObj.projSaveSmart();
+      %       labelerObj.projAssignProjNameFromProjFileIfAppropriate();
+      %     case OPTION_CANC
+      %       tfcontinue = false;
+      %     case OPTION_PROC
+      %       % none
+      %   end
+      % end
+
+
+
+    end
+
+    function menu_file_managemovies_actuated_(src, evt)  %#ok<INUSD>
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+        obj.movieManagerController_.setVisible(true);
+      else
+        labeler.lerror('LabelerGUI:movieManagerController','Please create or load a project.');
+      end
+
+
+
+    end
+
+
+
+    function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      if ~labeler.hasMovie
+        labeler.lerror('LabelerGUI:noMovie','No movie is loaded.');
+      end
+      labeler.gtThrowErrIfInGTMode();
+      iMov = labeler.currMovie;
+      haslbls1 = labeler.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
+      haslbls2 = labeler.movieFilesAllHaveLbls(iMov)>0;
+      assert(haslbls1==haslbls2);
+      if haslbls1
+        resp = questdlg('Current movie has labels that will be overwritten. OK?',...
+          'Import Labels','OK, Proceed','Cancel','Cancel');
+        if isempty(resp)
+          resp = 'Cancel';
+        end
+        switch resp
+          case 'OK, Proceed'
+            % none
+          case 'Cancel'
+            return;
+          otherwise
+            assert(false);
+        end
+      end
+      labeler.labelImportTrkPromptGenericSimple(iMov,...
+        'labelImportTrk','gtok',false);
+
+    end
+
+
+
+    function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      if ~labeler.hasMovie
+        labeler.lerror('LabelerGUI:noMovie','No movie is loaded.');
+      end
+      iMov = labeler.currMovie; % gt-aware
+      labeler.setStatus('Importing tracking results...');
+      labeler.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      [tfok,rawtrkname] = obj.getExportTrkRawNameUI('labels',true);
+      if ~tfok
+        return;
+      end
+      labeler.setStatus('Exporting tracking results...');
+      labeler.labelExportTrk(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      fname = labeler.getDefaultFilenameExportLabelTable();
+      [f,p] = uiputfile(fname,'Export File');
+      if isequal(f,0)
+        return;
+      end
+      fname = fullfile(p,f);
+      VARNAME = 'tblLbls';
+      s = struct();
+      s.(VARNAME) = labeler.labelGetMFTableLabeled('useMovNames',true);
+      save(fname,'-mat','-struct','s');
+      fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+
+    end
+
+
+
+    function menu_file_import_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      lastFile = RC.getprop('lastLabelMatfile');
+      if isempty(lastFile)
+        lastFile = pwd;
+      end
+      [fname,pth] = uigetfile('*.mat','Load Labels',lastFile);
+      if isequal(fname,0)
+        return;
+      end
+      fname = fullfile(pth,fname);
+      t = loadSingleVariableMatfile(fname);
+      labeler.labelPosBulkImportTbl(t);
+      fprintf('Loaded %d labeled frames from file ''%s''.\n',height(t),fname);
+
+    end
+
+
+
+    function menu_file_export_stripped_lbl_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      fname = labeler.getDefaultFilenameExportStrippedLbl();
+      [f,p] = uiputfile(fname,'Export File');
+      if isequal(f,0)
+        return
+      end
+      fname = fullfile(p,f);
+      labeler.setStatus(sprintf('Exporting training data to %s',fname));
+      labeler.projExportTrainData(fname)
+      fprintf('Saved training data to file ''%s''.\n',fname);
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_file_crop_mode_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+
+
+      if ~isempty(labeler.tracker) && ~labeler.gtIsGTMode && labeler.labelPosMovieHasLabels(labeler.currMovie),
+        res = questdlg('Frames of the current movie are labeled. Editing the crop region for this movie will cause trackers to be reset. Continue?');
+        if ~strcmpi(res,'Yes'),
+          return;
+        end
+      end
+
+      labeler.setStatus('Switching crop mode...');
+      labeler.cropSetCropMode(~labeler.cropIsCropMode);
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_file_clean_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.setStatus('Deleting temp directories...');
+      labeler.projRemoveOtherTempDirs();
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_file_bundle_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.setStatus('Bundling the temp directory...');
+      labeler.projBundleTempDir();
+      labeler.clearStatus();
+
+
+    end
+
+
+
+    function menu_help_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+    end
+
+
+
+    function menu_help_labeling_actions_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      lblCore = labeler.lblCore;
+      if isempty(lblCore)
+        h = 'Please open a movie first.';
+      else
+        h = lblCore.getLabelingHelp();
+      end
+      msgbox(h,'Labeling Actions','help',struct('Interpreter','tex','WindowStyle','replace'));
+
+    end
+
+
+
+    function menu_help_about_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      about(labeler);
+
+    end
+
+
+
+    function menu_setup_sequential_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.menuSetupLabelModeCbkGeneric(src);
+
+    end
+
+
+
+    function menu_setup_sequential_add_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.menuSetupLabelModeCbkGeneric(src);
+
+    end
+
+
+
+    function menu_setup_template_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.menuSetupLabelModeCbkGeneric(src);
+
+    end
+
+
+
+    function menu_setup_highthroughput_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.menuSetupLabelModeCbkGeneric(src);
+
+    end
+
+
+
+    function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.menuSetupLabelModeCbkGeneric(src);
+
+    end
+
+
+
+    function menu_setup_multianimal_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.menuSetupLabelModeCbkGeneric(src);
+
+    end
+
+
+
+    function menu_setup_label_overlay_montage_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
+
+      if labeler.hasTrx
+        labeler.labelOverlayMontage();
+        labeler.labelOverlayMontage('ctrMeth','trx');
+        labeler.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','trxtheta');
+        % could also use headtail for centering/alignment but skip for now.
+      else % labeler.maIsMA, or SA-non-trx
+        labeler.labelOverlayMontage();
+        if ~labeler.isMultiView
+          labeler.labelOverlayMontage('ctrMeth','centroid');
+          tfHTdefined = ~isempty(labeler.skelHead) && ~isempty(labeler.skelTail);
+          if tfHTdefined
+            labeler.labelOverlayMontage('ctrMeth','centroid','rotAlignMeth','headtail');
+          else
+            warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
+          end
+        end
+      end
+      labeler.clearStatus();
+    end
+
+
+
+    function menu_setup_label_outliers_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.setStatus('Finding outliers in labels...');
+
+      label_outlier_gui(labeler);
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_setup_set_nframe_skip_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      lc = labeler.lblCore;
+      assert(isa(lc,'LabelCoreHT'));
+      nfs = lc.nFrameSkip;
+      ret = inputdlg('Select labeling frame increment','Set increment',1,{num2str(nfs)});
+      if isempty(ret)
+        return;
+      end
+      val = str2double(ret{1});
+      lc.nFrameSkip = val;
+      labeler.labelPointsPlotInfo.HighThroughputMode.NFrameSkip = val;
+      % This state is duped between labelCore and lppi b/c the lifetimes are
+      % different. LabelCore exists only between movies etc, and is initted from
+      % lppi. Hmm
+
+    end
+
+
+
+    function menu_setup_streamlined_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      lc = labeler.lblCore;
+      assert(isa(lc,'LabelCoreMultiViewCalibrated2'));
+      lc.streamlined = ~lc.streamlined;
+
+    end
+
+
+
+    function menu_setup_ma_twoclick_align_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      lc = labeler.lblCore;
+      tftc = ~lc.tcOn;
+      labeler.isTwoClickAlign = tftc; % store the state
+      lc.setTwoClickOn(tftc);
+      src.Checked = onIff(tftc); % skip listener business for now
+
+    end
+
+
+
+    function menu_setup_set_labeling_point_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      ipt = labeler.lblCore.iPoint;
+      ret = inputdlg('Select labeling point','Point number',1,{num2str(ipt)});
+      if isempty(ret)
+        return;
+      end
+      ret = str2double(ret{1});
+      labeler.lblCore.setIPoint(ret);
+
+
+    end
+
+
+
+    function menu_setup_use_calibration_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+
+      lc = labeler.lblCore;
+      if lc.supportsCalibration,
+        lc.toggleShowCalibration();
+        src.Checked = onIff(lc.showCalibration);
+      else
+        src.Checked = 'off';
+      end
+
+    end
+
+
+
+    function menu_setup_load_calibration_file_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      lastCalFile = RC.getprop('lastCalibrationFile');
+      if isempty(lastCalFile)
+        lastCalFile = pwd;
+      end
+      [fname,pth] = uigetfile('*.mat','Load Calibration File',lastCalFile);
+      if isequal(fname,0)
+        return;
+      end
+      fname = fullfile(pth,fname);
+
+      crObj = CalRig.loadCreateCalRigObjFromFile(fname);
+
+
+      vcdPW = labeler.viewCalProjWide;
+      if isempty(vcdPW)
+        resp = questdlg('Should calibration apply to i) all movies in project or ii) current movie only?',...
+          'Calibration load',...
+          'All movies in project',...
+          'Current movie only',...
+          'Cancel',...
+          'All movies in project');
+        if isempty(resp)
+          resp = 'Cancel';
+        end
+        switch resp
+          case 'All movies in project'
+            tfProjWide = true;
+          case 'Current movie only'
+            tfProjWide = false;
+          otherwise
+            return;
+        end
+      else
+        tfProjWide = vcdPW;
+      end
+
+      % Currently there is no UI for altering labeler.viewCalProjWide once it is set
+
+      if tfProjWide
+        labeler.viewCalSetProjWide(crObj);%,'tfSetViewSizes',tfSetViewSizes);
+      else
+        labeler.viewCalSetCurrMovie(crObj);%,'tfSetViewSizes',tfSetViewSizes);
+      end
+
+
+      %set_use_calibration(handles,true);
+      lc = labeler.lblCore;
+      if lc.supportsCalibration,
+        lc.setShowCalibration(true);
+      end
+      handles.menu_setup_use_calibration.Checked = onIff(lc.showCalibration);
+      RC.saveprop('lastCalibrationFile',fname);
+    end
+
+
+
+    function menu_view_show_bgsubbed_frames_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tf = ~strcmp(src.Checked,'on');
+
+      labeler.movieViewBGsubbed = tf;
+
+    end
+
+
+
+    function menu_view_adjustbrightness_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(obj);
+      if tfproceed
+        try
+        	hConstrast = imcontrast_kb(handles.axes_all(iAxRead));
+        catch ME
+          switch ME.identifier
+            case 'images:imcontrast:unsupportedImageType'
+              error(ME.identifier,'%s %s',ME.message,'Try View > Convert to grayscale.');
+            otherwise
+              ME.rethrow();
+          end
+        end
+      	addlistener(hConstrast,'ObjectBeingDestroyed',...
+      		@(s,e) closeImContrast(obj,iAxRead,iAxApply));
+      end
+
+    end
+
+
+
+    function menu_view_converttograyscale_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tf = ~strcmp(src.Checked,'on');
+
+      labeler.movieForceGrayscale = tf;
+      if labeler.hasMovie
+        % Pure convenience: update image for user rather than wait for next
+        % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
+        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
+      end
+    end
+
+
+
+    function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      if ~tfok
+      	return;
+      end
+      val = inputdlg('Gamma value:','Gamma correction');
+      if isempty(val)
+        return;
+      end
+      gamma = str2double(val{1});
+      ViewConfig.applyGammaCorrection(handles.images_all,handles.axes_all,...
+        handles.axes_prev,iAxApply,gamma);
+
+    end
+
+
+
+    function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      obj.quitRequested() ;
+    end
+
+
+
+    function menu_view_hide_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.setShowTrx(~labeler.showTrx);
+
+    end
+
+
+
+    function menu_view_plot_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);
+
+    end
+
+
+
+    function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.movieCenterOnTarget = ~labeler.movieCenterOnTarget;
+    end
+
+
+
+    function menu_view_rotate_video_target_up_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
+    end
+
+
+
+    function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      if tfproceed
+        labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
+        if labeler.hasMovie
+          labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
+        end
+      end
+    end
+
+
+
+    function menu_view_flip_flipud_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      if tfproceed
+        for iAx = iAxApply(:)'
+          ax = handles.axes_all(iAx);
+          ax.YDir = toggleAxisDir(ax.YDir);
+        end
+        labeler.UpdatePrevAxesDirections();
+      end
+    end
+
+
+
+    function menu_view_flip_fliplr_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      if tfproceed
+        for iAx = iAxApply(:)'
+          ax = handles.axes_all(iAx);
+          ax.XDir = toggleAxisDir(ax.XDir);
+          %     if ax==handles.axes_curr
+          %       ax2 = handles.axes_prev;
+          %       ax2.XDir = toggleAxisDir(ax2.XDir);
+          %     end
+          labeler.UpdatePrevAxesDirections();
+        end
+      end
+    end
+
+
+
+    function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      ax = handles.axes_curr;
+      if strcmp(src.Checked,'on')
+        onoff = 'off';
+      else
+        onoff = 'on';
+      end
+      ax.Toolbar.Visible = onoff;
+      src.Checked = onoff;
+      % For now not listening to ax.Toolbar.Visible for cmdline changes
+
+
+    end
+
+
+
+    function menu_view_fit_entire_image_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      hAxs = handles.axes_all;
+      hIms = handles.images_all;
+      assert(numel(hAxs)==numel(hIms));
+      arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
+      labeler.movieCenterOnTarget = false;
+
+
+    end
+
+
+
+    function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      lblCore = labeler.lblCore;
+      if ~isempty(lblCore)
+        lblCore.labelsHideToggle();
+      end
+
+    end
+
+
+
+    function menu_view_hide_predictions_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      tracker = labeler.tracker;
+      if ~isempty(tracker)
+        tracker.hideVizToggle();
+      end
+
+    end
+
+
+
+    function menu_view_show_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      tracker = labeler.tracker;
+      if ~isempty(tracker)
+        tracker.showPredsCurrTargetOnlyToggle();
+      end
+
+    end
+
+
+
+    function menu_view_hide_imported_predictions_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.labels2VizToggle();
+
+
+
+    end
+
+
+
+    function menu_view_show_imported_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.labels2VizSetShowCurrTargetOnly(~labeler.labels2ShowCurrTargetOnly);
+    end
+
+
+
+    function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % just use checked state of menu for now, no other state
+      toggleOnOff(src,'Checked');
+      hlpTickGridBang(handles.axes_all, handles.menu_view_show_tick_labels, handles.menu_view_show_grid) ;
+
+
+
+    end
+
+
+
+    function menu_view_show_grid_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % just use checked state of menu for now, no other state
+      toggleOnOff(src,'Checked');
+      hlpTickGridBang(handles.axes_all, handles.menu_view_show_tick_labels, handles.menu_view_show_grid) ;
+
+
+
+    end
+
+
+
+    function menu_track_setparametersfile_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % Really, "configure parameters"
+
+
+      if any(labeler.bgTrnIsRunningFromTrackerIndex()),
+        warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
+        return;
+      end
+      labeler.setStatus('Setting training parameters...');
+
+      [tPrm,do_update] = labeler.trackSetAutoParams();
+
+      sPrmNew = ParameterSetup(handles.figure,tPrm,'labelerObj',labeler); % modal
+
+      if isempty(sPrmNew)
+        if do_update
+          RC.saveprop('lastCPRAPTParams',sPrmNew);
+          %cbkSaveNeeded(labeler,true,'Parameters changed');
+          labeler.setDoesNeedSave(true,'Parameters changed') ;
+        end
+        % user canceled; none
+      else
+        labeler.trackSetParams(sPrmNew);
+        RC.saveprop('lastCPRAPTParams',sPrmNew);
+        %cbkSaveNeeded(labeler,true,'Parameters changed');
+        labeler.setDoesNeedSave(true,'Parameters changed') ;
+      end
+
+      labeler.clearStatus();
+
+
+    end
+
+
+
+    function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+
+      labeler.setStatus('Setting tracking parameters...');
+
+      [tPrm] = labeler.trackGetTrackParams();
+
+      sPrmTrack = ParameterSetup(handles.figure,tPrm,'labelerObj',labeler); % modal
+
+      if ~isempty(sPrmTrack),
+        sPrmNew = labeler.trackSetTrackParams(sPrmTrack);
+        RC.saveprop('lastCPRAPTParams',sPrmNew);
+        %cbkSaveNeeded(labeler,true,'Parameters changed');
+        labeler.setDoesNeedSave(true, 'Parameters changed') ;
+      end
+
+      labeler.clearStatus();
+
+
+    end
+
+
+
+    function menu_track_auto_params_update_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      checked = get(src,'Checked');
+      set(src,'Checked',~checked);
+      labeler.trackAutoSetParams = ~checked;
+
+      labeler.setDoesNeedSave(true, 'Auto compute training parameters changed') ;
+
+
+    end
+
+
+
+    function menu_track_use_all_labels_to_train_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      tObj = labeler.tracker;
+      if isempty(tObj)
+        labeler.lerror('LabelerGUI:tracker','No tracker for this project.');
+      end
+      if tObj.hasTrained && tObj.trnDataDownSamp
+        resp = questdlg('A tracker has already been trained with downsampled training data. Proceeding will clear all previous trained/tracked results. OK?',...
+          'Clear Existing Tracker','Yes, clear previous tracker','Cancel','Cancel');
+        if isempty(resp)
+          resp = 'Cancel';
+        end
+        switch resp
+          case 'Yes, clear previous tracker'
+            % none
+          case 'Cancel'
+            return;
+        end
+      end
+      tObj.trnDataUseAll();
+    end
+
+
+
+    function menu_track_trainincremental_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.trainIncremental();
+
+    end
+
+
+
+    function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if labeler.maIsMA
+        TrkInfoUI(labeler);
+      else
+        obj.raiseTargetsTableFigure();
+      end
+
+    end
+
+
+
+    function menu_go_nav_prefs_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.navPrefsUI();
+
+    end
+
+
+
+    function menu_go_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.gtShowGTManager();
+
+    end
+
+
+
+    function menu_evaluate_crossvalidate_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+
+
+      tbl = labeler.labelGetMFTableLabeled;
+      if labeler.maIsMA
+        tbl = tbl(:,1:2);
+        tbl = unique(tbl);
+        str = 'frames';
+      else
+        tbl = tbl(:,1:3);
+        str = 'targets';
+      end
+      n = height(tbl);
+
+      inputstr = sprintf('This project has %d labeled %s.\nNumber of folds for k-fold cross validation:',...
+        n,str);
+      resp = inputdlg(inputstr,'Cross Validation',1,{'3'});
+      if isempty(resp)
+        return;
+      end
+      nfold = str2double(resp{1});
+      if round(nfold)~=nfold || nfold<=1
+        labeler.lerror('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
+      end
+
+      tbl.split = ceil(nfold*rand(n,1));
+
+      t = labeler.tracker;
+      t.trainsplit(tbl);
+
+
+    end
+
+
+
+    function menu_track_clear_tracking_results_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
+      %labeler.preProcInitData();
+      res = questdlg('Are you sure you want to clear tracking results?');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+      labeler.setStatus('Clearing tracking results...');
+      tObj = labeler.tracker;
+      tObj.clearTrackingResults();
+      labeler.clearStatus();
+      %msgbox('Tracking results cleared.','Done');
+    end
+
+
+
+    function menu_track_batch_track_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      tbobj = TrackBatchGUI(labeler);
+      tbobj.run();
+
+
+    end
+
+
+
+    function menu_track_all_movies_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      mIdx = labeler.allMovIdx();
+      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      tbobj = TrackBatchGUI(labeler,'toTrack',toTrackIn);
+      % [toTrackOut] = tbobj.run();
+      tbobj.run();
+      % todo: import predictions
+
+
+    end
+
+
+
+    function menu_track_current_movie_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      mIdx = labeler.currMovIdx;
+      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
+      [toTrackOut,dostore] = mdobj.run();
+      if ~dostore,
+        return;
+      end
+      trackBatch('labeler',labeler,'toTrack',toTrackOut);
+
+
+    end
+
+
+
+    function menu_track_id_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.track_id = ~labeler.track_id;
+      set(handles.menu_track_id,'checked',labeler.track_id);
+
+
+    end
+
+
+
+    function menu_file_clear_imported_actuated_(obj, src,evtdata)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.labels2Clear();
+
+    end
+
+
+
+    function menu_file_export_all_movies_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      nMov = labeler.nmoviesGTaware;
+      if nMov==0
+        labeler.lerror('LabelerGUI:noMov','No movies in project.');
+      end
+      iMov = 1:nMov;
+      [tfok,rawtrkname] = obj.getExportTrkRawNameUI();
+      if ~tfok
+        return;
+      end
+      labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
+
+    end
+
+
+
+    function menu_track_set_labels_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      tObj = labeler.tracker;
+      if labeler.gtIsGTMode
+        labeler.lerror('LabelerGUI:gt','Unsupported in GT mode.');
+      end
+
+      if ~isempty(tObj) && tObj.hasBeenTrained() && (~labeler.maIsMA)
+        % single animal. Use prediction if available else use imported below
+        [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+        itgt = labeler.currTarget;
+
+        if ~tfhaspred(itgt)
+          if (labeler.nTrx>1)
+            msgbox('No predictions for current frame.');
+            return;
+          else % for single animal use imported predictions if available
+            iMov = labeler.currMovie;
+            frm = labeler.currFrame;
+            [tfhaspred,xy] = labeler.labels2{iMov}.getPTrkFrame(frm);
+            if ~tfhaspred
+              msgbox('No predictions for current frame.');
+              return;
+            end
+          end
+        else
+          xy = xy(:,:,itgt); % "targets" treatment differs from below
+        end
+
+        disp(xy);
+
+        % AL20161219: possibly dangerous, assignLabelCoords prob was intended
+        % only as a util method for subclasses rather than public API. This may
+        % not do the right thing for some concrete LabelCores.
+        %   labeler.lblCore.assignLabelCoords(xy);
+
+        lpos2xy = reshape(xy,labeler.nLabelPoints,2);
+        %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+        %lpos2xy = lpos2(:,:,frm);
+        labeler.labelPosSet(lpos2xy);
+
+        labeler.lblCore.newFrame(frm,frm,1);
+
+      else
+        iMov = labeler.currMovie;
+        frm = labeler.currFrame;
+        if iMov==0
+          labeler.lerror('LabelerGUI:setLabels','No movie open.');
+        end
+
+        if labeler.maIsMA
+          % We need to be smart about which to use.
+          % If only one of imported or prediction exist for the current frame then use whichever exists
+          % If both exist for current frame, then don't do anything and error.
+
+          useImported = true;
+          usePred = true;
+          % getting imported info old sytle. Doesn't work anymore
+
+          %     s = labeler.labels2{iMov};
+          %     itgtsImported = Labels.isLabeledF(s,frm);
+          %     ntgtsImported = numel(itgtsImported);
+
+          % check if we can use imported
+          imp_trk = labeler.labeledpos2trkViz;
+          if isempty(imp_trk)
+            useImported=false;
+          elseif isnan(imp_trk.currTrklet)
+            useImported=false;
+          else
+            s = labeler.labels2{iMov};
+            iTgtImp = imp_trk.currTrklet;
+            if isnan(iTgtImp)
+              useImported = false;
+            else
+              [tfhaspred,~,~] = s.getPTrkFrame(frm,'collapse',true);
+              if ~tfhaspred(iTgtImp)
+                useImported = false;
+              end
+            end
+          end
+
+          % check if we can use pred
+          if isempty(tObj)
+            usePred = false;
+          elseif isempty(tObj.trkVizer)
+            usePred = false;
+          else
+            [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+            iTgtPred = tObj.trkVizer.currTrklet;
+            if isnan(iTgtPred)
+              usePred = false;
+            elseif ~tfhaspred(iTgtPred)
+              usePred = false;
+            end
+          end
+
+          if usePred && useImported
+            msgbox('Both imported and prediction exist for current frame. Cannot decide which to use. Skipping');
+            return
+          end
+
+          if (~usePred) && (~useImported)
+            msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
+            return
+          end
+
+          if useImported
+            s = labeler.labels2{iMov};
+            iTgt = imp_trk.currTrklet;
+            [~,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);
+          else
+            iTgt = tObj.trkVizer.currTrklet;
+            [~,xy,tfocc] = tObj.getTrackingResultsCurrFrm();
+          end
+          xy = xy(:,:,iTgt); % "targets" treatment differs from below
+          occ = tfocc(:,iTgt);
+          ntgts = labeler.labelNumLabeledTgts();
+          labeler.setTargetMA(ntgts+1);
+          labeler.labelPosSet(xy,occ);
+          labeler.updateTrxTable();
+          iTgt = labeler.currTarget;
+          labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
+
+        else
+          if labeler.nTrx>1
+            labeler.lerror('LabelerGUI:setLabels','Unsupported for multiple targets.');
+          end
+          %lpos2 = labeler.labeledpos2{iMov};
+          %MK 20230728, labels2 now should always be TrkFile, but keeping other
+          %logic around just in case. Needs work for multiview though.
+          if isa(labeler.labels2{iMov} ,'TrkFile')
+            [~,p] = labeler.labels2{iMov}.getPTrkFrame(frm);
+          else
+            p = Labels.getLabelsF(labeler.labels2{iMov},frm,1);
+          end
+          lpos2xy = reshape(p,labeler.nLabelPoints,2);
+          %assert(size(lpos2,4)==1); % "targets" treatment differs from above
+          %lpos2xy = lpos2(:,:,frm);
+          labeler.labelPosSet(lpos2xy);
+
+          labeler.lblCore.newFrame(frm,frm,1);
+        end
+      end
+
+    end
+
+
+
+    function menu_track_background_predict_start_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tObj = labeler.tracker;
+      if tObj.asyncIsPrepared
+        tObj.asyncStartBgRunner();
+      else
+        if ~tObj.hasTrained
+          errordlg('A tracker has not been trained.','Background Tracking');
+          return;
+        end
+        tObj.asyncPrepare();
+        tObj.asyncStartBgRunner();
+      end
+
+    end
+
+
+
+    function menu_track_background_predict_end_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tObj = labeler.tracker;
+      if tObj.asyncIsPrepared
+        tObj.asyncStopBgRunner();
+      else
+        warndlg('Background worker is not running.','Background tracking');
+      end
+
+    end
+
+
+
+    function menu_track_background_predict_stats_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tObj = labeler.tracker;
+      if tObj.asyncIsPrepared
+        tObj.asyncComputeStats();
+      else
+        warningNoTrace('LabelerGUI:bgTrack',...
+          'No background tracking information available.','Background tracking');
+      end
+
+    end
+
+
+
+    function menu_evaluate_gtmode_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.setStatus('Switching between Labeling and Ground Truth Mode...');
+
+      gt = labeler.gtIsGTMode;
+      gtNew = ~gt;
+      labeler.gtSetGTMode(gtNew);
+      if gtNew
+        mmc = obj.movieManagerController_ ;
+        mmc.setVisible(true);
+        figure(mmc.hFig);
+      end
+      labeler.clearStatus();
+
+    end
+
+
+
+    function menu_evaluate_gtloadsuggestions_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      LabelerGT.loadSuggestionsUI(labeler);
+
+    end
+
+
+
+    function menu_evaluate_gtsetsuggestions_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      LabelerGT.setSuggestionsToLabeledUI(labeler);
+
+    end
+
+
+
+    function menu_evaluate_gtcomputeperf_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      assert(labeler.gtIsGTMode);
+      labeler.gtComputeGTPerformance();
+
+    end
+
+
+
+    function menu_evaluate_gtcomputeperfimported_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      assert(labeler.gtIsGTMode);
+      labeler.gtComputeGTPerformance('useLabels2',true);
+
+    end
+
+
+
+    function menu_evaluate_gtexportresults_actuated_(obj, src,evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+
+      tblRes = labeler.gtTblRes;
+      if isempty(tblRes)
+        errordlg('No GT results are currently available.','Export GT Results');
+        return;
+      end
+
+      %assert(labeler.gtIsGTMode);
+      fname = labeler.getDefaultFilenameExportGTResults();
+      [f,p] = uiputfile(fname,'Export File');
+      if isequal(f,0)
+        return;
+      end
+      fname = fullfile(p,f);
+      VARNAME = 'tblGT';
+      s = struct();
+      s.(VARNAME) = tblRes;
+      save(fname,'-mat','-struct','s');
+      fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+
+    end
+
+
+
+    function pumInfo_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      cprop = get(src,'Value');
+      handles.labelTLInfo.setCurProp(cprop);
+      cpropNew = handles.labelTLInfo.getCurProp();
+      if cpropNew ~= cprop,
+        set(src,'Value',cpropNew);
+      end
+      hlpRemoveFocus(src,handles);
+
+    end
+
+
+
+    function pbPlaySeg_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return
+      end
+      obj.play('playsegment', 'videoPlaySegFwdEnding') ;
+
+    end
+
+
+
+    function pbPlaySegRev_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return
+      end
+      obj.play('playsegmentrev', 'videoPlaySegRevEnding') ;
+
+    end
+
+
+
+    function pbPlay_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if ~labeler.doProjectAndMovieExist()
+        return
+      end
+      obj.play('play', 'videoPlay') ;
+    end
+
+
+
+    function tbAdjustCropSize_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      cropUpdateCropAdjustingCropSize(handles);
+      tb = handles.tbAdjustCropSize;
+      if tb.Value==tb.Min
+        % user clicked "Done Adjusting"
+        warningNoTrace('All movies in a given view must share the same crop size. The sizes of all crops have been updated as necessary.');
+      elseif tb.Value==tb.Max
+        % user clicked "Adjust Crop Size"
+        if ~labeler.cropProjHasCrops
+          labeler.cropInitCropsAllMovies;
+          fprintf(1,'Default crop initialized for all movies.\n');
+          obj.cropUpdateCropHRects_();
+        end
+      end
+    end
+
+
+
+    function pbClearAllCrops_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.cropClearAllCrops();
+
+
+    end
+
+
+
+    function menu_file_export_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to menu_file_export_labels2_trk_curr_mov (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+
+      iMov = labeler.currMovie;
+      if iMov==0
+        labeler.lerror('LabelerGUI:noMov','No movie currently set.');
+      end
+      [tfok,rawtrkname] = obj.getExportTrkRawNameUI();
+      if ~tfok
+        return;
+      end
+      labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
+
+
+    end
+
+
+
+    function menu_file_import_export_advanced_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to menu_file_import_export_advanced (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+
+    end
+
+
+
+    function menu_track_tracking_algorithm_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to menu_track_tracking_algorithm (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+    end
+
+
+
+    function menu_view_landmark_colors_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
+      LandmarkColors(labeler,cbkApply);
+      % AL 20220217: changes now applied immediately
+      % if ischange
+      %   cbkApply(savedres.colorSpecs,savedres.markerSpecs,savedres.skelSpecs);
+      % end
+
+    end
+
+
+
+    function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      landmark_specs('labeler',labeler);
+      %hasSkeleton = ~isempty(labeler.skeletonEdges) ;
+      %labeler.setShowSkeleton(hasSkeleton) ;
+
+    end
+
+
+
+    function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+
+      labeler.retrainAugOnly() ;
+
+    end
+
+
+
+    function menu_view_showhide_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if strcmpi(get(src,'Checked'),'off'),
+        src.Checked = 'on';
+        labeler.setShowSkeleton(true);
+      else
+        src.Checked = 'off';
+        labeler.setShowSkeleton(false);
+      end
+
+    end
+
+
+
+    function menu_view_showhide_maroi_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      if strcmpi(get(src,'Checked'),'off'),
+        labeler.setShowMaRoi(true);
+      else
+        labeler.setShowMaRoi(false);
+      end
+
+    end
+
+
+
+    function menu_view_showhide_maroiaux_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      tf = strcmpi(get(src,'Checked'),'off');
+      labeler.setShowMaRoiAux(tf);
+
+    end
+
+
+
+    function popupmenu_prevmode_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to popupmenu_prevmode (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+      contents = cellstr(get(src,'String'));
+      mode = contents{get(src,'Value')};
+      if strcmpi(mode,'Reference'),
+        labeler.setPrevAxesMode(PrevAxesMode.FROZEN,labeler.prevAxesModeInfo);
+      else
+        labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
+      end
+
+
+
+    end
+
+
+
+    function pushbutton_freezetemplate_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
+
+
+
+    end
+
+
+
+    function pushbutton_exitcropmode_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to pushbutton_exitcropmode (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+
+      labeler.cropSetCropMode(false);
+
+
+    end
+
+
+
+    function menu_view_occluded_points_box_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to menu_view_occluded_points_box (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+
+      labeler.setShowOccludedBox(~labeler.showOccludedBox);
+      if labeler.showOccludedBox,
+        labeler.lblCore.showOcc();
+      else
+        labeler.lblCore.hideOcc();
+      end
+
+    end
+
+
+
+    function pumInfo_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
+
+      % src    handle to pumInfo_labels (see GCBO)
+      % evt  reserved - to be defined in a future version of MATLAB
+      % handles    structure with handles and user data (see GUIDATA)
+
+      % Hints: contents = cellstr(get(src,'String')) returns pumInfo_labels contents as cell array
+      %        contents{get(src,'Value')} returns selected item from pumInfo_labels
+
+      ipropType = get(src,'Value');
+      % see also InfoTimeline/enforcePropConsistencyWithUI
+      iprop = get(handles.pumInfo,'Value');
+      props = handles.labelTLInfo.getPropsDisp(ipropType);
+      if iprop > numel(props),
+        iprop = 1;
+      end
+      set(handles.pumInfo,'String',props,'Value',iprop);
+      handles.labelTLInfo.setCurPropType(ipropType,iprop);
+    end
+
   end  % methods  
 end  % classdef
