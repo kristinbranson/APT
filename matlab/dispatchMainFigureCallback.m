@@ -189,7 +189,7 @@ v = hObject.Value;
 userdata = hObject.UserData;
 logzoomrad = userdata(2)+v*(userdata(1)-userdata(2));
 zoomRad = exp(logzoomrad);
-labeler.videoZoom(zoomRad);
+handles.controller.videoZoom(zoomRad);
 hlpRemoveFocus(hObject,handles);
 
 function pbResetZoom_Callback(hObject, eventdata, handles)
@@ -205,30 +205,30 @@ labeler.targetZoomRadiusDefault = diff(handles.axes_curr.XLim)/2;
 function pbRecallZoom_Callback(hObject, eventdata, handles)
 labeler = handles.labeler;
 % TODO this is broken!!
-labeler.videoCenterOnCurrTarget();
-labeler.videoZoom(labeler.targetZoomRadiusDefault);
+handles.controller.videoCenterOnCurrTarget();
+handles.controller.videoZoom(labeler.targetZoomRadiusDefault);
 
-function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
-labeler = handles.labeler;
-if verLessThan('matlab','R2015b')
-  jt = labeler.gdata.tblSusp.UserData.jtable;
-  row = jt.getSelectedRow; % 0 based
-  frm = jt.getValueAt(row,0);
-  iTgt = jt.getValueAt(row,1);
-  if ~isempty(frm)
-    frm = frm.longValueReal;
-    iTgt = iTgt.longValueReal;
-    labeler.setFrameAndTarget(frm,iTgt);
-    hlpRemoveFocus(hObject,handles);
-  end
-else
-  row = eventdata.Indices(1);
-  dat = hObject.Data;
-  frm = dat(row,1);
-  iTgt = dat(row,2);
-  labeler.setFrameAndTarget(frm,iTgt);
-  hlpRemoveFocus(hObject,handles);
-end
+% function tblSusp_CellSelectionCallback(hObject, eventdata, handles)
+% labeler = handles.labeler;
+% if verLessThan('matlab','R2015b')
+%   jt = labeler.gdata.tblSusp.UserData.jtable;
+%   row = jt.getSelectedRow; % 0 based
+%   frm = jt.getValueAt(row,0);
+%   iTgt = jt.getValueAt(row,1);
+%   if ~isempty(frm)
+%     frm = frm.longValueReal;
+%     iTgt = iTgt.longValueReal;
+%     labeler.setFrameAndTarget(frm,iTgt);
+%     hlpRemoveFocus(hObject,handles);
+%   end
+% else
+%   row = eventdata.Indices(1);
+%   dat = hObject.Data;
+%   frm = dat(row,1);
+%   iTgt = dat(row,2);
+%   labeler.setFrameAndTarget(frm,iTgt);
+%   hlpRemoveFocus(hObject,handles);
+% end
 
 function tbTLSelectMode_Callback(hObject, eventdata, handles)
 if ~handles.labeler.doProjectAndMovieExist()
@@ -244,30 +244,13 @@ end
 tl = handles.labelTLInfo;
 tl.selectClearSelection();
 
-function cbklabelTLInfoSelectOn(src,evt)
-lblTLObj = evt.AffectedObject;
-tb = lblTLObj.lObj.gdata.tbTLSelectMode;
-tb.Value = lblTLObj.selectOn;
+% function cbkFreezePrevAxesToMainWindow(src,evt)
+% handles = guidata(src);
+% handles.labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
 
-function cbklabelTLInfoPropsUpdated(src,evt)
-% Update the props dropdown menu and timeline.
-labelTLInfo = evt.AffectedObject;
-props = labelTLInfo.getPropsDisp();
-set(labelTLInfo.lObj.gdata.pumInfo,'String',props);
-
-function cbklabelTLInfoPropTypesUpdated(src,evt)
-% Update the props dropdown menu and timeline.
-labelTLInfo = evt.AffectedObject;
-proptypes = labelTLInfo.getPropTypesDisp();
-set(labelTLInfo.lObj.gdata.pumInfo_labels,'String',proptypes);
-
-function cbkFreezePrevAxesToMainWindow(src,evt)
-handles = guidata(src);
-handles.labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
-
-function cbkUnfreezePrevAxes(src,evt)
-handles = guidata(src);
-handles.labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
+% function cbkUnfreezePrevAxes(src,evt)
+% handles = guidata(src);
+% handles.labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 
 %% menu
 function menu_file_save_Callback(hObject, eventdata, handles)
@@ -469,20 +452,22 @@ function menu_help_about_Callback(hObject, eventdata, handles)
 about(handles.labeler);
 
 function menu_setup_sequential_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
+handles.controller.menuSetupLabelModeCbkGeneric(hObject);
+
 function menu_setup_sequential_add_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
+handles.controller.menuSetupLabelModeCbkGeneric(hObject);
+
 function menu_setup_template_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
+handles.controller.menuSetupLabelModeCbkGeneric(hObject);
+
 function menu_setup_highthroughput_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
+handles.controller.menuSetupLabelModeCbkGeneric(hObject);
+
 function menu_setup_multiview_calibrated_mode_2_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
+handles.controller.menuSetupLabelModeCbkGeneric(hObject);
+
 function menu_setup_multianimal_mode_Callback(hObject,eventdata,handles)
-menuSetupLabelModeCbkGeneric(hObject,handles);
-function menuSetupLabelModeCbkGeneric(hObject,handles)
-lblMode = handles.setupMenu2LabelMode.(hObject.Tag);
-handles.labeler.labelingInit('labelMode',lblMode);
+handles.controller.menuSetupLabelModeCbkGeneric(hObject);
 
 function menu_setup_label_overlay_montage_Callback(hObject,evtdata,handles)
 handles.labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
@@ -1347,14 +1332,6 @@ s.(VARNAME) = tblRes;
 save(fname,'-mat','-struct','s');
 fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
   
-function figure_CloseRequestFcn(hObject, eventdata, handles)
-if isfield(handles, 'controller') 
-  controller = handles.controller ;
-  controller.quitRequested() ;
-else
-  delete(hObject) ;
-end
-
 function pumInfo_Callback(hObject, eventdata, handles)
 cprop = get(hObject,'Value');
 handles.labelTLInfo.setCurProp(cprop);
@@ -1364,42 +1341,23 @@ if cpropNew ~= cprop,
 end
 hlpRemoveFocus(hObject,handles);
 
-function pumInfo_CreateFcn(hObject, eventdata, handles)
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
-function play(hObject,handles,iconStrPlay,playMeth)
-labeler = handles.labeler;
-oc = onCleanup(@()playCleanup(hObject,handles,iconStrPlay));
-if ~handles.isPlaying
-  handles.isPlaying = true;
-  guidata(hObject,handles);
-  hObject.CData = Icons.ims.stop;
-  labeler.(playMeth);
-end
-function playCleanup(hObject,handles,iconStrPlay)
-hObject.CData = Icons.ims.(iconStrPlay);
-handles.isPlaying = false;
-guidata(hObject,handles);
-
 function pbPlaySeg_Callback(hObject, eventdata, handles)
 if ~handles.labeler.doProjectAndMovieExist()
-  return;
+  return
 end
-play(hObject,handles,'playsegment','videoPlaySegFwdEnding');
+handles.controller.play('playsegment', 'videoPlaySegFwdEnding') ;
 
 function pbPlaySegRev_Callback(hObject, eventdata, handles)
 if ~handles.labeler.doProjectAndMovieExist()
-  return;
+  return
 end
-play(hObject,handles,'playsegmentrev','videoPlaySegRevEnding');
+handles.controller.play('playsegmentrev', 'videoPlaySegRevEnding') ;
 
 function pbPlay_Callback(hObject, eventdata, handles)
 if ~handles.labeler.doProjectAndMovieExist()
-  return;
+  return
 end
-play(hObject,handles,'play','videoPlay');
+handles.controller.play('play', 'videoPlay') ;
 
 %% Cropping
 % function handles = cropInitImRects(handles)
@@ -1590,18 +1548,6 @@ else
   handles.labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
 end
 
-% --- Executes during object creation, after setting all properties.
-function popupmenu_prevmode_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to popupmenu_prevmode (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-
 
 
 function pushbutton_freezetemplate_Callback(hObject, eventdata, handles)
@@ -1651,20 +1597,6 @@ if iprop > numel(props),
 end
 set(handles.pumInfo,'String',props,'Value',iprop);
 handles.labelTLInfo.setCurPropType(ipropType,iprop);
-
-
-
-% --- Executes during object creation, after setting all properties.
-function pumInfo_labels_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to pumInfo_labels (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    empty - handles not created until after all CreateFcns called
-
-% Hint: popupmenu controls usually have a white background on Windows.
-%       See ISPC and COMPUTER.
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
 
 
 
@@ -1721,11 +1653,13 @@ listeners{end+1,1} = addlistener(handles.sldZoom,'ContinuousValueChange',@sldZoo
 % %listeners{end+1,1} = addlistener(labeler,'newProject',@cbkNewProject);
 % listeners{end+1,1} = addlistener(labeler,'newMovie',@cbkNewMovie);
 % %listeners{end+1,1} = addlistener(labeler,'projLoaded',@cbkProjLoaded);
+
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'selectOn','PostSet',@cbklabelTLInfoSelectOn);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_tracker','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'props_allframes','PostSet',@cbklabelTLInfoPropsUpdated);
 listeners{end+1,1} = addlistener(handles.labelTLInfo,'proptypes','PostSet',@cbklabelTLInfoPropTypesUpdated);
+
 % %listeners{end+1,1} = addlistener(labeler,'startAddMovie',@cbkAddMovie);
 % %listeners{end+1,1} = addlistener(labeler,'finishAddMovie',@cbkAddMovie);
 % %listeners{end+1,1} = addlistener(labeler,'startSetMovie',@cbkSetMovie);
@@ -1754,5 +1688,7 @@ hZ = zoom(main_figure);  % hZ is a "zoom object"
 hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
 hP = pan(main_figure);  % hP is a "pan object"
 hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
+
+set(main_figure, 'CloseRequestFcn', @(s,e)(controller.figure_CloseRequestFcn())) ;
 
 guidata(main_figure, handles) ;

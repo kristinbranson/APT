@@ -293,9 +293,9 @@ classdef LabelCoreSeqMA < LabelCore
           th = atan2(dy,dx);
           lObj = obj.labeler;
           obj.tc_prev_axis = lObj.videoCurrentAxis;
-          lObj.videoCenterOnCurrTarget(xc,yc,th)
+          lObj.controller_.videoCenterOnCurrTarget(xc,yc,th)
           rad = 2*sqrt(dx.^2+dy.^2);
-          lObj.videoZoom(rad);
+          lObj.controller_.videoZoom(rad);
           if ~obj.tcShow
             set(h,'XData',nan,'YData',nan);
           end

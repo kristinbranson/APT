@@ -178,6 +178,7 @@ classdef Labeler < handle
     refreshTrainMonitorViz
     updateTrainMonitorViz
     raiseTrainingStoppedDialog
+    updateTargetCentrationAndZoom
   end
 
   events  % used to come from labeler.tracker
@@ -993,7 +994,7 @@ classdef Labeler < handle
     function v = get.hasMovie(obj)
       v = obj.hasProject && obj.movieReader(1).isOpen;
     end    
-    
+
     function v = get.moviefile(obj)
       mr = obj.movieReader(1);
       if isempty(mr)
@@ -1578,16 +1579,7 @@ classdef Labeler < handle
       if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
         obj.movieRotateTargetUp = false; %#ok<MCSUP>
       end
-      if ~obj.isinit ,
-        if v
-          if obj.hasTrx || obj.maIsMA %#ok<MCSUP>
-            obj.videoCenterOnCurrTarget();
-          elseif ~obj.isinit %#ok<MCSUP>
-            warningNoTrace('Labeler:trx',...
-              'The current movie does not have an associated trx file. Property ''movieCenterOnTarget'' will have no effect.');
-          end
-        end
-      end
+      obj.notify('updateTargetCentrationAndZoom') ;
       obj.notify('didSetMovieCenterOnTarget') ;
     end
 
@@ -1600,17 +1592,7 @@ classdef Labeler < handle
           obj.movieCenterOnTarget = true; %#ok<MCSUP>
         end
         obj.movieRotateTargetUp = v;
-        if ~obj.isinit ,
-          if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget %#ok<MCSUP>
-            obj.videoCenterOnCurrTarget();
-          end
-          if v
-            if ~(obj.hasTrx || obj.maIsMA) && ~obj.isinit %#ok<MCSUP>
-              warningNoTrace('Labeler:trx',...
-                'The current movie does not have an associated trx file. Property ''movieRotateTargetUp'' will have no effect.');
-            end
-          end
-        end
+        obj.notify('updateTargetCentrationAndZoom') ;
       end
       obj.notify('didSetMovieRotateTargetUp') ;
     end
@@ -12517,78 +12499,6 @@ classdef Labeler < handle
   %% Video
   methods
     
-    function videoCenterOnCurrTarget(obj,x,y,th)
-      % Shift axis center/target and CameraUpVector without touching zoom.
-      % 
-      % Potential TODO: CamViewAngle treatment looks a little bizzare but
-      % seems to work ok. Theoretically better (?), at movieSet time, cache
-      % a default CameraViewAngle, and at movieRotateTargetUp set time, set
-      % the CamViewAngle to either the default or the default/2 etc.
-
-      [x0,y0] = obj.videoCurrentCenter();
-      tfexternal = nargin>1;
-      if ~tfexternal
-        [x,y,th] = obj.currentTargetLoc();
-      end
-      if isnan(x)
-        warningNoTrace('No target selected');
-        return;
-      end
-
-      dx = x-x0;
-      dy = y-y0;
-      ax = obj.gdata.axes_curr;
-      axisshift(ax,dx,dy);
-      ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
-      ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
-      %ax.CameraViewAngleMode = 'auto';
-      if obj.movieRotateTargetUp || tfexternal
-        ax.CameraUpVector = [cos(th) sin(th) 0];
-        if verLessThan('matlab','R2016a')
-          % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode
-          % (currently, any axis with CameraViewAngleMode manually set)
-          % changed. Prior to R2016a, zoom on such an axis altered camera
-          % position via .CameraViewAngle, etc, with the axis limits
-          % unchanged. Starting in R2016a, zoom on 3D axes changes the axis
-          % limits while the camera position is unchanged.
-          %
-          % Currently we prefer the modern treatment and the
-          % center-on-target, rotate-target, zoom slider, etc treatments
-          % are built around that treatment. For prior MATLABs, we work
-          % around -- it is a little awkward as the fundamental strategy
-          % behind zoom is different. For prior MATLABs users should prefer
-          % the Zoom slider in the Targets panel as opposed to using the
-          % zoom tools in the toolbar.
-          hF = obj.gdata.figure;
-          tf = getappdata(hF,'manualZoomOccured');
-          if tf
-            ax.CameraViewAngleMode = 'auto';
-            setappdata(hF,'manualZoomOccured',false);
-          end
-        end
-        if strcmp(ax.CameraViewAngleMode,'auto')
-          cva = ax.CameraViewAngle;
-          ax.CameraViewAngle = cva/2;
-        end
-      else
-        ax.CameraUpVectorMode = 'auto';
-      end
-    end
-    
-    function videoCenterOnCurrTargetPoint(obj)
-      [tfsucc,xy] = obj.videoCenterOnCurrTargetPointHelp();
-      if tfsucc
-        [x0,y0] = obj.videoCurrentCenter;
-        dx = xy(1)-x0;
-        dy = xy(2)-y0;
-        ax = obj.gdata.axes_curr;
-        axisshift(ax,dx,dy);
-        ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
-        ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
-        %ax.CameraViewAngleMode = 'auto';
-      end
-    end
-    
     function [tfsucc,xy] = videoCenterOnCurrTargetPointHelp(obj)
       % get (x,y) for current movieCenterOnTargetIPt
       
@@ -12604,7 +12514,7 @@ classdef Labeler < handle
           xy = reshape(p,s.npts,2);
           xy = xy(ipt,:);
           if all(~isnan(xy))
-            return;
+            return
           end
         end
       end
@@ -12613,7 +12523,7 @@ classdef Labeler < handle
       if ~isempty(tracker)
         [tfhaspred,xy] = tracker.getTrackingResultsCurrFrm();
         if tfhaspred
-          return;
+          return
         end
       end
       
@@ -12624,192 +12534,18 @@ classdef Labeler < handle
           xy = reshape(p,s.npts,2);
           xy = xy(ipt,:);
           if all(~isnan(xy))
-            return;
+            return
           end
         end
       end
       
       tfsucc = false;
       xy = [];
-    end    
-
+    end  % function    
+    
     function unsetdrag(obj)
       obj.drag = false;
       obj.drag_pt = [];
-    end
-
-    function videoZoom(obj,zoomRadius)
-      % Zoom to square window over current frame center with given radius.
-      
-      [x0,y0] = obj.videoCurrentCenter();
-      lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
-      axis(obj.gdata.axes_curr,lims);
-    end    
-
-    function [xsz,ysz] = videoCurrentSize(obj)
-      v = axis(obj.gdata.axes_curr);
-      xsz = v(2)-v(1);
-      ysz = v(4)-v(3);
-    end
-
-    function [x0,y0] = videoCurrentCenter(obj)
-      %v = axis(obj.gdata.axes_curr);
-      x0 = mean(get(obj.gdata.axes_curr,'XLim'));
-      y0 = mean(get(obj.gdata.axes_curr,'YLim'));
-    end
-
-    function v = videoCurrentAxis(obj)
-      v = axis(obj.gdata.axes_curr);
-    end
-
-    function videoSetAxis(obj,lims,resetcamera)
-      if nargin<3
-        resetcamera = true;
-      end
-      % resets camera view too
-      ax = obj.gdata.axes_curr;
-      if resetcamera
-        ax.CameraUpVector = [0, -1,0];
-        ax.CameraUpVectorMode = 'auto';
-        ax.CameraViewAngleMode = 'auto';
-        ax.CameraPositionMode = 'auto';
-        ax.CameraTargetMode = 'auto';
-      end
-      axis(ax,lims);
-    end
-
-    function videoCenterOn(obj,x,y)
-      [xsz,ysz] = obj.videoCurrentSize();
-      lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
-      axis(obj.gdata.axes_curr,lims);      
-    end
-    
-    function xy = videoClipToVideo(obj,xy)
-      % Clip coords to video size.
-      %
-      % xy (in): [nx2] xy-coords
-      %
-      % xy (out): [nx2] xy-coords, clipped so that x in [1,nc] and y in [1,nr]
-      
-      xy = CropInfo.roiClipXY(obj.movieroi,xy);
-    end
-
-    function dxdy = videoCurrentUpVec(obj)
-      % The main axis can be rotated, flipped, etc; Get the current unit 
-      % "up" vector in (x,y) coords
-      %
-      % dxdy: [2] unit vector [dx dy] 
-      
-      ax = obj.gdata.axes_curr;
-      if obj.hasTrx && obj.movieRotateTargetUp
-        v = ax.CameraUpVector; % should be norm 1
-        dxdy = v(1:2);
-      else
-        dxdy = [0 -1];
-      end
-    end
-
-    function dxdy = videoCurrentRightVec(obj)
-      % The main axis can be rotated, flipped, etc; Get the current unit 
-      % "right" vector in (x,y) coords
-      %
-      % dxdy: [2] unit vector [dx dy] 
-
-      ax = obj.gdata.axes_curr;
-      if obj.hasTrx && obj.movieRotateTargetUp
-        v = ax.CameraUpVector; % should be norm 1
-        parity = mod(strcmp(ax.XDir,'normal') + strcmp(ax.YDir,'normal'),2);
-        if parity
-          dxdy = [-v(2) v(1)]; % etc
-        else
-          dxdy = [v(2) -v(1)]; % rotate v by -pi/2.
-        end
-      else
-        dxdy = [1 0];
-      end      
-    end
-    
-    function videoPlay(obj)
-      obj.videoPlaySegmentCore(obj.currFrame,obj.nframes,...
-        'setFrameArgs',{'updateTables',false});
-    end
-    
-    function videoPlaySegment(obj)
-      % Play segment centererd at .currFrame
-      
-      f = obj.currFrame;
-      df = obj.moviePlaySegRadius;
-      fstart = max(1,f-df);
-      fend = min(obj.nframes,f+df);
-      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
-        'setFrameArgs',{'updateTables',false,'updateLabels',false});
-    end
-    function videoPlaySegFwdEnding(obj)
-      % Play segment ending at .currFrame
-      f = obj.currFrame;
-      df = obj.moviePlaySegRadius;
-      fstart = max(1,f-df);
-      fend = f;
-      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
-        'setFrameArgs',{'updateTables',false,'updateLabels',false});
-    end
-    function videoPlaySegRevEnding(obj)
-      % Play segment (reversed) ending at .currFrame
-      f = obj.currFrame;
-      df = obj.moviePlaySegRadius;
-      fstart = min(f+df,obj.nframes);
-      fend = f;
-      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
-        'setFrameArgs',{'updateTables',false,'updateLabels',false});
-    end
-
-
-    function videoPlaySegmentCore(obj,fstart,fend,varargin)
-      
-      [setFrameArgs,freset] = myparse(varargin,...
-        'setFrameArgs',{},...
-        'freset',nan);
-      tfreset = ~isnan(freset);
-            
-      tffwd = fend>fstart;
-
-      ticker = tic;
-      while true
-        % Ways to exit loop:
-        % 1. user cancels playback through GUI mutation of gdata.isPlaying
-        % 2. fend reached
-        % 3. ctrl-c
-        
-        guidata = obj.gdata;
-        if ~guidata.isPlaying
-          break;
-        end
-                  
-        dtsec = toc(ticker);
-        df = dtsec*obj.moviePlayFPS;
-        if tffwd
-          f = ceil(df)+fstart;
-          if f > fend
-            break;
-          end
-        else
-          f = fstart-ceil(df);
-          if f < fend
-            break;
-          end
-        end
-
-        obj.setFrame(f,setFrameArgs{:});
-        drawnow('limitrate');
-      end
-      
-      if tfreset
-        % AL20170619 passing setFrameArgs a bit fragile; needed for current
-        % callers (don't update labels in videoPlaySegment)
-        obj.setFrame(freset,setFrameArgs{:}); 
-      end
-      
-      % - icon managed by caller      
     end
     
   end
@@ -13346,12 +13082,7 @@ classdef Labeler < handle
         fprintf('setFrame %d, setcurrprevframe took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
       
-      if obj.hasTrx && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
-        assert(~obj.isMultiView);
-        obj.videoCenterOnCurrTarget();
-      elseif obj.movieCenterOnTargetLandmark
-        obj.videoCenterOnCurrTargetPoint();
-      end
+      obj.notify('updateTargetCentrationAndZoom') ;
       
       if debugtiming,
         fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -13387,7 +13118,7 @@ classdef Labeler < handle
         fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
       end
       
-    end
+    end  % function setFrame
     
 %     function setTargetID(obj,tgtID)
 %       % Set target ID, maintaining current movie/frame.
@@ -13412,10 +13143,6 @@ classdef Labeler < handle
       % Set target index, maintaining current movie/frameframe.
       % iTgt: INDEX into obj.trx
       
-      vidupdate = myparse(varargin,...
-        'vidupdate',true ...
-        );
-      
       if obj.hasTrx
         frm = obj.currFrame;
         if ~obj.frm2trx(frm,iTgt)
@@ -13428,19 +13155,14 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
       if obj.hasTrx || obj.maIsMA
         obj.labelsUpdateNewTarget(prevTarget);
-        if vidupdate
-          if obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
-            obj.videoCenterOnCurrTarget();
-          elseif obj.movieCenterOnTargetLandmark
-            obj.videoCenterOnCurrTargetPoint();
-          end
-        end
+        obj.notify('updateTargetCentrationAndZoom') ;
       end
 %       obj.updateCurrSusp();
       if obj.hasTrx
         obj.updateShowTrx();
       end
     end
+    
     function setTargetMA(obj,iTgt)
       % "raw". maybe shldnt be a sep meth
       obj.currTarget = iTgt;
@@ -13469,16 +13191,11 @@ classdef Labeler < handle
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       
-      if (obj.hasTrx || obj.maIsMA) && obj.movieCenterOnTarget && ~obj.movieCenterOnTargetLandmark
-        obj.videoCenterOnCurrTarget();
-        obj.videoZoom(obj.targetZoomRadiusDefault);
-      elseif obj.movieCenterOnTargetLandmark
-        obj.videoCenterOnCurrTargetPoint();
-      end
+      obj.notify('updateTargetCentrationAndZoom') ;
+      
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
         obj.updateTrxTable();
-%         obj.updateCurrSusp();
         obj.updateShowTrx();
       end
     end    

@@ -14,6 +14,7 @@ classdef LabelerController < handle
     %pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge_
     %pumTrackInitFontSize_
     %pumTrackInitHeight_
+    isPlaying_ = false  % whether a video is currently playing or not
   end
 
   properties  % private/protected by convention
@@ -125,7 +126,8 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetTrackParams',@(source,event)(obj.cbkParameterChange()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config_()) ) ;
-
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom_()) ) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
       obj.listeners_(end+1) = ...
@@ -202,6 +204,16 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(handles.axes_curr,'YDir','PostSet',@(s,e)(obj.axescurrYDirChanged(s,e))) ;
 
+      obj.listeners_(end+1) = ...
+        addlistener(handles.labelTLInfo,'selectOn','PostSet',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.labelTLInfo,'props','PostSet',@(s,e)(obj.cbklabelTLInfoPropsUpdated(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.labelTLInfo,'props_tracker','PostSet',@(s,e)(obj.cbklabelTLInfoPropsUpdated(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.labelTLInfo,'props_allframes','PostSet',@(s,e)(obj.cbklabelTLInfoPropsUpdated(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.labelTLInfo,'proptypes','PostSet',@(s,e)(obj.cbklabelTLInfoPropTypesUpdated(s,e))) ;
 
       % Do this once listeners are set up
       obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
@@ -2956,7 +2968,7 @@ classdef LabelerController < handle
       mnu = handles.menu_view_trajectories_centervideoontarget;
       mnu.Checked = onIff(tf);
       if tf,
-        labeler.videoZoom(labeler.targetZoomRadiusDefault);
+        obj.videoZoom(labeler.targetZoomRadiusDefault);
       end
     end  % function
 
@@ -3420,7 +3432,7 @@ classdef LabelerController < handle
       	set(axApply,'CLim',clim);
       	warning(warnst);
       	if tfApplyAxPrev
-      		set(labeler.gdata.axes_prev,'CLim',clim);
+      		set(handles.axes_prev,'CLim',clim);
       	end
       end
     end
@@ -3543,6 +3555,387 @@ classdef LabelerController < handle
       if evt.Axes == handles.axes_prev,
         labeler.UpdatePrevAxesLimits();
       end
+    end
+
+    function cbklabelTLInfoSelectOn(obj, src, evt)  %#ok<INUSD>
+      % labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      lblTLObj = evt.AffectedObject;
+      tb = handles.tbTLSelectMode;
+      tb.Value = lblTLObj.selectOn;
+    end
+
+    function cbklabelTLInfoPropsUpdated(obj, src, evt)  %#ok<INUSD>
+      % Update the props dropdown menu and timeline.
+      % labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      labelTLInfo = evt.AffectedObject;
+      props = labelTLInfo.getPropsDisp();
+      set(handles.pumInfo,'String',props);
+    end
+
+    function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
+      % Update the props dropdown menu and timeline.
+      % labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      labelTLInfo = evt.AffectedObject;
+      proptypes = labelTLInfo.getPropTypesDisp();
+      set(handles.pumInfo_labels,'String',proptypes);
+    end
+    
+    function menuSetupLabelModeCbkGeneric(obj, src, evt)  %#ok<INUSD>
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      lblMode = handles.setupMenu2LabelMode.(src.Tag);
+      handles.labeler.labelingInit('labelMode',lblMode);
+    end
+    
+    function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
+      obj.quitRequested() ;
+    end
+
+    function videoZoom(obj,zoomRadius)
+      % Zoom to square window over current frame center with given radius.
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      [x0,y0] = labeler.videoCurrentCenter();
+      lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
+      axis(handles.axes_curr,lims);
+    end    
+
+    function [xsz,ysz] = videoCurrentSize(obj)
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      v = axis(handles.axes_curr);
+      xsz = v(2)-v(1);
+      ysz = v(4)-v(3);
+    end
+
+    function [x0,y0] = videoCurrentCenter(obj)
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      %v = axis(handles.axes_curr);
+      x0 = mean(get(handles.axes_curr,'XLim'));
+      y0 = mean(get(handles.axes_curr,'YLim'));
+    end
+
+    function v = videoCurrentAxis(obj)
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      v = axis(handles.axes_curr);
+    end
+
+    function videoSetAxis(obj,lims,resetcamera)
+      if nargin<3
+        resetcamera = true;
+      end
+      %labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      % resets camera view too
+      ax = handles.axes_curr;
+      if resetcamera
+        ax.CameraUpVector = [0, -1,0];
+        ax.CameraUpVectorMode = 'auto';
+        ax.CameraViewAngleMode = 'auto';
+        ax.CameraPositionMode = 'auto';
+        ax.CameraTargetMode = 'auto';
+      end
+      axis(ax,lims);
+    end
+
+    function videoCenterOn(obj,x,y)
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      [xsz,ysz] = labeler.videoCurrentSize();
+      lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
+      axis(handles.axes_curr,lims);      
+    end
+    
+    function xy = videoClipToVideo(obj,xy)
+      % Clip coords to video size.
+      %
+      % xy (in): [nx2] xy-coords
+      %
+      % xy (out): [nx2] xy-coords, clipped so that x in [1,nc] and y in [1,nr]
+      
+      labeler = obj.labeler_ ;
+      % mainFigure = obj.mainFigure_ ;  
+      % handles = guidata(mainFigure) ;
+      
+      xy = CropInfo.roiClipXY(labeler.movieroi,xy);
+    end
+
+    function dxdy = videoCurrentUpVec(obj)
+      % The main axis can be rotated, flipped, etc; Get the current unit 
+      % "up" vector in (x,y) coords
+      %
+      % dxdy: [2] unit vector [dx dy] 
+      
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      ax = handles.axes_curr;
+      if labeler.hasTrx && labeler.movieRotateTargetUp
+        v = ax.CameraUpVector; % should be norm 1
+        dxdy = v(1:2);
+      else
+        dxdy = [0 -1];
+      end
+    end
+
+    function dxdy = videoCurrentRightVec(obj)
+      % The main axis can be rotated, flipped, etc; Get the current unit 
+      % "right" vector in (x,y) coords
+      %
+      % dxdy: [2] unit vector [dx dy] 
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      ax = handles.axes_curr;
+      if labeler.hasTrx && labeler.movieRotateTargetUp
+        v = ax.CameraUpVector; % should be norm 1
+        parity = mod(strcmp(ax.XDir,'normal') + strcmp(ax.YDir,'normal'),2);
+        if parity
+          dxdy = [-v(2) v(1)]; % etc
+        else
+          dxdy = [v(2) -v(1)]; % rotate v by -pi/2.
+        end
+      else
+        dxdy = [1 0];
+      end      
+    end
+    
+    function videoPlay(obj)
+      labeler = obj.labeler_ ;
+      % mainFigure = obj.mainFigure_ ;  
+      % handles = guidata(mainFigure) ;
+            
+      labeler.videoPlaySegmentCore(labeler.currFrame,labeler.nframes,...
+        'setFrameArgs',{'updateTables',false});
+    end
+    
+    function videoPlaySegment(obj)
+      % Play segment centererd at .currFrame
+      
+      labeler = obj.labeler_ ;
+      % mainFigure = obj.mainFigure_ ;  
+      % handles = guidata(mainFigure) ;
+      
+      f = labeler.currFrame;
+      df = labeler.moviePlaySegRadius;
+      fstart = max(1,f-df);
+      fend = min(labeler.nframes,f+df);
+      labeler.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+
+    function videoPlaySegFwdEnding(obj)
+      % Play segment ending at .currFrame
+      labeler = obj.labeler_ ;
+      % mainFigure = obj.mainFigure_ ;  
+      % handles = guidata(mainFigure) ;
+            
+      f = labeler.currFrame;
+      df = labeler.moviePlaySegRadius;
+      fstart = max(1,f-df);
+      fend = f;
+      labeler.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+    
+    function videoPlaySegRevEnding(obj)
+      % Play segment (reversed) ending at .currFrame
+      labeler = obj.labeler_ ;
+      % mainFigure = obj.mainFigure_ ;  
+      % handles = guidata(mainFigure) ;
+      
+      f = labeler.currFrame;
+      df = labeler.moviePlaySegRadius;
+      fstart = min(f+df,labeler.nframes);
+      fend = f;
+      labeler.videoPlaySegmentCore(fstart,fend,'freset',f,...
+        'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    end
+
+
+    function videoPlaySegmentCore(obj,fstart,fend,varargin)
+      
+      labeler = obj.labeler_ ;
+      % mainFigure = obj.mainFigure_ ;  
+      % handles = guidata(mainFigure) ;
+      
+      [setFrameArgs,freset] = myparse(varargin,...
+        'setFrameArgs',{},...
+        'freset',nan);
+      tfreset = ~isnan(freset);
+            
+      tffwd = fend>fstart;
+
+      ticker = tic();
+      while true
+        % Ways to exit loop:
+        % 1. user cancels playback through GUI mutation of obj.isPlaying_
+        % 2. fend reached
+        % 3. ctrl-c
+        
+        if ~obj.isPlaying_
+          break;
+        end
+                  
+        dtsec = toc(ticker);
+        df = dtsec*labeler.moviePlayFPS;
+        if tffwd
+          f = ceil(df)+fstart;
+          if f > fend
+            break;
+          end
+        else
+          f = fstart-ceil(df);
+          if f < fend
+            break;
+          end
+        end
+
+        labeler.setFrame(f,setFrameArgs{:});
+        drawnow('limitrate');
+      end
+      
+      if tfreset
+        % AL20170619 passing setFrameArgs a bit fragile; needed for current
+        % callers (don't update labels in videoPlaySegment)
+        labeler.setFrame(freset,setFrameArgs{:}); 
+      end
+      
+      % - icon managed by caller      
+    end
+
+    function videoCenterOnCurrTargetPoint(obj)
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      [tfsucc,xy] = labeler.videoCenterOnCurrTargetPointHelp();
+      if tfsucc
+        [x0,y0] = labeler.videoCurrentCenter();
+        dx = xy(1)-x0;
+        dy = xy(2)-y0;
+        ax = handles.axes_curr;
+        axisshift(ax,dx,dy);
+        ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
+        ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
+        %ax.CameraViewAngleMode = 'auto';
+      end
+    end  
+    
+    function videoCenterOnCurrTarget(obj, x, y, th)
+      % Shift axis center/target and CameraUpVector without touching zoom.
+      % 
+      % Potential TODO: CamViewAngle treatment looks a little bizzare but
+      % seems to work ok. Theoretically better (?), at movieSet time, cache
+      % a default CameraViewAngle, and at movieRotateTargetUp set time, set
+      % the CamViewAngle to either the default or the default/2 etc.
+
+      labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      [x0,y0] = obj.videoCurrentCenter();
+      tfexternal = nargin>1;
+      if ~tfexternal
+        [x,y,th] = labeler.currentTargetLoc();
+      end
+      if isnan(x)
+        warningNoTrace('No target selected');
+        return;
+      end
+
+      dx = x-x0;
+      dy = y-y0;
+      ax = handles.axes_curr;
+      axisshift(ax,dx,dy);
+      ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
+      ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
+      %ax.CameraViewAngleMode = 'auto';
+      if labeler.movieRotateTargetUp || tfexternal
+        ax.CameraUpVector = [cos(th) sin(th) 0];
+        if verLessThan('matlab','R2016a')
+          % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode
+          % (currently, any axis with CameraViewAngleMode manually set)
+          % changed. Prior to R2016a, zoom on such an axis altered camera
+          % position via .CameraViewAngle, etc, with the axis limits
+          % unchanged. Starting in R2016a, zoom on 3D axes changes the axis
+          % limits while the camera position is unchanged.
+          %
+          % Currently we prefer the modern treatment and the
+          % center-on-target, rotate-target, zoom slider, etc treatments
+          % are built around that treatment. For prior MATLABs, we work
+          % around -- it is a little awkward as the fundamental strategy
+          % behind zoom is different. For prior MATLABs users should prefer
+          % the Zoom slider in the Targets panel as opposed to using the
+          % zoom tools in the toolbar.
+          tf = getappdata(mainFigure,'manualZoomOccured');
+          if tf
+            ax.CameraViewAngleMode = 'auto';
+            setappdata(mainFigure,'manualZoomOccured',false);
+          end
+        end
+        if strcmp(ax.CameraViewAngleMode,'auto')
+          cva = ax.CameraViewAngle;
+          ax.CameraViewAngle = cva/2;
+        end
+      else
+        ax.CameraUpVectorMode = 'auto';
+      end
+    end
+    
+    function updateTargetCentrationAndZoom_(obj)
+      labeler = obj.labeler_ ;      
+      if labeler.isinit ,
+        return
+      end
+      if (labeler.hasTrx || labeler.maIsMA) && labeler.movieCenterOnTarget && ~labeler.movieCenterOnTargetLandmark
+        obj.videoCenterOnCurrTarget();
+        obj.videoZoom(labeler.targetZoomRadiusDefault);
+      elseif labeler.movieCenterOnTargetLandmark
+        obj.videoCenterOnCurrTargetPoint();
+      end
+    end  % function
+
+    function play(obj, iconStrPlay, playMethodName)
+      %labeler = obj.labeler_ ;      
+      mainFigure = obj.mainFigure_ ;  
+      handles = guidata(mainFigure) ;
+      
+      pbPlay = handles.pbPlay ;
+      oc = onCleanup(@()(obj.playCleanup(pbPlay, iconStrPlay))) ;
+      if ~obj.isPlaying_
+        obj.isPlaying_ = true ;
+        pbPlay.CData = Icons.ims.stop ;
+        obj.(playMethodName) ;
+      end
+    end
+
+    function playCleanup(obj, pbPlay, iconStrPlay)
+      pbPlay.CData = Icons.ims.(iconStrPlay) ;
+      obj.isPlaying_ = false ;
     end
 
   end  % methods  

@@ -32,7 +32,7 @@ classdef LabelCore < handle
     hideLabels; % scalar logical
   end
         
-  properties % handles
+  properties % handles    
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
