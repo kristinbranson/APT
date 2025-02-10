@@ -3433,7 +3433,7 @@ h125 = uicontrol(...
 % figure, using the control Tag properties to get the field names.
 % Then stash that in the figure guidata.
 handles = guihandles(main_figure);
-guidata(main_figure, handles);
+guidata(main_figure, handles) ;  % stash the handles
 
 % Call the initialization function (now inlined)
 %dispatchMainFigureCallback('initialize', h1, [], handles) ;

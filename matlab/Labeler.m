@@ -482,7 +482,7 @@ classdef Labeler < handle
     lastLabelChangeTS     % last time training labels were changed
   end
   properties (Dependent)
-    hFig
+    hFig  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
   end
   properties (Transient)  % private by convention
     controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
@@ -690,7 +690,7 @@ classdef Labeler < handle
     isinit = false          % scalar logical; true during initialization, when some invariants not respected
   end
   properties (Dependent)
-    gdata  % handles structure for LabelerGUI
+    gdata  % handles structure for LabelerGUI.  This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
     silent
   end
 
