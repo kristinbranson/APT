@@ -33,5 +33,13 @@ function register_controller(main_figure, controller)
   hP = pan(main_figure);  % hP is a "pan object"
   hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
   set(main_figure, 'CloseRequestFcn', @(s,e)(controller.figure_CloseRequestFcn())) ;
+
+  handles.menu_track_reset_current_tracker.Callback = ...
+    @(s,e)(controller.controlActuated('menu_track_reset_current_tracker', s, e)) ;
+  handles.menu_track_delete_current_tracker.Callback = ...
+    @(s,e)(controller.controlActuated('menu_track_delete_current_tracker', s, e)) ;
+  handles.menu_track_delete_old_trackers.Callback = ...
+    @(s,e)(controller.controlActuated('menu_track_delete_old_trackers', s, e)) ;
+  
   guidata(main_figure, handles) ;
 end

@@ -1517,8 +1517,8 @@ classdef LabelerController < handle
       obj.updateGUIFigureNames_() ;
       obj.updateMainAxesName_();
       
-      arrayfun(@(x)zoom(x,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
-      arrayfun(@(x)pan(x,'off'),handles.figs_all);
+      arrayfun(@(fig)zoom(fig,'off'),handles.figs_all); % Cannot set KPF if zoom or pan is on
+      arrayfun(@(fig)pan(fig,'off'),handles.figs_all);
       hTmp = findall(handles.figs_all,'-property','KeyPressFcn','-not','Tag','edit_frame');
       set(hTmp,'KeyPressFcn',@(src,evt)(obj.cbkKPF(src,evt))) ;
       handles.h_ignore_arrows = [handles.slider_frame];
