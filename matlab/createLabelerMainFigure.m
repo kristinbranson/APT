@@ -39,7 +39,7 @@ main_figure = figure(...
 'ButtonDownFcn',blanks(0),...
 'CreateFcn', blanks(0) ,...
 'DeleteFcn',blanks(0),...
-'Tag','figure',...
+'Tag','main_figure',...
 'UserData',[],...
 'WindowStyle',get(0,'defaultfigureWindowStyle'),...
 'DockControls',get(0,'defaultfigureDockControls'),...
@@ -3429,11 +3429,15 @@ h125 = uicontrol(...
 'FontName',get(0,'defaultuicontrolFontName'),...
 'FontWeight','bold');
 
+% Don't want capitalized control names, so fix a default one
+toolbar = findall(main_figure, 'Tag', 'FigureToolBar') ;
+toolbar.Tag = 'toolbar' ;
+
 % Use the Matlab guihandles() function to generate the handles from the
 % figure, using the control Tag properties to get the field names.
 % Then stash that in the figure guidata.
 handles = guihandles(main_figure);
-guidata(main_figure, handles) ;  % stash the handles
+%guidata(main_figure, handles) ;  % stash the handles
 
 % Call the initialization function (now inlined)
 %dispatchMainFigureCallback('initialize', h1, [], handles) ;
@@ -3480,12 +3484,6 @@ set(handles.txUnsavedChanges,'Visible','off');
 set(handles.txLblCoreAux,'Visible','off');
 %set(handles.pnlSusp,'Visible','off');
 
-% color of status bar when GUI is busy vs idle
-handles.idlestatuscolor = [0,1,0];
-handles.busystatuscolor = [1,0,1];
-% setappdata(handles.txStatus,'SetStatusFun',@SetStatus);
-% setappdata(handles.txStatus,'ClearStatusFun',@ClearStatus);
-
 % set location of background training status
 pos1 = handles.txStatus.Position;
 pos2 = handles.txBGTrain.Position;
@@ -3498,16 +3496,14 @@ handles.txBGTrain.FontWeight = 'normal';
 handles.txBGTrain.FontSize = handles.txStatus.FontSize;
 
 % Do a poor-man's labeler.setStatus()
-if isfield(handles,'figs_all') && any(isgraphics(handles.figs_all)) ,
-  set(handles.figs_all(isgraphics(handles.figs_all)),'Pointer','watch') ;
-end
+set(main_figure, 'Pointer', 'watch') ;
 set(handles.txStatus,'ForegroundColor',handles.busystatuscolor) ;
 set(handles.txStatus,'String','Initializing APT...') ;
 
 PURPLE = [80 31 124]/256;
 handles.tbTLSelectMode.BackgroundColor = PURPLE;
 
-handles.output = main_figure;
+%handles.output = main_figure;
 
 set(handles.menu_file_quick_open,'Visible','off');
 
@@ -3832,7 +3828,6 @@ moveMenuItemAfter(handles.menu_track_all_movies,handles.menu_track_current_movie
 
 handles.menu_track_trainincremental = handles.menu_track_retrain;
 handles = rmfield(handles,'menu_track_retrain');
-handles.menu_track_trainincremental.Callback = @(h,edata)LabelerGUI('menu_track_trainincremental_Callback',h,edata,guidata(h));
 handles.menu_track_trainincremental.Label = 'Incremental Train';
 handles.menu_track_trainincremental.Tag = 'menu_track_trainincremental';
 handles.menu_track_trainincremental.Visible = 'off';
@@ -4002,9 +3997,6 @@ set(handles.axes_prev,'Color',[0 0 0],'Tag','axes_prev');
 % set(hObject,'Windowbuttonmotionfcn',@drag_callback);
 % set(hObject,'WindowbuttonUpFcn',@dragend_callback);
 
-handles.figs_all = handles.figure;
-handles.axes_all = handles.axes_curr;
-handles.images_all = handles.image_curr;
 handles.cropHRect = [];
 handles.tbAdjustCropSizeString0 = 'Adjust Size';
 handles.tbAdjustCropSizeString1 = 'Done Adjusting';
@@ -4238,8 +4230,8 @@ end
 % to normalized so that resizing works as before
 visit_children(main_figure, @set_pixel_units_to_normalized) ;
 
-% Write the modified handles structure back to the figure guidata
-guidata(main_figure, handles);
+% % Write the modified handles structure back to the figure guidata
+% guidata(main_figure, handles);
 
 % Hopefully the user can see this, but just to be sure...
 fprintf('Labeler GUI created.\n');
