@@ -2,7 +2,7 @@ function set_standard_callback_if_none_bang(gh, controller)
   if isempty(gh) ,
     return
   end
-  if ~isscalaar(gh) ,
+  if ~isscalar(gh) ,
     error('Called with non-scalar gh') ;
   end
   if ~isprop(gh, 'Callback') || ~isempty(gh.Callback) ,

@@ -3497,7 +3497,7 @@ handles.txBGTrain.FontSize = handles.txStatus.FontSize;
 
 % Do a poor-man's labeler.setStatus()
 set(main_figure, 'Pointer', 'watch') ;
-set(handles.txStatus,'ForegroundColor',handles.busystatuscolor) ;
+set(handles.txStatus,'ForegroundColor',LabelerController.busystatuscolor) ;
 set(handles.txStatus,'String','Initializing APT...') ;
 
 PURPLE = [80 31 124]/256;
@@ -3899,7 +3899,7 @@ handles.menu_help_doc = uimenu(...
 moveMenuItemBefore(handles.menu_help_doc,handles.menu_help_labeling_actions);
 
 % Go menu
-handles.menu_go = uimenu('Parent',handles.figure,'Position',4,'Label','Go');
+handles.menu_go = uimenu('Parent',main_figure,'Position',4,'Label','Go');
 handles.menu_go_targets_summary = uimenu('Parent',handles.menu_go,...
   'Label','Switch targets...',...
   'Tag','menu_go_targets_summary',...
@@ -3922,7 +3922,7 @@ handles.menu_go_gt_frames = uimenu('Parent',handles.menu_go,...
   'Checked','off');
 
 % Evaluate menu
-handles.menu_evaluate = uimenu('Parent',handles.figure,'Position',6,'Label','Evaluate');
+handles.menu_evaluate = uimenu('Parent',main_figure,'Position',6,'Label','Evaluate');
 handles.menu_evaluate_crossvalidate = uimenu('Parent',handles.menu_evaluate,...
   'Label','Cross validate',...
   'Tag','menu_evaluate_crossvalidate',...
@@ -4105,7 +4105,7 @@ handles.h_addpoints_only = [...
   ];
   
   
-set(handles.output,'Toolbar','figure');
+%set(handles.output,'Toolbar','figure');
 
 % handles = initTblTrx(handles);
 tbl0 = handles.tblTrx;
@@ -4163,14 +4163,14 @@ handles.edit_frame.Position(1) = handles.edit_frame.Position(1) + dx;
 handles.slider_frame.Position([1 3]) = handles.slider_frame.Position([1 3]) + dx*[1 -1];
 
 %handles.controller.enableControls_('tooltipinit');
-set(handles.figure,'Visible','on');
+set(main_figure,'Visible','on');
 % if labeler.isgui ,
-%   refocusSplashScreen(hfigsplash,handles.figure);
+%   refocusSplashScreen(hfigsplash,main_figure);
 % end
 
 LabelerTooltips(handles);
 % if labeler.isgui,
-%   refocusSplashScreen(hfigsplash,handles.figure);
+%   refocusSplashScreen(hfigsplash,main_figure);
 %   if ishandle(hfigsplash),
 %     delete(hfigsplash);
 %   end

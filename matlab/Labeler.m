@@ -1414,7 +1414,8 @@ classdef Labeler < handle
       v = MovieIndex(obj.currMovie,obj.gtIsGTMode);
     end
     function v = get.gdata(obj)
-      v = guidata(obj.hFig);
+      %v = guidata(obj.hFig);
+      v = obj.controller_ ;  % hopefully this will work...
     end
     function v = get.hFig(obj)
       v = obj.controller_.mainFigure_ ;

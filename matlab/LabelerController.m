@@ -278,15 +278,17 @@ classdef LabelerController < handle
         % Useful for debugging.
         
       % Initialize all the instance vars that will hold references to GUI controls
-      handles = guihandles(main_figure) ;
-      tags = fieldnames(obj) ;
+      handles = guihandles(mainFigure) ;
+      tags = fieldnames(handles) ;
       for i = 1 : numel(tags) 
         tag = tags{i} ;
         if strcmp(tag, 'main_figure') 
           % We allready have a property for the main figure
           continue
         end
-        obj.(tag) = handles.(tag) ;
+        if isprop(obj, tag) ,
+          obj.(tag) = handles.(tag) ;
+        end
       end
       
       % Set these things
@@ -351,7 +353,7 @@ classdef LabelerController < handle
       
       % Set up the figure callbacks to call obj, using the tag to determine the
       % method name.
-      visit_children(main_figure, @set_standard_callback_if_none_bang, obj) ;
+      visit_children(mainFigure, @set_standard_callback_if_none_bang, obj) ;
 
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
@@ -1975,7 +1977,6 @@ classdef LabelerController < handle
 
     function menu_view_reset_views_actuated_(obj, source, event)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      %mainFigure = obj.mainFigure_ ;
       viewCfg = labeler.projPrefs.View;
       obj.hlpSetConfigOnViews_(viewCfg, labeler.movieCenterOnTarget) ;
       movInvert = ViewConfig.getMovieInvert(viewCfg);
@@ -2362,7 +2363,6 @@ classdef LabelerController < handle
     %   if labeler.isinit ,
     %     return
     %   end      
-    %   mainFigure = obj.mainFigure_ ;
     % 
     %   % Delete the old submenu items
     %   menu_track_tracker_history = obj.menu_track_tracker_history ;
@@ -2381,7 +2381,6 @@ classdef LabelerController < handle
       % Populate the Track > Backend menu
 
       % Get out the main objects
-      % mainFigure = obj.mainFigure_ ;
       
       if ~isempty(obj.menu_track_backend_config)
         % set up first time only, should not change
@@ -2498,7 +2497,6 @@ classdef LabelerController < handle
 
     function cbkTrackerBackendMenu(obj, source, event)  %#ok<INUSD>
       lObj = obj.labeler_ ;
-      %mainFigure = obj.mainFigure_ ;
       beType = source.UserData;
       lObj.set_backend_property('type', beType) ;
     end  % function
@@ -3338,13 +3336,11 @@ classdef LabelerController < handle
     end  % function
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
-      mainFigure = obj.mainFigure_ ;  
       obj.labelTLInfo.newTarget(); % Using this as a "refresh" for now
     end  % function
 
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;       
-      mainFigure = obj.mainFigure_ ;  
       hasSkeleton = ~isempty(labeler.skeletonEdges) ;
       isChecked = onIff(hasSkeleton && labeler.showSkeleton) ;
       set(obj.menu_view_showhide_skeleton, 'Enable', hasSkeleton, 'Checked', isChecked) ;
@@ -3352,20 +3348,17 @@ classdef LabelerController < handle
 
     function cbkShowMaRoiChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;       
-      mainFigure = obj.mainFigure_ ;  
       onOff = onIff(labeler.showMaRoi);
       obj.menu_view_showhide_maroi.Checked = onOff;
     end  % function
 
     function cbkShowMaRoiAuxChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;       
-      mainFigure = obj.mainFigure_ ;  
       onOff = onIff(labeler.showMaRoiAux);
       obj.menu_view_showhide_maroiaux.Checked = onOff;
     end  % function
     
     function initializeResizeInfo_(obj)
-      mainFigure = obj.mainFigure_ ;  
 
       % Record the width of txUnsavedChanges, so we can keep it fixed
       hTx = obj.txUnsavedChanges;
@@ -3383,7 +3376,6 @@ classdef LabelerController < handle
     end
     
     function resize(obj)
-      mainFigure = obj.mainFigure_ ;  
 
       % Take steps to keep right edge of unsaved changes text box aligned with right
       % edge of the previous/reference frame panel
@@ -3403,7 +3395,6 @@ classdef LabelerController < handle
     end
     
     function cropReactNewCropMode_(obj, tf)
-      mainFigure = obj.mainFigure_ ;  
 
       REGCONTROLS = {
         'pbClear'
@@ -3438,7 +3429,6 @@ classdef LabelerController < handle
       % - resizeability.
 
       lObj = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
 
       tfCropMode = lObj.cropIsCropMode;
       [tfHasCrop,roi] = lObj.cropGetCropCurrMovie();
@@ -3498,7 +3488,6 @@ classdef LabelerController < handle
     
     function scroll_callback(obj, hObject, eventdata)
       %labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       ivw = find(hObject==obj.figs_all);
       ax = obj.axes_all(ivw);
@@ -3531,7 +3520,6 @@ classdef LabelerController < handle
       % ReadClim from axRead and apply to axApply
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       axAll = obj.axes_all;
       axRead = axAll(iAxRead);
@@ -3555,7 +3543,6 @@ classdef LabelerController < handle
     function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(obj)
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       if ~labeler.isMultiView
       	tfproceed = 1;
@@ -3610,7 +3597,6 @@ classdef LabelerController < handle
 
     function tblFrames_cell_selected_(obj, src, evt)
       labeler = obj.labeler_ ;
-      %mainFigure = obj.mainFigure_ ;  
       row = evt.Indices;
       if ~isempty(row)
         row = row(1);
@@ -3622,7 +3608,6 @@ classdef LabelerController < handle
 
     function axescurrXLimChanged(obj, hObject, eventdata)  %#ok<INUSD>
       %labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       ax = eventdata.AffectedObject;
       radius = diff(ax.XLim)/2;
       hSld = obj.sldZoom;
@@ -3662,7 +3647,6 @@ classdef LabelerController < handle
 
     function cbkPostPan(obj,src,evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       if evt.Axes == obj.axes_prev,
         labeler.UpdatePrevAxesLimits();
       end
@@ -3670,7 +3654,6 @@ classdef LabelerController < handle
 
     function cbklabelTLInfoSelectOn(obj, src, evt)  %#ok<INUSD>
       % labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       lblTLObj = evt.AffectedObject;
       tb = obj.tbTLSelectMode;
       tb.Value = lblTLObj.selectOn;
@@ -3679,7 +3662,6 @@ classdef LabelerController < handle
     function cbklabelTLInfoPropsUpdated(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
       % labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       labelTLInfo = evt.AffectedObject;
       props = labelTLInfo.getPropsDisp();
       set(obj.pumInfo,'String',props);
@@ -3688,16 +3670,14 @@ classdef LabelerController < handle
     function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
       % labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       labelTLInfo = evt.AffectedObject;
       proptypes = labelTLInfo.getPropTypesDisp();
       set(obj.pumInfo_labels,'String',proptypes);
     end
     
     function menuSetupLabelModeCbkGeneric(obj, src, evt)  %#ok<INUSD>
-      mainFigure = obj.mainFigure_ ;  
       lblMode = obj.setupMenu2LabelMode.(src.Tag);
-      obj.labeler.labelingInit('labelMode',lblMode);
+      obj.labeler_.labelingInit('labelMode',lblMode);
     end
     
     function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
@@ -3707,7 +3687,6 @@ classdef LabelerController < handle
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       [x0,y0] = labeler.videoCurrentCenter();
       lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
@@ -3716,7 +3695,6 @@ classdef LabelerController < handle
 
     function [xsz,ysz] = videoCurrentSize(obj)
       %labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       v = axis(obj.axes_curr);
       xsz = v(2)-v(1);
@@ -3725,7 +3703,6 @@ classdef LabelerController < handle
 
     function [x0,y0] = videoCurrentCenter(obj)
       %labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       %v = axis(obj.axes_curr);
       x0 = mean(get(obj.axes_curr,'XLim'));
@@ -3734,7 +3711,6 @@ classdef LabelerController < handle
 
     function v = videoCurrentAxis(obj)
       %labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       v = axis(obj.axes_curr);
     end
@@ -3744,7 +3720,6 @@ classdef LabelerController < handle
         resetcamera = true;
       end
       %labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       % resets camera view too
       ax = obj.axes_curr;
@@ -3760,7 +3735,6 @@ classdef LabelerController < handle
 
     function videoCenterOn(obj,x,y)
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       [xsz,ysz] = labeler.videoCurrentSize();
       lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
@@ -3775,7 +3749,6 @@ classdef LabelerController < handle
       % xy (out): [nx2] xy-coords, clipped so that x in [1,nc] and y in [1,nr]
       
       labeler = obj.labeler_ ;
-      % mainFigure = obj.mainFigure_ ;  
       
       xy = CropInfo.roiClipXY(labeler.movieroi,xy);
     end
@@ -3787,7 +3760,6 @@ classdef LabelerController < handle
       % dxdy: [2] unit vector [dx dy] 
       
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       ax = obj.axes_curr;
       if labeler.hasTrx && labeler.movieRotateTargetUp
@@ -3805,7 +3777,6 @@ classdef LabelerController < handle
       % dxdy: [2] unit vector [dx dy] 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       ax = obj.axes_curr;
       if labeler.hasTrx && labeler.movieRotateTargetUp
@@ -3823,7 +3794,6 @@ classdef LabelerController < handle
     
     function videoPlay(obj)
       labeler = obj.labeler_ ;
-      % mainFigure = obj.mainFigure_ ;  
             
       labeler.videoPlaySegmentCore(labeler.currFrame,labeler.nframes,...
         'setFrameArgs',{'updateTables',false});
@@ -3833,7 +3803,6 @@ classdef LabelerController < handle
       % Play segment centererd at .currFrame
       
       labeler = obj.labeler_ ;
-      % mainFigure = obj.mainFigure_ ;  
       
       f = labeler.currFrame;
       df = labeler.moviePlaySegRadius;
@@ -3846,7 +3815,6 @@ classdef LabelerController < handle
     function videoPlaySegFwdEnding(obj)
       % Play segment ending at .currFrame
       labeler = obj.labeler_ ;
-      % mainFigure = obj.mainFigure_ ;  
             
       f = labeler.currFrame;
       df = labeler.moviePlaySegRadius;
@@ -3859,7 +3827,6 @@ classdef LabelerController < handle
     function videoPlaySegRevEnding(obj)
       % Play segment (reversed) ending at .currFrame
       labeler = obj.labeler_ ;
-      % mainFigure = obj.mainFigure_ ;  
       
       f = labeler.currFrame;
       df = labeler.moviePlaySegRadius;
@@ -3873,7 +3840,6 @@ classdef LabelerController < handle
     function videoPlaySegmentCore(obj,fstart,fend,varargin)
       
       labeler = obj.labeler_ ;
-      % mainFigure = obj.mainFigure_ ;  
       
       [setFrameArgs,freset] = myparse(varargin,...
         'setFrameArgs',{},...
@@ -3922,7 +3888,6 @@ classdef LabelerController < handle
 
     function videoCenterOnCurrTargetPoint(obj)
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       [tfsucc,xy] = labeler.videoCenterOnCurrTargetPointHelp();
       if tfsucc
@@ -3946,7 +3911,6 @@ classdef LabelerController < handle
       % the CamViewAngle to either the default or the default/2 etc.
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;  
       
       [x0,y0] = obj.videoCurrentCenter();
       tfexternal = nargin>1;
@@ -4012,7 +3976,6 @@ classdef LabelerController < handle
 
     function play(obj, iconStrPlay, playMethodName)
       %labeler = obj.labeler_ ;      
-      mainFigure = obj.mainFigure_ ;  
       
       pbPlay = obj.pbPlay ;
       oc = onCleanup(@()(obj.playCleanup(pbPlay, iconStrPlay))) ;
@@ -4032,7 +3995,6 @@ classdef LabelerController < handle
       % Current/last row selection is maintained in hObject.UserData
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if ~(labeler.hasTrx || labeler.maIsMA)
         return
@@ -4070,7 +4032,6 @@ classdef LabelerController < handle
     function pumTrack_actuated_(obj, src,evt)  %#ok<INUSD>
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
       labeler.trackModeIdx = src.Value;
     end
 
@@ -4081,7 +4042,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       % Hints: get(src,'Value') returns position of slider
       %        get(src,'Min') and get(src,'Max') to determine range of slider
@@ -4106,7 +4066,7 @@ classdef LabelerController < handle
       v = get(src,'Value');
       f = round(1 + v * (labeler.nframes - 1));
 
-      cmod = obj.figure.CurrentModifier;
+      cmod = obj.mainFigure_.CurrentModifier;
       if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
         if f>labeler.currFrame
           tfSetOccurred = labeler.frameUp(true);
@@ -4139,7 +4099,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if ~labeler.doProjectAndMovieExist()
         return;
@@ -4175,7 +4134,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if ~labeler.doProjectAndMovieExist()
         return;
@@ -4193,7 +4151,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       % debugtiming = false;
       % if debugtiming,
@@ -4281,7 +4238,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.targetZoomRadiusDefault = diff(obj.axes_curr.XLim)/2;
@@ -4295,7 +4251,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       % TODO this is broken!!
@@ -4310,7 +4265,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if ~labeler.doProjectAndMovieExist()
         return;
@@ -4327,7 +4281,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if ~labeler.doProjectAndMovieExist()
         return;
@@ -4351,7 +4304,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       labeler.setStatus('Saving project...');
       labeler.projSaveSmart();
@@ -4367,7 +4319,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       labeler.setStatus('Saving project...');
       labeler.projSaveAs();
@@ -4383,7 +4334,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
 
@@ -4433,7 +4383,6 @@ classdef LabelerController < handle
     function menu_file_managemovies_actuated_(src, evt)  %#ok<INUSD>
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
         obj.movieManagerController_.setVisible(true);
@@ -4452,7 +4401,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       if ~labeler.hasMovie
@@ -4490,7 +4438,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       if ~labeler.hasMovie
@@ -4510,7 +4457,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       [tfok,rawtrkname] = obj.getExportTrkRawNameUI('labels',true);
@@ -4530,7 +4476,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       fname = labeler.getDefaultFilenameExportLabelTable();
@@ -4554,7 +4499,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       lastFile = RC.getprop('lastLabelMatfile');
@@ -4579,7 +4523,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       fname = labeler.getDefaultFilenameExportStrippedLbl();
@@ -4598,81 +4541,45 @@ classdef LabelerController < handle
 
 
     function menu_file_crop_mode_actuated_(obj, src,evtdata)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
-
-
       if ~isempty(labeler.tracker) && ~labeler.gtIsGTMode && labeler.labelPosMovieHasLabels(labeler.currMovie),
         res = questdlg('Frames of the current movie are labeled. Editing the crop region for this movie will cause trackers to be reset. Continue?');
         if ~strcmpi(res,'Yes'),
           return;
         end
       end
-
       labeler.setStatus('Switching crop mode...');
       labeler.cropSetCropMode(~labeler.cropIsCropMode);
       labeler.clearStatus();
-
     end
 
 
 
     function menu_file_clean_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
       labeler.setStatus('Deleting temp directories...');
       labeler.projRemoveOtherTempDirs();
       labeler.clearStatus();
-
     end
 
 
 
     function menu_file_bundle_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       labeler.setStatus('Bundling the temp directory...');
       labeler.projBundleTempDir();
       labeler.clearStatus();
-
-
     end
 
 
 
     function menu_help_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
     end
 
 
 
     function menu_help_labeling_actions_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       lblCore = labeler.lblCore;
       if isempty(lblCore)
         h = 'Please open a movie first.';
@@ -4680,109 +4587,54 @@ classdef LabelerController < handle
         h = lblCore.getLabelingHelp();
       end
       msgbox(h,'Labeling Actions','help',struct('Interpreter','tex','WindowStyle','replace'));
-
     end
 
 
 
     function menu_help_about_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
+      labeler = obj.labeler_ ;      
       about(labeler);
-
     end
 
 
 
     function menu_setup_sequential_mode_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       obj.menuSetupLabelModeCbkGeneric(src);
-
     end
 
 
 
     function menu_setup_sequential_add_mode_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       obj.menuSetupLabelModeCbkGeneric(src);
-
     end
 
 
 
     function menu_setup_template_mode_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       obj.menuSetupLabelModeCbkGeneric(src);
-
     end
 
 
 
     function menu_setup_highthroughput_mode_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       obj.menuSetupLabelModeCbkGeneric(src);
-
     end
 
 
 
     function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       obj.menuSetupLabelModeCbkGeneric(src);
-
     end
 
 
 
     function menu_setup_multianimal_mode_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       obj.menuSetupLabelModeCbkGeneric(src);
-
     end
 
 
 
     function menu_setup_label_overlay_montage_actuated_(obj, src,evtdata)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
 
       if labeler.hasTrx
@@ -4808,29 +4660,16 @@ classdef LabelerController < handle
 
 
     function menu_setup_label_outliers_actuated_(obj, src,evtdata)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       labeler.setStatus('Finding outliers in labels...');
-
       label_outlier_gui(labeler);
       labeler.clearStatus();
-
     end
 
 
 
     function menu_setup_set_nframe_skip_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
       lc = labeler.lblCore;
       assert(isa(lc,'LabelCoreHT'));
       nfs = lc.nFrameSkip;
@@ -4844,7 +4683,6 @@ classdef LabelerController < handle
       % This state is duped between labelCore and lppi b/c the lifetimes are
       % different. LabelCore exists only between movies etc, and is initted from
       % lppi. Hmm
-
     end
 
 
@@ -4854,7 +4692,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       lc = labeler.lblCore;
@@ -4870,7 +4707,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       lc = labeler.lblCore;
@@ -4888,7 +4724,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       ipt = labeler.lblCore.iPoint;
@@ -4909,7 +4744,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
 
@@ -4930,7 +4764,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       lastCalFile = RC.getprop('lastCalibrationFile');
@@ -4993,7 +4826,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       tf = ~strcmp(src.Checked,'on');
 
@@ -5006,9 +4838,6 @@ classdef LabelerController < handle
     function menu_view_adjustbrightness_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(obj);
       if tfproceed
@@ -5035,7 +4864,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       tf = ~strcmp(src.Checked,'on');
 
@@ -5053,8 +4881,6 @@ classdef LabelerController < handle
 
 
 
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if ~tfok
@@ -5076,8 +4902,6 @@ classdef LabelerController < handle
 
 
 
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       obj.quitRequested() ;
     end
@@ -5089,7 +4913,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.setShowTrx(~labeler.showTrx);
@@ -5103,7 +4926,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);
@@ -5117,7 +4939,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.movieCenterOnTarget = ~labeler.movieCenterOnTarget;
@@ -5130,7 +4951,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
@@ -5143,7 +4963,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if tfproceed
@@ -5161,7 +4980,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if tfproceed
@@ -5180,7 +4998,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if tfproceed
@@ -5202,9 +5019,6 @@ classdef LabelerController < handle
 
 
 
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       ax = obj.axes_curr;
       if strcmp(src.Checked,'on')
         onoff = 'off';
@@ -5225,7 +5039,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       hAxs = obj.axes_all;
       hIms = obj.images_all;
@@ -5243,7 +5056,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       lblCore = labeler.lblCore;
       if ~isempty(lblCore)
@@ -5259,7 +5071,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       tracker = labeler.tracker;
@@ -5276,7 +5087,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       tracker = labeler.tracker;
@@ -5293,7 +5103,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.labels2VizToggle();
@@ -5309,7 +5118,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.labels2VizSetShowCurrTargetOnly(~labeler.labels2ShowCurrTargetOnly);
@@ -5318,45 +5126,23 @@ classdef LabelerController < handle
 
 
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
       hlpTickGridBang(obj.axes_all, obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
-
-
-
     end
 
 
 
     function menu_view_show_grid_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
       hlpTickGridBang(obj.axes_all, obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
-
-
-
     end
 
 
 
     function menu_track_setparametersfile_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       % Really, "configure parameters"
 
@@ -5369,7 +5155,7 @@ classdef LabelerController < handle
 
       [tPrm,do_update] = labeler.trackSetAutoParams();
 
-      sPrmNew = ParameterSetup(obj.figure,tPrm,'labelerObj',labeler); % modal
+      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
 
       if isempty(sPrmNew)
         if do_update
@@ -5393,19 +5179,12 @@ classdef LabelerController < handle
 
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
-
       labeler.setStatus('Setting tracking parameters...');
 
       [tPrm] = labeler.trackGetTrackParams();
 
-      sPrmTrack = ParameterSetup(obj.figure,tPrm,'labelerObj',labeler); % modal
+      sPrmTrack = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
 
       if ~isempty(sPrmTrack),
         sPrmNew = labeler.trackSetTrackParams(sPrmTrack);
@@ -5415,8 +5194,6 @@ classdef LabelerController < handle
       end
 
       labeler.clearStatus();
-
-
     end
 
 
@@ -5426,7 +5203,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       checked = get(src,'Checked');
@@ -5445,7 +5221,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       tObj = labeler.tracker;
@@ -5475,7 +5250,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       labeler.trainIncremental();
 
@@ -5488,7 +5262,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       if labeler.maIsMA
         TrkInfoUI(labeler);
@@ -5505,7 +5278,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       labeler.navPrefsUI();
 
@@ -5518,7 +5290,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       labeler.gtShowGTManager();
 
@@ -5531,7 +5302,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
 
@@ -5573,7 +5343,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
@@ -5596,7 +5365,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       tbobj = TrackBatchGUI(labeler);
@@ -5612,7 +5380,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       mIdx = labeler.allMovIdx();
@@ -5632,7 +5399,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       mIdx = labeler.currMovIdx;
@@ -5649,32 +5415,9 @@ classdef LabelerController < handle
 
 
 
-    function menu_track_id_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
-      labeler.track_id = ~labeler.track_id;
-      set(obj.menu_track_id,'checked',labeler.track_id);
-
-
-    end
-
-
-
     function menu_file_clear_imported_actuated_(obj, src,evtdata)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
-
-
       labeler.labels2Clear();
-
     end
 
 
@@ -5684,7 +5427,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       nMov = labeler.nmoviesGTaware;
@@ -5707,7 +5449,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       tObj = labeler.tracker;
@@ -5862,7 +5603,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       tObj = labeler.tracker;
       if tObj.asyncIsPrepared
@@ -5885,7 +5625,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       tObj = labeler.tracker;
       if tObj.asyncIsPrepared
@@ -5903,7 +5642,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
       tObj = labeler.tracker;
       if tObj.asyncIsPrepared
@@ -5922,7 +5660,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       labeler.setStatus('Switching between Labeling and Ground Truth Mode...');
@@ -5946,7 +5683,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       LabelerGT.loadSuggestionsUI(labeler);
@@ -5960,7 +5696,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       LabelerGT.setSuggestionsToLabeledUI(labeler);
@@ -5974,7 +5709,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       assert(labeler.gtIsGTMode);
@@ -5989,7 +5723,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
       assert(labeler.gtIsGTMode);
@@ -6004,7 +5737,6 @@ classdef LabelerController < handle
 
 
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
 
 
 
@@ -6177,7 +5909,6 @@ classdef LabelerController < handle
 
     function menu_view_showhide_maroiaux_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      mainFigure = obj.mainFigure_ ;
       tf = strcmpi(get(src,'Checked'),'off');
       labeler.setShowMaRoiAux(tf);
     end
