@@ -496,7 +496,7 @@ classdef LabelerController < handle
         if strcmp(res,'Cancel')
           return
         elseif strcmp(res,'Save As')
-          menu_file_saveas_Callback(source, event, guidata(source)) ;
+          obj.menu_file_saveas_actuated_(source, event) ;
         end    
       end
 
@@ -1754,8 +1754,8 @@ classdef LabelerController < handle
 
     function cbkCropPosn(obj,posn,iview)
       labeler = obj.labeler_ ;
-      hFig = obj.mainFigure_ ;
-      handles = guidata(hFig) ;
+      mainFigure = obj.mainFigure_ ;
+      handles = guidata(mainFigure) ;
       tfSetPosnLabeler = get(handles.cropHRect(iview),'UserData');
       if tfSetPosnLabeler
         [roi,roiw,roih] = CropInfo.rectPos2roi(posn);

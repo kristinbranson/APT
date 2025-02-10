@@ -14812,28 +14812,15 @@ classdef Labeler < handle
       % folded into Labeler.
       obj.rawStatusStringWhenClear_ = new_value ;
     end
-
-    % function raiseAllFigs(obj)
-    %   h = obj.gdata.figs_all;
-    %   arrayfun(@figure,h);
-    % end
     
-    % function addDepHandle(obj,h)
-    %   handles = obj.gdata;
-    %   handles.depHandles(end+1,1) = h;
-    %   guidata(obj.hFig,handles);      
-    % end
-    
-    function v = allMovIdx(obj)
-      
-      v = MovieIndex(1:obj.nmoviesGTaware,obj.gtIsGTMode);
-      
+    function v = allMovIdx(obj)      
+      v = MovieIndex(1:obj.nmoviesGTaware,obj.gtIsGTMode);      
     end
     
-    % make a toTrack struct from selected movies in the project amenable to
-    % TrackBatchGUI
     function toTrack = mIdx2TrackList(obj,mIdx)
-      
+      % make a toTrack struct from selected movies in the project amenable to
+      % TrackBatchGUI
+     
       if nargin < 2 || isempty(mIdx),
         mIdx = obj.allMovIdx();
       end
@@ -14874,10 +14861,8 @@ classdef Labeler < handle
           toTrack.detectfiles = strrep(trkfiles,'.trk','_tracklet.trk');
         end
       end
-
-    end
-    
-  end
+    end  % function    
+  end  % methods
   
   methods (Static)
     

@@ -127,7 +127,7 @@ classdef TrackMonitorViz < handle
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      apt.setStatusDisplayLineBang(obj.hfig, str, true) ;
+      obj.setStatusDisplayLine(str, true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
@@ -439,7 +439,7 @@ classdef TrackMonitorViz < handle
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
       isAllGood = all(pollsuccess) && ~isErr ;
-      apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
+      obj.setStatusDisplayLine(str, isAllGood) ;
     end  % function
     
     function updateErrDisplay(obj,res)
@@ -488,7 +488,7 @@ classdef TrackMonitorViz < handle
         warning('trackWorkerObj is empty -- cannot kill process');
         return;
       end
-      apt.setStatusDisplayLineBang(obj.hfig, 'Killing tracking jobs...', false) ;
+      obj.setStatusDisplayLine('Killing tracking jobs...', false) ;
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
@@ -503,7 +503,7 @@ classdef TrackMonitorViz < handle
       %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       % end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
-      apt.setStatusDisplayLineBang(obj.hfig, 'Tracking process killed.', false);
+      obj.setStatusDisplayLine('Tracking process killed.', false);
       drawnow;
 
     end
@@ -693,6 +693,37 @@ classdef TrackMonitorViz < handle
         mm(nmov) = getframe(hfig);  %#ok<AGROW> 
         %input(num2str(nmov));
       end
-    end
-  end
-end
+    end  % function
+  end  % methods (Static)
+
+  methods
+    function setStatusDisplayLine(obj, str, isallgood)
+      % Set either or both of the status message line and the color of the status
+      % message.  Any of the two (non-obj) args can be empty, in which case that
+      % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
+      % field containing the handle of an 'text' appropriate graphics object.
+
+      hfig = obj.hfig ;
+      handles = guidata(hfig);
+      text_h = handles.text_clusterstatus ;
+      if ~exist('str', 'var') ,
+        str = [] ;
+      end
+      if ~exist('isallgood', 'var') ,
+        isallgood = [] ;
+      end
+      if isempty(str) ,
+        % do nothing
+      else
+        set(text_h, 'String', str) ;
+      end
+      if isempty(isallgood) ,
+        % do nothing
+      else
+        color = fif(isallgood, 'g', 'r') ;
+        set(text_h, 'ForegroundColor',color) ;
+      end
+      drawnow('limitrate', 'nocallbacks') ;
+    end  % function
+  end  % methods    
+end  % classdef

@@ -133,7 +133,7 @@ classdef TrainMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      apt.setStatusDisplayLineBang(obj.hfig, str, true) ;
+      obj.setStatusDisplayLine(str, true) ;
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
       handles.popupmenu_actions.String = obj.actions.(char(obj.backendType));
@@ -385,7 +385,7 @@ classdef TrainMonitorViz < handle
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
       isAllGood = pollsuccess && ~any(isErr) ;
-      apt.setStatusDisplayLineBang(obj.hfig, str, isAllGood) ;
+      obj.setStatusDisplayLine(str, isAllGood) ;
     end
     
     function adjustAxes(obj,lineUpdateMaxStep,iset)
@@ -404,7 +404,7 @@ classdef TrainMonitorViz < handle
       %   warning('trainWorkerObj is empty -- cannot kill process');
       %   return
       % end
-      apt.setStatusDisplayLineBang(obj.hfig, 'Killing training jobs...', false);
+      obj.setStatusDisplayLine('Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
@@ -413,11 +413,11 @@ classdef TrainMonitorViz < handle
       obj.labeler_.abortTraining() ;
 
       obj.isKilled(:) = true ;
-      apt.setStatusDisplayLineBang(obj.hfig, 'Training process killed.', true);
+      obj.setStatusDisplayLine('Training process killed.', true);
 
       % [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
       % obj.isKilled(:) = tfsucc;
-      % apt.setStatusDisplayLineBang(obj.hfig, 'Checking that training jobs were killed...', false);
+      % obj.setStatusDisplayLine('Checking that training jobs were killed...', false);
       % wereTrainingProcessesKilledForSure = false ;
       % if tfsucc ,        
       %   startTime = tic() ;
@@ -459,7 +459,7 @@ classdef TrainMonitorViz < handle
       % else
       %   str = 'Tried to kill training process, but there were issues.' ;
       % end        
-      % apt.setStatusDisplayLineBang(obj.hfig, str, true);
+      % obj.setStatusDisplayLine(str, true);
 
 
       TrainMonitorViz.updateStartStopButton(handles,false,false);
@@ -603,4 +603,35 @@ classdef TrainMonitorViz < handle
 
   end  % methods (Static)
   
-end
+  methods
+    function setStatusDisplayLine(obj, str, isallgood)
+      % Set either or both of the status message line and the color of the status
+      % message.  Any of the two (non-obj) args can be empty, in which case that
+      % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
+      % field containing the handle of an 'text' appropriate graphics object.
+
+      hfig = obj.hfig ;
+      handles = guidata(hfig);
+      text_h = handles.text_clusterstatus ;
+      if ~exist('str', 'var') ,
+        str = [] ;
+      end
+      if ~exist('isallgood', 'var') ,
+        isallgood = [] ;
+      end
+      if isempty(str) ,
+        % do nothing
+      else
+        set(text_h, 'String', str) ;
+      end
+      if isempty(isallgood) ,
+        % do nothing
+      else
+        color = fif(isallgood, 'g', 'r') ;
+        set(text_h, 'ForegroundColor',color) ;
+      end
+      drawnow('limitrate', 'nocallbacks') ;
+    end  % function
+  end  % methods    
+  
+end  % classdef
