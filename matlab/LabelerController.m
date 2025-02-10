@@ -39,9 +39,8 @@ classdef LabelerController < handle
       % Set up the main instance variables
       obj.labeler_ = labeler ;
       % obj.mainFigure_ = LabelerGUI(labeler, obj) ;
-      obj.mainFigure_ = createLabelerMainFigure() ;
-      dispatchMainFigureCallback('register_labeler', obj.mainFigure_, labeler) ;
-      dispatchMainFigureCallback('register_controller', obj.mainFigure_, obj) ;
+      mainFigure = createLabelerMainFigure() ;
+      obj.mainFigure_ = mainFigure ;
       obj.labeler_.registerController(obj) ;  % hack
       obj.tvTrx_ = TrackingVisualizerTrx(labeler) ;
       obj.isInYodaMode_ = isInYodaMode ;  
@@ -50,7 +49,7 @@ classdef LabelerController < handle
         
       % Set up this resize thing
       obj.initializeResizeInfo_() ;
-      obj.mainFigure_.SizeChangedFcn = @(src,evt)(obj.resize()) ;
+      mainFigure.SizeChangedFcn = @(src,evt)(obj.resize()) ;
       obj.resize() ;
 
       % Update the controls enablement  
@@ -60,7 +59,7 @@ classdef LabelerController < handle
       obj.updateStatus([],[]) ;
 
       % % Populate the callbacks of the controls in the main figure---someday
-      % apt.populate_callbacks_bang(obj.mainFigure_, obj) ;
+      % apt.populate_callbacks_bang(mainFigure, obj) ;
 
       % Create the waitbar figure, which we re-use  
       obj.waitbarFigure_ = waitbar(0, '', ...
@@ -72,8 +71,39 @@ classdef LabelerController < handle
       obj.initialize_menu_track_backend_config_() ;
       
       % Get the handles out of the figure
-      handles = guidata(obj.mainFigure_) ;
+      handles = guidata(mainFigure) ;
 
+      % Set up some stuff between the labeler and the mainFigure.  Some of this
+      % stuff should probably go elsewhere...
+      handles.labeler = labeler ;
+      handles.labelTLInfo = InfoTimeline(labeler,handles.axes_timeline_manual,...
+                                         handles.axes_timeline_islabeled);
+      set(handles.pumInfo,...
+          'String',handles.labelTLInfo.getPropsDisp(),...
+          'Value',handles.labelTLInfo.curprop);
+      set(handles.pumInfo_labels,...
+          'String',handles.labelTLInfo.getPropTypesDisp(),...
+          'Value',handles.labelTLInfo.curproptype);
+
+      % Make the debug menu visible, if called for
+      handles.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
+
+      % Set up some custom callbacks
+      %handles.controller = obj ;
+      set(handles.tblTrx, 'CellSelectionCallback', @(s,e)(obj.controlActuated('tblTrx', s, e))) ;
+      set(handles.tblFrames, 'CellSelectionCallback',@(s,e)(obj.controlActuated('tblFrames', s, e))) ;
+      hZ = zoom(mainFigure);  % hZ is a "zoom object"
+      hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
+      hP = pan(mainFigure);  % hP is a "pan object"
+      hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
+      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.figure_CloseRequestFcn())) ;    
+      handles.menu_track_reset_current_tracker.Callback = ...
+        @(s,e)(obj.controlActuated('menu_track_reset_current_tracker', s, e)) ;
+      handles.menu_track_delete_current_tracker.Callback = ...
+        @(s,e)(obj.controlActuated('menu_track_delete_current_tracker', s, e)) ;
+      handles.menu_track_delete_old_trackers.Callback = ...
+        @(s,e)(obj.controlActuated('menu_track_delete_old_trackers', s, e)) ;
+      
       % Set up the figure callbacks to call obj, using the tag to determine the
       % method name.
       visit_children(main_figure, @set_standard_callback_if_none_bang, obj) ;
@@ -122,7 +152,7 @@ classdef LabelerController < handle
         addlistener(labeler,'update_menu_track_tracking_algorithm',@(source,event)(obj.update_menu_track_tracking_algorithm_()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update_menu_track_tracker_history',@(source,event)(obj.update_menu_track_tracker_history_()));            
-      obj.listeners_(end+1) = ...@
+      obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetCurrTracker',@(source,event)(obj.cbkCurrTrackerChanged()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetLastLabelChangeTS',@(source,event)(obj.cbkLastLabelChangeTS()));            
@@ -219,6 +249,14 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(handles.labelTLInfo,'proptypes','PostSet',@(s,e)(obj.cbklabelTLInfoPropTypesUpdated(s,e))) ;
 
+      obj.listeners_(end+1) = ...
+        addlistener(handles.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(handles.sldZoom,'ContinuousValueChange',@(s,e)(obj.controlActuated('sldZoom', s, e))) ;
+      
+      % Stash the guidata
+      guidata(mainFigure, handles) ;
+      
       % Do this once listeners are set up
       obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
     end
