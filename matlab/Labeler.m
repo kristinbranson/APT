@@ -13131,7 +13131,7 @@ classdef Labeler < handle
 
     function clickTarget(obj, iTgt)
       
-      if strcmpi(obj.gdata.figure.SelectionType,'open'),
+      if strcmpi(obj.gdata.mainFigure_.SelectionType,'open'),
         obj.setStatus(sprintf('Switching to target %d...',iTgt));
         %fprintf('Switching to target %d\n',iTgt);
         obj.setTarget(iTgt);

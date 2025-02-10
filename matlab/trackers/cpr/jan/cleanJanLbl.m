@@ -116,4 +116,4 @@ save(lblfile,'-mat','-struct','l');
 lObj = Labeler();
 lObj.projLoad(lblfile);
 fprintf(1,'Opening proj %s in Labeler. Close Labeler to finish.\n',lblfile);
-uiwait(lObj.gdata.figure);
+uiwait(lObj.gdata.mainFigure_);

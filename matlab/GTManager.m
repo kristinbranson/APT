@@ -125,7 +125,7 @@ handles.listener{end+1,1} = addlistener(lObj,...
 
 handles.figure1.DeleteFcn = @lclDeleteFig;
 guidata(hObject,handles);
-centerfig(handles.figure1,lObj.gdata.figure);
+centerfig(handles.figure1,lObj.gdata.mainFigure_);
 
 function varargout = GTManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;

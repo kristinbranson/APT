@@ -1803,7 +1803,7 @@ classdef LabelerController < handle
       
       % Delete obj.hLinkPrevCurr
       % The link destruction/recreation may not be necessary
-      if isvalid(obj.hLinkPrevCurr)
+      if ~isempty(obj.hLinkPrevCurr) && isvalid(obj.hLinkPrevCurr)
         delete(obj.hLinkPrevCurr);
         obj.hLinkPrevCurr = [] ;
       end
@@ -1815,7 +1815,7 @@ classdef LabelerController < handle
                                  viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
       AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
       obj.hLinkPrevCurr = ...
-        linkprop([obj.axes_curr,obj.axes_prev],AX_LINKPROPS);
+        linkprop([obj.axes_curr,obj.axes_prev], AX_LINKPROPS) ;
       
       arrayfun(@(x)(colormap(x,gray())),figs);
       obj.updateGUIFigureNames_() ;

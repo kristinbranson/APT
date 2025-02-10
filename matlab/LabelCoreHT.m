@@ -474,7 +474,7 @@ classdef LabelCoreHT < LabelCore
     end
     
     function setupIPointContextMenu(obj)
-      c = uicontextmenu(obj.labeler.gdata.figure);
+      c = uicontextmenu(obj.labeler.gdata.mainFigure_);
       hPt = obj.hPts(obj.iPoint);
       hPt.UIContextMenu = c;
       uimenu(c,'Label','Accept point for current frame',...

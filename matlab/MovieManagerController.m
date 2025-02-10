@@ -78,7 +78,7 @@ classdef MovieManagerController < handle
       gdata.menu_file_add_movies_from_text_file.Callback = ...
           @(s,e)obj.mnuFileAddMoviesBatch();
       
-      centerfig(obj.hFig,obj.labeler.gdata.figure);
+      centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
     end
     
     function delete(obj)
