@@ -1,9 +1,9 @@
-function LabelerTooltips(handles)
+function setLabelerFigureTooltipsBang(mainFigure)
 % LabelerTooltips: function to add tooltips to objects in the labeler
 %
 % form: handles=labeler_tooltips(handles)
 
-
+handles = guihandles(mainFigure) ;
 
 set(handles.pbClear,'TooltipString','Clear labels in current frame');
 set(handles.pbTrain,'TooltipString','Train the part tracker');
