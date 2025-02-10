@@ -15,6 +15,7 @@ classdef LabelerController < handle
     %pumTrackInitFontSize_
     %pumTrackInitHeight_
     isPlaying_ = false  % whether a video is currently playing or not
+    pumTrackFullStrings_ = []
   end
 
   properties  % private/protected by convention
@@ -2956,11 +2957,12 @@ classdef LabelerController < handle
       if labeler.isinit ,
         return
       end
-      hPUM = handles.pumTrack;
-      hPUM.Value = labeler.trackModeIdx;
+      pumTrack = handles.pumTrack;
+      pumTrack.Value = labeler.trackModeIdx;
       try %#ok<TRYNC>
-        fullstrings = getappdata(hPUM,'FullStrings');
-        set(handles.text_framestotrackinfo,'String',fullstrings{hPUM.Value});
+        %fullstrings = getappdata(pumTrack,'FullStrings');
+        fullstrings = obj.pumTrackFullStrings_ ;
+        set(handles.text_framestotrackinfo,'String',fullstrings{pumTrack.Value});
       end
       % Edge case: conceivably, pumTrack.Strings may not be updated (eg for a
       % noTrx->hasTrx transition before this callback fires). In this case,
@@ -2993,9 +2995,10 @@ classdef LabelerController < handle
         % iss #161
         menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(labeler.getMftInfoStruct()),mfts,'uni',0);
       end
-      hPUM = handles.pumTrack;
-      hPUM.String = menustrs_compact;
-      setappdata(hPUM,'FullStrings',menustrs);
+      pumTrack = handles.pumTrack;
+      pumTrack.String = menustrs_compact;
+      %setappdata(pumTrack,'FullStrings',menustrs);
+      obj.pumTrackFullStrings_ = menustrs ;
       if labeler.trackModeIdx>numel(menustrs)
         labeler.trackModeIdx = 1;
       end
@@ -3918,27 +3921,27 @@ classdef LabelerController < handle
       %ax.CameraViewAngleMode = 'auto';
       if labeler.movieRotateTargetUp || tfexternal
         ax.CameraUpVector = [cos(th) sin(th) 0];
-        if verLessThan('matlab','R2016a')
-          % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode
-          % (currently, any axis with CameraViewAngleMode manually set)
-          % changed. Prior to R2016a, zoom on such an axis altered camera
-          % position via .CameraViewAngle, etc, with the axis limits
-          % unchanged. Starting in R2016a, zoom on 3D axes changes the axis
-          % limits while the camera position is unchanged.
-          %
-          % Currently we prefer the modern treatment and the
-          % center-on-target, rotate-target, zoom slider, etc treatments
-          % are built around that treatment. For prior MATLABs, we work
-          % around -- it is a little awkward as the fundamental strategy
-          % behind zoom is different. For prior MATLABs users should prefer
-          % the Zoom slider in the Targets panel as opposed to using the
-          % zoom tools in the toolbar.
-          tf = getappdata(mainFigure,'manualZoomOccured');
-          if tf
-            ax.CameraViewAngleMode = 'auto';
-            setappdata(mainFigure,'manualZoomOccured',false);
-          end
-        end
+        % if verLessThan('matlab','R2016a')
+        %   % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode
+        %   % (currently, any axis with CameraViewAngleMode manually set)
+        %   % changed. Prior to R2016a, zoom on such an axis altered camera
+        %   % position via .CameraViewAngle, etc, with the axis limits
+        %   % unchanged. Starting in R2016a, zoom on 3D axes changes the axis
+        %   % limits while the camera position is unchanged.
+        %   %
+        %   % Currently we prefer the modern treatment and the
+        %   % center-on-target, rotate-target, zoom slider, etc treatments
+        %   % are built around that treatment. For prior MATLABs, we work
+        %   % around -- it is a little awkward as the fundamental strategy
+        %   % behind zoom is different. For prior MATLABs users should prefer
+        %   % the Zoom slider in the Targets panel as opposed to using the
+        %   % zoom tools in the toolbar.
+        %   tf = getappdata(mainFigure,'manualZoomOccured');
+        %   if tf
+        %     ax.CameraViewAngleMode = 'auto';
+        %     setappdata(mainFigure,'manualZoomOccured',false);
+        %   end
+        % end
         if strcmp(ax.CameraViewAngleMode,'auto')
           cva = ax.CameraViewAngle;
           ax.CameraViewAngle = cva/2;
