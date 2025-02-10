@@ -3735,9 +3735,7 @@ classdef LabelerController < handle
 
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
-      labeler = obj.labeler_ ;
-      
-      [x0,y0] = labeler.videoCurrentCenter();
+      [x0,y0] = obj.videoCurrentCenter();
       lims = [x0-zoomRadius,x0+zoomRadius,y0-zoomRadius,y0+zoomRadius];
       axis(obj.axes_curr,lims);
     end    
@@ -3751,9 +3749,6 @@ classdef LabelerController < handle
     end
 
     function [x0,y0] = videoCurrentCenter(obj)
-      %labeler = obj.labeler_ ;
-      
-      %v = axis(obj.axes_curr);
       x0 = mean(get(obj.axes_curr,'XLim'));
       y0 = mean(get(obj.axes_curr,'YLim'));
     end
@@ -3940,7 +3935,7 @@ classdef LabelerController < handle
       
       [tfsucc,xy] = labeler.videoCenterOnCurrTargetPointHelp();
       if tfsucc
-        [x0,y0] = labeler.videoCurrentCenter();
+        [x0,y0] = obj.videoCurrentCenter();
         dx = xy(1)-x0;
         dy = xy(2)-y0;
         ax = obj.axes_curr;
