@@ -2046,7 +2046,7 @@ classdef Labeler < handle
    
     function projNew(obj, cfg)
       % Create new project based on configuration in cfg.
-      obj.setStatus('Configuring New Project') ;
+      obj.setStatus('Configuring new project...') ;
       oc = onCleanup(@()(obj.clearStatus())) ;
 
       obj.initFromConfig_(cfg) ;
@@ -2370,6 +2370,9 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
+      obj.setStatus('Loading project...') ;
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      
       starttime = tic();
       
       [nomovie, replace_path] = myparse(varargin,...
