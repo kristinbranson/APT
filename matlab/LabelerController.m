@@ -322,9 +322,7 @@ classdef LabelerController < handle
       % Set up some stuff between the labeler and the mainFigure.  Some of this
       % stuff should probably go elsewhere...
       % obj.labeler = labeler ;
-      obj.labelTLInfo = InfoTimeline(labeler,...
-                                     obj.axes_timeline_manual,...
-                                     obj.axes_timeline_islabeled) ;
+      obj.labelTLInfo = InfoTimeline(obj) ;
       set(obj.pumInfo,...
           'String',obj.labelTLInfo.getPropsDisp(),...
           'Value',obj.labelTLInfo.curprop);
@@ -2232,10 +2230,7 @@ classdef LabelerController < handle
         labeler.prevAxesLabelsRedraw();
       end
       
-      % remake info timeline
-%      obj.labelTLInfo.delete();
-%       obj.labelTLInfo = InfoTimeline(obj,obj.axes_timeline_manual,...
-%         obj.axes_timeline_islabeled);
+      % init info timeline
       obj.labelTLInfo.initNewProject();
       obj.labelTLInfo.setLabelsFull(true);
       

@@ -6,20 +6,17 @@ classdef InfoTimeline < handle
   end
    
   properties (SetAccess=private)
-    TLPROPS; % struct array, features we can compute. Initted from yaml at construction-time
-    TLPROPS_TRACKER; % struct array, features for current tracker. Initted at setTracker time
+    TLPROPS  % struct array, features we can compute. Initted from yaml at construction-time
+    TLPROPS_TRACKER  % struct array, features for current tracker. Initted at setTracker time
   end
   
-%   % AL: Not using transparency for now due to perf issues on Linux
-%   properties (Constant)
-%     SELECTALPHA = 0.5;
-%   end
   properties
+    parent_  % scalar LabelerController handle
     lObj % scalar Labeler handle
-    hAx % scalar handle to timeline axis
-    hAxL = [] % scalar handle to timeline axis
+    hAx % scalar handle to manual timeline axis
+    hAxL % scalar handle to is-labeled timeline axis
     hCurrFrame % scalar line handle current frame
-    hCurrFrameL = []% scalar line handle current frame
+    hCurrFrameL % scalar line handle current frame
     hStatThresh % scalar line handle, threshold
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
@@ -30,19 +27,16 @@ classdef InfoTimeline < handle
     hPts % [npts] line handles
     hPtStat % scalar line handle
     npts % number of label points in current movie/timeline
-    %nfrm % number of frames "
     tldata % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     hPtsL % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)
     axLmaxntgt = 3 % applies to hAxL for MA projs; number of tgts to display
     custom_data % [1 x nframes] custom data to plot
     
     listeners % [nlistener] col cell array of labeler prop listeners
-    listenersTracker % col cell array of tracker listeners
-
-    %tracker % scalar LabelTracker obj
     
-    color = [1,1,1]; % color when there is only one statistic for all landmarks
+    color = [1,1,1]  % color when there is only one statistic for all landmarks
   end
+
   properties (SetObservable)
     props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
@@ -52,6 +46,7 @@ classdef InfoTimeline < handle
     curproptype % row index into proptypes
     isdefault = true % whether this has been changed
   end
+
   properties
     jumpThreshold
     jumpCondition
@@ -114,50 +109,52 @@ classdef InfoTimeline < handle
   
   methods
     
-    function obj = InfoTimeline(labeler,ax,axl)
-      
-      if nargin < 3,
-        axl = [];
-      end
-      
-      obj.lObj = labeler;
-      ax.Color = [0 0 0];
-      ax.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
-      hold(ax,'on');
-      obj.hAx = ax;
-      obj.hCurrFrame = plot(ax,[nan nan],[0 1],'-','Color',[1 1 1],...
+    function obj = InfoTimeline(parent)
+      % parent a LabelerController
+
+      axtm = parent.axes_timeline_manual ;
+      axti = parent.axes_timeline_islabeled ;
+
+      obj.parent_ = parent ;
+      labeler = parent.labeler_ ;
+      obj.lObj = labeler ;
+      axtm.Color = [0 0 0];
+      axtm.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
+      hold(axtm,'on');
+      obj.hAx = axtm;
+      obj.hCurrFrame = plot(axtm,[nan nan],[0 1],'-','Color',[1 1 1],...
         'hittest','off','Tag','InfoTimeline_CurrFrame');
-      obj.hStatThresh = plot(ax,[nan nan],[0 0],'-','Color',[1 1 1],...
+      obj.hStatThresh = plot(axtm,[nan nan],[0 0],'-','Color',[1 1 1],...
         'hittest','off','visible','off','Tag','InfoTimeline_StatThresh');
       
 %       obj.hMarked = plot(ax,[nan nan],[nan nan],'-','Color',[1 1 0],'hittest','off');
 
-      if ~isempty(axl) && ishandle(axl),
-        axl.Color = [0 0 0];
-        axl.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
-        hold(axl,'on');
+      if ~isempty(axti) && ishandle(axti),
+        axti.Color = [0 0 0];
+        axti.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
+        hold(axti,'on');
       end
-      obj.hAxL = axl;
+      obj.hAxL = axti;
       
       if obj.isL,
-        obj.hCurrFrameL = plot(axl,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off','Tag','InfoTimeline_CurrFrameLabel');
+        obj.hCurrFrameL = plot(axti,[nan nan],[0 1],'-','Color',[1 1 1],'hittest','off','Tag','InfoTimeline_CurrFrameLabel');
       else
         obj.hCurrFrameL = [];
       end
 
-      fig = ax.Parent;
+      fig = axtm.Parent;
       hZ = zoom(fig);
-      setAxesZoomMotion(hZ,ax,'vertical');
+      setAxesZoomMotion(hZ,axtm,'vertical');
       obj.hZoom = hZ;
       hZ.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
       hP = pan(fig);
-      setAxesPanMotion(hP,ax,'vertical');
+      setAxesPanMotion(hP,axtm,'vertical');
       obj.hPan = hP;
       hP.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
 
       if obj.isL,
-        setAxesZoomMotion(hZ,axl,'horizontal');
-        setAxesPanMotion(hP,axl,'horizontal');
+        setAxesZoomMotion(hZ,axti,'horizontal');
+        setAxesPanMotion(hP,axti,'horizontal');
       end
       
       obj.hPts = [];
@@ -167,24 +164,17 @@ classdef InfoTimeline < handle
       %Rxobj.nfrm = nan;
             
       listeners = cell(0,1);
-%       listeners{end+1,1} = addlistener(labeler,...
-%         {'labeledpos','labeledposMarked','labeledpostag','labeledposGT',...
-%          'labeledpostagGT'},... 
-%         'PostSet',@obj.cbkLabelUpdated);
-      
-      listeners{end+1,1} = addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
-      listeners{end+1,1} = addlistener(labeler,...
-        'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated);
-      listeners{end+1,1} = addlistener(labeler,...
-        'gtSuggUpdated',@obj.cbkGTSuggUpdated);
-      listeners{end+1,1} = addlistener(labeler,...
-        'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated);      
-%       listeners{end+1,1} = addlistener(labeler,...
-%         'labelMode','PostSet',@obj.cbkLabelMode);      
+      listeners{end+1,1} = ...
+        addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
+      listeners{end+1,1} = ...
+        addlistener(labeler, 'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated) ;
+      listeners{end+1,1} = ...
+        addlistener(labeler, 'gtSuggUpdated',@obj.cbkGTSuggUpdated) ;
+      listeners{end+1,1} = ...
+        addlistener(labeler, 'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated) ;
+      listeners{end+1,1} = ...
+          addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
       obj.listeners = listeners;      
-      obj.listenersTracker = cell(0,1);
-      
-      %obj.tracker = [];
     
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
       obj.readTimelinePropsNew();
@@ -204,11 +194,11 @@ classdef InfoTimeline < handle
       obj.hSelIm = [];
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
-      obj.hSegLineGT = SegmentedLine(ax,'InfoTimeline_SegLineGT');
-      obj.hSegLineGTLbled = SegmentedLine(ax,'InfoTimeline_SegLineGTLbled');
+      obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
+      obj.hSegLineGTLbled = SegmentedLine(axtm,'InfoTimeline_SegLineGTLbled');
       obj.isinit = false;
       
-      hCMenu = uicontextmenu('parent',ax.Parent,...
+      hCMenu = uicontextmenu('parent',axtm.Parent,...
         'callback',@(src,evt)obj.cbkContextMenu(src,evt),...
         'UserData',struct('bouts',nan(0,2)),...
         'Tag','InfoTimeline_ContextMenu');
@@ -228,7 +218,7 @@ classdef InfoTimeline < handle
       uimenu('Parent',hCMenu,'Label','Toggle statistic threshold visibility',...
         'Callback',@(src,evt)obj.cbkToggleThresholdViz(src,evt),...
         'Tag','menu_InfoTimeline_ToggleThresholdViz');      
-      ax.UIContextMenu = hCMenu;
+      axtm.UIContextMenu = hCMenu;
             
       if obj.isL,
 %         hCMenuL = uicontextmenu('parent',axl.Parent);
@@ -244,7 +234,7 @@ classdef InfoTimeline < handle
 %           'Callback',@(src,evt)obj.cbkClearBout(src,evt));
 %         hq = uimenu('Parent',hCMenuL,'Label','What''s this?');
 %         uimenu('Parent',hq,'Label','Timeline showing which frames have been labeled');
-        axl.UIContextMenu = hCMenu;
+        axti.UIContextMenu = hCMenu;
       end
       
     end
@@ -270,10 +260,6 @@ classdef InfoTimeline < handle
         cellfun(@delete,obj.listeners);
       end
       obj.listeners = [];
-      if ~isempty(obj.listenersTracker),
-        cellfun(@delete,obj.listenersTracker);
-      end
-      obj.listenersTracker = [];
       deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = [];
       deleteValidGraphicsHandles(obj.hSegLineGT);
@@ -409,13 +395,7 @@ classdef InfoTimeline < handle
     end
         
     function didChangeCurrentTracker(obj)
-      
       tracker = obj.lObj.tracker ;
-      %obj.tracker = tracker;
-      if ~isempty(obj.listenersTracker),
-        cellfun(@delete,obj.listenersTracker);
-        obj.listenersTracker = cell(0,1);
-      end
       
       % Set .proptypes, .props_tracker
       if isempty(tracker),
@@ -428,8 +408,6 @@ classdef InfoTimeline < handle
         end
         obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
         obj.initializePropsTracker();
-        obj.listenersTracker{end+1,1} = ...
-          addlistener(obj.lObj,'newTrackingResults',@obj.cbkNewTrackingResults);
       end
       
       obj.enforcePropConsistencyWithUI(false);
@@ -608,7 +586,7 @@ classdef InfoTimeline < handle
 
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
-      colorTBSelect = obj.lObj.gdata.tbTLSelectMode.BackgroundColor;
+      colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
       colormap(obj.hAx,[0 0 0;colorTBSelect]);
       
       obj.setLabelerSelectedFrames();
@@ -693,14 +671,14 @@ classdef InfoTimeline < handle
   end
   
   methods %getters setters
-    function enforcePropConsistencyWithUI(obj,tfSetLabelsFull)
+    function enforcePropConsistencyWithUI(obj, tfSetLabelsFull)
       % Checks that .curprop is in range for current .props,
       % .props_tracker, .curproptype. 
       %
       % Theoretically this check is necessary whenever .curprop, .props,
       % .props_tracker, .curproptype change.
       %
-      % If it is not, it resets .curprop, resets lObj.gdata.pumInfo.Value,
+      % If it is not, it resets .curprop, resets obj.parent_.pumInfo.Value,
       % and optionally calls setLabelsFull (only optional to avoid
       % redundant/dup calls near callsite).
 
@@ -715,7 +693,7 @@ classdef InfoTimeline < handle
       if tfOOB
         NEWPROP = 1;
         obj.curprop = NEWPROP;
-        obj.lObj.gdata.pumInfo.Value = NEWPROP;
+        obj.parent_.pumInfo.Value = NEWPROP;
       end
       
       if tfSetLabelsFull
@@ -815,10 +793,10 @@ classdef InfoTimeline < handle
       obj.isdefault = true;
     end
     function updatePropsGUI(obj)
-      obj.lObj.gdata.pumInfo_labels.Value = obj.curproptype;
+      obj.parent_.pumInfo_labels.Value = obj.curproptype;
       props = obj.getPropsDisp(obj.curproptype);
-      obj.lObj.gdata.pumInfo.String = props;
-      obj.lObj.gdata.pumInfo.Value = obj.curprop;
+      obj.parent_.pumInfo.String = props;
+      obj.parent_.pumInfo.Value = obj.curprop;
     end
   end
     
@@ -826,7 +804,7 @@ classdef InfoTimeline < handle
   methods (Access=private) % callbacks
     function cbkBDF(obj,src,evt) 
       if ~obj.lObj.isReady,
-        return;
+        return
       end
       
       if ~(obj.lObj.hasProject && obj.lObj.hasMovie)
@@ -1012,7 +990,7 @@ classdef InfoTimeline < handle
 
   methods (Access=private)
     function setLabelerSelectedFrames(obj)
-      % For the moment Labeler owns the property-of-record on what frames
+      % Labeler owns the property-of-record on what frames
       % are set
       selFrames = bouts2frames(obj.selectGetSelection);
       obj.lObj.setSelectedFrames(selFrames);
