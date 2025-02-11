@@ -166,10 +166,10 @@ classdef InfoTimeline < handle
       listeners = cell(0,1);
       listeners{end+1,1} = ...
         addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
-      listeners{end+1,1} = ...
-        addlistener(labeler, 'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated) ;
-      listeners{end+1,1} = ...
-        addlistener(labeler, 'gtSuggUpdated',@obj.cbkGTSuggUpdated) ;
+      % listeners{end+1,1} = ...
+      %   addlistener(labeler, 'gtIsGTModeChanged',@obj.cbkGTIsGTModeUpdated) ;
+      % listeners{end+1,1} = ...
+      %   addlistener(labeler, 'gtSuggUpdated',@obj.cbkGTSuggUpdated) ;
       listeners{end+1,1} = ...
         addlistener(labeler, 'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated) ;
       listeners{end+1,1} = ...
@@ -800,8 +800,7 @@ classdef InfoTimeline < handle
     end
   end
     
-  %% Private methods
-  methods (Access=private) % callbacks
+  methods  % callbacks
     function cbkBDF(obj,src,evt) 
       if ~obj.lObj.isReady,
         return

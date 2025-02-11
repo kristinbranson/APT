@@ -67,9 +67,9 @@ classdef MovieManagerController < handle
       lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.lblerLstnCbkUpdateTableGT(s,e)));      
       %lObjs{end+1,1} = listenPropsPostSet(lObj,GTPROPS,@(s,e)obj.lblerLstnCbkUpdateTableGT(s,e));
 
-      lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
+      %lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
       lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
-      lObjs{end+1,1} = lObj.addlistener('gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
       obj.listeners = lObjs;
       
       obj.tabSetup();
@@ -254,7 +254,7 @@ classdef MovieManagerController < handle
     
     function lblerLstnCbkProjLoaded(obj,~,~)
       obj.hlpLblerLstnCbkUpdateTable(false);
-      obj.hlpLblerLstnCbkUpdateTable(true);
+      obj.hlpLblerLstnCbkUpdateTable(true);  % Me no like.  -- ALT, 2025-02-11
     end
     
     function lblerLstnCbkNewMovie(obj,~,~)
@@ -361,11 +361,16 @@ classdef MovieManagerController < handle
       
       lObj = obj.labeler;
       if lObj.isinit
-        return;
+        return
       end
+      if ~exist('tfGT', 'var') || isempty(tgGT) ,
+        tfGT = lObj.gtIsGTMode ;
+      end
+
       if ~lObj.hasProject
-        error('MovieManagerController:proj',...
-          'Please open/create a project first.');
+        return
+        % error('MovieManagerController:proj',...
+        %   'Please open/create a project first.');
       end
       
       PROPS = Labeler.gtGetSharedPropsStc(tfGT);
@@ -374,7 +379,7 @@ classdef MovieManagerController < handle
       movsHaveLbls = lObj.(PROPS.MFAHL);
       if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
         % intermediate state, take no action
-        return;
+        return
       end
       
       iTbl = double(tfGT)+1;

@@ -152,8 +152,8 @@ classdef Labeler < handle
     gtSuggMFTableLbledUpdated  % incremental update of gtSuggMFTableLbled occurred
     gtResUpdated  % update of GT performance results occurred
     
-    initialize_menu_track_tracking_algorithm
     update_menu_track_tracking_algorithm
+    update_menu_track_tracking_algorithm_quick
     update_menu_track_tracker_history
     didSetCurrTracker
     didSetCurrTarget
@@ -179,6 +179,8 @@ classdef Labeler < handle
     updateTrainMonitorViz
     raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
+    updateMainAxisHighlight
+    update
   end
 
   events  % used to come from labeler.tracker
@@ -2115,13 +2117,8 @@ classdef Labeler < handle
       % Note that the project now needs saving
       obj.setDoesNeedSave(true, 'New project') ;      
       
-      % Fire a bunch of notifications to get the view to sync up with the model
-      obj.setPropertiesToFireCallbacksToInitializeUI_() ;      
-      obj.notify('cropIsCropModeChanged') ;
-      obj.notify('gtIsGTModeChanged') ;
-      obj.notify('initialize_menu_track_tracking_algorithm') ;      
-      obj.notify('update_menu_track_tracker_history') ;
-      obj.notify('update_text_trackerinfo') ;      
+      % Do a full update of the GUI
+      obj.notify('update') ;
     end
     
     function projSaveRaw(obj,fname)      
@@ -2595,8 +2592,9 @@ classdef Labeler < handle
       % mode
       obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
  
-      obj.setPropertiesToFireCallbacksToInitializeUI_() ;
-      
+      % obj.setPropertiesToFireCallbacksToInitializeUI_() ;
+      obj.notify('update') ;
+
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
       obj.setShowMaRoi(obj.showMaRoi);
@@ -2640,16 +2638,16 @@ classdef Labeler < handle
       % end
 
       % Send a bunch of notifications to update the UI, if present
-      obj.notify('didLoadProject');
-      obj.notify('cropUpdateCropGUITools');
-      obj.notify('gtIsGTModeChanged');
-      obj.notify('gtSuggUpdated');
-      obj.notify('gtResUpdated');
-      obj.notify('initialize_menu_track_tracking_algorithm') ;
-      obj.notify('update_menu_track_tracker_history') ;
-      obj.notify('didSetCurrTracker') ;
-      obj.notify('update_text_trackerinfo') ;
-
+      obj.notify('update') ;
+      obj.notify('didLoadProject');  % should phase this out eventually
+      % obj.notify('cropUpdateCropGUITools');
+      % obj.notify('gtIsGTModeChanged');
+      % obj.notify('gtSuggUpdated');
+      % obj.notify('gtResUpdated');
+      % obj.notify('update_menu_track_tracking_algorithm') ;
+      % obj.notify('update_menu_track_tracker_history') ;
+      % obj.notify('didSetCurrTracker') ;
+      % obj.notify('update_text_trackerinfo') ;
 
       % Final sign-off
       fprintf('Finished loading project, elapsed time %f s.\n',toc(starttime));      
@@ -10594,7 +10592,7 @@ classdef Labeler < handle
 
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
-      obj.notify('update_menu_track_tracking_algorithm') ;      
+      obj.notify('update_menu_track_tracking_algorithm_quick') ;      
       obj.notify('update_menu_track_tracker_history') ;
       obj.notify('update_text_trackerinfo') ;
     end  % function
@@ -10646,7 +10644,7 @@ classdef Labeler < handle
 
       % Send the notification
       obj.notify('didSetCurrTracker') ;      
-      obj.notify('update_menu_track_tracking_algorithm') ;
+      obj.notify('update_menu_track_tracking_algorithm_quick') ;
       obj.notify('update_menu_track_tracker_history') ;      
       obj.notify('update_text_trackerinfo') ;      
     end  % function
@@ -12561,7 +12559,9 @@ classdef Labeler < handle
       if obj.hasTrx && tf
         obj.lerror('User-specied cropping is unsupported for projects with trx.');
       end
-      
+
+      obj.setStatus('Switching crop mode...');      
+      oc = onCleanup(@()(obj.clearStatus())) ;
       obj.cropCheckCropSizeConsistency();
       if obj.cropIsCropMode,
         obj.syncCropInfoToCurrMov();
@@ -13628,7 +13628,7 @@ classdef Labeler < handle
         end
         set(obj.gdata.slider_frame,'Value',sldval);
         if ~obj.isinit
-          hlpGTUpdateAxHilite(obj);
+          obj.notify('updateMainAxisHighlight') ;
         end
         
         if obj.gtIsGTMode
@@ -13669,15 +13669,6 @@ classdef Labeler < handle
       %fprintf('hlpSetCurrPrevFrame 7: %f\n',toc(ticinfo));
       %fprintf('hlpSetCurrPrevFrame: %f\n',toc(ticinfo));
       
-    end
-    
-    function hlpGTUpdateAxHilite(obj)
-      if obj.gtIsGTMode
-        tfHilite = obj.gtCurrMovFrmTgtIsInGTSuggestions();
-      else
-        tfHilite = false;
-      end
-      obj.gdata.allAxHiliteMgr.setHighlight(tfHilite);
     end
   end
   
