@@ -38,7 +38,8 @@ cropframes = [[0,199],[100,299]]
 rot90 = 1
 
 # main command
-outmoviefiles = crop_ufmf.cropufmf(inmoviefile,croprows=croprows,cropcols=cropcols,cropframes=cropframes,outdir=outdir,rot90=rot90)
+res = crop_ufmf.cropufmf(inmoviefile,croprows=croprows,cropcols=cropcols,cropframes=cropframes,outdir=outdir,rot90=rot90)
+outmoviefiles = res['outmoviefiles']
 
 
 # %%
@@ -52,7 +53,7 @@ testmovieobj.close()
 
 # %%
 # compare a frame
-f = 150
+f = 10050
 inmovieobj = Movie(inmoviefile)
 
 fig,ax = plt.subplots(3,len(outmoviefiles),figsize=(10*len(outmoviefiles),10),squeeze=False)
@@ -79,15 +80,23 @@ for i in range(len(outmoviefiles)):
     ax[0,i].set_title(f'in {intimestamp}')
     ax[1,i].imshow(im,cmap='gray',vmin=0,vmax=255)
     ax[1,i].set_title(f'out {timestamp}')
-    ax[2,i].imshow(cropinim-im)
+    him = ax[2,i].imshow(cropinim-im)
     ax[2,i].set_title('diff')
+    # show colorbar with ax[2,i]
+    plt.colorbar(him,ax=ax[2,i])
     testmovieobj.close()    
 
 inmovieobj.close()
 
 # %%
 inmoviefile = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf'
-cropframes = [10000,19999]
+cropframes = [10000,10099]
 outmoviefiles = ['cx_GMR_SS00238_CsChr_RigC_20151007T150343_cropframes10000to19999.ufmf',]
-crop_ufmf.cropufmf(inmoviefile,cropframes=cropframes,outmoviefiles=outmoviefiles)
+res = crop_ufmf.cropufmf(inmoviefile,cropframes=cropframes,outmoviefiles=outmoviefiles)
+outmoviefiles = res['outmoviefiles']
+croprows = res['croprows']
+cropcols = res['cropcols']
+cropframes = res['cropframes']
+outdir = res['outdir']
+rot90 = res['rot90']
 

@@ -254,7 +254,7 @@ def cropufmf(inmoviefile,croprows=None,cropcols=None,cropframes=None,outmoviefil
     t1s = []
     for i in range(noutfiles):
         t1s.append(timestamps[cropframes[i][1]])
-        t0s.append(max([t for t in keyframe_timestamps if t <= cropframes[i][0]]))
+        t0s.append(max([t for t in keyframe_timestamps if t <= timestamps[cropframes[i][0]]]))
 
     for f in range(nkeyframes):
         keyframe,timestamp = inufmfobj._get_keyframe_N(keyframetype,f)
@@ -287,7 +287,12 @@ def cropufmf(inmoviefile,croprows=None,cropcols=None,cropframes=None,outmoviefil
         
     inmovieobj.close()
     
-    return outmoviefiles
+    return {'outmoviefiles': outmoviefiles,
+            'croprows': croprows,
+            'cropcols': cropcols,
+            'cropframes': cropframes,
+            'rot90': rot90,
+            'outdir': outdir}
     
 def validate_args(args):
     """
