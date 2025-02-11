@@ -208,7 +208,7 @@ def cropufmf(inmoviefile,croprows=None,cropcols=None,cropframes=None,outmoviefil
     fnbase,ext = os.path.splitext(fn)
         
     # set output file names
-    outmoviefiles = [] + [None,]*(noutfiles-len(outmoviefiles))
+    outmoviefiles = outmoviefiles + [None,]*(noutfiles-len(outmoviefiles))
     for i in range(noutfiles):
         if outmoviefiles[i] is not None:
             continue

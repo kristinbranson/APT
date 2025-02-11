@@ -36,11 +36,7 @@ croprows = [[0,-1],[0,-1]]
 cropcols = [[0,cropcol-1],[cropcol,-1]]
 cropframes = [[0,199],[100,299]]
 rot90 = 1
-# croprows = [[0,-1]]
-# cropcols = [[0,-1]]
-# cropframes = [[0,100]]
 
-# %%
 # main command
 outmoviefiles = crop_ufmf.cropufmf(inmoviefile,croprows=croprows,cropcols=cropcols,cropframes=cropframes,outdir=outdir,rot90=rot90)
 
@@ -88,3 +84,10 @@ for i in range(len(outmoviefiles)):
     testmovieobj.close()    
 
 inmovieobj.close()
+
+# %%
+inmoviefile = '/groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00238_CsChr_RigC_20151007T150343/movie.ufmf'
+cropframes = [10000,19999]
+outmoviefiles = ['cx_GMR_SS00238_CsChr_RigC_20151007T150343_cropframes10000to19999.ufmf',]
+crop_ufmf.cropufmf(inmoviefile,cropframes=cropframes,outmoviefiles=outmoviefiles)
+
