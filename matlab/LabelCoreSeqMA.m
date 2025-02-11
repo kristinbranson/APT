@@ -292,7 +292,7 @@ classdef LabelCoreSeqMA < LabelCore
           dy = y0-xy(2);
           th = atan2(dy,dx);
           lObj = obj.labeler;
-          obj.tc_prev_axis = lObj.videoCurrentAxis;
+          obj.tc_prev_axis = obj.controller.videoCurrentAxis() ;
           lObj.controller_.videoCenterOnCurrTarget(xc,yc,th)
           rad = 2*sqrt(dx.^2+dy.^2);
           lObj.controller_.videoZoom(rad);
@@ -807,7 +807,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       if obj.tcOn && ~isempty(obj.tc_prev_axis)
-        lObj.videoSetAxis(obj.tc_prev_axis);
+        lObj.controller_.videoSetAxis(obj.tc_prev_axis);
           obj.tc_prev_axis = [];
       end
       obj.state = LabelState.ACCEPTED;
@@ -841,7 +841,6 @@ classdef LabelCoreSeqMA < LabelCore
         obj.labeler.tracker.trkVizer.tvtrx.hittest_off_all();
       end
       obj.enableControls();
-
     end
             
     function storeLabels(obj)
@@ -938,9 +937,9 @@ classdef LabelCoreSeqMA < LabelCore
       h{end+1} = '{\fontname{Courier}    - OR a }: Backward one frame.';
       h{end+1} = '{\fontname{Courier}       0-9 }: Un/Select kpt of current target.';
       h{end+1} = '{\fontname{Courier}         ` }: Toggle which kpts 0-9 correspond to.';
-      rightpx = obj.labeler.videoCurrentRightVec;
+      rightpx = obj.controller.videoCurrentRightVec;
       rightpx = rightpx(1);
-      uppx = obj.labeler.videoCurrentUpVec;
+      uppx = obj.controller.videoCurrentUpVec;
       uppx = abs(uppx(2));
       h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',rightpx);
       h{end+1} = '{\fontname{Courier}     arrow }: Otherwise, go back/forward one frame.';

@@ -3839,7 +3839,7 @@ classdef LabelerController < handle
     function videoPlay(obj)
       labeler = obj.labeler_ ;
             
-      labeler.videoPlaySegmentCore(labeler.currFrame,labeler.nframes,...
+      obj.videoPlaySegmentCore(labeler.currFrame,labeler.nframes,...
         'setFrameArgs',{'updateTables',false});
     end
     
@@ -3852,7 +3852,7 @@ classdef LabelerController < handle
       df = labeler.moviePlaySegRadius;
       fstart = max(1,f-df);
       fend = min(labeler.nframes,f+df);
-      labeler.videoPlaySegmentCore(fstart,fend,'freset',f,...
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
         'setFrameArgs',{'updateTables',false,'updateLabels',false});
     end
 
@@ -3864,7 +3864,7 @@ classdef LabelerController < handle
       df = labeler.moviePlaySegRadius;
       fstart = max(1,f-df);
       fend = f;
-      labeler.videoPlaySegmentCore(fstart,fend,'freset',f,...
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
         'setFrameArgs',{'updateTables',false,'updateLabels',false});
     end
     
@@ -3876,7 +3876,7 @@ classdef LabelerController < handle
       df = labeler.moviePlaySegRadius;
       fstart = min(f+df,labeler.nframes);
       fend = f;
-      labeler.videoPlaySegmentCore(fstart,fend,'freset',f,...
+      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
         'setFrameArgs',{'updateTables',false,'updateLabels',false});
     end
 
@@ -4073,8 +4073,7 @@ classdef LabelerController < handle
 
 
 
-    function pumTrack_actuated_(obj, src,evt)  %#ok<INUSD>
-
+    function pumTrack_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.trackModeIdx = src.Value;
     end
@@ -4174,33 +4173,22 @@ classdef LabelerController < handle
 
 
     function pbClear_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       if ~labeler.doProjectAndMovieExist()
         return;
       end
       labeler.lblCore.clearLabels();
       labeler.CheckPrevAxesTemplate();
-
-
     end
 
 
 
     function tbAccept_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       % debugtiming = false;
       % if debugtiming,
       %   starttime = tic;
       % end
-
       if ~labeler.doProjectAndMovieExist()
         return;
       end
@@ -4215,11 +4203,9 @@ classdef LabelerController < handle
         otherwise
           assert(false);
       end
-
       % if debugtiming,
       %   fprintf('toggleAccept took %f seconds\n',toc(starttime));
       % end
-
     end
 
     % 20170428
@@ -4278,25 +4264,14 @@ classdef LabelerController < handle
 
 
     function pbSetZoom_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       labeler.targetZoomRadiusDefault = diff(obj.axes_curr.XLim)/2;
-
     end
 
 
 
     function pbRecallZoom_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       % TODO this is broken!!
       obj.videoCenterOnCurrTarget();
       obj.videoZoom(labeler.targetZoomRadiusDefault);
@@ -4305,40 +4280,23 @@ classdef LabelerController < handle
 
 
     function tbTLSelectMode_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       if ~labeler.doProjectAndMovieExist()
         return;
       end
       tl = obj.labelTLInfo;
       tl.selectOn = src.Value;
-
     end
 
 
 
     function pbClearSelection_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       if ~labeler.doProjectAndMovieExist()
         return;
       end
       tl = obj.labelTLInfo;
       tl.selectClearSelection();
-
-      % function cbkFreezePrevAxesToMainWindow(src,evt)
-      % labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
-
-      % function cbkUnfreezePrevAxes(src,evt)
-      % labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
-
-      %% menu
     end
 
 
@@ -4374,13 +4332,7 @@ classdef LabelerController < handle
 
 
     function menu_file_load_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
-
       labeler.setStatus('Loading Project...') ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         currMovInfo = labeler.projLoad();
@@ -4395,58 +4347,23 @@ classdef LabelerController < handle
         end
       end
       labeler.clearStatus()
-
-      % function tfcontinue = hlpSave(labelerObj)
-      % tfcontinue = true;
-      %
-      % if ~verLessThan('matlab','9.6') && batchStartupOptionUsed
-      %   return;
-      % end
-      %
-      % OPTION_SAVE = 'Save first';
-      % OPTION_PROC = 'Proceed without saving';
-      % OPTION_CANC = 'Cancel';
-      % if labelerObj.doesNeedSave ,
-      %   res = questdlg('You have unsaved changes to your project. If you proceed without saving, your changes will be lost.',...
-      %     'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
-      %   switch res
-      %     case OPTION_SAVE
-      %       labelerObj.projSaveSmart();
-      %       labelerObj.projAssignProjNameFromProjFileIfAppropriate();
-      %     case OPTION_CANC
-      %       tfcontinue = false;
-      %     case OPTION_PROC
-      %       % none
-      %   end
-      % end
-
-
-
     end
 
-    function menu_file_managemovies_actuated_(src, evt)  %#ok<INUSD>
+    function menu_go_movies_summary_actuated_(obj, src, evt)
+      obj.menu_file_managemovies_actuated_(src, evt) ;
+    end
 
+    function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
       if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
         obj.movieManagerController_.setVisible(true);
       else
         labeler.lerror('LabelerGUI:movieManagerController','Please create or load a project.');
       end
-
-
-
     end
 
-
-
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       if ~labeler.hasMovie
         labeler.lerror('LabelerGUI:noMovie','No movie is loaded.');
       end
@@ -4470,20 +4387,11 @@ classdef LabelerController < handle
             assert(false);
         end
       end
-      labeler.labelImportTrkPromptGenericSimple(iMov,...
-        'labelImportTrk','gtok',false);
-
+      labeler.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
     end
 
-
-
     function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       if ~labeler.hasMovie
         labeler.lerror('LabelerGUI:noMovie','No movie is loaded.');
       end
@@ -4491,18 +4399,10 @@ classdef LabelerController < handle
       labeler.setStatus('Importing tracking results...');
       labeler.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
       labeler.clearStatus();
-
     end
 
-
-
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       [tfok,rawtrkname] = obj.getExportTrkRawNameUI('labels',true);
       if ~tfok
         return;
@@ -4510,18 +4410,10 @@ classdef LabelerController < handle
       labeler.setStatus('Exporting tracking results...');
       labeler.labelExportTrk(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
       labeler.clearStatus();
-
     end
 
-
-
     function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       fname = labeler.getDefaultFilenameExportLabelTable();
       [f,p] = uiputfile(fname,'Export File');
       if isequal(f,0)
@@ -4533,42 +4425,26 @@ classdef LabelerController < handle
       s.(VARNAME) = labeler.labelGetMFTableLabeled('useMovNames',true);
       save(fname,'-mat','-struct','s');
       fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
-
     end
 
-
-
     function menu_file_import_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       lastFile = RC.getprop('lastLabelMatfile');
       if isempty(lastFile)
         lastFile = pwd;
       end
       [fname,pth] = uigetfile('*.mat','Load Labels',lastFile);
       if isequal(fname,0)
-        return;
+        return
       end
       fname = fullfile(pth,fname);
       t = loadSingleVariableMatfile(fname);
       labeler.labelPosBulkImportTbl(t);
       fprintf('Loaded %d labeled frames from file ''%s''.\n',height(t),fname);
-
     end
 
-
-
     function menu_file_export_stripped_lbl_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       fname = labeler.getDefaultFilenameExportStrippedLbl();
       [f,p] = uiputfile(fname,'Export File');
       if isequal(f,0)
@@ -4579,10 +4455,7 @@ classdef LabelerController < handle
       labeler.projExportTrainData(fname)
       fprintf('Saved training data to file ''%s''.\n',fname);
       labeler.clearStatus();
-
     end
-
-
 
     function menu_file_crop_mode_actuated_(obj, src,evtdata)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -4597,16 +4470,12 @@ classdef LabelerController < handle
       labeler.clearStatus();
     end
 
-
-
     function menu_file_clean_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setStatus('Deleting temp directories...');
       labeler.projRemoveOtherTempDirs();
       labeler.clearStatus();
     end
-
-
 
     function menu_file_bundle_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -4615,13 +4484,8 @@ classdef LabelerController < handle
       labeler.clearStatus();
     end
 
-
-
     function menu_help_actuated_(obj, src, evt)  %#ok<INUSD>
     end
-
-
-
     function menu_help_labeling_actions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore;
@@ -4642,45 +4506,45 @@ classdef LabelerController < handle
 
 
 
-    function menu_setup_sequential_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_setup_sequential_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
     end
 
 
 
-    function menu_setup_sequential_add_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_setup_sequential_add_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
     end
 
 
 
-    function menu_setup_template_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_setup_template_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
     end
 
 
 
-    function menu_setup_highthroughput_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_setup_highthroughput_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
     end
 
 
 
-    function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_setup_multiview_calibrated_mode_2_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
     end
 
 
 
-    function menu_setup_multianimal_mode_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_setup_multianimal_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.menuSetupLabelModeCbkGeneric(src);
     end
 
 
 
-    function menu_setup_label_overlay_montage_actuated_(obj, src,evtdata)  %#ok<INUSD>
+    function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;            
       labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
-
       if labeler.hasTrx
         labeler.labelOverlayMontage();
         labeler.labelOverlayMontage('ctrMeth','trx');
@@ -4979,35 +4843,21 @@ classdef LabelerController < handle
 
 
     function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       labeler.movieCenterOnTarget = ~labeler.movieCenterOnTarget;
     end
 
 
 
     function menu_view_rotate_video_target_up_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
     end
 
 
 
     function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if tfproceed
         labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
@@ -5242,7 +5092,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_track_auto_params_update_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_track_auto_params_update_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
 
@@ -5260,7 +5110,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_track_use_all_labels_to_train_actuated_(obj, src,evt)  %#ok<INUSD>
+    function menu_track_use_all_labels_to_train_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
 
@@ -5318,38 +5168,21 @@ classdef LabelerController < handle
 
 
     function menu_go_nav_prefs_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       labeler.navPrefsUI();
-
     end
 
 
 
     function menu_go_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       labeler.gtShowGTManager();
-
     end
 
 
 
     function menu_evaluate_crossvalidate_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
-
-
       tbl = labeler.labelGetMFTableLabeled;
       if labeler.maIsMA
         tbl = tbl(:,1:2);
@@ -5360,7 +5193,6 @@ classdef LabelerController < handle
         str = 'targets';
       end
       n = height(tbl);
-
       inputstr = sprintf('This project has %d labeled %s.\nNumber of folds for k-fold cross validation:',...
         n,str);
       resp = inputdlg(inputstr,'Cross Validation',1,{'3'});
@@ -5371,24 +5203,15 @@ classdef LabelerController < handle
       if round(nfold)~=nfold || nfold<=1
         labeler.lerror('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
       end
-
       tbl.split = ceil(nfold*rand(n,1));
-
       t = labeler.tracker;
       t.trainsplit(tbl);
-
-
     end
 
 
 
     function menu_track_clear_tracking_results_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
       %labeler.preProcInitData();
       res = questdlg('Are you sure you want to clear tracking results?');
@@ -5404,47 +5227,28 @@ classdef LabelerController < handle
 
 
 
-    function menu_track_batch_track_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_track_batch_track_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       tbobj = TrackBatchGUI(labeler);
       tbobj.run();
-
-
     end
 
 
 
-    function menu_track_all_movies_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       mIdx = labeler.allMovIdx();
       toTrackIn = labeler.mIdx2TrackList(mIdx);
       tbobj = TrackBatchGUI(labeler,'toTrack',toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
       % todo: import predictions
-
-
     end
 
 
 
-    function menu_track_current_movie_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       mIdx = labeler.currMovIdx;
       toTrackIn = labeler.mIdx2TrackList(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
@@ -5453,8 +5257,6 @@ classdef LabelerController < handle
         return;
       end
       trackBatch('labeler',labeler,'toTrack',toTrackOut);
-
-
     end
 
 
@@ -5466,13 +5268,8 @@ classdef LabelerController < handle
 
 
 
-    function menu_file_export_all_movies_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_file_export_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       nMov = labeler.nmoviesGTaware;
       if nMov==0
         labeler.lerror('LabelerGUI:noMov','No movies in project.');
@@ -5483,26 +5280,21 @@ classdef LabelerController < handle
         return;
       end
       labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
-
     end
 
 
 
-    function menu_track_set_labels_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_track_set_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
 
-
-      tObj = labeler.tracker;
+      tracker = labeler.tracker;
       if labeler.gtIsGTMode
         labeler.lerror('LabelerGUI:gt','Unsupported in GT mode.');
       end
 
-      if ~isempty(tObj) && tObj.hasBeenTrained() && (~labeler.maIsMA)
+      if ~isempty(tracker) && tracker.hasBeenTrained() && (~labeler.maIsMA)
         % single animal. Use prediction if available else use imported below
-        [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+        [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
         itgt = labeler.currTarget;
 
         if ~tfhaspred(itgt)
@@ -5576,13 +5368,13 @@ classdef LabelerController < handle
           end
 
           % check if we can use pred
-          if isempty(tObj)
+          if isempty(tracker)
             usePred = false;
-          elseif isempty(tObj.trkVizer)
+          elseif isempty(tracker.trkVizer)
             usePred = false;
           else
-            [tfhaspred,xy,tfocc] = tObj.getTrackingResultsCurrFrm(); %#ok<ASGLU>
-            iTgtPred = tObj.trkVizer.currTrklet;
+            [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
+            iTgtPred = tracker.trkVizer.currTrklet;
             if isnan(iTgtPred)
               usePred = false;
             elseif ~tfhaspred(iTgtPred)
@@ -5605,8 +5397,8 @@ classdef LabelerController < handle
             iTgt = imp_trk.currTrklet;
             [~,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);
           else
-            iTgt = tObj.trkVizer.currTrklet;
-            [~,xy,tfocc] = tObj.getTrackingResultsCurrFrm();
+            iTgt = tracker.trkVizer.currTrklet;
+            [~,xy,tfocc] = tracker.getTrackingResultsCurrFrm();
           end
           xy = xy(:,:,iTgt); % "targets" treatment differs from below
           occ = tfocc(:,iTgt);
@@ -5637,17 +5429,12 @@ classdef LabelerController < handle
           labeler.lblCore.newFrame(frm,frm,1);
         end
       end
-
-    end
-
-
-
-    function menu_track_background_predict_start_actuated_(obj, src,evt)  %#ok<INUSD>
+    end  % function
 
 
 
+    function menu_track_background_predict_start_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
       tObj = labeler.tracker;
       if tObj.asyncIsPrepared
         tObj.asyncStartBgRunner();
@@ -5659,34 +5446,24 @@ classdef LabelerController < handle
         tObj.asyncPrepare();
         tObj.asyncStartBgRunner();
       end
-
     end
 
 
 
-    function menu_track_background_predict_end_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_track_background_predict_end_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
       tObj = labeler.tracker;
       if tObj.asyncIsPrepared
         tObj.asyncStopBgRunner();
       else
         warndlg('Background worker is not running.','Background tracking');
       end
-
     end
 
 
 
-    function menu_track_background_predict_stats_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_track_background_predict_stats_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
       tObj = labeler.tracker;
       if tObj.asyncIsPrepared
         tObj.asyncComputeStats();
@@ -5694,20 +5471,13 @@ classdef LabelerController < handle
         warningNoTrace('LabelerGUI:bgTrack',...
           'No background tracking information available.','Background tracking');
       end
-
     end
 
 
 
-    function menu_evaluate_gtmode_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_evaluate_gtmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       labeler.setStatus('Switching between Labeling and Ground Truth Mode...');
-
       gt = labeler.gtIsGTMode;
       gtNew = ~gt;
       labeler.gtSetGTMode(gtNew);
@@ -5717,80 +5487,47 @@ classdef LabelerController < handle
         figure(mmc.hFig);
       end
       labeler.clearStatus();
-
     end
 
 
 
-    function menu_evaluate_gtloadsuggestions_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_evaluate_gtloadsuggestions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       LabelerGT.loadSuggestionsUI(labeler);
-
     end
 
 
 
-    function menu_evaluate_gtsetsuggestions_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_evaluate_gtsetsuggestions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       LabelerGT.setSuggestionsToLabeledUI(labeler);
-
     end
 
 
 
-    function menu_evaluate_gtcomputeperf_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_evaluate_gtcomputeperf_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       assert(labeler.gtIsGTMode);
       labeler.gtComputeGTPerformance();
-
     end
 
 
 
-    function menu_evaluate_gtcomputeperfimported_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_evaluate_gtcomputeperfimported_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
       assert(labeler.gtIsGTMode);
       labeler.gtComputeGTPerformance('useLabels2',true);
-
     end
 
 
 
-    function menu_evaluate_gtexportresults_actuated_(obj, src,evt)  %#ok<INUSD>
-
-
-
+    function menu_evaluate_gtexportresults_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-
       tblRes = labeler.gtTblRes;
       if isempty(tblRes)
         errordlg('No GT results are currently available.','Export GT Results');
         return;
       end
-
-      %assert(labeler.gtIsGTMode);
       fname = labeler.getDefaultFilenameExportGTResults();
       [f,p] = uiputfile(fname,'Export File');
       if isequal(f,0)
@@ -5802,7 +5539,6 @@ classdef LabelerController < handle
       s.(VARNAME) = tblRes;
       save(fname,'-mat','-struct','s');
       fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
-
     end
 
 
@@ -5888,17 +5624,11 @@ classdef LabelerController < handle
       labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
     end
 
-
-
     function menu_file_import_export_advanced_actuated_(obj, src, evt)  %#ok<INUSD>
     end
 
-
-
     function menu_track_tracking_algorithm_actuated_(obj, src, evt)  %#ok<INUSD>
     end
-
-
 
     function menu_view_landmark_colors_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5910,21 +5640,15 @@ classdef LabelerController < handle
       % end
     end
 
-
-
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       landmark_specs('labeler',labeler);
     end
 
-
-
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.retrainAugOnly() ;
     end
-
-
 
     function menu_view_showhide_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5937,8 +5661,6 @@ classdef LabelerController < handle
       end
     end
 
-
-
     function menu_view_showhide_maroi_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
 
@@ -5949,15 +5671,11 @@ classdef LabelerController < handle
       end
     end
 
-
-
     function menu_view_showhide_maroiaux_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       tf = strcmpi(get(src,'Checked'),'off');
       labeler.setShowMaRoiAux(tf);
     end
-
-
 
     function popupmenu_prevmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5970,21 +5688,15 @@ classdef LabelerController < handle
       end
     end
 
-
-
     function pushbutton_freezetemplate_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
     end
 
-
-
     function pushbutton_exitcropmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.cropSetCropMode(false);
     end
-
-
 
     function menu_view_occluded_points_box_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5995,8 +5707,6 @@ classdef LabelerController < handle
         labeler.lblCore.hideOcc();
       end
     end
-
-
 
     function pumInfo_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       ipropType = get(src,'Value');

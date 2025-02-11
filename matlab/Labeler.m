@@ -5860,7 +5860,7 @@ classdef Labeler < handle
         obj.showSkeleton = true ;
       end
       obj.lblCore.updateSkeletonEdges();
-      tv = obj.labeledpos2trkViz;
+      tv = obj.labeledpos2trkViz ;
       if ~isempty(tv)
         tv.initAndUpdateSkeletonEdges(se);
       end
@@ -5968,7 +5968,7 @@ classdef Labeler < handle
       else
         hideLabelsPrev = false;
       end
-      obj.lblCore = LabelCore.createSafe(obj,lblmode);
+      obj.lblCore = LabelCore.createSafe(obj.controller_, lblmode) ;  % hack
       obj.lblCore.init(nPts,lblPtsPlotInfo);
       if hideLabelsPrev
         obj.lblCore.labelsHide();
@@ -13442,13 +13442,14 @@ classdef Labeler < handle
 
       %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
     end
+
     function updateTrxTable_MA(obj)
-      tbl = obj.gdata.tblTrx;
+      tblTrx = obj.gdata.tblTrx;
       if ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSet(), when invariants momentarily broken
         ischange = ~isempty(obj.tblTrxData);
         if ischange,
           obj.tblTrxData = zeros(0,2);
-          set(tbl,'Data',cell(0,2));
+          set(tblTrx,'Data',cell(0,2));
         end
         return;
       end
@@ -13471,10 +13472,10 @@ classdef Labeler < handle
         tbldat = [num2cell(idxLive) num2cell(tfLbled)];
         %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
         %tbl.setDataUnsafe(tbldat);
-        set(tbl,'Data',tbldat);
-        tbl.Units = 'Pixel';
-        ww = tbl.Position(3);
-        tbl.ColumnWidth = {ww/2-5,ww/2-5};
+        set(tblTrx,'Data',tbldat);
+        tblTrx.Units = 'Pixel';
+        ww = tblTrx.Position(3);
+        tblTrx.ColumnWidth = {ww/2-5,ww/2-5};
       end
     end
     

@@ -32,7 +32,8 @@ classdef LabelCore < handle
     hideLabels; % scalar logical
   end
         
-  properties % handles    
+  properties  % handles    
+    controller            % scalar LabelerController obj
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
@@ -93,40 +94,41 @@ classdef LabelCore < handle
   
   methods (Static)
     
-    function obj = createSafe(labelerObj,labelMode)
-      if labelerObj.isMultiView && labelMode~=LabelMode.MULTIVIEWCALIBRATED2
+    function obj = createSafe(labelerController,labelMode)
+      if labelerController.labeler_.isMultiView && labelMode~=LabelMode.MULTIVIEWCALIBRATED2
         labelModeOldStr = labelMode.prettyString;
         labelMode = LabelMode.MULTIVIEWCALIBRATED2;
         warningNoTrace('LabelCore:mv',...
           'Labeling mode ''%s'' does not support multiview projects. Using mode ''%s''.',...
         labelModeOldStr,labelMode.prettyString);
-      elseif ~labelerObj.isMultiView && labelMode==LabelMode.MULTIVIEWCALIBRATED2
+      elseif ~labelerController.labeler_.isMultiView && labelMode==LabelMode.MULTIVIEWCALIBRATED2
         labelModeOldStr = labelMode.prettyString;
         labelMode = LabelMode.TEMPLATE;
         warningNoTrace('LabelCore:mv',...
           'Labeling mode ''%s'' cannot be used for single-view projects. Using mode ''%s''.',...
           labelModeOldStr,labelMode.prettyString);
       end
-      obj = LabelCore.create(labelerObj,labelMode);
+      obj = LabelCore.create(labelerController,labelMode);
     end
-    function obj = create(labelerObj,labelMode)
+
+    function obj = create(labelerController,labelMode)
       switch labelMode
         case LabelMode.SEQUENTIAL
-          obj = LabelCoreSeq(labelerObj);
+          obj = LabelCoreSeq(labelerController);
         case LabelMode.SEQUENTIALADD
-          obj = LabelCoreSeqAdd(labelerObj);
+          obj = LabelCoreSeqAdd(labelerController);
         case LabelMode.TEMPLATE
-          obj = LabelCoreTemplate(labelerObj);
+          obj = LabelCoreTemplate(labelerController);
         case LabelMode.HIGHTHROUGHPUT
-          obj = LabelCoreHT(labelerObj);
+          obj = LabelCoreHT(labelerController);
 %         case LabelMode.ERRORCORRECT
 %           obj = LabelCoreErrorCorrect(labelerObj);
 %         case LabelMode.MULTIVIEWCALIBRATED
 %           obj = LabelCoreMultiViewCalibrated(labelerObj);
         case LabelMode.MULTIVIEWCALIBRATED2
-          obj = LabelCoreMultiViewCalibrated2(labelerObj);
+          obj = LabelCoreMultiViewCalibrated2(labelerController);
         case LabelMode.MULTIANIMAL
-          obj = LabelCoreSeqMA(labelerObj);
+          obj = LabelCoreSeqMA(labelerController);
         otherwise
           error('Unknown label mode %s',str(labelMode));
       end
@@ -137,14 +139,16 @@ classdef LabelCore < handle
   
   methods (Sealed=true)
     
-    function obj = LabelCore(labelerObj)
+    function obj = LabelCore(labelerController)
+      labelerObj = labelerController.labeler_ ;
       if labelerObj.isMultiView && ~obj.supportsMultiView
         error('LabelCore:MV','Multiview labeling not supported by %s.',...
           class(obj));
       end
 
+      obj.controller = labelerController ;
       obj.labeler = labelerObj;
-      gd = labelerObj.gdata;
+      gd = labelerController ;
       obj.hFig = gd.figs_all;
       obj.hAx = gd.axes_all;
       obj.hIms = gd.images_all;

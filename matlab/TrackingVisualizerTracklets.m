@@ -222,13 +222,13 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       minx=nanmin(pts_curr(:,1)); maxx=nanmax(pts_curr(:,1));
       miny=nanmin(pts_curr(:,2)); maxy=nanmax(pts_curr(:,2));      
 
-      v = lobj.videoCurrentAxis();
+      v = lobj.controller_.videoCurrentAxis();
       x_ok = (minx>= (v(1)-1))&(maxx<=(v(2)+1));
       y_ok = (miny>= (v(3)-1))&(maxy<=(v(4)+1));
       if x_ok && y_ok
         return;
       end
-      lobj.videoCenterOn(trx_curr.x(ndx_fr),trx_curr.y(ndx_fr));      
+      lobj.controller_.videoCenterOn(trx_curr.x(ndx_fr),trx_curr.y(ndx_fr));      
     end
     function updatePrimary(obj,iTgtPrimary) %#ok<INUSD>
       % currently unused. this API is used by Labeler. currently 
