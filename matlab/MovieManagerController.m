@@ -357,15 +357,15 @@ classdef MovieManagerController < handle
     end
     
     function hlpLblerLstnCbkUpdateTable(obj,tfGT)
-      assert(islogical(tfGT));
-      
       lObj = obj.labeler;
       if lObj.isinit
         return
       end
-      if ~exist('tfGT', 'var') || isempty(tgGT) ,
+      if ~exist('tfGT', 'var') || isempty(tfGT) ,
         tfGT = lObj.gtIsGTMode ;
       end
+
+      assert(islogical(tfGT));     
 
       if ~lObj.hasProject
         return

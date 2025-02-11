@@ -232,7 +232,7 @@ classdef LabelerController < handle
     hLinkPrevCurr
     newProjAxLimsSetInConfig
     h_ignore_arrows
-    GTMgr  % the ground truth manager
+    GTManagerFigure  % the ground truth manager *figure*
     shortcutkeys
     shortcutfns
     menu_track_backend_config
@@ -1870,9 +1870,9 @@ classdef LabelerController < handle
         % buttons/figure back into a good state)   
       obj.movieManagerController_.setVisible(false);
       
-      obj.GTMgr = GTManager(labeler);
-      obj.GTMgr.Visible = 'off';
-      obj.addSatellite(obj.GTMgr) ;
+      obj.GTManagerFigure = GTManager(labeler);
+      obj.GTManagerFigure.Visible = 'off';
+      obj.addSatellite(obj.GTManagerFigure) ;
     end  % function
 
     function menu_file_new_actuated_(obj, ~, ~)
@@ -3216,8 +3216,8 @@ classdef LabelerController < handle
       obj.menu_go_gt_frames.Enable = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
-      if ~isempty(obj.GTMgr)
-        obj.GTMgr.Visible = onIffGT;
+      if ~isempty(obj.GTManagerFigure)
+        obj.GTManagerFigure.Visible = onIffGT;
       end
       obj.hlpGTUpdateAxHilite();
       obj.labelTLInfo.cbkGTIsGTModeUpdated() ;
@@ -5765,8 +5765,9 @@ classdef LabelerController < handle
       if ~exist('e', 'var') ,
         e = [] ;
       end
-      if ~isempty(obj.GTMgr) ,
-        obj.GTMgr.cbkGTSuggUpdated(s, e) ;
+      if ~isempty(obj.GTManagerFigure) ,
+        GTManager('cbkGTSuggUpdated', obj.GTManagerFigure, s, e) ;
+        %obj.GTMgr.cbkGTSuggUpdated(s, e) ;
       end
       if ~isempty(obj.labelTLInfo) ,
         obj.labelTLInfo.cbkGTSuggUpdated(s, e) ;
@@ -5780,8 +5781,8 @@ classdef LabelerController < handle
       if ~exist('e', 'var') ,
         e = [] ;
       end
-      if ~isempty(obj.GTMgr) ,
-        obj.GTMgr.cbkGTResUpdated(s, e) ;
+      if ~isempty(obj.GTManagerFigure) ,
+        GTManager('cbkGTResUpdated', obj.GTManagerFigure, s, e) ;
       end
       %obj.labelTLInfo.cbkGTResUpdated(s, e) ;
     end

@@ -9660,7 +9660,7 @@ classdef Labeler < handle
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.
       if obj.gtIsGTMode
-        gtMgr = obj.gdata.GTMgr;
+        gtMgr = obj.controller_.GTManagerFigure ;
         gd = guidata(gtMgr);
         pb = gd.pbNextUnlabeled;
         cbk = pb.Callback;
@@ -9670,7 +9670,7 @@ classdef Labeler < handle
       end
     end
     function gtShowGTManager(obj)
-      hGTMgr = obj.gdata.GTMgr;
+      hGTMgr = obj.controller_.GTManagerFigure ;
       hGTMgr.Visible = 'on';
       figure(hGTMgr);
     end
@@ -13632,7 +13632,7 @@ classdef Labeler < handle
         end
         
         if obj.gtIsGTMode
-          GTManager('cbkCurrMovFrmTgtChanged',obj.gdata.GTMgr);
+          GTManager('cbkCurrMovFrmTgtChanged', obj.controller_.GTManagerFigure);
         end
         
         if ~isempty(obj.tracker),
