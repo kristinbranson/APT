@@ -734,7 +734,7 @@ classdef Labeler < handle
                         'projfile',[], ...
                         'replace_path',{'',''}) ;
       if projfile ,
-        obj.projLoad(projfile, 'replace_path', replace_path) ;
+        obj.projLoadGUI(projfile, 'replace_path', replace_path) ;
       end      
     end
 
@@ -1621,15 +1621,15 @@ classdef Labeler < handle
 
   % Property init legend
   % IFC: property initted during initFromConfig_()  
-  %      (but initFromConfig_ is called from both projNew() and projLoad()...
+  %      (but initFromConfig_ is called from both projNew() and projLoadGUI()...
   %       -- ALT, 2025-02-05)
-  % PNPL: property initted during projNew() or projLoad()
+  % PNPL: property initted during projNew() or projLoadGUI()
   % L: property initted during labelingInit()
   % (todo) TI: property initted during trackingInit()
   %
   % There are only two ways to start working on a project.
   % 1. New/blank project: projNew().
-  % 2. Existing project: projLoad(), which is (initFromConfig(), then
+  % 2. Existing project: projLoadGUI(), which is (initFromConfig(), then
   %    property-initialization-equivalent-to-projNew().)
   
     function initFromConfig_(obj, cfg)
@@ -1785,7 +1785,7 @@ classdef Labeler < handle
       % Reset .trackersAll
       cellfun(@delete, obj.trackersAll_) ;
       obj.trackersAll_ = cell(1,0);
-      % Trackers created/initted in projLoad() and projNew(); eg when loading,
+      % Trackers created/initted in projLoadGUI() and projNew(); eg when loading,
       % the loaded .lbl knows what trackers to create.
       %obj.currTracker = 0;
 
@@ -2308,7 +2308,7 @@ classdef Labeler < handle
 %       end
 %     end
     
-    function currMovInfo = projLoad(obj,fname,varargin)
+    function currMovInfo = projLoadGUI(obj,fname,varargin)
       % Load a lbl file
       %
       % currProjInfo: scalar struct containing diagnostic info. When the

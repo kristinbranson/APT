@@ -26,7 +26,7 @@ lbls = cellfun(@(x)load(x,'-mat'),tbl.lbl);
 %%
 for iLbl=1:NLBL
   lfile = LBLS{iLbl};
-  lObj.projLoad(lfile);
+  lObj.projLoadGUI(lfile);
   fprintf('Loaded %s. Training\n',lfile);
   lObj.trainIncremental();
   fprintf('Saving %s\n',lObj.projectfile);
@@ -39,7 +39,7 @@ tm.info = 1200:1800;
 for iLbl=1:NLBL
   lfile = tbl.lbl{iLbl};
   tfile = tbl.trk{iLbl};
-  lObj.projLoad(lfile);
+  lObj.projLoadGUI(lfile);
   fprintf('Loaded %s. Tracking to %s.\n',lfile,tfile);
   lObj.trackAndExport(tm,'trkFilename',tfile,'trackArgs',{'stripTrkPFull' 0});
 end  
@@ -161,7 +161,7 @@ else
 end
 
 fprintf('Loading proj: %s\n',LBLTRN); 
-lObj.projLoad(LBLTRN);
+lObj.projLoadGUI(LBLTRN);
 fprintf('Importing trk results into labels2: %s\n',TRK); 
 lObj.labels2ImportTrk(1,{TRK});
 
@@ -231,7 +231,7 @@ tm.info = 1200:1700;
 for iLbl=1:NTRKS
   lblfile = TRKS.lbl{iLbl};
   fprintf('Load %s\n',lblfile);
-  lObj.projLoad(lblfile);
+  lObj.projLoadGUI(lblfile);
   trkfile = TRKS.trkfile{iLbl};
   [p,f,e] = fileparts(trkfile);
   fprintf('Tracking to %s\n',f);

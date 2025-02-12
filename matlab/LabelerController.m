@@ -4354,7 +4354,7 @@ classdef LabelerController < handle
     function load(obj)
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
-        currMovInfo = labeler.projLoad();
+        currMovInfo = labeler.projLoadGUI();
         if ~isempty(currMovInfo)
           obj.movieManagerController_.setVisible(true);
           wstr = ...

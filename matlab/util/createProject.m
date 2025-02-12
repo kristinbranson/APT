@@ -30,7 +30,7 @@ function lObj = createProject(baseProj,movFiles,varargin)
   );
 
 lObj = Labeler();
-lObj.projLoad(baseProj);
+lObj.projLoadGUI(baseProj);
 if clearBaseProj
   lObj.movieRmAll();
 end

@@ -25,7 +25,7 @@ mfts = MFTSet(...
   TargetSetVariable.AllTgts);
 
 lblm = fullfile(testdir,[lblname '_mv.lbl']);
-lObj.projLoad(lblm);
+lObj.projLoadGUI(lblm);
 
 resMV = cell(nrptMV,1);
 for irpt=1:nrptMV
@@ -39,7 +39,7 @@ end
 resSingVw = cell(1,2);
 for ivw=1:2
   lblvw = fullfile(testdir,sprintf('%s_%d.lbl',lblname,ivw));
-  lObj.projLoad(lblvw);
+  lObj.projLoadGUI(lblvw);
   lObj.tracker.init();
   lObj.train();
   lObj.track(mfts);

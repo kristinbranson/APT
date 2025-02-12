@@ -445,7 +445,7 @@ classdef TestAPT < handle
       
       if simpleprojload
         [labeler, controller] = StartAPT();
-        labeler.projLoad(obj.info.ref_lbl);
+        labeler.projLoadGUI(obj.info.ref_lbl);
         obj.labeler = labeler;
         obj.controller = controller ;
         obj.old_lbl = [];

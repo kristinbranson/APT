@@ -3,7 +3,7 @@ LBL = '/groups/branson/bransonlab/apt/test/testproj_flybub/proj_nomacros.lbl';
 
 %% Proj load
 lObj = StartAPT;
-lObj.projLoad(LBL);
+lObj.projLoadGUI(LBL);
 
 %% Set tracker
 lObj.trackersAll % all tracker objects

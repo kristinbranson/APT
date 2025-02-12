@@ -355,7 +355,7 @@ NPTS = 18;
 frame = trkResFull.tMFPtrack.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
-  lObj.projLoad(LBL);
+  lObj.projLoadGUI(LBL);
 end
 lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
@@ -413,7 +413,7 @@ NPTS = 18;
 frame = tFPtrn.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
-  lObj.projLoad(LBL);
+  lObj.projLoadGUI(LBL);
 end
 lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2

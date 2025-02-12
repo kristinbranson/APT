@@ -111,7 +111,7 @@ fTst = tstMD.frm; % frames corresponding to res
 
 %%
 lObj = Labeler;
-lObj.projLoad(LBLFILE);
+lObj.projLoadGUI(LBLFILE);
 nf = lObj.nframes;
 Dlbl = lObj.nLabelPoints*2;
 

@@ -590,7 +590,7 @@ NPTS = 18;
 frame = tMFPTrnSel.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
-  lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
+  lObj.projLoadGUI(LBL); % KB: this won't be able to find movies will prompt you to locate
 end
 lObj.setFrame(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2

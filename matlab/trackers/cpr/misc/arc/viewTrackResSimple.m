@@ -4,7 +4,7 @@ fprintf('Loading results...\n');
 res = load(resname);
 
 lObj = Labeler;
-lObj.projLoad(lblname);
+lObj.projLoadGUI(lblname);
 
 %% new moviereader, labelCore
 fprintf('Setting new MovieReader, LabelCore...\n');
