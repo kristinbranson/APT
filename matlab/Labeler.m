@@ -10531,7 +10531,7 @@ classdef Labeler < handle
     end  % function
 
     function trackMakeNewTrackerCurrent(obj, tciIndex)
-      % Make a new tracker, and make it current.  tcisIndex should be a valid index
+      % Make a new tracker, and make it current.  tciIndex should be a valid index
       % into obj.trackersAll and/or obj.trackersAllCreateInfo_.
 
       % Validate the new value      
@@ -10601,6 +10601,23 @@ classdef Labeler < handle
         warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, tciIndex) ;
       end
       obj.trackMakeNewTrackerCurrent(tciIndex) ;
+    end  % function
+
+    function trackMakeOldTrackerCurrentByName(obj, algoName)
+      algorithmNameFromHistoryIndex = cellfun(@(tracker)(tracker.algorithmName), ...
+                                              obj.trackerHistory_, ...
+                                              'UniformOutput', false) ;
+      matchingIndices = find(strcmp(algoName, algorithmNameFromHistoryIndex)) ;
+      if isempty(matchingIndices) ,
+        error('No algorithm named %s among the trackers in the history', algoName) ;
+      elseif isscalar(matchingIndices) ,
+        % all is well
+        trackerIndex = matchingIndices ;
+      else
+        trackerIndex = matchingIndices(1) ;
+        warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, trackerIndex) ;
+      end
+      obj.trackMakeOldTrackerCurrent(trackerIndex) ;
     end  % function
 
     function sPrm = setTrackNFramesParams(obj,sPrm)
