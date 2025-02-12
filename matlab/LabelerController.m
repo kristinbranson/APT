@@ -5900,8 +5900,7 @@ classdef LabelerController < handle
       end
       trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
       tfsucc = true;
-    end
-    
+    end  % function
     
 
   end  % methods  

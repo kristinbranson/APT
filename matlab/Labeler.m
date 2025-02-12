@@ -2445,13 +2445,13 @@ classdef Labeler < handle
       
       % check that all movie files exist, allow macro fixes
       for i = 1:obj.nmovies,
-        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false));
+        tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,false));
         if ~tfsuccess,
           error('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
         end
       end
       for i = 1:obj.nmoviesGT,
-        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true));
+        tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,true));
         if ~tfsuccess,
           error('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
         end
@@ -2511,7 +2511,7 @@ classdef Labeler < handle
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
       else
-        [tfok,badfile] = obj.movieCheckFilesExistSimple(s.currMovie,s.gtIsGTMode);
+        [tfok,badfile] = obj.movieCheckFilesExist(s.currMovie,s.gtIsGTMode);
         if ~tfok
           currMovInfo.iMov = s.currMovie;
           currMovInfo.badfile = badfile;
@@ -3063,7 +3063,7 @@ classdef Labeler < handle
     end
     
     function projMacroSetUI(obj)
-      % Set any/all current macros with inputdlg
+      % Set any/all current macros with input dialog
       
       s = obj.projMacros;
       macros = fieldnames(s);
@@ -4306,7 +4306,7 @@ classdef Labeler < handle
       tfok = true;
     end
     
-    function [tfok,badfile] = movieCheckFilesExistSimple(obj, varargin)  % obj const
+    function [tfok,badfile] = movieCheckFilesExist(obj, varargin)  % obj const
       % Check if the movie files and trx files exist.  This version does not present
       % any UI to help the user correct missing files, if just does what it says on
       % the tin.
@@ -4347,7 +4347,7 @@ classdef Labeler < handle
       badfile = [];
     end
     
-    function tfsuccess = movieCheckFilesExist(obj,iMov) % NOT obj const
+    function tfsuccess = movieCheckFilesExistGUI(obj,iMov) % NOT obj const
       % Helper function for movieSet(), check that movie/trxfiles exist
       %
       % tfsuccess: false indicates user canceled or similar. True indicates
@@ -4359,7 +4359,8 @@ classdef Labeler < handle
       %
       % This function is NOT obj const -- users can browse to 
       % movies/trxfiles, macro-related state can be mutated etc.
-      
+      %
+      % This function also does UI stuff (hence "GUI").
       
       tfsuccess = false;
       
@@ -4526,7 +4527,7 @@ classdef Labeler < handle
         ); 
       
       mIdx = MovieIndex(iMov,obj.gtIsGTMode);
-      tfsuccess = obj.movieCheckFilesExist(mIdx); % throws
+      tfsuccess = obj.movieCheckFilesExistGUI(mIdx); % throws
       if ~tfsuccess
         return;
       end
@@ -8851,7 +8852,7 @@ classdef Labeler < handle
     
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes(obj)
       % Check for consistency of movie sizes in current proj. Throw
-      % warndlgs for each view where sizes differ.
+      % warning dial for each view where sizes differ.
       %
       % This considers the raw movie sizes and ignores any cropping.
       % 
