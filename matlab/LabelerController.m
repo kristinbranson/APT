@@ -1869,7 +1869,6 @@ classdef LabelerController < handle
     function menu_file_new_actuated_(obj, ~, ~)
       % Create a new project
       labeler = obj.labeler_ ;
-      labeler.setStatus('Starting New Project');
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
         if ~isempty(cfg)    
@@ -4350,20 +4349,18 @@ classdef LabelerController < handle
 
     function menu_file_load_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setStatus('Loading Project...') ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         currMovInfo = labeler.projLoad();
         if ~isempty(currMovInfo)
           obj.movieManagerController_.setVisible(true);
           wstr = ...
             sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
-            'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
-            currMovInfo.iMov, ...
-            currMovInfo.badfile);
+                            'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
+                    currMovInfo.iMov, ...
+                    currMovInfo.badfile);
           warndlg(wstr,'Movie not found','modal');
         end
       end
-      labeler.clearStatus()
     end
 
     function menu_go_movies_summary_actuated_(obj, src, evt)
@@ -4371,7 +4368,7 @@ classdef LabelerController < handle
     end
 
     function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
+      % labeler = obj.labeler_ ;
       if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
         obj.movieManagerController_.setVisible(true);
       else
@@ -4409,13 +4406,8 @@ classdef LabelerController < handle
 
     function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      if ~labeler.hasMovie
-        error('LabelerGUI:noMovie','No movie is loaded.');
-      end
       iMov = labeler.currMovie; % gt-aware
-      labeler.setStatus('Importing tracking results...');
       labeler.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
-      labeler.clearStatus();
     end
 
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -4424,9 +4416,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.setStatus('Exporting tracking results...');
       labeler.labelExportTrk(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
-      labeler.clearStatus();
     end
 
     function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -4468,13 +4458,10 @@ classdef LabelerController < handle
         return
       end
       fname = fullfile(p,f);
-      labeler.setStatus(sprintf('Exporting training data to %s',fname));
       labeler.projExportTrainData(fname)
-      fprintf('Saved training data to file ''%s''.\n',fname);
-      labeler.clearStatus();
     end
 
-    function menu_file_crop_mode_actuated_(obj, src,evtdata)  %#ok<INUSD>
+    function menu_file_crop_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if ~isempty(labeler.tracker) && ~labeler.gtIsGTMode && labeler.labelPosMovieHasLabels(labeler.currMovie),
         res = questdlg('Frames of the current movie are labeled. Editing the crop region for this movie will cause trackers to be reset. Continue?');
@@ -4482,23 +4469,44 @@ classdef LabelerController < handle
           return;
         end
       end
-      labeler.setStatus('Switching crop mode...');
       labeler.cropSetCropMode(~labeler.cropIsCropMode);
-      labeler.clearStatus();
     end
 
-    function menu_file_clean_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
+    function menu_file_clean_tempdir_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setStatus('Deleting temp directories...');
-      labeler.projRemoveOtherTempDirs();
-      labeler.clearStatus();
-    end
-
-    function menu_file_bundle_tempdir_actuated_(obj, src,evtdata)  %#ok<INUSD>
+      if isempty(labeler.projTempDir),
+        rootdir = APT.getdotaptdirpath() ;
+      else
+        rootdir = fileparts(labeler.projTempDir);
+      end
+      if ~exist(rootdir,'dir'),
+        return
+      end
+      todelete = mydir(rootdir,'isdir',true);
+      if ~isempty(labeler.projTempDir),
+        i = find(strcmp(todelete,labeler.projTempDir));
+        assert(~isempty(i));
+        todelete(i) = [];
+      end
+      if isempty(todelete),
+        uiwait(msgbox('No temp directories to remove.','All clear!'));
+        return
+      end
+      res = questdlg(sprintf('Delete %d temp directories? Only do this if no other instances of APT are open.',numel(todelete)));
+      if ~strcmpi(res,'Yes'),
+        return
+      end
+      labeler.projRemoveOtherTempDirs(todelete) ;
+    end    
+    
+    function menu_file_bundle_tempdir_actuated_(obj, src, evt)  %#ok<INUSD>
+      [fname,pname,~] = uiputfile('*.tar','File to save the training bundle as...');
+      if isnumeric(fname)
+        return
+      end
+      tfile = fullfile(pname,fname);
       labeler = obj.labeler_ ;
-      labeler.setStatus('Bundling the temp directory...');
-      labeler.projBundleTempDir();
-      labeler.clearStatus();
+      labeler.projBundleTempDir(tfile);
     end
 
     function menu_help_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -4563,6 +4571,7 @@ classdef LabelerController < handle
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;            
       labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
+      oc = onCleanup(@()(labeler.clearStatus())) ;
       if labeler.hasTrx
         labeler.labelOverlayMontage();
         labeler.labelOverlayMontage('ctrMeth','trx');
@@ -4580,16 +4589,15 @@ classdef LabelerController < handle
           end
         end
       end
-      labeler.clearStatus();
     end
 
 
 
-    function menu_setup_label_outliers_actuated_(obj, src,evtdata)  %#ok<INUSD>
+    function menu_setup_label_outliers_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setStatus('Finding outliers in labels...');
-      label_outlier_gui(labeler);
-      labeler.clearStatus();
+      oc = onCleanup(@()(labeler.clearStatus())) ;
+      label_outlier_gui(labeler) ;
     end
 
 
@@ -4747,7 +4755,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_view_show_bgsubbed_frames_actuated_(obj, src,evtdata)  %#ok<INUSD>
+    function menu_view_show_bgsubbed_frames_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
 
@@ -5060,7 +5068,6 @@ classdef LabelerController < handle
         warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
         return;
       end
-      labeler.setStatus('Setting training parameters...');
       [tPrm,do_update] = labeler.trackSetAutoParams();
       sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
       if isempty(sPrmNew)
@@ -5068,14 +5075,11 @@ classdef LabelerController < handle
           RC.saveprop('lastCPRAPTParams',sPrmNew);
           labeler.setDoesNeedSave(true,'Parameters changed') ;
         end
-        % user canceled; none
       else
         labeler.trackSetParams(sPrmNew);
         RC.saveprop('lastCPRAPTParams',sPrmNew);
-        %cbkSaveNeeded(labeler,true,'Parameters changed');
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end
-      labeler.clearStatus();
     end
 
 
@@ -5194,11 +5198,7 @@ classdef LabelerController < handle
       if ~strcmpi(res,'yes'),
         return;
       end
-      labeler.setStatus('Clearing tracking results...');
-      tObj = labeler.tracker;
-      tObj.clearTrackingResults();
-      labeler.clearStatus();
-      %msgbox('Tracking results cleared.','Done');
+      labeler.clearTrackingResults();
     end
 
 
@@ -5237,7 +5237,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_file_clear_imported_actuated_(obj, src,evtdata)  %#ok<INUSD>
+    function menu_file_clear_imported_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.labels2Clear();
     end

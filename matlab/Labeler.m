@@ -2977,7 +2977,8 @@ classdef Labeler < handle
     end
     
     function projExportTrainData(obj,outfile)
-      
+      obj.setStatus(sprintf('Exporting training data to %s',outfile));
+      oc = onCleanup(@()(obj.clearStatus())) ;            
       [tfsucc,~,s] = ...
         obj.trackCreateDeepTrackerStrippedLbl();
       if ~tfsucc,
@@ -2985,7 +2986,7 @@ classdef Labeler < handle
       end
       % preProcData_P is [nLabels,nViews,nParts,2]
       save(outfile,'-mat','-v7.3','-struct','s');
-      
+      fprintf('Saved training data to file ''%s''.\n',outfile);
     end
     
     
@@ -3001,64 +3002,10 @@ classdef Labeler < handle
         warning('Could not clear the temp directory: %s',message);
       end
     end
-    
-    
-    function success = projRemoveOtherTempDirs(obj,doask)
-      
-      success = true;
-      if isempty(obj.projTempDir),
-        rootdir = APT.getdotaptdirpath() ;
-      else
-        rootdir = fileparts(obj.projTempDir);
-      end
-      if ~exist(rootdir,'dir'),
-        return;
-      end
-      if nargin < 2,
-        doask = true;
-      end
-      todelete = mydir(rootdir,'isdir',true);
-      if ~isempty(obj.projTempDir),
-        i = find(strcmp(todelete,obj.projTempDir));
-        assert(~isempty(i));
-        todelete(i) = [];
-      end
-      if isempty(todelete),
-        if doask,
-          uiwait(msgbox('No temp directories to remove.','All clear!'));
-        end
-        return;
-      end
-      if doask,
-        res = questdlg(sprintf('Delete %d temp directories? Only do this if no other instances of APT are open.',numel(todelete)));
-        if ~strcmpi(res,'Yes'),
-          success = false;
-          return;
-        end
-      end
-      ndelete = 0;
-      for i = 1:numel(todelete),
-        [success, msg, ~] = rmdir(todelete{i},'s');
-        if success,
-          ndelete = ndelete + 1;
-          fprintf('Cleared temp directory: %s\n',todelete{i});
-        else
-          warning('Could not clear the temp directory %s: %s',todelete{i},msg);
-        end
-      end
-      success = ndelete == numel(todelete);
-    end
-    
-    function success = projBundleTempDir(obj,tfile)
-      success = true;
-      if nargin < 2,
-        [fname,pname,~] = uiputfile('*.tar','File to save the training bundle as...');
         
-        if isnumeric(fname)
-          return;
-        end
-        tfile = fullfile(pname,fname);
-      end
+    function projBundleTempDir(obj, tfile)
+      obj.setStatus('Bundling the temp directory...') ;
+      oc = onCleanup(@()(obj.clearStatus())) ;
       tar(tfile,obj.projTempDir);
     end
     
@@ -3317,7 +3264,7 @@ classdef Labeler < handle
       end
       
       defaultTrackersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
-      nDfltTrkers = numel(defaultTrackersInfo);
+      % nDfltTrkers = numel(defaultTrackersInfo);
       assert(iscell(s.trackerClass));
       %nExistingTrkers = numel(s.trackerClass);
 
@@ -3694,6 +3641,9 @@ classdef Labeler < handle
       
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
+      obj.setStatus('Adding new movie...');
+      oc = onCleanup(@()(obj.clearStatus()));
+      
       [offerMacroization,gt] = myparse(varargin,...
         'offerMacroization',~isdeployed&&obj.isgui, ... % If true, look for matches with existing macros
         'gt',obj.gtIsGTMode ... % If true, add moviefile/trxfile to GT lists. Could be a separate method, but there is a lot of shared code/logic.
@@ -3835,6 +3785,10 @@ classdef Labeler < handle
       if exist(bfile,'file')==0
         obj.lerror('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
       end
+
+      obj.setStatus(sprintf('Adding movies from file %s...',bfile));
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      
       movs = importdata(bfile);
       try
         movs = regexp(movs,',','split');
@@ -4069,6 +4023,7 @@ classdef Labeler < handle
         );
       
       assert(isscalar(iMov));
+      
       nMovOrig = obj.getnmoviesGTawareArg(gt);
       assert(any(iMov==1:nMovOrig),'Invalid movie index ''%d''.',iMov);
       if iMov==obj.currMovie
@@ -4098,6 +4053,9 @@ classdef Labeler < handle
             obj.movieDontAskRmMovieWithLabels = true;
         end
       end
+      
+      obj.setStatus('Removing movie...') ;
+      oc = onCleanup(@()(obj.clearStatus())) ;
       
       if tfProceedRm
         PROPS = Labeler.gtGetSharedPropsStc(gt);
@@ -4558,7 +4516,10 @@ classdef Labeler < handle
       assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
       assert(any(iMov==1:obj.nmoviesGTaware),...
                     'Invalid movie index ''%d''.',iMov);
-      
+
+      obj.setStatus(sprintf('Switching to movie %d...',iMov));
+      oc = onCleanup(@()(obj.clearStatus())) ;
+
       [isFirstMovie] = myparse(varargin,...
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
         ); 
@@ -7755,6 +7716,9 @@ classdef Labeler < handle
       % iMov: optional, indices into (rows of) .movieFilesAllGTaware to 
       %   export. Defaults to 1:obj.nmoviesGTaware.
       
+      obj.setStatus('Exporting tracking results...');
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      
       [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
         'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
@@ -7979,6 +7943,13 @@ classdef Labeler < handle
       %
       % iMov: scalar positive index into .movieFilesAll. GT mode not
       %   allowed.
+      
+      if ~obj.hasMovie
+        error('Labeler:noMovie','No movie is loaded.');
+      end
+      
+      obj.setStatus('Importing tracking results...');
+      oc = onCleanup(@()(obj.clearStatus())) ;
       
       gtok = myparse(varargin,...
         'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
@@ -8331,7 +8302,7 @@ classdef Labeler < handle
       tblMF(tfRmRow,:) = [];
     end
 
-    function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)
+    function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)  % const
       mIdx = tblMF.mov;
       assert(isa(mIdx,'MovieIndex'));
       [~,gt] = mIdx.get();
@@ -8482,12 +8453,12 @@ classdef Labeler < handle
         
         hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontages_vw%d',ivw));
         uimenu('Parent',hCM,'Label','Clear selection',...
-          'Separator','on',...
-          'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)),...
-          'Tag',sprintf('LabelOverlayMontage_vw%d_ClearSelection',ivw));
+               'Separator','on',...
+               'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)),...
+               'Tag',sprintf('LabelOverlayMontage_vw%d_ClearSelection',ivw));
         uimenu('Parent',hCM,'Label','Navigate APT to selected frame',...
-          'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers(1),tMFT,s,e),...
-          'Tag',sprintf('LabelOverlayMontage_vw%d_NavigateToSelectedFrame',ivw)); 
+               'Callback',@(s,e)hlpOverlayMontage(obj,clckHandlers(1),tMFT,s,e),...
+               'Tag',sprintf('LabelOverlayMontage_vw%d_NavigateToSelectedFrame',ivw));
         % Need only one clickhandler; the first is set up here
         set(hAxs(ivw),'UIContextMenu',hCM);
       end
@@ -8523,19 +8494,12 @@ classdef Labeler < handle
         hsld.Position(1) = 0.5-hsld.Position(3)/2;
         hsld.Position(2) = ax1yposnorm/2 - SLIDERHEIGHT/2;
         addlistener(hsld,'ContinuousValueChange',@(s,e)set(hLns,'MarkerSize',(s.Value+.002)*MAXMARKERSIZE));
-%         htxt = uicontrol(hfig1,'style','text','String','Marker Size','HorizontalAlignment','right');
-%         htxt.Units = 'normalized';
-%         htxt.FontWeight = 'bold';
-%         htxt.FontAngle = 'italic';
-%         htxt.FontSize = 10;
-%         htxt.Position(3) = htxt.Extent(3);
-%         htxt.Position(1) = 0.5-htxt.Position(3)/2;
-%         htxt.Position(2) = hsld.Position(2)-htxt.Extent(4); 
       end
 
       tor = TrainingOverlayReceiver(hAxs,tbases,tMFT);
       ec.registerObject(tor,'respond');    
     end
+
     function hlpOverlayMontage(obj,clickHandler,tMFT,~,~)
       eid = clickHandler.fSelectedEids;
       if ~isempty(eid)
@@ -8545,8 +8509,9 @@ classdef Labeler < handle
         warningNoTrace('No shape selected.');
       end
     end
+
     function [ims,p] = hlpOverlayMontageGenerateImP(obj,tMFT,nphyspts,...
-        ctrMeth,rotAlignMeth,~,roiPadVal)
+                                                    ctrMeth,rotAlignMeth,~,roiPadVal)
       % Generate images and shapes to plot
       %
       % tMFT: table with labeled frames
@@ -8728,6 +8693,7 @@ classdef Labeler < handle
         p = tMFT.p;
       end
     end
+
     function hlpOverlayMontageMarkerInc(obj,hLns,dSz) %#ok<INUSL>
       sz = hLns(1).MarkerSize;
       sz = max(sz+dSz,1);
@@ -10654,6 +10620,9 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
+      obj.setStatus('Setting training parameters...');
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      
       [setall, istrack] = ...
         myparse(varargin, ...
                 'all',false, ... % if true, sPrm can contain 'extra parameters' like fliplandmarks. no callsites currently
@@ -12524,11 +12493,10 @@ classdef Labeler < handle
   %% Crop
   methods
     
-    function cropSetCropMode(obj,tf)
+    function cropSetCropMode(obj, tf)
       if obj.hasTrx && tf
         obj.lerror('User-specied cropping is unsupported for projects with trx.');
       end
-
       obj.setStatus('Switching crop mode...');      
       oc = onCleanup(@()(obj.clearStatus())) ;
       obj.cropCheckCropSizeConsistency();
@@ -15323,5 +15291,32 @@ classdef Labeler < handle
       end
     end
 
+    function projRemoveOtherTempDirs(obj, todelete)
+      obj.setStatus('Deleting temp directories...');
+      oc = onCleanup(@()(obj.clearStatus())) ;      
+      ndelete = 0;
+      for i = 1:numel(todelete),
+        [success, msg, ~] = rmdir(todelete{i},'s');
+        if success,
+          ndelete = ndelete + 1;
+          fprintf('Cleared temp directory: %s\n',todelete{i});
+        else
+          warning('Could not clear the temp directory %s: %s',todelete{i},msg);
+        end
+      end
+      success = (ndelete == numel(todelete)) ;
+      if ~success ,
+        error('Unable to clear all temporary directories.  See console for details.') ;
+      end
+    end    
+    
+    function clearTrackingResults(obj)
+      labeler.setStatus('Clearing tracking results...') ;
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      tracker = obj.tracker ;
+      if ~isempty(tracker) 
+        tracker.clearTrackingResults() ;
+      end
+    end    
   end  % methods
 end  % classdef

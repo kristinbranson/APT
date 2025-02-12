@@ -255,9 +255,7 @@ lclNavToMFT(lObj,mftRow);
 function lclNavToMFT(lObj,mftRow)
 iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
-  lObj.setStatus(sprintf('Switching to GT movie %d...',iMov));
   lObj.movieSet(iMov);
-  lObj.clearStatus();
 end
 lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
 

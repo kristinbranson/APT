@@ -191,7 +191,6 @@ classdef MovieManagerController < handle
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
-      lObj.setStatus(sprintf('Switching to movie %d...\n',iMov));
       if obj.selectedTabMatchesLabelerGTMode
         lObj.movieSet(iMov);
       else
@@ -202,7 +201,6 @@ classdef MovieManagerController < handle
         end
         warningNoTrace('MovieManagerController:nav',warnstr);
       end
-      lObj.clearStatus();
     end
     
     function cbkPushButton(obj,src,~)
@@ -213,14 +211,9 @@ classdef MovieManagerController < handle
       
       switch src.Tag
         case 'pbAdd'
-          lObj.setStatus('Adding new movie...');
-          oc = onCleanup(@()(lObj.clearStatus()));
           obj.addLabelerMovie(); % can throw
-          %lObj.ClearStatus();
         case 'pbRm'
-          lObj.setStatus('Removing movie...');
           obj.rmLabelerMovie();
-          lObj.clearStatus();
         case 'pbSwitch' 
           iMov = obj.mmTblCurr.getSelectedMovies();
           if ~isempty(iMov)
@@ -233,9 +226,7 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
-            lObj.setStatus(sprintf('Switching to unlabeled movie %d',iMov));
             lObj.movieSet(iMov);
-            lObj.clearStatus();
           end
         case 'pbGTFrames'
           lObj.gtShowGTManager();
@@ -302,14 +293,11 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
-      lObj.setStatus(sprintf('Adding movies from file %s...',fname));
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.setStatus('Switching to movie 1...');
         lObj.movieSet(1);
       end
-      lObj.clearStatus();
     end
 
     function bringWindowToFront(obj)
