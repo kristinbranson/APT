@@ -5,18 +5,13 @@ classdef LabelerController < handle
     listeners_
     satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
-    %waitbarListeners_ = event.listener.empty(1,0)
     trackingMonitorVisualizer_
     trainingMonitorVisualizer_
     movieManagerController_
-    % Things related to resizing
-    pxTxUnsavedChangesWidth_  % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed
-    %pxPnlPrevRightEdgeMinusTxUnsavedChangesLeftEdge_
-    %pumTrackInitFontSize_
-    %pumTrackInitHeight_
+    pxTxUnsavedChangesWidth_  
+      % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
     isPlaying_ = false  % whether a video is currently playing or not
-    pumTrackFullStrings_ = []
-    labelTLInfo
+    labelTLInfo  % an InfoTimeline object
   end
 
   properties  % private/protected by convention
@@ -251,7 +246,6 @@ classdef LabelerController < handle
     menu_track_backend_config_setdockerssh
     menu_track_backend_config_docker_image_spec
     menu_track_backend_set_conda_env
-
   end
 
   methods
@@ -305,7 +299,7 @@ classdef LabelerController < handle
       obj.updateEnablementOfManyControls() ;
       
       % Update the status
-      obj.updateStatus([],[]) ;
+      obj.updateStatusBar() ;
 
       % % Populate the callbacks of the controls in the main figure---someday
       % apt.populate_callbacks_bang(mainFigure, obj) ;
@@ -405,7 +399,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateStatus', @(source,event)(obj.updateStatus(source, event))) ;      
+        addlistener(labeler, 'updateStatus', @(source,event)(obj.updateStatusBar())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetTrx', @(source,event)(obj.didSetTrx(source, event))) ;      
       obj.listeners_(end+1) = ...
@@ -594,7 +588,7 @@ classdef LabelerController < handle
       end
     end
 
-    function updateStatus(obj, ~, ~)
+    function updateStatusBar(obj)
       % Update the status text box to reflect the current model state.
       labeler = obj.labeler_ ;
       is_busy = labeler.isStatusBusy ;
@@ -1907,12 +1901,12 @@ classdef LabelerController < handle
 
     function didChangeProjectName(obj)
       obj.updateMainFigureName() ;
-      obj.updateStatus() ;      
+      obj.updateStatusBar() ;      
     end  % function
 
     function didChangeProjFSInfo(obj)
       obj.updateMainFigureName() ;
-      obj.updateStatus() ;      
+      obj.updateStatusBar() ;      
     end  % function
 
     function didChangeMovieInvert(obj)
@@ -3210,6 +3204,9 @@ classdef LabelerController < handle
     end  % function
 
     function didSetGTMode(obj)       
+      % Updates the controls that depend upon whether the Labeler is in GT mode or
+      % not, and then also brings the movie manager window to the fore if we just
+      % switched to GT mode.
       obj.updateGTModeRelatedControls() ;
       mmc = obj.movieManagerController_ ;
       if ~isempty(mmc) ,
@@ -3222,6 +3219,8 @@ classdef LabelerController < handle
     end
 
     function updateGTModeRelatedControls(obj)
+      % Updates the controls that depend upon whether the Labeler is in GT mode or
+      % not.
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
@@ -4525,6 +4524,7 @@ classdef LabelerController < handle
 
     function menu_help_actuated_(obj, src, evt)  %#ok<INUSD>
     end
+
     function menu_help_labeling_actions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore;
@@ -5179,29 +5179,19 @@ classdef LabelerController < handle
 
 
     function menu_track_trainincremental_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       labeler.trainIncremental();
-
     end
 
 
 
     function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       if labeler.maIsMA
         TrkInfoUI(labeler);
       else
         obj.raiseTargetsTableFigure();
       end
-
     end
 
 
@@ -5815,7 +5805,7 @@ classdef LabelerController < handle
       obj.update_menu_track_tracking_algorithm() ;
       obj.update_menu_track_tracker_history() ;
       obj.update_text_trackerinfo() ;
-      obj.updateStatus() ;
+      obj.updateStatusBar() ;
       obj.cbkGTSuggUpdated() ;
       obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;

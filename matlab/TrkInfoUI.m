@@ -1,7 +1,7 @@
 function TrkInfoUI(lobj)
 
 assert(lobj.maIsMA,'UI is functional only for multi-animal projects');
-f = findall(0,'tag','TrkInfoUI');
+f = findall(groot(),'tag','TrkInfoUI');
 if isempty(f)
   init_figure(lobj);
 else
@@ -21,7 +21,7 @@ end
 function f = init_figure(lobj)
 
 f = uifigure('Units','pixel','Position',[250,250,1000,800],...
-  'tag','TrkInfoUI','Name','Track Info');
+             'tag','TrkInfoUI','Name','Track Info');
 %     centerOnParentFigure(f,lobj.hFig)
 h = guidata(f);
 h.lobj = lobj;
