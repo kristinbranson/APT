@@ -52,8 +52,8 @@ def cropframe(frame,more,croprows,cropcols):
         x = region[0]
         y = region[1]
         data = region[2]
-        if x >= cropcols[1] or x + data.shape[1] <= cropcols[0] or \
-            y >= croprows[1] or y + data.shape[0] <= croprows[0]:
+        if x > cropcols[1] or x + data.shape[1] <= cropcols[0] or \
+            y > croprows[1] or y + data.shape[0] <= croprows[0]:
             continue
         cropdata = data.copy()
         cropx = x - cropcols[0]
@@ -61,13 +61,17 @@ def cropframe(frame,more,croprows,cropcols):
         if x < cropcols[0]:
             cropdata = cropdata[:,cropcols[0]-x:]
             cropx = 0
-        if x + data.shape[1] > cropcols[1]:
-            cropdata = cropdata[:,:-(x+data.shape[1]-cropcols[1])]
+        if x + data.shape[1] - 1 > cropcols[1]:
+            x1 = (x+data.shape[1])-cropcols[1] - 1
+            assert x1 > 0
+            cropdata = cropdata[:,:-x1]
         if y < croprows[0]:
             cropdata = cropdata[croprows[0]-y:,:]
             cropy = 0
-        if y + data.shape[0] > croprows[1]:
-            cropdata = cropdata[:-(y+data.shape[0]-croprows[1]),:]
+        if y + data.shape[0] - 1 > croprows[1]:
+            y1 = (y+data.shape[0]) - croprows[1] - 1
+            assert y1 > 0
+            cropdata = cropdata[:-y1,:]
         w = cropdata.shape[1]
         h = cropdata.shape[0]
         assert w > 0 and h > 0
