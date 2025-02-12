@@ -48,8 +48,6 @@ def Downloadweights(modeltype,model_path):
         print("Downloading a ImageNet-pretrained model from {}....".format(url))
         response = urllib.request.urlopen(url)
         with tarfile.open(fileobj=BytesIO(response.read()), mode='r:gz') as tar:
-#            tar.extractall(path=target_dir)
-# using safe extract because extract all is unsafe. Check https://github.com/advisories/GHSA-gw9q-c7gh-j9vm
             def is_within_directory(directory, target):
 
                 abs_directory = os.path.abspath(directory)
@@ -68,8 +66,10 @@ def Downloadweights(modeltype,model_path):
 
                 tar.extractall(path, members, numeric_owner=numeric_owner)
 
-
             safe_extract(tar, path=target_dir)
+            # tar.extractall(path=target_dir)
+            # using safe extract because extract all is unsafe. Check https://github.com/advisories/GHSA-gw9q-c7gh-j9vm
+
     except KeyError:
         print("Model does not exist: ", modeltype)
         print("Pick one of the following: ", neturls.keys())
