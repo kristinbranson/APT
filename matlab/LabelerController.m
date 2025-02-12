@@ -1496,7 +1496,7 @@ classdef LabelerController < handle
           elseif lObj.nview > 1,
             set(obj.h_singleview_only,'Enable','off');
           else
-            obj.labeler_.lerror('Sanity check -- nview = 0');
+            error('Internal error: nview == 0');
           end
           if lObj.maIsMA
             set(obj.h_nonma_only,'Enable','off');

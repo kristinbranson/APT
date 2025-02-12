@@ -3443,10 +3443,6 @@ handles = guihandles(main_figure);
 % Call the initialization function (now inlined)
 %dispatchMainFigureCallback('initialize', h1, [], handles) ;
 
-% if verLessThan('matlab','8.4')
-%   labeler.lerror('LabelerGUI:ver','LabelerGUI requires MATLAB version R2014b or later.');
-% end
-
 % if labeler.isgui ,
 %   hfigsplash = createSplashScreenFigure();
 % end
