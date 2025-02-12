@@ -4348,6 +4348,10 @@ classdef LabelerController < handle
 
 
     function menu_file_load_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.load() ;
+    end
+
+    function load(obj)
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         currMovInfo = labeler.projLoad();
@@ -5808,5 +5812,97 @@ classdef LabelerController < handle
       labeler.projSave(lblFilePath) ;
     end  % function
     
+    function labels2ImportTrkPromptAuto(obj, iMovs)
+      % See labelImportTrkPromptAuto().
+      % iMovs: works per current GT mode
+      
+      labeler = obj.labeler_ ;      
+      if exist('iMovs','var')==0
+        iMovs = 1:labeler.nmoviesGTaware;
+      end      
+      obj.labelImportTrkPromptGenericAuto(iMovs,'labels2ImportTrk');
+    end
+    
+    function labelImportTrkPromptGenericAuto(obj,iMovs,importFcn)
+      % Come up with trkfiles based on iMovs and then call importFcn.
+      % 
+      % iMovs: index into .movieFilesAllGTAware
+      
+      labeler = obj.labeler_ ;      
+      PROPS = labeler.gtGetSharedProps();
+      movfiles = labeler.(PROPS.MFAF)(iMovs,:);
+      [tfsucc,trkfilesUse] = LabelerController.labelImportTrkFindTrkFilesPrompt(movfiles);
+      if tfsucc
+        feval(importFcn,labeler,iMovs,trkfilesUse);
+      else
+        if isscalar(iMovs) && labeler.nview==1
+          % In this case (single movie, single view) failure can occur if 
+          % no trkfile is found alongside movie, or if user cancels during
+          % a prompt.
+          
+          lastTrkFileImported = RC.getprop('lastTrkFileImported');
+          if isempty(lastTrkFileImported)
+            lastTrkFileImported = pwd;
+          end
+          [fname,pth] = uigetfile('*.trk','Import trkfile',lastTrkFileImported);
+          if isequal(fname,0)
+            return;
+          end
+          trkfile = fullfile(pth,fname);
+          feval(importFcn,labeler,iMovs,{trkfile});
+        end
+      end      
+    end
+  end  % methods
+
+  methods (Static)
+    function [tfsucc,trkfilesUse] = labelImportTrkFindTrkFilesPrompt(movfiles)
+      % Find trkfiles present for given movies. Prompt user to pick a set
+      % if more than one exists.
+      %
+      % movfiles: [nTrials x nview] cellstr
+      %
+      % tfsucc: if true, trkfilesUse is valid; if false, trkfilesUse is
+      % intedeterminate
+      % trkfilesUse: cellstr, same size as movfiles. Full paths to trkfiles
+      % present/selected for import
+      
+      [trkfilesCommon,kwCommon] = Labeler.getTrkFileNamesForImport(movfiles);
+      nCommon = numel(kwCommon);
+      
+      tfsucc = false;
+      trkfilesUse = [];
+      switch nCommon
+        case 0
+          warningNoTrace('Labeler:labelImportTrkPrompt',...
+            'No consistently-named trk files found across %d given movies.',numel(movfiles));
+          return;
+        case 1
+          trkfilesUseIdx = 1;
+        otherwise
+          msg = sprintf('Multiple consistently-named trkfiles found. Select trkfile pattern to import.');
+          uiwait(msgbox(msg,'Multiple trkfiles found','modal'));
+          trkfileExamples = trkfilesCommon{1};
+          for i=1:numel(trkfileExamples)
+            [~,trkfileExamples{i}] = myfileparts(trkfileExamples{i});
+          end
+          [sel,ok] = listdlg(...
+            'Name','Select trkfiles',...
+            'Promptstring','Select a trkfile (pattern) to import.',...
+            'SelectionMode','single',...
+            'listsize',[300 300],...
+            'liststring',trkfileExamples);
+          if ok
+            trkfilesUseIdx = sel;
+          else
+            return;
+          end
+      end
+      trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
+      tfsucc = true;
+    end
+    
+    
+
   end  % methods  
 end  % classdef
