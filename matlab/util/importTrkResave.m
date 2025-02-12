@@ -22,6 +22,6 @@ else
     lblname2 = lblname;
 end
 
-lObj.projSaveRaw(lblname2);
+lObj.projSave(lblname2);
 fprintf(1,'Saved proj: %s\n',lblname2);
 

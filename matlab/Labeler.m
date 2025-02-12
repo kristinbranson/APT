@@ -153,7 +153,7 @@ classdef Labeler < handle
     gtResUpdated  % update of GT performance results occurred
     
     update_menu_track_tracking_algorithm
-    update_menu_track_tracking_algorithm_quick
+    % update_menu_track_tracking_algorithm_quick
     update_menu_track_tracker_history
     didSetCurrTracker
     didSetCurrTarget
@@ -2121,19 +2121,21 @@ classdef Labeler < handle
       obj.notify('update') ;
     end
     
-    function projSaveRaw(obj,fname)      
+    function projSave(obj, fname)      
+      % This is the proper model save operation for clients.  (That does not require
+      % a GUI.)
+      obj.setStatus('Saving project...');
+      oc = onCleanup(@()(obj.clearStatus())) ;
       try
         obj.saveVersionInfo = GetGitMatlabStatus(APT.Root);
       catch
         obj.saveVersionInfo = [];
-      end
-      
-      s = obj.projGetSaveStruct();
-      
+      end      
+      s = obj.projGetSaveStruct();      
       try
-        rawLblFile = obj.projGetRawLblFile();
-        save(rawLblFile,'-mat','-struct','s');
-        obj.projBundleSave(fname);
+        rawLblFileName = obj.projGetRawLblFile();
+        save(rawLblFileName,'-mat','-struct','s');
+        obj.projBundleSave_(fname);
       catch ME
         save(fname,'-mat','-struct','s');
         msg = ME.getReport();
@@ -2143,8 +2145,12 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
-
       RC.saveprop('lastLblFile',fname);      
+      % Assign the projname from the proj file name if appropriate
+      if isempty(obj.projname) && ~isempty(obj.projectfile)
+        [~,fname] = fileparts(obj.projectfile);
+        obj.projname = fname;
+      end
     end  % function
     
 %     function projSaveModified(obj,fname,varargin)
@@ -2159,58 +2165,6 @@ classdef Labeler < handle
 %       fprintf('Saved modified project file %s.\n',fname);
 %     end
         
-    function [success,lblfname] = projSaveAs(obj,lblfname)
-      % Saves a .lbl file, prompting user for filename.
-
-      if nargin <= 1,
-        if ~isempty(obj.projectfile)
-          filterspec = obj.projectfile;
-        else
-          % Guess a path/location for save
-          lastLblFile = RC.getprop('lastLblFile');
-          if isempty(lastLblFile)
-            if obj.hasMovie
-              savepath = fileparts(obj.moviefile);
-            else
-              savepath = pwd;
-            end
-          else
-            savepath = fileparts(lastLblFile);
-          end
-          
-          if ~isempty(obj.projname)
-            projfile = sprintf(obj.DEFAULT_LBLFILENAME,obj.projname);
-          else
-            projfile = sprintf(obj.DEFAULT_LBLFILENAME,'APTProject');
-          end
-          filterspec = fullfile(savepath,projfile);
-        end
-        
-        [lblfname,pth] = uiputfile(filterspec,'Save label file');
-        if isequal(lblfname,0)
-          lblfname = [];
-          success = false;
-          return;
-        end
-        lblfname = fullfile(pth,lblfname);
-      end
-
-      success = true;
-      obj.projSaveRaw(lblfname);
-
-    end
-    
-    function [success,lblfname] = projSaveSmart(obj)
-      % Try to save to current project; if there is no project, do a saveas
-      lblfname = obj.projectfile;
-      if isempty(lblfname)
-        [success,lblfname] = obj.projSaveAs();
-      else
-        success = true;
-        obj.projSaveRaw(lblfname);
-      end
-    end
-    
     function s = projGetSaveStruct(obj,varargin)
       % Warning: if .preProcSaveData is true, then s.preProcData is a
       % handle (shallow copy) to obj.preProcData
@@ -2524,7 +2478,14 @@ classdef Labeler < handle
         cellfun(@(tc,td)(LabelTracker.create(obj, tc, td)), ...
                 s.trackerClass(:)', s.trackerData(:)', ...
                 'UniformOutput', false) ;
-      trackerHistory = apt.trimTrackerHistoryAfterLoad(rawTrackerHistory) ;
+      isFilePreTrackerHistory = isfield(s, 'currTracker') ;
+        % indicates whether the file predates the introduction of tracker history
+      if isFilePreTrackerHistory
+        currTracker = s.currTracker ;
+      else
+        currTracker = [] ;
+      end
+      trackerHistory = apt.trimTrackersAfterLoad(rawTrackerHistory, isFilePreTrackerHistory, currTracker) ;
       obj.trackerHistory_ = trackerHistory;
       
       obj.isinit = false;
@@ -2776,12 +2737,12 @@ classdef Labeler < handle
 % %       % TODO .trackerDeep
 %     end
     
-    function projAssignProjNameFromProjFileIfAppropriate(obj)
-      if isempty(obj.projname) && ~isempty(obj.projectfile)
-        [~,fnameS] = fileparts(obj.projectfile);
-        obj.projname = fnameS;
-      end
-    end
+    % function projAssignProjNameFromProjFileIfAppropriate_(obj)
+    %   if isempty(obj.projname) && ~isempty(obj.projectfile)
+    %     [~,fname] = fileparts(obj.projectfile);
+    %     obj.projname = fname;
+    %   end
+    % end
     
     % Functions to handle bundled label files
     % MK 20190201
@@ -2939,7 +2900,7 @@ classdef Labeler < handle
       rawLblFile = fullfile(projtempdir,obj.DEFAULT_RAW_LABEL_FILENAME);
     end
     
-    function projBundleSave(obj,outFile,varargin) % throws 
+    function projBundleSave_(obj,outFile,varargin) % throws 
       % bundle contents of projTempDir into outFile
       %
       % throws on err, hopefully cleans up after itself (projtempdir) 
@@ -3373,8 +3334,8 @@ classdef Labeler < handle
       end
 
       % Determine which elements of s.trackerClass match some default tracker kind
-      [tf,loc] = LabelTracker.trackersCreateInfoIsMember(s.trackerClass(:),...
-                                                         defaultTrackersInfo);
+      tf = LabelTracker.trackersCreateInfoIsMember(s.trackerClass,...
+                                                   defaultTrackersInfo);
 
       %assert(all(tf));
       % AL: removing CPR for now until if/when updated 
@@ -3403,15 +3364,15 @@ classdef Labeler < handle
       s.trackerClass(~tf) = [];
       s.trackerData(~tf) = [];
 
-      % Bring loc into register with s.trackerClass, s.trackerData
-      loc(~tf) = [];      
-
-      tclass = defaultTrackersInfo;
-      tclass(loc) = s.trackerClass(:);  % If a default tracker kind matches one in s.trackerClass, replace the default tracker with the one in s.trackerClass
-      tdata = repmat({[]},1,nDfltTrkers);
-      tdata(loc) = s.trackerData(:);  % If a default tracker kind matches one in s.trackerClass, replace the default tracker with the one in s.trackerClass
-      s.trackerClass = tclass;
-      s.trackerData = tdata;      
+      % % Bring loc into register with s.trackerClass, s.trackerData
+      % loc(~tf) = [];      
+      % 
+      % tclass = defaultTrackersInfo;
+      % tclass(loc) = s.trackerClass(:);  % If a default tracker kind matches one in s.trackerClass, replace the default tracker with the one in s.trackerClass
+      % tdata = repmat({[]},1,nDfltTrkers);
+      % tdata(loc) = s.trackerData(:);  % If a default tracker kind matches one in s.trackerClass, replace the default tracker with the one in s.trackerClass
+      % s.trackerClass = tclass;
+      % s.trackerData = tdata;      
 
       % % KB 20201216 update currTracker as well
       % oldCurrTracker = s.currTracker;
@@ -10574,9 +10535,11 @@ classdef Labeler < handle
       oldTracker.setHideViz(true);
    
       % Shuffle trackersAll to bring iTrk to the front
+      % Also delete any untrained trackers.
       trackersNewFirst = trackers(iTrk) ;  % singleton cell array
-      trackersNewRest = trackers ;
-      trackersNewRest(iTrk) = [] ;
+      trackersNewRestDraft = delete_elements(trackers, iTrk) ;
+      isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackersNewRestDraft) ;
+      trackersNewRest = trackersNewRestDraft(isTrained) ;
       trackersNew = horzcat(trackersNewFirst, trackersNewRest) ;
       obj.trackerHistory_ = trackersNew ;
 
@@ -10594,7 +10557,7 @@ classdef Labeler < handle
 
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
-      obj.notify('update_menu_track_tracking_algorithm_quick') ;      
+      % obj.notify('update_menu_track_tracking_algorithm_quick') ;      
       obj.notify('update_menu_track_tracker_history') ;
       obj.notify('update_text_trackerinfo') ;
     end  % function
@@ -10629,8 +10592,12 @@ classdef Labeler < handle
       tci = tcis{tciIndex} ;
       newTracker = LabelTracker.create(obj, tci) ;     
       
+      % Filter untrained trackers out of trackers
+      isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackers) ;
+      trainedTrackers = trackers(isTrained) ;
+
       % Put the new tracker at the front of the history
-      trackersNew = horzcat({newTracker}, trackers) ;
+      trackersNew = horzcat({newTracker}, trainedTrackers) ;
       obj.trackerHistory_ = trackersNew ;
 
       % Activate the new tracker
@@ -10646,7 +10613,7 @@ classdef Labeler < handle
 
       % Send the notification
       obj.notify('didSetCurrTracker') ;      
-      obj.notify('update_menu_track_tracking_algorithm_quick') ;
+      % obj.notify('update_menu_track_tracking_algorithm_quick') ;
       obj.notify('update_menu_track_tracker_history') ;      
       obj.notify('update_text_trackerinfo') ;      
     end  % function
@@ -14697,7 +14664,7 @@ classdef Labeler < handle
   %% Util
   methods
     
-    function lerror(obj,varargin)
+    function lerror(obj, varargin)
       if isempty(regexp(varargin{1},'\w:\w','ONCE')) || ~isempty(regexp(varargin{1},'%','ONCE'))
         msg = sprintf(varargin{1:end});
       else
@@ -14903,9 +14870,9 @@ classdef Labeler < handle
       tfRm = iMov2==0;
       iMov1(tfRm,:) = [];
       iMov2(tfRm,:) = [];
-     end
-    
-  end
+     end    
+
+  end  % methods (Static)
 
   methods
     function value = get.doesNeedSave(obj)
@@ -14930,7 +14897,7 @@ classdef Labeler < handle
           obj.setStatus(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
         end        
       else
-        raise('APT:invalidValue', 'Illegal value for doesNeedSave') ;
+        error('APT:invalidValue', 'Illegal value for doesNeedSave') ;
       end
 
       obj.notify('updateDoesNeedSave') ;
@@ -15345,6 +15312,16 @@ classdef Labeler < handle
       oc = onCleanup(@()(obj.clearStatus())) ;
       obj.gtSetGTMode(gtNew);
     end
-    
+
+    function setTrackingParameters(obj, sPrmTrack)
+      obj.setStatus('Setting tracking parameters...');
+      on = onCleanup(@()(obj.clearStatus())) ;
+      if ~isempty(sPrmTrack),
+        sPrmNew = obj.trackSetTrackParams(sPrmTrack);
+        RC.saveprop('lastCPRAPTParams',sPrmNew);
+        obj.setDoesNeedSave(true, 'Parameters changed') ;
+      end
+    end
+
   end  % methods
 end  % classdef

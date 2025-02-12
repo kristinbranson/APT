@@ -150,7 +150,7 @@ for imovadd=1:nmovadd
 end
 
 if ~isempty(outfile)
-  lObj.projSaveRaw(outfile);
+  lObj.projSave(outfile);
   fprintf(1,'Project ''%s'' saved.\n',outfile);
 else
   lObj.projSaveAs();

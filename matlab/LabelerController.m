@@ -434,8 +434,8 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update_menu_track_tracking_algorithm',@(source,event)(obj.update_menu_track_tracking_algorithm()));            
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'update_menu_track_tracking_algorithm_quick',@(source,event)(obj.update_menu_track_tracking_algorithm_quick()));            
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'update_menu_track_tracking_algorithm_quick',@(source,event)(obj.update_menu_track_tracking_algorithm_quick()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update_menu_track_tracker_history',@(source,event)(obj.update_menu_track_tracker_history()));            
       obj.listeners_(end+1) = ...
@@ -665,8 +665,7 @@ classdef LabelerController < handle
           'Unsaved changes',OPTION_SAVE,OPTION_PROC,OPTION_CANC,OPTION_SAVE);
         switch res
           case OPTION_SAVE
-            labeler.projSaveSmart();
-            labeler.projAssignProjNameFromProjFileIfAppropriate();
+            obj.save();
             is_ok_to_proceed = true;
           case OPTION_CANC
             is_ok_to_proceed = false;
@@ -1725,11 +1724,9 @@ classdef LabelerController < handle
                                 n_out_of_d_string) ;
       res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
       if strcmpi(res,'Save'),
-        labeler.projSaveSmart();
-        labeler.projAssignProjNameFromProjFileIfAppropriate();
+        obj.save();
       elseif strcmpi(res,'Save as...'),
-        labeler.projSaveAs();
-        labeler.projAssignProjNameFromProjFileIfAppropriate();
+        obj.saveAs();
       end  % if      
     end
 
@@ -2354,31 +2351,31 @@ classdef LabelerController < handle
                'Position',i) ;
       end
 
-      % Update the checkboxes, etc
-      obj.update_menu_track_tracking_algorithm_quick() ;
+      % % Update the checkboxes, etc
+      % obj.update_menu_track_tracking_algorithm_quick() ;
     end  % function
 
-    function update_menu_track_tracking_algorithm_quick(obj)
-      % Update the Track > 'Tracking algorithm' submenu.
-      % This essentially means updating what elements are checked or not.
-
-      % Get out the main objects
-      labeler = obj.labeler_ ;
-      if labeler.isinit ,
-        return
-      end
-      
-      % Remake the submenu items
-      menus = obj.menu_track_tracking_algorithm.Children ;
-      trackers = labeler.trackersAll ;
-      trackerCount = numel(trackers) ;
-      isMatch = labeler.doesCurrentTrackerMatchFromTrackersAllIndex() ;
-      for i=1:trackerCount
-        menu = menus(i) ;
-        menuTrackersAllIndex = menu.UserData ;
-        menu.Checked = onIff(isMatch(menuTrackersAllIndex)) ;
-      end
-    end  % function
+    % function update_menu_track_tracking_algorithm_quick(obj)
+    %   % Update the Track > 'Tracking algorithm' submenu.
+    %   % This essentially means updating what elements are checked or not.
+    % 
+    %   % Get out the main objects
+    %   labeler = obj.labeler_ ;
+    %   if labeler.isinit || ~labeler.hasProject ,
+    %     return
+    %   end
+    % 
+    %   % Remake the submenu items
+    %   menus = obj.menu_track_tracking_algorithm.Children ;
+    %   trackers = labeler.trackersAll ;
+    %   trackerCount = numel(trackers) ;
+    %   isMatch = labeler.doesCurrentTrackerMatchFromTrackersAllIndex() ;
+    %   for i=1:trackerCount
+    %     menu = menus(i) ;
+    %     menuTrackersAllIndex = menu.UserData ;
+    %     menu.Checked = onIff(isMatch(menuTrackersAllIndex)) ;
+    %   end
+    % end  % function
 
     function update_menu_track_tracker_history(obj)
       % Populate the Track > 'Tracking algorithm' submenu.
@@ -2655,7 +2652,7 @@ classdef LabelerController < handle
 
     function cbkCurrTrackerChanged(obj)
       % Update the controls that need to be updated after the current tracker
-      % changes
+      % changes.
 
       % Get the objects we need to mess with
       labeler = obj.labeler_ ;
@@ -4340,31 +4337,13 @@ classdef LabelerController < handle
 
 
     function menu_file_save_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-
-      labeler.setStatus('Saving project...');
-      labeler.projSaveSmart();
-      labeler.projAssignProjNameFromProjFileIfAppropriate();
-      labeler.clearStatus()
-
+      obj.save();
     end
 
 
 
     function menu_file_saveas_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-
-      labeler.setStatus('Saving project...');
-      labeler.projSaveAs();
-      labeler.projAssignProjNameFromProjFileIfAppropriate();
-      labeler.clearStatus()
-
+      obj.saveAs();
     end
 
 
@@ -4396,14 +4375,14 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
         obj.movieManagerController_.setVisible(true);
       else
-        labeler.lerror('LabelerGUI:movieManagerController','Please create or load a project.');
+        error('LabelerGUI:movieManagerController','Please create or load a project.');
       end
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
-        labeler.lerror('LabelerGUI:noMovie','No movie is loaded.');
+        error('LabelerGUI:noMovie','No movie is loaded.');
       end
       labeler.gtThrowErrIfInGTMode();
       iMov = labeler.currMovie;
@@ -4431,7 +4410,7 @@ classdef LabelerController < handle
     function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
-        labeler.lerror('LabelerGUI:noMovie','No movie is loaded.');
+        error('LabelerGUI:noMovie','No movie is loaded.');
       end
       iMov = labeler.currMovie; % gt-aware
       labeler.setStatus('Importing tracking results...');
@@ -5075,25 +5054,18 @@ classdef LabelerController < handle
 
 
     function menu_track_setparametersfile_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-
       % Really, "configure parameters"
-
-
+      labeler = obj.labeler_ ;
       if any(labeler.bgTrnIsRunningFromTrackerIndex()),
         warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
         return;
       end
       labeler.setStatus('Setting training parameters...');
-
       [tPrm,do_update] = labeler.trackSetAutoParams();
-
       sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
-
       if isempty(sPrmNew)
         if do_update
           RC.saveprop('lastCPRAPTParams',sPrmNew);
-          %cbkSaveNeeded(labeler,true,'Parameters changed');
           labeler.setDoesNeedSave(true,'Parameters changed') ;
         end
         % user canceled; none
@@ -5103,66 +5075,41 @@ classdef LabelerController < handle
         %cbkSaveNeeded(labeler,true,'Parameters changed');
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end
-
       labeler.clearStatus();
-
-
     end
 
 
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setStatus('Setting tracking parameters...');
-
-      [tPrm] = labeler.trackGetTrackParams();
-
-      sPrmTrack = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
-
-      if ~isempty(sPrmTrack),
-        sPrmNew = labeler.trackSetTrackParams(sPrmTrack);
-        RC.saveprop('lastCPRAPTParams',sPrmNew);
-        %cbkSaveNeeded(labeler,true,'Parameters changed');
-        labeler.setDoesNeedSave(true, 'Parameters changed') ;
-      end
-
-      labeler.clearStatus();
+      tPrm = labeler.trackGetTrackParams();
+      sPrmTrack = ParameterSetup(obj.mainFigure_, tPrm, 'labelerObj', labeler);  % modal
+      labeler.setTrackingParameters(sPrmTrack) ;
     end
 
 
 
     function menu_track_auto_params_update_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
-      checked = get(src,'Checked');
-      set(src,'Checked',~checked);
+      checked = get(src,'Checked') ;
+      set(src,'Checked',~checked) ;  % No no no no no
       labeler.trackAutoSetParams = ~checked;
-
       labeler.setDoesNeedSave(true, 'Auto compute training parameters changed') ;
-
-
     end
 
 
 
     function menu_track_use_all_labels_to_train_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       tObj = labeler.tracker;
       if isempty(tObj)
-        labeler.lerror('LabelerGUI:tracker','No tracker for this project.');
+        error('LabelerController:tracker','No tracker for this project.');
       end
       if tObj.hasTrained && tObj.trnDataDownSamp
-        resp = questdlg('A tracker has already been trained with downsampled training data. Proceeding will clear all previous trained/tracked results. OK?',...
-          'Clear Existing Tracker','Yes, clear previous tracker','Cancel','Cancel');
+        resp = ...
+          questdlg('A tracker has already been trained with downsampled training data. Proceeding will clear all previous trained/tracked results. OK?',...
+                   'Clear Existing Tracker','Yes, clear previous tracker','Cancel', ...
+                   'Cancel');
         if isempty(resp)
           resp = 'Cancel';
         end
@@ -5230,7 +5177,7 @@ classdef LabelerController < handle
       end
       nfold = str2double(resp{1});
       if round(nfold)~=nfold || nfold<=1
-        labeler.lerror('LabelerGUI:xvalid','Number of folds must be a positive integer greater than 1.');
+        error('LabelerGUI:xvalid', 'Number of folds must be a positive integer greater than one.') ;
       end
       tbl.split = ceil(nfold*rand(n,1));
       t = labeler.tracker;
@@ -5301,7 +5248,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       nMov = labeler.nmoviesGTaware;
       if nMov==0
-        labeler.lerror('LabelerGUI:noMov','No movies in project.');
+        error('LabelerGUI:noMov','No movies in project.');
       end
       iMov = 1:nMov;
       [tfok,rawtrkname] = obj.getExportTrkRawNameUI();
@@ -5318,7 +5265,7 @@ classdef LabelerController < handle
 
       tracker = labeler.tracker;
       if labeler.gtIsGTMode
-        labeler.lerror('LabelerGUI:gt','Unsupported in GT mode.');
+        error('LabelerGUI:gt','Unsupported in GT mode.');
       end
 
       if ~isempty(tracker) && tracker.hasBeenTrained() && (~labeler.maIsMA)
@@ -5361,7 +5308,7 @@ classdef LabelerController < handle
         iMov = labeler.currMovie;
         frm = labeler.currFrame;
         if iMov==0
-          labeler.lerror('LabelerGUI:setLabels','No movie open.');
+          error('LabelerGUI:setLabels','No movie open.');
         end
 
         if labeler.maIsMA
@@ -5440,7 +5387,7 @@ classdef LabelerController < handle
 
         else
           if labeler.nTrx>1
-            labeler.lerror('LabelerGUI:setLabels','Unsupported for multiple targets.');
+            error('LabelerGUI:setLabels','Unsupported for multiple targets.');
           end
           %lpos2 = labeler.labeledpos2{iMov};
           %MK 20230728, labels2 now should always be TrkFile, but keeping other
@@ -5635,7 +5582,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       iMov = labeler.currMovie;
       if iMov==0
-        labeler.lerror('LabelerGUI:noMov','No movie currently set.');
+        error('LabelerGUI:noMov','No movie currently set.');
       end
       [tfok,rawtrkname] = obj.getExportTrkRawNameUI();
       if ~tfok
@@ -5813,6 +5760,53 @@ classdef LabelerController < handle
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ;
       end
     end
+    
+    function save(obj)
+      % Try to save to current project; if there is no project file name specified
+      % yet, do a saveas.
+      labeler = obj.labeler_ ;
+      lblfname = labeler.projectfile;
+      if isempty(lblfname)
+        obj.saveAs();
+      else
+        labeler.projSave(lblfname);
+      end
+    end  % function
+    
+    function saveAs(obj)
+      % Saves a .lbl file, prompting user for filename
+      labeler = obj.labeler_ ;
+      if ~isempty(labeler.projectfile)
+        filterspec = labeler.projectfile;
+      else
+        % Guess a path/location for save
+        lastLblFile = RC.getprop('lastLblFile');
+        if isempty(lastLblFile)
+          if labeler.hasMovie
+            savepath = fileparts(labeler.moviefile);
+          else
+            savepath = pwd;
+          end
+        else
+          savepath = fileparts(lastLblFile);
+        end
+        
+        if ~isempty(labeler.projname)
+          projfile = sprintf(labeler.DEFAULT_LBLFILENAME,labeler.projname);
+        else
+          projfile = sprintf(labeler.DEFAULT_LBLFILENAME,'APTProject');
+        end
+        filterspec = fullfile(savepath,projfile);
+      end
+      
+      [lblfname,pth] = uiputfile(filterspec,'Save label file');
+      if isequal(lblfname,0)
+        return
+      end
+      lblFilePath = fullfile(pth, lblfname) ;
+
+      labeler.projSave(lblFilePath) ;
+    end  % function
     
   end  % methods  
 end  % classdef

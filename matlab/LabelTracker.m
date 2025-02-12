@@ -459,7 +459,7 @@ classdef LabelTracker < handle
       end
     end
     
-    function info = getAllTrackersCreateInfo(isMA)
+    function result = getAllTrackersCreateInfo(isMA)
       % Get information about all of the kinds of trackers that the user can choose
       % from.
       %
@@ -476,6 +476,7 @@ classdef LabelTracker < handle
         dlnets = dlnets(~[dlnets.isMultiAnimal]);
         info = arrayfun(@(x){'DeepTracker' 'trnNetType' x}, dlnets, 'UniformOutput', false) ;
       end
+      result = info(:)' ;  % want row vector
     end
     
     function [tf,loc] = trackersCreateInfoIsMember(infocell1,infocell2)
@@ -489,8 +490,8 @@ classdef LabelTracker < handle
       % LablerTracker.getAllTrackersCreateInfo().
       n1 = numel(infocell1);
       n2 = numel(infocell2);
-      tf = false(n1,1);
-      loc = zeros(n1,1);
+      tf = false(1,n1);
+      loc = zeros(1,n1);
       for i=1:n1
         tci1 = infocell1{i} ;  % "tci" for Tracker Create Info
         for j=1:n2
