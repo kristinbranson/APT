@@ -228,7 +228,7 @@ classdef LabelerController < handle
   end
 
   properties
-    allAxHiliteMgr
+    axesesHighlightManager_
     hLinkPrevCurr
     newProjAxLimsSetInConfig
     h_ignore_arrows
@@ -505,7 +505,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetLblCore',@(src,evt)(obj.didSetLblCore(src, evt)));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'gtIsGTModeChanged',@(s,e)(obj.cbkGtIsGTModeChanged(s,e)));
+        addlistener(labeler,'gtIsGTModeChanged',@(s,e)(obj.didSetGTMode())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'cropIsCropModeChanged',@(s,e)(obj.cbkCropIsCropModeChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -547,7 +547,7 @@ classdef LabelerController < handle
         addlistener(obj.sldZoom,'ContinuousValueChange',@(s,e)(obj.controlActuated('sldZoom', s, e))) ;
 
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'updateMainAxisHighlight',@(s,e)(obj.hlpGTUpdateAxHilite())) ;
+        addlistener(labeler,'updateMainAxisHighlight',@(s,e)(obj.updateHighlightingOfAxes())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update',@(s,e)(obj.update())) ;
       obj.listeners_(end+1) = ...
@@ -1287,7 +1287,7 @@ classdef LabelerController < handle
         else
           tfHilite = false;
         end
-        obj.allAxHiliteMgr.setHighlight(tfHilite);
+        obj.axesesHighlightManager_.setHighlight(tfHilite);
       end
     end  % function
 
@@ -1815,11 +1815,11 @@ classdef LabelerController < handle
         fprintf(2,'Crop Mode initialization error: %s\n',ME.message);
       end
       
-      if ~isempty(obj.allAxHiliteMgr)
+      if ~isempty(obj.axesesHighlightManager_)
         % Explicit deletion not supposed to be nec
-        delete(obj.allAxHiliteMgr);
+        delete(obj.axesesHighlightManager_);
       end
-      obj.allAxHiliteMgr = AxesHighlightManager(axs);
+      obj.axesesHighlightManager_ = AxesHighlightManager(axs);
       
       axis(obj.axes_occ,[0 labeler.nLabelPoints+1 0 2]);
       
@@ -2999,7 +2999,7 @@ classdef LabelerController < handle
         iTgt = labeler.currTarget;
         labeler.currImHud.updateTarget(iTgt);
         obj.labelTLInfo.newTarget();
-        obj.hlpGTUpdateAxHilite();
+        obj.updateHighlightingOfAxes();
       end
     end  % function
 
@@ -3209,7 +3209,19 @@ classdef LabelerController < handle
       mnu.Checked = onIff(tf);
     end  % function
 
-    function cbkGtIsGTModeChanged(obj)
+    function didSetGTMode(obj)       
+      obj.updateGTModeRelatedControls() ;
+      mmc = obj.movieManagerController_ ;
+      if ~isempty(mmc) ,
+        labeler = obj.labeler_ ;     
+        gt = labeler.gtIsGTMode ;
+        if gt
+          mmc.bringWindowToFront() ;
+        end
+      end      
+    end
+
+    function updateGTModeRelatedControls(obj)
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
@@ -3219,10 +3231,11 @@ classdef LabelerController < handle
       if ~isempty(obj.GTManagerFigure)
         obj.GTManagerFigure.Visible = onIffGT;
       end
-      obj.hlpGTUpdateAxHilite();
+      obj.updateHighlightingOfAxes();
       obj.labelTLInfo.cbkGTIsGTModeUpdated() ;
-      if ~isempty(obj.movieManagerController_) ,
-        obj.movieManagerController_.lblerLstnCbkGTMode() ;
+      mmc = obj.movieManagerController_ ;
+      if ~isempty(mmc) ,
+        mmc.lblerLstnCbkGTMode() ;
       end
     end
 
@@ -3374,9 +3387,9 @@ classdef LabelerController < handle
       obj.updatePUMTrackAndFriend() ;
 
       % See note in AxesHighlightManager: Trx vs noTrx, Axes vs Panels
-      obj.allAxHiliteMgr.setHilitePnl(labeler.hasTrx);
+      obj.axesesHighlightManager_.setHighlightPanel(labeler.hasTrx) ;
 
-      obj.hlpGTUpdateAxHilite();
+      obj.updateHighlightingOfAxes();
 
       if labeler.cropIsCropMode
         obj.cropUpdateCropHRects_() ;
@@ -5503,16 +5516,7 @@ classdef LabelerController < handle
 
     function menu_evaluate_gtmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setStatus('Switching between Labeling and Ground Truth Mode...');
-      gt = labeler.gtIsGTMode;
-      gtNew = ~gt;
-      labeler.gtSetGTMode(gtNew);
-      if gtNew
-        mmc = obj.movieManagerController_ ;
-        mmc.setVisible(true);
-        figure(mmc.hFig);
-      end
-      labeler.clearStatus();
+      labeler.gtToggleGTMode() ;
     end
 
 
@@ -5746,15 +5750,15 @@ classdef LabelerController < handle
       obj.labelTLInfo.setCurPropType(ipropType,iprop);
     end  % function
 
-    function hlpGTUpdateAxHilite(obj)
+    function updateHighlightingOfAxes(obj)
       labeler = obj.labeler_ ;
       if labeler.gtIsGTMode
         tfHilite = labeler.gtCurrMovFrmTgtIsInGTSuggestions();
       else
         tfHilite = false;
       end
-      if ~isempty(obj.allAxHiliteMgr) ,
-        obj.allAxHiliteMgr.setHighlight(tfHilite);
+      if ~isempty(obj.axesesHighlightManager_) ,
+        obj.axesesHighlightManager_.setHighlight(tfHilite);
       end
     end
     
@@ -5804,7 +5808,7 @@ classdef LabelerController < handle
       obj.updateMainFigureName() ;
       obj.cbkShowOccludedBoxChanged() ;
       obj.cbkUpdateCropGUITools() ;
-      obj.cbkGtIsGTModeChanged() ;
+      obj.updateGTModeRelatedControls() ;
       if ~isempty(obj.movieManagerController_) ,
         obj.movieManagerController_.lblerLstnCbkGTMode() ;
       end

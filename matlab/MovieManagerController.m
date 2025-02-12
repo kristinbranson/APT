@@ -311,6 +311,11 @@ classdef MovieManagerController < handle
       end
       lObj.clearStatus();
     end
+
+    function bringWindowToFront(obj)
+      obj.setVisible(true) ;  % make sure is visible
+      figure(obj.hFig) ;
+    end
   end
   
   methods (Hidden)

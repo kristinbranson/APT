@@ -2595,12 +2595,14 @@ classdef Labeler < handle
       % obj.setPropertiesToFireCallbacksToInitializeUI_() ;
       obj.notify('update') ;
 
+      % The fact that we (presumably) have to update before doing these next few
+      % things suggests to me (along with their visual-centric names) that maybe
+      % these methods belong in the LabelerController.  -- ALT, 2025-02-11
       obj.setSkeletonEdges(obj.skeletonEdges);
       obj.setShowSkeleton(obj.showSkeleton);
       obj.setShowMaRoi(obj.showMaRoi);
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       obj.setFlipLandmarkMatches(obj.flipLandmarkMatches);
-%       obj.setShowPredTxtLbl(obj.showPredTxtLbl);
       % AL20220113 otherwise labels2 cosmetics (eg text show/hide) not applied
       obj.labels2VizShowHideUpdate();
       
@@ -15331,5 +15333,18 @@ classdef Labeler < handle
       obj.updateSkeletonCosmetics(skelSpecs);
     end
 
+    function gtToggleGTMode(obj)
+      gt = obj.gtIsGTMode;
+      gtNew = ~gt;
+      if gtNew
+        statusMessage = 'Switching to Ground Truth Mode...' ;
+      else
+        statusMessage = 'Switching back to Labeling Mode...' ;
+      end
+      obj.setStatus(statusMessage);
+      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.gtSetGTMode(gtNew);
+    end
+    
   end  % methods
 end  % classdef
