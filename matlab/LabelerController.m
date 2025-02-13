@@ -548,7 +548,10 @@ classdef LabelerController < handle
         addlistener(labeler, 'gtSuggUpdated', @(s,e)(obj.cbkGTSuggUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
-      
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateStuffInHlpSetCurrPrevFrame', @(s,e)(obj.updateStuffInHlpSetCurrPrevFrame())) ;
+
+
       % % Stash the guidata
       % guidata(mainFigure, obj) ;
       
@@ -5691,6 +5694,9 @@ classdef LabelerController < handle
 
     function updateHighlightingOfAxes(obj)
       labeler = obj.labeler_ ;
+      if labeler.isinit ,
+        return
+      end
       if labeler.gtIsGTMode
         tfHilite = labeler.gtCurrMovFrmTgtIsInGTSuggestions();
       else
@@ -5900,6 +5906,20 @@ classdef LabelerController < handle
       tfsucc = true;
     end  % function
     
+    function updateStuffInHlpSetCurrPrevFrame(obj)
+      labeler = obj.labeler_ ;      
+      obj.labelTLInfo.newFrame(labeler.currFrame);
+      set(obj.edit_frame,'String',num2str(labeler.currFrame));
+      sldval = (labeler.currFrame-1)/(labeler.nframes-1);
+      if isnan(sldval)
+        sldval = 0;
+      end
+      set(obj.slider_frame,'Value',sldval);
+      obj.updateHighlightingOfAxes() ;      
+      if labeler.gtIsGTMode
+        GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
+      end
+    end  % function
 
   end  % methods  
 end  % classdef
