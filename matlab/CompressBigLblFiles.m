@@ -276,7 +276,7 @@ for j = 1:nviews,
 end
 
 lObj.projSaveAs(newprojectfile);
-lObj.trackInitAllTrackers();
+lObj.clearAllTrackers();
 lObj.movieRmAll();
 lObj.movieSetAdd(outmovfiles);
 tblMF1 = removevars(tblMF1,'mov');

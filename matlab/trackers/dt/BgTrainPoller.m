@@ -1,4 +1,4 @@
-classdef BgTrainPoller < handle
+classdef BgTrainPoller < BgPoller
   
   properties
     dmcs_  % [nview] DeepModelChainOnDisk array  

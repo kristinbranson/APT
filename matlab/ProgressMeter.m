@@ -16,7 +16,6 @@ classdef ProgressMeter < handle
     title
     fraction
     message
-    canCancel
     wasCanceled
     isActive
   end

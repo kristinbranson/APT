@@ -1218,14 +1218,14 @@ classdef AWSec2 < handle
       %
       % In practice for the client, this action updates the "latest model"
       % to point to the local cache.
+
+      % If the DMC is already local,  do nothing
+      if obj.isDMCLocal ,
+        return
+      end
       
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
       assert(isscalar(dmc));      
-
-      % If the DMC is already local, warn
-      if obj.isDMCLocal ,
-        warning('Mirroring DMC from backend, even though DMC is already local.') ;
-      end
  
       maxiter = obj.getMostRecentModel(dmc) ;
       succ = (maxiter >= 0) ;

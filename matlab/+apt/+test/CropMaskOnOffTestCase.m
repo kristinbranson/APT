@@ -23,7 +23,7 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
       cleaner = onCleanup(@()(delete(controller))) ;  % this will delete labeler too
 
       % Set the algo
-      labeler.trackSetCurrentTrackerByName('magrone') ;
+      labeler.trackMakeNewTrackerCurrentByName('magrone') ;
 
       % Set the backend type
       labeler.set_backend_property('type', 'bsub');

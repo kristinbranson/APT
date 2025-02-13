@@ -80,8 +80,8 @@ classdef CPRVizTrackDiags < handle
       obj.rcObj = lObj.tracker.trnResRC;
     end
     function delete(obj)
-      deleteValidHandles(obj.hLM);
-      deleteValidHandles(obj.hLMTxt);
+      deleteValidGraphicsHandles(obj.hLM);
+      deleteValidGraphicsHandles(obj.hLMTxt);
       obj.cleanupHViz();
       delete(obj.hFig);
       obj.hFig = [];
@@ -118,7 +118,7 @@ classdef CPRVizTrackDiags < handle
     function cleanupHViz(obj)
       if ~isempty(obj.hViz)
         for i=1:numel(obj.hViz)
-          deleteValidHandles(obj.hViz{i});
+          deleteValidGraphicsHandles(obj.hViz{i});
         end
       end
       obj.hViz = [];
@@ -205,8 +205,8 @@ classdef CPRVizTrackDiags < handle
       end
     end
     function vizLMInit(obj)
-      deleteValidHandles(obj.hLM);
-      deleteValidHandles(obj.hLMTxt);
+      deleteValidGraphicsHandles(obj.hLM);
+      deleteValidGraphicsHandles(obj.hLMTxt);
       obj.hLM = gobjects(obj.nPts,1);
       obj.hLMTxt = gobjects(obj.nPts,1);
       

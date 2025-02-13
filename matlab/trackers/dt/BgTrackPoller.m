@@ -1,4 +1,4 @@
-classdef BgTrackPoller < handle
+classdef BgTrackPoller < BgPoller
   % Object parfeval-copied to runPollingLoop().  It implements the poll()
   % method, which polls files (and eventually processes) on the backend to check
   % on the progress of tracking.

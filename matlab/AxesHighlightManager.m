@@ -57,7 +57,7 @@ classdef AxesHighlightManager < handle
       obj.tfHilite = false;
     end
     
-    function setHilitePnl(obj,tf)
+    function setHighlightPanel(obj,tf)
       obj.setHighlight(false);
       obj.tfHilitePnl = tf;
     end

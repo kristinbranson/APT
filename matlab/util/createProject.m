@@ -30,7 +30,7 @@ function lObj = createProject(baseProj,movFiles,varargin)
   );
 
 lObj = Labeler();
-lObj.projLoad(baseProj);
+lObj.projLoadGUI(baseProj);
 if clearBaseProj
   lObj.movieRmAll();
 end
@@ -93,7 +93,7 @@ for imovadd=1:nmovadd
   if tfmatch
     warningNoTrace('Movies already exist in project in imov=%d:',imovmatch);
     cellfun(@(x)fprintf(2,' %s\n',x),movFiles(imovadd,:));
-    lObj.movieSet(imovmatch);    
+    lObj.movieSetGUI(imovmatch);    
   else  
     if nview==1
       lObj.movieAdd(movFiles{imovadd},trxFiles{imovadd},...
@@ -102,7 +102,7 @@ for imovadd=1:nmovadd
       assert(~tfTrx);
       lObj.movieSetAdd(movFiles(imovadd,:),'offerMacroization',false);
     end
-    lObj.movieSet(lObj.nmoviesGTaware);
+    lObj.movieSetGUI(lObj.nmoviesGTaware);
   end
   
   pause(1); % prob unnec, give UI a little time
@@ -150,7 +150,7 @@ for imovadd=1:nmovadd
 end
 
 if ~isempty(outfile)
-  lObj.projSaveRaw(outfile);
+  lObj.projSave(outfile);
   fprintf(1,'Project ''%s'' saved.\n',outfile);
 else
   lObj.projSaveAs();

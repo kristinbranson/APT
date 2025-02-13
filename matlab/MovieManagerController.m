@@ -67,9 +67,9 @@ classdef MovieManagerController < handle
       lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.lblerLstnCbkUpdateTableGT(s,e)));      
       %lObjs{end+1,1} = listenPropsPostSet(lObj,GTPROPS,@(s,e)obj.lblerLstnCbkUpdateTableGT(s,e));
 
-      lObjs{end+1,1} = addlistener(lObj,'projLoaded',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
+      %lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
       lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
-      lObjs{end+1,1} = lObj.addlistener('gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
       obj.listeners = lObjs;
       
       obj.tabSetup();
@@ -78,7 +78,7 @@ classdef MovieManagerController < handle
       gdata.menu_file_add_movies_from_text_file.Callback = ...
           @(s,e)obj.mnuFileAddMoviesBatch();
       
-      centerfig(obj.hFig,obj.labeler.gdata.figure);
+      centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
     end
     
     function delete(obj)
@@ -191,9 +191,8 @@ classdef MovieManagerController < handle
       assert(isscalar(iMov) && iMov>0);
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
-      lObj.setStatus(sprintf('Switching to movie %d...\n',iMov));
       if obj.selectedTabMatchesLabelerGTMode
-        lObj.movieSet(iMov);
+        lObj.movieSetGUI(iMov);
       else
         if lObj.gtIsGTMode
           warnstr = 'Labeler is in GT mode; select ''GT'' Tab in Movie Manager if you wish to browse movies via the table.';
@@ -202,10 +201,9 @@ classdef MovieManagerController < handle
         end
         warningNoTrace('MovieManagerController:nav',warnstr);
       end
-      lObj.clearStatus();
     end
     
-    function cbkPushButton(obj,src,evt)
+    function cbkPushButton(obj,src,~)
       iTab = find(src.Parent==obj.hTabs);
       lObj = obj.labeler;
       tfGT = lObj.gtIsGTMode;
@@ -213,14 +211,9 @@ classdef MovieManagerController < handle
       
       switch src.Tag
         case 'pbAdd'
-          lObj.setStatus('Adding new movie...');
-          oc = onCleanup(@()(lObj.clearStatus()));
           obj.addLabelerMovie(); % can throw
-          %lObj.ClearStatus();
         case 'pbRm'
-          lObj.setStatus('Removing movie...');
           obj.rmLabelerMovie();
-          lObj.clearStatus();
         case 'pbSwitch' 
           iMov = obj.mmTblCurr.getSelectedMovies();
           if ~isempty(iMov)
@@ -233,9 +226,7 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
-            lObj.setStatus(sprintf('Switching to unlabeled movie %d',iMov));
-            lObj.movieSet(iMov);
-            lObj.clearStatus();
+            lObj.movieSetGUI(iMov);
           end
         case 'pbGTFrames'
           lObj.gtShowGTManager();
@@ -254,7 +245,7 @@ classdef MovieManagerController < handle
     
     function lblerLstnCbkProjLoaded(obj,~,~)
       obj.hlpLblerLstnCbkUpdateTable(false);
-      obj.hlpLblerLstnCbkUpdateTable(true);
+      obj.hlpLblerLstnCbkUpdateTable(true);  % Me no like.  -- ALT, 2025-02-11
     end
     
     function lblerLstnCbkNewMovie(obj,~,~)
@@ -302,14 +293,16 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
-      lObj.setStatus(sprintf('Adding movies from file %s...',fname));
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.setStatus('Switching to movie 1...');
-        lObj.movieSet(1);
+        lObj.movieSetGUI(1);
       end
-      lObj.clearStatus();
+    end
+
+    function bringWindowToFront(obj)
+      obj.setVisible(true) ;  % make sure is visible
+      figure(obj.hFig) ;
     end
   end
   
@@ -357,15 +350,20 @@ classdef MovieManagerController < handle
     end
     
     function hlpLblerLstnCbkUpdateTable(obj,tfGT)
-      assert(islogical(tfGT));
-      
       lObj = obj.labeler;
       if lObj.isinit
-        return;
+        return
       end
+      if ~exist('tfGT', 'var') || isempty(tfGT) ,
+        tfGT = lObj.gtIsGTMode ;
+      end
+
+      assert(islogical(tfGT));     
+
       if ~lObj.hasProject
-        error('MovieManagerController:proj',...
-          'Please open/create a project first.');
+        return
+        % error('MovieManagerController:proj',...
+        %   'Please open/create a project first.');
       end
       
       PROPS = Labeler.gtGetSharedPropsStc(tfGT);
@@ -374,7 +372,7 @@ classdef MovieManagerController < handle
       movsHaveLbls = lObj.(PROPS.MFAHL);
       if ~isequal(size(movs,1),size(trxs,1),numel(movsHaveLbls))
         % intermediate state, take no action
-        return;
+        return
       end
       
       iTbl = double(tfGT)+1;
@@ -413,7 +411,7 @@ classdef MovieManagerController < handle
         lObj.movieSetAdd(movfiles);
       end
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.movieSet(1,'isFirstMovie',true);
+        lObj.movieSetGUI(1,'isFirstMovie',true);
       end
     end
     
@@ -424,7 +422,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       for i = n:-1:1
         row = selRow(i);
-        tfSucc = lObj.movieRm(row);
+        tfSucc = lObj.movieRmGUI(row);
         if ~tfSucc
           % user stopped/canceled
           break;

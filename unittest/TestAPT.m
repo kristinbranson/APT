@@ -445,7 +445,7 @@ classdef TestAPT < handle
       
       if simpleprojload
         [labeler, controller] = StartAPT();
-        labeler.projLoad(obj.info.ref_lbl);
+        labeler.projLoadGUI(obj.info.ref_lbl);
         obj.labeler = labeler;
         obj.controller = controller ;
         obj.old_lbl = [];
@@ -605,18 +605,45 @@ classdef TestAPT < handle
 %       labeller.projLoad(ref_lbl);
 %     end
 
-    function setup_alg_(obj,alg)
+    function setup_alg_for_training_(obj,alg)
       % Set the algorithm.
+
+      if isempty(alg) ,
+        % Just leave the algorithm alone
+        return
+      end
 
       labeler = obj.labeler;
 
       if isnumeric(alg)
         trackerIndex = alg;
         assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-        labeler.trackSetCurrentTracker(trackerIndex);
+        labeler.trackMakeNewTrackerCurrent(trackerIndex);
       else
         algName = alg ;
-        labeler.trackSetCurrentTrackerByName(algName) ;
+        labeler.trackMakeNewTrackerCurrentByName(algName) ;
+          % Make a virgin tracker for training
+      end
+    end  % function
+    
+    function setup_alg_for_tracking_(obj,alg)
+      % Set the algorithm.  Since we're tracking, we use a trained tracker from the
+      % history
+
+      if isempty(alg) ,
+        % Just leave the algorithm alone
+        return
+      end
+
+      labeler = obj.labeler;
+
+      if isnumeric(alg)
+        trackerIndex = alg;
+        assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
+        labeler.trackMakeOldTrackerCurrent(trackerIndex);
+      else
+        algName = alg ;
+        labeler.trackMakeOldTrackerCurrentByName(algName) ;
       end
     end  % function
     
@@ -670,7 +697,7 @@ classdef TestAPT < handle
        params, ...
        backend_params] = ...
         myparse(varargin,...
-                'net_type','mdn_joint_fpn',...
+                'net_type','',...
                 'backend','docker',...
                 'niters',1000,...
                 'test_tracking',false,...
@@ -681,7 +708,7 @@ classdef TestAPT < handle
                 'backend_params',struct());
           
       if ~isempty(net_type)
-        obj.setup_alg_(net_type)
+        obj.setup_alg_for_training_(net_type)
       end
       fprintf('Training with tracker %s\n',obj.labeler.tracker.algorithmNamePretty);
       obj.set_params_base_(obj.info.has_trx, niters, obj.info.sz, batch_size);
@@ -721,12 +748,12 @@ classdef TestAPT < handle
       [block,net_type,backend,backend_params] = ...
         myparse(varargin,...
                 'block',true,...
-                'net_type',[],...
+                'net_type','',...
                 'backend','',...
                 'backend_params',struct());
       
       if ~isempty(net_type)
-        obj.setup_alg_(net_type)
+        obj.setup_alg_for_tracking_(net_type)
       end
       if ~isempty(backend),
         obj.set_backend_(backend,backend_params);

@@ -405,7 +405,7 @@ classdef OrthoCam
         r2vecCurr = r2vecs(:,iPat);
         t2vecCurr = t2vecs(:,iPat);
         if patByPat
-          deleteValidHandles(hPat);
+          deleteValidGraphicsHandles(hPat);
         end
         
         RPatI2World = vision.internal.calibration.rodriguesVectorToMatrix(r2vecCurr);
