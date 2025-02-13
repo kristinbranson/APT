@@ -111,6 +111,7 @@ end
 
 % read in the number of fields: 1
 nkeys = fread(fp,1,'uchar');
+index = struct;
 
 for j = 1:nkeys,
   
