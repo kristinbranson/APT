@@ -445,7 +445,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetTrackParams',@(source,event)(obj.cbkParameterChange()));            
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config_()) ) ;
+        addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config()) ) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
       obj.listeners_(end+1) = ...
@@ -559,7 +559,7 @@ classdef LabelerController < handle
       obj.update() ;
 
       % Do this once listeners are set up
-      obj.labeler_.handleCreationTimeAdditionalArguments_(varargin{:}) ;
+      obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
     end
 
     function delete(obj)
@@ -2680,8 +2680,8 @@ classdef LabelerController < handle
       % % Remake the tracker history submenu
       % obj.update_menu_track_tracker_history_() ;
 
-      % Update the check marks in menu_track_backend_condfig menu
-      obj.update_menu_track_backend_config_();
+      % Update the check marks in menu_track_backend_config menu
+      obj.update_menu_track_backend_config();
 
       % Update the InfoTimeline
       obj.labelTLInfo.didChangeCurrentTracker();
@@ -2741,12 +2741,16 @@ classdef LabelerController < handle
       obj.menu_view_show_preds_curr_target_only.Checked = onIff(tracker.showPredsCurrTargetOnly) ;
     end  % function
 
-    function update_menu_track_backend_config_(obj)
+    function update_menu_track_backend_config(obj)
       labeler = obj.labeler_ ;
-      if ~isempty(obj.menu_track_backend_config_jrc) 
+      if isempty(obj.menu_track_backend_config_jrc) 
         % Early return if the menus have not been set up yet
         return
       end      
+      if ~labeler.hasProject
+        % The whole menu_track should be disabled already in this case
+        return
+      end
       beType = labeler.trackDLBackEnd.type;
       oiBsub = onIff(beType==DLBackEnd.Bsub);
       oiDckr = onIff(beType==DLBackEnd.Docker);
@@ -5759,6 +5763,7 @@ classdef LabelerController < handle
       end
       obj.update_menu_track_tracking_algorithm() ;
       obj.update_menu_track_tracker_history() ;
+      obj.update_menu_track_backend_config();
       obj.update_text_trackerinfo() ;
       obj.updateStatusBar() ;
       obj.cbkGTSuggUpdated() ;
@@ -5905,7 +5910,9 @@ classdef LabelerController < handle
       trkfilesUse = cellfun(@(x)x{trkfilesUseIdx},trkfilesCommon,'uni',0);
       tfsucc = true;
     end  % function
-    
+  end  % methods (Static)
+
+  methods
     function updateStuffInHlpSetCurrPrevFrame(obj)
       labeler = obj.labeler_ ;      
       obj.labelTLInfo.newFrame(labeler.currFrame);
@@ -5920,6 +5927,5 @@ classdef LabelerController < handle
         GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
       end
     end  % function
-
   end  % methods  
 end  % classdef
