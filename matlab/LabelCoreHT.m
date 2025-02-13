@@ -268,9 +268,9 @@ classdef LabelCoreHT < LabelCore
       if strcmp(key,'space')
         obj.acceptCurrentPt();
       elseif any(strcmp(key,{'equal' 'rightarrow' 'd'})) && ~tfCtrl
-        obj.labeler.frameUpDF(obj.nFrameSkip);
+        obj.labeler.frameUpDFGUI(obj.nFrameSkip);
       elseif any(strcmp(key,{'hyphen' 'leftarrow' 'a'})) && ~tfCtrl
-        obj.labeler.frameDownDF(obj.nFrameSkip);
+        obj.labeler.frameDownDFGUI(obj.nFrameSkip);
       else
         tfKPused = false;
       end      
@@ -466,10 +466,10 @@ classdef LabelCoreHT < LabelCore
             iPt,nPt);
           msgbox(str,'End of movie reached');
           obj.setIPoint(iPt);
-          obj.labeler.setFrame(1);
+          obj.labeler.setFrameGUI(1);
         end
       else
-        obj.labeler.frameUpDF(dfrm);
+        obj.labeler.frameUpDFGUI(dfrm);
       end
     end
     

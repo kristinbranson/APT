@@ -51,7 +51,7 @@ lc.setPs(xyGT,xyTstTPadded,xyTstTRedPadded);
 delete(lObj.lblCore);
 lObj.lblCore = lc;
 lc.init(lObj.nLabelPoints,lObj.labelPointsPlotInfo);
-lObj.setFrame(1);
+lObj.setFrameGUI(1);
 
 
 %% plot error by landmark over frames

@@ -103,7 +103,7 @@ for ndx = 1:numel(umovies)
   lObj.movieAdd(umovies(ndx));
 end
 
-lObj.movieSet(1);
+lObj.movieSetGUI(1);
 %%
 n = numel(movieidx);
 for ndx = 1:n

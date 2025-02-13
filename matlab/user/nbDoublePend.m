@@ -41,7 +41,7 @@ for iLbl=1:NLBL
   tfile = tbl.trk{iLbl};
   lObj.projLoadGUI(lfile);
   fprintf('Loaded %s. Tracking to %s.\n',lfile,tfile);
-  lObj.trackAndExport(tm,'trkFilename',tfile,'trackArgs',{'stripTrkPFull' 0});
+  lObj.trackAndExportGUI(tm,'trkFilename',tfile,'trackArgs',{'stripTrkPFull' 0});
 end  
 %%
 LBLGT = 'dpend_gt3.lbl';
@@ -170,7 +170,7 @@ for iF=1:nCand
   idxFrmsCand = idx(iF);
   
   f = frmsCand(idxFrmsCand);
-  lObj.setFrame(f);
+  lObj.setFrameGUI(f);
   hScatter.CData = zeros(nCand,3);
   hScatter.CData(idxFrmsCand,:) = [1 0 0];
   fprintf('frame %d (%d out of %d)\n',f,iF,nCand);
@@ -188,7 +188,7 @@ Save to new project
 nCandAcc = numel(frmsCandAccept);
 for iF=1:nCandAcc
   f = frmsCandAccept(iF);
-  lObj.setFrame(f);
+  lObj.setFrameGUI(f);
   lObj.labelPosSetFromLabeledPos2();
   fprintf('Set labels for frame %d (%d out of %d)\n',f,iF,nCandAcc);
 end
@@ -235,7 +235,7 @@ for iLbl=1:NTRKS
   trkfile = TRKS.trkfile{iLbl};
   [p,f,e] = fileparts(trkfile);
   fprintf('Tracking to %s\n',f);
-  lObj.trackAndExport(tm,'trkFilename',f);
+  lObj.trackAndExportGUI(tm,'trkFilename',f);
 end
 
 %%

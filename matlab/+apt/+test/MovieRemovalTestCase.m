@@ -8,10 +8,10 @@ classdef MovieRemovalTestCase < matlab.unittest.TestCase
       originalMovieCount = numel(labeler.movieFilesAll) ;
 
       firstMovieIndexToRemove = 7 ;
-      labeler.movieRm(firstMovieIndexToRemove, 'force', true) ;
+      labeler.movieRmGUI(firstMovieIndexToRemove, 'force', true) ;
 
       secondMovieIndexToRemove = 6 ;  % Want one in the middle
-      labeler.movieRm(secondMovieIndexToRemove, 'force', true) ;
+      labeler.movieRmGUI(secondMovieIndexToRemove, 'force', true) ;
 
       % Do verification
       finalMovieCount = numel(labeler.movieFilesAll) ; 

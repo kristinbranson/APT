@@ -89,7 +89,7 @@ classdef LabelCoreCPRView < LabelCore
           f = f+1;
           while f<=nf
             if tfLbled(f)
-              lObj.setFrame(f);
+              lObj.setFrameGUI(f);
               return;
             end
             f = f+1;
@@ -98,7 +98,7 @@ classdef LabelCoreCPRView < LabelCore
           f = f-1;
           while f>0
             if tfLbled(f)
-              lObj.setFrame(f);
+              lObj.setFrameGUI(f);
               return;
             end
             f = f-1;

@@ -255,9 +255,9 @@ lclNavToMFT(lObj,mftRow);
 function lclNavToMFT(lObj,mftRow)
 iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
-  lObj.movieSet(iMov);
+  lObj.movieSetGUI(iMov);
 end
-lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
+lObj.setFrameAndTargetGUI(mftRow.frm,mftRow.iTgt);
 
 % function imovs = cbkGetSelectedMovies(hMMobj)
 % % Get current selection in Table

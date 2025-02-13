@@ -798,6 +798,12 @@ classdef LabelerController < handle
         error('Tracker not fit to be trained: %s', reason) ;
       end
       
+      % Do this stuff
+      labeler.trackSetAutoParamsGUI();
+      if ~labeler.trackCheckGPUMemGUI()
+        return
+      end
+
       % Call on the labeler to do the real training
       labeler.train(...
         'trainArgs',{}, ...
@@ -1592,7 +1598,7 @@ classdef LabelerController < handle
     function target_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the target table row is selected.
       labeler = obj.labeler_ ;
-      labeler.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt) ;
+      labeler.setMFTGUI(rowdata.mov,rowdata.frm1,rowdata.iTgt) ;
     end  % function
 
     function target_table_update_button_actuated_(obj, source, event)  %#ok<INUSD>
@@ -1639,7 +1645,6 @@ classdef LabelerController < handle
                            [0 0 1 1], ...
                            @(row,rowdata)(obj.controlActuated('susp_frame_table_row', [], [], row, rowdata)),...
                            'ColumnName',tblFlds);
-                           % @(i,rowdata)(obj.suspCbkTblNaved(i)),...
       nt.setData(tbl);
       hF.UserData = nt;
       obj.addSatellite(hF);
@@ -1648,7 +1653,7 @@ classdef LabelerController < handle
     function susp_frame_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the suspicious frame table row is selected.
       labeler = obj.labeler_ ;
-      labeler.suspCbkTblNaved(row) ;
+      labeler.suspCbkTblNavedGUI(row) ;
     end  % function
     
     function refreshTrackMonitorViz(obj)
@@ -2105,10 +2110,10 @@ classdef LabelerController < handle
               samcmp = labeler.movieShiftArrowNavModeThreshCmp;
               [tffound,f] = sam.seekFrame(labeler,-1,samth,samcmp);
               if tffound
-                labeler.setFrameProtected(f);
+                labeler.setFrameProtectedGUI(f);
               end
             else
-              labeler.frameDown(tfCtrl);
+              labeler.frameDownGUI(tfCtrl);
             end
             tfKPused = true;
           case 'rightarrow'
@@ -2118,10 +2123,10 @@ classdef LabelerController < handle
               samcmp = labeler.movieShiftArrowNavModeThreshCmp;
               [tffound,f] = sam.seekFrame(labeler,1,samth,samcmp);
               if tffound
-                labeler.setFrameProtected(f);
+                labeler.setFrameProtectedGUI(f);
               end
             else
-              labeler.frameUp(tfCtrl);
+              labeler.frameUpGUI(tfCtrl);
             end
             tfKPused = true;
         end
@@ -2161,7 +2166,7 @@ classdef LabelerController < handle
         cfg.ProjectName = projName ;
         lObj.projNew(cfg);
         lObj.movieAdd(movfile,trxfile);
-        lObj.movieSet(1,'isFirstMovie',true);      
+        lObj.movieSetGUI(1,'isFirstMovie',true);      
       end
     end  % function
     
@@ -3250,7 +3255,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       obj.cropReactNewCropMode_();
       if labeler.hasProject && labeler.hasMovie
-        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
+        labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
       end
     end  % function
 
@@ -3684,7 +3689,7 @@ classdef LabelerController < handle
       if ~isempty(row)
         row = row(1);
         dat = get(src,'Data');
-        labeler.setFrame(dat{row,1},'changeTgtsIfNec',true);
+        labeler.setFrameGUI(dat{row,1},'changeTgtsIfNec',true);
       end
       obj.hlpRemoveFocus_() ;
     end
@@ -3951,14 +3956,14 @@ classdef LabelerController < handle
           end
         end
 
-        labeler.setFrame(f,setFrameArgs{:});
+        labeler.setFrameGUI(f,setFrameArgs{:});
         drawnow('limitrate');
       end
       
       if tfreset
         % AL20170619 passing setFrameArgs a bit fragile; needed for current
         % callers (don't update labels in videoPlaySegment)
-        labeler.setFrame(freset,setFrameArgs{:}); 
+        labeler.setFrameGUI(freset,setFrameArgs{:}); 
       end
       
       % - icon managed by caller      
@@ -4146,12 +4151,12 @@ classdef LabelerController < handle
       cmod = obj.mainFigure_.CurrentModifier;
       if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
         if f>labeler.currFrame
-          tfSetOccurred = labeler.frameUp(true);
+          tfSetOccurred = labeler.frameUpGUI(true);
         else
-          tfSetOccurred = labeler.frameDown(true);
+          tfSetOccurred = labeler.frameDownGUI(true);
         end
       else
-        tfSetOccurred = labeler.setFrameProtected(f);
+        tfSetOccurred = labeler.setFrameProtectedGUI(f);
       end
 
       if ~tfSetOccurred
@@ -4197,7 +4202,7 @@ classdef LabelerController < handle
       end
       set(src,'String',num2str(f));
       if f ~= labeler.currFrame
-        labeler.setFrame(f)
+        labeler.setFrameGUI(f)
       end
 
 
@@ -4420,7 +4425,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.labelExportTrk(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
+      labeler.labelExportTrkGUI(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
     end
 
     function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -4577,17 +4582,17 @@ classdef LabelerController < handle
       labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
       oc = onCleanup(@()(labeler.clearStatus())) ;
       if labeler.hasTrx
-        labeler.labelOverlayMontage();
-        labeler.labelOverlayMontage('ctrMeth','trx');
-        labeler.labelOverlayMontage('ctrMeth','trx','rotAlignMeth','trxtheta');
+        labeler.labelOverlayMontageGUI();
+        labeler.labelOverlayMontageGUI('ctrMeth','trx');
+        labeler.labelOverlayMontageGUI('ctrMeth','trx','rotAlignMeth','trxtheta');
         % could also use headtail for centering/alignment but skip for now.
       else % labeler.maIsMA, or SA-non-trx
-        labeler.labelOverlayMontage();
+        labeler.labelOverlayMontageGUI();
         if ~labeler.isMultiView
-          labeler.labelOverlayMontage('ctrMeth','centroid');
+          labeler.labelOverlayMontageGUI('ctrMeth','centroid');
           tfHTdefined = ~isempty(labeler.skelHead) && ~isempty(labeler.skelTail);
           if tfHTdefined
-            labeler.labelOverlayMontage('ctrMeth','centroid','rotAlignMeth','headtail');
+            labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail');
           else
             warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
           end
@@ -4743,7 +4748,7 @@ classdef LabelerController < handle
       % Currently there is no UI for altering labeler.viewCalProjWide once it is set
 
       if tfProjWide
-        labeler.viewCalSetProjWide(crObj);%,'tfSetViewSizes',tfSetViewSizes);
+        labeler.viewCalSetProjWideGUI(crObj);%,'tfSetViewSizes',tfSetViewSizes);
       else
         labeler.viewCalSetCurrMovie(crObj);%,'tfSetViewSizes',tfSetViewSizes);
       end
@@ -4760,15 +4765,8 @@ classdef LabelerController < handle
 
 
     function menu_view_show_bgsubbed_frames_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-      tf = ~strcmp(src.Checked,'on');
-
-      labeler.movieViewBGsubbed = tf;
-
+      labeler.toggleMovieViewBGsubbedGUI() ;
     end
 
 
@@ -4809,7 +4807,7 @@ classdef LabelerController < handle
       if labeler.hasMovie
         % Pure convenience: update image for user rather than wait for next
         % frame-switch. Could also put this in Labeler.set.movieForceGrayscale.
-        labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
+        labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
       end
     end
 
@@ -4892,7 +4890,7 @@ classdef LabelerController < handle
       if tfproceed
         labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
         if labeler.hasMovie
-          labeler.setFrame(labeler.currFrame,'tfforcereadmovie',true);
+          labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
         end
       end
     end
@@ -5072,7 +5070,7 @@ classdef LabelerController < handle
         warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
         return;
       end
-      [tPrm,do_update] = labeler.trackSetAutoParams();
+      [tPrm,do_update] = labeler.trackSetAutoParamsGUI();
       sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
       if isempty(sPrmNew)
         if do_update
@@ -5218,7 +5216,7 @@ classdef LabelerController < handle
     function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
-      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      toTrackIn = labeler.mIdx2TrackListGUI(mIdx);
       tbobj = TrackBatchGUI(labeler,'toTrack',toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
@@ -5230,7 +5228,7 @@ classdef LabelerController < handle
     function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.currMovIdx;
-      toTrackIn = labeler.mIdx2TrackList(mIdx);
+      toTrackIn = labeler.mIdx2TrackListGUI(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
       [toTrackOut,dostore] = mdobj.run();
       if ~dostore,
@@ -5259,7 +5257,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
+      labeler.trackExportResultsGUI(iMov,'rawtrkname',rawtrkname);
     end
 
 
@@ -5592,7 +5590,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.trackExportResults(iMov,'rawtrkname',rawtrkname);
+      labeler.trackExportResultsGUI(iMov,'rawtrkname',rawtrkname);
     end
 
     function menu_file_import_export_advanced_actuated_(obj, src, evt)  %#ok<INUSD>

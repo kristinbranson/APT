@@ -3305,11 +3305,11 @@ classdef DeepTracker < LabelTracker
         end
         f0 = tv.ptrx(sel).firstframe;
         if f0~=obj.lObj.currFrame
-          obj.lObj.setFrame(f0); % this should result in call to .newLabelerFrame();
+          obj.lObj.setFrameGUI(f0); % this should result in call to .newLabelerFrame();
         end
       else
         obj.newLabelerFrame(); % not sure what this does... 
-        %obj.lObj.setFrame(curfr); % this should result in call to .newLabelerFrame();
+        %obj.lObj.setFrameGUI(curfr); % this should result in call to .newLabelerFrame();
         sel = tv.iTrx2iTrxViz(active);
       end
 

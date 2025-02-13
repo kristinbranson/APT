@@ -822,7 +822,7 @@ classdef InfoTimeline < handle
         end
         frm = round(pos(1,1));
         frm = min(max(frm,sf),ef);
-        obj.lObj.setFrame(frm);
+        obj.lObj.setFrameGUI(frm);
       end
     end
 %     function cbkLabelMode(obj,src,evt) %#ok<INUSD>
@@ -1048,7 +1048,7 @@ classdef InfoTimeline < handle
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
             % the trackers are not updated (via
-            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSet()
+            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
             % call which leads here.
             tracker = obj.lObj.tracker ;
             if ~isempty(tracker) && isvalid(tracker)

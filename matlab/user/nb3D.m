@@ -356,7 +356,7 @@ if exist('lObj','var')==0
   lObj = Labeler;
   lObj.projLoadGUI(LBL);
 end
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0

@@ -592,7 +592,7 @@ classdef APTParameters
     end
     
     function [tPrm,canceled,do_update] = ...
-        autosetparams(tPrm,lobj,varargin)
+        autosetparamsGUI(tPrm,lobj,varargin)
       
       silent = myparse(varargin,'silent',false);
       

@@ -155,12 +155,12 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
         return;
       end
       if obj.labeler.currMovie ~= mov,
-        obj.labeler.movieSet(mov);
+        obj.labeler.movieSetGUI(mov);
       end
       if obj.labeler.currTarget ~= tgt,
-        obj.labeler.setFrameAndTarget(frm,tgt);
+        obj.labeler.setFrameAndTargetGUI(frm,tgt);
       else
-        obj.labeler.setFrame(frm);
+        obj.labeler.setFrameGUI(frm);
       end
 
     end
@@ -172,12 +172,12 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
         return;
       end
       if obj.labeler.currMovie ~= mov,
-        obj.labeler.movieSet(mov);
+        obj.labeler.movieSetGUI(mov);
       end
       if obj.labeler.currTarget ~= tgt,
-        obj.labeler.setFrameAndTarget(frm,tgt);
+        obj.labeler.setFrameAndTargetGUI(frm,tgt);
       else
-        obj.labeler.setFrame(frm);
+        obj.labeler.setFrameGUI(frm);
       end
     end
     
@@ -425,9 +425,9 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
 %           obj.acceptLabels();
 %         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        lObj.frameUp(tfCtrl);
+        lObj.frameUpGUI(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        lObj.frameDown(tfCtrl);
+        lObj.frameDownGUI(tfCtrl);
       elseif any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)

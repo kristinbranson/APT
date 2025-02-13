@@ -592,7 +592,7 @@ if exist('lObj','var')==0
   lObj = Labeler;
   lObj.projLoadGUI(LBL); % KB: this won't be able to find movies will prompt you to locate
 end
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
@@ -693,7 +693,7 @@ nTest = size(pTstTRedFinalT,1);
 pTstTRedFinalT = reshape(pTstTRedFinalT,nTest,18,3);
 for iF=1:numel(frmTest)
   f = frmTest(iF);
-  lObj.setFrame(f);
+  lObj.setFrameGUI(f);
 
   pTstBest = squeeze(pTstTRedFinalT(iF,:,:));
   for iVw=1:3
@@ -860,7 +860,7 @@ ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
 tRow = [120 1711 1889 2289];
 TROWIDX = 3;
 frame = t19expandedLRB.frm(tRow);
-lObj.setFrame(frame(TROWIDX));
+lObj.setFrameGUI(frame(TROWIDX));
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 X = cell(1,3);
@@ -913,7 +913,7 @@ pAll = reshape(pAll,197,50,9,31);
 pIidx = repmat((1:197)',50,1); % labels rows of pAll; indices into rows of tbl, I
 TROWIDX = 1;
 frame = tbl.frm(TROWIDX);
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 deleteValidGraphicsHandles(hLine);
@@ -966,7 +966,7 @@ p_t = reshape(p_t,nTest,50,9,31);
 %% Browse propagated replicates
 TESTROWIDX = 155;
 frame = tblTest.frm(TESTROWIDX);
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
@@ -1039,7 +1039,7 @@ end
 pTstTRedFinalT2 = reshape(pTstTRedFinalT2,nTest2,3,3);
 for iF=1:numel(frmTest2)
   f = frmTest2(iF);
-  lObj.setFrame(f);
+  lObj.setFrameGUI(f);
 
   pTstBest = squeeze(pTstTRedFinalT2(iF,:,:));
   for iVw=1:3

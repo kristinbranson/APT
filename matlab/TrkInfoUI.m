@@ -232,7 +232,7 @@ if h.lobj.currMovie ~= h.curmov
   qstr = sprintf('Switch to movie %d?',h.curmov);
   res = questdlg(qstr,'Switch Movie');
   if strcmp(res, 'Yes')
-    h.lobj.movieSet(h.curmov);
+    h.lobj.movieSetGUI(h.curmov);
   else
     return
   end
@@ -243,7 +243,7 @@ ef = h.ef;
 trk = h.trk;
 curfr = lobj.currFrame;
 if (sf(tgt)>curfr) || (ef(tgt)<curfr)
-  lobj.setFrame(sf(tgt));
+  lobj.setFrameGUI(sf(tgt));
 else
   haspred = trk.getPTrkFT(curfr,tgt);
   if ~haspred
@@ -252,7 +252,7 @@ else
     tdat = trk.getPtrkTgt(tgt);
     vfr = find(~all(isnan(tdat),[1,2]));
     closest = argmin(abs(vfr-curfr+sf));
-    lobj.setFrame(vfr(closest));
+    lobj.setFrameGUI(vfr(closest));
   end
 end
 
@@ -295,14 +295,14 @@ curfr = lobj.currFrame;
 if curfr<sf
   warning('No previous breaks');
 elseif curfr>ef
-  lobj.setFrame(ef);
+  lobj.setFrameGUI(ef);
 else
   ss(ss>=(curfr-sf+1)) = nan;
   if all(isnan(ss))
-    lobj.setFrame(sf);
+    lobj.setFrameGUI(sf);
   else
     sndx = argmax(ss);
-    lobj.setFrame(ss(sndx)+sf-1);
+    lobj.setFrameGUI(ss(sndx)+sf-1);
   end
 end
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
@@ -331,14 +331,14 @@ curfr = lobj.currFrame;
 if curfr>ef
   warning('No next breaks');
 elseif curfr<sf
-  lobj.setFrame(sf);
+  lobj.setFrameGUI(sf);
 else
   ss(ss<=(curfr-sf+1)) = nan;
   if all(isnan(ss))
-    lobj.setFrame(ef);
+    lobj.setFrameGUI(ef);
   else
     sndx = argmin(ss);
-    lobj.setFrame(ss(sndx)+sf-1);
+    lobj.setFrameGUI(ss(sndx)+sf-1);
   end
 end
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
@@ -358,7 +358,7 @@ trk = h.trk;
 lobj = h.lobj;
 
 sf = trk.startframes(curtrk);
-lobj.setFrame(sf);
+lobj.setFrameGUI(sf);
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end
@@ -376,7 +376,7 @@ trk = h.trk;
 lobj = h.lobj;
 
 ef = trk.endframes(curtrk);
-lobj.setFrame(ef);
+lobj.setFrameGUI(ef);
 if isempty(h.curtrk) || (h.curtrk ~= curtrk)
   h = switch_target(h,curtrk);
 end

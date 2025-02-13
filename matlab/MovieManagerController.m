@@ -192,7 +192,7 @@ classdef MovieManagerController < handle
       % iMov is gt-aware movie index (unsigned)
       lObj = obj.labeler;
       if obj.selectedTabMatchesLabelerGTMode
-        lObj.movieSet(iMov);
+        lObj.movieSetGUI(iMov);
       else
         if lObj.gtIsGTMode
           warnstr = 'Labeler is in GT mode; select ''GT'' Tab in Movie Manager if you wish to browse movies via the table.';
@@ -226,7 +226,7 @@ classdef MovieManagerController < handle
           if isempty(iMov)
             msgbox('All movies are labeled!');
           else
-            lObj.movieSet(iMov);
+            lObj.movieSetGUI(iMov);
           end
         case 'pbGTFrames'
           lObj.gtShowGTManager();
@@ -296,7 +296,7 @@ classdef MovieManagerController < handle
       lObj.movieAddBatchFile(fname);
       RC.saveprop('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.movieSet(1);
+        lObj.movieSetGUI(1);
       end
     end
 
@@ -411,7 +411,7 @@ classdef MovieManagerController < handle
         lObj.movieSetAdd(movfiles);
       end
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
-        lObj.movieSet(1,'isFirstMovie',true);
+        lObj.movieSetGUI(1,'isFirstMovie',true);
       end
     end
     
@@ -422,7 +422,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       for i = n:-1:1
         row = selRow(i);
-        tfSucc = lObj.movieRm(row);
+        tfSucc = lObj.movieRmGUI(row);
         if ~tfSucc
           % user stopped/canceled
           break;
