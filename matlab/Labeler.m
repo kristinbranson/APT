@@ -2378,13 +2378,21 @@ classdef Labeler < handle
       for i = 1:obj.nmovies,
         tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,false));
         if ~tfsuccess,
-          error('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
+          warning('Labeler:movie_missing', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
+            % N.B. We can't error here b/c we just want to proceed and let the user fix            
+            % the missing movies in the Movie Manager later.
+            % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
+            % missing movies, so the warning is just so they have a record in the console.
         end
       end
       for i = 1:obj.nmoviesGT,
         tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,true));
         if ~tfsuccess,
-          error('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
+          warning('Labeler:movie_missing', 'File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
+            % N.B. We can't error here b/c we just want to proceed and let the user fix            
+            % the missing movies in the Movie Manager later.
+            % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
+            % missing movies, so the warning is just so they have a record in the console.
         end
       end
 
@@ -4320,6 +4328,10 @@ classdef Labeler < handle
           else
             qargs = {'Browse to movie','Cancel','Cancel'};
           end           
+            % Note that when this function is called in the context of project loading,
+            % the 'Cancel' button is confusing---it sounds like maybe it would abort the
+            % project load, but it means 'Ignore the missing movie and proceed with
+            % loading, I will sort out this issue in the movie manager later'.
           resp = questdlg(qstr,qtitle,qargs{:});
           if isempty(resp)
             resp = 'Cancel';
@@ -4460,7 +4472,7 @@ classdef Labeler < handle
       mIdx = MovieIndex(iMov,obj.gtIsGTMode);
       tfsuccess = obj.movieCheckFilesExistGUI(mIdx); % throws
       if ~tfsuccess
-        return;
+        return
       end
       
       movsAllFull = obj.movieFilesAllFullGTaware;
