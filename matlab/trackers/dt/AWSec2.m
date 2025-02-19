@@ -1013,8 +1013,8 @@ classdef AWSec2 < handle
 %     end
     
     function result = computeRsyncCmd()
-      if ispc()
-        error('Not implemented') ;
+      if ispc()  %#ok<IFBDUP>
+        result = 'rsync -az' ;
       else
         result = 'rsync -az' ;
       end
