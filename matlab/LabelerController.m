@@ -1311,131 +1311,83 @@ classdef LabelerController < handle
       isMultiView = nview>1 ;
       isSingleView = ~isMultiView ;
       isMA = labeler.maIsMA ;  % is a multi-animal project
-        % Note that isMA => isSingleView
+        % Note that isMA implies isSingleView
       nLabelPointsAdd = labeler.nLabelPointsAdd ;
+      isInCropMode = labeler.cropIsCropMode ;
+      hasTracker = ~isempty(labeler.tracker);
+        % Note that hasTracker implies hasProject
+      isInGTMode = labeler.gtIsGTMode ;
+        
+      %
+      % Update the enablement of the controls, depending on various aspects of the
+      % label state
+      %
 
-      % Update the enablement of the controls, depending on the state
+      % Update the main menubar menus
+      set(obj.menu_file,'Enable','on');
+      set(obj.menu_view,'Enable',onIff(hasMovie));
+      set(obj.menu_labeling_setup,'Enable',onIff(hasMovie));
+      set(obj.menu_go,'Enable',onIff(hasMovie));
+      set(obj.menu_track,'Enable',onIff(hasMovie));
+      set(obj.menu_evaluate,'Enable',onIff(hasMovie));
+      set(obj.menu_help,'Enable','on');
+      if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
+        set(obj.menu_debug,'Enable',onIff(hasProject)) ;
+      end
+
+      % Update items in the File menu
+      set(obj.menu_file_new,'Enable','on');
+      set(obj.menu_file_save,'Enable',onIff(hasProject));
+      set(obj.menu_file_saveas,'Enable',onIff(hasProject));
+      set(obj.menu_file_load,'Enable','on');
+      set(obj.menu_file_shortcuts,'Enable',onIff(hasProject));
+      set(obj.menu_file_managemovies,'Enable',onIff(hasProject));
+      set(obj.menu_file_importexport,'Enable',onIff(hasProject));
+      set(obj.menu_file_crop_mode,'Enable',onIff(hasMovie));
+      set(obj.menu_file_clean_tempdir,'Enable',onIff(hasProject));
+      set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
+      set(obj.menu_file_quit,'Enable','on');
+      
+      % Update setup menu item
       set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
-      if ~hasProject ,
-        set(obj.menu_file,'Enable','on');
-        set(obj.menu_view,'Enable','off');
-        set(obj.menu_labeling_setup,'Enable','off');
-        set(obj.menu_track,'Enable','off');
-        set(obj.menu_evaluate,'Enable','off');
-        set(obj.menu_go,'Enable','off');
-        set(obj.menu_help,'Enable','off');
-    
-        set(obj.menu_file_quit,'Enable','on');
-        set(obj.menu_file_crop_mode,'Enable','off');
-        set(obj.menu_file_importexport,'Enable','off');
-        set(obj.menu_file_managemovies,'Enable','off');
-        set(obj.menu_file_load,'Enable','on');
-        set(obj.menu_file_saveas,'Enable','off');
-        set(obj.menu_file_save,'Enable','off');
-        set(obj.menu_file_shortcuts,'Enable','off');
-        set(obj.menu_file_new,'Enable','on');
-        %set(obj.menu_file_quick_open,'Enable','on','Visible','on');
-        
-        set(obj.tbAdjustCropSize,'Enable','off');
-        set(obj.pbClearAllCrops,'Enable','off');
-        set(obj.pushbutton_exitcropmode,'Enable','off');
-        set(obj.uipanel_cropcontrols,'Visible','off');    
-        set(obj.text_trackerinfo,'Visible','off');
-    
-        
-        set(obj.pbClearSelection,'Enable','off');
-        set(obj.pumInfo,'Enable','off');
-        set(obj.tbTLSelectMode,'Enable','off');
-        set(obj.pumTrack,'Enable','off');
-        set(obj.pbTrack,'Enable','off');
-        set(obj.pbTrain,'Enable','off');
-        set(obj.pbClear,'Enable','off');
-        set(obj.tbAccept,'Enable','off');
-        set(obj.pbRecallZoom,'Enable','off');
-        set(obj.pbSetZoom,'Enable','off');
-        set(obj.pbResetZoom,'Enable','off');
-        set(obj.sldZoom,'Enable','off');
-        set(obj.pbPlaySegBoth,'Enable','off');
-        set(obj.pbPlay,'Enable','off');
-        set(obj.slider_frame,'Enable','off');
-        set(obj.edit_frame,'Enable','off');
-        set(obj.popupmenu_prevmode,'Enable','off');
-        set(obj.pushbutton_freezetemplate,'Enable','off');
-        set(obj.toolbar,'Visible','off')
-        if isgraphics(obj.menu_debug)
-          set(obj.menu_debug,'Enable','off') ;
-        end      
-      else
-        % if hasProject
-        set(obj.menu_file,'Enable','on');
-        set(obj.menu_view,'Enable',onIff(hasMovie));
-        set(obj.menu_labeling_setup,'Enable',onIff(hasMovie));
-        set(obj.menu_go,'Enable',onIff(hasMovie));
-        set(obj.menu_track,'Enable',onIff(hasMovie));
-        set(obj.menu_evaluate,'Enable',onIff(hasMovie));
-        set(obj.menu_help,'Enable','on');
-        if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
-          set(obj.menu_debug,'Enable','on') ;
-        end
 
-        % Enable most everything under the File menu
-        set(obj.menu_file_new,'Enable','on');
-        set(obj.menu_file_save,'Enable','on');
-        set(obj.menu_file_saveas,'Enable','on');
-        set(obj.menu_file_load,'Enable','on');
-        set(obj.menu_file_shortcuts,'Enable','on');
-        set(obj.menu_file_managemovies,'Enable','on');
-        set(obj.menu_file_importexport,'Enable','on');
-        set(obj.menu_file_crop_mode,'Enable',onIff(hasMovie));
-        set(obj.menu_file_clean_tempdir,'Enable','on');
-        set(obj.menu_file_bundle_tempdir,'Enable','on');        
-        set(obj.menu_file_quit,'Enable','on');
+      % These things
+      set(obj.tbAdjustCropSize,'Enable',onIff(hasProject));
+      set(obj.pbClearAllCrops,'Enable',onIff(hasProject));
+      set(obj.pushbutton_exitcropmode,'Enable',onIff(hasProject));
 
-        % KB 20200504: I think this is confusing when a project is already open
-        % AL 20220719: now always hiding
-        % set(obj.menu_file_quick_open,'Visible','off');
-        
-        set(obj.tbAdjustCropSize,'Enable','on');
-        set(obj.pbClearAllCrops,'Enable','on');
-        set(obj.pushbutton_exitcropmode,'Enable','on');
-        %set(obj.uipanel_cropcontrols,'Visible','on');
-    
-        set(obj.pbClearSelection,'Enable','on');
-        set(obj.pumInfo,'Enable','on');
-        set(obj.pumInfo_labels,'Enable','on');
-        set(obj.tbTLSelectMode,'Enable','on');
-        set(obj.pumTrack,'Enable','on');
-        %set(obj.pbTrack,'Enable','on');
-        %set(obj.pbTrain,'Enable','on');
-        set(obj.pbClear,'Enable','on');
-        set(obj.tbAccept,'Enable','on');
-        set(obj.pbRecallZoom,'Enable','on');
-        set(obj.pbSetZoom,'Enable','on');
-        set(obj.pbResetZoom,'Enable','on');
-        set(obj.sldZoom,'Enable','on');
-        set(obj.pbPlaySegBoth,'Enable','on');
-        set(obj.pbPlay,'Enable','on');
-        set(obj.slider_frame,'Enable','on');
-        set(obj.edit_frame,'Enable','on');
-        set(obj.popupmenu_prevmode,'Enable','on');
-        set(obj.pushbutton_freezetemplate,'Enable','on');
-        set(obj.toolbar,'Visible','on')         
-        
-        lObj = obj.labeler_ ;
-        tObj = lObj.tracker;    
-        tfTracker = ~isempty(tObj);
-        onIffHasTracker = onIff(tfTracker);
-        obj.menu_track.Enable = onIffHasTracker;
-        obj.pbTrain.Enable = onIffHasTracker;
-        obj.pbTrack.Enable = onIffHasTracker;
-        obj.menu_view_hide_predictions.Enable = onIffHasTracker;    
-        set(obj.menu_track_auto_params_update, 'Checked', lObj.trackAutoSetParams) ;
-    
-        tfGoTgts = ~lObj.gtIsGTMode;
-        set(obj.menu_go_targets_summary,'Enable',onIff(tfGoTgts));        
-      end  % if ~hasProject
+      % Crop mode stuff
+      set(obj.uipanel_cropcontrols,'Visible',onIff(hasProject && isInCropMode)) ;
+      set(obj.text_trackerinfo,'Visible',onIff(hasProject && ~isInCropMode)) ;
 
-      % The things below should work whether or not there's a project
+      set(obj.pbClearSelection,'Enable',onIff(hasProject));
+      set(obj.pumInfo,'Enable',onIff(hasProject));
+      set(obj.pumInfo_labels,'Enable',onIff(hasProject));
+      set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
+      set(obj.pumTrack,'Enable',onIff(hasProject));
+
+      set(obj.pbClear,'Enable',onIff(hasProject));
+      set(obj.tbAccept,'Enable',onIff(hasProject));
+      set(obj.pbRecallZoom,'Enable',onIff(hasProject));
+      set(obj.pbSetZoom,'Enable',onIff(hasProject));
+      set(obj.pbResetZoom,'Enable',onIff(hasProject));
+      set(obj.sldZoom,'Enable',onIff(hasProject));
+      set(obj.pbPlaySegBoth,'Enable',onIff(hasProject));
+      set(obj.pbPlay,'Enable',onIff(hasProject));
+      set(obj.slider_frame,'Enable',onIff(hasProject));
+      set(obj.edit_frame,'Enable',onIff(hasProject));
+      set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
+      set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
+      set(obj.toolbar,'Visible',onIff(hasProject))
+      
+      obj.menu_track.Enable = onIff(hasTracker);
+      obj.pbTrain.Enable = onIff(hasTracker);
+      obj.pbTrack.Enable = onIff(hasTracker);
+      obj.menu_view_hide_predictions.Enable = onIff(hasTracker);
+      set(obj.menu_track_auto_params_update, 'Checked', hasProject && labeler.trackAutoSetParams) ;
+      
+      set(obj.menu_go_targets_summary,'Enable',onIff(hasProject && ~isInGTMode)) ;
+
       set(obj.menu_setup_sequential_mode,'Enable',onIff(hasMovie && isSingleView)) ;
       set(obj.menu_setup_template_mode,'Enable',onIff(hasMovie && isSingleView)) ;
       set(obj.menu_setup_highthroughput_mode,'Enable',onIff(hasMovie && isSingleView)) ;
@@ -3406,9 +3358,9 @@ classdef LabelerController < handle
     
     function cropReactNewCropMode_(obj)
       labeler = obj.labeler_ ;
-      tf = labeler.cropIsCropMode ;
+      isInCropMode = labeler.cropIsCropMode ;
 
-      if isempty(tf) ,
+      if isempty(isInCropMode) ,
         return
       end
 
@@ -3419,15 +3371,15 @@ classdef LabelerController < handle
         'pbTrack'
         'pumTrack'};
 
-      onIfTrue = onIff(tf);
-      offIfTrue = onIff(~tf);
+      onIfIsInCropMode = onIff(isInCropMode);
+      offIfIsInCropMode = onIff(~isInCropMode);
 
       %cellfun(@(x)set(obj.(x),'Visible',onIfTrue),CROPCONTROLS);
-      set(obj.uipanel_cropcontrols,'Visible',onIfTrue);
-      set(obj.text_trackerinfo,'Visible',offIfTrue);
+      set(obj.uipanel_cropcontrols,'Visible',onIfIsInCropMode);
+      set(obj.text_trackerinfo,'Visible',offIfIsInCropMode);
 
-      cellfun(@(x)set(obj.(x),'Visible',offIfTrue),REGCONTROLS);
-      obj.menu_file_crop_mode.Checked = onIfTrue;
+      cellfun(@(x)set(obj.(x),'Visible',offIfIsInCropMode),REGCONTROLS);
+      obj.menu_file_crop_mode.Checked = onIfIsInCropMode;
 
       obj.cropUpdateCropHRects_() ;
       obj.cropUpdateCropAdjustingCropSize_(false) ;
