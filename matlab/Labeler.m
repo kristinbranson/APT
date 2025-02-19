@@ -5791,6 +5791,7 @@ classdef Labeler < handle
         'labelMode',[],...
         'dosettemplate',true...
         );
+
       tfLblModeChange = ~isempty(lblmode);
       if tfLblModeChange
         if ischar(lblmode)
@@ -12384,6 +12385,9 @@ classdef Labeler < handle
   methods
     
     function cropSetCropMode(obj, tf)
+      if ~obj.hasMovie ,
+        error('Can''t do that without a movie') ;
+      end      
       if obj.hasTrx && tf
         error('User-specied cropping is unsupported for projects with trx.');
       end
