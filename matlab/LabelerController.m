@@ -1354,46 +1354,6 @@ classdef LabelerController < handle
             set(obj.menu_debug,'Enable','off') ;
           end
             
-        % case 'tooltipinit',
-        % 
-        %   set(obj.menu_file,'Enable','on');
-        %   set(obj.menu_view,'Enable','on');
-        %   set(obj.menu_labeling_setup,'Enable','on');
-        %   set(obj.menu_track,'Enable','on');
-        %   set(obj.menu_go,'Enable','on');
-        %   set(obj.menu_evaluate,'Enable','on');
-        %   set(obj.menu_help,'Enable','on');
-        % 
-        %   set(obj.tbAdjustCropSize,'Enable','off');
-        %   set(obj.pbClearAllCrops,'Enable','off');
-        %   set(obj.pushbutton_exitcropmode,'Enable','off');
-        %   set(obj.uipanel_cropcontrols,'Visible','off');
-        %   set(obj.text_trackerinfo,'Visible','off');
-        % 
-        %   set(obj.pbClearSelection,'Enable','off');
-        %   set(obj.pumInfo,'Enable','off');
-        %   set(obj.pumInfo_labels,'Enable','off');
-        %   set(obj.tbTLSelectMode,'Enable','off');
-        %   set(obj.pumTrack,'Enable','off');
-        %   set(obj.pbTrack,'Enable','off');
-        %   set(obj.pbTrain,'Enable','off');
-        %   set(obj.pbClear,'Enable','off');
-        %   set(obj.tbAccept,'Enable','off');
-        %   set(obj.pbRecallZoom,'Enable','off');
-        %   set(obj.pbSetZoom,'Enable','off');
-        %   set(obj.pbResetZoom,'Enable','off');
-        %   set(obj.sldZoom,'Enable','off');
-        %   set(obj.pbPlaySegBoth,'Enable','off');
-        %   set(obj.pbPlay,'Enable','off');
-        %   set(obj.slider_frame,'Enable','off');
-        %   set(obj.edit_frame,'Enable','off');
-        %   set(obj.popupmenu_prevmode,'Enable','off');
-        %   set(obj.pushbutton_freezetemplate,'Enable','off');
-        %   set(obj.toolbar,'Visible','off')
-        %   if isgraphics(obj.menu_debug)
-        %     set(obj.menu_debug,'Enable','off') ;
-        %   end
-        % 
         case 'noproject',
           set(obj.menu_file,'Enable','on');
           set(obj.menu_view,'Enable','off');

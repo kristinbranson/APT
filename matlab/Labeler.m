@@ -14666,7 +14666,12 @@ classdef Labeler < handle
           end
           info = obj.projFSInfo ;
           if isempty(info) ,
-            raw_status_string = sprintf('%s since $PROJECTNAME saved.', why) ;
+            if isempty(obj.projectfile) ,
+              % This indicates a new project, just created.
+              raw_status_string = sprintf('%s, not yet saved.', why) ;
+            else
+              raw_status_string = sprintf('%s since $PROJECTNAME saved.', why) ;
+            end
           else
             raw_status_string = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
           end
