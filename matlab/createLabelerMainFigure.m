@@ -3961,8 +3961,8 @@ pumTrack = handles.pumTrack;
 pumTrack.Tag = 'pumTrack' ;
 pumTrack.Value = 1;
 pumTrack.String = {'All frames'};
-handles.pumTrack.Callback = ...
-  @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
+% handles.pumTrack.Callback = ...
+%   @(hObj,edata)LabelerGUI('pumTrack_Callback',hObj,edata,guidata(hObj));
 
 tbl0 = handles.tblTrx;
 COLNAMES = {'Index' 'Labeled'};

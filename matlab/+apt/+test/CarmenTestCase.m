@@ -23,7 +23,8 @@ classdef CarmenTestCase < matlab.unittest.TestCase
       setup_params = apt.test.CarmenTestCase.getSetupParams() ;
       backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_train('backend','bsub', ...
+      backend = fif(ispc(), 'docker', 'bsub') ;      
+      testObj.test_train('backend',backend, ...
                          'backend_params', backend_params);
       did_train_enough = (testObj.labeler.tracker.trnLastDMC.iterCurr>=1000) ;
       obj.verifyTrue(did_train_enough, 'Failed to complete all training iterations') ;
@@ -34,7 +35,8 @@ classdef CarmenTestCase < matlab.unittest.TestCase
       setup_params = apt.test.CarmenTestCase.getSetupParams() ;
       backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_track('backend','bsub', ...
+      backend = fif(ispc(), 'docker', 'bsub') ;      
+      testObj.test_track('backend',backend, ...
                          'backend_params', backend_params);
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is empty---it should be nonempty after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP, 'TrkFile', 'testObj.labeler.tracker.trkP is not of class TrkFile after tracking') ;
@@ -50,7 +52,8 @@ classdef CarmenTestCase < matlab.unittest.TestCase
       setup_params = apt.test.CarmenTestCase.getSetupParams() ;
       backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
-      testObj.test_gtcompute('backend','bsub', ...
+      backend = fif(ispc(), 'docker', 'bsub') ;            
+      testObj.test_gtcompute('backend',backend, ...
                              'backend_params', backend_params);
       tbl = testObj.labeler.gtTblRes ;
       obj.verifyTrue(isequal(size(tbl), [1539 11]), ...

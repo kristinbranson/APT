@@ -3039,9 +3039,16 @@ classdef LabelerController < handle
         menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(labeler.getMftInfoStruct()),mfts,'uni',0);
       end
       pumTrack = obj.pumTrack;
-      set(pumTrack, 'String', menustrs_compact, 'Value', labeler.trackModeIdx) ;  
+      rawMenuIndex = labeler.trackModeIdx ;
+      if 1<=rawMenuIndex && rawMenuIndex<=numel(menustrs) ,
+        menuIndex = rawMenuIndex ;
+      else
+        % This seems to happen sometimes when loading very old projects
+        menuIndex = 1 ;
+      end
+      set(pumTrack, 'String', menustrs_compact, 'Value', menuIndex) ;  
         % Set these at same time to avoid possibility of Value out of range for String
-      set(obj.text_framestotrackinfo,'String',menustrs{labeler.trackModeIdx});
+      set(obj.text_framestotrackinfo,'String',menustrs{menuIndex});
     end  % function
 
     function cbkMovieCenterOnTargetChanged(obj, src, evt)   %#ok<INUSD>

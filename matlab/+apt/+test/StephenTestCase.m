@@ -24,7 +24,7 @@ classdef StephenTestCase < matlab.unittest.TestCase
       backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
       iterationCount = 1000 ;
-      testObj.test_train('backend','bsub', ...
+      testObj.test_train('backend',fif(ispc(), 'docker', 'bsub'), ...
                          'backend_params', backend_params, ...
                          'niters', iterationCount) ;        
       obj.verifyEqual(testObj.labeler.tracker.algorithmName, 'mdn_joint_fpn', 'Training was not done with GRONe aka mdn_joint_fpn') ;
@@ -38,7 +38,7 @@ classdef StephenTestCase < matlab.unittest.TestCase
       backend_params = apt.test.CarmenTestCase.getBackendParams() ;
       testObj.test_setup(setup_params{:}) ;
       obj.verifyEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is nonempty---it should be empty before tracking') ;
-      testObj.test_track('backend','bsub', ...
+      testObj.test_track('backend',fif(ispc(), 'docker', 'bsub'), ...
                          'backend_params', backend_params) ;            
       obj.verifyNotEmpty(testObj.labeler.tracker.trkP, 'testObj.labeler.tracker.trkP is empty---it should be nonempty after tracking') ;
       obj.verifyClass(testObj.labeler.tracker.trkP, 'TrkFile', 'testObj.labeler.tracker.trkP is not of class TrkFile after tracking') ;
