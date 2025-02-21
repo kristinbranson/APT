@@ -764,7 +764,7 @@ classdef TestAPT < handle
         obj.setup_alg_for_tracking_(net_type)
       end
       if ~isempty(backend),
-        obj.set_backend_(backend,backend_params);
+        obj.set_backend_(backend, backend_params) ;
       end
       labeler = obj.labeler ;
       %kk = LabelerGUI('get_local_fn','pbTrack_Callback');

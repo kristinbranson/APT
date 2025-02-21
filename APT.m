@@ -97,7 +97,7 @@ classdef APT
         fullfile(mlroot,'propertiesGUI'); ...
         fullfile(mlroot,'treeTable'); ...
         fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
-        fullfile(root,'unittest'); ...
+        fullfile(mlroot,'unittest'); ...
         fullfile(mlroot,'compute_landmark_features'); ...
         fullfile(mlroot,'compute_landmark_transforms'); ...
         fullfile(mlroot,'trk'); ...
@@ -191,8 +191,8 @@ classdef APT
       % Don't set MATLAB path if it appears it is already set
       % "smart" in quotes, of course
       
-      if isdeployed
-        return;
+      if isdeployed()
+        return
       end
         
       [p,jp] = APT.getpath();
@@ -205,7 +205,7 @@ classdef APT
       if ismac()
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
-    end
+    end  % function
     
     % AL20210813 
     % User on win10, ML2021a encountring obscure java classpath issues.

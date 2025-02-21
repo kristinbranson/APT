@@ -49,17 +49,26 @@ classdef FSPath
       stdmed = [upperlast '/' stdshort];      
     end
     
-    function str = macroReplace(str,sMacro)
+    function result = macroReplace(input, sMacro)
+      % Replaces any macros present in input with the values given in sMacro.
+      % input: string or cell array of strings
       % sMacro: macro struct
       
-      macros = fieldnames(sMacro);
-      for i=1:numel(macros)
-        mpat = ['\$' macros{i}];
-        val = sMacro.(macros{i});
-        val = regexprep(val,'\\','\\\\');
-        str = regexprep(str,mpat,val);
+      if iscell(input)
+        result = cellfun(@(s)(FSPath.macroReplace(s,sMacro)), ...
+                         input, ...
+                         'UniformOutput', false) ;
+      else
+        % if input is a single string
+        macros = fieldnames(sMacro);
+        for i=1:numel(macros)
+          mpat = ['\$' macros{i}];
+          val = sMacro.(macros{i});
+          val = regexprep(val,'\\','\\\\');
+          result = regexprep(input,mpat,val);
+        end
       end
-    end    
+    end  % function
     
     function str = fullyLocalizeStandardizeChar(str,sMacro)
       str = FSPath.macroReplace(str,sMacro);

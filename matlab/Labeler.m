@@ -15137,5 +15137,23 @@ classdef Labeler < handle
       end
     end  % function    
     
+    function replaceMovieAndTrxPathPrefixes(obj, oldPrefix, newPrefix)
+      % For all the movie and trx file paths, does macro-substitution then replaces
+      % any paths that start with oldPrefix with newPrefix.  Used in testing code to
+      % translate from Linux-style PRFS paths to Windows-style.
+      movieFilesAllLiteral = FSPath.macroReplace(obj.movieFilesAll, obj.projMacros) ;
+      movieFilesAllGTLiteral = FSPath.macroReplace(obj.movieFilesAllGT, obj.projMacros) ;
+      trxFilesAllLiteral = FSPath.macroReplace(obj.trxFilesAll, obj.projMacros) ;
+      trxFilesAllGTLiteral = FSPath.macroReplace(obj.trxFilesAllGT, obj.projMacros) ;
+      movieFilesAllNew = replace_prefix_path(movieFilesAllLiteral, oldPrefix, newPrefix) ;
+      movieFilesAllGTNew = replace_prefix_path(movieFilesAllGTLiteral, oldPrefix, newPrefix) ;
+      trxFilesAllNew = replace_prefix_path(trxFilesAllLiteral, oldPrefix, newPrefix) ;
+      trxFilesAllGTNew = replace_prefix_path(trxFilesAllGTLiteral, oldPrefix, newPrefix) ;
+      % Actually update the state
+      obj.movieFilesAll = movieFilesAllNew ;
+      obj.movieFilesAllGT = movieFilesAllGTNew ;
+      obj.trxFilesAll = trxFilesAllNew ;
+      obj.trxFilesAllGT = trxFilesAllGTNew ;      
+    end  % function
   end  % methods
 end  % classdef
