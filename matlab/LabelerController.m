@@ -406,7 +406,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
+        addlistener(labeler, 'didSpawnTrackingForGT', @(source,event)(obj.showDialogAfterSpawningTrackingForGT(source, event))) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;
       obj.listeners_(end+1) = ...
@@ -862,20 +862,14 @@ classdef LabelerController < handle
       labeler.trackMakeOldTrackerCurrent(trackerHistoryIndex) ;      
     end
 
-    function showDialogAfterHopefullySpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
-      % Event handler that gets called after the labeler tries to spawn jobs for GT.
-      % Raises a dialog, and registers it as a 'satellite' window so we can delete
+    function showDialogAfterSpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
+      % Event handler that gets called after the labeler successfully spawns jobs for GT.
+      % Raises a non-modal dialog, and registers it as a 'satellite' window so we can delete
       % it when the main window closes.
       labeler = obj.labeler_ ;
-      tfsucc = labeler.didSpawnTrackingForGT ;
       DIALOGTTL = 'GT Tracking';
-      if isscalar(tfsucc) && tfsucc ,
-        msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
-        h = msgbox(msg,DIALOGTTL);
-      else
-        msg = sprintf('GT tracking failed');
-        h = warndlg(msg,DIALOGTTL);
-      end
+      msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
+      h = msgbox(msg,DIALOGTTL);
       obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
       %obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
     end

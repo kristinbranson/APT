@@ -1,4 +1,4 @@
-function [test_count, test_passed_count] = test_apt(varargin)
+function varargout = test_apt(varargin)
   % Run all the tests, except thos needing the AWS backend.  If keyword argument
   % 'aws' is true, the tests that use the AWS backend are also run.
   %
@@ -45,5 +45,13 @@ function [test_count, test_passed_count] = test_apt(varargin)
     else
       fprintf('Some tests failed: %d of %d tests passed.\n', test_passed_count, test_count) ;
     end
+  end
+  % Populate whatever return variables were requested
+  varargout = cell(1,nargout) ;
+  if nargout >=1 ,
+    varargout{1} = test_count ;
+  end
+  if nargout >=2 ,
+    varargout{2} = test_passed_count ;
   end
 end

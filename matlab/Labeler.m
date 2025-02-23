@@ -164,7 +164,7 @@ classdef Labeler < handle
     didSetTrackNFramesLarge
     didSetTrackNFramesNear
     didSetTrackParams
-    didHopefullySpawnTrackingForGT
+    didSpawnTrackingForGT
     didComputeGTResults
     newProgressMeter
 
@@ -498,14 +498,14 @@ classdef Labeler < handle
     isStatusBusy_ = false
     rawStatusString_  = 'Ready.'
     rawStatusStringWhenClear_ = 'Ready.'
-    didSpawnTrackingForGT_
+    % didSpawnTrackingForGT_
     progressMeter_
   end
   properties (Dependent)
     isStatusBusy
     rawStatusString
     %rawStatusStringWhenClear
-    didSpawnTrackingForGT
+    % didSpawnTrackingForGT
     progressMeter
   end
   properties (Dependent, Hidden)
@@ -9351,17 +9351,12 @@ classdef Labeler < handle
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
         try
           tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
-          tfsucc = true ;
         catch me
-          tfsucc = false ;
+          error('Failed to spawn tracking for GT: %s', me.getReport()) ;
         end
 
-        % Record whether that worked, so that anybody responding to the didHopefullySpawnTrackingForGT
-        % notification can find out whether it worked.
-        obj.didSpawnTrackingForGT_ = tfsucc ;
-
         % Broadcast a notification about recent events
-        obj.notify('didHopefullySpawnTrackingForGT') ;
+        obj.notify('didSpawnTrackingForGT') ;
       end  % if
     end  % function
     
@@ -9396,7 +9391,7 @@ classdef Labeler < handle
         gtResultTbl(:,'p') = [];
       end
       obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
-      obj.didSpawnTrackingForGT_ = [] ;  % reset this
+      % obj.didSpawnTrackingForGT_ = [] ;  % reset this
       obj.notify('didComputeGTResults') ;
       obj.clearStatus();
     end  % function
@@ -14570,9 +14565,9 @@ classdef Labeler < handle
 %       result = obj.rawStatusStringWhenClear_ ;
 %     end
 
-    function result = get.didSpawnTrackingForGT(obj)
-      result = obj.didSpawnTrackingForGT_ ;
-    end
+    % function result = get.didSpawnTrackingForGT(obj)
+    %   result = obj.didSpawnTrackingForGT_ ;
+    % end
 
     function setRawStatusStringWhenClear_(obj, new_value)
       % This should go away eventually, once a few more functions in LabelerGUI get
