@@ -60,20 +60,22 @@ classdef FSPath
                          'UniformOutput', false) ;
       else
         % if input is a single string
+        result = input ;
         macros = fieldnames(sMacro);
         for i=1:numel(macros)
-          mpat = ['\$' macros{i}];
-          val = sMacro.(macros{i});
+          macro = macros{i} ;
+          mpat = ['\$' macro];
+          val = sMacro.(macro);
           val = regexprep(val,'\\','\\\\');
-          result = regexprep(input,mpat,val);
+          result = regexprep(result,mpat,val);
         end
       end
     end  % function
     
-    function str = fullyLocalizeStandardizeChar(str,sMacro)
-      str = FSPath.macroReplace(str,sMacro);
-      str = FSPath.standardPathChar(str);
-      str = FSPath.platformizePath(str);
+    function result = fullyLocalizeStandardizeChar(str0,sMacro)
+      str1 = FSPath.macroReplace(str0,sMacro);
+      str2 = FSPath.standardPathChar(str1);
+      result = FSPath.platformizePath(str2);
     end
     
     function s = fullyLocalizeStandardize(s,sMacro)

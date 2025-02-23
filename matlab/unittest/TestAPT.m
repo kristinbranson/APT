@@ -119,7 +119,7 @@ classdef TestAPT < handle
       if strcmp(name,'alice')      
         % info.ref_lbl = '/work/mayank/work/FlySpaceTime/multitarget_bubble_expandedbehavior_20180425_fixederrors_fixed.lbl';
         % info.ref_lbl = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019.lbl';
-        info.ref_lbl = fullfile(unittest_dir_path, 'alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019_updated_20250219.lbl') ;
+        info.ref_lbl = fullfile(unittest_dir_path, 'alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019.lbl') ;
         info.exp_dir_base = fullfile(unittest_dir_path, 'alice/data') ;
         info.nviews = 1;
         info.npts = 17;
@@ -657,7 +657,7 @@ classdef TestAPT < handle
     
     function set_params_base_(obj, has_trx, dl_steps, manual_radius, batch_size)
       labeller = obj.labeler;
-      sPrm = labeller.trackGetParams();      
+      sPrm = labeller.trackGetTrainingParams();      
       
       sbase = struct() ;
       sbase.AlignUsingTrxTheta = has_trx;
@@ -670,7 +670,7 @@ classdef TestAPT < handle
       end
       sPrm2 = structsetleaf(sPrm,sbase,'verbose',true);
 
-      labeller.trackSetParams(sPrm2);
+      labeller.trackSetTrainingParams(sPrm2);
     end  % function
         
     function set_backend_(obj, backend_type_as_string, raw_backend_params)
@@ -721,9 +721,9 @@ classdef TestAPT < handle
       fprintf('Training with tracker %s\n',obj.labeler.tracker.algorithmNamePretty);
       obj.set_params_base_(obj.info.has_trx, niters, obj.info.sz, batch_size);
       if ~isempty(params)
-        sPrm = obj.labeler.trackGetParams();
+        sPrm = obj.labeler.trackGetTrainingParams();
         sPrm = structsetleaf(sPrm,params,'verbose',true);
-        obj.labeler.trackSetParams(sPrm);
+        obj.labeler.trackSetTrainingParams(sPrm);
       end
       obj.set_backend_(backend,backend_params);
 
@@ -829,7 +829,7 @@ classdef TestAPT < handle
     %   % s.ROOT.DeepTrack.DataAugmentation.trange = 5;
     %   % s.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1.1;
     %   % s.ROOT.DeepTrack.ImageProcessing.scale = 1.;
-    %   % lObj.trackSetParams(s);
+    %   % lObj.trackSetTrainingParams(s);
     %   obj.setup_alg_(net);
     %   obj.setup_backend_(backend,backend_params);
     % end  % function

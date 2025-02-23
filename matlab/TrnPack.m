@@ -283,7 +283,7 @@ classdef TrnPack
       end
       
       tObj = lObj.tracker;
-      tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
+      tObj.setAllParams(lObj.trackGetTrainingParams()); % does not set skel, flipLMEdges
 
       slbl_orig = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl_orig,'ma',true);

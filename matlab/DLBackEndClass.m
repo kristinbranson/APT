@@ -943,7 +943,7 @@ classdef DLBackEndClass < handle
       backend.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
-    function [didSpawnAllJobs, spawned_jobids] = spawnRegisteredJobs(obj, train_or_track, varargin)
+    function spawnRegisteredJobs(obj, train_or_track, varargin)
       % Spawn all the training/tracking jobs that have been previously registered.
       % On entry, all jobs of the given type should be 
       [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
@@ -970,7 +970,7 @@ classdef DLBackEndClass < handle
       end
 
       % Actually spawn the jobs
-      [didSpawnAllJobs, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
 
       % If all went well, record the spawned jobids.  If not, kill any straggler
       % jobs.
@@ -991,12 +991,14 @@ classdef DLBackEndClass < handle
             obj.ensureJobIsNotAlive(jobid) ;
           end
         end
+        % Not that stray jobs were killed, throw error
+        error(reason) ;
       end  % if        
     end  % function
   end  % methods
 
   methods (Static)
-    function [didSpawnAllJobs, jobidFromJobIndex] = spawnJobs(syscmds, logcmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
+    function [didSpawnAllJobs, reason, jobidFromJobIndex] = spawnJobs(syscmds, logcmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
       % Spawn the jobs specified in syscmds.  On return, didSpawnAllJobs indicates
       % whether all went well.  *Regardless of the value of didSpawnAllJobs,*
       % jobidFromJobIndex contains the jobids of all the jobs that were successfully
@@ -1013,11 +1015,13 @@ classdef DLBackEndClass < handle
             jobid = DLBackEndClass.parseJobID(backend_type, stdouterr);
           else
             didSpawnAllJobs = false ;
+            reason = stdouterr ;
             return
           end
         else
           % Pretend it's a failure, for expediency.
           didSpawnAllJobs = false ;
+          reason = 'It was requested that APT_interface.py not be called.' ;
           return
         end
 
@@ -1044,6 +1048,7 @@ classdef DLBackEndClass < handle
         end  % if
       end  % for      
       didSpawnAllJobs = true ;  % if get here, all is well
+      reason = '' ;
     end  % function
   end  % methods (Static)
 

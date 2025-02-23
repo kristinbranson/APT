@@ -177,7 +177,7 @@ classdef Labeler < handle
     updateTrackMonitorViz
     refreshTrainMonitorViz
     updateTrainMonitorViz
-    raiseTrainingStoppedDialog
+    % raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
     updateStuffInHlpSetCurrPrevFrame
@@ -2376,23 +2376,39 @@ classdef Labeler < handle
       
       % check that all movie files exist, allow macro fixes
       for i = 1:obj.nmovies,
-        tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,false));
+        if obj.silent_ ,
+          tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false)) ;
+        else
+          tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,false)) ;
+        end
         if ~tfsuccess,
-          warning('Labeler:movie_missing', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
-            % N.B. We can't error here b/c we just want to proceed and let the user fix            
-            % the missing movies in the Movie Manager later.
-            % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
-            % missing movies, so the warning is just so they have a record in the console.
+          if obj.silent_ ,
+            error('Labeler:movie_missing', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
+          else            
+            warning('Labeler:movie_missing_warning', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
+              % N.B. We can't error here b/c we just want to proceed and let the user fix            
+              % the missing movies in the Movie Manager later.
+              % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
+              % missing movies, so the warning is just so they have a record in the console.
+          end
         end
       end
       for i = 1:obj.nmoviesGT,
-        tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,true));
+        if obj.silent_ ,
+          tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true)) ;
+        else
+          tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,true));
+        end
         if ~tfsuccess,
-          warning('Labeler:movie_missing', 'File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
-            % N.B. We can't error here b/c we just want to proceed and let the user fix            
-            % the missing movies in the Movie Manager later.
-            % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
-            % missing movies, so the warning is just so they have a record in the console.
+          if obj.silent_ ,
+            error('Labeler:movie_missing', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
+          else            
+            warning('Labeler:movie_missing_warning', 'File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
+              % N.B. We can't error here b/c we just want to proceed and let the user fix            
+              % the missing movies in the Movie Manager later.
+              % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
+              % missing movies, so the warning is just so they have a record in the console.
+          end
         end
       end
 
@@ -4265,7 +4281,7 @@ classdef Labeler < handle
       
       if ~all(cellfun(@isempty,obj.(PROPS.TFA)(iMov,:)))
         assert(~obj.isMultiView,...
-          'Multiview labeling with targets unsupported.');
+               'Multiview labeling with targets unsupported.');
       end
       
       for iView = 1:obj.nview
@@ -9333,7 +9349,12 @@ classdef Labeler < handle
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
-        tfsucc = tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
+        try
+          tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
+          tfsucc = true ;
+        catch me
+          tfsucc = false ;
+        end
 
         % Record whether that worked, so that anybody responding to the didHopefullySpawnTrackingForGT
         % notification can find out whether it worked.
@@ -10500,7 +10521,7 @@ classdef Labeler < handle
       sPrm.ROOT.Track = rmfield(sPrm.ROOT.Track,{'NFramesSmall','NFramesLarge','NFramesNeighborhood'});
     end
     
-    function trackSetParams(obj, sPrm, varargin)
+    function trackSetTrainingParams(obj, sPrm, varargin)
       % Set all parameters:
       %  - preproc
       %  - cpr
@@ -10573,7 +10594,7 @@ classdef Labeler < handle
 
       silent = myparse(varargin,'silent',false) | obj.silent;
         
-      sPrmCurrent = obj.trackGetParams();
+      sPrmCurrent = obj.trackGetTrainingParams();
       % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
       % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
       % over.
@@ -10604,14 +10625,14 @@ classdef Labeler < handle
         return
       elseif do_update
         sPrmNew = tPrm.structize;
-        obj.trackSetParams(sPrmNew);
+        obj.trackSetTrainingParams(sPrmNew);
       end
     end  % function
     
     function [tPrm] = trackGetTrackParams(obj)
       % Get current parameters related to tracking
 
-      sPrmCurrent = obj.trackGetParams();
+      sPrmCurrent = obj.trackGetTrainingParams();
       sPrmCurrent = APTParameters.all2TrackParams(sPrmCurrent);
       % Start with default "new" parameter tree/specification
       tPrm = APTParameters.defaultTrackParamsTree();  % object of class TreeNode
@@ -10621,10 +10642,10 @@ classdef Labeler < handle
     end
     
     function [sPrmAll] = trackSetTrackParams(obj,sPrmTrack,varargin)      
-      sPrmAll = obj.trackGetParams();
+      sPrmAll = obj.trackGetTrainingParams();
       sPrmAll = APTParameters.setTrackParams(sPrmAll,sPrmTrack);
       
-      obj.trackSetParams(sPrmAll,varargin{:},'istrack',true);
+      obj.trackSetTrainingParams(sPrmAll,varargin{:},'istrack',true);
       
       % set all tracker parameters
       for i = 1:numel(obj.trackerHistory_),
@@ -10654,7 +10675,7 @@ classdef Labeler < handle
       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
     end
     
-    function sPrm = trackGetParams(obj,varargin)
+    function sPrm = trackGetTrainingParams(obj,varargin)
       % Get all user-settable parameters, including preproc etc.
       %
       % Doesn't include APT-added params for DL backend.
@@ -10756,7 +10777,7 @@ classdef Labeler < handle
       % Does UI stuff, should be moved into controller
       silent = myparse(varargin,'silent',false) || obj.silent ;
       dotrain = true;
-      sPrm = obj.trackGetParams();
+      sPrm = obj.trackGetTrainingParams();
       [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
       imsz = ParameterVisualizationMemory.getProjImsz(...
         obj,sPrm,is_ma,is2stage,1);
@@ -15026,9 +15047,9 @@ classdef Labeler < handle
       obj.trackDLBackEnd.killAndClearRegisteredJobs(train_or_track) ;
     end    
     
-    function raiseTrainingStoppedDialog_(obj) 
-      obj.notify('raiseTrainingStoppedDialog') ;      
-    end
+    % function raiseTrainingStoppedDialog_(obj) 
+    %   obj.notify('raiseTrainingStoppedDialog') ;      
+    % end
 
     function abortTraining(obj)
       % Abort the in-progress training.  Called when the user presses the "Stop

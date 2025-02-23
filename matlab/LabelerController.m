@@ -421,8 +421,8 @@ classdef LabelerController < handle
         addlistener(labeler,'refreshTrainMonitorViz',@(source,event)(obj.refreshTrainMonitorViz()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTrainMonitorViz',@(source,event)(obj.updateTrainMonitorViz()));      
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingStoppedDialog()));      
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingEndedDialog_()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'newProject',@(source,event)(obj.didCreateNewProject()));
       obj.listeners_(end+1) = ...
@@ -1591,7 +1591,7 @@ classdef LabelerController < handle
       obj.satellites_ = gobjects(1,0);
     end  % function
 
-    function raiseTrainingStoppedDialog(obj)
+    function raiseTrainingEndedDialog_(obj)
       % Raise a dialog that reports how many training iterations have completed, and
       % ask if the user wants to save the project.  Normally called via event
       % notification after training is stopped early via user pressing the "Stop
@@ -1599,9 +1599,13 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       tracker = labeler.tracker ;
       iterCurr = tracker.trackerInfo.iterCurr ;
+      if all(isnan(iterCurr)) ,
+        % Don't bother with the dialog if training didn't really happen.
+        return
+      end
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      question_string = sprintf('Training stopped after %s iterations. Save project now?',...
+      question_string = sprintf('Training completed %s iterations. Save project now?',...
                                 n_out_of_d_string) ;
       res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
       if strcmpi(res,'Save'),
@@ -2572,13 +2576,16 @@ classdef LabelerController < handle
     end  % function
 
     function cbkTrackerTrainEnd(obj)
-      lObj = obj.labeler_ ;
+      labeler = obj.labeler_ ;
+      if ~labeler.silent ,
+        obj.raiseTrainingEndedDialog_() ;
+      end
       obj.txBGTrain.Visible = 'off';
       obj.txBGTrain.String = 'Idle';
       obj.txBGTrain.ForegroundColor = obj.idlestatuscolor;
       val = true;
       str = 'Tracker trained';
-      lObj.setDoesNeedSave(val, str) ;
+      labeler.setDoesNeedSave(val, str) ;
     end  % function
 
     function cbkTrackerStart(obj)
@@ -4966,7 +4973,7 @@ classdef LabelerController < handle
           labeler.setDoesNeedSave(true,'Parameters changed') ;
         end
       else
-        labeler.trackSetParams(sPrmNew);
+        labeler.trackSetTrainingParams(sPrmNew);
         RC.saveprop('lastCPRAPTParams',sPrmNew);
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end

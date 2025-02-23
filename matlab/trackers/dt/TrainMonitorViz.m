@@ -349,7 +349,7 @@ classdef TrainMonitorViz < handle
       if isempty(isRunning0),
         isRunning = true;
       else
-        isRunning = any(isRunning0);
+        isRunning = any(isRunning0) ;
       end
       if ~isRunning
         if obj.jobStoppedRepeatsReqd>=1

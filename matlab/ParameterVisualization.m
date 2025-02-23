@@ -21,7 +21,7 @@ classdef ParameterVisualization < handle
     %   "new-style" parameter space, as this is how params are presented to
     %   the user.
     %   NOTE: Besides being new-style vs old-style, sPrm in general will
-    %   differ from lObj.trackGetParams(), as the PropertyTable may be in 
+    %   differ from lObj.trackGetTrainingParams(), as the PropertyTable may be in 
     %   a modified/edited state and these changes are not written to the 
     %   Labeler until the user clicks Apply.
     propSelected(obj,hAx,lObj,propFullName,sPrm)
