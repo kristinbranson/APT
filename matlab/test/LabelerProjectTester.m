@@ -39,7 +39,12 @@ classdef LabelerProjectTester < handle
       
       % Set things up for training
       if ~isempty(algo_name) ,
-        labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
+        labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
+        % if labeler.trackIsTrackerInHistoryByName(algo_name) 
+        %   labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
+        % else
+        %   labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
+        % end          
       end
       obj.set_backend_params_(backend_type_as_string, backend_params) ;
       if isempty(training_params)

@@ -10509,6 +10509,14 @@ classdef Labeler < handle
       obj.trackMakeOldTrackerCurrent(trackerIndex) ;
     end  % function
 
+    function result = trackIsTrackerInHistoryByName(obj, algoName)
+      algorithmNameFromHistoryIndex = cellfun(@(tracker)(tracker.algorithmName), ...
+                                              obj.trackerHistory_, ...
+                                              'UniformOutput', false) ;
+      matchingIndices = find(strcmp(algoName, algorithmNameFromHistoryIndex)) ;  %#ok<EFIND>
+      result = ~isempty(matchingIndices) ;
+    end  % function
+
     function sPrm = setTrackNFramesParams(obj,sPrm)
       obj.trackNFramesSmall = sPrm.ROOT.Track.NFramesSmall;
       obj.trackNFramesLarge = sPrm.ROOT.Track.NFramesLarge;
