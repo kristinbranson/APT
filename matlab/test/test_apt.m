@@ -31,6 +31,7 @@ function varargout = test_apt(varargin)
     end
     test_count = numel(test_function_names) ;
     test_passed_count = 0 ;
+    fprintf('Running %d tests...\n', test_count) ;
     for test_index = 1 : test_count ,
       test_function_name = test_function_names{test_index} ;
       try
