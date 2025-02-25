@@ -1,7 +1,7 @@
-function test_sam_two_view_training()
-  % Test training for alice project
+function test_stephen_training()
+  % Test training for stephen project
   [~, unittest_dir_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, '2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl') ;
+  project_file_path = fullfile(unittest_dir_path, 'sh_test_lbl_20200310_modded_resaved_tweaked_20240122.lbl') ;
   tester = LabelerProjectTester(project_file_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   backend_params = janelia_bsub_backend_params() ; 

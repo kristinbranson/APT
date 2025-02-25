@@ -1,13 +1,9 @@
-function test_sam_two_view_training()
-  % Test training for alice project
+function test_carmen_training()
   [~, unittest_dir_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, '2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl') ;
+  project_file_path = fullfile(unittest_dir_path, 'pez7_al_updated_20241015.lbl') ;
   tester = LabelerProjectTester(project_file_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   backend_params = janelia_bsub_backend_params() ; 
   tester.test_training('backend', fif(ispc(), 'docker', 'bsub'), ...
                        'backend_params', backend_params) ;
-  if ~isequal(tester.labeler.tracker.algorithmName, 'mdn_joint_fpn')
-    error('Training was not done with GRONe aka mdn_joint_fpn') ;
-  end
 end  % function

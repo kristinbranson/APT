@@ -42,7 +42,7 @@ function varargout = test_apt(varargin)
       end
     end
     if test_passed_count == test_count ,
-      fprintf('All tests passed.\n') ;
+      fprintf('All tests (%d/%d) passed.\n', test_passed_count, test_count) ;
     else
       fprintf('Some tests failed: %d of %d tests passed.\n', test_passed_count, test_count) ;
     end
