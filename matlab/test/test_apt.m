@@ -23,28 +23,36 @@ function varargout = test_apt(varargin)
     test_file_names = simple_dir(fullfile(single_tests_dir_path, '*.m')) ;
     all_test_function_names = cellfun(@(file_name)(file_name(1:end-2)), test_file_names, 'UniformOutput', false) ;
     if do_run_aws_tests ,
-      test_function_names = all_test_function_names ;
+      function_name_from_test_index = all_test_function_names ;
     else
       % Filter out tests with 'AWS' in the name, ignoring case
       is_aws_from_all_test_index = contains(all_test_function_names, 'aws', 'IgnoreCase', true) ;
-      test_function_names = all_test_function_names(~is_aws_from_all_test_index) ;
+      function_name_from_test_index = all_test_function_names(~is_aws_from_all_test_index) ;
     end
-    test_count = numel(test_function_names) ;
-    test_passed_count = 0 ;
+    test_count = numel(function_name_from_test_index) ;
     fprintf('Running %d tests...\n', test_count) ;
+    did_pass_from_test_index = false(test_count,1) ;
     for test_index = 1 : test_count ,
-      test_function_name = test_function_names{test_index} ;
+      test_function_name = function_name_from_test_index{test_index} ;
       try
         feval(test_function_name) ,
-        test_passed_count = test_passed_count + 1 ;
+        did_pass_from_test_index(test_index) = true ;
       catch me
         fprintf('Test %s (%d/%d) failed:\n%s\n', test_function_name, test_index, test_count, me.getReport()) ;
       end
     end
+    test_passed_count = sum(double(did_pass_from_test_index)) ;
     if test_passed_count == test_count ,
       fprintf('All tests (%d/%d) passed.\n', test_passed_count, test_count) ;
     else
       fprintf('Some tests failed: %d of %d tests passed.\n', test_passed_count, test_count) ;
+      for test_index = 1 : test_count ,
+        did_pass = did_pass_from_test_index(test_index) ;
+        if ~did_pass ,
+          function_name = function_name_from_test_index{test_index} ;
+          fprintf('Test %s failed.\n', function_name) ;
+        end
+      end
     end
   end
   % Populate whatever return variables were requested
