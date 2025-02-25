@@ -7,12 +7,17 @@ classdef LabelerProjectTester < handle
   end
   
   methods    
-    function obj = LabelerProjectTester(project_file_path)
+    function obj = LabelerProjectTester(project_file_path, varargin)
+      replace_path = ...
+        myparse(varargin,...
+                'replace_path',{'',''}) ;
+        % replace_path is useful when running on Windows, where paths to movies may
+        % differ from what they are on Linux.
       [obj.labeler, obj.controller] = StartAPT() ;
       % Set the labeler to silent mode for batch operation
       obj.labeler.silent = true ;
       % Load the named project
-      obj.labeler.projLoadGUI(project_file_path) ;
+      obj.labeler.projLoadGUI(project_file_path, 'replace_path', replace_path) ;
     end
     
     function delete(obj)
