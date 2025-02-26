@@ -151,7 +151,12 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None, forc
 
   # match
   #print('C:', C)
-  idxcurr, idxnext = opt.linear_sum_assignment(C)
+  try:
+    idxcurr, idxnext = opt.linear_sum_assignment(C)
+  except ValueError:
+    print('C:', C)
+    raise ValueError
+
 
   costs = C[idxcurr, idxnext]
   cost = np.sum(costs)
@@ -1048,6 +1053,7 @@ def motion_link(trk,ids,T,t0s,t1s,params):
     use_ndx = cur_ndx
     matched = False
     if (t0s[use_ndx] == t1s[use_ndx]) or (t0s[use_ndx] < 0):
+      # cannot estimate motion for this tracklet
       cur_ndx += 1
       continue
     idx = ids.where(use_ndx)
@@ -1511,7 +1517,7 @@ class id_dset(torch.utils.data.IterableDataset):
         idx_self2 = np.random.choice(len(cur_dat[0]), p=wt_self2)
         im2 = cur_dat[0][idx_self2]
 
-        # Select the 3 image from overlaping tracklet such that images that are close to both 1 and 2 have higher prob.
+        # Select the 3rd image from overlaping tracklet such that images that are close to both 1 and 2 have higher prob.
         t_dist_overlap_idx = (t_dist_all[:,idx_self1] + t_dist_all[:,idx_self2]) / 2
         overlap_wts = 2.2 - np.clip(t_dist_overlap_idx, 0, 2)
         overlap_wts = overlap_wts*overlap_amt[:,None]
@@ -2238,7 +2244,7 @@ def group_tracklets(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,al
     used_trks.extend(gr)
     groups.append(gr)
 
-  return groups,pred_map,[groups_only_id,groups]
+  return groups,pred_map,[groups_only_id,groups,pred_map]
 
 
 def match_motion_id(link_costs, jj, sel_tgt, close_thresh,dist_mat):
@@ -2658,7 +2664,7 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   for mov_ndx in range(len(linked_trks)):
     grs, new_pred_map = add_missing_links(linked_trks, grs, conf, new_pred_map, mov_ndx, None, maxcosts_all[mov_ndx], maxn, bignumber, link_costs_arr)
 
-  debug_data = [link_data,motion_grs_all,gr_data,gv_len,xmat]
+  debug_data = [link_data,motion_grs_all,pred_map,gr_data,gv_len,xmat]
   return grs, new_pred_map, debug_data
 
 

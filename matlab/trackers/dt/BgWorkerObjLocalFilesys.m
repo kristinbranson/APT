@@ -58,7 +58,8 @@ classdef BgWorkerObjLocalFilesys < BgWorkerObj
         nframes = BgWorkerObj.readTrkFileStatus(obj,f,partFileIsTextStatus);  % call superclass method
       else
         try
-          nframes = TrkFile.getNFramesTrackedMatFile(f);
+          isma = isempty(obj.totrackinfos.ttis.trxfiles);
+          nframes = TrkFile.getNFramesTrackedMatFile(f,'isma',isma);
         catch
           fprintf('Could not read tracking progress from %s\n',f);
         end

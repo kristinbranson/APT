@@ -12,7 +12,6 @@ import os
 import cv2
 from torchvision import transforms
 from torch.nn.parameter import Parameter
-from mmpose.datasets.pipelines.bottom_up_transform import HeatmapGenerator
 from scipy.optimize import linear_sum_assignment
 
 
@@ -99,9 +98,70 @@ def nanmin(v):
         return torch.min(k)
 
 
-from mmpose.models import HRNet
+def my_vit_backbone(im_sz):
+    from mmpretrain.models.backbones.vision_transformer import VisionTransformer
+    backbone = VisionTransformer(arch='base',
+        img_size=im_sz,
+        patch_size=16,
+        qkv_bias=True,
+        drop_path_rate=0.3,
+        with_cls_token=False,
+        out_type='featmap',
+        patch_cfg=dict(padding=2),
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://download.openmmlab.com/mmpose/'
+            'v1/pretrained_models/mae_pretrain_vit_base_20230913.pth'))
+    backbone.init_weights()
+    return backbone
+
+def my_vit_neck():
+    from mmpose.models.necks.fmap_proc_neck import FeatureMapProcessor
+    return FeatureMapProcessor(scale_factor=4.0, apply_relu=True)
+
+class my_vit(nn.Module):
+    def __init__(self,im_sz):
+        super(my_vit,self).__init__()
+        self.backbone = my_vit_backbone(im_sz)
+        self.neck = my_vit_neck()
+
+    def forward(self,x):
+        x1 = self.backbone(x)
+        x = self.neck(x1)
+        return {'0':x[0],'1':x1[0],'2':x1[0],'3':x1[0]}
+
+def my_convnext_backbone():
+    from mmpretrain.models.backbones.convnext import ConvNeXt
+    backbone = ConvNeXt(arch='base',
+        frozen_stages=2,
+        out_indices=(0, 1, 2, 3),
+        gap_before_final_norm = False,
+        init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://download.openmmlab.com/mmclassification/v0/convnext/convnext-base_3rdparty_in21k_20220124-13b83eec.pth'))
+    backbone.init_weights()
+    return backbone
+
+def my_convnext_neck():
+    from mmpose.models.necks.fpn import FPN
+    neck = FPN([128,256,512,1024], out_channels=1024,add_extra_convs=True,num_outs=4)
+    neck.init_weights()
+    return neck
+
+class my_convnext(nn.Module):
+    def __init__(self):
+        super(my_convnext,self).__init__()
+        self.backbone = my_convnext_backbone()
+        self.neck = my_convnext_neck()
+
+    def forward(self,x):
+        x1 = self.backbone(x)
+        x = self.neck(x1)
+        return {'0':x[0],'1':x[1],'2':x[2],'3':x1[-1]}
+
 
 def my_hrnet_fpn_backbone():
+    from mmpose.models import HRNet
     extra = dict(
             stage1=dict(
                 num_modules=1,
@@ -200,14 +260,21 @@ def my_resnet_fpn_backbone(backbone_name, pretrained, norm_layer=misc_nn_ops.Fro
 
 class mdn_joint(nn.Module):
 
-    def __init__(self, npts, device, pretrain_freeze_bnorm=True, k_j=4, k_r=3, wt_offset=-5,fpn_joint_layer=3,fpn_ref_layer=0,pred_occluded=False,backbone_type='resnet50',use_hrnet=False,dropout=0.0,do_dist_pred=True,hmap_loss=False):
+    def __init__(self, npts, device, pretrain_freeze_bnorm=True, k_j=4, k_r=3, wt_offset=-5,fpn_joint_layer=3,fpn_ref_layer=0,pred_occluded=False,backbone_type='resnet50',use_hrnet=False,dropout=0.0,do_dist_pred=True,hmap_loss=False,im_sz=None):
         super(mdn_joint,self).__init__()
 
         bn_layer = misc_nn_ops.FrozenBatchNorm2d if pretrain_freeze_bnorm else None
         # Use already available fpn. woohoo.
         if use_hrnet:
-            backbone = my_hrnet_fpn_backbone()
-            n_ftrs = 32
+            if backbone_type == 'vit':
+                backbone = my_vit(im_sz)
+                n_ftrs = 768
+            elif backbone_type == 'convnext':
+                backbone = my_convnext()
+                n_ftrs = 1024
+            else:
+                backbone = my_hrnet_fpn_backbone()
+                n_ftrs = 32
         else:
             backbone = my_resnet_fpn_backbone(backbone_type,pretrained=True,trainable_layers=5,norm_layer=bn_layer)
 
@@ -316,12 +383,19 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
         super(Pose_multi_mdn_joint_torch, self).__init__(conf, **kwargs)
-        if not conf.get('mdn_use_hrnet',False):
+        if not conf.get('mdn_use_hrnet',False): # resnet50
             self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num',3)
             self.fpn_ref_layer  = self.conf.get('mdn_joint_ref_layer_num',0)
-        else:
-            self.fpn_joint_layer = 0
-            self.fpn_ref_layer = 0
+        else: #mmpose networks
+            if conf.get('mdn_backbone', 'resnet50') == 'vit':
+                self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 2)
+                self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
+            elif conf.get('mdn_backbone', 'resnet50') == 'convnext':
+                self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 3)
+                self.fpn_ref_layer = self.conf.get('mdn_joint_ref_layer_num', 0)
+            else: #hrnet
+                self.fpn_joint_layer = 0
+                self.fpn_ref_layer = 0
 
         self.offset = 4*(2**self.fpn_joint_layer)
         self.ref_scale = 4*(2**self.fpn_ref_layer)
@@ -335,6 +409,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.use_base_loss = self.conf.get('mdn_use_base_loss',False)
         self.hmap_loss = self.conf.get('mdn_hmap_loss',False)
         if self.hmap_loss:
+            from mmpose.datasets.pipelines.bottom_up_transform import HeatmapGenerator
             self.heatmap_gen = HeatmapGenerator([int(self.conf.imsz[1]//4),int(self.conf.imsz[0]//4)],self.conf.n_classes,2)
         self.min_hmap_sz = self.conf.get('mdn_min_hmap_sz',10)
         self.version = 3
@@ -347,7 +422,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         backbone_type = self.conf.get('mdn_backbone','resnet50')
         use_hrnet = self.conf.get('mdn_use_hrnet',False)
         dropout = self.conf.get('mdn_dropout',0.0)
-        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded,backbone_type=backbone_type,use_hrnet=use_hrnet,dropout=dropout,do_dist_pred=self.do_dist_pred,hmap_loss=self.hmap_loss)
+        return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded,backbone_type=backbone_type,use_hrnet=use_hrnet,dropout=dropout,do_dist_pred=self.do_dist_pred,hmap_loss=self.hmap_loss,im_sz=self.conf.imsz)
 
     def loss_slow(self, preds, labels):
         n_classes = self.conf.n_classes
@@ -470,11 +545,14 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         dd1 = torch.where(qq > -1000, dd, torch.zeros_like(dd))
         # Set the distances to 0 where labels are invalid
 
+        n_pts = ((labels[..., 0]>-1000).sum(-1)+1)
+
         dd_all1 = dd1.sum(-1)  # all is all the landmarks
         qq_all = torch.unsqueeze(valid,2)
         qq_all = qq_all.repeat([1,1,ls[-1]*ls[-2]*self.k_j])
         # Set distances to invalid instances to a very high value.
         dd_all = torch.where(qq_all,dd_all1,10000*torch.ones_like(dd_all1)*self.conf.n_classes)
+        dd_all = dd_all/n_pts[:,:,None]
 
         p_assign = torch.softmax(-dd_all.detach(), axis=1)
 
@@ -483,13 +561,14 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         assign[assign<1e-10] = 0
         assign_sum = torch.where(valid,assign.sum(axis=-1),torch.ones_like(assign[:,:,0]))
         assign_norm = assign/ torch.unsqueeze(assign_sum+1e-10,dim=-1)
+        assign_norm_det = assign_norm.detach()
+
         dloss = (assign_norm*dd_all).sum(axis=-1)
         cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss))
 
         d_pred_valid = torch.abs(dd-dist_pred_flat[:,None])
-
         dd_valid = torch.where(valid_lbl[:,:,None],d_pred_valid,torch.zeros_like(d_pred_valid))
-        dist_pred_loss = (assign_norm * dd_valid.sum(axis=-1)).sum(axis=(-1,-2))/50
+        dist_pred_loss = (assign_norm_det * dd_valid.sum(axis=-1)).sum(axis=(-1,-2))/50
         # dist_pred_loss = 0
 
         # Predict occluded loss
@@ -500,7 +579,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             dd_occ = torch.where(valid[:, :, None, None], dd_occ, torch.zeros_like(dd_occ))
             # Set the loss 0 where labels are missing
             dd_occ = dd_occ.sum(-1)
-            docc_loss = (assign_norm * dd_occ).sum(axis=-1)
+            docc_loss = (assign_norm_det * dd_occ).sum(axis=-1)
             cur_occ_loss = torch.where(valid, docc_loss, torch.zeros_like(docc_loss))
             cur_pred_loss = cur_pred_loss + cur_occ_loss*10
             # occ loss is roughly equal to missing a pose by 10px
@@ -508,35 +587,51 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         # We want only one prediction for each label. We penalize multiple predictions by taking the total weight that gets assigned to a label. This should sum to 1. However this leads to corner case where three close by pixels can have values < 0, but the sum of their sigmoids is 1. To avoid this have that they total weight for each label is 2. With this even for corner cases we will have that one pixels value is greater than 0. Also, this will force close by pixels too to predict the pose.
         assign_sum = assign.sum(axis=-1)
+        assign_sum_sq = (assign**2).sum(axis=-1)
         assign_sum1 = torch.clamp(assign_sum,0,self.mdn_joint_max_assign*2)
 
         if self.use_base_loss:
             wt_loss_sum_target = 5.
         else:
             wt_loss_sum_target = 2.
-        wt_loss_sum_target = min(wt_loss_sum_target,self.mdn_joint_max_assign)
-        wt_loss_all = (wt_loss_sum_target-assign_sum1)**2
+
+        if 'mdn_scale_baseloss' in self.conf.__dict__:
+            wt_loss_sum_target = n_pts
+        else:
+            wt_loss_sum_target = min(wt_loss_sum_target,self.mdn_joint_max_assign)
+
+        wt_loss_all = (wt_loss_sum_target-assign_sum1)**2 + (wt_loss_sum_target/2-assign_sum_sq)**2 #+ (assign.max(axis=-1).values-1)**2*wt_loss_sum_target
         cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all))
 
         # when an example has no animal, use a different path.
+
         logit_sum = ll_joint_flat.sum(-1)
         logit_err = logit_sum**2
         cur_wt_loss_sum = torch.where(missing,logit_err,cur_wt_loss.sum(axis=-1))
 
-        # Add base loss i.e., sum of all ll_joint. This is mainly so that all other weight locations have large negative value
-        wt_loss = (cur_wt_loss_sum * n_classes)
 
-        if self.use_base_loss:
-            cur_wt_loss_clamp = torch.zeros_like(wt_loss_all)
+        if 'mdn_down_weight' in self.conf.__dict__:
+            down_wt = 1/self.conf.mdn_down_weight
         else:
-            # underweight joint loss when animal detection weights are not working well
-            assign_sum = torch.clamp(assign_sum,0,2) # missing is worse than more prediction
-            cur_wt_loss_clamp = torch.where(valid,(2.-assign_sum)**2,torch.zeros_like(wt_loss_all))
+            down_wt = 1.
 
-        loss_wt = 1. - cur_wt_loss_clamp
-        loss_wt = torch.clamp(loss_wt,0.1,1.).detach()
+        # Add base loss i.e., sum of all ll_joint. This is mainly so that all other weight locations have large negative value
+        wt_loss = (cur_wt_loss_sum  * 10) #* n_classes
+        # 10 is so that, 10 pixel mean error in distance loss is equivalent to missing the whole animal
 
-        joint_loss = (cur_pred_loss*loss_wt).sum(axis=-1) #/ self.offset
+        # if self.use_base_loss:
+        #     cur_wt_loss_clamp = torch.zeros_like(wt_loss_all)
+        # else:
+        #     # underweight joint loss when animal detection weights are not working well
+        #     assign_sum = torch.clamp(assign_sum,0,2) # missing is worse than more prediction
+        #     cur_wt_loss_clamp = torch.where(valid,(2.-assign_sum)**2,torch.zeros_like(wt_loss_all))
+        #
+        # loss_wt = 1. - cur_wt_loss_clamp
+        # loss_wt = torch.clamp(loss_wt,0.1,1.).detach()
+        #
+        # joint_loss = (cur_pred_loss*loss_wt).sum(axis=-1) #/ self.offset
+        joint_loss = cur_pred_loss.sum(axis=-1)
+        loss_wt = 1.
 
         if self.hmap_loss:
             ref_loss = self.ref_hmap_loss(locs_ref,labels_dict['hmap'],mask_down)
@@ -544,7 +639,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             ref_loss = self.ref_loss(locs_ref,wts_ref,labels,locs_joint_flat,assign,valid_lbl,loss_wt)
 
 
-        tot_loss = wt_loss  + joint_loss + ref_loss + dist_pred_loss
+        tot_loss = wt_loss  + (joint_loss + ref_loss + dist_pred_loss)*down_wt
         return tot_loss / n_classes
 
     def ref_loss(self,locs_ref,wts_ref,labels,locs_joint_flat,assign,valid_lbl,loss_wt):
@@ -795,15 +890,46 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     break
 
                 idx = unravel_index(sel_ex, [k_joint,n_y_j, n_x_j])
-                id1 = torch.clamp(idx[1],1,n_y_j-2)
-                id2 = torch.clamp(idx[2],1,n_x_j-2)
-                curp = locs_joint[ndx,...,idx[0],id1-1:id1+2,id2-1:id2+2].mean(-1).mean(-1) * locs_offset
-                dprev = torch.norm(preds_joint[ndx,...]-curp[None,...],dim=-1).mean(-1)
+
+                #NMS on joint predictions
+                # id1 = torch.clamp(idx[1],1,n_y_j-2)
+                # id2 = torch.clamp(idx[2],1,n_x_j-2)
+                # curp = locs_joint[ndx,...,idx[0],id1-1:id1+2,id2-1:id2+2].mean(-1).mean(-1) * locs_offset
+                # dprev = torch.norm(preds_joint[ndx,...]-curp[None,...],dim=-1).mean(-1)
                 # Find the animal size as the mean length of the bounding box
-                cur_sz =  torch.mean(curp.max(axis=-2)[0]-curp.min(axis=-2)[0])
+                # cur_sz =  torch.mean(curp.max(axis=-2)[0]-curp.min(axis=-2)[0])
+                # nms_dist = cur_sz * match_dist_factor
+
+                # if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < nms_dist):
+                #     continue
+                cur_ref = torch.ones([n_classes,2],device=self.device) * np.nan
+                cur_ref_conf = torch.ones([n_classes],device=self.device) * -100
+                for cls in range(n_classes):
+                    if not self.hmap_loss:
+                        rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
+                        mm = torch.round(rpred).int()
+                        if (mm[0] >= n_x_r) or (mm[1] >= n_y_r) or (mm[0] < 0) or (mm[1] < 0):
+                            cur_ref[cls,:] = locs_joint[ndx,cls,...,idx[0],idx[1],idx[2]] * locs_offset
+                            cur_ref_conf[cls] = logits_joint[ndx,idx[0],idx[1],idx[2]]
+                        else:
+                            mm_y = torch.clamp(mm[1],1,n_y_r-2)
+                            mm_x = torch.clamp(mm[0],1,n_x_r-2)
+                            pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
+                            cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y-1:mm_y+2,mm_x-1:mm_x+2].mean(-1).mean(-1)
+
+                            cur_ref[cls,:] = cur_pred
+                            cur_ref_conf[cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
+
+                #NMS on refined predictions
+                cur_sz =  torch.mean(cur_ref.max(axis=-2)[0]-cur_ref.min(axis=-2)[0])
                 nms_dist = cur_sz * match_dist_factor
+
+                dprev = torch.norm(preds_ref[ndx,...]-cur_ref[None,...],dim=-1).mean(-1)
                 if ( not torch.all(torch.isnan(dprev))) and (nanmin(dprev) < nms_dist):
                     continue
+
+                preds_ref[ndx,done_count,...] = cur_ref
+                conf_ref[ndx,done_count,:] = cur_ref_conf
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
                 if dist_pred is not None:
                     dist_joint[ndx,done_count,:] = dist_pred[ndx,...,idx[1],idx[2]]
@@ -811,20 +937,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 if self.conf.predict_occluded:
                     pred_occ[ndx,done_count,...] = occ_out[ndx,...,idx[0],idx[1],idx[2]]
                 conf_joint[ndx,done_count] = logits_joint[ndx,idx[0],idx[1],idx[2]]
-                for cls in range(n_classes):
-                    if not self.hmap_loss:
-                        rpred = locs_joint[ndx, cls, :, idx[0], idx[1], idx[2]] * self.offset/self.ref_scale
-                        mm = torch.round(rpred).int()
-                        if (mm[0] >= n_x_r) or (mm[1] >= n_y_r) or (mm[0] < 0) or (mm[1] < 0):
-                            preds_ref[ndx,done_count,cls,:] = preds_joint[ndx,done_count,cls,:]
-                            conf_ref[ndx,done_count,cls] = conf_joint[ndx,done_count]
-                        else:
-                            mm_y = torch.clamp(mm[1],1,n_y_r-2)
-                            mm_x = torch.clamp(mm[0],1,n_x_r-2)
-                            pt_selex = logits_ref[ndx,cls,:,mm_y,mm_x].argmax()
-                            cur_pred = locs_ref[ndx,cls,:,pt_selex,mm_y-1:mm_y+2,mm_x-1:mm_x+2].mean(-1).mean(-1)
-                            preds_ref[ndx,done_count,cls,:] = cur_pred
-                            conf_ref[ndx,done_count,cls] = logits_ref[ndx,cls,pt_selex,mm_y,mm_x]
 
                 done_count += 1
 
@@ -1274,16 +1386,16 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             dpred_out = None
         for ndx in np.where(v2)[0]:
             curp = fl[ndx]
-            dprev = np.linalg.norm(locs[v1, ...] - curp[None, ...], axis=-1).mean(-1)
+            dprev = np.nanmean(np.linalg.norm(locs[v1, ...] - curp[None, ...], axis=-1),axis=-1)
             # Find the animal size as the mean length of the bounding box
-            cur_sz = np.mean(curp.max(axis=-2)[0] - curp.min(axis=-2)[0])
+            cur_sz = np.mean(np.nanmax(curp,axis=-2) - np.nanmin(curp,axis=-2))
             nms_dist = cur_sz * match_dist_factor
             if np.nanmin(dprev) < nms_dist:
                 lndx = np.argmin(dprev)
-                out_locs[lndx] = (locs[lndx] + curp) / 2
+                out_locs[lndx] = np.nanmean([locs[lndx], curp],axis=0)
                 matched[lndx] = 1
                 if dpred is not None:
-                    dpred_out[lndx] = (dpred[lndx] + dpred_fl[ndx]) / 2
+                    dpred_out[lndx] = np.nanmean([dpred[lndx], dpred_fl[ndx]],axis=0)
             elif (done_count < conf.max_n_animals) and (conf_flip[ndx] > 0):
                 out_locs[done_count] = curp
                 if dpred is not None:
@@ -1347,6 +1459,13 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                         ims_flip = torch.flip(ims,[3])
                         preds_flip = self.run_model(ims_flip)
                         preds_flip = self.convert_output(preds_flip)
+
+                        # pred0 = self.combine_flip(preds[0],preds_flip[0],True)
+                        # pred1 = (preds[1]+ torch.flip(preds_flip[1],[-1]))/2
+                        # pred2 = self.combine_flip(preds[2],preds_flip[2],True)
+                        # comb_preds = (pred0,pred1,pred2) + preds[3:]
+                        # locs = self.get_joint_pred(comb_preds)
+
                         locs_flip = self.get_joint_pred(preds_flip)
                         for ndx in range(locs['ref'].shape[0]):
                             if locs['conf_dist'] is not None:
@@ -1356,6 +1475,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                                 d1 = None
                                 d2 = None
                             new_locs, new_dpred = self.merge_flip(locs['ref'][ndx],locs_flip['ref'][ndx],ims.shape[-1],locs_flip['conf_joint'][ndx],d1,d2)
+
                             locs['ref'][ndx] = new_locs
                             if locs['conf_dist'] is not None:
                                 locs['conf_dist'][ndx] = new_dpred

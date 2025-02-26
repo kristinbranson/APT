@@ -198,7 +198,10 @@ class coco_loader(torch.utils.data.Dataset):
             annos.append(a)
 
         curl = np.array(curl)
-        occ = curl[...,2] < 1.5
+        if conf.nan_as_occluded:
+            occ = curl[...,2] < 0.5
+        else:
+            occ = curl[...,2] < 1.5
         locs = curl[...,:2]
         if np.all(locs[curl[...,2]==0,:]==0):
             locs[curl[...,2]==0,:] = np.nan
@@ -462,8 +465,9 @@ class PoseCommon_pytorch(object):
 
     def compute_train_data(self,inputs,net,loss):
         labels = self.create_targets(inputs)
-        output = net(inputs)
-        loss_val = loss(output,labels).detach().sum().item()
+        with torch.no_grad():
+            output = net(inputs)
+        loss_val = loss(output,labels).sum().item()
         dist = self.compute_dist(output,labels)
         return {'cur_loss':loss_val, 'cur_dist':dist}
 

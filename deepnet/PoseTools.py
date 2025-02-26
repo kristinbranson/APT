@@ -1664,6 +1664,22 @@ def submit_job(name, cmd, dir,queue='gpu_rtx ',gpu_model=None,timeout=72*60,run_
     print('Submitted jobs for {}'.format(name))
     print(cmd)
 
+# function to get the job's status
+def get_job_status(job_name):
+    import subprocess
+    cmd = f'''ssh login1.int.janelia.org '. /misc/lsf/conf/profile.lsf; bjobs -J {job_name}' '''
+    output = subprocess.check_output(cmd, shell=True)
+    # parse output to get the status
+    output = output.decode("utf-8")
+    output = output.split('\n')
+    if len(output) < 2:
+        return 'NOT_FOUND'
+    status = output[1].split()[2]
+    if status == 'PEND':
+        status = 'PENDING'
+
+    return status
+
 
 def read_h5_str(in_obj):
     return u''.join([chr(c) for c in in_obj[()].flatten()])

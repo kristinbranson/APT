@@ -278,7 +278,8 @@ classdef LabelerController < handle
         if strcmp(res,'Cancel')
           return
         elseif strcmp(res,'Save As')
-          menu_file_saveas_Callback(source, event, guidata(source))
+          sfn = LabelerGUI('get_local_fn','menu_file_saveas_Callback');
+          sfn(source, event, guidata(source))
         end    
       end
       

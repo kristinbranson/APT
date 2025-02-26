@@ -110,7 +110,8 @@ info.append(curi)
 
 curi = {}
 curi['mov_file'] = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice/20210924_four_female_mice_0.mjpg'
-curi['id_trk'] = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/trks/20210924_four_female_mice_0_unmarkedMice_round7_trained.trk'
+# curi['id_trk'] = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/trks/20210924_four_female_mice_0_unmarkedMice_round7_trained.trk'
+curi['id_trk'] = '/groups/branson/home/kabram/temp/ma_expts/roian/trks/20210924_four_female_mice_0_grone_crop_mask.trk'
 curi['fix_error_trx'] = '/groups/branson/bransonlab/mayank/apt_results/20210924_four_female_mice_0_fix_error_GT.mat'
 curi['ht_pts'] = [0,1]
 curi['rescale'] = 1
@@ -412,15 +413,33 @@ def increase_value(color, factor=1.5):
 # for ndx in range(id_trk.ntargets):
 #     plt.plot(gt_pure_id[:,ndx],label=f'GT tracklet {ndx}')
 
-#
+##
+
+gid_cmap = 'tab10'
+if gid_cmap == 'tab10':
+
+    colors = pt.get_cmap(10,gid_cmap)[[4,0,8,7,2,9,3,1,6,5]]
+    for xx in range(trk_i.ntargets//10-1):
+        colors = np.concatenate([colors,pt.get_cmap(10,gid_cmap)])
+    colors = np.concatenate([colors,pt.get_cmap(trk_i.ntargets%10,gid_cmap)])
+else:
+    colors = pt.get_cmap(id_trk.ntargets,gid_cmap)
+colors = np.array([increase_value(xx) for xx in colors])
+colors = np.array([increase_saturation(xx) for xx in colors])
+
+
 rectangles = []
 rcolors = []
 ecolors = []
 zorder = []
-gid_cmap = 'tab20'
-colors = pt.get_cmap(id_trk.ntargets,gid_cmap)
-colors = np.array([increase_value(xx) for xx in colors])
 f,ax = plt.subplots(1,1,figsize=(5,2.5))
+
+if idx==1:
+    # plot_ids = np.array([0,1,2,3,4,5,6,7,8,9])
+    plot_gts = np.array([5,0,6,1,4,7,3,2,8,9])
+else:
+    # plot_ids = np.arange(trk_i.ntargets)
+    plot_gts = np.arange(ngt)
 
 for ndx in range(trk_p.ntargets):
     cci = pure_id[ndx]
@@ -432,7 +451,7 @@ for ndx in range(trk_p.ntargets):
     for br in range(len(brs)-1):
         if np.isnan(cur_gt[brs[br]]):
             continue
-        rectangles.append(Rectangle((ss[ndx]+brs[br]-0.5,cur_gt[brs[br]]-0.5),brs[br+1]-brs[br]+1.5,1-0.01))
+        rectangles.append(Rectangle((ss[ndx]+brs[br]-0.5,plot_gts[int(cur_gt[brs[br]])]-0.5),brs[br+1]-brs[br],1-0.01))
         rcolors.append(colors[int(cci)])
         ecolors.append([0,0,0,0])
         zorder.append(int(cur_gt[brs[br]]))
@@ -457,7 +476,11 @@ for ndx in range(trk_p.ntargets):
     if cci<0 or np.isnan(cci):
         continue
     cur_gt = id_gt[int(cci)][ss[ndx]:ee[ndx]+1]
-    plt.plot([ss[ndx], ss[ndx]], [cur_gt[0] - 0.5 + 0.02, cur_gt[0] - 0.2], 'k', linewidth=0.5, alpha=0.25,zorder=10)
+    # plt.plot([ss[ndx], ss[ndx]], [cur_gt[0] - 0.5 + 0.02, cur_gt[0] - 0.2], 'k', linewidth=0.5, alpha=0.25,zorder=10)
+
+for ndx in range(ngt):
+    acc = np.max(np.sum(id_gt==ndx,axis=1))/id_gt.shape[1]
+    plt.text(nfr/2,plot_gts[ndx],f'{acc:.2f}',ha='center',va='center',zorder=100,alpha=0.7)
 
 plt.xlim([-0.5,nfr-0.5])
 plt.ylim([-0.5,ngt-0.5])
@@ -467,8 +490,24 @@ plt.gca().spines['right'].set_visible(False)
 
 plt.xlabel('Frame number')
 plt.ylabel('Labeled ID')
+
+if idx ==1: # plot rectangles to show the parts that are shown later
+    fr_s=43000
+    fr_e=44000
+    x_s = -0.5
+    x_e = 2.5
+    plt.plot([fr_s,fr_s,fr_e,fr_e,fr_s],[x_s,x_e,x_e,x_s,x_s],'k',linewidth=1)
+
+    fr_s=34800
+    fr_e=35300
+    x_s = 4.5
+    x_e = 7.5
+    plt.plot([fr_s,fr_s,fr_e,fr_e,fr_s],[x_s,x_e,x_e,x_s,x_s],'k',linewidth=1)
+
+
 f.tight_layout()
 
+#
 plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_gt_id_map.png')
 plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_gt_id_map.svg',dpi='figure')
 
@@ -501,7 +540,7 @@ cmat = dist_mat[ord][:,ord]
 rectangles = []
 colormap = 'coolwarm'
 
-colors = colormaps.get_cmap(colormap)
+colors1 = colormaps.get_cmap(colormap)
 rcolors = []
 cur_col = 0
 breaks1 = []
@@ -513,7 +552,7 @@ for ixx,ix in enumerate(ord):
     for iyy,iy in enumerate(ord):
         szy = ee[sel_tgt[iy]]-ss[sel_tgt[iy]]+1
         rectangles.append(Rectangle( (cur_col,cur_row),szx,szy))
-        rcolors.append(colors(np.clip(cmat[ixx,iyy],0,3)/3))
+        rcolors.append(colors1(np.clip(cmat[ixx,iyy],0,2)/2))
         cur_row += szy
     cur_col += szx
     trk_brks.append(cur_col)
@@ -524,14 +563,14 @@ for ixx,ix in enumerate(ord):
 
 
 f,ax = plt.subplots(1,1,figsize=(6.2,5))
-ax.imshow(np.array([[0,3]]),cmap=colormap)
+ax.imshow(np.array([[0,2]]),cmap=colormap)
 plt.colorbar(ax.images[0],ax=ax)
 collection = PatchCollection(rectangles,facecolor=rcolors)
 ax.add_collection(collection)
 # ax.set_xlim([0,cur_col])
 # ax.set_ylim([0,cur_row])
-plt.hlines(trk_brks,0,nfr/10,colors='k',linewidth=0.5,alpha=0.5)
-plt.vlines(trk_brks,0,nfr/10,colors='k',linewidth=0.5,alpha=0.5)
+plt.hlines(trk_brks,0,nfr/5,colors='w',linewidth=0.5,alpha=0.5)
+plt.vlines(trk_brks,0,nfr/5,colors='w',linewidth=0.5,alpha=0.5)
 # ax.vlines(trk_brks,0,cur_row,colors='w',alpha=0.1,linewidth=0.5)
 # ax.hlines(trk_brks,0,cur_row,colors='w',alpha=0.1,linewidth=0.5)
 ax.vlines(breaks1[:-1],0,cur_row,colors='r',alpha=0.3)
@@ -557,7 +596,7 @@ plt.gca().spines['left'].set_visible(False)
 plt.gca().spines['bottom'].set_visible(False)
 
 # plt.axis('off')
-plt.title('Tracklet similarity')
+plt.title('Tracklet Distance')
 plt.xlabel(f'Tracklets grouped by label ID')
 # plt.gca().invert_yaxis()
 f.tight_layout()
@@ -567,29 +606,245 @@ plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}
 
 
 f = plt.figure()
-plt.imshow(cmat,cmap=colormap)
+plt.imshow(cmat,cmap=colormap,vmin=0,vmax=2)
+plt.colorbar()
+plt.title('Tracklet Distance')
+plt.xlabel(f'Tracklets grouped by label ID')
 f.tight_layout()
 plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_cluster_tracklet.png')
 plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_cluster_tracklet.svg')
 
+f = plt.figure(figsize=(4,3))
+tlen = ee-ss+1
+bins = np.logspace(np.log10(min(tlen)),np.log10(max(tlen)),20)
+plt.hist(ee-ss+1,bins)
+#set yaxis to log
+plt.yscale('log')
+plt.xscale('log')
+plt.xlabel('Tracklet length',fontsize=10)
+plt.ylabel('Number of tracklets',fontsize=10)
+plt.title('Tracklet length distribution',fontsize=12)
+plt.xticks(fontsize=8)
+plt.yticks(fontsize=8)
+f.tight_layout()
+out_f = f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_tracklet_distribution'
+plt.savefig(f'{out_f}.png')
+plt.savefig(f'{out_f}.svg')
 
-## show example of ID Tracking working in difficult case
+## show trajectories for training
+
+fr_s = 33960
+fr_e = 34075
+offset = 10
+qq = trk_p.getframe(range(fr_s,fr_e+1))
+qqb = trk_p.getframe(range(fr_s-offset,fr_s))
+qqa = trk_p.getframe(range(fr_e+1,fr_e+offset+1))
+ss,ee = trk_p.get_startendframes()
+vv = np.any(~np.isnan(qq[0,0]),axis=0) & ((ss>=fr_s)|(ee<=fr_e)) #& (ee-ss>10)
+vv =np.where(vv)[0]
+qq = qq[...,vv]
+qqb = qqb[...,vv]
+qqa = qqa[...,vv]
+apts = info[idx]['ht_pts']
+qj = np.mean(qq[apts],axis=0)
+qjb = np.mean(qqb[apts],axis=0)
+qja = np.mean(qqa[apts],axis=0)
+f = plt.figure()
+
+ax = f.add_axes([0.1,0.55,0.4,0.4]) # for the trajectories
+ax1 = f.add_axes([0.05, 0.01, 0.4, 0.4]) # sampled images
+ax2 = f.add_axes([0.55,0.55,0.4,0.4])  # for the initial embeddings
+ax3 = f.add_axes([0.55,0.05,0.4,0.4]) # for the final embeddings
+
+hh = ax.plot(range(fr_s,fr_e+1),qj[1])#+qj[0]/10)
+
+small_t = np.where((ee-ss+1)[vv]<10)[0]
+for xx in small_t:
+    hh[xx].set_alpha(0.5)
+    hh[xx].set_linewidth(0.5)
+
+sel_trk = 296
+
+all_ii = []
+for ix,ndx in enumerate(vv):
+    ax.plot(range(fr_s-offset,fr_s),qjb[1,:,ix],c=hh[ix].get_color(),linewidth=0.5,linestyle='--')
+    ax.plot(range(fr_e+1,fr_e+offset+1),qja[1,:,ix],c=hh[ix].get_color(),linewidth=0.5,linestyle='--')
+    if ndx not in sel_tgt:
+        continue
+    sndx = np.where(sel_tgt==ndx)[0][0]
+    curd = all_data[0][0][sndx]
+    curf = np.array(curd[-1])[:,0]
+    curf = curf[curf>=fr_s]
+    curf = curf[curf<=fr_e]
+    ax.scatter(curf,qj[1,curf-fr_s,ix],c=hh[ix].get_color(),s=10)
+
+    all_ii.append(curd[0])
+
+all_ii = np.array(all_ii)
+w,h = all_ii.shape[2:4]
+ntrj = all_ii.shape[0]
+ax.set_xlabel('Frame number')
+ax.set_ylabel('Y position')
+ax.set_title('Detected Tracklets')
+ax.set_xticks(ax.get_xticks()[::2])
+
+
+n_show = 4
+all_ii_o = all_ii.copy()
+all_ii = all_ii[:,:n_show]
+all_ii = all_ii.transpose([1, 2, 0, 3,4])
+all_ii = all_ii.reshape([n_show * curd[0].shape[1], ntrj * curd[0].shape[2],curd[0].shape[3]])
+ax1.imshow(all_ii.astype('uint8'))
+count = 0
+for ix,ndx in enumerate(vv):
+    if ndx not in sel_tgt:
+        continue
+    # ax1.plot([count * w, count * w - 3.5, (count + 1) * w - 3.5, (count + 1) * w - 3.5, count * w],
+    #          [-0.5, all_ii.shape[0] - 0.5, all_ii.shape[0] - 0.5, -.5, -.5], c=hh[ix].get_color(), linewidth=2)
+    # for jx in range(n_show-1):
+    #     ax1.plot( [count*w,(count+1)*w],[(jx+1)*h,(jx+1)*h], c=hh[ix].get_color(),linewidth=2)
+    ax1.plot( [count*w,(count+1)*w],[(n_show)*h-5,(n_show)*h-5], c=hh[ix].get_color(),linewidth=4)
+    ax1.plot( [count*w,(count+1)*w],[2,2], c=hh[ix].get_color(),linewidth=4)
+
+    count = count+1
+
+ax1.axis('off')
+ax1.set_xlim([0,all_ii.shape[1]])
+ax1.set_ylim([all_ii.shape[0],0])
+ax1.set_title('Sampled Images')
+
+torch.manual_seed(60)
+net_init = lnk.get_id_net()
+net_init = net_init.eval()
+net_init = net_init.to('cuda')
+pred_init = lnk.tracklet_pred([all_ii_o.reshape([-1,w,h,3])],net_init,conf,scale)
+pred_final = lnk.tracklet_pred([all_ii_o.reshape([-1,w,h,3])],net,conf,scale)
+
+from sklearn.manifold import TSNE
+pred_init_t = TSNE(n_components=2,random_state=60).fit_transform(pred_init[0])
+pred_init_t = pred_init_t.reshape([ntrj,all_ii_o.shape[1],-1])
+pred_final_t = TSNE(n_components=2,random_state=60).fit_transform(pred_final[0])
+pred_final_t = pred_final_t.reshape([ntrj,all_ii_o.shape[1],-1])
+
+count = 0
+for ix,ndx in enumerate(vv):
+    if ndx not in sel_tgt:
+        continue
+    ax2.scatter(pred_init_t[count,:,0],pred_init_t[count,:,1],c=hh[ix].get_color(),s=10)
+    ax3.scatter(pred_final_t[count,:,0],pred_final_t[count,:,1],c=hh[ix].get_color(),s=10)
+    count = count+1
+
+ax2.set_yticks([])
+ax2.set_xticks([])
+ax2.axis('equal')
+ax2.set_title('Initial Embeddings')
+ax3.set_yticks([])
+ax3.set_xticks([])
+ax3.axis('equal')
+ax3.set_title('Final Embeddings')
+f.savefig(f'/groups/branson/home/kabram/temp/id_training.png')
+f.savefig(f'/groups/branson/home/kabram/temp/id_training.svg')
+
+##
+f = plt.figure(figsize=(4,4))
+ax = f.add_axes([0.1,0.1,0.8,0.8])
+s_sel = ss[sel_trk]
+e_sel = ee[sel_trk]
+np.random.seed(40)
+count1 = 0
+count2 = 0
+for ndx in np.random.permutation(vv):
+    i = np.where(vv==ndx)[0][0]
+    if ndx not in sel_tgt:
+        continue
+    if ndx==sel_trk:
+        center = [0,0]
+        sz = 0.3
+    else:
+        if ((ee[ndx] > s_sel) & (ss[ndx] < e_sel)):
+            center = [1,(count1-1)/2]
+            count1 = count1+1
+        else:
+            center = [2,(count2-1)/2]
+            count2 = count2+1
+        # center = [np.sin(count/6*2*np.pi),np.cos(count/6*2*np.pi)]
+        # count = count+1
+        sz = 0.2
+    center = np.array(center)
+    pts = (np.random.rand(25,2)-0.5)*sz*2+center
+    plt.scatter(pts[:,0],pts[:,1],c=hh[i].get_color(),s=10)
+    if ndx==sel_trk:
+        dd = np.linalg.norm(pts-center,axis=-1)
+        order = np.argsort(dd)[::-1]
+        ax.annotate('', xy=pts[order[-1]], xytext=pts[order[1]],arrowprops=dict(color='green', arrowstyle="<->" ,linewidth=1))
+        ax.annotate('', xy=pts[order[-1]], xytext=pts[order[2]],arrowprops=dict(color='green', arrowstyle="<->" ,linewidth=1))
+        ax.annotate('', xy=pts[order[-1]], xytext=pts[order[3]],arrowprops=dict(color='green', arrowstyle="<->" ,linewidth=1))
+        ax.annotate('', xy=pts[order[-1]], xytext=pts[order[4]],arrowprops=dict(color='green', arrowstyle="<->" ,linewidth=1))
+
+    else:
+        if ((ee[ndx]>s_sel)&(ss[ndx]<e_sel)):
+            ax.annotate('', xy=center/3, xytext=3/4*center,
+                        arrowprops=dict(color='red', arrowstyle="<->", linewidth=1))
+
+
+ax.text(1,0.8,'Overlapping',ha='center')
+ax.text(2,0.8,'Non-overlapping',ha='center')
+ax.axis('off')
+f.tight_layout()
+f.savefig(f'/groups/branson/home/kabram/temp/IDTraining_overlap.png')
+
+## show example of ID Tracking working on difficult cases
+
+def shift_line_segment(p1, p2, distance):
+    # Calculate the slope of the line segment
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+
+    # Calculate the perpendicular slope
+    perp_slope = np.array([-dy, dx])
+
+    # Normalize the perpendicular slope to get the unit vector
+    perp_unit_vector = perp_slope / np.linalg.norm(perp_slope)
+
+    # Shift the points by the specified distance
+    shift_vector = perp_unit_vector * distance
+    p1_shifted = p1 + shift_vector
+    p2_shifted = p2 + shift_vector
+
+    return np.array([p1_shifted, p2_shifted])
+
 
 if idx==1:
 
     intv=0
-    fr_s = 43000
-    fr_e = 44000
-    sel_id = [4,1,8]
-    gt_id = [1,3,7]
-    sel_frs = [43100,43500,43800,43850,43910]
+    if intv==0:
+        fr_s = 43100
+        # fr_s = 43000
+        fr_e = 44000
+        sel_id = [1,8,4]
+        gt_id = [3,7,1] # what are the gt that correspond to the predicted ids
+        sel_frs = [43100,43500,43800,43850,43910]
+        # sel_frs = np.arange(43000,44001,200)
+    elif intv==1: # has the same flies as above, so not useful
+        fr_s = 10500
+        fr_e = 11500
+        sel_id = [4,1,8]
+        gt_id = [0,3,7]
+        sel_frs = np.arange(fr_s,fr_e+1,200)
+    elif intv==2:
+        fr_s = 34800
+        fr_e = 35300
+        sel_id  = [2,6,5]
+        gt_id = [5,0,2]
+        sel_frs = np.arange(fr_s, fr_e + 1, 100)
     tr_len = 200
     bsz_x = 90
     bsz_y = 90
     nr = 1
-    nc = 5
+    nc = len(sel_frs)
     text_y= 10
     lw= 2
+    gt_matches = [6,4,5,1,0,2,7,8,3,9]
 elif idx == 4:
     #intervals: 8850-8951, 8951-9400, 9400-9600
     intv = 0
@@ -646,17 +901,17 @@ elif idx == 4:
         nc = 7
         text_y = 2*bsz_y-30
 
-pp = trk_i.gettargetframe(sel_id,range(fr_s,fr_e))
+pp = trk_i.getframe(range(fr_s,fr_e+1))
 
 gg = []
-for ndx in range(fr_s,fr_e):
+for ndx in range(fr_s,fr_e+1):
     gg.append(get_trx_frame(gt_trx_dict,ndx))
-gg = np.array(gg)+2
+gg = np.array(gg)
 
-colors = pt.get_cmap(id_trk.ntargets,gid_cmap)
-colors = np.array([increase_value(xx,1.8) for xx in colors])
+# colors = pt.get_cmap(id_trk.ntargets,gid_cmap)
+# colors = np.array([increase_value(xx,1.8) for xx in colors])
 
-bcenter = np.nanmean(pp[info[idx]['ht_pts']],axis=(0,2,3)).astype('int')
+bcenter = np.nanmean(pp[info[idx]['ht_pts']][...,sel_id],axis=(0,2,3)).astype('int')
 bcenter = np.maximum(bcenter,[bsz_x,bsz_y])
 ims = []
 cap = movies.Movie(info[idx]['mov_file'])
@@ -666,7 +921,8 @@ for fr in sel_frs:
     ims.append(im)
 ims = np.array(ims)
 
-#
+from matplotlib import patches
+
 f,ax = plt.subplots(nr,nc,figsize=(nc*1.25*bsz_x/bsz_y,nr*1.25),sharex='all',sharey='all')
 ax = ax.flatten()
 skel = np.array(conf.op_affinity_graph)
@@ -674,23 +930,466 @@ apts = info[idx]['ht_pts']
 for i in range(ims.shape[0]):
     ax[i].imshow(ims[i],cmap='gray')
     ax[i].axis('off')
-    ax[i].text(ims.shape[2]/2,text_y,f'Frame {sel_frs[i]}',ha='center',va='center')
-    for curp in range(len(sel_id)):
+    ax[i].text(ims.shape[2]/2,text_y,f'Frame {sel_frs[i]}',ha='center',va='center',fontsize=8)
+    for curp in range(ngt): #len(sel_id)):
         spts = pp[apts,...,sel_frs[i]-fr_s,curp]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
-        ax[i].plot(spts[:,0],spts[:,1],color=colors[sel_id[curp]],linewidth=lw,alpha=0.9)
-        gpts = gg[sel_frs[i]-fr_s][gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
-        ax[i].plot(gpts[:,0],gpts[:,1],color=colors[sel_id[curp]],linewidth=lw,linestyle=(0,(1,1)))
+        pc = spts
+        center = np.nanmean(pc,axis=0)
+        major_axis_len = np.linalg.norm(pc[0]-pc[1])
+        minor_axis_len = 20
+        angle = np.degrees(np.arctan2(pc[1,1] - pc[0,1], pc[1,0] - pc[0,0]))
+
+        ellipse = patches.Ellipse(center, major_axis_len, minor_axis_len, angle, edgecolor=colors[curp], facecolor='none',linewidth=1,zorder=0)
+        ax[i].add_patch(ellipse)
+
+        # ax[i].plot(spts[:,0],spts[:,1],color=colors[sel_id[curp]],linewidth=lw)
+        gpts = gg[sel_frs[i]-fr_s][curp]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        # gpts = shift_line_segment(gpts[0],gpts[1],4)
+
+        ax[i].plot(gpts[:,0],gpts[:,1],color=colors[gt_matches[curp]],linewidth=1)#,linestyle=(0,(1,1)))
         st = max(0,sel_frs[i]-fr_s-tr_len)
         en = min(fr_e-fr_s,sel_frs[i]-fr_s+tr_len)
-        gtrj = gg[st:en,gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
-        gtrj = gtrj.mean(axis=1)
+        # gtrj = gg[st:en,gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        # gtrj = gtrj.mean(axis=1)
         # ax[i].plot(gtrj[:,0],gtrj[:,1],color=colors[sel_id[curp]],linewidth=0.5)
 
+ax[0].set_xlim([0,ims.shape[2]])
+ax[0].set_ylim([ims.shape[1],0])
 f.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.02, hspace=0.02)
 
-plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}.png')
-plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}.svg')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_both.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_both.svg')
 
+##
+f,ax = plt.subplots(nr,nc,figsize=(nc*1.25*bsz_x/bsz_y,nr*1.25),sharex='all',sharey='all')
+ax = ax.flatten()
+skel = np.array(conf.op_affinity_graph)
+apts = info[idx]['ht_pts']
+for i in range(ims.shape[0]):
+    ax[i].imshow(ims[i],cmap='gray')
+    ax[i].axis('off')
+    # ax[i].text(ims.shape[2]/2,text_y,f'Frame {sel_frs[i]}',ha='center',va='center',fontsize=8)
+    for curp in range(ngt): #len(sel_id)):
+        spts = pp[apts,...,sel_frs[i]-fr_s,curp]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        pc = spts
+        center = np.nanmean(pc,axis=0)
+        major_axis_len = np.linalg.norm(pc[0]-pc[1])
+        minor_axis_len = 20
+        angle = np.degrees(np.arctan2(pc[1,1] - pc[0,1], pc[1,0] - pc[0,0]))
+        fc = 'none'
+        if np.isnan(center).any():
+            center = [ims[i].shape[1]/2,ims[i].shape[0]/10*9]
+            major_axis_len = 10
+            minor_axis_len = 10
+            angle = 0
+            ax[i].text(ims[i].shape[1]/4,ims[i].shape[0]/10*9,f'Missing:',ha='center',va='center',fontsize=8)
+            fc = colors[curp]
+
+        ellipse = patches.Ellipse(center, major_axis_len, minor_axis_len, angle, edgecolor=colors[curp], facecolor=fc,linewidth=1,zorder=0)
+        ax[i].add_patch(ellipse)
+
+        # ax[i].plot(spts[:,0],spts[:,1],color=colors[sel_id[curp]],linewidth=lw)
+        # gpts = gg[sel_frs[i]-fr_s][gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        # gpts = shift_line_segment(gpts[0],gpts[1],4)
+        #
+        # ax[i].plot(gpts[:,0],gpts[:,1],color=colors[sel_id[curp]],linewidth=lw,linestyle=(0,(1,1)))
+        # st = max(0,sel_frs[i]-fr_s-tr_len)
+        # en = min(fr_e-fr_s,sel_frs[i]-fr_s+tr_len)
+        # gtrj = gg[st:en,gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        # gtrj = gtrj.mean(axis=1)
+        # ax[i].plot(gtrj[:,0],gtrj[:,1],color=colors[sel_id[curp]],linewidth=0.5)
+
+ax[0].set_xlim([0,ims.shape[2]])
+ax[0].set_ylim([ims.shape[1],0])
+f.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.02, hspace=0.02)
+
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_pred.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_pred.svg')
+##
+f,ax = plt.subplots(nr,nc,figsize=(nc*1.25*bsz_x/bsz_y,nr*1.25),sharex='all',sharey='all')
+ax = ax.flatten()
+skel = np.array(conf.op_affinity_graph)
+apts = info[idx]['ht_pts']
+for i in range(ims.shape[0]):
+    ax[i].imshow(ims[i],cmap='gray')
+    ax[i].axis('off')
+    ax[i].text(ims.shape[2]/2,text_y,f'Frame {sel_frs[i]}',ha='center',va='center',fontsize=8)
+    for curp in range(ngt):
+        # spts = pp[apts,...,sel_frs[i]-fr_s,curp]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        gpts = gg[sel_frs[i]-fr_s][curp]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+
+        pc = gpts
+        center = np.nanmean(pc,axis=0)
+        major_axis_len = np.linalg.norm(pc[0]-pc[1])
+        minor_axis_len = 20
+        angle = np.degrees(np.arctan2(pc[1,1] - pc[0,1], pc[1,0] - pc[0,0]))
+
+        ellipse = patches.Ellipse(center, major_axis_len, minor_axis_len, angle, edgecolor=colors[gt_matches[curp]], facecolor='none',linewidth=1,zorder=0)
+        ax[i].add_patch(ellipse)
+
+        # ax[i].plot(spts[:,0],spts[:,1],color=colors[sel_id[curp]],linewidth=lw)
+        # gpts = gg[sel_frs[i]-fr_s][gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        # gpts = shift_line_segment(gpts[0],gpts[1],4)
+        #
+        # ax[i].plot(gpts[:,0],gpts[:,1],color=colors[sel_id[curp]],linewidth=lw,linestyle=(0,(1,1)))
+        # st = max(0,sel_frs[i]-fr_s-tr_len)
+        # en = min(fr_e-fr_s,sel_frs[i]-fr_s+tr_len)
+        # gtrj = gg[st:en,gt_id[curp]]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+        # gtrj = gtrj.mean(axis=1)
+        # ax[i].plot(gtrj[:,0],gtrj[:,1],color=colors[sel_id[curp]],linewidth=0.5)
+
+ax[0].set_xlim([0,ims.shape[2]])
+ax[0].set_ylim([ims.shape[1],0])
+f.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.02, hspace=0.02)
+
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_gt.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_gt.svg')
+
+#
+# show the GT and predicted tracjectories
+f,ax = plt.subplots(1,1,figsize=(1.25,1.25),sharex='all',sharey='all')
+plt.axis('off')
+plt.axis('equal')
+skel = np.array(conf.op_affinity_graph)
+apts = info[idx]['ht_pts']
+st = 0
+en = fr_e-fr_s
+gtrj = gg[st:en,:]-bcenter[None]+np.array([bsz_x,bsz_y])[None]
+gtrj = gtrj.mean(axis=2)
+for ndx in range(gtrj.shape[1]):
+    ax.plot(gtrj[:,ndx,0],gtrj[:,ndx,1],color=colors[gt_matches[ndx]],linewidth=0.5)
+    for sfr_ in sel_frs:
+        curss = min(fr_e-fr_s-1,sfr_-fr_s)
+        ax.scatter(gtrj[curss,ndx,0],gtrj[curss,ndx,1],color=colors[gt_matches[ndx]],s=5)
+
+ax.set_xlim([0,ims.shape[2]])
+ax.set_ylim([ims.shape[1],0])
+f.set_facecolor('black')
+# f.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.02, hspace=0.02)
+
+#
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_gt_traj.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_gt_traj.svg')
+
+f,ax = plt.subplots(1,1,figsize=(1.25,1.25),sharex='all',sharey='all')
+plt.axis('off')
+plt.axis('equal')
+skel = np.array(conf.op_affinity_graph)
+apts = info[idx]['ht_pts']
+st = 0
+en = fr_e-fr_s
+spts = pp[apts, ...] - bcenter[None,:,None,None] + np.array([bsz_x, bsz_y])[None,:,None,None]
+center = np.nanmean(spts, axis=0)
+
+for ndx in range(gtrj.shape[1]):
+    ax.plot(center[0,:,ndx],center[1,:,ndx],color=colors[ndx],linewidth=0.5)
+    for sfr_ in sel_frs:
+        curss = min(fr_e-fr_s-1,sfr_-fr_s)
+        ax.scatter(center[0,curss,ndx],center[1,curss,ndx],color=colors[ndx],s=5)
+
+ax.set_xlim([0,ims.shape[2]])
+ax.set_ylim([ims.shape[1],0])
+f.set_facecolor('black')
+# f.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01, wspace=0.02, hspace=0.02)
+
+#
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_pred_traj.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}_pred_traj.svg')
+##
+#
+# do the gt id plot but only for selected gt ids
+
+rectangles = []
+rcolors = []
+ecolors = []
+zorder = []
+# gid_cmap = 'tab20'
+# colors = pt.get_cmap(id_trk.ntargets,gid_cmap)
+# colors = np.array([increase_value(xx) for xx in colors])
+f,ax = plt.subplots(1,1,figsize=(5,2.5))
+y_sz = np.array([x in gt_id for x in range(ngt)])
+# y_sz = np.array([True for x in range(ngt)])
+y_off = np.cumsum(y_sz)-1
+for ndx in range(trk_p.ntargets):
+    pmap_ndx = np.where(link_data[2][:,1]==ndx)[0]
+    if len(pmap_ndx)<1:
+        continue
+    motion_gr_ndx = [xx for xx in range(len(motion_grs)) if pmap_ndx in motion_grs[xx]]
+    if len(motion_gr_ndx)<1:
+        continue
+    cci = motion_gr_ndx[0]
+    cur_gt = id_gt[int(cci)][ss[ndx]:ee[ndx]+1]
+    brs = np.where(cur_gt[1:]!=cur_gt[:-1])[0]
+    brs = np.concatenate([[0],brs+1,[ee[ndx]-ss[ndx]+1]])
+    for br in range(len(brs)-1):
+        if np.isnan(cur_gt[brs[br]]):
+            continue
+        rectangles.append(Rectangle((ss[ndx]+brs[br]-0.5,y_off[int(cur_gt[brs[br]])]-0.5),brs[br+1]-brs[br],y_sz[int(cur_gt[brs[br]])]))
+        rcolors.append(colors[int(cci)])
+        ecolors.append([0,0,0,0])
+        zorder.append(int(cur_gt[brs[br]]))
+
+
+collection = PatchCollection(rectangles,facecolor=rcolors,edgecolor=ecolors,linewidth=0.5,antialiased=False)
+ax.add_collection(collection)
+for ndx in range(trk_p.ntargets):
+    cci = pure_id[ndx]
+    if cci<0 or np.isnan(cci):
+        continue
+    cur_gt = id_gt[int(cci)][ss[ndx]:ee[ndx]+1]
+    if np.isnan(cur_gt[0]):
+        continue
+    # plt.plot([ss[ndx], ss[ndx]], [y_off[int(cur_gt[0])] - 0.5 + 0.02, y_off[int(cur_gt[0])] - 0.5 + y_sz[int(cur_gt[0])]/2 ], 'k', linewidth=1,zorder=10)
+
+plt.xlim([fr_s-0.5,fr_e-0.5])
+
+plt.ylim([-0.5,len(gt_id)-0.5])
+plt.yticks(range(len(gt_id)))
+# plt.gca().invert_yaxis()
+plt.gca().spines['top'].set_visible(False)
+plt.gca().spines['right'].set_visible(False)
+
+plt.xlabel('Frame number')
+plt.ylabel('Labeled ID')
+f.tight_layout()
+
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_gt_id_map_crop_{intv}.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_gt_id_map_crop_{intv}.svg',dpi='figure')
+
+
+# make a movie of the above
+out_file = f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_id_example_mov_{idx}_{intv}.avi'
+fps = 10
+fourcc = cv2.VideoWriter_fourcc(*'X264')
+x = [bcenter[0]-bsz_x,bcenter[0]+bsz_x]
+y = [bcenter[1]-bsz_y,bcenter[1]+bsz_y]
+
+f = plt.figure(figsize=[4,4*(y[1]-y[0])/(x[1]-x[0])])
+f.set_dpi(100)
+ax = f.add_axes([0, 0, 1, 1])
+trk_fr = pp[conf.ht_pts]
+
+offset = np.array([x[0], y[0]])
+cc = colors
+skel = [[0,1]]
+
+for fr in range(fr_s, fr_e):
+    ax.clear()
+    im = cap.get_frame(fr)[0]
+    if im.ndim == 2:
+        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
+    ax.imshow(im[y[0]:y[1], x[0]:x[1]])
+    ax.axis('off')
+
+    for ix in range(trk_fr.shape[3]):
+        dskl(trk_fr[..., fr - fr_s, ix] - offset[None], skel, cc=cc[ix])
+        # gpts = gg[fr - fr_s, gt_id[ix]] - offset[None]
+        if ix>=len(gt_matches):
+            continue
+        gid = np.where(np.array(gt_matches)==ix)[0][0]
+        gpts = gg[fr - fr_s, gid] - offset[None]
+        gpts = shift_line_segment(gpts[0], gpts[1], 2)
+        dskl(gpts, skel, cc=cc[ix], ls=(0, (1, 1)))
+
+    ax.set_xlim([0, x[1] - x[0]])
+    ax.set_ylim([ y[1] - y[0],0])
+    f.canvas.draw()
+    img = np.frombuffer(f.canvas.tostring_rgb(), dtype=np.uint8)
+    img = img.reshape(f.canvas.get_width_height()[::-1] + (3,))
+    if fr == fr_s:
+        fr_sz = img.shape[:2]
+        out = cv2.VideoWriter(out_file, fourcc, fps, (fr_sz[1], fr_sz[0]))
+
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    out.write(img)
+
+out.release()
+
+##
+
+from matplotlib import patches
+
+pad = 100
+pp = trk_i.getframe(range(fr_s-pad,fr_e+1+pad))
+
+gg = []
+for ndx in range(fr_s-pad,fr_e+1+pad):
+    gg.append(get_trx_frame(gt_trx_dict,ndx))
+gg = np.array(gg)
+
+sims = ims.transpose([1,0,2])
+sims = sims.reshape([sims.shape[0],-1])
+gpts = gg - bcenter[None] + np.array([bsz_x, bsz_y])[None]
+gpts[gpts<0] = np.nan
+gpts[gpts>2*np.array([bsz_x, bsz_y])]=[np.nan]
+
+f = plt.figure(figsize=[8,1.5])
+ax = f.add_axes([0,0,1,1])
+ax.imshow(sims,cmap='gray')
+offset = ims.shape[1]/200*np.arange(-pad,fr_e-fr_s+1+pad)
+gpts[...,0] = gpts[...,0] + offset[:,None,None]
+
+
+for curp in range(ngt):
+    # sx = gt_id[curp]
+    sx = curp
+    for fr in range(fr_s-pad,fr_e+1+pad):
+        if sx in id_gt[:,fr]:
+            lw=0.5
+        else:
+            lw=2
+        plt.plot(np.mean(gpts[fr-fr_s+pad:fr-fr_s+2+pad,sx,:,0],axis=1),np.mean(gpts[fr-fr_s+pad:fr-fr_s+2+pad,sx,:,1],axis=1),color=colors[gt_matches[curp]],linewidth=lw)
+
+for fr in range(fr_s,fr_e+1,200):
+    # if fr%100==0:
+    #     lw = 2
+    # else:
+    #     lw = 0.5
+    for curp in range(ngt):
+        sx = curp
+        pc = gpts[fr-fr_s+pad,sx]
+        center = np.nanmean(pc,axis=0)
+        major_axis_len = np.linalg.norm(pc[0]-pc[1])
+        minor_axis_len = 20
+        angle = np.degrees(np.arctan2(pc[1,1] - pc[0,1], pc[1,0] - pc[0,0]))
+
+        ellipse = patches.Ellipse(center, major_axis_len, minor_axis_len, angle, edgecolor=colors[gt_matches[curp]], facecolor='none',linewidth=0.5,zorder=0)
+        ax.add_patch(ellipse)
+        # plt.plot(gpts[fr-fr_s,sx,:,0],gpts[fr-fr_s,sx,:,1],color=colors[gt_matches[curp]],linewidth=2,zorder=0)
+
+
+plt.xlim([0,sims.shape[1]])
+plt.ylim([sims.shape[0],0])
+plt.axis('off')
+
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_gt_traj_{fr_s}.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_gt_traj_{fr_s}.svg',dpi='figure')
+
+#
+f1 = plt.figure(figsize=[8,1.5])
+ax = f1.add_axes([0,0,1,1])
+ax.imshow(sims,cmap='gray')
+
+ppts = pp - bcenter[:,None,None] + np.array([bsz_x, bsz_y])[:,None,None]
+ppts[ppts<0] = [np.nan]
+ppts[ppts>2*np.array([bsz_x, bsz_y])[:,None,None]]=[np.nan]
+ppts[:,0] = ppts[:,0] + offset[:,None]
+ppts = ppts[info[idx]['ht_pts']]
+for curp in range(pp.shape[3]):
+    if np.all(np.isnan(np.mean(ppts[:,0,:,curp],axis=0))):
+        continue
+    pss = np.mean(ppts[:,:,:,curp],axis=0)
+    # alpha = 1-((pss[0]>2*bsz_x)|(pss[0]<0)|(pss[1]>2*bsz_y)|(pss[1]<0))
+    plt.plot(pss[0],pss[1],color=colors[curp],linewidth=1)
+
+for fr in range(fr_s,fr_e+1,200):
+    # if fr%100==0:
+    #     lw = 2
+    # else:
+    #     lw = 0.5
+    for curp in range(pp.shape[3]):
+
+        pc = ppts[...,fr-fr_s+pad,curp]
+        center = np.nanmean(pc,axis=0)
+        major_axis_len = np.linalg.norm(pc[0]-pc[1])
+        minor_axis_len = 20
+        angle = np.degrees(np.arctan2(pc[1,1] - pc[0,1], pc[1,0] - pc[0,0]))
+
+        ellipse = patches.Ellipse(center, major_axis_len, minor_axis_len, angle, edgecolor=colors[curp], facecolor='none',linewidth=0.5,zorder=0)
+        ax.add_patch(ellipse)
+
+        # plt.plot(ppts[:,0,fr-fr_s,curp],ppts[:,1,fr-fr_s,curp],color=colors[curp],linewidth=2,zorder=0)
+
+for ndx,scur in enumerate(ss):
+    if scur>=(fr_s-pad) and scur<=(fr_e+pad):
+        ppc = trk_p.gettargetframe(ndx,scur)[:,:,0,0]
+        ppc = ppc[conf.ht_pts].mean(axis=0)
+        cci = pure_id[ndx]
+        if cci < 0 or np.isnan(cci):
+            continue
+        cci = int(cci)
+        curc = colors[cci]
+        ppc = ppc - bcenter + np.array([bsz_x, bsz_y])
+        ppc[ppc<0] = np.nan
+        ppc[ppc>2*np.array([bsz_x, bsz_y])]=[np.nan]
+        ppc[0] += offset[scur-fr_s+pad]
+        plt.scatter(ppc[0],ppc[1],color=curc,s=5)
+
+
+plt.xlim([0,sims.shape[1]])
+plt.ylim([sims.shape[0],0])
+plt.axis('off')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_pred_traj_{fr_s}.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_{motion_type}_pred_traj_{fr_s}.svg',dpi='figure')
+
+## Show examples of ambiguity and jumps
+
+
+kk = trk_i.getframe(range(nfr))
+dd = np.linalg.norm(kk[:,:,1:,None,:]-kk[:,:,:-1,:,None],axis=0).mean(axis=0)
+dd = np.partition(dd,1,axis=-1)
+cd = np.nanmin(dd[...,1]/dd[...,0],axis=-1)
+ocd = np.argsort(cd)
+
+## show tracklets for an interval
+
+from matplotlib.colors import ListedColormap, Normalize
+from matplotlib.cm import ScalarMappable
+
+cap = movies.Movie(info[idx]['mov_file'])
+
+f = plt.figure(figsize=[3,3])
+f.set_dpi(100)
+ax = f.add_axes([0, 0, 1, 1])
+
+if idx==1:
+    # fr_s = 4000#31000
+    # fr_e = fr_s+1000
+    fr_s = 43000
+    fr_e = 44000
+elif idx==4:
+    fr_s = 9400
+    fr_e = 9600
+
+im = cap.get_frame(fr_s)[0]
+if im.ndim == 2:
+    im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
+ax.imshow(im)
+ax.axis('off')
+plt.axis('equal')
+
+trk_fr = trk_i.getframe(range(fr_s,fr_e))
+trk_fr = trk_p.getframe(range(fr_s,fr_e))
+trk_fr = trk_fr[conf.ht_pts].mean(axis=0)
+colors = pt.get_cmap(fr_e-fr_s,'hsv')
+
+cmap = ListedColormap(colors)
+# Create a Normalize object
+norm = Normalize(vmin=fr_s, vmax=fr_e)
+# Create a ScalarMappable
+scalar_mappable = ScalarMappable(norm=norm, cmap=cmap)
+
+for tt in range(trk_fr.shape[2]):
+    # for ix in range(trk_fr.shape[1]-1):
+    #     ax.plot(trk_fr[0,ix:ix+2,tt],trk_fr[1,ix:ix+2,tt],color=colors[ix])#,alpha=0.8,linewidth=0.5)
+    ax.scatter(trk_fr[0,:,tt],trk_fr[1,:,tt],color=colors,marker='.',alpha=0.3,edgecolors='none')
+
+axc = f.add_axes([0.02,0.02,0.05,0.1])
+cbar = plt.colorbar(scalar_mappable, cax=axc,location='right')
+cbar.ax.tick_params(colors=[1,0.25,0.25],labelsize=8)
+
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_trajectories_{idx}_{fr_s}.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_trjectories_{idx}_{fr_s}.svg')
+
+trk_fr = trk_p.getframe(range(fr_s,fr_e))
+trk_fr = trk_fr[conf.ht_pts].mean(axis=0)
+ss,ee = trk_p.get_startendframes()
+for ndx,curs in enumerate(ss):
+    if curs>=fr_s and curs<=fr_e:
+        ax.scatter(trk_fr[0,curs-fr_s,ndx],trk_fr[1,curs-fr_s,ndx],marker='x', color='r',s=100)
+
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_trajectories_{idx}_{fr_s}_breaks.png')
+plt.savefig(f'/groups/branson/home/kabram/temp/{info[idx]["name"]}_trjectories_{idx}_{fr_s}_breaks.svg')
 
 ## maxcost threshold plot.. use idx=2
 
