@@ -116,8 +116,10 @@ classdef BgTrackPoller < BgPoller
         end
       end
 
-      nJobs = obj.toTrackInfos_.n ;
-      isRunning = obj.replicateJobs_(true([nJobs, 1]));  % TODO: Make this actually check if the spawned jobs are running
+      % nJobs = obj.toTrackInfos_.n ;
+      % isRunningFromJobIndex = true([nJobs, 1]) ;  % TODO: Make this actually check if the spawned jobs are running  
+      isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;
+      isRunning = obj.replicateJobs_(isRunningFromJobIndex);
       %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
       tfComplete = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x njobs x nstages
       %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
@@ -228,7 +230,7 @@ classdef BgTrackPoller < BgPoller
           result = repmat({''}, [nMovies, nViews, nStages]) ;
         else
           error('BgTrackPoller:emptyArgumentOfUnhandledType', ...
-                'BgTrackPoller::replicateJobs_ given empty argument of unhandled type %s', class(valueFromJobIndex)) ;
+                'BgTrackPoller::replicateJobs_() given empty argument of unhandled type %s', class(valueFromJobIndex)) ;
         end
       else
         % vin is nonempty

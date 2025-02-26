@@ -5500,7 +5500,7 @@ classdef LabelerController < handle
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      landmark_specs('labeler',labeler);
+      landmark_specs('lObj',labeler);
     end
 
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
