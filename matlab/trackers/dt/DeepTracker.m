@@ -20,7 +20,7 @@ classdef DeepTracker < LabelTracker
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     
-    default_jrcgpuqueue = 'gpu_rtx8000';
+    default_jrcgpuqueue = 'gpu_a100';% 'gpu_rtx8000';
     default_jrcnslots_train = 1;
     default_jrcnslots_track = 1;
     
@@ -636,7 +636,8 @@ classdef DeepTracker < LabelTracker
         end
       end
       
-      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_tesla')
+      if ~isfield(s,'jrcgpuqueue') || strcmp(s.jrcgpuqueue,'gpu_any') || strcmp(s.jrcgpuqueue,'gpu_tesla')||...
+              strcmp(s.jrcgpuqueue,'gpu_rtx8000')
         s.jrcgpuqueue = DeepTracker.default_jrcgpuqueue;
         warningNoTrace('Updating JRC GPU cluster queue to ''%s''.',...
           s.jrcgpuqueue);

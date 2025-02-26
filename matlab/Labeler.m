@@ -2474,17 +2474,14 @@ classdef Labeler < handle
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
       
       % check that all movie files exist, allow macro fixes
-      for i = 1:obj.nmovies,
-        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false));
-        if ~tfsuccess,
-          obj.lerror('Labeler:file File(s) for movie %d: %s missing',i,obj.movieFilesAll{i});
-        end
+      tfsuccess = obj.movieCheckFilesExist(MovieIndex(1:obj.nmovies,false));
+      if ~tfsuccess,
+        obj.lerror('Labeler:file File(s) for movies are missing');
       end
-      for i = 1:obj.nmoviesGT,
-        tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true));
-        if ~tfsuccess,
-          obj.lerror('Labeler:file File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
-        end
+      
+      tfsuccess = obj.movieCheckFilesExist(MovieIndex(1:obj.nmoviesGT,true));
+      if ~tfsuccess
+        obj.lerror('Labeler:file File(s) for GT movie are missing');
       end
 
       obj.initTrxInfo();      
@@ -4620,7 +4617,7 @@ classdef Labeler < handle
       badfile = [];
     end
     
-    function tfsuccess = movieCheckFilesExist(obj,iMov) % NOT obj const
+    function tfsuccess = movieCheckFilesExist(obj,iMovs) % NOT obj const
       % Helper function for movieSet(), check that movie/trxfiles exist
       %
       % tfsuccess: false indicates user canceled or similar. True indicates
@@ -4635,151 +4632,195 @@ classdef Labeler < handle
       
       
       tfsuccess = false;
-      
-      [iMov,gt] = iMov.get();
-      PROPS = obj.gtGetSharedPropsStc(gt);
-      
-      if ~all(cellfun(@isempty,obj.(PROPS.TFA)(iMov,:)))
-        assert(~obj.isMultiView,...
-          'Multiview labeling with targets unsupported.');
-      end
-                
-      for iView = 1:obj.nview
-        movfile = obj.(PROPS.MFA){iMov,iView};
-        movfileFull = obj.(PROPS.MFAF){iMov,iView};
-        
-        if exist(movfileFull,'file')==0
-          qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
-            movfileFull,'movie');
-          qtitle = 'Movie not found';
-          if isdeployed || ~obj.isgui,
-            obj.lerror(qstr);
-          end
-          
-          if FSPath.hasAnyMacro(movfile)
-            qargs = {'Redefine macros','Browse to movie','Cancel','Cancel'};
-          else
-            qargs = {'Browse to movie','Cancel','Cancel'};
-          end           
-          resp = questdlg(qstr,qtitle,qargs{:});
-          if isempty(resp)
-            resp = 'Cancel';
-          end
-          switch resp
-            case 'Cancel'
-              return;
-            case 'Redefine macros'
-              obj.projMacroSetUI();
-              movfileFull = obj.(PROPS.MFAF){iMov,iView};
-              if exist(movfileFull,'file')==0
-                emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
-                  movfileFull,'movie');
-                FSPath.errDlgFileNotFound(emsg);
-                return;
-              end
-            case 'Browse to movie'
-              pathguess = FSPath.maxExistingBasePath(movfileFull);
-              if isempty(pathguess)
-                pathguess = RC.getprop('lbl_lastmovie');
-              end
-              if isempty(pathguess)
-                pathguess = pwd;
-              end
-              promptstr = sprintf('Select movie for %s',movfileFull);
-              [newmovfile,newmovpath] = uigetfile('*.*',promptstr,pathguess);
-              if isequal(newmovfile,0)
-                return; % Cancel
-              end
-              movfileFull = fullfile(newmovpath,newmovfile);
-              if exist(movfileFull,'file')==0
-                emsg = FSPath.errStrFileNotFound(movfileFull,'movie');
-                FSPath.errDlgFileNotFound(emsg);
-                return;
-              end
-              
-              % If possible, offer macroized movFile
-              [tfCancel,macro,movfileMacroized] = ...
-                FSPath.offerMacroization(obj.projMacros,{movfileFull});
-              if tfCancel
-                return;
-              end
-              tfMacroize = ~isempty(macro);
-              if tfMacroize
-                assert(isscalar(movfileMacroized));
-                obj.(PROPS.MFA){iMov,iView} = movfileMacroized{1};
-                movfileFull = obj.(PROPS.MFAF){iMov,iView};
-              else
-                obj.(PROPS.MFA){iMov,iView} = movfileFull;
-              end
-          end
-          
-          % At this point, either we have i) harderrored, ii)
-          % early-returned with tfsuccess=false, or iii) movfileFull is set
-          assert(exist(movfileFull,'file')>0);          
-        end
 
-        % trxfile
-        %movfile = obj.(PROPS.MFA){iMov,iView};
-        assert(strcmp(movfileFull,obj.(PROPS.MFAF){iMov,iView}));
-        trxFile = obj.(PROPS.TFA){iMov,iView};
-        trxFileFull = obj.(PROPS.TFAF){iMov,iView};
-        tfTrx = ~isempty(trxFile);
-        if tfTrx
-          if exist(trxFileFull,'file')==0
-            qstr = FSPath.errStrFileNotFoundMacroAware(trxFile,...
-              trxFileFull,'trxfile');
-            resp = questdlg(qstr,'Trxfile not found',...
-              'Browse to trxfile','Cancel','Cancel');
+      path_sub = {};
+      noask = false;
+      asked = false;
+      replace = {};
+      for iMov=iMovs(:)'
+      
+        [iMov,gt] = iMov.get();
+        PROPS = obj.gtGetSharedPropsStc(gt);
+        
+        if ~all(cellfun(@isempty,obj.(PROPS.TFA)(iMov,:)))
+          assert(~obj.isMultiView,...
+            'Multiview labeling with targets unsupported.');
+        end
+                  
+        for iView = 1:obj.nview
+          movfile = obj.(PROPS.MFA){iMov,iView};
+          movfileFull = obj.(PROPS.MFAF){iMov,iView};
+
+          for rndx = 1:numel(replace)
+            if any(strcmp(movfileFull,replace{rndx}{3}))
+              movfileFull = strrep(movfileFull,replace{rndx}{1},replace{rndx}{2});
+              obj.(PROPS.MFA){iMov,iView} = movfileFull;
+            end
+          end
+          
+          if exist(movfileFull,'file')==0
+            qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
+              movfileFull,'movie');
+            qtitle = 'Movie not found';
+            if isdeployed || ~obj.isgui,
+              obj.lerror(qstr);
+            end
+            
+            if FSPath.hasAnyMacro(movfile)
+              qargs = {'Redefine macros','Browse to movie','Cancel','Cancel'};
+            else
+              qargs = {'Browse to movie','Cancel','Cancel'};
+            end           
+          
+            resp = questdlg(qstr,qtitle,qargs{:});
             if isempty(resp)
               resp = 'Cancel';
             end
             switch resp
-              case 'Browse to trxfile'
-                % none
               case 'Cancel'
                 return;
+              case 'Redefine macros'
+                obj.projMacroSetUI();
+                movfileFull = obj.(PROPS.MFAF){iMov,iView};
+                if exist(movfileFull,'file')==0
+                  emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
+                    movfileFull,'movie');
+                  FSPath.errDlgFileNotFound(emsg);
+                  return;
+                end
+              case 'Browse to movie'
+                pathguess = FSPath.maxExistingBasePath(movfileFull);
+                if isempty(pathguess)
+                  pathguess = RC.getprop('lbl_lastmovie');
+                end
+                if isempty(pathguess)
+                  pathguess = pwd;
+                end
+                oldfull = movfileFull;
+                promptstr = sprintf('Select movie for %s',movfileFull);
+                [newmovfile,newmovpath] = uigetfile('*.*',promptstr,pathguess);
+                if isequal(newmovfile,0)
+                  return; % Cancel
+                end
+                movfileFull = fullfile(newmovpath,newmovfile);
+                if exist(movfileFull,'file')==0
+                  emsg = FSPath.errStrFileNotFound(movfileFull,'movie');
+                  FSPath.errDlgFileNotFound(emsg);
+                  return;
+                end
+
+                if ~noask
+                  oldfull = strrep(oldfull,'\',filesep);
+                  oldfull = strrep(oldfull,'/',filesep);
+                  vlen = min(numel(oldfull),numel(movfileFull));
+                  maxmatch = find(~(oldfull(end-vlen+1:end)==movfileFull(end-vlen+1:end)),1,'last');                
+
+                  prev_base = oldfull(1:end-(vlen-maxmatch));
+                  new_base = movfileFull(1:end-(vlen-maxmatch));
+                  qstr = sprintf('Replace %s with %s for other movies?',prev_base,new_base);
+                  qres = questdlg(qstr,'Replace..','Replace for all movies','Replace for selected','No','Replace for all movies');
+                  rem_mov = obj.(PROPS.MFAF)(iMov:end,:);
+                  rem_mov = rem_mov(:)';
+                  if strcmp(qres,'Replace for all movies')
+                    replace = {{prev_base,new_base,rem_mov}};
+                  elseif strcmp(qres,'Replace for selected')
+                    sel_id,sel = listdlg(rem_mov);
+                    if sel
+                      replace(end+1) = {prev_base,new_base,rem_mov(sel_id)};
+                    end
+                  elseif strcmp(qres,'No')
+                    if ~asked
+                      nqres = questdlg('Ask again for other movies?','Yes','No','Yes');
+                      if strcmp(nqres,'No')
+                        noask = true;
+                      end
+                      asked = true;
+                    end
+                  end
+                end                
+                % If possible, offer macroized movFile
+                [tfCancel,macro,movfileMacroized] = ...
+                  FSPath.offerMacroization(obj.projMacros,{movfileFull});
+                if tfCancel
+                  return;
+                end
+                tfMacroize = ~isempty(macro);
+                if tfMacroize
+                  assert(isscalar(movfileMacroized));
+                  obj.(PROPS.MFA){iMov,iView} = movfileMacroized{1};
+                  movfileFull = obj.(PROPS.MFAF){iMov,iView};
+                else
+                  obj.(PROPS.MFA){iMov,iView} = movfileFull;
+                end
             end
             
-            movfilepath = fileparts(movfileFull);
-            promptstr = sprintf('Select trx file for %s',movfileFull);
-            [newtrxfile,newtrxfilepath] = uigetfile('*.mat',promptstr,...
-              movfilepath);
-            if isequal(newtrxfile,0)
-              return;
-            end
-            trxFile = fullfile(newtrxfilepath,newtrxfile);
-            if exist(trxFile,'file')==0
-              emsg = FSPath.errStrFileNotFound(trxFile,'trxfile');
-              FSPath.errDlgFileNotFound(emsg);
-              return;
-            end
-            [tfMatch,trxFileMacroized] = FSPath.tryTrxfileMacroization( ...
-              trxFile,movfilepath);
-            if tfMatch
-              trxFile = trxFileMacroized;
-            end
-            obj.(PROPS.TFA){iMov,iView} = trxFile;
+            % At this point, either we have i) harderrored, ii)
+            % early-returned with tfsuccess=false, or iii) movfileFull is set
+            assert(exist(movfileFull,'file')>0);          
           end
-          RC.saveprop('lbl_lasttrxfile',trxFile);
+  
+          % trxfile
+          %movfile = obj.(PROPS.MFA){iMov,iView};
+          trxFile = obj.(PROPS.TFA){iMov,iView};
+          tfTrx = ~isempty(trxFile);
+          if tfTrx
+            assert(strcmp(movfileFull,obj.(PROPS.MFAF){iMov,iView}));
+            trxFileFull = obj.(PROPS.TFAF){iMov,iView};
+            if exist(trxFileFull,'file')==0
+              qstr = FSPath.errStrFileNotFoundMacroAware(trxFile,...
+                trxFileFull,'trxfile');
+              resp = questdlg(qstr,'Trxfile not found',...
+                'Browse to trxfile','Cancel','Cancel');
+              if isempty(resp)
+                resp = 'Cancel';
+              end
+              switch resp
+                case 'Browse to trxfile'
+                  % none
+                case 'Cancel'
+                  return;
+              end
+              
+              movfilepath = fileparts(movfileFull);
+              promptstr = sprintf('Select trx file for %s',movfileFull);
+              [newtrxfile,newtrxfilepath] = uigetfile('*.mat',promptstr,...
+                movfilepath);
+              if isequal(newtrxfile,0)
+                return;
+              end
+              trxFile = fullfile(newtrxfilepath,newtrxfile);
+              if exist(trxFile,'file')==0
+                emsg = FSPath.errStrFileNotFound(trxFile,'trxfile');
+                FSPath.errDlgFileNotFound(emsg);
+                return;
+              end
+              [tfMatch,trxFileMacroized] = FSPath.tryTrxfileMacroization( ...
+                trxFile,movfilepath);
+              if tfMatch
+                trxFile = trxFileMacroized;
+              end
+              obj.(PROPS.TFA){iMov,iView} = trxFile;
+            end
+            RC.saveprop('lbl_lasttrxfile',trxFile);
+          end
         end
-      end
-      
-      % For multiview projs a user could theoretically alter macros in 
-      % such a way as to incrementally locate files, breaking previously
-      % found files
-      for iView = 1:obj.nview
-        movfile = obj.(PROPS.MFA){iMov,iView};
-        movfileFull = obj.(PROPS.MFAF){iMov,iView};
-        tfile = obj.(PROPS.TFA){iMov,iView};
-        tfileFull = obj.(PROPS.TFAF){iMov,iView};
-        if exist(movfileFull,'file')==0
-          FSPath.throwErrFileNotFoundMacroAware(movfile,movfileFull,'movie');
+        
+        % For multiview projs a user could theoretically alter macros in 
+        % such a way as to incrementally locate files, breaking previously
+        % found files
+        for iView = 1:obj.nview
+          movfile = obj.(PROPS.MFA){iMov,iView};
+          movfileFull = obj.(PROPS.MFAF){iMov,iView};
+          tfile = obj.(PROPS.TFA){iMov,iView};
+          tfileFull = obj.(PROPS.TFAF){iMov,iView};
+          if exist(movfileFull,'file')==0
+            FSPath.throwErrFileNotFoundMacroAware(movfile,movfileFull,'movie');
+          end
+          if ~isempty(tfileFull) && exist(tfileFull,'file')==0
+            FSPath.throwErrFileNotFoundMacroAware(tfile,tfileFull,'trxfile');
+          end
         end
-        if ~isempty(tfileFull) && exist(tfileFull,'file')==0
-          FSPath.throwErrFileNotFoundMacroAware(tfile,tfileFull,'trxfile');
-        end
-      end
-      
+      end      
       tfsuccess = true;
     end
     
@@ -7552,7 +7593,7 @@ classdef Labeler < handle
       lpos = obj.labelsGTaware;
       s = lpos{obj.currMovie};
       [tf,p,~] = Labels.isLabeledFT(s,obj.currFrame,obj.currTarget);
-      islabeled = tf && all(~isnan(p));
+      islabeled = tf && ~all(isnan(p));
     end
 %     function islabeled = currFrameIsLabeled_Old(obj)
 %       % "is fully labeled"
@@ -10771,7 +10812,7 @@ classdef Labeler < handle
         'gtModeOK',false,... % by default, this meth should not be called in GT mode
         'prmsTgtCrop',[],...
         'doRemoveOOB',true,...
-        'treatInfPosAsOcc',false ... % if true, treat inf labels as 
+        'treatInfPosAsOcc',true ... % if true, treat inf labels as 
                                  ... % 'fully occluded'; if false, remove 
                                  ... % any rows with inf labels
         ); 
@@ -14680,6 +14721,7 @@ classdef Labeler < handle
         case PrevAxesMode.FROZEN
           obj.prevAxesFreeze(pamodeinfo);
           obj.gdata.pushbutton_freezetemplate.Visible = 'on';
+          obj.gdata.pushbutton_freezetemplate.Enable = 'on';          
         otherwise
           assert(false);
       end
@@ -15216,7 +15258,7 @@ classdef Labeler < handle
       persistent tfWarningThrownAlready
       
       if nargin < 5,
-        hasInfo = false
+        hasInfo = false;
         info = [] ;
         %isrotated = false;
       else

@@ -826,6 +826,9 @@ function autoparams = compute_auto_params(lobj)
   end
   all_labels = reshape(all_labels,npts,2,[]);
   pair_labels = reshape(pair_labels,npts,2,2,[]);
+
+  all_labels(isinf(all_labels)) = nan;
+  pair_labels(isinf(pair_labels)) = nan;
   % animals are along the last dimension.
   % second dim has the coordinates
 
