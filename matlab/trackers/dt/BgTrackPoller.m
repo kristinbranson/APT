@@ -233,7 +233,7 @@ classdef BgTrackPoller < BgPoller
                 'BgTrackPoller::replicateJobs_() given empty argument of unhandled type %s', class(valueFromJobIndex)) ;
         end
       else
-        % vin is nonempty
+        % valueFromJobIndex is nonempty
         result = repmat(valueFromJobIndex(1), [nMovies, nViews, nStages]);
       end
       nJobs = obj.toTrackInfos_.n ;

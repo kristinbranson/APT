@@ -402,7 +402,7 @@ classdef TrackMonitorViz < handle
       if ~isempty(res) && isfield(res,'isRunning')
         isRunning = any([res.isRunning]);
       else
-        isRunning = true;
+        isRunning = true ;
       end
       
       if obj.isKilled,

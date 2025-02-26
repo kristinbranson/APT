@@ -971,6 +971,7 @@ classdef DLBackEndClass < handle
 
       % Actually spawn the jobs
       [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      % obj.ensureJobIsNotAlive(spawned_jobids{1}) ;  % USED FOR DEBUGGING
 
       % If all went well, record the spawned jobids.  If not, kill any straggler
       % jobs.
@@ -1101,7 +1102,10 @@ classdef DLBackEndClass < handle
       else
         error('DLBackEndClass:unknownJobType', 'The job type ''%s'' is not valid', train_or_track) ;
       end
-      result = cellfun(@(jobid)(obj.isJobAlive(jobid)), jobids) ;  % boolean array
+      result = logical(cellfun(@(jobid)(obj.isJobAlive(jobid)), jobids)) ;  
+        % boolean array
+        % Need the call to logical() in case jobids is empty, because cellfun()
+        % defaults to double output in this case.
     end  % function
     
     function tf = isJobAlive(obj, jobid)
@@ -1339,10 +1343,13 @@ classdef DLBackEndClass < handle
     function suitcase = packParfevalSuitcase(obj)
       % Use before calling parfeval, to restore Transient properties that we want to
       % survive the parfeval boundary.
+      suitcase = struct() ;
+      suitcase.training_jobids_ = obj.training_jobids_ ;
+      suitcase.tracking_jobids_ = obj.tracking_jobids_ ;
       if obj.type == DLBackEnd.AWS ,
-        suitcase = obj.awsec2.packParfevalSuitcase() ;
+        suitcase.awsec2 = obj.awsec2.packParfevalSuitcase() ;
       else
-        suitcase = [] ;
+        suitcase.awsec2 = [] ;
       end
     end  % function
     
@@ -1350,8 +1357,11 @@ classdef DLBackEndClass < handle
       % Should be called in background tasks run via parfeval, to restore fields that
       % should not be restored from persistence, but we want to survive the parfeval
       % boundary.
+      obj.doesOwnResources_ = false ;  % don't want to free any resources on delete()
+      obj.training_jobids_ = suitcase.training_jobids_ ;
+      obj.tracking_jobids_ = suitcase.tracking_jobids_ ;
       if obj.type == DLBackEnd.AWS ,
-        obj.awsec2.restoreAfterParfeval(suitcase) ;
+        obj.awsec2.restoreAfterParfeval(suitcase.awsec2) ;
       else
         % do nothing
       end

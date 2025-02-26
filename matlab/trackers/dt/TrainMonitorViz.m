@@ -344,12 +344,13 @@ classdef TrainMonitorViz < handle
         isJsonFile = false(1,obj.nmodels);
       end
       
-      isRunning0 = obj.dtObj.isAliveFromRegisteredJobIndex('train') ;
+      % isRunningFromJobIndex = obj.dtObj.isAliveFromRegisteredJobIndex('train') ;
+      isRunningFromJobIndex = res.isRunningFromJobIndex ;
       %isRunning0 = obj.trainWorkerObj.getIsRunning();
-      if isempty(isRunning0),
+      if isempty(isRunningFromJobIndex),
         isRunning = true;
       else
-        isRunning = any(isRunning0) ;
+        isRunning = any(isRunningFromJobIndex) ;
       end
       if ~isRunning
         if obj.jobStoppedRepeatsReqd>=1

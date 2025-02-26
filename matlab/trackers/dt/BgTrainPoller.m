@@ -161,6 +161,7 @@ classdef BgTrainPoller < BgPoller
       %sRes.logFileErrLikely = false(1,nModels); % array, true if Bsub logfile suggests error
       %sRes.killFile = obj.getKillFiles(); % char, full path to KILL tokfile
       %sRes.killFileExists = false(1,nModels); % scalar, true if KILL tokfile found
+      sRes.isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('train') ;
     end  % function
 
     function suitcase = packParfevalSuitcase(obj)

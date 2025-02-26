@@ -140,7 +140,7 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       listoutfiles = {};
       for i = 1:numel(obj.ttis)        
         j = obj.ttis(i).getListOutfiles();
-        listoutfiles = [listoutfiles j];
+        listoutfiles = [listoutfiles j];  %#ok<AGROW>
       end
 
     end

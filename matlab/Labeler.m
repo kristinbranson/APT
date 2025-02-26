@@ -15063,7 +15063,7 @@ classdef Labeler < handle
     function abortTracking(obj)
       % Abort the in-progress tracking.  Called when the user presses the "Stop
       % tracking" button during tracking.
-      sendMaybe(obj.tracker, 'abortTraining') ;
+      sendMaybe(obj.tracker, 'abortTracking') ;
     end
     
     function doNotify(obj, eventName)

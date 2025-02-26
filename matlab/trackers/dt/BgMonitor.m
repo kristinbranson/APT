@@ -135,15 +135,15 @@ classdef BgMonitor < handle
           % update themselves accordingly.  But that's it. Determining that training is
           % complete is done below.
       else
-          error('Internal error: Unknown processName %s', obj.processName) ;
+        error('Internal error: Unknown processName %s', obj.processName) ;
       end
       
       % Determine whether the polling itself was successful or not
-      tfpollsucc = BgMonitor.getPollSuccess(sRes);     
+      didPollingItselfSucceed = BgMonitor.getPollSuccess(sRes) ;
       
       % Check for errors.
-      errOccurred = any(tfpollsucc & BgMonitor.getErrOccurred(sRes));
-      if errOccurred
+      didErrorOccur = any(didPollingItselfSucceed & BgMonitor.getErrOccurred(sRes)) ;
+      if didErrorOccur
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
         if strcmp(obj.processName, 'track') ,
@@ -160,7 +160,7 @@ classdef BgMonitor < handle
                   
       % Check for completion.
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
-        obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
+        obj.tfComplete_ = all(didPollingItselfSucceed & BgMonitor.isComplete(sRes));
         if obj.tfComplete_
           % Send message to console
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
@@ -179,6 +179,16 @@ classdef BgMonitor < handle
           return
         end
       end
+
+      % sRes.isRunningFromJobIndex should at this point contain info about which of
+      % the spawned jobs are still running.  We would like to detect silent failures
+      % of spawned jobs that (for whatever reason) do not produce an error file. The
+      % tricky bit is that I think for some project/model types, there can be
+      % multiple spawned training jobs.  So need to handle correctly cases where
+      % some jobs have completed, but others are still running.  Not sure how to
+      % handle that in all cases, and have other fish to fry right now, but should
+      % return to it soon. -- ALT, 2025-02-26
+
     end  % function didReceivePollResults
   end  % methods
   
