@@ -18,7 +18,7 @@ classdef TrackingVisualizerReplicates < TrackingVisualizer
   
   methods
     function deleteGfxHandlesReplicates(obj)
-      deleteValidHandles(obj.hXYPrdFull);
+      deleteValidGraphicsHandles(obj.hXYPrdFull);
       obj.hXYPrdFull = [];   
     end        
     function vizInitHook(obj)

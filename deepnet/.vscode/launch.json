@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -14,7 +14,7 @@
         } ,
         {
             "name": "Test MSPN training",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_mspn_training_on_multitarget_bubble_20200630_touch.py",
             "console": "integratedTerminal",
@@ -22,7 +22,7 @@
         } ,
         {
             "name": "Test MSPN tracking",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_mspn_tracking_on_multitarget_bubble_20200630_touch.py",
             "console": "integratedTerminal",
@@ -30,7 +30,7 @@
         } ,
         {
             "name": "test_four_points_training.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_four_points_training.py",
             "console": "integratedTerminal",
@@ -38,7 +38,7 @@
         } ,
         {
             "name": "test_four_points_training_more_like_prod.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_four_points_training_more_like_prod.py",
             "console": "integratedTerminal",
@@ -46,7 +46,7 @@
         } ,
         {
             "name": "test_four_points_training_from_apt.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_four_points_training_from_apt.py",
             "console": "integratedTerminal",
@@ -54,7 +54,7 @@
         },
         {
             "name": "test_four_points_fresh_start_training.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_four_points_fresh_start_training.py",
             "console": "integratedTerminal",
@@ -62,7 +62,7 @@
         },
         {
             "name": "test_four_points_fresh_start_tracking.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_four_points_fresh_start_tracking.py",
             "console": "integratedTerminal",
@@ -70,7 +70,7 @@
         },
         {
             "name": "test_coco_training.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_coco_training.py",
             "console": "integratedTerminal",
@@ -78,7 +78,7 @@
         },
         {
             "name": "test-coco-training-with-db.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test-coco-training-with-db.py",
             "console": "integratedTerminal",
@@ -86,7 +86,7 @@
         },
         {
             "name": "test-coco-training-with-db-with-train-tf-replaced.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test-coco-training-with-db-with-train-tf-replaced.py",
             "console": "integratedTerminal",
@@ -94,7 +94,7 @@
         },
         {
             "name": "test-coco-training-from-ready-to-train-point.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test-coco-training-from-ready-to-train-point.py",
             "console": "integratedTerminal",
@@ -102,7 +102,7 @@
         },
         {
             "name": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
             "console": "integratedTerminal",
@@ -110,7 +110,7 @@
         },
         {
             "name": "run-coco-from-apt-training.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "run-coco-from-apt-training.py",
             "console": "integratedTerminal",
@@ -118,7 +118,7 @@
         },
         {
             "name": "run-coco-from-apt-training-with-db.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "run-coco-from-apt-training-with-db.py",
             "console": "integratedTerminal",
@@ -126,7 +126,7 @@
         },
         {
             "name": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
             "console": "integratedTerminal",
@@ -134,9 +134,41 @@
         },
         {
             "name": "test_four_points_cid_training_from_apt_2024_08_30.py",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_training_on_carmen.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_training_on_carmen.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_gt_on_carmen.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_gt_on_carmen_missing_to_track.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen_missing_to_track.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_tracking_on_sam2view.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_tracking_on_sam2view.py",
             "console": "integratedTerminal",
             "justMyCode": false
         }

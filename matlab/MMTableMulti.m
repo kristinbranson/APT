@@ -100,8 +100,11 @@ classdef MMTableMulti < MovieManagerTable
       % AL20160630: IMPORTANT: currently CANNOT sort table by columns      
       
       tt = obj.tbl;
-      selRow = tt.getSelectedRows;
       imovs = zeros(0,1);
+      if isempty(tt) ,
+        return
+      end
+      selRow = tt.getSelectedRows;
       for row=selRow(:)'
         rObj = tt.getRowAt(row);
         while ~isempty(rObj) && ~isa(rObj,'com.jidesoft.grid.DefaultGroupRow')

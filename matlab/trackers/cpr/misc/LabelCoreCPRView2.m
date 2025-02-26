@@ -19,8 +19,8 @@ classdef LabelCoreCPRView2 < LabelCore
       fprintf(1,'%d out of %d frames labeled.\n',nnz(tf),numel(tf));
     end
     function delete(obj)
-      deleteValidHandles(obj.hPtsRep);
-      deleteValidHandles(obj.hPtsRepRed);
+      deleteValidGraphicsHandles(obj.hPtsRep);
+      deleteValidGraphicsHandles(obj.hPtsRepRed);
     end
   end
   methods
@@ -89,7 +89,7 @@ classdef LabelCoreCPRView2 < LabelCore
           f = f+1;
           while f<=nf
             if tfLbled(f)
-              lObj.setFrame(f);
+              lObj.setFrameGUI(f);
               return;
             end
             f = f+1;
@@ -98,7 +98,7 @@ classdef LabelCoreCPRView2 < LabelCore
           f = f-1;
           while f>0
             if tfLbled(f)
-              lObj.setFrame(f);
+              lObj.setFrameGUI(f);
               return;
             end
             f = f-1;

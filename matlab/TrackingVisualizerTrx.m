@@ -33,11 +33,11 @@ classdef TrackingVisualizerTrx < handle
       obj.deleteGfxHandles();
     end
     function deleteGfxHandles(obj)
-      deleteValidHandles(obj.hTraj);
+      deleteValidGraphicsHandles(obj.hTraj);
       obj.hTraj = [];
-      deleteValidHandles(obj.hTrx);
+      deleteValidGraphicsHandles(obj.hTrx);
       obj.hTrx = [];
-      deleteValidHandles(obj.hTrxTxt);
+      deleteValidGraphicsHandles(obj.hTrxTxt);
       obj.hTrxTxt = [];
     end
     
@@ -51,9 +51,9 @@ classdef TrackingVisualizerTrx < handle
       
       lObj = obj.lObj; %#ok<*PROPLC>
               
-      deleteValidHandles(obj.hTraj);
-      deleteValidHandles(obj.hTrx);
-      deleteValidHandles(obj.hTrxTxt);
+      deleteValidGraphicsHandles(obj.hTraj);
+      deleteValidGraphicsHandles(obj.hTrx);
+      deleteValidGraphicsHandles(obj.hTrxTxt);
       obj.hTraj = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrx = matlab.graphics.primitive.Line.empty(0,1);
       obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);

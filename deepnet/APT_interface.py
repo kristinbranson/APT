@@ -3415,152 +3415,6 @@ def classify_db_stage(args,view,view_ndx,db_file):
     return ret_dict
 
 
-def classify_list_file(args, view, view_ndx=0, conf_raw=None):
-    
-    # This is obsolete. Use db_classify_all with the list file. MK 20230511
-
-    # ivw is the index into movieFiles, trxFiles. It corresponds to view, but
-    # perhaps not absolute view. E.g. if view 1 is the only view being tracked in
-    # this call, then movieFiles should have only one movie per movie set, and
-    # ivw=0.
-    # If views 0 and 1 are tracked in this call to APT_interface, then movieFiles
-    # should have two movies per movie set, and ivw=0 corresponds to view 0 and ivw=1
-    # corresponds to view 1. 
-    success = False
-    pred_locs = None
-    list_file = args.list_file
-    list_fp = open(list_file, 'r')
-    out_file = args.out_files[view_ndx][0]
-    part_file = out_file + '.part'  # following classify_movie naming
-
-    if not os.path.isfile(list_file):
-        logging.warning('File %s does not exist' % list_file)
-        return success, pred_locs
-
-    toTrack = json.load(list_fp)
-
-    # minimal checks
-    if 'movieFiles' not in toTrack:
-        logging.exception('movieFiles not defined in json file %s' % list_file)
-        return success, pred_locs
-    nMovies = len(toTrack['movieFiles'])
-    if 'toTrack' not in toTrack:
-        logging.exception('toTrack list not defined in json file %s' % list_file)
-        return success, pred_locs
-
-    # select the movies & trxfiles corresponding to current view index
-    movieFiles = []
-    for movieset in toTrack['movieFiles']:
-        if isinstance(movieset, list):
-            movieFiles.append(movieset[view_ndx])
-        else:
-            movieFiles.append(movieset)
-    toTrack['movieFiles'] = movieFiles
-
-    hasTrx = 'trxFiles' in toTrack and toTrack['trxFiles']
-    trxFiles = []
-    if hasTrx:
-        nTrx = len(toTrack['trxFiles'])
-        if nTrx != nMovies:
-            logging.exception('Numbers of movies and trx files do not match')
-            return success, pred_locs
-        for trxset in toTrack['trxFiles']:
-            if isinstance(trxset, list):
-                trxFiles.append(trxset[view_ndx])
-            else:
-                trxFiles.append(trxset)
-        toTrack['trxFiles'] = trxFiles
-    else:
-        toTrack['trxFiles'] = [None,]*len(toTrack['movieFiles'])
-
-    hasCrops = 'cropLocs' in toTrack and len(toTrack['cropLocs'])>0
-    cropLocs = None
-    if hasCrops:
-        nCrops = len(toTrack['cropLocs'])
-        if nCrops != nMovies:
-            logging.exception('Number of movie files and cropLocs do not match')
-            return success, pred_locs
-        cropLocs = toTrack['cropLocs']
-
-    # 1-indexed!
-    nToTrack = len(toTrack['toTrack'])
-    cur_list = []
-    for i in range(nToTrack):
-        mov = toTrack['toTrack'][i][0]
-        tgt = toTrack['toTrack'][i][1]
-        frm = toTrack['toTrack'][i][2]
-        if mov <= 0 or mov > nMovies:
-            logging.exception('toTrack[%d] has out of range movie index %d' % (i, mov))
-            return success, pred_locs
-        if tgt < 0:
-            logging.exception('toTrack[%d] has out of range target index %d' % (i, tgt))
-            return success, pred_locs
-        if isinstance(frm, int) and frm <= 0:
-            logging.exception('toTrack[%d] has out of range frame index %d' % (i, frm))
-            return success, pred_locs
-
-        if isinstance(frm, int):
-            cur_list.append([mov - 1, frm - 1, tgt - 1])
-        elif isinstance(frm, list):
-            assert len(frm) == 2, 'Invalid frame specification in toTrack[%d]' % (i)
-            logging.warning('toTrack[%d] has frm-range specification [%d,%d]. Adding %d frames' % (
-            i, frm[0], frm[1], frm[1] - frm[0]))
-            for frmreal in range(frm[0], frm[1]):
-                cur_list.append([mov - 1, frmreal - 1, tgt - 1])
-        else:
-            assert False, 'Invalid frame specification in toTrack[%d]' % (i)
-
-    db_dict = {'moviesFiles':toTrack['movieFiles'],'trxFiles':toTrack['trxFiles'],'cropLocs':cropLocs,'toTrack':cur_list}
-    db_file = tempfile.mkstemp()[1]
-    db_file_val = tempfile.mkstemp()[1]
-
-    if conf_raw is None:
-        lbl_file = args.lbl_file
-    else:
-        lbl_file = conf_raw
-      
-    name = args.name
-    first_stage = args.stage=='multi' or args.stage=='first'
-    conf = create_conf(lbl_file,view,name,cache_dir=args.cache, net_type=args.type,conf_params=args.conf_params,first_stage=first_stage)
-
-    if conf.db_format == 'coco':
-        create_coco_db(conf,split=False,db_files=(db_file,db_file_val),use_cache=False,db_dict=db_dict)
-    else:
-        create_tfrecord(conf,split=False,db_files=(db_file,db_file_val),use_cache=False,db_dict=db_dict)
-
-    ret_dict_all = classify_db_stage(args,view,db_file)
-
-    ret_dict_all1 = classify_list_all(args.type, conf, cur_list,
-                                     on_gt=False,
-                                     model_file=args.model_file[view_ndx],
-                                     movie_files=movieFiles,
-                                     trx_files=trxFiles,
-                                     crop_locs=cropLocs,
-                                     part_file=part_file)
-    # print('ret_dict_all.keys' + str(ret_dict_all.keys()))
-
-    # this is copy-pasted from write_trk --
-    # should probably merge these functions at some point
-    ts_shape = ret_dict_all['locs'].shape[:-1]
-    ts = np.ones(ts_shape) * datetime2matlabdn()  # time stamp
-    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-
-    to_mat_all_locs_in_dict(ret_dict_all)
-    # output to a temporary file and then rename. 
-    # this is because existence of out_file is a flag that tracking is done
-    # and file might still be being written when file is discovered
-    out_file_tmp = out_file + '.tmp'
-    savemat_with_catch_and_pickle(out_file_tmp, {'pred_locs': ret_dict_all['locs'], 'pred_conf': ret_dict_all['conf'], 'pred_ts': ts, 'pred_tag': tag, 'list_file': list_file, 'to_track': toTrack})
-    if os.path.exists(out_file_tmp):
-        os.rename(out_file_tmp, out_file)
-        success = True
-    else:
-        logging.exception("Did not successfully write output to %s" % out_file_tmp)
-        success = False
-
-    return success, pred_locs
-
-
 def classify_gt_data(args,view,view_ndx,conf_raw=None):
     ''' Classify GT data in the label file.
 
@@ -3673,41 +3527,41 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     trk.save(out_file, saveformat='tracklet', trkInfo=info)
     return trk
 
-    # Old code that saves extra information. Keeping it in for now MK - 20210319
-    pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
+    # # Old code that saves extra information. Keeping it in for now MK - 20210319
+    # pred_locs = convert_to_mat_trk(pred_locs_in, conf, start, end, trx_ids)
 
-    tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
-    # For projects without trx file this is always 1.
-    ts_shape = pred_locs['size'][0:1].tolist() + pred_locs['size'][2:].tolist()
-    ts = np.ones(ts_shape) * datetime2matlabdn()  # time stamp
-    tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
-    tracked_shape = pred_locs['size'][2]
-    tracked = np.zeros([1,
-                        tracked_shape])  # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
-    tracked[0, :] = to_mat(np.arange(start, end))
+    # tgt = to_mat(np.array(trx_ids))  # target animals that have been tracked.
+    # # For projects without trx file this is always 1.
+    # ts_shape = pred_locs['size'][0:1].tolist() + pred_locs['size'][2:].tolist()
+    # ts = np.ones(ts_shape) * datetime2matlabdn()  # time stamp
+    # tag = np.zeros(ts.shape).astype('bool')  # tag which is always false for now.
+    # tracked_shape = pred_locs['size'][2]
+    # tracked = np.zeros([1,
+    #                     tracked_shape])  # which of the predlocs have been tracked. Mostly to help APT know how much tracking has been done.
+    # tracked[0, :] = to_mat(np.arange(start, end))
 
-    out_dict = {'pTrk': pred_locs,
-                'pTrkTS': ts,
-                'expname': mov_file,
-                'pTrkiTgt': tgt,
-                'pTrkTag': tag,
-                'pTrkFrm': tracked,
-                'trkInfo': info}
-    for k in extra_dict.keys():
-        tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
-        # if k.startswith('locs_'):
-        #     tmp = to_mat(tmp)
-        out_dict['pTrk' + k] = tmp
+    # out_dict = {'pTrk': pred_locs,
+    #             'pTrkTS': ts,
+    #             'expname': mov_file,
+    #             'pTrkiTgt': tgt,
+    #             'pTrkTag': tag,
+    #             'pTrkFrm': tracked,
+    #             'trkInfo': info}
+    # for k in extra_dict.keys():
+    #     tmp = convert_to_mat_trk(extra_dict[k], conf, start, end, trx_ids)
+    #     # if k.startswith('locs_'):
+    #     #     tmp = to_mat(tmp)
+    #     out_dict['pTrk' + k] = tmp
 
-    # output to a temporary file and then rename to real file name.
-    # this is because existence of trk file is a flag that tracking is done for
-    # other processes, and writing may still be in progress when file discovered.
-    out_file_tmp = out_file + '.tmp'
-    savemat_with_catch_and_pickle(out_file_tmp, out_dict)
-    if os.path.exists(out_file_tmp):
-        os.replace(out_file_tmp, out_file)
-    else:
-        logging.exception("Did not successfully write output to %s" % out_file_tmp)
+    # # output to a temporary file and then rename to real file name.
+    # # this is because existence of trk file is a flag that tracking is done for
+    # # other processes, and writing may still be in progress when file discovered.
+    # out_file_tmp = out_file + '.tmp'
+    # savemat_with_catch_and_pickle(out_file_tmp, out_dict)
+    # if os.path.exists(out_file_tmp):
+    #     os.replace(out_file_tmp, out_file)
+    # else:
+    #     logging.exception("Did not successfully write output to %s" % out_file_tmp)
 
 
 def classify_movie(conf, pred_fn, model_type,
@@ -4296,10 +4150,11 @@ def train_other_core(net_type, conf, args, restore, model_file):
     The core of train_other(), after augmentation and all that other jazz.
     '''
 
-    # At last, the main event        
+    # At last, the main event
+    #print("net_type: "+net_type)
     if net_type == 'mmpose' or net_type == 'hrformer':
         module_name = 'Pose_mmpose'
-    elif net_type == 'cid':
+    elif net_type == 'multi_cid' or net_type == 'multi_dekr':
         module_name = 'Pose_multi_mmpose'
     else :
         module_name = 'Pose_{}'.format(net_type)                    

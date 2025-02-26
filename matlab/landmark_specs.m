@@ -416,7 +416,7 @@ classdef landmark_specs < handle
       obj.unselectedMarkerSize = unselMarkerSize;
       obj.unselectedLineWidth = unselLineWidth;
       
-      if ~lblObj.isPrevAxesModeInfoSet
+      if ~lblObj.isPrevAxesModeInfoSet()
         errordlg('Please freeze a labeled reference image for use with this UI.',...
           'No Reference Image');
         return;

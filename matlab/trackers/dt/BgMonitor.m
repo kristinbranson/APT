@@ -1,94 +1,60 @@
 classdef BgMonitor < handle
-  % BGMonitor
-  %
-  % A BGMonitor is:
-  % 1. A BgClient/BgRunner pair comprising a client, bg worker working
-  % asynchronously calling meths on a BgWorkerObj, and a 2-way comm 
-  % pipeline.
-  %   - The initted BgWorkerObj knows how to poll the state of the process. For
-  %     debugging/testing this can be done from the client machine.
-  % 2. A client-side MonitorViz object that visualizes 
-  % progress sent back from the BgRunner
-  % 3. Custom actions performed when process is complete
-  %
-  % BGMonitor does NOT know how to spawn process jobs but will know
-  % how to (attempt to) kill them. For debugging, you can manually spawn 
-  % jobs and monitor them with BgMonitor.
-  %
-  % BGMonitor does NOT know how to probe the detailed state of the
-  % process eg on disk. That is BgRunnerObj's domain.
-  %
-  % So BGMonitor is a connector/manager obj that runs the worker 
-  % (knows how to poll the filesystem in detail) in the background and 
-  % connects it with a Monitor.
-  %
-  % See also prepare() method comments for related info.
-  
+  % The BGMonitor is responsible for receiving polling results from the
+  % BgClient (which gets them from the BgPoller running in a separate process),
+  % and notifying the parent DeepTracker as needed.  It also is the DeepTracker's
+  % point of contact for controlling the monitoring.  E.g. monitoring starts
+  % when the BgMonitor gets the start() message from the DeepTracker.
+   
   properties
-    bgContCallInterval  % scalar double, in secs    
-    bgClientObj  % the BgClient (the BgRunner is created in the .startRunner() method of the BgClient)
-    bgWorkerObj  % scalar "detached" object (not sure this is still true about it being 
-                 % detached --ALT, 2024-06-28) that is deep-copied onto
-                 % workers. Note, this is not the BgRunner obj itself.
-    monitorObj  % object with resultsreceived() method, typically a "monitor visualizer"
-    cbkComplete  % empty, or fcnhandle with sig cbk(res), called when operation complete
+    pollInterval  % scalar double, in secs    
+    bgClientObj  % the BgClient
+    %poller  % a BgTrainPoller or BgTrackPoller object
+    %monitorVizObj  % object with resultsreceived() method, typically a "monitor visualizer"
     processName  % 'train' or 'track'
-    % It seems like the bgClientObj and monitorObj are owned by obj, but
-    % bgWorkerObj is not (hence that ref should be treated as soft).  The
-    % effective parent of obj is the DeepTracker.  cbkComplete seems to usually
-    % (always?) call a method of the parent DeepTracker.  Would probably make
-    % sense to add a "parent" field that contains a ref to the DeepTracker, and to
-    % call a "didCompleteBgMonitor" method of the parent when complete.  The
-    % bgWorkerObj is owned by the parent DeepTracker.  -- ALT, 2024-06-28
-    parent_
+    parent_  % the (typically) DeepTracker object that created this BgMonitor
     projTempDirMaybe_
+    tfComplete_  
+      % Initialized to false in start() method, set to true when completion detected.
+      % Used to prevent post-completion code from running twice.
   end
 
   properties (Dependent)
-    prepared
     isRunning
   end
-    
-%   events
-%     bgStart
-%     bgEnd    
-%   end
-  
+
+  properties (Transient)
+    sRes
+  end
+
   methods
-    function obj = BgMonitor(parent, type_string, monVizObj, bgWorkerObj, cbkComplete, varargin)      
+    function obj = BgMonitor(parent, type_string, poller, varargin)      
       % Is obj for monitoring training or tracking?
       obj.parent_ = parent ;
       if strcmp(type_string, 'train') ,
         obj.processName = 'train' ;
-        obj.bgContCallInterval = 30 ;  % secs
+        obj.pollInterval = 30 ;  % secs
       elseif strcmp(type_string, 'track') ,
         obj.processName = 'track' ;
-        obj.bgContCallInterval = 20 ;  % secs
+        obj.pollInterval = 20 ;  % secs
       else
         error('Internal error: BgMonitor() argument must be ''train'' or ''track''') ;
       end
 
-      % bgWorkerObj knows how to poll the state of the process. 
+      % poller knows how to poll the state of the process. 
       % monVizObj knows how to vizualize this state. 
-      % bgResultsReceivedHook performs custom actions after receiving
-      % an update from bgWorkerObj. 
+      % didReceivePollResults performs custom actions after receiving
+      % an update from poller. 
       %
-      % bgWorkerObj/monVizObj should be mix+matchable as bgWorkerObj 
+      % poller/monVizObj should be mix+matchable as poller 
       % should send a core set of 'standard' metrics that monVizObj can
       % use.
       %
-      % bgWorkerObj matches 1-1 with the concrete BgMonitor and its 
-      % bgResultsReceivedHook method. These work in concert and the 
-      % custom actions taken by bgResultsReceivedHook depends on custom 
-      % info supplied by bgWorkerObj.
-      [track_type, projTempDir] = myparse(varargin, ...
-                                          'track_type', 'movie', ...
-                                          'projTempDir', []);
-      if strcmp(track_type,'movie')
-        compute_fcn_name = 'compute';
-      else
-        compute_fcn_name = 'computeList';
-      end
+      % poller matches 1-1 with the concrete BgMonitor and its 
+      % didReceivePollResults method. These work in concert and the 
+      % custom actions taken by didReceivePollResults depends on custom 
+      % info supplied by poller.
+      projTempDir = myparse(varargin, ...
+                            'projTempDir', []);
       if isempty(projTempDir) ,
         obj.projTempDirMaybe_ = {} ;
       else
@@ -97,31 +63,22 @@ classdef BgMonitor < handle
 
       %obj.reset_();  % Not needed
       
-      [tfEFE,errFile] = bgWorkerObj.errFileExists;
-      if tfEFE
-        error('Error file ''%s'' exists.',errFile);
-      end
+      % [tfEFE,errFile] = poller.errFileExists;
+      % if tfEFE
+      %   error('Error file ''%s'' exists.',errFile);
+      % end
       
-      cbkResult = @obj.bgResultsReceived;
-
-      bgc = BgClient('projTempDirMaybe', obj.projTempDirMaybe_) ;
-      fprintf(1,'Configuring background worker...\n');
-      bgc.configure(cbkResult, bgWorkerObj, compute_fcn_name) ;
+      fprintf('Configuring background poller client...\n');
+      bgc = BgClient(obj, poller, 'projTempDirMaybe', obj.projTempDirMaybe_) ;
       
       obj.bgClientObj = bgc;
-      obj.bgWorkerObj = bgWorkerObj;
-      obj.monitorObj = monVizObj;
-      if exist('cbkComplete','var'),
-        obj.cbkComplete = cbkComplete;
-      end
+      %obj.poller = poller;
+      %obj.monitorVizObj = monVizObj;
     end  % constructor
     
     function delete(obj)
       if obj.isRunning ,
-        %obj.notify('bgEnd');
-        if ~isempty(obj.parent_)  && isvalid(obj.parent_) ,
-          obj.parent_.didStopBgMonitor(obj.processName) ;
-        end
+        obj.stop() ;
       end
       
       % IMHO, it's a code smell that we explicitly delete() all these things in a
@@ -131,123 +88,98 @@ classdef BgMonitor < handle
       end
       obj.bgClientObj = [];
       
-      if ~isempty(obj.bgWorkerObj)
-        delete(obj.bgWorkerObj)
-      end
-      obj.bgWorkerObj = [];
-      
-      obj.cbkComplete = [];
-      
-      if ~isempty(obj.monitorObj)
-        delete(obj.monitorObj);
-      end
-      obj.monitorObj = [];
+      % if ~isempty(obj.poller)
+      %   delete(obj.poller)
+      % end
+      % obj.poller = [];
     end  % delete() method
     
-    function v = get.prepared(obj)
-      v = ~isempty(obj.bgClientObj);
-    end
-
     function v = get.isRunning(obj)
       bgc = obj.bgClientObj;
       v = ~isempty(bgc) && bgc.isRunning;
     end
     
     function start(obj)
-      assert(obj.prepared);
+      obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
-      bgc.startRunner('runnerContinuous',true,...
-                      'continuousCallInterval',obj.bgContCallInterval) ;
-      %obj.notify('bgStart');
-      obj.parent_.didStartBgMonitor(obj.processName) ;
+      bgc.startPollingLoop(obj.pollInterval) ;
     end
     
     function stop(obj)
-      bgc = obj.bgClientObj;
-      bgc.stopWorkerHard();
-      %obj.notify('bgEnd');
-      obj.parent_.didStopBgMonitor(obj.processName) ;
+      % Stop polling for training/tracking results.
+
+      % This can be called from the delete() method, so we are extra careful about
+      % making sure the message targets are valid.
+      sendMaybe(obj.bgClientObj, 'stopPollingLoopHard') ;
     end
     
-    function bgResultsReceived(obj,sRes)
-      % current pattern is, this meth only handles things which stop the
-      % process. everything else handled by monitor
+    function didReceivePollResults(obj, sRes)
+      % Called by the BgClient when a polling result is received.  Checks for error
+      % or completion and notifies the parent DeepTracker accordingly.
 
-	    % tfSucc = false when bgMonitor should be stopped because resultsReceived found an issue
-      [tfSucc,msg] = obj.monitorObj.resultsReceived(sRes);
+      % Produce some debugging output
+      BgMonitor.debugfprintf('Inside BgMonitor.didReceivePollResults()\n') ;
       
-      BgMonitor.debugfprintf('bgResultsReceived: tfSucc = %d\n',tfSucc);
-      
-      tfpollsucc = BgMonitor.getPollSuccess(sRes);
-      
-      killOccurred = any(tfpollsucc & BgMonitor.getKillOccurred(sRes));
-      if killOccurred
-        obj.stop();        
-        fprintf(1,'Process killed!\n');
-        return;
-        % monitor plot stays up; reset not called etc
+      % Cause views/controllers to be updated with the latest poll results
+      obj.sRes = sRes ;  % Stash so to controllers/views have access to it.
+      if strcmp(obj.processName, 'track') 
+        obj.parent_.didReceiveTrackingPollResults_() ;  
+          % This call causes (through a child-to-parent call chain) the labeler to
+          % notify() views/controllers that there's a tracking result, and that they should
+          % update themselves accordingly.  But that's it. Determining that tracking is
+          % complete is done below.
+      elseif strcmp(obj.processName, 'train') 
+        obj.parent_.didReceiveTrainingPollResults_() ;
+          % This call causes (through a child-to-parent call chain) the labeler to
+          % notify() views/controllers that there's a training result, and that they should
+          % update themselves accordingly.  But that's it. Determining that training is
+          % complete is done below.
+      else
+          error('Internal error: Unknown processName %s', obj.processName) ;
       end
       
+      % Determine whether the polling itself was successful or not
+      tfpollsucc = BgMonitor.getPollSuccess(sRes);     
+      
+      % Check for errors.
       errOccurred = any(tfpollsucc & BgMonitor.getErrOccurred(sRes));
       if errOccurred
-        obj.stop();
-
-        fprintf(1,'Error occurred during %s:\n',obj.processName);
-        errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
-        if iscell(errFile) ,
-          if isscalar(errFile) ,
-            errFile = errFile{1} ;
-          else
-            error('errFile is a non-scalar cell array')
-          end
-        end        
-        fprintf(1,'\n### %s\n\n',errFile);
-        errContents = obj.bgWorkerObj.fileContents(errFile);
-        disp(errContents);
-        fprintf(1,'\n\n. You may need to manually kill any running DeepLearning process.\n');
-        return;
-        
-        % monitor plot stays up; reset not called etc
-      end
-      
-      logFileErrLikely = BgMonitor.getLogFileErrLikely(sRes);
-      for i=1:numel(sRes.result)
-        if tfpollsucc(i) && logFileErrLikely(i),
-          obj.stop();
-          
-          fprintf(1,'Error occurred during %s:\n',obj.processName);
-          logFiles = BgMonitor.getLogFile(sRes,i);  % This is a cell array of char arrays, at least sometimes
-          displayFileOrFiles(logFiles, obj.bgWorkerObj) ;
-          fprintf(1,'\n\n. You may need to manually kill any running %s process.\n',obj.processName);
-          return;
-          
-          % monitor plot stays up; bgReset not called etc
-        end
-      end
-            
-      tfComplete = all(tfpollsucc & BgMonitor.isComplete(sRes));
-      if tfComplete
-        obj.stop();
-        % % monitor plot stays up; reset not called etc
-        fprintf(1,'%s complete at %s.\n',obj.processName,datestr(now));
-        
-        if ~isempty(obj.cbkComplete),
-          obj.cbkComplete(sRes.result);
-        end
-        return
-      end
-      
-      % KB: check if resultsReceived found a reason to stop 
-      if ~tfSucc,
-        if isempty(msg),
-          fprintf('resultsReceived did not return success. Stopping.\n');
+        % Signal to parent object, typically a DeepTracker, that tracking/training
+        % has errored.
+        if strcmp(obj.processName, 'track') ,
+          obj.parent_.didErrorDuringTracking(sRes) ;
+        elseif strcmp(obj.processName, 'train') ,
+          obj.parent_.didErrorDuringTraining(sRes) ;
         else
-          fprintf('%s - Stopping.\n',msg);
+          error('Internal error: Unknown processName %s', obj.processName) ;
         end
-        obj.stop();
+
+        % If we get here, we're done dealing with the current polling result        
         return
-      end      
-    end  % function bgResultsReceived
+      end
+                  
+      % Check for completion.
+      if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
+        obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
+        if obj.tfComplete_
+          % Send message to console
+          fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
+          
+          % Signal to parent object, typically a DeepTracker, that tracking/training
+          % has completed.
+          if strcmp(obj.processName, 'track') ,
+            obj.parent_.didCompleteTracking(sRes.result) ;
+          elseif strcmp(obj.processName, 'train') ,
+            obj.parent_.didCompleteTraining(sRes.result) ;
+          else
+            error('Internal error: Unknown processName %s', obj.processName) ;
+          end
+
+          % If we get here, we're done dealing with the current polling result
+          return
+        end
+      end
+    end  % function didReceivePollResults
   end  % methods
   
   methods (Static)
@@ -259,9 +191,9 @@ classdef BgMonitor < handle
       end
     end
 
-    function killOccurred = getKillOccurred(sRes)
-      killOccurred = [sRes.result.killFileExists];
-    end
+    % function killOccurred = getKillOccurred(sRes)
+    %   killOccurred = [sRes.result.killFileExists];
+    % end
 
     function errOccurred = getErrOccurred(sRes)
       errOccurred = [sRes.result.errFileExists];
@@ -275,8 +207,8 @@ classdef BgMonitor < handle
       logFile = sRes.result(i).logFile;
     end
 
-    function logFileErrLikely = getLogFileErrLikely(sRes)
-      logFileErrLikely = [sRes.result.logFileErrLikely];
+    function result = getLogFileErrLikely(sRes)
+      result = false(size(sRes.result)) ;
     end
 
     function tfComplete = isComplete(sRes)

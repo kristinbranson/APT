@@ -1,62 +1,104 @@
-classdef AWSec2 < matlab.mixin.Copyable
-  % Handle to a single AWS EC2 instance. The instance may be in any state,
-  % running, stopped, etc.
-  %
-  % An AWSec2's .instanceID property is immutable. If you change it, it is 
-  % a different EC2 instance! So .instanceID is either [], indicating an 
-  % "unspecified instance", or it is specified to some fixed value. Rather 
-  % than attempt to mutate a specified instance, just create a new AWSec2
-  % object.
-  %
-  % Some methods below can specify (assign an .instanceID) to an 
-  % unspecified instance. No method however will mutate the .instanceID of 
-  % a specified instance.
+classdef AWSec2 < handle
+  % Object to handle specific aspects of the AWS backend.
+  % 
+  % This is copyable with the default copyElement() methods.  the only arguably
+  % sensitive thing is the instanceIP, which is only valid for a single run of
+  % the instance.  That property is Copyable but Transient.  Since Transient
+  % props don't survive getting serialized and passed to parfeval, we take steps
+  % to restore it on the other side of the parfeval call.  See the methods
+  % packParfevalSuitcase() and restoreAfterParfeval().
 
   properties (Constant)
+    AWS_SECURITY_GROUP = 'apt_dl';      % name of AWS security group
+    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
+    % AMI = 'ami-094a08ff1202856d6'; TF 1.13
+    % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
+    %AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
+    AMI = 'ami-09b1db2d5c1d91c38';  % Deep Learning Base *Proprietary* Nvidia Driver GPU AMI (Ubuntu 20.04) 20240415, with conda
+                                    % and apt_20230427_tf211_pytorch113_ampere environment, and ~/APT, and python
+                                    % links in ~/bin, and dotfiles setup to setup the the path properly for ssh
+                                    % noninteractive shells.  This was originally based on the image
+                                    % ami-09b1db2d5c1d91c38, aka "Deep Learning Base Proprietary Nvidia Driver GPU
+                                    % AMI (Ubuntu 20.04) 20240101"    
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
-  end
-  
-  properties (SetAccess=private)
-    instanceID  % primary ID. depending on config, IPs can change when instances are stopped/restarted etc.
-  end
-
-  properties (Dependent)
-    isSpecified
-    isConfigured
-    isInDebugMode
-  end
-
-  properties
-    keyName = ''
-    pem = ''
-    instanceType = 'p3.2xlarge';
-  end
-  
-  properties  % (Transient)  Making these transient means they don't get copied over when you pass an AWSec2 in an arg to parfeval()!
-              %              We'll just have to be smart about handling them when loading.
-    instanceIP
-    remotePID
-    isInDebugMode_ = false
-  end
-  
-  properties (Constant)
+    remoteHomeDir = '/home/ubuntu'
+    remoteDLCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'cacheDL')
+    remoteMovieCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'movies')
+    remoteAPTSourceRootDir = linux_fullfile(AWSec2.remoteHomeDir, 'APT')
     scpCmd = AWSec2.computeScpCmd()
-    %sshCmd = AWSec2.computeSshCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
+  properties
+    instanceID = ''  % Durable identifier for the AWS EC2 instance.  E.g.'i-07a3a8281784d4a38'.
+  end
+
+  properties (Dependent)
+    isInstanceIDSet    % Whether the instanceID is set or not
+    areCredentialsSet  % Whether the security credentials for the instance are set
+    isInDebugMode      % Whether the object is in debug mode.  See isInDebugMode_
+  end
+
+  properties
+    keyName = ''  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
+    pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
+    instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use
+  end
+
+  properties (Transient, SetAccess=protected)
+    % The backend keeps track of whether the DMCoD is local or remote.  When it's
+    % remote, we substitute the remote DMC root for the local one wherever it
+    % appears.
+    isDMCRemote_ = false
+      % True iff the "current" version of the DMC is on a remote AWS filesystem.  
+      % Underscore means "protected by convention"    
+    localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    %remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
+
+    % Used to keep track of whether movies have been uploaded or not.
+    % Transient and protected in spirit.
+    didUploadMovies_ = false
+
+    % When we upload movies, keep track of the correspondence, so we can help the
+    % consumer map between the paths.  Transient, protected in spirit.
+    localPathFromMovieIndex_ = cell(1,0) ;
+    remotePathFromMovieIndex_ = cell(1,0) ;
+  end
+
+  properties (Dependent)
+    isDMCRemote
+    isDMCLocal    
+    localDMCRootDir
+    %remoteDMCRootDir
+  end
+
+  % Transient properties don't get copied over when you pass an AWSec2 in an arg to parfeval()!
+  % So for some properties we take steps to make sure they get restored in the
+  % background process, because we want them to survive the transit through the parfeval boundary.
+  % (See the methods packParfevalSuitcase() and restoreAfterParfeval().)
+
+  properties (Transient)  
+    %remotePID = ''  % The PID of the Python process on the EC2 instance.  An old-style string
+    isInDebugMode_ = false  % In debug mode or not.  In debug mode, for instance, AWS alarms are turned off.
+    instanceIP = '' % The IP address of the EC2 instance.  An old-style string.
+  end
+  
+  properties (Transient, NonCopyable)
+    wasInstanceStarted_ = false  % This is true iff obj started the AWS EC2 instance.  If something/someone other than 
+                                 % *this object* started the instance, this is false. 
+                                 %
+                                 % We don't want this to be copied over when passing an AWSec2 in an arg to
+                                 % parfeval(), or when the object is persisted, so we make it transient.
+  end
+
   methods    
-    function obj = AWSec2(varargin)
-      for i=1:2:numel(varargin)
-        prop = varargin{i};
-        val = varargin{i+1};
-        obj.(prop) = val;
-      end      
+    function obj = AWSec2()
     end
     
     function delete(obj)  %#ok<INUSD> 
       % NOTE: for now, lifecycle of obj is not tied at all to the actual
       % instance-in-the-cloud
+      %fprintf('Deleting an AWSec2 object.\n') ;
     end    
   end
 
@@ -65,11 +107,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.instanceID = v;
     end
 
-    function v = get.isConfigured(obj)
+    function v = get.areCredentialsSet(obj)
       v = ~isempty(obj.pem) && ~isempty(obj.keyName);
     end
 
-    function v = get.isSpecified(obj)
+    function v = get.isInstanceIDSet(obj)
       v = ~isempty(obj.instanceID);
     end
 
@@ -81,7 +123,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.isInDebugMode_ = value ;
     end
 
-    function setInstanceID(obj,instanceID,instanceType)
+    function setInstanceIDAndType(obj,instanceID,instanceType)
       %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
       if ~isempty(obj.instanceID),
         if strcmp(instanceID,obj.instanceID),
@@ -103,36 +145,28 @@ classdef AWSec2 < matlab.mixin.Copyable
       if nargin > 3,
         obj.instanceType = instanceType;
       end
-      if obj.isSpecified,
+      if obj.isInstanceIDSet ,
         obj.configureAlarm();
       end
       %obj.ClearStatus();
     end
 
-    function setPemFile(obj,pemFile)
-      obj.pem = pemFile;
-    end
-    
-    function setKeyName(obj,keyName)
-      obj.keyName = keyName;
-    end
-    
     function [tfsucc,json] = launchInstance(obj,varargin)
       % Launch a brand-new instance to specify an unspecified instance
       [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
-      obj.ResetInstanceID();
+      obj.clearInstanceID();
       %obj.SetStatus('Launching new AWS EC2 instance');
       cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
-        obj.ClearStatus();
+        %obj.ClearStatus();
         return;
       end
       json = jsondecode(json);
       instanceID = json.Instances.InstanceId;
       if dostore,
-        obj.setInstanceID(instanceID);
+        obj.setInstanceIDAndType(instanceID);
       end
       %obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
       [tfsucc] = obj.waitForInstanceStart();
@@ -152,7 +186,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       % * tfrunning is returned as true if the instance exists and is running.
       % * json is valid only if tfexist==true.
       
-      assert(obj.isSpecified,'Cannot inspect an unspecified AWSEc2 instance.');
+      assert(obj.isInstanceIDSet,'Cannot inspect an unspecified AWSEc2 instance.');
       
       % Aside: this works with empty .instanceID if there is only one 
       % instance in the cloud, but we are not interested in that for now
@@ -189,7 +223,7 @@ classdef AWSec2 < matlab.mixin.Copyable
     end  % function
     
     function [tfsucc,state,json] = getInstanceState(obj)
-      assert(obj.isSpecified);
+      assert(obj.isInstanceIDSet);
       state = '';
       cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
@@ -202,12 +236,12 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,json] = stopInstance(obj)
-      if ~obj.isSpecified,
+      if ~obj.isInstanceIDSet || ~obj.wasInstanceStarted_ ,
         tfsucc = true;
         json = {};
-        return;
+        return
       end
-      %obj.SetStatus(sprintf('Stopping AWS EC2 instance %s',obj.instanceID));
+      fprintf('Stopping AWS EC2 instance %s...\n',obj.instanceID);
       cmd = AWSec2.stopInstanceCmd(obj.instanceID);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
@@ -217,14 +251,11 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
       json = jsondecode(json);
       obj.stopAlarm();
-    end  % function
-    
+    end  % function    
 
-    function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)
-    
+    function [tfsucc,instanceIDs,instanceTypes,json] = listInstances(obj)    
       instanceIDs = {};
       instanceTypes = {};
-      %obj.SetStatus('Listing AWS EC2 instances available');
       cmd = AWSec2.listInstancesCmd(obj.keyName,'instType',[]); % empty instType to list all instanceTypes
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
@@ -235,12 +266,9 @@ classdef AWSec2 < matlab.mixin.Copyable
           instanceTypes = arrayfun(@(x)x.Instances.InstanceType,info.Reservations,'uni',0);
         end
       end
-      %obj.ClearStatus();
-      
     end
 
     function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
-
       %obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
       [doblock] = myparse(varargin,'doblock',true);
       
@@ -292,10 +320,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       obj.inspectInstance();
       obj.configureAlarm();
       %obj.ClearStatus();
-    end
+      obj.wasInstanceStarted_ = true ;
+    end  % function
     
     function tfsucc = waitForInstanceStart(obj)
-      
       maxwaittime = 100;
       iterwaittime = 5;
       
@@ -341,36 +369,18 @@ classdef AWSec2 < matlab.mixin.Copyable
         end
         pause(iterwaittime);
       end
-      
-    end
+    end  % function
     
-    function checkInstanceRunning(obj,varargin)
-      % - If runs silently, obj appears to be a running EC2 instance with 
-      %   no issues
-      % - If harderror thrown, something appears wrong
-      %obj.SetStatus('Checking whether AWS EC2 instance is running');
-      throwErrs = myparse(varargin,...
-        'throwErrs',true... % if false, just warn if there is a problem
-        );
-      
-      if throwErrs
-        throwFcn = @error;
-      else
-        throwFcn = @warningNoTrace;
+    function errorIfInstanceNotRunning(obj)
+      [doesInstanceExist, isInstanceRunning] = obj.inspectInstance() ;
+      if ~doesInstanceExist
+        error('EC2 instance with id %s does not seem to exist', obj.instanceID);
       end
-      
-      [tfexist,tfrun] = obj.inspectInstance;
-      %obj.ClearStatus();
-
-      if ~tfexist
-        throwFcn('Problem with EC2 instance id: %s',obj.instanceID);
+      if ~isInstanceRunning
+        error('EC2 instance with id %s is not in the ''running'' state.',...
+              obj.instanceID)
       end
-      if ~tfrun
-        throwFcn('EC2 instance id %s is not in the ''running'' state.',...
-          obj.instanceID)
-      end
-
-    end
+    end  % function
     
     function codestr = createShutdownAlarmCmd(obj,varargin)
       [periodsec,threshpct,evalperiods] = myparse(varargin,...
@@ -432,11 +442,10 @@ classdef AWSec2 < matlab.mixin.Copyable
     end
     
     function [tfsucc,isalarm,reason] = checkShutdownAlarm(obj)
-
       tfsucc = false;
       isalarm = false;
       reason = '';
-      if ~obj.isSpecified,
+      if ~obj.isInstanceIDSet,
         reason = 'AWS EC2 instance not specified.';
         return;
       end
@@ -464,14 +473,9 @@ classdef AWSec2 < matlab.mixin.Copyable
           end
       end
       tfsucc = true;
-      
     end
-
-    
-
     
     function tfsucc = stopAlarm(obj)
-
       [tfsucc,isalarm,reason] = obj.checkShutdownAlarm();
       if ~tfsucc,
         warning('Could not check for alarm: %s\n',reason);
@@ -480,9 +484,6 @@ classdef AWSec2 < matlab.mixin.Copyable
       if ~isalarm,
         return;
       end
-      
-      % TODO
-      
     end
     
     function tfsucc = configureAlarm(obj)
@@ -504,7 +505,7 @@ classdef AWSec2 < matlab.mixin.Copyable
         return
       end
       
-      codestr = obj.createShutdownAlarmCmd ;
+      codestr = obj.createShutdownAlarmCmd() ;
       
       fprintf('Setting up AWS CloudWatch alarm to auto-shutdown your instance if it is idle for too long.\n');
       
@@ -513,23 +514,23 @@ classdef AWSec2 < matlab.mixin.Copyable
       tfsucc = (st==0) ;
     end
     
-    function tfsucc = getRemotePythonPID(obj)
-      [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python');
-      tfsucc = (st==0) ;
-      if tfsucc
-        pid = str2double(strtrim(res));
-        obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
-        fprintf('Remote PID is: %d.\n\n',pid);
-      else
-        warningNoTrace('Failed to ascertain remote PID.');
-      end
-    end
+    % function tfsucc = getRemotePythonPID(obj)
+    %   [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python');
+    %   tfsucc = (st==0) ;
+    %   if tfsucc
+    %     pid = strtrim(res) ;
+    %     obj.remotePID = pid; % right now each aws instance only has one GPU, so can only do one train/track at a time
+    %     fprintf('Remote PID is: %s.\n\n',pid);
+    %   else
+    %     warningNoTrace('Failed to ascertain remote PID.');
+    %   end
+    % end
     
     function tfnopyproc = getNoPyProcRunning(obj)
       % Return true if there appears to be no python process running on
       % instance
       [st,res] = obj.runBatchCommandOutsideContainer('pgrep --uid ubuntu --oldest python',...
-                                          'failbehavior','silent');
+                                                     'failbehavior','silent');
       tfsucc = (st==0) ;
         
       % AL 20200213 First clause here is legacy: "expect command to fail; 
@@ -559,10 +560,10 @@ classdef AWSec2 < matlab.mixin.Copyable
                                     'scpcmd', obj.scpCmd) ;
         %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
         st = AWSec2.syscmd(cmd,sysCmdArgs{:});
-        tfsucc = (st==0) ;        
-        tfsucc = tfsucc && (exist(dstAbs,'file')>0);
+        tfsucc0 = (st==0) ;        
+        tfsucc = tfsucc0 && logical(exist(dstAbs,'file')) ;
       end
-    end
+    end  % function
     
     function tfsucc = scpDownloadOrVerifyEnsureDir(obj,srcAbs,dstAbs,varargin)
       dirLcl = fileparts(dstAbs);
@@ -614,7 +615,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       
       src_d = dir(src);
       src_sz = src_d.bytes;
-      tfsucc = obj.remoteFileExists(dstAbs,'size',src_sz);
+      tfsucc = obj.fileExistsAndIsGivenSize(dstAbs,src_sz);
       if tfsucc
         fprintf('%s file exists: %s.\n\n',...
           String.niceUpperCase(fileDescStr),dstAbs);
@@ -632,27 +633,27 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
-        varargin)
-      % Upload a file to a dir which may not exist yet. Create it if 
-      % necessary. Either succeeds, or fails and harderrors.
-      
-      destRelative = myparse(varargin,...
-        'destRelative',false);
-      
-      dirRemote = fileparts(fileRemote);
-      obj.ensureRemoteDir(dirRemote,'relative',destRelative); 
-      obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
-        'destRelative',destRelative); % throws
-    end
+    % function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
+    %     varargin)
+    %   % Upload a file to a dir which may not exist yet. Create it if 
+    %   % necessary. Either succeeds, or fails and harderrors.
+    % 
+    %   destRelative = myparse(varargin,...
+    %                          'destRelative',false);
+    % 
+    %   dirRemote = fileparts(fileRemote);
+    %   obj.ensureRemoteDirExists(dirRemote,'relative',destRelative); 
+    %   obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
+    %     'destRelative',destRelative); % throws
+    % end
        
     function tfsucc = rsyncUpload(obj, src, dest)
       cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
-      st = AWSec2.syscmd(cmd) ;
-      tfsucc = (st==0) ;
+      rc = AWSec2.syscmd(cmd) ;
+      tfsucc = (rc==0) ;
     end
 
-    function rmRemoteFile(obj,dst,~,varargin)
+    function deleteFile(obj,dst,~,varargin)
       % Either i) confirm a remote file does not exist, or ii) deletes it.
       % This method either succeeds or fails and harderrors.
       %
@@ -681,50 +682,56 @@ classdef AWSec2 < matlab.mixin.Copyable
       %obj.SetStatus(sprintf('Deleting %s file(s) (if they exist) from AWS EC2 instance',fileDescStr));
       obj.runBatchCommandOutsideContainer(cmd,'failbehavior','err');
       %obj.ClearStatus();
-    end
+    end    
     
-    
-    function tf = remoteFileExists(obj,f,varargin)
-      [reqnonempty,size] = myparse(varargin,...
-        'reqnonempty',false,...
-        'size',-1 ...
-        );
-
-      if reqnonempty
-        script = '~/APT/matlab/misc/fileexistsnonempty.sh';
-      else
-        script = '~/APT/matlab/misc/fileexists.sh';
-      end
-      if size > 0
-        cmdremote = sprintf('%s %s %d',script,f,size);
-      else
-        cmdremote = sprintf('%s %s',script,f);
-      end
-      %logger.log('AWSSec2::remoteFileExists() milestone 1\n') ;
+    function tf = fileExists(obj,f)
+      %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      %cmdremote = sprintf('%s %s',script,f);
+      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',f);
       [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
-      %logger.log('AWSSec2::remoteFileExists() milestone 2.  status=%d\nres=\n%s\n', status, res) ;
-      tf = (res(1)=='y');      
+      tf = strcmp(strtrim(res),'0') ;      
     end
     
-    function s = remoteFileContents(obj,f,varargin)
+    function tf = fileExistsAndIsNonempty(obj,f)
+      %script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
+      %cmdremote = sprintf('%s %s',script,f);
+      cmdremote = sprintf('/usr/bin/test -s %s ; echo $?',f);
+      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      tf = strcmp(strtrim(res),'0') ;      
+    end
+    
+    function tf = fileExistsAndIsGivenSize(obj, file_name, query_byte_count)
+      script_path = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+      cmdremote = sprintf('%s %s %d', script_path, file_name, query_byte_count) ;
+      %cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;  
+        % stat return code is nonzero if file is missing---annoying
+      [~, res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err');
+      actual_byte_count = str2double(res) ;
+      tf = (actual_byte_count == query_byte_count) ;
+    end
+    
+    function s = fileContents(obj,f,varargin)
       % First check if the file exists
-      cmdremote = sprintf('[[ -e %s ]]',f);
+      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',f);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
-      if st~=0 ,
-        if isempty(strtrim(res)) ,
-          s = '<File does not exist>' ;
+      if st==0 ,
+        % Command succeeded in determining whether the file exists
+        if strcmp(strtrim(res),'0') ,
+          % File exists
+          cmdremote = sprintf('cat %s',f);
+          [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
+          if st==0
+            s = res ;
+          else
+            s = sprintf('<Unable to read file: %s>', res) ;
+          end
         else
-          s = sprintf('<Unable to determine if file exists: %s>', res) ;
+          % File doesn't exist
+          s = '<file does not exist>' ;          
         end
       else
-        % File exists, at least
-        cmdremote = sprintf('cat %s',f);
-        [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
-        if st==0
-          s = res;
-        else
-          s = sprintf('<Unable to read file: %s>', res) ;
-        end
+        % Command failed while trying to determine if the file exists
+        s = sprintf('<Unable to determine if file exists: %s>', res) ;
       end
     end  % function
     
@@ -741,12 +748,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function tfsucc = remoteLS(obj,remoteDir,varargin)
+    function tfsucc = lsdir(obj,remoteDir,varargin)
       [failbehavior,args] = myparse(varargin,...
-        'failbehavior','warn',...
-        'args','-lha'...
-        );
-      
+                                    'failbehavior','warn',...
+                                    'args','-lha') ;      
       cmdremote = sprintf('ls %s %s',args,remoteDir);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior',failbehavior);
       tfsucc = (st==0) ;
@@ -754,44 +759,42 @@ classdef AWSec2 < matlab.mixin.Copyable
       % warning thrown etc per failbehavior
     end
     
-    function remoteDirFull = ensureRemoteDir(obj,remoteDir,varargin)
-      % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
-      
-      [relative,descstr] = myparse(varargin,...
-        'relative',true,...  % true if remoteDir is relative to ~
-        'descstr',''... % cosmetic, for disp/err strings
-        );
-      
-      if ~isempty(descstr)
-        descstr = [descstr ' '];
-      end
-
-      if relative
-        remoteDirFull = ['~/' remoteDir];
-      else
-        remoteDirFull = remoteDir;
-      end
-      
-      %obj.SetStatus(sprintf('Creating directory %s on AWS EC2 instance',remoteDirFull));
-      cmdremote = sprintf('mkdir -p %s',remoteDirFull);
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
-      tfsucc = (st==0) ;
-      %obj.ClearStatus();
-      if tfsucc
-        fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
-          descstr,remoteDirFull,res);
-      else
-        error('Failed to create remote %sdirectory %s: %s',descstr,...
-          remoteDirFull,res);
-      end
-    end
+    % function remoteDirFull = ensureRemoteDirExists(obj,remoteDir,varargin)
+    %   % Creates/verifies remote dir. Either succeeds, or fails and harderrors.
+    % 
+    %   [relative,descstr] = myparse(varargin,...
+    %     'relative',true,...  % true if remoteDir is relative to ~
+    %     'descstr',''... % cosmetic, for disp/err strings
+    %     );
+    % 
+    %   if ~isempty(descstr)
+    %     descstr = [descstr ' '];
+    %   end
+    % 
+    %   if relative
+    %     remoteDirFull = ['~/' remoteDir];
+    %   else
+    %     remoteDirFull = remoteDir;
+    %   end
+    % 
+    %   cmdremote = sprintf('mkdir -p %s',remoteDirFull);
+    %   [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
+    %   tfsucc = (st==0) ;
+    %   if tfsucc
+    %     fprintf('Created/verified remote %sdirectory %s: %s\n\n',...
+    %       descstr,remoteDirFull,res);
+    %   else
+    %     error('Failed to create remote %sdirectory %s: %s',descstr,...
+    %       remoteDirFull,res);
+    %   end
+    % end
     
     function remotePaths = remoteGlob(obj,globs)
       % Look for remote files/paths. Either succeeds, or fails and harderrors.
 
       % globs: cellstr of globs
       
-      lscmd = cellfun(@(x)sprintf('ls %s 2> /dev/null;',x),globs,'uni',0);
+      lscmd = cellfun(@(glob)sprintf('ls %s 2> /dev/null ; ',glob), globs, 'uni', 0) ;
       lscmd = cat(2,lscmd{:});
       [st,res] = obj.runBatchCommandOutsideContainer(lscmd);
       tfsucc = (st==0) ;      
@@ -805,24 +808,33 @@ classdef AWSec2 < matlab.mixin.Copyable
       end      
     end
     
-    function cmdfull = wrapCommandSSH(obj, cmdremote, varargin)
-      %cmdfull = AWSec2.sshCmdGeneral(obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, 'usedoublequotes', true) ;
-      cmdfull = wrapCommandSSH(cmdremote, ...
-                               'host', obj.instanceIP, ...
-                               'timeout',8, ...
-                               'username', 'ubuntu', ...
-                               'identity', obj.pem) ;
-    end
+    function result = wrapCommandSSH(obj, input_command, varargin)
+      remote_command_with_file_name_substitutions = ...
+        AWSec2.applyFileNameSubstitutions(input_command, ...
+                                          obj.isDMCRemote_, obj.localDMCRootDir_, ...
+                                          obj.didUploadMovies_, obj.localPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
+      result = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
+                              'host', obj.instanceIP, ...
+                              'timeout',8, ...
+                              'username', 'ubuntu', ...
+                              'identity', obj.pem) ;
+    end  % function
 
-    function [st,res] = runBatchCommandOutsideContainer(obj,cmdremote,varargin)      
+    function [st,res] = runBatchCommandOutsideContainer(obj, cmdremote, varargin)      
       % Runs a single command-line command on the ec2 instance.
-      % It would be nice to get rid of this command, replace it's uses with uses of
-      % DLBackEndClass:runBatchCommandOutsideContainer().  But that's a lift.  
-      % -- ALT, 2024-09-29
-      command = wrapBatchCommandForAWSBackend(cmdremote, obj) ;        
-      [st, res] = apt.syscmd(command, varargin{:}) ;      
-%       cmdfull = obj.wrapCommandSSH(cmdremote) ;      
-%       [st,res] = AWSec2.syscmd(cmdfull, varargin{:}) ;
+
+      % Wrap for ssh'ing into an AWS instance
+      cmd1 = obj.wrapCommandSSH(cmdremote) ;  % uses fields of obj to set parameters for ssh command
+    
+      % Need to prepend a sleep to avoid problems
+      precommand = 'sleep 5 && export AWS_PAGER=' ;
+        % Change the sleep value at your peril!  I changed it to 3 and everything
+        % seemed fine for a while, until it became a very hard-to-find bug!  
+        % --ALT, 2024-09-12
+      command = sprintf('%s && %s', precommand, cmd1) ;
+
+      % Issue the command, gather results
+      [st, res] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;      
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -830,20 +842,12 @@ classdef AWSec2 < matlab.mixin.Copyable
 %                     obj.sshCmd, obj.pem, obj.instanceIP, cmdremote, logfileremote) ;
 %     end
         
-    function tf = canKillRemoteProcess(obj)
-      tf = ~isempty(obj.remotePID) && ~isnan(obj.remotePID);
-    end
+    % function tf = canKillRemoteProcess(obj)
+    %   tf = ~isempty(obj.remotePID) ;
+    % end
     
     function killRemoteProcess(obj)
-      % AL 20200213: now do this in a loop, kill until no py processes
-      % remain. For some nets (eg LEAP) multiple py (sub)procs are spawned
-      % and not sure a single kill does the job.
-
-%       if isempty(obj.remotePID)
-%         error('Unknown PID for remote process.');
-%       end
-%       
-%       cmdremote = sprintf('kill %d',obj.remotePID);
+      % Just kill all the Python processes on the EC2 instance
       cmdremote = 'pkill --uid ubuntu --full python';
       [st,~] = obj.runBatchCommandOutsideContainer(cmdremote);
       if st==0 ,
@@ -851,34 +855,10 @@ classdef AWSec2 < matlab.mixin.Copyable
       else
         error('Kill command failed.');
       end
-    end
+    end  % function
 
-    function [tfsucc,res] = remoteCallFSPoll(obj,fspollargs)
-      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
-      %
-      % res: [n] cellstr of fspoll responses
-
-      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
-      nargsFSP = numel(fspollargs);
-      assert(mod(nargsFSP,2)==0);
-      nresps = nargsFSP/2;
-      
-      fspollstr = space_out(fspollargs);
-      cmdremote = sprintf('~/APT/matlab/misc/fspoll.py %s',fspollstr);
-
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
-      tfsucc = (st==0) ;
-      if tfsucc
-        res = regexp(res,'\n','split');
-        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
-        res = res(1:end-1);
-      else
-        res = [];
-      end
-    end
-    
-    function ResetInstanceID(obj)
-      obj.setInstanceID('');
+    function clearInstanceID(obj)
+      obj.setInstanceIDAndType('');
     end
     
 %     function tf = isSameInstance(obj,obj2)
@@ -891,9 +871,9 @@ classdef AWSec2 < matlab.mixin.Copyable
     
     function cmd = launchInstanceCmd(keyName,varargin)
       [ami,instType,secGrp,dryrun] = myparse(varargin,...
-        'ami',APT.AMI,...
+        'ami',AWSec2.AMI,...
         'instType','p3.2xlarge',...
-        'secGrp',APT.AWS_SECURITY_GROUP,...
+        'secGrp',AWSec2.AWS_SECURITY_GROUP,...
         'dryrun',false);
       cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s',ami,instType,secGrp);
       if dryrun,
@@ -904,15 +884,16 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function cmd = listInstancesCmd(keyName,varargin)
+    function cmd = listInstancesCmd(keyName,varargin)      
+      [ami,instType,secGrp] = ...
+        myparse(varargin,...
+                'ami',AWSec2.AMI,...
+                'instType','p3.2xlarge',...
+                'secGrp',AWSec2.AWS_SECURITY_GROUP,...
+                'dryrun',false);
       
-      [ami,instType,secGrp] = myparse(varargin,...
-        'ami',APT.AMI,...
-        'instType','p3.2xlarge',...
-        'secGrp',APT.AWS_SECURITY_GROUP,...
-        'dryrun',false);
-      
-      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"',ami,secGrp,keyName);
+      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"', ...
+                    ami,secGrp,keyName);
       if ~isempty(instType)
         cmd = [cmd sprintf(' "Name=instance-type,Values=%s"',instType)];
       end
@@ -1039,7 +1020,7 @@ classdef AWSec2 < matlab.mixin.Copyable
       end
     end
     
-    function [st,res,warningstr] = syscmd(cmd0,varargin)      
+    function [st,res,warningstr] = syscmd(cmd0, varargin)      
       cmd = sprintf('sleep 5 && export AWS_PAGER= && %s', cmd0) ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
@@ -1048,6 +1029,448 @@ classdef AWSec2 < matlab.mixin.Copyable
     end  % function    
   end  % Static methods block
   
+  methods
+    function suitcase = packParfevalSuitcase(obj)
+      % Use before calling parfeval, to restore Transient properties that we want to
+      % survive the parfeval boundary.
+      suitcase = struct() ;
+      suitcase.instanceIP = obj.instanceIP ;
+      suitcase.isInDebugMode_ = obj.isInDebugMode_ ;
+      suitcase.isDMCRemote_ = obj.isDMCRemote_ ;
+      suitcase.localDMCRootDir_ = obj.localDMCRootDir_ ;
+      suitcase.didUploadMovies_ = obj.didUploadMovies_ ;
+      suitcase.localPathFromMovieIndex_ = obj.localPathFromMovieIndex_ ;
+      suitcase.remotePathFromMovieIndex_ = obj.remotePathFromMovieIndex_ ;
+    end  % function
+    
+    function restoreAfterParfeval(obj, suitcase)
+      % Should be called in background tasks run via parfeval, to restore fields that
+      % should not be restored from persistence, but we want to survive the parfeval
+      % boundary.
+      obj.instanceIP = suitcase.instanceIP ;
+      obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
+      obj.isDMCRemote_ = suitcase.isDMCRemote_ ;
+      obj.localDMCRootDir_ = suitcase.localDMCRootDir_ ;
+      obj.didUploadMovies_ = suitcase.didUploadMovies_ ;
+      obj.localPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
+      obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
+    end  % function
+
+    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
+      remoteCacheRoot = AWSec2.remoteDLCacheDir ;
+      currentLocalPathFromTrackedMovieIndex = movfiles(:) ;  % column cellstr
+      originalLocalPathFromTrackedMovieIndex = {res.movfile}' ;  % column cellstr
+      if all(strcmp(currentLocalPathFromTrackedMovieIndex,originalLocalPathFromTrackedMovieIndex))
+        % we perform this check b/c while tracking has been running in
+        % the bg, the project could have been updated, movies
+        % renamed/reordered etc.        
+        % download trkfiles 
+        localTrackFilePaths = {res.trkfile} ;
+        remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;
+        sysCmdArgs = {'failbehavior', 'err'};
+        for ivw=1:numel(res)
+          trkRmt = remoteTrackFilePaths{ivw};
+          trkLcl = localTrackFilePaths{ivw};
+          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
+          obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
+        end
+        isAllWell = true ;
+        message = '' ;
+      else
+        isAllWell = false ;
+        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
+        % conservative, take no action for now
+        return
+      end
+    end  % function    
+
+    function result = get.isDMCRemote(obj)
+      result = obj.isDMCRemote_ ;
+    end  % function
+
+    function result = get.isDMCLocal(obj)
+      result = ~obj.isDMCRemote_ ;
+    end  % function    
+
+    function [tfsucc,res] = batchPoll(obj, fspollargs)
+      % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
+      %
+      % res: [n] cellstr of fspoll responses
+
+      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
+      nargsFSP = numel(fspollargs);
+      assert(mod(nargsFSP,2)==0);
+      nresps = nargsFSP/2;
+      
+      fspollstr = space_out(fspollargs);
+      fspoll_script_path = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
+
+      cmdremote = sprintf('%s %s',fspoll_script_path,fspollstr);
+
+      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
+      tfsucc = (st==0) ;
+      if tfsucc
+        res = regexp(res,'\n','split');
+        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
+        res = res(1:end-1);
+      else
+        res = [];
+      end
+    end  % function
+    
+    function maxiter = getMostRecentModel(obj, dmc)  % constant method
+      if obj.isDMCRemote_ ,
+        % maxiter is nan if something bad happened or if DNE
+        % TODO allow polling for multiple models at once
+        [dirModelChainLnx,idx] = dmc.dirModelChainLnx();
+        fspollargs = {};
+        for i = 1:numel(idx),
+          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
+        end
+        [tfsucc,res] = obj.batchPoll(fspollargs);
+        if tfsucc
+          maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
+        else
+          maxiter = nan(1,numel(idx));
+        end        
+      else
+        maxiter = dmc.getMostRecentModelLocal() ;
+      end
+    end  % function
+    
+    function [didsucceed, msg] = mkdir(obj, dir_name)
+      % Create the named directory, either locally or remotely, depending on the
+      % backend type.      
+      quoted_dirloc = escape_string_for_bash(dir_name) ;
+      base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+      didsucceed = (status==0) ;
+    end
+    
+    function mirrorDMCToBackend(obj, dmc, mode)
+      % Take a local DMC and mirror/upload it to the AWS instance aws; 
+      % update .rootDir, .reader appropriately to point to model on remote 
+      % disk.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the remote aws instance.
+      %
+      % PostConditions: 
+      % - remote cachedir mirrors this model for key model files; "extra"
+      % remote files not removed; identities of existing files not
+      % confirmed but naming/immutability of DL artifacts makes this seem
+      % safe
+      % - .rootDir updated to remote cacheloc
+      % - .reader update to AWS reader
+      
+      % Sanity checks
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      assert(isscalar(dmc));
+
+      % If the DMC is already remote, warn
+      if obj.isDMCRemote ,
+        warning('Mirroring DMC to backend, even though DMC is already remote.') ;
+      end
+
+      % Make sure there is a trained model
+      maxiter = obj.getMostRecentModel(dmc) ;
+      succ = (maxiter >= 0) ;
+      if strcmp(mode, 'tracking') && any(~succ) ,
+        dmclfail = dmc.dirModelChainLnx(find(~succ));
+        fstr = sprintf('%s ',dmclfail{:});
+        error('Failed to determine latest model iteration in %s.',fstr);
+      end
+      if isnan(maxiter) ,
+        fprintf('Currently, there is no trained model.\n');
+      else
+        fprintf('Current model iteration is %s.\n',mat2str(maxiter));
+      end
+     
+      % Make sure there is a live backend
+      obj.errorIfInstanceNotRunning();  % throws error if ec2 instance is not connected
+      
+      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
+      % only a single boolean to represent whether it's local or remote, we're just
+      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
+      % backend.  -- ALT, 2024-06-25
+      localProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
+      remoteProjectPath = linux_fullfile(AWSec2.remoteDLCacheDir, dmc.projID) ;  % ensure linux-style path
+      [didsucceed, msg] = obj.mkdir(remoteProjectPath) ;
+      if ~didsucceed ,
+        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
+      end
+      obj.rsyncUpload(localProjectPath, remoteProjectPath) ;
+
+      % If we made it here, upload successful---update the state to reflect that the
+      % model is now remote.      
+      %obj.remoteDMCRootDir_ = AWSec2.remoteDLCacheDir ;
+      obj.localDMCRootDir_ = dmc.rootDir ;
+      obj.isDMCRemote_ = true ;
+    end  % function
+    
+    function mirrorDMCFromBackend(obj, dmc)
+      % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
+      % instance to local cache.
+      %
+      % update .rootDir, .reader appropriately to point to model in local
+      % cache.
+      %
+      % In practice for the client, this action updates the "latest model"
+      % to point to the local cache.
+
+      % If the DMC is already local,  do nothing
+      if obj.isDMCLocal ,
+        return
+      end
+      
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      assert(isscalar(dmc));      
+ 
+      maxiter = obj.getMostRecentModel(dmc) ;
+      succ = (maxiter >= 0) ;
+      if any(~succ),
+        dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
+        fstr = sprintf('%s ',dirModelChainLnx{:});
+        error('Failed to determine latest model iteration in %s.',...
+          fstr);
+      end
+      fprintf('Current model iteration is %s.\n',mat2str(maxiter));
+     
+      [tfexist,tfrunning] = obj.inspectInstance();
+      if ~tfexist,
+        error('AWS EC2 instance %s could not be found.',obj.instanceID);
+      end
+      if ~tfrunning,
+        [tfsucc,~,warningstr] = obj.startInstance();
+        if ~tfsucc,
+          error('Could not start AWS EC2 instance %s: %s',obj.instanceID,warningstr);
+        end
+      end      
+          
+      localDMCRootDir = obj.localDMCRootDir_ ;
+      modelGlobsLnx = dmc.modelGlobsLnx();
+      n = dmc.n ;
+      remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
+      dmcNetType = dmc.netType ;
+      for j = 1:n,
+        mdlFilesRemote = obj.remoteGlob(modelGlobsLnx{j});
+        cacheDirLocalEscd = regexprep(localDMCRootDir,'\\','\\\\');
+        mdlFilesLcl = regexprep(mdlFilesRemote,remoteDMCRootDir,cacheDirLocalEscd);
+        nMdlFiles = numel(mdlFilesRemote);
+        netstr = char(dmcNetType{j}); 
+        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
+        for i=1:nMdlFiles
+          fsrc = mdlFilesRemote{i};
+          fdst = mdlFilesLcl{i};
+          % See comment in mirror2RemoteAws regarding not confirming ID of
+          % files-that-already-exist
+          % We should switch to using rsync for this.  -- ALT, 2025-01-24
+          obj.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
+            'sysCmdArgs',{'failbehavior', 'err'}); % throws
+        end
+      end      
+      % if we made it here, download successful
+      
+      %obj.rootDir = cacheDirLocal;
+      %obj.reader = DeepModelChainReaderLocal();
+      obj.isDMCRemote_ = false ;
+    end  % function
+        
+    function result = getTorchHome(obj)
+      if obj.isDMCRemote_ ,
+        result = linux_fullfile(AWSec2.remoteDLCacheDir, 'torch') ;
+      else
+        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      end
+    end  % function
+    
+    function result = get.localDMCRootDir(obj) 
+      result = obj.localDMCRootDir_ ;
+    end  % function
+
+    function set.localDMCRootDir(obj, value) 
+      obj.localDMCRootDir_ = value ;
+    end  % function
+    
+    % function result = get.remoteDMCRootDir(obj)
+    %   result = AWSec2.remoteDLCacheDir ;
+    % end  % function
+        
+    function uploadMovies(obj, localPathFromMovieIndex)
+      % Upload movies to the backend, if necessary.
+      if obj.didUploadMovies_ ,
+        return
+      end
+      remotePathFromMovieIndex = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+      movieCount = numel(localPathFromMovieIndex) ;
+      fprintf('Uploading %d movie files...\n', movieCount) ;
+      fileDescription = 'Movie file' ;
+      sidecarDescription = 'Movie sidecar file' ;
+      for i = 1:movieCount ,
+        localPath = localPathFromMovieIndex{i};
+        remotePath = remotePathFromMovieIndex{i};
+        obj.uploadOrVerifySingleFile_(localPath, remotePath, fileDescription) ;  % throws
+        % If there's a sidecar file, upload it too
+        [~,~,fileExtension] = fileparts(localPath) ;
+        if strcmp(fileExtension,'.mjpg') ,
+          sidecarLocalPath = FSPath.replaceExtension(localPath, '.txt') ;
+          if exist(sidecarLocalPath, 'file') ,
+            sidecarRemotePath = AWSec2.remoteMoviePathFromLocal(sidecarLocalPath) ;
+            obj.uploadOrVerifySingleFile_(sidecarLocalPath, sidecarRemotePath, sidecarDescription) ;  % throws
+          end
+        end
+      end      
+      fprintf('Done uploading %d movie files.\n', movieCount) ;
+      obj.didUploadMovies_ = true ; 
+      obj.localPathFromMovieIndex_ = localPathFromMovieIndex ;
+      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
+    end  % function
+    
+    function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
+      % Upload a single file.  Protected by convention.
+      localFileDirOutput = dir(localPath) ;
+      localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
+      % We just use scpUploadOrVerify which does not confirm the identity
+      % of file if it already exists. These movie files should be
+      % immutable once created and their naming (underneath timestamped
+      % modelchainIDs etc) should be pretty/totally unique. 
+      %
+      % Only situation that might cause problems are augmentedtrains but
+      % let's not worry about that for now.
+      localFileName = localFileDirOutput.name ;
+      fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
+      obj.scpUploadOrVerify(localPath, ...
+                            remotePath, ...
+                            fullFileDescription, ...
+                            'destRelative',false) ;  % throws      
+    end  % function
+    
+    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+      if ~obj.didUploadMovies_ ,
+        error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
+      end
+      movieCount = numel(obj.remotePathFromMovieIndex_) ;
+      for movieIndex = 1 : movieCount ,
+        remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
+        if strcmp(remotePath, queryRemotePath) ,
+          result = obj.localPathFromMovieIndex_{movieIndex} ;
+          return
+        end
+      end
+      % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
+      error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
+    end  % function
+    
+    function result = getRemoteMoviePathFromLocal(obj, queryLocalPath)
+      if ~obj.didUploadMovies_ ,
+        error('Can''t get a remote movie path from a local path if movies have not been uploaded.') ;
+      end
+      movieCount = numel(obj.localPathFromMovieIndex_) ;
+      for movieIndex = 1 : movieCount ,
+        localPath = obj.localPathFromMovieIndex_{movieIndex} ;
+        if strcmp(localPath, queryLocalPath) ,
+          result = obj.remotePathFromMovieIndex_{movieIndex} ;
+          return
+        end
+      end
+      % If we get here, queryLocalPath did not match any path in obj.localPathFromMovieIndex_
+      error('Query path %s does not match any local movie path known to the backend.', queryLocalPath) ;
+    end  % function
+    
+    function [isRunning, reasonNotRunning] = ensureIsRunning(obj)
+      % If the AWS EC2 instance is not running, tell it to start, and wait for it to be
+      % fully started.  On return, isRunning reflects whether this worked.  If
+      % isRunning is false, reasonNotRunning is a string that says something about
+      % what went wrong.
+
+      % Make sure the instance ID is set
+      if ~obj.isInstanceIDSet
+        isRunning = false ;
+        reasonNotRunning = 'AWS instance ID is not set.' ;
+        return
+      end
+
+      % Make sure the credentials are set
+      if ~obj.areCredentialsSet ,
+        isRunning = false ;
+        reasonNotRunning = 'AWS credentials are not set.' ;
+        return          
+      end
+      
+      % Make sure the instance exists
+      [doesInstanceExist,isInstanceRunning] = obj.inspectInstance() ;
+      if ~doesInstanceExist,
+        isRunning = false;
+        reasonNotRunning = sprintf('Instance %s could not be found.', obj.instanceID) ;
+        %obj.awsec2.clearInstanceID();  % Don't think we want to do this just yet
+        return
+      end
+      
+      % Make sure the instance is running.  If not, start it.
+      if ~isInstanceRunning ,
+        % Instance is not running, so try to start it
+        didStartInstance = obj.startInstance();
+        if ~didStartInstance
+          isRunning = false ;
+          reasonNotRunning = sprintf('Could not start AWS EC2 instance %s.',obj.instanceID) ;
+          return
+        end
+      end
+      
+      % Just because you told EC2 to start the instance, and that worked, doesn't
+      % mean the instance is truly ready.  Wait for it to be truly ready.
+      isRunning = obj.waitForInstanceStart();
+      if ~isRunning ,
+        reasonNotRunning = 'Timed out waiting for AWS EC2 instance to be spooled up.';
+        return
+      end
+      
+      % If get here, all is well, EC2 instance is spun up and ready to go
+      reasonNotRunning = '';
+    end  % function    
+
+    function updateRepo(obj)
+      % Update the APT source code on the backend.  While we're at it, make sure the
+      % pretrained weights are downloaded.
+      obj.errorIfInstanceNotRunning();  % errs if instance isn't running
+
+      % Does the APT source root dir exist?
+      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
+      
+      % Create folder if needed
+      [didsucceed, msg] = obj.mkdir(remote_apt_root) ;
+      if ~didsucceed ,
+        error('Unable to create APT source folder in AWS instance.\nStdout/stderr:\n%s\n', msg) ;
+      end
+      fprintf('APT source folder %s exists on AWS instance.\n', remote_apt_root);
+
+      % Rsync the local APT code to the remote end
+      local_apt_root = APT.Root ;
+      tfsucc = obj.rsyncUpload(local_apt_root, remote_apt_root) ;
+      if tfsucc ,
+        fprintf('Successfully rsynced remote APT source code (in %s) with local version (in %s).\n', remote_apt_root, local_apt_root) ;
+      else
+        error('Unable to rsync remote APT source code (in %s) with local version (in %s)', remote_apt_root, local_apt_root) ;
+      end
+
+      % Run the remote Python script to download the pretrained model weights
+      % This python script doesn't do anything fancy, apparently, so we use the
+      % python interpreter provided by the plain EC2 instance, not the one inside
+      % the Docker container on the instance.
+      download_script_path = linux_fullfile(remote_apt_root, 'deepnet', 'download_pretrained.py') ;
+      quoted_download_script_path = escape_string_for_bash(download_script_path) ;      
+      [st_3,res_3] = obj.runBatchCommandOutsideContainer(quoted_download_script_path) ;
+      if st_3 ~= 0 ,
+        error('Failed to download pretrained model weights:\n%s', res_3);
+      end
+      
+      % If get here, all is well
+      fprintf('Updated remote APT source code.\n\n');
+    end  % function    
+    
+  end  % methods
+
   % These next two methods allow access to private and protected variables,
   % intended to be used for encoding/decoding.  The trailing underscore is there
   % to remind you that these methods are only intended for "special case" uses.
@@ -1061,4 +1484,46 @@ classdef AWSec2 < matlab.mixin.Copyable
     end  % function
   end
   
-end
+  methods (Static)
+    function result = remoteMoviePathFromLocal(localPath)
+      % Convert a local movie path to the remote equivalent.
+      movieName = fileparts23(localPath) ;
+      rawRemotePath = linux_fullfile(AWSec2.remoteMovieCacheDir, movieName) ;
+      result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
+    end
+
+    function result = remoteMoviePathsFromLocal(localPathFromMovieIndex)
+      % Convert a cell array of local movie paths to their remote equivalents.
+      % For non-AWS backends, this is the identity function.
+      result = cellfun(@(path)(AWSec2.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
+    end
+
+    function result = applyFileNameSubstitutions(command, ...
+                                                 isDMCRemote, localDMCRootDir, ...
+                                                 didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
+      % Replate the local DMCoD root with the remote one
+      if isDMCRemote ,
+        result_1 = strrep(command, localDMCRootDir, AWSec2.remoteDLCacheDir) ;
+      else
+        result_1 = command ;
+      end      
+      % Replace local movie paths with the corresponding remote ones
+      if didUploadMovies ,
+        result_2 = strrep_multiple(result_1, localPathFromMovieIndex, remotePathFromMovieIndex) ;
+      else
+        result_2 = result_1 ;
+      end
+      % Replace the local APT source root with the remote one
+      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
+      local_apt_root = APT.Root ;
+      result_3 = strrep(result_2, local_apt_root, remote_apt_root) ;
+      % Replace the local home dir with the remote one
+      % Do this last b/c e.g. the local APT source root is likely in the local home
+      % dir.
+      local_home_path = get_home_dir_name() ;
+      remote_home_path = AWSec2.remoteHomeDir ;
+      result_4 = strrep(result_3, local_home_path, remote_home_path) ;      
+      result = result_4 ;
+    end  % function
+  end  % methods (Static)
+end  % classdef

@@ -5,7 +5,7 @@ classdef APT_helper
   methods (Static)
     function lObj = load_proj(lblfile,varargin)
       % load project and if required update paths 
-      APT.setpathsmart;
+      APT.setpathsmart();
       [replace_path] = myparse(varargin,'replace_path',{'',''});
       lObj = Labeler('projfile',lblfile,'replace_path',replace_path);      
     end

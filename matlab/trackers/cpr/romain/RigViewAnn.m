@@ -54,13 +54,13 @@ classdef RigViewAnn < handle
     function delete(obj)
       delete(obj.anchorHIMP);
       obj.anchorHIMP = [];
-      deleteValidHandles(obj.epiHLines);
+      deleteValidGraphicsHandles(obj.epiHLines);
       obj.epiHLines = [];
       if ~isempty(obj.secondHIMP);
         delete(obj.secondHIMP);
         obj.secondHIMP = [];
       end
-      deleteValidHandles(obj.thirdHPt);
+      deleteValidGraphicsHandles(obj.thirdHPt);
       obj.thirdHPt = [];
     end  
     
@@ -88,7 +88,7 @@ classdef RigViewAnn < handle
       delete(obj.secondHIMP);
       obj.secondHIMP = [];
       obj.secondIAx = 0;
-      deleteValidHandles(obj.thirdHPt);
+      deleteValidGraphicsHandles(obj.thirdHPt);
       obj.thirdHPt = [];
       obj.thirdIAx = 0;      
     end

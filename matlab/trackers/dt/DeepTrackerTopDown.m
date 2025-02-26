@@ -48,7 +48,7 @@ classdef DeepTrackerTopDown < DeepTracker
   % - track: trkcomplete trigger.
   
   properties
-    forceSerial = false;
+    %forceSerial = false;
     
     stage1Tracker % See notes above
     
@@ -61,14 +61,17 @@ classdef DeepTrackerTopDown < DeepTracker
   end
   methods
     function v = getAlgorithmNameHook(obj)
-      v = sprintf('Stg1%s_Stg2%s',obj.stage1Tracker.trnNetMode.shortCode,obj.trnNetMode.shortCode);
-      %v = sprintf('MA Top Down');%,obj.trnNetMode.shortCode,...
-%        obj.stage1Tracker.trnNetMode.shortCode);
+      short_type_string = fif(strcmp(obj.topDownTypeStr, 'head/tail'), 'ht', 'bbox') ;
+      v = sprintf('ma_top_down_%s_%s_%s',...
+                  short_type_string,...
+                  obj.stage1Tracker.trnNetMode.shortCode,...
+                  obj.trnNetMode.shortCode);
     end
     function v = getAlgorithmNamePrettyHook(obj)
-      v = sprintf('Top Down (%s): %s + %s',obj.topDownTypeStr,...
-        obj.stage1Tracker.trnNetType.displayString,...
-        obj.trnNetType.displayString);
+      v = sprintf('Top Down (%s): %s + %s',...
+                  obj.topDownTypeStr,...
+                  obj.stage1Tracker.trnNetType.displayString,...
+                  obj.trnNetType.displayString);
     end
     function v = getNetsUsed(obj)
       v = cellstr([obj.stage1Tracker.trnNetType; obj.trnNetType]);
@@ -111,7 +114,7 @@ classdef DeepTrackerTopDown < DeepTracker
     
     function initHook(obj)
       initHook@DeepTracker(obj);
-      obj.stage1Tracker.initHook();      
+      obj.stage1Tracker.init();      
     end
     
     function setAllParams(obj,sPrmAll)
@@ -310,7 +313,7 @@ classdef DeepTrackerTopDown < DeepTracker
   
   methods (Static)
     
-    function trkClsAug = getTrackerInfos
+    function trkClsAug = getTrackerInfos()
       % Currently-available TD trackers. Can consider moving to eg yaml later.
       trkClsAug = { ...
           {'DeepTrackerTopDown' ...

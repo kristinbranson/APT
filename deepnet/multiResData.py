@@ -1488,7 +1488,11 @@ class list_loader(torch.utils.data.Dataset):
             cap = self.cap
 
         if self.has_crop:
-            crop_loc = self.cropLocs[cur_i[0]-1][conf.view]
+            if conf.nviews>1:
+                crop_loc_one_based = self.cropLocs[cur_i[0]-1][conf.view]
+            else:
+                crop_loc_one_based = self.cropLocs[cur_i[0]-1]
+            crop_loc = [el-1 for el in crop_loc_one_based]  # convert to zero-based indexing, b/c that's what get_patch() wants
         else:
             crop_loc = None
         if conf.has_trx_file:
@@ -1496,7 +1500,7 @@ class list_loader(torch.utils.data.Dataset):
         else:
             cur_trx = None
 
-        im, locs,scale = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx,crop_loc=crop_loc,flipud=conf.flipud)
+        im, locs, scale = get_patch(cap, cur_f, conf,  np.zeros([conf.n_classes, 2]), cur_trx=cur_trx, crop_loc=crop_loc, flipud=conf.flipud)
 
         if conf.is_multi:
             locs = np.ones([conf.max_n_animals,conf.n_classes,2])*conf.imsz[0]/2

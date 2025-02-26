@@ -24,7 +24,7 @@ classdef TrackBatchGUI < handle
     function obj = TrackBatchGUI(lObj,varargin)
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
-      obj.hParent = obj.lObj.gdata.figure;      
+      obj.hParent = obj.lObj.gdata.mainFigure_;      
       toTrack = myparse(varargin,'toTrack',struct);
       
       obj.defaulttrkpat = lObj.defaultExportTrkRawname();

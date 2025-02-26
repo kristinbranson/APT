@@ -97,14 +97,13 @@ FIELDS2DOUBLIFY = {'Gamma' 'FigurePos' 'AxisLim' 'InvertMovie' 'AxFontSize' 'Sho
 cfgBase.View(1) = ProjectSetup('structLeavesStr2Double',cfgBase.View(1),FIELDS2DOUBLIFY);
 
 lObj = StartAPT();
-lObj.initFromConfig(cfgBase);
-lObj.projNew(cfgBase.ProjectName);
+lObj.projNew(cfgBase) ;
 
 for ndx = 1:numel(umovies)
   lObj.movieAdd(umovies(ndx));
 end
 
-lObj.movieSet(1);
+lObj.movieSetGUI(1);
 %%
 n = numel(movieidx);
 for ndx = 1:n
