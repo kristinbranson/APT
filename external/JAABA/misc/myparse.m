@@ -4,7 +4,7 @@ nin = length(varargin)/2;
 nout = nargout;
 if mod(2*nin,2)~=0 || mod(length(params),2)~=0,
   error('Odd number of parameters expected');
-end;
+end
 
 % set defaults
 varargout = varargin(2:2:2*nout);
@@ -37,8 +37,8 @@ for i = 1:2:length(params),
 %    % set value
 %    if strcmpi(params{i},names{j}),
 %      varargout{j} = params{i+1};
-%    end;
+%    end
 %
-%  end;
-  
-end;
+%  end
+
+end  % for

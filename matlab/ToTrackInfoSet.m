@@ -1,9 +1,7 @@
 classdef ToTrackInfoSet < matlab.mixin.Copyable
 
-  properties
-    
+  properties    
     ttis = [];
-
   end
 
   methods
@@ -12,7 +10,19 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         obj.ttis = varargin{1};
       end
     end
-    
+  end
+
+  methods (Access=protected)
+    function obj2 = copyElement(obj)
+      % overload so that .ttis is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.ttis)
+        obj2.ttis = copy(obj.ttis);
+      end
+    end  % function
+  end  % function
+  
+  methods
     function X = mergeGet(obj,propname,varargin)
 
       [movidx0,views0,stages0] = myparse(varargin,'movie',[],...
@@ -43,9 +53,9 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
           case 'movfiles',
             x = obj.ttis(i).getMovfiles();
           case 'trkfiles',
-            x = obj.ttis(i).getTrkfiles();
+            x = obj.ttis(i).getTrkFiles();
           case 'parttrkfiles',
-            x = obj.ttis(i).getParttrkfiles();
+            x = obj.ttis(i).getPartTrkFiles();
           case 'croprois',
             x = obj.ttis(i).getCroprois();
           case 'calibrationfiles',
@@ -88,11 +98,11 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       files = obj.mergeGet('movfiles',varargin{:});
     end
 
-    function files = getTrkfiles(obj,varargin)
+    function files = getTrkFiles(obj,varargin)
       files = obj.mergeGet('trkfiles',varargin{:});
     end
 
-    function files = getParttrkfiles(obj,varargin)
+    function files = getPartTrkFiles(obj,varargin)
       files = obj.mergeGet('parttrkfiles',varargin{:});
     end
 
@@ -108,13 +118,13 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       X = obj.mergeGet('calibrationdata',varargin{:});
     end
 
-    function logFiles = getLogfiles(obj)
+    function logFiles = getLogFiles(obj)
       logFiles = cell(numel(obj.ttis),1);
       for i = 1:numel(obj.ttis),
-        logFiles{i} = obj.ttis(i).getLogfile();
+        logFiles{i} = obj.ttis(i).getLogFile();
       end
     end
-    function errFiles = getErrfiles(obj)
+    function errFiles = getErrFiles(obj)
       errFiles = cell(numel(obj.ttis),1);
       for i = 1:numel(obj.ttis),
         errFiles{i} = obj.ttis(i).getErrfile();
@@ -173,7 +183,15 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       end
     end
 
-  end
+    function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
+      % Assuming all the paths are paths on a remote-filesystem backend, change them
+      % all to their corresponding local paths.  The backend argument is used to
+      % lookup local movie paths from their remote versions.
+      n = numel(obj.ttis) ;
+      for i = 1 : n ,
+        obj.ttis(i).changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
+      end
+    end  % function
+  end  % methods
 
-
-end
+end  % classdef

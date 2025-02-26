@@ -5,7 +5,7 @@ import sys
 
 import tensorflow as tf
 K = tf.keras.backend
-# Pylance complains about all these imports b/c apparently TF uses dynamic behavior ot import keras -- ALT, 2023-03-31
+# Pylance complains about all these imports b/c apparently TF uses dynamic behavior to import keras -- ALT, 2023-03-31
 #   See: https://github.com/microsoft/pylance-release/issues/3387
 # from tf.keras.models import Model
 # from tf.keras.layers import Concatenate
@@ -147,7 +147,7 @@ def deconv_2x_upsampleinit(x, nf, ks, name, wd, wdmode):
                         kernel_regularizer=kernel_reg,
                         bias_regularizer=bias_reg,
                         kernel_initializer=upsamp_init_bl,
-                        bias_initializer=tf.keras.regularizers.constant(0.0))(x)
+                        bias_initializer=tf.keras.initializers.constant(0.0))(x)
     logging.info("Using 2xdeconv w/init around upsample, wdmode={}, wd={}.".format(wdmode, wd))
 
     return x
@@ -1249,10 +1249,14 @@ def do_inference(hmap, paf, conf,thre_hm,thre_paf):
 
         elif i in peaks_done[p1]:
             cur_t = np.where(targets[:,p1]==i)[0]
+            if not np.isnan(targets[cur_t,p2]):
+                continue
             targets[cur_t,p2] = j
             peaks_done[p2].append(j)
         elif j in peaks_done[p2]:
             cur_t = np.where(targets[:,p2]==j)[0]
+            if not np.isnan(targets[cur_t,p1]):
+                continue
             targets[cur_t,p1] = i
             peaks_done[p1].append(i)
         else:

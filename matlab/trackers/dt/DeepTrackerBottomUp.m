@@ -14,11 +14,13 @@ classdef DeepTrackerBottomUp < DeepTracker
   end
       
   methods (Static)
-    function trkClsAug = getTrackerInfos
+    function trkClsAug = getTrackerInfos()
       % Currently-available BU trackers. Can consider moving to eg yaml later.
       trkClsAug = { ...
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_mdn_joint_torch 'trnNetMode' DLNetMode.multiAnimalBU};
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_openpose 'trnNetMode' DLNetMode.multiAnimalBU};
+          {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_cid 'trnNetMode' DLNetMode.multiAnimalBU};
+          {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_dekr 'trnNetMode' DLNetMode.multiAnimalBU};
           };
     end    
   end

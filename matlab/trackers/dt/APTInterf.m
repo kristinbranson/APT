@@ -9,27 +9,30 @@ classdef APTInterf
   methods (Static)
 
     function codestr = trainCodeGenBase(dmc,varargin)
-      
-      [aptroot,filesep0,confparamsextra,...
+      torchhome_fallback = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      [aptroot,confparamsextra,...
         torchhome,val_split,...
-        ignore_local] = ...
-        myparse(varargin,...
+        ignore_local,...
+        do_just_generate_db] = ...
+        myparse( ...
+        varargin,...
         'aptroot',APT.Root,...
-        'filesep','/',...
         'confparamsextra',{},...
-        'torchhome',APT.torchhome, ...
+        'torchhome',torchhome_fallback, ...
         'val_split',[],...
-        'ignore_local',[]... % whether to remove local python modules from the path
+        'ignore_local',[],... % whether to remove local python modules from the path
+        'do_just_generate_db', false ...
         );
       aptintrf = APTInterf.aptInterfacePath(aptroot);
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
       trainConfig = linux_path(nativeTrainConfig) ;
-      nativeCacheRootDir = dmc.getRootDir();
+      nativeCacheRootDir = dmc.rootDir ;
       cacheRootDir = linux_path(nativeCacheRootDir) ;
       nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
       errFile = linux_path(nativeErrfile) ;
+      logFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
       tfFollowsObjDet = dmc.getFollowsObjDet();
       stages = unique(dmc.getStages());
       views = unique(dmc.getViews());
@@ -69,6 +72,7 @@ classdef APTInterf
         escape_string_for_bash(trainConfig) ...
         '-name' modelChainID ...
         '-err_file' escape_string_for_bash(errFile) ... 
+        '-log_file' escape_string_for_bash(logFile) ... 
         '-json_trn_file' escape_string_for_bash(trainLocFile) ...
         };
 
@@ -136,6 +140,10 @@ classdef APTInterf
         code = [code {'-continue -skip_db'}];
       end
 
+      if do_just_generate_db ,
+        code = [code {'-only_db'}];
+      end
+
       dosplit = ~isempty(val_split);
       if dosplit
         code = [code {'-val_split' num2str(val_split)}];
@@ -182,33 +190,26 @@ classdef APTInterf
         return;
       end
 
-      [filequote,frm0,frm1,...
-        listfile,trxids,trxtrk,...
-        croproi,track_type,...
-        aptroot,filesep0,...
-        torchhome,ignore_local] = ...
+      % Process optional arguments
+      dmc = totrackinfo.trainDMC ;
+      torchhome_fallback = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      [track_type,...
+       aptroot,...
+       torchhome,...
+       ignore_local] = ...
         myparse(varargin,...
-        'filequote','"',...
-        'frm0',[],'frm1',[],...
-        'listfile','',...
-        'trxids',[],...
-        'trxtrk',{},...
-        'croproi',[],...
-        'track_type','track',...
-        'aptroot',APT.Root,...
-        'filesep','/',...
-        'torchhome',APT.torchhome, ...
-        'ignore_local',[]... % whether to remove local python modules from the path
-        );
-
-      dmc = totrackinfo.trainDMC;
+                'track_type','track',...  % track_type should be one of {'track', 'link', 'detect'}
+                'aptroot',APT.Root,...
+                'torchhome',torchhome_fallback, ...
+                'ignore_local',[]... % whether to remove local python modules from the path
+                );
 
       aptintrf = APTInterf.aptInterfacePath(aptroot);
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
       trainConfig = linux_path(nativeTrainConfig) ;
-      nativeCacheRootDir = dmc.getRootDir();  % native path
+      nativeCacheRootDir = dmc.rootDir ;  % native path
       cacheRootDir = linux_path(nativeCacheRootDir) ;      
 
       stage2models = cell(1,nstages);
@@ -279,7 +280,8 @@ classdef APTInterf
       if nstages > 1,
         assert(nstages==2);
         code = [code {'-type2', stage2netType{2}} ...
-          {'-model_files2'}, escape_cellstring_for_bash(linux_path(stage2models{2}))];
+          {'-model_files2'}, escape_cellstring_for_bash(linux_path(stage2models{2})) ...
+          {'-name2'} totrackinfo.trainDMC.getModelChainID('stage',2)];
       end
 
       if ~isempty(ignore_local),
@@ -296,13 +298,16 @@ classdef APTInterf
           code = [code {'-track_type only_link'}]; 
         case 'detect'
           code = [code {'-track_type only_predict'}]; 
-
+        case 'track'
+          % do nothing
+        otherwise
+          error('track_type must be either ''track'', ''link'', or ''detect''') ;
       end
 
       [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();
 
       % output is the final stage trk file
-      trkfiles = totrackinfo.getTrkfiles('stage',stages(end));
+      trkfiles = totrackinfo.getTrkFiles('stage',stages(end));
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile)
@@ -321,11 +326,11 @@ classdef APTInterf
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
-          nativeTrxFiles = totrackinfo.getTrxfiles('movie',movidx) ;
+          nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         elseif nstages > 1,
-          nativeTrxFiles = totrackinfo.getTrxfiles('stage',1) ;
+          nativeTrxFiles = totrackinfo.getTrkFiles('stage',1) ;
           trxFiles = linux_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         end
@@ -350,275 +355,274 @@ classdef APTInterf
           code = [code {'-crop_loc' num2str(croproirowvec)}];
         end
       end
-
       
       codestr = space_out(code);
     end
 
-    function basecmd = trainCodeGen(fileinfo,varargin)
-      warning('Obsolete code');
-      isMA = fileinfo.netType{1}.isMultiAnimal; % this means is bottom-up multianimal
-      isNewStyle = isMA || ...
-        (fileinfo.netMode{1}~=DLNetMode.singleAnimal && fileinfo.netMode{1}~=DLNetMode.multiAnimalTDPoseTrx);
-      
-      if isNewStyle
-        basecmd = APTInterf.maTrainCodeGenTrnPack(fileinfo,varargin{:});
-      else
-        basecmd = APTInterf.regTrainCodeGen(fileinfo,varargin{:});
-      end
-    end
+    % function basecmd = trainCodeGen(fileinfo,varargin)
+    %   warning('Obsolete code');
+    %   isMA = fileinfo.netType{1}.isMultiAnimal; % this means is bottom-up multianimal
+    %   isNewStyle = isMA || ...
+    %     (fileinfo.netMode{1}~=DLNetMode.singleAnimal && fileinfo.netMode{1}~=DLNetMode.multiAnimalTDPoseTrx);
+    % 
+    %   if isNewStyle
+    %     basecmd = APTInterf.maTrainCodeGenTrnPack(fileinfo,varargin{:});
+    %   else
+    %     basecmd = APTInterf.regTrainCodeGen(fileinfo,varargin{:});
+    %   end
+    % end
     
-    function [codestr,code] = maTrainCodeGenTrnPack(fileinfo,varargin)
-      % Wrapper for matrainCodeGen, assumes standard trnpack structure.
-      % Reads some files from trnpack
-      % 
-      % netType/netMode: for TopDown trackers, these are currently ALWAYS
-      % stage2. pass stage1 in the varargin. Yes, this is a little weird if
-      % maTopDownStage=='first'.
-
-      warning('Obsolete code');
-      
-      [maTopDown,maTopDownStage,maTopDownStage1NetType,...
-        maTopDownStage1NetMode,leftovers] = ...
-        myparse_nocheck(varargin,...
-        'maTopDown',false, ...
-        'maTopDownStage',[], ... % '-stage' flag: {'multi','first','second'}
-        'maTopDownStage1NetType',[], ...
-        'maTopDownStage1NetMode',[] ...
-        );
-
-      netMode = fileinfo.netMode;
-      
-      %[trnpack,dllblID] = fileparts(dlconfigfile);
-      %trnjson = fullfile(trnpack,'loc.json');
-%       dllbljson = fullfile(trainlocfile);
-%       dlj = readtxtfile(dllbljson);
-%       dlj = jsondecode(dlj{1});
-%       
-%       assert(maTopDown == ~isscalar(dlj.TrackerData));
-      
-      if maTopDown
-        isObjDet = any(cellfun(@(x) x.isObjDet,netMode));
-        [codestr,code] = APTInterf.matdTrainCodeGen(fileinfo,isObjDet,maTopDownStage1NetType,maTopDownStage,...
-          leftovers{:});
-      else
-        assert(all(cellfun(@(x) x==DLNetMode.multiAnimalBU,netMode)));
-        [codestr,code] = APTInterf.mabuTrainCodeGen(fileinfo,leftovers{:});
-      end
-    end
+%     function [codestr,code] = maTrainCodeGenTrnPack(fileinfo,varargin)
+%       % Wrapper for matrainCodeGen, assumes standard trnpack structure.
+%       % Reads some files from trnpack
+%       % 
+%       % netType/netMode: for TopDown trackers, these are currently ALWAYS
+%       % stage2. pass stage1 in the varargin. Yes, this is a little weird if
+%       % maTopDownStage=='first'.
+% 
+%       warning('Obsolete code');
+% 
+%       [maTopDown,maTopDownStage,maTopDownStage1NetType,...
+%         maTopDownStage1NetMode,leftovers] = ...
+%         myparse_nocheck(varargin,...
+%         'maTopDown',false, ...
+%         'maTopDownStage',[], ... % '-stage' flag: {'multi','first','second'}
+%         'maTopDownStage1NetType',[], ...
+%         'maTopDownStage1NetMode',[] ...
+%         );
+% 
+%       netMode = fileinfo.netMode;
+% 
+%       %[trnpack,dllblID] = fileparts(dlconfigfile);
+%       %trnjson = fullfile(trnpack,'loc.json');
+% %       dllbljson = fullfile(trainlocfile);
+% %       dlj = readtxtfile(dllbljson);
+% %       dlj = jsondecode(dlj{1});
+% %       
+% %       assert(maTopDown == ~isscalar(dlj.TrackerData));
+% 
+%       if maTopDown
+%         isObjDet = any(cellfun(@(x) x.isObjDet,netMode));
+%         [codestr,code] = APTInterf.matdTrainCodeGen(fileinfo,isObjDet,maTopDownStage1NetType,maTopDownStage,...
+%           leftovers{:});
+%       else
+%         assert(all(cellfun(@(x) x==DLNetMode.multiAnimalBU,netMode)));
+%         [codestr,code] = APTInterf.mabuTrainCodeGen(fileinfo,leftovers{:});
+%       end
+%     end
     
-    function [codestr,code] = mabuTrainCodeGen(fileinfo,varargin)
-
-      warning('Obsolete code');
-
-      % Simplified relative to trainCodeGen
-
-      modelChainID = fileinfo.modelChainID;
-      dlconfig = fileinfo.dlconfig;
-      cache = fileinfo.cache;
-      errfile = fileinfo.errfile;
-      netType = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType));
-      trnjson = fileinfo.trainlocfile;
-      
-      [deepnetroot,fs,filequote,confparamsextra,confparamsfilequote,...
-        prev_model,torchhome,val_split,augOnly,augOut,...
-        clsfyIsClsfy,clsfyOut,ignore_local] = ...
-        myparse_nocheck(varargin,...
-        'deepnetroot',APT.getpathdl,...
-        'filesep','/',...
-        'filequote','\"',... % quote char used to protect filenames/paths.
-        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-        ... % is expected to wrap in enclosing regular double-quotes " !!
-        'confparamsextra',{},...
-        'confparamsfilequote','\"', ...
-        'prev_model',[],...
-        'torchhome',APT.torchhome, ...
-        'val_split',[],...
-        'augOnly',false, ...
-        'augOut','', ... % used only if augOnly==true        
-        'clsfyIsClsfy',false,... % if true, classify not train
-        'clsfyOut',[], ...        
-        'ignore_local',[] ...
-        );
-      
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
-
-      % MK 20220128 -- db_format should come from params_deeptrack_net.yaml
-%       confParams = { ... %        'is_multi' 'True' ...    'max_n_animals' num2str(maxNanimals) ...
-%         'db_format' [confparamsfilequote 'coco' confparamsfilequote] ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
-%         confparamsextra{:} ...
-%         };
-      confParams = confparamsextra;
-      
-      code = cat(2,{ ...
-        APTInterf.getTorchHomeCode(torchhome) ...
-        'python' ...
-        [filequote aptintrf filequote] ...
-        dlconfig ...
-        '-name' modelChainID ...
-        '-err_file' [filequote errfile filequote] ... 
-        '-json_trn_file' trnjson ...
-        '-conf_params'}, ...
-        confParams, ...
-        {'-type' netType}); ...
-      if ~isempty(ignore_local),
-        code = [code, {'-ignore_local',num2str(ignore_local)}];
-      end
-      if ~isempty(prev_model)
-        code = [code {'-model_files'}];
-        for i = 1:numel(prev_model),
-          code = [code, {[filequote prev_model{i} filequote]}]; %#ok<AGROW> 
-        end
-      end
-      
-      code = [code {'-cache' [filequote cache filequote]}];
-      if clsfyIsClsfy
-        assert(~isempty(clsfyOut));
-        code = [code {'classify' '-out' clsfyOut}];
-      else
-        code = [code {'train' '-use_cache'}];
-      end
-      if augOnly
-        code = [code ...
-          {'-only_aug' ...
-          '-aug_out' augOut}];
-      end
-      dosplit = ~isempty(val_split) && ~clsfyIsClsfy;
-      if dosplit
-        code = [code {'-val_split' num2str(val_split)}];
-      end      
-
-      codestr = String.cellstr2DelimList(code,' ');
-    end
+%     function [codestr,code] = mabuTrainCodeGen(fileinfo,varargin)
+% 
+%       warning('Obsolete code');
+% 
+%       % Simplified relative to trainCodeGen
+% 
+%       modelChainID = fileinfo.modelChainID;
+%       dlconfig = fileinfo.dlconfig;
+%       cache = fileinfo.cache;
+%       errfile = fileinfo.errfile;
+%       netType = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType));
+%       trnjson = fileinfo.trainlocfile;
+% 
+%       [deepnetroot,fs,filequote,confparamsextra,confparamsfilequote,...
+%         prev_model,torchhome,val_split,augOnly,augOut,...
+%         clsfyIsClsfy,clsfyOut,ignore_local] = ...
+%         myparse_nocheck(varargin,...
+%         'deepnetroot',APT.getpathdl,...
+%         'filesep','/',...
+%         'filequote','\"',... % quote char used to protect filenames/paths.
+%         ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+%         ... % is expected to wrap in enclosing regular double-quotes " !!
+%         'confparamsextra',{},...
+%         'confparamsfilequote','\"', ...
+%         'prev_model',[],...
+%         'torchhome',APT.torchhome(), ...
+%         'val_split',[],...
+%         'augOnly',false, ...
+%         'augOut','', ... % used only if augOnly==true        
+%         'clsfyIsClsfy',false,... % if true, classify not train
+%         'clsfyOut',[], ...        
+%         'ignore_local',[] ...
+%         );
+% 
+%       aptintrf = [deepnetroot fs 'APT_interface.py'];
+% 
+%       % MK 20220128 -- db_format should come from params_deeptrack_net.yaml
+% %       confParams = { ... %        'is_multi' 'True' ...    'max_n_animals' num2str(maxNanimals) ...
+% %         'db_format' [confparamsfilequote 'coco' confparamsfilequote] ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
+% %         confparamsextra{:} ...
+% %         };
+%       confParams = confparamsextra;
+% 
+%       code = cat(2,{ ...
+%         APTInterf.getTorchHomeCode(torchhome) ...
+%         'python' ...
+%         [filequote aptintrf filequote] ...
+%         dlconfig ...
+%         '-name' modelChainID ...
+%         '-err_file' [filequote errfile filequote] ... 
+%         '-json_trn_file' trnjson ...
+%         '-conf_params'}, ...
+%         confParams, ...
+%         {'-type' netType}); ...
+%       if ~isempty(ignore_local),
+%         code = [code, {'-ignore_local',num2str(ignore_local)}];
+%       end
+%       if ~isempty(prev_model)
+%         code = [code {'-model_files'}];
+%         for i = 1:numel(prev_model),
+%           code = [code, {[filequote prev_model{i} filequote]}]; %#ok<AGROW> 
+%         end
+%       end
+% 
+%       code = [code {'-cache' [filequote cache filequote]}];
+%       if clsfyIsClsfy
+%         assert(~isempty(clsfyOut));
+%         code = [code {'classify' '-out' clsfyOut}];
+%       else
+%         code = [code {'train' '-use_cache'}];
+%       end
+%       if augOnly
+%         code = [code ...
+%           {'-only_aug' ...
+%           '-aug_out' augOut}];
+%       end
+%       dosplit = ~isempty(val_split) && ~clsfyIsClsfy;
+%       if dosplit
+%         code = [code {'-val_split' num2str(val_split)}];
+%       end      
+% 
+%       codestr = String.cellstr2DelimList(code,' ');
+%     end
 
     function torchhomecmd = getTorchHomeCode(native_torch_home)
       torch_home = linux_path(native_torch_home) ;      
       torchhomecmd = ['TORCH_HOME=' escape_string_for_bash(torch_home)] ;
     end
             
-    function [codestr,code] = matdTrainCodeGen(fileinfo,...
-        isObjDet,netTypeStg1,stage,varargin)
-      
-      warning('Obsolete code');
-
-      modelChainID = fileinfo.modelChainID;
-      dlconfigfile = fileinfo.dlconfig;
-      cache = fileinfo.cache;
-      errfile = fileinfo.errfile;
-      trnjson = fileinfo.trainlocfile;
-      netTypeStg2 = char(fileinfo.netType{end});
-
-      [deepnetroot,fs,filequote,confparamsfilequote,...
-        prev_model,prev_model2,torchhome,augOnly,augOut,ignore_local] = ...
-        myparse_nocheck(varargin,...
-        'deepnetroot',APT.getpathdl,...
-        'filesep','/',...
-        'filequote','\"',... % quote char used to protect filenames/paths.
-        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-        ... % is expected to wra% TODO: ht paramsp in enclosing regular double-quotes " !!
-        'confparamsfilequote','\"', ...
-        'prev_model',[],...
-        'prev_model2',[],...
-        'torchhome',APT.torchhome, ...
-        'augOnly',false,...
-        'augOut','', ... % used only if augOnly==true
-        'ignore_local',[]...
-        );
-      
-      % currently this only works with a single view
-      if ~isempty(prev_model),
-        prev_model = DeepModelChainOnDisk.getCheckSingle(prev_model);
-      end
-      if ~isempty(prev_model2),
-        prev_model2 = DeepModelChainOnDisk.getCheckSingle(prev_model2);
-      end
-      if ~isempty(netTypeStg1),
-        netTypeStg1 = char(DeepModelChainOnDisk.getCheckSingle(netTypeStg1));
-      end
-
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
-      
-      STAGEFLAGS = {'multi' 'first' 'second'};
-      
-      code = { ...
-        APTInterf.getTorchHomeCode(torchhome) ...
-        'python' ...
-        [filequote aptintrf filequote] ...
-        dlconfigfile ...
-        '-name' modelChainID ...
-        '-err_file' [filequote errfile filequote] ...
-        '-json_trn_file' trnjson ...
-        '-stage' STAGEFLAGS{stage+1} ...
-        };
-      if ~isempty(ignore_local),
-        code = [code, {'-ignore_local',num2str(ignore_local)}];
-      end
-              
-      % set -conf_params, -type
-      if stage==0 || stage==1 % inc stg1/detect
-        code = [code ...
-          {
-          ... %'-conf_params' ...
-          ... %'db_format' [confparamsfilequote 'coco' confparamsfilequote] ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
-          ... %'mmdetect_net' [confparamsfilequote 'frcnn' confparamsfilequote] ...
-          '-type' netTypeStg1 ...
-          } ];
-      end
-      
-      % if nec, set -conf_params2, -type2
-      if stage==2
-        % single stage 2 
-        
-        tfaddstg2 = true;
-        confparamsstg2 = '-conf_params';
-        typestg2 = '-type';
-        if ~isempty(prev_model)
-          code = [code {'-model_files' [filequote prev_model filequote]}];
-        end
-      elseif stage==0
-        tfaddstg2 = true;
-        confparamsstg2 = '-conf_params2';
-        typestg2 = '-type2';
-        if ~isempty(prev_model)
-          code = [code {'-model_files' [filequote prev_model filequote]}];
-        end
-        if ~isempty(prev_model2)
-          code = [code {'-model_files2' [filequote prev_model2 filequote]}];
-        end
-        
-      else
-        tfaddstg2 = false;
-        if ~isempty(prev_model)
-          code = [code {'-model_files' [filequote prev_model filequote]}];
-        end
-
-      end
-      if tfaddstg2
-        confparams2 = { ...
-          confparamsstg2 ...
-          ... %'db_format' [confparamsfilequote 'tfrecord' confparamsfilequote] ...
-          };
-        if isObjDet
-          confparams2 = [confparams2 {'use_bbox_trx' 'True'}];
-        end
-        confparams2 = [confparams2 {typestg2 netTypeStg2}];
-        code = [code confparams2];
-      end
-      
-      code = [code ...
-        { ...
-        '-cache' [filequote cache filequote] ... % String.escapeSpaces(cache),...
-        'train' ...
-        '-use_cache' ...
-        } ];
-      if augOnly
-        code = [code ...
-          {'-only_aug' ...
-          '-aug_out' augOut}];
-      end
-      
-      codestr = String.cellstr2DelimList(code,' ');
-    end
+    % function [codestr,code] = matdTrainCodeGen(fileinfo,...
+    %     isObjDet,netTypeStg1,stage,varargin)
+    % 
+    %   warning('Obsolete code');
+    % 
+    %   modelChainID = fileinfo.modelChainID;
+    %   dlconfigfile = fileinfo.dlconfig;
+    %   cache = fileinfo.cache;
+    %   errfile = fileinfo.errfile;
+    %   trnjson = fileinfo.trainlocfile;
+    %   netTypeStg2 = char(fileinfo.netType{end});
+    % 
+    %   [deepnetroot,fs,filequote,confparamsfilequote,...
+    %     prev_model,prev_model2,torchhome,augOnly,augOut,ignore_local] = ...
+    %     myparse_nocheck(varargin,...
+    %     'deepnetroot',APT.getpathdl,...
+    %     'filesep','/',...
+    %     'filequote','\"',... % quote char used to protect filenames/paths.
+    %     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+    %     ... % is expected to wra% TODO: ht paramsp in enclosing regular double-quotes " !!
+    %     'confparamsfilequote','\"', ...
+    %     'prev_model',[],...
+    %     'prev_model2',[],...
+    %     'torchhome',APT.torchhome(), ...
+    %     'augOnly',false,...
+    %     'augOut','', ... % used only if augOnly==true
+    %     'ignore_local',[]...
+    %     );
+    % 
+    %   % currently this only works with a single view
+    %   if ~isempty(prev_model),
+    %     prev_model = DeepModelChainOnDisk.getCheckSingle(prev_model);
+    %   end
+    %   if ~isempty(prev_model2),
+    %     prev_model2 = DeepModelChainOnDisk.getCheckSingle(prev_model2);
+    %   end
+    %   if ~isempty(netTypeStg1),
+    %     netTypeStg1 = char(DeepModelChainOnDisk.getCheckSingle(netTypeStg1));
+    %   end
+    % 
+    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
+    % 
+    %   STAGEFLAGS = {'multi' 'first' 'second'};
+    % 
+    %   code = { ...
+    %     APTInterf.getTorchHomeCode(torchhome) ...
+    %     'python' ...
+    %     [filequote aptintrf filequote] ...
+    %     dlconfigfile ...
+    %     '-name' modelChainID ...
+    %     '-err_file' [filequote errfile filequote] ...
+    %     '-json_trn_file' trnjson ...
+    %     '-stage' STAGEFLAGS{stage+1} ...
+    %     };
+    %   if ~isempty(ignore_local),
+    %     code = [code, {'-ignore_local',num2str(ignore_local)}];
+    %   end
+    % 
+    %   % set -conf_params, -type
+    %   if stage==0 || stage==1 % inc stg1/detect
+    %     code = [code ...
+    %       {
+    %       ... %'-conf_params' ...
+    %       ... %'db_format' [confparamsfilequote 'coco' confparamsfilequote] ... % when the job is submitted the double quote need to escaped. This is tested fro cluster. Not sure for AWS etc. MK 20210226
+    %       ... %'mmdetect_net' [confparamsfilequote 'frcnn' confparamsfilequote] ...
+    %       '-type' netTypeStg1 ...
+    %       } ];
+    %   end
+    % 
+    %   % if nec, set -conf_params2, -type2
+    %   if stage==2
+    %     % single stage 2 
+    % 
+    %     tfaddstg2 = true;
+    %     confparamsstg2 = '-conf_params';
+    %     typestg2 = '-type';
+    %     if ~isempty(prev_model)
+    %       code = [code {'-model_files' [filequote prev_model filequote]}];
+    %     end
+    %   elseif stage==0
+    %     tfaddstg2 = true;
+    %     confparamsstg2 = '-conf_params2';
+    %     typestg2 = '-type2';
+    %     if ~isempty(prev_model)
+    %       code = [code {'-model_files' [filequote prev_model filequote]}];
+    %     end
+    %     if ~isempty(prev_model2)
+    %       code = [code {'-model_files2' [filequote prev_model2 filequote]}];
+    %     end
+    % 
+    %   else
+    %     tfaddstg2 = false;
+    %     if ~isempty(prev_model)
+    %       code = [code {'-model_files' [filequote prev_model filequote]}];
+    %     end
+    % 
+    %   end
+    %   if tfaddstg2
+    %     confparams2 = { ...
+    %       confparamsstg2 ...
+    %       ... %'db_format' [confparamsfilequote 'tfrecord' confparamsfilequote] ...
+    %       };
+    %     if isObjDet
+    %       confparams2 = [confparams2 {'use_bbox_trx' 'True'}];
+    %     end
+    %     confparams2 = [confparams2 {typestg2 netTypeStg2}];
+    %     code = [code confparams2];
+    %   end
+    % 
+    %   code = [code ...
+    %     { ...
+    %     '-cache' [filequote cache filequote] ... % String.escapeSpaces(cache),...
+    %     'train' ...
+    %     '-use_cache' ...
+    %     } ];
+    %   if augOnly
+    %     code = [code ...
+    %       {'-only_aug' ...
+    %       '-aug_out' augOut}];
+    %   end
+    % 
+    %   codestr = String.cellstr2DelimList(code,' ');
+    % end
     
     function codestr = regTrainCodeGen(fileinfo,varargin)
       % "reg" => regular, from pre-MA APT
@@ -631,25 +635,26 @@ classdef APTInterf
       trnjson = fileinfo.trainlocfile;
 
       [view,deepnetroot,splitfile,classify_val,classify_val_out,val_split,...
-        trainType,fs,prev_model,filequote,augOnly,confparamsfilequote,augOut,ignore_local] = myparse(varargin,...
-        'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
-        'deepnetroot',APT.getpathdl,...
-        'split_file',[],...
-        'classify_val',false,... % if true, split_file must be spec'd
-        'classify_val_out',[],... % etc
-        'val_split',[],...
-        'trainType',DLTrainType.New,...
-        'filesep','/',...
-        'prev_model',[],...
-        'filequote','\"',... % quote char used to protect filenames/paths.
-        'augOnly',false,...
-        'confparamsfilequote','\"',... % this is used in other train code functions, adding here to remove warning
-        'augOut','', ... % used only if augOnly==true
-        'ignore_local',[] ...
-        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-        ... % is expected to wrap in enclosing regular double-quotes " !!
-        );
-      torchhome = APT.torchhome;
+       trainType,fs,prev_model,filequote,augOnly,confparamsfilequote,augOut,ignore_local] = ...
+        myparse(varargin,...
+                'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
+                'deepnetroot',APT.getpathdl,...
+                'split_file',[],...
+                'classify_val',false,... % if true, split_file must be spec'd
+                'classify_val_out',[],... % etc
+                'val_split',[],...
+                'trainType',DLTrainType.New,...
+                'filesep','/',...
+                'prev_model',[],...
+                'filequote','\"',... % quote char used to protect filenames/paths.
+                'augOnly',false,...
+                'confparamsfilequote','\"',... % this is used in other train code functions, adding here to remove warning
+                'augOut','', ... % used only if augOnly==true
+                'ignore_local',[] ...
+                ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+                ... % is expected to wrap in enclosing regular double-quotes " !!
+                );
+      torchhome = APT.torchhome() ;
       
       tfview = ~isempty(view);
 %       [trnpack,dllblID] = fileparts(dlconfigfile);
@@ -738,30 +743,30 @@ classdef APTInterf
       codestr = String.cellstr2DelimList(code,' ');
     end
         
-    function splitTrainValCodeGenCmdfile(codefname,classifyOutmat,...
-          trnID,dlconfig,cache,errfile,netType,netMode,valSplit,varargin)
-      % write cmdfile to disk for train/val of given split
-      % 
-      % if not successful, throws
-        
-      [fh,msg] = fopen(codefname,'w');
-      if isequal(fh,-1)
-        error('Filed to open %s: %s',codefname,msg);
-      end
-      
-      argsTrain = [varargin {'filequote' '"' 'val_split' valSplit}];
-      argsVal = [varargin ...
-        {'filequote' '"' 'clsfyIsClsfy' true 'clsfyOut' classifyOutmat }];
-      
-      s1 = APTInterf.trainCodeGen(trnID,dlconfig,cache,errfile,...
-        netType,netMode,argsTrain{:});
-      s2 = APTInterf.trainCodeGen(trnID,dlconfig,cache,errfile,...
-        netType,netMode,argsVal{:});
-      
-      fprintf(fh,'#!/usr/bin/env bash\n');
-      fprintf(fh,'\n%s\n',s1);
-      fprintf(fh,'\n%s\n',s2);
-      fclose(fh);
-    end
+    % function splitTrainValCodeGenCmdfile(codefname,classifyOutmat,...
+    %       trnID,dlconfig,cache,errfile,netType,netMode,valSplit,varargin)
+    %   % write cmdfile to disk for train/val of given split
+    %   % 
+    %   % if not successful, throws
+    % 
+    %   [fh,msg] = fopen(codefname,'w');
+    %   if isequal(fh,-1)
+    %     error('Filed to open %s: %s',codefname,msg);
+    %   end
+    % 
+    %   argsTrain = [varargin {'filequote' '"' 'val_split' valSplit}];
+    %   argsVal = [varargin ...
+    %     {'filequote' '"' 'clsfyIsClsfy' true 'clsfyOut' classifyOutmat }];
+    % 
+    %   s1 = APTInterf.trainCodeGen(trnID,dlconfig,cache,errfile,...
+    %     netType,netMode,argsTrain{:});
+    %   s2 = APTInterf.trainCodeGen(trnID,dlconfig,cache,errfile,...
+    %     netType,netMode,argsVal{:});
+    % 
+    %   fprintf(fh,'#!/usr/bin/env bash\n');
+    %   fprintf(fh,'\n%s\n',s1);
+    %   fprintf(fh,'\n%s\n',s2);
+    %   fclose(fh);
+    % end
   end
 end

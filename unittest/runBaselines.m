@@ -25,12 +25,12 @@ mfts = MFTSet(...
   TargetSetVariable.AllTgts);
 
 lblm = fullfile(testdir,[lblname '_mv.lbl']);
-lObj.projLoad(lblm);
+lObj.projLoadGUI(lblm);
 
 resMV = cell(nrptMV,1);
 for irpt=1:nrptMV
   lObj.tracker.init();
-  lObj.trackRetrain();
+  lObj.train();
   lObj.track(mfts);
   resMV{irpt} = lObj.tracker.getTrackingResults(MovieIndex(1));
   fprintf(1,'Done MV train/track, repeat %d/%d\n',irpt,nrptMV);
@@ -39,9 +39,9 @@ end
 resSingVw = cell(1,2);
 for ivw=1:2
   lblvw = fullfile(testdir,sprintf('%s_%d.lbl',lblname,ivw));
-  lObj.projLoad(lblvw);
+  lObj.projLoadGUI(lblvw);
   lObj.tracker.init();
-  lObj.trackRetrain();
+  lObj.train();
   lObj.track(mfts);
   resSingVw{ivw} = lObj.tracker.getTrackingResults(MovieIndex(1));
   fprintf(1,'Done View %d train/track\n',ivw);

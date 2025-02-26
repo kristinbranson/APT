@@ -111,7 +111,7 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 
 switch hObject.UserData
   case 'stop'
-    handles.vizobj.stopTraining();
+    handles.vizobj.abortTraining();
   case 'start'
     handles.vizobj.startTraining();
   otherwise

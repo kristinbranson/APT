@@ -8,27 +8,46 @@ classdef DeepTrackerTopDownCustom < DeepTrackerTopDown
   
   methods
     function v = getAlgorithmNameHook(obj)
-      v = sprintf('MA Top Down (Custom)');%,obj.trnNetMode.shortCode,...
-      %        obj.stage1Tracker.trnNetMode.shortCode);
+      short_type_string = fif(strcmp(obj.topDownTypeStr, 'head/tail'), 'ht', 'bbox') ;
+      v = sprintf('ma_top_down_custom_%s_%s_%s',...
+                  short_type_string,...
+                  obj.stage1Tracker.trnNetMode.shortCode,...
+                  obj.trnNetMode.shortCode);
     end
+
     function v = getAlgorithmNamePrettyHook(obj)
-      v = sprintf('Top-Down (%s) Custom',obj.topDownTypeStr);
+      v = sprintf('Top Down (%s) Custom: %s + %s',...
+                  obj.topDownTypeStr,...
+                  obj.stage1Tracker.trnNetType.displayString,...
+                  obj.trnNetType.displayString);
     end
+
+%     function v = getAlgorithmNameHook(obj)
+%       v = sprintf('MA Top Down (Custom,%s,%s)', ...
+%                   obj.trnNetMode.shortCode,...
+%                   obj.stage1Tracker.trnNetMode.shortCode);
+%     end
+%
+%     function v = getAlgorithmNamePrettyHook(obj)
+%       v = sprintf('Top-Down (%s) Custom',obj.topDownTypeStr);
+%     end
   end
   
   methods
     
-    function obj = DeepTrackerTopDownCustom(lObj,...
-        stg1ctorargs_in,stg2ctorargs_in, varargin)
-      [stg1net,stg1mode] = myparse(stg1ctorargs_in, ...
-        'trnNetType',[], ...
-        'trnNetMode',DLNetMode.multiAnimalTDDetectHT);
-      [stg2net,stg2mode] = myparse(stg2ctorargs_in, ...
-        'trnNetType',[], ...
-        'trnNetMode',DLNetMode.multiAnimalTDPoseHT);
-        %'stg2net',[] ...
-      [prev_tracker, valid] = myparse(varargin,'prev_tracker',[],...
-        'valid', true);
+    function obj = DeepTrackerTopDownCustom(lObj, stg1ctorargs_in, stg2ctorargs_in, varargin)
+      [stg1net,stg1mode] = ...
+        myparse(stg1ctorargs_in, ...
+                'trnNetType',[], ...
+                'trnNetMode',DLNetMode.multiAnimalTDDetectHT);
+      [stg2net,stg2mode] = ...
+        myparse(stg2ctorargs_in, ...
+                'trnNetType',[], ...
+                'trnNetMode',DLNetMode.multiAnimalTDPoseHT);
+      [~, valid] = ...
+        myparse(varargin, ...
+                'prev_tracker',[],...
+                'valid', true);
       
       if lObj.silent || ~valid
         % Use default when silent -- for testing and initial dummy tracker
@@ -90,13 +109,24 @@ classdef DeepTrackerTopDownCustom < DeepTrackerTopDown
       obj@DeepTrackerTopDown(lObj,stg1ctorargs,stg2ctorargs);
       obj.valid = valid;
       
-    end
+    end  % function
+
+    function ctorargs = get_constructor_args_to_match_stage_types(obj)  % constant method
+      % Get the arguments that, when passed to the DeepTrackerTopDownCustom
+      % constructor, will cause the constructor to return a newly-minted tracker
+      % with the same stage types as prev_tracker.
+      stg1type = obj.stage1Tracker.trnNetMode;
+      stg2type = obj.trnNetMode;
+      ctorargs = { {'trnNetMode' stg1type} 
+                   {'trnNetMode' stg2type} 
+                   };
+    end  % function
     
-  end
+  end  % methods
   
   methods (Static)
     
-    function trkClsAug = getTrackerInfos
+    function trkClsAug = getTrackerInfos()
       % Currently-available TD trackers. Can consider moving to eg yaml later.
       trkClsAug = { ...
           {'DeepTrackerTopDownCustom' ...
@@ -169,34 +199,7 @@ classdef DeepTrackerTopDownCustom < DeepTrackerTopDown
         end
 
     end
-    
-    function use = use_prev(prev_tracker)
-      use = false;
-      if ~isempty(prev_tracker) && prev_tracker.valid
-        prev_net_str = sprintf('%s (stage 1) and %s (stage 2)',...
-          prev_tracker.stage1Tracker.trnNetType.displayString, ...
-          prev_tracker.trnNetType.displayString );
-
-        qstr = sprintf('Continue with previous custom tracker with %s?. Note that if you change, you will lose any previously trained tracker of this type.',prev_net_str );
-        res = questdlg(qstr,....
-          'Change custom 2 stage tracker',...
-          'Continue','Change','Continue');
-        if strcmp(res,'Continue')
-          use = true;
-          return
-        end
-
-      end
-    end
-    
-    function ctorargs = get_args(prev_tracker)
-      stg1type = prev_tracker.stage1Tracker.trnNetMode;
-      stg2type = prev_tracker.trnNetMode;
-      ctorargs = { {'trnNetMode' stg1type} 
-                   {'trnNetMode' stg2type} 
-                   };
-    end
-    
+        
   end
     
 end

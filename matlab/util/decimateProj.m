@@ -7,12 +7,12 @@ t = lObj.labelGetMFTableLabeled;
 n = height(t);
 nRm = n-nkeepApprox;
 rmfac = nRm/n;
-fprintf(1,'Removing %.2f frac of labels\n');
+fprintf(1,'Removing %.2f frac of labels\n',rmfac);
 
 for i=1:n
   if rand < rmfac
     s = t(i,:);
-    lObj.setMFT(s.mov,s.frm,s.iTgt);
+    lObj.setMFTGUI(s.mov,s.frm,s.iTgt);
     if lObj.maIsMA
       lObj.labelPosClearWithCompact_New();
     else

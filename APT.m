@@ -17,13 +17,6 @@ classdef APT
     % for now, hard-coded to use default loc for git
     WINSCPCMD = 'C:\Program Files\Git\usr\bin\scp.exe';
     WINSSHCMD = 'C:\Program Files\Git\usr\bin\ssh.exe';
-
-    % hardcoded name of AWS security group
-    AWS_SECURITY_GROUP = 'apt_dl';
-    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
-    % AMI = 'ami-094a08ff1202856d6'; TF 1.13
-    % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
-    AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
   end
   
   methods (Static)
@@ -60,7 +53,7 @@ classdef APT
       % p: cellstr, path entries      
       % jp: cellstr, javapath entries
       
-      m = APT.readManifest;
+      m = APT.readManifest();
       
       root = APT.Root;
       mlroot = fullfile(root,'matlab');
@@ -152,7 +145,7 @@ classdef APT
     end
     
     function jaabapath = getjaabapath()
-      m = APT.readManifest;
+      m = APT.readManifest();
       jaabaroot = m.jaaba;
       jaabapath = { ...
         fullfile(jaabaroot,'filehandling'); ...
@@ -203,13 +196,13 @@ classdef APT
       end
         
       [p,jp] = APT.getpath();
-      if APT.matlabPathNotConfigured
+      if APT.matlabPathNotConfigured()
         fprintf('Configuring your MATLAB path ...\n');
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
       %MK 20190506 Add stuff to systems path for aws cli
-      if ismac
+      if ismac()
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
     end
@@ -306,33 +299,31 @@ classdef APT
       pposetf = fullfile(r,'deepnet');
     end
     
-    function cacheDir = getdlcacheroot()
-      
-      m = APT.readManifest;
-      if isfield(m,'dltemproot')
-        cacheDir = m.dltemproot;
+    function result = getdotaptdirpath()  % returns e.g. /home/joesixpack/.apt
+      envar_value = getenv('APT_DOT_APT_DIR') ;
+      if ~isempty(envar_value) ,
+        result = envar_value ;
       else
-        if ispc
-          userDir = winqueryreg('HKEY_CURRENT_USER',...
-            ['Software\Microsoft\Windows\CurrentVersion\' ...
-            'Explorer\Shell Folders'],'Personal');
+        manifest = APT.readManifest() ;
+        if isfield(manifest,'dltemproot')
+          result = manifest.dltemproot;
         else
-          userDir = char(java.lang.System.getProperty('user.home'));
+          home_folder_path = get_home_dir_name() ;
+          result = fullfile(home_folder_path,'.apt');
         end
-        cacheDir = fullfile(userDir,'.apt');
       end
-    end
+    end  % function
     
     function tr = torchhome()
-      tr = fullfile(APT.getdlcacheroot(),'torch');
+      tr = fullfile(APT.getdotaptdirpath(),'torch');
     end
     
-    function s = codesnapshot
+    function s = codesnapshot()
       % This method assumes that the user has set their path using
       % APT.setpath (so that the Manifest correclty reflects
       % dependencies). Do a quick+dirty check of this assumption.
       grf = which('get_readframe_fcn');
-      manifest = APT.readManifest;
+      manifest = APT.readManifest();
       if ~isequal(fileparts(grf),fullfile(manifest.jaaba,'filehandling'))
         warning('APT:manifest',...
           'Runtime path appears to differ from that specified by Manifest. Code snapshot is likely to be incorrect.');
@@ -491,7 +482,7 @@ classdef APT
       bldnames = fieldnames(buildIfo);
       projs = fieldnames(mccProjargs);
       projs = projs(end:-1:1); % build GetMovieNFrames first
-      mnfst = APT.readManifest;
+      mnfst = APT.readManifest();
       bindir = fullfile(mnfst.build,bindirname);
       if exist(bindir,'dir')==0
         fprintf('Creating bin dir %s...\n',bindir);
