@@ -74,7 +74,7 @@ classdef LabelerProjectTester < handle
     
       % Check that training happened.
       % After return, caller can check other aspects of obj.labeler if desired.
-      if labeler.tracker.trnLastDMC.iterCurr < niters ,
+      if any(isnan(labeler.tracker.trnLastDMC.iterCurr)) || any(labeler.tracker.trnLastDMC.iterCurr < niters) ,
         error('Failed to complete all training iterations') ;
       end
     end  % function

@@ -2261,7 +2261,10 @@ classdef Labeler < handle
         'nomovie',false, ... % If true, call movieSetNoMovie() instead of movieSetGUI(currMovie)
         'replace_path',{'',''} ...
         );
-            
+      if isempty(replace_path) ,
+        replace_path = {'',''} ;
+      end
+
       currMovInfo = [];
       
       if exist('fname','var')==0
