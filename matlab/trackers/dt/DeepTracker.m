@@ -3162,7 +3162,17 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function didCompleteTraining(obj, res)  %#ok<INUSD>
+    function didCompleteTrainingOrTracking(obj, train_or_track, res)
+      if strcmp(train_or_track, 'track') ,
+        obj.didCompleteTracking_(res) ;
+      elseif strcmp(train_or_track, 'train') ,
+        obj.didCompleteTraining_(res) ;
+      else
+        error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
+      end      
+    end  % function
+
+    function didCompleteTraining_(obj, res)  %#ok<INUSD>
       % Called by the child BgMonitor when the latest poll result indicates that
       % training is complete.
       obj.bgTrnMonitor.stop() ;  % stop monitoring
@@ -3173,7 +3183,7 @@ classdef DeepTracker < LabelTracker
       obj.killJobsAndPerformPostTrainingCleanup() ;     
     end
 
-    function didCompleteTracking(obj, res)
+    function didCompleteTracking_(obj, res)
       % Called by the child BgMonitor when the latest poll result indicates that
       % tracking is complete.
       obj.bgTrkMonitor.stop() ;  % stop monitoring
@@ -4611,13 +4621,17 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
     
-    function didReceiveTrackingPollResults_(obj)
-      obj.lObj.didReceiveTrackingPollResults_() ;
+    function didReceivePollResults(obj, track_or_train)
+      obj.lObj.didReceivePollResults(track_or_train) ;
     end
 
-    function didReceiveTrainingPollResults_(obj)
-      obj.lObj.didReceiveTrainingPollResults_() ;
-    end
+    % function didReceiveTrackingPollResults_(obj)
+    %   obj.lObj.didReceiveTrackingPollResults_() ;
+    % end
+    % 
+    % function didReceiveTrainingPollResults_(obj)
+    %   obj.lObj.didReceiveTrainingPollResults_() ;
+    % end
     
     function result = get.isTrainingSplits(obj)
       result = obj.isTrainingSplits_ ;
@@ -4627,7 +4641,17 @@ classdef DeepTracker < LabelTracker
       obj.backend.killAndClearRegisteredJobs(train_or_track) ;
     end    
 
-    function didErrorDuringTraining(obj, sRes)
+    function didErrorDuringTrainingOrTracking(obj, train_or_track, sRes)
+      if strcmp(train_or_track, 'track') ,
+        obj.didErrorDuringTracking_(sRes) ;
+      elseif strcmp(train_or_track, 'train') ,
+        obj.didErrorDuringTraining_(sRes) ;
+      else
+        error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
+      end
+    end
+
+    function didErrorDuringTraining_(obj, sRes)
       % Called by the BgMonitor when the poll response (sRes) indicates an error has
       % occurrred.
       obj.bgTrnMonitor.stop();
@@ -4647,7 +4671,7 @@ classdef DeepTracker < LabelTracker
       disp(errContents);
     end  % function
 
-    function didErrorDuringTracking(obj, sRes)
+    function didErrorDuringTracking_(obj, sRes)
       % Called by the BgMonitor when the poll response (sRes) indicates an error has
       % occurrred.
       obj.bgTrkMonitor.stop();

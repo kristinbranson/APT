@@ -15033,13 +15033,23 @@ classdef Labeler < handle
       obj.notify('refreshTrackMonitorViz') ;
     end
 
-    function didReceiveTrackingPollResults_(obj)
-      obj.notify('updateTrackMonitorViz') ;
+    function didReceivePollResults(obj, track_or_train)
+      if strcmp(track_or_train, 'train') ,
+        obj.notify('updateTrainMonitorViz') ;
+      elseif strcmp(track_or_train, 'track') ,
+        obj.notify('updateTrackMonitorViz') ;
+      else
+        error('Internal error: %s should be ''track'' or ''train''', track_or_train) ;
+      end
     end
 
-    function didReceiveTrainingPollResults_(obj)
-      obj.notify('updateTrainMonitorViz') ;
-    end    
+    % function didReceiveTrackingPollResults_(obj)
+    %   obj.notify('updateTrackMonitorViz') ;
+    % end
+    % 
+    % function didReceiveTrainingPollResults_(obj)
+    %   obj.notify('updateTrainMonitorViz') ;
+    % end    
 
     function needRefreshTrainMonitorViz(obj)
       obj.notify('refreshTrainMonitorViz') ;

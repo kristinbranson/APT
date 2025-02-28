@@ -122,37 +122,29 @@ classdef BgMonitor < handle
       
       % Cause views/controllers to be updated with the latest poll results
       obj.sRes = sRes ;  % Stash so to controllers/views have access to it.
-      if strcmp(obj.processName, 'track') 
-        obj.parent_.didReceiveTrackingPollResults_() ;  
-          % This call causes (through a child-to-parent call chain) the labeler to
-          % notify() views/controllers that there's a tracking result, and that they should
-          % update themselves accordingly.  But that's it. Determining that tracking is
-          % complete is done below.
-      elseif strcmp(obj.processName, 'train') 
-        obj.parent_.didReceiveTrainingPollResults_() ;
-          % This call causes (through a child-to-parent call chain) the labeler to
-          % notify() views/controllers that there's a training result, and that they should
-          % update themselves accordingly.  But that's it. Determining that training is
-          % complete is done below.
-      else
-        error('Internal error: Unknown processName %s', obj.processName) ;
-      end
+      obj.parent_.didReceivePollResults(obj.processName) ;
+        % This call causes (through a child-to-parent call chain) the labeler to
+        % notify() views/controllers that there's a training/tracking result, and that they should
+        % update themselves accordingly.  But that's it. Determining that training/tracking is
+        % complete is done below.
       
       % Determine whether the polling itself was successful or not
-      didPollingItselfSucceed = BgMonitor.getPollSuccess(sRes) ;
+      didPollingItselfSucceed = BgMonitor.getPollSuccess(sRes) ;  % logical scalar
+      if ~didPollingItselfSucceed
+        % Signal to parent object, typically a DeepTracker, that tracking/training
+        % has errored.
+        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, sRes) ;
+
+        % If we get here, we're done dealing with the current polling result        
+        return
+      end
       
       % Check for errors.
-      didErrorOccur = any(didPollingItselfSucceed & BgMonitor.getErrOccurred(sRes)) ;
+      didErrorOccur = any(BgMonitor.getErrOccurred(sRes)) ;  % BgMonitor.getErrOccurred(sRes) is a 1xstage_count logical vector
       if didErrorOccur
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        if strcmp(obj.processName, 'track') ,
-          obj.parent_.didErrorDuringTracking(sRes) ;
-        elseif strcmp(obj.processName, 'train') ,
-          obj.parent_.didErrorDuringTraining(sRes) ;
-        else
-          error('Internal error: Unknown processName %s', obj.processName) ;
-        end
+        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, sRes) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
@@ -160,20 +152,14 @@ classdef BgMonitor < handle
                   
       % Check for completion.
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
-        obj.tfComplete_ = all(didPollingItselfSucceed & BgMonitor.isComplete(sRes));
+        obj.tfComplete_ = all(BgMonitor.isComplete(sRes));  % BgMonitor.isComplete(sRes) is a 1xstage_count logical vector
         if obj.tfComplete_
           % Send message to console
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
           
           % Signal to parent object, typically a DeepTracker, that tracking/training
           % has completed.
-          if strcmp(obj.processName, 'track') ,
-            obj.parent_.didCompleteTracking(sRes.result) ;
-          elseif strcmp(obj.processName, 'train') ,
-            obj.parent_.didCompleteTraining(sRes.result) ;
-          else
-            error('Internal error: Unknown processName %s', obj.processName) ;
-          end
+          obj.parent_.didCompleteTrainingOrTracking(obj.processName, sRes.result) ;
 
           % If we get here, we're done dealing with the current polling result
           return
