@@ -4643,64 +4643,44 @@ classdef DeepTracker < LabelTracker
 
     function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
       if strcmp(train_or_track, 'track') ,
-        obj.didErrorDuringTracking_(pollingResult) ;
+        obj.bgTrkMonitor.stop();
+        obj.killJobsAndPerformPostTrackingCleanup() ;
       elseif strcmp(train_or_track, 'train') ,
-        obj.didErrorDuringTraining_(pollingResult) ;
+        obj.bgTrnMonitor.stop();
+        obj.killJobsAndPerformPostTrainingCleanup() ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end
-    end
 
-    function didErrorDuringTraining_(obj, pollingResult)
-      % Called by the BgMonitor when the poll response (sRes) indicates an error has
-      % occurrred.
-      obj.bgTrnMonitor.stop();
-      obj.killJobsAndPerformPostTrainingCleanup() ;     
-
-      fprintf('Error occurred during training:\n') ;
-      errFile = pollingResult.errFile{1} ; % currently, errFiles same for all views
-      if iscell(errFile) ,
-        if isscalar(errFile) ,
-          errFile = errFile{1} ;
+      % Produce an error message on the console
+      fprintf('Error occurred during %sing:\n', train_or_track) ;
+      errorFileIndexMaybe = find(pollingResult.errFileExists, 1) ; 
+      if isempty(errorFileIndexMaybe) ,
+        fprintf('One of the background jobs exited, for unknown reasons.  No error file was produced.\n') ;
+      else
+        errorFileIndex = errorFileIndexMaybe ;
+        errFile = pollingResult.errFile{errorFileIndex} ;
+        doesErrorFileExist = obj.backend.fileExists(errFile) ;
+        if doesErrorFileExist ,
+          fprintf('\n### %s\n\n',errFile);
+          errContents = obj.backend.fileContents(errFile) ;
+          disp(errContents);
         else
-          error('errFile is a non-scalar cell array')
-        end
-      end        
-      fprintf('\n### %s\n\n',errFile);
-      errContents = obj.backend.fileContents(errFile) ;
-      disp(errContents);
-    end  % function
-
-    function didErrorDuringTracking_(obj, pollingResult)
-      % Called by the BgMonitor when the poll response (sRes) indicates an error has
-      % occurrred.
-      obj.bgTrkMonitor.stop();
-      obj.killJobsAndPerformPostTrackingCleanup() ;     
-
-      fprintf('Error occurred during tracking:\n') ;
-      errFile = pollingResult.errFile{1} ; % currently, errFiles same for all views
-      if iscell(errFile) ,
-        if isscalar(errFile) ,
-          errFile = errFile{1} ;
-        else
-          error('errFile is a non-scalar cell array')
-        end
-      end        
-      fprintf('\n### %s\n\n',errFile);
-      errContents = obj.backend.fileContents(errFile) ;
-      disp(errContents);
+          fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
+        end      
+      end
     end  % function
 
     function abortTraining(obj)
       %obj.killAndClearRegisteredJobs('train') ;
       obj.bgTrnMonitor.stop() ;
       obj.killJobsAndPerformPostTrainingCleanup() ;
-    end
+    end  % function
 
     function abortTracking(obj)
       %obj.killAndClearRegisteredJobs('track') ;
       obj.bgTrkMonitor.stop() ;
       obj.killJobsAndPerformPostTrackingCleanup() ;
-    end
+    end  % function
   end  % methods    
 end  % classdef
