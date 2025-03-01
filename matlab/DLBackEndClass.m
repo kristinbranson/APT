@@ -971,9 +971,9 @@ classdef DLBackEndClass < handle
 
       % Actually spawn the jobs
       [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
-      obj.ensureJobIsNotAlive(spawned_jobids{1}) ;  
-        % USED FOR DEBUGGING, to simulate a failure of a spawned job without
-        % production of an error file.
+      % obj.ensureJobIsNotAlive(spawned_jobids{1}) ;  
+      %   % USED FOR DEBUGGING, to simulate a failure of a spawned job without
+      %   % production of an error file.
 
       % If all went well, record the spawned jobids.  If not, kill any straggler
       % jobs.
