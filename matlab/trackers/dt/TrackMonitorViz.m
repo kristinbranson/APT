@@ -264,24 +264,24 @@ classdef TrackMonitorViz < handle
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed.';
-        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
+        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return;
       end
 
       if obj.isKilled,
         msg = 'Tracking jobs killed.';
-        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now));
+        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return;
       end
       
-      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
+      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
        
-      if isfield(pollingResult(1),'parttrkfile')
-        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(pollingResult(1).parttrkfile,'file'));
+      if isfield(pollingResult,'parttrkfile')
+        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(pollingResult.parttrkfile{1},'file'));
         TrackMonitorViz.debugfprintf('N. frames tracked: ');
       end
-      TrackMonitorViz.debugfprintf('tfcompete: %s\n',mat2str([pollingResult.tfComplete]));
-      nJobs = numel(pollingResult); 
+      TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
+      nJobs = numel(pollingResult.tfComplete); 
       
       % It is assumed that there is a correspondence between res and .hline
       if nJobs~=numel(obj.hline)
@@ -295,12 +295,12 @@ classdef TrackMonitorViz < handle
 
       tic;
       for ijob=1:nJobs,
-        isdone = pollingResult(ijob).tfComplete;
-        if isfield(pollingResult(ijob),'parttrkfileTimestamp'),
-          partFileExists = ~isnan(pollingResult(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+        isdone = pollingResult.tfComplete(ijob);
+        if isfield(pollingResult,'parttrkfileTimestamp'),
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob)); % maybe unnec since parttrkfileTimestamp will be nan otherwise
           isupdate = ...
-          (partFileExists && (forceupdate || (pollingResult(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
-           || isdone;
+            (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
+            isdone;
         else
           partFileExists = false;  %#ok<NASGU> 
           isupdate =false;
@@ -318,19 +318,19 @@ classdef TrackMonitorViz < handle
             end            
           else
             try
-              if isfield(pollingResult(ijob),'parttrkfileNfrmtracked')
+              if isfield(pollingResult,'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
-                obj.nFramesTracked(ijob) = nanmax(pollingResult(ijob).parttrkfileNfrmtracked,...
-                                                  pollingResult(ijob).trkfileNfrmtracked);  %#ok<NANMAX> 
+                obj.nFramesTracked(ijob) = nanmax(pollingResult.parttrkfileNfrmtracked(ijob),...
+                                                  pollingResult.trkfileNfrmtracked(ijob));  %#ok<NANMAX> 
                 if isnan(obj.nFramesTracked(ijob)) ,
                   % This used to be an assert, but those are not caught by 'dbstop if error'...
                   error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
                 end
               else
                 if isdone,
-                  tfile = pollingResult(ijob).trkfile;
+                  tfile = pollingResult.trkfile{ijob};
                 else
-                  tfile = pollingResult(ijob).parttrkfile;
+                  tfile = pollingResult.parttrkfile{ijob};
                 end
                 %fprintf('TrkMonitorViz.resultsReceived: tfile = %s\n',tfile);
                 try

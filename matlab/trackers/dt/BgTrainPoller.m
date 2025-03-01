@@ -27,6 +27,7 @@ classdef BgTrainPoller < BgPoller
       else
         result = obj.pollNonAWS_(logger) ;
       end
+      assert(isstruct(result)&&isscalar(result)) ;
     end  % function
 
     function result = pollNonAWS_(obj, logger)  %#ok<INUSD>
@@ -35,31 +36,36 @@ classdef BgTrainPoller < BgPoller
       % - Check for completion 
       result = obj.initialPollResults_() ;
 
-      result.jsonPresent = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.jsonPath);
-      nModels = obj.dmcs_.n;
-      for i=1:nModels,
-        result.tfComplete(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
-      end
-      [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
-      % one error, log, and kill file per job
-      errFile = result.errFile(idx1);
-      logFile = result.logFile(idx1);
-      %killFile = sRes.killFile(idx1);
-      for ijob = 1:numel(unique_jobs),
-        result.errFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(errFile{ijob});
-        result.logFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(logFile{ijob}); % ahem good meth name
-        %sRes.logFileErrLikely(jobidx==ijob) = obj.logFileErrLikely(logFile{ijob});
-        %sRes.killFileExists(jobidx==ijob) = obj.fileExists(killFile{ijob});
-      end
-
-      % loop through all models trained in this job
-      for i = 1:nModels,
-        if result.jsonPresent(i),
-          jsoncurr = obj.backend_.fileContents(result.jsonPath{i});
-          result = obj.readTrainLoss_(result,i,jsoncurr);
+      try
+        result.jsonPresent = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.jsonPath);
+        nModels = obj.dmcs_.n;
+        for i=1:nModels,
+          result.tfComplete(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
         end
+        [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
+        % one error, log, and kill file per job
+        errFile = result.errFile(idx1);
+        logFile = result.logFile(idx1);
+        for ijob = 1:numel(unique_jobs),
+          result.errFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(errFile{ijob});
+          result.logFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(logFile{ijob}); % ahem good meth name
+        end
+          
+        result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
+        
+        % loop through all models trained in this job
+        for i = 1:nModels,
+          if result.jsonPresent(i),
+            jsoncurr = obj.backend_.fileContents(result.jsonPath{i});
+            result = obj.readTrainLoss_(result,i,jsoncurr);
+          end
+        end
+        pollsuccess = true ;
+      catch me
+        % Presumably something went wrong when probing the filesystem
+        pollsuccess = false ;
       end
-      result.pollsuccess = true;
+      result.pollsuccess = pollsuccess ;
     end  % function
     
     function result = pollAWS_(obj, logger)
@@ -96,7 +102,6 @@ classdef BgTrainPoller < BgPoller
       logger.log('obj.backend.batchPoll(fspollargs) tfpollsucc: %d\n',tfpollsucc) ;
       logger.log('obj.backend.batchPoll(fspollargs) reslines:\n%s\n',newline_out(reslines)) ;
       if tfpollsucc
-        result.pollsuccess = true ;
         for i = 1:nJobs,
           off = (i-1)*nlinesperjob;
           result.errFileExists(jobidx==i) = strcmp(reslines{off+1},'y');
@@ -112,7 +117,13 @@ classdef BgTrainPoller < BgPoller
             result = obj.readTrainLoss_(result,i,reslines{off+3});
           end
         end
-      end
+        try
+          result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
+          result.pollsuccess = true ;
+        catch me
+          result.pollsuccess = false ;
+        end          
+      end  % if tfpollsucc
     end  % function
 
     function result = readTrainLoss_(obj,result,imodel,jsoncurr)
@@ -145,7 +156,7 @@ classdef BgTrainPoller < BgPoller
       result = struct();
       result.identifiers = obj.dmcs_.getIdentifiers();
       result.pollsuccess = false;  % if true, remote poll cmd was successful
-      result.pollts = now; % datenum time that poll cmd returned
+      result.pollts = now() ; % datenum time that poll cmd returned
       result.jsonPath = obj.dmcs_.trainDataLnx; % cell of chars, full paths to json trn loss being polled
       result.jsonPresent = false(1,nModels); % array, true if corresponding file exists. if false, remaining fields are indeterminate
       result.lastTrnIter = nan(1,nModels); % array, (only if jsonPresent==true) last known training iter for this view. Could be eg -1 or 0 if no iters avail yet.
@@ -158,10 +169,8 @@ classdef BgTrainPoller < BgPoller
       result.errFileExists = false(1,nModels); % array, true of errFile exists and has size>0
       result.logFile = obj.dmcs_.trainLogLnx; % cell of char, full path to Bsub logfile
       result.logFileExists = false(1,nModels); % array logical
-      %sRes.logFileErrLikely = false(1,nModels); % array, true if Bsub logfile suggests error
-      %sRes.killFile = obj.getKillFiles(); % char, full path to KILL tokfile
-      %sRes.killFileExists = false(1,nModels); % scalar, true if KILL tokfile found
-      result.isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('train') ;
+      result.isRunning = false(1,nModels) ;
+      result.isPopulated = true(1,nModels) ;
     end  % function
 
     function suitcase = packParfevalSuitcase(obj)

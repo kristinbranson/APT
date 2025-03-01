@@ -2907,7 +2907,7 @@ classdef DeepTracker < LabelTracker
       %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       %bgTrkWorkerObj.initFiles(obj.trkSysInfo);
-      bgTrkWorkerObj = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
+      poller = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
 
       % KB 20190115: adding trkviz
       nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
@@ -2921,13 +2921,13 @@ classdef DeepTracker < LabelTracker
 
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
-      obj.bgTrackPoller = bgTrkWorkerObj;
+      obj.bgTrackPoller = poller;
       %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
       obj.nFramesTrack = nFramesTrack ;  % stash it so it's available for TrackMonitorViz() in controller
       obj.lObj.needRefreshTrackMonitorViz() ;
 
       bgTrkMonitorObj = ...
-        BgMonitor(obj, 'track', bgTrkWorkerObj, 'projTempDir', projTempDir) ;
+        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
       %obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
       if ~isempty(obj.bgTrkMonitor)
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
@@ -4658,7 +4658,7 @@ classdef DeepTracker < LabelTracker
       obj.killJobsAndPerformPostTrainingCleanup() ;     
 
       fprintf('Error occurred during training:\n') ;
-      errFile = BgMonitor.getErrFile(pollingResult); % currently, errFiles same for all views
+      errFile = pollingResult.errFile{1} ; % currently, errFiles same for all views
       if iscell(errFile) ,
         if isscalar(errFile) ,
           errFile = errFile{1} ;
@@ -4678,7 +4678,7 @@ classdef DeepTracker < LabelTracker
       obj.killJobsAndPerformPostTrackingCleanup() ;     
 
       fprintf('Error occurred during tracking:\n') ;
-      errFile = BgMonitor.getErrFile(pollingResult); % currently, errFiles same for all views
+      errFile = pollingResult.errFile{1} ; % currently, errFiles same for all views
       if iscell(errFile) ,
         if isscalar(errFile) ,
           errFile = errFile{1} ;

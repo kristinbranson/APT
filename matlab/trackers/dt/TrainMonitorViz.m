@@ -326,39 +326,28 @@ classdef TrainMonitorViz < handle
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
+      % Check arguments
+      assert(isstruct(pollingResult) && isscalar(pollingResult)) ;
+
       tfSucc = true;
       
-      if ~isempty(pollingResult),
-        pollsuccess = pollingResult.pollsuccess;
-        isTrainComplete = pollingResult.tfComplete;
-        isErr = pollingResult.errFileExists ;
-        isLogFile = pollingResult.logFileExists;
-        isJsonFile = pollingResult.jsonPresent;
-      else
-        pollsuccess = false ;  % is this right?  -- ALT, 2024-06-27
-        isTrainComplete = false(1,obj.nmodels);
-        isErr = false(1,obj.nmodels);
-        isLogFile = false(1,obj.nmodels);
-        isJsonFile = false(1,obj.nmodels);
-      end
+      pollsuccess = pollingResult.pollsuccess;
+      isTrainComplete = pollingResult.tfComplete;
+      isErr = pollingResult.errFileExists ;
+      isLogFile = pollingResult.logFileExists;
+      isJsonFile = pollingResult.jsonPresent;
       
-      % isRunningFromJobIndex = obj.dtObj.isAliveFromRegisteredJobIndex('train') ;
-      isRunningFromJobIndex = pollingResult.isRunningFromJobIndex ;
-      %isRunning0 = obj.trainWorkerObj.getIsRunning();
-      if isempty(isRunningFromJobIndex),
-        isRunning = true;
-      else
-        isRunning = any(isRunningFromJobIndex) ;
-      end
-      if ~isRunning
+      isRunning = pollingResult.isRunning ;  % 1 x nmodels
+      isAnyRunning = any(isRunning) ;
+      if ~isAnyRunning
         if obj.jobStoppedRepeatsReqd>=1
           obj.jobStoppedRepeatsReqd = obj.jobStoppedRepeatsReqd-1;
-          isRunning = true;
+          isAnyRunning = true;
         end
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-                                   isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
+                                   isAnyRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
       
       if any(obj.isKilled),
         status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
@@ -370,7 +359,7 @@ classdef TrainMonitorViz < handle
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false,true);
-      elseif ~isRunning,
+      elseif ~isAnyRunning,
         status = 'No training jobs running.';
         tfSucc = false;
       elseif any(isLogFile) && all(~isJsonFile),

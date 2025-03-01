@@ -117,18 +117,8 @@ classdef BgMonitor < handle
       % Called by the BgClient when a polling result is received.  Checks for error
       % or completion and notifies the parent DeepTracker accordingly.
 
-      % Produce some debugging output
-      BgMonitor.debugfprintf('Inside BgMonitor.didReceivePollResults()\n') ;
-      
-      % DEBUG
-      pollingResult  %#ok<NOPRT>
-      if numel(pollingResult)>1 ,
-        for i = 1 : numel(pollingResult)
-          element = pollingResult(i) ;
-          fprintf('pollingResult(%d):\n', i) ;
-          disp(element) ;
-        end
-      end
+      % % DEBUG
+      % pollingResult  %#ok<NOPRT>
 
       % Cause views/controllers to be updated with the latest poll results
       obj.pollingResult = pollingResult ;  % Stash so to controllers/views have access to it.
@@ -139,7 +129,7 @@ classdef BgMonitor < handle
         % complete is done below.
       
       % Determine whether the polling itself was successful or not
-      didPollingItselfSucceed = BgMonitor.getPollSuccess(pollingResult) ;  % logical scalar
+      didPollingItselfSucceed = pollingResult.pollsuccess ;  % logical scalar
       if ~didPollingItselfSucceed
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
@@ -149,8 +139,15 @@ classdef BgMonitor < handle
         return
       end
       
-      % Check for errors.
-      didErrorOccur = any(BgMonitor.getErrOccurred(pollingResult)) ;  % BgMonitor.getErrOccurred(pollingResult) is a 1xstage_count logical vector
+      % Check for errors.      
+      errFileExists = pollingResult.errFileExists ;  % could be njobs x 1, or nmovies x nviews x nstages
+      tfComplete = pollingResult.tfComplete ;  % could be njobs x 1, or nmovies x nviews x nstages
+      isRunning = pollingResult.isRunning ;  % could be njobs x 1, or nmovies x nviews x nstages
+      isPopulated = pollingResult.isPopulated ;  % could be njobs x 1, or nmovies x nviews x nstages
+        % However shaped, the four vars above should have the *same* shape.
+        % isPopulated indicates which elements of the other three correspond to
+        % actual jobs, rather than just being set to a default value.
+      didErrorOccur = any(isPopulated & (errFileExists | (~tfComplete & ~isRunning)), 'all') ;
       if didErrorOccur
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
@@ -162,7 +159,7 @@ classdef BgMonitor < handle
                   
       % Check for completion.
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
-        obj.tfComplete_ = all(BgMonitor.isComplete(pollingResult));  % BgMonitor.isComplete(pollingResult) is a 1xstage_count logical vector
+        obj.tfComplete_ = all(~isPopulated | tfComplete, 'all') ;
         if obj.tfComplete_
           % Send message to console
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
@@ -175,57 +172,47 @@ classdef BgMonitor < handle
           return
         end
       end
-
-      % pollingResult.isRunningFromJobIndex should at this point contain info about which of
-      % the spawned jobs are still running.  We would like to detect silent failures
-      % of spawned jobs that (for whatever reason) do not produce an error file. The
-      % tricky bit is that I think for some project/model types, there can be
-      % multiple spawned training jobs.  So need to handle correctly cases where
-      % some jobs have completed, but others are still running.  Not sure how to
-      % handle that in all cases, and have other fish to fry right now, but should
-      % return to it soon. -- ALT, 2025-02-26
-
     end  % function didReceivePollResults
   end  % methods
   
-  methods (Static)
-    function tfpollsucc = getPollSuccess(pollingResult)
-      if isfield(pollingResult,'pollsuccess'),
-        tfpollsucc = [pollingResult.pollsuccess] ;
-      else
-        tfpollsucc = true(1,numel(pollingResult)) ;
-      end
-    end
-
-    % function killOccurred = getKillOccurred(pollingResult)
-    %   killOccurred = [pollingResult.killFileExists];
-    % end
-
-    function errOccurred = getErrOccurred(pollingResult)
-      errOccurred = [pollingResult.errFileExists] ;
-    end
-    
-    function errFile = getErrFile(pollingResult)
-      errFile = pollingResult(1).errFile ;
-    end
-
-    function logFile = getLogFile(pollingResult,i)
-      logFile = pollingResult(i).logFile ;
-    end
-
-    % function result = getLogFileErrLikely(pollingResult)
-    %   result = false(size(pollingResult)) ;
-    % end
-
-    function tfComplete = isComplete(pollingResult)
-      tfComplete = [pollingResult.tfComplete] ;
-    end
-
-    function debugfprintf(varargin)
-      DEBUG = false ;
-      if DEBUG ,
-        fprintf(varargin{:});
-      end
-    end  % function    
-  end  % methods (Static)
+  % methods (Static)
+  %   % function tfpollsucc = getPollSuccess(pollingResult)
+  %   %   if isfield(pollingResult,'pollsuccess'),
+  %   %     tfpollsucc = [pollingResult.pollsuccess] ;
+  %   %   else
+  %   %     tfpollsucc = true(1,numel(pollingResult)) ;
+  %   %   end
+  %   % end
+  % 
+  %   % function killOccurred = getKillOccurred(pollingResult)
+  %   %   killOccurred = [pollingResult.killFileExists];
+  %   % end
+  % 
+  %   % function errOccurred = getErrOccurred(pollingResult)
+  %   %   errOccurred = [pollingResult.errFileExists] ;
+  %   % end
+  % 
+  %   % function errFile = getErrFile(pollingResult)
+  %   %   errFile = pollingResult.errFile{1} ;
+  %   % end
+  % 
+  %   % function logFile = getLogFile(pollingResult,i)
+  %   %   logFile = pollingResult.logFile{i} ;
+  %   % end
+  % 
+  %   % function result = getLogFileErrLikely(pollingResult)
+  %   %   result = false(size(pollingResult)) ;
+  %   % end
+  % 
+  %   % function tfComplete = isComplete(pollingResult)
+  %   %   tfComplete = [pollingResult.tfComplete] ;
+  %   % end
+  % 
+  %   % function debugfprintf(varargin)
+  %   %   DEBUG = false ;
+  %   %   if DEBUG ,
+  %   %     fprintf(varargin{:});
+  %   %   end
+  %   % end  % function    
+  % end  % methods (Static)
 end  % classdef

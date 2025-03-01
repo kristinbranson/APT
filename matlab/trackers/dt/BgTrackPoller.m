@@ -62,6 +62,11 @@ classdef BgTrackPoller < BgPoller
     
   methods
     function obj = BgTrackPoller(trackType, dmc, backend, toTrackInfos)
+      assert(strcmp(trackType,'movie') || strcmp(trackType,'list')) ;
+      assert(isa(dmc, 'DeepModelChainOnDisk')) ;
+      assert(isa(backend, 'DLBackEndClass') && isscalar(backend)) ;
+      assert(isa(toTrackInfos, 'ToTrackInfoSet')) ;
+
       obj.trackType_ = trackType ;
       obj.dmcs_ = dmc ;
       obj.backend_ = backend ;
@@ -81,6 +86,7 @@ classdef BgTrackPoller < BgPoller
       else
         error('Unknown track_type: %s', obj.trackType_) ;
       end
+      assert(isstruct(result) && isscalar(result)) ;
     end
 
     function result = pollForMovie(obj, logger)
@@ -116,15 +122,25 @@ classdef BgTrackPoller < BgPoller
         end
       end
 
-      % nJobs = obj.toTrackInfos_.n ;
-      % isRunningFromJobIndex = true([nJobs, 1]) ;  % TODO: Make this actually check if the spawned jobs are running  
-      isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;
-      isRunning = obj.replicateJobs_(isRunningFromJobIndex);  % nMovies x nViews x nStages
-      %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
-      tfComplete = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
-      %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-      tfErrFileErr = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
-      logFilesExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+      njobs = obj.njobs ;
+      try
+        % isRunningFromJobIndex = true([nJobs, 1]) ;  % TODO: Make this actually check if the spawned jobs are running  
+        isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
+        % isRunning = obj.replicateJobs_(isRunningFromJobIndex);  % nMovies x nViews x nStages
+        %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
+        tfComplete = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
+        %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
+        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+        pollsuccess = true ;
+      catch me
+        % Likely a filesystem error checking for the files
+        isRunningFromJobIndex = false(njobs,1) ;
+        tfComplete = false(size(trkfiles)) ;
+        tfErrFileErrFromJobIndex = true(size(errfiles)) ;
+        logFilesExistFromJobIndex = true(size(logfiles)) ;
+        pollsuccess = false ;
+      end
       % bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages
@@ -133,23 +149,22 @@ classdef BgTrackPoller < BgPoller
       % this way the monitor can track/viz the progress of each movie/view.
       
       result = struct(...
-        'tfComplete',num2cell(tfComplete),...
-        'isRunning',num2cell(isRunning),...
-        'errFile',obj.replicateJobs_(errfiles),... % char, full path to DL err file
-        'errFileExists',num2cell(obj.replicateJobs_(tfErrFileErr)),... % true if errFile exists and has size>0
-        'logFile',obj.replicateJobs_(logfiles),... % char, full path to Bsub logfile
-        'logFileExists',num2cell(obj.replicateJobs_(logFilesExist)),...
-        'iview',num2cell(repmat(1:obj.nViews,[obj.nMovies,1,obj.nStages])),...
-        'movfile',repmat(obj.movfiles,[1 1 obj.nStages]),...
-        'trkfile',trkfiles,...
-        'parttrkfile',parttrkfiles,...
-        'parttrkfileTimestamp',num2cell(partTrkFileTimestamps),...
-        'parttrkfileNfrmtracked',num2cell(parttrkfileNfrmtracked),...
-        'trkfileNfrmtracked',num2cell(parttrkfileNfrmtracked) ) ;
-        % 'killFile',obj.replicateJobs_(killfiles),...
-        % 'killFileExists',num2cell(obj.replicateJobs_(killFileExists)) );
-        % 'logFileErrLikely',num2cell(obj.replicateJobs(bsuberrlikely)),... % true if bsub logfile looks like err
-        % 'isexternal',obj.isexternal_... % scalar expansion
+        'pollsuccess',{pollsuccess}, ...
+        'isPopulated',{obj.replicateJobs_(true(njobs,1))}, ...
+        'tfComplete',{tfComplete},...
+        'isRunning',{obj.replicateJobs_(isRunningFromJobIndex)},...
+        'errFile',{obj.replicateJobs_(errfiles)},... % char, full path to DL err file
+        'errFileExists',{obj.replicateJobs_(tfErrFileErrFromJobIndex)},... % true if errFile exists and has size>0
+        'logFile',{obj.replicateJobs_(logfiles)},... % char, full path to Bsub logfile
+        'logFileExists',{obj.replicateJobs_(logFilesExistFromJobIndex)},...
+        'iview',{repmat(1:obj.nViews,[obj.nMovies,1,obj.nStages])},...
+        'movfile',{repmat(obj.movfiles,[1 1 obj.nStages])},...
+        'trkfile',{trkfiles},...
+        'parttrkfile',{parttrkfiles},...
+        'parttrkfileTimestamp',{partTrkFileTimestamps},...
+        'parttrkfileNfrmtracked',{parttrkfileNfrmtracked},...
+        'trkfileNfrmtracked',{parttrkfileNfrmtracked} ) ;
+      assert(isscalar(result)) ;
     end  % function
 
     function result = pollForList(obj, logger)
@@ -174,12 +189,23 @@ classdef BgTrackPoller < BgPoller
         end
       end
 
-      isRunning = true(obj.njobs,1) ;  % TODO: Make this actually check if the spawned jobs are running
-      %killFileExists = cellfun(@obj.backend_.fileExists, killfiles) ;
-      tfComplete = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % nmovies x njobs x nstages
-      logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-      tfErrFileErr = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
-      logFilesExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+      try
+        isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
+        tfCompleteFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % nmovies x njobs x nstages
+        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+        pollsuccess = true ;
+      catch me
+        % Likely a filesystem error checking for the files
+        njobs = obj.njobs ;
+        isRunningFromJobIndex = false(njobs,1) ;
+        tfCompleteFromJobIndex = false(size(outfiles)) ;
+        tfErrFileErrFromJobIndex = true(size(errfiles)) ;
+        logFilesExistFromJobIndex = true(size(logfiles)) ;
+        pollsuccess = false ;
+      end
+      logger.log('tfComplete = %s\n',mat2str(tfCompleteFromJobIndex(:)'));
+      
       %bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
       % nMovies x nviews x nStages
@@ -188,20 +214,19 @@ classdef BgTrackPoller < BgPoller
       % this way the monitor can track/viz the progress of each movie/view.
       
       result = struct(...
-        'tfComplete',num2cell(tfComplete),...
-        'isRunning',num2cell(isRunning),...
-        'errFile',errfiles,... % char, full path to DL err file
-        'errFileExists',num2cell(tfErrFileErr),... % true of errFile exists and has size>0
-        'logFile',logfiles,... % char, full path to Bsub logfile
-        'logFileExists',num2cell(logFilesExist),...
-        'iview',num2cell(1:obj.nViews),...
-        'movfile','',...
-        'outfile',outfiles,...
-        'outfileTimestamp',num2cell(outTrkFileTimestamps) );
-        % 'isexternal',obj.isexternal_... % scalar expansion
-        % 'killFile',killfiles,...
-        % 'killFileExists',num2cell(killFileExists),...
-        %'logFileErrLikely',num2cell(bsuberrlikely),... % true if bsub logfile looks like err
+        'pollsuccess',{pollsuccess}, ...
+        'isPopulated',{true(njobs,1)}, ...        
+        'tfComplete',{tfCompleteFromJobIndex},...
+        'isRunning',{isRunningFromJobIndex},...
+        'errFile',{errfiles},... % char, full path to DL err file
+        'errFileExists',{tfErrFileErrFromJobIndex},... % true of errFile exists and has size>0
+        'logFile',{logfiles},... % char, full path to Bsub logfile
+        'logFileExists',{logFilesExistFromJobIndex},...
+        'iview',{1:obj.nViews},...
+        'movfile',{''},...
+        'outfile',{outfiles},...
+        'outfileTimestamp',{outTrkFileTimestamps} );
+      assert(isscalar(result)) ;      
     end  % function
     
     function suitcase = packParfevalSuitcase(obj)

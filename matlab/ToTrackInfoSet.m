@@ -92,7 +92,7 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         X = reshape(X(:,:,stages0),[sz(1:2),nnz(stages0)]);
       end
 
-    end
+    end  % function
 
     function files = getMovfiles(obj,varargin)
       files = obj.mergeGet('movfiles',varargin{:});
