@@ -4641,24 +4641,24 @@ classdef DeepTracker < LabelTracker
       obj.backend.killAndClearRegisteredJobs(train_or_track) ;
     end    
 
-    function didErrorDuringTrainingOrTracking(obj, train_or_track, sRes)
+    function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
       if strcmp(train_or_track, 'track') ,
-        obj.didErrorDuringTracking_(sRes) ;
+        obj.didErrorDuringTracking_(pollingResult) ;
       elseif strcmp(train_or_track, 'train') ,
-        obj.didErrorDuringTraining_(sRes) ;
+        obj.didErrorDuringTraining_(pollingResult) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end
     end
 
-    function didErrorDuringTraining_(obj, sRes)
+    function didErrorDuringTraining_(obj, pollingResult)
       % Called by the BgMonitor when the poll response (sRes) indicates an error has
       % occurrred.
       obj.bgTrnMonitor.stop();
       obj.killJobsAndPerformPostTrainingCleanup() ;     
 
       fprintf('Error occurred during training:\n') ;
-      errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
+      errFile = BgMonitor.getErrFile(pollingResult); % currently, errFiles same for all views
       if iscell(errFile) ,
         if isscalar(errFile) ,
           errFile = errFile{1} ;
@@ -4671,14 +4671,14 @@ classdef DeepTracker < LabelTracker
       disp(errContents);
     end  % function
 
-    function didErrorDuringTracking_(obj, sRes)
+    function didErrorDuringTracking_(obj, pollingResult)
       % Called by the BgMonitor when the poll response (sRes) indicates an error has
       % occurrred.
       obj.bgTrkMonitor.stop();
       obj.killJobsAndPerformPostTrackingCleanup() ;     
 
       fprintf('Error occurred during tracking:\n') ;
-      errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
+      errFile = BgMonitor.getErrFile(pollingResult); % currently, errFiles same for all views
       if iscell(errFile) ,
         if isscalar(errFile) ,
           errFile = errFile{1} ;

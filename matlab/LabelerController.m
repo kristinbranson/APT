@@ -1541,9 +1541,9 @@ classdef LabelerController < handle
 
     function updateTrackMonitorViz(obj)
       labeler = obj.labeler_ ;
-      sRes = labeler.tracker.bgTrkMonitor.sRes ;
+      pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
       if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_) ,
-        obj.trackingMonitorVisualizer_.resultsReceived(sRes) ;
+        obj.trackingMonitorVisualizer_.resultsReceived(pollingResult) ;
       end
     end  % function
 
@@ -1562,8 +1562,8 @@ classdef LabelerController < handle
 
     function updateTrainMonitorViz(obj)
       labeler = obj.labeler_ ;
-      sRes = labeler.tracker.bgTrnMonitor.sRes ;
-      obj.trainingMonitorVisualizer_.resultsReceived(sRes) ;
+      pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
+      obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
     end  % function
 
     function addSatellite(obj, h)

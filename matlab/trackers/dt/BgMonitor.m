@@ -23,7 +23,7 @@ classdef BgMonitor < handle
   end
 
   properties (Transient)
-    sRes
+    pollingResult
   end
 
   methods
@@ -110,18 +110,28 @@ classdef BgMonitor < handle
 
       % This can be called from the delete() method, so we are extra careful about
       % making sure the message targets are valid.
-      sendMaybe(obj.bgClientObj, 'stopPollingLoopHard') ;
+      sendMaybe(obj.bgClientObj, 'stopPollingLoop') ;
     end
     
-    function didReceivePollResults(obj, sRes)
+    function didReceivePollResults(obj, pollingResult)
       % Called by the BgClient when a polling result is received.  Checks for error
       % or completion and notifies the parent DeepTracker accordingly.
 
       % Produce some debugging output
       BgMonitor.debugfprintf('Inside BgMonitor.didReceivePollResults()\n') ;
       
+      % DEBUG
+      pollingResult  %#ok<NOPRT>
+      if numel(pollingResult)>1 ,
+        for i = 1 : numel(pollingResult)
+          element = pollingResult(i) ;
+          fprintf('pollingResult(%d):\n', i) ;
+          disp(element) ;
+        end
+      end
+
       % Cause views/controllers to be updated with the latest poll results
-      obj.sRes = sRes ;  % Stash so to controllers/views have access to it.
+      obj.pollingResult = pollingResult ;  % Stash so to controllers/views have access to it.
       obj.parent_.didReceivePollResults(obj.processName) ;
         % This call causes (through a child-to-parent call chain) the labeler to
         % notify() views/controllers that there's a training/tracking result, and that they should
@@ -129,22 +139,22 @@ classdef BgMonitor < handle
         % complete is done below.
       
       % Determine whether the polling itself was successful or not
-      didPollingItselfSucceed = BgMonitor.getPollSuccess(sRes) ;  % logical scalar
+      didPollingItselfSucceed = BgMonitor.getPollSuccess(pollingResult) ;  % logical scalar
       if ~didPollingItselfSucceed
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, sRes) ;
+        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
       end
       
       % Check for errors.
-      didErrorOccur = any(BgMonitor.getErrOccurred(sRes)) ;  % BgMonitor.getErrOccurred(sRes) is a 1xstage_count logical vector
+      didErrorOccur = any(BgMonitor.getErrOccurred(pollingResult)) ;  % BgMonitor.getErrOccurred(pollingResult) is a 1xstage_count logical vector
       if didErrorOccur
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, sRes) ;
+        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
@@ -152,21 +162,21 @@ classdef BgMonitor < handle
                   
       % Check for completion.
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
-        obj.tfComplete_ = all(BgMonitor.isComplete(sRes));  % BgMonitor.isComplete(sRes) is a 1xstage_count logical vector
+        obj.tfComplete_ = all(BgMonitor.isComplete(pollingResult));  % BgMonitor.isComplete(pollingResult) is a 1xstage_count logical vector
         if obj.tfComplete_
           % Send message to console
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
           
           % Signal to parent object, typically a DeepTracker, that tracking/training
           % has completed.
-          obj.parent_.didCompleteTrainingOrTracking(obj.processName, sRes.result) ;
+          obj.parent_.didCompleteTrainingOrTracking(obj.processName, pollingResult) ;
 
           % If we get here, we're done dealing with the current polling result
           return
         end
       end
 
-      % sRes.isRunningFromJobIndex should at this point contain info about which of
+      % pollingResult.isRunningFromJobIndex should at this point contain info about which of
       % the spawned jobs are still running.  We would like to detect silent failures
       % of spawned jobs that (for whatever reason) do not produce an error file. The
       % tricky bit is that I think for some project/model types, there can be
@@ -179,36 +189,36 @@ classdef BgMonitor < handle
   end  % methods
   
   methods (Static)
-    function tfpollsucc = getPollSuccess(sRes)
-      if isfield(sRes.result,'pollsuccess'),
-        tfpollsucc = [sRes.result.pollsuccess];
+    function tfpollsucc = getPollSuccess(pollingResult)
+      if isfield(pollingResult,'pollsuccess'),
+        tfpollsucc = [pollingResult.pollsuccess] ;
       else
-        tfpollsucc = true(1,numel(sRes.result));
+        tfpollsucc = true(1,numel(pollingResult)) ;
       end
     end
 
-    % function killOccurred = getKillOccurred(sRes)
-    %   killOccurred = [sRes.result.killFileExists];
+    % function killOccurred = getKillOccurred(pollingResult)
+    %   killOccurred = [pollingResult.killFileExists];
     % end
 
-    function errOccurred = getErrOccurred(sRes)
-      errOccurred = [sRes.result.errFileExists];
+    function errOccurred = getErrOccurred(pollingResult)
+      errOccurred = [pollingResult.errFileExists] ;
     end
     
-    function errFile = getErrFile(sRes)
-      errFile = sRes.result(1).errFile;
+    function errFile = getErrFile(pollingResult)
+      errFile = pollingResult(1).errFile ;
     end
 
-    function logFile = getLogFile(sRes,i)
-      logFile = sRes.result(i).logFile;
+    function logFile = getLogFile(pollingResult,i)
+      logFile = pollingResult(i).logFile ;
     end
 
-    function result = getLogFileErrLikely(sRes)
-      result = false(size(sRes.result)) ;
-    end
+    % function result = getLogFileErrLikely(pollingResult)
+    %   result = false(size(pollingResult)) ;
+    % end
 
-    function tfComplete = isComplete(sRes)
-      tfComplete = [sRes.result.tfComplete];
+    function tfComplete = isComplete(pollingResult)
+      tfComplete = [pollingResult.tfComplete] ;
     end
 
     function debugfprintf(varargin)

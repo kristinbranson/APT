@@ -68,22 +68,22 @@ classdef BgTrackPoller < BgPoller
       obj.toTrackInfos_ = toTrackInfos ;
     end
 
-    function sRes = poll(obj, logger)
+    function result = poll(obj, logger)
       % Function that calls either compute() or computeList(), depending on
       % value of obj.track_type
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
       if strcmp(obj.trackType_,'movie')
-        sRes = obj.pollForMovie(logger) ;
+        result = obj.pollForMovie(logger) ;
       elseif strcmp(obj.trackType_,'list')
-        sRes = obj.pollForList(logger) ;
+        result = obj.pollForList(logger) ;
       else
         error('Unknown track_type: %s', obj.trackType_) ;
       end
     end
 
-    function sRes = pollForMovie(obj, logger)
+    function result = pollForMovie(obj, logger)
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
@@ -132,7 +132,7 @@ classdef BgTrackPoller < BgPoller
       % if views/movs are tracked serially (nMovJobs>1 or nViewJobs>1). In
       % this way the monitor can track/viz the progress of each movie/view.
       
-      sRes = struct(...
+      result = struct(...
         'tfComplete',num2cell(tfComplete),...
         'isRunning',num2cell(isRunning),...
         'errFile',obj.replicateJobs_(errfiles),... % char, full path to DL err file
@@ -152,7 +152,7 @@ classdef BgTrackPoller < BgPoller
         % 'isexternal',obj.isexternal_... % scalar expansion
     end  % function
 
-    function sRes = pollForList(obj, logger)
+    function result = pollForList(obj, logger)
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
@@ -187,7 +187,7 @@ classdef BgTrackPoller < BgPoller
       % if views/movs are tracked serially (nMovJobs>1 or nViewJobs>1). In
       % this way the monitor can track/viz the progress of each movie/view.
       
-      sRes = struct(...
+      result = struct(...
         'tfComplete',num2cell(tfComplete),...
         'isRunning',num2cell(isRunning),...
         'errFile',errfiles,... % char, full path to DL err file

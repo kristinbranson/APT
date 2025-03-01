@@ -1,10 +1,14 @@
-function status = runPollingLoop(toClientDataQueue, poller, suitcase, pollInterval, projTempDirMaybe)
+function runPollingLoop(toClientDataQueue, poller, suitcase, pollInterval, projTempDirMaybe)
 % Run the polling loop; typically called via parfeval
 % 
 % toClientDataQueue: parallel.pool.DataQueue created by BgClient
 % worker: object with method cObjMeth
 % callInterval: time in seconds to wait between calls to
 %   worker.(cObjMeth)
+
+% Asserts to check input types
+assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
+assert(isa(poller,'BgPoller'));
 
 % Unpack the backend suitcase
 poller.restoreAfterParfeval(suitcase) ;
@@ -24,53 +28,47 @@ logger.log('cObj:') ;
 logger.log(formattedDisplayText(poller)) ;
 logger.log('') ;
 
-assert(isa(toClientDataQueue,'parallel.pool.DataQueue'));
-fromClientDataQueue = parallel.pool.PollableDataQueue;
-toClientDataQueue.send(fromClientDataQueue);
-logger.log('Done configuring queues');
-
-% Initialize vector of tic/toc compute time elapsed for each compute command received
-computeTimes = zeros(0,1) ;
+% fromClientDataQueue = parallel.pool.PollableDataQueue;
+% toClientDataQueue.send(fromClientDataQueue);
+%logger.log('Done configuring queue');
 
 iterations_completed = 0 ;
-while true        
-  tic_id = tic() ;
+while true          
+  % [data,ok] = fromClientDataQueue.poll() ;
+  % if ok
+  %   assert(isstruct(data) && all(isfield(data,{'action' 'data' 'id'})));
+  %   action = data.action;          
+  %   logger.log('Received %s',action);
+  %   switch action
+  %     case 'STOP'
+  %       break
+  %     case 'STAT'
+  %       sResp = struct('id',data.id,'action',action,'result',0);
+  %       toClientDataQueue.send(sResp);
+  %     otherwise
+  %       error('Unrecognized action: %s',action);
+  %   end
+  % else
+  %   % continue
+  % end
   
-  [data,ok] = fromClientDataQueue.poll();
-  if ok
-    assert(isstruct(data) && all(isfield(data,{'action' 'data' 'id'})));
-    action = data.action;          
-    logger.log('Received %s',action);
-    switch action
-      case 'STOP'
-        break
-      case 'STAT'
-        sResp = struct('id',data.id,'action',action,'result',computeTimes);
-        toClientDataQueue.send(sResp);
-      otherwise
-        error('Unrecognized action: %s',action);
-    end
-  else
-    % continue
-  end
-  
-  result = poller.poll(logger);  % this is a row struct, with length equal to the number of views
-  view_count = numel(result) ;
-  for view_index = 1 : view_count ,
-    result(view_index).iterations_completed = iterations_completed ;
-  end
-  computeTimes(end+1,1) = toc(tic_id) ;  %#ok<AGROW>
-  toClientDataQueue.send(struct('id',0,'action','','result',{result}));
+  % Poll to get the status of the spawned jobs
+  pollingResult = poller.poll(logger);  % this is a row struct
+  % count = numel(pollingResult) ;
+  % for index = 1 : count ,
+  %   pollingResult(index).iterations_completed = iterations_completed ;
+  % end
+  toClientDataQueue.send(pollingResult);
 
+  % Wait a bit to not poll too much
   logger.log('Pausing...\n');  % want an extra newline here
   pause(pollInterval);
   logger.log('Done pausing...');
+
+  % Log the number of iterations completed
   iterations_completed = iterations_completed + 1 ;
   logger.log('iterations_completed: %d', iterations_completed) ;
 end  % while true
-
-status = 1;
-logger.log('About to exit runPollingLoop()') ;
 
 end  % function
     
