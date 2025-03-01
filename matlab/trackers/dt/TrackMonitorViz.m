@@ -385,7 +385,7 @@ classdef TrackMonitorViz < handle
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      nJobs = numel(pollingResult);
+      nJobs = numel(pollingResult);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
       isTrackComplete = false;
       isErr = false;

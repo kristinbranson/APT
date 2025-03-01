@@ -144,7 +144,7 @@ classdef BgTrainPoller < BgPoller
       nModels = obj.dmcs_.n;
       result = struct();
       result.identifiers = obj.dmcs_.getIdentifiers();
-      result.pollsuccess = false; % if true, remote poll cmd was successful
+      result.pollsuccess = false;  % if true, remote poll cmd was successful
       result.pollts = now; % datenum time that poll cmd returned
       result.jsonPath = obj.dmcs_.trainDataLnx; % cell of chars, full paths to json trn loss being polled
       result.jsonPresent = false(1,nModels); % array, true if corresponding file exists. if false, remaining fields are indeterminate

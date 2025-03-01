@@ -322,18 +322,18 @@ classdef TrainMonitorViz < handle
       TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
     end  % function resultsReceived()
     
-    function [tfSucc,status] = updateStatusDisplayLine_(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
       tfSucc = true;
       
-      if ~isempty(res),
-        pollsuccess = res.pollsuccess;
-        isTrainComplete = res.tfComplete;
-        isErr = res.errFileExists ;
-        isLogFile = res.logFileExists;
-        isJsonFile = res.jsonPresent;
+      if ~isempty(pollingResult),
+        pollsuccess = pollingResult.pollsuccess;
+        isTrainComplete = pollingResult.tfComplete;
+        isErr = pollingResult.errFileExists ;
+        isLogFile = pollingResult.logFileExists;
+        isJsonFile = pollingResult.jsonPresent;
       else
         pollsuccess = false ;  % is this right?  -- ALT, 2024-06-27
         isTrainComplete = false(1,obj.nmodels);
@@ -343,7 +343,7 @@ classdef TrainMonitorViz < handle
       end
       
       % isRunningFromJobIndex = obj.dtObj.isAliveFromRegisteredJobIndex('train') ;
-      isRunningFromJobIndex = res.isRunningFromJobIndex ;
+      isRunningFromJobIndex = pollingResult.isRunningFromJobIndex ;
       %isRunning0 = obj.trainWorkerObj.getIsRunning();
       if isempty(isRunningFromJobIndex),
         isRunning = true;
