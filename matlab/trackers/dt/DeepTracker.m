@@ -2692,7 +2692,7 @@ classdef DeepTracker < LabelTracker
       % nothing to track?
       if totrackinfo.isempty(),
         fprintf('All requested frames have been tracked already.\n');
-        return;
+        return
       end
 
       obj.bgTrkReset_();

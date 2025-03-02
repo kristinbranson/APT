@@ -4066,7 +4066,7 @@ classdef Labeler < handle
           obj.gtSuggMFTableLbled(tfRm,:) = [];
           if ~isempty(obj.gtTblRes)
             obj.gtTblRes = MFTable.remapIntegerKey(obj.gtTblRes,'mov',...
-              edata.mIdxOrig2New);
+                                                   edata.mIdxOrig2New);
           end
           obj.notify('gtSuggUpdated');
           obj.notify('gtResUpdated');
@@ -9399,8 +9399,10 @@ classdef Labeler < handle
       obj.clearStatus();
     end  % function
 
-    function tblGTres = gtComputeGTPerformanceTable(obj,tblMFT_SuggAndLbled,...
-                                                    tblTrkRes,varargin)
+    function tblGTres = gtComputeGTPerformanceTable(obj, ...
+                                                    tblMFT_SuggAndLbled, ...
+                                                    tblTrkRes, ...
+                                                    varargin)
       % Compute GT performance 
       % 
       % tblMFT_SuggAndLbled: MFTable, no shape/label field (eg .p or
@@ -9479,6 +9481,11 @@ classdef Labeler < handle
       obj.gtTblRes = tblGTres;
       obj.notify('gtResUpdated');
     end  % function
+
+    function gtClearGTPerformanceTable(obj)
+      obj.gtTblRes = [] ;
+      obj.notify('gtResUpdated') ;
+    end
 
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.

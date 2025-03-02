@@ -11,6 +11,7 @@ function varargout = test_apt(varargin)
     test_function_name = varargin{1} ;
     % Run the named test, without the try-catch block.  This is normally used for
     % debugging.
+    fprintf('Running single test %s...\n', test_function_name) ;
     feval(test_function_name) ;
     % If get here, test passed.
     fprintf('Single test passed.\n') ;
@@ -34,9 +35,11 @@ function varargout = test_apt(varargin)
     did_pass_from_test_index = false(test_count,1) ;
     for test_index = 1 : test_count ,
       test_function_name = function_name_from_test_index{test_index} ;
+      fprintf('\n\n\n\n\nRunning test %s...\n', test_function_name) ;
       try
         feval(test_function_name) ,
         did_pass_from_test_index(test_index) = true ;
+        fprintf('Test %s (%d/%d) passed.\n', test_function_name, test_index, test_count) ;
       catch me
         fprintf('Test %s (%d/%d) failed:\n%s\n', test_function_name, test_index, test_count, me.getReport()) ;
       end

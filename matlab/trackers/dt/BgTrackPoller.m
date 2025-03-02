@@ -189,6 +189,7 @@ classdef BgTrackPoller < BgPoller
         end
       end
 
+      njobs = obj.njobs ;
       try
         isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
         tfCompleteFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % nmovies x njobs x nstages
@@ -197,7 +198,6 @@ classdef BgTrackPoller < BgPoller
         pollsuccess = true ;
       catch me
         % Likely a filesystem error checking for the files
-        njobs = obj.njobs ;
         isRunningFromJobIndex = false(njobs,1) ;
         tfCompleteFromJobIndex = false(size(outfiles)) ;
         tfErrFileErrFromJobIndex = true(size(errfiles)) ;

@@ -141,6 +141,15 @@ classdef LabelerProjectTester < handle
                'backend','', ...
                'backend_params',struct());
 
+      % Clear any preexisting GT performance table
+      obj.labeler.gtClearGTPerformanceTable() ;
+
+      % Make sure the GT table has been cleared
+      if ~isempty(obj.labeler.gtTblRes) ,
+        error('labeler.gtTblRes is nonempty---it should be empty after clearing the GT performance table') ;
+      end
+      
+      % Compute the GT performance
       obj.set_backend_params_(backend_type_as_string,backend_params);
       obj.labeler.gtSetGTMode(true) ;
       obj.labeler.gtComputeGTPerformance() ;

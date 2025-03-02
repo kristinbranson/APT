@@ -8,8 +8,12 @@ function test_carmen_gt()
   tester.test_gtcompute('backend',backend, ...
                         'backend_params', backend_params) ;  
   tbl = tester.labeler.gtTblRes ;
-  if ~isequal(size(tbl), [1539 11])
-      error('After GT tracking, tester.labeler.gtTblRes is the wrong size') ;
+  actual_size = size(tbl) ;
+  correct_size = [1539 11] ;
+  if ~isequal(actual_size, correct_size)
+      error('After GT tracking, tester.labeler.gtTblRes is of shape %s, but should be of shape %s', ...
+            format_size(actual_size), ...
+            format_size(correct_size)) ;
   end
   err = tbl.meanL2err ;
   if ~(median(err(:), 'omitnan') < 10)
