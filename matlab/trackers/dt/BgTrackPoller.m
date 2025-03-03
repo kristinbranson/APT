@@ -106,19 +106,21 @@ classdef BgTrackPoller < BgPoller
       partTrkFileTimestamps = nan(size(parttrkfiles)); % nmovies x nviews x nstages
       parttrkfileNfrmtracked = nan(size(parttrkfiles)); % nmovies x nviews x nstages
       for i = 1:numel(parttrkfiles),
-        trkfilecurr = parttrkfiles{i};
-        tmp = dir(trkfilecurr);
-        if isempty(tmp),
-          trkfilecurr = trkfiles{i};
-          tmp = dir(trkfiles{i});
-        end
-        if ~isempty(tmp),
-          partTrkFileTimestamps(i) = tmp.datenum;
-          parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(trkfilecurr) ;
-          logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
-          assert(~isnan(parttrkfileNfrmtracked(i)));
+        parttrkfilecurr = parttrkfiles{i};
+        if obj.backend_.fileExists(parttrkfilecurr) ,
+          partTrkFileTimestamps(i) = obj.backend_.fileModTime(parttrkfilecurr) ;
+          parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(parttrkfilecurr) ;
+          logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),parttrkfilecurr);
         else
-          logger.log('Part trk file %s and trk file %s do not exist\n',parttrkfiles{i},trkfiles{i});
+          % If the partial trk file does not exist, try to get info from the trk file.
+          trkfilecurr = trkfiles{i} ;
+          if obj.backend_.fileExists(trkfilecurr) ,
+            partTrkFileTimestamps(i) = obj.backend_.fileModTime(trkfilecurr) ;
+            parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(trkfilecurr) ;
+            logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
+          else
+            logger.log('Part trk file %s and trk file %s do not exist\n',parttrkfilecurr,trkfilecurr);
+          end
         end
       end
 
@@ -162,8 +164,7 @@ classdef BgTrackPoller < BgPoller
         'trkfile',{trkfiles},...
         'parttrkfile',{parttrkfiles},...
         'parttrkfileTimestamp',{partTrkFileTimestamps},...
-        'parttrkfileNfrmtracked',{parttrkfileNfrmtracked},...
-        'trkfileNfrmtracked',{parttrkfileNfrmtracked} ) ;
+        'parttrkfileNfrmtracked',{parttrkfileNfrmtracked}) ;
       assert(isscalar(result)) ;
     end  % function
 

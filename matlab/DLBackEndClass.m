@@ -1388,7 +1388,8 @@ classdef DLBackEndClass < handle
     function nframes = readTrkFileStatus(obj, filename, partFileIsTextStatus, logger)
       % Read the number of frames remaining according to the remote file at location
       % filename.  If partFileIsTextStatus is true, this file is assumed to be a
-      % text file.  Otherwise, it is assumed to be a .mat file.
+      % text file.  Otherwise, it is assumed to be a .mat file.  If the file does
+      % not exist or there's some problem reading the file, returns nan.
       if ~exist('partFileIsTextStatus', 'var') || isempty(partFileIsTextStatus) ,
         partFileIsTextStatus = false ;
       end
@@ -1398,7 +1399,7 @@ classdef DLBackEndClass < handle
 
       if obj.type == DLBackEnd.AWS ,
         %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
-        nframes = 0;
+        nframes = nan ;
         if ~obj.fileExists(filename) ,
           return
         end
@@ -1424,7 +1425,7 @@ classdef DLBackEndClass < handle
         end
       else
         % If non-AWS backend
-        nframes = 0;
+        nframes = nan ;
         if ~exist(filename,'file'),
           return;
         end

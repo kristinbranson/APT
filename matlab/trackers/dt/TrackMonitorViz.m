@@ -293,17 +293,16 @@ classdef TrackMonitorViz < handle
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
 
-      tic;
+      ticId = tic() ;
       for ijob=1:nJobs,
         isdone = pollingResult.tfComplete(ijob);
         if isfield(pollingResult,'parttrkfileTimestamp'),
-          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob)); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
           isupdate = ...
             (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
-            isdone;
+            isdone ;
         else
-          partFileExists = false;  %#ok<NASGU> 
-          isupdate =false;
+          isupdate = false ;
         end
 
         if isupdate,
@@ -320,11 +319,10 @@ classdef TrackMonitorViz < handle
             try
               if isfield(pollingResult,'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
-                obj.nFramesTracked(ijob) = nanmax(pollingResult.parttrkfileNfrmtracked(ijob),...
-                                                  pollingResult.trkfileNfrmtracked(ijob));  %#ok<NANMAX> 
+                obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
                 if isnan(obj.nFramesTracked(ijob)) ,
-                  % This used to be an assert, but those are not caught by 'dbstop if error'...
                   error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                    % This should be caught by the local try-catch
                 end
               else
                 if isdone,
@@ -357,7 +355,7 @@ classdef TrackMonitorViz < handle
                     (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
               set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);              
             catch ME,
-              fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
+              fprintf('Could not update nFramesTracked, for whatever reason.\n');
             end
           end
         end
@@ -372,7 +370,7 @@ classdef TrackMonitorViz < handle
         end
       end
       TrackMonitorViz.debugfprintf('\n');
-      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc);
+      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
       
       obj.resLast = pollingResult ;
       
