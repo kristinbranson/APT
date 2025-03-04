@@ -1,8 +1,8 @@
 function test_carmen_gt()
   [~, unittest_dir_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, 'pez7_al_updated_20241015_lightly_trained.lbl') ;  
-  backend_params = janelia_bsub_backend_params() ;
-  backend = fif(ispc(), 'docker', 'bsub') ;      
+  backend = 'docker' ;      
+  backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path) ;  
   oc = onCleanup(@()(delete(tester))) ;
   tester.test_gtcompute('backend',backend, ...

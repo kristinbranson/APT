@@ -6,9 +6,10 @@ function test_roian_aws_tracking()
   if ~isempty(tester.labeler.tracker.trkP)
     error('tester.labeler.tracker.trkP is nonempty---it should be empty before tracking') ;  
   end
-  backend_params = janelia_taylora_aws_backend_params() ;
+  backend = 'aws' ;
+  backend_params = synthesize_backend_params(backend) ;
   tester.test_tracking('algo_name', 'magrone', ...
-                       'backend', 'aws', ...
+                       'backend', backend, ...
                        'backend_params', backend_params) ;
   if ~isequal(size(tester.labeler.tracker.trkP.pTrk{1}), [4 2 101])
     error('After tracking, tester.labeler.tracker.trkP.pTrk{1} is the wrong size') ;

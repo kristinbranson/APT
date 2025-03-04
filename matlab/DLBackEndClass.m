@@ -311,7 +311,12 @@ classdef DLBackEndClass < handle
       if obj.doesOwnResources_ ,
         obj.killAndClearRegisteredJobs('track') ;
         obj.killAndClearRegisteredJobs('train') ;
-        obj.stopEc2InstanceIfNeeded_() ;
+        % obj.stopEc2InstanceIfNeeded_() ;
+          % We don't stop the ec2 instance anymore.  The aptAutoShutdown alarm will shut
+          % it down after two hours of inactivity.  The instance takes roughly 15 min to
+          % shutdown fully.  (The call to shut it down is async, and returns
+          % immediately, but if you want to restart it later you have to wait for it to
+          % fully shutdown first.)
       end
     end  % function    
   end  % methods
@@ -1219,25 +1224,21 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
+      % Errors if something goes wrong.
       if obj.type == DLBackEnd.AWS ,
-        [isAllWell, message] = obj.awsec2.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
+        obj.awsec2.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
       elseif obj.type == DLBackEnd.Bsub ,
         % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
         pause(10) ;
-        isAllWell = true ;
-        message = '' ;
       elseif obj.type == DLBackEnd.Conda ,
-        isAllWell = true ;
-        message = '' ;
+        % do nothing
       elseif obj.type == DLBackEnd.Docker ,
         if ~isempty(obj.dockerremotehost) ,
           % This path is for when the docker backend is running on a remote host.
           % Hack: For now, just wait a bit, to let (hopefully) NFS sync up.
           pause(10) ;
         end          
-        isAllWell = true ;
-        message = '' ;
       else
         error('Internal error: Unknown DLBackEndClass type') ;
       end
@@ -1385,61 +1386,43 @@ classdef DLBackEndClass < handle
     %   end        
     % end  % function
 
-    function nframes = readTrkFileStatus(obj, filename, partFileIsTextStatus, logger)
-      % Read the number of frames remaining according to the remote file at location
-      % filename.  If partFileIsTextStatus is true, this file is assumed to be a
+    function nframes = readTrkFileStatus(obj, localFilePath, isTextFile, logger)
+      % Read the number of frames remaining according to the remote file
+      % corresponding to absolute local file path
+      % localFilepath.  If partFileIsTextStatus is true, this file is assumed to be a
       % text file.  Otherwise, it is assumed to be a .mat file.  If the file does
       % not exist or there's some problem reading the file, returns nan.
-      if ~exist('partFileIsTextStatus', 'var') || isempty(partFileIsTextStatus) ,
-        partFileIsTextStatus = false ;
+      if ~exist('isTextFile', 'var') || isempty(isTextFile) ,
+        isTextFile = false ;
       end
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger(1, 'DLBackEndClass::readTrkFileStatus()') ;
       end
 
       if obj.type == DLBackEnd.AWS ,
-        %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
-        nframes = nan ;
-        if ~obj.fileExists(filename) ,
-          return
-        end
-        if partFileIsTextStatus,
-          str = obj.fileContents(filename) ;
-          nframes = TrkFile.getNFramesTrackedString(str) ;
-        else
-          local_filename = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
-          %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
-          did_succeed = obj.awsec2.scpDownloadOrVerify(filename, local_filename) ;
-          %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): Returned from call to obj.awsec2.scpDownloadOrVerify().\n') ;
-          if did_succeed ,
-            %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
-            try
-              nframes = TrkFile.getNFramesTrackedMatFile(local_filename) ;
-            catch me
-              logger.log('Could not read tracking progress from remote file %s: %s\n', filename, me.message) ;
-            end
-            %logger.log('Read that nframes = %d\n', nframes) ;
-          else
-            logger.log('Could not download tracking progress from remote file %s\n', filename) ;
-          end
-        end
+        % AWS backend
+        nframes = obj.awsec2.readTrkFileStatus(localFilePath, isTextFile, logger) ;
       else
         % If non-AWS backend
-        nframes = nan ;
-        if ~exist(filename,'file'),
-          return;
+        if ~exist(localFilePath,'file'),
+          nframes = nan ;
+          return
         end
-        if partFileIsTextStatus ,
-          s = obj.fileContents(filename) ;
+        if isTextFile ,
+          s = obj.fileContents(localFilePath) ;
           nframes = TrkFile.getNFramesTrackedPartFile(s) ;
         else
           try
-            nframes = TrkFile.getNFramesTrackedMatFile(filename);
+            nframes = TrkFile.getNFramesTrackedMatFile(localFilePath) ;
           catch
-            fprintf('Could not read tracking progress from %s\n',filename);
+            fprintf('Could not read tracking progress from %s\n',localFilePath);
+            nframes = nan ;
           end
         end        
       end
+      % if isnan(nframes) ,
+      %   nop() ;
+      % end
     end  % function
     
     function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)

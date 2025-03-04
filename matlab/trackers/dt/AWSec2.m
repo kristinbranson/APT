@@ -646,11 +646,21 @@ classdef AWSec2 < handle
     %   obj.scpUploadOrVerify(fileLcl,fileRemote,fileDescStr,...
     %     'destRelative',destRelative); % throws
     % end
-       
-    function tfsucc = rsyncUpload(obj, src, dest)
-      cmd = AWSec2.rsyncUploadCmd(src, obj.pem, obj.instanceIP, dest) ;
-      rc = AWSec2.syscmd(cmd) ;
-      tfsucc = (rc==0) ;
+    
+    function rsyncUploadFolder(obj, src, dest)
+      % rsync the local folder src to the remote folder dest.  No local-to-remote
+      % translation is done on dest.
+      % This can throw APT:syscmd error.       
+      cmd = AWSec2.rsyncUploadFolderCmd(src, obj.pem, obj.instanceIP, dest) ;
+      AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
+    end
+
+    function rsyncDownloadFile(obj, src, dest)
+      % rsync the local folder src to the remote folder dest.  No local-to-remote
+      % translation is done on dest.
+      % This can throw APT:syscmd error.       
+      cmd = AWSec2.rsyncDownloadFileCmd(obj.pem, obj.instanceIP, src, dest) ;
+      AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
 
     function deleteFile(obj,dst,~,varargin)
@@ -954,8 +964,38 @@ classdef AWSec2 < handle
       cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
-    function cmd = rsyncUploadCmd(src, pemFilePath, ip, dest)
-      % Generate the system() command to upload a file/folder via rsync.
+    function cmd = rsyncDownloadFileCmd(pemFilePath, ip, srcFileAbsPath, destFileAbsPath)
+      % Generate the system() command to download a file via rsync.
+
+      % It's important that neither src nor dest have a trailing slash
+      if isempty(srcFileAbsPath) ,
+        error('src file for rsync cannot be empty') ;
+      else
+        if strcmp(srcFileAbsPath(end),'/') ,
+          error('src file for rsync cannot end in a slash') ;
+        end
+      end
+      if isempty(destFileAbsPath) ,
+        error('dest file for rsync cannot be empty') ;
+      else
+        if strcmp(destFileAbsPath(end),'/') ,
+          error('dest file for rsync cannot end in a slash') ;
+        end
+      end
+
+      % Generate the --rsh argument
+      %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
+      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+        % We use an empty command, and an empty host, to get a string with the default
+        % options plus the two options we want to specify.
+      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+
+      % Generate the final command
+      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileAbsPath, destFileAbsPath) ;
+    end
+
+    function cmd = rsyncUploadFolderCmd(src, pemFilePath, ip, dest)
+      % Generate the system() command to upload a folder via rsync.
 
       % It's important that neither src nor dest have a trailing slash
       if isempty(src) ,
@@ -983,7 +1023,7 @@ classdef AWSec2 < handle
       % Generate the final command
       cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, src, ip, dest) ;
     end
-
+    
 %     function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
 %       [timeout,~] = myparse(varargin,...
 %                             'timeout',8,...
@@ -1056,31 +1096,29 @@ classdef AWSec2 < handle
       obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
     end  % function
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, pollingResult, localCacheRoot, movfiles)
+      % Errors if something goes wrong.
       remoteCacheRoot = AWSec2.remoteDLCacheDir ;
-      currentLocalPathFromTrackedMovieIndex = movfiles(:) ;  % column cellstr
-      originalLocalPathFromTrackedMovieIndex = {res.movfile}' ;  % column cellstr
+      currentLocalPathFromTrackedMovieIndex = movfiles(:) ;  % want cellstr col vector
+      originalLocalPathFromTrackedMovieIndex = pollingResult.movfile(:) ;  % want cellstr col vector
       if all(strcmp(currentLocalPathFromTrackedMovieIndex,originalLocalPathFromTrackedMovieIndex))
         % we perform this check b/c while tracking has been running in
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.        
         % download trkfiles 
-        localTrackFilePaths = {res.trkfile} ;
+        localTrackFilePaths = pollingResult.trkfile ;
         remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;
         sysCmdArgs = {'failbehavior', 'err'};
-        for ivw=1:numel(res)
+        for ivw=1:numel(localTrackFilePaths)
           trkRmt = remoteTrackFilePaths{ivw};
           trkLcl = localTrackFilePaths{ivw};
           fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
           obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
-          fprintf('Done downloading %s to %s...\n',trkRmt,trkLcl);
+          fprintf('Done downloading %s to %s.\n',trkRmt,trkLcl);
         end
-        isAllWell = true ;
-        message = '' ;
       else
-        isAllWell = false ;
-        message = sprintf('Tracking complete, but one or move movies has been changed in current project.') ;
-        % conservative, take no action for now
+        error('Tracking complete, but one or move movies has been changed in current project.') ;
+          % conservative, take no action for now
         return
       end
     end  % function    
@@ -1200,7 +1238,7 @@ classdef AWSec2 < handle
       if ~didsucceed ,
         error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
       end
-      obj.rsyncUpload(localProjectPath, remoteProjectPath) ;
+      obj.rsyncUploadFolder(localProjectPath, remoteProjectPath) ;  % this will throw if there's a problem
 
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
@@ -1447,12 +1485,8 @@ classdef AWSec2 < handle
 
       % Rsync the local APT code to the remote end
       local_apt_root = APT.Root ;
-      tfsucc = obj.rsyncUpload(local_apt_root, remote_apt_root) ;
-      if tfsucc ,
-        fprintf('Successfully rsynced remote APT source code (in %s) with local version (in %s).\n', remote_apt_root, local_apt_root) ;
-      else
-        error('Unable to rsync remote APT source code (in %s) with local version (in %s)', remote_apt_root, local_apt_root) ;
-      end
+      obj.rsyncUploadFolder(local_apt_root, remote_apt_root) ;  % Will throw on error
+      fprintf('Successfully rsynced remote APT source code (in %s) with local version (in %s).\n', remote_apt_root, local_apt_root) ;
 
       % Run the remote Python script to download the pretrained model weights
       % This python script doesn't do anything fancy, apparently, so we use the
@@ -1469,6 +1503,45 @@ classdef AWSec2 < handle
       fprintf('Updated remote APT source code.\n\n');
     end  % function    
     
+    function nframes = readTrkFileStatus(obj, localFilePath, isTextFile, logger)
+      % Read the number of frames remaining according to the remote file
+      % corresponding to absolute local file path
+      % localFilepath.  If partFileIsTextStatus is true, this file is assumed to be a
+      % text file.  Otherwise, it is assumed to be a .mat file.  If the file does
+      % not exist or there's some problem reading the file, returns nan.
+      if ~exist('isTextFile', 'var') || isempty(isTextFile) ,
+        isTextFile = false ;
+      end
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger(1, 'DLBackEndClass::readTrkFileStatus()') ;
+      end
+
+      %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
+      remoteFilePath = ...
+         AWSec2.applyFileNameSubstitutions(localFilePath, ...
+                                           obj.isDMCRemote_, obj.localDMCRootDir_) ;
+      if ~obj.fileExists(localFilePath) ,
+        nframes = nan ;
+        return
+      end
+      if isTextFile,
+        str = obj.fileContents(localFilePath) ;
+        nframes = TrkFile.getNFramesTrackedString(str) ;
+      else
+        localCopyFilePath = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
+        %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
+        % did_succeed = obj.scpDownloadOrVerify(remoteFilePath, localCopyFilePath) ;
+        try
+          obj.rsyncDownloadFile(remoteFilePath, localCopyFilePath) ;  % throws on error
+          %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
+          nframes = TrkFile.getNFramesTrackedMatFile(localCopyFilePath) ;
+          %logger.log('Read that nframes = %d\n', nframes) ;
+        catch me
+          logger.log('Could not download and/or read tracking progress from remote file %s:\n%s\n', remoteFilePath, me.getReport()) ;
+          nframes = nan ;
+        end
+      end
+    end  % function    
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -1498,14 +1571,20 @@ classdef AWSec2 < handle
       result = cellfun(@(path)(AWSec2.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
     end
 
-    function result = applyFileNameSubstitutions(command, ...
+    function result = applyFileNameSubstitutions(command_or_path, ...
                                                  isDMCRemote, localDMCRootDir, ...
                                                  didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
-      % Replate the local DMCoD root with the remote one
+      % Deal with optional args
+      if ~exist('didUploadMovies', 'var') || isempty(didUploadMovies) ,
+        didUploadMovies = false ;
+        localPathFromMovieIndex = '' ;  % will not be used
+        remotePathFromMovieIndex = '' ;  % will not be used
+      end
+      % Replace the local DMCoD root with the remote one
       if isDMCRemote ,
-        result_1 = strrep(command, localDMCRootDir, AWSec2.remoteDLCacheDir) ;
+        result_1 = strrep(command_or_path, localDMCRootDir, AWSec2.remoteDLCacheDir) ;
       else
-        result_1 = command ;
+        result_1 = command_or_path ;
       end      
       % Replace local movie paths with the corresponding remote ones
       if didUploadMovies ,

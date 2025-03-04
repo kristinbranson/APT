@@ -84,10 +84,12 @@ classdef BgClient < handle
       % We pack a suitcase so we can restore Transient properties on the other side.
       poller = obj.poller ;
       parfevalSuitcase = poller.packParfevalSuitcase() ;
+
       % Start production code
       obj.fevalFuture = ...
         parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
       % End production code
+
       % % Start debug code
       % tempfilename = tempname() ;
       % saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
@@ -101,7 +103,7 @@ classdef BgClient < handle
       obj.idTics = uint64(0);
       obj.idTocs = nan;
     end
-        
+    
     % function sendCommand(obj,sCmd)
     %   % Send command to poller; runPollingLoop() must have been called
     %   % 

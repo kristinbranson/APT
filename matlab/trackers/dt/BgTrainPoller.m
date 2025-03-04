@@ -39,8 +39,9 @@ classdef BgTrainPoller < BgPoller
       try
         result.jsonPresent = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.jsonPath);
         nModels = obj.dmcs_.n;
+        doesOutputFileExist = false(1,nModels);
         for i=1:nModels,
-          result.tfComplete(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
+          doesOutputFileExist(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
         end
         [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
         % one error, log, and kill file per job
@@ -52,7 +53,8 @@ classdef BgTrainPoller < BgPoller
         end
           
         result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
-        
+        result.tfComplete = doesOutputFileExist & ~result.isRunning ;
+
         % loop through all models trained in this job
         for i = 1:nModels,
           if result.jsonPresent(i),
@@ -109,20 +111,23 @@ classdef BgTrainPoller < BgPoller
           %sRes.logFileErrLikely(jobidx==i) = strcmp(reslines{off+3},'y');
           %sRes.killFileExists(jobidx==i) = strcmp(reslines{off+4},'y');
         end
+        doesOutputFileExist = false(1,nModels);
         for i = 1:nModels,
           off = nJobs*nlinesperjob+(i-1)*nlinespermodel;
           result.jsonPresent(i) = strcmp(reslines{off+1},'y');
-          result.tfComplete(i) = strcmp(reslines{off+2},'y');          
+          doesOutputFileExist = strcmp(reslines{off+2},'y');          
           if result.jsonPresent(i),
             result = obj.readTrainLoss_(result,i,reslines{off+3});
           end
         end
         try
           result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
+          result.tfComplete = doesOutputFileExist & ~result.isRunning ;
           result.pollsuccess = true ;
         catch me
           result.pollsuccess = false ;
-        end          
+        end 
+
       end  % if tfpollsucc
     end  % function
 
@@ -164,7 +169,7 @@ classdef BgTrainPoller < BgPoller
       result.contents = cell(1,nModels); % (only if jsonPresent==true) array, if tfupdate is true, this can contain all json contents.
       result.trainCompletePath = obj.dmcs_.trainCompleteArtifacts(); % cell of cell of char, full paths to artifact indicating train complete
       result.trainFinalModel = obj.dmcs_.trainFinalModelLnx();
-      result.tfComplete = false(1,nModels); % array, true if trainCompletePath exists
+      result.tfComplete = false(1,nModels); % array, true if trainCompletePath exists and training job is not running anymore
       result.errFile = obj.dmcs_.errfileLnx; % cell of char, full path to DL err file
       result.errFileExists = false(1,nModels); % array, true of errFile exists and has size>0
       result.logFile = obj.dmcs_.trainLogLnx; % cell of char, full path to Bsub logfile

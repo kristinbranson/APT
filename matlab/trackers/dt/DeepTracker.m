@@ -3162,17 +3162,17 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function didCompleteTrainingOrTracking(obj, train_or_track, res)
+    function didCompleteTrainingOrTracking(obj, train_or_track, pollingResult)
       if strcmp(train_or_track, 'track') ,
-        obj.didCompleteTracking_(res) ;
+        obj.didCompleteTracking_(pollingResult) ;
       elseif strcmp(train_or_track, 'train') ,
-        obj.didCompleteTraining_(res) ;
+        obj.didCompleteTraining_(pollingResult) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end      
     end  % function
 
-    function didCompleteTraining_(obj, res)  %#ok<INUSD>
+    function didCompleteTraining_(obj, ~)
       % Called by the child BgMonitor when the latest poll result indicates that
       % training is complete.
       obj.bgTrnMonitor.stop() ;  % stop monitoring
@@ -3183,7 +3183,7 @@ classdef DeepTracker < LabelTracker
       obj.killJobsAndPerformPostTrainingCleanup() ;     
     end
 
-    function didCompleteTracking_(obj, res)
+    function didCompleteTracking_(obj, pollingResult)
       % Called by the child BgMonitor when the latest poll result indicates that
       % tracking is complete.
       obj.bgTrkMonitor.stop() ;  % stop monitoring
@@ -3200,16 +3200,12 @@ classdef DeepTracker < LabelTracker
 
         % Ask the backend to do the heavy lifting
         movfiles = obj.trkSysInfo.getMovfiles() ;        
-        [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
+        backend.downloadTrackingFilesIfNecessary(pollingResult, localCacheRoot, movfiles) ;
 
         % Don't need this anymore since the paths in obj.trkSysInfo are kept local in
         % all cases now.
         % % For remote file systems, relocate the tracking info, so that paths are right
         % obj.trkSysInfo.changePathsToLocalFromRemote(localCacheRoot, backend) ;
-
-        if ~isAllWell ,
-          error(message) ;
-        end
 
         %[nMovies,nViews,nStgs] = size(res);
         nMovies = obj.trkSysInfo.nmovies;
@@ -3261,10 +3257,9 @@ classdef DeepTracker < LabelTracker
               fprintf('Warning: Unable to find movie %s, which allegedly contains tracked frames\n', movfile) ;
             end
           end
-        end
-      
-      catch ME,
-        warning('Error gathering tracking results:\n%s',getReport(ME));
+        end      
+      catch me 
+        warning('Error gathering tracking results:\n%s', getReport(me)) ;
         return
       end
 
