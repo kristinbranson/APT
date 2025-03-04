@@ -184,9 +184,9 @@ classdef BgTrackPoller < BgPoller
       errfiles = obj.toTrackInfos_.getErrFiles() ; % njobs x 1
       logfiles = obj.toTrackInfos_.getLogFiles() ; % njobs x 1
       % killfiles = obj.getKillFiles(); % njobs x 1
-      outfiles = obj.toTrackInfos_.getListOutfiles() ; % nmovies x nviews x nstages
-      
-      outTrkFileTimestamps = nan(size(outfiles)); % nmovies x nviews x nstages
+      outfiles = col(obj.toTrackInfos_.getListOutfiles()) ; % njobs x 1
+
+      outTrkFileTimestamps = nan(size(outfiles)) ;  % njobs x 1
       for i = 1:numel(outfiles),
         trkfilecurr = outfiles{i};
         tmp = dir(trkfilecurr);
@@ -200,21 +200,20 @@ classdef BgTrackPoller < BgPoller
       njobs = obj.njobs ;
       try
         isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
-        isRunningFromTripleIndex = obj.replicateJobs_(isRunningFromJobIndex) ; % nmovies x njobs x nstages       
-        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % nmovies x njobs x nstages
-        tfCompleteFromTripleIndex = doesOutputTrkFileExistFromTripleIndex & ~isRunningFromTripleIndex ; % nmovies x njobs x nstages
+        doesOutputTrkFileExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % njobs x 1
+        tfCompleteFromJobIndex = doesOutputTrkFileExistFromJobIndex & ~isRunningFromJobIndex ; % njobs x 1
         tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
         logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
         pollsuccess = true ;
       catch me
         % Likely a filesystem error checking for the files
         isRunningFromJobIndex = false(njobs,1) ;
-        tfCompleteFromTripleIndex = false(size(outfiles)) ;
+        tfCompleteFromJobIndex = false(size(outfiles)) ;
         tfErrFileErrFromJobIndex = true(size(errfiles)) ;
         logFilesExistFromJobIndex = true(size(logfiles)) ;
         pollsuccess = false ;
       end
-      logger.log('tfComplete = %s\n',mat2str(tfCompleteFromTripleIndex(:)'));
+      logger.log('tfComplete = %s\n',mat2str(tfCompleteFromJobIndex(:)'));
       
       %bsuberrlikely = cellfun(@obj.logFileErrLikely,logfiles); % njobs x 1
       
@@ -226,7 +225,7 @@ classdef BgTrackPoller < BgPoller
       result = struct(...
         'pollsuccess',{pollsuccess}, ...
         'isPopulated',{true(njobs,1)}, ...        
-        'tfComplete',{tfCompleteFromTripleIndex},...
+        'tfComplete',{tfCompleteFromJobIndex},...
         'isRunning',{isRunningFromJobIndex},...
         'errFile',{errfiles},... % char, full path to DL err file
         'errFileExists',{tfErrFileErrFromJobIndex},... % true of errFile exists and has size>0
