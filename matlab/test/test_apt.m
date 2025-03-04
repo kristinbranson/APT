@@ -1,6 +1,7 @@
 function varargout = test_apt(varargin)
-  % Run all the tests, except thos needing the AWS backend.  If keyword argument
-  % 'aws' is true, the tests that use the AWS backend are also run.
+  % Run all the tests, except thos needing a remote backend.  If keyword argument
+  % 'remote' is true, the tests that use the remote backends (AWS, bsub, remote
+  % docker) are also run.
   %
   % If a single argument is given, it is assumed to be a
   % single test function name, and it is feval'ed without a surrounding
@@ -17,18 +18,21 @@ function varargout = test_apt(varargin)
     fprintf('Single test passed.\n') ;
     test_passed_count = 1 ;
   else
-    [do_run_aws_tests] = myparse(varargin, ...
-                                 'aws', false) ;
+    [do_run_remote_tests] = ...
+      myparse(varargin, ...
+              'remote', false) ;
     this_dir_path = fileparts(mfilename('fullpath')) ;
     single_tests_dir_path = fullfile(this_dir_path, 'single-tests') ;
-    test_file_names = simple_dir(fullfile(single_tests_dir_path, '*.m')) ;
-    all_test_function_names = cellfun(@(file_name)(file_name(1:end-2)), test_file_names, 'UniformOutput', false) ;
-    if do_run_aws_tests ,
-      function_name_from_test_index = all_test_function_names ;
+    test_file_name_from_local_test_index = simple_dir(fullfile(single_tests_dir_path, '*.m')) ;
+    function_name_from_local_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_local_test_index, 'UniformOutput', false) ;
+    if do_run_remote_tests ,
+      function_name_from_test_index = function_name_from_local_test_index ;
     else
-      % Filter out tests with 'AWS' in the name, ignoring case
-      is_aws_from_all_test_index = contains(all_test_function_names, 'aws', 'IgnoreCase', true) ;
-      function_name_from_test_index = all_test_function_names(~is_aws_from_all_test_index) ;
+      % Get the remote tests
+      remote_tests_dir_path = fullfile(single_tests_dir_path, 'remote') ;
+      test_file_name_from_remote_test_index = simple_dir(fullfile(remote_tests_dir_path, '*.m')) ;
+      function_name_from_remote_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_remote_test_index, 'UniformOutput', false) ;
+      function_name_from_test_index = horzcat(function_name_from_local_test_index, function_name_from_remote_test_index) ;
     end
     test_count = numel(function_name_from_test_index) ;
     fprintf('Running %d tests...\n', test_count) ;

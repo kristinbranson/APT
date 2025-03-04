@@ -320,11 +320,11 @@ classdef TrackMonitorViz < handle
               if isfield(pollingResult,'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
                 obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
-                if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
-                  nop() ;
-                  %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
-                    % This should be caught by the local try-catch
-                end
+                % if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
+                %   nop() ;
+                %   %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                %     % This should be caught by the local try-catch
+                % end
               else
                 if isdone,
                   tfile = pollingResult.trkfile{ijob};
