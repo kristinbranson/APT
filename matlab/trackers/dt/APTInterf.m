@@ -32,7 +32,8 @@ classdef APTInterf
       cacheRootDir = linux_path(nativeCacheRootDir) ;
       nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
       errFile = linux_path(nativeErrfile) ;
-      logFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
+      nativeLogFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
+      logFile = linux_path(nativeLogFile) ;
       tfFollowsObjDet = dmc.getFollowsObjDet();
       stages = unique(dmc.getStages());
       views = unique(dmc.getViews());
