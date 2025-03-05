@@ -655,12 +655,13 @@ classdef DLBackEndClass < handle
   methods
     function [didsucceed, msg] = mkdir(obj, dir_name)
       % Create the named directory, either locally or remotely, depending on the
-      % backend type.      
+      % backend type.  On Windows, dir_name can be a Windows-style path.
+      linux_dir_name = linux_path(dir_name) ;
       if obj.type == DLBackEnd.AWS ,
-        [didsucceed, msg] = obj.awsec2.mkdir(dir_name) ;
+        [didsucceed, msg] = obj.awsec2.mkdir(linux_dir_name) ;
       else
-        quoted_dirloc = escape_string_for_bash(dir_name) ;
-        base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
+        quoted_linux_dir_name = escape_string_for_bash(linux_dir_name) ;
+        base_command = sprintf('mkdir -p %s', quoted_linux_dir_name) ;
         [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
         didsucceed = (status==0) ;
       end
