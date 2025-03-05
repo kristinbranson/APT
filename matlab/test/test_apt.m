@@ -26,13 +26,13 @@ function varargout = test_apt(varargin)
     test_file_name_from_local_test_index = simple_dir(fullfile(single_tests_dir_path, '*.m')) ;
     function_name_from_local_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_local_test_index, 'UniformOutput', false) ;
     if do_run_remote_tests ,
-      function_name_from_test_index = function_name_from_local_test_index ;
-    else
       % Get the remote tests
       remote_tests_dir_path = fullfile(single_tests_dir_path, 'remote') ;
       test_file_name_from_remote_test_index = simple_dir(fullfile(remote_tests_dir_path, '*.m')) ;
       function_name_from_remote_test_index = cellfun(@(file_name)(file_name(1:end-2)), test_file_name_from_remote_test_index, 'UniformOutput', false) ;
       function_name_from_test_index = horzcat(function_name_from_local_test_index, function_name_from_remote_test_index) ;
+    else
+      function_name_from_test_index = function_name_from_local_test_index ;
     end
     test_count = numel(function_name_from_test_index) ;
     fprintf('Running %d tests...\n', test_count) ;
