@@ -1,7 +1,7 @@
 function test_roian_bsub_training()
-  [~, unittest_dir_path] = get_test_project_paths() ;
+  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl') ;
-  tester = LabelerProjectTester(project_file_path) ;
+  tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   backend = 'bsub' ;
   backend_params = synthesize_backend_params(backend) ; 

@@ -1,8 +1,8 @@
 function test_sam_two_view_tracking()
   % Test training for alice project
-  [~, unittest_dir_path] = get_test_project_paths() ;
+  [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, '2011_mouse_cam13_updated_movie_paths_20241111_modded_lightly_trained.lbl') ;
-  tester = LabelerProjectTester(project_file_path) ;
+  tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   if ~isempty(tester.labeler.tracker.trkP)
     error('tester.labeler.tracker.trkP is nonempty---it should be empty before tracking') ;  
