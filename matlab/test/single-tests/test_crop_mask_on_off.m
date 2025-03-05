@@ -10,7 +10,9 @@ end
 
 function test_crop_mask_on_off_helper(doCrop, doMask)
   % Helper method, not itself a test method
-  setup_params = get_setup_parameters() ;
+  backend = 'docker' ;  % Should work on Linux or Windows
+  backend_params = synthesize_backend_params(backend) ;
+
   [labeler, controller] = ...
     StartAPT('projfile', ...
                '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl') ;
@@ -20,12 +22,22 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   labeler.trackMakeNewTrackerCurrentByName('magrone') ;
 
   % Set the backend type
-  labeler.set_backend_property('type', 'bsub');
+  labeler.set_backend_property('type', backend);
 
   % Set backend properties
-  labeler.set_backend_property('jrcgpuqueue', setup_params.jrcgpuqueue) ;
-  labeler.set_backend_property('jrcnslots', setup_params.jrcnslots) ;
-  labeler.set_backend_property('jrcAdditionalBsubArgs', setup_params.jrcAdditionalBsubArgs) ;
+  % labeler.set_backend_property('jrcgpuqueue', backend_params.jrcgpuqueue) ;
+  % labeler.set_backend_property('jrcnslots', backend_params.jrcnslots) ;
+  % labeler.set_backend_property('jrcAdditionalBsubArgs', backend_params.jrcAdditionalBsubArgs) ;
+  if ~isempty(backend_params) ,
+    backend_params_struct = struct_from_key_value_list(backend_params) ;
+    % Set the backend parameters
+    name_from_field_index = fieldnames(backend_params_struct) ;
+    for field_index = 1 : numel(name_from_field_index) ,
+      name = name_from_field_index{field_index} ;
+      value = backend_params_struct.(name) ;
+      labeler.set_backend_property(name, value) ;
+    end
+  end
 
   % Modify the training parameters
   original_training_params = labeler.trackGetTrainingParams();
@@ -57,15 +69,3 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
 end  % function    
 
 
-
-function result = get_setup_parameters()
-  if strcmp(get_user_name(), 'taylora') ,
-    jrcAdditionalBsubArgs = '-P scicompsoft' ;
-  else
-    jrcAdditionalBsubArgs = '' ;
-  end
-  result = ...
-    struct('jrcgpuqueue',{'gpu_a100'}, ...
-           'jrcnslots',{4}, ...
-           'jrcAdditionalBsubArgs',{jrcAdditionalBsubArgs}) ;
-end  % function
