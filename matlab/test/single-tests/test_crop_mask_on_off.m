@@ -13,10 +13,19 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   backend = 'docker' ;  % Should work on Linux or Windows
   backend_params = synthesize_backend_params(backend) ;
 
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
+  if ispc()
+    project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
+    replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
+  else
+    project_file_path = linux_project_file_path ;
+    replace_path = [] ;
+  end
   [labeler, controller] = ...
-    StartAPT('projfile', ...
-               '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl') ;
+    StartAPT('projfile', project_file_path, ...
+             'replace_path', replace_path) ;
   cleaner = onCleanup(@()(delete(controller))) ;  % this will delete labeler too
+  cleaner2 = onCleanup(@()(delete(labeler))) ;  % but just to be sure
 
   % Set the algo
   labeler.trackMakeNewTrackerCurrentByName('magrone') ;
