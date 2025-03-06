@@ -9,6 +9,8 @@ classdef APTInterf
   methods (Static)
 
     function codestr = trainCodeGenBase(dmc,varargin)
+      % Generate a base command for training.  Returned command uses WSL paths (see
+      % DLBackEndClass documentation).
       torchhome_native_fallback = fullfile(APT.getdotaptdirpath(), 'torch') ;
       [aptroot,confparamsextra,...
         torchhome_native,val_split,...
@@ -156,11 +158,13 @@ classdef APTInterf
     end
 
     function result = aptInterfacePath(aptroot)
+      % Returns the path to APT_interface.py, as a WSL path.
       aptintrf = fullfile(aptroot, APTInterf.pymoduleparentdir, APTInterf.pymodule) ;  % this is a native path
       result = linux_path(aptintrf) ;
     end
 
-    function [codestr,code] = trackCodeGenBase(totrackinfo,varargin)
+    function [codestr,code] = trackCodeGenBase(totrackinfo, varargin)
+      % Generate the case command for tracking.  Returned command uses WSL paths.
       
       % Serial mode: 
       % - movtrk is [nmov] array

@@ -459,7 +459,7 @@ classdef DLBackEndClass < handle
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
 
-      [~, minFreeMem, condaEnv, verbose] = ...
+      [dockerimgfull, minFreeMem, condaEnv, verbose] = ...
         myparse(varargin,...
                 'dockerimg',obj.dockerimgfull,...
                 'minfreemem',obj.minFreeMem,...
@@ -469,14 +469,15 @@ classdef DLBackEndClass < handle
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
-      aptdeepnetpath = APT.getpathdl() ;
+      aptdeepnetpath_native = APT.getpathdl() ; % native path
+      aptdeepnetpath = linux_path(aptdeepnetpath_native) ;  % WSL path
       
       switch obj.type,
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnetpath}; % don't use guarded
           codestr = wrapCommandDocker(basecmd,...
-                                      'dockerimg',obj.dockerimgfull,...
+                                      'dockerimg',dockerimgfull,...
                                       'containername','aptTestContainer',...
                                       'bindpath',bindpath,...
                                       'detach',false);
@@ -489,7 +490,7 @@ classdef DLBackEndClass < handle
             return;
           end
         case DLBackEnd.Conda
-          scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;
+          scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;  % Conda backend is only on Linux, so this is both native and WSL path.
           basecmd = sprintf('echo START && python %s && echo END', scriptpath);
           codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
           [st,res] = apt.syscmd(codestr) ;  % wrapCommandConda 
