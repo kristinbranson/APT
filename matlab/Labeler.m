@@ -2336,43 +2336,40 @@ classdef Labeler < handle
       % From here to the end of this method is a parallel initialization to
       % projNew()
       
+      % For all the loadable properties in s, load them into the obj, doing path
+      % replacement along the way if called for.
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
-      lposProps = cell(0,1); %obj.SAVEPROPS_LPOS(:,1);
-      for f=LOADPROPS(:)',f=f{1}; %#ok<FXSET>
-        if isfield(s,f)          
-          if ~any(strcmp(f,lposProps))
-            if ~any(strcmp(f,Labeler.MOVIEPROPS)) || isempty(replace_path{1})
-              obj.(f) = s.(f);
-            else
-              if isstruct(s.(f))
-                curf = s.(f);
-                fnames = fieldnames(curf);
-                for fndx = 1:numel(fnames)
-                  curf.(fnames{fndx}) = strrep(curf.(fnames{fndx}),replace_path{1},replace_path{2});
-                end
-              else
-                curf = strrep(s.(f),replace_path{1},replace_path{2});
-              end
-              obj.(f) = curf;
-            end
-          else
-            val = s.(f);
-            assert(iscell(val));
-            for iMov=1:numel(val)
-              x = val{iMov};
-              if isstruct(x)
-                xfull = SparseLabelArray.full(x);
-                val{iMov} = xfull;
-              end
-            end
-            obj.(f) = val;
-          end
-        else
-          warningNoTrace('Labeler:load','Missing load field ''%s''.',f);
-          %obj.(f) = [];
+      path_to_replace = replace_path{1} ;
+      target_path = replace_path{2} ;
+      for i = 1 : numel(LOADPROPS) 
+        prop_name = LOADPROPS{i} ;
+        if ~isfield(s, prop_name)          
+          warningNoTrace('Labeler:load','Missing load field ''%s''.',prop_name);
+          continue
         end
-      end
+        saved_value = s.(prop_name) ;
+        if isempty(path_to_replace) ,
+          % If there is no path replacement to be done, just assign the saved value to the object property.
+          obj.(prop_name) = saved_value ;
+        else          
+          if any(strcmp(prop_name,Labeler.MOVIEPROPS))
+            % If prop_name is a movie property, then we want to do path replacement
+            if isstruct(saved_value)
+              value = structfun(@(path)(strrep(path, path_to_replace, target_path)), ...
+                               saved_value, ...
+                               'UniformOutput', false) ;              
+            else              
+              value = strrep(saved_value, path_to_replace, target_path) ;
+            end
+            obj.(prop_name) = value ;
+          else
+            % If prop_name is not a movie property, then just assign the saved value to
+            % the object property.
+            obj.(prop_name) = saved_value ;
+          end
+        end
+      end  % for
 
       % need this before setting movie so that .projectroot exists
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
