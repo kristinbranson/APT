@@ -318,7 +318,7 @@ classdef APTInterf
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile)
-        code = [code {'-list_file' escape_string_for_bash(totrackinfo.listfile)}];
+        code = [code {'-list_file' escape_string_for_bash(linux_path(totrackinfo.listfile))}];
         code = [code {'-out'} escape_cellstring_for_bash(linux_path(totrackinfo.listoutfiles))];
       else
         tf = escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)));
