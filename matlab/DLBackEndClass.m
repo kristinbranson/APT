@@ -3,7 +3,32 @@ classdef DLBackEndClass < handle
   % This class is intended to abstract away details particular to one backend or
   % another, so that calling code doesn't need to worry about such grubby
   % details.
-  
+  %
+  % Note that filesystem paths stored in a DLBackEndClass object should be WSL
+  % paths.  All of the paths that APT deals with are either a) native, b) WSL,
+  % or c) remote.  A native path points to a file in the native filesystem of
+  % the frontend (either Linux or Windows).  E.g. /home/joeuser/data or
+  % C:\Users\joeuser\Documents\data.  (On Windows a native path have slashes or
+  % backslashes or both as path separators.)  A WSL path is a valid path inside
+  % the local Linux environment.  On Windows, that's WSL2. On Linux, that's just
+  % Linux, so on Linux the WSL path is just the native path. So on Windows the
+  % native path 'C:\Users\joeuser\Documents\data' would become the WSL path
+  % '/mnt/c/Users/joeuser/Documents/data'.  A remote path is a path on the
+  % remote backend filesystem, for instance AWS.  For the docker backend the WSL
+  % path and the remote path will be the same.  Ditto the conda and bsub
+  % backends.  For the AWS backend the remote path will typically start with
+  % '/home/ubuntu'.
+  %
+  % For the Labeler and the DeepTracker, all paths stored in them should be
+  % native paths, and all paths they pass to DLBackendClass methods should be
+  % native paths.  All filesystem paths stored in the DLBackEndClass proper
+  % should be WSL paths.  All paths stored in the AWSec2 object will be remote
+  % paths, except where noted.  All paths passed from the DLBackendClass object
+  % to the AWSec2 object should be WSL paths.
+  %
+  % Also note that when synthesizing command lines, WSL paths should normally be
+  % used.  The AWSec2 object will convert these to remote paths when needed.
+
   properties (Constant)
     minFreeMem = 9000  % in MiB
     defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
@@ -894,59 +919,59 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function registerTrainingJob(backend, dmcjob, tracker, gpuids, do_just_generate_db)
+    function registerTrainingJob(obj, dmcjob, tracker, gpuids, do_just_generate_db)
       % Register a single training job with the backend, for later spawning via
       % spawnRegisteredJobs().
 
       % Get the root of the remote source tree
-      remoteaptroot = backend.aptSourceDirRoot() ;
+      remoteaptroot = obj.aptSourceDirRoot() ;
       
-      ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
+      ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trainCodeGenBase(dmcjob,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
                                            'do_just_generate_db',do_just_generate_db, ...
-                                           'torchhome', backend.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend,tracker,gpuids,dmcjob,remoteaptroot,'train');
-      syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
+                                           'torchhome', DLBackEndClass.getTorchHome());
+      args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
+      syscmd = wrapCommandToBeSpawnedForBackend(obj,basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      logcmd = backend.generateLogCommand_('train', dmcjob) ;
+      logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
-      backend.training_syscmds_{end+1,1} = syscmd ;
-      backend.training_logcmds_{end+1,1} = logcmd ;
-      backend.training_cmdfiles_{end+1,1} = cmdfile ;
-      backend.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
+      obj.training_syscmds_{end+1,1} = syscmd ;
+      obj.training_logcmds_{end+1,1} = logcmd ;
+      obj.training_cmdfiles_{end+1,1} = cmdfile ;
+      obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
-    function registerTrackingJob(backend, totrackinfo, deeptracker, gpuids, track_type)
+    function registerTrackingJob(obj, totrackinfo, deeptracker, gpuids, track_type)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
       % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
-      remoteaptroot = backend.aptSourceDirRoot() ;
+      remoteaptroot = obj.aptSourceDirRoot() ;
 
       % totrackinfo has local paths, need to remotify them
       remotetotrackinfo = totrackinfo.copy() ;
-      remotetotrackinfo.changePathsToRemoteFromLocal(backend.localDMCRootDir, backend) ;
+      remotetotrackinfo.changePathsToRemoteFromLocal(obj.localDMCRootDir, obj) ;
 
-      ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
+      ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
                                            'track_type',track_type, ...
-                                           'torchhome', backend.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
-      syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
+                                           'torchhome', DLBackEndClass.getTorchHome());
+      args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
+      syscmd = wrapCommandToBeSpawnedForBackend(obj, basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      logcmd = backend.generateLogCommand_('track', remotetotrackinfo) ;
+      logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
-      backend.tracking_syscmds_{end+1,1} = syscmd ;
-      backend.tracking_logcmds_{end+1,1} = logcmd ;
-      backend.tracking_cmdfiles_{end+1,1} = cmdfile ;
-      backend.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
+      obj.tracking_syscmds_{end+1,1} = syscmd ;
+      obj.tracking_logcmds_{end+1,1} = logcmd ;
+      obj.tracking_cmdfiles_{end+1,1} = cmdfile ;
+      obj.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
     function spawnRegisteredJobs(obj, train_or_track, varargin)
@@ -1501,15 +1526,20 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function result = get.localDMCRootDir(obj) 
+    function result = get.localDMCRootDir(obj)
+      % The local DMC root dir, as a WSL path.
       result = obj.awsec2.localDMCRootDir ;
     end  % function
 
     function set.localDMCRootDir(obj, value) 
-      obj.awsec2.localDMCRootDir = value ;
+      % Set the local DMC root dir.  Note that value is assumed to be a native path,
+      % but we convert to a WSL path before passing to obj.awsec2.
+      path = linux_path(value) ;
+      obj.awsec2.localDMCRootDir = path ;
     end  % function
 
     function result = get.remoteDMCRootDir(obj)  %#ok<MANU>
+      % Get the remote DMC root dir.  Returned as a remote path.
       result = AWSec2.remoteDLCacheDir ;
     end  % function
 
@@ -1544,14 +1574,6 @@ classdef DLBackEndClass < handle
     function set.awsInstanceType(obj, value)
       obj.awsec2.instanceType = value ;
     end  % function
-    
-    function result = getTorchHome(obj)
-      if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.getTorchHome() ;
-      else
-        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
-      end
-    end  % function   
     
     function statusStringFromJobIndex = queryAllJobsStatus(obj, train_or_track)
       % Returns a cell array of status strings, one for each spawned job.
@@ -1686,6 +1708,168 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
+    function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo, aptroot, train_or_track)
+      % Get arguments for a particular (spawning) job to be registered.
+      
+      if isequal(train_or_track,'train'),
+        dmc = jobinfo;
+        containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
+      else
+        dmc = jobinfo.trainDMC;
+        containerName = jobinfo.containerName;
+      end
+      
+      switch obj.type
+        case DLBackEnd.Bsub
+          mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
+          if isequal(train_or_track,'train'),
+            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+            nslots = obj.jrcnslots;
+          else % track
+            logfile = jobinfo.logfile;
+            nslots = obj.jrcnslotstrack;
+          end
+      
+          % for printing git status? not sure why this is only in bsub and
+          % not others. 
+          aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
+          extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
+          singimg = tracker.singularityImgPath();
+      
+          additionalBsubArgs = obj.jrcAdditionalBsubArgs ;
+          result = {...
+            'singargs',{'bindpath',mntPaths,'singimg',singimg},...
+            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
+                        'additionalArgs', additionalBsubArgs},...
+            'sshargs',{'extraprefix',extraprefix}...
+            };
+        case DLBackEnd.Docker
+          mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
+          isgpu = ~isempty(gpuid) && ~isnan(gpuid);
+          % tfRequiresTrnPack is always true;
+          shmsize = 8;
+          result = {...
+            'containerName',containerName,...
+            'bindpath',mntPaths,...
+            'isgpu',isgpu,...
+            'gpuid',gpuid,...
+            'shmsize',shmsize...
+            };
+        case DLBackEnd.Conda
+          if isequal(train_or_track,'train'),
+            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+          else % track
+            logfile = jobinfo.logfile;
+          end
+          result = {...
+            'logfile', logfile };
+          % backEndArgs = {...
+          %   'condaEnv', obj.condaEnv, ...
+          %   'gpuid', gpuid };
+        case DLBackEnd.AWS
+          result  = {} ;
+        otherwise,
+          error('Internal error: Unknown backend type') ;
+      end
+    end  % function
 
+    function result = genContainerMountPathBsubDocker_(obj, tracker, cmdtype, jobinfo, varargin)
+      % Return a list of paths that will need to be mounted inside the
+      % Apptainer/Docker container.  Returned paths are linux-appropriate.
+
+      % Process optional args
+      [aptroot, extradirs] = ...
+        myparse(varargin,...
+                'aptroot',[],...
+                'extra',{});
+      
+      assert(obj.type==DLBackEnd.Bsub || obj.type==DLBackEnd.Docker);
+      
+      if isempty(aptroot)
+        switch obj.type
+          case DLBackEnd.Bsub
+            aptroot = obj.bsubaptroot;
+          case DLBackEnd.Docker
+            % could add prop to backend for this but 99% of the time for 
+            % docker the backend should run the same code as frontend
+            aptroot = APT.Root; 
+        end
+      end
+      
+      if ~isempty(tracker.containerBindPaths)
+        assert(iscellstr(tracker.containerBindPaths),'containerBindPaths must be a cellstr.');
+        fprintf('Using user-specified container bind-paths:\n');
+        paths = tracker.containerBindPaths;
+      elseif obj.type==DLBackEnd.Bsub && obj.jrcsimplebindpaths
+        fprintf('Using JRC container bind-paths:\n');
+        paths = {'/groups';'/nrs'};
+      else
+        lObj = tracker.lObj;
+        
+        %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
+        %cacheDir = obj.lObj.DLCacheDir;
+        cacheDir = APT.getdotaptdirpath() ;
+        assert(~isempty(cacheDir));
+        
+        if isequal(cmdtype,'train'),
+          projbps = lObj.movieFilesAllFull(:);
+          %mfafgt = lObj.movieFilesAllGTFull;
+          if lObj.hasTrx,
+            projbps = [projbps;lObj.trxFilesAllFull(:)];
+            %tfafgt = lObj.trxFilesAllGTFull;
+          end
+        else
+          projbps = jobinfo.getMovfiles();
+          projbps = projbps(:);
+          if lObj.hasTrx,
+            trxfiles = jobinfo.getTrxFiles();
+            trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
+            if ~isempty(trxfiles),
+              projbps = [projbps;trxfiles(:)];
+            end
+          end
+        end
+        
+        [projbps2,ischange] = GetLinkSources(projbps);
+        projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
+
+      	if obj.type==DLBackEnd.Docker
+          % docker writes to ~/.cache. So we need home directory. MK
+          % 20220922
+          % add in home directory and their ancestors
+          homedir = getuserdir;
+          homeancestors = [{homedir},getpathancestors(homedir)];
+          if isunix
+            homeancestors = setdiff(homeancestors,{'/'});
+          end
+        else
+          homeancestors = {};
+        end
+
+        fprintf('Using auto-generated container bind-paths:\n');
+        %dlroot = [aptroot '/deepnet'];
+        % AL 202108: include all of <APT> due to git describe cmd which
+        % looks in <APT>/.git
+        paths0 = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
+        paths = FSPath.commonbase(paths0,1);
+        %paths = unique(paths);
+      end
+      
+      cellfun(@(x)fprintf('  %s\n',x),paths);
+      result = linux_path(paths) ;
+    end  % function
+    
+  end  % methods
+
+  methods (Static)
+    function result = getTorchHome()
+      % Get the Torch home dir.  Returns a WSL path.
+      result = linux_path(fullfile(APT.getdotaptdirpath(), 'torch')) ;
+      % if obj.type == DLBackEnd.AWS ,
+      %   result = obj.awsec2.getTorchHome() ;
+      % else
+      %   result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+      % end
+    end  % function   
   end  % methods
 end  % classdef

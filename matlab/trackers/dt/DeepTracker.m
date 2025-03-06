@@ -1794,85 +1794,85 @@ classdef DeepTracker < LabelTracker
 %       
 %     end
     
-    function paths = genContainerMountPathBsubDocker(obj,backend,cmdtype,jobinfo,varargin)
-      
-      [aptroot,extradirs] = myparse(varargin,...
-        'aptroot',[],'extra',{});
-      
-      assert(backend.type==DLBackEnd.Bsub || backend.type==DLBackEnd.Docker);
-      
-      if isempty(aptroot)
-        switch backend.type
-          case DLBackEnd.Bsub
-            aptroot = backend.bsubaptroot;
-          case DLBackEnd.Docker
-            % could add prop to backend for this but 99% of the time for 
-            % docker the backend should run the same code as frontend
-            aptroot = APT.Root; 
-        end
-      end
-      
-      if ~isempty(obj.containerBindPaths)
-        assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
-        fprintf('Using user-specified container bind-paths:\n');
-        paths = obj.containerBindPaths;
-      elseif backend.type==DLBackEnd.Bsub && backend.jrcsimplebindpaths
-        fprintf('Using JRC container bind-paths:\n');
-        paths = {'/groups';'/nrs'};
-      else
-        lObj = obj.lObj;
-        
-        %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
-        %cacheDir = obj.lObj.DLCacheDir;
-        cacheDir = APT.getdotaptdirpath() ;
-        assert(~isempty(cacheDir));
-        
-        if isequal(cmdtype,'train'),
-          projbps = lObj.movieFilesAllFull(:);
-          %mfafgt = lObj.movieFilesAllGTFull;
-          if lObj.hasTrx,
-            projbps = [projbps;lObj.trxFilesAllFull(:)];
-            %tfafgt = lObj.trxFilesAllGTFull;
-          end
-        else
-          projbps = jobinfo.getMovfiles();
-          projbps = projbps(:);
-          if lObj.hasTrx,
-            trxfiles = jobinfo.getTrxFiles();
-            trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
-            if ~isempty(trxfiles),
-              projbps = [projbps;trxfiles(:)];
-            end
-          end
-        end
-        
-        [projbps2,ischange] = GetLinkSources(projbps);
-        projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
-
-      	if backend.type==DLBackEnd.Docker
-          % docker writes to ~/.cache. So we need home directory. MK
-          % 20220922
-          % add in home directory and their ancestors
-          homedir = getuserdir;
-          homeancestors = [{homedir},getpathancestors(homedir)];
-          if isunix
-            homeancestors = setdiff(homeancestors,{'/'});
-          end
-        else
-          homeancestors = {};
-        end
-
-        fprintf('Using auto-generated container bind-paths:\n');
-        %dlroot = [aptroot '/deepnet'];
-        % AL 202108: include all of <APT> due to git describe cmd which
-        % looks in <APT>/.git
-        paths = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
-        paths = FSPath.commonbase(paths,1);
-        %paths = unique(paths);
-      end
-      
-      cellfun(@(x)fprintf('  %s\n',x),paths);
-    end  
+    % function paths = genContainerMountPathBsubDocker(tracker,backend,cmdtype,jobinfo,varargin)
+    % 
+    %   [aptroot,extradirs] = myparse(varargin,...
+    %     'aptroot',[],'extra',{});
+    % 
+    %   assert(backend.type==DLBackEnd.Bsub || backend.type==DLBackEnd.Docker);
+    % 
+    %   if isempty(aptroot)
+    %     switch backend.type
+    %       case DLBackEnd.Bsub
+    %         aptroot = backend.bsubaptroot;
+    %       case DLBackEnd.Docker
+    %         % could add prop to backend for this but 99% of the time for 
+    %         % docker the backend should run the same code as frontend
+    %         aptroot = APT.Root; 
+    %     end
+    %   end
+    % 
+    %   if ~isempty(tracker.containerBindPaths)
+    %     assert(iscellstr(tracker.containerBindPaths),'containerBindPaths must be a cellstr.');
+    %     fprintf('Using user-specified container bind-paths:\n');
+    %     paths = tracker.containerBindPaths;
+    %   elseif backend.type==DLBackEnd.Bsub && backend.jrcsimplebindpaths
+    %     fprintf('Using JRC container bind-paths:\n');
+    %     paths = {'/groups';'/nrs'};
+    %   else
+    %     lObj = tracker.lObj;
+    % 
+    %     %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
+    %     %cacheDir = obj.lObj.DLCacheDir;
+    %     cacheDir = APT.getdotaptdirpath() ;
+    %     assert(~isempty(cacheDir));
+    % 
+    %     if isequal(cmdtype,'train'),
+    %       projbps = lObj.movieFilesAllFull(:);
+    %       %mfafgt = lObj.movieFilesAllGTFull;
+    %       if lObj.hasTrx,
+    %         projbps = [projbps;lObj.trxFilesAllFull(:)];
+    %         %tfafgt = lObj.trxFilesAllGTFull;
+    %       end
+    %     else
+    %       projbps = jobinfo.getMovfiles();
+    %       projbps = projbps(:);
+    %       if lObj.hasTrx,
+    %         trxfiles = jobinfo.getTrxFiles();
+    %         trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
+    %         if ~isempty(trxfiles),
+    %           projbps = [projbps;trxfiles(:)];
+    %         end
+    %       end
+    %     end
+    % 
+    %     [projbps2,ischange] = GetLinkSources(projbps);
+    %     projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
+    % 
+    %   	if backend.type==DLBackEnd.Docker
+    %       % docker writes to ~/.cache. So we need home directory. MK
+    %       % 20220922
+    %       % add in home directory and their ancestors
+    %       homedir = getuserdir;
+    %       homeancestors = [{homedir},getpathancestors(homedir)];
+    %       if isunix
+    %         homeancestors = setdiff(homeancestors,{'/'});
+    %       end
+    %     else
+    %       homeancestors = {};
+    %     end
+    % 
+    %     fprintf('Using auto-generated container bind-paths:\n');
+    %     %dlroot = [aptroot '/deepnet'];
+    %     % AL 202108: include all of <APT> due to git describe cmd which
+    %     % looks in <APT>/.git
+    %     paths = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
+    %     paths = FSPath.commonbase(paths,1);
+    %     %paths = unique(paths);
+    %   end
+    % 
+    %   cellfun(@(x)fprintf('  %s\n',x),paths);
+    % end  
 
 %     function backEndArgs = getBackEndArgs(obj,backend,gpuid,jobinfo,aptroot,cmdtype)
 %       if isequal(cmdtype,'train'),

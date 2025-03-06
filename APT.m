@@ -302,7 +302,9 @@ classdef APT
       pposetf = fullfile(r,'deepnet');
     end
     
-    function result = getdotaptdirpath()  % returns e.g. /home/joesixpack/.apt
+    function result = getdotaptdirpath()  
+      % Returns the path to the .apt dir.  E.g. '/home/joesixpack/.apt'.  This is
+      % returned as a *native* path.      
       envar_value = getenv('APT_DOT_APT_DIR') ;
       if ~isempty(envar_value) ,
         result = envar_value ;

@@ -1315,13 +1315,13 @@ classdef AWSec2 < handle
       obj.isDMCRemote_ = false ;
     end  % function
         
-    function result = getTorchHome(obj)
-      if obj.isDMCRemote_ ,
-        result = linux_fullfile(AWSec2.remoteDLCacheDir, 'torch') ;
-      else
-        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
-      end
-    end  % function
+    % function result = getTorchHome(obj)
+    %   if obj.isDMCRemote_ ,
+    %     result = linux_fullfile(AWSec2.remoteDLCacheDir, 'torch') ;
+    %   else
+    %     result = fullfile(APT.getdotaptdirpath(), 'torch') ;
+    %   end
+    % end  % function
     
     function result = get.localDMCRootDir(obj) 
       result = obj.localDMCRootDir_ ;

@@ -4375,7 +4375,7 @@ classdef LabelerController < handle
     function menu_file_clean_tempdir_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if isempty(labeler.projTempDir),
-        rootdir = APT.getdotaptdirpath() ;
+        rootdir = APT.getdotaptdirpath() ;  % native path
       else
         rootdir = fileparts(labeler.projTempDir);
       end
