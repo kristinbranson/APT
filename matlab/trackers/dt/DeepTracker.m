@@ -3023,7 +3023,7 @@ classdef DeepTracker < LabelTracker
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
       
       s = struct();
-      s.projectFile = obj.lObj.projectfile;
+      s.projectFile = linux_path(obj.lObj.projectfile) ;
       s.projname = obj.lObj.projname;
       %s.cfg = obj.lObj.getCurrentConfig();
       tdata = obj.getTrackSaveToken();

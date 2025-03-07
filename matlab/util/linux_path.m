@@ -25,7 +25,13 @@ if ispc() ,
   letter_drive_parent = '/mnt' ;
   if length(input_path)>=2 && isstrprop(input_path(1),'alpha') && isequal(input_path(2),':') ,
     drive_letter = input_path(1) ;
-    protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter), '/', input_path(3:end)) ;
+    rest = input_path(3:end) ;
+    if isempty(rest) 
+      % Don't add trailing slash if nothing follows the drive letter
+      protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter)) ;
+    else      
+      protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter), '/', rest) ;
+    end
   else
     protoresult_1 = input_path ;
   end

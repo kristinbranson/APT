@@ -1793,7 +1793,7 @@ classdef DLBackEndClass < handle
           case DLBackEnd.Docker
             % could add prop to backend for this but 99% of the time for 
             % docker the backend should run the same code as frontend
-            aptroot = APT.Root; 
+            aptroot = APT.Root;  % native path
         end
       end
       
@@ -1809,7 +1809,7 @@ classdef DLBackEndClass < handle
         
         %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
         %cacheDir = obj.lObj.DLCacheDir;
-        cacheDir = APT.getdotaptdirpath() ;
+        cacheDir = APT.getdotaptdirpath() ;  % native path
         assert(~isempty(cacheDir));
         
         if isequal(cmdtype,'train'),
@@ -1838,9 +1838,9 @@ classdef DLBackEndClass < handle
           % docker writes to ~/.cache. So we need home directory. MK
           % 20220922
           % add in home directory and their ancestors
-          homedir = getuserdir;
+          homedir = getuserdir() ;  % native path
           homeancestors = [{homedir},getpathancestors(homedir)];
-          if isunix
+          if isunix()
             homeancestors = setdiff(homeancestors,{'/'});
           end
         else
