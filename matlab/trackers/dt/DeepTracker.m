@@ -4522,6 +4522,7 @@ classdef DeepTracker < LabelTracker
       if isequal(dmc.rootDir,newRootDir), 
         return
       end
+      backend = obj.backend ;
       if backend.isDMCRemote ,
         warningNoTrace('Remote model detected. This will not be migrated.');
         return
