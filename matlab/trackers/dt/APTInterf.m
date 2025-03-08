@@ -29,13 +29,13 @@ classdef APTInterf
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
-      trainConfig = linux_path(nativeTrainConfig) ;
+      trainConfig = wsl_path(nativeTrainConfig) ;
       nativeCacheRootDir = dmc.rootDir ;
-      cacheRootDir = linux_path(nativeCacheRootDir) ;
+      cacheRootDir = wsl_path(nativeCacheRootDir) ;
       nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
-      errFile = linux_path(nativeErrfile) ;
+      errFile = wsl_path(nativeErrfile) ;
       nativeLogFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
-      logFile = linux_path(nativeLogFile) ;
+      logFile = wsl_path(nativeLogFile) ;
       tfFollowsObjDet = dmc.getFollowsObjDet();
       stages = unique(dmc.getStages());
       views = unique(dmc.getViews());
@@ -48,7 +48,7 @@ classdef APTInterf
         stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
       end
       nativeTrainLocFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLocLnx());
-      trainLocFile = linux_path(nativeTrainLocFile) ;
+      trainLocFile = wsl_path(nativeTrainLocFile) ;
       stage2prevModels = cell(1,nstages);
       for istage = 1:nstages,
         stage = stages(istage);
@@ -68,7 +68,7 @@ classdef APTInterf
       confParams = confparamsextra;
       %filequote = '"';
       
-      torchhome = linux_path(torchhome_native) ;  % convert to WSL path
+      torchhome = wsl_path(torchhome_native) ;  % convert to WSL path
       code = { ...
         APTInterf.getTorchHomeCode(torchhome) ...
         'python' ...
@@ -160,7 +160,7 @@ classdef APTInterf
     function result = aptInterfacePath(aptroot)
       % Returns the path to APT_interface.py, as a WSL path.
       aptintrf = fullfile(aptroot, APTInterf.pymoduleparentdir, APTInterf.pymodule) ;  % this is a native path
-      result = linux_path(aptintrf) ;
+      result = wsl_path(aptintrf) ;
     end
 
     function [codestr,code] = trackCodeGenBase(totrackinfo, varargin)
@@ -214,16 +214,16 @@ classdef APTInterf
 
       modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
       nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
-      trainConfig = linux_path(nativeTrainConfig) ;
+      trainConfig = wsl_path(nativeTrainConfig) ;
       nativeCacheRootDir = dmc.rootDir ;  % native path
-      cacheRootDir = linux_path(nativeCacheRootDir) ;      
+      cacheRootDir = wsl_path(nativeCacheRootDir) ;      
 
       stage2models = cell(1,nstages);
       for istage = 1:nstages,
         stage = stages(istage);
         % cell of length nviews or empty
         nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path
-        modelPath = linux_path(nativeModelPath) ;
+        modelPath = wsl_path(nativeModelPath) ;
         stage2models{istage} = modelPath ;
         assert(numel(stage2models{istage}) == nviews);
       end
@@ -242,7 +242,7 @@ classdef APTInterf
       % save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
       %outtrk = fileinfo.outtrk; 
       nativeConfigFile = totrackinfo.trackconfigfile;  % native path
-      configfile = linux_path(nativeConfigFile) ;
+      configfile = wsl_path(nativeConfigFile) ;
 
       % this should happen outside
 %       if updateWinPaths2LnxContainer
@@ -266,13 +266,13 @@ classdef APTInterf
 %         configfile = fcnPathUpdate(configfile);
 %       end      
 
-      torchhome = linux_path(torchhome_native) ;  % convert to WSL
+      torchhome = wsl_path(torchhome_native) ;  % convert to WSL
       code = { ...
         APTInterf.getTorchHomeCode(torchhome) ...
         'python' escape_string_for_bash(aptintrf) ...
         escape_string_for_bash(trainConfig) ...
         '-name' modelChainID ...
-        '-err_file' escape_string_for_bash(linux_path(totrackinfo.errfile)) ...
+        '-err_file' escape_string_for_bash(wsl_path(totrackinfo.errfile)) ...
         };
       if dmc.isMultiStageTracker,
         code = [code {'-stage' 'multi'}];
@@ -283,11 +283,11 @@ classdef APTInterf
         end
       end
       code = [code {'-type', stage2netType{1}} ...
-        {'-model_files'}, escape_cellstring_for_bash(linux_path(stage2models{1}))];
+        {'-model_files'}, escape_cellstring_for_bash(wsl_path(stage2models{1}))];
       if nstages > 1,
         assert(nstages==2);
         code = [code {'-type2', stage2netType{2}} ...
-          {'-model_files2'}, escape_cellstring_for_bash(linux_path(stage2models{2})) ...
+          {'-model_files2'}, escape_cellstring_for_bash(wsl_path(stage2models{2})) ...
           {'-name2'} totrackinfo.trainDMC.getModelChainID('stage',2)];
       end
 
@@ -318,27 +318,27 @@ classdef APTInterf
 
       % convert to frms, trxids
       if ~isempty(totrackinfo.listfile)
-        code = [code {'-list_file' escape_string_for_bash(linux_path(totrackinfo.listfile))}];
-        code = [code {'-out'} escape_cellstring_for_bash(linux_path(totrackinfo.listoutfiles))];
+        code = [code {'-list_file' escape_string_for_bash(wsl_path(totrackinfo.listfile))}];
+        code = [code {'-out'} escape_cellstring_for_bash(wsl_path(totrackinfo.listoutfiles))];
       else
-        tf = escape_cellstring_for_bash(linux_path(trkfiles(movidx,:,:)));
+        tf = escape_cellstring_for_bash(wsl_path(trkfiles(movidx,:,:)));
         code = [code {'-out'} tf(:)'];
         if sum(nextra) > 0,
           warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
         end
         nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths
-        movFiles = linux_path(nativeMovFiles) ;
+        movFiles = wsl_path(nativeMovFiles) ;
         code = [code {'-mov' space_out(escape_cellstring_for_bash(movFiles))}];
         if ~all(frm0==1 & frm1==-1),
           code = [code {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
         end
         if totrackinfo.hasTrxfiles,
           nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
-          trxFiles = linux_path(nativeTrxFiles) ;
+          trxFiles = wsl_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         elseif nstages > 1,
           nativeTrxFiles = totrackinfo.getTrkFiles('stage',1) ;
-          trxFiles = linux_path(nativeTrxFiles) ;
+          trxFiles = wsl_path(nativeTrxFiles) ;
           code = [code {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
         end
 %         if totrackinfo.hasTrxids,
@@ -503,7 +503,7 @@ classdef APTInterf
 %     end
 
     function torchhomecmd = getTorchHomeCode(native_torch_home)
-      torch_home = linux_path(native_torch_home) ;      
+      torch_home = wsl_path(native_torch_home) ;      
       torchhomecmd = ['TORCH_HOME=' escape_string_for_bash(torch_home)] ;
     end
             

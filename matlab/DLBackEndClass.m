@@ -470,7 +470,7 @@ classdef DLBackEndClass < handle
       freemem = 0;
       gpuInfo = [];
       aptdeepnetpath_native = APT.getpathdl() ; % native path
-      aptdeepnetpath = linux_path(aptdeepnetpath_native) ;  % WSL path
+      aptdeepnetpath = wsl_path(aptdeepnetpath_native) ;  % WSL path
       
       switch obj.type,
         case DLBackEnd.Docker
@@ -682,7 +682,7 @@ classdef DLBackEndClass < handle
     function [didsucceed, msg] = mkdir(obj, dir_name)
       % Create the named directory, either locally or remotely, depending on the
       % backend type.  On Windows, dir_name can be a Windows-style path.
-      linux_dir_name = linux_path(dir_name) ;
+      linux_dir_name = wsl_path(dir_name) ;
       if obj.type == DLBackEnd.AWS ,
         [didsucceed, msg] = obj.awsec2.mkdir(linux_dir_name) ;
       else
@@ -1535,7 +1535,7 @@ classdef DLBackEndClass < handle
     function set.localDMCRootDir(obj, value) 
       % Set the local DMC root dir.  Note that value is assumed to be a native path,
       % but we convert to a WSL path before passing to obj.awsec2.
-      path = linux_path(value) ;
+      path = wsl_path(value) ;
       obj.awsec2.localDMCRootDir = path ;
     end  % function
 
@@ -1620,7 +1620,7 @@ classdef DLBackEndClass < handle
     function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_name)  % constant method
       assert(backend.type == DLBackEnd.Docker);
       dockercmd = apt.dockercmd();
-      log_file_name = linux_path(native_log_file_name) ;
+      log_file_name = wsl_path(native_log_file_name) ;
       cmd = ...
         sprintf('%s logs -f %s &> %s', ... 
                 dockercmd, ...
@@ -1857,7 +1857,7 @@ classdef DLBackEndClass < handle
       end
       
       cellfun(@(x)fprintf('  %s\n',x),paths);
-      result = linux_path(paths) ;
+      result = wsl_path(paths) ;
     end  % function
     
     function trackWriteListFile(obj, movfileLcl, movidx, tMFTConc, listfileLcl, varargin)
@@ -1950,7 +1950,7 @@ classdef DLBackEndClass < handle
   methods (Static)
     function result = getTorchHome()
       % Get the Torch home dir.  Returns a WSL path.
-      result = linux_path(fullfile(APT.getdotaptdirpath(), 'torch')) ;
+      result = wsl_path(fullfile(APT.getdotaptdirpath(), 'torch')) ;
       % if obj.type == DLBackEnd.AWS ,
       %   result = obj.awsec2.getTorchHome() ;
       % else
