@@ -1894,19 +1894,19 @@ classdef DLBackEndClass < handle
       if ismultiview,
         listinfo.movieFiles = cell(nmoviesets,1);
         for i = 1:nmoviesets,
-          listinfo.movieFiles{i} = movfileLcl(i,:);
+          listinfo.movieFiles{i} = wsl_path(movfileLcl(i,:)) ;
         end
         listinfo.trxFiles = cell(size(trxFilesLcl,1),1);
         for i = 1:size(trxFilesLcl,1),
-          listinfo.trxFiles{i} = trxFilesLcl(i,:);
+          listinfo.trxFiles{i} = wsl_path(trxFilesLcl(i,:)) ;
         end
         listinfo.cropLocs = cell(nmoviesets,1);
         for i = 1:nmoviesets,
           listinfo.cropLocs{i} = croprois(i,:);
         end
       else
-        listinfo.movieFiles = movfileLcl ;
-        listinfo.trxFiles = trxFilesLcl ;
+        listinfo.movieFiles = wsl_path(movfileLcl) ;
+        listinfo.trxFiles = wsl_path(trxFilesLcl) ;
         listinfo.cropLocs = croprois ;
       end
 
