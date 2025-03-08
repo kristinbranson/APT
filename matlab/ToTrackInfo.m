@@ -699,7 +699,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         args = [args {'croprois',obj.croprois}] ;
       end
       backend.trackWriteListFile(...
-        wsl_path(obj.movfiles), obj.movidx, obj.tblMFT, wsl_path(obj.listfile), args{:}) ;
+        obj.movfiles, obj.movidx, obj.tblMFT, obj.listfile, args{:}) ;
       obj.islistjob = true;
     end  % backend
 
