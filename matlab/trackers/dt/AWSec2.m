@@ -663,6 +663,14 @@ classdef AWSec2 < handle
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
 
+    function rsyncUploadFile(obj, src, dest)
+      % rsync the local folder src to the remote folder dest.  No local-to-remote
+      % translation is done on dest.
+      % This can throw APT:syscmd error.       
+      cmd = AWSec2.rsyncUploadFileCmd(src, obj.pem, obj.instanceIP, dest) ;
+      AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
+    end
+
     function deleteFile(obj,dst,~,varargin)
       % Either i) confirm a remote file does not exist, or ii) deletes it.
       % This method either succeeds or fails and harderrors.
@@ -820,9 +828,7 @@ classdef AWSec2 < handle
     
     function result = wrapCommandSSH(obj, input_command, varargin)
       remote_command_with_file_name_substitutions = ...
-        AWSec2.applyFileNameSubstitutions(input_command, ...
-                                          obj.isDMCRemote_, obj.localDMCRootDir_, ...
-                                          obj.didUploadMovies_, obj.localPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
+        obj.applyFileNameSubstitutions(input_command) ;
       result = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
                               'host', obj.instanceIP, ...
                               'timeout',8, ...
@@ -992,6 +998,35 @@ classdef AWSec2 < handle
 
       % Generate the final command
       cmd = sprintf('%s --rsh=%s ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileAbsPath, destFileAbsPath) ;
+    end
+
+    function cmd = rsyncUploadFileCmd(srcFileAbsPath, pemFilePath, ip, destFileAbsPath)
+      % Generate the system() command to upload a file via rsync.
+
+      % It's important that neither src nor dest have a trailing slash
+      if isempty(srcFileAbsPath) ,
+        error('src file for rsync cannot be empty') ;
+      else
+        if strcmp(srcFileAbsPath(end),'/') ,
+          error('src file for rsync cannot end in a slash') ;
+        end
+      end
+      if isempty(destFileAbsPath) ,
+        error('dest file for rsync cannot be empty') ;
+      else
+        if strcmp(destFileAbsPath(end),'/') ,
+          error('dest file for rsync cannot end in a slash') ;
+        end
+      end
+
+      % Generate the --rsh argument
+      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+        % We use an empty command, and an empty host, to get a string with the default
+        % options plus the two options we want to specify.
+      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+
+      % Generate the final command
+      cmd = sprintf('%s --rsh=%s %s ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcFileAbsPath, ip, destFileAbsPath) ;
     end
 
     function cmd = rsyncUploadFolderCmd(src, pemFilePath, ip, dest)
@@ -1518,8 +1553,7 @@ classdef AWSec2 < handle
 
       %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
       remoteFilePath = ...
-         AWSec2.applyFileNameSubstitutions(localFilePath, ...
-                                           obj.isDMCRemote_, obj.localDMCRootDir_) ;
+         obj.applyFileNameSubstitutions(localFilePath, 'doesMaybeIncludeMoviePaths', false) ;
       if ~obj.fileExists(localFilePath) ,
         nframes = nan ;
         return
@@ -1542,6 +1576,47 @@ classdef AWSec2 < handle
         end
       end
     end  % function    
+
+    function result = applyFileNameSubstitutions(obj, command_or_path, varargin)  % const method
+      % Apply the applicable file name substitutions to command_or_path.
+      % This just uses dumb string replacement, which will likely lead to tears
+      % eventually.  But to do better we'd have to keep commands as unescaped lists
+      % until the last moment, and likely label which elements are paths.  This would be
+      % great, but a lot of work.  Will put that off for now.
+      %
+      % This method does not mutate obj.
+      
+      doesMaybeIncludeMoviePaths = ...
+        myparse(varargin, ...
+                'doesMaybeIncludeMoviePaths', true) ;
+      if doesMaybeIncludeMoviePaths ,
+        result = ...
+            AWSec2.applyGenericFileNameSubstitutions( ...
+              command_or_path, ...
+              obj.isDMCRemote_, obj.localDMCRootDir_, ...
+              obj.didUploadMovies_, obj.localPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
+      else
+        % If we know command_or_path does not include movie paths, we can skip those
+        % substitutions to get faster performance.
+        result = ...
+            AWSec2.applyGenericFileNameSubstitutions(command_or_path, ...
+                                                     obj.isDMCRemote_, obj.localDMCRootDir_) ;
+      end
+    end  % function
+
+    function writeStringToFile(obj, localFileAbsPath, str)
+      % Write the given string to a file, overrwriting any previous contents.
+      % localFileAbsPath should be a WSL absolute path.
+      % Throws if unable to write string to file.
+
+      tfo = temp_file_object('w') ;  % local temp file, will be deleted when tfo goes out of scope
+      tfo.fprintf('%s', str) ;
+      tfo.fclose() ;  % Close the file before uploading to the remote side
+      wsl_temp_file_path = wsl_path(tfo.abs_file_path) ;
+      remoteFileAbsPath = obj.applyFileNameSubstitutions(localFileAbsPath) ;
+      obj.rsyncUploadFile(wsl_temp_file_path, remoteFileAbsPath) ;
+    end  % function
+    
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -1571,9 +1646,9 @@ classdef AWSec2 < handle
       result = cellfun(@(path)(AWSec2.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
     end
 
-    function result = applyFileNameSubstitutions(command_or_path, ...
-                                                 isDMCRemote, localDMCRootDir, ...
-                                                 didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
+    function result = applyGenericFileNameSubstitutions(command_or_path, ...
+                                                        isDMCRemote, localDMCRootDir, ...
+                                                        didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
       % Deal with optional args
       if ~exist('didUploadMovies', 'var') || isempty(didUploadMovies) ,
         didUploadMovies = false ;

@@ -2888,6 +2888,8 @@ classdef DeepTracker < LabelTracker
     end
 
     function trkSpawnCore_(obj,totrackinfojobs,totrackinfo,backend,varargin)
+      % Spawn tracking job(s), now that the preliminaries are out of the way.
+      % Throws if something goes wrong.
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,...
                 'track_type','movie',...
@@ -2949,6 +2951,8 @@ classdef DeepTracker < LabelTracker
     end  % function setupBGTrack()
 
     function trkSpawnList_(obj,totrackinfo,backend,varargin)
+      % Spawn a job to track a list of frames.  (This is used for GT tracking, maybe
+      % for other things also.)  Throws if something goes wrong.
       [isgt] = myparse(varargin,'isgt',false);
       %tfSuccess = false;
 
@@ -3034,12 +3038,9 @@ classdef DeepTracker < LabelTracker
                                        'fortracking',true);
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
-      jsonoutf = configfile;
+      jsonoutf = configfile;  % native file path
       jsen = sprintf('%s\n', jse) ;
-      [didSucceed, message] = obj.backend.writeStringToFile(jsonoutf, jsen) ;
-      if ~didSucceed ,
-        error(message) ;
-      end
+      obj.backend.writeStringToFile(jsonoutf, jsen) ;  % throws if unable to write file
     end  % function
     
   end  % methods

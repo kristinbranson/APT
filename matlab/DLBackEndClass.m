@@ -592,7 +592,14 @@ classdef DLBackEndClass < handle
         syscmd = syscmds{i} ;
         cmdfile = cmdfiles{i} ;
         syscmdWithNewline = sprintf('%s\n', syscmd) ;
-        [didSucceed, errorMessage] = obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+        try 
+          obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+          didSucceed = true ;
+          errorMessage = '' ;
+        catch me
+          didSucceed = false ;
+          errorMessage = me.message ;
+        end
         tfSucc(i) = didSucceed ;
         if didSucceed ,
           fprintf('Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfile);
@@ -721,48 +728,20 @@ classdef DLBackEndClass < handle
     %   doesexist = (status==0) ;
     % end
 
-    function [didSucceed, errorMessage] = writeStringToFile(obj, filename, str)
+    function writeStringToFile(obj, fileNativeAbsPath, str)
       % Write the given string to a file, overrwriting any previous contents.
-      % For remote backends, uses a single "ssh echo $string > $filename" to do
-      % this, so limited to strings of ~10^5 bytes.
-      if obj.isFilesystemLocal() ,
-        % Filesystem is local
-        try
-          fo = file_object(filename, 'w') ;
-        catch me 
-          if strcmp(me.identifier, 'file_object:unable_to_open') ,
-            didSucceed = false ;
-            errorMessage = sprintf('Could not open file %s for writing: %s', filename, me.message) ;
-            return
-          else
-            rethrow(me) ;
-          end
-        end  % try-catch
-        fprintf(fo, '%s', str) ;
-        fclose(fo) ;
+      % localFileAbsPath should be a native absolute path.
+      % Throws if unable to write string to file.
+
+      if isequal(obj.type,DLBackEnd.AWS) ,
+        fileWSLAbsPath = wsl_path(fileNativeAbsPath) ;
+        obj.awsec2.writeStringToFile(fileWSLAbsPath, str) ;
       else
-        % Filesystem is remote
-        if strlength(str) > 100000 ,
-          didSucceed = false ;
-          errorMessage = ...
-            sprintf(['Could not write to file %s: ' ...
-                     'Current implementation of DLBackEndClass.writeStringToFile() only supports strings of length 100,000 or less'], ...
-                    filename) ;
-          return
-        end          
-        quoted_file_name = escape_string_for_bash(filename) ;
-        quoted_str = escape_string_for_bash(str) ;
-        base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
-        [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
-        if status ~= 0 ,
-          didSucceed = false ;
-          errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);
-          return
-        end
+        % Filesystem is local
+        fo = file_object(fileNativeAbsPath, 'w') ;
+        fo.fprintf('%s', str) ;
       end
-      didSucceed = true ;
-      errorMessage = '' ;
-    end  % function    
+    end  % function
 
     function updateRepo(obj)
       % Update the APT repo on the backend.  While we're at it, make sure the
@@ -1860,9 +1839,10 @@ classdef DLBackEndClass < handle
       result = wsl_path(paths) ;
     end  % function
     
-    function trackWriteListFile(obj, movfileLcl, movidx, tMFTConc, listfileLcl, varargin)
+    function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNativePath, varargin)
       % Write the .json file that specifies the list of frames to track.
-      % File paths in movfileLcl and listfileLcl should be absolute WSL paths.
+      % File paths in movFileNativePath and listFileNativePath should be absolute native paths.
+      % Throws if unable to write complete file.
 
       % Get optional args
       [trxFilesLcl, croprois] = ...
@@ -1872,19 +1852,19 @@ classdef DLBackEndClass < handle
                 );
 
       % Check arg types
-      assert(iscell(movfileLcl)) ;
-      assert(isempty(movfileLcl) || isstringy(movfileLcl{1})) ;
+      assert(iscell(movFileNativePath)) ;
+      assert(isempty(movFileNativePath) || isstringy(movFileNativePath{1})) ;
       assert(iscolumn(movidx)) ;
       assert(isnumeric(movidx)) ;
       assert(istable(tMFTConc)) ;
-      assert(isstringy(listfileLcl)) ;
+      assert(isstringy(listFileNativePath)) ;
       assert(iscell(trxFilesLcl)) ;
       assert(isempty(trxFilesLcl) || isstringy(trxFilesLcl{1})) ;
       assert(iscell(croprois)) ;
       assert(isempty(croprois) || (isnumeric(croprois{1}) && isequal(size(croprois{1}),[1 4])) ) ;
 
       % Check dimensions
-      [nmoviesets, nviews] = size(movfileLcl) ;
+      [nmoviesets, nviews] = size(movFileNativePath) ;
       assert(size(movidx,1) == nmoviesets) ;
       assert(size(croprois,1) == nmoviesets) ;
       
@@ -1894,7 +1874,7 @@ classdef DLBackEndClass < handle
       if ismultiview,
         listinfo.movieFiles = cell(nmoviesets,1);
         for i = 1:nmoviesets,
-          listinfo.movieFiles{i} = wsl_path(movfileLcl(i,:)) ;
+          listinfo.movieFiles{i} = wsl_path(movFileNativePath(i,:)) ;
         end
         listinfo.trxFiles = cell(size(trxFilesLcl,1),1);
         for i = 1:size(trxFilesLcl,1),
@@ -1905,7 +1885,7 @@ classdef DLBackEndClass < handle
           listinfo.cropLocs{i} = croprois(i,:);
         end
       else
-        listinfo.movieFiles = wsl_path(movfileLcl) ;
+        listinfo.movieFiles = wsl_path(movFileNativePath) ;
         listinfo.trxFiles = wsl_path(trxFilesLcl) ;
         listinfo.cropLocs = croprois ;
       end
@@ -1943,7 +1923,7 @@ classdef DLBackEndClass < handle
 
       % Encode listinfo struct to json and write to file
       listinfo_as_json_string = jsonencode(listinfo) ;
-      obj.writeStringToFile(listfileLcl, listinfo_as_json_string) ;
+      obj.writeStringToFile(listFileNativePath, listinfo_as_json_string) ;  % throws if unable to write file
     end  % function    
   end  % methods
 

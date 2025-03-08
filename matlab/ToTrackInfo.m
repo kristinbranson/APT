@@ -667,6 +667,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     end
 
     function makeListFile(obj, isgt, backend)
+      % Make the TrackList*.json file for tracking.  Throws if something goes wrong.
       assert(~isequal(obj.tblMFT,'unset'),'No table has been set')
       if nargin<2
         isgt = false;
