@@ -656,22 +656,24 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           end
         end
       end
-    end
+    end  % function
     
     function v = getListfile(obj)
       v = obj.listfile;
     end
+
     function setListfile(obj,v)
       obj.listfile = v;
     end
-    function makeListFile(obj,isgt)
+
+    function makeListFile(obj, isgt, backend)
       assert(~isequal(obj.tblMFT,'unset'),'No table has been set')
       if nargin<2
         isgt = false;
       end
 
-      trnstr = obj.trainDMC.getTrainID{1};
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      trnstr = obj.trainDMC.getTrainID{1} ;
+      nowstr = datestr(now(), 'yyyymmddTHHMMSS') ;
       if isgt
         extrastr = '_gt';
       else
@@ -693,15 +695,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         args = {};
       end
       if ~isempty(obj.croprois)
-        args = [args {'croprois',obj.croprois}];
+        args = [args {'croprois',obj.croprois}] ;
       end
-      mov_rem = obj.movfiles;
-      % this should be changed if we want to do it on AWS or other remote
-      % backends
-      DeepTracker.trackWriteListFile(...
-        mov_rem,obj.movidx,obj.tblMFT,obj.listfile,args{:});
+      backend.trackWriteListFile(...
+        linux_path(obj.movfiles), obj.movidx, obj.tblMFT, linux_path(obj.listfile), args{:}) ;
       obj.islistjob = true;
-    end
+    end  % backend
+
     function v = getMovidx(obj,varargin)
       if isempty(varargin),
         v = obj.movidx;

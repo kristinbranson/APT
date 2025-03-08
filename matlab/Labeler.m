@@ -9349,11 +9349,7 @@ classdef Labeler < handle
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
-        try
-          tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
-        catch me
-          error('Failed to spawn tracking for GT: %s', me.getReport()) ;
-        end
+        tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
 
         % Broadcast a notification about recent events
         obj.notify('didSpawnTrackingForGT') ;

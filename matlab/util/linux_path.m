@@ -1,8 +1,10 @@
 function result = linux_path(path_or_paths)
-% Convert a platform-native path, which might be a Windows-style path
-% (possibly with a leading drive letter), to a linux-style path.  Does not
+% Convert a native path, which might be a Windows-style path
+% (possibly with a leading drive letter), to a WSL path.  Does not
 % handle Windows UNC paths (like '\\server\folder\file') in input.  Also
-% works per-element on cellstrings.
+% works per-element on cellstrings.  See comments at top of DLBackEndClass.m
+% for more info on the distinctions between native, WSL, and remote file
+% paths.  Note that on Linux this function reduces to the identity function.
 
 if iscell(path_or_paths) ,
   path_from_index = path_or_paths ;

@@ -2965,7 +2965,7 @@ classdef DeepTracker < LabelTracker
       end        
       totrackinfo.setDefaultFiles();
 
-      totrackinfo.makeListFile(isgt);
+      totrackinfo.makeListFile(isgt, backend);
       gpuid =nan;
 
       backend.killAndClearRegisteredJobs('track') ;
@@ -3644,77 +3644,6 @@ classdef DeepTracker < LabelTracker
     % 
     %   codestr = String.cellstr2DelimList(code,' ');
     % end
-
-    function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
-      
-      [trxfileRem,isWinBackend,croprois] = myparse(varargin,...
-        'trxFiles',{},...
-        'isWinBackend',false, ...
-        'croprois',[] ...
-        );
-      
-      nviews = size(movfileRem,2);
-      ismultiview = nviews > 1;
-      
-      listinfo = struct;
-      if ismultiview,
-        listinfo.movieFiles = cell(size(movfileRem,1),1);
-        for i = 1:size(movfileRem,1),
-          listinfo.movieFiles{i} = movfileRem(i,:);
-        end
-        listinfo.trxFiles = cell(size(trxfileRem,1),1);
-        for i = 1:size(trxfileRem,1),
-          listinfo.trxFiles{i} = trxfileRem(i,:);
-        end
-        listinfo.cropLocs = cell(size(croprois,1),1);
-        for i = 1:size(movfileRem,1),
-          listinfo.cropLocs{i} = croprois(i,:);
-        end
-      else
-        listinfo.movieFiles = movfileRem;
-        listinfo.trxFiles = trxfileRem;
-        listinfo.cropLocs = croprois;
-      end
-
-      % which movie index does each row correspond to?
-      % assume first movie is unique
-      [ism,idxm] = ismember(tMFTConc.mov(:,1),movfileLcl(:,1));
-      assert(all(ism));
-     
-      listinfo.toTrack = cell(0,1);
-      for mi = 1:size(movfileRem,1),
-        idx1 = find(idxm==mi);
-        if isempty(idx1),
-          continue;
-        end
-        [t,~,idxt] = unique(tMFTConc.iTgt(idx1));
-        for ti = 1:numel(t),
-          idx2 = idxt==ti;
-          idxcurr = idx1(idx2);
-          f = unique(tMFTConc.frm(idxcurr));
-          df = diff(f);
-          istart = [1;find(df~=1)+1];
-          iend = [istart(2:end)-1;numel(f)];
-          for i = 1:numel(istart),
-            if istart(i) == iend(i),
-              fcurr = f(istart(i));
-            else
-              fcurr = [f(istart(i)),f(iend(i))+1];
-            end
-            listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
-          end
-        end
-      end
-
-      if isWinBackend
-        % AL20200929. json validity requires escaping backslash
-        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','\\\\');
-        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','\\\\');
-      end
-      fid = fopen(listfileLcl,'w');
-      fprintf(fid,jsonencode(listinfo));
-      fclose(fid);      
-    end
     
 %     function [codestr] = dataAugCodeGenDocker(backend,...
 %         ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
