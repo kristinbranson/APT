@@ -1,4 +1,4 @@
-function result = wsl_path(path_or_paths)
+function result = wsl_path_from_native(path_or_paths)
 % Convert a native path, which might be a Windows-style path (possibly with a
 % leading drive letter), to a WSL path.  Also works per-element on
 % cellstrings.  On Windows, converts backslash-separated paths to
@@ -11,17 +11,17 @@ function result = wsl_path(path_or_paths)
 
 if iscell(path_or_paths) ,
   path_from_index = path_or_paths ;
-  result = cellfun(@linux_path_core, path_from_index, 'UniformOutput', false) ;
+  result = cellfun(@wsl_path_from_native_core, path_from_index, 'UniformOutput', false) ;
 else
   path = path_or_paths ;
-  result = linux_path_core(path) ;
+  result = wsl_path_from_native_core(path) ;
 end
 
 end
 
 
 
-function result = linux_path_core(input_path)
+function result = wsl_path_from_native_core(input_path)
 % Convert a platform-native path, which might be a Windows-style path
 % (possibly with a leading drive letter), to a linux-style path.  Does not
 % handle Windows UNC paths (like '\\server\folder\file') in input.

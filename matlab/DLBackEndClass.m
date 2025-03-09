@@ -470,7 +470,7 @@ classdef DLBackEndClass < handle
       freemem = 0;
       gpuInfo = [];
       aptdeepnetpath_native = APT.getpathdl() ; % native path
-      aptdeepnetpath = wsl_path(aptdeepnetpath_native) ;  % WSL path
+      aptdeepnetpath = wsl_path_from_native(aptdeepnetpath_native) ;  % WSL path
       
       switch obj.type,
         case DLBackEnd.Docker
@@ -689,7 +689,7 @@ classdef DLBackEndClass < handle
     function [didsucceed, msg] = mkdir(obj, dir_name)
       % Create the named directory, either locally or remotely, depending on the
       % backend type.  On Windows, dir_name can be a Windows-style path.
-      linux_dir_name = wsl_path(dir_name) ;
+      linux_dir_name = wsl_path_from_native(dir_name) ;
       if obj.type == DLBackEnd.AWS ,
         [didsucceed, msg] = obj.awsec2.mkdir(linux_dir_name) ;
       else
@@ -734,7 +734,7 @@ classdef DLBackEndClass < handle
       % Throws if unable to write string to file.
 
       if isequal(obj.type,DLBackEnd.AWS) ,
-        fileWSLAbsPath = wsl_path(fileNativeAbsPath) ;
+        fileWSLAbsPath = wsl_path_from_native(fileNativeAbsPath) ;
         obj.awsec2.writeStringToFile(fileWSLAbsPath, str) ;
       else
         % Filesystem is local
@@ -1514,7 +1514,7 @@ classdef DLBackEndClass < handle
     function set.localDMCRootDir(obj, value) 
       % Set the local DMC root dir.  Note that value is assumed to be a native path,
       % but we convert to a WSL path before passing to obj.awsec2.
-      path = wsl_path(value) ;
+      path = wsl_path_from_native(value) ;
       obj.awsec2.localDMCRootDir = path ;
     end  % function
 
@@ -1599,7 +1599,7 @@ classdef DLBackEndClass < handle
     function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_name)  % constant method
       assert(backend.type == DLBackEnd.Docker);
       dockercmd = apt.dockercmd();
-      log_file_name = wsl_path(native_log_file_name) ;
+      log_file_name = wsl_path_from_native(native_log_file_name) ;
       cmd = ...
         sprintf('%s logs -f %s &> %s', ... 
                 dockercmd, ...
@@ -1836,7 +1836,7 @@ classdef DLBackEndClass < handle
       end
       
       cellfun(@(x)fprintf('  %s\n',x),paths);
-      result = wsl_path(paths) ;
+      result = wsl_path_from_native(paths) ;
     end  % function
     
     function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNativePath, varargin)
@@ -1874,19 +1874,19 @@ classdef DLBackEndClass < handle
       if ismultiview,
         listinfo.movieFiles = cell(nmoviesets,1);
         for i = 1:nmoviesets,
-          listinfo.movieFiles{i} = wsl_path(movFileNativePath(i,:)) ;
+          listinfo.movieFiles{i} = wsl_path_from_native(movFileNativePath(i,:)) ;
         end
         listinfo.trxFiles = cell(size(trxFilesLcl,1),1);
         for i = 1:size(trxFilesLcl,1),
-          listinfo.trxFiles{i} = wsl_path(trxFilesLcl(i,:)) ;
+          listinfo.trxFiles{i} = wsl_path_from_native(trxFilesLcl(i,:)) ;
         end
         listinfo.cropLocs = cell(nmoviesets,1);
         for i = 1:nmoviesets,
           listinfo.cropLocs{i} = croprois(i,:);
         end
       else
-        listinfo.movieFiles = wsl_path(movFileNativePath) ;
-        listinfo.trxFiles = wsl_path(trxFilesLcl) ;
+        listinfo.movieFiles = wsl_path_from_native(movFileNativePath) ;
+        listinfo.trxFiles = wsl_path_from_native(trxFilesLcl) ;
         listinfo.cropLocs = croprois ;
       end
 
@@ -1930,7 +1930,7 @@ classdef DLBackEndClass < handle
   methods (Static)
     function result = getTorchHome()
       % Get the Torch home dir.  Returns a WSL path.
-      result = wsl_path(fullfile(APT.getdotaptdirpath(), 'torch')) ;
+      result = wsl_path_from_native(fullfile(APT.getdotaptdirpath(), 'torch')) ;
       % if obj.type == DLBackEnd.AWS ,
       %   result = obj.awsec2.getTorchHome() ;
       % else

@@ -3027,7 +3027,7 @@ classdef DeepTracker < LabelTracker
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
       
       s = struct();
-      s.projectFile = wsl_path(obj.lObj.projectfile) ;
+      s.projectFile = wsl_path_from_native(obj.lObj.projectfile) ;
       s.projname = obj.lObj.projname;
       %s.cfg = obj.lObj.getCurrentConfig();
       tdata = obj.getTrackSaveToken();

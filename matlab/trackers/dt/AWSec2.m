@@ -1612,7 +1612,7 @@ classdef AWSec2 < handle
       tfo = temp_file_object('w') ;  % local temp file, will be deleted when tfo goes out of scope
       tfo.fprintf('%s', str) ;
       tfo.fclose() ;  % Close the file before uploading to the remote side
-      wsl_temp_file_path = wsl_path(tfo.abs_file_path) ;
+      wsl_temp_file_path = wsl_path_from_native(tfo.abs_file_path) ;
       remoteFileAbsPath = obj.applyFileNameSubstitutions(localFileAbsPath) ;
       obj.rsyncUploadFile(wsl_temp_file_path, remoteFileAbsPath) ;
     end  % function

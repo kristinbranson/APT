@@ -24,7 +24,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   
   % Get path to the deepnet/ subdirectory in the APT source tree
   aptdeepnet = APT.getpathdl() ;  % this is a native, local path
-  deepnetrootContainer = wsl_path(aptdeepnet) ;
+  deepnetrootContainer = wsl_path_from_native(aptdeepnet) ;
 
   % Set the paths to make visible in the container
   % Add whatever the user passed in as paths to bind to the container
@@ -99,7 +99,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
     dockerimg
     }
     ];
-  linux_home_dir = wsl_path(native_home_dir) ;
+  linux_home_dir = wsl_path_from_native(native_home_dir) ;
   bashcmd = ...
     sprintf('export HOME=%s ; %s cd %s ; %s',...
             escape_string_for_bash(linux_home_dir), ...
