@@ -2721,9 +2721,9 @@ classdef DeepTracker < LabelTracker
       end
 
 
-      mft = gtmats(1).list; % should already be 1based from deepnet
+      mft = gtmats(1).list; % should already be one-based from deepnet
       assert(size(mft,2)==3);
-      smovs = gtmats(1).movieFiles;
+      smovs = native_path_from_wsl(gtmats(1).movieFiles) ;
       gtmovs =gtmovs(:,1);
       [~,gt_mov_match] = ismember(smovs,gtmovs);
       new_mov_ndx = gt_mov_match(mft(:,1));

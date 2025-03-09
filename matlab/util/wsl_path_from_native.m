@@ -22,8 +22,8 @@ end
 
 
 function result = wsl_path_from_native_core(input_path)
-% Convert a platform-native path, which might be a Windows-style path
-% (possibly with a leading drive letter), to a linux-style path.  Does not
+% Convert a native path, which might be a Windows-style path
+% (possibly with a leading drive letter), to a WSL path.  Does not
 % handle Windows UNC paths (like '\\server\folder\file') in input.
 
 if ispc() ,
