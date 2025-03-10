@@ -1866,12 +1866,12 @@ classdef DLBackEndClass < handle
       % Check dimensions
       [nmoviesets, nviews] = size(movFileNativePath) ;
       assert(size(movidx,1) == nmoviesets) ;
-      assert(size(croprois,1) == nmoviesets) ;
       
       % Create listinfo struct, populate some fields
       ismultiview = (nviews > 1) ;      
       listinfo = struct() ;
       if ismultiview,
+        assert(size(croprois,1) == nmoviesets) ;
         listinfo.movieFiles = cell(nmoviesets,1);
         for i = 1:nmoviesets,
           listinfo.movieFiles{i} = wsl_path_from_native(movFileNativePath(i,:)) ;
