@@ -647,9 +647,10 @@ classdef AWSec2 < handle
     %     'destRelative',destRelative); % throws
     % end
     
-    function rsyncUploadFolder(obj, src, dest)
+    function rsyncUploadFolder_(obj, src, dest)
       % rsync the local folder src to the remote folder dest.  No local-to-remote
-      % translation is done on dest.
+      % translation is done on dest.  Thus src should be a WSL path, dest should be
+      % a remote path.
       % This can throw APT:syscmd error.       
       cmd = AWSec2.rsyncUploadFolderCmd(src, obj.pem, obj.instanceIP, dest) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
@@ -1273,7 +1274,7 @@ classdef AWSec2 < handle
       if ~didsucceed ,
         error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
       end
-      obj.rsyncUploadFolder(localProjectPath, remoteProjectPath) ;  % this will throw if there's a problem
+      obj.rsyncUploadFolder_(localProjectPath, remoteProjectPath) ;  % this will throw if there's a problem
 
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
@@ -1509,7 +1510,7 @@ classdef AWSec2 < handle
       obj.errorIfInstanceNotRunning();  % errs if instance isn't running
 
       % Does the APT source root dir exist?
-      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
+      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;  % remote path
       
       % Create folder if needed
       [didsucceed, msg] = obj.mkdir(remote_apt_root) ;
@@ -1517,11 +1518,12 @@ classdef AWSec2 < handle
         error('Unable to create APT source folder in AWS instance.\nStdout/stderr:\n%s\n', msg) ;
       end
       fprintf('APT source folder %s exists on AWS instance.\n', remote_apt_root);
-
+      
       % Rsync the local APT code to the remote end
-      local_apt_root = APT.Root ;
-      obj.rsyncUploadFolder(local_apt_root, remote_apt_root) ;  % Will throw on error
-      fprintf('Successfully rsynced remote APT source code (in %s) with local version (in %s).\n', remote_apt_root, local_apt_root) ;
+      native_local_apt_root = APT.Root ;  % native path
+      wsl_local_apt_root = wsl_path_from_native(native_local_apt_root) ;
+      obj.rsyncUploadFolder_(wsl_local_apt_root, remote_apt_root) ;  % Will throw on error
+      fprintf('Successfully rsynced remote APT source code (in %s) from local version (in %s).\n', remote_apt_root, native_local_apt_root) ;
 
       % Run the remote Python script to download the pretrained model weights
       % This python script doesn't do anything fancy, apparently, so we use the
