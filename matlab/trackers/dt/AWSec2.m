@@ -1196,7 +1196,6 @@ classdef AWSec2 < handle
       else
         error('Tracking complete, but one or move movies has been changed in current project.') ;
           % conservative, take no action for now
-        return
       end
     end  % function    
 
@@ -1688,7 +1687,7 @@ classdef AWSec2 < handle
                 'doesMaybeIncludeMoviePaths', true) ;
       if doesMaybeIncludeMoviePaths ,
         result = ...
-            AWSec2.applyGenericFileNameSubstitutions(command, ...
+            AWSec2.applyGenericFilePathSubstitutions(command, ...
                                                      obj.wslDMCRootDir_, ...
                                                      obj.wslPathFromMovieIndex_) ;
       else
