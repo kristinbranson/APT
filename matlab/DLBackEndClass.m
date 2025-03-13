@@ -284,30 +284,31 @@ classdef DLBackEndClass < handle
         % Things passed in with varargin should overide things we set here
     end  % function
 
-    function result = remoteMoviePathFromLocal(obj, localPath)
-      % Convert a local movie path to the remote equivalent.
-      % For non-AWS backends, this is the identity function.
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        result = AWSec2.remoteMoviePathFromLocal(localPath) ;
-      else
-        result = localPath ;
-      end
-    end
+    % function result = remoteMoviePathFromLocal(obj, localPath)
+    %   % Convert a local movie path to the remote equivalent.
+    %   % For non-AWS backends, this is the identity function.
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     result = AWSec2.remoteMoviePathFromLocal(localPath) ;
+    %   else
+    %     result = localPath ;
+    %   end
+    % end
 
-    function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
-      % Convert a cell array of local movie paths to their remote equivalents.
-      % For non-AWS backends, this is the identity function.
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        result = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
-      else
-        result = localPathFromMovieIndex ;
-      end
-    end
+    % function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
+    %   % Convert a cell array of local movie paths to their remote equivalents.
+    %   % For non-AWS backends, this is the identity function.
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     result = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+    %   else
+    %     result = localPathFromMovieIndex ;
+    %   end
+    % end
 
-    function uploadMovies(obj, localPathFromMovieIndex)
+    function uploadMovies(obj, nativePathFromMovieIndex)
       % Upload movies to the backend, if necessary.
       if isequal(obj.type, DLBackEnd.AWS) ,
-        obj.awsec2.uploadMovies(localPathFromMovieIndex) ;
+        wslPathFromMovieIndex = wsl_path_from_native(nativePathFromMovieIndex) ;
+        obj.awsec2.uploadMovies(wslPathFromMovieIndex) ;
       end
     end  % function
 

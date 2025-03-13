@@ -61,7 +61,7 @@ classdef AWSec2 < handle
 
     % When we upload movies, keep track of the correspondence, so we can help the
     % consumer map between the paths.  Transient, protected in spirit.
-    localPathFromMovieIndex_ = cell(1,0) ;
+    wslPathFromMovieIndex_ = cell(1,0) ;
     remotePathFromMovieIndex_ = cell(1,0) ;
   end
 
@@ -666,7 +666,8 @@ classdef AWSec2 < handle
 
     function rsyncUploadFile(obj, src, dest)
       % rsync the local folder src to the remote folder dest.  No local-to-remote
-      % translation is done on dest.
+      % translation is done on dest.  Thus src should be a local WSL path, and dest
+      % should be a remote path.
       % This can throw APT:syscmd error.       
       cmd = AWSec2.rsyncUploadFileCmd(src, obj.pem, obj.instanceIP, dest) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
@@ -1115,7 +1116,7 @@ classdef AWSec2 < handle
       suitcase.isDMCRemote_ = obj.isDMCRemote_ ;
       suitcase.localDMCRootDir_ = obj.localDMCRootDir_ ;
       suitcase.didUploadMovies_ = obj.didUploadMovies_ ;
-      suitcase.localPathFromMovieIndex_ = obj.localPathFromMovieIndex_ ;
+      suitcase.localPathFromMovieIndex_ = obj.wslPathFromMovieIndex_ ;
       suitcase.remotePathFromMovieIndex_ = obj.remotePathFromMovieIndex_ ;
     end  % function
     
@@ -1128,7 +1129,7 @@ classdef AWSec2 < handle
       obj.isDMCRemote_ = suitcase.isDMCRemote_ ;
       obj.localDMCRootDir_ = suitcase.localDMCRootDir_ ;
       obj.didUploadMovies_ = suitcase.didUploadMovies_ ;
-      obj.localPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
+      obj.wslPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
       obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
     end  % function
 
@@ -1371,33 +1372,33 @@ classdef AWSec2 < handle
     %   result = AWSec2.remoteDLCacheDir ;
     % end  % function
         
-    function uploadMovies(obj, localPathFromMovieIndex)
+    function uploadMovies(obj, wslPathFromMovieIndex)
       % Upload movies to the backend, if necessary.
       if obj.didUploadMovies_ ,
         return
       end
-      remotePathFromMovieIndex = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
-      movieCount = numel(localPathFromMovieIndex) ;
+      remotePathFromMovieIndex = obj.remote_path_from_wsl(wslPathFromMovieIndex) ;
+      movieCount = numel(wslPathFromMovieIndex) ;
       fprintf('Uploading %d movie files...\n', movieCount) ;
       fileDescription = 'Movie file' ;
       sidecarDescription = 'Movie sidecar file' ;
       for i = 1:movieCount ,
-        localPath = localPathFromMovieIndex{i};
+        wslPath = wslPathFromMovieIndex{i};
         remotePath = remotePathFromMovieIndex{i};
-        obj.uploadOrVerifySingleFile_(localPath, remotePath, fileDescription) ;  % throws
+        obj.uploadOrVerifySingleFile_(wslPath, remotePath, fileDescription) ;  % throws
         % If there's a sidecar file, upload it too
-        [~,~,fileExtension] = fileparts(localPath) ;
+        [~,~,fileExtension] = fileparts(wslPath) ;
         if strcmp(fileExtension,'.mjpg') ,
-          sidecarLocalPath = FSPath.replaceExtension(localPath, '.txt') ;
-          if exist(sidecarLocalPath, 'file') ,
-            sidecarRemotePath = AWSec2.remoteMoviePathFromLocal(sidecarLocalPath) ;
-            obj.uploadOrVerifySingleFile_(sidecarLocalPath, sidecarRemotePath, sidecarDescription) ;  % throws
+          sidecarWslPath = FSPath.replaceExtension(wslPath, '.txt') ;
+          if exist(sidecarWslPath, 'file') ,
+            sidecarRemotePath = obj.remote_path_from_wsl(sidecarWslPath) ;
+            obj.uploadOrVerifySingleFile_(sidecarWslPath, sidecarRemotePath, sidecarDescription) ;  % throws
           end
         end
       end      
       fprintf('Done uploading %d movie files.\n', movieCount) ;
       obj.didUploadMovies_ = true ; 
-      obj.localPathFromMovieIndex_ = localPathFromMovieIndex ;
+      obj.wslPathFromMovieIndex_ = wslPathFromMovieIndex ;
       obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
     end  % function
     
@@ -1428,7 +1429,7 @@ classdef AWSec2 < handle
       for movieIndex = 1 : movieCount ,
         remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
         if strcmp(remotePath, queryRemotePath) ,
-          result = obj.localPathFromMovieIndex_{movieIndex} ;
+          result = obj.wslPathFromMovieIndex_{movieIndex} ;
           return
         end
       end
@@ -1440,9 +1441,9 @@ classdef AWSec2 < handle
       if ~obj.didUploadMovies_ ,
         error('Can''t get a remote movie path from a local path if movies have not been uploaded.') ;
       end
-      movieCount = numel(obj.localPathFromMovieIndex_) ;
+      movieCount = numel(obj.wslPathFromMovieIndex_) ;
       for movieIndex = 1 : movieCount ,
-        localPath = obj.localPathFromMovieIndex_{movieIndex} ;
+        localPath = obj.wslPathFromMovieIndex_{movieIndex} ;
         if strcmp(localPath, queryLocalPath) ,
           result = obj.remotePathFromMovieIndex_{movieIndex} ;
           return
@@ -1579,33 +1580,6 @@ classdef AWSec2 < handle
       end
     end  % function    
 
-    function result = applyFileNameSubstitutions(obj, command_or_path, varargin)  % const method
-      % Apply the applicable file name substitutions to command_or_path.
-      % This just uses dumb string replacement, which will likely lead to tears
-      % eventually.  But to do better we'd have to keep commands as unescaped lists
-      % until the last moment, and likely label which elements are paths.  This would be
-      % great, but a lot of work.  Will put that off for now.
-      %
-      % This method does not mutate obj.
-      
-      doesMaybeIncludeMoviePaths = ...
-        myparse(varargin, ...
-                'doesMaybeIncludeMoviePaths', true) ;
-      if doesMaybeIncludeMoviePaths ,
-        result = ...
-            AWSec2.applyGenericFileNameSubstitutions( ...
-              command_or_path, ...
-              obj.isDMCRemote_, obj.localDMCRootDir_, ...
-              obj.didUploadMovies_, obj.localPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
-      else
-        % If we know command_or_path does not include movie paths, we can skip those
-        % substitutions to get faster performance.
-        result = ...
-            AWSec2.applyGenericFileNameSubstitutions(command_or_path, ...
-                                                     obj.isDMCRemote_, obj.localDMCRootDir_) ;
-      end
-    end  % function
-
     function writeStringToFile(obj, localFileAbsPath, str)
       % Write the given string to a file, overrwriting any previous contents.
       % localFileAbsPath should be a WSL absolute path.
@@ -1633,6 +1607,60 @@ classdef AWSec2 < handle
       self.(name) = value ;
     end  % function
   end
+  
+  methods
+    function result = remote_path_from_wsl(obj, path_or_paths, varargin)  % const method
+      % Apply the applicable file name substitutions to path_or_paths.
+      % path_or_paths can be a single path or a cellstring of paths, but all should
+      % be WSL paths.
+      %
+      % This method does not mutate obj.
+      
+      doesMaybeIncludeMoviePaths = ...
+        myparse(varargin, ...
+                'doesMaybeIncludeMoviePaths', true) ;
+      if doesMaybeIncludeMoviePaths ,
+        result1 = replace_prefix_path(path_or_paths, obj.localDMCRootDir_, AWSec2.remoteDLCacheDir) ;
+        result = result1 ;
+        for i = 1 : numel(obj.wslPathFromMovieIndex_) 
+          localPath = obj.wslPathFromMovieIndex_{i} ;
+          remotePath = obj.remotePathFromMovieIndex_{i} ;
+          result = replace_prefix_path(result, localPath, remotePath) ;
+        end
+      else
+        % If we know path_or_paths does not include movie paths, we can skip those
+        % substitutions to get faster performance.
+        result = replace_prefix_path(path_or_paths, obj.localDMCRootDir_, AWSec2.remoteDLCacheDir) ;
+      end
+    end  % function
+    
+    function result = applyFileNameSubstitutions(obj, command_or_path, varargin)  % const method
+      % Apply the applicable file name substitutions to command_or_path.
+      % This just uses dumb string replacement, which will likely lead to tears
+      % eventually.  But to do better we'd have to keep commands as unescaped lists
+      % until the last moment, and likely label which elements are paths.  This would be
+      % great, but a lot of work.  Will put that off for now.
+      %
+      % This method does not mutate obj.
+      
+      doesMaybeIncludeMoviePaths = ...
+        myparse(varargin, ...
+                'doesMaybeIncludeMoviePaths', true) ;
+      if doesMaybeIncludeMoviePaths ,
+        result = ...
+            AWSec2.applyGenericFileNameSubstitutions( ...
+              command_or_path, ...
+              obj.isDMCRemote_, obj.localDMCRootDir_, ...
+              obj.didUploadMovies_, obj.wslPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
+      else
+        % If we know command_or_path does not include movie paths, we can skip those
+        % substitutions to get faster performance.
+        result = ...
+            AWSec2.applyGenericFileNameSubstitutions(command_or_path, ...
+                                                     obj.isDMCRemote_, obj.localDMCRootDir_) ;
+      end
+    end  % function
+  end  % methods
   
   methods (Static)
     function result = remoteMoviePathFromLocal(localPath)

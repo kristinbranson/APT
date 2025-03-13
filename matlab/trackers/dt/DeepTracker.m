@@ -872,8 +872,8 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload the movies to the backend
-      localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
-      backend.uploadMovies(localPathFromMovieIndex) ;
+      nativePathFromMovieIndex = obj.lObj.movieFilesAll ;      
+      backend.uploadMovies(nativePathFromMovieIndex) ;
     end
     
     function train(obj,varargin)
@@ -2590,8 +2590,8 @@ classdef DeepTracker < LabelTracker
 
       % Upload the movies to the backend
       % localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
-      localPathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
-      backend.uploadMovies(localPathFromMovieIndex) ;
+      nativePathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
+      backend.uploadMovies(nativePathFromMovieIndex) ;
 
       % % Update the tracker info based on the trained model
       % obj.syncInfoFromDMC_() ;
