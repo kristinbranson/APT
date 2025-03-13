@@ -1679,9 +1679,9 @@ classdef AWSec2 < handle
       %
       % This method does not mutate obj.
       
-      if isempty(obj.wslDMCRootDir_) ,
-        error('The wslDMCRootDir must be set before calling the applyFilePathSubstitutions() method.') ;
-      end
+      % if isempty(obj.wslDMCRootDir_) ,
+      %   error('The wslDMCRootDir must be set before calling the applyFilePathSubstitutions() method.') ;
+      % end
 
       doesMaybeIncludeMoviePaths = ...
         myparse(varargin, ...
@@ -1709,7 +1709,11 @@ classdef AWSec2 < handle
         wslPathFromMovieIndex = cell(1,0) ;
       end
       % Replace the local cache root with the remote one
-      result_1 = strrep(command, wslDMCRootDir, AWSec2.remoteDLCacheDir) ;
+      if isempty(wslDMCRootDir)
+        result_1 = command ;
+      else
+        result_1 = strrep(command, wslDMCRootDir, AWSec2.remoteDLCacheDir) ;
+      end
       % Replace local movie paths with the corresponding remote ones
       if ~isempty(wslPathFromMovieIndex) ,
         remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
