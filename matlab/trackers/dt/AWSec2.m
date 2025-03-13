@@ -837,9 +837,15 @@ classdef AWSec2 < handle
     function result = wrapCommandSSH(obj, input_command, varargin)
       % Wrap input command to run on the remote host via ssh.  Performs WSL-> remote
       % path substition.
-      remote_command_with_file_name_substitutions = ...
-        obj.applyFilePathSubstitutions(input_command) ;
-      result = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
+      dopathsubs = ...
+        myparse(varargin, ...
+                'dopathsubs', true) ;
+      if dopathsubs
+        remote_command = obj.applyFilePathSubstitutions(input_command) ;
+      else
+        remote_command = input_command ;
+      end
+      result = wrapCommandSSH(remote_command, ...
                               'host', obj.instanceIP, ...
                               'timeout',8, ...
                               'username', 'ubuntu', ...
@@ -850,8 +856,15 @@ classdef AWSec2 < handle
       % Runs a single command-line command on the ec2 instance.
       % Performs WSL-> remote path substition.
 
+      % Determine whether obj.wrapCommandSSH should do WSL->remote path
+      % substitutions
+      [dopathsubs, ...
+       restOfVarargin] = ...
+        myparse_nocheck(varargin, ...
+                        'dopathsubs', true) ;
+
       % Wrap for ssh'ing into an AWS instance
-      cmd1 = obj.wrapCommandSSH(cmdremote) ;  % uses fields of obj to set parameters for ssh command
+      cmd1 = obj.wrapCommandSSH(cmdremote, 'dopathsub', dopathsubs) ;  % uses fields of obj to set parameters for ssh command
     
       % Need to prepend a sleep to avoid problems
       precommand = 'sleep 5 && export AWS_PAGER=' ;
@@ -861,7 +874,7 @@ classdef AWSec2 < handle
       command = sprintf('%s && %s', precommand, cmd1) ;
 
       % Issue the command, gather results
-      [st, res] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;      
+      [st, res] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, restOfVarargin{:}) ;      
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -1261,6 +1274,15 @@ classdef AWSec2 < handle
       didsucceed = (status==0) ;
     end
     
+    function ensureRemoteFolderExists(obj, remote_dir_path)
+      % Create the named directory on the remote AWS machine.  Note that this does
+      % *not* do WSL->remote path translation, and also that it *throws* if it is
+      % unable to perform its duties.  It does not return anything.
+      quoted_remote_dir_path = escape_string_for_bash(remote_dir_path) ;
+      base_command = sprintf('mkdir -p %s', quoted_remote_dir_path) ;
+      obj.runBatchCommandOutsideContainer(base_command, 'dopathsub', false, 'failbehavior', 'err') ;
+    end
+    
     function mirrorDMCToBackend(obj, dmc, mode)
       % Take a local DMC and mirror/upload it to the AWS instance aws; 
       % update .rootDir, .reader appropriately to point to model on remote 
@@ -1418,6 +1440,7 @@ classdef AWSec2 < handle
       if obj.didUploadMovies_ ,
         return
       end
+      obj.ensureRemoteFolderExists(AWSec2.remoteMovieCacheDir) ;  % throws if error
       remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
       movieCount = numel(wslPathFromMovieIndex) ;
       fprintf('Uploading %d movie files...\n', movieCount) ;
