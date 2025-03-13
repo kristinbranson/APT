@@ -584,7 +584,7 @@ classdef DeepTracker < LabelTracker
         return
       end
       dmc.rootDir = dlcachedir ;
-      obj.backend.localDMCRootDir = dlcachedir ;
+      obj.backend.wslDMCRootDir = dlcachedir ;
 
       % At save-time we should be updating DMCs to local
 

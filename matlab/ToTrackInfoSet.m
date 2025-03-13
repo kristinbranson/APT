@@ -183,15 +183,15 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       end
     end
 
-    function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
-      % Assuming all the paths are paths on a remote-filesystem backend, change them
-      % all to their corresponding local paths.  The backend argument is used to
-      % lookup local movie paths from their remote versions.
-      n = numel(obj.ttis) ;
-      for i = 1 : n ,
-        obj.ttis(i).changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
-      end
-    end  % function
+    % function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
+    %   % Assuming all the paths are paths on a remote-filesystem backend, change them
+    %   % all to their corresponding local paths.  The backend argument is used to
+    %   % lookup local movie paths from their remote versions.
+    %   n = numel(obj.ttis) ;
+    %   for i = 1 : n ,
+    %     obj.ttis(i).changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
+    %   end
+    % end  % function
   end  % methods
 
 end  % classdef

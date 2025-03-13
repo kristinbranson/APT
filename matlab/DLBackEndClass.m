@@ -131,7 +131,7 @@ classdef DLBackEndClass < handle
     isInAwsDebugMode
     isDMCRemote
     isDMCLocal
-    localDMCRootDir
+    wslDMCRootDir
     remoteDMCRootDir
     awsInstanceID
     awsKeyName
@@ -670,12 +670,12 @@ classdef DLBackEndClass < handle
     %   end
     % end
 
-    function scpUploadOrVerify(obj, varargin)
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        aws = obj.awsec2;
-        aws.scpUploadOrVerify(varargin{:}) ;
-      end      
-    end
+    % function scpUploadOrVerify(obj, varargin)
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     aws = obj.awsec2;
+    %     aws.scpUploadOrVerify(varargin{:}) ;
+    %   end      
+    % end
 
     % function rsyncUpload(obj, src, dest)
     %   if isequal(obj.type, DLBackEnd.AWS) ,
@@ -687,15 +687,15 @@ classdef DLBackEndClass < handle
   end  % public methods block
 
   methods
-    function [didsucceed, msg] = mkdir(obj, dir_name)
+    function [didsucceed, msg] = mkdir(obj, native_dir_path)
       % Create the named directory, either locally or remotely, depending on the
       % backend type.  On Windows, dir_name can be a Windows-style path.
-      linux_dir_name = wsl_path_from_native(dir_name) ;
+      wsl_dir_path = wsl_path_from_native(native_dir_path) ;
       if obj.type == DLBackEnd.AWS ,
-        [didsucceed, msg] = obj.awsec2.mkdir(linux_dir_name) ;
+        [didsucceed, msg] = obj.awsec2.mkdir(wsl_dir_path) ;
       else
-        quoted_linux_dir_name = escape_string_for_bash(linux_dir_name) ;
-        base_command = sprintf('mkdir -p %s', quoted_linux_dir_name) ;
+        quoted_wsl_dir_path = escape_string_for_bash(wsl_dir_path) ;
+        base_command = sprintf('mkdir -p %s', quoted_wsl_dir_path) ;
         [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
         didsucceed = (status==0) ;
       end
@@ -764,19 +764,20 @@ classdef DLBackEndClass < handle
       end
     end  % function    
 
-    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
-      if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
-      else
-        result = queryRemotePath ;
-      end
-    end  % function
+    % function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+    %   if obj.type == DLBackEnd.AWS ,
+    %     result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
+    %   else
+    %     result = queryRemotePath ;
+    %   end
+    % end  % function
 
-    function result = getRemoteMoviePathFromLocal(obj, queryLocalPath)
+    function result = remote_movie_path_from_wsl(obj, queryWslPath)
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
+        % obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
+        AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
       else
-        result = queryLocalPath ;
+        result = queryWslPath ;
       end
     end  % function
   end  % methods
@@ -935,7 +936,7 @@ classdef DLBackEndClass < handle
 
       % totrackinfo has local paths, need to remotify them
       remotetotrackinfo = totrackinfo.copy() ;
-      remotetotrackinfo.changePathsToRemoteFromLocal(obj.localDMCRootDir, obj) ;
+      remotetotrackinfo.changePathsToRemoteFromWsl(obj.wslDMCRootDir, obj) ;
 
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
@@ -1275,14 +1276,15 @@ classdef DLBackEndClass < handle
       end
     end  % function
     
-    function result = fileExists(obj, file_name)
+    function result = fileExists(obj, native_file_path)
       % Returns true iff the named file exists.
       % Should be consolidated with exist(), probably.  Note, though, that probably
       % need to be careful about checking for the file inside/outside the container.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileExists(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileExists(wsl_file_path) ;
       else
-        result = logical(exist(file_name,'file')) ;
+        result = logical(exist(native_file_path,'file')) ;
       end
     end  % function
 
@@ -1393,7 +1395,7 @@ classdef DLBackEndClass < handle
     %   end        
     % end  % function
 
-    function nframes = readTrkFileStatus(obj, localFilePath, isTextFile, logger)
+    function nframes = readTrkFileStatus(obj, nativeFilePath, isTextFile, logger)
       % Read the number of frames remaining according to the remote file
       % corresponding to absolute local file path
       % localFilepath.  If partFileIsTextStatus is true, this file is assumed to be a
@@ -1408,21 +1410,22 @@ classdef DLBackEndClass < handle
 
       if obj.type == DLBackEnd.AWS ,
         % AWS backend
-        nframes = obj.awsec2.readTrkFileStatus(localFilePath, isTextFile, logger) ;
+        wslFilePath = wsl_path_from_native(nativeFilePath) ;
+        nframes = obj.awsec2.readTrkFileStatus(wslFilePath, isTextFile, logger) ;
       else
         % If non-AWS backend
-        if ~exist(localFilePath,'file'),
+        if ~exist(nativeFilePath,'file'),
           nframes = nan ;
           return
         end
         if isTextFile ,
-          s = obj.fileContents(localFilePath) ;
+          s = obj.fileContents(nativeFilePath) ;
           nframes = TrkFile.getNFramesTrackedPartFile(s) ;
         else
           try
-            nframes = TrkFile.getNFramesTrackedMatFile(localFilePath) ;
+            nframes = TrkFile.getNFramesTrackedMatFile(nativeFilePath) ;
           catch
-            fprintf('Could not read tracking progress from %s\n',localFilePath);
+            fprintf('Could not read tracking progress from %s\n',nativeFilePath);
             nframes = nan ;
           end
         end        
@@ -1479,16 +1482,16 @@ classdef DLBackEndClass < handle
     end  % function
 
     function ensureFoldersNeededForTrackingExist_(obj, toTrackInfo)
-      dirlocs = toTrackInfo.trkoutdir ;
+      native_dirlocs = toTrackInfo.trkoutdir ;
       desc = 'trk cache dir' ;
-      for i = 1:numel(dirlocs),
-        dirloc = dirlocs{i} ;
-        if ~obj.fileExists(dirloc) ,
-          [succ,msg] = obj.mkdir(dirloc);
+      for i = 1:numel(native_dirlocs),
+        native_dirloc = native_dirlocs{i} ;
+        if ~obj.fileExists(native_dirloc) ,
+          [succ,msg] = obj.mkdir(native_dirloc);
           if ~succ
-            error('Failed to create %s %s: %s',desc,dirloc,msg);
+            error('Failed to create %s %s: %s',desc,native_dirloc,msg);
           else
-            fprintf('Created %s: %s\n',desc,dirloc);
+            fprintf('Created %s: %s\n',desc,native_dirloc);
           end
         end
       end
@@ -1507,16 +1510,16 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function result = get.localDMCRootDir(obj)
+    function result = get.wslDMCRootDir(obj)
       % The local DMC root dir, as a WSL path.
-      result = obj.awsec2.localDMCRootDir ;
+      result = obj.awsec2.wslDMCRootDir ;
     end  % function
 
-    function set.localDMCRootDir(obj, value) 
+    function set.wslDMCRootDir(obj, value) 
       % Set the local DMC root dir.  Note that value is assumed to be a native path,
       % but we convert to a WSL path before passing to obj.awsec2.
       path = wsl_path_from_native(value) ;
-      obj.awsec2.localDMCRootDir = path ;
+      obj.awsec2.wslDMCRootDir = path ;
     end  % function
 
     function result = get.remoteDMCRootDir(obj)  %#ok<MANU>

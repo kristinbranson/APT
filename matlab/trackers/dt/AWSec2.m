@@ -25,7 +25,7 @@ classdef AWSec2 < handle
     remoteDLCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'cacheDL')
     remoteMovieCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'movies')
     remoteAPTSourceRootDir = linux_fullfile(AWSec2.remoteHomeDir, 'APT')
-    scpCmd = AWSec2.computeScpCmd()
+    % scpCmd = AWSec2.computeScpCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
   end
   
@@ -52,7 +52,7 @@ classdef AWSec2 < handle
     isDMCRemote_ = false
       % True iff the "current" version of the DMC is on a remote AWS filesystem.  
       % Underscore means "protected by convention"    
-    localDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    wslDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
     %remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
 
     % Used to keep track of whether movies have been uploaded or not.
@@ -68,7 +68,7 @@ classdef AWSec2 < handle
   properties (Dependent)
     isDMCRemote
     isDMCLocal    
-    localDMCRootDir
+    wslDMCRootDir
     %remoteDMCRootDir
   end
 
@@ -542,96 +542,96 @@ classdef AWSec2 < handle
  
     % FUTURE: use rsync if avail. win10 can ask users to setup WSL
     
-    function tfsucc = scpDownloadOrVerify(obj,srcAbs,dstAbs,varargin)
-      % If dstAbs already exists, does NOT check identity of file against
-      % dstAbs. In many cases, naming/immutability of files (with paths)
-      % means this is OK.
-      
-      [sysCmdArgs] = ...
-        myparse(varargin,...
-                'sysCmdArgs',{}) ;
-      
-      if exist(dstAbs,'file') ,
-        fprintf('File %s exists, not downloading.\n',dstAbs);
-        tfsucc = true;
-      else
-        %logger.log('AWSSec2::scpDownloadOrVerify(): obj.scpcmd is %s\n', obj.scpCmd) ;
-        cmd = AWSec2.scpDownloadCmd(obj.pem, obj.instanceIP, srcAbs, dstAbs, ...
-                                    'scpcmd', obj.scpCmd) ;
-        %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
-        st = AWSec2.syscmd(cmd,sysCmdArgs{:});
-        tfsucc0 = (st==0) ;        
-        tfsucc = tfsucc0 && logical(exist(dstAbs,'file')) ;
-      end
-    end  % function
+    % function tfsucc = scpDownloadOrVerify(obj,srcAbs,dstAbs,varargin)
+    %   % If dstAbs already exists, does NOT check identity of file against
+    %   % dstAbs. In many cases, naming/immutability of files (with paths)
+    %   % means this is OK.
+    % 
+    %   [sysCmdArgs] = ...
+    %     myparse(varargin,...
+    %             'sysCmdArgs',{}) ;
+    % 
+    %   if exist(dstAbs,'file') ,
+    %     fprintf('File %s exists, not downloading.\n',dstAbs);
+    %     tfsucc = true;
+    %   else
+    %     %logger.log('AWSSec2::scpDownloadOrVerify(): obj.scpcmd is %s\n', obj.scpCmd) ;
+    %     cmd = AWSec2.scpDownloadCmd(obj.pem, obj.instanceIP, srcAbs, dstAbs, ...
+    %                                 'scpcmd', obj.scpCmd) ;
+    %     %logger.log('AWSSec2::scpDownloadOrVerify(): cmd is %s\n', cmd) ;
+    %     st = AWSec2.syscmd(cmd,sysCmdArgs{:});
+    %     tfsucc0 = (st==0) ;        
+    %     tfsucc = tfsucc0 && logical(exist(dstAbs,'file')) ;
+    %   end
+    % end  % function
     
-    function tfsucc = scpDownloadOrVerifyEnsureDir(obj,srcAbs,dstAbs,varargin)
-      dirLcl = fileparts(dstAbs);
-      if exist(dirLcl,'dir')==0
-        [tfsucc,msg] = mkdir(dirLcl);
-        if ~tfsucc
-          warningNoTrace('Failed to create local directory %s: %s',dirLcl,msg);
-          return;
-        end
-      end
-      tfsucc = obj.scpDownloadOrVerify(srcAbs,dstAbs,varargin{:});
-    end
+    % function tfsucc = scpDownloadOrVerifyEnsureDir(obj,srcAbs,dstAbs,varargin)
+    %   dirLcl = fileparts(dstAbs);
+    %   if exist(dirLcl,'dir')==0
+    %     [tfsucc,msg] = mkdir(dirLcl);
+    %     if ~tfsucc
+    %       warningNoTrace('Failed to create local directory %s: %s',dirLcl,msg);
+    %       return;
+    %     end
+    %   end
+    %   tfsucc = obj.scpDownloadOrVerify(srcAbs,dstAbs,varargin{:});
+    % end
  
-    function tfsucc = scpUpload(obj,file,dest,varargin)
-      [destRelative,sysCmdArgs] = myparse(varargin,...
-        'destRelative',true,... % true if dest is relative to ~
-        'sysCmdArgs',{});
-      cmd = AWSec2.scpPrepareUploadCmd(obj.pem,obj.instanceIP,dest,...
-                                       'destRelative',destRelative);
-      AWSec2.syscmd(cmd,sysCmdArgs{:});
-      cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
-                                'scpcmd',obj.scpCmd,'destRelative',destRelative);
-      st = AWSec2.syscmd(cmd,sysCmdArgs{:});
-      tfsucc = (st==0) ;
-    end
+    % function tfsucc = scpUpload(obj,file,dest,varargin)
+    %   [destRelative,sysCmdArgs] = myparse(varargin,...
+    %     'destRelative',true,... % true if dest is relative to ~
+    %     'sysCmdArgs',{});
+    %   cmd = AWSec2.scpPrepareUploadCmd(obj.pem,obj.instanceIP,dest,...
+    %                                    'destRelative',destRelative);
+    %   AWSec2.syscmd(cmd,sysCmdArgs{:});
+    %   cmd = AWSec2.scpUploadCmd(file,obj.pem,obj.instanceIP,dest,...
+    %                             'scpcmd',obj.scpCmd,'destRelative',destRelative);
+    %   st = AWSec2.syscmd(cmd,sysCmdArgs{:});
+    %   tfsucc = (st==0) ;
+    % end
     
-    function scpUploadOrVerify(obj,src,dst,fileDescStr,varargin) % throws
-      % Either i) confirm a remote file exists, or ii) upload it.
-      % In the case of i), NO CHECK IS MADE that the existing file matches
-      % the local file.
-      %
-      % Could use rsync here instead but rsync is less likely to be 
-      % installed on a Win machine
-      %
-      % This method either succeeds or fails and harderrors.
-      %
-      % src: full path to local file
-      % dstRel: relative (to home) path to destination
-      % fileDescStr: eg 'training file' or 'movie'
-            
-      destRelative = myparse(varargin,...
-        'destRelative',true);
-      
-      if destRelative
-        dstAbs = ['~/' dst];
-      else
-        dstAbs = dst;
-      end
-      
-      src_d = dir(src);
-      src_sz = src_d.bytes;
-      tfsucc = obj.fileExistsAndIsGivenSize(dstAbs,src_sz);
-      if tfsucc
-        fprintf('%s file exists: %s.\n\n',...
-          String.niceUpperCase(fileDescStr),dstAbs);
-      else
-        %obj.SetStatus(sprintf('Uploading %s file to AWS EC2 instance',fileDescStr));
-        fprintf('About to upload. This could take a while depending ...\n');
-        tfsucc = obj.scpUpload(src,dstAbs,...
-                               'destRelative',false,'sysCmdArgs',{});
-        %obj.ClearStatus();
-        if tfsucc
-          fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dst);
-        else
-          error('Failed to upload %s %s.',fileDescStr,src);
-        end
-      end
-    end
+    % function scpUploadOrVerify(obj,src,dst,fileDescStr,varargin) % throws
+    %   % Either i) confirm a remote file exists, or ii) upload it.
+    %   % In the case of i), NO CHECK IS MADE that the existing file matches
+    %   % the local file.
+    %   %
+    %   % Could use rsync here instead but rsync is less likely to be 
+    %   % installed on a Win machine
+    %   %
+    %   % This method either succeeds or fails and harderrors.
+    %   %
+    %   % src: full path to local file
+    %   % dstRel: relative (to home) path to destination
+    %   % fileDescStr: eg 'training file' or 'movie'
+    % 
+    %   destRelative = myparse(varargin,...
+    %     'destRelative',true);
+    % 
+    %   if destRelative
+    %     dstAbs = ['~/' dst];
+    %   else
+    %     dstAbs = dst;
+    %   end
+    % 
+    %   src_d = dir(src);
+    %   src_sz = src_d.bytes;
+    %   tfsucc = obj.fileExistsAndIsGivenSize(dstAbs,src_sz);
+    %   if tfsucc
+    %     fprintf('%s file exists: %s.\n\n',...
+    %       String.niceUpperCase(fileDescStr),dstAbs);
+    %   else
+    %     %obj.SetStatus(sprintf('Uploading %s file to AWS EC2 instance',fileDescStr));
+    %     fprintf('About to upload. This could take a while depending ...\n');
+    %     tfsucc = obj.scpUpload(src,dstAbs,...
+    %                            'destRelative',false,'sysCmdArgs',{});
+    %     %obj.ClearStatus();
+    %     if tfsucc
+    %       fprintf('Uploaded %s %s to %s.\n\n',fileDescStr,src,dst);
+    %     else
+    %       error('Failed to upload %s %s.',fileDescStr,src);
+    %     end
+    %   end
+    % end
     
     % function scpUploadOrVerifyEnsureDir(obj,fileLcl,fileRemote,fileDescStr,...
     %     varargin)
@@ -647,29 +647,35 @@ classdef AWSec2 < handle
     %     'destRelative',destRelative); % throws
     % end
     
-    function rsyncUploadFolder_(obj, src, dest)
+    function rsyncUploadFolder(obj, srcWslPath, destRemotePath)
       % rsync the local folder src to the remote folder dest.  No local-to-remote
       % translation is done on dest.  Thus src should be a WSL path, dest should be
       % a remote path.
       % This can throw APT:syscmd error.       
-      cmd = AWSec2.rsyncUploadFolderCmd(src, obj.pem, obj.instanceIP, dest) ;
+      cmd = AWSec2.rsyncUploadFolderCmd(srcWslPath, obj.pem, obj.instanceIP, destRemotePath) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
 
-    function rsyncDownloadFile(obj, src, dest)
+    function rsyncDownloadFolder(obj, srcRemotePath, destWslPath)
+      % This can throw APT:syscmd error.       
+      cmd = AWSec2.rsyncDownloadFolderCmd(srcRemotePath, obj.pem, obj.instanceIP, destWslPath) ;
+      AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
+    end
+
+    function rsyncDownloadFile(obj, srcRemotePath, destWslPath)
       % rsync the local folder src to the remote folder dest.  No local-to-remote
       % translation is done on dest.
       % This can throw APT:syscmd error.       
-      cmd = AWSec2.rsyncDownloadFileCmd(obj.pem, obj.instanceIP, src, dest) ;
+      cmd = AWSec2.rsyncDownloadFileCmd(obj.pem, obj.instanceIP, srcRemotePath, destWslPath) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
 
-    function rsyncUploadFile(obj, src, dest)
+    function rsyncUploadFile(obj, srcWslPath, destRemotePath)
       % rsync the local folder src to the remote folder dest.  No local-to-remote
       % translation is done on dest.  Thus src should be a local WSL path, and dest
       % should be a remote path.
       % This can throw APT:syscmd error.       
-      cmd = AWSec2.rsyncUploadFileCmd(src, obj.pem, obj.instanceIP, dest) ;
+      cmd = AWSec2.rsyncUploadFileCmd(srcWslPath, obj.pem, obj.instanceIP, destRemotePath) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
 
@@ -704,25 +710,25 @@ classdef AWSec2 < handle
       %obj.ClearStatus();
     end    
     
-    function tf = fileExists(obj,f)
+    function tf = fileExists(obj, wsl_file_path)
       %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
       %cmdremote = sprintf('%s %s',script,f);
-      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',f);
-      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',wsl_file_path);
+      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err');  % will handle WSL->remote file path substitution
       tf = strcmp(strtrim(res),'0') ;      
     end
     
-    function tf = fileExistsAndIsNonempty(obj,f)
+    function tf = fileExistsAndIsNonempty(obj, wsl_file_path)
       %script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
       %cmdremote = sprintf('%s %s',script,f);
-      cmdremote = sprintf('/usr/bin/test -s %s ; echo $?',f);
-      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err'); 
+      cmdremote = sprintf('/usr/bin/test -s %s ; echo $?',wsl_file_path);
+      [~,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err');  % will handle WSL->remote file path substitution
       tf = strcmp(strtrim(res),'0') ;      
     end
     
-    function tf = fileExistsAndIsGivenSize(obj, file_name, query_byte_count)
+    function tf = fileExistsAndIsGivenSize(obj, wsl_file_path, query_byte_count)
       script_path = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
-      cmdremote = sprintf('%s %s %d', script_path, file_name, query_byte_count) ;
+      cmdremote = sprintf('%s %s %d', script_path, wsl_file_path, query_byte_count) ;
       %cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;  
         % stat return code is nonzero if file is missing---annoying
       [~, res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior','err');
@@ -730,15 +736,15 @@ classdef AWSec2 < handle
       tf = (actual_byte_count == query_byte_count) ;
     end
     
-    function s = fileContents(obj,f,varargin)
+    function s = fileContents(obj, wsl_file_path, varargin)
       % First check if the file exists
-      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',f);
+      cmdremote = sprintf('/usr/bin/test -e %s ; echo $?',wsl_file_path);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
       if st==0 ,
         % Command succeeded in determining whether the file exists
         if strcmp(strtrim(res),'0') ,
           % File exists
-          cmdremote = sprintf('cat %s',f);
+          cmdremote = sprintf('cat %s',wsl_file_path);
           [st,res] = obj.runBatchCommandOutsideContainer(cmdremote, 'failbehavior', 'silent', varargin{:}) ;
           if st==0
             s = res ;
@@ -755,9 +761,9 @@ classdef AWSec2 < handle
       end
     end  % function
     
-    function result = remoteFileModTime(obj, filename, varargin)
+    function result = remoteFileModTime(obj, wsl_file_path, varargin)
       % Returns the file modification time (mtime) in seconds since Epoch
-      command = sprintf('stat --format=%%Y %s', escape_string_for_bash(filename)) ;  % time of last data modification, seconds since Epoch
+      command = sprintf('stat --format=%%Y %s', escape_string_for_bash(wsl_file_path)) ;  % time of last data modification, seconds since Epoch
       [st, stdouterr] = obj.runBatchCommandOutsideContainer(command, varargin{:}) ; 
       did_succeed = (st==0) ;
       if did_succeed ,
@@ -768,11 +774,11 @@ classdef AWSec2 < handle
       end
     end
     
-    function tfsucc = lsdir(obj,remoteDir,varargin)
+    function tfsucc = lsdir(obj, wsl_dir_path, varargin)
       [failbehavior,args] = myparse(varargin,...
                                     'failbehavior','warn',...
                                     'args','-lha') ;      
-      cmdremote = sprintf('ls %s %s',args,remoteDir);
+      cmdremote = sprintf('ls %s %s', args, wsl_dir_path);
       [st,res] = obj.runBatchCommandOutsideContainer(cmdremote,'failbehavior',failbehavior);
       tfsucc = (st==0) ;
       disp(res);
@@ -809,7 +815,7 @@ classdef AWSec2 < handle
     %   end
     % end
     
-    function remotePaths = remoteGlob(obj,globs)
+    function remotePaths = remoteGlob(obj, globs)
       % Look for remote files/paths. Either succeeds, or fails and harderrors.
 
       % globs: cellstr of globs
@@ -829,8 +835,10 @@ classdef AWSec2 < handle
     end
     
     function result = wrapCommandSSH(obj, input_command, varargin)
+      % Wrap input command to run on the remote host via ssh.  Performs WSL-> remote
+      % path substition.
       remote_command_with_file_name_substitutions = ...
-        obj.applyFileNameSubstitutions(input_command) ;
+        obj.applyFilePathSubstitutions(input_command) ;
       result = wrapCommandSSH(remote_command_with_file_name_substitutions, ...
                               'host', obj.instanceIP, ...
                               'timeout',8, ...
@@ -840,6 +848,7 @@ classdef AWSec2 < handle
 
     function [st,res] = runBatchCommandOutsideContainer(obj, cmdremote, varargin)      
       % Runs a single command-line command on the ec2 instance.
+      % Performs WSL-> remote path substition.
 
       % Wrap for ssh'ing into an AWS instance
       cmd1 = obj.wrapCommandSSH(cmdremote) ;  % uses fields of obj to set parameters for ssh command
@@ -972,21 +981,21 @@ classdef AWSec2 < handle
       cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
     end
 
-    function cmd = rsyncDownloadFileCmd(pemFilePath, ip, srcFileAbsPath, destFileAbsPath)
+    function cmd = rsyncDownloadFileCmd(pemFilePath, ip, srcFileRemotePath, destFileWslPath)
       % Generate the system() command to download a file via rsync.
 
       % It's important that neither src nor dest have a trailing slash
-      if isempty(srcFileAbsPath) ,
+      if isempty(srcFileRemotePath) ,
         error('src file for rsync cannot be empty') ;
       else
-        if strcmp(srcFileAbsPath(end),'/') ,
+        if strcmp(srcFileRemotePath(end),'/') ,
           error('src file for rsync cannot end in a slash') ;
         end
       end
-      if isempty(destFileAbsPath) ,
+      if isempty(destFileWslPath) ,
         error('dest file for rsync cannot be empty') ;
       else
-        if strcmp(destFileAbsPath(end),'/') ,
+        if strcmp(destFileWslPath(end),'/') ,
           error('dest file for rsync cannot end in a slash') ;
         end
       end
@@ -999,24 +1008,24 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileAbsPath, destFileAbsPath) ;
+      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileRemotePath, destFileWslPath) ;
     end
 
-    function cmd = rsyncUploadFileCmd(srcFileAbsPath, pemFilePath, ip, destFileAbsPath)
+    function cmd = rsyncUploadFileCmd(srcFileWslPath, pemFilePath, ip, destFileRemotePath)
       % Generate the system() command to upload a file via rsync.
 
       % It's important that neither src nor dest have a trailing slash
-      if isempty(srcFileAbsPath) ,
+      if isempty(srcFileWslPath) ,
         error('src file for rsync cannot be empty') ;
       else
-        if strcmp(srcFileAbsPath(end),'/') ,
+        if strcmp(srcFileWslPath(end),'/') ,
           error('src file for rsync cannot end in a slash') ;
         end
       end
-      if isempty(destFileAbsPath) ,
+      if isempty(destFileRemotePath) ,
         error('dest file for rsync cannot be empty') ;
       else
-        if strcmp(destFileAbsPath(end),'/') ,
+        if strcmp(destFileRemotePath(end),'/') ,
           error('dest file for rsync cannot end in a slash') ;
         end
       end
@@ -1028,24 +1037,24 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s %s ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcFileAbsPath, ip, destFileAbsPath) ;
+      cmd = sprintf('%s --rsh=%s %s ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcFileWslPath, ip, destFileRemotePath) ;
     end
 
-    function cmd = rsyncUploadFolderCmd(src, pemFilePath, ip, dest)
+    function cmd = rsyncUploadFolderCmd(srcWslPath, pemFilePath, ip, destRemotePath)
       % Generate the system() command to upload a folder via rsync.
 
       % It's important that neither src nor dest have a trailing slash
-      if isempty(src) ,
+      if isempty(srcWslPath) ,
         error('src folder for rsync cannot be empty') ;
       else
-        if strcmp(src(end),'/') ,
+        if strcmp(srcWslPath(end),'/') ,
           error('src folder for rsync cannot end in a slash') ;
         end
       end
-      if isempty(dest) ,
+      if isempty(destRemotePath) ,
         error('dest folder for rsync cannot be empty') ;
       else
-        if strcmp(dest(end),'/') ,
+        if strcmp(destRemotePath(end),'/') ,
           error('dest folder for rsync cannot end in a slash') ;
         end
       end
@@ -1058,7 +1067,37 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, src, ip, dest) ;
+      cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcWslPath, ip, destRemotePath) ;
+    end
+    
+    function cmd = rsyncDownloadFolderCmd(srcRemotePath, pemFilePath, ip, destWslPath)
+      % Generate the system() command to upload a folder via rsync.
+
+      % It's important that neither src nor dest have a trailing slash
+      if isempty(srcRemotePath) ,
+        error('src folder for rsync cannot be empty') ;
+      else
+        if strcmp(srcRemotePath(end),'/') ,
+          error('src folder for rsync cannot end in a slash') ;
+        end
+      end
+      if isempty(destWslPath) ,
+        error('dest folder for rsync cannot be empty') ;
+      else
+        if strcmp(destWslPath(end),'/') ,
+          error('dest folder for rsync cannot end in a slash') ;
+        end
+      end
+
+      % Generate the --rsh argument
+      %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
+      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+        % We use an empty command, and an empty host, to get a string with the default
+        % options plus the two options we want to specify.
+      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+
+      % Generate the final command
+      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s/ %s/', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcRemotePath, destWslPath) ;
     end
     
 %     function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
@@ -1071,14 +1110,14 @@ classdef AWSec2 < handle
 %       cmd = space_out(args,' ');
 %     end  % function
 
-    function scpCmd = computeScpCmd()
-      if ispc()
-        windows_null_device_path = '\\.\NUL' ;
-        scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
-      else
-        scpCmd = 'scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
-      end
-    end
+    % function scpCmd = computeScpCmd()
+    %   if ispc()
+    %     windows_null_device_path = '\\.\NUL' ;
+    %     scpCmd = sprintf('"%s" -oStrictHostKeyChecking=no -oUserKnownHostsFile=%s -oLogLevel=ERROR', APT.WINSCPCMD, windows_null_device_path) ; 
+    %   else
+    %     scpCmd = 'scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR';
+    %   end
+    % end
 
 %     function sshCmd = computeSshCmd()
 %       if ispc()
@@ -1114,7 +1153,7 @@ classdef AWSec2 < handle
       suitcase.instanceIP = obj.instanceIP ;
       suitcase.isInDebugMode_ = obj.isInDebugMode_ ;
       suitcase.isDMCRemote_ = obj.isDMCRemote_ ;
-      suitcase.localDMCRootDir_ = obj.localDMCRootDir_ ;
+      suitcase.wslDMCRootDir_ = obj.wslDMCRootDir_ ;
       suitcase.didUploadMovies_ = obj.didUploadMovies_ ;
       suitcase.localPathFromMovieIndex_ = obj.wslPathFromMovieIndex_ ;
       suitcase.remotePathFromMovieIndex_ = obj.remotePathFromMovieIndex_ ;
@@ -1127,7 +1166,7 @@ classdef AWSec2 < handle
       obj.instanceIP = suitcase.instanceIP ;
       obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
       obj.isDMCRemote_ = suitcase.isDMCRemote_ ;
-      obj.localDMCRootDir_ = suitcase.localDMCRootDir_ ;
+      obj.wslDMCRootDir_ = suitcase.wslDMCRootDir_ ;
       obj.didUploadMovies_ = suitcase.didUploadMovies_ ;
       obj.wslPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
       obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
@@ -1145,12 +1184,13 @@ classdef AWSec2 < handle
         % download trkfiles 
         localTrackFilePaths = pollingResult.trkfile ;
         remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;
-        sysCmdArgs = {'failbehavior', 'err'};
+        % sysCmdArgs = {'failbehavior', 'err'};
         for ivw=1:numel(localTrackFilePaths)
           trkRmt = remoteTrackFilePaths{ivw};
           trkLcl = localTrackFilePaths{ivw};
           fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
-          obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          % obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
+          obj.rsyncDownloadFile(trkRmt, trkLcl) ;
           fprintf('Done downloading %s to %s.\n',trkRmt,trkLcl);
         end
       else
@@ -1214,12 +1254,11 @@ classdef AWSec2 < handle
       end
     end  % function
     
-    function [didsucceed, msg] = mkdir(obj, dir_name)
-      % Create the named directory, either locally or remotely, depending on the
-      % backend type.      
-      quoted_dirloc = escape_string_for_bash(dir_name) ;
+    function [didsucceed, msg] = mkdir(obj, wsl_dir_path)
+      % Create the named directory on the remote AWS machine.      
+      quoted_dirloc = escape_string_for_bash(wsl_dir_path) ;
       base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
-      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;  % Will translate to remote path
       didsucceed = (status==0) ;
     end
     
@@ -1269,18 +1308,20 @@ classdef AWSec2 < handle
       % only a single boolean to represent whether it's local or remote, we're just
       % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
       % backend.  -- ALT, 2024-06-25
-      localProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
-      remoteProjectPath = linux_fullfile(AWSec2.remoteDLCacheDir, dmc.projID) ;  % ensure linux-style path
-      [didsucceed, msg] = obj.mkdir(remoteProjectPath) ;
+      obj.wslDMCRootDir_ = dmc.rootDir ;  % Need to set this before calling obj.remote_path_from_wsl()
+      nativeProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
+      wslProjectPath = wsl_path_from_native(nativeProjectPath) ;
+      remoteProjectPath = obj.remote_path_from_wsl(wslProjectPath) ;
+      % remoteProjectPath = linux_fullfile(AWSec2.remoteDLCacheDir, dmc.projID) ;  % ensure linux-style path
+      [didsucceed, msg] = obj.mkdir(wslProjectPath) ;
       if ~didsucceed ,
         error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
       end
-      obj.rsyncUploadFolder_(localProjectPath, remoteProjectPath) ;  % this will throw if there's a problem
+      obj.rsyncUploadFolder(wslProjectPath, remoteProjectPath) ;  % this will throw if there's a problem
 
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
       %obj.remoteDMCRootDir_ = AWSec2.remoteDLCacheDir ;
-      obj.localDMCRootDir_ = dmc.rootDir ;
       obj.isDMCRemote_ = true ;
     end  % function
     
@@ -1323,14 +1364,14 @@ classdef AWSec2 < handle
         end
       end      
           
-      localDMCRootDir = obj.localDMCRootDir_ ;
+      wslDMCRootDir = obj.wslDMCRootDir_ ;
       modelGlobsLnx = dmc.modelGlobsLnx();
       n = dmc.n ;
       remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
       dmcNetType = dmc.netType ;
       for j = 1:n,
         mdlFilesRemote = obj.remoteGlob(modelGlobsLnx{j});
-        cacheDirLocalEscd = regexprep(localDMCRootDir,'\\','\\\\');
+        cacheDirLocalEscd = regexprep(wslDMCRootDir,'\\','\\\\');
         mdlFilesLcl = regexprep(mdlFilesRemote,remoteDMCRootDir,cacheDirLocalEscd);
         nMdlFiles = numel(mdlFilesRemote);
         netstr = char(dmcNetType{j}); 
@@ -1341,8 +1382,9 @@ classdef AWSec2 < handle
           % See comment in mirror2RemoteAws regarding not confirming ID of
           % files-that-already-exist
           % We should switch to using rsync for this.  -- ALT, 2025-01-24
-          obj.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-            'sysCmdArgs',{'failbehavior', 'err'}); % throws
+          % obj.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
+          %   'sysCmdArgs',{'failbehavior', 'err'}); % throws
+          obj.rsyncDownloadFile(fsrc, fdst) ; % throws
         end
       end      
       % if we made it here, download successful
@@ -1360,12 +1402,12 @@ classdef AWSec2 < handle
     %   end
     % end  % function
     
-    function result = get.localDMCRootDir(obj) 
-      result = obj.localDMCRootDir_ ;
+    function result = get.wslDMCRootDir(obj) 
+      result = obj.wslDMCRootDir_ ;
     end  % function
 
-    function set.localDMCRootDir(obj, value) 
-      obj.localDMCRootDir_ = value ;
+    function set.wslDMCRootDir(obj, value) 
+      obj.wslDMCRootDir_ = value ;
     end  % function
     
     % function result = get.remoteDMCRootDir(obj)
@@ -1377,22 +1419,24 @@ classdef AWSec2 < handle
       if obj.didUploadMovies_ ,
         return
       end
-      remotePathFromMovieIndex = obj.remote_path_from_wsl(wslPathFromMovieIndex) ;
+      remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
       movieCount = numel(wslPathFromMovieIndex) ;
       fprintf('Uploading %d movie files...\n', movieCount) ;
-      fileDescription = 'Movie file' ;
-      sidecarDescription = 'Movie sidecar file' ;
+      % fileDescription = 'Movie file' ;
+      % sidecarDescription = 'Movie sidecar file' ;
       for i = 1:movieCount ,
         wslPath = wslPathFromMovieIndex{i};
         remotePath = remotePathFromMovieIndex{i};
-        obj.uploadOrVerifySingleFile_(wslPath, remotePath, fileDescription) ;  % throws
+        %obj.uploadOrVerifySingleFile_(wslPath, remotePath, fileDescription) ;  % throws
+        obj.rsyncUploadFile(wslPath, remotePath) ;  % throws
         % If there's a sidecar file, upload it too
         [~,~,fileExtension] = fileparts(wslPath) ;
         if strcmp(fileExtension,'.mjpg') ,
           sidecarWslPath = FSPath.replaceExtension(wslPath, '.txt') ;
           if exist(sidecarWslPath, 'file') ,
             sidecarRemotePath = obj.remote_path_from_wsl(sidecarWslPath) ;
-            obj.uploadOrVerifySingleFile_(sidecarWslPath, sidecarRemotePath, sidecarDescription) ;  % throws
+            % obj.uploadOrVerifySingleFile_(sidecarWslPath, sidecarRemotePath, sidecarDescription) ;  % throws
+            obj.rsyncUploadFile(sidecarWslPath, sidecarRemotePath) ;  % throws
           end
         end
       end      
@@ -1402,56 +1446,56 @@ classdef AWSec2 < handle
       obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
     end  % function
     
-    function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
-      % Upload a single file.  Protected by convention.
-      localFileDirOutput = dir(localPath) ;
-      localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
-      % We just use scpUploadOrVerify which does not confirm the identity
-      % of file if it already exists. These movie files should be
-      % immutable once created and their naming (underneath timestamped
-      % modelchainIDs etc) should be pretty/totally unique. 
-      %
-      % Only situation that might cause problems are augmentedtrains but
-      % let's not worry about that for now.
-      localFileName = localFileDirOutput.name ;
-      fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
-      obj.scpUploadOrVerify(localPath, ...
-                            remotePath, ...
-                            fullFileDescription, ...
-                            'destRelative',false) ;  % throws      
-    end  % function
+    % function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
+    %   % Upload a single file.  Protected by convention.
+    %   localFileDirOutput = dir(localPath) ;
+    %   localFileSizeInKibibytes = round(localFileDirOutput.bytes/2^10) ;
+    %   % We just use scpUploadOrVerify which does not confirm the identity
+    %   % of file if it already exists. These movie files should be
+    %   % immutable once created and their naming (underneath timestamped
+    %   % modelchainIDs etc) should be pretty/totally unique. 
+    %   %
+    %   % Only situation that might cause problems are augmentedtrains but
+    %   % let's not worry about that for now.
+    %   localFileName = localFileDirOutput.name ;
+    %   fullFileDescription = sprintf('%s (%s), %d KiB', fileDescription, localFileName, localFileSizeInKibibytes) ;
+    %   obj.scpUploadOrVerify(localPath, ...
+    %                         remotePath, ...
+    %                         fullFileDescription, ...
+    %                         'destRelative',false) ;  % throws      
+    % end  % function
     
-    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
-      if ~obj.didUploadMovies_ ,
-        error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
-      end
-      movieCount = numel(obj.remotePathFromMovieIndex_) ;
-      for movieIndex = 1 : movieCount ,
-        remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
-        if strcmp(remotePath, queryRemotePath) ,
-          result = obj.wslPathFromMovieIndex_{movieIndex} ;
-          return
-        end
-      end
-      % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
-      error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
-    end  % function
+    % function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+    %   if ~obj.didUploadMovies_ ,
+    %     error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
+    %   end
+    %   movieCount = numel(obj.remotePathFromMovieIndex_) ;
+    %   for movieIndex = 1 : movieCount ,
+    %     remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
+    %     if strcmp(remotePath, queryRemotePath) ,
+    %       result = obj.wslPathFromMovieIndex_{movieIndex} ;
+    %       return
+    %     end
+    %   end
+    %   % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
+    %   error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
+    % end  % function
     
-    function result = getRemoteMoviePathFromLocal(obj, queryLocalPath)
-      if ~obj.didUploadMovies_ ,
-        error('Can''t get a remote movie path from a local path if movies have not been uploaded.') ;
-      end
-      movieCount = numel(obj.wslPathFromMovieIndex_) ;
-      for movieIndex = 1 : movieCount ,
-        localPath = obj.wslPathFromMovieIndex_{movieIndex} ;
-        if strcmp(localPath, queryLocalPath) ,
-          result = obj.remotePathFromMovieIndex_{movieIndex} ;
-          return
-        end
-      end
-      % If we get here, queryLocalPath did not match any path in obj.localPathFromMovieIndex_
-      error('Query path %s does not match any local movie path known to the backend.', queryLocalPath) ;
-    end  % function
+    % function result = getRemoteMoviePathFromLocal(obj, queryWslPath)
+    %   if ~obj.didUploadMovies_ ,
+    %     error('Can''t get a remote movie path from a local path if movies have not been uploaded.') ;
+    %   end
+    %   movieCount = numel(obj.wslPathFromMovieIndex_) ;
+    %   for movieIndex = 1 : movieCount ,
+    %     wslPath = obj.wslPathFromMovieIndex_{movieIndex} ;
+    %     if strcmp(wslPath, queryWslPath) ,
+    %       result = obj.remotePathFromMovieIndex_{movieIndex} ;
+    %       return
+    %     end
+    %   end
+    %   % If we get here, queryLocalPath did not match any path in obj.localPathFromMovieIndex_
+    %   error('Query path %s does not match any local movie path known to the backend.', queryWslPath) ;
+    % end  % function
     
     function [isRunning, reasonNotRunning] = ensureIsRunning(obj)
       % If the AWS EC2 instance is not running, tell it to start, and wait for it to be
@@ -1511,20 +1555,20 @@ classdef AWSec2 < handle
       obj.errorIfInstanceNotRunning();  % errs if instance isn't running
 
       % Does the APT source root dir exist?
-      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;  % remote path
+      native_apt_root = APT.Root ;  % native path
+      wsl_apt_root = wsl_path_from_native(native_apt_root) ;
+      remote_apt_root = obj.remote_path_from_wsl(wsl_apt_root) ;  % remote path
       
       % Create folder if needed
-      [didsucceed, msg] = obj.mkdir(remote_apt_root) ;
+      [didsucceed, msg] = obj.mkdir(wsl_apt_root) ;
       if ~didsucceed ,
         error('Unable to create APT source folder in AWS instance.\nStdout/stderr:\n%s\n', msg) ;
       end
       fprintf('APT source folder %s exists on AWS instance.\n', remote_apt_root);
       
       % Rsync the local APT code to the remote end
-      native_local_apt_root = APT.Root ;  % native path
-      wsl_local_apt_root = wsl_path_from_native(native_local_apt_root) ;
-      obj.rsyncUploadFolder_(wsl_local_apt_root, remote_apt_root) ;  % Will throw on error
-      fprintf('Successfully rsynced remote APT source code (in %s) from local version (in %s).\n', remote_apt_root, native_local_apt_root) ;
+      obj.rsyncUploadFolder(wsl_apt_root, remote_apt_root) ;  % Will throw on error
+      fprintf('Successfully rsynced remote APT source code (in %s) from local version (in %s).\n', remote_apt_root, native_apt_root) ;
 
       % Run the remote Python script to download the pretrained model weights
       % This python script doesn't do anything fancy, apparently, so we use the
@@ -1541,7 +1585,7 @@ classdef AWSec2 < handle
       fprintf('Updated remote APT source code.\n\n');
     end  % function    
     
-    function nframes = readTrkFileStatus(obj, localFilePath, isTextFile, logger)
+    function nframes = readTrkFileStatus(obj, wslFilePath, isTextFile, logger)
       % Read the number of frames remaining according to the remote file
       % corresponding to absolute local file path
       % localFilepath.  If partFileIsTextStatus is true, this file is assumed to be a
@@ -1556,22 +1600,23 @@ classdef AWSec2 < handle
 
       %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
       remoteFilePath = ...
-         obj.applyFileNameSubstitutions(localFilePath, 'doesMaybeIncludeMoviePaths', false) ;
-      if ~obj.fileExists(localFilePath) ,
+         obj.remote_path_from_wsl(wslFilePath, 'doesMaybeIncludeMoviePaths', false) ;
+      if ~obj.fileExists(wslFilePath) ,
         nframes = nan ;
         return
       end
       if isTextFile,
-        str = obj.fileContents(localFilePath) ;
+        str = obj.fileContents(wslFilePath) ;
         nframes = TrkFile.getNFramesTrackedString(str) ;
       else
-        localCopyFilePath = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
+        nativeCopyFilePath = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
+        wslCopyFilePath = wsl_path_from_native(nativeCopyFilePath) ;
         %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
         % did_succeed = obj.scpDownloadOrVerify(remoteFilePath, localCopyFilePath) ;
         try
-          obj.rsyncDownloadFile(remoteFilePath, localCopyFilePath) ;  % throws on error
+          obj.rsyncDownloadFile(remoteFilePath, wslCopyFilePath) ;  % throws on error
           %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
-          nframes = TrkFile.getNFramesTrackedMatFile(localCopyFilePath) ;
+          nframes = TrkFile.getNFramesTrackedMatFile(nativeCopyFilePath) ;
           %logger.log('Read that nframes = %d\n', nframes) ;
         catch me
           logger.log('Could not download and/or read tracking progress from remote file %s:\n%s\n', remoteFilePath, me.getReport()) ;
@@ -1580,7 +1625,7 @@ classdef AWSec2 < handle
       end
     end  % function    
 
-    function writeStringToFile(obj, localFileAbsPath, str)
+    function writeStringToFile(obj, fileWslPath, str)
       % Write the given string to a file, overrwriting any previous contents.
       % localFileAbsPath should be a WSL absolute path.
       % Throws if unable to write string to file.
@@ -1589,7 +1634,7 @@ classdef AWSec2 < handle
       tfo.fprintf('%s', str) ;
       tfo.fclose() ;  % Close the file before uploading to the remote side
       wsl_temp_file_path = wsl_path_from_native(tfo.abs_file_path) ;
-      remoteFileAbsPath = obj.applyFileNameSubstitutions(localFileAbsPath) ;
+      remoteFileAbsPath = obj.remote_path_from_wsl(fileWslPath) ;
       obj.rsyncUploadFile(wsl_temp_file_path, remoteFileAbsPath) ;
     end  % function
     
@@ -1609,33 +1654,24 @@ classdef AWSec2 < handle
   end
   
   methods
-    function result = remote_path_from_wsl(obj, path_or_paths, varargin)  % const method
+    function result = remote_path_from_wsl(obj, wsl_path_or_paths)  % const method
       % Apply the applicable file name substitutions to path_or_paths.
       % path_or_paths can be a single path or a cellstring of paths, but all should
       % be WSL paths.
       %
       % This method does not mutate obj.
       
-      doesMaybeIncludeMoviePaths = ...
-        myparse(varargin, ...
-                'doesMaybeIncludeMoviePaths', true) ;
-      if doesMaybeIncludeMoviePaths ,
-        result1 = replace_prefix_path(path_or_paths, obj.localDMCRootDir_, AWSec2.remoteDLCacheDir) ;
-        result = result1 ;
-        for i = 1 : numel(obj.wslPathFromMovieIndex_) 
-          localPath = obj.wslPathFromMovieIndex_{i} ;
-          remotePath = obj.remotePathFromMovieIndex_{i} ;
-          result = replace_prefix_path(result, localPath, remotePath) ;
-        end
+      if iscell(wsl_path_or_paths) ,
+        wsl_paths = wsl_path_or_paths ;
+        result = cellfun(@(wsl_path)(obj.applyFilePathSubstitutions(wsl_path)), wsl_paths) ;
       else
-        % If we know path_or_paths does not include movie paths, we can skip those
-        % substitutions to get faster performance.
-        result = replace_prefix_path(path_or_paths, obj.localDMCRootDir_, AWSec2.remoteDLCacheDir) ;
+        wsl_path = wsl_path_or_paths ;
+        result = obj.applyFilePathSubstitutions(wsl_path) ;
       end
     end  % function
     
-    function result = applyFileNameSubstitutions(obj, command_or_path, varargin)  % const method
-      % Apply the applicable file name substitutions to command_or_path.
+    function result = applyFilePathSubstitutions(obj, command, varargin)  % const method
+      % Apply the applicable file name substitutions to command.
       % This just uses dumb string replacement, which will likely lead to tears
       % eventually.  But to do better we'd have to keep commands as unescaped lists
       % until the last moment, and likely label which elements are paths.  This would be
@@ -1643,71 +1679,68 @@ classdef AWSec2 < handle
       %
       % This method does not mutate obj.
       
+      if isempty(obj.wslDMCRootDir_) ,
+        error('The wslDMCRootDir must be set before calling the applyFilePathSubstitutions() method.') ;
+      end
+
       doesMaybeIncludeMoviePaths = ...
         myparse(varargin, ...
                 'doesMaybeIncludeMoviePaths', true) ;
       if doesMaybeIncludeMoviePaths ,
         result = ...
-            AWSec2.applyGenericFileNameSubstitutions( ...
-              command_or_path, ...
-              obj.isDMCRemote_, obj.localDMCRootDir_, ...
-              obj.didUploadMovies_, obj.wslPathFromMovieIndex_, obj.remotePathFromMovieIndex_) ;
+            AWSec2.applyGenericFileNameSubstitutions(command, ...
+                                                     obj.wslDMCRootDir_, ...
+                                                     obj.wslPathFromMovieIndex_) ;
       else
         % If we know command_or_path does not include movie paths, we can skip those
         % substitutions to get faster performance.
         result = ...
-            AWSec2.applyGenericFileNameSubstitutions(command_or_path, ...
-                                                     obj.isDMCRemote_, obj.localDMCRootDir_) ;
+            AWSec2.applyGenericFilePathSubstitutions(command, obj.wslDMCRootDir_) ;
       end
     end  % function
   end  % methods
   
   methods (Static)
-    function result = remoteMoviePathFromLocal(localPath)
-      % Convert a local movie path to the remote equivalent.
-      movieName = fileparts23(localPath) ;
-      rawRemotePath = linux_fullfile(AWSec2.remoteMovieCacheDir, movieName) ;
-      result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
-    end
-
-    function result = remoteMoviePathsFromLocal(localPathFromMovieIndex)
-      % Convert a cell array of local movie paths to their remote equivalents.
-      % For non-AWS backends, this is the identity function.
-      result = cellfun(@(path)(AWSec2.remoteMoviePathFromLocal(path)), localPathFromMovieIndex, 'UniformOutput', false) ;
-    end
-
-    function result = applyGenericFileNameSubstitutions(command_or_path, ...
-                                                        isDMCRemote, localDMCRootDir, ...
-                                                        didUploadMovies, localPathFromMovieIndex, remotePathFromMovieIndex)
+    function result = applyGenericFilePathSubstitutions(command, ...
+                                                        wslDMCRootDir, ...
+                                                        wslPathFromMovieIndex)
       % Deal with optional args
-      if ~exist('didUploadMovies', 'var') || isempty(didUploadMovies) ,
-        didUploadMovies = false ;
-        localPathFromMovieIndex = '' ;  % will not be used
-        remotePathFromMovieIndex = '' ;  % will not be used
+      if ~exist('wslPathFromMovieIndex', 'var') || isempty(wslPathFromMovieIndex) ,
+        wslPathFromMovieIndex = cell(1,0) ;
       end
-      % Replace the local DMCoD root with the remote one
-      if isDMCRemote ,
-        result_1 = strrep(command_or_path, localDMCRootDir, AWSec2.remoteDLCacheDir) ;
-      else
-        result_1 = command_or_path ;
-      end      
+      % Replace the local cache root with the remote one
+      result_1 = strrep(command, wslDMCRootDir, AWSec2.remoteDLCacheDir) ;
       % Replace local movie paths with the corresponding remote ones
-      if didUploadMovies ,
-        result_2 = strrep_multiple(result_1, localPathFromMovieIndex, remotePathFromMovieIndex) ;
+      if ~isempty(wslPathFromMovieIndex) ,
+        remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
+        result_2 = strrep_multiple(result_1, wslPathFromMovieIndex, remotePathFromMovieIndex) ;
       else
         result_2 = result_1 ;
       end
       % Replace the local APT source root with the remote one
       remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
-      local_apt_root = APT.Root ;
-      result_3 = strrep(result_2, local_apt_root, remote_apt_root) ;
+      wsl_apt_root = wsl_path_from_native(APT.Root) ;
+      result_3 = strrep(result_2, wsl_apt_root, remote_apt_root) ;
       % Replace the local home dir with the remote one
       % Do this last b/c e.g. the local APT source root is likely in the local home
       % dir.
-      local_home_path = get_home_dir_name() ;
+      wsl_home_path = wsl_path_from_native(get_home_dir_name()) ;
       remote_home_path = AWSec2.remoteHomeDir ;
-      result_4 = strrep(result_3, local_home_path, remote_home_path) ;      
+      result_4 = strrep(result_3, wsl_home_path, remote_home_path) ;      
       result = result_4 ;
     end  % function
+
+    function result = remote_movie_path_from_wsl(wsl_path_or_paths)
+      % Convert a cell array of WSL movie paths to their remote equivalents.
+      result = cellfun(@(wsl_path)(AWSec2.single_remote_movie_path_from_wsl(wsl_path)), wsl_path_or_paths, 'UniformOutput', false) ;
+    end
+
+    function result = single_remote_movie_path_from_wsl(wsl_path)
+      % Convert a single WSL movie path to the remote equivalent.
+      movieName = fileparts23(wsl_path) ;
+      rawRemotePath = linux_fullfile(AWSec2.remoteMovieCacheDir, movieName) ;
+      result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
+    end
+    
   end  % methods (Static)
 end  % classdef
