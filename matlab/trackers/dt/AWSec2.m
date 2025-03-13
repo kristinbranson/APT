@@ -1220,26 +1220,27 @@ classdef AWSec2 < handle
       result = ~obj.isDMCRemote_ ;
     end  % function    
 
-    function [tfsucc,res] = batchPoll(obj, fspollargs)
+    function [tfsucc,res] = batchPoll(obj, wsl_fspollargs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
+      % All paths should be WSL paths.
       %
       % res: [n] cellstr of fspoll responses
 
-      assert(iscellstr(fspollargs) && ~isempty(fspollargs));  %#ok<ISCLSTR> 
-      nargsFSP = numel(fspollargs);
-      assert(mod(nargsFSP,2)==0);
-      nresps = nargsFSP/2;
+      assert(iscellstr(wsl_fspollargs) && ~isempty(wsl_fspollargs)) ;  %#ok<ISCLSTR> 
+      fspollargsCount = numel(wsl_fspollargs) ;
+      assert(mod(fspollargsCount,2)==0) ;  % has to be even
+      responseCount = fspollargsCount/2 ;
       
-      fspollstr = space_out(fspollargs);
+      fspollstr = space_out(wsl_fspollargs);
       fspoll_script_path = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
 
       cmdremote = sprintf('%s %s',fspoll_script_path,fspollstr);
 
-      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);
+      [st,res] = obj.runBatchCommandOutsideContainer(cmdremote);  % will translate WSL paths to remote paths
       tfsucc = (st==0) ;
       if tfsucc
         res = regexp(res,'\n','split');
-        tfsucc = iscell(res) && numel(res)==nresps+1; % last cell is {0x0 char}
+        tfsucc = iscell(res) && (numel(res)==responseCount+1) ;  % last cell is {0x0 char}
         res = res(1:end-1);
       else
         res = [];
@@ -1329,7 +1330,7 @@ classdef AWSec2 < handle
       % only a single boolean to represent whether it's local or remote, we're just
       % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
       % backend.  -- ALT, 2024-06-25
-      obj.wslDMCRootDir_ = dmc.rootDir ;  % Need to set this before calling obj.remote_path_from_wsl()
+      obj.wslDMCRootDir_ = wsl_path_from_native(dmc.rootDir) ;  % Need to set this before calling obj.remote_path_from_wsl()
       nativeProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
       wslProjectPath = wsl_path_from_native(nativeProjectPath) ;
       remoteProjectPath = obj.remote_path_from_wsl(wslProjectPath) ;

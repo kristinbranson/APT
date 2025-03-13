@@ -1263,13 +1263,14 @@ classdef DLBackEndClass < handle
     %   ec2.setInstanceIDAndType(instanceID, instanceType) ;
     % end
     
-    function [tfsucc,res] = batchPoll(obj, fspollargs)
+    function [tfsucc,res] = batchPoll(obj, native_fspollargs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
       %
       % res: [n] cellstr of fspoll responses
 
       if obj.type == DLBackEnd.AWS ,
-        [tfsucc,res] = obj.awsec2.batchPoll(fspollargs) ;
+        wsl_fspollargs = wsl_fspollargs_from_native(native_fspollargs) ;
+        [tfsucc,res] = obj.awsec2.batchPoll(wsl_fspollargs) ;
       else
         error('Not implemented') ;        
         %fspoll_script_path = linux_fullfile(APT.Root, 'matlab/misc/fspoll.py') ;
