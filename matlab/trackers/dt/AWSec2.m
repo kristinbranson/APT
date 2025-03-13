@@ -864,7 +864,7 @@ classdef AWSec2 < handle
                         'dopathsubs', true) ;
 
       % Wrap for ssh'ing into an AWS instance
-      cmd1 = obj.wrapCommandSSH(cmdremote, 'dopathsub', dopathsubs) ;  % uses fields of obj to set parameters for ssh command
+      cmd1 = obj.wrapCommandSSH(cmdremote, 'dopathsubs', dopathsubs) ;  % uses fields of obj to set parameters for ssh command
     
       % Need to prepend a sleep to avoid problems
       precommand = 'sleep 5 && export AWS_PAGER=' ;
@@ -1280,7 +1280,7 @@ classdef AWSec2 < handle
       % unable to perform its duties.  It does not return anything.
       quoted_remote_dir_path = escape_string_for_bash(remote_dir_path) ;
       base_command = sprintf('mkdir -p %s', quoted_remote_dir_path) ;
-      obj.runBatchCommandOutsideContainer(base_command, 'dopathsub', false, 'failbehavior', 'err') ;
+      obj.runBatchCommandOutsideContainer(base_command, 'dopathsubs', false, 'failbehavior', 'err') ;
     end
     
     function mirrorDMCToBackend(obj, dmc, mode)
