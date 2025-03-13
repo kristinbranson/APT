@@ -72,6 +72,9 @@ classdef LabelerProjectTester < handle
       end
       pause(10) ;
     
+      % Bring any remote artifacts back to frontend
+      labeler.rehomeProject() ;
+
       % Check that training happened.
       % After return, caller can check other aspects of obj.labeler if desired.
       if any(isnan(labeler.tracker.trnLastDMC.iterCurr)) || any(labeler.tracker.trnLastDMC.iterCurr < niters) ,
@@ -114,6 +117,9 @@ classdef LabelerProjectTester < handle
       end
       pause(10) ;
 
+      % Bring any remote artifacts back to frontend
+      labeler.rehomeProject() ;
+      
       % Perform some tests that tracking worked
       % After return, caller can check other aspects of obj.labeler if desired.
       if isempty(labeler.tracker.trkP)
@@ -161,6 +167,9 @@ classdef LabelerProjectTester < handle
       end
       pause(10);
 
+      % % Bring any remote artifacts back to frontend
+      % labeler.rehomeProject() ;      
+      
       % Make sure the GT table has been generated
       if isempty(obj.labeler.gtTblRes) ,
         error('labeler.gtTblRes is empty---it should be nonempty after computing GT performance') ;

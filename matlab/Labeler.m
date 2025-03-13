@@ -2931,6 +2931,24 @@ classdef Labeler < handle
       %obj.clearTempDir();
     end
     
+    function rehomeProject(obj)  % throws on error
+      % Copy any training/tracking artefacts on the backend back to the frontend.
+      % Throws on err.
+            
+      backend = obj.trackDLBackEnd ;
+      for i = 1:numel(obj.trackerHistory_)
+        tracker = obj.trackerHistory_{i} ;
+        if isa(tracker,'DeepTracker')
+          dmc = tracker.trnLastDMC ;
+          if ~isempty(dmc) ,
+            backend.mirrorDMCFromBackend(dmc) ;
+          end
+        else
+          error('Not implemented') ;
+        end
+      end
+    end  % function
+
     function projExportTrainData(obj,outfile)
       obj.setStatus(sprintf('Exporting training data to %s',outfile));
       oc = onCleanup(@()(obj.clearStatus())) ;            
