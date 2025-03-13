@@ -44,12 +44,13 @@ classdef BgTrainPoller < BgPoller
           doesOutputFileExist(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
         end
         [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
+        unique_job_count = numel(unique_jobs) ;
         % one error, log, and kill file per job
-        errFile = result.errFile(idx1);
-        logFile = result.logFile(idx1);
-        for ijob = 1:numel(unique_jobs),
-          result.errFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(errFile{ijob});
-          result.logFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(logFile{ijob}); % ahem good meth name
+        errFilePaths = result.errFile(idx1);  % cell array of paths
+        logFilePaths = result.logFile(idx1);  % cell array of paths
+        for ijob = 1:unique_job_count ,
+          result.errFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(errFilePaths{ijob});
+          result.logFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(logFilePaths{ijob}); % ahem good meth name
         end
           
         result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
@@ -79,16 +80,16 @@ classdef BgTrainPoller < BgPoller
       
       % do this for jobs
       [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
-      nJobs = numel(unique_jobs);
+      unique_job_count = numel(unique_jobs) ;
       % one error, log, and kill file per job
-      errFile = result.errFile(idx1);
-      logFile = result.logFile(idx1);
+      errFilePaths = result.errFile(idx1);  % cell array of paths
+      logFilePaths = result.logFile(idx1);  % cell array of paths
       %killFile = sRes.killFile(idx1);
-      for i = 1:nJobs,
+      for i = 1:unique_job_count,
         % fspollargs = [fspollargs,{'existsNE',errFile{i},'existsNE',logFile{i},...
         %   'existsNEerr',logFile{i},'exists',killFile{i}}]; %#ok<AGROW> 
-        fspollargsForThisJob = {'existsNE',errFile{i}, ...
-                                'existsNE',logFile{i}} ;
+        fspollargsForThisJob = {'existsNE',errFilePaths{i}, ...
+                                'existsNE',logFilePaths{i}} ;
         fspollargs = horzcat(fspollargs, fspollargsForThisJob) ;  %#ok<AGROW>
       end
       nlinesperjob = 2 ;  % needs to match the number of things done per job above
@@ -104,7 +105,7 @@ classdef BgTrainPoller < BgPoller
       logger.log('obj.backend.batchPoll(fspollargs) tfpollsucc: %d\n',tfpollsucc) ;
       logger.log('obj.backend.batchPoll(fspollargs) reslines:\n%s\n',newline_out(reslines)) ;
       if tfpollsucc
-        for i = 1:nJobs,
+        for i = 1:unique_job_count,
           off = (i-1)*nlinesperjob;
           result.errFileExists(jobidx==i) = strcmp(reslines{off+1},'y');
           result.logFileExists(jobidx==i) = strcmp(reslines{off+2},'y');
@@ -113,7 +114,7 @@ classdef BgTrainPoller < BgPoller
         end
         doesOutputFileExist = false(1,nModels);
         for i = 1:nModels,
-          off = nJobs*nlinesperjob+(i-1)*nlinespermodel;
+          off = unique_job_count*nlinesperjob+(i-1)*nlinespermodel;
           result.jsonPresent(i) = strcmp(reslines{off+1},'y');
           doesOutputFileExist = strcmp(reslines{off+2},'y');          
           if result.jsonPresent(i),
