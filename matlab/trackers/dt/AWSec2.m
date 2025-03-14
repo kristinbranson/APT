@@ -1248,22 +1248,29 @@ classdef AWSec2 < handle
     end  % function
     
     function maxiter = getMostRecentModel(obj, dmc)  % constant method
+      % Get the number of iterations completed for the model indicated by dmc.
+      % Note that dmc will have native paths in it.
+      % Also note that maxiter is in general a row vector.
       if obj.isDMCRemote_ ,
         % maxiter is nan if something bad happened or if DNE
         % TODO allow polling for multiple models at once
-        [dirModelChainLnx,idx] = dmc.dirModelChainLnx();
+        [dirModelChainLnx,idx] = dmc.dirModelChainLnx() ;
+          % The first return arg from dmc.dirModelChainLnx() is a cellstring of paths.
+          % In spite of the method name, the paths are *native*.
         fspollargs = {};
         for i = 1:numel(idx),
-          fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
+          native_path = dirModelChainLnx{i} ;
+          wsl_path = wsl_path_from_native(native_path) ;
+          fspollargs = horzcat(fspollargs, {'mostrecentmodel', wsl_path} ) ;  %#ok<AGROW>
         end
-        [tfsucc,res] = obj.batchPoll(fspollargs);
+        [tfsucc, res] = obj.batchPoll(fspollargs) ;
         if tfsucc
           maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
         else
           maxiter = nan(1,numel(idx));
         end        
       else
-        maxiter = dmc.getMostRecentModelLocal() ;
+        maxiter = DLBackEndClass.getMostRecentModelLocal_(dmc) ;
       end
     end  % function
     

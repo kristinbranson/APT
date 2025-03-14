@@ -1441,13 +1441,44 @@ classdef DLBackEndClass < handle
     end
 
     function maxiter = getMostRecentModel(obj, dmc)  % constant method
+      % Get the number of iterations completed for the model indicated by dmc.
+      % Note that dmc will have native paths in it.
+      % Also note that maxiter is in general a row vector.      
       if obj.type == DLBackEnd.AWS ,
         maxiter = obj.awsec2.getMostRecentModel(dmc) ;
       else
-        maxiter = dmc.getMostRecentModelLocal() ;
+        maxiter = DLBackEndClass.getMostRecentModelLocal_(dmc) ;
       end
     end  % function
-    
+  end  % methods
+
+  methods (Static)
+    function maxiter = getMostRecentModelLocal_(dmc)
+      % Get the number of iterations completed for the model indicated by dmc.
+      % Note that dmc will have native paths in it.
+      % Also note that maxiter is in general a row vector.
+      % This method should only be called when you know the *local* dmc is the
+      % up-to-date one.  Hence the underscore.
+      [modelglob,idx] = dmc.trainModelGlob();
+      [dirModelChainLnx] = dmc.dirModelChainLnx(idx);
+
+      maxiter = nan(1,numel(idx));
+      for i = 1:numel(idx),
+        modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
+        if isempty(modelfiles),
+          continue;
+        end
+        for j = 1:numel(modelfiles),
+          iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
+          if ~isempty(iter),
+            maxiter(i) = max(maxiter(i),iter);
+          end
+        end
+      end
+    end  % function
+  end  % methods (Static)
+
+  methods
     function mirrorDMCToBackend(obj, dmc, mode)
       % mode should be 'tracking' or 'training'.
       if ~exist('mode', 'var') || isempty(mode) ,

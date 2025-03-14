@@ -3376,7 +3376,7 @@ classdef DeepTracker < LabelTracker
       
       % Stop any running track monitors
       if obj.bgTrkIsRunning,
-        fprintf('Stopping training...\n');
+        fprintf('Stopping tracking...\n');
         obj.bgTrkMonitor.stop();
         obj.killJobsAndPerformPostTrackingCleanup() ;      
         obj.bgTrkMonitor.reset();
@@ -3393,7 +3393,7 @@ classdef DeepTracker < LabelTracker
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
       % be mixed up tracking results, so let's always check. 
-      isCurr = obj.checkTrackingResultsCurrent();
+      isCurr = obj.checkTrackingResultsCurrent() ;
       if ~isCurr
         obj.cleanOutOfDateTrackingResults_(isCurr);
         obj.trackCurrResUpdate();
@@ -3499,18 +3499,18 @@ classdef DeepTracker < LabelTracker
     %   end
     % end
     
-    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
-      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
-
-      trnstrs = cell(1,obj.trnLastDMC.n);
-      modelFiles = cell(1,obj.trnLastDMC.n);
-      for i = 1:obj.trnLastDMC.n,
-        assert(~isnan(obj.trnLastDMC.iterCurr(i)));
-        trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr(i));
-        modelFiles(i) = obj.trnLastDMC.trainCurrModelLnx(i);
-        modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
-      end
-    end
+    % function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
+    %   obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
+    % 
+    %   trnstrs = cell(1,obj.trnLastDMC.n);
+    %   modelFiles = cell(1,obj.trnLastDMC.n);
+    %   for i = 1:obj.trnLastDMC.n,
+    %     assert(~isnan(obj.trnLastDMC.iterCurr(i)));
+    %     trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr(i));
+    %     modelFiles(i) = obj.trnLastDMC.trainCurrModelLnx(i);
+    %     modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
+    %   end
+    % end
     
   end  % methods
 
@@ -3990,20 +3990,18 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
+
     function isCurr = checkTrackingResultsCurrent(obj)
-      
       isCurr = true;
-      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
-      
+      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;      
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         % some trkfiles don't exist for some reason
         obj.removeMissingTrkFiles(mIdx);
         [trkfiles] = obj.trackResGetTrkfiles(mIdx);
         if isempty(trkfiles),
-          continue;
-        end
-        
+          continue
+        end        
         isFixed = false;
         newtrkfiles = trkfiles;
         for i = 1:size(trkfiles,1),
@@ -4021,7 +4019,7 @@ classdef DeepTracker < LabelTracker
             end
             if ~isCurr,
               %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
-              break;
+              break
             end
           end
         end
@@ -4029,12 +4027,10 @@ classdef DeepTracker < LabelTracker
           obj.trackResSetTrkfiles(mIdx,newtrkfiles);
         end
         if ~isCurr,
-          break;
+          break
         end
-
-      end
-      
-    end
+      end  % for moviei      
+    end  % function
         
     function cleanOutOfDateTrackingResults_(obj,isCurr)
       if nargin < 2,

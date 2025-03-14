@@ -2932,9 +2932,8 @@ classdef Labeler < handle
     end
     
     function rehomeProject(obj)  % throws on error
-      % Copy any training/tracking artefacts on the backend back to the frontend.
-      % Throws on err.
-            
+      % Copy any training/tracking artifacts on the backend back to the frontend.
+      % Throws on err.            
       backend = obj.trackDLBackEnd ;
       for i = 1:numel(obj.trackerHistory_)
         tracker = obj.trackerHistory_{i} ;
