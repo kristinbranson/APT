@@ -41,11 +41,15 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   % end
 
   % Apparently we need to use the --user switch when running in real Linux
-  if ispc() 
-    userArgs = {};
-  else
-    userArgs = {'--user' '$(id -u):$(id -g)'};
-  end    
+  % Actually think we want to use it regardless.  Otherwise on AWS files written
+  % by things running in docker are owned by root, not by user "ubuntu".  This
+  % makes it awkward to delete/overwrite them later.
+  userArgs = {'--user' '$(id -u):$(id -g)'};
+  % if ispc() 
+  %   userArgs = {};
+  % else
+  %   userArgs = {'--user' '$(id -u):$(id -g)'};
+  % end    
 
   if isgpu
     %nvidiaArgs = {'--runtime nvidia'};
