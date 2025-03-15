@@ -658,6 +658,12 @@ classdef AWSec2 < handle
 
     function rsyncDownloadFolder(obj, srcRemotePath, destWslPath)
       % This can throw APT:syscmd error.       
+
+      % Create the parent dir for the destination file
+      destParentFolderWslPath = linux_fileparts2(destWslPath) ;
+      ensureWslFolderExists(destParentFolderWslPath) ;
+
+      % Do the rsync command
       cmd = AWSec2.rsyncDownloadFolderCmd(srcRemotePath, obj.pem, obj.instanceIP, destWslPath) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
@@ -665,7 +671,13 @@ classdef AWSec2 < handle
     function rsyncDownloadFile(obj, srcRemotePath, destWslPath)
       % rsync the local folder src to the remote folder dest.  No local-to-remote
       % translation is done on dest.
-      % This can throw APT:syscmd error.       
+      % This can throw APT:syscmd error.
+
+      % Create the parent dir for the destination file
+      destParentFolderWslPath = linux_fileparts2(destWslPath) ;
+      ensureWslFolderExists(destParentFolderWslPath) ;
+
+      % Do the rsync command
       cmd = AWSec2.rsyncDownloadFileCmd(obj.pem, obj.instanceIP, srcRemotePath, destWslPath) ;
       AWSec2.syscmd(cmd, 'failbehavior', 'err') ;
     end
@@ -1401,22 +1413,18 @@ classdef AWSec2 < handle
       remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
       dmcNetType = dmc.netType ;
       for j = 1:n,
-        mdlFilesRemote = obj.remoteGlob_(wslModelGlobs{j});
-        cacheDirLocalEscd = regexprep(wslDMCRootDir,'\\','\\\\');
-        mdlFilesLcl = regexprep(mdlFilesRemote,remoteDMCRootDir,cacheDirLocalEscd);
-        nMdlFiles = numel(mdlFilesRemote);
+        remoteFilePathFromModelFileIndex = obj.remoteGlob_(wslModelGlobs{j}) ;
+        wslFilePathFromModelFileIndex = replace_prefix_path(remoteFilePathFromModelFileIndex, remoteDMCRootDir, wslDMCRootDir) ;
+        nModelFiles = numel(remoteFilePathFromModelFileIndex);
         netstr = char(dmcNetType{j}); 
-        fprintf(1,'Download/mirror %d model files for net %s.\n',nMdlFiles,netstr);
-        for i=1:nMdlFiles
-          fsrc = mdlFilesRemote{i};
-          fdst = mdlFilesLcl{i};
-          % See comment in mirror2RemoteAws regarding not confirming ID of
-          % files-that-already-exist
-          % We should switch to using rsync for this.  -- ALT, 2025-01-24
-          % obj.scpDownloadOrVerifyEnsureDir(fsrc,fdst,...
-          %   'sysCmdArgs',{'failbehavior', 'err'}); % throws
-          obj.rsyncDownloadFile(fsrc, fdst) ; % throws
+        fprintf('Downloading %d model files for net %s...\n', nModelFiles, netstr) ;
+        for i=1:nModelFiles
+          remoteFilePath = remoteFilePathFromModelFileIndex{i} ;
+          wslFilePath = wslFilePathFromModelFileIndex{i} ;
+          % Do the rsync
+          obj.rsyncDownloadFile(remoteFilePath, wslFilePath) ; % throws
         end
+        fprintf('Done downloading %d model files for net %s.\n', nModelFiles, netstr) ;
       end      
       % if we made it here, download successful
       
