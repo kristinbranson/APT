@@ -1021,7 +1021,7 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileRemotePath, destFileWslPath) ;
+      cmd = sprintf('%s --rsh=%s --mkpath ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileRemotePath, destFileWslPath) ;
     end
 
     function cmd = rsyncUploadFileCmd(srcFileWslPath, pemFilePath, ip, destFileRemotePath)
@@ -1050,7 +1050,7 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s %s ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcFileWslPath, ip, destFileRemotePath) ;
+      cmd = sprintf('%s --rsh=%s --mkpath %s ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcFileWslPath, ip, destFileRemotePath) ;
     end
 
     function cmd = rsyncUploadFolderCmd(srcWslPath, pemFilePath, ip, destRemotePath)
@@ -1080,7 +1080,7 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcWslPath, ip, destRemotePath) ;
+      cmd = sprintf('%s --rsh=%s --mkpath %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcWslPath, ip, destRemotePath) ;
     end
     
     function cmd = rsyncDownloadFolderCmd(srcRemotePath, pemFilePath, ip, destWslPath)
@@ -1110,7 +1110,7 @@ classdef AWSec2 < handle
       escaped_sshcmd = escape_string_for_bash(sshcmd) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s/ %s/', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcRemotePath, destWslPath) ;
+      cmd = sprintf('%s --rsh=%s --mkpath ubuntu@%s:%s/ %s/', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcRemotePath, destWslPath) ;
     end
     
 %     function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
