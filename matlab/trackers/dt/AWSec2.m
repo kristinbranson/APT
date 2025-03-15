@@ -1777,7 +1777,14 @@ classdef AWSec2 < handle
 
     function result = remote_movie_path_from_wsl(wsl_path_or_paths)
       % Convert a cell array of WSL movie paths to their remote equivalents.
-      result = cellfun(@(wsl_path)(AWSec2.single_remote_movie_path_from_wsl(wsl_path)), wsl_path_or_paths, 'UniformOutput', false) ;
+      if iscell(wsl_path_or_paths)
+        wsl_paths = wsl_path_or_paths ;
+        result = cellfun(@(wsl_path)(AWSec2.single_remote_movie_path_from_wsl(wsl_path)), wsl_paths, 'UniformOutput', false) ;
+      else
+        % Assume its an old-school string
+        wsl_path = wsl_path_or_paths ;
+        result = AWSec2.single_remote_movie_path_from_wsl(wsl_path) ;
+      end
     end
 
     function result = single_remote_movie_path_from_wsl(wsl_path)
