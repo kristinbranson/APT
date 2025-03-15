@@ -1395,7 +1395,8 @@ classdef AWSec2 < handle
           
       wslDMCRootDir = obj.wslDMCRootDir_ ;
       nativeModelGlobs = dmc.modelGlobsLnx() ;  % despite the method name, these are native paths
-      wslModelGlobs = wsl_path_from_native(nativeModelGlobs) ;
+      wslModelGlobs = cellfun(@(cellstr)(wsl_path_from_native(cellstr)), nativeModelGlobs, 'UniformOutput', false) ;
+        % nativeModelGlobs is a cell array of cell arrays of char row vectors
       n = dmc.n ;
       remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
       dmcNetType = dmc.netType ;
