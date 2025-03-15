@@ -815,13 +815,13 @@ classdef AWSec2 < handle
     %   end
     % end
     
-    function remotePaths = remoteGlob(obj, globs)
+    function remotePaths = remoteGlob_(obj, wslGlobs)
       % Look for remote files/paths. Either succeeds, or fails and harderrors.
 
       % globs: cellstr of globs
       
-      lscmd = cellfun(@(glob)sprintf('ls %s 2> /dev/null ; ',glob), globs, 'uni', 0) ;
-      lscmd = cat(2,lscmd{:});
+      lscmdAsList = cellfun(@(glob)sprintf('ls %s 2> /dev/null ; ',glob), wslGlobs, 'uni', 0) ;
+      lscmd = cat(2,lscmdAsList{:});
       [st,res] = obj.runBatchCommandOutsideContainer(lscmd);
       tfsucc = (st==0) ;      
       if tfsucc
@@ -830,9 +830,9 @@ classdef AWSec2 < handle
         remotePaths = remotePaths(~cellfun(@isempty,remotePaths));
       else
         error('Failed to find remote files/paths %s: %s',...
-          String.cellstr2CommaSepList(globs),res);
+              String.cellstr2CommaSepList(wslGlobs),res);
       end      
-    end
+    end  % function
     
     function result = wrapCommandSSH(obj, input_command, varargin)
       % Wrap input command to run on the remote host via ssh.  Performs WSL-> remote
@@ -1394,12 +1394,13 @@ classdef AWSec2 < handle
       end      
           
       wslDMCRootDir = obj.wslDMCRootDir_ ;
-      modelGlobsLnx = dmc.modelGlobsLnx();
+      nativeModelGlobs = dmc.modelGlobsLnx() ;  % despite the method name, these are native paths
+      wslModelGlobs = wsl_path_from_native(nativeModelGlobs) ;
       n = dmc.n ;
       remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
       dmcNetType = dmc.netType ;
       for j = 1:n,
-        mdlFilesRemote = obj.remoteGlob(modelGlobsLnx{j});
+        mdlFilesRemote = obj.remoteGlob_(wslModelGlobs{j});
         cacheDirLocalEscd = regexprep(wslDMCRootDir,'\\','\\\\');
         mdlFilesLcl = regexprep(mdlFilesRemote,remoteDMCRootDir,cacheDirLocalEscd);
         nMdlFiles = numel(mdlFilesRemote);
