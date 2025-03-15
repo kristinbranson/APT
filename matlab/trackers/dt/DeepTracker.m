@@ -3197,11 +3197,11 @@ classdef DeepTracker < LabelTracker
       try
         % Put things into some local vars
         backend  = obj.backend ;
-        localCacheRoot = obj.lObj.DLCacheDir ;
+        nativeLocalCacheRoot = obj.lObj.DLCacheDir ;  % native path
 
         % Ask the backend to do the heavy lifting
         movfiles = obj.trkSysInfo.getMovfiles() ;        
-        backend.downloadTrackingFilesIfNecessary(pollingResult, localCacheRoot, movfiles) ;
+        backend.downloadTrackingFilesIfNecessary(pollingResult, nativeLocalCacheRoot, movfiles) ;
 
         % Don't need this anymore since the paths in obj.trkSysInfo are kept local in
         % all cases now.

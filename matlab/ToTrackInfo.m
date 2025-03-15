@@ -1368,8 +1368,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     % end  % function
 
     function changePathsToRemoteFromWsl(obj, wslCacheRoot, backend)
-      % Converts all paths in obj from paths on the backend's remote filesytem 
-      % to their corresponding local paths.  If backend is a local-filesystem
+      % Converts all paths in obj from WSL paths on the frontend's filesytem to
+      % their corresponding paths on the backend.  If backend is a local-filesystem
       % backend, do nothing.
 
       % If backend has local filesystem, do nothing
@@ -1382,12 +1382,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       newmovfiles = cellfun(@(old_path)(backend.remote_movie_path_from_wsl(old_path)), ...
                             obj.movfiles, ...
                             'UniformOutput', false) ;
-      newtrkfiles = replace_prefix_path(obj.trkfiles, wslCacheRoot, remoteCacheRoot) ;
-      newerrfile = replace_prefix_path(obj.errfile, wslCacheRoot, remoteCacheRoot) ;
-      newlogfile = replace_prefix_path(obj.logfile, wslCacheRoot, remoteCacheRoot) ;
-      newcmdfile = replace_prefix_path(obj.cmdfile, wslCacheRoot, remoteCacheRoot) ;
-      newkillfile = replace_prefix_path(obj.killfile, wslCacheRoot, remoteCacheRoot) ;
-      newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, wslCacheRoot, remoteCacheRoot) ;
+      newtrkfiles = linux_replace_prefix_path(obj.trkfiles, wslCacheRoot, remoteCacheRoot) ;
+      newerrfile = linux_replace_prefix_path(obj.errfile, wslCacheRoot, remoteCacheRoot) ;
+      newlogfile = linux_replace_prefix_path(obj.logfile, wslCacheRoot, remoteCacheRoot) ;
+      newcmdfile = linux_replace_prefix_path(obj.cmdfile, wslCacheRoot, remoteCacheRoot) ;
+      newkillfile = linux_replace_prefix_path(obj.killfile, wslCacheRoot, remoteCacheRoot) ;
+      newtrackconfigfile = linux_replace_prefix_path(obj.trackconfigfile, wslCacheRoot, remoteCacheRoot) ;
       % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
       % would need to be relocated, but so far hasn't been an issue 
       % -- ALT, 2024-07-31

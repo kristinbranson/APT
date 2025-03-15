@@ -1197,7 +1197,7 @@ classdef AWSec2 < handle
       obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
     end  % function
 
-    function downloadTrackingFilesIfNecessary(obj, pollingResult, localCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, pollingResult, wslLocalCacheRoot, movfiles)
       % Errors if something goes wrong.
       remoteCacheRoot = AWSec2.remoteDLCacheDir ;
       currentLocalPathFromTrackedMovieIndex = movfiles(:) ;  % want cellstr col vector
@@ -1207,16 +1207,17 @@ classdef AWSec2 < handle
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.        
         % download trkfiles 
-        localTrackFilePaths = pollingResult.trkfile ;
-        remoteTrackFilePaths = replace_prefix_path(localTrackFilePaths, localCacheRoot, remoteCacheRoot) ;
+        nativeLocalTrackFilePaths = pollingResult.trkfile ;
+        wslLocalTrackFilePaths = wsl_path_from_native(nativeLocalTrackFilePaths) ;
+        remoteTrackFilePaths = linux_replace_prefix_path(wslLocalTrackFilePaths, wslLocalCacheRoot, remoteCacheRoot) ;
         % sysCmdArgs = {'failbehavior', 'err'};
-        for ivw=1:numel(localTrackFilePaths)
-          trkRmt = remoteTrackFilePaths{ivw};
-          trkLcl = localTrackFilePaths{ivw};
-          fprintf('Trying to download %s to %s...\n',trkRmt,trkLcl);
+        for ivw=1:numel(wslLocalTrackFilePaths)
+          remoteTrackFilePath = remoteTrackFilePaths{ivw};
+          wslLocalTrackFilePath = wslLocalTrackFilePaths{ivw};
+          fprintf('Trying to download %s to %s...\n',remoteTrackFilePath,wslLocalTrackFilePath);
           % obj.scpDownloadOrVerifyEnsureDir(trkRmt,trkLcl,'sysCmdArgs',sysCmdArgs); % XXX doc orVerify
-          obj.rsyncDownloadFile(trkRmt, trkLcl) ;
-          fprintf('Done downloading %s to %s.\n',trkRmt,trkLcl);
+          obj.rsyncDownloadFile(remoteTrackFilePath, wslLocalTrackFilePath) ;
+          fprintf('Done downloading %s to %s.\n',remoteTrackFilePath,wslLocalTrackFilePath);
         end
       else
         error('Tracking complete, but one or move movies has been changed in current project.') ;
@@ -1414,7 +1415,7 @@ classdef AWSec2 < handle
       dmcNetType = dmc.netType ;
       for j = 1:n,
         remoteFilePathFromModelFileIndex = obj.remoteGlob_(wslModelGlobs{j}) ;
-        wslFilePathFromModelFileIndex = replace_prefix_path(remoteFilePathFromModelFileIndex, remoteDMCRootDir, wslDMCRootDir) ;
+        wslFilePathFromModelFileIndex = linux_replace_prefix_path(remoteFilePathFromModelFileIndex, remoteDMCRootDir, wslDMCRootDir) ;
         nModelFiles = numel(remoteFilePathFromModelFileIndex);
         netstr = char(dmcNetType{j}); 
         fprintf('Downloading %d model files for net %s...\n', nModelFiles, netstr) ;

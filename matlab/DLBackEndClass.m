@@ -1232,10 +1232,11 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, res, nativeLocalCacheRoot, movfiles)
       % Errors if something goes wrong.
       if obj.type == DLBackEnd.AWS ,
-        obj.awsec2.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
+        wslLocalCacheRoot = wsl_path_from_native(nativeLocalCacheRoot) ;
+        obj.awsec2.downloadTrackingFilesIfNecessary(res, wslLocalCacheRoot, movfiles) ;
       elseif obj.type == DLBackEnd.Bsub ,
         % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
         pause(10) ;
