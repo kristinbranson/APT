@@ -775,7 +775,7 @@ classdef DLBackEndClass < handle
     function result = remote_movie_path_from_wsl(obj, queryWslPath)
       if obj.type == DLBackEnd.AWS ,
         % obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
-        AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
+        result = AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
       else
         result = queryWslPath ;
       end
@@ -1508,37 +1508,39 @@ classdef DLBackEndClass < handle
     end  % function
 
     function prepareFilesForTracking(backend, toTrackInfo)
-      backend.ensureFoldersNeededForTrackingExist_(toTrackInfo);
-      backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file');
-      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result');
-      backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files');
+      backend.ensureFoldersNeededForTrackingExist_(toTrackInfo) ;
+      backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
+      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
     end  % function
 
     function ensureFoldersNeededForTrackingExist_(obj, toTrackInfo)
-      native_dirlocs = toTrackInfo.trkoutdir ;
+      % Paths in toTrackInfo are native paths
+      native_dir_paths = toTrackInfo.trkoutdir ;
       desc = 'trk cache dir' ;
-      for i = 1:numel(native_dirlocs),
-        native_dirloc = native_dirlocs{i} ;
-        if ~obj.fileExists(native_dirloc) ,
-          [succ,msg] = obj.mkdir(native_dirloc);
-          if ~succ
-            error('Failed to create %s %s: %s',desc,native_dirloc,msg);
+      for i = 1:numel(native_dir_paths) ,
+        native_dir_path = native_dir_paths{i} ;
+        if ~obj.fileExists(native_dir_path) ,
+          [succ, msg] = obj.mkdir(native_dir_path) ;
+          if succ
+            fprintf('Created %s: %s\n', desc, native_dir_path) ;
           else
-            fprintf('Created %s: %s\n',desc,native_dirloc);
+            error('Failed to create %s %s: %s', desc, native_dir_path, msg) ;
           end
         end
       end
     end  % function
 
-    function ensureFilesDoNotExist_(obj, filelocs, desc)
-      for i = 1:numel(filelocs),
-        fileloc = filelocs{i} ;
-        if obj.fileExists(fileloc),
-          fprintf('Deleting %s %s',desc,fileloc);
-          obj.deleteFile(fileloc);
+    function ensureFilesDoNotExist_(obj, native_file_paths, desc)
+      % native_file_paths are, umm, native paths
+      for i = 1:numel(native_file_paths) ,
+        native_file_path = native_file_paths{i} ;
+        if obj.fileExists(native_file_path) ,
+          fprintf('Deleting %s %s', desc, native_file_path) ;
+          obj.deleteFile(native_file_path);
         end
-        if obj.fileExists(fileloc),
-          error('Failed to delete %s: file still exists',fileloc);
+        if obj.fileExists(native_file_path),
+          error('Failed to delete %s: file still exists',native_file_path);
         end
       end
     end  % function
