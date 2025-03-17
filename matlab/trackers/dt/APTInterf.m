@@ -273,6 +273,7 @@ classdef APTInterf
         escape_string_for_bash(trainConfig) ...
         '-name' modelChainID ...
         '-err_file' escape_string_for_bash(wsl_path_from_native(totrackinfo.errfile)) ...
+        '-log_file' escape_string_for_bash(wsl_path_from_native(totrackinfo.logfile)) ...
         };
       if dmc.isMultiStageTracker,
         code = [code {'-stage' 'multi'}];
@@ -631,124 +632,124 @@ classdef APTInterf
     %   codestr = String.cellstr2DelimList(code,' ');
     % end
     
-    function codestr = regTrainCodeGen(fileinfo,varargin)
-      % "reg" => regular, from pre-MA APT
-      
-      modelChainID = fileinfo.modelChainID;
-      dlconfigfile = fileinfo.dlconfig;
-      cache = fileinfo.cache;
-      errfile = fileinfo.errfile;
-      netType = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType));
-      trnjson = fileinfo.trainlocfile;
-
-      [view,deepnetroot,splitfile,classify_val,classify_val_out,val_split,...
-       trainType,fs,prev_model,filequote,augOnly,confparamsfilequote,augOut,ignore_local] = ...
-        myparse(varargin,...
-                'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
-                'deepnetroot',APT.getpathdl,...
-                'split_file',[],...
-                'classify_val',false,... % if true, split_file must be spec'd
-                'classify_val_out',[],... % etc
-                'val_split',[],...
-                'trainType',DLTrainType.New,...
-                'filesep','/',...
-                'prev_model',[],...
-                'filequote','\"',... % quote char used to protect filenames/paths.
-                'augOnly',false,...
-                'confparamsfilequote','\"',... % this is used in other train code functions, adding here to remove warning
-                'augOut','', ... % used only if augOnly==true
-                'ignore_local',[] ...
-                ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-                ... % is expected to wrap in enclosing regular double-quotes " !!
-                );
-      torchhome = APT.torchhome() ;
-      
-      tfview = ~isempty(view);
-%       [trnpack,dllblID] = fileparts(dlconfigfile);
-%       trnjson = fullfile(trnpack,'loc.json');
-%       dllbljson = fullfile(trnpack,[dllblID '.json']);
-%       dlj = readtxtfile(dllbljson);
-%       dlj = jsondecode(dlj{1});
-  
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
-      
-      switch trainType
-        case DLTrainType.New
-          continueflags = '';
-        case DLTrainType.Restart
-          continueflags = '-continue -skip_db';
-        case DLTrainType.RestartAug
-          continueflags = '-continue';
-        otherwise
-          assert(false);
-      end
-      
-      dosplit = ~isempty(val_split);
-      if dosplit
-        splitfileargs = sprintf('-val_split %d',val_split);
-        if classify_val
-          splitfileargs = [splitfileargs sprintf(' -classify_val -classify_val_out %s',classify_val_out)];
-        end
-      else
-        splitfileargs = '';
-      end
-      
-      code = { ...
-        APTInterf.getTorchHomeCode(torchhome) ...
-        'python' ...
-        [filequote aptintrf filequote] ...
-        '-name' ...
-        modelChainID ...
-        };
-      if ~isempty(ignore_local),
-        code = [code, {'-ignore_local',num2str(ignore_local)}];
-      end
-      if tfview
-        code = [code {'-view' num2str(view)}];
-      end
-      code = [code { ...
-        '-cache' ...
-        [filequote cache filequote] ... % String.escapeSpaces(cache),...
-        '-err_file' ...
-        [filequote errfile filequote] ...
-        '-json_trn_file' ...
-        [filequote trnjson filequote]}
-        ]; ... % String.escapeSpaces(errfile),...
-      unique_stages = unique(fileinfo.stage);
-
-      for istage = 1:numel(unique_stages),
-        stage = unique_stages(istage);
-        isfirstview = true;
-        idx1 = find(fileinfo.stage==stage);
-        for i = idx1(:)',
-          if numel(prev_model) >= i && ~isempty(prev_model{i}),
-            if isfirstview,
-              if istage == 1,
-                code{end+1} = '-model_files'; %#ok<AGROW> 
-              else
-                code{end+1} = sprintf('-model_files%d',istage); %#ok<AGROW> 
-              end
-              isfirstview = false;
-            end
-            code{end+1} = [filequote prev_model{i} filequote]; %#ok<AGROW> 
-          end
-        end
-      end
-      code = [code ...
-        {'-type' ...
-        netType ...
-        [filequote dlconfigfile filequote] ... % String.escapeSpaces(dllbl),...
-        'train' ...
-        '-use_cache' ...
-        continueflags ...
-        splitfileargs} ];
-      if augOnly
-        code = [code ...
-          {'-only_aug' ...
-          '-aug_out' augOut}];
-      end
-      codestr = String.cellstr2DelimList(code,' ');
-    end
+%     function codestr = regTrainCodeGen(fileinfo,varargin)
+%       % "reg" => regular, from pre-MA APT
+% 
+%       modelChainID = fileinfo.modelChainID;
+%       dlconfigfile = fileinfo.dlconfig;
+%       cache = fileinfo.cache;
+%       errfile = fileinfo.errfile;
+%       netType = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType));
+%       trnjson = fileinfo.trainlocfile;
+% 
+%       [view,deepnetroot,splitfile,classify_val,classify_val_out,val_split,...
+%        trainType,fs,prev_model,filequote,augOnly,confparamsfilequote,augOut,ignore_local] = ...
+%         myparse(varargin,...
+%                 'view',[],... % (opt) 1-based view index. If supplied, train only that view. If not, all views trained serially
+%                 'deepnetroot',APT.getpathdl,...
+%                 'split_file',[],...
+%                 'classify_val',false,... % if true, split_file must be spec'd
+%                 'classify_val_out',[],... % etc
+%                 'val_split',[],...
+%                 'trainType',DLTrainType.New,...
+%                 'filesep','/',...
+%                 'prev_model',[],...
+%                 'filequote','\"',... % quote char used to protect filenames/paths.
+%                 'augOnly',false,...
+%                 'confparamsfilequote','\"',... % this is used in other train code functions, adding here to remove warning
+%                 'augOut','', ... % used only if augOnly==true
+%                 'ignore_local',[] ...
+%                 ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+%                 ... % is expected to wrap in enclosing regular double-quotes " !!
+%                 );
+%       torchhome = APT.torchhome() ;
+% 
+%       tfview = ~isempty(view);
+% %       [trnpack,dllblID] = fileparts(dlconfigfile);
+% %       trnjson = fullfile(trnpack,'loc.json');
+% %       dllbljson = fullfile(trnpack,[dllblID '.json']);
+% %       dlj = readtxtfile(dllbljson);
+% %       dlj = jsondecode(dlj{1});
+% 
+%       aptintrf = [deepnetroot fs 'APT_interface.py'];
+% 
+%       switch trainType
+%         case DLTrainType.New
+%           continueflags = '';
+%         case DLTrainType.Restart
+%           continueflags = '-continue -skip_db';
+%         case DLTrainType.RestartAug
+%           continueflags = '-continue';
+%         otherwise
+%           assert(false);
+%       end
+% 
+%       dosplit = ~isempty(val_split);
+%       if dosplit
+%         splitfileargs = sprintf('-val_split %d',val_split);
+%         if classify_val
+%           splitfileargs = [splitfileargs sprintf(' -classify_val -classify_val_out %s',classify_val_out)];
+%         end
+%       else
+%         splitfileargs = '';
+%       end
+% 
+%       code = { ...
+%         APTInterf.getTorchHomeCode(torchhome) ...
+%         'python' ...
+%         [filequote aptintrf filequote] ...
+%         '-name' ...
+%         modelChainID ...
+%         };
+%       if ~isempty(ignore_local),
+%         code = [code, {'-ignore_local',num2str(ignore_local)}];
+%       end
+%       if tfview
+%         code = [code {'-view' num2str(view)}];
+%       end
+%       code = [code { ...
+%         '-cache' ...
+%         [filequote cache filequote] ... % String.escapeSpaces(cache),...
+%         '-err_file' ...
+%         [filequote errfile filequote] ...
+%         '-json_trn_file' ...
+%         [filequote trnjson filequote]}
+%         ]; ... % String.escapeSpaces(errfile),...
+%       unique_stages = unique(fileinfo.stage);
+% 
+%       for istage = 1:numel(unique_stages),
+%         stage = unique_stages(istage);
+%         isfirstview = true;
+%         idx1 = find(fileinfo.stage==stage);
+%         for i = idx1(:)',
+%           if numel(prev_model) >= i && ~isempty(prev_model{i}),
+%             if isfirstview,
+%               if istage == 1,
+%                 code{end+1} = '-model_files'; %#ok<AGROW> 
+%               else
+%                 code{end+1} = sprintf('-model_files%d',istage); %#ok<AGROW> 
+%               end
+%               isfirstview = false;
+%             end
+%             code{end+1} = [filequote prev_model{i} filequote]; %#ok<AGROW> 
+%           end
+%         end
+%       end
+%       code = [code ...
+%         {'-type' ...
+%         netType ...
+%         [filequote dlconfigfile filequote] ... % String.escapeSpaces(dllbl),...
+%         'train' ...
+%         '-use_cache' ...
+%         continueflags ...
+%         splitfileargs} ];
+%       if augOnly
+%         code = [code ...
+%           {'-only_aug' ...
+%           '-aug_out' augOut}];
+%       end
+%       codestr = String.cellstr2DelimList(code,' ');
+%     end  % function
         
     % function splitTrainValCodeGenCmdfile(codefname,classifyOutmat,...
     %       trnID,dlconfig,cache,errfile,netType,netMode,valSplit,varargin)

@@ -106,10 +106,10 @@ classdef DLBackEndClass < handle
     % spawnRegisteredJobs().
     training_syscmds_ = cell(0,1)
     training_cmdfiles_ = cell(0,1)
-    training_logcmds_ = cell(0,1)
+    % training_logcmds_ = cell(0,1)
     tracking_syscmds_ = cell(0,1)
     tracking_cmdfiles_ = cell(0,1)
-    tracking_logcmds_ = cell(0,1)
+    % tracking_logcmds_ = cell(0,1)
 
     % The job IDs.  These are protected, in spirit.
     % Each job id is represented as an old-style *string*.  What exactly they mean
@@ -891,12 +891,12 @@ classdef DLBackEndClass < handle
       if isTrain
         obj.training_syscmds_ = cell(0,1) ;
         obj.training_cmdfiles_ = cell(0,1) ;
-        obj.training_logcmds_ = cell(0,1) ;
+        % obj.training_logcmds_ = cell(0,1) ;
         obj.training_jobids_ = cell(0,1) ;
       else
         obj.tracking_syscmds_ = cell(0,1) ;
         obj.tracking_cmdfiles_ = cell(0,1) ;
-        obj.tracking_logcmds_ = cell(0,1) ;
+        % obj.tracking_logcmds_ = cell(0,1) ;
         obj.tracking_jobids_ = cell(0,1) ;
       end
     end  % function
@@ -917,11 +917,11 @@ classdef DLBackEndClass < handle
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      logcmd = obj.generateLogCommand_('train', dmcjob) ;
+      % logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
       obj.training_syscmds_{end+1,1} = syscmd ;
-      obj.training_logcmds_{end+1,1} = logcmd ;
+      % obj.training_logcmds_{end+1,1} = logcmd ;
       obj.training_cmdfiles_{end+1,1} = cmdfile ;
       obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
@@ -947,11 +947,11 @@ classdef DLBackEndClass < handle
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
+      % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
       obj.tracking_syscmds_{end+1,1} = syscmd ;
-      obj.tracking_logcmds_{end+1,1} = logcmd ;
+      % obj.tracking_logcmds_{end+1,1} = logcmd ;
       obj.tracking_cmdfiles_{end+1,1} = cmdfile ;
       obj.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
@@ -967,11 +967,11 @@ classdef DLBackEndClass < handle
       % Sort out which registered jobs will be spawned.
       if strcmp(train_or_track, 'train') ,
         syscmds = obj.training_syscmds_ ;
-        logcmds = obj.training_logcmds_ ;
+        % logcmds = obj.training_logcmds_ ;
         cmdfiles = obj.training_cmdfiles_ ;
       elseif strcmp(train_or_track, 'track') ,
         syscmds = obj.tracking_syscmds_ ;
-        logcmds = obj.tracking_logcmds_ ;
+        % logcmds = obj.tracking_logcmds_ ;
         cmdfiles = obj.tracking_cmdfiles_ ;
       else
         error('DLBackEndClass:unknownJobType', 'The job type ''%s'' is not valid', train_or_track) ;
@@ -983,7 +983,7 @@ classdef DLBackEndClass < handle
       end
 
       % Actually spawn the jobs
-      [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
       % obj.ensureJobIsNotAlive(spawned_jobids{1}) ;  
       %   % USED FOR DEBUGGING, to simulate a failure of a spawned job without
       %   % production of an error file.
@@ -1014,7 +1014,7 @@ classdef DLBackEndClass < handle
   end  % methods
 
   methods (Static)
-    function [didSpawnAllJobs, reason, jobidFromJobIndex] = spawnJobs(syscmds, logcmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
+    function [didSpawnAllJobs, reason, jobidFromJobIndex] = spawnJobs(syscmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
       % Spawn the jobs specified in syscmds.  On return, didSpawnAllJobs indicates
       % whether all went well.  *Regardless of the value of didSpawnAllJobs,*
       % jobidFromJobIndex contains the jobids of all the jobs that were successfully
@@ -1046,22 +1046,22 @@ classdef DLBackEndClass < handle
         assert(ischar(jobid)) ;
         fprintf('%s %d spawned, ID = %s\n\n',jobdesc,jobIndex,jobid);
 
-        % Now give the command to create the log file.
-        % (This only does anything interesting for a docker backend.)
-        if numel(logcmds) >= jobIndex ,
-          logcmd = logcmds{jobIndex} ;
-          if ~isempty(logcmd) ,
-            fprintf('%s\n',logcmd);
-            [rc2,stdouterr2] = apt.syscmd(logcmd, 'failbehavior', 'silent');
-            didLogCommandSucceed = (rc2==0) ;
-            if ~didLogCommandSucceed ,
-              % Throw a warning here, but proceed anyway.
-              % I have never had occasion to look at one of these docker log files,
-              % But presumably they're useful sometimes.  -- ALT, 2025-01-23
-              warning('Failed to spawn logging for %s %d: %s.',jobdesc,jobIndex,stdouterr2);
-            end
-          end
-        end  % if
+        % % Now give the command to create the log file.
+        % % (This only does anything interesting for a docker backend.)
+        % if numel(logcmds) >= jobIndex ,
+        %   logcmd = logcmds{jobIndex} ;
+        %   if ~isempty(logcmd) ,
+        %     fprintf('%s\n',logcmd);
+        %     [rc2,stdouterr2] = apt.syscmd(logcmd, 'failbehavior', 'silent');
+        %     didLogCommandSucceed = (rc2==0) ;
+        %     if ~didLogCommandSucceed ,
+        %       % Throw a warning here, but proceed anyway.
+        %       % I have never had occasion to look at one of these docker log files,
+        %       % But presumably they're useful sometimes.  -- ALT, 2025-01-23
+        %       warning('Failed to spawn logging for %s %d: %s.',jobdesc,jobIndex,stdouterr2);
+        %     end
+        %   end
+        % end  % if
       end  % for      
       didSpawnAllJobs = true ;  % if get here, all is well
       reason = '' ;
@@ -1616,45 +1616,45 @@ classdef DLBackEndClass < handle
                                          'UniformOutput', false) ;
     end  % function    
     
-    function logcmd = generateLogCommand_(obj, train_or_track, dmcjob_or_totrackinfojob)  % constant method
-      if strcmp(train_or_track, 'train') ,
-        dmcjob = dmcjob_or_totrackinfojob ;
-        if obj.type == DLBackEnd.Docker ,
-          containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName) ;
-          native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
-          logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
-        else
-          logcmd = '' ;
-        end
-      elseif strcmp(train_or_track, 'track') ,
-        totrackinfojob = dmcjob_or_totrackinfojob ;
-        if obj.type == DLBackEnd.Docker ,
-          containerName = totrackinfojob.containerName ;
-          native_log_file_path = totrackinfojob.logfile ;
-          logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
-        else
-          logcmd = '' ;
-        end
-      else
-        error('train_or_track had illegal value ''%s''', train_or_track) ;
-      end
-    end  % function
+    % function logcmd = generateLogCommand_(obj, train_or_track, dmcjob_or_totrackinfojob)  % constant method
+    %   if strcmp(train_or_track, 'train') ,
+    %     dmcjob = dmcjob_or_totrackinfojob ;
+    %     if obj.type == DLBackEnd.Docker ,
+    %       containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName) ;
+    %       native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
+    %       logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
+    %     else
+    %       logcmd = '' ;
+    %     end
+    %   elseif strcmp(train_or_track, 'track') ,
+    %     totrackinfojob = dmcjob_or_totrackinfojob ;
+    %     if obj.type == DLBackEnd.Docker ,
+    %       containerName = totrackinfojob.containerName ;
+    %       native_log_file_path = totrackinfojob.logfile ;
+    %       logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
+    %     else
+    %       logcmd = '' ;
+    %     end
+    %   else
+    %     error('train_or_track had illegal value ''%s''', train_or_track) ;
+    %   end
+    % end  % function
 
-    function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_path)  % constant method
-      assert(backend.type == DLBackEnd.Docker);
-      dockercmd = apt.dockercmd();
-      wsl_log_file_path = wsl_path_from_native(native_log_file_path) ;
-      cmd = ...
-        sprintf('%s logs -f %s &> %s', ... 
-                dockercmd, ...
-                containerName, ...
-                escape_string_for_bash(wsl_log_file_path)) ;
-      is_docker_remote = ~isempty(backend.dockerremotehost) ;
-      if is_docker_remote
-        cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
-      end
-      cmd = sprintf('%s &', cmd);
-    end  % function
+    % function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_path)  % constant method
+    %   assert(backend.type == DLBackEnd.Docker);
+    %   dockercmd = apt.dockercmd();
+    %   wsl_log_file_path = wsl_path_from_native(native_log_file_path) ;
+    %   cmd = ...
+    %     sprintf('%s logs -f %s &> %s', ... 
+    %             dockercmd, ...
+    %             containerName, ...
+    %             escape_string_for_bash(wsl_log_file_path)) ;
+    %   is_docker_remote = ~isempty(backend.dockerremotehost) ;
+    %   if is_docker_remote
+    %     cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
+    %   end
+    %   cmd = sprintf('%s &', cmd);
+    % end  % function
 
     function result = detailedStatusStringFromRegisteredJobIndex(obj, train_or_track)
       if strcmp(train_or_track, 'train') ,

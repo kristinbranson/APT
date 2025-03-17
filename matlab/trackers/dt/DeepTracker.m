@@ -3660,43 +3660,43 @@ classdef DeepTracker < LabelTracker
 %         'bindpath',mntPaths,dockerargs{:});
 %     end    
     
-    function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-        nettype,outfile,varargin)
-      
-      [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-        'deepnetroot',APT.getpathdl,...
-        'model_file',[],... % can be [nview] cellstr
-        'filesep','/',...
-        'filequote','\"'... % quote char used to protect filenames/paths.
-                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-                        ... % is expected to wrap in enclosing regular double-quotes " !!        
-        ); 
-     
-      tfcache = ~isempty(cache);
-      tfmodel = ~isempty(model_file);
-      
-      if tfmodel
-        model_file = cellstr(model_file);
-      end
-
-      aptintrf = [deepnetroot fs 'APT_interface.py'];      
-    
-      codestr = sprintf('python %s -name %s',...
-        [filequote aptintrf filequote],ID);
-      if tfcache
-        %cache = String.escapeSpaces(cache);
-        codestr = [codestr ' -cache ' [filequote cache filequote]];
-      end
-      %errfile = String.escapeSpaces(errfile);
-      codestr = [codestr ' -err_file ' [filequote errfile filequote]];
-      if tfmodel
-        %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
-        codestr = sprintf('%s -model_files %s',codestr,...
-          DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
-      end
-      codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
-        char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
-    end    
+    % function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
+    %     nettype,outfile,varargin)
+    % 
+    %   [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
+    %     'deepnetroot',APT.getpathdl,...
+    %     'model_file',[],... % can be [nview] cellstr
+    %     'filesep','/',...
+    %     'filequote','\"'... % quote char used to protect filenames/paths.
+    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+    %                     ... % is expected to wrap in enclosing regular double-quotes " !!        
+    %     ); 
+    % 
+    %   tfcache = ~isempty(cache);
+    %   tfmodel = ~isempty(model_file);
+    % 
+    %   if tfmodel
+    %     model_file = cellstr(model_file);
+    %   end
+    % 
+    %   aptintrf = [deepnetroot fs 'APT_interface.py'];      
+    % 
+    %   codestr = sprintf('python %s -name %s',...
+    %     [filequote aptintrf filequote],ID);
+    %   if tfcache
+    %     %cache = String.escapeSpaces(cache);
+    %     codestr = [codestr ' -cache ' [filequote cache filequote]];
+    %   end
+    %   %errfile = String.escapeSpaces(errfile);
+    %   codestr = [codestr ' -err_file ' [filequote errfile filequote]];
+    %   if tfmodel
+    %     %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
+    %     codestr = sprintf('%s -model_files %s',codestr,...
+    %       DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
+    %   end
+    %   codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
+    %     char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
+    % end    
             
 %     function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
 %       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
