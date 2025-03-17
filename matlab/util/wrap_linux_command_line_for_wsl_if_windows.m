@@ -1,7 +1,7 @@
 function result = wrap_linux_command_line_for_wsl_if_windows(linux_command_line)
 
 if ispc() ,
-  escaped_linux_command_line = escape_string_for_command_dot_exe(linux_command_line) ;
+  escaped_linux_command_line = escape_string_for_cmd_dot_exe(linux_command_line) ;
   result = sprintf('wsl --exec bash -c %s', escaped_linux_command_line) ;
     % The --exec here is critically important.  See here:
     %   https://github.com/microsoft/WSL/issues/1746#issuecomment-650347125

@@ -1,4 +1,4 @@
-function result = parse_string_for_command_dot_exe(str)
+function result = parse_string_for_cmd_dot_exe(str)
   % Designed to mimic the parsing of strings by cmd.exe, in the context of a
   % wsl --exec bash -c <commmand-string> call.  That is, if str is the
   % <command-string>, this function outputs the command string as it will be
@@ -32,8 +32,12 @@ function result = parse_string_for_command_dot_exe(str)
                   'bs_count',{0}) ;  
   % Run str through a state machine that will consume one input character at a
   % time and output the result string.
-  strz = horzcat(str, char(0)) ;  % zero-terminate string before processing with crank()
-  result = crank(@parse1, strz, state0) ;
+  preresult = crank(@parse1, str, state0) ;
+  if isempty(preresult) ,
+    result = '' ;  % this is 0x0 instead of 1x0, which e.g. strcmp() cares about.
+  else
+    result = preresult ;
+  end
 end
 
 

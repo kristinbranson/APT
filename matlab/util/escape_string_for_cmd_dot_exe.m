@@ -1,4 +1,4 @@
-function result = escape_string_for_command_dot_exe(str)
+function result = escape_string_for_cmd_dot_exe(str)
   % Process the string str so that when the result is passed as part of a
   % Windows cmd.exe command line, in the context of a wsl --exec bash -c
   % <commmand-string> call, it will be interpreted as a single token, and the
@@ -25,11 +25,11 @@ function result = escape_string_for_command_dot_exe(str)
   % Those rules are taken from:
   %   https://learn.microsoft.com/en-us/cpp/cpp/main-function-command-line-args?view=msvc-170&redirectedfrom=MSDN#parsing-c-command-line-arguments
   %
-  % This function should be the inverse of parse_string_for_command_dot_exe().
+  % This function should be the inverse of parse_string_for_cmd_dot_exe().
   % That is,
   %
   %   isequal(str,
-  %           parse_string_for_command_dot_exe(escape_string_for_command_dot_exe(str)))
+  %           parse_string_for_cmd_dot_exe(escape_string_for_cmd_dot_exe(str)))
   %
   % should hold for all old-school strings str.
 
@@ -39,8 +39,7 @@ function result = escape_string_for_command_dot_exe(str)
                   'bs_count',{0}) ;  
   % Run str through a state machine that will consume one input character at a
   % time and output the result string.
-  strz = horzcat(str, char(0)) ;  % zero-terminate string before processing with crank()
-  preresult = crank(@escape1, strz, state0) ;
+  preresult = crank(@escape1, str, state0) ;
   result = sprintf('"%s"', preresult) ;
 end
 
