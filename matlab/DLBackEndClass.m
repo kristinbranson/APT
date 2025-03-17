@@ -246,7 +246,7 @@ classdef DLBackEndClass < handle
   end  % methods block
  
   methods
-    function [return_code, stdouterr] = runBatchCommandOutsideContainer(obj, basecmd, varargin)
+    function [return_code, stdouterr] = runBatchCommandOutsideContainer_(obj, basecmd, varargin)
       % Run the basecmd using apt.syscmd(), after wrapping suitably for the type of
       % backend.  But as the name implies, commands are run outside the backend
       % container/environment.  For the AWS backend, this means commands are run
@@ -258,9 +258,8 @@ classdef DLBackEndClass < handle
       % via ssh, but outside the Docker container).  This function blocks, and
       % doesn't return a process identifier of any kind.  Return values are like
       % those from system(): a numeric return code and a string containing any
-      % command output. Note that any file names in the basecmd must refer to the
-      % filenames on the *backend* filesystem (and within WSL if running on
-      % Windows).
+      % command output. Note that any file paths in the bascmd must be *WSL* paths.
+      % That's the main reason this method is private-by-convention.
       switch obj.type,
         case DLBackEnd.AWS
           % For AWS backend, use the AWSec2 method of the same name
@@ -696,17 +695,18 @@ classdef DLBackEndClass < handle
       else
         quoted_wsl_dir_path = escape_string_for_bash(wsl_dir_path) ;
         base_command = sprintf('mkdir -p %s', quoted_wsl_dir_path) ;
-        [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+        [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
         didsucceed = (status==0) ;
       end
     end  % function
 
-    function [didsucceed, msg] = deleteFile(obj, file_name)
+    function [didsucceed, msg] = deleteFile(obj, native_file_path)
       % Delete the named file, either locally or remotely, depending on the
       % backend type.
-      quoted_file_name = escape_string_for_bash(file_name) ;
-      base_command = sprintf('rm %s', quoted_file_name) ;
-      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+      wsl_file_path = wsl_path_from_native(native_file_path) ;
+      quoted_wsl_file_path = escape_string_for_bash(wsl_file_path) ;
+      base_command = sprintf('rm -f %s', quoted_wsl_file_path) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -915,7 +915,7 @@ classdef DLBackEndClass < handle
                                            'do_just_generate_db',do_just_generate_db, ...
                                            'torchhome', DLBackEndClass.getTorchHome());
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
-      syscmd = wrapCommandToBeSpawnedForBackend(obj,basecmd,args{:});
+      syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
       logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
@@ -945,7 +945,7 @@ classdef DLBackEndClass < handle
                                            'track_type',track_type, ...
                                            'torchhome', DLBackEndClass.getTorchHome());
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
-      syscmd = wrapCommandToBeSpawnedForBackend(obj, basecmd, args{:}) ;
+      syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
       logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
@@ -1145,7 +1145,7 @@ classdef DLBackEndClass < handle
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8);
       cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jobidshort);      
-      [st,res] = obj.runBatchCommandOutsideContainer(cmd);
+      [st,res] = obj.runBatchCommandOutsideContainer_(cmd);
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if st==0
@@ -1224,7 +1224,7 @@ classdef DLBackEndClass < handle
       % jobid is assumed to be a single job id, represented as an old-style string.      
       % Errors if no such job exists.
       cmd = sprintf('%s kill %s', apt.dockercmd(), jobid);        
-      [st,res] = obj.runBatchCommandOutsideContainer(cmd) ;
+      [st,res] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if st~=0 ,
@@ -1286,38 +1286,41 @@ classdef DLBackEndClass < handle
         wsl_file_path = wsl_path_from_native(native_file_path) ;
         result = obj.awsec2.fileExists(wsl_file_path) ;
       else
-        result = logical(exist(native_file_path,'file')) ;
+        result = logical(exist(native_file_path, 'file')) ;
       end
     end  % function
 
-    function result = fileExistsAndIsNonempty(obj, file_name)
+    function result = fileExistsAndIsNonempty(obj, native_file_path)
       % Returns true iff the named file exists and is not zero-length.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileExistsAndIsNonempty(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileExistsAndIsNonempty(wsl_file_path) ;
       else
-        result = localFileExistsAndIsNonempty(file_name) ;
+        result = localFileExistsAndIsNonempty(native_file_path) ;
       end
     end  % function
 
-    function result = fileExistsAndIsGivenSize(obj, file_name, sz)
+    function result = fileExistsAndIsGivenSize(obj, native_file_path, sz)
       % Returns true iff the named file exists and is the given size (in bytes).
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileExistsAndIsGivenSize(file_name, sz) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileExistsAndIsGivenSize(wsl_file_path, sz) ;
       else
-        result = localFileExistsAndIsGivenSize(file_name, sz) ;
+        result = localFileExistsAndIsGivenSize(native_file_path, sz) ;
       end
     end  % function
 
-    function result = fileContents(obj, file_name)
+    function result = fileContents(obj, native_file_path)
       % Return the contents of the named file, as an old-style string.
       % The behavior of this function when the file does not exist is kinda weird.
       % It is the way it is b/c it's designed for giving something helpful to
       % display in the monitor window.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileContents(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileContents(wsl_file_path) ;
       else
-        if exist(file_name,'file') ,
-          lines = readtxtfile(file_name);
+        if exist(native_file_path,'file') ,
+          lines = readtxtfile(native_file_path);
           result = sprintf('%s\n',lines{:});
         else
           result = '<file does not exist>';
@@ -1325,31 +1328,33 @@ classdef DLBackEndClass < handle
       end
     end  % function
     
-    function lsdir(obj, dir)
+    function lsdir(obj, native_dir_path)
       % List the contents of directory dir.  Contents just go to stdout, nothing is
       % returned.
       if obj.type == DLBackEnd.AWS ,
-        obj.awsec2.lsdir(dir);
+        wsl_dir_path = wsl_path_from_native(native_dir_path) ;
+        obj.awsec2.lsdir(wsl_dir_path) ;
       else
         if ispc()
           lscmd = 'dir';
         else
           lscmd = 'ls -al';
         end
-        cmd = sprintf('%s "%s"',lscmd,dir);
+        cmd = sprintf('%s "%s"',lscmd,native_dir_path);
         system(cmd);
       end
     end  % function
 
-    function result = fileModTime(obj, file_name)
+    function result = fileModTime(obj, native_file_path)
       % Return the file-modification time (mtime) of the given file.  For an AWS
       % backend, this is the file modification time in seconds since epoch.  For
       % other backends, it's a Matlab datenum of the mtime.  So these should not be
       % compared across backend types.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.remoteFileModTime(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.remoteFileModTime(wsl_file_path) ;
       else
-        dir_struct = dir(file_name) ;
+        dir_struct = dir(native_file_path) ;
         result = dir_struct.datenum ;
       end
     end  % function
@@ -1437,9 +1442,9 @@ classdef DLBackEndClass < handle
       % end
     end  % function
     
-    function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
-      cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
-    end
+    % function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
+    %   cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
+    % end
 
     function maxiter = getMostRecentModel(obj, dmc)  % constant method
       % Get the number of iterations completed for the model indicated by dmc.
@@ -1616,8 +1621,8 @@ classdef DLBackEndClass < handle
         dmcjob = dmcjob_or_totrackinfojob ;
         if obj.type == DLBackEnd.Docker ,
           containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName) ;
-          logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
-          logcmd = obj.generateLogCommandForDockerBackend_(containerName, logfile) ;
+          native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
+          logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
         else
           logcmd = '' ;
         end
@@ -1625,8 +1630,8 @@ classdef DLBackEndClass < handle
         totrackinfojob = dmcjob_or_totrackinfojob ;
         if obj.type == DLBackEnd.Docker ,
           containerName = totrackinfojob.containerName ;
-          logfile = totrackinfojob.logfile ;
-          logcmd = obj.generateLogCommandForDockerBackend_(containerName, logfile) ;
+          native_log_file_path = totrackinfojob.logfile ;
+          logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
         else
           logcmd = '' ;
         end
@@ -1635,15 +1640,15 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_name)  % constant method
+    function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_path)  % constant method
       assert(backend.type == DLBackEnd.Docker);
       dockercmd = apt.dockercmd();
-      log_file_name = wsl_path_from_native(native_log_file_name) ;
+      wsl_log_file_path = wsl_path_from_native(native_log_file_path) ;
       cmd = ...
         sprintf('%s logs -f %s &> %s', ... 
                 dockercmd, ...
                 containerName, ...
-                escape_string_for_bash(log_file_name)) ;
+                escape_string_for_bash(wsl_log_file_path)) ;
       is_docker_remote = ~isempty(backend.dockerremotehost) ;
       if is_docker_remote
         cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
@@ -1684,7 +1689,7 @@ classdef DLBackEndClass < handle
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8) ;
       cmd = sprintf('%s ps --filter "id=%s"', apt.dockercmd(), jobidshort) ;      
-      [rc, stdouterr] = obj.runBatchCommandOutsideContainer(cmd) ;
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if rc==0
@@ -1702,7 +1707,7 @@ classdef DLBackEndClass < handle
         % For the bsub backend, obj.runBatchCommandOutsideContainer() still runs
         % things locally, since that's what you want for e.g. commands that check on
         % file status.
-      [rc, stdouterr] = obj.runBatchCommandOutsideContainer(cmd1) ;
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd1) ;
       if rc==0 ,
         result = stdouterr ;
       else
@@ -1742,10 +1747,10 @@ classdef DLBackEndClass < handle
         case DLBackEnd.Bsub
           mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
           if isequal(train_or_track,'train'),
-            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+            native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
             nslots = obj.jrcnslots;
           else % track
-            logfile = jobinfo.logfile;
+            native_log_file_path = jobinfo.logfile;
             nslots = obj.jrcnslotstrack;
           end
       
@@ -1758,7 +1763,7 @@ classdef DLBackEndClass < handle
           additionalBsubArgs = obj.jrcAdditionalBsubArgs ;
           result = {...
             'singargs',{'bindpath',mntPaths,'singimg',singimg},...
-            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',logfile,'jobname',containerName, ...
+            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',native_log_file_path,'jobname',containerName, ...
                         'additionalArgs', additionalBsubArgs},...
             'sshargs',{'extraprefix',extraprefix}...
             };
@@ -1776,12 +1781,12 @@ classdef DLBackEndClass < handle
             };
         case DLBackEnd.Conda
           if isequal(train_or_track,'train'),
-            logfile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+            native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
           else % track
-            logfile = jobinfo.logfile;
+            native_log_file_path = jobinfo.logfile;
           end
           result = {...
-            'logfile', logfile };
+            'logfile', native_log_file_path };
           % backEndArgs = {...
           %   'condaEnv', obj.condaEnv, ...
           %   'gpuid', gpuid };
@@ -1976,5 +1981,93 @@ classdef DLBackEndClass < handle
       %   result = fullfile(APT.getdotaptdirpath(), 'torch') ;
       % end
     end  % function   
+  end  % methods
+
+  methods
+    function cmd = wrapCommandToBeSpawnedForBackend_(obj, basecmd, varargin)  % const method
+      switch obj.type,
+        case DLBackEnd.AWS
+          cmd = wrapCommandToBeSpawnedForAWSBackend_(obj, basecmd, varargin{:});
+        case DLBackEnd.Bsub,
+          cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, basecmd, varargin{:});
+        case DLBackEnd.Conda
+          cmd = wrapCommandToBeSpawnedForCondaBackend_(obj, basecmd, varargin{:});
+        case DLBackEnd.Docker
+          cmd = wrapCommandToBeSpawnedForDockerBackend_(obj, basecmd, varargin{:});
+        otherwise
+          error('Not implemented: %s',obj.type);
+      end
+    end
+    
+    function result = wrapCommandToBeSpawnedForAWSBackend_(obj, basecmd, varargin)  % const method
+      % Wrap for docker, returns Linux/WSL-style command string
+      
+      % Parse arguments
+      [dockerargs, sshargs] = ...
+        myparse_nocheck(varargin, ...
+                        'dockerargs',{}, ...
+                        'sshargs',{}) ;
+    
+      % Wrap for docker
+      dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
+      bindpath = {'/home'} ;  % This is a remote path
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'dockerimg',dockerimg, ...
+                          'bindpath',bindpath, ...
+                          dockerargs{:}) ;
+    
+      % Wrap for ssh'ing into a remote docker host, if needed
+      %result = obj.wrapCommandSSHAWS(codestr, sshargs{:}) ;
+      result = obj.awsec2.wrapCommandSSH(codestr, sshargs{:}) ;
+    end
+    
+    function cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, basecmd, varargin)  %#ok<INUSD>  % const method
+      [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
+      cmd1 = wrapCommandSing(basecmd,singargs{:});
+      cmd2 = wrapCommandBsub(cmd1,bsubargs{:});
+    
+      % already on cluster?
+      tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+      if tfOnCluster,
+        % The Matlab environment vars cause problems with e.g. PyTorch
+        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
+      else
+        % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
+        cmd = wrapCommandSSH(cmd2,'host',DLBackEndClass.jrchost,sshargs{:});
+      end
+    end
+    
+    function result = wrapCommandToBeSpawnedForCondaBackend_(obj, basecmd, varargin)  % const method
+      % Take a base command and run it in a conda env
+      preresult = wrapCommandConda(basecmd, 'condaEnv', obj.condaEnv, 'logfile', '/dev/null', 'gpuid', obj.gpuids(1), varargin{:}) ;
+      result = sprintf('{ %s & } && echo $!', preresult) ;  % echo $! to get the PID
+    end
+    
+    function codestr = wrapCommandToBeSpawnedForDockerBackend_(obj, basecmd, varargin)  % const method
+      % Take a base command and run it in a docker img
+    
+      % Determine the fallback gpuid, keeping in mind that backend.gpuids may be
+      % empty.
+      if isempty(obj.gpuids) ,
+        fallback_gpuid = 1 ;
+      else
+        fallback_gpuid = obj.gpuids(1) ;
+      end    
+    
+      % Call main function, returns Linux/WSL-style command string
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'dockerimg',obj.dockerimgfull,...
+                          'gpuid',fallback_gpuid,...
+                          'apiver',apt.docker_api_version(), ...
+                          varargin{:}) ;  % key-value pairs in varagin will override ones specified here
+    
+      % Wrap for ssh'ing into a remote docker host, if needed
+      if ~isempty(obj.dockerremotehost),
+        codestr = wrapCommandSSH(codestr,'host',obj.dockerremotehost);
+      end
+    end  % function 
+    
   end  % methods
 end  % classdef
