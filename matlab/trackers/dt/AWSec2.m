@@ -1197,9 +1197,9 @@ classdef AWSec2 < handle
       obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
     end  % function
 
-    function downloadTrackingFilesIfNecessary(obj, pollingResult, wslLocalCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, pollingResult, wslProjectCachePath, movfiles)
       % Errors if something goes wrong.
-      remoteCacheRoot = AWSec2.remoteDLCacheDir ;
+      remoteProjectCachePath = AWSec2.remoteDLCacheDir ;
       currentLocalPathFromTrackedMovieIndex = movfiles(:) ;  % want cellstr col vector
       originalLocalPathFromTrackedMovieIndex = pollingResult.movfile(:) ;  % want cellstr col vector
       if all(strcmp(currentLocalPathFromTrackedMovieIndex,originalLocalPathFromTrackedMovieIndex))
@@ -1209,7 +1209,7 @@ classdef AWSec2 < handle
         % download trkfiles 
         nativeLocalTrackFilePaths = pollingResult.trkfile ;
         wslLocalTrackFilePaths = wsl_path_from_native(nativeLocalTrackFilePaths) ;
-        remoteTrackFilePaths = linux_replace_prefix_path(wslLocalTrackFilePaths, wslLocalCacheRoot, remoteCacheRoot) ;
+        remoteTrackFilePaths = linux_replace_prefix_path(wslLocalTrackFilePaths, wslProjectCachePath, remoteProjectCachePath) ;
         % sysCmdArgs = {'failbehavior', 'err'};
         for ivw=1:numel(wslLocalTrackFilePaths)
           remoteTrackFilePath = remoteTrackFilePaths{ivw};
@@ -1598,7 +1598,7 @@ classdef AWSec2 < handle
 
       %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
       remoteFilePath = ...
-         obj.remote_path_from_wsl(wslFilePath, 'doesMaybeIncludeMoviePaths', false) ;
+         obj.remote_path_from_wsl(wslFilePath) ;
       if ~obj.fileExists(wslFilePath) ,
         nframes = nan ;
         return
@@ -1668,7 +1668,7 @@ classdef AWSec2 < handle
       end
     end  % function
     
-    function result = applyFilePathSubstitutions(obj, command, varargin)  % const method
+    function result = applyFilePathSubstitutions(obj, command)  % const method
       % Apply the applicable file name substitutions to command.
       % This just uses dumb string replacement, which will likely lead to tears
       % eventually.  But to do better we'd have to keep commands as unescaped lists
@@ -1681,20 +1681,20 @@ classdef AWSec2 < handle
       %   error('The wslProjectCachePath must be set before calling the applyFilePathSubstitutions() method.') ;
       % end
 
-      doesMaybeIncludeMoviePaths = ...
-        myparse(varargin, ...
-                'doesMaybeIncludeMoviePaths', true) ;
-      if doesMaybeIncludeMoviePaths ,
-        result = ...
-            AWSec2.applyGenericFilePathSubstitutions(command, ...
-                                                     obj.wslProjectCachePath_, ...
-                                                     obj.wslPathFromMovieIndex_) ;
-      else
-        % If we know command_or_path does not include movie paths, we can skip those
-        % substitutions to get faster performance.
-        result = ...
-            AWSec2.applyGenericFilePathSubstitutions(command, obj.wslProjectCachePath_) ;
-      end
+      % doesMaybeIncludeMoviePaths = ...
+      %   myparse(varargin, ...
+      %           'doesMaybeIncludeMoviePaths', true) ;
+      % if doesMaybeIncludeMoviePaths ,
+      result = ...
+          AWSec2.applyGenericFilePathSubstitutions(command, ...
+                                                   obj.wslProjectCachePath_, ...
+                                                   obj.wslPathFromMovieIndex_) ;
+      % else
+      %   % If we know command_or_path does not include movie paths, we can skip those
+      %   % substitutions to get faster performance.
+      %   result = ...
+      %       AWSec2.applyGenericFilePathSubstitutions(command, obj.wslProjectCachePath_) ;
+      % end
     end  % function
   end  % methods
   
