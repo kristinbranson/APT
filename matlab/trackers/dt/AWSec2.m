@@ -1383,8 +1383,8 @@ classdef AWSec2 < handle
       wslProjectCachePath = wsl_path_from_native(nativeProjectCachePath) ;
       obj.wslProjectCachePath_ = wslProjectCachePath ;  % Need to set this before calling obj.remote_path_from_wsl()
       remoteProjectCachePath = AWSec2.remoteDLCacheDir ;
-      ensureWslFolderExists(wslProjectPath) ;  % will throw if fails
-      obj.rsyncDownloadFolder(remoteProjectCachePath, wslProjectPath) ;  % this will throw if there's a problem
+      ensureWslFolderExists(wslProjectCachePath) ;  % will throw if fails
+      obj.rsyncDownloadFolder(remoteProjectCachePath, wslProjectCachePath) ;  % this will throw if there's a problem
       
       % If we made it here, download successful---update the state to reflect that the
       % model is now local.            
