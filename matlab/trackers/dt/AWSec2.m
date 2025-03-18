@@ -46,13 +46,13 @@ classdef AWSec2 < handle
   end
 
   properties (Transient, SetAccess=protected)
-    % The backend keeps track of whether the DMCoD is local or remote.  When it's
-    % remote, we substitute the remote DMC root for the local one wherever it
+    % The backend keeps track of whether the project cache is local or remote.  When it's
+    % remote, we substitute the remote project cache path for the local one wherever it
     % appears.
-    isDMCRemote_ = false
-      % True iff the "current" version of the DMC is on a remote AWS filesystem.  
+    isProjectCacheRemote_ = false
+      % True iff the "current" version of the project cache is on a remote AWS filesystem.  
       % Underscore means "protected by convention"    
-    wslDMCRootDir_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    wslProjectCachePath_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
     %remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
 
     % Used to keep track of whether movies have been uploaded or not.
@@ -66,9 +66,9 @@ classdef AWSec2 < handle
   end
 
   properties (Dependent)
-    isDMCRemote
-    isDMCLocal    
-    wslDMCRootDir
+    isProjectCacheRemote
+    isProjectCacheLocal    
+    wslProjectCachePath
     %remoteDMCRootDir
   end
 
@@ -1177,8 +1177,8 @@ classdef AWSec2 < handle
       suitcase = struct() ;
       suitcase.instanceIP = obj.instanceIP ;
       suitcase.isInDebugMode_ = obj.isInDebugMode_ ;
-      suitcase.isDMCRemote_ = obj.isDMCRemote_ ;
-      suitcase.wslDMCRootDir_ = obj.wslDMCRootDir_ ;
+      suitcase.isProjectCacheRemote_ = obj.isProjectCacheRemote_ ;
+      suitcase.wslProjectCachePath_ = obj.wslProjectCachePath_ ;
       suitcase.didUploadMovies_ = obj.didUploadMovies_ ;
       suitcase.localPathFromMovieIndex_ = obj.wslPathFromMovieIndex_ ;
       suitcase.remotePathFromMovieIndex_ = obj.remotePathFromMovieIndex_ ;
@@ -1190,8 +1190,8 @@ classdef AWSec2 < handle
       % boundary.
       obj.instanceIP = suitcase.instanceIP ;
       obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
-      obj.isDMCRemote_ = suitcase.isDMCRemote_ ;
-      obj.wslDMCRootDir_ = suitcase.wslDMCRootDir_ ;
+      obj.isProjectCacheRemote_ = suitcase.isProjectCacheRemote_ ;
+      obj.wslProjectCachePath_ = suitcase.wslProjectCachePath_ ;
       obj.didUploadMovies_ = suitcase.didUploadMovies_ ;
       obj.wslPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
       obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
@@ -1225,12 +1225,12 @@ classdef AWSec2 < handle
       end
     end  % function    
 
-    function result = get.isDMCRemote(obj)
-      result = obj.isDMCRemote_ ;
+    function result = get.isProjectCacheRemote(obj)
+      result = obj.isProjectCacheRemote_ ;
     end  % function
 
-    function result = get.isDMCLocal(obj)
-      result = ~obj.isDMCRemote_ ;
+    function result = get.isProjectCacheLocal(obj)
+      result = ~obj.isProjectCacheRemote_ ;
     end  % function    
 
     function [tfsucc,res] = batchPoll(obj, wsl_fspollargs)
@@ -1264,7 +1264,7 @@ classdef AWSec2 < handle
       % Get the number of iterations completed for the model indicated by dmc.
       % Note that dmc will have native paths in it.
       % Also note that maxiter is in general a row vector.
-      if obj.isDMCRemote_ ,
+      if obj.isProjectCacheRemote_ ,
         % maxiter is nan if something bad happened or if DNE
         % TODO allow polling for multiple models at once
         [dirModelChainLnx,idx] = dmc.dirModelChainLnx() ;
@@ -1304,7 +1304,7 @@ classdef AWSec2 < handle
       obj.runBatchCommandOutsideContainer(base_command, 'dopathsubs', false, 'failbehavior', 'err') ;
     end
     
-    function mirrorDMCToBackend(obj, dmc, mode)
+    function uploadProjectCacheIfNeeded(obj, nativeProjectCachePath)
       % Take a local DMC and mirror/upload it to the AWS instance aws; 
       % update .rootDir, .reader appropriately to point to model on remote 
       % disk.
@@ -1321,53 +1321,47 @@ classdef AWSec2 < handle
       % - .reader update to AWS reader
       
       % Sanity checks
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
-      assert(isscalar(dmc));
+      % assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+      % assert(isscalar(dmc));
 
-      % If the DMC is already remote, warn
-      if obj.isDMCRemote ,
-        warning('Mirroring DMC to backend, even though DMC is already remote.') ;
+      % If the DMC is already remote, do nothing
+      if obj.isProjectCacheRemote ,
+        return
       end
 
-      % Make sure there is a trained model
-      maxiter = obj.getMostRecentModel(dmc) ;
-      succ = (maxiter >= 0) ;
-      if strcmp(mode, 'tracking') && any(~succ) ,
-        dmclfail = dmc.dirModelChainLnx(find(~succ));
-        fstr = sprintf('%s ',dmclfail{:});
-        error('Failed to determine latest model iteration in %s.',fstr);
-      end
-      if isnan(maxiter) ,
-        fprintf('Currently, there is no trained model.\n');
-      else
-        fprintf('Current model iteration is %s.\n',mat2str(maxiter));
-      end
+      % % Make sure there is a trained model
+      % maxiter = obj.getMostRecentModel(dmc) ;
+      % succ = (maxiter >= 0) ;
+      % if strcmp(mode, 'tracking') && any(~succ) ,
+      %   dmclfail = dmc.dirModelChainLnx(find(~succ));
+      %   fstr = sprintf('%s ',dmclfail{:});
+      %   error('Failed to determine latest model iteration in %s.',fstr);
+      % end
+      % if isnan(maxiter) ,
+      %   fprintf('Currently, there is no trained model.\n');
+      % else
+      %   fprintf('Current model iteration is %s.\n',mat2str(maxiter));
+      % end
      
       % Make sure there is a live backend
       obj.errorIfInstanceNotRunning();  % throws error if ec2 instance is not connected
       
-      % To support training on AWS, and the fact that a DeepModelChainOnDisk has
-      % only a single boolean to represent whether it's local or remote, we're just
-      % going to upload everything under fullfile(obj.rootDir, obj.projID) to the
-      % backend.  -- ALT, 2024-06-25
-      obj.wslDMCRootDir_ = wsl_path_from_native(dmc.rootDir) ;  % Need to set this before calling obj.remote_path_from_wsl()
-      nativeProjectPath = fullfile(dmc.rootDir, dmc.projID) ;
-      wslProjectPath = wsl_path_from_native(nativeProjectPath) ;
-      remoteProjectPath = obj.remote_path_from_wsl(wslProjectPath) ;
-      % remoteProjectPath = linux_fullfile(AWSec2.remoteDLCacheDir, dmc.projID) ;  % ensure linux-style path
-      [didsucceed, msg] = obj.mkdir(wslProjectPath) ;
+      % Sync remote /home/ubuntu/cacheDL from ~/.apt/tpwhatever_blah_blah_blah
+      wslProjectCachePath = wsl_path_from_native(nativeProjectCachePath) ;
+      obj.wslProjectCachePath_ = wslProjectCachePath ;  % Need to set this before calling obj.remote_path_from_wsl()
+      remoteProjectCachePath = AWSec2.remoteDLCacheDir ;
+      [didsucceed, msg] = obj.mkdir(remoteProjectCachePath) ;
       if ~didsucceed ,
-        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectPath, msg) ;
+        error('Unable to create remote dir %s.\nmsg:\n%s\n', remoteProjectCachePath, msg) ;
       end
-      obj.rsyncUploadFolder(wslProjectPath, remoteProjectPath) ;  % this will throw if there's a problem
+      obj.rsyncUploadFolder(wslProjectCachePath, remoteProjectCachePath) ;  % this will throw if there's a problem
 
       % If we made it here, upload successful---update the state to reflect that the
       % model is now remote.      
-      %obj.remoteDMCRootDir_ = AWSec2.remoteDLCacheDir ;
-      obj.isDMCRemote_ = true ;
+      obj.isProjectCacheRemote_ = true ;
     end  % function
     
-    function mirrorDMCFromBackend(obj, dmc)
+    function downloadProjectCacheIfNeeded(obj, nativeProjectCachePath)
       % Inverse of mirror2remoteAws. Download/mirror model from remote AWS
       % instance to local cache.
       %
@@ -1378,76 +1372,39 @@ classdef AWSec2 < handle
       % to point to the local cache.
 
       % If the DMC is already local,  do nothing
-      if obj.isDMCLocal ,
+      if obj.isProjectCacheLocal ,
         return
       end
       
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
-      assert(isscalar(dmc));      
- 
-      maxiter = obj.getMostRecentModel(dmc) ;
-      succ = (maxiter >= 0) ;
-      if any(~succ),
-        dirModelChainLnx = dmc.dirModelChainLnx(find(~succ));
-        fstr = sprintf('%s ',dirModelChainLnx{:});
-        error('Failed to determine latest model iteration in %s.',...
-          fstr);
-      end
-      fprintf('Current model iteration is %s.\n',mat2str(maxiter));
-     
-      [tfexist,tfrunning] = obj.inspectInstance();
-      if ~tfexist,
-        error('AWS EC2 instance %s could not be found.',obj.instanceID);
-      end
-      if ~tfrunning,
-        [tfsucc,~,warningstr] = obj.startInstance();
-        if ~tfsucc,
-          error('Could not start AWS EC2 instance %s: %s',obj.instanceID,warningstr);
-        end
-      end      
-          
-      wslDMCRootDir = obj.wslDMCRootDir_ ;
-      nativeModelGlobs = dmc.modelGlobsLnx() ;  % despite the method name, these are native paths
-      wslModelGlobs = cellfun(@(cellstr)(wsl_path_from_native(cellstr)), nativeModelGlobs, 'UniformOutput', false) ;
-        % nativeModelGlobs is a cell array of cell arrays of char row vectors
-      n = dmc.n ;
-      remoteDMCRootDir = AWSec2.remoteDLCacheDir ;
-      dmcNetType = dmc.netType ;
-      for j = 1:n,
-        remoteFilePathFromModelFileIndex = obj.remoteGlob_(wslModelGlobs{j}) ;
-        wslFilePathFromModelFileIndex = linux_replace_prefix_path(remoteFilePathFromModelFileIndex, remoteDMCRootDir, wslDMCRootDir) ;
-        nModelFiles = numel(remoteFilePathFromModelFileIndex);
-        netstr = char(dmcNetType{j}); 
-        fprintf('Downloading %d model files for net %s...\n', nModelFiles, netstr) ;
-        for i=1:nModelFiles
-          remoteFilePath = remoteFilePathFromModelFileIndex{i} ;
-          wslFilePath = wslFilePathFromModelFileIndex{i} ;
-          % Do the rsync
-          obj.rsyncDownloadFile(remoteFilePath, wslFilePath) ; % throws
-        end
-        fprintf('Done downloading %d model files for net %s.\n', nModelFiles, netstr) ;
-      end      
-      % if we made it here, download successful
+      % Make sure there is a live backend
+      obj.errorIfInstanceNotRunning();  % throws error if ec2 instance is not connected
+
+      % Download
+      wslProjectCachePath = wsl_path_from_native(nativeProjectCachePath) ;
+      obj.wslProjectCachePath_ = wslProjectCachePath ;  % Need to set this before calling obj.remote_path_from_wsl()
+      remoteProjectCachePath = AWSec2.remoteDLCacheDir ;
+      ensureWslFolderExists(wslProjectPath) ;  % will throw if fails
+      obj.rsyncDownloadFolder(remoteProjectCachePath, wslProjectPath) ;  % this will throw if there's a problem
       
-      %obj.rootDir = cacheDirLocal;
-      %obj.reader = DeepModelChainReaderLocal();
-      obj.isDMCRemote_ = false ;
+      % If we made it here, download successful---update the state to reflect that the
+      % model is now local.            
+      obj.isProjectCacheRemote_ = false ;
     end  % function
         
     % function result = getTorchHome(obj)
-    %   if obj.isDMCRemote_ ,
+    %   if obj.isProjectCacheRemote_ ,
     %     result = linux_fullfile(AWSec2.remoteDLCacheDir, 'torch') ;
     %   else
     %     result = fullfile(APT.getdotaptdirpath(), 'torch') ;
     %   end
     % end  % function
     
-    function result = get.wslDMCRootDir(obj) 
-      result = obj.wslDMCRootDir_ ;
+    function result = get.wslProjectCachePath(obj) 
+      result = obj.wslProjectCachePath_ ;
     end  % function
 
-    function set.wslDMCRootDir(obj, value) 
-      obj.wslDMCRootDir_ = value ;
+    function set.wslProjectCachePath(obj, value) 
+      obj.wslProjectCachePath_ = value ;
     end  % function
     
     % function result = get.remoteDMCRootDir(obj)
@@ -1720,8 +1677,8 @@ classdef AWSec2 < handle
       %
       % This method does not mutate obj.
       
-      % if isempty(obj.wslDMCRootDir_) ,
-      %   error('The wslDMCRootDir must be set before calling the applyFilePathSubstitutions() method.') ;
+      % if isempty(obj.wslProjectCachePath_) ,
+      %   error('The wslProjectCachePath must be set before calling the applyFilePathSubstitutions() method.') ;
       % end
 
       doesMaybeIncludeMoviePaths = ...
@@ -1730,30 +1687,30 @@ classdef AWSec2 < handle
       if doesMaybeIncludeMoviePaths ,
         result = ...
             AWSec2.applyGenericFilePathSubstitutions(command, ...
-                                                     obj.wslDMCRootDir_, ...
+                                                     obj.wslProjectCachePath_, ...
                                                      obj.wslPathFromMovieIndex_) ;
       else
         % If we know command_or_path does not include movie paths, we can skip those
         % substitutions to get faster performance.
         result = ...
-            AWSec2.applyGenericFilePathSubstitutions(command, obj.wslDMCRootDir_) ;
+            AWSec2.applyGenericFilePathSubstitutions(command, obj.wslProjectCachePath_) ;
       end
     end  % function
   end  % methods
   
   methods (Static)
     function result = applyGenericFilePathSubstitutions(command, ...
-                                                        wslDMCRootDir, ...
+                                                        wslProjectCachePath, ...
                                                         wslPathFromMovieIndex)
       % Deal with optional args
       if ~exist('wslPathFromMovieIndex', 'var') || isempty(wslPathFromMovieIndex) ,
         wslPathFromMovieIndex = cell(1,0) ;
       end
       % Replace the local cache root with the remote one
-      if isempty(wslDMCRootDir)
+      if isempty(wslProjectCachePath)
         result_1 = command ;
       else
-        result_1 = strrep(command, wslDMCRootDir, AWSec2.remoteDLCacheDir) ;
+        result_1 = strrep(command, wslProjectCachePath, AWSec2.remoteDLCacheDir) ;
       end
       % Replace local movie paths with the corresponding remote ones
       if ~isempty(wslPathFromMovieIndex) ,

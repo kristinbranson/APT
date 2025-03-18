@@ -127,7 +127,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     nviews
     njobs
     nstages
-    rootDir  % The (local) root dir of the DMCoD
+    rootDir  % The (native) root dir of the DMCoD
     %localRootDir
     %remoteRootDir
   end
@@ -776,11 +776,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     end
 
     function obj = DeepModelChainOnDisk(varargin)
-
       % allow to call with no inputs, but then all responsibility for
       % properly setting variables is on outside code.
       if nargin == 0,
-        return;
+        return
       end
         
       nmodels = [];

@@ -73,7 +73,7 @@ classdef LabelerProjectTester < handle
       pause(10) ;
     
       % Bring any remote artifacts back to frontend
-      labeler.rehomeProject() ;
+      labeler.downloadProjectCacheIfNeeded() ;
 
       % Check that training happened.
       % After return, caller can check other aspects of obj.labeler if desired.
@@ -118,7 +118,7 @@ classdef LabelerProjectTester < handle
       pause(10) ;
 
       % Bring any remote artifacts back to frontend
-      labeler.rehomeProject() ;
+      labeler.downloadProjectCacheIfNeeded() ;
       
       % Perform some tests that tracking worked
       % After return, caller can check other aspects of obj.labeler if desired.
@@ -168,7 +168,7 @@ classdef LabelerProjectTester < handle
       pause(10);
 
       % % Bring any remote artifacts back to frontend
-      % labeler.rehomeProject() ;      
+      % labeler.rehomeProjectCacheIfNeeded() ;      
       
       % Make sure the GT table has been generated
       if isempty(obj.labeler.gtTblRes) ,

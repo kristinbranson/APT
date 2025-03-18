@@ -2534,7 +2534,7 @@ classdef Labeler < handle
           tracker = obj.trackerHistory_{iTrker} ;
           if isprop(tracker,'trnLastDMC') && ~isempty(tracker.trnLastDMC)            
             try
-              if backend.isDMCRemote
+              if backend.isProjectCacheRemote
                 warningNoTrace('Remote model detected for net type %s. This will not migrated/preserved.',tracker.trnNetType);
               else
                 tracker.copyModelFiles(obj.projTempDir,true);
@@ -2874,38 +2874,33 @@ classdef Labeler < handle
       % allModelFiles will contain all projtempdir artifacts to be tarred
       allModelFiles = {rawLblFile};
       
+      % If the project cache is remote, make it local
+      obj.downloadProjectCacheIfNeeded() ;
+
       % find the model files and then bundle them into the tar directory.
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the
       % temp directory. sigh.
 
-      backend = obj.trackDLBackEnd ;
       for iTrker = 1:numel(obj.trackerHistory_)
-        tObj = obj.trackerHistory_{iTrker};
-        if isa(tObj,'DeepTracker')
+        tracker = obj.trackerHistory_{iTrker};
+        if isa(tracker,'DeepTracker')
           % a lot of unnecessary moving around is to maintain the directory
           % structure - MK 20190204
-
-          dmc = tObj.trnLastDMC ;
+          dmc = tracker.trnLastDMC ;
           if isempty(dmc),
             continue;
           end
           try
-            try
-              backend.mirrorDMCFromBackend(dmc);
-            catch me
-              warningNoTrace('Could not check if trackers had been downloaded from AWS: %s', me.message);
-            end
-
             if verbose,
               fprintf('Saving model for nettype ''%s'' from %s.\n',...
-                      tObj.trnNetType,dmc.getRootDir);
+                      tracker.trnNetType,dmc.getRootDir);
             end
-            modelFilesDst = tObj.copyModelFiles(projtempdir,verbose);
+            modelFilesDst = tracker.copyModelFiles(projtempdir,verbose);
             allModelFiles = [allModelFiles; modelFilesDst(:)]; %#ok<AGROW>
           catch ME
             warningNoTrace('Nettype ''%s'': obj.lerror caught trying to save model. Trained model will not be saved for this net type:\n%s',...
-                           tObj.trnNetType,ndx,ME.getReport());
+                           tracker.trnNetType,ndx,ME.getReport());
           end
         else
           error('Not implemented') ;
@@ -2931,21 +2926,11 @@ classdef Labeler < handle
       %obj.clearTempDir();
     end
     
-    function rehomeProject(obj)  % throws on error
+    function downloadProjectCacheIfNeeded(obj)  % throws on error
       % Copy any training/tracking artifacts on the backend back to the frontend.
       % Throws on err.            
       backend = obj.trackDLBackEnd ;
-      for i = 1:numel(obj.trackerHistory_)
-        tracker = obj.trackerHistory_{i} ;
-        if isa(tracker,'DeepTracker')
-          dmc = tracker.trnLastDMC ;
-          if ~isempty(dmc) ,
-            backend.mirrorDMCFromBackend(dmc) ;
-          end
-        else
-          error('Not implemented') ;
-        end
-      end
+      backend.downloadProjectCacheIfNeeded(obj.DLCacheDir) ;
     end  % function
 
     function projExportTrainData(obj,outfile)
@@ -2960,16 +2945,15 @@ classdef Labeler < handle
       save(outfile,'-mat','-v7.3','-struct','s');
       fprintf('Saved training data to file ''%s''.\n',outfile);
     end
-    
-    
+        
     function success = projRemoveTempDir(obj) % throws
       success = true;
       if isempty(obj.projTempDir)
-        return;
+        return
       end
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if success
-        fprintf(1,'Cleared temp dir: %s\n',obj.projTempDir);
+        fprintf('Cleared temp dir: %s\n',obj.projTempDir);
       else
         warning('Could not clear the temp directory: %s',message);
       end
@@ -2983,7 +2967,7 @@ classdef Labeler < handle
     
     function projClearTempDir(obj) % throws
       if isempty(obj.projTempDir)
-        return;
+        return
       end
       obj.projRemoveTempDir();
       [success, message, ~] = mkdir(obj.projTempDir);

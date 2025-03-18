@@ -129,9 +129,9 @@ classdef DLBackEndClass < handle
     singularity_image_path
     singularity_detection_image_path
     isInAwsDebugMode
-    isDMCRemote
-    isDMCLocal
-    wslDMCRootDir
+    isProjectCacheRemote
+    isProjectCacheLocal
+    wslProjectCachePath
     remoteDMCRootDir
     awsInstanceID
     awsKeyName
@@ -936,7 +936,7 @@ classdef DLBackEndClass < handle
 
       % totrackinfo has local paths, need to remotify them
       remotetotrackinfo = totrackinfo.copy() ;
-      remotetotrackinfo.changePathsToRemoteFromWsl(obj.wslDMCRootDir, obj) ;
+      remotetotrackinfo.changePathsToRemoteFromWsl(obj.wslProjectCachePath, obj) ;
 
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
@@ -1485,31 +1485,25 @@ classdef DLBackEndClass < handle
   end  % methods (Static)
 
   methods
-    function mirrorDMCToBackend(obj, dmc, mode)
-      % mode should be 'tracking' or 'training'.
-      if ~exist('mode', 'var') || isempty(mode) ,
-        mode = 'tracking' ;
-      end
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+    function uploadProjectCacheIfNeeded(obj, nativeProjectCachePath)
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.mirrorDMCToBackend(dmc, mode) ;
+         obj.awsec2.uploadProjectCacheIfNeeded(nativeProjectCachePath) ;
       end
     end
 
-    function mirrorDMCFromBackend(obj, dmc)
+    function downloadProjectCacheIfNeeded(obj, nativeCacheDirPath, projectName)
       % If the model chain is remote, download it
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.mirrorDMCFromBackend(dmc) ;
+         obj.awsec2.downloadProjectCacheIfNeeded(nativeCacheDirPath, projectName) ;
       end
     end  % function
 
-    function result = get.isDMCRemote(obj)
-      result = (obj.type == DLBackEnd.AWS) && obj.awsec2.isDMCRemote ;
+    function result = get.isProjectCacheRemote(obj)
+      result = (obj.type == DLBackEnd.AWS) && obj.awsec2.isProjectCacheRemote ;
     end  % function
 
-    function result = get.isDMCLocal(obj)
-      result = ~obj.isDMCRemote ;
+    function result = get.isProjectCacheLocal(obj)
+      result = ~obj.isProjectCacheRemote ;
     end  % function
 
     function prepareFilesForTracking(backend, toTrackInfo)
@@ -1550,16 +1544,16 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function result = get.wslDMCRootDir(obj)
+    function result = get.wslProjectCachePath(obj)
       % The local DMC root dir, as a WSL path.
-      result = obj.awsec2.wslDMCRootDir ;
+      result = obj.awsec2.wslProjectCachePath ;
     end  % function
 
-    function set.wslDMCRootDir(obj, value) 
+    function set.wslProjectCachePath(obj, value) 
       % Set the local DMC root dir.  Note that value is assumed to be a native path,
       % but we convert to a WSL path before passing to obj.awsec2.
       path = wsl_path_from_native(value) ;
-      obj.awsec2.wslDMCRootDir = path ;
+      obj.awsec2.wslProjectCachePath = path ;
     end  % function
 
     function result = get.remoteDMCRootDir(obj)  %#ok<MANU>

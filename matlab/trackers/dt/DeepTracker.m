@@ -578,13 +578,13 @@ classdef DeepTracker < LabelTracker
       if isempty(dmc),
         return
       end
-      if obj.backend.isDMCRemote ,
+      if obj.backend.isProjectCacheRemote ,
         warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
                        obj.trnNetType.displayString);
         return
       end
       dmc.rootDir = dlcachedir ;
-      obj.backend.wslDMCRootDir = dlcachedir ;
+      obj.backend.wslProjectCachePath = dlcachedir ;
 
       % At save-time we should be updating DMCs to local
 
@@ -1446,7 +1446,7 @@ classdef DeepTracker < LabelTracker
                                'tfGenNewConfigFile',tfGenNewConfigFile);
 
       % Create DMC
-      cacheDir = obj.lObj.DLCacheDir ;  % local cache dir      
+      cacheDir = obj.lObj.DLCacheDir ;  % native cache dir      
       dmc = DeepModelChainOnDisk('rootDir',cacheDir,...
                                  'projID',obj.lObj.projname,...
                                  'netType',netType(stage),...
@@ -1484,7 +1484,7 @@ classdef DeepTracker < LabelTracker
       % We have (modelChainID,trainID) config file on disk. 
 
       % Upload model to remote filesystem, if needed
-      backend.mirrorDMCToBackend(dmc, 'training') ;
+      backend.uploadProjectCacheIfNeeded(obj.lObj.DLCacheDir) ;
 
       % Clear out any old registered jobs in the backend
       backend.killAndClearRegisteredJobs('train') ;
@@ -2586,7 +2586,7 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload model to remote filesystem, if needed
-      backend.mirrorDMCToBackend(dmc, 'tracking') ;
+      backend.uploadProjectCacheIfNeeded(obj.lObj.DLCacheDir) ;
 
       % Upload the movies to the backend
       % localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
@@ -4449,7 +4449,7 @@ classdef DeepTracker < LabelTracker
         return
       end
       backend = obj.backend ;
-      if backend.isDMCRemote ,
+      if backend.isProjectCacheRemote ,
         warningNoTrace('Remote model detected. This will not be migrated.');
         return
       end
