@@ -1491,10 +1491,10 @@ classdef DLBackEndClass < handle
       end
     end
 
-    function downloadProjectCacheIfNeeded(obj, nativeCacheDirPath, projectName)
+    function downloadProjectCacheIfNeeded(obj, nativeCacheDirPath)
       % If the model chain is remote, download it
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.downloadProjectCacheIfNeeded(nativeCacheDirPath, projectName) ;
+         obj.awsec2.downloadProjectCacheIfNeeded(nativeCacheDirPath) ;
       end
     end  % function
 
