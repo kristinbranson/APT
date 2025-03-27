@@ -1,5 +1,5 @@
 function test_movie_removal()
-  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-gt-and-rois-added.lbl' ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
   if ispc()
     project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
     replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
@@ -16,10 +16,10 @@ function test_movie_removal()
 
   originalMovieCount = numel(labeler.movieFilesAll) ;
 
-  firstMovieIndexToRemove = 7 ;
+  firstMovieIndexToRemove = 3 ;
   labeler.movieRmGUI(firstMovieIndexToRemove, 'force', true) ;
 
-  secondMovieIndexToRemove = 6 ;  % Want one in the middle
+  secondMovieIndexToRemove = 2 ;  % Want one in the middle
   labeler.movieRmGUI(secondMovieIndexToRemove, 'force', true) ;
 
   % Do verification
