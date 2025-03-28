@@ -2,7 +2,7 @@ function main_figure = createLabelerMainFigure()
 
 % Read assets from .mat file
 if isdeployed()
-  assets_file_path = fullfile(ctfroot(), 'createLabelerMainFigure_assets.mat') ;
+  assets_file_path = fullfile(ctfroot(), 'StartAPT', 'matlab', 'createLabelerMainFigure_assets.mat') ;
 else
   this_script_path = mfilename('fullpath') ;
   this_script_folder = fileparts(this_script_path) ;
