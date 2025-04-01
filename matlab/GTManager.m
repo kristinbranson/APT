@@ -67,7 +67,7 @@ handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
 
 
 lObj = varargin{1};
-if isdeployed || ~lObj.isgui,
+if isdeployed() || ~lObj.isgui,
   % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
   % require Java Swing" from
   % cbkGTSuggUpdated->NavTreeTable/setData->treeTable.
