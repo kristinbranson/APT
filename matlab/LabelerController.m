@@ -12,6 +12,7 @@ classdef LabelerController < handle
       % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
     isPlaying_ = false  % whether a video is currently playing or not
     labelTLInfo  % an InfoTimeline object
+    splashScreenFigureOrEmpty_  % GH to the splash screen figure, or empty
   end
 
   properties  % private/protected by convention
@@ -262,7 +263,6 @@ classdef LabelerController < handle
 
       % Set up the main instance variables
       obj.labeler_ = labeler ;
-      % obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       mainFigure = createLabelerMainFigure() ;
       obj.mainFigure_ = mainFigure ;
       obj.labeler_.registerController(obj) ;  % hack
@@ -270,7 +270,12 @@ classdef LabelerController < handle
       obj.isInYodaMode_ = isInYodaMode ;  
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
-        
+
+      % Create the splash screen figure
+      % (Do this after creation of main figure so splash screen figure is on top.)
+      obj.splashScreenFigureOrEmpty_ = createSplashScreenFigure() ;
+      oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
+              
       % Initialize all the instance vars that will hold references to GUI controls
       handles = guihandles(mainFigure) ;
       tags = fieldnames(handles) ;
@@ -3770,18 +3775,18 @@ classdef LabelerController < handle
         'setFrameArgs',{'updateTables',false});
     end
     
-    function videoPlaySegment(obj)
-      % Play segment centererd at .currFrame
-      
-      labeler = obj.labeler_ ;
-      
-      f = labeler.currFrame;
-      df = labeler.moviePlaySegRadius;
-      fstart = max(1,f-df);
-      fend = min(labeler.nframes,f+df);
-      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
-        'setFrameArgs',{'updateTables',false,'updateLabels',false});
-    end
+    % function videoPlaySegment(obj)
+    %   % Play segment centererd at .currFrame
+    % 
+    %   labeler = obj.labeler_ ;
+    % 
+    %   f = labeler.currFrame;
+    %   df = labeler.moviePlaySegRadius;
+    %   fstart = max(1,f-df);
+    %   fend = min(labeler.nframes,f+df);
+    %   obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+    %     'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    % end
 
     function videoPlaySegFwdEnding(obj)
       % Play segment ending at .currFrame
@@ -3945,11 +3950,11 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function play(obj, iconStrPlay, playMethodName)
+    function play_(obj, iconStrPlay, playMethodName)
       %labeler = obj.labeler_ ;      
       
       pbPlay = obj.pbPlay ;
-      oc = onCleanup(@()(obj.playCleanup(pbPlay, iconStrPlay))) ;
+      oc = onCleanup(@()(obj.playCleanup_(iconStrPlay))) ;
       if ~obj.isPlaying_
         obj.isPlaying_ = true ;
         pbPlay.CData = Icons.ims.stop ;
@@ -3957,7 +3962,8 @@ classdef LabelerController < handle
       end
     end
 
-    function playCleanup(obj, pbPlay, iconStrPlay)
+    function playCleanup_(obj, iconStrPlay)
+      pbPlay = obj.pbPlay ;
       pbPlay.CData = Icons.ims.(iconStrPlay) ;
       obj.isPlaying_ = false ;
     end
@@ -5418,7 +5424,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play('playsegment', 'videoPlaySegFwdEnding') ;
+      obj.play_('playsegment', 'videoPlaySegFwdEnding') ;
     end
 
 
@@ -5428,7 +5434,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play('playsegmentrev', 'videoPlaySegRevEnding') ;
+      obj.play_('playsegmentrev', 'videoPlaySegRevEnding') ;
     end
 
 
@@ -5438,7 +5444,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play('play', 'videoPlay') ;
+      obj.play_('play', 'videoPlay') ;
     end
 
 
@@ -5810,5 +5816,17 @@ classdef LabelerController < handle
         GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
       end
     end  % function
+
+    function deleteSpashScreenFigureIfItExists_(obj)
+      hfigsplash = obj.splashScreenFigureOrEmpty_ ;
+      if isempty(hfigsplash) || ~ishghandle(hfigsplash) 
+        obj.splashScreenFigureOrEmpty_ = [] ;
+        return
+      end
+      main_figure = obj.mainFigure_ ;
+      refocusSplashScreen(hfigsplash, main_figure) ;
+      delete(hfigsplash) ;
+      obj.splashScreenFigureOrEmpty_ = [] ;
+    end
   end  % methods  
 end  % classdef
