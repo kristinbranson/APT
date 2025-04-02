@@ -151,6 +151,12 @@ function cbkGTisGTModeChanged(hObject,src,evt)
 
 function cbkGTSuggUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 % if lObj.isinit
 %   return;
@@ -200,6 +206,12 @@ ntt.updateDataColumn('hasLbl',num2cell(tf));
 
 function cbkGTResUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTResUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 tblSugg = lObj.gtSuggMFTable;
 ntt = handles.navTreeTbl;
