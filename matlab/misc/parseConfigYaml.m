@@ -2,7 +2,7 @@ function t = parseConfigYaml(filename)
 % t = parseConfigYaml(filename)
 % Parse a configuration yaml.
 
-s = ReadYaml(filename);
+s = yaml.ReadYaml(filename);
 t = lclParse(s);
 
 function tagg = lclParse(s)

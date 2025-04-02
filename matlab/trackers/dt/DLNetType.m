@@ -108,6 +108,10 @@ classdef DLNetType < handle
 end 
   
 function s = lclReadNetYaml()
-yaml = fullfile(APT.Root,'matlab','trackers','dt','nets.yaml');
-s = ReadYaml(yaml);
+if isdeployed()
+  netsYamlFilePath = fullfile(ctfroot(),'StartAPT','matlab','trackers','dt','nets.yaml');
+else
+  netsYamlFilePath = fullfile(APT.Root,'matlab','trackers','dt','nets.yaml');
+end
+s = yaml.ReadYaml(netsYamlFilePath);
 end

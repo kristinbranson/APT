@@ -4,7 +4,10 @@ classdef Labeler < handle
   properties (Constant, Hidden)
     VERSION = '3.1';
     DEFAULT_LBLFILENAME = '%s.lbl';
-    DEFAULT_CFG_FILENAME = 'config.default.yaml';
+    DEFAULT_CFG_FILENAME = ...
+      fif(isdeployed(), ...
+          fullfile(ctfroot(), 'StartAPT', 'matlab', 'config.default.yaml'), ...
+          fullfile(APT.Root, 'matlab', 'config.default.yaml')), ...
     MAX_MOVIENAME_LENGTH = 80;
     
     % non-config props
@@ -1885,7 +1888,7 @@ classdef Labeler < handle
   methods (Static)
     
     function cfg = cfgGetLastProjectConfigNoView
-      cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfgBase = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       cfg = RC.getprop('lastProjectConfig');
       if isempty(cfg)
         cfg = cfgBase;
@@ -1938,7 +1941,7 @@ classdef Labeler < handle
 
       cfg = Labeler.cfgModernizeBase(cfg);
       
-      cfgBase = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfgBase = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       
       cfg = structoverlay(cfgBase,cfg,'dontWarnUnrecog',true,...
         'allowedUnrecogFlds',{'Colors'});% 'ColorsSets'});
@@ -1949,7 +1952,7 @@ classdef Labeler < handle
     function cfg = cfgDefaultOrder(cfg)
       % Reorder fields of cfg struct to default order
       
-      cfg0 = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg0 = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       flds0 = fieldnames(cfg0);
       flds = fieldnames(cfg);
       flds0 = flds0(ismember(flds0,flds)); 
@@ -2375,42 +2378,18 @@ classdef Labeler < handle
       obj.projFSInfo = ProjectFSInfo('loaded',fname);
       
       % check that all movie files exist, allow macro fixes
-      for i = 1:obj.nmovies,
-        if obj.silent_ ,
-          tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,false)) ;
-        else
-          tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,false)) ;
-        end
-        if ~tfsuccess,
-          if obj.silent_ ,
-            error('Labeler:movie_missing', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
-          else            
-            warning('Labeler:movie_missing_warning', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
-              % N.B. We can't error here b/c we just want to proceed and let the user fix            
-              % the missing movies in the Movie Manager later.
-              % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
-              % missing movies, so the warning is just so they have a record in the console.
-          end
-        end
+      doesFileExistFromRegularMovieIndex = false(1, obj.nmovies) ;
+      for i = 1:obj.nmovies ,
+        doesThisRegularMovieExist = obj.movieCheckFilesExist(MovieIndex(i,false)) ;
+        doesFileExistFromRegularMovieIndex(i) = doesThisRegularMovieExist ;
       end
+      doesFileExistFromGTMovieIndex = false(1, obj.nmoviesGT) ;
       for i = 1:obj.nmoviesGT,
-        if obj.silent_ ,
-          tfsuccess = obj.movieCheckFilesExist(MovieIndex(i,true)) ;
-        else
-          tfsuccess = obj.movieCheckFilesExistGUI(MovieIndex(i,true));
-        end
-        if ~tfsuccess,
-          if obj.silent_ ,
-            error('Labeler:movie_missing', 'File for movie %d: %s missing',i,obj.movieFilesAll{i});
-          else            
-            warning('Labeler:movie_missing_warning', 'File(s) for GT movie %d: %s missing',i,obj.movieFilesAll{i});
-              % N.B. We can't error here b/c we just want to proceed and let the user fix            
-              % the missing movies in the Movie Manager later.
-              % movieCheckFilesExistGUI() will throw up a dialog to warn them about the
-              % missing movies, so the warning is just so they have a record in the console.
-          end
-        end
+        doesThisGTMovieExist = obj.movieCheckFilesExist(MovieIndex(i,true)) ;
+        doesFileExistFromGTMovieIndex(i) = doesThisGTMovieExist ;
       end
+      doAllRegularMoviesExist = all(doesFileExistFromRegularMovieIndex) ;
+      doAllGTMoviesExist = all(doesFileExistFromGTMovieIndex) ;
 
       obj.initTrxInfo();      
 
@@ -2568,7 +2547,34 @@ classdef Labeler < handle
       % obj.notify('update_text_trackerinfo') ;
 
       % Final sign-off
-      fprintf('Finished loading project, elapsed time %f s.\n',toc(starttime));      
+      fprintf('Finished loading project, elapsed time %f s.\n',toc(starttime)); 
+
+      % If any movies were missing, error now.  We do this late so that the
+      % project still gets loaded, and the user can fix any missing movies in the
+      % movie manager.
+      if doAllRegularMoviesExist ,
+        % All is well, do nothing
+      else
+        % Not all regular movies exist
+        missingRegularMovieFilePaths = obj.movieFilesAll(~doesFileExistFromRegularMovieIndex) ;
+        fprintf('During loading, there were missing (non-GT) movies:\n') ;
+        cellfun(@(path)(fprintf('%s\n', path)), ...
+                missingRegularMovieFilePaths) ;
+      end
+      if doAllGTMoviesExist ,
+        % All is well, do nothing
+      else
+        % All regular movies exist, but not all GT movies exist
+        missingGTMovieFilePaths = obj.movieFilesAllGT(~doesFileExistFromGTMovieIndex) ;
+        fprintf('During loading, there were missing GT movies:\n') ;
+        cellfun(@(path)(fprintf('%s\n', path)), ...
+                missingGTMovieFilePaths) ;
+      end
+      if doAllRegularMoviesExist && doAllGTMoviesExist
+        % All is well, do nothing.
+      else
+        error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use Movie Manager to fix.') ;
+      end
     end  % function projLoadGUI
     
     function [movs,tgts,frms] = findPartiallyLabeledFrames(obj)

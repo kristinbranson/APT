@@ -563,7 +563,13 @@ classdef LabelerController < handle
       obj.update() ;
 
       % Do this once listeners are set up
-      obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
+      obj.controlActuated('handleCreationTimeAdditionalArgumentsGUI', [], [], varargin{:}) ;
+      % This will lead to 
+      %   obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:})
+      % getting called, but we call it via obj.controlActuated() b/c we want to
+      % be able to throw errors in the model method and have them get handled via
+      % a dialog box vs the error percolating up to the top, depending on whether
+      % a LabelerController is present.
     end
 
     function delete(obj)
@@ -2568,7 +2574,7 @@ classdef LabelerController < handle
       algName = lObj.tracker.algorithmName;
       %algLabel = lObj.tracker.algorithmNamePretty;
       backend_type_string = lObj.trackDLBackEnd.prettyName();
-      obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));
+      obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
       obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
       obj.txBGTrain.FontWeight = 'normal';
       obj.txBGTrain.Visible = 'on';
@@ -2592,7 +2598,8 @@ classdef LabelerController < handle
       algName = lObj.tracker.algorithmName;
       %algLabel = lObj.tracker.algorithmNamePretty;
       backend_type_string = lObj.trackDLBackEnd.prettyName() ;
-      obj.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend_type_string,datestr(now,'HH:MM'));
+      obj.txBGTrain.String = ...
+        sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>
       obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
       obj.txBGTrain.FontWeight = 'normal';
       obj.txBGTrain.Visible = 'on';
@@ -4024,7 +4031,7 @@ classdef LabelerController < handle
 
       debugtiming = false;
       if debugtiming,
-        starttime = tic() ;
+        starttime = tic() ;  %#ok<UNRCH>
       end
 
 
@@ -4062,7 +4069,7 @@ classdef LabelerController < handle
       end
 
       if debugtiming,
-        fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+        fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));  %#ok<UNRCH>
       end
 
 
@@ -5827,6 +5834,10 @@ classdef LabelerController < handle
       refocusSplashScreen(hfigsplash, main_figure) ;
       delete(hfigsplash) ;
       obj.splashScreenFigureOrEmpty_ = [] ;
+    end
+
+    function handleCreationTimeAdditionalArgumentsGUI_actuated_(obj, ~, ~, varargin)
+      obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
     end
   end  % methods  
 end  % classdef

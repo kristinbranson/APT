@@ -567,7 +567,7 @@ end
 
 %%
 PARAMFILE = 'f:\romain\tp@18pts@3d.yaml'; % KB: this is in .../forKB
-sPrm = ReadYaml(PARAMFILE);
+sPrm = yaml.ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
 sPrm.Model.Prm3D.calrig = crig2;
@@ -897,7 +897,7 @@ pGT_1_7_13 = pGT(:,[iPts_1_7_13 iPts_1_7_13+19 iPts_1_7_13+38]);
 
 %%
 PARAMFILE = 'f:\romain\tp@3pts.yaml';
-sPrm = ReadYaml(PARAMFILE);
+sPrm = yaml.ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
 sPrm.Model.Prm3D.calrig = crig2;

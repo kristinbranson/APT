@@ -184,7 +184,7 @@ classdef ViewConfig
       assert(numel(hFig)==numel(hAx));
       nview = numel(hFig);
       
-      s = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      s = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       viewCfg = repmat(s.View,nview,1);
       
       for i=1:nview

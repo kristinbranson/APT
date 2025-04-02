@@ -488,7 +488,7 @@ classdef TestAPT < handle
     function [labeller, controller] = create_project_(obj)
      % Create the new project
       info = obj.info;
-      cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       cfg.NumViews = info.nviews;
       cfg.NumLabelPoints = info.npts;
       cfg.Trx.HasTrx = info.has_trx;
