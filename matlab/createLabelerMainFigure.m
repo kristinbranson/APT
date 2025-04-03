@@ -1,13 +1,7 @@
 function main_figure = createLabelerMainFigure()
 
 % Read assets from .mat file
-if isdeployed()
-  assets_file_path = fullfile(ctfroot(), 'StartAPT', 'matlab', 'createLabelerMainFigure_assets.mat') ;
-else
-  this_script_path = mfilename('fullpath') ;
-  this_script_folder = fileparts(this_script_path) ;
-  assets_file_path = fullfile(this_script_folder, 'createLabelerMainFigure_assets.mat') ;
-end
+assets_file_path = fullfile(APT.Root, 'matlab', 'createLabelerMainFigure_assets.mat') ;
 assets = loadAnonymous(assets_file_path) ;
 
 % Create the controls.  Many, many controls.

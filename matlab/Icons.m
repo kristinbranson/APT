@@ -7,11 +7,7 @@ end
 
 function d = lclInitGfxDir()
   % Get path to image assets
-  if isdeployed()
-    d = fullfile(ctfroot(), 'StartAPT', 'gfx') ;
-  else
-    d = fullfile(APT.getRoot(), 'gfx') ;
-  end
+  d = fullfile(APT.Root, 'gfx') ;
 end
 
 function s = lclInitIms()

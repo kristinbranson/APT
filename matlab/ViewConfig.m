@@ -156,8 +156,14 @@ classdef ViewConfig
         end
 
         ax.XAxisLocation = 'top';
-        ax.XColor = vCfg.AxColor;
-        ax.YColor = vCfg.AxColor;
+        rawAxColor = vCfg.AxColor ;
+        if iscell(rawAxColor)
+          axColor = cell2mat(rawAxColor) ;
+        else
+          axColor = rawAxColor ;
+        end
+        ax.XColor = axColor ;
+        ax.YColor = axColor ;
         ax.Box = 'on';
         ax.FontUnits = 'pixels';
         ax.FontSize = vCfg.AxFontSize;

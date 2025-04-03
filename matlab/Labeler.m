@@ -2,13 +2,10 @@ classdef Labeler < handle
 % Bransonlab Animal Video Labeler/Tracker
 
   properties (Constant, Hidden)
-    VERSION = '3.1';
-    DEFAULT_LBLFILENAME = '%s.lbl';
-    DEFAULT_CFG_FILENAME = ...
-      fif(isdeployed(), ...
-          fullfile(ctfroot(), 'StartAPT', 'matlab', 'config.default.yaml'), ...
-          fullfile(APT.Root, 'matlab', 'config.default.yaml')), ...
-    MAX_MOVIENAME_LENGTH = 80;
+    VERSION = '3.1'
+    DEFAULT_LBLFILENAME = '%s.lbl'
+    DEFAULT_CFG_FILENAME = Labeler.defaultCfgFilePath()
+    MAX_MOVIENAME_LENGTH = 80
     
     % non-config props
   	% KB 20190214 - replaced trackDLParams, preProcParams with trackParams
@@ -15200,4 +15197,10 @@ classdef Labeler < handle
       obj.trxFilesAllGT = trxFilesAllGTNew ;      
     end  % function
   end  % methods
+
+  methods (Static)
+    function result = defaultCfgFilePath()
+      result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
+    end  % function
+  end  % methods (Static)
 end  % classdef

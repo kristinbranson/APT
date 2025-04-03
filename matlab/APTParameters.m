@@ -788,11 +788,7 @@ classdef APTParameters
       s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
       s.ma = fullfile('trackers','dt','params_ma.yaml');
       s.postprocess = 'params_postprocess.yaml';
-      if isdeployed()  
-        resourceFolderPath = fullfile(ctfroot(), 'StartAPT', 'matlab') ;
-      else
-        resourceFolderPath = fullfile(APT.getRoot(), 'matlab') ;
-      end
+      resourceFolderPath = fullfile(APT.Root, 'matlab') ;
       dd = dir(fullfile(resourceFolderPath,'trackers','dt','params_deeptrack_*.yaml'));
       dtyamls = {dd.name}';
       sre = regexp(dtyamls,'params_deeptrack_(?<net>[a-zA-Z_]+).yaml','names');
@@ -805,11 +801,7 @@ classdef APTParameters
     function s = paramFilesTrees()
       % fprintf('APTParameters::paramFilesTrees()\n');
       [specs,deepnets] = APTParameters.paramFileSpecs() ;
-      if isdeployed()  
-        resourceFolderPath = fullfile(ctfroot(), 'StartAPT', 'matlab') ;
-      else
-        resourceFolderPath = fullfile(APT.getRoot(), 'matlab') ;
-      end
+      resourceFolderPath = fullfile(APT.Root, 'matlab') ;
       % fprintf('resourceFolderPath: %s\n', resourceFolderPath) ;
       
       s = struct();
