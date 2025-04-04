@@ -1,4 +1,4 @@
-function build(varargin)
+function compile_apt(varargin)
   % Build an APT executable.
 
   % Parse optional args

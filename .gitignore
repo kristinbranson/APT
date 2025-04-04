@@ -22,4 +22,4 @@ log/
 deepnet/pre-run-variables.pkl
 *.err.txt
 *.out.txt
-executable/
+compiled/

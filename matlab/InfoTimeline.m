@@ -273,11 +273,7 @@ classdef InfoTimeline < handle
   methods
     
     function readTimelinePropsNew(obj)
-      if isdeployed() 
-        path = fullfile(ctfroot(), 'StartAPT', 'matlab') ;
-      else
-        path = fileparts(mfilename('fullpath')) ;
-      end
+      path = fullfile(APT.Root, 'matlab') ;
       tlpropfile = fullfile(path,obj.TLPROPFILESTR);
       assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
       obj.TLPROPS = ReadLandmarkFeatureFile(tlpropfile);      

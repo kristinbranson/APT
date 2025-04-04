@@ -25,7 +25,7 @@ classdef APT
       % root: the folder containing APT.m. When deployed, it is
       % assumed the tree under root matches the dev repo
       if isdeployed()
-        root = fullfile(ctfroot(), 'StartAPT') ;
+        root = fullfile(ctfroot(), 'APT_deployed') ;
       else
         root = fileparts(mfilename('fullpath')) ;
       end

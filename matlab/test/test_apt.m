@@ -1,5 +1,5 @@
 function varargout = test_apt(varargin)
-  % Run all the tests, except thos needing a remote backend.  If keyword argument
+  % Run all the tests, except those needing a remote backend.  If keyword argument
   % 'remote' is true, the tests that use the remote backends (AWS, bsub, remote
   % docker) are also run.
   %
