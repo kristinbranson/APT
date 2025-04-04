@@ -7,8 +7,10 @@ function APT_deployed(varargin)
     % Either run test code or call StartAPT()
     if do_test
       % Run test(s) and exit
-      if strcmp(test_name, 'all')
+      if strcmp(test_name, 'local')
         test_apt() ;
+      elseif strcmp(test_name, 'all')
+        test_apt('remote', true) ;
       else
         test_function_name = sprintf('test_%s', test_name) ;
         test_apt(test_function_name) ;
@@ -25,6 +27,7 @@ function APT_deployed(varargin)
     errordlg(getReport(ME,'extended','hyperlinks','off'))  
   end
 end
+
 
 
 function [do_test, test_name, is_lbl_given, lbl_file_name] = parse_args(args)
