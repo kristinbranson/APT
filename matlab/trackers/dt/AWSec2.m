@@ -25,6 +25,7 @@ classdef AWSec2 < handle
     remoteDLCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'cacheDL')
     remoteMovieCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'movies')
     remoteAPTSourceRootDir = linux_fullfile(AWSec2.remoteHomeDir, 'APT')
+    remoteTorchHomeDir = linux_fullfile(AWSec2.remoteHomeDir, 'torch')
     % scpCmd = AWSec2.computeScpCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
   end
@@ -53,6 +54,7 @@ classdef AWSec2 < handle
       % True iff the "current" version of the project cache is on a remote AWS filesystem.  
       % Underscore means "protected by convention"    
     wslProjectCachePath_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/tp76715886_6c90_4126_a9f4_0c3d31206ee5
+    % wslTorchCachePath_ = '' ;  % e.g. /groups/branson/home/bransonk/.apt/torch
     %remoteDMCRootDir_ = '' ;  % e.g. /home/ubuntu/cacheDL    
 
     % Used to keep track of whether movies have been uploaded or not.
@@ -69,6 +71,7 @@ classdef AWSec2 < handle
     isProjectCacheRemote
     isProjectCacheLocal    
     wslProjectCachePath
+    % wslTorchCachePath
     %remoteDMCRootDir
   end
 
@@ -848,7 +851,7 @@ classdef AWSec2 < handle
     
     function result = wrapCommandSSH(obj, input_command, varargin)
       % Wrap input command to run on the remote host via ssh.  Performs WSL-> remote
-      % path substition.
+      % path substition unless optional dopathsubs argsument is false.
       dopathsubs = ...
         myparse(varargin, ...
                 'dopathsubs', true) ;
@@ -1407,6 +1410,10 @@ classdef AWSec2 < handle
       obj.wslProjectCachePath_ = value ;
     end  % function
     
+    % function result = get.wslTorchCachePath(obj) 
+    %   result = obj.wslTorchCachePath_ ;
+    % end  % function
+
     % function result = get.remoteDMCRootDir(obj)
     %   result = AWSec2.remoteDLCacheDir ;
     % end  % function
@@ -1677,24 +1684,10 @@ classdef AWSec2 < handle
       %
       % This method does not mutate obj.
       
-      % if isempty(obj.wslProjectCachePath_) ,
-      %   error('The wslProjectCachePath must be set before calling the applyFilePathSubstitutions() method.') ;
-      % end
-
-      % doesMaybeIncludeMoviePaths = ...
-      %   myparse(varargin, ...
-      %           'doesMaybeIncludeMoviePaths', true) ;
-      % if doesMaybeIncludeMoviePaths ,
       result = ...
           AWSec2.applyGenericFilePathSubstitutions(command, ...
                                                    obj.wslProjectCachePath_, ...
                                                    obj.wslPathFromMovieIndex_) ;
-      % else
-      %   % If we know command_or_path does not include movie paths, we can skip those
-      %   % substitutions to get faster performance.
-      %   result = ...
-      %       AWSec2.applyGenericFilePathSubstitutions(command, obj.wslProjectCachePath_) ;
-      % end
     end  % function
   end  % methods
   
@@ -1712,12 +1705,14 @@ classdef AWSec2 < handle
       else
         result_1 = strrep(command, wslProjectCachePath, AWSec2.remoteDLCacheDir) ;
       end
+      % Replace the local torch home path with the remote one
+      result_1p5 = strrep(result_1, APT.gettorchhomepath(), AWSec2.remoteTorchHomeDir) ;      
       % Replace local movie paths with the corresponding remote ones
       if ~isempty(wslPathFromMovieIndex) ,
         remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
-        result_2 = strrep_multiple(result_1, wslPathFromMovieIndex, remotePathFromMovieIndex) ;
+        result_2 = strrep_multiple(result_1p5, wslPathFromMovieIndex, remotePathFromMovieIndex) ;
       else
-        result_2 = result_1 ;
+        result_2 = result_1p5 ;
       end
       % Replace the local APT source root with the remote one
       remote_apt_root = AWSec2.remoteAPTSourceRootDir ;

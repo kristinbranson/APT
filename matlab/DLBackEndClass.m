@@ -912,8 +912,7 @@ classdef DLBackEndClass < handle
       basecmd = APTInterf.trainCodeGenBase(dmcjob,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
-                                           'do_just_generate_db',do_just_generate_db, ...
-                                           'torchhome', DLBackEndClass.getTorchHome());
+                                           'do_just_generate_db',do_just_generate_db);
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -942,8 +941,7 @@ classdef DLBackEndClass < handle
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
-                                           'track_type',track_type, ...
-                                           'torchhome', DLBackEndClass.getTorchHome());
+                                           'track_type',track_type);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
@@ -1963,18 +1961,6 @@ classdef DLBackEndClass < handle
       listinfo_as_json_string = jsonencode(listinfo) ;
       obj.writeStringToFile(listFileNativePath, listinfo_as_json_string) ;  % throws if unable to write file
     end  % function    
-  end  % methods
-
-  methods (Static)
-    function result = getTorchHome()
-      % Get the Torch home dir.  Returns a WSL path.
-      result = wsl_path_from_native(fullfile(APT.getdotaptdirpath(), 'torch')) ;
-      % if obj.type == DLBackEnd.AWS ,
-      %   result = obj.awsec2.getTorchHome() ;
-      % else
-      %   result = fullfile(APT.getdotaptdirpath(), 'torch') ;
-      % end
-    end  % function   
   end  % methods
 
   methods

@@ -2523,7 +2523,7 @@ classdef Labeler < handle
         end
       end
       fprintf('\n\n');
-      obj.projUpdateDLCache(); % this can fail (output arg not checked)
+      obj.projUpdateDLCache_();  % this can fail (output arg not checked)
 
       % % Surely this should have happened when the current tracker was set up...
       % % Update the tracker info (are we sure this didn't happen already?)
@@ -2815,43 +2815,32 @@ classdef Labeler < handle
       
     end
     
-    function success = projUpdateDLCache(obj)
-      % Updates project DL state to point to new cache in .projTempDir
-      % 
-      % Preconds: 
-      %   - .projTempDir must be set
-      %   - bundled project untarred into .projTempDir
-      %   - .trackersAll has been set/loaded, ie 
-      %       .trackersAll{iDLTrker}.trnLastDMC(ivw) is configured for
-      %       running except possibly for .rootDir specification. 
-      %
-      % Postconds, success:
-      %   - .trackersAll{iDLTrker}.trnLastDMC(ivw).rootDir updated to point
-      %   to .projTempDir 
-      %   - any memory of tracking results in DL tracker objs cleared
-      %
-      % Postcond, ~success: nothing changed      
-      
-      success = false;
-      
-      cacheDir = obj.projTempDir;
+    function projUpdateDLCache_(obj)
+      % Updates project DL state to point to new cache in .projTempDir      
+
+      % Get the project cache dir path (e.g. '/home/janeuser/.apt/tpkjasdfkuhawe') ;
+      projectCacheDirPath = obj.projTempDir;
    
       % It seems like this warning is thrown often even when nothing is wrong.
       % Disabling.  -- ALT, 2024-10-10
       % Check for exploded cache in tempdir      
-      tCacheDir = fullfile(cacheDir,obj.projname);
+      tCacheDir = fullfile(projectCacheDirPath,obj.projname);
       if ~exist(tCacheDir,'dir')
         % warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
         %                obj.projname,cacheDir);
         return
       end
-            
-      % Update/set all DMC.rootDirs to cacheDir
-      trackers = obj.trackerHistory_ ;
-      cellfun(@(t)(t.updateDLCache(cacheDir)), trackers) ;
       
-      success = true;
-    end
+      % Update the project cache path in the backend and trackers
+      if obj.backend.isProjectCacheRemote ,
+        warningNoTrace('Unexpected remote project cache detected');
+      else
+        obj.backend.wslProjectCachePath = projectCacheDirPath ;
+        % Update/set all DMC.rootDirs to cacheDir
+        trackers = obj.trackerHistory_ ;
+        cellfun(@(t)(t.updateDLCache(projectCacheDirPath)), trackers) ;
+      end
+    end  % function
     
     function [rawLblFile,projtempdir] = projGetRawLblFile(obj,varargin) % throws
       projtempdir = obj.projGetEnsureTempDir(varargin{:});

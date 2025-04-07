@@ -323,8 +323,11 @@ classdef APT
       end
     end  % function
     
-    function tr = torchhome()
-      tr = fullfile(APT.getdotaptdirpath(),'torch');
+    function result = gettorchhomepath()
+      % Returns the path to the Torch cache dir, passed to Python in the envar
+      % TORCH_HOME.  E.g. '/home/joesixpack/.apt/torch'.  This is returned as a
+      % *native* path.
+      result = fullfile(APT.getdotaptdirpath(),'torch') ;
     end
     
     function s = codesnapshot()

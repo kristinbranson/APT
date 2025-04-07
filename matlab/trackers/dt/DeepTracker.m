@@ -573,24 +573,12 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
     end
 
-    function updateDLCache(obj,dlcachedir)
-      dmc = obj.trnLastDMC;
-      if isempty(dmc),
-        return
-      end
-      if obj.backend.isProjectCacheRemote ,
-        warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
-                       obj.trnNetType.displayString);
+    function updateDLCache(obj, dlcachedir)
+      dmc = obj.trnLastDMC ;
+      if isempty(dmc)
         return
       end
       dmc.rootDir = dlcachedir ;
-      obj.backend.wslProjectCachePath = dlcachedir ;
-
-      % At save-time we should be updating DMCs to local
-
-      % Don't update dmc(ivw).rootDir in this case
-
-      % Nonfatal dont return
     end
 
   end
