@@ -10,7 +10,7 @@ end
 
 function test_crop_mask_on_off_helper(doCrop, doMask)
   % Helper method, not itself a test method
-  backend = 'docker' ;  % Should work on Linux or Windows
+  backend = docker_unless_janelia_cluster_then_conda() ;  % Should work on Linux or Windows
   backend_params = synthesize_backend_params(backend) ;
 
   linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;

@@ -4,7 +4,7 @@ function test_stephen_training()
   project_file_path = fullfile(unittest_dir_path, 'sh_test_lbl_20200310_modded_resaved_tweaked_20240122.lbl') ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
-  backend = 'docker' ;
+  backend = docker_unless_janelia_cluster_then_conda() ;
   backend_params = synthesize_backend_params(backend) ; 
   tester.test_training('backend', backend, ...
                        'backend_params', backend_params) ;

@@ -3,7 +3,7 @@ function test_AR_GRONe_SA_tracking()
   % That project is a multianimal project.
   [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, 'multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_3_lightly_trained.lbl') ;  
-  backend = 'docker' ;  % Should work on Linux or Windows
+  backend = docker_unless_janelia_cluster_then_conda() ;  % Should work on Linux or Windows
   backend_params = synthesize_backend_params(backend) ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;  

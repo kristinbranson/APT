@@ -7,7 +7,7 @@ function test_sam_two_view_tracking()
   if ~isempty(tester.labeler.tracker.trkP)
     error('tester.labeler.tracker.trkP is nonempty---it should be empty before tracking') ;  
   end
-  backend = 'docker' ;
+  backend = docker_unless_janelia_cluster_then_conda() ;
   backend_params = synthesize_backend_params(backend) ;
   tester.test_tracking('backend', backend, ...
                        'backend_params', backend_params) ;
