@@ -67,6 +67,7 @@ class config(object):
         self.flipLandmarkMatches = {}
         self.learning_rate_multiplier = 1.
         self.predict_occluded = False
+        self.nan_as_occluded = False
         self.use_openvino = False
         self.flip_test = False
         self.imresize_expand = False

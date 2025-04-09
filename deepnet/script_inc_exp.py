@@ -575,7 +575,8 @@ idir = os.path.join(bdir,'interactive')
 all_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/loc.json'
 A = pt.json_load(all_json)
 for ndx in range(1,8):
-    lbl_file = f'/groups/branson/home/kabram/APT_projects/unmarkedMice_round{ndx}_trained.lbl'
+    # lbl_file = f'/groups/branson/home/kabram/APT_projects/unmarkedMice_round{ndx}_trained.lbl'
+    lbl_file = f'/groups/branson/home/kabram/APT_projects/unmarkedMice_round{ndx}_trained_new.lbl'
     ltar = tarfile.TarFile(lbl_file)
     tempdir = tempfile.mkdtemp()
     ltar.extractall(tempdir)
@@ -602,9 +603,11 @@ import copy
 import json
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
 idir = os.path.join(bdir,'interactive')
+# cfile = f'{idir}/20230823T041646_20230823T041650.json'
+cfile = f'{idir}/20241231T012358_20241231T012358.json'
 
 for ndx in range(1,8):
-    cmd = f'APT_interface.py {idir}/20230823T041646_20230823T041650.json -name round{ndx} -json_trn_file {idir}/loc_{ndx}.json -type multi_mdn_joint_torch -cache {idir} train -use_cache'
+    cmd = f'APT_interface.py {cfile} -name round{ndx} -json_trn_file {idir}/loc_{ndx}.json -type multi_mdn_joint_torch -cache {idir} train -use_cache'
     pt.submit_job(f'unmarked_mice_inc_round{ndx}',cmd,f'{idir}/run_info',queue='gpu_a100',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
 
 
@@ -656,7 +659,7 @@ for ndx in range(2):
     pt.submit_job(f'unmarked_mice_inc_round{ndx}',cmd,f'{idir}/run_info',queue='gpu_a100',sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
 
 
-## the GT datasets are created by running training on the corresponding gt label files
+## the GT datasets are created by running dummy "training" on the corresponding gt label files
 # the label files are /groups/branson/home/kabram/APT_projects/unmarkedMice_comparison_labels.lbl and /groups/branson/home/kabram/APT_projects/unmarkedMice_comparison_labels_missing.lbl
 
 # missing is where one of the trackers misses the mouse
@@ -2392,7 +2395,8 @@ for rndx in range(3):
 ## train using interactive labels
 
 from reuse import *
-out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+# out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+out_lbl = f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
 cdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/'
 for rndx in range(1,8):
     train_name = f'int_{rndx}'
@@ -2402,7 +2406,12 @@ for rndx in range(1,8):
 
 ## combine 4x_roi and interactive label to create a joint project
 import torch
-from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import mmpose
+from packaging import version
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
 
 int_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/loc_7.json'
 rand_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_2_roi.json'
@@ -2451,7 +2460,8 @@ with open(out_json,'w') as fid:
 ## train on the joint dataset
 
 from reuse import *
-out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+# out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
 cdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint/'
 out_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint/loc.json'
 
@@ -2459,7 +2469,7 @@ train_name = f'joint'
 cmd = f"APT_interface.py {out_lbl} -name {train_name} -conf_params mdn_pred_dist True batch_size 4 dl_steps 100000 multi_crop_ims False -type multi_mdn_joint_torch -cache {cdir} -json_trn_file {cdir}/loc.json train -use_cache"
 pt.submit_job(f'unmarked_mice_inc_joint', cmd, f'{cdir}/run_info', queue='gpu_a100', sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
 
-## track the gt movie using the trained models
+## track the gt movie using the trained models for the random labels
 from reuse import *
 
 gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
@@ -2482,7 +2492,8 @@ for rndx in range(3):
 
 gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive'
-out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+#out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
 
 out_dir = f'{bdir}/trks'
 for rndx in range(1,8):
@@ -2494,7 +2505,8 @@ for rndx in range(1,8):
 
 gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint'
-out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+# out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
 
 out_dir = f'{bdir}/trks'
 train_name = f'joint'
@@ -2504,7 +2516,12 @@ pt.submit_job(f'unmarked_mice_inc_rand_round_joint_track', cmd, f'{bdir}/run_inf
 
 ## Compare tracking
 import TrkFile
-from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import mmpose
+from packaging import version
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
 import torch
 import tqdm
 from reuse import *
@@ -2585,14 +2602,18 @@ plt.ylim([-5,50])
 plt.ylabel('Distance (px) between predictions')
 plt.xlabel('Predictions Order')
 plt.title('Prediction agreement of randomly labeled models')
-plt.savefig('/groups/branson/home/kabram/temp/random_matches.svg')
-plt.savefig('/groups/branson/home/kabram/temp/random_matches.png')
+# plt.savefig('/groups/branson/home/kabram/temp/random_matches.svg')
+# plt.savefig('/groups/branson/home/kabram/temp/random_matches.png')
 
 
 ## Distance of interactive labels to final interactive
 
 import TrkFile
-from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import mmpose
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
 import torch
 import tqdm
 
@@ -2662,8 +2683,8 @@ plt.ylim([-5,50])
 plt.ylabel('Distance (px) between predictions')
 plt.xlabel('Predictions Order')
 plt.title('Prediction agreement of interactively labeled models')
-plt.savefig('/groups/branson/home/kabram/temp/interactive_matches.svg')
-plt.savefig('/groups/branson/home/kabram/temp/interactive_matches.png')
+# plt.savefig('/groups/branson/home/kabram/temp/interactive_matches.svg')
+# plt.savefig('/groups/branson/home/kabram/temp/interactive_matches.png')
 
 ##
 
@@ -2680,6 +2701,7 @@ for ndx in tqdm.tqdm(range(108000)):
         sel[ndx] = 1
 
 sel = sel>0.5
+sel = np.ones([108000])>0.5
 ##
 
 tfiles= [f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/loc_{ix}.json' for ix in range(1,8)]
@@ -2690,7 +2712,7 @@ for tt in tfiles:
     n_train.append(nn)
 
 # avg animal size is 75px
-tr = 75/2
+tr = 75/2/2/2
 ff()
 
 jj = []
@@ -2766,16 +2788,23 @@ import os
 os.makedirs(idir,exist_ok=True)
 rand_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_0.json'
 full_rand_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/confidence/full_train.json'
-n_rounds = 4
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/'
 
 rfiles = ['rand_1_3','rand_1_2','rand_1_1','rand_1_0','rand_0','rand_1','rand_2']
 
 import APT_interface as apt
+import time
 
 ## classify the db
 
-for round in range(8):
+start_round = 3
+for round in range(start_round,8):
+
+    # check jobs status
+    time.sleep(100)
+    while pt.get_job_status(f'inc_confidence_grone_round_{round}') in ['PENDING','RUN']:
+        time.sleep(100)
+
     tfile = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}/traindata'
     A = pt.pickle_load(tfile)
     conf = A[1]
@@ -2786,6 +2815,7 @@ for round in range(8):
     pp = res[0]['locs']
     dd = np.linalg.norm(pp[:, :,None] - locs[:, None], axis=-1)
     dd_m = find_dist_match(dd)
+    no_detect = np.where(np.mean(dd_m,axis=-1)>75/2)[0]
     vv = ~np.all(np.isnan(pp),axis=(-1,-2))
 
     # ff(); plt.scatter(cc[vv],dd_m[vv])
@@ -2793,24 +2823,87 @@ for round in range(8):
     R = pt.json_load(f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[round+1]}/train_TF.json')
     C = pt.json_load(f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}/train_TF.json')
     n_extra = len(R['annotations'])-len(C['annotations'])
+    aa_r = np.array([jj['iscrowd'] for jj in R['annotations']])
+    aa_c = np.array([jj['iscrowd'] for jj in C['annotations']])
+
+    n_roi_r = np.count_nonzero(aa_r==1)-np.count_nonzero(aa_r==0)
+    n_roi_c = np.count_nonzero(aa_c==1)-np.count_nonzero(aa_c==0)
+    n_roi_extra = n_roi_r-n_roi_c
 
     R_f = pt.json_load(full_rand_json)
     done = np.array([ (xx['movid'],xx['frm']) for xx in C['images']])
     info = np.array(res[2])[:,:2]
-    ord = np.argsort(np.nanmax(cc.mean(axis=-1),axis=-1))
+    ord = np.argsort(np.nanmin(cc.mean(axis=-1),axis=-1))
 
     im_idx = np.array([xx['image_id'] for xx in R_f['annotations']])
+    aa_f = np.array([jj['iscrowd'] for jj in R_f['annotations']])
+    bb_f = np.array([jj['bbox'] for jj in R_f['annotations']])
+    bb_f_lbl = bb_f[aa_f==0]
+    #R_f has bbox repeated for masking for dekr
+    for ndx in range(len(aa_f)):
+        if aa_f[ndx]==0:
+            continue
+        if np.any( (bb_f_lbl==bb_f[ndx]).all(axis=-1)):
+            aa_f[ndx] = 0
 
     sel = []
     count = 0
     n_ann = 0
+    n_roi = 0
+
+    for dx in range(done.shape[0]):
+        sel.append(np.where((info == done[dx]).all(axis=-1))[0][0])
+
+    roi_sel = []
+    while n_roi<=n_roi_extra and count < len(ord):
+        cur_s = np.random.choice(im_idx[aa_f==1])
+
+        jx = np.where((info[cur_s] == done).all(axis=-1))
+        if len(jx[0])==0:
+            sel.append(cur_s)
+            n_ann += np.count_nonzero(im_idx==R_f['images'][cur_s]['id'])
+            n_roi += np.count_nonzero(aa_f[im_idx==R_f['images'][cur_s]['id']]==1)
+            roi_sel.append(cur_s)
+        count = count+1
+
+    count = 0
+    while (n_ann<n_extra) and count < len(no_detect):
+
+        if np.all(np.isnan(locs[no_detect[count]])):
+            # if a patch has only ROI
+            if no_detect[count] not in sel:
+                sel.append(no_detect[count])
+                count = count+1
+                continue
+        if no_detect[count] in sel:
+            count = count+1
+            continue
+
+        sel.append(no_detect[count])
+        n_ann += np.count_nonzero(im_idx==R_f['images'][no_detect[count]]['id'])
+        count = count+1
+
+    count = 0
     while (n_ann<n_extra) and count < len(ord):
+
+        if np.all(np.isnan(locs[ord[count]])):
+            # if a patch has only ROI
+            if ord[count] not in sel:
+                sel.append(ord[count])
+                count = count+1
+                continue
+        if ord[count] in sel:
+            count = count+1
+            continue
+
         jx = np.where((info[ord[count]] == done).all(axis=-1))
         if len(jx[0])==0:
             sel.append(ord[count])
             n_ann += np.count_nonzero(im_idx==R_f['images'][ord[count]]['id'])
         count = count+1
 
+    C['images'] = []
+    C['annotations'] = []
     for curs in sel:
         C['images'].append(R_f['images'][curs])
         idx = R_f['images'][curs]['id']
@@ -2826,12 +2919,19 @@ for round in range(8):
 
     import ap36_train as ap36
     conf.cachedir = new_dir
-    ap36.train(conf,'multi_mdn_joint_torch','deepnet')
+    conf.rescale = 2
+    # ap36.train(conf,'multi_mdn_joint_torch','deepnet')
+    ap36.train_bsub(conf,'multi_mdn_joint_torch','deepnet',name=f'inc_confidence_grone_round_{round+1}')
+
+    apt.gen_train_samples1(conf,'multi_mdn_joint_torch',out_file=f'{conf.cachedir}/train_samples',nsamples=25)
+
+    # time.sleep(100)
+    # while pt.get_job_status(f'inc_confidence_grone_round_{round+1}') in ['PENDING','RUN']:
+    #     time.sleep(100)
 
 
 
-
-## train on the training
+## train on the random subsets. Not required. They should be already trained earlier!!
 
 from reuse import *
 import tarfile
@@ -2866,6 +2966,699 @@ for rndx in range(3):
         estr = ''
     cmd = f"APT_interface.py {out_lbl} -name {train_name} -conf_params mdn_pred_dist True batch_size 4 dl_steps 100000 multi_crop_ims False -type multi_mdn_joint_torch -cache {idir} -json_trn_file {idir}/loc_{rndx}{estr}.json train -use_cache"
     pt.submit_job(f'unmarked_mice_inc_rand_round{rndx}', cmd, f'{idir}/run_info', queue='gpu_a100', sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
+
+## track gt movie using confidence labels
+
+gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
+idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/confidence/'
+
+
+out_dir = f'{idir}/trks'
+import os
+os.makedirs(out_dir,exist_ok=True)
+os.makedirs(f'{bdir}/run_info',exist_ok=True)
+import ap36_train as ap36
+from reuse import *
+nets = [['multi_mdn_joint_torch',{}],]
+
+for rndx in range(7):
+    train_name = f'round_{rndx}'
+    for net in nets:
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}/traindata'
+        A = pt.pickle_load(tfile)
+        conf = A[1]
+        if net[0] == 'multi_mdn_joint_torch':
+            sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
+            nname = 'grone'
+        else:
+            sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x_pycharm.sif'
+            nname = 'dekr'
+        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}_{nname}.trk',sing_img=sing_img,name=f'confidence_{nname}_round_{rndx}')
+
+
+## Compare tracking. .Random results
+import TrkFile
+from packaging import version
+import mmpose
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import torch
+import tqdm
+from reuse import *
+
+n_rounds = 4
+idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random'
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
+
+trks = [f'{idir}/trks/20210924_four_female_mice_again_rand_1_{rndx}_tracklet.trk' for rndx in range(n_rounds-1,-1,-1)]
+trks1 = [f'{idir}/trks/20210924_four_female_mice_again_rand_{rndx}_tracklet.trk' for rndx in range(3)]
+
+trks = trks + trks1
+
+trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
+# S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
+S_j = TrkFile.Trk(trks_j)
+# S_4x = TrkFile.Trk(trks_i[-1])
+S_j.convert2dense()
+
+ddqs = []
+for pndx in range(len(trks)):
+    dds = np.ones([108000, 4, 4])*np.nan
+    fp = np.zeros([108000])
+    fn = np.zeros([108000])
+    ee = np.zeros([108000])
+    oo = np.zeros([108000,4])
+    S = TrkFile.Trk(trks[pndx])
+    S.convert2dense()
+    ci = np.zeros([108000])
+    cr = ci.copy()
+
+    for ndx in tqdm.tqdm(range(108000)):
+        aa = S_j.pTrk[:,:,ndx]
+        # aa = S_4x.getframe(ndx)[:, :, 0, :]
+        aa = aa[:, :, ~np.all(np.isnan(aa[:, 0, :]), axis=0)]
+        ci[ndx] = aa.shape[2]
+        # bb = S.getframe(ndx)[:, :, 0]
+        bb = S.pTrk[:,:,ndx]
+        bb = bb[:, :, ~np.all(np.isnan(bb[:, 0, :]), axis=0)]
+        cr[ndx] = bb.shape[2]
+
+        dd = np.linalg.norm(aa[..., None] - bb[:, :, None], axis=1)
+        # dd_m = find_dist_match(np.transpose(dd[None], [0, 2, 3, 1]))
+
+        az = np.array([aa.min(axis=0), aa.max(axis=0)]).reshape([4,-1]).T
+        bz = np.array([bb.min(axis=0), bb.max(axis=0)]).reshape([4, -1]).T
+        orr = tn(bbox_overlaps(torch.tensor(az), torch.tensor(bz)))
+
+        matched1 = np.zeros(orr.shape[0])
+        matched2 = np.zeros(orr.shape[1])
+        count = 0
+        for ix in range(orr.shape[0]):
+            jx = np.argmax(orr[ix])
+            if count<4:
+                oo[ndx, count] = orr[ix, jx]
+            if orr[ix].max()>0.1:
+                if count==4:
+                    ee[ndx] = 1
+                    break
+                jx = np.argmax(orr[ix])
+                dds[ndx,count,:] = dd[:,ix,jx]
+                matched1[ix] = 1
+                matched2[jx] = 1
+                oo[ndx,count] = orr[ix,jx]
+                count = count+1
+        fn[ndx] = 4-np.count_nonzero(matched1==1)
+        fp[ndx] = np.count_nonzero(matched2==0)
+
+
+    ddq = dds[:,:4]
+    ddqs.append([ddq,fn,fp,ee,oo])
+
+ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqs]
+plt.legend([f'{x+1}' for x in range(len(trks))])
+plt.title('Random')
+plt.xlim([1.4e6,1.75e6])
+plt.ylim([-5,50])
+plt.ylabel('Distance (px) between predictions')
+plt.xlabel('Predictions Order')
+plt.title('Prediction agreement of randomly labeled models')
+# plt.savefig('/groups/branson/home/kabram/temp/random_matches_new.svg')
+# plt.savefig('/groups/branson/home/kabram/temp/random_matches_new.png')
+
+
+## Distance of confidence labels to final interactive
+
+import TrkFile
+import mmpose
+from packaging import version
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import torch
+import tqdm
+
+out_dir = f'{bdir}/confidence/trks'
+trks_i = [f'{out_dir}/round_{ndx}_grone_tracklet.trk' for ndx in range(0,6)]
+
+trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
+# S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
+S_j = TrkFile.Trk(trks_j)
+# S_4x = TrkFile.Trk(trks_i[-1])
+S_j.convert2dense()
+
+ddqi = []
+for pndx in range(len(trks_i)):
+    dds = np.ones([108000, 4, 4])*np.nan
+    fp = np.zeros([108000])
+    fn = np.zeros([108000])
+    ee = np.zeros([108000])
+    oo = np.ones([108000,4])*np.nan
+    S = TrkFile.Trk(trks_i[pndx])
+    S.convert2dense()
+    ci = np.zeros([108000])
+    cr = ci.copy()
+
+    for ndx in tqdm.tqdm(range(108000)):
+        aa = S_j.pTrk[:,:,ndx]
+        aa = aa[:, :, ~np.all(np.isnan(aa[:, 0, :]), axis=0)]
+        ci[ndx] = aa.shape[2]
+        bb = S.pTrk[:,:,ndx]
+        bb = bb[:, :, ~np.all(np.isnan(bb[:, 0, :]), axis=0)]
+        cr[ndx] = bb.shape[2]
+
+        dd = np.linalg.norm(aa[..., None] - bb[:, :, None], axis=1)
+        # dd_m = find_dist_match(np.transpose(dd[None], [0, 2, 3, 1]))
+
+        az = np.array([aa.min(axis=0), aa.max(axis=0)]).reshape([4,-1]).T
+        bz = np.array([bb.min(axis=0), bb.max(axis=0)]).reshape([4, -1]).T
+        orr = tn(bbox_overlaps(torch.tensor(az), torch.tensor(bz)))
+
+        matched1 = np.zeros(orr.shape[0])
+        matched2 = np.zeros(orr.shape[1])
+        count = 0
+        for ix in range(orr.shape[0]):
+            jx = np.argmax(orr[ix])
+            if count<4:
+                oo[ndx, count] = orr[ix, jx]
+            if orr[ix].max()>0.1:
+                if count==4:
+                    ee[ndx] = 1
+                    break
+                dds[ndx,count,:] = dd[:,ix,jx]
+                matched1[ix] = 1
+                matched2[jx] = 1
+                count = count+1
+        fn[ndx] = 4-np.count_nonzero(matched1==1)
+        fp[ndx] = np.count_nonzero(matched2==0)
+
+    ddq = dds[:,:4]
+    ddqi.append([ddq,fn,fp,ee,oo])
+
+
+ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqi]
+plt.legend([f'{x+1}' for x in range(len(trks_i))])
+plt.title('Tracker difference')
+plt.xlim([1.4e6,1.75e6])
+plt.ylim([-5,50])
+plt.ylabel('Distance (px) between predictions')
+plt.xlabel('Predictions Order')
+plt.title('Prediction agreement of confidence labeled models')
+plt.savefig('/groups/branson/home/kabram/temp/confidence_matches.svg')
+plt.savefig('/groups/branson/home/kabram/temp/confidence_matches.png')
+
+
+##
+
+sel = np.ones([108000])>0.5
+
+# avg animal size is 75px
+tr = 75/2
+ff()
+
+n_rounds = 4
+tfiles = [f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_1_{ix}.json' for ix in range(n_rounds-1,-1,-1)]
+tfiles.extend([f'{bdir}/random/loc_0.json', f'{bdir}/random/loc_1_roi.json',f'{bdir}/random/loc_2_roi.json'])
+n_train = []
+for tt in tfiles:
+    J = pt.json_load(tt)
+    nn = sum([ll['ntgt'] for ll in J['locdata']])
+    n_train.append(nn)
+
+jj = []
+for dd1 in ddqs:
+    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+
+plt.plot(n_train,jj,marker='o')
+
+jj = []
+for dd1 in ddqi:
+    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+plt.plot(n_train[:len(jj)],jj,marker='o')
+plt.title('Confidence')
+
+plt.legend(['Random','Confidence'])
+plt.xlabel('Number of training examples')
+plt.ylabel(f'Number of predictions with error {tr}px')
+plt.title('Prediction agreement of Confidence and randomly labeled models')
+plt.yscale('log')
+plt.xscale('log')
+# plt.savefig('/groups/branson/home/kabram/temp/incremental_training_vs_random_training.svg')
+
+
+
+
+
+##############################################
+##############################################
+
+## train an initial dekr tracker
+out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+from reuse import *
+
+idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/'
+rand_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_0.json'
+n_rounds = 4
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/'
+
+rndx = 3
+train_name = f'rand_1_{rndx}'
+
+tfile = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/rand_1_3/traindata'
+A = pt.pickle_load(tfile)
+conf = A[1]
+conf.mmpose_net = 'dekr'
+conf.cachedir = f'{idir}/unmarkedMice/multi_mmpose/view_0/rand_1_3'
+
+# copy files from multi_mdn_joint_torch/view_0/rand_1_3/train_TF.json to multi_mmpose/view_0/rand_1_3/
+import ap36_train as ap36
+import time
+
+# ap36.train(conf,'multi_mmpose','deepnet')
+ap36.train_bsub(conf,'multi_mmpose','deepnet',name='inc_dekr_rand_1_3',sing_img='/groups/branson/bransonlab/mayank/singularity/mmpose_1x_pycharm.sif')
+
+# cmd = f"APT_interface.py {out_lbl} -name {train_name} -conf_params mdn_pred_dist True batch_size 4 dl_steps 100000 multi_crop_ims False mmpose_net dekr -type multi_mmpose -cache {idir} -json_trn_file {idir}/loc_1_{rndx}.json train -use_cache"
+# pt.submit_job(f'unmarked_mice_inc_rand_1_round{rndx}_dekr', cmd, f'{idir}/run_info', queue='gpu_a100',
+#               sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
+
+## Using two trackers for labeling
+
+from reuse import *
+
+idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/tracker_diff/'
+import os
+os.makedirs(idir,exist_ok=True)
+rand_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_0.json'
+full_rand_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/confidence/full_train.json'
+n_rounds = 4
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/'
+
+rfiles = ['rand_1_3','rand_1_2','rand_1_1','rand_1_0','rand_0','rand_1','rand_2']
+
+import time
+import APT_interface as apt
+
+nets = [['multi_mdn_joint_torch',{}],['multi_mmpose',{'mmpose_net':'dekr'}]]
+## classify the db
+
+start_round = 4
+for round in range(start_round,8):
+    time.sleep(100)
+    while (pt.get_job_status(f'inc_diff_dekr_round_{round}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round}') in ['PENDING','RUN']):
+        time.sleep(100)
+
+    a_res = []
+    for net in nets:
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{round}/traindata'
+        A = pt.pickle_load(tfile)
+        conf = A[1]
+        res = apt.classify_db_all(net[0],conf,full_rand_json)
+        a_res.append(res)
+
+    pp1 = a_res[0][0]['locs']
+    pp2 = a_res[1][0]['locs']
+    locs = a_res[0][1]
+
+
+    # for each label in locs, find the closest prediction in pp1 and pp2
+    distances_pp1 = np.linalg.norm(pp1[:,:,None] - locs[:,None], axis=-1).mean(axis=-1)
+    distances_pp2 = np.linalg.norm(pp2[:,:,None] - locs[:,None], axis=-1).mean(axis=-1)
+
+    closest_pp1 = np.ones(locs.shape)*np.nan
+    closest_pp2 = np.ones(locs.shape)*np.nan
+    for a1 in range(closest_pp1.shape[0]):
+        for a2 in range(closest_pp1.shape[1]):
+            if np.all(np.isnan(locs[a1,a2])):
+                continue
+            if np.all(np.isnan(distances_pp1[a1,:,a2])):
+                closest_pp1[a1,a2] = 0.
+            else:
+                closest_pp1[a1,a2] = pp1[a1,np.nanargmin(distances_pp1[a1,:,a2])]
+            if np.all(np.isnan(distances_pp2[a1,:,a2])):
+                closest_pp2[a1,a2] = 512.
+            else:
+                closest_pp2[a1,a2] = pp2[a1,np.nanargmin(distances_pp2[a1,:,a2])]
+    # find the distance between the two closest predictions
+    distances_closest = np.linalg.norm(closest_pp1-closest_pp2,axis=-1).mean(axis=-1)
+
+
+    # ff(); plt.scatter(cc[vv],dd_m[vv])
+    #
+    if round == 6:
+        C = pt.json_load(
+            f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[-1]}/train_TF.json')
+    else:
+
+        R = pt.json_load(f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[round+1]}/train_TF.json')
+        C = pt.json_load(f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}/train_TF.json')
+        n_extra = len(R['annotations'])-len(C['annotations'])
+        aa_r = np.array([jj['iscrowd'] for jj in R['annotations']])
+        aa_c = np.array([jj['iscrowd'] for jj in C['annotations']])
+
+        n_roi_r = np.count_nonzero(aa_r==1)-np.count_nonzero(aa_r==0)
+        n_roi_c = np.count_nonzero(aa_c==1)-np.count_nonzero(aa_c==0)
+        n_roi_extra = n_roi_r-n_roi_c
+
+        R_f = pt.json_load(full_rand_json)
+        done = np.array([ (xx['movid'],xx['frm']) for xx in C['images']])
+        info = np.array(res[2])[:,:2]
+        ord = np.argsort(np.nanmax(distances_closest,axis=-1))[::-1]
+
+        im_idx = np.array([xx['image_id'] for xx in R_f['annotations']])
+        aa_f = np.array([jj['iscrowd'] for jj in R_f['annotations']])
+        bb_f = np.array([jj['bbox'] for jj in R_f['annotations']])
+        bb_f_lbl = bb_f[aa_f==0]
+        #R_f has bbox repeated for masking for dekr
+        for ndx in range(len(aa_f)):
+            if aa_f[ndx]==0:
+                continue
+            if np.any( (bb_f_lbl==bb_f[ndx]).all(axis=-1)):
+                aa_f[ndx] = 0
+
+        sel = []
+        count = 0
+        n_ann = 0
+        n_roi = 0
+
+        for dx in range(done.shape[0]):
+          sel.append(np.where((info == done[dx]).all(axis=-1))[0][0])
+
+        roi_sel = []
+        while n_roi<=n_roi_extra and count < len(ord):
+            cur_s = np.random.choice(im_idx[aa_f==1])
+
+            jx = np.where((info[cur_s] == done).all(axis=-1))
+            if len(jx[0])==0:
+                sel.append(cur_s)
+                n_ann += np.count_nonzero(im_idx==R_f['images'][cur_s]['id'])
+                n_roi += np.count_nonzero(aa_f[im_idx==R_f['images'][cur_s]['id']]==1)
+                roi_sel.append(cur_s)
+            count = count+1
+
+        count = 0
+        while (n_ann<n_extra) and count < len(ord):
+            if np.all(np.isnan(locs[ord[count]])):
+                jx = np.where((info[ord[count]] == done).all(axis=-1))
+                if len(jx[0])==0:
+                    sel.append(ord[count])
+                    count = count+1
+                    continue
+            if ord[count] in roi_sel:
+                count = count+1
+                continue
+
+            jx = np.where((info[ord[count]] == done).all(axis=-1))
+            if len(jx[0])==0:
+                sel.append(ord[count])
+                n_ann += np.count_nonzero(im_idx==R_f['images'][ord[count]]['id'])
+            count = count+1
+
+        C['images'] = []
+        C['annotations'] = []
+        for curs in sel:
+            C['images'].append(R_f['images'][curs])
+            idx = R_f['images'][curs]['id']
+            asel = np.where(im_idx==idx)[0]
+            C['annotations'].extend([R_f['annotations'][xx] for xx in asel])
+
+
+    new_dir = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round+1}'
+    os.makedirs(new_dir,exist_ok=True)
+    import json
+    with open(f'{new_dir}/train_TF.json','w') as fid:
+        json.dump(C,fid)
+
+    new_dir_dekr = f'{idir}/unmarkedMice/multi_mmpose/view_0/round_{round+1}'
+    os.makedirs(new_dir_dekr,exist_ok=True)
+    # remove existing soft link
+    if not os.path.exists(f'{new_dir_dekr}/train_TF.json'):
+        # create a soft link to the json file
+        os.symlink(f'{new_dir}/train_TF.json',f'{new_dir_dekr}/train_TF.json')
+
+    import ap36_train as ap36
+    conf.cachedir = new_dir
+    conf.rescale = 2
+    ap36.train_bsub(conf,'multi_mdn_joint_torch','deepnet',name=f'inc_diff_grone_round_{round+1}')
+
+    conf.cachedir = new_dir_dekr
+    conf.mmpose_net = 'dekr'
+    ap36.train_bsub(conf,'multi_mmpose','deepnet',name=f'inc_diff_dekr_round_{round+1}',sing_img='/groups/branson/bransonlab/mayank/singularity/mmpose_1x_pycharm.sif')
+
+    # time.sleep(100)
+    # while (pt.get_job_status(f'inc_diff_dekr_round_{round}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round}') in ['PENDING','RUN']):
+    #     time.sleep(100)
+
+
+## track gt movie using difference labels
+
+gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
+idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/tracker_diff/'
+
+
+out_dir = f'{idir}/trks'
+import os
+os.makedirs(out_dir,exist_ok=True)
+os.makedirs(f'{bdir}/run_info',exist_ok=True)
+import ap36_train as ap36
+from reuse import *
+nets = [['multi_mdn_joint_torch',{}],['multi_mmpose',{'mmpose_net':'dekr'}]]
+
+for rndx in range(7):
+    train_name = f'round_{rndx}'
+    for net in nets:
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}/traindata'
+        A = pt.pickle_load(tfile)
+        conf = A[1]
+        if net[0] == 'multi_mdn_joint_torch':
+            sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
+            nname = 'grone'
+        else:
+            sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x_pycharm.sif'
+            nname = 'dekr'
+        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}_{nname}.trk',sing_img=sing_img,name=f'inc_diff_{nname}_round_{rndx}')
+
+
+## Compare tracking
+import TrkFile
+from packaging import version
+import mmpose
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import torch
+import tqdm
+from reuse import *
+
+n_rounds = 4
+idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random'
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
+
+trks = [f'{idir}/trks/20210924_four_female_mice_again_rand_1_{rndx}_tracklet.trk' for rndx in range(n_rounds-1,-1,-1)]
+trks1 = [f'{idir}/trks/20210924_four_female_mice_again_rand_{rndx}_tracklet.trk' for rndx in range(3)]
+
+trks = trks + trks1
+
+trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
+# S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
+S_j = TrkFile.Trk(trks_j)
+# S_4x = TrkFile.Trk(trks_i[-1])
+S_j.convert2dense()
+
+ddqs = []
+for pndx in range(len(trks)):
+    dds = np.ones([108000, 4, 4])*np.nan
+    fp = np.zeros([108000])
+    fn = np.zeros([108000])
+    ee = np.zeros([108000])
+    oo = np.zeros([108000,4])
+    S = TrkFile.Trk(trks[pndx])
+    S.convert2dense()
+    ci = np.zeros([108000])
+    cr = ci.copy()
+
+    for ndx in tqdm.tqdm(range(108000)):
+        aa = S_j.pTrk[:,:,ndx]
+        # aa = S_4x.getframe(ndx)[:, :, 0, :]
+        aa = aa[:, :, ~np.all(np.isnan(aa[:, 0, :]), axis=0)]
+        ci[ndx] = aa.shape[2]
+        # bb = S.getframe(ndx)[:, :, 0]
+        bb = S.pTrk[:,:,ndx]
+        bb = bb[:, :, ~np.all(np.isnan(bb[:, 0, :]), axis=0)]
+        cr[ndx] = bb.shape[2]
+
+        dd = np.linalg.norm(aa[..., None] - bb[:, :, None], axis=1)
+        # dd_m = find_dist_match(np.transpose(dd[None], [0, 2, 3, 1]))
+
+        az = np.array([aa.min(axis=0), aa.max(axis=0)]).reshape([4,-1]).T
+        bz = np.array([bb.min(axis=0), bb.max(axis=0)]).reshape([4, -1]).T
+        orr = tn(bbox_overlaps(torch.tensor(az), torch.tensor(bz)))
+
+        matched1 = np.zeros(orr.shape[0])
+        matched2 = np.zeros(orr.shape[1])
+        count = 0
+        for ix in range(orr.shape[0]):
+            jx = np.argmax(orr[ix])
+            if count<4:
+                oo[ndx, count] = orr[ix, jx]
+            if orr[ix].max()>0.1:
+                if count==4:
+                    ee[ndx] = 1
+                    break
+                jx = np.argmax(orr[ix])
+                dds[ndx,count,:] = dd[:,ix,jx]
+                matched1[ix] = 1
+                matched2[jx] = 1
+                oo[ndx,count] = orr[ix,jx]
+                count = count+1
+        fn[ndx] = 4-np.count_nonzero(matched1==1)
+        fp[ndx] = np.count_nonzero(matched2==0)
+
+
+    ddq = dds[:,:4]
+    ddqs.append([ddq,fn,fp,ee,oo])
+
+ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqs]
+plt.legend([f'{x+1}' for x in range(len(trks))])
+plt.title('Random')
+plt.xlim([1.4e6,1.75e6])
+plt.ylim([-5,50])
+plt.ylabel('Distance (px) between predictions')
+plt.xlabel('Predictions Order')
+plt.title('Prediction agreement of randomly labeled models')
+# plt.savefig('/groups/branson/home/kabram/temp/random_matches_new.svg')
+# plt.savefig('/groups/branson/home/kabram/temp/random_matches_new.png')
+
+
+## Distance of interactive labels to final interactive
+
+import TrkFile
+import mmpose
+if version.parse(mmpose.__version__).major>0:
+    from mmdet.structures.bbox import bbox_overlaps
+else:
+    from mmdet.core.bbox.iou_calculators.iou2d_calculator import bbox_overlaps
+import torch
+import tqdm
+
+out_dir = f'{bdir}/tracker_diff/trks'
+trks_i = [f'{out_dir}/round_{ndx}_grone_tracklet.trk' for ndx in range(0,6)]
+
+trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
+# S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
+S_j = TrkFile.Trk(trks_j)
+# S_4x = TrkFile.Trk(trks_i[-1])
+S_j.convert2dense()
+
+ddqi = []
+for pndx in range(len(trks_i)):
+    dds = np.ones([108000, 4, 4])*np.nan
+    fp = np.zeros([108000])
+    fn = np.zeros([108000])
+    ee = np.zeros([108000])
+    oo = np.ones([108000,4])*np.nan
+    S = TrkFile.Trk(trks_i[pndx])
+    S.convert2dense()
+    ci = np.zeros([108000])
+    cr = ci.copy()
+
+    for ndx in tqdm.tqdm(range(108000)):
+        aa = S_j.pTrk[:,:,ndx]
+        aa = aa[:, :, ~np.all(np.isnan(aa[:, 0, :]), axis=0)]
+        ci[ndx] = aa.shape[2]
+        bb = S.pTrk[:,:,ndx]
+        bb = bb[:, :, ~np.all(np.isnan(bb[:, 0, :]), axis=0)]
+        cr[ndx] = bb.shape[2]
+
+        dd = np.linalg.norm(aa[..., None] - bb[:, :, None], axis=1)
+        # dd_m = find_dist_match(np.transpose(dd[None], [0, 2, 3, 1]))
+
+        az = np.array([aa.min(axis=0), aa.max(axis=0)]).reshape([4,-1]).T
+        bz = np.array([bb.min(axis=0), bb.max(axis=0)]).reshape([4, -1]).T
+        orr = tn(bbox_overlaps(torch.tensor(az), torch.tensor(bz)))
+
+        matched1 = np.zeros(orr.shape[0])
+        matched2 = np.zeros(orr.shape[1])
+        count = 0
+        for ix in range(orr.shape[0]):
+            jx = np.argmax(orr[ix])
+            if count<4:
+                oo[ndx, count] = orr[ix, jx]
+            if orr[ix].max()>0.1:
+                if count==4:
+                    ee[ndx] = 1
+                    break
+                dds[ndx,count,:] = dd[:,ix,jx]
+                matched1[ix] = 1
+                matched2[jx] = 1
+                count = count+1
+        fn[ndx] = 4-np.count_nonzero(matched1==1)
+        fp[ndx] = np.count_nonzero(matched2==0)
+
+    ddq = dds[:,:4]
+    ddqi.append([ddq,fn,fp,ee,oo])
+
+
+ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqi]
+plt.legend([f'{x+1}' for x in range(len(trks_i))])
+plt.title('Tracker difference')
+plt.xlim([1.4e6,1.75e6])
+plt.ylim([-5,50])
+plt.ylabel('Distance (px) between predictions')
+plt.xlabel('Predictions Order')
+plt.title('Prediction agreement of interactively labeled models')
+# plt.savefig('/groups/branson/home/kabram/temp/tracker_diff_matches.svg')
+# plt.savefig('/groups/branson/home/kabram/temp/tracker_diff_matches.png')
+
+
+##
+
+sel = np.ones([108000])>0.5
+
+# avg animal size is 75px
+tr = 75/2
+ff()
+
+
+tfiles = [f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_1_{ix}.json' for ix in range(n_rounds-1,-1,-1)]
+tfiles.extend([f'{bdir}/random/loc_0.json', f'{bdir}/random/loc_1_roi.json',f'{bdir}/random/loc_2_roi.json'])
+n_train = []
+for tt in tfiles:
+    J = pt.json_load(tt)
+    nn = sum([ll['ntgt'] for ll in J['locdata']])
+    n_train.append(nn)
+
+jj = []
+for dd1 in ddqs:
+    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+
+plt.plot(n_train,jj,marker='o')
+
+jj = []
+for dd1 in ddqi:
+    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+plt.plot(n_train[:len(jj)],jj,marker='o')
+plt.title('Tracker difference')
+
+plt.legend(['Random','Difference'])
+plt.xlabel('Number of training examples')
+plt.ylabel(f'Number of predictions with error {tr}px')
+plt.title('Prediction agreement of interactively and randomly labeled models')
+plt.yscale('log')
+plt.xscale('log')
+# plt.savefig('/groups/branson/home/kabram/temp/incremental_training_vs_random_training.svg')
 
 
 

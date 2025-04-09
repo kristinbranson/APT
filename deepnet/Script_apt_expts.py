@@ -1850,6 +1850,185 @@ for rr in res:
     for kk,vv in rr[1].items():
         print(kk,vv['idf1'])
 
+
+
+## split movie into four quadrants
+
+mov_file = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629//movie.ufmf'
+import os
+
+mov_str = os.path.split(os.path.split(mov_file)[0])[1]
+import movies
+import cv2
+import tqdm
+out_dir = '/groups/branson/bransonlab/mayank/apt_expts/alice_split_movie'
+
+
+##
+cap = movies.Movie(mov_file)
+nfr = cap.get_n_frames()
+
+out_files = {}
+for fr in tqdm.tqdm(range(nfr)):
+    im = cap.get_frame(fr)[0]
+    h,w = im.shape
+
+    for xx in range(2):
+        for yy in range(2):
+            if fr == 0:
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                out_file = os.path.join(out_dir, f'{mov_str}_{xx}_{yy}.mp4')
+                out_files[(xx,yy)] = cv2.VideoWriter(out_file, fourcc, 20.0, (w // 2, h // 2))
+            im1 = im[xx*h//2:(xx+1)*h//2,yy*w//2:(yy+1)*w//2]
+            im1 = np.repeat(im1[...,None],3,-1)
+            out_files[(xx,yy)].write(im1)
+
+for xx in range(2):
+    for yy in range(2):
+        out_files[(xx,yy)].release()
+
+## track the split movies
+
+import run_apt_ma_expts as rae_ma
+robj = rae_ma.ma_expt('alice')
+
+movies = []
+for xx in range(2):
+    for yy in range(2):
+        cur_mov = os.path.join(out_dir, f'{mov_str}_{xx}_{yy}.mp4')
+        movies.append(cur_mov)
+
+run_type = 'dry'
+tts = [('grone','crop'),('2stageBBox','first'),('2stageBBox_hrformer','first')]
+for cur_mov in movies:
+    exp_name = os.path.split(cur_mov)[1].split('.')[0]
+    for curt in tts:
+        out_trk = os.path.join(robj.trk_dir,exp_name + f'_{curt[0]}_scale2.trk')
+        robj.track(cur_mov,out_trk,t_types=[curt,],run_type=run_type,conf_params={'imsz':"\(512,512\)",'min_n_animals':0})
+
+## the command to track the split movies joints was created manually: /groups/branson/home/kabram/temp/ma_expts/alice/log/alice_grone_crop_mask_12072023_nochr_TrpA65F12_Unknown_RigB_20201212T163629_joint_grone_scale2.bsub.sh
+
+## join the split ouptut into a single trk file
+
+import TrkFile
+trks = []
+x_off = []
+y_off = []
+for xx in range(2):
+    for yy in range(2):
+        trks.append(TrkFile.Trk(f'/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigB_20201212T163629_{xx}_{yy}_joint_grone_scale2.trk'))
+        x_off.append(xx*512)
+        y_off.append(yy*512)
+
+trko = trks[0].copy()
+d_shape = trko.pTrk.data[0].shape[:-1]
+for tr in range(trko.ntargets):
+    if trko.startframes[tr] == -1:
+        trko.pTrk.data[tr] = np.ones((d_shape[0],d_shape[1],0))*np.nan
+        trko.pTrkTag.data[tr] = np.ones((d_shape[0],0))*0
+        trko.pTrkConf.data[tr] = np.zeros((d_shape[0],0))
+        trko.pTrkTS.data[tr] = np.zeros((d_shape[0],0))
+    for xx in range(1,4):
+        curt = trks[xx]
+        if (len(curt.startframes)<=tr) or (curt.startframes[tr] == -1):
+            continue
+        if curt.startframes[tr] < trko.startframes[tr]:
+            ns = trko.startframes[tr] - curt.startframes[tr]
+            trko.startframes[tr] = curt.startframes[tr]
+        else:
+            ns = 0
+        if curt.endframes[tr] > trko.endframes[tr]:
+            ne = curt.endframes[tr] - trko.endframes[tr]
+            trko.endframes[tr] = curt.endframes[tr]
+        else:
+            ne = 0
+        arr_s = np.ones((d_shape[0],d_shape[1],ns))*np.nan
+        arr_e = np.ones((d_shape[0],d_shape[1],ne))*np.nan
+        trko.pTrk.data[tr] = np.concatenate([arr_s,trko.pTrk.data[tr],arr_e],axis=-1)
+        trko.pTrkTag.data[tr] = np.concatenate([np.ones((d_shape[0],ns))*0,trko.pTrkTag.data[tr],np.ones((d_shape[0],ne))*0],axis=-1)
+        trko.pTrkConf.data[tr] = np.concatenate([np.zeros((d_shape[0],ns)),trko.pTrkConf.data[tr],np.zeros((d_shape[0],ne))],axis=-1)
+        trko.pTrkTS.data[tr] = np.concatenate([np.zeros((d_shape[0],ns)),trko.pTrkTS.data[tr],np.zeros((d_shape[0],ne))],axis=-1)
+
+        for fr in range(trko.endframes[tr]-trko.startframes[tr]+1):
+            if np.all(np.isnan(trko.pTrk.data[tr][:,:,fr])):
+                curd = curt.gettargetframe(tr,fr+trko.startframes[tr],True)
+                trko.pTrk.data[tr][:,:,fr] = curd[0][...,0,0] + np.array([y_off[xx],x_off[xx]])
+                for kk in curd[1].keys():
+                    if kk == 'pTrkAnimalConf': continue
+                    trko.__dict__[kk].data[tr][:,fr] = curd[1][kk][...,0,0]
+
+
+trko.save('/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigB_20201212T163629_joint_grone_scale2.trk',saveformat='tracklet')
+
+## measure the ID accuracy
+
+import motmetrics as mm
+import numpy as np
+import APT_interface as apt
+import TrkFile as trkf
+from poseConfig import conf
+conf.has_trx_file = True
+import os
+
+info = [{}]
+#id_trk = '/groups/branson/home/kabram/temp/ar_flytracker2_idlinked.trk';
+info[-1]['id_trk'] = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigB_20201212T163629_joint_grone_scale2.trk';
+info[-1]['mov_file'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629//movie.ufmf'
+info[-1]['fix_error_trx'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629/fixed_trx.mat'
+info[-1]['ht_pts'] = [0,6]
+info[-1]['ctrax'] = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigB_20201212T163629/registered_trx.mat'
+
+
+
+def get_trx_frame(trx,fr):
+    # pts is n_trx x 2 x 2, where second dim has the head and tail points
+    valid_trx = np.where( (trx['first_frames']<=fr) & (trx['end_frames']>fr) )[0]
+    pts = np.ones([trx['n_trx'],2,2])*np.nan
+    for vv in range(trx['n_trx']):
+        if vv in valid_trx:
+            fro = fr-int(trx['trx'][vv]['firstframe'][0,0])+1
+            xx = trx['trx'][vv]['x'].flatten()[fro]-1
+            yy = trx['trx'][vv]['y'].flatten()[fro]-1
+            theta = trx['trx'][vv]['theta'].flatten()[fro]
+            a = trx['trx'][vv]['a'].flatten()[fro]
+
+            hh = np.array([xx+a*np.cos(theta)*2,yy+a*np.sin(theta)*2])
+            tt = np.array([xx-a*np.cos(theta)*2,yy-a*np.sin(theta)*2])
+
+            pts[vv,0,:] = hh
+            pts[vv,1,:] = tt
+    return pts
+
+cur_info = info[-1]
+cur_res = {}
+acc = mm.MOTAccumulator(auto_id=True)
+t2 = apt.get_trx_info(cur_info['fix_error_trx'],conf,None)
+t1 = trkf.Trk(cur_info['id_trk'])
+nfr = max(t1.nframes)
+ht = cur_info['ht_pts']
+for fr in range(nfr):
+    f1 = t1.getframe(fr)
+    vf1 = ~np.isnan(f1[0,0,0,:])
+    vix = np.where(vf1)[0]
+    f1 = f1[...,vf1]
+    f1 = np.transpose(f1[ht,:,0],[2,0,1])
+    f2 = get_trx_frame(t2,fr)
+
+    d_mat = np.linalg.norm(f1[None,:]-f2[:,None,:,:],axis=-1).mean(axis=-1)
+
+    acc.update(range(f2.shape[0]),vix,d_mat)
+
+mh = mm.metrics.create()
+summ = mh.compute(acc,metrics=mm.metrics.motchallenge_metrics,return_dataframe=False)
+cur_res['grone_scale2'] = summ
+
+for kk,vv in cur_res.items():
+    print(kk,vv['idf1'])
+
+
+
+
+
 ## ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ## Rat7M
 ## ++++++++++++++++++++++++++++++++++++++++++++++++++++++++

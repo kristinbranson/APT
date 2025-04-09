@@ -1,8 +1,6 @@
-
-##
 import os
 #os.environ['CUDA_VISIBLE_DEVICES'] ='0'
-cmd = '/groups/branson/home/robiea/.apt/tpb4d19d6d_4b41_4a76_91d2_e37c6deaa229/multitarget_bubble_training_20210523_allGT_AR_params20210920/20241024T134814_20241024T134820.json -name 20241024T134814 -json_trn_file /groups/branson/home/robiea/.apt/tpb4d19d6d_4b41_4a76_91d2_e37c6deaa229/multitarget_bubble_training_20210523_allGT_AR_params20210920/loc.json -conf_params -type mdn_joint_fpn -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpb4d19d6d_4b41_4a76_91d2_e37c6deaa229 train -use_cache'
+cmd = '/groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b/train00/20250226T025722_20250226T025725.json -name 20250226T025722 -json_trn_file /groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b/train00/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b train -use_cache'
 
 # cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
 

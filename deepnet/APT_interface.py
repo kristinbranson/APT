@@ -1262,7 +1262,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
         for n, v in zip(cc[0::2], cc[1::2]):
             if not quiet:
-                logging.info('Overriding param %s <= ' % n, v)
+                logging.info(f'Overriding param {n} <= {v}')
             setattr(conf, n, ast.literal_eval(v))
 
     # overrides for each network
@@ -1653,9 +1653,11 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         return roi_in
 
     def labels_within_mask(curl, mask):
-        sel = np.where(np.all((curl[..., 0] >= 0) & (curl[..., 1] >= 0) & (curl[..., 0] < conf.imsz[1]) & (curl[..., 1] < conf.imsz[0]), 1))[0]
+        sel = np.where(np.all( ((curl[..., 0] >= 0) & (curl[..., 1] >= 0) &
+                (curl[..., 0] < conf.imsz[1]) & (curl[..., 1] < conf.imsz[0])) |
+                np.isnan(curl[...,0]), 1))[0]
         if conf.multi_loss_mask:
-            curl = curl[sel].mean(axis=1)
+            curl = np.nanmean(curl[sel],axis=1)
             cur_mask_pts = np.round(curl).astype('int')
             pt_mask = mask[cur_mask_pts[...,1],cur_mask_pts[...,0]]
             final_sel = sel[pt_mask]

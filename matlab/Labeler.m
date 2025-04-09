@@ -9897,7 +9897,7 @@ classdef Labeler < handle
         'gtModeOK',false,... % by default, this meth should not be called in GT mode
         'prmsTgtCrop',[],...
         'doRemoveOOB',true,...
-        'treatInfPosAsOcc',false ... % if true, treat inf labels as 
+        'treatInfPosAsOcc',true  ... % if true, treat inf labels as 
                                  ... % 'fully occluded'; if false, remove 
                                  ... % any rows with inf labels
         ); 

@@ -1077,7 +1077,7 @@ class ma_expt(object):
 
 
 
-    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_a100',sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'):
+    def track(self, mov_file, trk_file, t_types=None,run_type='dry',queue='gpu_a100',sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif',conf_params=None):
         t_types = self.get_types(t_types)
         for t in t_types:
             settings = self.get_settings(t)
@@ -1127,6 +1127,7 @@ class ma_expt(object):
             job_name = self.name + '_' + train_name + '_' + trk_name
 
             conf_str = ' '.join([f'{k} {v}' for k, v in params.items()])
+            conf_str += ' ' + ' '.join([f'{k} {v}' for k, v in conf_params.items()])
             conf_str += ' link_id True link_id_training_iters 100000'
 
             cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg2_str} -type {net_type} track -mov {mov_file} -out {trk_file} {stg2_str_track}'

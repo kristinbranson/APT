@@ -2035,8 +2035,10 @@ classdef TrkFile < dynamicprops
     end
 
 
-    function [nFramesTracked,didload] = getNFramesTrackedMatFile(tfile)
+    function [nFramesTracked,didload] = getNFramesTrackedMatFile(tfile,varargin)
       
+      [isma] = myparse(varargin,'isma',0);
+
       nFramesTracked = 0;
       didload = false;
       ntries = 5;
@@ -2049,7 +2051,15 @@ classdef TrkFile < dynamicprops
           if isempty(m.endframes)
             nFramesTracked = 0;
           else
-            nFramesTracked = sum(max(0,m.endframes - m.startframes + 1));
+            if isma
+             % MK 20250101. The sum gives incorrect estimates for tracking
+            % for ma projects. So changing it to max. The counting is
+            % probably different for projects with trx, where number of
+            % frames is frames x nanimals.
+              nFramesTracked = max(max(0,m.endframes - m.startframes + 1));
+            else
+              nFramesTracked = sum(max(0,m.endframes - m.startframes + 1));
+            end
           end
           didload = true;
         elseif ismember('pTrkFrm',fns)
