@@ -108,11 +108,19 @@ classdef TestAPT < handle
 %     end
 
     function set_info_(obj,name)
+      if ispc() ,
+        % We assume /groups/branson/bransonlab is mounted on Z:
+        bransonlab_path = 'Z:/' ;
+      else
+        bransonlab_path = '/groups/branson/bransonlab' ;
+      end
+      unittest_dir_path = fullfile(bransonlab_path, 'apt/unittest') ;
       info = struct() ;
       if strcmp(name,'alice')      
-%         info.ref_lbl = '/work/mayank/work/FlySpaceTime/multitarget_bubble_expandedbehavior_20180425_fixederrors_fixed.lbl';
-        info.ref_lbl = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019.lbl';
-        info.exp_dir_base = '/groups/branson/home/robiea/Projects_data/Labeler_APT';
+        % info.ref_lbl = '/work/mayank/work/FlySpaceTime/multitarget_bubble_expandedbehavior_20180425_fixederrors_fixed.lbl';
+        % info.ref_lbl = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Austin_labelerprojects_expandedbehaviors/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019.lbl';
+        info.ref_lbl = fullfile(unittest_dir_path, 'alice/multitarget_bubble_expandedbehavior_20180425_allGT_MK_MDN04182019.lbl') ;
+        info.exp_dir_base = fullfile(unittest_dir_path, 'alice/data') ;
         info.nviews = 1;
         info.npts = 17;
         info.has_trx = true;
@@ -121,22 +129,22 @@ classdef TestAPT < handle
         info.bundle_link = 'https://www.dropbox.com/s/u5p27rdi7kczv78/alice_test_data.tar.gz?dl=1';
         info.op_graph = [1 3; 1 2; 3 17; 2 12; 3 4; 4 10; 10 11; 11 16; 10 6; 8 6; 5 8; 8 9; 9 13;6 14;6 15; 6 7];
 
-      elseif strcmp(name,'stephen')
-        %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked.lbl' ;
-        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
-        info.nviews = 2;
-        info.npts = 5;
-        info.has_trx = false;
-        info.proj_name = 'stephen_test';
-        info.sz = [];
-        info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
-        info.op_graph = [1 5; 1 3; 3 4; 4 2];
+      % elseif strcmp(name,'stephen')
+      %   %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
+      %   info.ref_lbl = fullfile(unittest_dir_path, 'sh_test_lbl_20200310_modded_resaved_tweaked.lbl') ;
+      %   info.exp_dir_base = fullfile(unittest_dir_path, 'stephen_test') ;
+      %   info.nviews = 2;
+      %   info.npts = 5;
+      %   info.has_trx = false;
+      %   info.proj_name = 'stephen_test';
+      %   info.sz = [];
+      %   info.bundle_link = 'https://www.dropbox.com/s/asl1f3ssfgtdwmc/stephen_test_data.tar.gz?dl=1';
+      %   info.op_graph = [1 5; 1 3; 3 4; 4 2];
         
       elseif strcmp(name,'stephen_training')
         %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_20240122.lbl' ;
-        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.ref_lbl = fullfile(unittest_dir_path, 'sh_test_lbl_20200310_modded_resaved_tweaked_20240122.lbl') ;
+        info.exp_dir_base = fullfile(unittest_dir_path, 'stephen_test') ;
         info.nviews = 2;
         info.npts = 5;
         info.has_trx = false;
@@ -147,8 +155,8 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'stephen_tracking')
         %info.ref_lbl = '/groups/branson/bransonlab/mayank/APT_projects/sh_test_lbl_20200310.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/sh_test_lbl_20200310_modded_resaved_tweaked_lightly_trained_20240122.lbl' ;
-        info.exp_dir_base = '/groups/huston/hustonlab/flp-chrimson_experiments';
+        info.ref_lbl = fullfile(unittest_dir_path, 'sh_test_lbl_20200310_modded_resaved_tweaked_lightly_trained_20240122.lbl') ;
+        info.exp_dir_base = fullfile(unittest_dir_path, 'stephen_test') ;
         info.nviews = 2;
         info.npts = 5;
         info.has_trx = false;
@@ -159,8 +167,8 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'carmen')
         % info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015.lbl';
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, 'pez7_al_updated_20241015.lbl') ;
+        info.exp_dir_base = fullfile(bransonlab_path, 'card_lab_apt_data/Data_pez3000') ;
         info.nviews = 1;
         info.npts = 10;
         info.has_trx = false;
@@ -171,8 +179,8 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'carmen_tracking')
         % info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/pez7_al_updated_20241015_lightly_trained.lbl';
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, 'pez7_al_updated_20241015_lightly_trained.lbl') ;
+        info.exp_dir_base = fullfile(bransonlab_path, 'card_lab_apt_data/Data_pez3000') ;
         info.nviews = 1;
         info.npts = 10;
         info.has_trx = false;
@@ -207,20 +215,20 @@ classdef TestAPT < handle
       %   info.bundle_link = '';
       %   info.op_graph = [];   
         
-      elseif strcmp(name,'argrone')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT_20210823.lbl';
-        info.exp_dir_base = '';
-        info.nviews = nan;
-        info.npts = nan;
-        info.has_trx = true;
-        info.proj_name = 'test';
-        info.sz = 90;
-        info.bundle_link = '';
-        info.op_graph = [];   
+      % elseif strcmp(name,'argrone')
+      %   info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/flybubble_grone_20210523_allGT_KB_20210626_UT_20210823.lbl';
+      %   info.exp_dir_base = '';
+      %   info.nviews = nan;
+      %   info.npts = nan;
+      %   info.has_trx = true;
+      %   info.proj_name = 'test';
+      %   info.sz = 90;
+      %   info.bundle_link = '';
+      %   info.op_graph = [];   
         
       elseif strcmp(name,'argroneSA')
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved.lbl';
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, 'multitarget_bubble_training_20210523_allGT_AR_MAAPT_grone2_UT_resaved_2.lbl');
+        info.exp_dir_base = fullfile(unittest_dir_path, 'alice/data') ;
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = true;
@@ -229,22 +237,22 @@ classdef TestAPT < handle
         info.bundle_link = '';
         info.op_graph = [];   
         
-      elseif strcmp(name,'sam2view')
-        %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl';
-        info.exp_dir_base = '';
-        info.nviews = 2;
-        info.npts = nan;
-        info.has_trx = false;
-        info.proj_name = 'test';
-        info.sz = 100; % dont set this to empty even if it is not used
-        info.bundle_link = '';
-        info.op_graph = [];   
+      % elseif strcmp(name,'sam2view')
+      %   %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
+      %   info.ref_lbl = fullfile(unittest_dir_path, '2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl') ;
+      %   info.exp_dir_base = fullfile(bransonlab_path, 'DataforAPT/JumpingMice') ;
+      %   info.nviews = 2;
+      %   info.npts = nan;
+      %   info.has_trx = false;
+      %   info.proj_name = 'test';
+      %   info.sz = 100; % dont set this to empty even if it is not used
+      %   info.bundle_link = '';
+      %   info.op_graph = [];   
         
       elseif strcmp(name,'sam2view_training')
         %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl';
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, '2011_mouse_cam13_updated_movie_paths_20241111_modded.lbl') ;
+        info.exp_dir_base = fullfile(bransonlab_path, 'DataforAPT/JumpingMice') ;
         info.nviews = 2;
         info.npts = nan;
         info.has_trx = false;
@@ -255,8 +263,8 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'sam2view_tracking')
         %info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/2011_mouse_cam13_updated_movie_paths_20241111_modded_lightly_trained.lbl';
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, '2011_mouse_cam13_updated_movie_paths_20241111_modded_lightly_trained.lbl') ;
+        info.exp_dir_base = fullfile(bransonlab_path, 'DataforAPT/JumpingMice') ;
         info.nviews = 2;
         info.npts = nan;
         info.has_trx = false;
@@ -267,8 +275,8 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'roianma2')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl') ;
+        info.exp_dir_base = fullfile(unittest_dir_path, 'four-points-reduced-movies') ;
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = false;
@@ -279,8 +287,8 @@ classdef TestAPT < handle
 
       elseif strcmp(name,'roianma2_tracking')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-lightly-trained.lbl' ;
-        info.exp_dir_base = '';
+        info.ref_lbl =  fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-lightly-trained.lbl') ;
+        info.exp_dir_base = fullfile(unittest_dir_path, 'four-points-reduced-movies') ;
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = false;
@@ -291,8 +299,8 @@ classdef TestAPT < handle
 
       elseif strcmp(name,'roianma2mmpose1')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added-mmpose1.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-mmpose1.lbl' ;
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-mmpose1.lbl') ;
+        info.exp_dir_base = fullfile(unittest_dir_path, 'four-points-reduced-movies') ;
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = false;
@@ -303,8 +311,8 @@ classdef TestAPT < handle
 
       elseif strcmp(name,'roianma2gt')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
-        info.ref_lbl = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-gt-added.lbl';
-        info.exp_dir_base = '';
+        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-gt-added.lbl') ;
+        info.exp_dir_base = fullfile(bransonlab_path, 'roian/apt_testing/files_for_working_with_apt') ;
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = false;
@@ -480,7 +488,7 @@ classdef TestAPT < handle
     function [labeller, controller] = create_project_(obj)
      % Create the new project
       info = obj.info;
-      cfg = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      cfg = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       cfg.NumViews = info.nviews;
       cfg.NumLabelPoints = info.npts;
       cfg.Trx.HasTrx = info.has_trx;
@@ -649,7 +657,7 @@ classdef TestAPT < handle
     
     function set_params_base_(obj, has_trx, dl_steps, manual_radius, batch_size)
       labeller = obj.labeler;
-      sPrm = labeller.trackGetParams();      
+      sPrm = labeller.trackGetTrainingParams();      
       
       sbase = struct() ;
       sbase.AlignUsingTrxTheta = has_trx;
@@ -662,7 +670,7 @@ classdef TestAPT < handle
       end
       sPrm2 = structsetleaf(sPrm,sbase,'verbose',true);
 
-      labeller.trackSetParams(sPrm2);
+      labeller.trackSetTrainingParams(sPrm2);
     end  % function
         
     function set_backend_(obj, backend_type_as_string, raw_backend_params)
@@ -713,9 +721,9 @@ classdef TestAPT < handle
       fprintf('Training with tracker %s\n',obj.labeler.tracker.algorithmNamePretty);
       obj.set_params_base_(obj.info.has_trx, niters, obj.info.sz, batch_size);
       if ~isempty(params)
-        sPrm = obj.labeler.trackGetParams();
+        sPrm = obj.labeler.trackGetTrainingParams();
         sPrm = structsetleaf(sPrm,params,'verbose',true);
-        obj.labeler.trackSetParams(sPrm);
+        obj.labeler.trackSetTrainingParams(sPrm);
       end
       obj.set_backend_(backend,backend_params);
 
@@ -756,7 +764,7 @@ classdef TestAPT < handle
         obj.setup_alg_for_tracking_(net_type)
       end
       if ~isempty(backend),
-        obj.set_backend_(backend,backend_params);
+        obj.set_backend_(backend, backend_params) ;
       end
       labeler = obj.labeler ;
       %kk = LabelerGUI('get_local_fn','pbTrack_Callback');
@@ -821,7 +829,7 @@ classdef TestAPT < handle
     %   % s.ROOT.DeepTrack.DataAugmentation.trange = 5;
     %   % s.ROOT.DeepTrack.DataAugmentation.scale_factor_range = 1.1;
     %   % s.ROOT.DeepTrack.ImageProcessing.scale = 1.;
-    %   % lObj.trackSetParams(s);
+    %   % lObj.trackSetTrainingParams(s);
     %   obj.setup_alg_(net);
     %   obj.setup_backend_(backend,backend_params);
     % end  % function

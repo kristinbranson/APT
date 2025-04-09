@@ -173,7 +173,7 @@ classdef HPOptim
 %       xvArgs = {'kfold' kfold 'wbObj' wbObj 'tblMFgt' xvTbl 'partTst' xvSplt};
 %       
 %       % base case
-%       sPrm0 = lObj.trackGetParams();
+%       sPrm0 = lObj.trackGetTrainingParams();
 %       lObj.trackCrossValidate(xvArgs{:});
 %       xv0 = lObj.xvResults;
 %       
@@ -190,7 +190,7 @@ classdef HPOptim
 %         % select those deltas where
 %         % - >= nptsThresh (8) pts were improved
 %         sPrm0 = lclGenNewParams();
-%         lObj.trackSetParams(sPrm0);
+%         lObj.trackSetTrainingParams(sPrm0);
 %         
 %         % save state
 %         
@@ -212,7 +212,7 @@ classdef HPOptim
       %       npatch = numel(patches);
       %       fprintf(1,'Read parameter patch file %s. %d patches.\n',paramFile,...
       %         npatch);
-      %       sPrm = lObj.trackGetParams();
+      %       sPrm = lObj.trackGetTrainingParams();
       %       for ipch=1:npatch
       %         pch = patches{ipch};
       %         pch = ['sPrm' pch ';']; %#ok<AGROW>
@@ -223,14 +223,14 @@ classdef HPOptim
       %         eval(pch);
       %         fprintf(1,'  new (%s): %s\n',pchlhs,evalc(pchlhs));
       %       end
-      %       lObj.trackSetParams(sPrm);
+      %       lObj.trackSetTrainingParams(sPrm);
       %       outfileBase = [outfileBase '_' paramPatchFileS];
       %     end
       %     outfileBase = [outfileBase '_' datestr(now,'yyyymmddTHHMMSS')];
       %
       %
       %     savestuff = struct();
-      %     savestuff.sPrm = lObj.trackGetParams();
+      %     savestuff.sPrm = lObj.trackGetTrainingParams();
       %     savestuff.xvArgs = xvArgs;
       %     savestuff.xvRes = lObj.xvResults;
       %     savestuff.xvResTS = lObj.xvResultsTS; %#ok<STRNU>

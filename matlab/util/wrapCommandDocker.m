@@ -1,7 +1,8 @@
 function codestr = wrapCommandDocker(basecmd, varargin)
   % Take a linux/WSL shell command string, wrap it for running in a docker
-  % container.  Returned string is also a linux/WSL shell command.  This
-  % function does not handle the case of running docker remotely via ssh.
+  % container.  Returned string is also a linux/WSL shell command.  Any paths
+  % handed to this function should be WSL paths.  This function does not handle
+  % the case of running docker remotely via ssh.
 
   % Parse keyword args
   [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,tty,shmsize,apiver] = ...
@@ -23,26 +24,32 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   
   % Get path to the deepnet/ subdirectory in the APT source tree
   aptdeepnet = APT.getpathdl() ;  % this is a native, local path
-  deepnetrootContainer = linux_path(aptdeepnet) ;
+  deepnetrootContainer = wsl_path_from_native(aptdeepnet) ;
 
   % Set the paths to make visible in the container
-  if ispc() 
-    % For running in WSL, want to add /mnt to the container, since user's files
-    % are presumably in there.
-    srcbindpath = {'/mnt'};
-    dstbindpath = {'/mnt'};
-    mountArgs = cellfun(@mount_option_string,srcbindpath,dstbindpath,'uni',0);
-  else    
-    % Add whatever the user passed in as paths to bind to the container
-    mountArgs = cellfun(@mount_option_string,bindpath,bindpath,'uni',0);
-  end
+  % Add whatever the user passed in as paths to bind to the container
+  mountArgs = cellfun(@mount_option_string,bindpath,bindpath,'uni',0);
+  % if ispc() 
+  %   % For running in WSL, want to add /mnt to the container, since user's files
+  %   % are presumably in there.
+  %   srcbindpath = {'/mnt'};
+  %   dstbindpath = {'/mnt'};
+  %   mountArgs = cellfun(@mount_option_string,srcbindpath,dstbindpath,'uni',0);
+  % else    
+  %   % Add whatever the user passed in as paths to bind to the container
+  %   mountArgs = cellfun(@mount_option_string,bindpath,bindpath,'uni',0);
+  % end
 
   % Apparently we need to use the --user switch when running in real Linux
-  if ispc() 
-    userArgs = {};
-  else
-    userArgs = {'--user' '$(id -u):$(id -g)'};
-  end    
+  % Actually think we want to use it regardless.  Otherwise on AWS files written
+  % by things running in docker are owned by root, not by user "ubuntu".  This
+  % makes it awkward to delete/overwrite them later.
+  userArgs = {'--user' '$(id -u):$(id -g)'};
+  % if ispc() 
+  %   userArgs = {};
+  % else
+  %   userArgs = {'--user' '$(id -u):$(id -g)'};
+  % end    
 
   if isgpu
     %nvidiaArgs = {'--runtime nvidia'};
@@ -96,7 +103,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
     dockerimg
     }
     ];
-  linux_home_dir = linux_path(native_home_dir) ;
+  linux_home_dir = wsl_path_from_native(native_home_dir) ;
   bashcmd = ...
     sprintf('export HOME=%s ; %s cd %s ; %s',...
             escape_string_for_bash(linux_home_dir), ...
@@ -107,7 +114,7 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   code_as_list{end+1} = escbashcmd;      
   codestr = sprintf('%s ',code_as_list{:});
   codestr = codestr(1:end-1);
-end  % function wrapCommandDocker()
+end  % function
 
 
 

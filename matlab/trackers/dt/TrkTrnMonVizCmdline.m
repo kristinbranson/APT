@@ -5,13 +5,12 @@ classdef TrkTrnMonVizCmdline < handle
     function obj = TrkTrnMonVizCmdline(varargin)
     end
     
-    function [tfSucc,msg] = resultsReceived(obj,sRes)
+    function [tfSucc,msg] = resultsReceived(obj, res)
       % Callback executed when new result received from training monitor BG
       % worker
       %
       % trnComplete: scalar logical, true when all views done
       
-      res = sRes.result;
       fprintf(1,' ### Results size: %s\n',mat2str(size(res)));
       for ivw=1:numel(res) 
         fprintf(1,'### Elem %d\n',ivw);

@@ -11,9 +11,9 @@ lObj.trackSetCurrentTracker(2); % MDN
 t = lObj.tracker; % DeepTracker/MDN tracking object
 
 %% Parameters
-sPrm = lObj.trackGetParams() % All APT parameters
+sPrm = lObj.trackGetTrainingParams() % All APT parameters
 % ... modify sPrm ...
-lObj.trackSetParams(sPrm);
+lObj.trackSetTrainingParams(sPrm);
 
 %% Backend
 be = DLBackEnd.Bsub; % AWS, Bsub, Docker

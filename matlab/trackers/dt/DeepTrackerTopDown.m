@@ -189,7 +189,7 @@ classdef DeepTrackerTopDown < DeepTracker
 %           end
 %         end
 % 
-%         o.setAllParams(lblObj.trackGetParams());
+%         o.setAllParams(lblObj.trackGetTrainingParams());
 % 
 %         if isempty(o.sPrmAll)
 %           error('No tracking parameters have been set.');

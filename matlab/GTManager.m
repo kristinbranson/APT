@@ -67,7 +67,7 @@ handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
 
 
 lObj = varargin{1};
-if isdeployed || ~lObj.isgui,
+if isdeployed() || ~lObj.isgui,
   % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
   % require Java Swing" from
   % cbkGTSuggUpdated->NavTreeTable/setData->treeTable.
@@ -151,6 +151,12 @@ function cbkGTisGTModeChanged(hObject,src,evt)
 
 function cbkGTSuggUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 % if lObj.isinit
 %   return;
@@ -200,6 +206,12 @@ ntt.updateDataColumn('hasLbl',num2cell(tf));
 
 function cbkGTResUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTResUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 tblSugg = lObj.gtSuggMFTable;
 ntt = handles.navTreeTbl;

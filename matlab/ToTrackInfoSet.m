@@ -92,7 +92,7 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
         X = reshape(X(:,:,stages0),[sz(1:2),nnz(stages0)]);
       end
 
-    end
+    end  % function
 
     function files = getMovfiles(obj,varargin)
       files = obj.mergeGet('movfiles',varargin{:});
@@ -140,7 +140,7 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       listoutfiles = {};
       for i = 1:numel(obj.ttis)        
         j = obj.ttis(i).getListOutfiles();
-        listoutfiles = [listoutfiles j];
+        listoutfiles = [listoutfiles j];  %#ok<AGROW>
       end
 
     end
@@ -183,15 +183,15 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       end
     end
 
-    function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
-      % Assuming all the paths are paths on a remote-filesystem backend, change them
-      % all to their corresponding local paths.  The backend argument is used to
-      % lookup local movie paths from their remote versions.
-      n = numel(obj.ttis) ;
-      for i = 1 : n ,
-        obj.ttis(i).changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
-      end
-    end  % function
+    % function changePathsToLocalFromRemote(obj, remoteCacheRoot, localCacheRoot, backend)
+    %   % Assuming all the paths are paths on a remote-filesystem backend, change them
+    %   % all to their corresponding local paths.  The backend argument is used to
+    %   % lookup local movie paths from their remote versions.
+    %   n = numel(obj.ttis) ;
+    %   for i = 1 : n ,
+    %     obj.ttis(i).changePathsToLocalFromRemote(remoteCacheRoot, localCacheRoot, backend) ;
+    %   end
+    % end  % function
   end  % methods
 
 end  % classdef

@@ -23,7 +23,7 @@ classdef BgMonitor < handle
   end
 
   properties (Transient)
-    sRes
+    pollingResult
   end
 
   methods
@@ -110,49 +110,48 @@ classdef BgMonitor < handle
 
       % This can be called from the delete() method, so we are extra careful about
       % making sure the message targets are valid.
-      sendMaybe(obj.bgClientObj, 'stopPollingLoopHard') ;
+      sendMaybe(obj.bgClientObj, 'stopPollingLoop') ;
     end
     
-    function didReceivePollResults(obj, sRes)
+    function didReceivePollResults(obj, pollingResult)
       % Called by the BgClient when a polling result is received.  Checks for error
       % or completion and notifies the parent DeepTracker accordingly.
 
-      % Produce some debugging output
-      BgMonitor.debugfprintf('Inside BgMonitor.didReceivePollResults()\n') ;
-      
+      % % DEBUG
+      % pollingResult  %#ok<NOPRT>
+
       % Cause views/controllers to be updated with the latest poll results
-      obj.sRes = sRes ;  % Stash so to controllers/views have access to it.
-      if strcmp(obj.processName, 'track') 
-        obj.parent_.didReceiveTrackingPollResults_() ;  
-          % This call causes (through a child-to-parent call chain) the labeler to
-          % notify() views/controllers that there's a tracking result, and that they should
-          % update themselves accordingly.  But that's it. Determining that tracking is
-          % complete is done below.
-      elseif strcmp(obj.processName, 'train') 
-        obj.parent_.didReceiveTrainingPollResults_() ;
-          % This call causes (through a child-to-parent call chain) the labeler to
-          % notify() views/controllers that there's a training result, and that they should
-          % update themselves accordingly.  But that's it. Determining that training is
-          % complete is done below.
-      else
-          error('Internal error: Unknown processName %s', obj.processName) ;
-      end
+      obj.pollingResult = pollingResult ;  % Stash so to controllers/views have access to it.
+      obj.parent_.didReceivePollResults(obj.processName) ;
+        % This call causes (through a child-to-parent call chain) the labeler to
+        % notify() views/controllers that there's a training/tracking result, and that they should
+        % update themselves accordingly.  But that's it. Determining that training/tracking is
+        % complete is done below.
       
       % Determine whether the polling itself was successful or not
-      tfpollsucc = BgMonitor.getPollSuccess(sRes);     
-      
-      % Check for errors.
-      errOccurred = any(tfpollsucc & BgMonitor.getErrOccurred(sRes));
-      if errOccurred
+      didPollingItselfSucceed = pollingResult.pollsuccess ;  % logical scalar
+      if ~didPollingItselfSucceed
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        if strcmp(obj.processName, 'track') ,
-          obj.parent_.didErrorDuringTracking(sRes) ;
-        elseif strcmp(obj.processName, 'train') ,
-          obj.parent_.didErrorDuringTraining(sRes) ;
-        else
-          error('Internal error: Unknown processName %s', obj.processName) ;
-        end
+        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
+
+        % If we get here, we're done dealing with the current polling result        
+        return
+      end
+      
+      % Check for errors.      
+      errFileExists = pollingResult.errFileExists ;  % could be njobs x 1, or nmovies x nviews x nstages
+      tfComplete = pollingResult.tfComplete ;  % could be njobs x 1, or nmovies x nviews x nstages
+      isRunning = pollingResult.isRunning ;  % could be njobs x 1, or nmovies x nviews x nstages
+      isPopulated = pollingResult.isPopulated ;  % could be njobs x 1, or nmovies x nviews x nstages
+        % However shaped, the four vars above should have the *same* shape.
+        % isPopulated indicates which elements of the other three correspond to
+        % actual jobs, rather than just being set to a default value.
+      didErrorOccur = any(isPopulated & (errFileExists | (~tfComplete & ~isRunning)), 'all') ;
+      if didErrorOccur
+        % Signal to parent object, typically a DeepTracker, that tracking/training
+        % has errored.
+        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
@@ -160,20 +159,14 @@ classdef BgMonitor < handle
                   
       % Check for completion.
       if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
-        obj.tfComplete_ = all(tfpollsucc & BgMonitor.isComplete(sRes));
+        obj.tfComplete_ = all(~isPopulated | tfComplete, 'all') ;
         if obj.tfComplete_
           % Send message to console
           fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
           
           % Signal to parent object, typically a DeepTracker, that tracking/training
           % has completed.
-          if strcmp(obj.processName, 'track') ,
-            obj.parent_.didCompleteTracking(sRes.result) ;
-          elseif strcmp(obj.processName, 'train') ,
-            obj.parent_.didCompleteTraining(sRes.result) ;
-          else
-            error('Internal error: Unknown processName %s', obj.processName) ;
-          end
+          obj.parent_.didCompleteTrainingOrTracking(obj.processName, pollingResult) ;
 
           % If we get here, we're done dealing with the current polling result
           return
@@ -182,44 +175,44 @@ classdef BgMonitor < handle
     end  % function didReceivePollResults
   end  % methods
   
-  methods (Static)
-    function tfpollsucc = getPollSuccess(sRes)
-      if isfield(sRes.result,'pollsuccess'),
-        tfpollsucc = [sRes.result.pollsuccess];
-      else
-        tfpollsucc = true(1,numel(sRes.result));
-      end
-    end
-
-    % function killOccurred = getKillOccurred(sRes)
-    %   killOccurred = [sRes.result.killFileExists];
-    % end
-
-    function errOccurred = getErrOccurred(sRes)
-      errOccurred = [sRes.result.errFileExists];
-    end
-    
-    function errFile = getErrFile(sRes)
-      errFile = sRes.result(1).errFile;
-    end
-
-    function logFile = getLogFile(sRes,i)
-      logFile = sRes.result(i).logFile;
-    end
-
-    function result = getLogFileErrLikely(sRes)
-      result = false(size(sRes.result)) ;
-    end
-
-    function tfComplete = isComplete(sRes)
-      tfComplete = [sRes.result.tfComplete];
-    end
-
-    function debugfprintf(varargin)
-      DEBUG = false ;
-      if DEBUG ,
-        fprintf(varargin{:});
-      end
-    end  % function    
-  end  % methods (Static)
+  % methods (Static)
+  %   % function tfpollsucc = getPollSuccess(pollingResult)
+  %   %   if isfield(pollingResult,'pollsuccess'),
+  %   %     tfpollsucc = [pollingResult.pollsuccess] ;
+  %   %   else
+  %   %     tfpollsucc = true(1,numel(pollingResult)) ;
+  %   %   end
+  %   % end
+  % 
+  %   % function killOccurred = getKillOccurred(pollingResult)
+  %   %   killOccurred = [pollingResult.killFileExists];
+  %   % end
+  % 
+  %   % function errOccurred = getErrOccurred(pollingResult)
+  %   %   errOccurred = [pollingResult.errFileExists] ;
+  %   % end
+  % 
+  %   % function errFile = getErrFile(pollingResult)
+  %   %   errFile = pollingResult.errFile{1} ;
+  %   % end
+  % 
+  %   % function logFile = getLogFile(pollingResult,i)
+  %   %   logFile = pollingResult.logFile{i} ;
+  %   % end
+  % 
+  %   % function result = getLogFileErrLikely(pollingResult)
+  %   %   result = false(size(pollingResult)) ;
+  %   % end
+  % 
+  %   % function tfComplete = isComplete(pollingResult)
+  %   %   tfComplete = [pollingResult.tfComplete] ;
+  %   % end
+  % 
+  %   % function debugfprintf(varargin)
+  %   %   DEBUG = false ;
+  %   %   if DEBUG ,
+  %   %     fprintf(varargin{:});
+  %   %   end
+  %   % end  % function    
+  % end  % methods (Static)
 end  % classdef

@@ -34,13 +34,13 @@ classdef CropMaskOnOffTestCase < matlab.unittest.TestCase
       labeler.set_backend_property('jrcAdditionalBsubArgs', setup_params.jrcAdditionalBsubArgs) ;
 
       % Modify the training parameters
-      original_training_params = labeler.trackGetParams();
+      original_training_params = labeler.trackGetTrainingParams();
       iterationCount = 200 ;
       new_training_params = struct('dl_steps', {iterationCount}, 'multi_crop_ims', {doCrop}, 'multi_loss_mask', {doMask}) ;  % scalar struct
       training_params = structsetleaf(original_training_params, ...
                                       new_training_params, ...
                                       'verbose', true) ;
-      labeler.trackSetParams(training_params);
+      labeler.trackSetTrainingParams(training_params);
 
       % Want labeler to do its thing quietly
       labeler.silent = true;
