@@ -5129,6 +5129,7 @@ classdef LabelerController < handle
 
     function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
       toTrackIn = labeler.mIdx2TrackListGUI(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
@@ -5136,7 +5137,7 @@ classdef LabelerController < handle
       if ~dostore,
         return;
       end
-      trackBatch('labeler',labeler,'toTrack',toTrackOut);
+      labeler.trackBatch('toTrack',toTrackOut);
     end
 
 
