@@ -178,10 +178,12 @@ classdef TrnPack
       s = jsondecode(jse{1});
       fprintf(1,'loaded %s\n',jsonfile);
     end
+    
     function nlbls = readNLabels(tpjson)
        tp = TrnPack.hlpLoadJson(tpjson);
        nlbls = arrayfun(@(x)size(x.p,2),tp);
     end
+
     function [slbl,j,tp,locg] = loadPack(packdir,varargin)
       % Load training package into MATLAB data structures
       %
@@ -281,7 +283,7 @@ classdef TrnPack
       end
       
       tObj = lObj.tracker;
-      tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
+      tObj.setAllParams(lObj.trackGetTrainingParams()); % does not set skel, flipLMEdges
 
       slbl_orig = tObj.trnCreateStrippedLbl();
       slbl = Lbl.compressStrippedLbl(slbl_orig,'ma',true);
@@ -404,7 +406,7 @@ classdef TrnPack
       jsonoutf = dmc.trainLocLnx;
       %jsonoutf = 'loc.json';
       s = struct();
-      s.movies = lObj.movieFilesAllFull;
+      s.movies = lObj.movieFilesAllGTaware;
       if tfsplitsprovided
         s.splitnames = arrayfun(@(x)sprintf('split%02d',x),1:nsplits,'uni',0);
       else

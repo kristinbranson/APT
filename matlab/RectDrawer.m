@@ -12,12 +12,12 @@ classdef RectDrawer < handle
       obj.hRect = gobjects(0,1);      
     end
     function delete(obj)
-      deleteValidHandles(obj.hRect);
+      deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = [];
       obj.ax = [];
     end
     function initRois(obj)
-      deleteValidHandles(obj.hRect);
+      deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = gobjects(0,1);
     end
     function newRoiDraw(obj)

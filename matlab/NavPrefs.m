@@ -73,7 +73,7 @@ guidata(hObject, handles);
 
 updateTimelineStatComparisonEnable(handles);
 
-centerOnParentFigure(hObject,lObj.gdata.figure);
+centerOnParentFigure(hObject,lObj.gdata.mainFigure_);
 hObject.Visible = 'on';
 
 uiwait(handles.figure1);

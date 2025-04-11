@@ -122,13 +122,14 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       xy = nan(npts,2,nTrx);
       tfeo = false(npts,nTrx);
       has_occ = isfield(ptrx,'pocc');
+      sel_pts = min(npts,size(ptrx(1).p,1));
       for j=1:nTrx
         ptrxJ = ptrx(iTrx(j));
         if ~isempty(ptrxJ.p)
           idx = frm + ptrxJ.off;
-          xy(:,:,j) = ptrxJ.p(:,:,idx);
+          xy(1:sel_pts,:,j) = ptrxJ.p(1:sel_pts,:,idx);
           if has_occ
-            tfeo(:,j) = ptrxJ.pocc(:,idx);
+            tfeo(1:sel_pts,j) = ptrxJ.pocc(1:sel_pts,idx);
           end
         end
       end
@@ -221,13 +222,13 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       minx=nanmin(pts_curr(:,1)); maxx=nanmax(pts_curr(:,1));
       miny=nanmin(pts_curr(:,2)); maxy=nanmax(pts_curr(:,2));      
 
-      v = lobj.videoCurrentAxis();
+      v = lobj.controller_.videoCurrentAxis();
       x_ok = (minx>= (v(1)-1))&(maxx<=(v(2)+1));
       y_ok = (miny>= (v(3)-1))&(maxy<=(v(4)+1));
       if x_ok && y_ok
         return;
       end
-      lobj.videoCenterOn(trx_curr.x(ndx_fr),trx_curr.y(ndx_fr));      
+      lobj.controller_.videoCenterOn(trx_curr.x(ndx_fr),trx_curr.y(ndx_fr));      
     end
     function updatePrimary(obj,iTgtPrimary) %#ok<INUSD>
       % currently unused. this API is used by Labeler. currently 
@@ -295,16 +296,16 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     end
     function deleteGfxHandles(obj)
 %       if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
-%         deleteValidHandles(obj.hXYPrdRed);
+%         deleteValidGraphicsHandles(obj.hXYPrdRed);
 %         obj.hXYPrdRed = [];
 %       end
-%       deleteValidHandles(obj.hXYPrdRedTxt);
+%       deleteValidGraphicsHandles(obj.hXYPrdRedTxt);
 %       obj.hXYPrdRedTxt = [];
-%       deleteValidHandles(obj.hSkel);
+%       deleteValidGraphicsHandles(obj.hSkel);
 %       obj.hSkel = [];
-%       deleteValidHandles(obj.hPch);
+%       deleteValidGraphicsHandles(obj.hPch);
 %       obj.hPch = [];
-%       deleteValidHandles(obj.hPchTxt);
+%       deleteValidGraphicsHandles(obj.hPchTxt);
 %       obj.hPchTxt = [];
     end
   end

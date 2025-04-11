@@ -24,7 +24,7 @@ for iproc=1:nproc
   trow = tMFT(IROW,:);
   iMov = trow.mov;
   if iMov~=lObj.currMovie
-    lObj.movieSet(iMov);
+    lObj.movieSetGUI(iMov);
     pause(10);
   end
 

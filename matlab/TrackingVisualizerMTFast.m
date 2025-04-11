@@ -130,12 +130,12 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     
     function deleteGfxHandles(obj)
       if ~isstruct(obj.hPred) % guard against serialized TVs which have PV structs in .hPred
-        deleteValidHandles(obj.hPred);
+        deleteValidGraphicsHandles(obj.hPred);
         obj.hPred = [];
       end
-      deleteValidHandles(obj.hPredTxt);
+      deleteValidGraphicsHandles(obj.hPredTxt);
       obj.hPredTxt = [];
-      deleteValidHandles(obj.hSkel);
+      deleteValidGraphicsHandles(obj.hSkel);
       obj.hSkel = [];
     end
       

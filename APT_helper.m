@@ -5,7 +5,7 @@ classdef APT_helper
   methods (Static)
     function lObj = load_proj(lblfile,varargin)
       % load project and if required update paths 
-      APT.setpathsmart;
+      APT.setpathsmart();
       [replace_path] = myparse(varargin,'replace_path',{'',''});
       lObj = Labeler('projfile',lblfile,'replace_path',replace_path);      
     end
@@ -55,10 +55,9 @@ classdef APT_helper
 %     end
     
     
-    function check_track(lObj,varargin)
-      [backend] = myparse(varargin,'backend','docker');
-      
-    end
+%     function check_track(lObj,varargin)
+%       [backend] = myparse(varargin,'backend','docker');      
+%     end
     
     function load_trk(trkfiles)
       lObj = APT_helper.find_lObj();
@@ -70,20 +69,11 @@ classdef APT_helper
       
     end
     
-    function set_backend(lObj, backend)
-      if strcmp(backend,'docker')
-        beType = DLBackEnd.Docker;
-      elseif strcmp(backend,'bsub')
-        beType = DLBackEnd.Bsub;
-      elseif strcmp(backend,'conda')
-        beType = DLBackEnd.Conda;
-      elseif strcmp(backend,'aws')
-        beType = DLBackEnd.AWS;
-      end
-      be = DLBackEndClass(beType,lObj.trackGetDLBackend);
-      lObj.trackSetDLBackend(be);
-
-    end
+%     function set_backend(lObj, backend)
+%       beType = DLBackEndFromString(backend) ;
+%       be = DLBackEndClass(beType,lObj.trackGetDLBackend);
+%       lObj.trackSetDLBackend(be);
+%     end
     
     function lObj = new_proj(proj_name, npts,ismulti,varargin)
       [nviews,has_trx] = myparse(varargin,...

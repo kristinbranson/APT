@@ -30,8 +30,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     calibrationdata = {}; % nmovies x 1
     tblMFT = 'unset'; % table of frames to track
 
-    lObj = [];
-    trainDMC = [];
+    trainDMC = [];  % empty or a DeepModelChainOnDisk.  Needs to be deep-copied when copying obj.
     trackid = ''; % for a particular track time
     jobid = ''; % for a particular job
     isma = false;
@@ -71,7 +70,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.checkFix();
       if ~isempty(trkfiles),
-        obj.setTrkfiles(trkfiles);
+        obj.setTrkFiles(trkfiles);
       end
       if ~isempty(trainDMC),
         obj.setTrainDMC(trainDMC);
@@ -82,8 +81,20 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if obj.tblMFTIsSet,
         obj = obj.consolidateTblMFT();
       end
+    end  % function
+  end  % methods
 
-    end
+  methods (Access=protected)
+    function obj2 = copyElement(obj)
+      % overload so that .trainDMC is deep-copied
+      obj2 = copyElement@matlab.mixin.Copyable(obj);
+      if ~isempty(obj.trainDMC)
+        obj2.trainDMC = copy(obj.trainDMC);
+      end
+    end  % function
+  end  % function
+
+  methods
     function convertTblMFTToContiguous(obj)
 
       if ~obj.tblMFTIsSet(),
@@ -375,7 +386,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.frm1(idx) = v;
     end
-     function v = getFrmlist(obj,varargin)
+    function v = getFrmlist(obj,varargin)
       if isempty(varargin) || isempty(obj.frmlist),
         v = obj.frmlist;
         return;
@@ -403,7 +414,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setErrfile(obj,v)
       obj.errfile = v;
     end
-    function v = getLogfile(obj)
+    function v = getLogFile(obj)
       v = obj.logfile;
     end
     function setLogfile(obj,v)
@@ -420,7 +431,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function setCmdfile(obj,v)
       obj.cmdfile = v;
     end
-    function [v,idx] = getTrkfiles(obj,varargin)
+    function [v,idx] = getTrkFiles(obj,varargin)
       if isempty(varargin),
         v = obj.trkfiles;
         idx = 1:numel(v);
@@ -564,14 +575,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
             shash = string2hash(mov);
             shash = shash(1:6);
             trkfilestr = [movS '_' shash '_' trnstr '_' obj.trackid '.trk'];
-            obj.trkfiles{imov,ivw,istage} = [trkoutdir,obj.trainDMC.filesep,trkfilestr];
+            obj.trkfiles{imov,ivw,istage} = [trkoutdir,'/',trkfilestr];
           end
         end
       end
     end
 
     function id = getId(obj)
-
       % i don't understand why this is so complicated -- i think we could
       % just use jobid if it is unique
       %trnstr = DeepModelChainOnDisk.getCheckSingle(obj.getTrnStrs(1));
@@ -581,12 +591,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       id = obj.trackjobid;
     end
 
-    function f = getDefaultOutfile(obj)
-      
+    function f = getDefaultOutfile(obj)      
       trkoutdir1 = DeepModelChainOnDisk.getCheckSingle(obj.trainDMC.dirTrkOutLnx(1));
       id = obj.getId();
-      f = [trkoutdir1,obj.trainDMC.filesep,id];
-
+      f = [ trkoutdir1 '/' id ] ;
     end
 
 
@@ -612,7 +620,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       obj.cmdfile = [obj.getDefaultOutfile,'.cmd'];
     end
 
-    function setTrkfiles(obj,v,varargin)
+    function setTrkFiles(obj,v,varargin)
       nstages = obj.nstages;
       nviews = obj.nviews;
       [stages1] = myparse_nocheck(varargin,'stage',obj.stages);
@@ -648,22 +656,25 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           end
         end
       end
-    end
+    end  % function
     
     function v = getListfile(obj)
       v = obj.listfile;
     end
+
     function setListfile(obj,v)
       obj.listfile = v;
     end
-    function makeListFile(obj,isgt)
+
+    function makeListFile(obj, isgt, backend)
+      % Make the TrackList*.json file for tracking.  Throws if something goes wrong.
       assert(~isequal(obj.tblMFT,'unset'),'No table has been set')
       if nargin<2
         isgt = false;
       end
 
-      trnstr = obj.trainDMC.getTrainID{1};
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      trnstr = obj.trainDMC.getTrainID{1} ;
+      nowstr = datestr(now(), 'yyyymmddTHHMMSS') ;
       if isgt
         extrastr = '_gt';
       else
@@ -685,15 +696,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         args = {};
       end
       if ~isempty(obj.croprois)
-        args = [args {'croprois',obj.croprois}];
+        args = [args {'croprois',obj.croprois}] ;
       end
-      mov_rem = obj.movfiles;
-      % this should be changed if we want to do it on AWS or other remote
-      % backends
-      DeepTracker.trackWriteListFile(...
-        mov_rem,obj.movidx,obj.tblMFT,obj.listfile,args{:});
+      backend.trackWriteListFile(...
+        obj.movfiles, obj.movidx, obj.tblMFT, obj.listfile, args{:}) ;
       obj.islistjob = true;
-    end
+    end  % backend
+
     function v = getMovidx(obj,varargin)
       if isempty(varargin),
         v = obj.movidx;
@@ -725,7 +734,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
 
     end
-    function v = getTrxfiles(obj,varargin)
+    function v = getTrxFiles(obj,varargin)
       if isempty(obj.trxfiles) || isempty(varargin),
         v = obj.trxfiles;
         return;
@@ -733,7 +742,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       idx = obj.select('trxfiles',varargin{:});
       v = obj.trxfiles(idx);
     end
-    function setTrxfiles(obj,v,varargin)
+    function setTrxFiles(obj,v,varargin)
       if isempty(varargin),
         obj.trxfiles = v;
         return;
@@ -1116,14 +1125,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tti.setFrm1(obj.getFrm1(getargs{:}),setargs{:});
       tti.setFrmlist(obj.getFrmlist(getargs{:}),setargs{:});
       tti.setErrfile(obj.getErrfile());
-      tti.setLogfile(obj.getLogfile());
+      tti.setLogfile(obj.getLogFile());
       tti.setKillfile(obj.getKillfile());
       tti.setCmdfile(obj.getCmdfile());
-      tti.setTrkfiles(obj.getTrkfiles(getargs{:}),setargs{:});
+      tti.setTrkFiles(obj.getTrkFiles(getargs{:}),setargs{:});
       tti.setListfile(obj.getListfile());
       tti.setMovfiles(obj.getMovfiles(getargs{:}),setargs{:});
       tti.movidx = obj.getMovidx(getargs{:});
-      tti.setTrxfiles(obj.getTrxfiles(getargs{:}),setargs{:});
+      tti.setTrxFiles(obj.getTrxFiles(getargs{:}),setargs{:});
       tti.setTrxids(obj.getTrxids(getargs{:}),setargs{:});
       tti.setCroprois(obj.getCroprois(getargs{:}),setargs{:});
       tti.setCalibrationfiles(obj.getCalibrationfiles(getargs{:}),setargs{:});
@@ -1157,7 +1166,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           'movfiles',tti.getMovfiles,...
           'frm0',tti.getFrm0,'frm1',tti.getFrm1,...
           'frmlist',tti.getFrmlist,...
-          'trkfiles',tti.getTrkfiles,'trxfiles',tti.getTrxfiles,...
+          'trkfiles',tti.getTrkFiles,'trxfiles',tti.getTrxFiles,...
           'trxids',tti.getTrxids,'croprois',tti.getCroprois,...
           'calibrationfiles',tti.getCalibrationfiles,...
           'calibrationdata',tti.getCalibrationdata,...
@@ -1170,12 +1179,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           assert(isequal(obj.stages,tti.stages));
           obj.addViews('views',viewsadd,...
             'movfiles',tti.getMovfiles('view',viewsadd),...
-            'trkfiles',tti.getTrkfiles('view',viewsadd),...
-            'trxfiles',tti.getTrxfiles('view',viewsadd));
+            'trkfiles',tti.getTrkFiles('view',viewsadd),...
+            'trxfiles',tti.getTrxFiles('view',viewsadd));
         else
           assert(isequal(obj.views,tti.views));
           obj.addStages('stages',stagesadd,...
-            'trkfiles',tti.getTrkfiles('stage',stagesadd));
+            'trkfiles',tti.getTrkFiles('stage',stagesadd));
         end
       end
 
@@ -1264,29 +1273,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       v = obj.trackjobid;
     end
 
-
-    function prepareFiles(obj)
-
-      obj.checkCreateDirs();
-      obj.deleteErrFile();
-      obj.deletePartTrkFiles();
-      obj.deleteKillFile();
-
-    end
-
     function v = trkoutdir(obj,varargin)
-
       [view,stage] = myparse(varargin,'view',obj.views,'stage',obj.stages);
       v = obj.trainDMC.dirTrkOutLnx('view',view-1,'stage',stage);
-
     end
 
-    function checkCreateDirs(obj)
-      checkCreateDir(obj.trkoutdir,'trk cache dir');
-    end
-
-    function [v,idx] = getParttrkfiles(obj,varargin)
-      [trkfs,idx] = obj.getTrkfiles(varargin{:});
+    function [v,idx] = getPartTrkFiles(obj,varargin)
+      [trkfs,idx] = obj.getTrkFiles(varargin{:});
       v = cellfun(@(x) [x,'.part'],trkfs,'Uni',0);
     end
 
@@ -1294,21 +1287,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       v = obj.listoutfiles;
     end
 
-    function deletePartTrkFiles(obj)
-      checkDeleteFiles(obj.getParttrkfiles(),'partial tracking result');
-    end
-
-    function deleteKillFile(obj)
-      checkDeleteFiles({obj.getKillfile()},'kill files');
-    end
-
-    function deleteErrFile(obj)
-      checkDeleteFiles({obj.getErrfile()},'error file');
-    end
-
     function nframestrack = getNFramesTrack(obj,lObj)
       if obj.islistjob
-        nframestrack = obj.getNFramesTrackList(lObj);
+        nframestrack = obj.getNFramesTrackList();
       else
         nframestrack = obj.getNFramesTrackMovie(lObj);
       end
@@ -1333,7 +1314,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
          
       for i = 1:numel(movidx1),
         movi = movidx1(i);
-        trxfile = DeepModelChainOnDisk.getCheckSingle(obj.getTrxfiles('movie',movi,'view',1));
+        trxfile = DeepModelChainOnDisk.getCheckSingle(obj.getTrxFiles('movie',movi,'view',1));
         trxinfo = lObj.GetTrxInfo(trxfile);
         ids = trxids1{i};
         if isempty(ids),
@@ -1346,11 +1327,82 @@ classdef ToTrackInfo < matlab.mixin.Copyable
 
     end
 
-    function nframestrack = getNFramesTrackList(obj,lObj)
+    function nframestrack = getNFramesTrackList(obj) 
       nframestrack = size(obj.tblMFT,1);
     end
 
-  end
+    % function changePathsToLocalFromRemote(obj, localCacheRoot, backend)
+    %   % Converts all paths in obj from paths on the backend's remote filesytem 
+    %   % to their corresponding local paths.  If backend is a local-filesystem
+    %   % backend, do nothing.
+    % 
+    %   % If backend has local filesystem, do nothing
+    %   if backend.isFilesystemLocal() ,
+    %     return
+    %   end
+    % 
+    %   % Generate all the relocated paths
+    %   remoteCacheRoot = backend.remoteDMCRootDir ;
+    %   newmovfiles = cellfun(@(old_path)(backend.getLocalMoviePathFromRemote(old_path)), ...
+    %                         obj.movfiles, ...
+    %                         'UniformOutput', false) ;
+    %   newtrkfiles = replace_prefix_path(obj.trkfiles, remoteCacheRoot, localCacheRoot) ;
+    %   newerrfile = replace_prefix_path(obj.errfile, remoteCacheRoot, localCacheRoot) ;
+    %   newlogfile = replace_prefix_path(obj.logfile, remoteCacheRoot, localCacheRoot) ;
+    %   newcmdfile = replace_prefix_path(obj.cmdfile, remoteCacheRoot, localCacheRoot) ;
+    %   newkillfile = replace_prefix_path(obj.killfile, remoteCacheRoot, localCacheRoot) ;
+    %   newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, remoteCacheRoot, localCacheRoot) ;
+    %   % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+    %   % would need to be relocated, but so far hasn't been an issue 
+    %   % -- ALT, 2024-07-31
+    % 
+    %   % Actually write all the new paths to the obj only after all the above things
+    %   % have finished, to make a borked state less likely.
+    %   obj.movfiles = newmovfiles ;
+    %   obj.trkfiles = newtrkfiles ;
+    %   obj.errfile = newerrfile ;
+    %   obj.logfile = newlogfile ;
+    %   obj.cmdfile = newcmdfile ;
+    %   obj.killfile = newkillfile ;
+    %   obj.trackconfigfile = newtrackconfigfile ;
+    % end  % function
+
+    function changePathsToRemoteFromWsl(obj, wslCacheRoot, backend)
+      % Converts all paths in obj from WSL paths on the frontend's filesytem to
+      % their corresponding paths on the backend.  If backend is a local-filesystem
+      % backend, do nothing.
+
+      % If backend has local filesystem, do nothing
+      if backend.isFilesystemLocal() ,
+        return
+      end
+      
+      % Generate all the relocated paths
+      remoteCacheRoot = backend.remoteDMCRootDir ;
+      newmovfiles = cellfun(@(old_path)(backend.remote_movie_path_from_wsl(old_path)), ...
+                            obj.movfiles, ...
+                            'UniformOutput', false) ;
+      newtrkfiles = linux_replace_prefix_path(obj.trkfiles, wslCacheRoot, remoteCacheRoot) ;
+      newerrfile = linux_replace_prefix_path(obj.errfile, wslCacheRoot, remoteCacheRoot) ;
+      newlogfile = linux_replace_prefix_path(obj.logfile, wslCacheRoot, remoteCacheRoot) ;
+      newcmdfile = linux_replace_prefix_path(obj.cmdfile, wslCacheRoot, remoteCacheRoot) ;
+      newkillfile = linux_replace_prefix_path(obj.killfile, wslCacheRoot, remoteCacheRoot) ;
+      newtrackconfigfile = linux_replace_prefix_path(obj.trackconfigfile, wslCacheRoot, remoteCacheRoot) ;
+      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+      % would need to be relocated, but so far hasn't been an issue 
+      % -- ALT, 2024-07-31
+
+      % Actually write all the new paths to the obj only after all the above things
+      % have finished, to make a borked state less likely.
+      obj.movfiles = newmovfiles ;
+      obj.trkfiles = newtrkfiles ;
+      obj.errfile = newerrfile ;
+      obj.logfile = newlogfile ;
+      obj.cmdfile = newcmdfile ;
+      obj.killfile = newkillfile ;
+      obj.trackconfigfile = newtrackconfigfile ;
+    end  % function    
+  end  % methods
 
   methods (Static)
     
@@ -1454,7 +1506,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       for i = 2:numel(vin),
         vout = [vout;vin{i}(:)]; %#ok<AGROW> 
       end
-    end
+    end  % function
 
-  end
-end
+  end  % methods (Static)
+end  % classdef

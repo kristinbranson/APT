@@ -57,10 +57,10 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
             'Visualization unavailable until at least one animal is labeled.');
           return;
         end        
-        mr = MovieReader;
+        mr = MovieReader();
         assert(~lObj.isMultiView);
         IVIEW = 1;
-        lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
+        mr.openForLabeler(lObj,mIdx,IVIEW);
         im = mr.readframe(frm);
         
         obj.xyLbl = xyLbl; %#ok<PROPLC>
@@ -85,14 +85,14 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
 %       axis(hAx,'auto');
       title(hAx,tstr,'interpreter','none','fontweight','normal',...
         'fontsize',10);
-      deleteValidHandles(obj.hRect);
+      deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = plot(rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
       
       obj.initSuccessful = true;
     end
     
     function propUnselected(obj)
-      deleteValidHandles(obj.hRect);
+      deleteValidGraphicsHandles(obj.hRect);
       obj.hRect = [];
       obj.initSuccessful = false;
     end

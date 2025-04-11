@@ -1,4 +1,4 @@
-classdef DLNetType < handle %dynamicprops
+classdef DLNetType < handle
   % Deep Learning Network
   %
   % A DLNetType represents a particular deep net. It has a particular
@@ -37,16 +37,20 @@ classdef DLNetType < handle %dynamicprops
   
   enumeration 
     mdn_joint_fpn ('mdn_joint_fpn')
-    mmpose ('mmpose')
+    mmpose ('mmpose')  % If we had a time machine we would change this to mspn, but it's hard to do now (Aug 2023)
     deeplabcut ('deeplabcut')
     dpk ('dpk')
     openpose ('openpose')
     mdn ('mdn')
     unet ('unet')
+    hrnet ('hrnet')
     %leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')
+    hrformer ('hrformer')
+    multi_cid ('multi_cid')
+    multi_dekr ('multi_dekr')
   end
   
   methods 
@@ -71,15 +75,13 @@ classdef DLNetType < handle %dynamicprops
     function g = getModelGlobs(obj,iterCurr)
       g = cellfun(@(x)sprintf(x,iterCurr),obj.modelGlobs,'uni',0);
     end
-    function tf = requiresTrnPack(obj,netMode)
-      % whether training requires trnpack generation
-      
-      tf = true;
-      return
-      
-      tf = obj.isMultiAnimal || ...
-          (netMode~=DLNetMode.singleAnimal && ...
-           netMode~=DLNetMode.multiAnimalTDPoseTrx);      
+    function tf = requiresTrnPack(obj, netMode)  %#ok<INUSD> 
+      % whether training requires trnpack generation      
+      tf = true ;
+      return      
+%       tf = obj.isMultiAnimal || ...
+%           (netMode~=DLNetMode.singleAnimal && ...
+%            netMode~=DLNetMode.multiAnimalTDPoseTrx);      
     end
   end
   
@@ -103,9 +105,9 @@ classdef DLNetType < handle %dynamicprops
       end
     end
   end
-end 
+end  % classdef 
   
 function s = lclReadNetYaml()
-yaml = fullfile(APT.Root,'matlab','trackers','dt','nets.yaml');
-s = ReadYaml(yaml);
+  netsYamlFilePath = fullfile(APT.Root, 'matlab', 'trackers', 'dt', 'nets.yaml') ;
+  s = yaml.ReadYaml(netsYamlFilePath);
 end

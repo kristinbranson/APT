@@ -4,7 +4,7 @@ fprintf('Loading results...\n');
 res = load(resname);
 
 lObj = Labeler;
-lObj.projLoad(lblname);
+lObj.projLoadGUI(lblname);
 
 %% new moviereader, labelCore
 fprintf('Setting new MovieReader, LabelCore...\n');
@@ -51,7 +51,7 @@ lc.setPs(xyGT,xyTstTPadded,xyTstTRedPadded);
 delete(lObj.lblCore);
 lObj.lblCore = lc;
 lc.init(lObj.nLabelPoints,lObj.labelPointsPlotInfo);
-lObj.setFrame(1);
+lObj.setFrameGUI(1);
 
 
 %% plot error by landmark over frames

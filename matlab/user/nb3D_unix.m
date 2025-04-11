@@ -328,7 +328,7 @@ end
 
 %% Train init/params
 PARAMFILE = 'f:\romain\20161214MoreData\tp@18pts@3d_jitterForeMore@2lmdiff.yaml';
-sPrm = ReadYaml(PARAMFILE);
+sPrm = yaml.ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
 rc = RegressorCascade(sPrm);
@@ -355,13 +355,13 @@ NPTS = 18;
 frame = trkResFull.tMFPtrack.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
-  lObj.projLoad(LBL);
+  lObj.projLoadGUI(LBL);
 end
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,NPTS);
 for iAx = 1:3
@@ -413,13 +413,13 @@ NPTS = 18;
 frame = tFPtrn.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
-  lObj.projLoad(LBL);
+  lObj.projLoadGUI(LBL);
 end
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,NPTS);
 for iAx = 1:3

@@ -32,7 +32,6 @@ mdn_joint_fpn:
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
-
 mdn:
   shortString: mdn  
   displayString: MDN (Deprecated)
@@ -64,7 +63,31 @@ mmpose:
   modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
   trkAuxFields: [pTrkConf]
   trkAuxLabels: [confidence]
-  doesOccPred: 1
+  doesOccPred: 0
+  isMultiAnimal: 0
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
+hrformer:
+  shortString: hrformer
+  displayString: HRFormer
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
+hrnet:
+  shortString: hrnet
+  displayString: HRNet
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
   isMultiAnimal: 0
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
@@ -124,6 +147,30 @@ multi_openpose:
   modelGlobs: [deepnet-%d.*, traindata*] 
   trkAuxFields: []
   trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
+multi_cid:
+  shortString: multi_cid
+  displayString: CiD
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 1
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
+multi_dekr:
+  shortString: multi_dekr
+  displayString: DeKR
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 1
 #  docker: tf23_mmdetection

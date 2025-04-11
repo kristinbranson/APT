@@ -3355,7 +3355,7 @@ classdef PostProcess < handle
         return;
       end
       
-      sPrmAll = lObj.trackGetParams();
+      sPrmAll = lObj.trackGetTrainingParams();
       pptype = sPrmAll.ROOT.PostProcess.reconcile3dType;
       if strcmpi(pptype,'None'),
         return;

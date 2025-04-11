@@ -1,34 +1,41 @@
 function result = ReadYamlRaw(filename, verbose, nosuchfileaction, treatasdata)
 import yaml.*;
 if ~exist('verbose','var')
-        verbose = 0;
-    end;
-    if ~exist('nosuchfileaction','var')
-        nosuchfileaction = 0;
-    end;
-    if ~ismember(nosuchfileaction,[0,1])
-        error('nosuchfileexception parameter must be 0,1 or missing.');
-    end;
-    if(~exist('treatasdata','var'))
-        treatasdata = 0;
-    end;
-    if ~ismember(treatasdata,[0,1])
-        error('treatasdata parameter must be 0,1 or missing.');
-    end;
-    [pth,~,~] = fileparts(mfilename('fullpath'));       
-    try
-        import('org.yaml.snakeyaml.*');
-        javaObject('Yaml');
-    catch
-        dp = [pth filesep 'external' filesep 'snakeyaml-1.9.jar'];
-        if not(ismember(dp, javaclasspath ('-dynamic')))
-        	javaaddpath(dp); % javaaddpath clears global variables!?
-        end
-        import('org.yaml.snakeyaml.*');
-    end;
-    setverblevel(verbose);
-    result = load_yaml(filename, nosuchfileaction, treatasdata);
-end
+  verbose = 0;
+end;
+if ~exist('nosuchfileaction','var')
+    nosuchfileaction = 0;
+end;
+if ~ismember(nosuchfileaction,[0,1])
+    error('nosuchfileexception parameter must be 0,1 or missing.');
+end;
+if(~exist('treatasdata','var'))
+    treatasdata = 0;
+end;
+if ~ismember(treatasdata,[0,1])
+    error('treatasdata parameter must be 0,1 or missing.');
+end;
+[pth,~,~] = fileparts(mfilename('fullpath'));       
+try
+    import('org.yaml.snakeyaml.*');  % it doesn't seem like this does anything -- ALT, 2025-04-01 (no foolin)
+    javaObject('obj.yaml.snakeyaml.Yaml');  % test if the snakeyaml Java .jar is on the javaclasspath
+catch
+    % If the snakeyaml Java .jar is *not* on the javaclasspath, try to add it
+    javaClassPathAll = javaclasspath('-all') ;
+    % fprintf('javaClassPathAll:\n')
+    % cellfun(@(path)(fprintf('%s\n', path)), javaClassPathAll) ;
+    dp = [pth filesep 'external' filesep 'snakeyaml-1.9.jar'];
+    if not(ismember(dp, javaClassPathAll))
+    	javaaddpath(dp); % javaaddpath clears global variables!?
+    end
+    import('org.yaml.snakeyaml.*');
+end;
+setverblevel(verbose);
+result = load_yaml(filename, nosuchfileaction, treatasdata);
+end  % function
+
+
+
 function result = load_yaml(inputfilename, nosuchfileaction, treatasdata)
 import yaml.*;
 persistent nsfe;

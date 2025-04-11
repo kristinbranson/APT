@@ -197,7 +197,7 @@ classdef RigView < handle
 %           delete(imps(iIMP));
 %         end
 %       end
-%       cellfun(@deleteValidHandles,obj.hLines);
+%       cellfun(@deleteValidGraphicsHandles,obj.hLines);
 %       h = IMP.empty(1,0);
 %       obj.hIMPs = repmat({h},3,1);
 %       h = gobjects(0,2);

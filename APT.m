@@ -1,9 +1,9 @@
 classdef APT
   
   properties (Constant)
-    Root = getRootGeneral(); %fileparts(mfilename('fullpath'));
-    MANIFESTFILE = 'Manifest.txt';
-    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
+    Root = APT.getRoot_()
+    MANIFESTFILE = 'Manifest.txt'
+    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh')
     
     BUILDSNAPSHOTFILE = 'build.snapshot';
     BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
@@ -17,21 +17,18 @@ classdef APT
     % for now, hard-coded to use default loc for git
     WINSCPCMD = 'C:\Program Files\Git\usr\bin\scp.exe';
     WINSSHCMD = 'C:\Program Files\Git\usr\bin\ssh.exe';
-
-    % hardcoded name of AWS security group
-    AWS_SECURITY_GROUP = 'apt_dl';
-    % AMI = 'ami-0168f57fb900185e1';  TF 1.6
-    % AMI = 'ami-094a08ff1202856d6'; TF 1.13
-    % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
-    AMI = 'ami-061ef1fe3348194d4'; % TF 1.15 py3 and python points to python3
   end
   
   methods (Static)
     
-    function root = getRoot()
+    function root = getRoot_()
       % root: the folder containing APT.m. When deployed, it is
       % assumed the tree under root matches the dev repo
-      root = getRootGeneral();
+      if isdeployed()
+        root = fullfile(ctfroot(), 'APT_deployed') ;
+      else
+        root = fileparts(mfilename('fullpath')) ;
+      end
     end
     
     function m = readManifest()
@@ -60,10 +57,10 @@ classdef APT
       % p: cellstr, path entries      
       % jp: cellstr, javapath entries
       
-      m = APT.readManifest;
+      m = APT.readManifest();
       
-      root = APT.Root;
-      mlroot = fullfile(root,'matlab');
+      aptroot = APT.Root;
+      mlroot = fullfile(aptroot,'matlab');
       cprroot = fullfile(mlroot,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
@@ -91,12 +88,12 @@ classdef APT
 %         visionpath = 'vision_postinc17b';
 %       end
       aptpath = { ...
-        root; ...
+        aptroot; ...
         mlroot; ...
         fullfile(mlroot,'util'); ...
         fullfile(mlroot,'misc'); ...
         fullfile(mlroot,'private_imuitools'); ...
-        fullfile(root,'external','netlab'); ...
+        fullfile(aptroot,'external','netlab'); ...
         fullfile(mlroot,'user'); ...
         fullfile(mlroot,'user','orthocam'); ... %         fullfile(mlroot,'user','orthocam',visionpath); ...
         fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
@@ -104,7 +101,10 @@ classdef APT
         fullfile(mlroot,'propertiesGUI'); ...
         fullfile(mlroot,'treeTable'); ...
         fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
-        fullfile(root,'unittest'); ...
+        fullfile(mlroot,'unittest'); ...
+        fullfile(mlroot,'test'); ...
+        fullfile(mlroot,'test/single-tests'); ...
+        fullfile(mlroot,'test/single-tests/remote'); ...
         fullfile(mlroot,'compute_landmark_features'); ...
         fullfile(mlroot,'compute_landmark_transforms'); ...
         fullfile(mlroot,'trk'); ...
@@ -148,11 +148,11 @@ classdef APT
         fullfile('matlab','JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
         fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
         fullfile('matlab','treeTable')};
-      jp = fullfile(root,jprel);
+      jp = fullfile(aptroot,jprel);
     end
     
     function jaabapath = getjaabapath()
-      m = APT.readManifest;
+      m = APT.readManifest();
       jaabaroot = m.jaaba;
       jaabapath = { ...
         fullfile(jaabaroot,'filehandling'); ...
@@ -198,21 +198,21 @@ classdef APT
       % Don't set MATLAB path if it appears it is already set
       % "smart" in quotes, of course
       
-      if isdeployed
-        return;
+      if isdeployed()
+        return
       end
         
       [p,jp] = APT.getpath();
-      if APT.matlabPathNotConfigured
+      if APT.matlabPathNotConfigured()
         fprintf('Configuring your MATLAB path ...\n');
         addpath(p{:},'-begin');
       end
       cellfun(@javaaddpathstatic,jp);
       %MK 20190506 Add stuff to systems path for aws cli
-      if ismac
+      if ismac()
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
-    end
+    end  % function
     
     % AL20210813 
     % User on win10, ML2021a encountring obscure java classpath issues.
@@ -306,33 +306,36 @@ classdef APT
       pposetf = fullfile(r,'deepnet');
     end
     
-    function cacheDir = getdlcacheroot()
-      
-      m = APT.readManifest;
-      if isfield(m,'dltemproot')
-        cacheDir = m.dltemproot;
+    function result = getdotaptdirpath()  
+      % Returns the path to the .apt dir.  E.g. '/home/joesixpack/.apt'.  This is
+      % returned as a *native* path.      
+      envar_value = getenv('APT_DOT_APT_DIR') ;
+      if ~isempty(envar_value) ,
+        result = envar_value ;
       else
-        if ispc
-          userDir = winqueryreg('HKEY_CURRENT_USER',...
-            ['Software\Microsoft\Windows\CurrentVersion\' ...
-            'Explorer\Shell Folders'],'Personal');
+        manifest = APT.readManifest() ;
+        if isfield(manifest,'dltemproot')
+          result = manifest.dltemproot;
         else
-          userDir = char(java.lang.System.getProperty('user.home'));
+          home_folder_path = get_home_dir_name() ;
+          result = fullfile(home_folder_path,'.apt');
         end
-        cacheDir = fullfile(userDir,'.apt');
       end
+    end  % function
+    
+    function result = gettorchhomepath()
+      % Returns the path to the Torch cache dir, passed to Python in the envar
+      % TORCH_HOME.  E.g. '/home/joesixpack/.apt/torch'.  This is returned as a
+      % *native* path.
+      result = fullfile(APT.getdotaptdirpath(),'torch') ;
     end
     
-    function tr = torchhome()
-      tr = fullfile(APT.getdlcacheroot(),'torch');
-    end
-    
-    function s = codesnapshot
+    function s = codesnapshot()
       % This method assumes that the user has set their path using
       % APT.setpath (so that the Manifest correclty reflects
       % dependencies). Do a quick+dirty check of this assumption.
       grf = which('get_readframe_fcn');
-      manifest = APT.readManifest;
+      manifest = APT.readManifest();
       if ~isequal(fileparts(grf),fullfile(manifest.jaaba,'filehandling'))
         warning('APT:manifest',...
           'Runtime path appears to differ from that specified by Manifest. Code snapshot is likely to be incorrect.');
@@ -491,7 +494,7 @@ classdef APT
       bldnames = fieldnames(buildIfo);
       projs = fieldnames(mccProjargs);
       projs = projs(end:-1:1); % build GetMovieNFrames first
-      mnfst = APT.readManifest;
+      mnfst = APT.readManifest();
       bindir = fullfile(mnfst.build,bindirname);
       if exist(bindir,'dir')==0
         fprintf('Creating bin dir %s...\n',bindir);
@@ -598,14 +601,4 @@ classdef APT
     
   end
   
-end
-
-
-function root = getRootGeneral()
-  if isdeployed
-    root = fullfile(ctfroot,'APT_deployed');
-  else
-    root = fileparts(mfilename('fullpath'));   
-  end
-
 end

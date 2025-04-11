@@ -403,7 +403,7 @@ def prepare_deeplabcut(basedir,categories,info,trainlistfile=None):
             x[i] = np.nan
             y[i] = np.nan
             
-        v = ((np.isnan(x) | np.isnan(y)) == False).astype(int)
+        v = ((np.isnan(x) | np.isnan(y)) == False).astype(int)*2
         x[v==0] = 0.
         y[v==0] = 0.
         keypoints = np.c_[x,y,v].flatten()

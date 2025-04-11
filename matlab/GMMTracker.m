@@ -123,7 +123,7 @@ classdef GMMTracker < LabelTracker
         
         labeler.labelPosSetUnmarkedFramesMovieFramesUnmarked(...
           newPts,iM,fs);
-        labeler.setFrame(labeler.currFrame,'tfforcelabelupdate',true);
+        labeler.setFrameGUI(labeler.currFrame,'tfforcelabelupdate',true);
       end
     end
     
@@ -173,7 +173,7 @@ classdef GMMTracker < LabelTracker
         
         labeler.labelPosSetUnmarkedFramesMovieFramesUnmarked(...
           newPts,iM,fs);
-        labeler.setFrame(labeler.currFrame,'tfforcelabelupdate',true);
+        labeler.setFrameGUI(labeler.currFrame,'tfforcelabelupdate',true);
       end
     end
     

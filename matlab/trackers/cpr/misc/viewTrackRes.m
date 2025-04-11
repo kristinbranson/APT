@@ -111,7 +111,7 @@ fTst = tstMD.frm; % frames corresponding to res
 
 %%
 lObj = Labeler;
-lObj.projLoad(LBLFILE);
+lObj.projLoadGUI(LBLFILE);
 nf = lObj.nframes;
 Dlbl = lObj.nLabelPoints*2;
 
@@ -145,7 +145,7 @@ lObj.labelPointsPlotInfo.Colors(RESIPT2LBLIPT,:) = jet(numel(RESIPT2LBLIPT));
 lc.init(lObj.nLabelPoints,lObj.labelPointsPlotInfo);
 lc.setPs(xyPTstTPadfull,xyPTstTRedPadfull);
 lObj.lblCore = lc;
-lObj.setFrame(1);
+lObj.setFrameGUI(1);
 
 %% Susp
 xyLpos = permute(lObj.labeledpos{1},[3 1 2]);

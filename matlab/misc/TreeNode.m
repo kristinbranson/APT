@@ -1,4 +1,6 @@
 classdef TreeNode < handle 
+  % Seems to be a general handle class for representing a rooted tree, where
+  % each node can have some data associated with it.  -- ALT, 2025-02-04
 
   properties
     Data
@@ -22,7 +24,7 @@ classdef TreeNode < handle
     end
     
     function traverseDispWithPath(t,fcn)
-      % fcn should return a string to display
+      % fcn should return a string to display, given the .Data from a single node.
       
       assert(isscalar(t));
       trav(t,'');

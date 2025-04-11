@@ -69,7 +69,7 @@ classdef AxisHUD < handle
     function delete(obj)
       obj.initHTxts();
 
-      deleteValidHandles(obj.hHandedAnno);
+      deleteValidGraphicsHandles(obj.hHandedAnno);
       obj.hHandedAnno = [];
       
       for i=1:numel(obj.hHandedListnr)

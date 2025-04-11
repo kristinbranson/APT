@@ -156,8 +156,14 @@ classdef ViewConfig
         end
 
         ax.XAxisLocation = 'top';
-        ax.XColor = vCfg.AxColor;
-        ax.YColor = vCfg.AxColor;
+        rawAxColor = vCfg.AxColor ;
+        if iscell(rawAxColor)
+          axColor = cell2mat(rawAxColor) ;
+        else
+          axColor = rawAxColor ;
+        end
+        ax.XColor = axColor ;
+        ax.YColor = axColor ;
         ax.Box = 'on';
         ax.FontUnits = 'pixels';
         ax.FontSize = vCfg.AxFontSize;
@@ -176,7 +182,7 @@ classdef ViewConfig
           grid(ax,'off');
         end        
       end
-    end
+    end  % function
     
     function viewCfg = readCfgOffViews(hFig,hAx)
       % viewCfg: currently just a struct array
@@ -184,7 +190,7 @@ classdef ViewConfig
       assert(numel(hFig)==numel(hAx));
       nview = numel(hFig);
       
-      s = ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+      s = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
       viewCfg = repmat(s.View,nview,1);
       
       for i=1:nview

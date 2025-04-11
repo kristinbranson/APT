@@ -7,26 +7,28 @@ import sys
 from collections import OrderedDict
 import logging
 import PoseTools
-import tfdatagen
+#import tfdatagen
 import time
-import tensorflow.compat.v1 as tf
-ISTFR = False
-try:
-    from tfrecord.torch.dataset import TFRecordDataset
-    ISTFR = True
-except:
-    print('TFRecordDataset not available')
-import errno
-import re
-import gc
+#import tensorflow.compat.v1 as tf   # type:ignore
+# ISTFR = False
+# try:
+#     from tfrecord.torch.dataset import TFRecordDataset
+#     ISTFR = True
+# except:
+#     print('TFRecordDataset not available')
+#import errno
+#import re
+#import gc
 import time
 import cv2
 import xtcocotools.mask
 from functools import partial
+import random
+import time
 # from torch import autograd
 # autograd.set_detect_anomaly(True)
 
-ISWINDOWS = os.name == 'nt'
+#ISWINDOWS = os.name == 'nt'
 
 def print_train_data(cur_dict):
     p_str = ''
@@ -93,25 +95,73 @@ def decode_augment(features, conf, distort):
     return features
 
 def dataloader_worker_init_fn(id,epoch=0):
-    np.random.seed(id + 100*epoch)
+    np.random.seed(id + 100*epoch+int(time.time()))
+    random.seed(id+100*epoch+int(time.time()))
 
 class coco_loader(torch.utils.data.Dataset):
 
-    def __init__(self, conf, ann_file, augment):
+    def __init__(self, conf, ann_file, augment, image_folder_path=''):
         self.ann = PoseTools.json_load(ann_file)
         self.conf = conf
         self.augment = augment
         self.len = max(conf.batch_size,len(self.ann['images']))
         self.ex_wts = torch.ones(self.len)
+        self.coco_ignore_mask =  conf.get('coco_ignore_mask', False)
+        if self.len > 0:
+            # Test the given image_folder_path.  If it's no good, use conf.coco_im_dir
+            test_image_file_name = self.ann['images'][0]['file_name']
+            test_image_file_path = os.path.join(image_folder_path, test_image_file_name)            
+            if os.path.exists(test_image_file_path):
+                self.image_folder_path = image_folder_path
+            else:               
+                backup_image_folder_path = conf.coco_im_dir
+                logging.warning('No file at %s, trying %s as the coco_loader image_folder_path' % (test_image_file_path, backup_image_folder_path))
+                test_image_file_path = os.path.join(image_folder_path, test_image_file_name)            
+                if os.path.exists(test_image_file_path):
+                    self.image_folder_path = backup_image_folder_path
+                else:
+                    raise RuntimeError('Unable to read a test image in coco_loader __init__() method')
+        else:
+            # If there are no images, this likely doesn't matter anyway
+            self.image_folder_path = image_folder_path
 
     def __len__(self):
         return max(self.conf.batch_size,len(self.ann['images']))
+
+    def pad(self,image):
+        # Get the original image dimensions
+        original_height, original_width = image.shape[:2]
+
+        # Calculate the aspect ratio of the original image
+        original_aspect_ratio = original_width / original_height
+
+        # Calculate the desired width and height based on the target aspect ratio
+        target_aspect_ratio = self.conf.imsz[1]/self.conf.imsz[0]
+        if original_aspect_ratio < target_aspect_ratio:
+            # Pad vertically
+            desired_width = int(original_height * target_aspect_ratio)
+            padding = (desired_width - original_width)
+            padded_image = cv2.copyMakeBorder(image, 0, 0, 0, padding, cv2.BORDER_CONSTANT)
+        elif original_aspect_ratio > target_aspect_ratio:
+            # Pad horizontally
+            desired_height = int(original_width / target_aspect_ratio)
+            padding = desired_height - original_height
+            padded_image = cv2.copyMakeBorder(image, 0, padding, 0, 0, cv2.BORDER_CONSTANT)
+        else:
+            # No padding required, aspect ratios are the same
+            padded_image = image
+
+        return padded_image
 
     def __getitem__(self, item):
         conf = self.conf
         if (self.conf.batch_size)> len(self.ann['images']):
             item = np.random.randint(len(self.ann['images']))
-        im = cv2.imread(self.ann['images'][item]['file_name'],cv2.IMREAD_UNCHANGED)
+        im_path = os.path.join(self.image_folder_path, self.ann['images'][item]['file_name'])
+        if not os.path.exists(im_path):
+            im_path = os.path.join(conf.coco_im_dir,im_path)
+
+        im = cv2.imread(im_path,cv2.IMREAD_UNCHANGED)
         if im.ndim == 2:
             im = im[...,np.newaxis]
         else:
@@ -120,7 +170,14 @@ class coco_loader(torch.utils.data.Dataset):
         if im.shape[2] == 1:
             im = np.tile(im,[1,1,3])
 
-        if type(self.ann['images'][item]['movid']) == list:
+        if im.shape[:2] != tuple(conf.imsz):
+            im = self.pad(im)
+            sfactor = (im.shape[0]/conf.imsz[0]+im.shape[1]/conf.imsz[1])/2
+        else:
+            sfactor = 1.
+
+
+        if 'movid' not in self.ann['images'][item] or type(self.ann['images'][item]['movid']) == list:
             info = [item,item,item]
         else:
             info = [self.ann['images'][item]['movid'], self.ann['images'][item]['frm'],self.ann['images'][item]['patch']]
@@ -130,7 +187,7 @@ class coco_loader(torch.utils.data.Dataset):
         lndx = 0
         annos = []
         for a in self.ann['annotations']:
-            if not (a['image_id']==item):
+            if not (a['image_id']==self.ann['images'][item]['id']):
                 continue
             locs = np.array(a['keypoints'])
             if a['num_keypoints']>0 and a['area']>1:
@@ -141,10 +198,23 @@ class coco_loader(torch.utils.data.Dataset):
             annos.append(a)
 
         curl = np.array(curl)
-        occ = curl[...,2] < 1.5
+        if conf.nan_as_occluded:
+            occ = curl[...,2] < 0.5
+        else:
+            occ = curl[...,2] < 1.5
         locs = curl[...,:2]
-        mask = self.get_mask(annos,im.shape[:2])
-        im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale, mask=mask[None,...],occ=occ[None])
+        if np.all(locs[curl[...,2]==0,:]==0):
+            locs[curl[...,2]==0,:] = np.nan
+
+        if self.coco_ignore_mask:
+            mask = self.get_mask_ignore(annos,im.shape[:2])
+        else:
+            mask = self.get_mask(annos,im.shape[:2])
+        im,locs, mask,occ = PoseTools.preprocess_ims(im[np.newaxis,...], locs[np.newaxis,...],conf, self.augment, conf.rescale*sfactor, mask=mask[None,...],occ=occ[None])
+        osz = tuple([round(ii/conf.rescale) for ii in conf.imsz][::-1])
+        if (im.shape[1] != osz[1]) or (im.shape[2] != osz[0]):
+            im = cv2.resize(im[0,...],osz)[None,...]
+            mask = cv2.resize(mask[0,...].astype(np.float32),osz)[None,...]
         im = np.transpose(im[0,...] / 255., [2, 0, 1])
         mask = mask[0,...]
         if not self.conf.is_multi:
@@ -168,10 +238,16 @@ class coco_loader(torch.utils.data.Dataset):
             return m<0.5
 
         for obj in anno:
-            if 'segmentation' in obj:
+            if 'bbox' in obj:
+                # MK 20230531. Segmentation is required to be a numpy array now. Probably has to do with the newer ampere image. xtcocotools might have been updated. Sigh.
+                # MK 20230823. when the input object is an np.array, xtcocotools expects it to be in bbox format [x,y,width,height]
+                # rles = xtcocotools.mask.frPyObjects(
+                #     obj['segmentation'], im_sz[0],
+                #     im_sz[1])
                 rles = xtcocotools.mask.frPyObjects(
-                    obj['segmentation'], im_sz[0],
-                    im_sz[1])
+                    # np.array(obj['segmentation']).astype('double'), im_sz[0],
+                    # im_sz[1])
+                    np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
                 for rle in rles:
                     m += xtcocotools.mask.decode(rle)
                 # if obj['iscrowd']:
@@ -179,27 +255,52 @@ class coco_loader(torch.utils.data.Dataset):
                 #     m += xtcocotools.mask.decode(rle)
                 # else:
         return m>0.5
+    def get_mask_ignore(self, anno, im_sz):
+        conf = self.conf
+        m = np.zeros(im_sz,dtype=np.float32)
+
+        if not conf.multi_loss_mask:
+            return m<0.5
+
+        for obj in anno:
+            if ('bbox' in obj) and ('ignore' in obj) and obj['ignore']:
+                rles = xtcocotools.mask.frPyObjects(
+                    np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
+                for rle in rles:
+                    m -= xtcocotools.mask.decode(rle)
+        m = (m+1).clip(0,1)
+        for obj in anno:
+            if ('bbox' in obj) and not  (('ignore' in obj) and obj['ignore']):
+                rles = xtcocotools.mask.frPyObjects(
+                    np.array([obj['bbox']]).astype('double'), im_sz[0],im_sz[1])
+                for rle in rles:
+                    m += xtcocotools.mask.decode(rle)
+
+        return m>0.5
 
     def update_wts(self,idx,loss):
         for ix,l in zip(idx,loss):
-            self.ex_wts[ix] = l
+            self.ex_wts[ix] = torch.tensor(l)
 
 
 class PoseCommon_pytorch(object):
 
-    def __init__(self,conf,name='deepnet',usegpu=True):
+    def __init__(self,conf,name='deepnet',usegpu=True,zero_seeds=False,img_prefix_override=None,debug=False):
         self.conf = conf
         self.name = name
         self.prev_models = []
         self.td_fields = ['dist','loss']
         self.train_epoch = 1
+        self.zero_seeds = zero_seeds
+        self.img_prefix_override = img_prefix_override
+        self.debug = debug
         # conf.is_multi = is_multi
 
-        if usegpu and torch.cuda.is_available():
+        if usegpu and torch.cuda.is_available() and not conf.get('use_openvino',False):
             self.device = "cuda"
         else:
             self.device = "cpu"
-            if usegpu:
+            if usegpu and not conf.get('use_openvino',False):
                 logging.warning("CUDA Device not available. Using CPU!")
 
         if conf.db_format == 'coco':
@@ -249,6 +350,34 @@ class PoseCommon_pytorch(object):
         with open(self.get_ckpt_file(),'w') as cf:
             json.dump(self.prev_models,cf)
 
+    def convert_openvino(self,model,model_file):
+        from openvino.runtime import Core
+
+        model = model.cpu()
+        model.eval()
+
+        conf = self.conf
+        dummy_input = {'images': torch.randn([1, 3, int(conf.imsz[0]//conf.rescale),int(conf.imsz[1]//conf.rescale)])}
+        if not os.path.exists(model_file + '.onnx') or os.path.getmtime(model_file + '.onnx') < os.path.getmtime(model_file):
+            logging.info('Exporting model to onnx to run on using openvino on Intel cpu')
+            torch.onnx.export(model.module, {'input': dummy_input}, model_file + '.onnx')
+
+        if not os.path.exists(model_file + '.xml') or os.path.getmtime(model_file + '.xml') < os.path.getmtime(model_file):
+            logging.info('Converting onnx model to openvino ...')
+            mo_cmd = f'/groups/branson/home/kabram/.local/bin/mo --input_model {model_file}.onnx --compress_to_fp16 --output_dir {os.path.dirname(model_file)}'
+            mo_result = os.system(mo_cmd)
+
+        # ie = Core()
+        # model_onnx = ie.read_model(model_file + '.onnx')
+        # model_onnx = ie.compile_model(model_onnx, device_name='CPU')
+
+        ie1 = Core()
+        model_ir = ie1.read_model(model=model_file + '.xml')
+        compiled_model_ir = ie1.compile_model(model_ir, device_name='CPU')
+
+        return compiled_model_ir
+
+
     def restore(self, model_file,model, opt=None, sched=None):
         if model_file is None:
             with open(self.get_ckpt_file(),'r') as cf:
@@ -260,6 +389,8 @@ class PoseCommon_pytorch(object):
         else:
             ckpt = torch.load(model_file,map_location=torch.device('cpu'))
         model.load_state_dict(ckpt['model_state_params'])
+        if self.conf.use_openvino:
+            model = self.convert_openvino(model,model_file)
         if opt is not None:
             opt.load_state_dict(ckpt['optimizer_state_params'])
             for state in opt.state.values():
@@ -270,7 +401,7 @@ class PoseCommon_pytorch(object):
             sched.load_state_dict(ckpt['sched_state_params'])
         start_at = ckpt['step'] + 1
         self.restore_td(start_at)
-        return start_at
+        return model, start_at
 
 
     def init_td(self):
@@ -334,8 +465,9 @@ class PoseCommon_pytorch(object):
 
     def compute_train_data(self,inputs,net,loss):
         labels = self.create_targets(inputs)
-        output = net(inputs)
-        loss_val = loss(output,labels).detach().sum().item()
+        with torch.no_grad():
+            output = net(inputs)
+        loss_val = loss(output,labels).sum().item()
         dist = self.compute_dist(output,labels)
         return {'cur_loss':loss_val, 'cur_dist':dist}
 
@@ -353,46 +485,46 @@ class PoseCommon_pytorch(object):
 
 
     def create_tf_data_gen(self, debug=False,**kwargs):
-        assert ISTFR, 'TFRecordDataset unavailable'
-        conf = self.conf
-        train_tfn = lambda f: decode_augment(f,conf,True)
-        val_tfn = lambda f: decode_augment(f,conf,False)
-        trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
-        valtfr = trntfr
-        xx = tf.python_io.tf_record_iterator(trntfr)
-        len_db = sum([1 for x in xx])
-        queue_sz = min(len_db,300)
-        # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
-        if not os.path.exists(valtfr):
-            logging.info('Validation data set doesnt exist. Using train data set for validation')
-            valtfr = trntfr
-        train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
-        val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
-        self.train_loader_raw = train_dl_tf
-        self.val_loader_raw = val_dl_tf
-        num_workers = 0 if debug else 16
-        args = {
-            'batch_size': self.conf.batch_size,
-            'pin_memory': True,
-            'drop_last': True,
-        }
+        assert False, 'TFRecordDataset unavailable'
+        # conf = self.conf
+        # train_tfn = lambda f: decode_augment(f,conf,True)
+        # val_tfn = lambda f: decode_augment(f,conf,False)
+        # trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+        # valtfr = trntfr
+        # xx = tf.python_io.tf_record_iterator(trntfr)
+        # len_db = sum([1 for x in xx])
+        # queue_sz = min(len_db,300)
+        # # valtfr = os.path.join(conf.cachedir, conf.valfilename) + '.tfrecords'
+        # if not os.path.exists(valtfr):
+        #     logging.info('Validation data set doesnt exist. Using train data set for validation')
+        #     valtfr = trntfr
+        # train_dl_tf = TFRecordDataset(trntfr,None,None,transform=train_tfn,shuffle_queue_size=queue_sz)
+        # val_dl_tf = TFRecordDataset(valtfr,None,None,transform=val_tfn)
+        # self.train_loader_raw = train_dl_tf
+        # self.val_loader_raw = val_dl_tf
+        # num_workers = 0 if debug else 16
+        # args = {
+        #     'batch_size': self.conf.batch_size,
+        #     'pin_memory': True,
+        #     'drop_last': True,
+        # }
 
-        if num_workers > 0:
-            #try:
-            #    self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
-            #except:
-            logging.warning(f'Could not create torch DataLoader with num_workers = {num_workers}, trying with 0')
-            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
-        else:
-            self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+        # if num_workers > 0:
+        #     #try:
+        #     #    self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args,num_workers=num_workers,worker_init_fn=lambda id: np.random.seed(id))
+        #     #except:
+        #     logging.warning(f'Could not create torch DataLoader with num_workers = {num_workers}, trying with 0')
+        #     self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
+        # else:
+        #     self.train_dl = torch.utils.data.DataLoader(train_dl_tf, **args, num_workers=0)
 
-        self.val_dl = torch.utils.data.DataLoader(val_dl_tf, **args)
+        # self.val_dl = torch.utils.data.DataLoader(val_dl_tf, **args)
 
-        self.train_iter = iter(self.train_dl)
-        self.val_iter = iter(self.val_dl)
+        # self.train_iter = iter(self.train_dl)
+        # self.val_iter = iter(self.val_dl)
 
 
-    def create_coco_data_gen(self, debug=False, pin_mem=True,**kwargs):
+    def create_coco_data_gen(self, debug=False, pin_mem=True, **kwargs):
         conf = self.conf
         trnjson = os.path.join(conf.cachedir, conf.trainfilename) + '.json'
         valjson = os.path.join(conf.cachedir, conf.valfilename) + '.json'
@@ -405,10 +537,17 @@ class PoseCommon_pytorch(object):
         self.train_loader_raw = train_dl_coco
         self.val_loader_raw = val_dl_coco
 
-        num_workers = 0 if debug else 16
+        num_workers = 0 if debug else 2
+        logging.info('Number of DataLoader workers: %d', num_workers)
 
-        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True,num_workers=num_workers,shuffle=True,worker_init_fn=dataloader_worker_init_fn)
-        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size,pin_memory=pin_mem,drop_last=True)
+        self.train_dl = torch.utils.data.DataLoader(train_dl_coco, 
+                                                    batch_size=self.conf.batch_size, 
+                                                    pin_memory=pin_mem,
+                                                    drop_last=True,
+                                                    num_workers=num_workers,
+                                                    shuffle=True,
+                                                    worker_init_fn=dataloader_worker_init_fn)
+        self.val_dl = torch.utils.data.DataLoader(val_dl_coco, batch_size=self.conf.batch_size, pin_memory=pin_mem, drop_last=True)
         self.train_iter = iter(self.train_dl)
         self.val_iter = iter(self.val_dl)
 
@@ -437,7 +576,15 @@ class PoseCommon_pytorch(object):
                     train_sampler = None
                     shuffle = True if self.conf.db_format == 'coco' else False
 
-                self.train_dl = torch.utils.data.DataLoader(self.train_loader_raw, batch_size=self.conf.batch_size, pin_memory=True,drop_last=True, num_workers=16,sampler=train_sampler,shuffle=shuffle,worker_init_fn=partial(dataloader_worker_init_fn,epoch=self.train_epoch))
+                self.train_dl = torch.utils.data.DataLoader(
+                    self.train_loader_raw, 
+                    batch_size=self.conf.batch_size, 
+                    pin_memory=True,
+                    drop_last=True, 
+                    num_workers=2,
+                    sampler=train_sampler,
+                    shuffle=shuffle,
+                    worker_init_fn=partial(dataloader_worker_init_fn, epoch=self.train_epoch))
                 self.train_iter = iter(self.train_dl)
                 ndata = next(self.train_iter)
             else:
@@ -450,44 +597,58 @@ class PoseCommon_pytorch(object):
         locs = inputs['locs']
         return PoseTools.create_label_images(locs,self.conf.imsz,1,self.conf.label_blur_rad)
 
-
     def create_optimizer(self, model, base_lr):
         return torch.optim.Adam(model.parameters(),lr=base_lr)
 
     def create_lr_sched(self,opt,training_iters,base_lr,step_lr,lr_drop_step_frac):
         if step_lr:
-            lambda_lr = lambda x: 0.1 if x > (1-lr_drop_step_frac)*training_iters else 1.
+            def lambda_lr(x):
+                if x < (1-lr_drop_step_frac)*training_iters:
+                    return 1.
+                elif x > 0.95*training_iters:
+                    return 0.01
+                else:
+                    return 0.1
+
+            # lambda_lr = lambda x: 0.1 if x > (1-lr_drop_step_frac)*training_iters else 1.
         else:
             lambda_lr = lambda x: self.conf.gamma ** (x/self.conf.decay_steps)
 
         return torch.optim.lr_scheduler.LambdaLR(opt,lambda_lr)
-
 
     def train(self, model, loss, opt, lr_sched, n_steps, start_at=0):
 
         save_start = time.time()
         clip_gradients = self.conf.get('clip_gradients', True)
         start = time.time()
+
+        logger = logging.getLogger()
+        handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
         for step in range(start_at,n_steps):
             # gc.collect()
             self.step = [step,n_steps]
             a = time.time()
             inputs = self.next_data('train')
             l = time.time()
+            labels = self.create_targets(inputs)
+            t = time.time()
             opt.zero_grad()
             outputs = model(inputs)
             o = time.time()
-            labels = self.create_targets(inputs)
             # valid = torch.any(torch.all(inputs['locs'] > -1000, dim=3), dim=2)
             # if not torch.all(torch.any(valid, dim=1)):
             #     print('Some inputs dont have any labels')
             #     continue
 
-            t = time.time()
             # with torch.autograd.profiler.profile(use_cuda=True) as prof:
             loss_val = loss(outputs,labels)
             if self.use_hard_mining:
-                self.train_loader_raw.update_wts(inputs['item'].numpy(),loss_val.detach().cpu().numpy().copy())
+                n_ex = torch.any(inputs['locs'][:,:,:,0]>-10000,axis=-1).sum(axis=-1).cpu().numpy().copy()
+                n_ex = np.maximum(n_ex,1)
+                self.train_loader_raw.update_wts(inputs['item'].numpy(),loss_val.detach().cpu().numpy().copy()/n_ex)
             lo = time.time()
             # print(prof)
             loss_val.sum().backward()
@@ -498,7 +659,7 @@ class PoseCommon_pytorch(object):
             opt.step()
             lr_sched.step()
             op = time.time()
-            # print('Timings Load:{:.2f}, target:{:.2f} fwd:{:.2f} loss:{:0.2f} bkwd:{:.2f} op:{:.2f}'.format(l-a,o-l,t-o,lo-t,b-lo,op-b))
+            # print('Timings Load:{:.2f}, target:{:.2f} fwd:{:.2f} loss:{:0.2f} bkwd:{:.2f} op:{:.2f}'.format(l-a,t-l,o-t,lo-t,b-lo,op-b))
 
             if self.conf.save_time is None:
                 if (step % self.conf.save_step == 0) & (step>0):
@@ -533,9 +694,9 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False,model_file=None):
+    def train_wrapper(self, restore=False, model_file=None,debug=False):
         model = self.create_model()
-        training_iters = self.conf.dl_steps
+        training_iters = self.conf.dl_steps        
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)
         lr_drop_step_frac = self.conf.get('lr_drop_step', 0.15)
         step_lr = self.conf.get('step_lr', True)
@@ -555,7 +716,10 @@ class PoseCommon_pytorch(object):
                 start_at = self.restore(model_file, model, opt, sched)
         else:
             try:
-                ckpt = torch.load(model_file)
+                if torch.cuda.device_count()==0:
+                    ckpt =torch.load(model_file,map_location=torch.device('cpu'))
+                else:
+                    ckpt = torch.load(model_file)
                 model.load_state_dict(ckpt['model_state_params'])
                 logging.info('Inititalizing model weights from {}'.format(model_file))
             except Exception as e:

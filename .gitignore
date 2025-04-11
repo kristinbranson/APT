@@ -18,3 +18,8 @@ deepnet/pretrained/*
 deepnet/log/
 .DS_Store
 log/
+*conda-list.txt
+deepnet/pre-run-variables.pkl
+*.err.txt
+*.out.txt
+compiled/

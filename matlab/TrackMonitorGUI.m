@@ -110,12 +110,13 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 
 switch hObject.UserData
   case 'stop'
-    handles.vizobj.stopTracking();
+    handles.vizobj.abortTracking();
   case 'start'
     warning('not implemented');
   otherwise
     assert(false);
 end
+
 
 % --- Executes when user attempts to close figure_TrackMonitor.
 function figure_TrackMonitor_CloseRequestFcn(hObject, eventdata, handles)

@@ -22,7 +22,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
     end
     
     function propUnselected(obj)
-      deleteValidHandles(obj.hPlot);
+      deleteValidGraphicsHandles(obj.hPlot);
       obj.hPlot = [];
       obj.initSuccessful = false;
       obj.initFtrVizInfo = [];
@@ -57,7 +57,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       obj.initSuccessful = false;
       obj.initFeatureType = [];
       obj.initFtrVizInfo = [];
-      deleteValidHandles(obj.hPlot);
+      deleteValidGraphicsHandles(obj.hPlot);
       obj.hPlot = [];
             
       if ~lObj.hasMovie
@@ -93,8 +93,8 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         if lObj.currMovIdx==mIdx
           mr = lObj.movieReader(IVIEW);
         else
-          mr = MovieReader;
-          lObj.movieMovieReaderOpen(mr,mIdx,IVIEW);
+          mr = MovieReader();
+          mr.openForLabeler(lObj,mIdx,IVIEW);
         end
         [im,~,imroi] = mr.readframe(frm,'docrop',true);
         imxdata = imroi([1 2]);

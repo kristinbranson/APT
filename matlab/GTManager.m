@@ -67,7 +67,7 @@ handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
 
 
 lObj = varargin{1};
-if isdeployed || ~lObj.isgui,
+if isdeployed() || ~lObj.isgui,
   % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
   % require Java Swing" from
   % cbkGTSuggUpdated->NavTreeTable/setData->treeTable.
@@ -107,14 +107,14 @@ handles.navTreeTblMovIdxs = nan(0,1);
 
 handles.listener = cell(0,1);
 % Following listeners for table maintenance
-handles.listener{end+1,1} = addlistener(lObj,...
-  'gtIsGTModeChanged',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
-handles.listener{end+1,1} = addlistener(lObj,...
-  'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
+% handles.listener{end+1,1} = addlistener(lObj,...
+%   'gtIsGTModeChanged',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
+% handles.listener{end+1,1} = addlistener(lObj,...
+%   'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
   'gtSuggMFTableLbledUpdated',@(s,e)cbkGTSuggMFTableLbledUpdated(hObject,s,e));
-handles.listener{end+1,1} = addlistener(lObj,...
-  'gtResUpdated',@(s,e)cbkGTResUpdated(hObject,s,e));
+% handles.listener{end+1,1} = addlistener(lObj,...
+%   'gtResUpdated',@(s,e)cbkGTResUpdated(hObject,s,e));
 % Following listeners for table row selection
 handles.listener{end+1,1} = addlistener(lObj,...
   'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
@@ -125,7 +125,7 @@ handles.listener{end+1,1} = addlistener(lObj,...
 
 handles.figure1.DeleteFcn = @lclDeleteFig;
 guidata(hObject,handles);
-centerfig(handles.figure1,lObj.gdata.figure);
+centerfig(handles.figure1,lObj.gdata.mainFigure_);
 
 function varargout = GTManager_OutputFcn(hObject, eventdata, handles) 
 varargout{1} = handles.output;
@@ -151,6 +151,12 @@ function cbkGTisGTModeChanged(hObject,src,evt)
 
 function cbkGTSuggUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 % if lObj.isinit
 %   return;
@@ -200,6 +206,12 @@ ntt.updateDataColumn('hasLbl',num2cell(tf));
 
 function cbkGTResUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTResUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 tblSugg = lObj.gtSuggMFTable;
 ntt = handles.navTreeTbl;
@@ -255,11 +267,9 @@ lclNavToMFT(lObj,mftRow);
 function lclNavToMFT(lObj,mftRow)
 iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
-  lObj.setStatus(sprintf('Switching to GT movie %d...',iMov));
-  lObj.movieSet(iMov);
-  lObj.clearStatus();
+  lObj.movieSetGUI(iMov);
 end
-lObj.setFrameAndTarget(mftRow.frm,mftRow.iTgt);
+lObj.setFrameAndTargetGUI(mftRow.frm,mftRow.iTgt);
 
 % function imovs = cbkGetSelectedMovies(hMMobj)
 % % Get current selection in Table

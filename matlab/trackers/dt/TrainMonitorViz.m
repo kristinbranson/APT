@@ -6,7 +6,7 @@ classdef TrainMonitorViz < handle
     
     hfig % scalar fig
     haxs % [2xnset] axis handle, viz training loss, dist
-    hannlastupdated % [1] textbox/annotation handle
+    %hannlastupdated % [1] textbox/annotation handle
     hline % [nmodel x 2] line handle, one loss curve per view
     hlinekill % [nmodel x 2] line handle, killed marker per view
     trainMontageFigs = []; % figure handles for showing training image montages
@@ -26,10 +26,10 @@ classdef TrainMonitorViz < handle
     % (Default polling time is 20-30seconds). 
     jobStoppedRepeatsReqd = 2; 
     
-    resLast % last training json contents received
-    dtObj % DeepTracker Obj
-    trainWorkerObj = [];
-    backEnd % scalar DLBackEnd
+    resLast  % last training json contents received
+    dtObj  % DeepTracker Obj
+    poller = []
+    backendType  % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
     actions = struct(...
       'Bsub',...
         {{...
@@ -57,9 +57,15 @@ classdef TrainMonitorViz < handle
         'Show error messages'}},...
       'AWS',...
         {{'Update training monitor plots'...
-        'Show log files'...
-        'Show error messages'}});
+          'Show log files'...
+          'Show error messages'}});
   end
+
+  properties (Transient) 
+    parent_
+    labeler_
+  end
+
   properties (Dependent)
     nmodels
     nset
@@ -87,9 +93,12 @@ classdef TrainMonitorViz < handle
   
   methods
     
-    function obj = TrainMonitorViz(dmc,dtObj,trainWorkerObj,backEnd,...
-        varargin)
-            
+    function obj = TrainMonitorViz(parent, labeler)
+
+      obj.parent_ = parent ;
+      obj.labeler_ = labeler ;
+
+      dmc = labeler.tracker.trnLastDMC ;
       stage = dmc.getStages();
       view = dmc.getViews();
       splitidx = dmc.getSplits();
@@ -103,19 +112,18 @@ classdef TrainMonitorViz < handle
         set_names = {''};
       end
 
-      lObj = dtObj.lObj;
-      obj.dtObj = dtObj;
-      obj.trainWorkerObj = trainWorkerObj;
-      obj.backEnd = backEnd;
+      obj.dtObj = labeler.tracker ;
+      obj.poller = labeler.tracker.bgTrainPoller ;
+      obj.backendType = labeler.backend.type ;
       obj.hfig = TrainMonitorGUI(obj);
-      lObj.addDepHandle(obj.hfig);
+      % parent.addSatellite(obj.hfig);  % Don't think we need this
       
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles,true,false);
       handles.pushbutton_startstop.Enable = 'on';
             
       obj.haxs = [handles.axes_loss;handles.axes_dist];
-      obj.hannlastupdated = handles.text_clusterstatus;
+      %obj.hannlastupdated = handles.text_clusterstatus;
       tfMultiSet = nsets>1;
       if tfMultiSet
         obj.splitaxs(nsets);
@@ -123,9 +131,12 @@ classdef TrainMonitorViz < handle
       
       % reset
       arrayfun(@(x)cla(x),obj.haxs);
-      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      clusterstr = apt.monitorBackendDescription(obj.backendType) ;
+      str = sprintf('%s status: Initializing...', clusterstr) ;
+      obj.setStatusDisplayLine(str, true) ;
+      %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
-      handles.popupmenu_actions.String = obj.actions.(char(backEnd));
+      handles.popupmenu_actions.String = obj.actions.(char(obj.backendType));
       handles.popupmenu_actions.Value = 1;
       
       arrayfun(@(x)grid(x,'on'),obj.haxs);
@@ -182,7 +193,7 @@ classdef TrainMonitorViz < handle
     end
     
     function delete(obj)
-      deleteValidHandles(obj.hfig);
+      deleteValidGraphicsHandles(obj.hfig);
       obj.hfig = [];
     end
     
@@ -215,7 +226,7 @@ classdef TrainMonitorViz < handle
       obj.haxs = haxnew;
     end
         
-    function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
+    function [tfSucc,msg] = resultsReceived(obj,pollingResult,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
       %
@@ -226,28 +237,34 @@ classdef TrainMonitorViz < handle
       end
 
       tfSucc = false;
-      msg = '';
+      msg = '';  %#ok<NASGU> 
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
-        TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
-        return;
+        TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
+        return
       end
       
-      res = sRes.result;
-      if ~res.pollsuccess,
-        return;
-      end
-      nres = numel(res.contents);
-      assert(nres==obj.nmodels);
+      % This early exit seems to prevent user from seeing an error that occurs before
+      % any training iterations.
+%       if ~res.pollsuccess,
+%         % Even if the poll failed, if .resLast is empty then populate it, since maybe there was an error or
+%         % something.
+%         if isempty(obj.resLast)
+%           obj.resLast = res;
+%         end
+%         return
+%       end
+%       nres = numel(res.contents);
+%       assert(nres==obj.nmodels);
 
       % for each axes, record if any line got updated and max xlim
       tfAnyLineUpdate = false(1,obj.nset);
       lineUpdateMaxStep = zeros(1,obj.nmodels);
 
       for i = 1:obj.nmodels,
-        if res.jsonPresent(i) && (forceupdate || res.tfUpdate(i)),
-          contents = res.contents{i};
+        if pollingResult.jsonPresent(i) && (forceupdate || pollingResult.tfUpdate(i)),
+          contents = pollingResult.contents{i};
           set(obj.hline(i,1),'XData',contents.step,'YData',contents.train_loss);
           set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
           iset = obj.setidx(i);
@@ -255,21 +272,21 @@ classdef TrainMonitorViz < handle
           lineUpdateMaxStep(i) = max(lineUpdateMaxStep(i),contents.step(end));
         end
 
-        if res.killFileExists(i),
-          obj.isKilled(i) = true;
-          if res.jsonPresent,
-            contents = res.contents{i};
-            % hmm really want to mark the last 2k interval when model is
-            % actually saved
-            set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
-            set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
-          end
-          handles = guidata(obj.hfig);
-          handles.pushbutton_startstop.Enable = 'on';
-        end
+        % if res.killFileExists(i),
+        %   obj.isKilled(i) = true;
+        %   if res.jsonPresent,
+        %     contents = res.contents{i};
+        %     % hmm really want to mark the last 2k interval when model is
+        %     % actually saved
+        %     set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end));
+        %     set(obj.hlinekill(i,2),'XData',contents.step(end),'YData',contents.train_dist(end));
+        %   end
+        %   handles = guidata(obj.hfig);
+        %   handles.pushbutton_startstop.Enable = 'on';
+        % end
         
-        if res.tfComplete(i)
-          contents = res.contents{i};
+        if pollingResult.tfComplete(i)
+          contents = pollingResult.contents{i};
           if ~isempty(contents)
             % re-use kill marker
             set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
@@ -280,7 +297,7 @@ classdef TrainMonitorViz < handle
         end
       end
       
-      if any(res.errFileExists),
+      if any(pollingResult.errFileExists),
         handles = guidata(obj.hfig);
         i = find(strcmp(handles.popupmenu_actions.String,'Show error messages'));
         if ~isempty(i),
@@ -298,73 +315,51 @@ classdef TrainMonitorViz < handle
       end
       
       if isempty(obj.resLast) || any(tfAnyLineUpdate)
-        obj.resLast = res;
+        obj.resLast = pollingResult;
       end
 
-      [tfSucc,msg] = obj.updateAnn(res);
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);
       TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
-    end
+    end  % function resultsReceived()
     
-    function [tfSucc,status] = updateAnn(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
+      % Check arguments
+      assert(isstruct(pollingResult) && isscalar(pollingResult)) ;
+
       tfSucc = true;
-      pollsuccess = res.pollsuccess;
       
-      clusterstr = 'Cluster';
-      switch obj.backEnd        
-        case DLBackEnd.Bsub
-          clusterstr = 'JRC cluster';
-        case DLBackEnd.Conda
-          clusterstr = 'Local';
-        case DLBackEnd.Docker
-          clusterstr = 'Local';
-        case DLBackEnd.AWS,
-          clusterstr = 'AWS';
-        otherwise
-          warning('Unknown back end type');
-      end
-                  
-      if ~isempty(res),
-        isTrainComplete = res.tfComplete;
-        isErr = res.errFileExists | res.logFileErrLikely;
-        isLogFile = res.logFileExists;
-        isJsonFile = res.jsonPresent;
-      else
-        isTrainComplete = false(1,obj.nmodels);
-        isErr = false(1,obj.nmodels);
-        isLogFile = false(1,obj.nmodels);
-        isJsonFile = false(1,obj.nmodels);
-      end
+      pollsuccess = pollingResult.pollsuccess;
+      isTrainComplete = pollingResult.tfComplete;
+      isErr = pollingResult.errFileExists ;
+      isLogFile = pollingResult.logFileExists;
+      isJsonFile = pollingResult.jsonPresent;
       
-      isRunning0 = obj.trainWorkerObj.getIsRunning();
-      if isempty(isRunning0),
-        isRunning = true;
-      else
-        isRunning = any(isRunning0);
-      end
-      if ~isRunning
+      isRunning = pollingResult.isRunning ;  % 1 x nmodels
+      isAnyRunning = any(isRunning) ;
+      if ~isAnyRunning
         if obj.jobStoppedRepeatsReqd>=1
           obj.jobStoppedRepeatsReqd = obj.jobStoppedRepeatsReqd-1;
-          isRunning = true;
+          isAnyRunning = true;
         end
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-        isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
+                                   isAnyRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
       
       if any(obj.isKilled),
         status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
         tfSucc = false;
-      elseif isErr,
+      elseif any(isErr),
         status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
         tfSucc = false;
       elseif all(isTrainComplete),
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false,true);
-      elseif ~isRunning,
+      elseif ~isAnyRunning,
         status = 'No training jobs running.';
         tfSucc = false;
       elseif any(isLogFile) && all(~isJsonFile),
@@ -374,21 +369,11 @@ classdef TrainMonitorViz < handle
       else
         status = 'Initializing training.';
       end
-      
-      str = {sprintf('%s status: %s',clusterstr,status),sprintf('Monitor updated %s.',datestr(now,'HH:MM:SS PM'))};
-      hAnn = obj.hannlastupdated;
-      hAnn.String = str;
-      
-      tfsucc = pollsuccess;
-      if tfsucc,
-        hAnn.ForegroundColor = [0 1 0];
-      else
-        hAnn.ForegroundColor = [1 0 0];
-      end
-      
-%       ax = obj.haxs(1);
-%       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
-%       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
+
+      clusterstr = apt.monitorBackendDescription(obj.backendType) ;
+      str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
+      isAllGood = pollsuccess && ~any(isErr) ;
+      obj.setStatusDisplayLine(str, isAllGood) ;
     end
     
     function adjustAxes(obj,lineUpdateMaxStep,iset)
@@ -402,37 +387,69 @@ classdef TrainMonitorViz < handle
       end
     end
     
-    function stopTraining(obj)
-      if isempty(obj.trainWorkerObj),
-        warning('trainWorkerObj is empty -- cannot kill process');
-        return;
-      end
-      obj.SetBusy('Killing training jobs...',true);
+    function abortTraining(obj)
+      % if isempty(obj.trainWorkerObj),
+      %   warning('trainWorkerObj is empty -- cannot kill process');
+      %   return
+      % end
+      obj.setStatusDisplayLine('Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
       drawnow;
-      [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
-      obj.isKilled(:) = tfsucc;
-      obj.SetBusy('Checking that training jobs are killed...',true);
-      if tfsucc,
-        
-        startTime = tic;
-        maxWaitTime = 30;
-        while true,
-          if toc(startTime) > maxWaitTime,
-            warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
-            break;
-          end
-          if ~obj.dtObj.bgTrnIsRunning,
-            break;
-          end
-          pause(1);
-        end        
-      else
-        warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
-      end
-      obj.ClearBusy('Training process killed');
+
+      obj.labeler_.abortTraining() ;
+
+      obj.isKilled(:) = true ;
+      obj.setStatusDisplayLine('Training process killed.', true);
+
+      % [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
+      % obj.isKilled(:) = tfsucc;
+      % obj.setStatusDisplayLine('Checking that training jobs were killed...', false);
+      % wereTrainingProcessesKilledForSure = false ;
+      % if tfsucc ,        
+      %   startTime = tic() ;
+      %   maxWaitTime = 30;
+      %   while true,
+      %     if toc(startTime) > maxWaitTime,
+      %       fprintf('Stopping training processes is taking too long, giving up.\n') ;
+      %       if isempty(warnings) ,
+      %         fprintf('But there were no warnings while trying to stop training processes.\n') ;
+      %       else
+      %         fprintf('Warning(s) while trying to stop training processes:\n') ;
+      %         cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
+      %         fprintf('\n') ;
+      %       end
+      %       warndlg('Stopping training processes took too long.  See console for details.', 'Problem stopping training', 'modal') ;
+      %       break
+      %     end
+      %     if ~obj.dtObj.bgTrnIsRunning,
+      %       wereTrainingProcessesKilledForSure = true ;
+      %       break
+      %     end
+      %     pause(1);
+      %   end        
+      % else
+      %   %warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
+      %   fprintf('There was a problem stopping training processes.\n') ;
+      %   fprintf('Training processes may not have been killed properly.\n') ;
+      %   if isempty(warnings) ,
+      %     fprintf('But there were no warnings while trying to stop training processes.\n') ;
+      %   else
+      %     fprintf('Warning(s) while trying to stop training processes:\n') ;
+      %     cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
+      %     fprintf('\n') ;
+      %   end
+      %   warndlg('There was a problem while stopping training processes.  See console for details.', 'Problem stopping training', 'modal') ;
+      % end
+      % if wereTrainingProcessesKilledForSure ,
+      %   str = 'Training process killed.' ;
+      % else
+      %   str = 'Tried to kill training process, but there were issues.' ;
+      % end        
+      % obj.setStatusDisplayLine(str, true);
+
+
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
     
@@ -458,7 +475,7 @@ classdef TrainMonitorViz < handle
         case 'Show sample training images' 
           obj.showTrainingImages();          
         case 'Show log files',
-          ss = obj.getLogFilesContents();
+          ss = obj.getLogFilesSummary();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Update training monitor plots',
@@ -469,95 +486,73 @@ classdef TrainMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show training jobs'' status',
-          ss = obj.queryTrainJobsStatus();
+          ss = obj.detailedStatusStringFromRegisteredJobIndex_();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
-          if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
-            ss = 'No error messages.';
-          else
-            ss = obj.getErrorFileContents();
-          end
-          handles.text_clusterinfo.String = ss;
+          obj.displayErrorMessages() ;
         otherwise
           fprintf('%s not implemented\n',action);
           return;
       end
     end
+
+    function displayErrorMessages(obj)
+      handles = guidata(obj.hfig);
+      if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
+        ss = 'No error messages.';
+      else
+        ss = obj.getErrorFilesSummary();
+      end
+      handles.text_clusterinfo.String = ss;
+      drawnow('limitrate', 'nocallbacks') ;
+    end      
+
+    % function ss = getLogFilesContents(obj)
+    %   ss = obj.trainWorkerObj.getLogFilesContent();
+    % end  % function
+    % 
+    % function ss = getErrorFileContents(obj)
+    %   ss = obj.trainWorkerObj.getErrorfileContent();
+    % end  % function
     
-    function ss = getLogFilesContents(obj)
-      
-      ss = obj.trainWorkerObj.getLogfilesContent;
-      
+    function ss = getLogFilesSummary(obj)      
+      ss = obj.dtObj.getTrainingLogFilesSummary() ;      
     end
     
-    function ss = getErrorFileContents(obj)
-      
-      ss = obj.trainWorkerObj.getErrorfileContent;
-      
+    function ss = getErrorFilesSummary(obj)      
+      ss = obj.dtObj.getTrainingErrorFilesSummary() ;      
     end
     
-    function updateMonitorPlots(obj)
-      
-      sRes.result = obj.trainWorkerObj.compute();
-      obj.resultsReceived(sRes,true);
-      
-    end
+    function updateMonitorPlots(obj)      
+      pollingResult = obj.poller.poll() ;
+      obj.resultsReceived(pollingResult,true);      
+    end  % function
     
     function showTrainingImages(obj)
-      trnImgIfo = obj.trainWorkerObj.loadTrainingImages();
+      trnImgIfo = obj.dtObj.loadTrainingImages();
       obj.trainMontageFigs = obj.dtObj.trainImageMontage(trnImgIfo,'hfigs',obj.trainMontageFigs);
-    end
+    end  % function
     
-    function ss = queryAllJobsStatus(obj)
-      
-      ss = obj.trainWorkerObj.queryAllJobsStatus();
-      if ischar(ss),
-        ss = strsplit(ss,'\n');
-      end
-      
-    end
-    
-    function ss = queryTrainJobsStatus(obj)
-      
-      ss = {};
-      raw = obj.trainWorkerObj.queryMyJobsStatus();
-      for i = 1:numel(raw),
-        snew = strsplit(raw{i},'\n');
-        ss(end+1:end+numel(snew)) = snew;
-      end
-
-    end
-    
-    function ClearBusy(obj,s)
-
-      obj.SetBusy(s,false);
-    
-    end
-
-    function SetBusy(obj,s,isbusy)
-
-      handles = guidata(obj.hfig);
-      
-      if nargin < 3
-        isbusy = true;
-      end
-      
-      if isbusy,
-        set(handles.figure_TrainMonitor,'Pointer','watch');
-        if ~isempty(s),
-          set(handles.text_clusterstatus,'String',s,'ForegroundColor','r');
-        end
-        
+    function result = queryAllJobsStatus(obj)      
+      ss = obj.dtObj.queryAllJobsStatus('train') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
       else
-        set(handles.figure_TrainMonitor,'Pointer','arrow');
-        set(handles.text_clusterstatus,'ForegroundColor','g');
+        result = ss ;
       end
-
-      drawnow('limitrate');
-    end
+    end  % function
     
-  end
+    function result = detailedStatusStringFromRegisteredJobIndex_(obj)      
+      ss = obj.dtObj.detailedStatusStringFromRegisteredJobIndex('train') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
+      else
+        result = ss ;
+      end
+    end  % function
+    
+  end  % methods
   
   methods (Static)
     function hAnn = createAnnUpdate(ax)
@@ -593,7 +588,38 @@ classdef TrainMonitorViz < handle
       end
       
     end
-    
-  end
+
+  end  % methods (Static)
   
-end
+  methods
+    function setStatusDisplayLine(obj, str, isallgood)
+      % Set either or both of the status message line and the color of the status
+      % message.  Any of the two (non-obj) args can be empty, in which case that
+      % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
+      % field containing the handle of an 'text' appropriate graphics object.
+
+      hfig = obj.hfig ;
+      handles = guidata(hfig);
+      text_h = handles.text_clusterstatus ;
+      if ~exist('str', 'var') ,
+        str = [] ;
+      end
+      if ~exist('isallgood', 'var') ,
+        isallgood = [] ;
+      end
+      if isempty(str) ,
+        % do nothing
+      else
+        set(text_h, 'String', str) ;
+      end
+      if isempty(isallgood) ,
+        % do nothing
+      else
+        color = fif(isallgood, 'g', 'r') ;
+        set(text_h, 'ForegroundColor',color) ;
+      end
+      drawnow('limitrate', 'nocallbacks') ;
+    end  % function
+  end  % methods    
+  
+end  % classdef

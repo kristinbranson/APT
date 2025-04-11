@@ -26,9 +26,10 @@ class config(object):
     def __init__(self):
         self.rescale = 1  # how much to downsize the base image.
         self.label_blur_rad = 3.  # 1.5
-        self.imsz = [100,100]
+        self.imsz = [100,100] # h x w -- this is the same convention as what we could get when we do np.shape(img)
         self.n_classes = 10
         self.img_dim = 3
+        self.has_crops = False
 
         self.batch_size = 8
         self.view = 0
@@ -66,6 +67,10 @@ class config(object):
         self.flipLandmarkMatches = {}
         self.learning_rate_multiplier = 1.
         self.predict_occluded = False
+        self.nan_as_occluded = False
+        self.use_openvino = False
+        self.flip_test = False
+        self.imresize_expand = False
 
         # ----- Data parameters
         # l1_cropsz = 0
@@ -100,7 +105,8 @@ class config(object):
         self.mdn_logit_eps_training = 0.001
         self.mdn_extra_layers = 1
         self.mdn_use_unet_loss = True
-        self.mdn_pred_dist = False
+        self.mdn_pred_dist = True
+        self.mdn_joint_thres = -3.
         self.pretrain_freeze_bnorm = True
 
         # ----- OPEN POSE PARAMS
@@ -232,6 +238,8 @@ class config(object):
         self.multi_crop_ims = True
         # For NMS for pose. Suppress poses whose avg matching distance is less than this percentage of the bounding box edge size.
         self.multi_match_dist_factor = .2
+        self.multi_scale_by_bbox = False
+        self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
 
         # ============= TOP-DOWN =================
 
@@ -245,6 +253,7 @@ class config(object):
         # Use bbox as trx surrogate for top-down networks.
         self.use_bbox_trx = False
         self.stage = None
+        self.ht_2stage_n_classes = 2
 
         # ============== LINKING ===============
         self.link_stage = 'second'
@@ -269,6 +278,7 @@ class config(object):
         self.link_id_keep_all_preds = False
         self.link_id_batch_size = 16
         self.link_id_ignore_far = False
+        self.link_id_motion_link = False
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
@@ -293,7 +303,7 @@ class config(object):
         self.save_time = None
         self.save_step = 2000
         self.save_td_step = 100
-        self.maxckpt = 30
+        self.maxckpt = 2
         self.cachedir = ''
         self.project_file = ''
 

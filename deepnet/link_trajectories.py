@@ -34,6 +34,7 @@ import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from torch.utils.data import Dataset,DataLoader
 
+
 def angle_span(pcurr,pnext):
   z = pcurr-pnext
   y = np.linalg.norm(z,axis=1)
@@ -150,7 +151,12 @@ def match_frame(pcurr, pnext, idscurr, params, lastid=np.nan, maxcost=None, forc
 
   # match
   #print('C:', C)
-  idxcurr, idxnext = opt.linear_sum_assignment(C)
+  try:
+    idxcurr, idxnext = opt.linear_sum_assignment(C)
+  except ValueError:
+    print('C:', C)
+    raise ValueError
+
 
   costs = C[idxcurr, idxnext]
   cost = np.sum(costs)
@@ -632,7 +638,7 @@ def estimate_motion_stats(trk,st,en):
   return vel_mag_eps
 
 
-def estimate_maxcost(trks, params, params_in=None, nsample=1000, nframes_skip=1):
+def estimate_maxcost(trks, params, params_in=None, nsample=5000, nframes_skip=1):
   if type(trks) not in [list,tuple]:
     trks = [trks]
   if params_in is not None:
@@ -1047,6 +1053,7 @@ def motion_link(trk,ids,T,t0s,t1s,params):
     use_ndx = cur_ndx
     matched = False
     if (t0s[use_ndx] == t1s[use_ndx]) or (t0s[use_ndx] < 0):
+      # cannot estimate motion for this tracklet
       cur_ndx += 1
       continue
     idx = ids.where(use_ndx)
@@ -1110,7 +1117,7 @@ def motion_link(trk,ids,T,t0s,t1s,params):
   a = 3
 
 
-def link_pure(trk, conf, do_delete_short=False):
+def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
   """
   Does pure linking. Pure is meant to suggest that there is very little chance of two different animals to be part of the same tracklet. The linking criterion barrier is such that we link predictions only if there is a significant margin that the predictions belong to the same animal -- prediction p1 is joined to p2 only if dist(p1,p2) < 2*min(dist(p1,p_others)).
 
@@ -1160,7 +1167,8 @@ def link_pure(trk, conf, do_delete_short=False):
     t0s[id] = np.min(idx[1])
     t1s[id] = np.max(idx[1])
 
-  motion_link(trk,ids,T,t0s,t1s,params)
+  if do_motion_link:
+    motion_link(trk,ids,T,t0s,t1s,params)
 
   # isdummy = np.zeros((ids.ntargets,ids.T),dtype=bool)
   isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, ids.T))
@@ -1175,7 +1183,7 @@ def link_pure(trk, conf, do_delete_short=False):
   trk.apply_ids(ids)
   return trk
 
-  return l_trk
+  # return l_trk
 
 def link_trklets(trk_files, conf, movs, out_files):
   """
@@ -1228,7 +1236,11 @@ def link_trklets(trk_files, conf, movs, out_files):
         movs2link.append(movs[n])
         out_files2link.append(out_files[n])
     linked_trks_simple = simple_linking(trks2link_simple,conf)
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link)
+    if conf.link_id_motion_link:
+      link_method = 'motion'
+    else:
+      link_method = 'no_motion'
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link,link_method=link_method)
 
     out_trks= []
     count = 0
@@ -1375,7 +1387,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method)
+  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.p')
@@ -1505,7 +1517,7 @@ class id_dset(torch.utils.data.IterableDataset):
         idx_self2 = np.random.choice(len(cur_dat[0]), p=wt_self2)
         im2 = cur_dat[0][idx_self2]
 
-        # Select the 3 image from overlaping tracklet such that images that are close to both 1 and 2 have higher prob.
+        # Select the 3rd image from overlaping tracklet such that images that are close to both 1 and 2 have higher prob.
         t_dist_overlap_idx = (t_dist_all[:,idx_self1] + t_dist_all[:,idx_self2]) / 2
         overlap_wts = 2.2 - np.clip(t_dist_overlap_idx, 0, 2)
         overlap_wts = overlap_wts*overlap_amt[:,None]
@@ -1604,8 +1616,8 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   # for debugging
   # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
   trk_info_batches = split_parallel(trk_info,n_batches)
+  args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
-    args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
     data = pool.starmap(read_tracklet_ims,args,chunksize=1)
   data = merge_parallel(data)
   return data
@@ -1642,6 +1654,8 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
   # Very important to set the seed as otherwise same set of images would be returned
   np.random.seed(seed)
   cap = movies.Movie(mov_file)
+
+  # print(seed)
 
   all_ims = []
   for cur_trk in trk_info:
@@ -2108,7 +2122,7 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
   pred_map = np.array(pred_map)
 
   dist_mat = get_id_dist_mat(preds)
-  return dist_mat, pred_map,all_data
+  return dist_mat, pred_map,all_data, preds
 
 
 def get_id_thresh(dist_mat, pred_map, all_data):
@@ -2230,10 +2244,12 @@ def group_tracklets(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,al
     used_trks.extend(gr)
     groups.append(gr)
 
-  return groups,pred_map,[groups_only_id,groups]
+  return groups,pred_map,[groups_only_id,groups,pred_map]
 
 
 def match_motion_id(link_costs, jj, sel_tgt, close_thresh,dist_mat):
+  ''' Find the lowest greedy motion match for tracklet jj going forward and backward. If the lowest match also matches in id space, then return the match. Otherwise return the match and the next tracklet that it matches in id space. Also return the link costs for the matched tracklets'''
+
   sjj = sel_tgt[jj]
   curl = link_costs[sjj][1]
   lls = []
@@ -2245,15 +2261,17 @@ def match_motion_id(link_costs, jj, sel_tgt, close_thresh,dist_mat):
     nextl = int(curl[miix, 0])
     ns = np.where(sel_tgt == nextl)[0]
     lls.append(curl[miix])
-    if len(ns) > 0:
+    if len(ns) > 0:  # if the next tracklet is in the selected tracklets the check if it is close in id space
       if dist_mat[jj, ns] < close_thresh:
         match = True
       else:
         match = False
       break
     curl = link_costs[nextl][1]
+
   ns = ns[0] if len(ns) > 0 else ns
-  if match:
+
+  if match: # if we match in forward direction then check if we match in backward direction
     bmatch = False
     curl = link_costs[sel_tgt[ns]][0]
     while True:
@@ -2351,9 +2369,11 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
 
   ss, ee = linked_trk.get_startendframes()
   sel_tgt = np.where((ee - ss + 1) >= min_len_select)[0]
+
   lc = []
   for jj in range(len(sel_tgt)):
     lc.append(list(match_motion_id(link_costs,jj,sel_tgt,close_thresh,dist_mat)))
+    # match_motion_id returns match,ns,sel_tgt[ns], lls
 
   match_m = np.array([max(np.array(l[3])[:, 3]) for l in lc if (len(l[3]) > 0) and l[0] and len(l) > 0])
   mthresh = np.percentile(match_m, 95)
@@ -2384,7 +2404,7 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
   unq = []
   for ix, li in enumerate(links):
     jr = [int(l[-1][0]) for l in li[1]]
-    ur = np.unique(jr)
+    ur = np.unique(jr)    # all the tracklets that the current tracklet can link to
     kl = [[100000, 100000, ijj] for ijj in ur]
     if len(ur) > 1:
       # for each non-unique end tracklet find the minimum cost of the connection
@@ -2393,18 +2413,18 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
         dc,mc = get_path_link_cost(l)
         kl[cur_end][0] = min(kl[cur_end][0], dc)
         kl[cur_end][1] = min(kl[cur_end][1], mc)
-      non_unq.append([ix, li[0], kl, li])
+      non_unq.append([ix, li[0], kl, li]) # ix is the index of the start tracklet, li[0] is the start tracklet, kl is the minimum cost to link to each end tracklet, li is the path to each end tracklet
 
     elif len(ur) == 1:
       for l in li[1]:
         dc,mc = get_path_link_cost(l)
         kl[0][0] = min(kl[0][0], dc)
         kl[0][1] = min(kl[0][1], mc)
-      unq.append([ix, li[0], kl[0], li])
+      unq.append([ix, li[0], kl[0], li]) # ix is the index of the start tracklet, li[0] is the start tracklet, kl is the minimum cost to link to the end tracklet, li is the path to the end tracklet
 
-  mu = np.array([gq[2][1] for gq in unq])
-  mn = np.array([np.sort(np.array(gq[2])[:, 1])[0] for gq in non_unq])
-  mn1 = np.array([np.sort(np.array(gq[2])[:, 1])[1] for gq in non_unq])
+  mu = np.array([gq[2][1] for gq in unq]) # all motion costs for unique pairs
+  mn = np.array([np.sort(np.array(gq[2])[:, 1])[0] for gq in non_unq]) #lowest motion cost for non unique pairs
+  mn1 = np.array([np.sort(np.array(gq[2])[:, 1])[1] for gq in non_unq]) #second lowest motion cost for non unique pairs
 
   mux = [l[1] for l in unq]
   mnux = [l[1] for l in non_unq]
@@ -2415,6 +2435,7 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
   mgrs_startndx = []
 
   gr_ids = np.ones(len(ss)).astype('int')*-1
+  all_paths = [[] for _ in range(len(ss))]
   for jj in np.argsort(ss[sel_tgt]):
     ojj = sel_tgt[jj]
 
@@ -2423,7 +2444,7 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
       path = [int(l[0]) for l in lc[jj][3]]
     elif jj in mux:
       muxj = mux.index(jj)
-      if mu_sel[muxj] and (taken[unq[muxj][1]]<0.5):
+      if mu_sel[muxj] and (taken[unq[muxj][2][-1]]<0.5):
         idx = int(unq[muxj][3][1][0][-1][0])
         if conn_bck(idx,ojj,link_costs,sel_tgt,mthresh):
           paths = [l for l in unq[muxj][3][1] if np.all(np.array(l)[:, 3] < mthresh)]
@@ -2459,6 +2480,7 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
               path = [int(p[0]) for p in pp]
 
     path.insert(0,ojj)
+    all_paths[ojj] = path.copy()
     prev_grs = gr_ids[path]
     prev_grs = prev_grs[prev_grs>=0]
     if len(prev_grs)==0:
@@ -2477,7 +2499,7 @@ def group_tracklets_motion(dist_mat,linked_trk,link_costs,close_thresh,min_len_s
     gr_ids[path] = mgx
 
   mgrs = [list(set(m)) for m in mgrs]
-  return mgrs, link_type
+  return mgrs, link_type, all_paths
 
 def overlap_dist(dmat, c1, c2, overlap,mgr_lens):
   l1 = np.sum(mgr_lens[c1])
@@ -2542,7 +2564,7 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
     cur_sel = np.array([ix for ix in range(len(pred_map)) if pred_map[ix,0]==ndx])
     sel_tgt = pred_map[cur_sel,1]
     cur_dist_mat = dist_mat[cur_sel][:,cur_sel]
-    motion_grs,link_type = group_tracklets_motion(cur_dist_mat,trk,link_cost,close_thresh,min_len_select)
+    motion_grs,link_type,all_paths = group_tracklets_motion(cur_dist_mat,trk,link_cost,close_thresh,min_len_select)
     link_data.append(link_type)
     for m in motion_grs:
       motion_grs_all.append([ndx,m])
@@ -2557,6 +2579,9 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   for pp in pred_map:
     tlen.append(tr_len[pp[0]][pp[1]])
   tlen = np.array(tlen)
+
+
+  # For each group created above, find the id distance between the tracklets in the group and use that to create a distance matrix between the groups
 
   nsel = len(sel_ids)
   xmat = np.zeros([nsel, nsel])
@@ -2579,12 +2604,13 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   xthresh = np.nanpercentile(np.diag(xmat), 90)
   xthresh = max(close_thresh,xthresh)
 
-
+  # diagnal as 0.
   xmat[range(nsel), range(nsel)] = 0.
 
-  overlaps = np.zeros([nsel,nsel])
-  mgr_lens = np.zeros(nsel)
+  overlaps = np.zeros([nsel,nsel]) #overlap between different groups
+  mgr_lens = np.zeros(nsel)  # length of each group
   mov_ndx = np.array([p[0] for p in motion_grs_all])
+
   for ndx in range(len(linked_trks)):
     cur_mgrs = np.where(mov_ndx==ndx)[0]
     lenso = np.zeros([len(cur_mgrs), maxn])
@@ -2602,6 +2628,7 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
         overlaps[cur_mgrs[x1],cur_mgrs[x2]] = ll
         overlaps[cur_mgrs[x2],cur_mgrs[x1]] = ll
 
+  # groups using linkage
   F1 = weighted_linkage(xmat,overlaps,mgr_lens,xthresh)
   F = np.zeros(nsel).astype('int')
   for ndx, c in enumerate(F1):
@@ -2637,7 +2664,7 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   for mov_ndx in range(len(linked_trks)):
     grs, new_pred_map = add_missing_links(linked_trks, grs, conf, new_pred_map, mov_ndx, None, maxcosts_all[mov_ndx], maxn, bignumber, link_costs_arr)
 
-  debug_data = [link_data,motion_grs_all,gr_data,gv_len,xmat]
+  debug_data = [link_data,motion_grs_all,pred_map,gr_data,gv_len,xmat]
   return grs, new_pred_map, debug_data
 
 
@@ -2657,7 +2684,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   '''
 
 
-  dist_mat, pred_map, all_data = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
+  dist_mat, pred_map, all_data,pp  = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
   close_thresh, far_thresh = get_id_thresh(dist_mat,pred_map,all_data)
 
 
@@ -2895,6 +2922,7 @@ def add_missing_links(linked_trks, groups, conf, pred_map, tndx, ignore_idx, max
           new_pred_map.append([tndx,tid])
           linked_groups[ndx].append(len(pred_map)+len(new_pred_map)-1)
         taken.append(tid)
+  logging.info('DOne adding paths...')
 
   if len(new_pred_map)>0:
     new_pred_map = np.concatenate([pred_map, new_pred_map],axis=0)
@@ -2942,6 +2970,9 @@ def find_path(link_costs, st_idx, en_idx, en_fr,st, en, maxcosts_all,taken, mult
   n_trks = len(int_trks)
 
   # edge mat will be used to compute the shortest path. [:,0] corresponds to starting tracklet and [:,-1] correspoinds to ending tracklet
+  debug = False
+  if debug:
+    logging.info(f'st_idx, {st_idx} en_idx{en_idx} link_st, {link_st}, link_en, {link_en}, ntrk, {n_trks},mem, {PoseTools.get_memory_usage()}')
   edge_mat = np.ones([n_trks+2,n_trks+2])*bignumber*(link_en-link_st+1)
 
   def get_link_cost(cur_link):
@@ -3082,7 +3113,7 @@ def greedy_longest_path(edge_mat,st_pt,max_val):
   if edge_mat.shape[0]<2: return path
   while True:
     nextp = np.argmin(edge_mat[st_pt])
-    if edge_mat[st_pt,nextp]>max_val: return path
+    if edge_mat[st_pt,nextp]>(max_val-1): return path
     path.append(nextp)
     st_pt = nextp
 

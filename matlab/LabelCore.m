@@ -32,7 +32,8 @@ classdef LabelCore < handle
     hideLabels; % scalar logical
   end
         
-  properties % handles
+  properties  % handles    
+    controller            % scalar LabelerController obj
     labeler;              % scalar Labeler obj
     hFig;                 % [nview] figure handles (first is main fig)
     hAx;                  % [nview] axis handles (first is main axis)
@@ -93,40 +94,41 @@ classdef LabelCore < handle
   
   methods (Static)
     
-    function obj = createSafe(labelerObj,labelMode)
-      if labelerObj.isMultiView && labelMode~=LabelMode.MULTIVIEWCALIBRATED2
+    function obj = createSafe(labelerController,labelMode)
+      if labelerController.labeler_.isMultiView && labelMode~=LabelMode.MULTIVIEWCALIBRATED2
         labelModeOldStr = labelMode.prettyString;
         labelMode = LabelMode.MULTIVIEWCALIBRATED2;
         warningNoTrace('LabelCore:mv',...
           'Labeling mode ''%s'' does not support multiview projects. Using mode ''%s''.',...
         labelModeOldStr,labelMode.prettyString);
-      elseif ~labelerObj.isMultiView && labelMode==LabelMode.MULTIVIEWCALIBRATED2
+      elseif ~labelerController.labeler_.isMultiView && labelMode==LabelMode.MULTIVIEWCALIBRATED2
         labelModeOldStr = labelMode.prettyString;
         labelMode = LabelMode.TEMPLATE;
         warningNoTrace('LabelCore:mv',...
           'Labeling mode ''%s'' cannot be used for single-view projects. Using mode ''%s''.',...
           labelModeOldStr,labelMode.prettyString);
       end
-      obj = LabelCore.create(labelerObj,labelMode);
+      obj = LabelCore.create(labelerController,labelMode);
     end
-    function obj = create(labelerObj,labelMode)
+
+    function obj = create(labelerController,labelMode)
       switch labelMode
         case LabelMode.SEQUENTIAL
-          obj = LabelCoreSeq(labelerObj);
+          obj = LabelCoreSeq(labelerController);
         case LabelMode.SEQUENTIALADD
-          obj = LabelCoreSeqAdd(labelerObj);
+          obj = LabelCoreSeqAdd(labelerController);
         case LabelMode.TEMPLATE
-          obj = LabelCoreTemplate(labelerObj);
+          obj = LabelCoreTemplate(labelerController);
         case LabelMode.HIGHTHROUGHPUT
-          obj = LabelCoreHT(labelerObj);
+          obj = LabelCoreHT(labelerController);
 %         case LabelMode.ERRORCORRECT
 %           obj = LabelCoreErrorCorrect(labelerObj);
 %         case LabelMode.MULTIVIEWCALIBRATED
 %           obj = LabelCoreMultiViewCalibrated(labelerObj);
         case LabelMode.MULTIVIEWCALIBRATED2
-          obj = LabelCoreMultiViewCalibrated2(labelerObj);
+          obj = LabelCoreMultiViewCalibrated2(labelerController);
         case LabelMode.MULTIANIMAL
-          obj = LabelCoreSeqMA(labelerObj);
+          obj = LabelCoreSeqMA(labelerController);
         otherwise
           error('Unknown label mode %s',str(labelMode));
       end
@@ -137,14 +139,16 @@ classdef LabelCore < handle
   
   methods (Sealed=true)
     
-    function obj = LabelCore(labelerObj)
+    function obj = LabelCore(labelerController)
+      labelerObj = labelerController.labeler_ ;
       if labelerObj.isMultiView && ~obj.supportsMultiView
         error('LabelCore:MV','Multiview labeling not supported by %s.',...
           class(obj));
       end
 
+      obj.controller = labelerController ;
       obj.labeler = labelerObj;
-      gd = labelerObj.gdata;
+      gd = labelerController ;
       obj.hFig = gd.figs_all;
       obj.hAx = gd.axes_all;
       obj.hIms = gd.images_all;
@@ -159,11 +163,11 @@ classdef LabelCore < handle
       obj.nPts = nPts;
       obj.ptsPlotInfo = ptsPlotInfo;
       
-      deleteValidHandles(obj.hPts);
-      deleteValidHandles(obj.hPtsOcc);
-      deleteValidHandles(obj.hPtsTxt);
-      deleteValidHandles(obj.hPtsTxtOcc);
-      deleteValidHandles(obj.hSkel);
+      deleteValidGraphicsHandles(obj.hPts);
+      deleteValidGraphicsHandles(obj.hPtsOcc);
+      deleteValidGraphicsHandles(obj.hPtsTxt);
+      deleteValidGraphicsHandles(obj.hPtsTxtOcc);
+      deleteValidGraphicsHandles(obj.hSkel);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsOcc = [];
       obj.hPtsTxt = gobjects(obj.nPts,1);
@@ -216,8 +220,8 @@ classdef LabelCore < handle
     
     function showOcc(obj)
             
-      deleteValidHandles(obj.hPtsOcc);
-      deleteValidHandles(obj.hPtsTxtOcc);
+      deleteValidGraphicsHandles(obj.hPtsOcc);
+      deleteValidGraphicsHandles(obj.hPtsTxtOcc);
       obj.hPtsOcc = gobjects(obj.nPts,1);
       obj.hPtsTxtOcc = gobjects(obj.nPts,1);
       
@@ -247,8 +251,8 @@ classdef LabelCore < handle
     end
     
     function hideOcc(obj)
-      deleteValidHandles(obj.hPtsOcc);
-      deleteValidHandles(obj.hPtsTxtOcc);
+      deleteValidGraphicsHandles(obj.hPtsOcc);
+      deleteValidGraphicsHandles(obj.hPtsTxtOcc);
       obj.hPtsOcc = [];
       obj.hPtsTxtOcc = [];
       set(obj.hAxOcc,'ButtonDownFcn','');
@@ -267,11 +271,11 @@ classdef LabelCore < handle
   
   methods
     function delete(obj)
-      deleteValidHandles(obj.hPts);
-      deleteValidHandles(obj.hPtsTxt);
-      deleteValidHandles(obj.hPtsOcc);
-      deleteValidHandles(obj.hPtsTxtOcc);
-      deleteValidHandles(obj.hSkel);
+      deleteValidGraphicsHandles(obj.hPts);
+      deleteValidGraphicsHandles(obj.hPtsTxt);
+      deleteValidGraphicsHandles(obj.hPtsOcc);
+      deleteValidGraphicsHandles(obj.hPtsTxtOcc);
+      deleteValidGraphicsHandles(obj.hSkel);
     end
   end
   
@@ -457,7 +461,7 @@ classdef LabelCore < handle
       ax = obj.hAx;
       ptsPlotInfo = obj.ptsPlotInfo;
       
-      deleteValidHandles(obj.hSkel);
+      deleteValidGraphicsHandles(obj.hSkel);
       obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
       for i = 1:size(obj.skeletonEdges,1),
         obj.hSkel(i) = LabelCore.initSkeletonEdge(ax,i,ptsPlotInfo);

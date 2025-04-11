@@ -2,7 +2,7 @@ classdef TrackMonitorViz < handle
   properties
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
-    hannlastupdated % [1] textbox/annotation handle
+    %hannlastupdated % [1] textbox/annotation handle
     
     % Three modes. Here nmov=nMovSet*nView
     % - bulkAxsIsBulkMode: hline is [nmov]. One box/patch per mov. htext is
@@ -23,8 +23,8 @@ classdef TrackMonitorViz < handle
     
     resLast = []; % last contents received
     dtObj % DeepTracker Obj
-    trackWorkerObj = [];
-    backEnd % scalar DLBackEnd
+    poller = [];
+    backendType  % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
     actions = struct(...
       'Bsub',...
       {{'List all jobs on cluster'...
@@ -65,6 +65,11 @@ classdef TrackMonitorViz < handle
       'Color' [1 1 1]};
   end
   
+  properties (Transient)
+    parent_  % a LabelerController
+    labeler_  % a Labeler
+  end
+
   properties (Constant)
     DEBUG = false;
     COLOR_AXSWAIT_KILLED = [0.5 0.5 0.5];
@@ -83,25 +88,33 @@ classdef TrackMonitorViz < handle
   end
   
   methods
-    function obj = TrackMonitorViz(nview,dtObj,trackWorkerObj,backEnd,...
-        nFramesToTrack)
-      
+    function obj = TrackMonitorViz(parent, labeler)
+      % Store a handle to the parent LabelerController, and to the labeler
+      obj.parent_ = parent ;
+      obj.labeler_ = labeler ;
+
+      nview = labeler.nview ;
+      dtObj = labeler.tracker ;
+      poller = labeler.tracker.bgTrackPoller ;
+      backendType = labeler.backend.type ;
+      nFramesToTrack = labeler.tracker.nFramesTrack ;
+
+      % These instance variables are not really needed anymore.
       obj.dtObj = dtObj;
-      obj.trackWorkerObj = trackWorkerObj;
-      obj.backEnd = backEnd;
+      obj.poller = poller;
+      obj.backendType = backendType;
       
       nMovSets = numel(nFramesToTrack);
       nmov = nMovSets*nview;
       
-      lObj = dtObj.lObj;
       obj.hfig = TrackMonitorGUI(obj);
-      lObj.addDepHandle(obj.hfig);
+      %parent.addSatellite(obj.hfig);  % Don't think we need this
       handles = guidata(obj.hfig);
       TrackMonitorViz.updateStartStopButton(handles,true,false);
       %handles.pushbutton_startstop.Enable = 'on';
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
-      obj.hannlastupdated = handles.text_clusterstatus;
+      %obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
       obj.twoStgMode = dtObj.getNumStages() > 1;
@@ -111,12 +124,15 @@ classdef TrackMonitorViz < handle
       
       % reset plots
       arrayfun(@(x)cla(x),obj.haxs);
-      obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      %obj.hannlastupdated.String = 'Cluster status: Initializing...';
+      clusterstr = apt.monitorBackendDescription(obj.backendType) ;
+      str = sprintf('%s status: Initializing...', clusterstr) ;
+      obj.setStatusDisplayLine(str, true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
-      handles.popupmenu_actions.String = obj.actions.(char(backEnd));
+      handles.popupmenu_actions.String = obj.actions.(char(backendType));
       handles.popupmenu_actions.Value = 1;
       
       axwait = handles.axes_wait;
@@ -229,19 +245,18 @@ classdef TrackMonitorViz < handle
     end
     
     function delete(obj)
-      deleteValidHandles(obj.hfig);
+      deleteValidGraphicsHandles(obj.hfig);
       obj.hfig = [];
-%       obj.haxs = [];
     end
         
-    function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
+    function [tfSucc,msg] = resultsReceived(obj, pollingResult, forceupdate)
       % Callback executed when new result received from monitor BG
       % worker
       %
       % trnComplete: scalar logical, true when all views done
       
       tfSucc = false;
-      msg = '';
+      msg = '';  %#ok<NASGU> 
       
       if nargin < 3,
         forceupdate = false;
@@ -249,47 +264,45 @@ classdef TrackMonitorViz < handle
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed.';
-        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
+        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return;
       end
 
       if obj.isKilled,
         msg = 'Tracking jobs killed.';
-        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now));
+        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return;
       end
       
-      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
-      res = sRes.result;      
+      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
        
-      if isfield(res(1),'parttrkfile')
-        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
+      if isfield(pollingResult,'parttrkfile')
+        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(pollingResult.parttrkfile{1},'file'));
         TrackMonitorViz.debugfprintf('N. frames tracked: ');
       end
-      TrackMonitorViz.debugfprintf('tfcompete: %s\n',mat2str([res.tfComplete]));
-      nJobs = numel(res); 
+      TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
+      nJobs = numel(pollingResult.tfComplete); 
       
       % It is assumed that there is a correspondence between res and .hline
       if nJobs~=numel(obj.hline)
         warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
-          nJobs,numel(obj.hline));
+                       nJobs,numel(obj.hline));
       end
 
       % always update info about current tracker, as labels may have changed
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
 
-      tic;
+      ticId = tic() ;
       for ijob=1:nJobs,
-        isdone = res(ijob).tfComplete;
-        if isfield(res(ijob),'parttrkfileTimestamp'),
-          partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+        isdone = pollingResult.tfComplete(ijob);
+        if isfield(pollingResult,'parttrkfileTimestamp'),
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
           isupdate = ...
-          (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
-           || isdone;
+            (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
+            isdone ;
         else
-          partFileExists = false;
-          isupdate =false;
+          isupdate = false ;
         end
 
         if isupdate,
@@ -304,16 +317,19 @@ classdef TrackMonitorViz < handle
             end            
           else
             try
-              if isfield(res(ijob),'parttrkfileNfrmtracked')
+              if isfield(pollingResult,'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
-                obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
-                  res(ijob).trkfileNfrmtracked);
-                assert(~isnan(obj.nFramesTracked(ijob)));
+                obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
+                % if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
+                %   nop() ;
+                %   %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                %     % This should be caught by the local try-catch
+                % end
               else
                 if isdone,
-                  tfile = res(ijob).trkfile;
+                  tfile = pollingResult.trkfile{ijob};
                 else
-                  tfile = res(ijob).parttrkfile;
+                  tfile = pollingResult.parttrkfile{ijob};
                 end
                 %fprintf('TrkMonitorViz.resultsReceived: tfile = %s\n',tfile);
                 try
@@ -340,68 +356,49 @@ classdef TrackMonitorViz < handle
                     (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
               set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);              
             catch ME,
-              fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
+              fprintf('Could not update nFramesTracked, for whatever reason.\n');
             end
           end
         end
         
-        if res(ijob).killFileExists,
-          obj.isKilled = true;
-          set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
-          obj.hfig.UserData = 'killed';
-        end
+        % if res(ijob).killFileExists,
+        %   obj.isKilled = true;
+        %   set(obj.hline(ijob),'FaceColor',obj.COLOR_AXSWAIT_KILLED);
+        %   obj.hfig.UserData = 'killed';
+        % end
         if ~obj.bulkAxsIsBulkMode
           TrackMonitorViz.debugfprintf('Job %d: %d. ',ijob,obj.nFramesTracked(ijob));
         end
       end
       TrackMonitorViz.debugfprintf('\n');
-      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc);
+      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
       
-      if isstruct(sRes) && isfield(sRes,'result'),
-        obj.resLast = sRes.result;
-      end
+      obj.resLast = pollingResult ;
       
-      obj.updateErrDisplay(res);
-      [tfSucc,msg] = obj.updateAnn(res);      
+      obj.updateErrDisplay(pollingResult);
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);      
     end
     
-    function [tfSucc,status] = updateAnn(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      nJobs = numel(res);
+      nJobs = numel(pollingResult);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
-      
-      clusterstr = 'Cluster';
-      switch obj.backEnd
-        case DLBackEnd.Bsub
-          clusterstr = 'JRC cluster';
-        case DLBackEnd.Docker
-          clusterstr = 'Local';
-        case DLBackEnd.Conda
-          clusterstr = 'Local';
-        case DLBackEnd.AWS,
-          clusterstr = 'AWS';
-        otherwise
-          warning('Unknown back end type');
-      end
-          
       isTrackComplete = false;
       isErr = false;
       isLogFile = false;
-      if ~isempty(res),
-        isTrackComplete = all([res.tfComplete]);
-        isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
-        % to-do: figure out how to make this robust to different file
-        % systems
-        isLogFile = any([res.logFileExists]);
+      if ~isempty(pollingResult),
+        isTrackComplete = all([pollingResult.tfComplete]);
+        isErr = any([pollingResult.errFileExists]) ;
+        isLogFile = any([pollingResult.logFileExists]);
       end
       
-      if ~isempty(res) && isfield(res,'isRunning')
-        isRunning = any([res.isRunning]);
+      if ~isempty(pollingResult) && isfield(pollingResult,'isRunning')
+        isRunning = any([pollingResult.isRunning]);
       else
-        isRunning = true;
+        isRunning = true ;
       end
       
       if obj.isKilled,
@@ -435,25 +432,19 @@ classdef TrackMonitorViz < handle
         status = 'Initializing tracking.';
       end
       
-      str = {sprintf('%s status: %s',clusterstr,status),sprintf('Monitor updated %s.',datestr(now,'HH:MM:SS PM'))};
-      hAnn = obj.hannlastupdated;
-      hAnn.String = str;
-      
-      isok = all(pollsuccess) && ~isErr;
-      if all(isok)
-        hAnn.ForegroundColor = [0 1 0];
-      else
-        hAnn.ForegroundColor = [1 0 0];
-      end      
-    end
+      clusterstr = apt.monitorBackendDescription(obj.backendType) ;
+      str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
+      isAllGood = all(pollsuccess) && ~isErr ;
+      obj.setStatusDisplayLine(str, isAllGood) ;
+    end  % function
     
-    function updateErrDisplay(obj,res)
-      isErr = any([res.errFileExists]) || any([res.logFileErrLikely]);
+    function updateErrDisplay(obj, pollingResult)
+      isErr = any([pollingResult.errFileExists]) ;
       if ~isErr,
         return;
       end
       handles = guidata(obj.hfig);
-      if any([res.errFileExists]),
+      if any([pollingResult.errFileExists]),
         erri = find(strcmp(handles.popupmenu_actions.String,'Show error messages'),1);
         if numel(erri) ~= 1,
           return;
@@ -470,7 +461,7 @@ classdef TrackMonitorViz < handle
       handles.text_clusterinfo.ForegroundColor = 'r';
       TrackMonitorViz.updateStartStopButton(handles,false,false);
       drawnow;
-    end
+    end  % function
 
     function updateStatusFinal(obj,nJobs)
       handles = guidata(obj.hfig);
@@ -480,39 +471,35 @@ classdef TrackMonitorViz < handle
         else
           sview = '';
         end
-
         set(obj.htext(ijob),'String',sprintf('%d/%d frames tracked%s',...
           obj.nFramesToTrack(ijob),obj.nFramesToTrack(ijob),sview));
       end
       set(obj.hline,'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED,'XData',[0,0,1,1,0]);
       obj.bulkMovTracked(:) = true;
       TrackMonitorViz.updateStartStopButton(handles,false,true);
-
-    end
+    end  % function
         
-    function stopTracking(obj)
-      
-%       warning('not implemented');
-%       return;
-      
-      if isempty(obj.trackWorkerObj),
+    function abortTracking(obj)
+      if isempty(obj.poller),
         warning('trackWorkerObj is empty -- cannot kill process');
         return;
       end
-      obj.SetBusy('Killing tracking jobs...',true);
+      obj.setStatusDisplayLine('Killing tracking jobs...', false) ;
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
-      [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
-      if tfsucc,
-        
-        % AL: .isKilled set in resultsReceived
-        %obj.isKilled = true;
-      else
-        warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
-      end
+      obj.labeler_.abortTracking() ;
+
+      % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
+      % if tfsucc,
+      % 
+      %   % AL: .isKilled set in resultsReceived
+      %   %obj.isKilled = true;
+      % else
+      %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
+      % end
       TrackMonitorViz.updateStartStopButton(handles,false,false);
-      obj.ClearBusy('Tracking process killed');
+      obj.setStatusDisplayLine('Tracking process killed.', false);
       drawnow;
 
     end
@@ -525,7 +512,7 @@ classdef TrackMonitorViz < handle
       action = actions{v}; %#ok<PROP>
       switch action
         case 'Show log files',
-         ss = obj.getLogFilesContents();
+         ss = obj.getLogFilesSummary();
          handles.text_clusterinfo.String = ss;
          drawnow;
         case 'Update tracking monitor',
@@ -536,16 +523,17 @@ classdef TrackMonitorViz < handle
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show tracking jobs'' status',
-          ss = obj.queryTrackJobsStatus();
+          ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show error messages',
           if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
             ss = 'No error messages.';
           else
-            ss = obj.getErrorFileContents();
+            ss = obj.getErrorFilesSummary() ;
           end
           handles.text_clusterinfo.String = ss;
+          drawnow;
         otherwise
           fprintf('%s not implemented\n',action);
           return;
@@ -553,74 +541,29 @@ classdef TrackMonitorViz < handle
       %handles.text_clusterinfo.ForegroundColor = 'w';
     end    
     
-    function ss = getLogFilesContents(obj)
-      
-      ss = obj.trackWorkerObj.getLogfilesContent;
-      
+    function ss = getLogFilesSummary(obj)      
+      ss = obj.dtObj.getTrackingLogFilesSummary() ;      
     end
     
-    function ss = getErrorFileContents(obj)
-      
-      ss = obj.trackWorkerObj.getErrorfileContent;
-      
+    function ss = getErrorFilesSummary(obj)      
+      ss = obj.dtObj.getTrackingErrorFilesSummary() ;      
     end
     
-    function updateMonitorPlots(obj)
-      
-      sRes.result = obj.trackWorkerObj.compute();
-      obj.resultsReceived(sRes,true);
-      
+    function updateMonitorPlots(obj)      
+      pollingResult = obj.poller.poll() ;
+      obj.resultsReceived(pollingResult, true) ;
     end
     
-    function ss = queryAllJobsStatus(obj)
-      
-      ss = obj.trackWorkerObj.queryAllJobsStatus();
-      if ischar(ss),
-        ss = strsplit(ss,'\n');
-      end
-      
-    end
-    
-    function ss = queryTrackJobsStatus(obj)
-      
-      ss = {};
-      raw = obj.trackWorkerObj.queryMyJobsStatus();
-      for i = 1:numel(raw),
-        snew = strsplit(raw{i},'\n');
-        ss(end+1:end+numel(snew)) = snew;
-      end
-
-    end
-    
-    function ClearBusy(obj,s)
-
-      obj.SetBusy(s,false);
-    
-    end
-
-    function SetBusy(obj,s,isbusy)
-
-      handles = guidata(obj.hfig);
-      
-      if nargin < 3
-        isbusy = true;
-      end
-      
-      if isbusy,
-        set(obj.hfig,'Pointer','watch');
-        if ~isempty(s),
-          set(handles.text_clusterstatus,'String',s,'ForegroundColor','r');
-        end
-        
+    function result = queryAllJobsStatus(obj)      
+      ss = obj.dtObj.queryAllJobsStatus('track') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
       else
-        set(obj.hfig,'Pointer','arrow');
-        set(handles.text_clusterstatus,'ForegroundColor','g');
+        result = ss ;
       end
-
-      drawnow('limitrate');
-    end
-    
-  end
+    end  % function
+        
+  end  % methods
   
   methods (Static)
     
@@ -712,7 +655,7 @@ classdef TrackMonitorViz < handle
         end
       end
     end
-    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)
+    function hpch = makeIndicatorPatches(nmov,gridnrow,gridncol,ax,clr,pchargs)  %#ok<INUSD> 
       hpch = gobjects(nmov,1);
       for imov = 1:nmov
         irow = ceil(imov/gridncol);
@@ -738,13 +681,44 @@ classdef TrackMonitorViz < handle
         
         [gridnrow,gridncol] = TrackMonitorViz.getIndicatorGridSz(nmov,whr);
         hpch = TrackMonitorViz.makeIndicatorPatches(nmov,...
-          gridnrow,gridncol,ax,[1 0 0],{});
+          gridnrow,gridncol,ax,[1 0 0],{});  %#ok<NASGU> 
         axis(ax,[0.5 gridncol+1.5 1 gridnrow+1]);
         
         drawnow;
-        mm(nmov) = getframe(hfig);
+        mm(nmov) = getframe(hfig);  %#ok<AGROW> 
         %input(num2str(nmov));
       end
-    end
-  end
-end
+    end  % function
+  end  % methods (Static)
+
+  methods
+    function setStatusDisplayLine(obj, str, isallgood)
+      % Set either or both of the status message line and the color of the status
+      % message.  Any of the two (non-obj) args can be empty, in which case that
+      % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
+      % field containing the handle of an 'text' appropriate graphics object.
+
+      hfig = obj.hfig ;
+      handles = guidata(hfig);
+      text_h = handles.text_clusterstatus ;
+      if ~exist('str', 'var') ,
+        str = [] ;
+      end
+      if ~exist('isallgood', 'var') ,
+        isallgood = [] ;
+      end
+      if isempty(str) ,
+        % do nothing
+      else
+        set(text_h, 'String', str) ;
+      end
+      if isempty(isallgood) ,
+        % do nothing
+      else
+        color = fif(isallgood, 'g', 'r') ;
+        set(text_h, 'ForegroundColor',color) ;
+      end
+      drawnow('limitrate', 'nocallbacks') ;
+    end  % function
+  end  % methods    
+end  % classdef

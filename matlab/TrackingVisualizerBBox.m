@@ -248,16 +248,16 @@ classdef TrackingVisualizerBBox < TrackingVisualizerBase
     end
     function deleteGfxHandles(obj)
 %       if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
-%         deleteValidHandles(obj.hXYPrdRed);
+%         deleteValidGraphicsHandles(obj.hXYPrdRed);
 %         obj.hXYPrdRed = [];
 %       end
-%       deleteValidHandles(obj.hXYPrdRedTxt);
+%       deleteValidGraphicsHandles(obj.hXYPrdRedTxt);
 %       obj.hXYPrdRedTxt = [];
-%       deleteValidHandles(obj.hSkel);
+%       deleteValidGraphicsHandles(obj.hSkel);
 %       obj.hSkel = [];
-%       deleteValidHandles(obj.hPch);
+%       deleteValidGraphicsHandles(obj.hPch);
 %       obj.hPch = [];
-%       deleteValidHandles(obj.hPchTxt);
+%       deleteValidGraphicsHandles(obj.hPchTxt);
 %       obj.hPchTxt = [];
     end
   end

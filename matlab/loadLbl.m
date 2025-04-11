@@ -1,10 +1,12 @@
 function lbl = loadLbl(lbl_file,varargin)
+% Load a .lbl file.  Returns a *struct* with fields similar to those you might
+% find in a Labeler object.
 
 keeptempdir = myparse(varargin,...
   'keeptempdir',false ...
   );
 
-tname = tempname;
+tname = tempname() ;
 mkdir(tname);
 try
   fprintf('Untarring project into %s\n',tname);

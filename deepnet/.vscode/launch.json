@@ -6,23 +6,169 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false
         } ,
         {
-            "name": "Bash: Current File",
-            "type": "bashdb",
+            "name": "Test MSPN training",
+            "type": "debugpy",
             "request": "launch",
-            "program": "${file}"
+            "program": "test_mspn_training_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         } ,
         {
             "name": "Test MSPN tracking",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "test_mspn_tracking_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_more_like_prod.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_training_more_like_prod.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_from_apt.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_training_from_apt.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_tracking.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_tracking.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_coco_training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_coco_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run-coco-from-apt-training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_training_on_carmen.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_training_on_carmen.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_gt_on_carmen.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_gt_on_carmen_missing_to_track.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen_missing_to_track.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_tracking_on_sam2view.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_tracking_on_sam2view.py",
             "console": "integratedTerminal",
             "justMyCode": false
         }

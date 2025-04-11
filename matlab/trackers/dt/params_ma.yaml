@@ -85,4 +85,5 @@ ROOT:
           - link_id_batch_size: ['Identity tracker batch size',unsigned,true,'Batch size to use for training identity network.',16,'','Beginner',['ma'],true]
           - link_id_mining_steps: ['Identity tracker mining steps',unsigned,true,'Number of times to do hard triplet mining during identity tracking.',10,'','Advanced',['ma'],true]
           - link_id_cropsz: ['Crop size to use for ID Linking',signed,true,'Crop size to use ID linking. If less than 0, the automatically computed crop size is used',-1,'','Beginner',['ma'],true]
+          - link_id_motion_link: ['Use motion linking before grouping by identity',signed,true,'Crop size to use ID linking. If less than 0, the automatically computed crop size is used',false,'','Advanced',['ma'],true]
 

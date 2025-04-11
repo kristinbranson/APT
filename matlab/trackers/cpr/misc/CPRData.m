@@ -689,7 +689,7 @@ classdef CPRData < handle
       grid on;
     end
     
-    function H0 = histEq(obj,varargin)
+    function H0 = histEq(~,varargin)
       % Perform histogram equalization on all images
       %
       % Optional PVs:
@@ -698,6 +698,7 @@ classdef CPRData < handle
       % the same value of g are histogram-equalized together. For example,
       % g might indicate which movie the image is taken from.
       
+      H0 = [] ;
       assert(false,'Deprecated codepath.');
       
 %       [H0,nbin,g,wbObj] = myparse(varargin,...

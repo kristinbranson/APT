@@ -53,9 +53,12 @@ classdef GTSetGenerator < handle
     
     function tblGT = generate(obj,lObj)
       
-      wbObj = WaitBarWithCancel('Compiling GT frames');
-      oc = onCleanup(@()delete(wbObj));
-      
+      %wbObj = WaitBarWithCancel('Compiling GT frames');
+      %oc = onCleanup(@()delete(wbObj));
+      wbObj = lObj.progressMeter ;
+      wbObj.arm('title', 'Compiling GT frames');
+      oc = onCleanup(@()(lObj.disarmProgressMeter())) ;
+
       % Step 1: Generate base set of GT frames which will be randomly
       % sampled
       

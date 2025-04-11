@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#! /usr/bin/env python3
 
 # FutureWarnings from import corrupting fspoll output/parse
 # alternatively, could eg prefix each 'real' output line with
@@ -11,8 +11,8 @@ import os
 import string
 import re
 import glob
-import numpy as np
-import h5py
+#import numpy as np
+#import h5py
 
 
 args = sys.argv
@@ -50,30 +50,30 @@ for i in range(1,nargs,2):
             val = str(val)
         else:
             val = 'DNE'
-    elif ty=='nfrmtracked':
-        if os.path.exists(file):
-            try:
-                mat = h5py.File(file,'r')
-                canCount = True
-                if 'pTrk' in mat.keys():
-                    f = 'pTrk'
-                elif 'pred_locs' in mat.keys():
-                    f = 'pred_locs'
-                else:
-                    val = 'DNE'
-                    canCount = False
-                if canCount:
-                    pTrk = mat[f].value
-                    if pTrk.ndim==4:
-                        val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
-                    else:
-                        val = str(np.count_nonzero(~np.isnan(pTrk[:,0,0])))
-
-            except IOError:               
-                # txt file with number of frames
-                with open(file,'r') as fid:
-                    l = fid.read()
-                    val = int(l)
+#     elif ty=='nfrmtracked':
+#         if os.path.exists(file):
+#             try:
+#                 mat = h5py.File(file,'r')
+#                 canCount = True
+#                 if 'pTrk' in mat.keys():
+#                     f = 'pTrk'
+#                 elif 'pred_locs' in mat.keys():
+#                     f = 'pred_locs'
+#                 else:
+#                     val = 'DNE'
+#                     canCount = False
+#                 if canCount:
+#                     pTrk = mat[f].value
+#                     if pTrk.ndim==4:
+#                         val = str(np.count_nonzero(~np.isnan(pTrk[:,:,0,0])))
+#                     else:
+#                         val = str(np.count_nonzero(~np.isnan(pTrk[:,0,0])))
+# 
+#             except IOError:               
+#                 # txt file with number of frames
+#                 with open(file,'r') as fid:
+#                     l = fid.read()
+#                     val = int(l)
                 
                 
     elif ty=='mostrecentmodel':

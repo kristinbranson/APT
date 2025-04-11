@@ -40,7 +40,7 @@ classdef Interpolator < LabelTracker
         xyfrms = lpos(:,:,fs);
         labeler.labelPosSetUnmarkedFramesMovieFramesUnmarked(...
           xyfrms,iM,fs);
-        labeler.setFrame(labeler.currFrame,'tfforcelabelupdate',true);
+        labeler.setFrameGUI(labeler.currFrame,'tfforcelabelupdate',true);
       end
     end
     

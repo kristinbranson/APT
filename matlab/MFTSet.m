@@ -13,8 +13,7 @@ classdef MFTSet < handle
     targetSet % scalar TargetSet
   end
   
-  methods
-  
+  methods  
     function obj = MFTSet(mset,fset,dec,tset)
       assert(isa(mset,'MovieIndexSet'));
       assert(isa(fset,'FrameSet'));
@@ -29,6 +28,7 @@ classdef MFTSet < handle
     
     function str = getPrettyStr(obj,labelerObj)
       % Create pretty-string for UI
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
       movstr = obj.movieIndexSet.getPrettyString;
       frmstr = lower(obj.frameSet.getPrettyString(labelerObj));
@@ -58,6 +58,7 @@ classdef MFTSet < handle
     
     function str = getPrettyStrCompact(obj,labelerObj)
       % Create shorter pretty-string for UI, iss #161
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
       movstr = obj.movieIndexSet.getPrettyString;
       if ~strcmpi(movstr,'current movie')
@@ -87,6 +88,7 @@ classdef MFTSet < handle
     
     function str = getPrettyStrMoreCompact(obj,labelerObj)
       % Create shorter pretty-string for UI, iss #161
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       
       movstr = obj.movieIndexSet.getPrettyString;
       if ~strcmpi(movstr,'current movie')
@@ -112,7 +114,7 @@ classdef MFTSet < handle
         end
       end
       str(1) = upper(str(1));
-    end
+    end  % function
     
     function tblMFT = getMFTable(obj,labelerObj,varargin)
       % tblMFT: MFTable with MFTable.ID
@@ -129,9 +131,9 @@ classdef MFTSet < handle
       % 'targets' can refer to either distinct label IDs, or tracklets.
       % When tracking, neither currently applies, as entire frames are
       % processed.
-      
+
       [wbObj,istrack] = myparse(varargin,...
-        'wbObj',[], ... % (opt) WaitBarWithCancel. If cancel, tblMFT indeterminate.
+        'wbObj',[], ... % (opt) WaitBarWithCancel or ProgressMeter. If cancel, tblMFT indeterminate.
         'istrack',false ... % if true and labelerObj is MA, then 'targets' are ignored/meaningless.
         ); 
       tfWB = ~isempty(wbObj);      
@@ -142,8 +144,8 @@ classdef MFTSet < handle
         iTgt = zeros(0,1);
         tblMFT = table(mov,frm,iTgt);
       else
-        mis = obj.movieIndexSet.getMovieIndices(labelerObj);
-        decFac = obj.decimation.getDecimation(labelerObj);
+        mis = obj.movieIndexSet.getMovieIndices(labelerObj.getMftInfoStruct());
+        decFac = obj.decimation.getDecimation(labelerObj.getMftInfoStruct());
         tgtSet = obj.targetSet;
         frmSet = obj.frameSet;
         
@@ -161,16 +163,29 @@ classdef MFTSet < handle
         end
         
         if tfWB
-          wbObj.startPeriod('Fetching table','shownumden',true,'denominator',nMovs);
-          oc = onCleanup(@()wbObj.endPeriod());
+          if isa(wbObj, 'ProgressMeter') ,
+            wbObj.start('message', 'Fetching table', 'denominator', nMovs) ;
+            oc = onCleanup(@()wbObj.finish());
+          else
+            wbObj.startPeriod('Fetching table','shownumden',true,'denominator',nMovs);
+            oc = onCleanup(@()wbObj.endPeriod());
+          end
         end
         for i=1:nMovs
           if tfWB
-            if wbObj.isCancel
-              % tblMFT is raw/cell, return it anyway
-              return;              
-            end
-            wbObj.updateFracWithNumDen(i);
+            if isa(wbObj, 'ProgressMeter') ,
+              if wbObj.wasCanceled
+                % tblMFT is raw/cell, return it anyway
+                return
+              end
+              wbObj.bump(i);
+            else
+              if wbObj.isCancel
+                % tblMFT is raw/cell, return it anyway
+                return
+              end
+              wbObj.updateFracWithNumDen(i);
+            end              
           end
           
           mIdx = mis(i);
@@ -185,10 +200,8 @@ classdef MFTSet < handle
           end
         end
         tblMFT = cat(1,tblMFT{:});
-      end
-    end
-    
-  end 
- 
-end
+      end  % if ~labelerObj.hasMovie
+    end  % function    
+  end  % methods  
+end  % classdef
     

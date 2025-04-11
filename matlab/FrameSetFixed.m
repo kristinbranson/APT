@@ -7,7 +7,8 @@ classdef FrameSetFixed < FrameSet
       assert(isvector(frms));
       obj.frames = frms(:);
     end
-    function str = getPrettyString(obj,lObj)
+    function str = getPrettyString(obj,labelerObj)
+      assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;
       n = numel(obj.frames);
       str = sprintf('%d frames from %d to %d',n,obj.frames(1),obj.frames(end));
     end    

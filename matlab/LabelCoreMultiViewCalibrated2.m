@@ -173,11 +173,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
 		
     function delete(obj)
-      deleteValidHandles(obj.pjtHLinesEpi);
+      deleteValidGraphicsHandles(obj.pjtHLinesEpi);
       obj.pjtHLinesEpi = [];
-      deleteValidHandles(obj.pjtHLinesRecon);
+      deleteValidGraphicsHandles(obj.pjtHLinesRecon);
       obj.pjtHLinesRecon = [];
-      deleteValidHandles(obj.hAxXLabels);
+      deleteValidGraphicsHandles(obj.hAxXLabels);
       obj.hAxXLabels = [];
     end
         
@@ -192,11 +192,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % Labelers.labels2VizInit()
       % AL 20170330 At this pt may be able to do multi-view in LabelCore; 
       % alternatively this is acting as multiview lblCore baseclass
-      deleteValidHandles(obj.hPts);
-      deleteValidHandles(obj.hPtsTxt);
-%       deleteValidHandles(obj.labeler.labeledpos2_ptsH);
-%       deleteValidHandles(obj.labeler.labeledpos2_ptsTxtH);
-      deleteValidHandles(obj.hSkel);
+      deleteValidGraphicsHandles(obj.hPts);
+      deleteValidGraphicsHandles(obj.hPtsTxt);
+%       deleteValidGraphicsHandles(obj.labeler.labeledpos2_ptsH);
+%       deleteValidGraphicsHandles(obj.labeler.labeledpos2_ptsTxtH);
+      deleteValidGraphicsHandles(obj.hSkel);
       obj.hPts = gobjects(obj.nPts,1);
       obj.hPtsTxt = gobjects(obj.nPts,1);
       obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
@@ -270,8 +270,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function showOccHook(obj)
       
-      deleteValidHandles(obj.hPtsOcc);
-      deleteValidHandles(obj.hPtsTxtOcc);
+      deleteValidGraphicsHandles(obj.hPtsOcc);
+      deleteValidGraphicsHandles(obj.hPtsTxtOcc);
       obj.hPtsOcc = gobjects(obj.nPts,1);
       obj.hPtsTxtOcc = gobjects(obj.nPts,1);
 
@@ -323,7 +323,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       ax = obj.hAx;
       ptsPlotInfo = obj.ptsPlotInfo;
       
-      deleteValidHandles(obj.hSkel);
+      deleteValidGraphicsHandles(obj.hSkel);
       nEdgesPerView = size(obj.skeletonEdges,1)/obj.nView;
       obj.hSkel = gobjects(size(obj.skeletonEdges,1),1);
       for ivw = 1:obj.nView,
@@ -587,9 +587,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        lObj.frameUp(tfCtrl);
+        lObj.frameUpGUI(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        lObj.frameDown(tfCtrl);
+        lObj.frameDownGUI(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
         [tfSel,iSel] = obj.projectionPointSelected();
         if tfSel
@@ -1118,7 +1118,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
     end
     function projectionClear3DPosn(obj)
-      deleteValidHandles(obj.pjtShow3D);
+      deleteValidGraphicsHandles(obj.pjtShow3D);
       obj.pjtShow3D = gobjects(0,1);
     end
     

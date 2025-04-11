@@ -464,7 +464,7 @@ classdef RF
     function hLine = addLinesToLabelerAxis(lObj)
       ax = lObj.gdata.axes_curr;
       if isfield(ax.UserData,'hLine')
-        deleteValidHandles(ax.UserData.hLine);
+        deleteValidGraphicsHandles(ax.UserData.hLine);
       end
       NPTS = 18;
       hLine = gobjects(NPTS,1);

@@ -1377,7 +1377,7 @@ classdef Shape
         for t = 2:Tp1
           for iMini = 1:nMini
             if exist('hMiniFtrs','var')>0
-              deleteValidHandles(hMiniFtrs);
+              deleteValidGraphicsHandles(hMiniFtrs);
             end 
             hMiniFtrs = [];
 

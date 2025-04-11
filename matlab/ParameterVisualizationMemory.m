@@ -36,8 +36,8 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         if sPrm.ROOT.MultiAnimal.multi_crop_ims
           i_sz = sPrm.ROOT.MultiAnimal.multi_crop_im_sz;
         else
-          i_sz = lobj.getMovieRoiMovIdx(MovieIndex(1));
-          i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_isz(3)+1);
+          i_sz = lObj.getMovieRoiMovIdx(MovieIndex(1));
+          i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
         end
         imsz = [i_sz,i_sz];
       else

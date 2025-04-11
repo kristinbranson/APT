@@ -567,7 +567,7 @@ end
 
 %%
 PARAMFILE = 'f:\romain\tp@18pts@3d.yaml'; % KB: this is in .../forKB
-sPrm = ReadYaml(PARAMFILE);
+sPrm = yaml.ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
 sPrm.Model.Prm3D.calrig = crig2;
@@ -590,13 +590,13 @@ NPTS = 18;
 frame = tMFPTrnSel.frm(TESTROWIDX);
 if exist('lObj','var')==0
   lObj = Labeler;
-  lObj.projLoad(LBL); % KB: this won't be able to find movies will prompt you to locate
+  lObj.projLoadGUI(LBL); % KB: this won't be able to find movies will prompt you to locate
 end
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,NPTS);
 for iAx = 1:3
@@ -669,7 +669,7 @@ pTstTRedFinalT = pTstTRed(:,:,end);
 %% Browse test frames in Labeler
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 
 hLine = gobjects(3,NPTS);
@@ -693,7 +693,7 @@ nTest = size(pTstTRedFinalT,1);
 pTstTRedFinalT = reshape(pTstTRedFinalT,nTest,18,3);
 for iF=1:numel(frmTest)
   f = frmTest(iF);
-  lObj.setFrame(f);
+  lObj.setFrameGUI(f);
 
   pTstBest = squeeze(pTstTRedFinalT(iF,:,:));
   for iVw=1:3
@@ -860,7 +860,7 @@ ax.ZLim = [bboxes(3) bboxes(3)+bboxes(6)];
 tRow = [120 1711 1889 2289];
 TROWIDX = 3;
 frame = t19expandedLRB.frm(tRow);
-lObj.setFrame(frame(TROWIDX));
+lObj.setFrameGUI(frame(TROWIDX));
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 X = cell(1,3);
@@ -897,7 +897,7 @@ pGT_1_7_13 = pGT(:,[iPts_1_7_13 iPts_1_7_13+19 iPts_1_7_13+38]);
 
 %%
 PARAMFILE = 'f:\romain\tp@3pts.yaml';
-sPrm = ReadYaml(PARAMFILE);
+sPrm = yaml.ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
 sPrm.Model.Prm3D.calrig = crig2;
@@ -913,10 +913,10 @@ pAll = reshape(pAll,197,50,9,31);
 pIidx = repmat((1:197)',50,1); % labels rows of pAll; indices into rows of tbl, I
 TROWIDX = 1;
 frame = tbl.frm(TROWIDX);
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
-deleteValidHandles(hLine);
+deleteValidGraphicsHandles(hLine);
 hLine = gobjects(3,3);
 for iAx = 1:3
   ax = axAll(iAx);
@@ -966,11 +966,11 @@ p_t = reshape(p_t,nTest,50,9,31);
 %% Browse propagated replicates
 TESTROWIDX = 155;
 frame = tblTest.frm(TESTROWIDX);
-lObj.setFrame(frame);
+lObj.setFrameGUI(frame);
 %lposCurr = squeeze(lpos(4,:,:,11952)); % 3x2
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,3);
 for iAx = 1:3
@@ -1022,7 +1022,7 @@ pTstTRedFinalT = pTstTRed(:,:,end);
 %% Browse test frames
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 hLine = gobjects(3,3);
 for iAx = 1:3
@@ -1039,7 +1039,7 @@ end
 pTstTRedFinalT2 = reshape(pTstTRedFinalT2,nTest2,3,3);
 for iF=1:numel(frmTest2)
   f = frmTest2(iF);
-  lObj.setFrame(f);
+  lObj.setFrameGUI(f);
 
   pTstBest = squeeze(pTstTRedFinalT2(iF,:,:));
   for iVw=1:3

@@ -20,7 +20,7 @@ classdef LabelCoreMVMixin < handle
   methods
     
     function delete(obj)
-      deleteValidHandles(obj.hAxXLabels);
+      deleteValidGraphicsHandles(obj.hAxXLabels);
       obj.hAxXLabels = [];
     end
     

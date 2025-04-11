@@ -393,7 +393,7 @@ for t = 1:101
     nfids = size(fids,2);
     colors = jet(nfids);    
     
-    deleteValidHandles(hFids);
+    deleteValidGraphicsHandles(hFids);
     for iFid = 1:nfids
       hFids(end+1) = plot(hax(1),xF(fids(1,iFid)),yF(fids(1,iFid)),'^','markerfacecolor',colors(iFid,:));
       hFids(end+1) = plot(hax(1),xF(fids(2,iFid)),yF(fids(2,iFid)),'o','markerfacecolor',colors(iFid,:));      

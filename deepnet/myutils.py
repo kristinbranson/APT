@@ -41,7 +41,7 @@ def padgrab(inmat,padv,*args):
         idx.append(slice(args[i]+p1,args[i+1]+p1))
 
     mmat = np.lib.pad(inmat,padamt,'constant',constant_values = padv)
-    return mmat[idx]
+    return mmat[tuple(idx)]
     
 
     

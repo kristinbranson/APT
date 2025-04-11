@@ -458,7 +458,7 @@ nmov = lObj.nmovies;
 DIST_THRESH_LO = 30;
 DIST_THRESH_HI = 60; % px
 for iMov=1
-  lObj.movieSet(iMov);
+  lObj.movieSetGUI(iMov);
   frm2trx = lObj.frm2trx;
   [nfrm,ntgt] = size(frm2trx);
   trx = lObj.trx;
@@ -509,7 +509,7 @@ for irange=1:3
   numAccepted = 0;
   for i=1:height(tTmp)
     row = tTmp(i,:);
-    lObj.setFrameAndTarget(row.frm,row.iTgt);
+    lObj.setFrameAndTargetGUI(row.frm,row.iTgt);
     str = sprintf('dTrx=%.2f',row.dTrx);
     resp = input(str);
     if resp==1
@@ -534,7 +534,7 @@ colormap gray
 s = struct('im',cell(0,1),'trxx',[],'trxy',[],'trxid',[]);
 for i=1:height(tEx)
   row = tEx(i,:);
-  lObj.setFrameAndTarget(row.frm,row.iTgt);
+  lObj.setFrameAndTargetGUI(row.frm,row.iTgt);
   im = lObj.currIm{1};
   trx = lObj.currTrx;
   trxidx = trx.off+row.frm;

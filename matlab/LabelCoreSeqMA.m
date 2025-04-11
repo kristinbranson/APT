@@ -137,7 +137,7 @@ classdef LabelCoreSeqMA < LabelCore
       delete(obj.pbRoiEdit);
       delete(obj.pbRoiNew);
       delete(obj.roiRectDrawer);
-      deleteValidHandles(obj.tcHpts);
+      deleteValidGraphicsHandles(obj.tcHpts);
     end
     
     function tcInit(obj)
@@ -292,10 +292,10 @@ classdef LabelCoreSeqMA < LabelCore
           dy = y0-xy(2);
           th = atan2(dy,dx);
           lObj = obj.labeler;
-          obj.tc_prev_axis = lObj.videoCurrentAxis;
-          lObj.videoCenterOnCurrTarget(xc,yc,th)
+          obj.tc_prev_axis = obj.controller.videoCurrentAxis() ;
+          lObj.controller_.videoCenterOnCurrTarget(xc,yc,th)
           rad = 2*sqrt(dx.^2+dy.^2);
-          lObj.videoZoom(rad);
+          lObj.controller_.videoZoom(rad);
           if ~obj.tcShow
             set(h,'XData',nan,'YData',nan);
           end
@@ -430,9 +430,9 @@ classdef LabelCoreSeqMA < LabelCore
           obj.storeLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'})) && ~tfCtrl
-        lObj.frameUp(tfCtrl);
+        lObj.frameUpGUI(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'})) && ~tfCtrl
-        lObj.frameDown(tfCtrl);
+        lObj.frameDownGUI(tfCtrl);
       elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)
@@ -716,7 +716,7 @@ classdef LabelCoreSeqMA < LabelCore
       obj.newPrimaryTarget();
       %fprintf('LabelCoreSeq.newFrameTarget 4: %f\n',toc(ticinfo)); 
       
-      if obj.roiShow
+      if obj.roiShow && ~lObj.gtIsGTMode
         % Note, currently if roiShow is toggled, rois for the current
         % frame will not be shown until a frame-change.
         vroi = lObj.labelroiGet(iFrm);
@@ -807,7 +807,7 @@ classdef LabelCoreSeqMA < LabelCore
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
       if obj.tcOn && ~isempty(obj.tc_prev_axis)
-        lObj.videoSetAxis(obj.tc_prev_axis);
+        lObj.controller_.videoSetAxis(obj.tc_prev_axis);
           obj.tc_prev_axis = [];
       end
       obj.state = LabelState.ACCEPTED;
@@ -841,7 +841,6 @@ classdef LabelCoreSeqMA < LabelCore
         obj.labeler.tracker.trkVizer.tvtrx.hittest_off_all();
       end
       obj.enableControls();
-
     end
             
     function storeLabels(obj)
@@ -938,9 +937,9 @@ classdef LabelCoreSeqMA < LabelCore
       h{end+1} = '{\fontname{Courier}    - OR a }: Backward one frame.';
       h{end+1} = '{\fontname{Courier}       0-9 }: Un/Select kpt of current target.';
       h{end+1} = '{\fontname{Courier}         ` }: Toggle which kpts 0-9 correspond to.';
-      rightpx = obj.labeler.videoCurrentRightVec;
+      rightpx = obj.controller.videoCurrentRightVec;
       rightpx = rightpx(1);
-      uppx = obj.labeler.videoCurrentUpVec;
+      uppx = obj.controller.videoCurrentUpVec;
       uppx = abs(uppx(2));
       h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',rightpx);
       h{end+1} = '{\fontname{Courier}     arrow }: Otherwise, go back/forward one frame.';

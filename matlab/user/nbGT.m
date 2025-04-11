@@ -184,7 +184,7 @@ end
 assert(exist('lObj','var')>0);
 axAll = lObj.gdata.axes_all;
 if exist('hLine','var')>0
-  deleteValidHandles(hLine);
+  deleteValidGraphicsHandles(hLine);
 end
 NPTS = 6;
 NRES = size(pResBig,1);
@@ -204,7 +204,7 @@ for iAx = 1:3
 end
 
 for iF = 1:nfrm
-  lObj.setFrame(frms(iF));
+  lObj.setFrameGUI(frms(iF));
   for iVw=1:3
     for iPt=1:NPTS
       for iRes=1:NRES

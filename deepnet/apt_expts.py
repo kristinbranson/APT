@@ -376,7 +376,7 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
                     **kwargs):
     cur_out = []
     extra_str = ''
-    if model_type not in ['leap', 'openpose', 'sb', 'dpk','leap_orig','mmpose','mdn_joint_fpn']:
+    if model_type not in ['leap', 'openpose', 'sb', 'dpk','leap_orig','mmpose','mdn_joint_fpn'] and not model_type.startswith('mmpose'):
         extra_str = '.index'
     # else:
     #     extra_str = '.h5'
@@ -386,12 +386,20 @@ def classify_db_all(conf,db_file,model_files,model_type,name='deepnet',distort=F
 
     for mndx, m in enumerate(model_files):
         # pred, label, gt_list = apt.classify_gt_data(conf, curm, out_file, m)
-        tf_iterator = multiResData.tf_reader(conf, db_file, False)
-        tf_iterator.batch_size = 1
-        read_fn = tf_iterator.next
+        if db_file.endswith('.json'):
+            coco_reader = multiResData.coco_loader(conf, db_file, False, img_dir='')
+            read_fn = iter(coco_reader).__next__
+            db_len = len(coco_reader)
+            conf.img_dim = 3
+        else:
+            tf_iterator = multiResData.tf_reader(conf, db_file, False)
+            tf_iterator.batch_size = 1
+            read_fn = tf_iterator.next
+            db_len = tf_iterator.N
+
         pred_fn, close_fn, _ = apt.get_pred_fn(model_type, conf, m,name=name,distort=distort)
                  #                              tmr_pred=timer_pred_inner) # commenting out for now
-        ret_list = classify_db_fcn(conf, read_fn, pred_fn, tf_iterator.N, **kwargs)
+        ret_list = classify_db_fcn(conf, read_fn, pred_fn, db_len, **kwargs)
         pred, label, gt_list = ret_list[:3]
         if isinstance(pred, dict):
             pred = pred['locs']
