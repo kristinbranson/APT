@@ -275,7 +275,7 @@ classdef TestAPT < handle
         
       elseif strcmp(name,'roianma2')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
-        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl') ;
+        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl') ;
         info.exp_dir_base = fullfile(unittest_dir_path, 'four-points-reduced-movies') ;
         info.nviews = nan;
         info.npts = nan;
@@ -299,24 +299,12 @@ classdef TestAPT < handle
 
       elseif strcmp(name,'roianma2mmpose1')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added-mmpose1.lbl';
-        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-mmpose1.lbl') ;
+        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies-mmpose1.lbl') ;
         info.exp_dir_base = fullfile(unittest_dir_path, 'four-points-reduced-movies') ;
         info.nviews = nan;
         info.npts = nan;
         info.has_trx = false;
         info.proj_name = 'roianma2-mmpose1-test';
-        info.sz = 250 ; % dont set this to empty even if it is not used
-        info.bundle_link = '';
-        info.op_graph = [];           
-
-      elseif strcmp(name,'roianma2gt')
-        %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-09-30-backup-model-branch-conda-backend.lbl';
-        info.ref_lbl = fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-gt-added.lbl') ;
-        info.exp_dir_base = fullfile(bransonlab_path, 'roian/apt_testing/files_for_working_with_apt') ;
-        info.nviews = nan;
-        info.npts = nan;
-        info.has_trx = false;
-        info.proj_name = 'roianma2-test';
         info.sz = 250 ; % dont set this to empty even if it is not used
         info.bundle_link = '';
         info.op_graph = [];           
