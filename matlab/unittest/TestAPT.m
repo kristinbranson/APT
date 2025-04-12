@@ -287,7 +287,7 @@ classdef TestAPT < handle
 
       elseif strcmp(name,'roianma2_tracking')
         %info.ref_lbl = '/groups/branson/bransonlab/taylora/apt/four-points/four-points-testing-2024-11-19-with-gt-added.lbl';
-        info.ref_lbl =  fullfile(unittest_dir_path, 'four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies-lightly-trained.lbl') ;
+        info.ref_lbl =  fullfile(unittest_dir_path, 'four-points-testing-2025-04-12-with-rois-added-and-fewer-smaller-avi-movies-lightly-trained.lbl') ;
         info.exp_dir_base = fullfile(unittest_dir_path, 'four-points-reduced-movies') ;
         info.nviews = nan;
         info.npts = nan;
