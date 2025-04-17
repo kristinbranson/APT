@@ -5458,14 +5458,14 @@ classdef LabelerController < handle
 
 
     function tbAdjustCropSize_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      cropUpdateCropAdjustingCropSize(handles);
+      obj.cropUpdateCropAdjustingCropSize_() ;
       tb = obj.tbAdjustCropSize;
       if tb.Value==tb.Min
         % user clicked "Done Adjusting"
         warningNoTrace('All movies in a given view must share the same crop size. The sizes of all crops have been updated as necessary.');
       elseif tb.Value==tb.Max
         % user clicked "Adjust Crop Size"
+        labeler = obj.labeler_ ;
         if ~labeler.cropProjHasCrops
           labeler.cropInitCropsAllMovies;
           fprintf(1,'Default crop initialized for all movies.\n');
