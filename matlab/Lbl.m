@@ -32,7 +32,7 @@ classdef Lbl
         lObj.trackSetCurrentTracker(itrker);
         tObj = lObj.tracker;
   
-        tObj.setAllParams(lObj.trackGetParams()); % does not set skel, flipLMEdges
+        tObj.setAllParams(lObj.trackParams); % does not set skel, flipLMEdges
         sthis = tObj.trnCreateStrippedLbl();
         if docompress
           sthis = Lbl.compressStrippedLbl(sthis);

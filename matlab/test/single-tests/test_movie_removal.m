@@ -1,5 +1,5 @@
 function test_movie_removal()
-  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
   if ispc()
     project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
     replace_path = { '/groups/branson/bransonlab', 'Z:' } ;

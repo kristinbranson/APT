@@ -1711,13 +1711,13 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
+      [return_code, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
       % We capture stdouterr to prevent it getting spit out to the Matlab console.
       % We use a variable name instead of ~ in case we need to debug in here at some
       % point.
-      if rc==0 ,
+      if return_code==0 ,
         result = stdouterr ;
       else
         result = sprintf('Error occurred when checking status of conda job %s: %s', jobid, stdouterr) ;
