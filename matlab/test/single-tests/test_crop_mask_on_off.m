@@ -13,7 +13,7 @@ function test_crop_mask_on_off_helper(doCrop, doMask)
   backend = docker_unless_janelia_cluster_then_conda() ;  % Should work on Linux or Windows
   backend_params = synthesize_backend_params(backend) ;
 
-  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2024-11-19-with-rois-added-and-fewer-smaller-movies.lbl' ;
+  linux_project_file_path = '/groups/branson/bransonlab/apt/unittest/four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl' ;
   if ispc()
     project_file_path = strrep(linux_project_file_path, '/groups/branson/bransonlab', 'Z:') ;
     replace_path = { '/groups/branson/bransonlab', 'Z:' } ;
