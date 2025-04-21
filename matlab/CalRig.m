@@ -129,6 +129,8 @@ classdef CalRig < handle
       elseif isa(s.(vars{1}),'CalRig') % Could check all vars
         obj = s.(vars{1});
 %         tfSetViewRois = false;
+      elseif all(ismember({'calibrations', 'nviews', 'raytracing', 'python_script_path', 'model_path', 'dividing_col', 'image_width'}, vars))
+        obj = CalRigNPairwiseCalibratedRayTracing(s);
       elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
         obj = CalRigMLStro(s.(vars{1})); % will auto-calibrate and offer save
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
