@@ -1,4 +1,4 @@
-name: APT_raytracing
+name: APT_raytracing_test
 channels:
   - defaults
 dependencies:
