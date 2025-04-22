@@ -268,6 +268,16 @@ classdef Labeler < handle
     bgTrkIsRunning        % True iff background tracking is running
     trackersAll           % All the 'template' trackers
     trackerHistory        
+    didLastTrainSucceed  
+      % Did the last bout of training complete without erroring or being aborted.
+      % Only meaningful if training has been run at least once in the current session.
+      % Defaults to false if training has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
+    didLastTrackSucceed  
+      % Did the last bout of tracking complete without erroring or being aborted.
+      % Only meaningful if tracking has been run at least once in the current session.
+      % Defaults to false if tracking has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
   end
 
   properties (Dependent, Hidden)
@@ -14973,6 +14983,22 @@ classdef Labeler < handle
       end
     end  % function
 
+    function result = get.didLastTrainSucceed(obj)        
+      if isempty(obj.tracker) ,
+        result = false ;
+      else
+        result = obj.tracker.didLastTrainSucceed ;
+      end
+    end  % function
+    
+    function result = get.didLastTrackSucceed(obj)        
+      if isempty(obj.tracker) ,
+        result = false ;
+      else
+        result = obj.tracker.didLastTrackSucceed ;
+      end
+    end  % function
+    
     function result = get.silent(obj)        
       result = obj.silent_ ;
     end  % function

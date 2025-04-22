@@ -172,7 +172,22 @@ classdef DeepTracker < LabelTracker
   
   properties (Dependent)
     bgTrnIsRunning
-    bgTrkIsRunning 
+    bgTrkIsRunning
+    didLastTrainSucceed  
+      % Did the last bout of training complete without erroring or being aborted.
+      % Only meaningful if training has been run at least once in the current session.
+      % Defaults to false if training has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
+    didLastTrackSucceed  
+      % Did the last bout of tracking complete without erroring or being aborted.
+      % Only meaningful if tracking has been run at least once in the current session.
+      % Defaults to false if tracking has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
+  end
+
+  properties (Transient)
+    didLastTrainSucceed_ = false
+    didLastTrackSucceed_ = false
   end
 
   properties    
@@ -2600,10 +2615,10 @@ classdef DeepTracker < LabelTracker
       
       % figure out if we will need to retrack any frames that were tracked
       % with an old tracker, or if any frames are already tracked
-      willload = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
-      isCurr = obj.checkTrackingResultsCurrent();
-      if willload && ~isCurr,
-
+      willLoad = any(obj.lObj.getMovIdxMovieFilesAllFull(totrackinfo.getMovfiles));
+      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
+      isCurr = obj.checkTrackingResultsCurrent_();
+      if willLoad && ~isCurr,
         if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
           res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
                          'Previous tracking results exist', ...
@@ -2616,7 +2631,7 @@ classdef DeepTracker < LabelTracker
             totrackinfo.addTblMFT(tblMFTRetrack);
           end
         end
-        obj.cleanOutOfDateTrackingResults_(isCurr);
+        obj.cleanOutOfDateTrackingResults_();
       end
       if ~isexternal && isCurr, % saving somewhere
         % remove frames that are already tracked
@@ -3169,7 +3184,8 @@ classdef DeepTracker < LabelTracker
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.killJobsAndPerformPostTrainingCleanup() ;     
+      obj.killJobsAndPerformPostTrainingCleanup() ;
+      obj.didLastTrainSucceed_ = true ;
     end
 
     function didCompleteTracking_(obj, pollingResult)
@@ -3249,12 +3265,16 @@ classdef DeepTracker < LabelTracker
         end      
       catch me 
         warning('Error gathering tracking results:\n%s', getReport(me)) ;
+        obj.didLastTrackSucceed_ = false ;
         return
       end
-
+      
       if obj.trkSysInfo.ttis(1).isgtjob
         obj.gtComplete();
       end      
+
+      % If get here, declare victory.
+      obj.didLastTrackSucceed_ = true ;
     end  % function
 
     function jumpToNearestTracking(obj)
@@ -3375,15 +3395,21 @@ classdef DeepTracker < LabelTracker
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('train') ;
 
+      % What does this do, and why do we do it here?  -- ALT, 2025-04-22
       obj.trackCurrResUpdate();
+
+      % What does this do, and why do we do it here?  -- ALT, 2025-04-22
       obj.newLabelerFrame();
+      
+      % Update the number of completed iterations
+      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
       
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
       % be mixed up tracking results, so let's always check. 
-      isCurr = obj.checkTrackingResultsCurrent() ;
+      isCurr = obj.checkTrackingResultsCurrent_() ;
       if ~isCurr
-        obj.cleanOutOfDateTrackingResults_(isCurr);
+        obj.cleanOutOfDateTrackingResults_();
         obj.trackCurrResUpdate();
         obj.newLabelerFrame();
         % % MK 20230301 -- tried to make it work for single animal projects
@@ -3979,9 +4005,14 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function isCurr = checkTrackingResultsCurrent(obj)
+    function isCurr = checkTrackingResultsCurrent_(obj)
+      % It seems that this function checks whether all the existing tracking results
+      % come from the current trained tracker.  It returns true if they all do,
+      % false if any do not.  It also seems to fix any issues that it uncovers where
+      % the names of the tracking files reflect the wrong model name, or something.
+      % But not 100% clear to me.  -- ALT, 2025-04-22
+
       isCurr = true;
-      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;      
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         % some trkfiles don't exist for some reason
@@ -4020,13 +4051,7 @@ classdef DeepTracker < LabelTracker
       end  % for moviei      
     end  % function
         
-    function cleanOutOfDateTrackingResults_(obj,isCurr)
-      if nargin < 2,
-        isCurr = obj.checkTrackingResultsCurrent();
-      end
-      if isCurr,
-        return;
-      end
+    function cleanOutOfDateTrackingResults_(obj)
       obj.trackResInit();
       obj.trackCurrResInit();
       % deleting old tracking results, so can switch to new tracker info
@@ -4555,9 +4580,11 @@ classdef DeepTracker < LabelTracker
       if strcmp(train_or_track, 'track') ,
         obj.bgTrkMonitor.stop();
         obj.killJobsAndPerformPostTrackingCleanup() ;
+        obj.didLastTrackSucceed_ = false ;       
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
         obj.killJobsAndPerformPostTrainingCleanup() ;
+        obj.didLastTrainSucceed_ = false ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end
@@ -4585,12 +4612,22 @@ classdef DeepTracker < LabelTracker
       %obj.killAndClearRegisteredJobs('train') ;
       obj.bgTrnMonitor.stop() ;
       obj.killJobsAndPerformPostTrainingCleanup() ;
+      obj.didLastTrainSucceed_ = false ;      
     end  % function
 
     function abortTracking(obj)
       %obj.killAndClearRegisteredJobs('track') ;
       obj.bgTrkMonitor.stop() ;
       obj.killJobsAndPerformPostTrackingCleanup() ;
+      obj.didLastTrackSucceed_ = false ;
     end  % function
+
+    function result = get.didLastTrainSucceed(obj)
+      result = obj.didLastTrainSucceed_ ;
+    end
+
+    function result = get.didLastTrackSucceed(obj)
+      result = obj.didLastTrackSucceed_ ;
+    end
   end  % methods    
 end  % classdef
