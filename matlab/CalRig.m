@@ -131,8 +131,12 @@ classdef CalRig < handle
 %         tfSetViewRois = false;
       elseif all(ismember({'calibrations', 'nviews', 'raytracing', 'python_script_path', 'model_path', 'dividing_col', 'image_width'}, vars))
         obj = CalRigNPairwiseCalibratedRayTracing(s);
-        python_env_path = s.python_environment_path;
-        pyenv('Version',python_env_path);
+        conda_env = 'APT_raytracing';
+        command = sprintf('conda run -n %s which python', conda_env);
+        [~, cmdout] = system(command);
+        % python_env_path = s.python_environment_path;
+        python_env_path = strtrim(cmdout); % Remove the end-of-line character
+        pyenv('Version', python_env_path);
       elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
         obj = CalRigMLStro(s.(vars{1})); % will auto-calibrate and offer save
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
