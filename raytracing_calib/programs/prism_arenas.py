@@ -410,37 +410,38 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
     prism_center=None,
     ):
         super(Arena_reprojection_loss_two_cameras_prism_grid_distances, self).__init__()
+        
         if not isinstance(principal_point_pixel_cam_0, torch.Tensor):
-            principal_point_pixel_cam_0 = torch.tensor(principal_point_pixel_cam_0)
-
+            principal_point_pixel_cam_0 = torch.tensor(principal_point_pixel_cam_0).to(torch.float64)
+        
         if not isinstance(principal_point_pixel_cam_1, torch.Tensor):
-            principal_point_pixel_cam_1 = torch.tensor(principal_point_pixel_cam_1)
+            principal_point_pixel_cam_1 = torch.tensor(principal_point_pixel_cam_1).to(torch.float64)
 
         if not isinstance(focal_length_cam_0, torch.Tensor):
-            focal_length_cam_0 = torch.tensor(focal_length_cam_0)
+            focal_length_cam_0 = torch.tensor(focal_length_cam_0).to(torch.float64)
 
         if not isinstance(focal_length_cam_1, torch.Tensor):
-            focal_length_cam_1 = torch.tensor(focal_length_cam_1)
+            focal_length_cam_1 = torch.tensor(focal_length_cam_1).to(torch.float64)
 
     
         # Camera initialization      
         principal_point_pixel_cam_0 = nn.Parameter(
-            torch.tensor(principal_point_pixel_cam_0, dtype=torch.float64).reshape(2,1),
+            principal_point_pixel_cam_0.to(torch.float64).reshape(2,1),
             requires_grad=True,
-        )  
+        )
 
         principal_point_pixel_cam_1 = nn.Parameter(
-            torch.tensor(principal_point_pixel_cam_1, dtype=torch.float64).reshape(2,1),
+            principal_point_pixel_cam_1.to(torch.float64).reshape(2,1),
             requires_grad=True,
         )  
 
         focal_length_cam_0 = nn.Parameter(
-            torch.tensor(focal_length_cam_0, dtype=torch.float64),
+            focal_length_cam_0.to(torch.float64),
             requires_grad=True,
         )
 
         focal_length_cam_1 = nn.Parameter(
-            torch.tensor(focal_length_cam_1, dtype=torch.float64),
+            focal_length_cam_1.to(torch.float64),
             requires_grad=True,
         )
 
