@@ -5,9 +5,11 @@ import scipy.io as sio
 import os
 from matplotlib.widgets import Cursor
 import sys
+
+raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
+sys.path.append(raytracing_lib_path)
 from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
 from ray_tracing_simulator_nnModules_grad import get_rot_mat
-
 #%%
 #config_path = 'config.yaml'
 #with open(config_path, 'r') as f:
@@ -32,7 +34,6 @@ arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
             prism_center=torch.zeros(3,1).to(torch.float64), 
             )
 arena.load_state_dict(checkpoint)
-
 
 # %%
 #NOTE: This is wrong. Needs to be fixed. Start with providing the correct R and T 
@@ -170,7 +171,6 @@ def get_secondary_camera(arena):
                                 r1=arena.stereocam_r1,
                                 radial_dist_coeffs=arena.radial_dist_coeffs_cam_1)
 
-
 if not(type(user_annotation) == torch.Tensor):
     user_annotation = torch.tensor(user_annotation).to(torch.float64)[:, None]
 
@@ -199,5 +199,4 @@ elif "real" in cam_label:
     epipolar_line_unlabelled = get_epipolar_line(arena, user_annotation, cam_label)
     epipolar_line_unlabelled = epipolar_line_unlabelled.numpy()
     epipolar_line_labelled = np.array([])
-
 # %%

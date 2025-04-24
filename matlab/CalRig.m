@@ -134,6 +134,7 @@ classdef CalRig < handle
         conda_env = 'APT_raytracing';
         command = sprintf('conda run -n %s which python', conda_env);
         [~, cmdout] = system(command);
+        py.sys.setdlopenflags(int32(bitor(int64(py.os.RTLD_NOW), int64(py.os.RTLD_DEEPBIND))));
         python_env_path = strtrim(cmdout); % Remove the end-of-line character
         pyenv('Version', python_env_path); % Initialize python environment
       elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')

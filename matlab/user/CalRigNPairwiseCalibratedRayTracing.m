@@ -38,7 +38,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
 
             obj.nviews = s.nviews;
             obj.crigStros = s.calibrations;
-            % The following two lines were added by Aniket Ravan
+            % The following two lines were added by Aniket Ravan            
             obj.model_path = s.model_path;
             % obj.python_script_path = s.python_script_path;
             obj.python_script_path = [APT.Root, ...
@@ -118,6 +118,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
 
             else
                 cam_label = obj.viewIdToLabel(iView1);
+                
                 [epipolar_line_unlabelled, epipolar_line_labelled] = getEPLRayTracing(obj.model_path,...
                     obj.python_script_path, ...
                     obj.dividing_col,...

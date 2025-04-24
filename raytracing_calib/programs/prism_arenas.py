@@ -410,7 +410,6 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
     prism_center=None,
     ):
         super(Arena_reprojection_loss_two_cameras_prism_grid_distances, self).__init__()
-        
         if not isinstance(principal_point_pixel_cam_0, torch.Tensor):
             principal_point_pixel_cam_0 = torch.tensor(principal_point_pixel_cam_0).to(torch.float64)
         
@@ -423,18 +422,15 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         if not isinstance(focal_length_cam_1, torch.Tensor):
             focal_length_cam_1 = torch.tensor(focal_length_cam_1).to(torch.float64)
 
-    
         # Camera initialization      
         principal_point_pixel_cam_0 = nn.Parameter(
             principal_point_pixel_cam_0.to(torch.float64).reshape(2,1),
             requires_grad=True,
         )
-
         principal_point_pixel_cam_1 = nn.Parameter(
             principal_point_pixel_cam_1.to(torch.float64).reshape(2,1),
             requires_grad=True,
         )  
-
         focal_length_cam_0 = nn.Parameter(
             focal_length_cam_0.to(torch.float64),
             requires_grad=True,
@@ -459,13 +455,11 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         
         self.radial_dist_coeffs_cam_1 = nn.Parameter(torch.tensor([0.,0.,0.]).unsqueeze(-1).to(torch.float64),
                                                requires_grad=True)
-
         self.camera1 = EfficientCamera(
             principal_point_pixel=principal_point_pixel_cam_0,
             focal_length_pixels=focal_length_cam_0,
             r1=self.r1,
             radial_dist_coeffs=self.radial_dist_coeffs_cam_0)
-
         self.principal_point_pixel_cam_1 = principal_point_pixel_cam_1
         self.focal_length_cam_1 = focal_length_cam_1
         self.R_stereo_cam = R_stereo_cam
@@ -478,7 +472,6 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
                                                 requires_grad=True
                                                 )
 
-
         # Prism initialization
         self.prism_angles = nn.Parameter(prism_angles, requires_grad=True)
         refractive_index_glass = torch.tensor(1.51, dtype=torch.float64)
@@ -486,16 +479,14 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         if prism_center is None:
             prism_center = self.camera1.aperture.clone() + self.camera1.axes[:,0].unsqueeze(-1).clone() * prism_distance.clone()
             prism_center[0] = -5.
-
+        
         self.prism_center = nn.Parameter(prism_center, requires_grad=True)
         self.prism_size = nn.Parameter(torch.tensor([20.,20.,20.],dtype=torch.float64), requires_grad=True)
-
         self.prism = Prism(prism_size=self.prism_size, 
                         prism_center=self.prism_center, 
                         prism_angles=self.prism_angles,
                         refractive_index_glass=self.refractive_index_glass,
                         )
-        
 
     def get_stereo_camera_angles(self, 
                                  R_stereo_cam):
@@ -527,7 +518,6 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
                         prism_angles=self.prism_angles,
                         refractive_index_glass=self.refractive_index_glass,
                         )
-
         R_stereo_cam = get_rot_mat(
             self.stereo_camera_angles[0],
             self.stereo_camera_angles[1],
@@ -564,7 +554,6 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         cam_1_ray_real = self.camera1(undistorted_real_pixels_cam_0)
         cam_2_ray_real = camera2(undistorted_real_pixels_cam_1)
         recon_3D_real, closest_distance_real = closest_point(cam_1_ray_real, cam_2_ray_real)
-        
         cam_1_ray_virtual = self.camera1(undistorted_virtual_pixels_cam_0)
         cam_2_ray_virtual = camera2(undistorted_virtual_pixels_cam_1)
         _, _, cam_1_ray_virtual, intersection_penalty_1 = self.prism(cam_1_ray_virtual)
