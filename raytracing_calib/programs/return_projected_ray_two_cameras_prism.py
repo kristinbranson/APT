@@ -5,9 +5,6 @@ import scipy.io as sio
 import os
 from matplotlib.widgets import Cursor
 import sys
-
-new_path = '/groups/branson/bransonlab/aniket/APT/raytracing_calib/programs/'
-sys.path.append(new_path)
 from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
 from ray_tracing_simulator_nnModules_grad import get_rot_mat
 
