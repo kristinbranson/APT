@@ -81,7 +81,10 @@ classdef LabelerProjectTester < handle
 
       % Check that training happened.
       % After return, caller can check other aspects of obj.labeler if desired.
-      if ~labeler.didLastTrainSucceed || any(isnan(labeler.tracker.trnLastDMC.iterCurr)) || any(labeler.tracker.trnLastDMC.iterCurr < niters) ,
+      if ~labeler.didLastTrainSucceed
+        error('Training did not complete successfully') ;
+      end      
+      if any(isnan(labeler.tracker.trnLastDMC.iterCurr)) || any(labeler.tracker.trnLastDMC.iterCurr < niters) ,
         error('Failed to complete all training iterations') ;
       end
     end  % function
@@ -182,7 +185,7 @@ classdef LabelerProjectTester < handle
       % labeler.rehomeProjectCacheIfNeeded() ;      
 
       % Make sure tracking was successful
-      if ~labeler.didLastTrackSucceed
+      if ~obj.labeler.didLastTrackSucceed
         error('Tracking for GT did not complete successfully') ;
       end
       

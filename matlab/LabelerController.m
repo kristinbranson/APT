@@ -1610,8 +1610,14 @@ classdef LabelerController < handle
       end
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      question_string = sprintf('Training completed %s iterations. Save project now?',...
-                                n_out_of_d_string) ;
+      didLastTrainSucceed = labeler.didLastTrainSucceed ;
+      if didLastTrainSucceed
+        question_string = sprintf('Training completed successfully after %s iterations. Save project now?',...
+                                  n_out_of_d_string) ;
+      else
+        question_string = sprintf('Training errored or was aborted after %s iterations. Save project now?',...
+                                  n_out_of_d_string) ;
+      end        
       res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
       if strcmpi(res,'Save'),
         obj.save();

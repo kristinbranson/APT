@@ -4579,12 +4579,20 @@ classdef DeepTracker < LabelTracker
     function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
       if strcmp(train_or_track, 'track') ,
         obj.bgTrkMonitor.stop();
-        obj.killJobsAndPerformPostTrackingCleanup() ;
         obj.didLastTrackSucceed_ = false ;       
+          % Set obj.didLastTrackSucceed_ before calling
+          % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
+          % and want listeners to be able to know whether the tracking bout succeeded or
+          % failed
+        obj.killJobsAndPerformPostTrackingCleanup() ;
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
-        obj.killJobsAndPerformPostTrainingCleanup() ;
         obj.didLastTrainSucceed_ = false ;
+          % Set obj.didLastTrainSucceed_ before calling
+          % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
+          % and want listeners to be able to know whether the training bout succeeded or
+          % failed
+        obj.killJobsAndPerformPostTrainingCleanup() ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end
