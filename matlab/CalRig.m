@@ -134,9 +134,11 @@ classdef CalRig < handle
         conda_env = 'APT_raytracing';
         command = sprintf('conda run -n %s which python', conda_env);
         [~, cmdout] = system(command);
-        py.sys.setdlopenflags(int32(bitor(int64(py.os.RTLD_NOW), int64(py.os.RTLD_DEEPBIND))));
+        % py.sys.setdlopenflags(int32(bitor(int64(py.os.RTLD_NOW),
+        % int64(py.os.RTLD_DEEPBIND)))); https://stackoverflow.com/questions/76485995/intel-mkl-error-when-calling-scipy-function-from-matlab
         python_env_path = strtrim(cmdout); % Remove the end-of-line character
         pyenv('Version', python_env_path); % Initialize python environment
+        pyenv(ExecutionMode='OutOfProcess'); % This is important to avoid clashes between incompatible MKL libraries between PyTorch and MATLAB
       elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
         obj = CalRigMLStro(s.(vars{1})); % will auto-calibrate and offer save
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))
