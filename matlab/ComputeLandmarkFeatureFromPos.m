@@ -45,8 +45,8 @@ else
 
   if ~isfield(trx,propfeatr),
     fun = sprintf('compute_landmark_%s',propfeatr);
-    if ~exist(fun,'file'),
-      warningNoTrace('Unknown property to display in timeline.');
+    if ~is_valid_function_name(fun),
+      warningNoTrace('Unknown property to display in timeline: %s.', fun);
       dmat2 = nan(size(lpos,1),nfrmtot);
 %       fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
       return;
@@ -68,8 +68,8 @@ else
   end
   
   fun = sprintf('compute_landmark_transform_%s',proptrans);
-  if ~exist(fun,'file'),
-    warningNoTrace('Unknown property to display in timeline.');
+  if ~is_valid_function_name(fun),
+    warningNoTrace('Unknown property to display in timeline: %s.', fun);
     dmat2 = nan(size(lpos,1),nfrmtot);
 %     fprintf('Time to compute info statistic %s = %f\n',prop.name,toc);
     return;

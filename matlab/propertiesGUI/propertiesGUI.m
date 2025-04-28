@@ -460,7 +460,10 @@ function parameters = demoParameters
     parameters.color_property = [0.4,0.5,0.6];
     parameters.another_color_property = java.awt.Color.red;
     parameters.font_property = java.awt.Font('Arial', java.awt.Font.BOLD, 12);
-    try parameters.class_object_property = matlab.desktop.editor.getActive; catch, end
+    if ~isdeployed()
+      %#exclude matlab.desktop.editor.getActive
+      try parameters.class_object_property = matlab.desktop.editor.getActive; catch, end
+    end
 end  % demoParameters
 
 % Prepare a list of properties

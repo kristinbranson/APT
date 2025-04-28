@@ -5,7 +5,7 @@ function [featureLexiconNameList, ...
 
 % Figure out the name of the XML file holding the list of the possible
 % feature lexicons
-if isdeployed,
+if isdeployed() ,
   filename = deployedRelative2Global('params/featureConfigList.xml');
 else
   filename = 'featureConfigList.xml';

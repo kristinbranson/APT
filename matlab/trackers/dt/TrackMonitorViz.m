@@ -249,7 +249,7 @@ classdef TrackMonitorViz < handle
       obj.hfig = [];
     end
         
-    function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
+    function [tfSucc,msg] = resultsReceived(obj, pollingResult, forceupdate)
       % Callback executed when new result received from monitor BG
       % worker
       %
@@ -264,47 +264,45 @@ classdef TrackMonitorViz < handle
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed.';
-        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now));
+        TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
         return;
       end
 
       if obj.isKilled,
         msg = 'Tracking jobs killed.';
-        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now));
+        TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return;
       end
       
-      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now));
-      res = sRes.result;      
+      TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
        
-      if isfield(res(1),'parttrkfile')
-        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(res(1).parttrkfile,'file'));
+      if isfield(pollingResult,'parttrkfile')
+        TrackMonitorViz.debugfprintf('Partial tracks exist: %d\n',exist(pollingResult.parttrkfile{1},'file'));
         TrackMonitorViz.debugfprintf('N. frames tracked: ');
       end
-      TrackMonitorViz.debugfprintf('tfcompete: %s\n',mat2str([res.tfComplete]));
-      nJobs = numel(res); 
+      TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
+      nJobs = numel(pollingResult.tfComplete); 
       
       % It is assumed that there is a correspondence between res and .hline
       if nJobs~=numel(obj.hline)
         warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
-          nJobs,numel(obj.hline));
+                       nJobs,numel(obj.hline));
       end
 
       % always update info about current tracker, as labels may have changed
       s = obj.dtObj.getTrackerInfoString();
       obj.htrackerInfo.String = s;
 
-      tic;
+      ticId = tic() ;
       for ijob=1:nJobs,
-        isdone = res(ijob).tfComplete;
-        if isfield(res(ijob),'parttrkfileTimestamp'),
-          partFileExists = ~isnan(res(ijob).parttrkfileTimestamp); % maybe unnec since parttrkfileTimestamp will be nan otherwise
+        isdone = pollingResult.tfComplete(ijob);
+        if isfield(pollingResult,'parttrkfileTimestamp'),
+          partFileExists = ~isnan(pollingResult.parttrkfileTimestamp(ijob));
           isupdate = ...
-          (partFileExists && (forceupdate || (res(ijob).parttrkfileTimestamp>obj.parttrkfileTimestamps(ijob)))) ...
-           || isdone;
+            (partFileExists && (forceupdate || (pollingResult.parttrkfileTimestamp(ijob)>obj.parttrkfileTimestamps(ijob)))) || ...
+            isdone ;
         else
-          partFileExists = false;  %#ok<NASGU> 
-          isupdate =false;
+          isupdate = false ;
         end
 
         if isupdate,
@@ -319,19 +317,19 @@ classdef TrackMonitorViz < handle
             end            
           else
             try
-              if isfield(res(ijob),'parttrkfileNfrmtracked')
+              if isfield(pollingResult,'parttrkfileNfrmtracked')
                 % for AWS and any worker that figures this out on its own
-                obj.nFramesTracked(ijob) = nanmax(res(ijob).parttrkfileNfrmtracked,...
-                                                  res(ijob).trkfileNfrmtracked);  %#ok<NANMAX> 
-                if isnan(obj.nFramesTracked(ijob)) ,
-                  % This used to be an assert, but those are not caught by 'dbstop if error'...
-                  error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
-                end
+                obj.nFramesTracked(ijob) = pollingResult.parttrkfileNfrmtracked(ijob) ;
+                % if isnan(pollingResult.parttrkfileNfrmtracked(ijob)) && isfinite(pollingResult.parttrkfileTimestamp(ijob)) ,
+                %   nop() ;
+                %   %error('Internal error: In TrackMonitorViz instance, .nFramesTracked(%d) is nan', ijob) ;
+                %     % This should be caught by the local try-catch
+                % end
               else
                 if isdone,
-                  tfile = res(ijob).trkfile;
+                  tfile = pollingResult.trkfile{ijob};
                 else
-                  tfile = res(ijob).parttrkfile;
+                  tfile = pollingResult.parttrkfile{ijob};
                 end
                 %fprintf('TrkMonitorViz.resultsReceived: tfile = %s\n',tfile);
                 try
@@ -358,7 +356,7 @@ classdef TrackMonitorViz < handle
                     (obj.nFramesTracked(ijob)/obj.nFramesToTrack(ijob));
               set(obj.hline(ijob),'XData',[0,0,1,1,0]*fracComplete);              
             catch ME,
-              fprintf('Could not update nFramesTracked:\n%s',getReport(ME));
+              fprintf('Could not update nFramesTracked, for whatever reason.\n');
             end
           end
         end
@@ -373,36 +371,34 @@ classdef TrackMonitorViz < handle
         end
       end
       TrackMonitorViz.debugfprintf('\n');
-      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc);
+      TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
       
-      if isstruct(sRes) && isfield(sRes,'result'),
-        obj.resLast = sRes.result;
-      end
+      obj.resLast = pollingResult ;
       
-      obj.updateErrDisplay(res);
-      [tfSucc,msg] = obj.updateStatusDisplayLine_(res);      
+      obj.updateErrDisplay(pollingResult);
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);      
     end
     
-    function [tfSucc,status] = updateStatusDisplayLine_(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      nJobs = numel(res);
+      nJobs = numel(pollingResult);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
       isTrackComplete = false;
       isErr = false;
       isLogFile = false;
-      if ~isempty(res),
-        isTrackComplete = all([res.tfComplete]);
-        isErr = any([res.errFileExists]) ;
-        isLogFile = any([res.logFileExists]);
+      if ~isempty(pollingResult),
+        isTrackComplete = all([pollingResult.tfComplete]);
+        isErr = any([pollingResult.errFileExists]) ;
+        isLogFile = any([pollingResult.logFileExists]);
       end
       
-      if ~isempty(res) && isfield(res,'isRunning')
-        isRunning = any([res.isRunning]);
+      if ~isempty(pollingResult) && isfield(pollingResult,'isRunning')
+        isRunning = any([pollingResult.isRunning]);
       else
-        isRunning = true;
+        isRunning = true ;
       end
       
       if obj.isKilled,
@@ -442,13 +438,13 @@ classdef TrackMonitorViz < handle
       obj.setStatusDisplayLine(str, isAllGood) ;
     end  % function
     
-    function updateErrDisplay(obj,res)
-      isErr = any([res.errFileExists]) ;
+    function updateErrDisplay(obj, pollingResult)
+      isErr = any([pollingResult.errFileExists]) ;
       if ~isErr,
         return;
       end
       handles = guidata(obj.hfig);
-      if any([res.errFileExists]),
+      if any([pollingResult.errFileExists]),
         erri = find(strcmp(handles.popupmenu_actions.String,'Show error messages'),1);
         if numel(erri) ~= 1,
           return;
@@ -554,9 +550,8 @@ classdef TrackMonitorViz < handle
     end
     
     function updateMonitorPlots(obj)      
-      result = obj.poller.poll();
-      sRes = struct('result', {result}) ;
-      obj.resultsReceived(sRes,true);      
+      pollingResult = obj.poller.poll() ;
+      obj.resultsReceived(pollingResult, true) ;
     end
     
     function result = queryAllJobsStatus(obj)      

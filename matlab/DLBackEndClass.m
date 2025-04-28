@@ -3,7 +3,32 @@ classdef DLBackEndClass < handle
   % This class is intended to abstract away details particular to one backend or
   % another, so that calling code doesn't need to worry about such grubby
   % details.
-  
+  %
+  % Note that filesystem paths stored in a DLBackEndClass object should be WSL
+  % paths.  All of the paths that APT deals with are either a) native, b) WSL,
+  % or c) remote.  A native path points to a file in the native filesystem of
+  % the frontend (either Linux or Windows).  E.g. /home/joeuser/data or
+  % C:\Users\joeuser\Documents\data.  (On Windows a native path have slashes or
+  % backslashes or both as path separators.)  A WSL path is a valid path inside
+  % the local Linux environment.  On Windows, that's WSL2. On Linux, that's just
+  % Linux, so on Linux the WSL path is just the native path. So on Windows the
+  % native path 'C:\Users\joeuser\Documents\data' would become the WSL path
+  % '/mnt/c/Users/joeuser/Documents/data'.  A remote path is a path on the
+  % remote backend filesystem, for instance AWS.  For the docker backend the WSL
+  % path and the remote path will be the same.  Ditto the conda and bsub
+  % backends.  For the AWS backend the remote path will typically start with
+  % '/home/ubuntu'.
+  %
+  % For the Labeler and the DeepTracker, all paths stored in them should be
+  % native paths, and all paths they pass to DLBackendClass methods should be
+  % native paths.  All filesystem paths stored in the DLBackEndClass proper
+  % should be WSL paths.  All paths stored in the AWSec2 object will be remote
+  % paths, except where noted.  All paths passed from the DLBackendClass object
+  % to the AWSec2 object should be WSL paths.
+  %
+  % Also note that when synthesizing command lines, WSL paths should normally be
+  % used.  The AWSec2 object will convert these to remote paths when needed.
+
   properties (Constant)
     minFreeMem = 9000  % in MiB
     defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
@@ -81,10 +106,10 @@ classdef DLBackEndClass < handle
     % spawnRegisteredJobs().
     training_syscmds_ = cell(0,1)
     training_cmdfiles_ = cell(0,1)
-    training_logcmds_ = cell(0,1)
+    % training_logcmds_ = cell(0,1)
     tracking_syscmds_ = cell(0,1)
     tracking_cmdfiles_ = cell(0,1)
-    tracking_logcmds_ = cell(0,1)
+    % tracking_logcmds_ = cell(0,1)
 
     % The job IDs.  These are protected, in spirit.
     % Each job id is represented as an old-style *string*.  What exactly they mean
@@ -104,9 +129,9 @@ classdef DLBackEndClass < handle
     singularity_image_path
     singularity_detection_image_path
     isInAwsDebugMode
-    isDMCRemote
-    isDMCLocal
-    localDMCRootDir
+    isProjectCacheRemote
+    isProjectCacheLocal
+    wslProjectCachePath
     remoteDMCRootDir
     awsInstanceID
     awsKeyName
@@ -227,7 +252,7 @@ classdef DLBackEndClass < handle
   end  % methods block
  
   methods
-    function [return_code, stdouterr] = runBatchCommandOutsideContainer(obj, basecmd, varargin)
+    function [return_code, stdouterr] = runBatchCommandOutsideContainer_(obj, basecmd, varargin)
       % Run the basecmd using apt.syscmd(), after wrapping suitably for the type of
       % backend.  But as the name implies, commands are run outside the backend
       % container/environment.  For the AWS backend, this means commands are run
@@ -239,9 +264,8 @@ classdef DLBackEndClass < handle
       % via ssh, but outside the Docker container).  This function blocks, and
       % doesn't return a process identifier of any kind.  Return values are like
       % those from system(): a numeric return code and a string containing any
-      % command output. Note that any file names in the basecmd must refer to the
-      % filenames on the *backend* filesystem (and within WSL if running on
-      % Windows).
+      % command output. Note that any file paths in the bascmd must be *WSL* paths.
+      % That's the main reason this method is private-by-convention.
       switch obj.type,
         case DLBackEnd.AWS
           % For AWS backend, use the AWSec2 method of the same name
@@ -265,30 +289,31 @@ classdef DLBackEndClass < handle
         % Things passed in with varargin should overide things we set here
     end  % function
 
-    function result = remoteMoviePathFromLocal(obj, localPath)
-      % Convert a local movie path to the remote equivalent.
-      % For non-AWS backends, this is the identity function.
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        result = AWSec2.remoteMoviePathFromLocal(localPath) ;
-      else
-        result = localPath ;
-      end
-    end
+    % function result = remoteMoviePathFromLocal(obj, localPath)
+    %   % Convert a local movie path to the remote equivalent.
+    %   % For non-AWS backends, this is the identity function.
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     result = AWSec2.remoteMoviePathFromLocal(localPath) ;
+    %   else
+    %     result = localPath ;
+    %   end
+    % end
 
-    function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
-      % Convert a cell array of local movie paths to their remote equivalents.
-      % For non-AWS backends, this is the identity function.
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        result = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
-      else
-        result = localPathFromMovieIndex ;
-      end
-    end
+    % function result = remoteMoviePathsFromLocal(obj, localPathFromMovieIndex)
+    %   % Convert a cell array of local movie paths to their remote equivalents.
+    %   % For non-AWS backends, this is the identity function.
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     result = AWSec2.remoteMoviePathsFromLocal(localPathFromMovieIndex) ;
+    %   else
+    %     result = localPathFromMovieIndex ;
+    %   end
+    % end
 
-    function uploadMovies(obj, localPathFromMovieIndex)
+    function uploadMovies(obj, nativePathFromMovieIndex)
       % Upload movies to the backend, if necessary.
       if isequal(obj.type, DLBackEnd.AWS) ,
-        obj.awsec2.uploadMovies(localPathFromMovieIndex) ;
+        wslPathFromMovieIndex = wsl_path_from_native(nativePathFromMovieIndex) ;
+        obj.awsec2.uploadMovies(wslPathFromMovieIndex) ;
       end
     end  % function
 
@@ -317,7 +342,12 @@ classdef DLBackEndClass < handle
       if obj.doesOwnResources_ ,
         obj.killAndClearRegisteredJobs('track') ;
         obj.killAndClearRegisteredJobs('train') ;
-        obj.stopEc2InstanceIfNeeded_() ;
+        % obj.stopEc2InstanceIfNeeded_() ;
+          % We don't stop the ec2 instance anymore.  The aptAutoShutdown alarm will shut
+          % it down after two hours of inactivity.  The instance takes roughly 15 min to
+          % shutdown fully.  (The call to shut it down is async, and returns
+          % immediately, but if you want to restart it later you have to wait for it to
+          % fully shutdown first.)
       end
     end  % function    
   end  % methods
@@ -435,7 +465,7 @@ classdef DLBackEndClass < handle
       % freemem: [ngpu] etc
       % gpuInfo: scalar struct
 
-      [~, minFreeMem, condaEnv, verbose] = ...
+      [dockerimgfull, minFreeMem, condaEnv, verbose] = ...
         myparse(varargin,...
                 'dockerimg',obj.dockerimgfull,...
                 'minfreemem',obj.minFreeMem,...
@@ -445,14 +475,15 @@ classdef DLBackEndClass < handle
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
-      aptdeepnetpath = APT.getpathdl() ;
+      aptdeepnetpath_native = APT.getpathdl() ; % native path
+      aptdeepnetpath = wsl_path_from_native(aptdeepnetpath_native) ;  % WSL path
       
       switch obj.type,
         case DLBackEnd.Docker
           basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
           bindpath = {aptdeepnetpath}; % don't use guarded
           codestr = wrapCommandDocker(basecmd,...
-                                      'dockerimg',obj.dockerimgfull,...
+                                      'dockerimg',dockerimgfull,...
                                       'containername','aptTestContainer',...
                                       'bindpath',bindpath,...
                                       'detach',false);
@@ -465,7 +496,7 @@ classdef DLBackEndClass < handle
             return;
           end
         case DLBackEnd.Conda
-          scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;
+          scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;  % Conda backend is only on Linux, so this is both native and WSL path.
           basecmd = sprintf('echo START && python %s && echo END', scriptpath);
           codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
           [st,res] = apt.syscmd(codestr) ;  % wrapCommandConda 
@@ -567,7 +598,14 @@ classdef DLBackEndClass < handle
         syscmd = syscmds{i} ;
         cmdfile = cmdfiles{i} ;
         syscmdWithNewline = sprintf('%s\n', syscmd) ;
-        [didSucceed, errorMessage] = obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+        try 
+          obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+          didSucceed = true ;
+          errorMessage = '' ;
+        catch me
+          didSucceed = false ;
+          errorMessage = me.message ;
+        end
         tfSucc(i) = didSucceed ;
         if didSucceed ,
           fprintf('Wrote command for %s %d to cmdfile %s.\n',jobdesc,i,cmdfile);
@@ -637,12 +675,12 @@ classdef DLBackEndClass < handle
     %   end
     % end
 
-    function scpUploadOrVerify(obj, varargin)
-      if isequal(obj.type, DLBackEnd.AWS) ,
-        aws = obj.awsec2;
-        aws.scpUploadOrVerify(varargin{:}) ;
-      end      
-    end
+    % function scpUploadOrVerify(obj, varargin)
+    %   if isequal(obj.type, DLBackEnd.AWS) ,
+    %     aws = obj.awsec2;
+    %     aws.scpUploadOrVerify(varargin{:}) ;
+    %   end      
+    % end
 
     % function rsyncUpload(obj, src, dest)
     %   if isequal(obj.type, DLBackEnd.AWS) ,
@@ -654,25 +692,27 @@ classdef DLBackEndClass < handle
   end  % public methods block
 
   methods
-    function [didsucceed, msg] = mkdir(obj, dir_name)
+    function [didsucceed, msg] = mkdir(obj, native_dir_path)
       % Create the named directory, either locally or remotely, depending on the
-      % backend type.      
+      % backend type.  On Windows, dir_name can be a Windows-style path.
+      wsl_dir_path = wsl_path_from_native(native_dir_path) ;
       if obj.type == DLBackEnd.AWS ,
-        [didsucceed, msg] = obj.awsec2.mkdir(dir_name) ;
+        [didsucceed, msg] = obj.awsec2.mkdir(wsl_dir_path) ;
       else
-        quoted_dirloc = escape_string_for_bash(dir_name) ;
-        base_command = sprintf('mkdir -p %s', quoted_dirloc) ;
-        [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+        quoted_wsl_dir_path = escape_string_for_bash(wsl_dir_path) ;
+        base_command = sprintf('mkdir -p %s', quoted_wsl_dir_path) ;
+        [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
         didsucceed = (status==0) ;
       end
     end  % function
 
-    function [didsucceed, msg] = deleteFile(obj, file_name)
+    function [didsucceed, msg] = deleteFile(obj, native_file_path)
       % Delete the named file, either locally or remotely, depending on the
       % backend type.
-      quoted_file_name = escape_string_for_bash(file_name) ;
-      base_command = sprintf('rm %s', quoted_file_name) ;
-      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
+      wsl_file_path = wsl_path_from_native(native_file_path) ;
+      quoted_wsl_file_path = escape_string_for_bash(wsl_file_path) ;
+      base_command = sprintf('rm -f %s', quoted_wsl_file_path) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
       didsucceed = (status==0) ;
     end
 
@@ -695,48 +735,20 @@ classdef DLBackEndClass < handle
     %   doesexist = (status==0) ;
     % end
 
-    function [didSucceed, errorMessage] = writeStringToFile(obj, filename, str)
+    function writeStringToFile(obj, fileNativeAbsPath, str)
       % Write the given string to a file, overrwriting any previous contents.
-      % For remote backends, uses a single "ssh echo $string > $filename" to do
-      % this, so limited to strings of ~10^5 bytes.
-      if obj.isFilesystemLocal() ,
-        % Filesystem is local
-        try
-          fo = file_object(filename, 'w') ;
-        catch me 
-          if strcmp(me.identifier, 'file_object:unable_to_open') ,
-            didSucceed = false ;
-            errorMessage = sprintf('Could not open file %s for writing: %s', filename, me.message) ;
-            return
-          else
-            rethrow(me) ;
-          end
-        end  % try-catch
-        fprintf(fo, '%s', str) ;
-        fclose(fo) ;
+      % localFileAbsPath should be a native absolute path.
+      % Throws if unable to write string to file.
+
+      if isequal(obj.type,DLBackEnd.AWS) ,
+        fileWSLAbsPath = wsl_path_from_native(fileNativeAbsPath) ;
+        obj.awsec2.writeStringToFile(fileWSLAbsPath, str) ;
       else
-        % Filesystem is remote
-        if strlength(str) > 100000 ,
-          didSucceed = false ;
-          errorMessage = ...
-            sprintf(['Could not write to file %s: ' ...
-                     'Current implementation of DLBackEndClass.writeStringToFile() only supports strings of length 100,000 or less'], ...
-                    filename) ;
-          return
-        end          
-        quoted_file_name = escape_string_for_bash(filename) ;
-        quoted_str = escape_string_for_bash(str) ;
-        base_command = sprintf('echo %s > %s', quoted_str, quoted_file_name) ;
-        [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;
-        if status ~= 0 ,
-          didSucceed = false ;
-          errorMessage = sprintf('Something went wrong while writing to backend file %s: %s',filename,msg);
-          return
-        end
+        % Filesystem is local
+        fo = file_object(fileNativeAbsPath, 'w') ;
+        fo.fprintf('%s', str) ;
       end
-      didSucceed = true ;
-      errorMessage = '' ;
-    end  % function    
+    end  % function
 
     function updateRepo(obj)
       % Update the APT repo on the backend.  While we're at it, make sure the
@@ -758,19 +770,20 @@ classdef DLBackEndClass < handle
       end
     end  % function    
 
-    function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
-      if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
-      else
-        result = queryRemotePath ;
-      end
-    end  % function
+    % function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
+    %   if obj.type == DLBackEnd.AWS ,
+    %     result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
+    %   else
+    %     result = queryRemotePath ;
+    %   end
+    % end  % function
 
-    function result = getRemoteMoviePathFromLocal(obj, queryLocalPath)
+    function result = remote_movie_path_from_wsl(obj, queryWslPath)
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
+        % obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
+        result = AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
       else
-        result = queryLocalPath ;
+        result = queryWslPath ;
       end
     end  % function
   end  % methods
@@ -884,72 +897,70 @@ classdef DLBackEndClass < handle
       if isTrain
         obj.training_syscmds_ = cell(0,1) ;
         obj.training_cmdfiles_ = cell(0,1) ;
-        obj.training_logcmds_ = cell(0,1) ;
+        % obj.training_logcmds_ = cell(0,1) ;
         obj.training_jobids_ = cell(0,1) ;
       else
         obj.tracking_syscmds_ = cell(0,1) ;
         obj.tracking_cmdfiles_ = cell(0,1) ;
-        obj.tracking_logcmds_ = cell(0,1) ;
+        % obj.tracking_logcmds_ = cell(0,1) ;
         obj.tracking_jobids_ = cell(0,1) ;
       end
     end  % function
 
-    function registerTrainingJob(backend, dmcjob, tracker, gpuids, do_just_generate_db)
+    function registerTrainingJob(obj, dmcjob, tracker, gpuids, do_just_generate_db)
       % Register a single training job with the backend, for later spawning via
       % spawnRegisteredJobs().
 
       % Get the root of the remote source tree
-      remoteaptroot = backend.aptSourceDirRoot() ;
+      remoteaptroot = obj.aptSourceDirRoot() ;
       
-      ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
+      ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trainCodeGenBase(dmcjob,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
-                                           'do_just_generate_db',do_just_generate_db, ...
-                                           'torchhome', backend.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend,tracker,gpuids,dmcjob,remoteaptroot,'train');
-      syscmd = wrapCommandToBeSpawnedForBackend(backend,basecmd,args{:});
+                                           'do_just_generate_db',do_just_generate_db);
+      args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
+      syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      logcmd = backend.generateLogCommand_('train', dmcjob) ;
+      % logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
-      backend.training_syscmds_{end+1,1} = syscmd ;
-      backend.training_logcmds_{end+1,1} = logcmd ;
-      backend.training_cmdfiles_{end+1,1} = cmdfile ;
-      backend.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
+      obj.training_syscmds_{end+1,1} = syscmd ;
+      % obj.training_logcmds_{end+1,1} = logcmd ;
+      obj.training_cmdfiles_{end+1,1} = cmdfile ;
+      obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
-    function registerTrackingJob(backend, totrackinfo, deeptracker, gpuids, track_type)
+    function registerTrackingJob(obj, totrackinfo, deeptracker, gpuids, track_type)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
       % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
-      remoteaptroot = backend.aptSourceDirRoot() ;
+      remoteaptroot = obj.aptSourceDirRoot() ;
 
       % totrackinfo has local paths, need to remotify them
       remotetotrackinfo = totrackinfo.copy() ;
-      remotetotrackinfo.changePathsToRemoteFromLocal(backend.localDMCRootDir, backend) ;
+      remotetotrackinfo.changePathsToRemoteFromWsl(obj.wslProjectCachePath, obj) ;
 
-      ignore_local = (backend.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
+      ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
                                            'ignore_local',ignore_local,...
                                            'aptroot',remoteaptroot,...
-                                           'track_type',track_type, ...
-                                           'torchhome', backend.getTorchHome());
-      args = determineArgumentsForSpawningJob(backend, deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
-      syscmd = wrapCommandToBeSpawnedForBackend(backend, basecmd, args{:}) ;
+                                           'track_type',track_type);
+      args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
+      syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      logcmd = backend.generateLogCommand_('track', remotetotrackinfo) ;
+      % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
-      backend.tracking_syscmds_{end+1,1} = syscmd ;
-      backend.tracking_logcmds_{end+1,1} = logcmd ;
-      backend.tracking_cmdfiles_{end+1,1} = cmdfile ;
-      backend.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
+      obj.tracking_syscmds_{end+1,1} = syscmd ;
+      % obj.tracking_logcmds_{end+1,1} = logcmd ;
+      obj.tracking_cmdfiles_{end+1,1} = cmdfile ;
+      obj.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
-    function [didSpawnAllJobs, spawned_jobids] = spawnRegisteredJobs(obj, train_or_track, varargin)
+    function spawnRegisteredJobs(obj, train_or_track, varargin)
       % Spawn all the training/tracking jobs that have been previously registered.
       % On entry, all jobs of the given type should be 
       [jobdesc, do_call_apt_interface_dot_py] = myparse( ...
@@ -960,11 +971,11 @@ classdef DLBackEndClass < handle
       % Sort out which registered jobs will be spawned.
       if strcmp(train_or_track, 'train') ,
         syscmds = obj.training_syscmds_ ;
-        logcmds = obj.training_logcmds_ ;
+        % logcmds = obj.training_logcmds_ ;
         cmdfiles = obj.training_cmdfiles_ ;
       elseif strcmp(train_or_track, 'track') ,
         syscmds = obj.tracking_syscmds_ ;
-        logcmds = obj.tracking_logcmds_ ;
+        % logcmds = obj.tracking_logcmds_ ;
         cmdfiles = obj.tracking_cmdfiles_ ;
       else
         error('DLBackEndClass:unknownJobType', 'The job type ''%s'' is not valid', train_or_track) ;
@@ -976,7 +987,10 @@ classdef DLBackEndClass < handle
       end
 
       % Actually spawn the jobs
-      [didSpawnAllJobs, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, logcmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      [didSpawnAllJobs, reason, spawned_jobids] = DLBackEndClass.spawnJobs(syscmds, obj.type, jobdesc, do_call_apt_interface_dot_py) ;
+      % obj.ensureJobIsNotAlive(spawned_jobids{1}) ;  
+      %   % USED FOR DEBUGGING, to simulate a failure of a spawned job without
+      %   % production of an error file.
 
       % If all went well, record the spawned jobids.  If not, kill any straggler
       % jobs.
@@ -997,12 +1011,14 @@ classdef DLBackEndClass < handle
             obj.ensureJobIsNotAlive(jobid) ;
           end
         end
+        % Not that stray jobs were killed, throw error
+        error(reason) ;
       end  % if        
     end  % function
   end  % methods
 
   methods (Static)
-    function [didSpawnAllJobs, jobidFromJobIndex] = spawnJobs(syscmds, logcmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
+    function [didSpawnAllJobs, reason, jobidFromJobIndex] = spawnJobs(syscmds, backend_type, jobdesc, do_call_apt_interface_dot_py)
       % Spawn the jobs specified in syscmds.  On return, didSpawnAllJobs indicates
       % whether all went well.  *Regardless of the value of didSpawnAllJobs,*
       % jobidFromJobIndex contains the jobids of all the jobs that were successfully
@@ -1014,16 +1030,18 @@ classdef DLBackEndClass < handle
         fprintf('%s\n',syscmd);
         if do_call_apt_interface_dot_py ,
           [rc,stdouterr] = apt.syscmd(syscmd, 'failbehavior', 'silent');
-          didSpawn = (rc == 0) ;
+          didSpawn = (rc == 0) ;          
           if didSpawn ,
             jobid = DLBackEndClass.parseJobID(backend_type, stdouterr);
           else
             didSpawnAllJobs = false ;
+            reason = stdouterr ;
             return
           end
         else
           % Pretend it's a failure, for expediency.
           didSpawnAllJobs = false ;
+          reason = 'It was requested that APT_interface.py not be called.' ;
           return
         end
 
@@ -1032,24 +1050,25 @@ classdef DLBackEndClass < handle
         assert(ischar(jobid)) ;
         fprintf('%s %d spawned, ID = %s\n\n',jobdesc,jobIndex,jobid);
 
-        % Now give the command to create the log file.
-        % (This only does anything interesting for a docker backend.)
-        if numel(logcmds) >= jobIndex ,
-          logcmd = logcmds{jobIndex} ;
-          if ~isempty(logcmd) ,
-            fprintf('%s\n',logcmd);
-            [rc2,stdouterr2] = apt.syscmd(logcmd, 'failbehavior', 'silent');
-            didLogCommandSucceed = (rc2==0) ;
-            if ~didLogCommandSucceed ,
-              % Throw a warning here, but proceed anyway.
-              % I have never had occasion to look at one of these docker log files,
-              % But presumably they're useful sometimes.  -- ALT, 2025-01-23
-              warning('Failed to spawn logging for %s %d: %s.',jobdesc,jobIndex,stdouterr2);
-            end
-          end
-        end  % if
+        % % Now give the command to create the log file.
+        % % (This only does anything interesting for a docker backend.)
+        % if numel(logcmds) >= jobIndex ,
+        %   logcmd = logcmds{jobIndex} ;
+        %   if ~isempty(logcmd) ,
+        %     fprintf('%s\n',logcmd);
+        %     [rc2,stdouterr2] = apt.syscmd(logcmd, 'failbehavior', 'silent');
+        %     didLogCommandSucceed = (rc2==0) ;
+        %     if ~didLogCommandSucceed ,
+        %       % Throw a warning here, but proceed anyway.
+        %       % I have never had occasion to look at one of these docker log files,
+        %       % But presumably they're useful sometimes.  -- ALT, 2025-01-23
+        %       warning('Failed to spawn logging for %s %d: %s.',jobdesc,jobIndex,stdouterr2);
+        %     end
+        %   end
+        % end  % if
       end  % for      
       didSpawnAllJobs = true ;  % if get here, all is well
+      reason = '' ;
     end  % function
   end  % methods (Static)
 
@@ -1102,7 +1121,10 @@ classdef DLBackEndClass < handle
       else
         error('DLBackEndClass:unknownJobType', 'The job type ''%s'' is not valid', train_or_track) ;
       end
-      result = cellfun(@(jobid)(obj.isJobAlive(jobid)), jobids) ;  % boolean array
+      result = logical(cellfun(@(jobid)(obj.isJobAlive(jobid)), jobids)) ;  
+        % boolean array
+        % Need the call to logical() in case jobids is empty, because cellfun()
+        % defaults to double output in this case.
     end  % function
     
     function tf = isJobAlive(obj, jobid)
@@ -1127,7 +1149,7 @@ classdef DLBackEndClass < handle
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8);
       cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jobidshort);      
-      [st,res] = obj.runBatchCommandOutsideContainer(cmd);
+      [st,res] = obj.runBatchCommandOutsideContainer_(cmd);
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if st==0
@@ -1206,7 +1228,7 @@ classdef DLBackEndClass < handle
       % jobid is assumed to be a single job id, represented as an old-style string.      
       % Errors if no such job exists.
       cmd = sprintf('%s kill %s', apt.dockercmd(), jobid);        
-      [st,res] = obj.runBatchCommandOutsideContainer(cmd) ;
+      [st,res] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if st~=0 ,
@@ -1214,25 +1236,22 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function [isAllWell, message] = downloadTrackingFilesIfNecessary(obj, res, localCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, res, nativeLocalCacheRoot, movfiles)
+      % Errors if something goes wrong.
       if obj.type == DLBackEnd.AWS ,
-        [isAllWell, message] = obj.awsec2.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
+        wslLocalCacheRoot = wsl_path_from_native(nativeLocalCacheRoot) ;
+        obj.awsec2.downloadTrackingFilesIfNecessary(res, wslLocalCacheRoot, movfiles) ;
       elseif obj.type == DLBackEnd.Bsub ,
         % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
         pause(10) ;
-        isAllWell = true ;
-        message = '' ;
       elseif obj.type == DLBackEnd.Conda ,
-        isAllWell = true ;
-        message = '' ;
+        % do nothing
       elseif obj.type == DLBackEnd.Docker ,
         if ~isempty(obj.dockerremotehost) ,
           % This path is for when the docker backend is running on a remote host.
           % Hack: For now, just wait a bit, to let (hopefully) NFS sync up.
           pause(10) ;
         end          
-        isAllWell = true ;
-        message = '' ;
       else
         error('Internal error: Unknown DLBackEndClass type') ;
       end
@@ -1249,58 +1268,63 @@ classdef DLBackEndClass < handle
     %   ec2.setInstanceIDAndType(instanceID, instanceType) ;
     % end
     
-    function [tfsucc,res] = batchPoll(obj, fspollargs)
+    function [tfsucc,res] = batchPoll(obj, native_fspollargs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
       %
       % res: [n] cellstr of fspoll responses
 
       if obj.type == DLBackEnd.AWS ,
-        [tfsucc,res] = obj.awsec2.batchPoll(fspollargs) ;
+        wsl_fspollargs = wsl_fspollargs_from_native(native_fspollargs) ;
+        [tfsucc,res] = obj.awsec2.batchPoll(wsl_fspollargs) ;
       else
         error('Not implemented') ;        
         %fspoll_script_path = linux_fullfile(APT.Root, 'matlab/misc/fspoll.py') ;
       end
     end  % function
     
-    function result = fileExists(obj, file_name)
+    function result = fileExists(obj, native_file_path)
       % Returns true iff the named file exists.
       % Should be consolidated with exist(), probably.  Note, though, that probably
       % need to be careful about checking for the file inside/outside the container.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileExists(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileExists(wsl_file_path) ;
       else
-        result = logical(exist(file_name,'file')) ;
+        result = logical(exist(native_file_path, 'file')) ;
       end
     end  % function
 
-    function result = fileExistsAndIsNonempty(obj, file_name)
+    function result = fileExistsAndIsNonempty(obj, native_file_path)
       % Returns true iff the named file exists and is not zero-length.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileExistsAndIsNonempty(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileExistsAndIsNonempty(wsl_file_path) ;
       else
-        result = localFileExistsAndIsNonempty(file_name) ;
+        result = localFileExistsAndIsNonempty(native_file_path) ;
       end
     end  % function
 
-    function result = fileExistsAndIsGivenSize(obj, file_name, sz)
+    function result = fileExistsAndIsGivenSize(obj, native_file_path, sz)
       % Returns true iff the named file exists and is the given size (in bytes).
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileExistsAndIsGivenSize(file_name, sz) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileExistsAndIsGivenSize(wsl_file_path, sz) ;
       else
-        result = localFileExistsAndIsGivenSize(file_name, sz) ;
+        result = localFileExistsAndIsGivenSize(native_file_path, sz) ;
       end
     end  % function
 
-    function result = fileContents(obj, file_name)
+    function result = fileContents(obj, native_file_path)
       % Return the contents of the named file, as an old-style string.
       % The behavior of this function when the file does not exist is kinda weird.
       % It is the way it is b/c it's designed for giving something helpful to
       % display in the monitor window.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.fileContents(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.fileContents(wsl_file_path) ;
       else
-        if exist(file_name,'file') ,
-          lines = readtxtfile(file_name);
+        if exist(native_file_path,'file') ,
+          lines = readtxtfile(native_file_path);
           result = sprintf('%s\n',lines{:});
         else
           result = '<file does not exist>';
@@ -1308,31 +1332,33 @@ classdef DLBackEndClass < handle
       end
     end  % function
     
-    function lsdir(obj, dir)
+    function lsdir(obj, native_dir_path)
       % List the contents of directory dir.  Contents just go to stdout, nothing is
       % returned.
       if obj.type == DLBackEnd.AWS ,
-        obj.awsec2.lsdir(dir);
+        wsl_dir_path = wsl_path_from_native(native_dir_path) ;
+        obj.awsec2.lsdir(wsl_dir_path) ;
       else
         if ispc()
           lscmd = 'dir';
         else
           lscmd = 'ls -al';
         end
-        cmd = sprintf('%s "%s"',lscmd,dir);
+        cmd = sprintf('%s "%s"',lscmd,native_dir_path);
         system(cmd);
       end
     end  % function
 
-    function result = fileModTime(obj, file_name)
+    function result = fileModTime(obj, native_file_path)
       % Return the file-modification time (mtime) of the given file.  For an AWS
       % backend, this is the file modification time in seconds since epoch.  For
       % other backends, it's a Matlab datenum of the mtime.  So these should not be
       % compared across backend types.
       if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.remoteFileModTime(file_name) ;
+        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        result = obj.awsec2.remoteFileModTime(wsl_file_path) ;
       else
-        dir_struct = dir(file_name) ;
+        dir_struct = dir(native_file_path) ;
         result = dir_struct.datenum ;
       end
     end  % function
@@ -1340,10 +1366,13 @@ classdef DLBackEndClass < handle
     function suitcase = packParfevalSuitcase(obj)
       % Use before calling parfeval, to restore Transient properties that we want to
       % survive the parfeval boundary.
+      suitcase = struct() ;
+      suitcase.training_jobids_ = obj.training_jobids_ ;
+      suitcase.tracking_jobids_ = obj.tracking_jobids_ ;
       if obj.type == DLBackEnd.AWS ,
-        suitcase = obj.awsec2.packParfevalSuitcase() ;
+        suitcase.awsec2 = obj.awsec2.packParfevalSuitcase() ;
       else
-        suitcase = [] ;
+        suitcase.awsec2 = [] ;
       end
     end  % function
     
@@ -1351,8 +1380,11 @@ classdef DLBackEndClass < handle
       % Should be called in background tasks run via parfeval, to restore fields that
       % should not be restored from persistence, but we want to survive the parfeval
       % boundary.
+      obj.doesOwnResources_ = false ;  % don't want to free any resources on delete()
+      obj.training_jobids_ = suitcase.training_jobids_ ;
+      obj.tracking_jobids_ = suitcase.tracking_jobids_ ;
       if obj.type == DLBackEnd.AWS ,
-        obj.awsec2.restoreAfterParfeval(suitcase) ;
+        obj.awsec2.restoreAfterParfeval(suitcase.awsec2) ;
       else
         % do nothing
       end
@@ -1374,146 +1406,162 @@ classdef DLBackEndClass < handle
     %   end        
     % end  % function
 
-    function nframes = readTrkFileStatus(obj, filename, partFileIsTextStatus, logger)
-      % Read the number of frames remaining according to the remote file at location
-      % filename.  If partFileIsTextStatus is true, this file is assumed to be a
-      % text file.  Otherwise, it is assumed to be a .mat file.
-      if ~exist('partFileIsTextStatus', 'var') || isempty(partFileIsTextStatus) ,
-        partFileIsTextStatus = false ;
+    function nframes = readTrkFileStatus(obj, nativeFilePath, isTextFile, logger)
+      % Read the number of frames remaining according to the remote file
+      % corresponding to absolute local file path
+      % localFilepath.  If partFileIsTextStatus is true, this file is assumed to be a
+      % text file.  Otherwise, it is assumed to be a .mat file.  If the file does
+      % not exist or there's some problem reading the file, returns nan.
+      if ~exist('isTextFile', 'var') || isempty(isTextFile) ,
+        isTextFile = false ;
       end
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger(1, 'DLBackEndClass::readTrkFileStatus()') ;
       end
 
       if obj.type == DLBackEnd.AWS ,
-        %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
-        nframes = 0;
-        if ~obj.fileExists(filename) ,
-          return
-        end
-        if partFileIsTextStatus,
-          str = obj.fileContents(filename) ;
-          nframes = TrkFile.getNFramesTrackedString(str) ;
-        else
-          local_filename = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
-          %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): About to call obj.awsec2.scpDownloadOrVerify()...\n') ;
-          did_succeed = obj.awsec2.scpDownloadOrVerify(filename, local_filename) ;
-          %logger.log('BgTrackWorkerObjAWS::readTrkFileStatus(): Returned from call to obj.awsec2.scpDownloadOrVerify().\n') ;
-          if did_succeed ,
-            %logger.log('Successfully downloaded remote tracking file %s\n', filename) ;
-            try
-              nframes = TrkFile.getNFramesTrackedMatFile(local_filename) ;
-            catch me
-              logger.log('Could not read tracking progress from remote file %s: %s\n', filename, me.message) ;
-            end
-            %logger.log('Read that nframes = %d\n', nframes) ;
-          else
-            logger.log('Could not download tracking progress from remote file %s\n', filename) ;
-          end
-        end
+        % AWS backend
+        wslFilePath = wsl_path_from_native(nativeFilePath) ;
+        nframes = obj.awsec2.readTrkFileStatus(wslFilePath, isTextFile, logger) ;
       else
         % If non-AWS backend
-        nframes = 0;
-        if ~exist(filename,'file'),
-          return;
+        if ~exist(nativeFilePath,'file'),
+          nframes = nan ;
+          return
         end
-        if partFileIsTextStatus ,
-          s = obj.fileContents(filename) ;
+        if isTextFile ,
+          s = obj.fileContents(nativeFilePath) ;
           nframes = TrkFile.getNFramesTrackedPartFile(s) ;
         else
           try
-            nframes = TrkFile.getNFramesTrackedMatFile(filename);
+            nframes = TrkFile.getNFramesTrackedMatFile(nativeFilePath) ;
           catch
-            fprintf('Could not read tracking progress from %s\n',filename);
+            fprintf('Could not read tracking progress from %s\n',nativeFilePath);
+            nframes = nan ;
           end
         end        
       end
+      % if isnan(nframes) ,
+      %   nop() ;
+      % end
     end  % function
     
-    function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
-      cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
-    end
+    % function cmdfull = wrapCommandSSHAWS(obj, cmdremote, varargin)
+    %   cmdfull = obj.awsec2.wrapCommandSSH(cmdremote, varargin{:}) ;
+    % end
 
     function maxiter = getMostRecentModel(obj, dmc)  % constant method
+      % Get the number of iterations completed for the model indicated by dmc.
+      % Note that dmc will have native paths in it.
+      % Also note that maxiter is in general a row vector.      
       if obj.type == DLBackEnd.AWS ,
         maxiter = obj.awsec2.getMostRecentModel(dmc) ;
       else
-        maxiter = dmc.getMostRecentModelLocal() ;
+        maxiter = DLBackEndClass.getMostRecentModelLocal_(dmc) ;
       end
     end  % function
-    
-    function mirrorDMCToBackend(obj, dmc, mode)
-      % mode should be 'tracking' or 'training'.
-      if ~exist('mode', 'var') || isempty(mode) ,
-        mode = 'tracking' ;
+  end  % methods
+
+  methods (Static)
+    function maxiter = getMostRecentModelLocal_(dmc)
+      % Get the number of iterations completed for the model indicated by dmc.
+      % Note that dmc will have native paths in it.
+      % Also note that maxiter is in general a row vector.
+      % This method should only be called when you know the *local* dmc is the
+      % up-to-date one.  Hence the underscore.
+      [modelglob,idx] = dmc.trainModelGlob();
+      [dirModelChainLnx] = dmc.dirModelChainLnx(idx);
+
+      maxiter = nan(1,numel(idx));
+      for i = 1:numel(idx),
+        modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
+        if isempty(modelfiles),
+          continue;
+        end
+        for j = 1:numel(modelfiles),
+          iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
+          if ~isempty(iter),
+            maxiter(i) = max(maxiter(i),iter);
+          end
+        end
       end
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
+    end  % function
+  end  % methods (Static)
+
+  methods
+    function uploadProjectCacheIfNeeded(obj, nativeProjectCachePath)
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.mirrorDMCToBackend(dmc, mode) ;
+         obj.awsec2.uploadProjectCacheIfNeeded(nativeProjectCachePath) ;
       end
     end
 
-    function mirrorDMCFromBackend(obj, dmc)
+    function downloadProjectCacheIfNeeded(obj, nativeCacheDirPath)
       % If the model chain is remote, download it
-      assert(isa(dmc, 'DeepModelChainOnDisk')) ;      
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.mirrorDMCFromBackend(dmc) ;
+         obj.awsec2.downloadProjectCacheIfNeeded(nativeCacheDirPath) ;
       end
     end  % function
 
-    function result = get.isDMCRemote(obj)
-      result = (obj.type == DLBackEnd.AWS) && obj.awsec2.isDMCRemote ;
+    function result = get.isProjectCacheRemote(obj)
+      result = (obj.type == DLBackEnd.AWS) && obj.awsec2.isProjectCacheRemote ;
     end  % function
 
-    function result = get.isDMCLocal(obj)
-      result = ~obj.isDMCRemote ;
+    function result = get.isProjectCacheLocal(obj)
+      result = ~obj.isProjectCacheRemote ;
     end  % function
 
     function prepareFilesForTracking(backend, toTrackInfo)
-      backend.ensureFoldersNeededForTrackingExist_(toTrackInfo);
-      backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file');
-      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result');
-      backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files');
+      backend.ensureFoldersNeededForTrackingExist_(toTrackInfo) ;
+      backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
+      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
     end  % function
 
     function ensureFoldersNeededForTrackingExist_(obj, toTrackInfo)
-      dirlocs = toTrackInfo.trkoutdir ;
+      % Paths in toTrackInfo are native paths
+      native_dir_paths = toTrackInfo.trkoutdir ;
       desc = 'trk cache dir' ;
-      for i = 1:numel(dirlocs),
-        dirloc = dirlocs{i} ;
-        if ~obj.fileExists(dirloc) ,
-          [succ,msg] = obj.mkdir(dirloc);
-          if ~succ
-            error('Failed to create %s %s: %s',desc,dirloc,msg);
+      for i = 1:numel(native_dir_paths) ,
+        native_dir_path = native_dir_paths{i} ;
+        if ~obj.fileExists(native_dir_path) ,
+          [succ, msg] = obj.mkdir(native_dir_path) ;
+          if succ
+            fprintf('Created %s: %s\n', desc, native_dir_path) ;
           else
-            fprintf('Created %s: %s\n',desc,dirloc);
+            error('Failed to create %s %s: %s', desc, native_dir_path, msg) ;
           end
         end
       end
     end  % function
 
-    function ensureFilesDoNotExist_(obj, filelocs, desc)
-      for i = 1:numel(filelocs),
-        fileloc = filelocs{i} ;
-        if obj.fileExists(fileloc),
-          fprintf('Deleting %s %s',desc,fileloc);
-          obj.deleteFile(fileloc);
+    function ensureFilesDoNotExist_(obj, native_file_paths, desc)
+      % native_file_paths are, umm, native paths
+      for i = 1:numel(native_file_paths) ,
+        native_file_path = native_file_paths{i} ;
+        if obj.fileExists(native_file_path) ,
+          fprintf('Deleting %s %s', desc, native_file_path) ;
+          obj.deleteFile(native_file_path);
         end
-        if obj.fileExists(fileloc),
-          error('Failed to delete %s: file still exists',fileloc);
+        if obj.fileExists(native_file_path),
+          error('Failed to delete %s: file still exists',native_file_path);
         end
       end
     end  % function
 
-    function result = get.localDMCRootDir(obj) 
-      result = obj.awsec2.localDMCRootDir ;
+    function result = get.wslProjectCachePath(obj)
+      % The local DMC root dir, as a WSL path.
+      result = obj.awsec2.wslProjectCachePath ;
     end  % function
 
-    function set.localDMCRootDir(obj, value) 
-      obj.awsec2.localDMCRootDir = value ;
+    function set.wslProjectCachePath(obj, value) 
+      % Set the local DMC root dir.  Note that value is assumed to be a native path,
+      % but we convert to a WSL path before passing to obj.awsec2.
+      path = wsl_path_from_native(value) ;
+      obj.awsec2.wslProjectCachePath = path ;
     end  % function
 
     function result = get.remoteDMCRootDir(obj)  %#ok<MANU>
+      % Get the remote DMC root dir.  Returned as a remote path.
       result = AWSec2.remoteDLCacheDir ;
     end  % function
 
@@ -1549,14 +1597,6 @@ classdef DLBackEndClass < handle
       obj.awsec2.instanceType = value ;
     end  % function
     
-    function result = getTorchHome(obj)
-      if obj.type == DLBackEnd.AWS ,
-        result = obj.awsec2.getTorchHome() ;
-      else
-        result = fullfile(APT.getdotaptdirpath(), 'torch') ;
-      end
-    end  % function   
-    
     function statusStringFromJobIndex = queryAllJobsStatus(obj, train_or_track)
       % Returns a cell array of status strings, one for each spawned job.
       % Each line is of the form 'Job 12345 is alive' or 'Job 12345 is dead'.
@@ -1574,45 +1614,45 @@ classdef DLBackEndClass < handle
                                          'UniformOutput', false) ;
     end  % function    
     
-    function logcmd = generateLogCommand_(obj, train_or_track, dmcjob_or_totrackinfojob)  % constant method
-      if strcmp(train_or_track, 'train') ,
-        dmcjob = dmcjob_or_totrackinfojob ;
-        if obj.type == DLBackEnd.Docker ,
-          containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName) ;
-          logfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
-          logcmd = obj.generateLogCommandForDockerBackend_(containerName, logfile) ;
-        else
-          logcmd = '' ;
-        end
-      elseif strcmp(train_or_track, 'track') ,
-        totrackinfojob = dmcjob_or_totrackinfojob ;
-        if obj.type == DLBackEnd.Docker ,
-          containerName = totrackinfojob.containerName ;
-          logfile = totrackinfojob.logfile ;
-          logcmd = obj.generateLogCommandForDockerBackend_(containerName, logfile) ;
-        else
-          logcmd = '' ;
-        end
-      else
-        error('train_or_track had illegal value ''%s''', train_or_track) ;
-      end
-    end  % function
+    % function logcmd = generateLogCommand_(obj, train_or_track, dmcjob_or_totrackinfojob)  % constant method
+    %   if strcmp(train_or_track, 'train') ,
+    %     dmcjob = dmcjob_or_totrackinfojob ;
+    %     if obj.type == DLBackEnd.Docker ,
+    %       containerName = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainContainerName) ;
+    %       native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainLogLnx) ;
+    %       logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
+    %     else
+    %       logcmd = '' ;
+    %     end
+    %   elseif strcmp(train_or_track, 'track') ,
+    %     totrackinfojob = dmcjob_or_totrackinfojob ;
+    %     if obj.type == DLBackEnd.Docker ,
+    %       containerName = totrackinfojob.containerName ;
+    %       native_log_file_path = totrackinfojob.logfile ;
+    %       logcmd = obj.generateLogCommandForDockerBackend_(containerName, native_log_file_path) ;
+    %     else
+    %       logcmd = '' ;
+    %     end
+    %   else
+    %     error('train_or_track had illegal value ''%s''', train_or_track) ;
+    %   end
+    % end  % function
 
-    function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_name)  % constant method
-      assert(backend.type == DLBackEnd.Docker);
-      dockercmd = apt.dockercmd();
-      log_file_name = linux_path(native_log_file_name) ;
-      cmd = ...
-        sprintf('%s logs -f %s &> %s', ... 
-                dockercmd, ...
-                containerName, ...
-                escape_string_for_bash(log_file_name)) ;
-      is_docker_remote = ~isempty(backend.dockerremotehost) ;
-      if is_docker_remote
-        cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
-      end
-      cmd = sprintf('%s &', cmd);
-    end  % function
+    % function cmd = generateLogCommandForDockerBackend_(backend, containerName, native_log_file_path)  % constant method
+    %   assert(backend.type == DLBackEnd.Docker);
+    %   dockercmd = apt.dockercmd();
+    %   wsl_log_file_path = wsl_path_from_native(native_log_file_path) ;
+    %   cmd = ...
+    %     sprintf('%s logs -f %s &> %s', ... 
+    %             dockercmd, ...
+    %             containerName, ...
+    %             escape_string_for_bash(wsl_log_file_path)) ;
+    %   is_docker_remote = ~isempty(backend.dockerremotehost) ;
+    %   if is_docker_remote
+    %     cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
+    %   end
+    %   cmd = sprintf('%s &', cmd);
+    % end  % function
 
     function result = detailedStatusStringFromRegisteredJobIndex(obj, train_or_track)
       if strcmp(train_or_track, 'train') ,
@@ -1647,7 +1687,7 @@ classdef DLBackEndClass < handle
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8) ;
       cmd = sprintf('%s ps --filter "id=%s"', apt.dockercmd(), jobidshort) ;      
-      [rc, stdouterr] = obj.runBatchCommandOutsideContainer(cmd) ;
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
       if rc==0
@@ -1665,7 +1705,7 @@ classdef DLBackEndClass < handle
         % For the bsub backend, obj.runBatchCommandOutsideContainer() still runs
         % things locally, since that's what you want for e.g. commands that check on
         % file status.
-      [rc, stdouterr] = obj.runBatchCommandOutsideContainer(cmd1) ;
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd1) ;
       if rc==0 ,
         result = stdouterr ;
       else
@@ -1677,19 +1717,343 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
+      [return_code, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
       % We capture stdouterr to prevent it getting spit out to the Matlab console.
       % We use a variable name instead of ~ in case we need to debug in here at some
       % point.
-      if rc==0 ,
+      if return_code==0 ,
         result = stdouterr ;
       else
         result = sprintf('Error occurred when checking status of conda job %s: %s', jobid, stdouterr) ;
       end
     end  % function
 
+    function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo, aptroot, train_or_track)
+      % Get arguments for a particular (spawning) job to be registered.
+      
+      if isequal(train_or_track,'train'),
+        dmc = jobinfo;
+        containerName = DeepModelChainOnDisk.getCheckSingle(dmc.trainContainerName);
+      else
+        dmc = jobinfo.trainDMC;
+        containerName = jobinfo.containerName;
+      end
+      
+      switch obj.type
+        case DLBackEnd.Bsub
+          mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
+          if isequal(train_or_track,'train'),
+            native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+            nslots = obj.jrcnslots;
+          else % track
+            native_log_file_path = jobinfo.logfile;
+            nslots = obj.jrcnslotstrack;
+          end
+      
+          % for printing git status? not sure why this is only in bsub and
+          % not others. 
+          aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
+          extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
+          singimg = tracker.singularityImgPath();
+      
+          additionalBsubArgs = obj.jrcAdditionalBsubArgs ;
+          result = {...
+            'singargs',{'bindpath',mntPaths,'singimg',singimg},...
+            'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',native_log_file_path,'jobname',containerName, ...
+                        'additionalArgs', additionalBsubArgs},...
+            'sshargs',{'extraprefix',extraprefix}...
+            };
+        case DLBackEnd.Docker
+          mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
+          isgpu = ~isempty(gpuid) && ~isnan(gpuid);
+          % tfRequiresTrnPack is always true;
+          shmsize = 8;
+          result = {...
+            'containerName',containerName,...
+            'bindpath',mntPaths,...
+            'isgpu',isgpu,...
+            'gpuid',gpuid,...
+            'shmsize',shmsize...
+            };
+        case DLBackEnd.Conda
+          if isequal(train_or_track,'train'),
+            native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+          else % track
+            native_log_file_path = jobinfo.logfile;
+          end
+          result = {...
+            'logfile', native_log_file_path };
+          % backEndArgs = {...
+          %   'condaEnv', obj.condaEnv, ...
+          %   'gpuid', gpuid };
+        case DLBackEnd.AWS
+          result  = {} ;
+        otherwise,
+          error('Internal error: Unknown backend type') ;
+      end
+    end  % function
 
+    function result = genContainerMountPathBsubDocker_(obj, tracker, cmdtype, jobinfo, varargin)
+      % Return a list of paths that will need to be mounted inside the
+      % Apptainer/Docker container.  Returned paths are linux-appropriate.
+
+      % Process optional args
+      [aptroot, extradirs] = ...
+        myparse(varargin,...
+                'aptroot',[],...
+                'extra',{});
+      
+      assert(obj.type==DLBackEnd.Bsub || obj.type==DLBackEnd.Docker);
+      
+      if isempty(aptroot)
+        switch obj.type
+          case DLBackEnd.Bsub
+            aptroot = obj.bsubaptroot;
+          case DLBackEnd.Docker
+            % could add prop to backend for this but 99% of the time for 
+            % docker the backend should run the same code as frontend
+            aptroot = APT.Root;  % native path
+        end
+      end
+      
+      if ~isempty(tracker.containerBindPaths)
+        assert(iscellstr(tracker.containerBindPaths),'containerBindPaths must be a cellstr.');
+        fprintf('Using user-specified container bind-paths:\n');
+        paths = tracker.containerBindPaths;
+      elseif obj.type==DLBackEnd.Bsub && obj.jrcsimplebindpaths
+        fprintf('Using JRC container bind-paths:\n');
+        paths = {'/groups';'/nrs'};
+      else
+        lObj = tracker.lObj;
+        
+        %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
+        %cacheDir = obj.lObj.DLCacheDir;
+        cacheDir = APT.getdotaptdirpath() ;  % native path
+        assert(~isempty(cacheDir));
+        
+        if isequal(cmdtype,'train'),
+          projbps = lObj.movieFilesAllFull(:);
+          %mfafgt = lObj.movieFilesAllGTFull;
+          if lObj.hasTrx,
+            projbps = [projbps;lObj.trxFilesAllFull(:)];
+            %tfafgt = lObj.trxFilesAllGTFull;
+          end
+        else
+          projbps = jobinfo.getMovfiles();
+          projbps = projbps(:);
+          if lObj.hasTrx,
+            trxfiles = jobinfo.getTrxFiles();
+            trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
+            if ~isempty(trxfiles),
+              projbps = [projbps;trxfiles(:)];
+            end
+          end
+        end
+        
+        [projbps2,ischange] = GetLinkSources(projbps);
+        projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
+
+      	if obj.type==DLBackEnd.Docker
+          % docker writes to ~/.cache. So we need home directory. MK
+          % 20220922
+          % add in home directory and their ancestors
+          homedir = getuserdir() ;  % native path
+          homeancestors = [{homedir},getpathancestors(homedir)];
+          if isunix()
+            homeancestors = setdiff(homeancestors,{'/'});
+          end
+        else
+          homeancestors = {};
+        end
+
+        fprintf('Using auto-generated container bind-paths:\n');
+        %dlroot = [aptroot '/deepnet'];
+        % AL 202108: include all of <APT> due to git describe cmd which
+        % looks in <APT>/.git
+        paths0 = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
+        paths = FSPath.commonbase(paths0,1);
+        %paths = unique(paths);
+      end
+      
+      cellfun(@(x)fprintf('  %s\n',x),paths);
+      result = wsl_path_from_native(paths) ;
+    end  % function
+    
+    function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNativePath, varargin)
+      % Write the .json file that specifies the list of frames to track.
+      % File paths in movFileNativePath and listFileNativePath should be absolute native paths.
+      % Throws if unable to write complete file.
+
+      % Get optional args
+      [trxFilesLcl, croprois] = ...
+        myparse(varargin,...
+                'trxFiles',cell(0,1),...
+                'croprois',cell(0,1) ...
+                );
+
+      % Check arg types
+      assert(iscell(movFileNativePath)) ;
+      assert(isempty(movFileNativePath) || isstringy(movFileNativePath{1})) ;
+      assert(iscolumn(movidx)) ;
+      assert(isnumeric(movidx)) ;
+      assert(istable(tMFTConc)) ;
+      assert(isstringy(listFileNativePath)) ;
+      assert(iscell(trxFilesLcl)) ;
+      assert(isempty(trxFilesLcl) || isstringy(trxFilesLcl{1})) ;
+      assert(iscell(croprois)) ;
+      assert(isempty(croprois) || (isnumeric(croprois{1}) && isequal(size(croprois{1}),[1 4])) ) ;
+
+      % Check dimensions
+      [nmoviesets, nviews] = size(movFileNativePath) ;
+      assert(size(movidx,1) == nmoviesets) ;
+      
+      % Create listinfo struct, populate some fields
+      ismultiview = (nviews > 1) ;      
+      listinfo = struct() ;
+      if ismultiview,
+        assert(size(croprois,1) == nmoviesets) ;
+        listinfo.movieFiles = cell(nmoviesets,1);
+        for i = 1:nmoviesets,
+          listinfo.movieFiles{i} = wsl_path_from_native(movFileNativePath(i,:)) ;
+        end
+        listinfo.trxFiles = cell(size(trxFilesLcl,1),1);
+        for i = 1:size(trxFilesLcl,1),
+          listinfo.trxFiles{i} = wsl_path_from_native(trxFilesLcl(i,:)) ;
+        end
+        listinfo.cropLocs = cell(nmoviesets,1);
+        for i = 1:nmoviesets,
+          listinfo.cropLocs{i} = croprois(i,:);
+        end
+      else
+        listinfo.movieFiles = wsl_path_from_native(movFileNativePath) ;
+        listinfo.trxFiles = wsl_path_from_native(trxFilesLcl) ;
+        listinfo.cropLocs = croprois ;
+      end
+
+      % which movie index does each row correspond to?
+      % assume first movie is unique
+      [ism,idxm] = ismember(tMFTConc.mov(:,1),movidx(:,1));
+      assert(all(ism));
+     
+      % Populate listinfo.toTrack
+      listinfo.toTrack = cell(0,1);
+      for mi = 1:nmoviesets,
+        idx1 = find(idxm==mi);
+        if isempty(idx1),
+          continue
+        end
+        [t,~,idxt] = unique(tMFTConc.iTgt(idx1));
+        for ti = 1:numel(t),
+          idx2 = idxt==ti;
+          idxcurr = idx1(idx2);
+          f = unique(tMFTConc.frm(idxcurr));
+          df = diff(f);
+          istart = [1;find(df~=1)+1];
+          iend = [istart(2:end)-1;numel(f)];
+          for i = 1:numel(istart),
+            if istart(i) == iend(i),
+              fcurr = f(istart(i));
+            else
+              fcurr = [f(istart(i)),f(iend(i))+1];
+            end
+            listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
+          end
+        end
+      end
+
+      % Encode listinfo struct to json and write to file
+      listinfo_as_json_string = jsonencode(listinfo) ;
+      obj.writeStringToFile(listFileNativePath, listinfo_as_json_string) ;  % throws if unable to write file
+    end  % function    
+  end  % methods
+
+  methods
+    function cmd = wrapCommandToBeSpawnedForBackend_(obj, basecmd, varargin)  % const method
+      switch obj.type,
+        case DLBackEnd.AWS
+          cmd = wrapCommandToBeSpawnedForAWSBackend_(obj, basecmd, varargin{:});
+        case DLBackEnd.Bsub,
+          cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, basecmd, varargin{:});
+        case DLBackEnd.Conda
+          cmd = wrapCommandToBeSpawnedForCondaBackend_(obj, basecmd, varargin{:});
+        case DLBackEnd.Docker
+          cmd = wrapCommandToBeSpawnedForDockerBackend_(obj, basecmd, varargin{:});
+        otherwise
+          error('Not implemented: %s',obj.type);
+      end
+    end
+    
+    function result = wrapCommandToBeSpawnedForAWSBackend_(obj, basecmd, varargin)  % const method
+      % Wrap for docker, returns Linux/WSL-style command string
+      
+      % Parse arguments
+      [dockerargs, sshargs] = ...
+        myparse_nocheck(varargin, ...
+                        'dockerargs',{}, ...
+                        'sshargs',{}) ;
+    
+      % Wrap for docker
+      dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
+      bindpath = {'/home'} ;  % This is a remote path
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'dockerimg',dockerimg, ...
+                          'bindpath',bindpath, ...
+                          dockerargs{:}) ;
+    
+      % Wrap for ssh'ing into a remote docker host, if needed
+      %result = obj.wrapCommandSSHAWS(codestr, sshargs{:}) ;
+      result = obj.awsec2.wrapCommandSSH(codestr, sshargs{:}) ;
+    end
+    
+    function cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, basecmd, varargin)  %#ok<INUSD>  % const method
+      [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
+      cmd1 = wrapCommandSing(basecmd,singargs{:});
+      cmd2 = wrapCommandBsub(cmd1,bsubargs{:});
+    
+      % already on cluster?
+      tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
+      if tfOnCluster,
+        % The Matlab environment vars cause problems with e.g. PyTorch
+        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
+      else
+        % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
+        cmd = wrapCommandSSH(cmd2,'host',DLBackEndClass.jrchost,sshargs{:});
+      end
+    end
+    
+    function result = wrapCommandToBeSpawnedForCondaBackend_(obj, basecmd, varargin)  % const method
+      % Take a base command and run it in a conda env
+      preresult = wrapCommandConda(basecmd, 'condaEnv', obj.condaEnv, 'logfile', '/dev/null', 'gpuid', obj.gpuids(1), varargin{:}) ;
+      result = sprintf('{ %s & } && echo $!', preresult) ;  % echo $! to get the PID
+    end
+    
+    function codestr = wrapCommandToBeSpawnedForDockerBackend_(obj, basecmd, varargin)  % const method
+      % Take a base command and run it in a docker img
+    
+      % Determine the fallback gpuid, keeping in mind that backend.gpuids may be
+      % empty.
+      if isempty(obj.gpuids) ,
+        fallback_gpuid = 1 ;
+      else
+        fallback_gpuid = obj.gpuids(1) ;
+      end    
+    
+      % Call main function, returns Linux/WSL-style command string
+      codestr = ...
+        wrapCommandDocker(basecmd, ...
+                          'dockerimg',obj.dockerimgfull,...
+                          'gpuid',fallback_gpuid,...
+                          'apiver',apt.docker_api_version(), ...
+                          varargin{:}) ;  % key-value pairs in varagin will override ones specified here
+    
+      % Wrap for ssh'ing into a remote docker host, if needed
+      if ~isempty(obj.dockerremotehost),
+        codestr = wrapCommandSSH(codestr,'host',obj.dockerremotehost);
+      end
+    end  % function 
+    
   end  % methods
 end  % classdef

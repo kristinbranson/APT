@@ -330,13 +330,13 @@ classdef DeepTracker < LabelTracker
     end
     function delete(obj)
       obj.trnResInit();
-      obj.bgTrkReset();
+      obj.bgTrkReset_();
       delete(obj.trkVizer);
       obj.trkVizer = [];
     end
     function initHook(obj)
       obj.trnResInit();
-      obj.bgTrkReset();
+      obj.bgTrkReset_();
       obj.trackResInit();
       obj.trackCurrResInit();
       obj.vizInit();
@@ -573,24 +573,12 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
     end
 
-    function updateDLCache(obj,dlcachedir)
-      dmc = obj.trnLastDMC;
-      if isempty(dmc),
-        return
-      end
-      if obj.backend.isDMCRemote ,
-        warningNoTrace('Unexpected remote DeepModelChainOnDisk detected for net %s.',...
-                       obj.trnNetType.displayString);
+    function updateDLCache(obj, dlcachedir)
+      dmc = obj.trnLastDMC ;
+      if isempty(dmc)
         return
       end
       dmc.rootDir = dlcachedir ;
-      obj.backend.localDMCRootDir = dlcachedir ;
-
-      % At save-time we should be updating DMCs to local
-
-      % Don't update dmc(ivw).rootDir in this case
-
-      % Nonfatal dont return
     end
 
   end
@@ -825,7 +813,7 @@ classdef DeepTracker < LabelTracker
       bsizeFcn = @(fld,val)strcmp(fld,'batch_size') && val>nLbledRows;
       % Note: at this time, project-level params are set but NOT
       % tracker-level params
-      sPrmLblObj = lblObj.trackGetParams();
+      sPrmLblObj = lblObj.trackGetTrainingParams();
       res = structapply(sPrmLblObj.ROOT,bsizeFcn);
       tfbsize = cell2mat(res.values);
       if any(tfbsize)
@@ -872,8 +860,8 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload the movies to the backend
-      localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
-      backend.uploadMovies(localPathFromMovieIndex) ;
+      nativePathFromMovieIndex = obj.lObj.movieFilesAll ;      
+      backend.uploadMovies(nativePathFromMovieIndex) ;
     end
     
     function train(obj,varargin)
@@ -913,7 +901,7 @@ classdef DeepTracker < LabelTracker
       end
       
       labeler = obj.lObj;
-      allParamsRaw=labeler.trackGetParams();
+      allParamsRaw=labeler.trackGetTrainingParams();
       obj.setAllParams(allParamsRaw);
       paramsAll=obj.sPrmAll;
       if isempty(paramsAll)
@@ -974,7 +962,7 @@ classdef DeepTracker < LabelTracker
                     'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
                     'projTempDir', projTempDir) ;
       
-      % Nothing should occur here as failed trnSpawn* will early return      
+      % Nothing should occur here as failed trnSpawn_() will early return      
     end
     
     % function trnPrintLogs(obj)
@@ -1096,7 +1084,7 @@ classdef DeepTracker < LabelTracker
         end
         result{end+1} = sprintf('New labels since training: %s',s);
         
-        sPrmAllLabeler = obj.lObj.trackGetParams();
+        sPrmAllLabeler = obj.lObj.trackGetTrainingParams();
         sPrmAllAsSet = obj.massageParamsIfNec(sPrmAllLabeler,'throwwarnings',false);
         args = {'netsUsed',obj.getNetsUsed(),'hasTrx',obj.lObj.hasTrx,'trackerIsDL',true};
         
@@ -1186,7 +1174,7 @@ classdef DeepTracker < LabelTracker
 %         warningNoTrace('Stripped lbl file is not being generated! This might break');
 %       end%d
 %       fprintf(1,'Setting current tracking parameters; these are assumed to be the same as used to train.\n');
-%       obj.setAllParams(obj.lObj.trackGetParams());
+%       obj.setAllParams(obj.lObj.trackGetTrainingParams());
 %       
 %       assert(~obj.lObj.isMultiView,'Currently unsupported for multiview projects.');
 %       
@@ -1344,7 +1332,7 @@ classdef DeepTracker < LabelTracker
         gpuids = backend.getFreeGPUs(nmodel);
         if numel(gpuids) < nmodel,
           if numel(gpuids)<1,
-            error('No GPUs with sufficient RAM available locally');
+            error('No GPUs with sufficient unused RAM available locally');
           else
             gpuids = gpuids(1);
             jobidx = ones([1,nmodel]);
@@ -1408,7 +1396,7 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function tfSucc = trnSpawn_(obj,backend,trnType,modelChainID,varargin)
+    function trnSpawn_(obj, backend, trnType, modelChainID, varargin)
       % backend: scalar DLBackEndClass
       % trnType: scalar DLTrainType
       % modelChainID: trainID 
@@ -1417,7 +1405,7 @@ classdef DeepTracker < LabelTracker
       %  - training aws job spawned
       %  - .trnLastDMC set
       %
-      % TODO break up bsub/docker sep meths
+      % Throws error if something goes wrong.
 
       [existingTrnPackSLbl, ...
        prev_models, ...
@@ -1446,7 +1434,7 @@ classdef DeepTracker < LabelTracker
                                'tfGenNewConfigFile',tfGenNewConfigFile);
 
       % Create DMC
-      cacheDir = obj.lObj.DLCacheDir ;  % local cache dir      
+      cacheDir = obj.lObj.DLCacheDir ;  % native cache dir      
       dmc = DeepModelChainOnDisk('rootDir',cacheDir,...
                                  'projID',obj.lObj.projname,...
                                  'netType',netType(stage),...
@@ -1477,14 +1465,14 @@ classdef DeepTracker < LabelTracker
       else % Restart
         % TODO: implement this. We should be using trnpacks now for
         % everything
-        error('TODO Restarts not implemented.');
+        error('Restarts not implemented.') ;
       end
 
       % At this point
       % We have (modelChainID,trainID) config file on disk. 
 
       % Upload model to remote filesystem, if needed
-      backend.mirrorDMCToBackend(dmc, 'training') ;
+      backend.uploadProjectCacheIfNeeded(obj.lObj.DLCacheDir) ;
 
       % Clear out any old registered jobs in the backend
       backend.killAndClearRegisteredJobs('train') ;
@@ -1510,7 +1498,7 @@ classdef DeepTracker < LabelTracker
       % Do various things
       trainSplits = false ;      
       if ~isempty(obj.bgTrnMonitor)
-        error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.');
+        error('Training monitor exists. Call .bgTrnReset first to stop/remove existing monitor.') ;
       end
       assert(isempty(obj.bgTrainPoller));
       obj.isTrainingSplits_ = trainSplits ;
@@ -1534,9 +1522,9 @@ classdef DeepTracker < LabelTracker
       %trnMonObj.start();  % Moved this after spawning, see below
 
       % spawn training
-      tfSucc = backend.spawnRegisteredJobs('train', ...
-                                           'jobdesc', 'training job', ...
-                                           'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
+      backend.spawnRegisteredJobs('train', ...
+                                  'jobdesc', 'training job', ...
+                                  'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py) ;
 
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
@@ -1794,85 +1782,85 @@ classdef DeepTracker < LabelTracker
 %       
 %     end
     
-    function paths = genContainerMountPathBsubDocker(obj,backend,cmdtype,jobinfo,varargin)
-      
-      [aptroot,extradirs] = myparse(varargin,...
-        'aptroot',[],'extra',{});
-      
-      assert(backend.type==DLBackEnd.Bsub || backend.type==DLBackEnd.Docker);
-      
-      if isempty(aptroot)
-        switch backend.type
-          case DLBackEnd.Bsub
-            aptroot = backend.bsubaptroot;
-          case DLBackEnd.Docker
-            % could add prop to backend for this but 99% of the time for 
-            % docker the backend should run the same code as frontend
-            aptroot = APT.Root; 
-        end
-      end
-      
-      if ~isempty(obj.containerBindPaths)
-        assert(iscellstr(obj.containerBindPaths),'containerBindPaths must be a cellstr.');
-        fprintf('Using user-specified container bind-paths:\n');
-        paths = obj.containerBindPaths;
-      elseif backend.type==DLBackEnd.Bsub && backend.jrcsimplebindpaths
-        fprintf('Using JRC container bind-paths:\n');
-        paths = {'/groups';'/nrs'};
-      else
-        lObj = obj.lObj;
-        
-        %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
-        %cacheDir = obj.lObj.DLCacheDir;
-        cacheDir = APT.getdotaptdirpath() ;
-        assert(~isempty(cacheDir));
-        
-        if isequal(cmdtype,'train'),
-          projbps = lObj.movieFilesAllFull(:);
-          %mfafgt = lObj.movieFilesAllGTFull;
-          if lObj.hasTrx,
-            projbps = [projbps;lObj.trxFilesAllFull(:)];
-            %tfafgt = lObj.trxFilesAllGTFull;
-          end
-        else
-          projbps = jobinfo.getMovfiles();
-          projbps = projbps(:);
-          if lObj.hasTrx,
-            trxfiles = jobinfo.getTrxFiles();
-            trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
-            if ~isempty(trxfiles),
-              projbps = [projbps;trxfiles(:)];
-            end
-          end
-        end
-        
-        [projbps2,ischange] = GetLinkSources(projbps);
-        projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
-
-      	if backend.type==DLBackEnd.Docker
-          % docker writes to ~/.cache. So we need home directory. MK
-          % 20220922
-          % add in home directory and their ancestors
-          homedir = getuserdir;
-          homeancestors = [{homedir},getpathancestors(homedir)];
-          if isunix
-            homeancestors = setdiff(homeancestors,{'/'});
-          end
-        else
-          homeancestors = {};
-        end
-
-        fprintf('Using auto-generated container bind-paths:\n');
-        %dlroot = [aptroot '/deepnet'];
-        % AL 202108: include all of <APT> due to git describe cmd which
-        % looks in <APT>/.git
-        paths = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
-        paths = FSPath.commonbase(paths,1);
-        %paths = unique(paths);
-      end
-      
-      cellfun(@(x)fprintf('  %s\n',x),paths);
-    end  
+    % function paths = genContainerMountPathBsubDocker(tracker,backend,cmdtype,jobinfo,varargin)
+    % 
+    %   [aptroot,extradirs] = myparse(varargin,...
+    %     'aptroot',[],'extra',{});
+    % 
+    %   assert(backend.type==DLBackEnd.Bsub || backend.type==DLBackEnd.Docker);
+    % 
+    %   if isempty(aptroot)
+    %     switch backend.type
+    %       case DLBackEnd.Bsub
+    %         aptroot = backend.bsubaptroot;
+    %       case DLBackEnd.Docker
+    %         % could add prop to backend for this but 99% of the time for 
+    %         % docker the backend should run the same code as frontend
+    %         aptroot = APT.Root; 
+    %     end
+    %   end
+    % 
+    %   if ~isempty(tracker.containerBindPaths)
+    %     assert(iscellstr(tracker.containerBindPaths),'containerBindPaths must be a cellstr.');
+    %     fprintf('Using user-specified container bind-paths:\n');
+    %     paths = tracker.containerBindPaths;
+    %   elseif backend.type==DLBackEnd.Bsub && backend.jrcsimplebindpaths
+    %     fprintf('Using JRC container bind-paths:\n');
+    %     paths = {'/groups';'/nrs'};
+    %   else
+    %     lObj = tracker.lObj;
+    % 
+    %     %macroCell = struct2cell(lObj.projMacrosGetWithAuto());
+    %     %cacheDir = obj.lObj.DLCacheDir;
+    %     cacheDir = APT.getdotaptdirpath() ;
+    %     assert(~isempty(cacheDir));
+    % 
+    %     if isequal(cmdtype,'train'),
+    %       projbps = lObj.movieFilesAllFull(:);
+    %       %mfafgt = lObj.movieFilesAllGTFull;
+    %       if lObj.hasTrx,
+    %         projbps = [projbps;lObj.trxFilesAllFull(:)];
+    %         %tfafgt = lObj.trxFilesAllGTFull;
+    %       end
+    %     else
+    %       projbps = jobinfo.getMovfiles();
+    %       projbps = projbps(:);
+    %       if lObj.hasTrx,
+    %         trxfiles = jobinfo.getTrxFiles();
+    %         trxfiles = trxfiles(~cellfun(@isempty,trxfiles));
+    %         if ~isempty(trxfiles),
+    %           projbps = [projbps;trxfiles(:)];
+    %         end
+    %       end
+    %     end
+    % 
+    %     [projbps2,ischange] = GetLinkSources(projbps);
+    %     projbps(end+1:end+nnz(ischange)) = projbps2(ischange);
+    % 
+    %   	if backend.type==DLBackEnd.Docker
+    %       % docker writes to ~/.cache. So we need home directory. MK
+    %       % 20220922
+    %       % add in home directory and their ancestors
+    %       homedir = getuserdir;
+    %       homeancestors = [{homedir},getpathancestors(homedir)];
+    %       if isunix
+    %         homeancestors = setdiff(homeancestors,{'/'});
+    %       end
+    %     else
+    %       homeancestors = {};
+    %     end
+    % 
+    %     fprintf('Using auto-generated container bind-paths:\n');
+    %     %dlroot = [aptroot '/deepnet'];
+    %     % AL 202108: include all of <APT> due to git describe cmd which
+    %     % looks in <APT>/.git
+    %     paths = [cacheDir;aptroot;projbps(:);extradirs(:);homeancestors(:)];
+    %     paths = FSPath.commonbase(paths,1);
+    %     %paths = unique(paths);
+    %   end
+    % 
+    %   cellfun(@(x)fprintf('  %s\n',x),paths);
+    % end  
 
 %     function backEndArgs = getBackEndArgs(obj,backend,gpuid,jobinfo,aptroot,cmdtype)
 %       if isequal(cmdtype,'train'),
@@ -2073,7 +2061,7 @@ classdef DeepTracker < LabelTracker
 % 
 %       obj.preretrain();
 %       
-%       obj.setAllParams(lblObj.trackGetParams());
+%       obj.setAllParams(lblObj.trackGetTrainingParams());
 %       
 %       if isempty(obj.sPrmAll)
 %         error('No tracking parameters have been set.');
@@ -2535,7 +2523,7 @@ classdef DeepTracker < LabelTracker
       % Make sure the deep learning parameters have not changed since last training
       % bout
       labeler = obj.lObj ;
-      sPrmFromLabeler = labeler.trackGetParams();
+      sPrmFromLabeler = labeler.trackGetTrainingParams();
       sPrmSet = obj.massageParamsIfNec(sPrmFromLabeler);
       [tfCommonChanged,tfPreProcChanged,tfSpecificChanged] = ...
           obj.didParamsChange_(sPrmSet);
@@ -2586,12 +2574,12 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload model to remote filesystem, if needed
-      backend.mirrorDMCToBackend(dmc, 'tracking') ;
+      backend.uploadProjectCacheIfNeeded(obj.lObj.DLCacheDir) ;
 
       % Upload the movies to the backend
       % localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
-      localPathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
-      backend.uploadMovies(localPathFromMovieIndex) ;
+      nativePathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
+      backend.uploadMovies(nativePathFromMovieIndex) ;
 
       % % Update the tracker info based on the trained model
       % obj.syncInfoFromDMC_() ;
@@ -2646,8 +2634,7 @@ classdef DeepTracker < LabelTracker
 
       % nothing to track?
       if totrackinfo.isempty(),
-        fprintf('All requested frames have been tracked already.\n');
-        return;
+        error('All requested frames have been tracked already.');
       end
       
       % check if we will overwrite any existing trkfiles, prompt user about
@@ -2672,41 +2659,32 @@ classdef DeepTracker < LabelTracker
             delete(trkfilesdelete{i});
           end
         else
-          return;
+          return
         end
       end
 
-      obj.bgTrkReset();
+      obj.bgTrkReset_();
 
       % Spawn the tracking job
-      tfSuccess = obj.trkSpawn(totrackinfo, backend, ...
-                               'track_type',track_type, ...
-                               'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
-                               'projTempDir',projTempDir) ;
-      if ~tfSuccess
-        obj.bgTrkReset();
-        return
-      end
+      obj.trkSpawn_(totrackinfo, backend, ...
+                    'track_type',track_type, ...
+                    'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
+                    'projTempDir',projTempDir) ;
     end  % function track()
 
-    function tfSuccess = trackList(obj,varargin)
-      [totrackinfo,backend] = ...
+    function trackList(obj, varargin)
+      [totrackinfo, backend] = ...
         myparse(varargin,'totrackinfo',[],'backend',obj.lObj.trackDLBackEnd);
-      obj.validateAndSetupForTracking_(totrackinfo,backend);
+      obj.validateAndSetupForTracking_(totrackinfo, backend);
 
       % nothing to track?
       if totrackinfo.isempty(),
         fprintf('All requested frames have been tracked already.\n');
-        return;
+        return
       end
 
-      obj.bgTrkReset();
-      tfSuccess = obj.trkSpawnList(totrackinfo,backend);
-
-      if ~tfSuccess
-        obj.bgTrkReset();
-        return;
-      end
+      obj.bgTrkReset_();
+      obj.trkSpawnList_(totrackinfo,backend);
     end  % function trackList()
 
     function gtComplete(obj)      
@@ -2731,9 +2709,9 @@ classdef DeepTracker < LabelTracker
       end
 
 
-      mft = gtmats(1).list; % should already be 1based from deepnet
+      mft = gtmats(1).list; % should already be one-based from deepnet
       assert(size(mft,2)==3);
-      smovs = gtmats(1).movieFiles;
+      smovs = native_path_from_wsl(gtmats(1).movieFiles) ;
       gtmovs =gtmovs(:,1);
       [~,gt_mov_match] = ismember(smovs,gtmovs);
       new_mov_ndx = gt_mov_match(mft(:,1));
@@ -2832,9 +2810,9 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = true;      
     end  % function
     
-    function tfSuccess = trkSpawn(obj,totrackinfo,backend,varargin)
+    function trkSpawn_(obj,totrackinfo,backend,varargin)
+      % Spawn tracking job(s).  Throws if something goes wrong.
 
-      tfSuccess = false;
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true,'projTempDir',[]);
 
@@ -2848,10 +2826,6 @@ classdef DeepTracker < LabelTracker
 
       backend.updateRepo() ;
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
-
-%       syscmds = cell(1,njobs);
-%       cmdfiles = cell(1,njobs);      
-%       logcmds = {};
 
       totrackinfojobs = [];
 
@@ -2896,12 +2870,14 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      tfSuccess = obj.setupBGTrack(totrackinfojobs,totrackinfo,backend,...
-                                   'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
-                                   'projTempDir',projTempDir);
+      obj.trkSpawnCore_(totrackinfojobs,totrackinfo,backend,...
+                        'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
+                        'projTempDir',projTempDir);
     end
 
-    function tfSuccess = setupBGTrack(obj,totrackinfojobs,totrackinfo,backend,varargin)
+    function trkSpawnCore_(obj,totrackinfojobs,totrackinfo,backend,varargin)
+      % Spawn tracking job(s), now that the preliminaries are out of the way.
+      % Throws if something goes wrong.
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,...
                 'track_type','movie',...
@@ -2921,7 +2897,7 @@ classdef DeepTracker < LabelTracker
       %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       %bgTrkWorkerObj.initFiles(obj.trkSysInfo);
-      bgTrkWorkerObj = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
+      poller = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
 
       % KB 20190115: adding trkviz
       nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
@@ -2935,13 +2911,13 @@ classdef DeepTracker < LabelTracker
 
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
-      obj.bgTrackPoller = bgTrkWorkerObj;
+      obj.bgTrackPoller = poller;
       %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
       obj.nFramesTrack = nFramesTrack ;  % stash it so it's available for TrackMonitorViz() in controller
       obj.lObj.needRefreshTrackMonitorViz() ;
 
       bgTrkMonitorObj = ...
-        BgMonitor(obj, 'track', bgTrkWorkerObj, 'projTempDir', projTempDir) ;
+        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
       %obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
       if ~isempty(obj.bgTrkMonitor)
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
@@ -2950,9 +2926,9 @@ classdef DeepTracker < LabelTracker
       % bgTrkMonitorObj.start();
 
       % spawn the jobs
-      tfSuccess = backend.spawnRegisteredJobs('track', ...
-                                              'jobdesc','tracking job', ...
-                                              'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+      backend.spawnRegisteredJobs('track', ...
+                                  'jobdesc','tracking job', ...
+                                  'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
 
       % Actually start the background tracking monitor.  We start this *after*
       % spawning the jobs so that when we need to debug the background process by
@@ -2962,7 +2938,9 @@ classdef DeepTracker < LabelTracker
       obj.lObj.doNotify('trackStart') ;      
     end  % function setupBGTrack()
 
-    function tfSuccess = trkSpawnList(obj,totrackinfo,backend,varargin)
+    function trkSpawnList_(obj,totrackinfo,backend,varargin)
+      % Spawn a job to track a list of frames.  (This is used for GT tracking, maybe
+      % for other things also.)  Throws if something goes wrong.
       [isgt] = myparse(varargin,'isgt',false);
       %tfSuccess = false;
 
@@ -2979,7 +2957,7 @@ classdef DeepTracker < LabelTracker
       end        
       totrackinfo.setDefaultFiles();
 
-      totrackinfo.makeListFile(isgt);
+      totrackinfo.makeListFile(isgt, backend);
       gpuid =nan;
 
       backend.killAndClearRegisteredJobs('track') ;
@@ -3000,7 +2978,7 @@ classdef DeepTracker < LabelTracker
       backend.prepareFilesForTracking(totrackinfo);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
-      tfSuccess = obj.setupBGTrack(totrackinfo,totrackinfo,backend,'track_type','list');
+      obj.trkSpawnCore_(totrackinfo,totrackinfo,backend,'track_type','list');
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>
@@ -3037,7 +3015,7 @@ classdef DeepTracker < LabelTracker
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
       
       s = struct();
-      s.projectFile = obj.lObj.projectfile;
+      s.projectFile = wsl_path_from_native(obj.lObj.projectfile) ;
       s.projname = obj.lObj.projname;
       %s.cfg = obj.lObj.getCurrentConfig();
       tdata = obj.getTrackSaveToken();
@@ -3048,12 +3026,9 @@ classdef DeepTracker < LabelTracker
                                        'fortracking',true);
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
-      jsonoutf = configfile;
+      jsonoutf = configfile;  % native file path
       jsen = sprintf('%s\n', jse) ;
-      [didSucceed, message] = obj.backend.writeStringToFile(jsonoutf, jsen) ;
-      if ~didSucceed ,
-        error(message) ;
-      end
+      obj.backend.writeStringToFile(jsonoutf, jsen) ;  % throws if unable to write file
     end  % function
     
   end  % methods
@@ -3130,7 +3105,7 @@ classdef DeepTracker < LabelTracker
     %   btm.bgWorkerObj.printLogfiles();
     % end
     
-    function bgTrkReset(obj)
+    function bgTrkReset_(obj)
       obj.trkSysInfo = [];
       if ~isempty(obj.bgTrkMonitor)
         delete(obj.bgTrkMonitor);
@@ -3176,7 +3151,17 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function didCompleteTraining(obj, res)  %#ok<INUSD>
+    function didCompleteTrainingOrTracking(obj, train_or_track, pollingResult)
+      if strcmp(train_or_track, 'track') ,
+        obj.didCompleteTracking_(pollingResult) ;
+      elseif strcmp(train_or_track, 'train') ,
+        obj.didCompleteTraining_(pollingResult) ;
+      else
+        error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
+      end      
+    end  % function
+
+    function didCompleteTraining_(obj, ~)
       % Called by the child BgMonitor when the latest poll result indicates that
       % training is complete.
       obj.bgTrnMonitor.stop() ;  % stop monitoring
@@ -3187,7 +3172,7 @@ classdef DeepTracker < LabelTracker
       obj.killJobsAndPerformPostTrainingCleanup() ;     
     end
 
-    function didCompleteTracking(obj, res)
+    function didCompleteTracking_(obj, pollingResult)
       % Called by the child BgMonitor when the latest poll result indicates that
       % tracking is complete.
       obj.bgTrkMonitor.stop() ;  % stop monitoring
@@ -3200,20 +3185,16 @@ classdef DeepTracker < LabelTracker
       try
         % Put things into some local vars
         backend  = obj.backend ;
-        localCacheRoot = obj.lObj.DLCacheDir ;
+        nativeProjectCachePath = obj.lObj.DLCacheDir ;  % native path
 
         % Ask the backend to do the heavy lifting
         movfiles = obj.trkSysInfo.getMovfiles() ;        
-        [isAllWell, message] = backend.downloadTrackingFilesIfNecessary(res, localCacheRoot, movfiles) ;
+        backend.downloadTrackingFilesIfNecessary(pollingResult, nativeProjectCachePath, movfiles) ;
 
         % Don't need this anymore since the paths in obj.trkSysInfo are kept local in
         % all cases now.
         % % For remote file systems, relocate the tracking info, so that paths are right
         % obj.trkSysInfo.changePathsToLocalFromRemote(localCacheRoot, backend) ;
-
-        if ~isAllWell ,
-          error(message) ;
-        end
 
         %[nMovies,nViews,nStgs] = size(res);
         nMovies = obj.trkSysInfo.nmovies;
@@ -3265,10 +3246,9 @@ classdef DeepTracker < LabelTracker
               fprintf('Warning: Unable to find movie %s, which allegedly contains tracked frames\n', movfile) ;
             end
           end
-        end
-      
-      catch ME,
-        warning('Error gathering tracking results:\n%s',getReport(ME));
+        end      
+      catch me 
+        warning('Error gathering tracking results:\n%s', getReport(me)) ;
         return
       end
 
@@ -3378,13 +3358,13 @@ classdef DeepTracker < LabelTracker
       if trainSplits
         % unchecked codepath 20210806
         assert(backEnd.type==DLBackEnd.Bsub);
-        obj.killJobsAndPerformPostCrossValidationCleanup() ;
+        % obj.killJobsAndPerformPostCrossValidationCleanup_() ;
         return
       end
       
       % Stop any running track monitors
       if obj.bgTrkIsRunning,
-        fprintf('Stopping training...\n');
+        fprintf('Stopping tracking...\n');
         obj.bgTrkMonitor.stop();
         obj.killJobsAndPerformPostTrackingCleanup() ;      
         obj.bgTrkMonitor.reset();
@@ -3401,7 +3381,7 @@ classdef DeepTracker < LabelTracker
       % are there tracking results from previous trackers? TODO This can be
       % moved under bgTrnIsRunning at some point, but right now there can
       % be mixed up tracking results, so let's always check. 
-      isCurr = obj.checkTrackingResultsCurrent();
+      isCurr = obj.checkTrackingResultsCurrent() ;
       if ~isCurr
         obj.cleanOutOfDateTrackingResults_(isCurr);
         obj.trackCurrResUpdate();
@@ -3423,11 +3403,11 @@ classdef DeepTracker < LabelTracker
       % % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
       % obj.syncInfoFromDMC_();
 
-      % Possibly signal the controller/view to raise a dialog asking if the user wants to
-      % save the project.
-      if isempty(obj.skip_dlgs) || ~obj.skip_dlgs ,
-        obj.lObj.raiseTrainingStoppedDialog_() ;
-      end  % if
+      % % Possibly signal the controller/view to raise a dialog asking if the user wants to
+      % % save the project.
+      % if isempty(obj.skip_dlgs) || ~obj.skip_dlgs ,
+      %   obj.lObj.raiseTrainingStoppedDialog_() ;
+      % end  % if
 
       % Finally, signal the controller/view that training has ended
       obj.lObj.doNotify('trainEnd');
@@ -3446,79 +3426,79 @@ classdef DeepTracker < LabelTracker
       obj.lObj.doNotify('trackEnd');
     end  % function
 
-    function killJobsAndPerformPostCrossValidationCleanup(obj,varargin)      
-      % load xv res
-      % KB TODO update this code once cross-val is debugged
-      dmc = obj.trnSplitLastDMC;
-      tfE = cellfun(@exist,dmc.valresultsLnx);
-      if all(tfE)
-        splitIdx = dmc.getSplits();
-        nsplt = numel(unique(splitIdx));
-        
-        info = [];
-        locs = [];
-        preds = [];
-        splt = [];
-        %mdlfile = [];
-        for isplt=1:nsplt,
-          resfile = dmc.valresultsLnx('splitIdx',isplit);
-          assert(numel(resfile)==1);
-          resfile = resfile{1};
-          % TODO make this work with multi-view, etc.
-          res = load(resfile,'-mat');
-          fprintf(1,'Loaded results file %s\n',resfile);
-                    
-          predlocs = res.pred_locs.locs; % n x maxnanimals x npts x 2
-          lbllocs = res.labeled_locs; % etc
-          ni = numel(res.list);
-          assert(isequal(ni,size(lbllocs,1),size(predlocs,1)));
-
-          %errl2 = sqrt(sum((lbllocs-predlocs).^2,4)); % [n x maxnanimals x npts]
-          info = cat(1,info,cat(1,res.list{:}));
-          locs = cat(1,locs,lbllocs); %reshape(lbllocs,ni,[]));
-          preds = cat(1,preds,predlocs); %reshape(predlocs,ni,[])); 
-          %errs = cat(1,errs,errl2);
-          splt = cat(1,splt,isplt*ones(ni,1));
-          %mdlfile = cat(1,mdlfile,repmat({char(res.model_file)},ni,1));
-        end
-        
-        info = cell2mat(info);
-        LOCTHRESH = -1e3;
-        tfLblExist = locs(:,:,1,1)>LOCTHRESH; % n x maxnanimals
-        tfPrdExist = preds(:,:,1,1)>LOCTHRESH; % note: nan will not count as existing
-        [~,~,npts,d] = size(locs);
-        locs(repmat(~tfLblExist,1,1,npts,d)) = nan;
-        preds(repmat(~tfPrdExist,1,1,npts,d)) = nan;
-        [~,match,matchcosts,~,~,nFP,nFN,nMch,nLbl,nPrd] = ...
-          MAGT.comparePredsLbls(locs,preds,tfLblExist,tfPrdExist);
-
-        tblXVres = table(info(:,1),info(:,2),info(:,3),splt,...
-          preds,locs,nFP,nFN,nMch,nLbl,nPrd,match,matchcosts,'VariableNames',...
-          [MFTable.FLDSID {'fold' 'p' 'pLbl' 'numFP' 'numFN' 'numMatch' 'numLbl' 'numPred' 'matches' 'matchcosts'}]);
-        obj.lObj.xvResults = tblXVres;
-        obj.lObj.xvResultsTS = now;
-        fprintf(1,'Set XV results on lObj.xvResults.*\n');
-
-        obj.lObj.doNotify('trainEnd');
-
-        splitProjDirs = fileparts(fileparts(valresfiles));
-        imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
-        MAGT.report(tblXVres,obj.lObj,imreadfn);
-      end
-    end
+    % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
+    %   % load xv res
+    %   % KB TODO update this code once cross-val is debugged
+    %   dmc = obj.trnSplitLastDMC;
+    %   tfE = cellfun(@exist,dmc.valresultsLnx);
+    %   if all(tfE)
+    %     splitIdx = dmc.getSplits();
+    %     nsplt = numel(unique(splitIdx));
+    % 
+    %     info = [];
+    %     locs = [];
+    %     preds = [];
+    %     splt = [];
+    %     %mdlfile = [];
+    %     for isplt=1:nsplt,
+    %       resfile = dmc.valresultsLnx('splitIdx',isplit);
+    %       assert(numel(resfile)==1);
+    %       resfile = resfile{1};
+    %       % TODO make this work with multi-view, etc.
+    %       res = load(resfile,'-mat');
+    %       fprintf(1,'Loaded results file %s\n',resfile);
+    % 
+    %       predlocs = res.pred_locs.locs; % n x maxnanimals x npts x 2
+    %       lbllocs = res.labeled_locs; % etc
+    %       ni = numel(res.list);
+    %       assert(isequal(ni,size(lbllocs,1),size(predlocs,1)));
+    % 
+    %       %errl2 = sqrt(sum((lbllocs-predlocs).^2,4)); % [n x maxnanimals x npts]
+    %       info = cat(1,info,cat(1,res.list{:}));
+    %       locs = cat(1,locs,lbllocs); %reshape(lbllocs,ni,[]));
+    %       preds = cat(1,preds,predlocs); %reshape(predlocs,ni,[])); 
+    %       %errs = cat(1,errs,errl2);
+    %       splt = cat(1,splt,isplt*ones(ni,1));
+    %       %mdlfile = cat(1,mdlfile,repmat({char(res.model_file)},ni,1));
+    %     end
+    % 
+    %     info = cell2mat(info);
+    %     LOCTHRESH = -1e3;
+    %     tfLblExist = locs(:,:,1,1)>LOCTHRESH; % n x maxnanimals
+    %     tfPrdExist = preds(:,:,1,1)>LOCTHRESH; % note: nan will not count as existing
+    %     [~,~,npts,d] = size(locs);
+    %     locs(repmat(~tfLblExist,1,1,npts,d)) = nan;
+    %     preds(repmat(~tfPrdExist,1,1,npts,d)) = nan;
+    %     [~,match,matchcosts,~,~,nFP,nFN,nMch,nLbl,nPrd] = ...
+    %       MAGT.comparePredsLbls(locs,preds,tfLblExist,tfPrdExist);
+    % 
+    %     tblXVres = table(info(:,1),info(:,2),info(:,3),splt,...
+    %       preds,locs,nFP,nFN,nMch,nLbl,nPrd,match,matchcosts,'VariableNames',...
+    %       [MFTable.FLDSID {'fold' 'p' 'pLbl' 'numFP' 'numFN' 'numMatch' 'numLbl' 'numPred' 'matches' 'matchcosts'}]);
+    %     obj.lObj.xvResults = tblXVres;
+    %     obj.lObj.xvResultsTS = now;
+    %     fprintf(1,'Set XV results on lObj.xvResults.*\n');
+    % 
+    %     obj.lObj.doNotify('trainEnd');
+    % 
+    %     splitProjDirs = fileparts(fileparts(valresfiles));
+    %     imreadfn = @(x)MAGT.readCoco(x,splitProjDirs);
+    %     MAGT.report(tblXVres,obj.lObj,imreadfn);
+    %   end
+    % end
     
-    function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
-      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
-
-      trnstrs = cell(1,obj.trnLastDMC.n);
-      modelFiles = cell(1,obj.trnLastDMC.n);
-      for i = 1:obj.trnLastDMC.n,
-        assert(~isnan(obj.trnLastDMC.iterCurr(i)));
-        trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr(i));
-        modelFiles(i) = obj.trnLastDMC.trainCurrModelLnx(i);
-        modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
-      end
-    end
+    % function [trnstrs,modelFiles] = getTrainStrModelFiles(obj)
+    %   obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
+    % 
+    %   trnstrs = cell(1,obj.trnLastDMC.n);
+    %   modelFiles = cell(1,obj.trnLastDMC.n);
+    %   for i = 1:obj.trnLastDMC.n,
+    %     assert(~isnan(obj.trnLastDMC.iterCurr(i)));
+    %     trnstrs{i} = sprintf('trn%s_iter%d',obj.trnName,obj.trnLastDMC.iterCurr(i));
+    %     modelFiles(i) = obj.trnLastDMC.trainCurrModelLnx(i);
+    %     modelFiles{i} = regexprep(modelFiles{i},'\.index$','');
+    %   end
+    % end
     
   end  % methods
 
@@ -3578,159 +3558,82 @@ classdef DeepTracker < LabelTracker
       str = String.cellstr2DelimList(c,' '); 
     end
 
-    function codestr = trackCodeGenBaseListFile(trnID,cache,dlconfigfile,outfile,...
-        errfile,nettype,view,listfile,varargin)
-      % view: 1-based
-      
-      [deepnetroot,model_file,fs,filequote] = myparse_nocheck(varargin,...
-        'deepnetroot',APT.getpathdl,...
-        'model_file',[],... 
-        'filesep','/',...
-        'filequote','\"'... % quote char used to protect filenames/paths.
-                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-                        ... % is expected to wrap in enclosing regular double-quotes " !!
-        );
 
-      tfmodel = ~isempty(model_file);      
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
+    % function codestr = trackCodeGenBaseListFile(trnID,cache,dlconfigfile,outfile,...
+    %     errfile,nettype,view,listfile,varargin)
+    %   % view: 1-based
+    % 
+    %   [deepnetroot,model_file,fs,filequote] = myparse_nocheck(varargin,...
+    %     'deepnetroot',APT.getpathdl,...
+    %     'model_file',[],... 
+    %     'filesep','/',...
+    %     'filequote','\"'... % quote char used to protect filenames/paths.
+    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+    %                     ... % is expected to wrap in enclosing regular double-quotes " !!
+    %     );
+    % 
+    %   tfmodel = ~isempty(model_file);      
+    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
+    % 
+    %   code = { ...
+    %     'python' [filequote aptintrf filequote] ...
+    %     '-name' trnID ...
+    %     '-view' num2str(view) ... % 1b 
+    %     '-cache' [filequote cache filequote] ...
+    %     '-err_file' [filequote errfile filequote] ...
+    %     };
+    %   if tfmodel
+    %     code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
+    %   end
+    %   code = [code ...
+    %     '-type' char(nettype) ...
+    %     [filequote dlconfigfile filequote] 'track' ...
+    %     '-out' [filequote outfile filequote] ...
+    %     '-list_file' [filequote listfile filequote] ];
+    % 
+    %   codestr = String.cellstr2DelimList(code,' ');
+    % end
 
-      code = { ...
-        'python' [filequote aptintrf filequote] ...
-        '-name' trnID ...
-        '-view' num2str(view) ... % 1b 
-        '-cache' [filequote cache filequote] ...
-        '-err_file' [filequote errfile filequote] ...
-        };
-      if tfmodel
-        code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
-      end
-      code = [code ...
-        '-type' char(nettype) ...
-        [filequote dlconfigfile filequote] 'track' ...
-        '-out' [filequote outfile filequote] ...
-        '-list_file' [filequote listfile filequote] ];
-      
-      codestr = String.cellstr2DelimList(code,' ');
-    end
-
-    function codestr = trackCodeGenBaseGTClassify(trnID,cache,dlconfigfile,gtoutfile,...
-        errfile,nettype,varargin)
-      % CodeGen for gtclassify; single view with single gtoutfile
-      % 
-      % Looks a lot like trackCodeGenBaseListFile
-      
-      [view,deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-        'view',[],... % 1b
-        'deepnetroot',APT.getpathdl,...
-        'model_file',[],... 
-        'filesep','/',...
-        'filequote','\"'... % quote char used to protect filenames/paths.
-                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-                        ... % is expected to wrap in enclosing regular double-quotes " !!
-        );
-
-      tfmodel = ~isempty(model_file);      
-      aptintrf = [deepnetroot fs 'APT_interface.py'];
-
-      code = { ...
-        'python' [filequote aptintrf filequote] ...
-        '-name' trnID ...
-        };
-      if ~isempty(view)
-        code(end+1:end+2) = {'-view' num2str(view)}; ... % 1b 
-      end
-      code = [code ...
-        { '-cache' [filequote cache filequote] ...
-        '-err_file' [filequote errfile filequote] ...
-        } ];
-      if tfmodel
-        code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
-      end
-      code = [code ...
-        '-type' char(nettype) ...
-        [filequote dlconfigfile filequote] 'gt_classify' ...
-        '-out' [filequote gtoutfile filequote] ];
-      
-      codestr = String.cellstr2DelimList(code,' ');
-    end
-
-    function trackWriteListFile(movfileRem,movfileLcl,tMFTConc,listfileLcl,varargin)
-      
-      [trxfileRem,isWinBackend,croprois] = myparse(varargin,...
-        'trxFiles',{},...
-        'isWinBackend',false, ...
-        'croprois',[] ...
-        );
-      
-      nviews = size(movfileRem,2);
-      ismultiview = nviews > 1;
-      
-      listinfo = struct;
-      if ismultiview,
-        listinfo.movieFiles = cell(size(movfileRem,1),1);
-        for i = 1:size(movfileRem,1),
-          listinfo.movieFiles{i} = movfileRem(i,:);
-        end
-        listinfo.trxFiles = cell(size(trxfileRem,1),1);
-        for i = 1:size(trxfileRem,1),
-          listinfo.trxFiles{i} = trxfileRem(i,:);
-        end
-        listinfo.cropLocs = cell(size(croprois,1),1);
-        for i = 1:size(movfileRem,1),
-          listinfo.cropLocs{i} = croprois(i,:);
-        end
-      else
-        listinfo.movieFiles = movfileRem;
-        listinfo.trxFiles = trxfileRem;
-        listinfo.cropLocs = croprois;
-      end
-
-      % which movie index does each row correspond to?
-      % assume first movie is unique
-      [ism,idxm] = ismember(tMFTConc.mov(:,1),movfileLcl(:,1));
-      assert(all(ism));
-     
-      listinfo.toTrack = cell(0,1);
-      for mi = 1:size(movfileRem,1),
-        idx1 = find(idxm==mi);
-        if isempty(idx1),
-          continue;
-        end
-        [t,~,idxt] = unique(tMFTConc.iTgt(idx1));
-        for ti = 1:numel(t),
-          idx2 = idxt==ti;
-          idxcurr = idx1(idx2);
-          f = unique(tMFTConc.frm(idxcurr));
-          for i = 1:numel(f),
-            fcurr = f(i);
-            listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
-          end
-          
-          % disabling intervals, backend doesn't support it anymore. MK
-          % 20250415
-          % df = diff(f);
-          % istart = [1;find(df~=1)+1];
-          % iend = [istart(2:end)-1;numel(f)];
-          % for i = 1:numel(istart),
-          %   if istart(i) == iend(i),
-          %     fcurr = f(istart(i));
-          %   else
-          %     fcurr = [f(istart(i)),f(iend(i))+1];
-          %   end
-          %   listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
-          % end
-        end
-      end
-
-      if isWinBackend
-        % AL20200929. json validity requires escaping backslash
-        listinfo.movieFiles = regexprep(listinfo.movieFiles,'\\','\\\\');
-        listinfo.trxFiles = regexprep(listinfo.trxFiles,'\\','\\\\');
-      end
-      fid = fopen(listfileLcl,'w');
-      fprintf(fid,jsonencode(listinfo));
-      fclose(fid);      
-    end
+    % function codestr = trackCodeGenBaseGTClassify(trnID,cache,dlconfigfile,gtoutfile,...
+    %     errfile,nettype,varargin)
+    %   % CodeGen for gtclassify; single view with single gtoutfile
+    %   % 
+    %   % Looks a lot like trackCodeGenBaseListFile
+    % 
+    %   [view,deepnetroot,model_file,fs,filequote] = myparse(varargin,...
+    %     'view',[],... % 1b
+    %     'deepnetroot',APT.getpathdl,...
+    %     'model_file',[],... 
+    %     'filesep','/',...
+    %     'filequote','\"'... % quote char used to protect filenames/paths.
+    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+    %                     ... % is expected to wrap in enclosing regular double-quotes " !!
+    %     );
+    % 
+    %   tfmodel = ~isempty(model_file);      
+    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
+    % 
+    %   code = { ...
+    %     'python' [filequote aptintrf filequote] ...
+    %     '-name' trnID ...
+    %     };
+    %   if ~isempty(view)
+    %     code(end+1:end+2) = {'-view' num2str(view)}; ... % 1b 
+    %   end
+    %   code = [code ...
+    %     { '-cache' [filequote cache filequote] ...
+    %     '-err_file' [filequote errfile filequote] ...
+    %     } ];
+    %   if tfmodel
+    %     code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
+    %   end
+    %   code = [code ...
+    %     '-type' char(nettype) ...
+    %     [filequote dlconfigfile filequote] 'gt_classify' ...
+    %     '-out' [filequote gtoutfile filequote] ];
+    % 
+    %   codestr = String.cellstr2DelimList(code,' ');
+    % end
     
 %     function [codestr] = dataAugCodeGenDocker(backend,...
 %         ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
@@ -3746,43 +3649,43 @@ classdef DeepTracker < LabelTracker
 %         'bindpath',mntPaths,dockerargs{:});
 %     end    
     
-    function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-        nettype,outfile,varargin)
-      
-      [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-        'deepnetroot',APT.getpathdl,...
-        'model_file',[],... % can be [nview] cellstr
-        'filesep','/',...
-        'filequote','\"'... % quote char used to protect filenames/paths.
-                        ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-                        ... % is expected to wrap in enclosing regular double-quotes " !!        
-        ); 
-     
-      tfcache = ~isempty(cache);
-      tfmodel = ~isempty(model_file);
-      
-      if tfmodel
-        model_file = cellstr(model_file);
-      end
-
-      aptintrf = [deepnetroot fs 'APT_interface.py'];      
-    
-      codestr = sprintf('python %s -name %s',...
-        [filequote aptintrf filequote],ID);
-      if tfcache
-        %cache = String.escapeSpaces(cache);
-        codestr = [codestr ' -cache ' [filequote cache filequote]];
-      end
-      %errfile = String.escapeSpaces(errfile);
-      codestr = [codestr ' -err_file ' [filequote errfile filequote]];
-      if tfmodel
-        %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
-        codestr = sprintf('%s -model_files %s',codestr,...
-          DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
-      end
-      codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
-        char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
-    end    
+    % function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
+    %     nettype,outfile,varargin)
+    % 
+    %   [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
+    %     'deepnetroot',APT.getpathdl,...
+    %     'model_file',[],... % can be [nview] cellstr
+    %     'filesep','/',...
+    %     'filequote','\"'... % quote char used to protect filenames/paths.
+    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
+    %                     ... % is expected to wrap in enclosing regular double-quotes " !!        
+    %     ); 
+    % 
+    %   tfcache = ~isempty(cache);
+    %   tfmodel = ~isempty(model_file);
+    % 
+    %   if tfmodel
+    %     model_file = cellstr(model_file);
+    %   end
+    % 
+    %   aptintrf = [deepnetroot fs 'APT_interface.py'];      
+    % 
+    %   codestr = sprintf('python %s -name %s',...
+    %     [filequote aptintrf filequote],ID);
+    %   if tfcache
+    %     %cache = String.escapeSpaces(cache);
+    %     codestr = [codestr ' -cache ' [filequote cache filequote]];
+    %   end
+    %   %errfile = String.escapeSpaces(errfile);
+    %   codestr = [codestr ' -err_file ' [filequote errfile filequote]];
+    %   if tfmodel
+    %     %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
+    %     codestr = sprintf('%s -model_files %s',codestr,...
+    %       DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
+    %   end
+    %   codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
+    %     char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
+    % end    
             
 %     function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
 %       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
@@ -4076,20 +3979,18 @@ classdef DeepTracker < LabelTracker
         end
       end
     end
+
     function isCurr = checkTrackingResultsCurrent(obj)
-      
       isCurr = true;
-      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;
-      
+      obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;      
       for moviei = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(moviei);
         % some trkfiles don't exist for some reason
         obj.removeMissingTrkFiles(mIdx);
         [trkfiles] = obj.trackResGetTrkfiles(mIdx);
         if isempty(trkfiles),
-          continue;
-        end
-        
+          continue
+        end        
         isFixed = false;
         newtrkfiles = trkfiles;
         for i = 1:size(trkfiles,1),
@@ -4107,7 +4008,7 @@ classdef DeepTracker < LabelTracker
             end
             if ~isCurr,
               %fprintf('Trkfile %s out of date, removing all tracking for movie %d\n',trkfiles{i},moviei);
-              break;
+              break
             end
           end
         end
@@ -4115,12 +4016,10 @@ classdef DeepTracker < LabelTracker
           obj.trackResSetTrkfiles(mIdx,newtrkfiles);
         end
         if ~isCurr,
-          break;
+          break
         end
-
-      end
-      
-    end
+      end  % for moviei      
+    end  % function
         
     function cleanOutOfDateTrackingResults_(obj,isCurr)
       if nargin < 2,
@@ -4219,7 +4118,7 @@ classdef DeepTracker < LabelTracker
         s = s(1:end-2);
       end
 
-    end
+    end  % function
 
   end
   methods
@@ -4538,7 +4437,8 @@ classdef DeepTracker < LabelTracker
       if isequal(dmc.rootDir,newRootDir), 
         return
       end
-      if backend.isDMCRemote ,
+      backend = obj.backend ;
+      if backend.isProjectCacheRemote ,
         warningNoTrace('Remote model detected. This will not be migrated.');
         return
       end
@@ -4632,13 +4532,17 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
     
-    function didReceiveTrackingPollResults_(obj)
-      obj.lObj.didReceiveTrackingPollResults_() ;
+    function didReceivePollResults(obj, track_or_train)
+      obj.lObj.didReceivePollResults(track_or_train) ;
     end
 
-    function didReceiveTrainingPollResults_(obj)
-      obj.lObj.didReceiveTrainingPollResults_() ;
-    end
+    % function didReceiveTrackingPollResults_(obj)
+    %   obj.lObj.didReceiveTrackingPollResults_() ;
+    % end
+    % 
+    % function didReceiveTrainingPollResults_(obj)
+    %   obj.lObj.didReceiveTrainingPollResults_() ;
+    % end
     
     function result = get.isTrainingSplits(obj)
       result = obj.isTrainingSplits_ ;
@@ -4648,56 +4552,46 @@ classdef DeepTracker < LabelTracker
       obj.backend.killAndClearRegisteredJobs(train_or_track) ;
     end    
 
-    function didErrorDuringTraining(obj, sRes)
-      % Called by the BgMonitor when the poll response (sRes) indicates an error has
-      % occurrred.
-      obj.bgTrnMonitor.stop();
-      obj.killJobsAndPerformPostTrainingCleanup() ;     
+    function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
+      if strcmp(train_or_track, 'track') ,
+        obj.bgTrkMonitor.stop();
+        obj.killJobsAndPerformPostTrackingCleanup() ;
+      elseif strcmp(train_or_track, 'train') ,
+        obj.bgTrnMonitor.stop();
+        obj.killJobsAndPerformPostTrainingCleanup() ;
+      else
+        error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
+      end
 
-      fprintf('Error occurred during training:\n') ;
-      errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
-      if iscell(errFile) ,
-        if isscalar(errFile) ,
-          errFile = errFile{1} ;
+      % Produce an error message on the console
+      fprintf('Error occurred during %sing:\n', train_or_track) ;
+      errorFileIndexMaybe = find(pollingResult.errFileExists, 1) ; 
+      if isempty(errorFileIndexMaybe) ,
+        fprintf('One of the background jobs exited, for unknown reasons.  No error file was produced.\n') ;
+      else
+        errorFileIndex = errorFileIndexMaybe ;
+        errFile = pollingResult.errFile{errorFileIndex} ;
+        doesErrorFileExist = obj.backend.fileExists(errFile) ;
+        if doesErrorFileExist ,
+          fprintf('\n### %s\n\n',errFile);
+          errContents = obj.backend.fileContents(errFile) ;
+          disp(errContents);
         else
-          error('errFile is a non-scalar cell array')
-        end
-      end        
-      fprintf('\n### %s\n\n',errFile);
-      errContents = obj.backend.fileContents(errFile) ;
-      disp(errContents);
-    end  % function
-
-    function didErrorDuringTracking(obj, sRes)
-      % Called by the BgMonitor when the poll response (sRes) indicates an error has
-      % occurrred.
-      obj.bgTrkMonitor.stop();
-      obj.killJobsAndPerformPostTrackingCleanup() ;     
-
-      fprintf('Error occurred during tracking:\n') ;
-      errFile = BgMonitor.getErrFile(sRes); % currently, errFiles same for all views
-      if iscell(errFile) ,
-        if isscalar(errFile) ,
-          errFile = errFile{1} ;
-        else
-          error('errFile is a non-scalar cell array')
-        end
-      end        
-      fprintf('\n### %s\n\n',errFile);
-      errContents = obj.backend.fileContents(errFile) ;
-      disp(errContents);
+          fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
+        end      
+      end
     end  % function
 
     function abortTraining(obj)
       %obj.killAndClearRegisteredJobs('train') ;
       obj.bgTrnMonitor.stop() ;
       obj.killJobsAndPerformPostTrainingCleanup() ;
-    end
+    end  % function
 
     function abortTracking(obj)
       %obj.killAndClearRegisteredJobs('track') ;
       obj.bgTrkMonitor.stop() ;
       obj.killJobsAndPerformPostTrackingCleanup() ;
-    end
+    end  % function
   end  % methods    
 end  % classdef

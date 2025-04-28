@@ -1,5 +1,5 @@
 function errorNoTrace(emsg)
-if isdeployed
+if isdeployed()
   error(emsg);
 else
   st = dbstack;

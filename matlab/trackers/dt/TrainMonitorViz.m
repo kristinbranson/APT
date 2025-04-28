@@ -226,7 +226,7 @@ classdef TrainMonitorViz < handle
       obj.haxs = haxnew;
     end
         
-    function [tfSucc,msg] = resultsReceived(obj,sRes,forceupdate)
+    function [tfSucc,msg] = resultsReceived(obj,pollingResult,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
       %
@@ -245,8 +245,6 @@ classdef TrainMonitorViz < handle
         return
       end
       
-      res = sRes.result;
-
       % This early exit seems to prevent user from seeing an error that occurs before
       % any training iterations.
 %       if ~res.pollsuccess,
@@ -265,8 +263,8 @@ classdef TrainMonitorViz < handle
       lineUpdateMaxStep = zeros(1,obj.nmodels);
 
       for i = 1:obj.nmodels,
-        if res.jsonPresent(i) && (forceupdate || res.tfUpdate(i)),
-          contents = res.contents{i};
+        if pollingResult.jsonPresent(i) && (forceupdate || pollingResult.tfUpdate(i)),
+          contents = pollingResult.contents{i};
           set(obj.hline(i,1),'XData',contents.step,'YData',contents.train_loss);
           set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
           iset = obj.setidx(i);
@@ -287,8 +285,8 @@ classdef TrainMonitorViz < handle
         %   handles.pushbutton_startstop.Enable = 'on';
         % end
         
-        if res.tfComplete(i)
-          contents = res.contents{i};
+        if pollingResult.tfComplete(i)
+          contents = pollingResult.contents{i};
           if ~isempty(contents)
             % re-use kill marker
             set(obj.hlinekill(i,1),'XData',contents.step(end),'YData',contents.train_loss(end),...
@@ -299,7 +297,7 @@ classdef TrainMonitorViz < handle
         end
       end
       
-      if any(res.errFileExists),
+      if any(pollingResult.errFileExists),
         handles = guidata(obj.hfig);
         i = find(strcmp(handles.popupmenu_actions.String,'Show error messages'));
         if ~isempty(i),
@@ -317,49 +315,39 @@ classdef TrainMonitorViz < handle
       end
       
       if isempty(obj.resLast) || any(tfAnyLineUpdate)
-        obj.resLast = res;
+        obj.resLast = pollingResult;
       end
 
-      [tfSucc,msg] = obj.updateStatusDisplayLine_(res);
+      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);
       TrainMonitorViz.debugfprintf('resultsReceived - tfSucc = %d, msg = %s\n',tfSucc,msg);
     end  % function resultsReceived()
     
-    function [tfSucc,status] = updateStatusDisplayLine_(obj,res)
+    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
+      % Check arguments
+      assert(isstruct(pollingResult) && isscalar(pollingResult)) ;
+
       tfSucc = true;
       
-      if ~isempty(res),
-        pollsuccess = res.pollsuccess;
-        isTrainComplete = res.tfComplete;
-        isErr = res.errFileExists ;
-        isLogFile = res.logFileExists;
-        isJsonFile = res.jsonPresent;
-      else
-        pollsuccess = false ;  % is this right?  -- ALT, 2024-06-27
-        isTrainComplete = false(1,obj.nmodels);
-        isErr = false(1,obj.nmodels);
-        isLogFile = false(1,obj.nmodels);
-        isJsonFile = false(1,obj.nmodels);
-      end
+      pollsuccess = pollingResult.pollsuccess;
+      isTrainComplete = pollingResult.tfComplete;
+      isErr = pollingResult.errFileExists ;
+      isLogFile = pollingResult.logFileExists;
+      isJsonFile = pollingResult.jsonPresent;
       
-      isRunning0 = obj.dtObj.isAliveFromRegisteredJobIndex('train') ;
-      %isRunning0 = obj.trainWorkerObj.getIsRunning();
-      if isempty(isRunning0),
-        isRunning = true;
-      else
-        isRunning = any(isRunning0);
-      end
-      if ~isRunning
+      isRunning = pollingResult.isRunning ;  % 1 x nmodels
+      isAnyRunning = any(isRunning) ;
+      if ~isAnyRunning
         if obj.jobStoppedRepeatsReqd>=1
           obj.jobStoppedRepeatsReqd = obj.jobStoppedRepeatsReqd-1;
-          isRunning = true;
+          isAnyRunning = true;
         end
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-                                   isRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
+                                   isAnyRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
       
       if any(obj.isKilled),
         status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
@@ -371,7 +359,7 @@ classdef TrainMonitorViz < handle
         status = 'Training complete.';
         handles = guidata(obj.hfig);
         TrainMonitorViz.updateStartStopButton(handles,false,true);
-      elseif ~isRunning,
+      elseif ~isAnyRunning,
         status = 'No training jobs running.';
         tfSucc = false;
       elseif any(isLogFile) && all(~isJsonFile),
@@ -537,8 +525,8 @@ classdef TrainMonitorViz < handle
     end
     
     function updateMonitorPlots(obj)      
-      sRes.result = obj.poller.poll() ;
-      obj.resultsReceived(sRes,true);      
+      pollingResult = obj.poller.poll() ;
+      obj.resultsReceived(pollingResult,true);      
     end  % function
     
     function showTrainingImages(obj)

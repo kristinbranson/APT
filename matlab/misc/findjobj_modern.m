@@ -608,7 +608,7 @@ function [handles,levels,parentIdx,listing] = findjobj_modern(container,varargin
 
         % ...and yet another type of child traversal...
         try
-            if ~isdeployed  % prevent 'File is empty' messages in compiled apps
+            if ~isdeployed()  % prevent 'File is empty' messages in compiled apps
                 jc = jcontainer.java;
             else
                 jc = jcontainer;

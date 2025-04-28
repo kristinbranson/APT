@@ -59,14 +59,14 @@ hedit.String{end+1} = '** Testing APT deepnet library...';
 hedit.String{end+1} = '   (This can take some time the first time the docker image is pulled)'; 
 drawnow;
 deepnetroot = [APT.Root '/deepnet'];
-homedir = getenv('HOME');
+homedir = get_home_dir_name() ;
 %deepnetrootguard = [filequote deepnetroot filequote];
 basecmd = 'python APT_interface.py lbl test hello';
 cmd = wrapCommandDocker(basecmd,...
                         'dockerimg', backend.dockerimgfull, ...
                         'containername','containerTest',...
                         'detach',false,...
-                        'bindpath',{deepnetroot,homedir});
+                        'bindpath',{wsl_path_from_native(deepnetroot),wsl_path_from_native(homedir)});
 hedit.String{end+1} = cmd;
 RUNAPTHELLO = 1;
 if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
