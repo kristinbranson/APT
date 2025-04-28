@@ -3824,9 +3824,9 @@ classdef LabelerController < handle
     end
 
     function videoCenterOn(obj,x,y)
-      labeler = obj.labeler_ ;
+      % labeler = obj.labeler_ ;
       
-      [xsz,ysz] = labeler.videoCurrentSize();
+      [xsz,ysz] = obj.videoCurrentSize();
       lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
       axis(obj.axes_curr,lims);      
     end

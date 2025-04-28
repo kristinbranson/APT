@@ -62,8 +62,8 @@ classdef DLBackEndClass < handle
 %       % Also, seemingly never read -- ALT, 2024-03-07
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
-    jrcgpuqueue
-    jrcnslots
+    jrcgpuqueue 
+    jrcnslots 
     jrcnslotstrack
 
     condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
@@ -124,6 +124,12 @@ classdef DLBackEndClass < handle
       obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
       obj.singularity_detection_image_path_ = '' ;
+
+      %MK 20250326. The jrc values weren't get initialized
+      obj.jrcgpuqueue = DLBackEndClass.default_jrcgpuqueue;
+      obj.jrcnslots = DLBackEndClass.default_jrcnslots_train;
+      obj.jrcnslotstrack = DLBackEndClass.default_jrcnslots_track;
+
       % Just populate this now, whether or not we end up using it      
       obj.awsec2 = AWSec2() ;
     end

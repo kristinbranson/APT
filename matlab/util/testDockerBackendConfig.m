@@ -13,8 +13,8 @@ hedit.String{end+1} = '** Testing docker hello-world...'; drawnow;
 dockercmd = apt.dockercmd();
 cmd = sprintf('%s run --rm hello-world',dockercmd);
 
-if ~isempty(obj.dockerremotehost),
-  cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+if ~isempty(backend.dockerremotehost),
+  cmd = wrapCommandSSH(cmd,'host',backend.dockerremotehost);
 end
 
 fprintf(1,'%s\n',cmd);

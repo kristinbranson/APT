@@ -13,8 +13,8 @@ try
   end
     
   if nargin<3
-    if strcmp(test_name,'roianma')
-      net_type = 3;
+    if strcmp(test_name,'roianma2')
+      net_type = 1;
     else
       net_type = 'mdn_joint_fpn';
     end    

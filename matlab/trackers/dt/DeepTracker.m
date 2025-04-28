@@ -2775,7 +2775,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = false;
       reason = '';
       
-      if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
+      if obj.bgTrkIsRunning %|| obj.bgTrnIsRunning ,
         reason = 'Tracking is already in progress.';
         return
       end
@@ -3701,17 +3701,24 @@ classdef DeepTracker < LabelTracker
           idx2 = idxt==ti;
           idxcurr = idx1(idx2);
           f = unique(tMFTConc.frm(idxcurr));
-          df = diff(f);
-          istart = [1;find(df~=1)+1];
-          iend = [istart(2:end)-1;numel(f)];
-          for i = 1:numel(istart),
-            if istart(i) == iend(i),
-              fcurr = f(istart(i));
-            else
-              fcurr = [f(istart(i)),f(iend(i))+1];
-            end
+          for i = 1:numel(f),
+            fcurr = f(i);
             listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
           end
+          
+          % disabling intervals, backend doesn't support it anymore. MK
+          % 20250415
+          % df = diff(f);
+          % istart = [1;find(df~=1)+1];
+          % iend = [istart(2:end)-1;numel(f)];
+          % for i = 1:numel(istart),
+          %   if istart(i) == iend(i),
+          %     fcurr = f(istart(i));
+          %   else
+          %     fcurr = [f(istart(i)),f(iend(i))+1];
+          %   end
+          %   listinfo.toTrack{end+1,1} = {mi,t(ti),fcurr};
+          % end
         end
       end
 
