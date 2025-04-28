@@ -41,8 +41,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             % The following two lines were added by Aniket Ravan            
             obj.model_path = s.model_path;
             % obj.python_script_path = s.python_script_path;
-            obj.python_script_path = [APT.Root, ...
-                '/raytracing_calib/programs/return_projected_ray_two_cameras_prism.py'];
+            obj.python_script_path = fullfile(APT.Root, 'raytracing_calib', 'programs', 'return_projected_ray_two_cameras_prism.py');
             obj.dividing_col = s.dividing_col;
             obj.image_width = s.image_width;
             % c = 1;

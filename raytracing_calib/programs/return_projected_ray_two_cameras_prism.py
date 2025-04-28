@@ -10,19 +10,13 @@ raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
 sys.path.append(raytracing_lib_path)
 from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
 from ray_tracing_simulator_nnModules_grad import get_rot_mat
-#%%
-#config_path = 'config.yaml'
-#with open(config_path, 'r') as f:
-#    data = yaml.safe_load(f)
-
-#dividing_col = config['dividing_column'] # Read dividing path from a yaml path
-#dividing_col = 1336 - 1
-#image_width = 1920
 rotmat = 1
-#rotmat = config['rotmat']
+if torch.cuda.is_available():
+    device = 'cuda'
+else:
+    device = 'cpu'
 
-#print(f'Loading model from: {PATH}')
-checkpoint = torch.load(PATH, weights_only=True)
+checkpoint = torch.load(PATH, weights_only=True, map_location=torch.device('cpu'))
 arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
             principal_point_pixel_cam_0=torch.tensor([0.,0.]).to(torch.float64),
             principal_point_pixel_cam_1=torch.tensor([0.,0.]).to(torch.float64), 
@@ -171,6 +165,15 @@ def get_secondary_camera(arena):
                                 r1=arena.stereocam_r1,
                                 radial_dist_coeffs=arena.radial_dist_coeffs_cam_1)
 
+if "primary" in cam_label:
+    dividing_col_cam = dividing_col[0] # dividing_col for the current camera
+    image_width_cam = image_width[0] # image_width for the current camera
+elif "secondary" in cam_label:
+    dividing_col_cam = dividing_col[1]
+    image_width_cam = image_width[1]
+else:
+    print("Camera labels have one of the following prefixes: 'primary', 'secondary'. But none of these were found")
+
 if not(type(user_annotation) == torch.Tensor):
     user_annotation = torch.tensor(user_annotation).to(torch.float64)[:, None]
 
@@ -179,7 +182,7 @@ if rotmat:
     R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
     R_theta = torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]).to(torch.float64)
     user_annotation = R_theta_inv @ user_annotation
-    user_annotation[0, :] = -user_annotation[0, :] + dividing_col  # 1-based indexing for dividing_col 
+    user_annotation[0, :] = -user_annotation[0, :] + dividing_col_cam  # 1-based indexing for dividing_col 
     user_annotation[1, :] = -user_annotation[1, :]
 
 if "virtual" in cam_label:
@@ -187,10 +190,10 @@ if "virtual" in cam_label:
     if rotmat:
         user_annotation = R_theta @ user_annotation
         epipolar_line_unlabelled = R_theta @ epipolar_line_unlabelled
-        epipolar_line_unlabelled[1, :] = -epipolar_line_unlabelled[1, :] + image_width - 1
+        epipolar_line_unlabelled[1, :] = -epipolar_line_unlabelled[1, :] + image_width_cam - 1
         epipolar_line_unlabelled[0, :] *= -1
         epipolar_line_labelled = R_theta @ epipolar_line_labelled
-        epipolar_line_labelled[1, :] = -epipolar_line_labelled[1, :] + image_width - 1
+        epipolar_line_labelled[1, :] = -epipolar_line_labelled[1, :] + image_width_cam - 1
         epipolar_line_labelled[0, :] *= -1
     epipolar_line_unlabelled = epipolar_line_unlabelled.numpy()
     epipolar_line_labelled = epipolar_line_labelled.numpy()
