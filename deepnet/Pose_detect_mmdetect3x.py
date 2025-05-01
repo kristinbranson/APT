@@ -738,6 +738,14 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
 
         cfg.load_from = url
 
+    # Make sure the config honors the dl_steps (max iters) set in the conf
+    # MK: Does this seems reasonable?  -- ALT, 2025-05-01
+    del cfg.train_cfg['max_epochs']
+    cfg.train_cfg.type = 'IterBasedTrainLoop'
+    cfg.train_cfg.max_iters = conf.dl_steps
+    cfg.train_cfg.val_interval = conf.dl_steps+1
+    # cfg.train_cfg.by_epoch = False
+    
     # cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
     # cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
 
