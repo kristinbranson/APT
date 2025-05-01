@@ -388,7 +388,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                         (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), \
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:3] = []
-                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    cfg.data[ttype].pipeline[1] = mmengine.config.ConfigDict({'type': 'APTtransform', 'distort': True})
                 elif (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip'):
                     # old style top down pipeline
                     assert \
@@ -397,7 +397,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                         (cfg.data[ttype].pipeline[3].type == 'TopDownAffine'), \
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:4] = []
-                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    cfg.data[ttype].pipeline[1] = mmengine.config.ConfigDict({'type': 'APTtransform', 'distort': True})
                 else:
                     assert \
                         (cfg.data[ttype].pipeline[1].type == 'TopDownGetBboxCenterScale') and \
@@ -407,7 +407,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                         (cfg.data[ttype].pipeline[5].type == 'TopDownAffine'), \
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:6] = []
-                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    cfg.data[ttype].pipeline[1] = mmengine.config.ConfigDict({'type': 'APTtransform', 'distort': True})
                     # else:
         #     assert conf.rescale == 1, 'MMpose aug with rescale has not been implemented'
 
@@ -549,13 +549,12 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     # cfg.fp16 = {}
 #    cfg.fp16 = None
 
-    J = PoseTools.json_load(cfg.train_dataloader.dataset.ann_file)
-    n_train = len(J['images'])
+    # J = PoseTools.json_load(cfg.train_dataloader.dataset.ann_file)
+    # n_train = len(J['images'])
     del cfg.train_cfg['max_epochs']
     cfg.train_cfg.max_iters = conf.dl_steps
     cfg.train_cfg.val_interval = conf.dl_steps+1
     cfg.train_cfg.by_epoch = False
-
 
     return cfg
 
