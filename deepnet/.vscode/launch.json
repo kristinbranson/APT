@@ -171,6 +171,22 @@
             "program": "test_grone_tracking_on_sam2view.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Test roian ma cid",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_cid_training_from_apt_2025_04_24.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Test two-stage mmdetect training",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_two_stage_mmdetect_training_from_apt_2025_05_01.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
