@@ -1204,7 +1204,7 @@ robj.get_status()
 import run_apt_ma_expts as rae_ma
 
 robj = rae_ma.ma_expt('roian')
-robj.get_results(res_dstr='20240418')
+robj.get_results(res_dstr='20250327') #'20240418'
 
 ##
 import run_apt_ma_expts as rae_ma
@@ -1536,7 +1536,7 @@ reload(rae_ma)
 
 robj = rae_ma.ma_expt('alice')
 # robj.get_neg_roi_alice(debug=True) # view the neg rois
-robj.add_neg_roi_alice()
+robj.add_neg_roi_alice(reload=True)
 
 ## Run training
 from importlib import reload
@@ -1561,7 +1561,7 @@ robj.get_status()
 import run_apt_ma_expts as rae_ma
 
 robj = rae_ma.ma_expt('alice')
-robj.get_results(res_dstr='20231226')
+robj.get_results(res_dstr='20250409') #''20231226''
 
 ##
 import run_apt_ma_expts as rae_ma
@@ -1625,7 +1625,7 @@ movies = nm
 # to do id tracking at scale 2, need to make changes in run_apt_ma_expts.py
 
 run_type = 'dry'
-tts = [('grone','crop'),('2stageBBox','first'),('2stageBBox_hrformer','first')]
+tts = [('grone','crop'),('2stageBBox','first'),('2stageBBox_hrformer','first'),('grone_hrnet','crop'),('2stageHT','crop','first'),('2stageHT_hrformer','crop','first'),('2stageHT_hrnet_hrformer','crop','first')]
 for cur_mov in movies:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
     for curt in tts:
@@ -2026,6 +2026,192 @@ for kk,vv in cur_res.items():
     print(kk,vv['idf1'])
 
 
+## Show example clips of tracking
+
+gt_movie = '/groups/branson/home/robiea/Projects_data/Labeler_APT/Nan_labelprojects_touchinglabels/CourtshipData/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf'
+trk_file = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageBBox_hrformer_scale2.trk'
+
+gt_movie1 = '/groups/branson/home/robiea/Projects_data/Labeler_APT/socialCsChr_JRC_SS56987_CsChrimson_RigD_20190910T163910/movie.ufmf'
+trk_file1 = '/groups/branson/home/kabram/temp/ma_expts/alice/trks/socialCsChr_JRC_SS56987_CsChrimson_RigD_20190910T163910_grone_scale2.trk'
+
+import TrkFile
+tt = TrkFile.Trk(trk_file)
+import movies
+import PoseTools as pt
+cap = movies.Movie(gt_movie)
+
+skel =    [[1   ,  6],
+     [6  ,   7],
+     [6,    15],
+     [6,    14],
+     [9,    13],
+     [8  ,   9],
+     [6,     8],
+     [6  ,  10],
+    [10,    11],
+    [11  ,  16],
+     [1,     2],
+     [1,     3],
+     [3,    17],
+     [2,    12],
+     [2  ,   5],
+     [3,     4]]
+skel = np.array(skel)-1
+##
+cur_info = {
+'sel_int': [3200,3300],
+'n_fr' : 5,
+'x_lim' : [150,400 ],
+'y_lim' : [50,250],
+'skel': skel,
+}
+info = []
+info.append(cur_info)
+
+cur_info = { # for movie 2
+    'sel_int': [13050,13150],
+    'n_fr' : 5,
+    'x_lim' : [550,600 ],
+    'y_lim' : [800,1000],
+    'skel': skel,
+}
+info.append(cur_info)
+
+sel_id = 0
+sel_int = info[sel_id]['sel_int']
+n_fr = info[sel_id]['n_fr']
+x_lim = info[sel_id]['x_lim']
+y_lim = info[sel_id]['y_lim']
+skel = info[sel_id]['skel']
+
+f,ax = plt.subplots(1,n_fr,figsize=(n_fr*2,2))
+frs = np.linspace(sel_int[0],sel_int[1],n_fr).astype(int)
+for i,ff in enumerate(frs):
+    curf = cap.get_frame(ff)[0]
+    curt,extra = tt.getframe(ff,extra=True)
+    curt = curt[:,:,0]
+    occ = extra['pTrkTag'][:,0]
+    vv = np.where(~np.all(np.isnan(curt[:,0]),axis=0))[0]
+    curt = curt[:,:,vv]
+    occ = occ[:,vv]
+
+    ax[i].imshow(curf,cmap='gray')
+    cmap = plt.get_cmap('tab10', curt.shape[0])
+    for j in range(curt.shape[0]):
+        for x in range(curt.shape[2]):
+            if np.all(np.isnan(curt[j,:,x])):
+                continue
+            if occ[j,x]>0:
+                ax[i].scatter(curt[j,0,x],curt[j,1,x],edgecolor=cmap(j),s=15,marker='o',facecolor='none')
+            else:
+                ax[i].scatter(curt[j,0,x],curt[j,1,x],color=cmap(j),s=15,marker='x')
+    for ee in skel:
+        if np.all(np.isnan(curt[ee[0],0])):
+            continue
+        if type(ee[1])==list:
+            xx1 = curt[ee[1],0,:].mean(axis=0)
+            yy1 = curt[ee[1],1,:].mean(axis=0)
+        else:
+            xx1 = curt[ee[1],0,:]
+            yy1 = curt[ee[1],1,:]
+        if type(ee[0])==list:
+            xx2 = curt[ee[0],0,:].mean(axis=0)
+            yy2 = curt[ee[0],1,:].mean(axis=0)
+        else:
+            xx2 = curt[ee[0],0,:]
+            yy2 = curt[ee[0],1,:]
+
+        ax[i].plot([xx1,xx2],[yy1,yy2],color='red',linewidth=1,alpha=0.25)
+
+    ax[i].axis('off')
+    ax[i].axis('image')
+    ax[i].set_xlim(x_lim)
+    ax[i].set_ylim(y_lim[::-1])
+    ax[i].text((x_lim[0]+x_lim[1])/2,y_lim[0]+20,f'Frame {ff}',ha='center',va='center',fontsize=10,color='white')
+
+f.tight_layout()
+
+plt.savefig(f'/groups/branson/home/kabram/temp/tracking_example_fly_{sel_id}.svg')
+plt.savefig(f'/groups/branson/home/kabram/temp/tracking_example_fly_{sel_id}.png')
+#
+import cv2
+from reuse import *
+out_file = f'/groups/branson/home/kabram/temp/tracking_example_fly_{sel_id}_mov.mp4'
+fps = 5
+fourcc = cv2.VideoWriter_fourcc(*'X264')
+x = x_lim
+y = y_lim
+
+f = plt.figure(figsize=[4,4*(y[1]-y[0])/(x[1]-x[0])])
+f.set_dpi(400)
+ax = f.add_axes([0, 0, 1, 1])
+trk_fr,extra = tt.getframe(np.arange(sel_int[0],sel_int[1]+1),extra=True)
+occ = extra['pTrkTag']
+
+offset = np.array([x[0], y[0]])
+cc = cmap
+
+fr_s = sel_int[0]
+fr_e = sel_int[1]+1
+for fr in range(fr_s, fr_e):
+    ax.clear()
+    im = cap.get_frame(fr)[0]
+    if im.ndim == 2:
+        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
+    ax.imshow(im[y[0]:y[1], x[0]:x[1]])
+    ax.axis('off')
+
+    for j in range(trk_fr.shape[0]):
+        for xn in range(trk_fr.shape[3]):
+            if np.all(np.isnan(trk_fr[j,:,fr-fr_s,xn])):
+                continue
+            if occ[j,fr-fr_s,xn]>0:
+                ax.scatter(trk_fr[j,0,fr-fr_s,xn]-x[0],trk_fr[j,1,fr-fr_s,xn]-y[0],edgecolor=cmap(j),s=55,marker='o',facecolor='none')
+            else:
+                ax.scatter(trk_fr[j,0,fr-fr_s,xn]-x[0],trk_fr[j,1,fr-fr_s,xn]-y[0],color=cmap(j),s=55,marker='x')
+
+
+        # ax.scatter(trk_fr[j,0,fr-fr_s,:]-x[0],trk_fr[j,1,fr-fr_s,:]-y[0],color=cmap(j),s=55,marker='+')
+
+    # for ix in range(trk_fr.shape[3]):
+    #     dskl(trk_fr[..., fr - fr_s, ix] - offset[None], skel, cc='red',alpha=0.5, ax=ax)
+
+    curt = trk_fr[:, :, fr - fr_s, :] - offset[None,:,None]
+    vv = np.where(~np.all(np.isnan(curt[:,0]),axis=0))[0]
+    curt = curt[:,:,vv]
+
+    for ee in skel:
+        if np.all(np.isnan(curt[ee[0], 0])):
+            continue
+        if type(ee[1]) == list:
+            xx1 = curt[ee[1], 0, :].mean(axis=0)
+            yy1 = curt[ee[1], 1, :].mean(axis=0)
+        else:
+            xx1 = curt[ee[1], 0, :]
+            yy1 = curt[ee[1], 1, :]
+        if type(ee[0]) == list:
+            xx2 = curt[ee[0], 0, :].mean(axis=0)
+            yy2 = curt[ee[0], 1, :].mean(axis=0)
+        else:
+            xx2 = curt[ee[0], 0, :]
+            yy2 = curt[ee[0], 1, :]
+
+        ax.plot([xx1, xx2], [yy1, yy2], color='red', linewidth=1, alpha=0.25)
+
+    ax.set_xlim([0, x[1] - x[0]])
+    ax.set_ylim([ y[1] - y[0],0])
+    ax.text(10,10,f'Frame {fr}',ha='left',va='top',fontsize=10,color='white')
+    f.canvas.draw()
+    img = np.frombuffer(f.canvas.tostring_rgb(), dtype=np.uint8)
+    img = img.reshape(f.canvas.get_width_height()[::-1] + (3,))
+    if fr == fr_s:
+        fr_sz = img.shape[:2]
+        out = cv2.VideoWriter(out_file, fourcc, fps, (fr_sz[1], fr_sz[0]))
+
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    out.write(img)
+
+out.release()
 
 
 

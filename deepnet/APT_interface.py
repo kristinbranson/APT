@@ -2967,7 +2967,7 @@ def classify_db2(conf, read_fn, pred_fn, n, return_ims=False,
     bsize = conf.batch_size
     n_batches = int(math.ceil(float(n) / bsize))
 
-    if conf.imresize_expand:
+    if conf.get('imresize_expand',False):
         assert conf.batch_size == 1, "imresize_expand only works with batch_size=1"
         all_f = []
     else:
@@ -3509,7 +3509,8 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
 
     ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
-    tag = np.ones(ts.shape)*np.nan  # tag which is always false for now.
+    #tag = np.ones(ts.shape)*np.nan  # tag which is always false for now.
+    tag = None
     if 'conf' in extra_dict:
         pred_conf = extra_dict['conf']
         locs_conf = np.transpose(pred_conf, [2, 0, 1])

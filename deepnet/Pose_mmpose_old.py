@@ -652,6 +652,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
             os.environ['MASTER_ADDR'] = 'localhost'
             os.environ['MASTER_PORT'] = f'{np.random.randint(10000, 65535)}'
             try:
+                print('Initializing process group')
                 torch.distributed.init_process_group(backend='gloo',rank=0,world_size=1)
             except RuntimeError as e:
                 if str(e) == 'trying to initialize the default process group twice!':

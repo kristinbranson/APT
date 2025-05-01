@@ -13,6 +13,8 @@ import cv2
 from torchvision import transforms
 from torch.nn.parameter import Parameter
 from scipy.optimize import linear_sum_assignment
+from packaging import version
+import mmpose
 
 
 class pred_layers(nn.Module):
@@ -187,8 +189,18 @@ def my_hrnet_fpn_backbone():
                 block='BASIC',
                 num_blocks=(4, 4, 4, 4),
                 num_channels=(32, 64, 128, 256)))
-    backbone = HRNet(extra,in_channels=3)
-    backbone.init_weights(pretrained='https://download.openmmlab.com/mmpose/pretrain_models/hrnet_w32-36af842e.pth')
+
+    if version.parse(mmpose.__version__).major == 0:
+        backbone = HRNet(extra,in_channels=3)
+        backbone.init_weights(pretrained='https://download.openmmlab.com/mmpose/pretrain_models/hrnet_w32-36af842e.pth')
+    elif version.parse(mmpose.__version__).major == 1:
+        backbone = HRNet(extra,in_channels=3,
+
+            init_cfg=dict(
+            type='Pretrained',
+            checkpoint='https://download.openmmlab.com/mmpose/'
+            'pretrain_models/hrnet_w32-36af842e.pth'))
+
     return hrnet_fpn(backbone)
 
 
@@ -525,7 +537,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # Mask the predictions
         if self.conf.multi_loss_mask:
             mask_down = labels_dict['mask'][:,::offset,::offset].to(self.device)
-            ll_joint = torch.where(mask_down[:,None,:,:]>0,ll_joint,torch.zeros_like(ll_joint))
+            ll_joint = torch.where(mask_down[:,None,:,:]>0.5,ll_joint,torch.zeros_like(ll_joint))
 
         ls = locs_joint.shape
         locs_joint_flat = locs_joint.reshape(
