@@ -52,10 +52,11 @@ classdef LabelerProjectTester < handle
         %   labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
         % end          
       end
-      % % HACK START
-      % backend_type_as_string = 'conda' ;
-      % backend_params = { 'condaEnv', 'apt-2025-04' }  ;
-      % % HACK END
+      % HACK START
+      backend_type_as_string = 'conda' ;
+      backend_params = { 'condaEnv', 'apt-2025-04' }  ;
+      %backend_params = { }  ;
+      % HACK END
       obj.set_backend_params_(backend_type_as_string, backend_params) ;
       if isempty(training_params)
         training_params = struct('dl_steps', {niters}) ;
@@ -112,10 +113,10 @@ classdef LabelerProjectTester < handle
       if ~isempty(algo_name) ,
         labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
       end
-      % % HACK START
-      % backend_type_as_string = 'conda' ;
-      % backend_params = { 'condaEnv', 'apt-2025-04' }  ;
-      % % HACK END      
+      % HACK START
+      backend_type_as_string = 'conda' ;
+      backend_params = { 'condaEnv', 'apt-2025-04' }  ;
+      % HACK END      
       obj.set_backend_params_(backend_type_as_string, backend_params) ;
 
       % Track
@@ -170,7 +171,11 @@ classdef LabelerProjectTester < handle
       end
       
       % Compute the GT performance
-      obj.set_backend_params_(backend_type_as_string,backend_params);
+      % HACK START
+      backend_type_as_string = 'conda' ;
+      backend_params = { 'condaEnv', 'apt-2025-04' }  ;
+      % HACK END      
+      obj.set_backend_params_(backend_type_as_string, backend_params) ;
       obj.labeler.gtSetGTMode(true) ;
       obj.labeler.gtComputeGTPerformance() ;
 

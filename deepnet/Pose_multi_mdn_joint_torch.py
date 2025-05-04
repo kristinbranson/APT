@@ -1244,8 +1244,16 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def set_version(self,model_file):
         ckpt = torch.load(model_file, map_location=torch.device('cpu'))
-        k_j = ckpt['model_state_params']['module.wts_joint.conv_out.weight'].shape[0]
-        k_r = ckpt['model_state_params']['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
+        if 'state_dict' in ckpt:
+            state_dict = ckpt['state_dict']
+        elif 'model_state_params' in ckpt:
+            state_dict = ckpt['model_state_params']
+        else:
+            raise RuntimeError('Checkpoint has neither state_dict nor model_state_params key')        
+        if 'module.wts_joint.conv_out.weight' not in state_dict:  # MK: Not sure what to do here.  -- ALT, 2025-05-03
+            return
+        k_j = state_dict['module.wts_joint.conv_out.weight'].shape[0]
+        k_r = state_dict['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
         if k_r==3:
             self.version = 2
         elif k_j==4:
@@ -1253,7 +1261,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.k_j = k_j
         self.k_r = k_r
 
-        if 'module.dist_pred.conv_out.weight' not in ckpt['model_state_params']:
+        if 'module.dist_pred.conv_out.weight' not in state_dict:
             self.do_dist_pred = False
 
 

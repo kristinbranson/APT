@@ -668,12 +668,17 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
         cfg[ttype+ '_dataloader'].dataset.data_prefix = dict(img='')
         cfg[ttype+ '_dataloader'].dataset.data_root = ''
         cfg[ttype+ '_dataloader'].dataset.metainfo = dict(classes=cls,pallete=(0,0,0))
-        if ttype in ['test','val']:
+        # if ttype in ['test','val']:
+        #     # cfg[ttype+ '_evaluator'].ann_file = file
+        #     cfg[ttype+ '_evaluator'] = None
+        #     cfg[ttype+'_cfg'] = None
+        #     cfg[ttype+ '_dataloader'] = None
+        # MK: Changed to this b/c for tracking the DetInferencer complains if there's no test_dataloader.  -- AL, 2025-05-02
+        if ttype in ['val']:
             # cfg[ttype+ '_evaluator'].ann_file = file
             cfg[ttype+ '_evaluator'] = None
             cfg[ttype+'_cfg'] = None
             cfg[ttype+ '_dataloader'] = None
-
 
     if conf.mmdetect_net == 'frcnn': # TODO!!
         for ttype in ['train', 'val', 'test']:
@@ -745,7 +750,7 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
     cfg.train_cfg.max_iters = conf.dl_steps
     cfg.train_cfg.val_interval = conf.dl_steps+1
     # cfg.train_cfg.by_epoch = False
-    
+
     # cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
     # cfg.data.train.pipeline[-1]['keys'].append('gt_bboxes_ignore')
 
@@ -889,26 +894,57 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
 
         model_file = self.get_latest_model_file() if model_file is None else model_file
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-        init_args = {'weights':model_file,'device':device}
-        inferencer = DetInferencer(**init_args)
+        # init_args = {'weights':model_file,'device':device}
+        inferencer = DetInferencer(weights=model_file, device=device)
         max_n = conf.max_n_animals
         min_n = conf.min_n_animals
 
         def pred_fn(ims,retrawpred=False,show=False):
 
-            pose_results = np.ones([ims.shape[0],conf.max_n_animals,2,2])*np.nan
-            conf_res = np.zeros([ims.shape[0],conf.max_n_animals,2])
+            batch_size = ims.shape[0]
+            pose_results = np.ones([batch_size,conf.max_n_animals,2,2])*np.nan
+            conf_res = np.zeros([batch_size,conf.max_n_animals,2])
 
             if ims.shape[-1] ==1:
                 ims = np.tile(ims,[1,1,1,3])
 
-            results = inferencer(ims,batch_size=ims.shape[0],draw_pred=False)
+            # MK: This code was just not working in my hands.  Replaced it with code below, which 
+            # does so.  -- ALT, 2025-05-03
+            # results = inferencer(ims, batch_size=batch_size, draw_pred=False)
+            # for b,res in enumerate(results):
+            #     if conf.mmdetect_net == 'detr':
+            #         cur_max = max_n
+            #         cur_res = np.ones([max_n, 5]) * np.nan
+            #         bbs = torch.tensor(res[0][:,:4])
+            #         overlaps = bbox_overlaps(bbs,bbs)
+            #         overlaps = overlaps.numpy()
+            #         overlaps[np.diag_indices(overlaps.shape[0])] = 0.
+            #         done_count = 0
+            #         cur_ix = -1
+            #         while done_count<max_n:
+            #             cur_ix = cur_ix + 1
+            #             if cur_ix>=overlaps.shape[0]: break
+            #             if (cur_ix> 0) and (any(overlaps[cur_ix,:cur_ix]>detr_nms)): continue
+            #             if (res[0][cur_ix,4]<detr_thr) and done_count>=min_n: continue
+            #             cur_res[done_count,:] = res[0][cur_ix]
+            #             done_count += 1
+            #     else:
+            #         cur_res = res[0]
+            #         cur_max = len(res[0])
+            #     pose_results[b,:cur_max,:,:] = cur_res[:,:4].copy().reshape([-1,2,2])
+            #     conf_res[b,:cur_max,:] = cur_res[:cur_max,4:].copy()
 
-            for b,res in enumerate(results):
+            ims_as_list = [ims[i] for i in range(batch_size)]
+            results = inferencer(ims_as_list, batch_size=batch_size, draw_pred=False)
+            predictions = results['predictions']
+            for b,prediction in enumerate(predictions):
+                bboxes = prediction['bboxes']  # list of lists of length 4
+                scores = prediction['scores']  # list of scalars
                 if conf.mmdetect_net == 'detr':
                     cur_max = max_n
-                    cur_res = np.ones([max_n, 5]) * np.nan
-                    bbs = torch.tensor(res[0][:,:4])
+                    cur_bboxes = np.ones([max_n, 4]) * np.nan
+                    cur_scores = np.ones([max_n]) * np.nan
+                    bbs = torch.tensor(bboxes)
                     overlaps = bbox_overlaps(bbs,bbs)
                     overlaps = overlaps.numpy()
                     overlaps[np.diag_indices(overlaps.shape[0])] = 0.
@@ -918,15 +954,16 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
                         cur_ix = cur_ix + 1
                         if cur_ix>=overlaps.shape[0]: break
                         if (cur_ix> 0) and (any(overlaps[cur_ix,:cur_ix]>detr_nms)): continue
-                        if (res[0][cur_ix,4]<detr_thr) and done_count>=min_n: continue
-                        cur_res[done_count,:] = res[0][cur_ix]
+                        if (scores[cur_ix]<detr_thr) and done_count>=min_n: continue
+                        cur_bboxes[done_count,:] = bboxes[cur_ix]
+                        cur_scores[done_count] = scores[cur_ix]
                         done_count += 1
-
                 else:
-                    cur_res = res[0]
-                    cur_max = len(res[0])
-                pose_results[b,:cur_max,:,:] = cur_res[:,:4].copy().reshape([-1,2,2])
-                conf_res[b,:cur_max,:] = cur_res[:cur_max,4:].copy()
+                    cur_max = len(scores)
+                    cur_bboxes = np.array(bboxes)
+                    cur_scores = np.array(scores)
+                pose_results[b,:cur_max,:,:] = cur_bboxes.copy().reshape([-1,2,2])
+                conf_res[b,:cur_max,:] = cur_scores.copy()
 
             ret_dict = {'locs':pose_results,'conf':conf_res}
             return ret_dict

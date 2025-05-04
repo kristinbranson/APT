@@ -187,6 +187,22 @@
             "program": "test_two_stage_mmdetect_training_from_apt_2025_05_01.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "Test two-stage mmdetect tracking",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_two_stage_mmdetect_tracking_from_apt_2025_05_02.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "Test more two-stage mmdetect tracking",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_more_two_stage_mmdetect_tracking_from_apt_2025_05_02.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
     ]
 }
