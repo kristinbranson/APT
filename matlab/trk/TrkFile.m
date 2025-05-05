@@ -246,7 +246,7 @@ classdef TrkFile < dynamicprops
       validateattributes(obj.pTrkTS,{'numeric'},{'size' [npttrk nfrm ntgt]},'','pTrkTS');
       
       if isequal(obj.pTrkTag,TrkFile.unsetVal) || ...
-          ( all(size(obj.pTrkTag)==[npttrk nfrm]) && iscell(obj.pTrkTag))
+          (  iscell(obj.pTrkTag) && all(size(obj.pTrkTag)==[npttrk nfrm]))
         obj.pTrkTag = false(npttrk,nfrm,ntgt);
       end
       validateattributes(obj.pTrkTag,{'logical'},...
@@ -1343,7 +1343,11 @@ classdef TrkFile < dynamicprops
 
           j = iTgt(i);
           ptgt = pcell{j};
-          ptag = pcelltag{j};
+          if ischar(pcelltag) && strcmp(pcelltag,'__UNSET__')
+            ptag = zeros(size(ptgt,1),size(ptgt,3));
+          else
+            ptag = pcelltag{j};
+          end
 
           idx = f(isinterval) + offs(j);
           xy(:,:,isinterval,i) = ptgt(:,:,idx);
