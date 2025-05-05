@@ -33,7 +33,7 @@ out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageHT_hrformer','2stageHT_hrnet_hrformer','2stageBBox', 'grone', 'grone_hrnet' ,'openpose','cid','dekr','openpose_4x','2stageBBox_hrformer']#,'2stageBBox_vitpose']
+alg_names = ['2stageHT','2stageHT_hrnet_grone_hrnet', '2stageHT_hrformer','2stageHT_hrnet_hrformer','2stageBBox_hrformer','2stageBBox_grone_hrnet','2stageBBox', 'grone', 'grone_hrnet' ,'openpose','cid','dekr','openpose_4x']#,'2stageBBox_vitpose']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -71,6 +71,9 @@ class ma_expt(object):
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
                 ('2stageHT_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
                 ('2stageHT_hrnet_hrformer',): [{'mdn_use_hrnet': True}, {'mmpose_net': '\\"hrformer\\"'}],
+                ('2stageHT_hrnet_grone_hrnet',): [{'mdn_use_hrnet': True}, {'mdn_use_hrnet':True}],
+                ('2stageBBox_grone_hrnet',): [{}, {'mdn_use_hrnet':True}],
+                ('2stageHT_hrnet_hrformer',): [{'mdn_use_hrnet': True}, {'mmpose_net': '\\"hrformer\\"'}],
                 ('cid','nocrop'):[{'batch_size': 4,'dl_steps':200000}, {}],
                 ('grone_hrnet',):[{'mdn_use_hrnet':True},{}],
                 ('dekr',):[{'mmpose_net':'\\"dekr\\"'},{}],
@@ -97,9 +100,12 @@ class ma_expt(object):
                            #('grone', 'nocrop'): [{'rescale': 2},{}],
                            #('openpose', 'nocrop'): [{'rescale': 2},{}],
             #                ('openpose', 'crop'): [{'rescale': 2}]
-                ():[{'link_id_rescale':0.5},{}],
+                ():[{'link_id_rescale':0.5},{'rescale':0.5}],
+                ('crop',):[{'rescale':0.5},{}],
                 ('openpose_4x', ):[{'op_hires_ndeconv': 2},{}],
                 ('grone_hrnet',): [{'mdn_use_hrnet': True}, {}],
+                ('2stageHT_hrnet_grone_hrnet',): [{'mdn_use_hrnet': True}, {'mdn_use_hrnet':True}],
+                ('2stageBBox_grone_hrnet',): [{}, {'mdn_use_hrnet':True}],
                 ('2stageBBox_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
                 ('2stageHT_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
@@ -369,9 +375,9 @@ class ma_expt(object):
         alg_use = alg
         if alg.startswith('openpose'):
             alg_use = 'openpose'
-        if alg == '2stageBBox_hrformer' or alg=='2stageBBox_vitpose':
+        if alg == '2stageBBox_hrformer' or alg=='2stageBBox_vitpose' or alg=='2stageBBox_grone_hrnet':
             alg_use = '2stageBBox'
-        if alg == '2stageHT_hrformer' or alg=='2stageHT_hrnet_hrformer':
+        if alg.startswith('2stageHT'):
             alg_use = '2stageHT'
         if alg.startswith('grone'):
             alg_use = 'grone'
@@ -389,6 +395,8 @@ class ma_expt(object):
                 net_type = 'mmpose'
             elif alg.endswith('vitpose') and cndx == 1:
                 net_type = 'mmpose'
+            elif alg.endswith('grone_hrnet') and cndx == 1:
+                net_type = 'mdn_joint_fpn'
 
         else:
             stg_str = ''
@@ -446,6 +454,8 @@ class ma_expt(object):
             elif set(('2stageBBox_hrformer', 'crop')).issubset(set(cur_type)):
                 continue
             elif set(('2stageBBox_vitpose', 'crop')).issubset(set(cur_type)):
+                continue
+            elif set(('2stageBBox_grone_hrnet', 'crop')).issubset(set(cur_type)):
                 continue
             else:
                 new_t_types.append(cur_type)

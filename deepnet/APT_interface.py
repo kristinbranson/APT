@@ -3509,8 +3509,8 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
 
     ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
-    #tag = np.ones(ts.shape)*np.nan  # tag which is always false for now.
-    tag = None
+    tag = np.ones(ts.shape)<0.5  # tag which is always false for now.
+    # tag = None
     if 'conf' in extra_dict:
         pred_conf = extra_dict['conf']
         locs_conf = np.transpose(pred_conf, [2, 0, 1])
