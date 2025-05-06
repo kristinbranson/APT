@@ -668,12 +668,7 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
         cfg[ttype+ '_dataloader'].dataset.data_prefix = dict(img='')
         cfg[ttype+ '_dataloader'].dataset.data_root = ''
         cfg[ttype+ '_dataloader'].dataset.metainfo = dict(classes=cls,pallete=(0,0,0))
-        # if ttype in ['test','val']:
-        #     # cfg[ttype+ '_evaluator'].ann_file = file
-        #     cfg[ttype+ '_evaluator'] = None
-        #     cfg[ttype+'_cfg'] = None
-        #     cfg[ttype+ '_dataloader'] = None
-        # MK: Changed to this b/c for tracking the DetInferencer complains if there's no test_dataloader.  -- AL, 2025-05-02
+        # Can't clear the test_dataloader b/c for tracking the DetInferencer complains if there's no test_dataloader.  -- AL, 2025-05-02
         if ttype in ['val']:
             # cfg[ttype+ '_evaluator'].ann_file = file
             cfg[ttype+ '_evaluator'] = None
@@ -743,8 +738,8 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
 
         cfg.load_from = url
 
-    # Make sure the config honors the dl_steps (max iters) set in the conf
-    # MK: Does this seems reasonable?  -- ALT, 2025-05-01
+    # Make sure the config honors the dl_steps (max iters) set in the conf.
+    # Also make sure we're using iteration-based training, instead of epoch-based.
     del cfg.train_cfg['max_epochs']
     cfg.train_cfg.type = 'IterBasedTrainLoop'
     cfg.train_cfg.max_iters = conf.dl_steps
@@ -908,8 +903,8 @@ class Pose_detect_mmdetect(PoseCommon_pytorch):
             if ims.shape[-1] ==1:
                 ims = np.tile(ims,[1,1,1,3])
 
-            # MK: This code was just not working in my hands.  Replaced it with code below, which 
-            # does so.  -- ALT, 2025-05-03
+            # This code was not working with mmdetect 3.3 or 3.2.  Replaced it with code below. 
+            #   -- ALT, 2025-05-03
             # results = inferencer(ims, batch_size=batch_size, draw_pred=False)
             # for b,res in enumerate(results):
             #     if conf.mmdetect_net == 'detr':

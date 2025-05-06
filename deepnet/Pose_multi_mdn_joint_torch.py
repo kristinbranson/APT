@@ -1243,25 +1243,31 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         return matched, cur_joint_conf, cur_occ_pred
 
     def set_version(self,model_file):
+        # Set the GRONe version.
+        # version 1 has k_j = 4
+        # version 2 has k_j = 1 and k_r = 3
+        # version 3 has k_j = 1 and k_r = 1
+        # The Pose_multi_mdn_joint_torch constructor assumes version 3.
+        # This method looks for evidence the named model_file is actually an older version, 
+        # and if it determines that it is, it sets .version, .k_j, and .k_r appropriately.
+        # Also sets .do_dist_pred to False in some circumstances.
         ckpt = torch.load(model_file, map_location=torch.device('cpu'))
-        if 'state_dict' in ckpt:
-            state_dict = ckpt['state_dict']
-        elif 'model_state_params' in ckpt:
-            state_dict = ckpt['model_state_params']
-        else:
-            raise RuntimeError('Checkpoint has neither state_dict nor model_state_params key')        
-        if 'module.wts_joint.conv_out.weight' not in state_dict:  # MK: Not sure what to do here.  -- ALT, 2025-05-03
+        if 'model_state_params' not in ckpt:
+            return        
+        model_state_params = ckpt['model_state_params']
+        if 'module.wts_joint.conv_out.weight' not in model_state_params:
             return
-        k_j = state_dict['module.wts_joint.conv_out.weight'].shape[0]
-        k_r = state_dict['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
+        if 'module.wts_ref.conv_out.weight' not in model_state_params:
+            return
+        k_j = model_state_params['module.wts_joint.conv_out.weight'].shape[0]
+        k_r = model_state_params['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
         if k_r==3:
             self.version = 2
         elif k_j==4:
             self.version = 1
         self.k_j = k_j
         self.k_r = k_r
-
-        if 'module.dist_pred.conv_out.weight' not in state_dict:
+        if 'module.dist_pred.conv_out.weight' not in model_state_params:
             self.do_dist_pred = False
 
 

@@ -456,8 +456,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
 
 
     cfg.test_dataloader = cfg.val_dataloader
-    # cfg.test_evaluator = cfg.test_evaluator  
-    cfg.test_evaluator = cfg.val_evaluator   # NEEDS REVIEW MK: ALT changed the commented out line above to this on 2025-04-25.
+    cfg.test_evaluator = cfg.val_evaluator
 
 
     # if torch.cuda.is_available():
@@ -477,16 +476,6 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     # cfg['test_dataloader']['num_workers'] = 1
     # cfg['val_dataloader']['num_workers'] = 1
 
-    # NEEDS REVIEW MK: Does this look right?  CiD cfg does not have
-    # cfg.data.samples_per_gpu, it has these three:
-    #
-    #         cfg.data.train_dataloader['samples_per_gpu']
-    #         cfg.data.test_dataloader['samples_per_gpu']
-    #         cfg.data.val_dataloader['samples_per_gpu']
-    #
-    # I'm not sure I've handled this s.t. it will work properly for testing and
-    # validation.
-    #
     # Idea is that there's an LR and a samples_per_gpu set in the MMPose config
     # file.  But there's a batch_size set in the conf that we want to honor.
     # And according to Goyal et al (2017), the LR should be scaled

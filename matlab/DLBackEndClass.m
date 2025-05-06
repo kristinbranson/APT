@@ -31,22 +31,19 @@ classdef DLBackEndClass < handle
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
-    defaultDockerImgTag = 'apt_20230427_tf211_pytorch113_ampere'
+    defaultDockerImgTag = 'apt-20250505-tf215-pytorch21-hopper'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
     jrchost = 'login1.int.janelia.org'
-    jrcprefix = ''
     jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod'
     default_jrcgpuqueue = 'gpu_a100'
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
 
-    default_conda_env = 'APT'
-    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' 
+    default_conda_env = 'apt-20250505-tf215-pytorch21-hopper'
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt-20250505-tf215-pytorch21-hopper.sif' 
     legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
-
-    %default_docker_api_version = '1.40'
   end
 
   properties
@@ -62,10 +59,6 @@ classdef DLBackEndClass < handle
         
     % Used only for type==AWS
     awsec2  % a scalar AWSec2 object (present whether we need it or not)
-    awsgitbranch  
-      % Stores the branch name of APT to use when updating APT on the AWS EC2
-      % instance.  This is never set in the APT codebase, as near as I can tell.
-      % Likely used only for debugging?  -- ALT, 2024-03-07
     
     % Used only for type==Docker  
     %dockerapiver = DLBackEndClass.default_docker_api_version  % docker codegen will occur against this docker api ver
@@ -82,9 +75,6 @@ classdef DLBackEndClass < handle
       % Linux boxes on the Janelia network.)
 
     gpuids = []  % for now used by docker/conda
-%     dockercontainername = []  
-%       % transient
-%       % Also, seemingly never read -- ALT, 2024-03-07
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
     jrcgpuqueue

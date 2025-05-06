@@ -1,9 +1,10 @@
-name: apt-2025-04
+name: apt-20250505-tf215-pytorch21-hopper-dev
 channels:
   - conda-forge
   - defaults
 dependencies:
   - python=3.10
+  - cuda-version=12.8
   - pytorch-gpu>=2.1
   - tensorflow-gpu
   - mmdet  
