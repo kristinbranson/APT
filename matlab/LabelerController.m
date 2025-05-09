@@ -3954,23 +3954,23 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function play_(obj, iconStrPlay, playMethodName)
-      %labeler = obj.labeler_ ;      
-      
+    function play_(obj, playMethodName)
       pbPlay = obj.pbPlay ;
-      oc = onCleanup(@()(obj.playCleanup_(iconStrPlay))) ;
-      if ~obj.isPlaying_
-        obj.isPlaying_ = true ;
-        pbPlay.CData = Icons.ims.stop ;
-        obj.(playMethodName) ;
+      if obj.isPlaying_ ,
+        obj.isPlaying_ = false ;  
+          % setting this this will cause the already-running video playback loop from the previous cal to play_() to exit
+        return
       end
-    end
+      oc = onCleanup(@()(obj.playCleanup_())) ;
+      obj.isPlaying_ = true ;
+      pbPlay.CData = Icons.ims.stop ;
+      obj.(playMethodName) ;
+    end  % function
 
-    function playCleanup_(obj, iconStrPlay)
-      pbPlay = obj.pbPlay ;
-      pbPlay.CData = Icons.ims.(iconStrPlay) ;
+    function playCleanup_(obj)
+      obj.pbPlay.CData = Icons.ims.play ;
       obj.isPlaying_ = false ;
-    end
+    end  % function
 
     function tblTrx_cell_selected_(obj, src, evt) %#ok<*DEFNU>
       % Current/last row selection is maintained in hObject.UserData
@@ -5429,7 +5429,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('playsegment', 'videoPlaySegFwdEnding') ;
+      obj.play_('videoPlaySegFwdEnding') ;
     end
 
 
@@ -5439,7 +5439,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('playsegmentrev', 'videoPlaySegRevEnding') ;
+      obj.play_('videoPlaySegRevEnding') ;
     end
 
 
@@ -5449,7 +5449,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('play', 'videoPlay') ;
+      obj.play_('videoPlay') ;
     end
 
 
