@@ -27,13 +27,15 @@ classdef AWSec2 < handle
     remoteTorchHomeDir = linux_fullfile(AWSec2.remoteHomeDir, 'torch')
     % scpCmd = AWSec2.computeScpCmd()
     rsyncCmd = AWSec2.computeRsyncCmd()
+    instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
   end
   
   properties
-    instanceID = ''  % Durable identifier for the AWS EC2 instance.  E.g.'i-07a3a8281784d4a38'.
+    instanceID_ = ''  % Durable identifier for the AWS EC2 instance.  E.g.'i-07a3a8281784d4a38'.
   end
 
   properties (Dependent)
+    instanceID
     isInstanceIDSet    % Whether the instanceID is set or not
     areCredentialsSet  % Whether the security credentials for the instance are set
     isInDebugMode      % Whether the object is in debug mode.  See isInDebugMode_
@@ -42,7 +44,6 @@ classdef AWSec2 < handle
   properties
     keyName = ''  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
     pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
-    instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use
   end
 
   properties (Transient, SetAccess=protected)
@@ -105,16 +106,12 @@ classdef AWSec2 < handle
   end
 
   methods    
-    function set.instanceID(obj,v)
-      obj.instanceID = v;
-    end
-
     function v = get.areCredentialsSet(obj)
       v = ~isempty(obj.pem) && ~isempty(obj.keyName);
     end
 
     function v = get.isInstanceIDSet(obj)
-      v = ~isempty(obj.instanceID);
+      v = ~isempty(obj.instanceID_);
     end
 
     function result = get.isInDebugMode(obj)
@@ -125,59 +122,43 @@ classdef AWSec2 < handle
       obj.isInDebugMode_ = value ;
     end
 
-    function setInstanceIDAndType(obj,instanceID,instanceType)
-      %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
-      if ~isempty(obj.instanceID),
-        if strcmp(instanceID,obj.instanceID),
-          % nothing to do
-          %obj.ClearStatus();
-          return;
+    function result = get.instanceID(obj)
+      result = obj.instanceID_ ;
+    end
+
+    function set.instanceID(obj, instanceID)
+      if ~isempty(obj.instanceID_),
+        if strcmp(instanceID, obj.instanceID_)
+          return
         end
-        %instanceID = obj.instanceID;
         [tfexist,tfrunning] = obj.inspectInstance();
         if tfexist && tfrunning,
           tfsucc = obj.stopInstance();
           if ~tfsucc,
-            warning('Error stopping old AWS EC2 instance %s.',instanceID);
+            warning('Error stopping old AWS EC2 instance %s.',obj.instanceID_);
           end
-          %obj.SetStatus(sprintf('Setting AWS EC2 instance = %s',instanceID));
         end
       end
-      obj.instanceID = instanceID;
-      if nargin > 3,
-        obj.instanceType = instanceType;
-      end
+      obj.instanceID_ = instanceID ;
       if obj.isInstanceIDSet ,
         obj.configureAlarm();
       end
-      %obj.ClearStatus();
     end
 
-    function [tfsucc,json] = launchInstance(obj,varargin)
-      % Launch a brand-new instance to specify an unspecified instance
-      [dryrun,dostore] = myparse(varargin,'dryrun',false,'dostore',true);
-      obj.clearInstanceID();
-      %obj.SetStatus('Launching new AWS EC2 instance');
-      cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',obj.instanceType,'dryrun',dryrun);
+    function [tfsucc, instanceID] = launchNewInstance(obj, varargin)
+      % Launch a brand-new instance.
+      obj.instanceID = '' ;  % This calls a setter function, which stops the original instance, if any.
+      cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',AWSec2.instanceType);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
-        %obj.ClearStatus();
-        return;
+        instanceID = '' ;
+        return
       end
       json = jsondecode(json);
       instanceID = json.Instances.InstanceId;
-      if dostore,
-        obj.setInstanceIDAndType(instanceID);
-      end
-      %obj.SetStatus('Waiting for AWS EC2 instance to spool up.');
-      [tfsucc] = obj.waitForInstanceStart();
-      if ~tfsucc,
-        %obj.ClearStatus();
-        return;
-      end
-      obj.configureAlarm();
-      %obj.ClearStatus();
+      obj.instanceID = instanceID ;  % This calls a setter function, which e.g. configures the alarms on the new instance
+      tfsucc = obj.waitForInstanceStart();
     end
     
     function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
@@ -188,11 +169,11 @@ classdef AWSec2 < handle
       % * tfrunning is returned as true if the instance exists and is running.
       % * json is valid only if tfexist==true.
       
-      assert(obj.isInstanceIDSet,'Cannot inspect an unspecified AWSEc2 instance.');
+      assert(obj.isInstanceIDSet,'AWS EC2 instance ID is not set.');
       
-      % Aside: this works with empty .instanceID if there is only one 
+      % Aside: this works with empty .instanceID_ if there is only one 
       % instance in the cloud, but we are not interested in that for now
-      cmd = AWSec2.describeInstancesCmd(obj.instanceID); 
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID_); 
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfexist = (st==0) ;
       if ~tfexist
@@ -207,7 +188,7 @@ classdef AWSec2 < handle
       end
       
       inst = json.Reservations.Instances;
-      assert(strcmp(obj.instanceID,inst.InstanceId));
+      assert(strcmp(obj.instanceID_,inst.InstanceId));
       if strcmpi(inst.State.Name,'terminated'),
         tfexist = false;
         tfrunning = false;
@@ -218,7 +199,7 @@ classdef AWSec2 < handle
       if tfrunning
         obj.instanceIP = inst.PublicIpAddress;
         fprintf('EC2 instanceID %s is running with IP %s.\n',...
-          obj.instanceID,obj.instanceIP);
+          obj.instanceID_,obj.instanceIP);
       else
         % leave IP for now even though may be outdated
       end
@@ -227,7 +208,7 @@ classdef AWSec2 < handle
     function [tfsucc,state,json] = getInstanceState(obj)
       assert(obj.isInstanceIDSet);
       state = '';
-      cmd = AWSec2.describeInstancesCmd(obj.instanceID); % works with empty .instanceID if there is only one instance
+      cmd = AWSec2.describeInstancesCmd(obj.instanceID_); % works with empty .instanceID if there is only one instance
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
@@ -243,8 +224,8 @@ classdef AWSec2 < handle
         json = {};
         return
       end
-      fprintf('Stopping AWS EC2 instance %s...\n',obj.instanceID);
-      cmd = AWSec2.stopInstanceCmd(obj.instanceID);
+      fprintf('Stopping AWS EC2 instance %s...\n',obj.instanceID_);
+      cmd = AWSec2.stopInstanceCmd(obj.instanceID_);
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       %obj.ClearStatus();
@@ -271,7 +252,7 @@ classdef AWSec2 < handle
     end
 
     function [tfsucc,json,warningstr,state] = startInstance(obj,varargin)
-      %obj.SetStatus(sprintf('Starting instance %s',obj.instanceID));
+      %obj.SetStatus(sprintf('Starting instance %s',obj.instanceID_));
       [doblock] = myparse(varargin,'doblock',true);
       
       %maxwaittime = 100;
@@ -297,7 +278,7 @@ classdef AWSec2 < handle
         return;
       end
       if ~ismember(lower(state),{'running','pending'}),
-        cmd = AWSec2.startInstanceCmd(obj.instanceID);
+        cmd = AWSec2.startInstanceCmd(obj.instanceID_);
         %[tfsucc,json] = AWSec2.syscmd(cmd,'isjsonout',true);
         [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
         tfsucc = (st==0) ;        
@@ -376,11 +357,11 @@ classdef AWSec2 < handle
     function errorIfInstanceNotRunning(obj)
       [doesInstanceExist, isInstanceRunning] = obj.inspectInstance() ;
       if ~doesInstanceExist
-        error('EC2 instance with id %s does not seem to exist', obj.instanceID);
+        error('EC2 instance with id %s does not seem to exist', obj.instanceID_);
       end
       if ~isInstanceRunning
         error('EC2 instance with id %s is not in the ''running'' state.',...
-              obj.instanceID)
+              obj.instanceID_)
       end
     end  % function
     
@@ -418,10 +399,10 @@ classdef AWSec2 < handle
       availzone = js.Reservations.Instances.Placement.AvailabilityZone;
       regioncode = availzone(1:end-1);
       
-      instID = obj.instanceID;
+      instanceID = obj.instanceID_;
       namestr = sprintf(obj.autoShutdownAlarmNamePat);
       descstr = sprintf('"Auto shutdown %d sec (%d periods)"',periodsec,evalperiods);
-      dimstr = sprintf('"Name=InstanceId,Value=%s"',instID);
+      dimstr = sprintf('"Name=InstanceId,Value=%s"',instanceID);
       arnstr = sprintf('arn:aws:automate:%s:ec2:stop',regioncode);
       
       code = {...
@@ -469,7 +450,7 @@ classdef AWSec2 < handle
       end
       for i = 1:numel(json.MetricAlarms),
           j = find(strcmpi({json.MetricAlarms(i).Dimensions.Name},'InstanceId'),1);
-          if ~isempty(j) && strcmp(json.MetricAlarms(i).Dimensions(j).Value,obj.instanceID),
+          if ~isempty(j) && strcmp(json.MetricAlarms(i).Dimensions(j).Value,obj.instanceID_),
             isalarm = true;
             break;
           end
@@ -910,33 +891,33 @@ classdef AWSec2 < handle
         error('Kill command failed.');
       end
     end  % function
-
-    function clearInstanceID(obj)
-      obj.setInstanceIDAndType('');
-    end
-    
-%     function tf = isSameInstance(obj,obj2)
-%       assert(isscalar(obj) && isscalar(obj2));
-%       tf = strcmp(obj.instanceID,obj2.instanceID) && ~isempty(obj.instanceID);
-%     end
   end  % methods
   
   methods (Static)
     
-    function cmd = launchInstanceCmd(keyName,varargin)
+    function cmd = launchInstanceCmd(keyName, varargin)
       [ami,instType,secGrp,dryrun] = myparse(varargin,...
         'ami',AWSec2.AMI,...
-        'instType','p3.2xlarge',...
+        'instType',AWSec2.instanceType,...
         'secGrp',AWSec2.AWS_SECURITY_GROUP,...
         'dryrun',false);
-      cmd = sprintf('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s',ami,instType,secGrp);
+      date_and_time_string = char(datetime('now','TimeZone','local','Format','yyyy-MM-dd-HH-mm-ss')) ;
+      name = sprintf('apt-to-the-porpoise-%s', date_and_time_string) ;
+      tag_specifications = sprintf('ResourceType=instance,Tags=[{Key=Name,Value=%s}]', name) ;
+      escaped_tag_specifications = escape_string_for_bash(tag_specifications) ;
+      block_device_mapping = '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":800,"DeleteOnTermination":true,"VolumeType":"gp3"}}]' ;
+      escaped_block_device_mapping = escape_string_for_bash(block_device_mapping) ;
+      cmd_template = ...
+        strcatg('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s ', ...
+                '--tag-specifications %s --block-device-mappings %s') ;
+      cmd = sprintf(cmd_template, ami, instType, secGrp, escaped_tag_specifications, escaped_block_device_mapping) ;
       if dryrun,
-        cmd = [cmd,' --dry-run'];
+        cmd = strcatg(cmd,' --dry-run') ;
       end
       if ~isempty(keyName),
-        cmd = [cmd,' --key-name ',keyName];
+        cmd = strcatg(cmd, ' --key-name ', keyName) ;
       end
-    end
+    end  % function
     
     function cmd = listInstancesCmd(keyName,varargin)      
       [ami,instType,secGrp] = ...
@@ -1507,13 +1488,6 @@ classdef AWSec2 < handle
       % isRunning is false, reasonNotRunning is a string that says something about
       % what went wrong.
 
-      % Make sure the instance ID is set
-      if ~obj.isInstanceIDSet
-        isRunning = false ;
-        reasonNotRunning = 'AWS instance ID is not set.' ;
-        return
-      end
-
       % Make sure the credentials are set
       if ~obj.areCredentialsSet ,
         isRunning = false ;
@@ -1521,12 +1495,18 @@ classdef AWSec2 < handle
         return          
       end
       
+      % Make sure the instance ID is set
+      if ~obj.isInstanceIDSet
+        isRunning = false ;
+        reasonNotRunning = 'AWS instance ID is not set.' ;
+        return
+      end
+
       % Make sure the instance exists
       [doesInstanceExist,isInstanceRunning] = obj.inspectInstance() ;
       if ~doesInstanceExist,
         isRunning = false;
-        reasonNotRunning = sprintf('Instance %s could not be found.', obj.instanceID) ;
-        %obj.awsec2.clearInstanceID();  % Don't think we want to do this just yet
+        reasonNotRunning = sprintf('Instance %s could not be found.', obj.instanceID_) ;
         return
       end
       
@@ -1536,7 +1516,7 @@ classdef AWSec2 < handle
         didStartInstance = obj.startInstance();
         if ~didStartInstance
           isRunning = false ;
-          reasonNotRunning = sprintf('Could not start AWS EC2 instance %s.',obj.instanceID) ;
+          reasonNotRunning = sprintf('Could not start AWS EC2 instance %s.',obj.instanceID_) ;
           return
         end
       end

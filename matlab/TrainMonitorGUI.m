@@ -109,14 +109,15 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-switch hObject.UserData
-  case 'stop'
-    handles.vizobj.abortTraining();
-  case 'start'
-    handles.vizobj.startTraining();
-  otherwise
-    assert(false);
-end
+handles.vizobj.abortTraining();
+% switch hObject.UserData
+%   case 'stop'
+%     handles.vizobj.abortTraining();
+%   case 'start'
+%     handles.vizobj.startTraining();
+%   otherwise
+%     assert(false);
+% end
 
 % --- Executes when user attempts to close figure_TrainMonitor.
 function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)

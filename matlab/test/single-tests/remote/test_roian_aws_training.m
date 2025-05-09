@@ -1,6 +1,6 @@
 function test_roian_aws_training()
   [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
-  project_file_path = fullfile(unittest_dir_path, 'four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies.lbl') ;
+  project_file_path = fullfile(unittest_dir_path, 'four-points-testing-2025-05-08-with-rois-added-and-fewer-smaller-avi-movies-using-hopper-aws-instance.lbl') ;
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;
   oc = onCleanup(@()(delete(tester))) ;
   backend = 'aws' ;

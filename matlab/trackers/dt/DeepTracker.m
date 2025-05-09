@@ -14,9 +14,9 @@ classdef DeepTracker < LabelTracker
       'http://download.tensorflow.org/models/official/20181001_resnet/savedmodels/resnet_v2_fp32_savedmodel_NHWC.tar.gz'
       'http://download.tensorflow.org/models/resnet_v1_50_2016_08_28.tar.gz'...
       };
-    pretrained_weights_files_pat_lnx = {...
-      '%s/pretrained/resnet_v2_fp32_savedmodel_NHWC/1538687283/variables/variables.index'... % fill in deepnetroot
-      '%s/pretrained/resnet_v1_50.ckpt'... 
+    pretrained_weights_files_relative_path = {...
+      'pretrained/resnet_v2_fp32_savedmodel_NHWC/1538687283/variables/variables.index'... 
+      'pretrained/resnet_v1_50.ckpt'... 
       };
     pretrained_download_script_py = '%s/download_pretrained.py'; % fill in deepnetroot
     
@@ -1544,6 +1544,8 @@ classdef DeepTracker < LabelTracker
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
       bgTrnMonitor.start();
+
+      % Finally, prod the labeler to signal the controller that training has ended
       obj.lObj.doNotify('trainStart') ;
     end  % trnSpawn_() function
     
@@ -2914,8 +2916,12 @@ classdef DeepTracker < LabelTracker
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.killJobsAndPerformPostTrainingCleanup() ;
       obj.didLastTrainSucceed_ = true ;
+        % Set obj.didLastTrainSucceed_ before calling
+        % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
+        % and want listeners to be able to know whether the training bout succeeded or
+        % failed      
+      obj.killJobsAndPerformPostTrainingCleanup(EndCause.complete) ;
     end
 
     function didCompleteTracking_(obj, pollingResult)
@@ -2926,7 +2932,7 @@ classdef DeepTracker < LabelTracker
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.killJobsAndPerformPostTrackingCleanup() ;
+      obj.killJobsAndPerformPostTrackingCleanup(EndCause.complete) ;
 
       try
         % Put things into some local vars
@@ -3100,7 +3106,7 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function killJobsAndPerformPostTrainingCleanup(obj, varargin)
+    function killJobsAndPerformPostTrainingCleanup(obj, endCause)
       % Does what it says on the tin.
 
       % Someday, training splits will return!
@@ -3112,14 +3118,14 @@ classdef DeepTracker < LabelTracker
         return
       end
       
-      % Stop any running track monitors
-      if obj.bgTrkIsRunning,
-        fprintf('Stopping tracking...\n');
-        obj.bgTrkMonitor.stop();
-        obj.killJobsAndPerformPostTrackingCleanup() ;      
-        obj.bgTrkMonitor.reset();
-        assert(~obj.bgTrkIsRunning);
-      end
+      % % Stop any running track monitors
+      % if obj.bgTrkIsRunning,
+      %   fprintf('Stopping tracking...\n');
+      %   obj.bgTrkMonitor.stop();
+      %   obj.killJobsAndPerformPostTrackingCleanup() ;      
+      %   obj.bgTrkMonitor.reset();
+      %   assert(~obj.bgTrkIsRunning);
+      % end
 
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
@@ -3165,11 +3171,12 @@ classdef DeepTracker < LabelTracker
       %   obj.lObj.raiseTrainingStoppedDialog_() ;
       % end  % if
 
-      % Finally, signal the controller/view that training has ended
-      obj.lObj.doNotify('trainEnd');
+      % Finally, prod the Labeler to signal the controller that training has ended
+      %obj.lObj.doNotify('trainEnd');
+      obj.lObj.trainingEnded(endCause) ;
     end  % function
     
-    function killJobsAndPerformPostTrackingCleanup(obj,varargin)
+    function killJobsAndPerformPostTrackingCleanup(obj, endCause)
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('track') ;
@@ -3178,8 +3185,9 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
 
-      % Notify whomever that tracking has ended
-      obj.lObj.doNotify('trackEnd');
+      % Inform parent Labeler that tracking has ended
+      % obj.lObj.doNotify('trackEnd');
+      obj.lObj.trackingEnded(endCause) ;
     end  % function
 
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
@@ -3258,7 +3266,7 @@ classdef DeepTracker < LabelTracker
     
   end  % methods
 
-  methods (Static) % train/track codegen
+  methods (Static)  % train/track codegen
     function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
@@ -3279,23 +3287,16 @@ classdef DeepTracker < LabelTracker
         };
     end
 
-    function downloadPretrainedExec(aptroot)
-      % kb investigate: This doesn't work well on the cluster due to tf 
-      % being a restricted site, plus /tmp acts weird
-      % This method is not called from anywhere.  Is it intended to be called
-      % interactively?  -- ALT, 2025-01-28
-      assert(isunix,'Only supported on *nix platforms.');
-      deepnetroot = [aptroot '/deepnet'];
-      cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-      apt.syscmd(cmd,'failbehavior','err');
-    end      
-
-    function cmd = cpPTWfromJRCProdLnx(aptrootLnx)
-      % copy cmd (lnx) deepnet/pretrained from production repo to JRC loc 
-      srcPTWlnx = [DLBackEndClass.jrcprodrepo '/deepnet/pretrained'];
-      dstPTWlnx = [aptrootLnx '/deepnet'];      
-      cmd = sprintf('cp -r -u "%s" "%s"',srcPTWlnx,dstPTWlnx);
-    end
+    % function downloadPretrainedExec(aptroot)
+    %   % kb investigate: This doesn't work well on the cluster due to tf 
+    %   % being a restricted site, plus /tmp acts weird
+    %   % This method is not called from anywhere.  Is it intended to be called
+    %   % interactively?  -- ALT, 2025-01-28
+    %   assert(isunix,'Only supported on *nix platforms.');
+    %   deepnetroot = [aptroot '/deepnet'];
+    %   cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
+    %   apt.syscmd(cmd,'failbehavior','err');
+    % end      
 
     function str = cellstr2SpaceDelimWithEscapedSpace(c)
       % c: cellstr
@@ -4314,7 +4315,7 @@ classdef DeepTracker < LabelTracker
           % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
           % and want listeners to be able to know whether the tracking bout succeeded or
           % failed
-        obj.killJobsAndPerformPostTrackingCleanup() ;
+        obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
         obj.didLastTrainSucceed_ = false ;
@@ -4322,7 +4323,7 @@ classdef DeepTracker < LabelTracker
           % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
           % and want listeners to be able to know whether the training bout succeeded or
           % failed
-        obj.killJobsAndPerformPostTrainingCleanup() ;
+        obj.killJobsAndPerformPostTrainingCleanup(EndCause.error) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end
@@ -4349,15 +4350,23 @@ classdef DeepTracker < LabelTracker
     function abortTraining(obj)
       %obj.killAndClearRegisteredJobs('train') ;
       obj.bgTrnMonitor.stop() ;
-      obj.killJobsAndPerformPostTrainingCleanup() ;
-      obj.didLastTrainSucceed_ = false ;      
+      obj.didLastTrainSucceed_ = false ;
+        % Set obj.didLastTrainSucceed_ before calling
+        % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
+        % and want listeners to be able to know whether the training bout succeeded or
+        % failed      
+      obj.killJobsAndPerformPostTrainingCleanup(EndCause.abort) ;
     end  % function
 
     function abortTracking(obj)
       %obj.killAndClearRegisteredJobs('track') ;
       obj.bgTrkMonitor.stop() ;
-      obj.killJobsAndPerformPostTrackingCleanup() ;
-      obj.didLastTrackSucceed_ = false ;
+      obj.didLastTrainSucceed_ = false ;
+        % Set obj.didLastTrainSucceed_ before calling
+        % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
+        % and want listeners to be able to know whether the training bout succeeded or
+        % failed      
+      obj.killJobsAndPerformPostTrackingCleanup(EndCause.abort) ;
     end  % function
 
     function result = get.didLastTrainSucceed(obj)
