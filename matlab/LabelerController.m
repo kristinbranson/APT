@@ -173,7 +173,6 @@ classdef LabelerController < handle
     pbClearSelection
     pbPlay
     pbPlaySeg
-    pbPlaySegBoth
     pbPlaySegRev
     pbRecallZoom
     pbResetZoom
@@ -372,9 +371,6 @@ classdef LabelerController < handle
       %   handles.menu_setup_sequential_add_mode ...
       %   ];
 
-      % Initialize this thing
-      obj.pbPlaySegBoth = [ obj.pbPlaySeg obj.pbPlaySegRev ] ;
-      
       % Make the debug menu visible, if called for
       obj.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
 
@@ -1377,7 +1373,8 @@ classdef LabelerController < handle
       set(obj.pbSetZoom,'Enable',onIff(hasProject));
       set(obj.pbResetZoom,'Enable',onIff(hasProject));
       set(obj.sldZoom,'Enable',onIff(hasProject));
-      set(obj.pbPlaySegBoth,'Enable',onIff(hasProject));
+      set(obj.pbPlaySeg,'Enable',onIff(hasProject));
+      set(obj.pbPlaySegRev,'Enable',onIff(hasProject));
       set(obj.pbPlay,'Enable',onIff(hasProject));
       set(obj.slider_frame,'Enable',onIff(hasProject));
       set(obj.edit_frame,'Enable',onIff(hasProject));
@@ -3957,23 +3954,23 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function play_(obj, iconStrPlay, playMethodName)
-      %labeler = obj.labeler_ ;      
-      
+    function play_(obj, playMethodName)
       pbPlay = obj.pbPlay ;
-      oc = onCleanup(@()(obj.playCleanup_(iconStrPlay))) ;
-      if ~obj.isPlaying_
-        obj.isPlaying_ = true ;
-        pbPlay.CData = Icons.ims.stop ;
-        obj.(playMethodName) ;
+      if obj.isPlaying_ ,
+        obj.isPlaying_ = false ;  
+          % setting this this will cause the already-running video playback loop from the previous cal to play_() to exit
+        return
       end
-    end
+      oc = onCleanup(@()(obj.playCleanup_())) ;
+      obj.isPlaying_ = true ;
+      pbPlay.CData = Icons.ims.stop ;
+      obj.(playMethodName) ;
+    end  % function
 
-    function playCleanup_(obj, iconStrPlay)
-      pbPlay = obj.pbPlay ;
-      pbPlay.CData = Icons.ims.(iconStrPlay) ;
+    function playCleanup_(obj)
+      obj.pbPlay.CData = Icons.ims.play ;
       obj.isPlaying_ = false ;
-    end
+    end  % function
 
     function tblTrx_cell_selected_(obj, src, evt) %#ok<*DEFNU>
       % Current/last row selection is maintained in hObject.UserData
@@ -5432,7 +5429,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('playsegment', 'videoPlaySegFwdEnding') ;
+      obj.play_('videoPlaySegFwdEnding') ;
     end
 
 
@@ -5442,7 +5439,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('playsegmentrev', 'videoPlaySegRevEnding') ;
+      obj.play_('videoPlaySegRevEnding') ;
     end
 
 
@@ -5452,7 +5449,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('play', 'videoPlay') ;
+      obj.play_('videoPlay') ;
     end
 
 
