@@ -2267,7 +2267,7 @@ if isequal(get(slider_frame,'BackgroundColor'), get(groot(),'defaultUicontrolBac
 end
 
 
-h53 = uicontrol(...
+pbPlay = uicontrol(...
 'Parent',h39,...
 'Units',get(0,'defaultuicontrolUnits'),...
 'FontUnits','pixels',...
@@ -2286,7 +2286,7 @@ h53 = uicontrol(...
 'FontSizeMode',get(0,'defaultuicontrolFontSizeMode'));
 
 
-h54 = uicontrol(...
+pbPlaySeg = uicontrol(...
 'Parent',h39,...
 'Units',get(0,'defaultuicontrolUnits'),...
 'FontUnits','pixels',...
@@ -3383,6 +3383,24 @@ h125 = uicontrol(...
 'FontName',get(0,'defaultuicontrolFontName'),...
 'FontWeight','bold');
 
+% Set some stuff with the pbPlaySeg button
+pbPlaySeg.CData = Icons.ims.playsegment;
+pbPlaySeg.BackgroundColor = edit_frame.BackgroundColor;
+
+% Add play-segment-reverse btn
+SHRINKFAC = 0.7;
+pbPlaySegright0 = pbPlaySeg.Position(1)+pbPlaySeg.Position(3);
+pbPlaySeg.Position(3) = pbPlaySeg.Position(3)*SHRINKFAC;
+btngap = pbPlaySeg.Position(1)-pbPlay.Position(1)-pbPlay.Position(3);
+
+% Create the button for playing frames near the the current frame, in reverse
+pbPlaySegRev = copyobj(pbPlaySeg,pbPlaySeg.Parent);
+pbPlaySegRev.Position(1) = pbPlaySegRev.Position(1) + pbPlaySeg.Position(3)+btngap/2;
+set(pbPlaySegRev,...
+  'CData',fliplr(pbPlaySegRev.CData),...
+  'Enable',pbPlaySeg.Enable,...
+  'Tag','pbPlaySegRev');
+
 % Don't want capitalized control names, so fix a default one
 toolbar = findall(main_figure, 'Tag', 'FigureToolBar') ;
 toolbar.Tag = 'toolbar' ;
@@ -3988,27 +4006,27 @@ handles.sldZoom.Value = 0;
 %handles.isPlaying = false;
 handles.pbPlay.CData = Icons.ims.play;
 handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
-handles.pbPlaySeg.CData = Icons.ims.playsegment;
-handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
+% handles.pbPlaySeg.CData = Icons.ims.playsegment;
+% handles.pbPlaySeg.BackgroundColor = handles.edit_frame.BackgroundColor;
+% 
+% % Add play-segment-reverse btn
+% SHRINKFAC = 0.7;
+% pbPlaySeg = handles.pbPlaySeg;
+% % hps0right0 = pbPlaySeg.Position(1)+pbPlaySeg.Position(3);
+% pbPlaySeg.Position(3) = pbPlaySeg.Position(3)*SHRINKFAC;
+% btngap = pbPlaySeg.Position(1)-handles.pbPlay.Position(1)-handles.pbPlay.Position(3);
+% 
+% % Make the pbPlaySegRev button from the pbPlaySeg button
+% hpsr = copyobj(pbPlaySeg,pbPlaySeg.Parent);
+% hpsr.Position(1) = hpsr.Position(1) + pbPlaySeg.Position(3)+btngap/2;
+% set(hpsr,...
+%   'CData',fliplr(hpsr.CData),...
+%   'Enable',pbPlaySeg.Enable,...
+%   'Tag','pbPlaySegRev');
+% % handles.pbPlaySegRev = hps1;
 
-% Add play-segment-reverse btn
-SHRINKFAC = 0.7;
-hps0 = handles.pbPlaySeg;
-hps0right0 = hps0.Position(1)+hps0.Position(3);
-hps0.Position(3) = hps0.Position(3)*SHRINKFAC;
-btngap = hps0.Position(1)-handles.pbPlay.Position(1)-handles.pbPlay.Position(3);
-
-hps1 = copyobj(hps0,hps0.Parent);
-hps1.Position(1) = hps1.Position(1) + hps0.Position(3)+btngap/2;
-set(hps1,...
-  'CData',fliplr(hps1.CData),...
-  'Enable',hps0.Enable,...
-  'Tag','pbPlaySegRev');
-% handles.pbPlaySegRev = hps1;
-% handles.pbPlaySegBoth = [hps0 hps1];
-
-hps1right1 = hps1.Position(1)+hps1.Position(3);
-dx = hps1right1 - hps0right0; % edit_frame, slider_frame shifted to right by this much
+pbPlaySegRevright1 = pbPlaySegRev.Position(1)+pbPlaySegRev.Position(3);
+dx = pbPlaySegRevright1 - pbPlaySegright0; % edit_frame, slider_frame shifted to right by this much
 handles.edit_frame.Position(1) = handles.edit_frame.Position(1) + dx;
 handles.slider_frame.Position([1 3]) = handles.slider_frame.Position([1 3]) + dx*[1 -1];
 

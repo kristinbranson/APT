@@ -173,7 +173,6 @@ classdef LabelerController < handle
     pbClearSelection
     pbPlay
     pbPlaySeg
-    pbPlaySegBoth
     pbPlaySegRev
     pbRecallZoom
     pbResetZoom
@@ -372,9 +371,6 @@ classdef LabelerController < handle
       %   handles.menu_setup_sequential_add_mode ...
       %   ];
 
-      % Initialize this thing
-      obj.pbPlaySegBoth = [ obj.pbPlaySeg obj.pbPlaySegRev ] ;
-      
       % Make the debug menu visible, if called for
       obj.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
 
@@ -1377,7 +1373,8 @@ classdef LabelerController < handle
       set(obj.pbSetZoom,'Enable',onIff(hasProject));
       set(obj.pbResetZoom,'Enable',onIff(hasProject));
       set(obj.sldZoom,'Enable',onIff(hasProject));
-      set(obj.pbPlaySegBoth,'Enable',onIff(hasProject));
+      set(obj.pbPlaySeg,'Enable',onIff(hasProject));
+      set(obj.pbPlaySegRev,'Enable',onIff(hasProject));
       set(obj.pbPlay,'Enable',onIff(hasProject));
       set(obj.slider_frame,'Enable',onIff(hasProject));
       set(obj.edit_frame,'Enable',onIff(hasProject));
