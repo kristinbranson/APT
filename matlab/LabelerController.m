@@ -394,6 +394,10 @@ classdef LabelerController < handle
       % method name.
       visit_children(mainFigure, @set_standard_callback_if_none_bang, obj) ;
 
+      % Manually clear ones that use ContinuousValueChange events
+      obj.slider_frame.Callback = [] ;
+      obj.sldZoom.Callback = [] ;
+
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
       obj.listeners_(end+1) = ...
