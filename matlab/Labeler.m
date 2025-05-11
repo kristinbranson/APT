@@ -762,7 +762,7 @@ classdef Labeler < handle
         if obj.projTempDirDontClearOnDestructor ,
           fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
         else
-          obj.projRemoveTempDir();
+          obj.projRemoveTempDirAsync();
         end
       end
     end  % function    
@@ -2955,12 +2955,25 @@ classdef Labeler < handle
       end
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if success
-        fprintf('Cleared temp dir: %s\n',obj.projTempDir);
+        fprintf('Cleared temp directory: %s\n',obj.projTempDir);
       else
         warning('Could not clear the temp directory: %s',message);
       end
     end
+
+    function projRemoveTempDirAsync(obj) % throws
+      nativeProjTempDir = obj.projTempDir ;
+      if isempty(nativeProjTempDir)
+        return
+      end
+      wslProjTempDir = wsl_path_from_native(nativeProjTempDir) ;
+      escapedWslProjTempDir = escape_string_for_bash(wslProjTempDir) ;
+      command = sprintf('nohup rm -rf %s &>/dev/null &', escapedWslProjTempDir) ;
+      apt.syscmd(command, 'failbehavior', 'err') ;
+      fprintf('Clearing temp directory %s in a background process...\n',obj.projTempDir);
+    end
         
+    
     function projBundleTempDir(obj, tfile)
       obj.setStatus('Bundling the temp directory...') ;
       oc = onCleanup(@()(obj.clearStatus())) ;

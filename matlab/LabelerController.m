@@ -1628,6 +1628,8 @@ classdef LabelerController < handle
         obj.save();
       elseif strcmpi(res,'Save as...'),
         obj.saveAs();
+      else
+        % do nothing
       end  % if      
     end
 
@@ -2737,7 +2739,7 @@ classdef LabelerController < handle
     function cbkTrackerBackendSetCondaEnv(obj)
       lObj = obj.labeler_ ;      
       original_value = lObj.get_backend_property('condaEnv') ;
-      dialog_result = inputdlg({'Conda environment:'},'Set environment...',1,{original_value});
+      dialog_result = inputdlg({'Conda environment:'},'Set environment...',[1 50],{original_value});
       if isempty(dialog_result)
         return
       end
@@ -3969,11 +3971,11 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function play_(obj, iconStrPlay, playMethodName)
+    function play_(obj, playMethodName)
       %labeler = obj.labeler_ ;      
       
       pbPlay = obj.pbPlay ;
-      oc = onCleanup(@()(obj.playCleanup_(iconStrPlay))) ;
+      oc = onCleanup(@()(obj.playCleanup_())) ;
       if ~obj.isPlaying_
         obj.isPlaying_ = true ;
         pbPlay.CData = Icons.ims.stop ;
@@ -3981,9 +3983,9 @@ classdef LabelerController < handle
       end
     end
 
-    function playCleanup_(obj, iconStrPlay)
+    function playCleanup_(obj)
       pbPlay = obj.pbPlay ;
-      pbPlay.CData = Icons.ims.(iconStrPlay) ;
+      pbPlay.CData = Icons.ims.stop ;
       obj.isPlaying_ = false ;
     end
 

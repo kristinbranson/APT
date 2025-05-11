@@ -4157,6 +4157,7 @@ classdef DeepTracker < LabelTracker
         TrnPack.clearims(tpdir);
       end
     end
+    
     function labelerMoviesReordered(obj,edata)
       mIdxOrig2New = edata.mIdxOrig2New;
       obj.movIdx2trkfile = mapKeyRemap(obj.movIdx2trkfile,mIdxOrig2New);
