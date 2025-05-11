@@ -52,6 +52,10 @@ classdef LabelerProjectTester < handle
         %   labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
         % end          
       end
+      % % HACK START
+      % backend_type_as_string = 'conda' ;
+      % backend_params = { 'condaEnv', 'apt-2025-04' }  ;
+      % % HACK END
       obj.set_backend_params_(backend_type_as_string, backend_params) ;
       if isempty(training_params)
         training_params = struct('dl_steps', {niters}) ;
@@ -77,6 +81,9 @@ classdef LabelerProjectTester < handle
 
       % Check that training happened.
       % After return, caller can check other aspects of obj.labeler if desired.
+      if ~labeler.didLastTrainSucceed
+        error('Training did not complete successfully') ;
+      end      
       if any(isnan(labeler.tracker.trnLastDMC.iterCurr)) || any(labeler.tracker.trnLastDMC.iterCurr < niters) ,
         error('Failed to complete all training iterations') ;
       end
@@ -105,6 +112,10 @@ classdef LabelerProjectTester < handle
       if ~isempty(algo_name) ,
         labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
       end
+      % % HACK START
+      % backend_type_as_string = 'conda' ;
+      % backend_params = { 'condaEnv', 'apt-2025-04' }  ;
+      % % HACK END      
       obj.set_backend_params_(backend_type_as_string, backend_params) ;
 
       % Track
@@ -122,6 +133,9 @@ classdef LabelerProjectTester < handle
       
       % Perform some tests that tracking worked
       % After return, caller can check other aspects of obj.labeler if desired.
+      if ~labeler.didLastTrackSucceed
+        error('Tracking did not complete successfully') ;
+      end
       if isempty(labeler.tracker.trkP)
         error('labeler.tracker.trkP is empty---it should be nonempty after tracking') ;
       end
@@ -169,6 +183,11 @@ classdef LabelerProjectTester < handle
 
       % % Bring any remote artifacts back to frontend
       % labeler.rehomeProjectCacheIfNeeded() ;      
+
+      % Make sure tracking was successful
+      if ~obj.labeler.didLastTrackSucceed
+        error('Tracking for GT did not complete successfully') ;
+      end
       
       % Make sure the GT table has been generated
       if isempty(obj.labeler.gtTblRes) ,

@@ -268,6 +268,16 @@ classdef Labeler < handle
     bgTrkIsRunning        % True iff background tracking is running
     trackersAll           % All the 'template' trackers
     trackerHistory        
+    didLastTrainSucceed  
+      % Did the last bout of training complete without erroring or being aborted.
+      % Only meaningful if training has been run at least once in the current session.
+      % Defaults to false if training has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
+    didLastTrackSucceed  
+      % Did the last bout of tracking complete without erroring or being aborted.
+      % Only meaningful if tracking has been run at least once in the current session.
+      % Defaults to false if tracking has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
   end
 
   properties (Dependent, Hidden)
@@ -752,7 +762,7 @@ classdef Labeler < handle
         if obj.projTempDirDontClearOnDestructor ,
           fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
         else
-          obj.projRemoveTempDir();
+          obj.projRemoveTempDirAsync();
         end
       end
     end  % function    
@@ -2945,12 +2955,25 @@ classdef Labeler < handle
       end
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if success
-        fprintf('Cleared temp dir: %s\n',obj.projTempDir);
+        fprintf('Cleared temp directory: %s\n',obj.projTempDir);
       else
         warning('Could not clear the temp directory: %s',message);
       end
     end
+
+    function projRemoveTempDirAsync(obj) % throws
+      nativeProjTempDir = obj.projTempDir ;
+      if isempty(nativeProjTempDir)
+        return
+      end
+      wslProjTempDir = wsl_path_from_native(nativeProjTempDir) ;
+      escapedWslProjTempDir = escape_string_for_bash(wslProjTempDir) ;
+      command = sprintf('nohup rm -rf %s &>/dev/null &', escapedWslProjTempDir) ;
+      apt.syscmd(command, 'failbehavior', 'err') ;
+      fprintf('Clearing temp directory %s in a background process...\n',obj.projTempDir);
+    end
         
+    
     function projBundleTempDir(obj, tfile)
       obj.setStatus('Bundling the temp directory...') ;
       oc = onCleanup(@()(obj.clearStatus())) ;
@@ -14918,28 +14941,6 @@ classdef Labeler < handle
       result.hasMovie = obj.hasMovie ;
     end  % function
  
-    % function setBackendType(obj, value)
-    %   % Set the backend type.  Accepts a DLBackEnd or a string (old- or new-style).
-    %   obj.trackDLBackEnd.type = value ;
-    %   obj.notify('didSetTrackDLBackEnd') ;
-    % end
-    
-    % function setAwsPemFileAndKeyName(obj, pemFile, keyName)
-    %   backend = obj.trackDLBackEnd ;
-    %   if isempty(backend) ,
-    %     error('Backend not configured') ;
-    %   end      
-    %   backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
-    % end
-    
-    % function setAWSInstanceIDAndType(obj, instanceID, instanceType)
-    %   backend = obj.trackDLBackEnd ;
-    %   if isempty(backend) ,
-    %     error('Backend not configured') ;
-    %   end      
-    %   backend.setAWSInstanceIDAndType(instanceID, instanceType) ;
-    % end
-
     function retrainAugOnly(obj)
       % No idea what this does, but I know LabelerGUI methods shouldn't be calling
       % non-getter methods on Labeler internals. --ALT, 2024-08-28
@@ -14973,6 +14974,22 @@ classdef Labeler < handle
       end
     end  % function
 
+    function result = get.didLastTrainSucceed(obj)        
+      if isempty(obj.tracker) ,
+        result = false ;
+      else
+        result = obj.tracker.didLastTrainSucceed ;
+      end
+    end  % function
+    
+    function result = get.didLastTrackSucceed(obj)        
+      if isempty(obj.tracker) ,
+        result = false ;
+      else
+        result = obj.tracker.didLastTrackSucceed ;
+      end
+    end  % function
+    
     function result = get.silent(obj)        
       result = obj.silent_ ;
     end  % function
@@ -15277,6 +15294,23 @@ classdef Labeler < handle
       %     'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
       %     'targets',toTrack.targets,'f0',f0s,'f1',f1s); %,'track_id',lObj.track_id);
     end  % function
+
+    function [didLaunchSucceed, instanceID] = launchNewAWSInstance(obj)
+      [didLaunchSucceed, instanceID] = obj.backend.launchNewAWSInstance() ;
+    end
+
+    function trainingEnded(obj, endCause)  %#ok<INUSD>
+      % Normalling called from children of Labeler to inform it that training has
+      % just ended.
+      obj.notify('trainEnd') ;
+    end
+    
+    function trackingEnded(obj, endCause)  %#ok<INUSD>
+      % Normalling called from children of Labeler to inform it that tracking has
+      % just ended.
+      obj.notify('trackEnd') ;
+    end
+    
   end  % methods
 
   methods (Static)

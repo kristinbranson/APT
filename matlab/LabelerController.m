@@ -5,8 +5,8 @@ classdef LabelerController < handle
     listeners_
     satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
-    trackingMonitorVisualizer_
-    trainingMonitorVisualizer_
+    trackingMonitorVisualizer_  % a subcontroller
+    trainingMonitorVisualizer_  % a subcontroller
     movieManagerController_
     pxTxUnsavedChangesWidth_  
       % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
@@ -830,13 +830,13 @@ classdef LabelerController < handle
     end  % method    
 
     function menu_track_backend_config_aws_configure_actuated_(obj, source, event)  %#ok<INUSD> 
-      obj.selectAwsInstance_('canlaunch',1,...
-                             'canconfigure',2, ...
-                             'forceSelect',1) ;
+      obj.selectAwsInstanceGUI_('canlaunch',true,...
+                                'canconfigure',2, ...
+                                'forceSelect',true) ;
     end
 
     function menu_track_backend_config_aws_setinstance_actuated_(obj, source, event)  %#ok<INUSD> 
-      obj.selectAwsInstance_() ;
+      obj.selectAwsInstanceGUI_() ;
     end
 
     function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
@@ -1064,13 +1064,14 @@ classdef LabelerController < handle
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
     end  % function
     
-    function selectAwsInstance_(obj, varargin)
+    function selectAwsInstanceGUI_(obj, varargin)
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
                 'canlaunch',true,...
                 'canconfigure',1,...
                 'forceSelect',true);
             
+      didLaunchNewInstance = false ;
       labeler = obj.labeler_ ;
       backend = labeler.trackDLBackEnd ;
       if isempty(backend) ,
@@ -1086,12 +1087,11 @@ classdef LabelerController < handle
             promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
-            %labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
             labeler.set_backend_property('awsPEM', pemFile) ;
             labeler.set_backend_property('awsKeyName', keyName) ;            
           end
           if ~tfsucc && ~awsec2.areCredentialsSet,
-            reason = 'AWS EC2 instance is not configured.';
+            reason = 'AWS EC2 instance is not configured.' ;
             error(reason) ;
           end
         else
@@ -1123,11 +1123,14 @@ classdef LabelerController < handle
         while true,
           switch btn
             case 'Launch New'
-              tf = awsec2.launchInstance();
-              if ~tf
+              labeler.setStatus('Launching new AWS EC2 instance') ;
+              [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
+              labeler.clearStatus() ;
+              if ~didLaunchSucceed
                 reason = 'Could not launch AWS EC2 instance.';
                 error(reason) ;
               end
+              didLaunchNewInstance = true ;
               break
             case 'Attach to Existing',
               [tfsucc,instanceIDs,instanceTypes] = awsec2.listInstances();
@@ -1165,7 +1168,6 @@ classdef LabelerController < handle
               tfsucc = ~isempty(resp);
               if tfsucc
                 instanceID = instanceIDs{resp{1}};
-                instanceType = instanceTypes{resp{1}};
               else
                 return
               end
@@ -1175,12 +1177,15 @@ classdef LabelerController < handle
               return
           end
         end
-        % For changing things in the model, we go through the top-level model object
-        %labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
-        labeler.set_backend_property('awsInstanceID', instanceID) ;
-        labeler.set_backend_property('awsInstanceType', instanceType) ;
+        % Set the instanceID in the model, if needed
+        if didLaunchNewInstance
+          % do nothing, the instance ID will already be set in the labeler
+        else
+          % For changing things in the model, we go through the top-level model object
+          labeler.set_backend_property('awsInstanceID', instanceID) ;
+        end
       end
-    end  % function selectAwsInstance_()
+    end  % function
 
     function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked
       % The advantage of passing in the controlName, rather than,
@@ -1611,13 +1616,21 @@ classdef LabelerController < handle
       end
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
+      didLastTrainSucceed = labeler.didLastTrainSucceed ;
+      if didLastTrainSucceed
       question_string = sprintf('Training completed %s iterations. Save project now?',...
                                 n_out_of_d_string) ;
+      else
+        question_string = sprintf('Training errored or was aborted after %s iterations. Save project now?',...
+                                  n_out_of_d_string) ;
+      end        
       res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
       if strcmpi(res,'Save'),
         obj.save();
       elseif strcmpi(res,'Save as...'),
         obj.saveAs();
+      else
+        % do nothing
       end  % if      
     end
 
@@ -2583,6 +2596,7 @@ classdef LabelerController < handle
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
+      obj.trainingMonitorVisualizer_.trainingDidEnd() ;
       if ~labeler.silent ,
         obj.raiseTrainingEndedDialog_() ;
       end
@@ -2726,7 +2740,7 @@ classdef LabelerController < handle
     function cbkTrackerBackendSetCondaEnv(obj)
       lObj = obj.labeler_ ;      
       original_value = lObj.get_backend_property('condaEnv') ;
-      dialog_result = inputdlg({'Conda environment:'},'Set environment...',1,{original_value});
+      dialog_result = inputdlg({'Conda environment:'},'Set environment...',[1 50],{original_value});
       if isempty(dialog_result)
         return
       end
