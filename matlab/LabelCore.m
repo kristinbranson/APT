@@ -26,6 +26,9 @@ classdef LabelCore < handle
     supportsMultiView % scalar logical
     supportsCalibration % scalar logical    
     supportsMultiAnimal
+    unsupportedKPFFns; % cell array of field names for objects that have general keypressfcn 
+                       % callbacks but are not supported for this LabelCore
+
   end
   
   properties (SetObservable)

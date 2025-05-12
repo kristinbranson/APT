@@ -1978,27 +1978,26 @@ classdef LabelerController < handle
       tfShift = any(strcmp('shift',event.Modifier));
       tfCtrl = any(strcmp('control',event.Modifier));
       
-      isMA = labeler.maIsMA;
-      % KB20160724: shortcuts from preferences
-      % skip this for MA projs where we need separate hotkey mappings
-      if ~isMA && ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
+      if ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
         % control key pressed?
         if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
           i = find(strcmpi(event.Key,obj.shortcutkeys),1);
-          h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
-          if isempty(h)
-            fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
-          else
-            cb = get(h,'Callback');
-            if isa(cb,'function_handle')
-              cb(h,[]);
-              tfKPused = true;
-            elseif iscell(cb)
-              cb{1}(cb{2:end});
-              tfKPused = true;
-            elseif ischar(cb)
-              evalin('base',[cb,';']);
-              tfKPused = true;
+          if ~ismember(obj.shortcutfns{i},labeler.lblCore.unsupportedKPFFns),
+            h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
+            if isempty(h)
+              fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
+            else
+              cb = get(h,'Callback');
+              if isa(cb,'function_handle')
+                cb(h,[]);
+                tfKPused = true;
+              elseif iscell(cb)
+                cb{1}(cb{2:end});
+                tfKPused = true;
+              elseif ischar(cb)
+                evalin('base',[cb,';']);
+                tfKPused = true;
+              end
             end
           end
         end  
