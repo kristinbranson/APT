@@ -385,7 +385,7 @@ classdef TrackMonitorViz < handle
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      nJobs = numel(pollingResult);  % nJobs == nmovies * nviews * nstages
+      nJobs = numel(pollingResult.tfComplete);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
       isTrackComplete = false;
       isErr = false;
@@ -414,7 +414,7 @@ classdef TrackMonitorViz < handle
         else
           status = 'No tracking jobs running.';
         end
-        handles = guidata(obj.hfig);
+        % handles = guidata(obj.hfig);
         % TrackMonitorViz.updateStartStopButton(handles,false,false);        
         obj.updateStopButton() ;
         tfSucc = false;
@@ -467,7 +467,6 @@ classdef TrackMonitorViz < handle
     end  % function
 
     function updateStatusFinal(obj,nJobs)
-      handles = guidata(obj.hfig);
       for ijob = 1:nJobs
         if nJobs > 1,
           sview = obj.jobDescs{ijob};

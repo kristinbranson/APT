@@ -1036,7 +1036,7 @@ classdef TrkFile < dynamicprops
       ef = obj.getEndFrame();
       ft = table(nan(0,1),nan(0,1),'VariableNames',{'frm' 'iTgt'});
       for iTgt = 1:numel(sf),
-        v = obj.isalive(sf:ef,iTgt);
+        v = obj.isalive(sf(iTgt):ef(iTgt),iTgt);
         if ~any(v),
           continue;
         end
