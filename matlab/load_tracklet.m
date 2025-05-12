@@ -30,8 +30,10 @@ for i = 1:ntargets,
   trxcurr = struct;
   trxcurr.id = td.pTrkiTgt(i);
   trxcurr.p = td.pTrk{i};
-  if (isfield(td,'pTrkTag') || isprop(td,'pTrkTag')) && (ischar(td.pTrkTag)) && ~(strcmp(td.pTrkTag,'__UNSET__'))
-    trxcurr.pocc = td.pTrkTag{i};
+  if isfield(td,'pTrkTag') || isprop(td,'pTrkTag') 
+    if ~ischar(td.pTrkTag) %|| ~(strcmp(td.pTrkTag,'__UNSET__'))
+      trxcurr.pocc = td.pTrkTag{i};
+    end
   end
   if isfield(td,'pTrkTS') || isprop(td,'pTrkTS')
     trxcurr.TS = td.pTrkTS{i};

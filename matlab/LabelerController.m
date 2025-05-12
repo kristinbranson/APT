@@ -2706,7 +2706,7 @@ classdef LabelerController < handle
     function cbkTrackerBackendSetDockerImageSpec(obj)
       lObj = obj.labeler_ ;      
       original_full_image_spec = lObj.get_backend_property('dockerimgfull') ;
-      dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec});
+      dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec},'on');
       if isempty(dialog_result)
         return
       end
