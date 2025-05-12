@@ -1978,6 +1978,14 @@ classdef LabelerController < handle
       tfShift = any(strcmp('shift',event.Modifier));
       tfCtrl = any(strcmp('control',event.Modifier));
       
+      lcore = labeler.lblCore;
+      if ~isempty(lcore)
+        tfKPused = lcore.kpf(source,event);
+        if tfKPused
+          return
+        end
+      end
+
       if ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
         % control key pressed?
         if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
@@ -2005,15 +2013,7 @@ classdef LabelerController < handle
       if tfKPused
         return
       end
-      
-      lcore = labeler.lblCore;
-      if ~isempty(lcore)
-        tfKPused = lcore.kpf(source,event);
-        if tfKPused
-          return
-        end
-      end
-      
+            
       %disp(evt);
       if any(strcmp(event.Key,{'leftarrow' 'rightarrow'}))
         switch event.Key
