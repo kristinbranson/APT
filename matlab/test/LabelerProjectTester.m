@@ -81,7 +81,7 @@ classdef LabelerProjectTester < handle
 
       % Check that training happened.
       % After return, caller can check other aspects of obj.labeler if desired.
-      if ~labeler.didLastTrainSucceed
+      if labeler.lastTrainEndCause ~= EndCause.complete 
         error('Training did not complete successfully') ;
       end      
       if any(isnan(labeler.tracker.trnLastDMC.iterCurr)) || any(labeler.tracker.trnLastDMC.iterCurr < niters) ,
@@ -133,7 +133,7 @@ classdef LabelerProjectTester < handle
       
       % Perform some tests that tracking worked
       % After return, caller can check other aspects of obj.labeler if desired.
-      if ~labeler.didLastTrackSucceed
+      if labeler.lastTrackEndCause ~= EndCause.complete
         error('Tracking did not complete successfully') ;
       end
       if isempty(labeler.tracker.trkP)
@@ -185,7 +185,7 @@ classdef LabelerProjectTester < handle
       % labeler.rehomeProjectCacheIfNeeded() ;      
 
       % Make sure tracking was successful
-      if ~obj.labeler.didLastTrackSucceed
+      if labeler.lastTrackEndCause ~= EndCause.complete
         error('Tracking for GT did not complete successfully') ;
       end
       
