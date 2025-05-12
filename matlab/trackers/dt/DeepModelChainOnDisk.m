@@ -1133,7 +1133,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       % undergone at least one iteration of training.  Note also that a model that
       % has been trained for nan iterations is not considered to be in a state that
       % allows tracking.
-      tf = (obj.iterCurr >= 0) ;
+      tf = (obj.iterCurr > 0) ;
     end
     
     % read nLabels from config file

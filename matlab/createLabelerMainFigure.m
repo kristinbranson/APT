@@ -821,7 +821,9 @@ h13 = uicontrol(...
 'FontName',get(0,'defaultuicontrolFontName'));
 
 
-h14 = uicontrol(...
+% Configure the text box in the lower-right that shows the current training
+% status.
+txBGTrain = uicontrol(...
 'Parent',h12,...
 'Units',get(0,'defaultuicontrolUnits'),...
 'FontUnits','pixels',...
@@ -3455,14 +3457,15 @@ set(handles.txLblCoreAux,'Visible','off');
 
 % set location of background training status
 pos1 = handles.txStatus.Position;
-pos2 = handles.txBGTrain.Position;
+pos2 = txBGTrain.Position;
 r1 = pos1(1)+pos1(3);
 r2 = pos2(1)+pos2(3);
 pos2(1) = min(pos2(1),r1 + .01);
 pos2(3) = r2-pos2(1);
-handles.txBGTrain.Position = pos2;
-handles.txBGTrain.FontWeight = 'normal';
-handles.txBGTrain.FontSize = handles.txStatus.FontSize;
+txBGTrain.Position = pos2;
+txBGTrain.FontWeight = 'normal';
+txBGTrain.FontSize = handles.txStatus.FontSize;
+txBGTrain.ForegroundColor = LabelerController.busystatuscolor ;
 
 % Do a poor-man's labeler.setStatus()
 set(main_figure, 'Pointer', 'watch') ;

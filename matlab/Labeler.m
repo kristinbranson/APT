@@ -189,10 +189,10 @@ classdef Labeler < handle
     % movie
     newTrackingResults 
     
-    trainStart
-    trainEnd
-    trackStart
-    trackEnd    
+    % trainStart
+    % trainEnd
+    % trackStart
+    % trackEnd    
 
     didSetTrackerHideViz
     didSetTrackerShowPredsCurrTargetOnly
@@ -268,6 +268,16 @@ classdef Labeler < handle
     bgTrkIsRunning        % True iff background tracking is running
     trackersAll           % All the 'template' trackers
     trackerHistory        
+    lastTrainEndCause 
+      % Did the last bout of training complete or error or was it aborted by user.
+      % Only meaningful if training has been run at least once in the current session.
+      % Defaults to EndCause.undefined if training has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
+    lastTrackEndCause  
+      % Did the last bout of tracking complete or error or was it aborted by user.
+      % Only meaningful if tracking has been run at least once in the current session.
+      % Defaults to EndCause.undefined if tracking has not been run in the current session.
+      % In other words not persisted to the .lbl file in any way.
   end
 
   properties (Dependent, Hidden)
@@ -498,8 +508,8 @@ classdef Labeler < handle
     isStatusBusy_ = false
     rawStatusString_  = 'Ready.'
     rawStatusStringWhenClear_ = 'Ready.'
-    % didSpawnTrackingForGT_
     progressMeter_
+    backgroundProcessingStatusString_ = '' 
   end
   properties (Dependent)
     isStatusBusy
@@ -507,6 +517,7 @@ classdef Labeler < handle
     %rawStatusStringWhenClear
     % didSpawnTrackingForGT
     progressMeter
+    backgroundProcessingStatusString
   end
   properties (Dependent, Hidden)
     labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; 
@@ -752,7 +763,7 @@ classdef Labeler < handle
         if obj.projTempDirDontClearOnDestructor ,
           fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
         else
-          obj.projRemoveTempDir();
+          obj.projRemoveTempDirAsync();
         end
       end
     end  % function    
@@ -2945,12 +2956,25 @@ classdef Labeler < handle
       end
       [success, message, ~] = rmdir(obj.projTempDir,'s');
       if success
-        fprintf('Cleared temp dir: %s\n',obj.projTempDir);
+        fprintf('Cleared temp directory: %s\n',obj.projTempDir);
       else
         warning('Could not clear the temp directory: %s',message);
       end
     end
+
+    function projRemoveTempDirAsync(obj) % throws
+      nativeProjTempDir = obj.projTempDir ;
+      if isempty(nativeProjTempDir)
+        return
+      end
+      wslProjTempDir = wsl_path_from_native(nativeProjTempDir) ;
+      escapedWslProjTempDir = escape_string_for_bash(wslProjTempDir) ;
+      command = sprintf('nohup rm -rf %s &>/dev/null &', escapedWslProjTempDir) ;
+      apt.syscmd(command, 'failbehavior', 'err') ;
+      fprintf('Clearing temp directory %s in a background process...\n',obj.projTempDir);
+    end
         
+    
     function projBundleTempDir(obj, tfile)
       obj.setStatus('Bundling the temp directory...') ;
       oc = onCleanup(@()(obj.clearStatus())) ;
@@ -10728,8 +10752,11 @@ classdef Labeler < handle
         error('Labeler:train','No movie.');
       end
 
+      % When we exit from this method, update the views
+      oc2 = onCleanup(@()(obj.notify('update'))) ;
+
       % Update the status
-      obj.setStatus('Training...') ;
+      obj.setStatus('Spawning training job...') ;
       oc = onCleanup(@()(obj.clearStatus()));
 
       % Update the 'status' on the console
@@ -10766,6 +10793,14 @@ classdef Labeler < handle
                     'do_just_generate_db', do_just_generate_db, ...
                     'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
                     'projTempDir', obj.projTempDir);
+
+      % Update the bg processing status string, if training is actually running
+      if obj.bgTrnIsRunning ,
+        algName = obj.tracker.algorithmName;
+        backend_type_string = obj.trackDLBackEnd.prettyName();
+        obj.backgroundProcessingStatusString_ = ...
+          sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
+      end      
     end  % function
 
     function dotrain = trackCheckGPUMemGUI(obj,varargin)
@@ -10945,6 +10980,9 @@ classdef Labeler < handle
     end
     
     function track(obj, varargin)
+      % When this method exists, update the views
+      oc = onCleanup(@()(obj.notify('update'))) ;
+
       tm = obj.getTrackModeMFTSet() ;
       [okToProceed, message] = obj.doProjectAndMovieExist() ;
       if ~okToProceed ,
@@ -10962,13 +11000,22 @@ classdef Labeler < handle
       end
       fprintf('Tracking started at %s...\n',datestr(now()));
       obj.trackCore_(tblMFT, varargin{:}) ;      
+
+      % Update the background processing status string, if tracking really was
+      % spawned.
+      if obj.bgTrkIsRunning 
+        algName = obj.tracker.algorithmName;
+        backend_type_string = obj.trackDLBackEnd.prettyName() ;
+        obj.backgroundProcessingStatusString_ = ...
+          sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>        
+      end
     end
 
     function trackCore_(obj, mftset, varargin)
       % mftset: an MFTSet or table tblMFT
 
       % Let user know what's going on...
-      obj.setStatus('Tracking...');
+      obj.setStatus('Spawning tracking job...');
       oc = onCleanup(@()(obj.clearStatus())) ;
       if obj.maIsMA
         args = horzcat({'track_type', 'detect'}, varargin) ;
@@ -14918,28 +14965,6 @@ classdef Labeler < handle
       result.hasMovie = obj.hasMovie ;
     end  % function
  
-    % function setBackendType(obj, value)
-    %   % Set the backend type.  Accepts a DLBackEnd or a string (old- or new-style).
-    %   obj.trackDLBackEnd.type = value ;
-    %   obj.notify('didSetTrackDLBackEnd') ;
-    % end
-    
-    % function setAwsPemFileAndKeyName(obj, pemFile, keyName)
-    %   backend = obj.trackDLBackEnd ;
-    %   if isempty(backend) ,
-    %     error('Backend not configured') ;
-    %   end      
-    %   backend.setAwsPemFileAndKeyName(pemFile, keyName) ;
-    % end
-    
-    % function setAWSInstanceIDAndType(obj, instanceID, instanceType)
-    %   backend = obj.trackDLBackEnd ;
-    %   if isempty(backend) ,
-    %     error('Backend not configured') ;
-    %   end      
-    %   backend.setAWSInstanceIDAndType(instanceID, instanceType) ;
-    % end
-
     function retrainAugOnly(obj)
       % No idea what this does, but I know LabelerGUI methods shouldn't be calling
       % non-getter methods on Labeler internals. --ALT, 2024-08-28
@@ -14973,6 +14998,22 @@ classdef Labeler < handle
       end
     end  % function
 
+    function result = get.lastTrainEndCause(obj)        
+      if isempty(obj.tracker) ,
+        result = EndCause.undefined ;
+      else
+        result = obj.tracker.lastTrainEndCause ;
+      end
+    end  % function
+    
+    function result = get.lastTrackEndCause(obj)        
+      if isempty(obj.tracker) ,
+        result = EndCause.undefined ;
+      else
+        result = obj.tracker.lastTrackEndCause ;
+      end
+    end  % function
+    
     function result = get.silent(obj)        
       result = obj.silent_ ;
     end  % function
@@ -15277,6 +15318,57 @@ classdef Labeler < handle
       %     'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
       %     'targets',toTrack.targets,'f0',f0s,'f1',f1s); %,'track_id',lObj.track_id);
     end  % function
+
+    function [didLaunchSucceed, instanceID] = launchNewAWSInstance(obj)
+      [didLaunchSucceed, instanceID] = obj.backend.launchNewAWSInstance() ;
+    end
+
+    % function trainingDidStart(obj)
+    %   % Normally called from children of Labeler to inform it that training has
+    %   % just started.
+    %   algName = obj.tracker.algorithmName;
+    %   backend_type_string = obj.trackDLBackEnd.prettyName();
+    %   obj.backgroundProcessingStatusString_ = ...
+    %     sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
+    %   obj.notify('trainStart') ;
+    % end
+
+    % function trackingDidStart(obj)
+    %   % Normally called from children of Labeler to inform it that training has
+    %   % just started.
+    %   algName = obj.tracker.algorithmName;
+    %   backend_type_string = obj.trackDLBackEnd.prettyName();
+    %   obj.backgroundProcessingStatusString_ = ...
+    %     sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
+    %   obj.notify('trainStart') ;
+    % end
+
+    function trainingEnded(obj, endCause)
+      % Normally called from children of Labeler to inform it that training has
+      % just ended.
+      if endCause == EndCause.complete 
+        obj.setDoesNeedSave(true, 'Tracker trained') ;
+      end
+      obj.notify('update') ;
+    end
+    
+    function trackingEnded(obj, endCause)
+      % Normally called from children of Labeler to inform it that tracking has
+      % just ended.
+      if endCause == EndCause.complete 
+        obj.setDoesNeedSave(true, 'New frames tracked') ;
+      end
+      obj.notify('update') ;
+    end
+    
+    function result= get.backgroundProcessingStatusString(obj)
+      result = obj.backgroundProcessingStatusString_ ;
+    end
+
+    function set.backgroundProcessingStatusString(obj, str)
+      obj.backgroundProcessingStatusString_ = str ;
+      obj.notify('update') ;
+    end
   end  % methods
 
   methods (Static)
