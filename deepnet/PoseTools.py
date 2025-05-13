@@ -1983,6 +1983,26 @@ def make_vid(mov_file,trk_file,out_file,skel,st,en,x,y,fps=10,cmap='tab20',fig_s
     out.release()
 
 
+def read_coco(json_file):
+    from collections import Counter
+
+    A = json_load(json_file)
+    ims = [aa['file_name'] for aa in A['images']]
+    n_pts = len(A['categories'][0]['keypoints'])
+    cc = [aa['image_id'] for aa in A['annotations'] if aa['iscrowd'] == 0]
+    im_counts =Counter(cc)
+    max_n = max(im_counts.values())
+    count = np.zeros([len(ims)]).astype('int')
+    kpts = np.ones([len(ims),max_n,n_pts,3])*np.nan
+    for aa in A['annotations']:
+        if aa['iscrowd'] == 1:
+            continue
+        im_id = aa['image_id']
+        kpts[im_id,count[im_id],:] = np.array(aa['keypoints']).reshape([-1,3])
+        count[im_id] += 1
+
+    return ims,kpts
+
 
 if __name__ == "__main__":
     get_memory_usage()

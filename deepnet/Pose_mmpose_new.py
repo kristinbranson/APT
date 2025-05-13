@@ -440,7 +440,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 p.encoder = cfg.codec
             elif p.type in [ 'TopdownAffine','BottomupResize','BottomupRandomAffine']:
                 p.input_size = imsz
-                if p.type == 'BottomupResize' and not conf.imresize_expand:
+                if p.type == 'BottomupResize' and not conf.get('imresize_expand',False):
                     p.resize_mode = 'fit'
             elif p.type == 'BottomupGetHeatmapMask':
                 p.get_invalid = conf.get('mmpose_mask_valid',True)

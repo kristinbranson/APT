@@ -1,6 +1,53 @@
+# from reuse import *
+# conf_file = '/groups/branson/home/kabram/del/tmpnwx7g6xe.pkl'
+# tdict = pt.pickle_load(conf_file)
+# conf = tdict['conf']
+# net_type = tdict['net_type']
+# train_name = tdict['train_name']
+# mov_file = tdict['mov_file']
+# out_file = tdict['out_file']
+#
+# import ap36_train as a36
+# a36.track(conf, net_type, train_name, mov_file, out_file)
+
+nims = len(K['images'])
+pp = np.ones((nims,10,2,2))*np.nan
+count = np.zeros((nims,)).astype(np.int32)
+for aa in K['annotations']:
+    if aa['iscrowd']:
+        continue
+    iid = aa['image_id']
+    bb = np.array(aa['keypoints']).reshape(2,3)
+    pp[iid,count[iid],...] = bb[:,:2]
+    count[iid] += 1
+
+# find the distance of the points that belong to the same image
+# and are not NaN
+
+dd = np.ones((nims,100*4))*np.nan
+for ii in range(nims):
+    if count[ii] < 2:
+        continue
+    xx = pp[ii,...]
+    xx = xx[~np.isnan(xx).any(axis=-1)]
+    curd = np.linalg.norm(xx[:,None,...]-xx[None,:,:],axis=-1)
+    # find the bottom triangle values
+    count1 = 0
+    for jj in range(curd.shape[0]):
+        for kk in range(jj):
+            if np.isnan(curd[jj,kk]):
+                continue
+            dd[ii,count1] = curd[jj,kk]
+            count1 += 1
+
+
+##
 import os
 #os.environ['CUDA_VISIBLE_DEVICES'] ='0'
-cmd = '/groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b/train00/20250226T025722_20250226T025725.json -name 20250226T025722 -json_trn_file /groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b/train00/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b train -use_cache'
+cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/conf_crop.json -name 2stageHT_crop_mask_first_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 link_id False link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -conf_params2 mmpose_net \"hrformer\" -type2 mdn_joint_fpn -name2 2stageHT_nocrop_second_12072023 -model_files /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/2stageHT_crop_mask_first_12072023/deepnet-100000 -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageHT_nocrop_second_12072023/deepnet-100000 -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/temp.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageBBox_hrformer_scale2_stg1_1.trk -start_frame 3810 -end_frame 4500' #
+
+# cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/conf_crop.json -name grone_crop_mask_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 link_id True link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/temp.trk -start_frame 3810 -end_frame 10000' #
+
 
 # cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
 
@@ -24,6 +71,36 @@ if __name__ == '__main__':
         # cmd = cmd.replace('\\', '')
         apt.main(cmd.split())
 
+
+## convert ufmf to h.264
+
+import movies
+import cv2
+from reuse import *
+in_mov = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531//movie.ufmf'
+out_mov = '/groups/branson/home/kabram/temp/nochr_TrpA65F12_Unknown_RigA_20201212T163531.mp4'
+cap = movies.Movie(in_mov)
+
+fps = 30
+fourcc = cv2.VideoWriter_fourcc(*'X264')
+out = cv2.VideoWriter(out_mov, fourcc, fps, (1024,1024))
+
+for ndx in range(cap.get_n_frames()):
+    img = cap.get_frame(ndx)[0]
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    out.write(img)
+
+out.release()
+
+##
+# 3244
+# /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00168_CsChr_RigD_20150909T111218/movie.ufmf
+# frame: 24687
+
+# [    7, 23048,     0]
 
 ##
 cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
@@ -211,9 +288,9 @@ pred_animal_conf = None
 
 ## Training with neg APT
 from importlib import reload
-import Pose_detect_mmdetect as mmdetect_file
+import Pose_detect_mmdetect2x as mmdetect_file
 reload(mmdetect_file)
-from Pose_detect_mmdetect import Pose_detect_mmdetect
+from Pose_detect_mmdetect2x import Pose_detect_mmdetect
 from poseConfig import conf
 conf.mmpose_use_epoch_runner = True
 conf.mmdetect_net = 'test'
