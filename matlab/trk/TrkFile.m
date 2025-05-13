@@ -2016,15 +2016,13 @@ classdef TrkFile < dynamicprops
   
   methods (Static)
     
-    function [nFramesTracked,didload] = getNFramesTrackedPartFile(tfile)
-      
+    function [nFramesTracked,didload] = getNFramesTrackedTextFile(tfile)      
       didload = false;
       s = readtxtfile(tfile);
       nFramesTracked = TrkFile.getNFramesTrackedString(s);
     end
 
-    function nFramesTracked = getNFramesTrackedString(s)
-      
+    function nFramesTracked = getNFramesTrackedString(s)      
       nFramesTracked = 0;
       PAT = '(?<numfrmstrked>[0-9]+)';
       toks = regexp(s,PAT,'names','once');
@@ -2034,11 +2032,8 @@ classdef TrkFile < dynamicprops
       nFramesTracked = str2double(toks{1}.numfrmstrked);
     end
 
-
-    function [nFramesTracked,didload] = getNFramesTrackedMatFile(tfile,varargin)
+    function [nFramesTracked, didload] = getNFramesTrackedMatFile(tfile, varargin)
       
-      [isma] = myparse(varargin,'isma',0);
-
       nFramesTracked = 0;
       didload = false;
       ntries = 5;
@@ -2047,41 +2042,36 @@ classdef TrkFile < dynamicprops
         m = matfile(tfile);
         fns = fieldnames(m);
 
-        if any(strcmp('startframes',fns))
+        if ismember('startframes',fns)
           if isempty(m.endframes)
             nFramesTracked = 0;
           else
-            if isma
-             % MK 20250101. The sum gives incorrect estimates for tracking
-            % for ma projects. So changing it to max. The counting is
-            % probably different for projects with trx, where number of
-            % frames is frames x nanimals.
-              nFramesTracked = max(max(0,m.endframes - m.startframes + 1));
-            else
-              nFramesTracked = sum(max(0,m.endframes - m.startframes + 1));
-            end
+            nFramesTracked = apt.totalFrameCountFromIntervals(m.startframes, m.endframes) ;
           end
           didload = true;
-        elseif ismember('pTrkFrm',fns)
-          nFramesTracked = numel(m.pTrkFrm);
-          didload = true;
-        elseif ismember('pTrk',fns),
-          nd = ndims(m.pTrk);
-          if nd == 3,
-            nFramesTracked = nnz(~isnan(m.pTrk(1,1,:)));
-          else
-            nFramesTracked = nnz(~isnan(m.pTrk(1,1,:,:)));
-          end
-          didload = true;
-        elseif ismember('pred_locs',fns),
-          nFramesTracked = nnz(~isnan(m.pred_locs(:,1)));
-          didload = true;
-        elseif ismember('locs',fns)
-          % gt mat-file
-          % AL: not sure want nnz(~isnan(...)) here; what if a tracker
-          % predicted occluded or something, could that mess stuff up?
-          nFramesTracked = size(m.locs,1);
-          didload = true;
+        % Making sure all of these are correct would be work, and not clear
+        % if they're even needed these days.  So leave them commented and see if there
+        % are any issues.  -- ALT, 2025-05-12
+        % elseif ismember('pTrkFrm',fns)
+        %   nFramesTracked = numel(m.pTrkFrm);
+        %   didload = true;
+        % elseif ismember('pTrk',fns),
+        %   nd = ndims(m.pTrk);
+        %   if nd == 3,
+        %     nFramesTracked = nnz(~isnan(m.pTrk(1,1,:)));
+        %   else
+        %     nFramesTracked = nnz(~isnan(m.pTrk(1,1,:,:)));
+        %   end
+        %   didload = true;
+        % elseif ismember('pred_locs',fns),
+        %   nFramesTracked = nnz(~isnan(m.pred_locs(:,1)));
+        %   didload = true;
+        % elseif ismember('locs',fns)
+        %   % gt mat-file
+        %   % AL: not sure want nnz(~isnan(...)) here; what if a tracker
+        %   % predicted occluded or something, could that mess stuff up?
+        %   nFramesTracked = size(m.locs,1);
+        %   didload = true;
         else
           didload = false;
           nFramesTracked = 0;
@@ -2092,7 +2082,7 @@ classdef TrkFile < dynamicprops
           pause(5);
         end
         if didload,
-          break;
+          break
         end
       end
 
@@ -2108,7 +2098,7 @@ classdef TrkFile < dynamicprops
         [nFramesTracked,didload] = TrkFile.getNFramesTrackedMatFile(tfile);
       catch
         try
-          [nFramesTracked,didload] = TrkFile.getNFramesTrackedPartFile(tfile);
+          [nFramesTracked,didload] = TrkFile.getNFramesTrackedTextFile(tfile);
         catch ME,
           warning('Could not read n. frames tracked from %s:\n%s',tfile,getReport(ME));
           didload = false;

@@ -114,7 +114,7 @@ classdef BgTrackPoller < BgPoller
           trackedFrameCountSource(i) = 0.5 ;  % got it from the partial file
           logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),parttrkfilecurr);
         else
-          % If the partial trk file does not exist, try to get info from the trk file.
+          % If the partial trk file does not exist, try to get info from the full trk file.
           trkfilecurr = trkfiles{i} ;
           if obj.backend_.fileExists(trkfilecurr) ,
             partTrkFileTimestamps(i) = obj.backend_.fileModTime(trkfilecurr) ;

@@ -19,7 +19,7 @@ classdef TrackMonitorViz < handle
     jobDescs = {}; % sae numel as hline. string description for hline. unused if bulkAxsIsBulkMode=true
 
     htrackerInfo % scalar text box handle showing information about current tracker
-    isKilled = false; % scalar, whether tracking has been halted
+    wasAborted = false;  % scalar, whether tracking has been aborted
     
     resLast = []; % last contents received
     dtObj % DeepTracker Obj
@@ -97,7 +97,7 @@ classdef TrackMonitorViz < handle
       dtObj = labeler.tracker ;
       poller = labeler.tracker.bgTrackPoller ;
       backendType = labeler.backend.type ;
-      nFramesToTrack = labeler.tracker.nFramesTrack ;
+      nFramesToTrack = labeler.tracker.nFramesToTrack ;
 
       % These instance variables are not really needed anymore.
       obj.dtObj = dtObj;
@@ -241,7 +241,7 @@ classdef TrackMonitorViz < handle
       end
       
       obj.resLast = [];
-      obj.isKilled = false;
+      obj.wasAborted = false;
       drawnow;            
     end
     
@@ -269,7 +269,7 @@ classdef TrackMonitorViz < handle
         return;
       end
 
-      if obj.isKilled,
+      if obj.wasAborted,
         msg = 'Tracking jobs killed.';
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return;
@@ -402,8 +402,8 @@ classdef TrackMonitorViz < handle
         isRunning = true ;
       end
       
-      if obj.isKilled,
-        status = 'Tracking process killed.';
+      if obj.wasAborted,
+        status = 'Tracking process aborted.';
         tfSucc = false;
       elseif isTrackComplete
         status = 'Tracking complete.';
