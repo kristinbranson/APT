@@ -216,6 +216,7 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     nPts % number of label points     
     nview 
+    nFramesToTrack
   end
   
   properties
@@ -233,7 +234,7 @@ classdef DeepTracker < LabelTracker
   end
   
   properties (Transient)
-    nFramesTrack
+    nFramesToTrack_
   end
 
   methods
@@ -2644,20 +2645,17 @@ classdef DeepTracker < LabelTracker
       poller = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
 
       % KB 20190115: adding trkviz
-      nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
-      nFramesTrackSum = sum(nFramesTrack);
-      if totrackinfo.islistjob
-        fprintf('Tracking %d frames.\n',nFramesTrackSum);
-      else
-        fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
-        numel(nFramesTrack));
-      end
+      nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);  
+        % When doing normal tracking (not GT), the length of nFramesToTrack is equal to the
+        % number of movies.
+      nFramesToTrackSum = sum(nFramesToTrack);
+      fprintf('Tracking %d frames.\n',nFramesToTrackSum);
 
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
       obj.bgTrackPoller = poller;
       %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
-      obj.nFramesTrack = nFramesTrack ;  % stash it so it's available for TrackMonitorViz() in controller
+      obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorViz() in controller
       obj.lObj.needRefreshTrackMonitorViz() ;
 
       bgTrkMonitorObj = ...
@@ -4363,6 +4361,10 @@ classdef DeepTracker < LabelTracker
 
     function result = get.lastTrackEndCause(obj)
       result = obj.lastTrackEndCause_ ;
+    end
+
+    function result = get.nFramesToTrack(obj)
+      result = obj.nFramesToTrack_ ;
     end
   end  % methods    
 end  % classdef
