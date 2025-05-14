@@ -525,7 +525,7 @@ classdef InfoTimeline < handle
       if isnan(obj.npts), return; end
             
       r = obj.prefs.FrameRadius;
-      if r==0
+      if r==0 || 2*r > obj.nfrm
         x0 = 1;
         x1 = obj.nfrm;
       else
