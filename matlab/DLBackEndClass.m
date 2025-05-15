@@ -1405,7 +1405,7 @@ classdef DLBackEndClass < handle
         end
         if isTextFile ,
           s = obj.fileContents(nativeFilePath) ;
-          nframes = TrkFile.getNFramesTrackedPartFile(s) ;
+          nframes = TrkFile.getNFramesTrackedTextFile(s) ;
         else
           try
             nframes = TrkFile.getNFramesTrackedMatFile(nativeFilePath) ;

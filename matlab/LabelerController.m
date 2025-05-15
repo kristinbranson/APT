@@ -173,7 +173,6 @@ classdef LabelerController < handle
     pbClearSelection
     pbPlay
     pbPlaySeg
-    pbPlaySegBoth
     pbPlaySegRev
     pbRecallZoom
     pbResetZoom
@@ -372,9 +371,6 @@ classdef LabelerController < handle
       %   handles.menu_setup_sequential_add_mode ...
       %   ];
 
-      % Initialize this thing
-      obj.pbPlaySegBoth = [ obj.pbPlaySeg obj.pbPlaySegRev ] ;
-      
       % Make the debug menu visible, if called for
       obj.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
 
@@ -397,6 +393,10 @@ classdef LabelerController < handle
       % Set up the figure callbacks to call obj, using the tag to determine the
       % method name.
       visit_children(mainFigure, @set_standard_callback_if_none_bang, obj) ;
+
+      % Manually clear ones that use ContinuousValueChange events
+      obj.slider_frame.Callback = [] ;
+      obj.sldZoom.Callback = [] ;
 
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
@@ -452,14 +452,14 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config()) ) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetTrackerHideViz', @(src,evt) (obj.cbkTrackerHideVizChanged())) ;
       obj.listeners_(end+1) = ...
@@ -650,6 +650,23 @@ classdef LabelerController < handle
       % Make sure to update graphics now-ish
       drawnow('limitrate', 'nocallbacks');
     end
+
+    function updateBackgroundProcessingStatus_(obj)
+      % Update obj.txBGTrain (the lower-right corner text box) is reflect the
+      % current training/tracking bout.
+      labeler = obj.labeler_ ;      
+      isTrainingOrTracking = labeler.bgTrnIsRunning || labeler.bgTrkIsRunning ;
+      if isTrainingOrTracking
+        obj.txBGTrain.String = labeler.backgroundProcessingStatusString ;
+        % obj.txBGTrain.ForegroundColor = LabelerController.busystatuscolor ;
+        obj.txBGTrain.Visible = 'on' ;
+      else
+        % This below here is all wrong.  Should just be an update.
+        % obj.txBGTrain.String = 'Idle' ;
+        % obj.txBGTrain.ForegroundColor = obj.idlestatuscolor ;
+        obj.txBGTrain.Visible = 'off' ;
+      end
+    end  % function
 
     function didSetTrx(obj, ~, ~)
       trx = obj.labeler_.trx ;
@@ -1382,7 +1399,8 @@ classdef LabelerController < handle
       set(obj.pbSetZoom,'Enable',onIff(hasProject));
       set(obj.pbResetZoom,'Enable',onIff(hasProject));
       set(obj.sldZoom,'Enable',onIff(hasProject));
-      set(obj.pbPlaySegBoth,'Enable',onIff(hasProject));
+      set(obj.pbPlaySeg,'Enable',onIff(hasProject));
+      set(obj.pbPlaySegRev,'Enable',onIff(hasProject));
       set(obj.pbPlay,'Enable',onIff(hasProject));
       set(obj.slider_frame,'Enable',onIff(hasProject));
       set(obj.edit_frame,'Enable',onIff(hasProject));
@@ -1615,10 +1633,9 @@ classdef LabelerController < handle
       end
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      didLastTrainSucceed = labeler.didLastTrainSucceed ;
-      if didLastTrainSucceed
-        question_string = sprintf('Training completed successfully after %s iterations. Save project now?',...
-                                  n_out_of_d_string) ;
+      if labeler.lastTrainEndCause == EndCause.complete
+      question_string = sprintf('Training completed %s iterations. Save project now?',...
+                                n_out_of_d_string) ;
       else
         question_string = sprintf('Training errored or was aborted after %s iterations. Save project now?',...
                                   n_out_of_d_string) ;
@@ -1961,35 +1978,6 @@ classdef LabelerController < handle
       tfShift = any(strcmp('shift',event.Modifier));
       tfCtrl = any(strcmp('control',event.Modifier));
       
-      isMA = labeler.maIsMA;
-      % KB20160724: shortcuts from preferences
-      % skip this for MA projs where we need separate hotkey mappings
-      if ~isMA && ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
-        % control key pressed?
-        if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
-          i = find(strcmpi(event.Key,obj.shortcutkeys),1);
-          h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
-          if isempty(h)
-            fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
-          else
-            cb = get(h,'Callback');
-            if isa(cb,'function_handle')
-              cb(h,[]);
-              tfKPused = true;
-            elseif iscell(cb)
-              cb{1}(cb{2:end});
-              tfKPused = true;
-            elseif ischar(cb)
-              evalin('base',[cb,';']);
-              tfKPused = true;
-            end
-          end
-        end  
-      end
-      if tfKPused
-        return
-      end
-      
       lcore = labeler.lblCore;
       if ~isempty(lcore)
         tfKPused = lcore.kpf(source,event);
@@ -1997,7 +1985,35 @@ classdef LabelerController < handle
           return
         end
       end
-      
+
+      if ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
+        % control key pressed?
+        if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
+          i = find(strcmpi(event.Key,obj.shortcutkeys),1);
+          if ~ismember(obj.shortcutfns{i},labeler.lblCore.unsupportedKPFFns),
+            h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
+            if isempty(h)
+              fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
+            else
+              cb = get(h,'Callback');
+              if isa(cb,'function_handle')
+                cb(h,[]);
+                tfKPused = true;
+              elseif iscell(cb)
+                cb{1}(cb{2:end});
+                tfKPused = true;
+              elseif ischar(cb)
+                evalin('base',[cb,';']);
+                tfKPused = true;
+              end
+            end
+          end
+        end  
+      end
+      if tfKPused
+        return
+      end
+            
       %disp(evt);
       if any(strcmp(event.Key,{'leftarrow' 'rightarrow'}))
         switch event.Key
@@ -2582,52 +2598,39 @@ classdef LabelerController < handle
       obj.labelTLInfo.didChangeCurrentTracker();
     end  % function
     
-    function cbkTrackerTrainStart(obj)
-      lObj = obj.labeler_ ;
-      algName = lObj.tracker.algorithmName;
-      %algLabel = lObj.tracker.algorithmNamePretty;
-      backend_type_string = lObj.trackDLBackEnd.prettyName();
-      obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
-      obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-      obj.txBGTrain.FontWeight = 'normal';
-      obj.txBGTrain.Visible = 'on';
-    end  % function
+    % function cbkTrackerTrainStart(obj)
+    %   lObj = obj.labeler_ ;
+    %   algName = lObj.tracker.algorithmName;
+    %   backend_type_string = lObj.trackDLBackEnd.prettyName();
+    %   obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
+    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
+    %   obj.txBGTrain.FontWeight = 'normal';
+    %   obj.txBGTrain.Visible = 'on';
+    % end  % function
 
-    function cbkTrackerTrainEnd(obj)
-      labeler = obj.labeler_ ;
-      obj.trainingMonitorVisualizer_.trainingDidEnd() ;
-      if ~labeler.silent ,
-        obj.raiseTrainingEndedDialog_() ;
-      end
-      obj.txBGTrain.Visible = 'off';
-      obj.txBGTrain.String = 'Idle';
-      obj.txBGTrain.ForegroundColor = obj.idlestatuscolor;
-      val = true;
-      str = 'Tracker trained';
-      labeler.setDoesNeedSave(val, str) ;
-    end  % function
+    % function cbkTrackerTrainEnd(obj)
+    %   labeler = obj.labeler_ ;
+    %   obj.trainingMonitorVisualizer_.trainingDidEnd() ;
+    %   if ~labeler.silent ,
+    %     obj.raiseTrainingEndedDialog_() ;
+    %   end
+    %   obj.update() ;
+    % end  % function
 
-    function cbkTrackerStart(obj)
-      lObj = obj.labeler_ ;
-      algName = lObj.tracker.algorithmName;
-      %algLabel = lObj.tracker.algorithmNamePretty;
-      backend_type_string = lObj.trackDLBackEnd.prettyName() ;
-      obj.txBGTrain.String = ...
-        sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>
-      obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-      obj.txBGTrain.FontWeight = 'normal';
-      obj.txBGTrain.Visible = 'on';
-    end  % function
+    % function cbkTrackerStart(obj)
+    %   lObj = obj.labeler_ ;
+    %   algName = lObj.tracker.algorithmName;
+    %   backend_type_string = lObj.trackDLBackEnd.prettyName() ;
+    %   obj.txBGTrain.String = ...
+    %     sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>
+    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
+    %   obj.txBGTrain.FontWeight = 'normal';
+    %   obj.txBGTrain.Visible = 'on';
+    % end  % function
 
-    function cbkTrackerEnd(obj)
-      lObj = obj.labeler_ ;
-      obj.txBGTrain.Visible = 'off';
-      obj.txBGTrain.String = 'Idle';
-      obj.txBGTrain.ForegroundColor = obj.idlestatuscolor;
-      val = true;
-      str = 'New frames tracked';
-      lObj.setDoesNeedSave(val, str) ;
-    end  % function
+    % function cbkTrackerEnd(obj)
+    %   obj.update() ;
+    % end  % function
 
     function cbkTrackerHideVizChanged(obj)
       lObj = obj.labeler_ ;
@@ -3972,22 +3975,21 @@ classdef LabelerController < handle
     end  % function
 
     function play_(obj, playMethodName)
-      %labeler = obj.labeler_ ;      
-      
-      pbPlay = obj.pbPlay ;
-      oc = onCleanup(@()(obj.playCleanup_())) ;
-      if ~obj.isPlaying_
-        obj.isPlaying_ = true ;
-        pbPlay.CData = Icons.ims.stop ;
-        obj.(playMethodName) ;
+      if obj.isPlaying_ ,
+        obj.isPlaying_ = false ;  
+          % setting this this will cause the already-running video playback loop from the previous cal to play_() to exit
+        return
       end
-    end
+      oc = onCleanup(@()(obj.playCleanup_())) ;
+      obj.isPlaying_ = true ;
+      obj.pbPlay.CData = Icons.ims.stop ;
+      obj.(playMethodName) ;
+    end  % function
 
     function playCleanup_(obj)
-      pbPlay = obj.pbPlay ;
-      pbPlay.CData = Icons.ims.stop ;
+      obj.pbPlay.CData = Icons.ims.play ;
       obj.isPlaying_ = false ;
-    end
+    end  % function
 
     function tblTrx_cell_selected_(obj, src, evt) %#ok<*DEFNU>
       % Current/last row selection is maintained in hObject.UserData
@@ -5446,7 +5448,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('playsegment', 'videoPlaySegFwdEnding') ;
+      obj.play_('videoPlaySegFwdEnding') ;
     end
 
 
@@ -5456,7 +5458,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('playsegmentrev', 'videoPlaySegRevEnding') ;
+      obj.play_('videoPlaySegRevEnding') ;
     end
 
 
@@ -5466,7 +5468,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play_('play', 'videoPlay') ;
+      obj.play_('videoPlay') ;
     end
 
 
@@ -5677,12 +5679,15 @@ classdef LabelerController < handle
       obj.update_menu_track_backend_config();
       obj.update_text_trackerinfo() ;
       obj.updateStatusBar() ;
+      obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
       obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;
       if ~isempty(obj.movieManagerController_) ,
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ;
       end
+      sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
     end
     
     function save(obj)

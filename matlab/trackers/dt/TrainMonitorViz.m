@@ -546,15 +546,10 @@ classdef TrainMonitorViz < handle
       if isRunning
         isComplete = [] ;
       else
-        isComplete = labeler.didLastTrainSucceed ;
+        isComplete = (labeler.lastTrainEndCause == EndCause.complete) ;
       end      
       TrainMonitorViz.updateStartStopButton(handles, isRunning, isComplete) ;
     end  % function
-
-    function trainingDidEnd(obj)
-      % Called from the parent controller when training has ended
-      obj.updateStopButton() ;
-    end
 
     function setStatusDisplayLine(obj, str, isallgood)
       % Set either or both of the status message line and the color of the status

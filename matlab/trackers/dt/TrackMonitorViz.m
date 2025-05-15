@@ -19,7 +19,7 @@ classdef TrackMonitorViz < handle
     jobDescs = {}; % sae numel as hline. string description for hline. unused if bulkAxsIsBulkMode=true
 
     htrackerInfo % scalar text box handle showing information about current tracker
-    isKilled = false; % scalar, whether tracking has been halted
+    wasAborted = false;  % scalar, whether tracking has been aborted
     
     resLast = []; % last contents received
     dtObj % DeepTracker Obj
@@ -97,7 +97,7 @@ classdef TrackMonitorViz < handle
       dtObj = labeler.tracker ;
       poller = labeler.tracker.bgTrackPoller ;
       backendType = labeler.backend.type ;
-      nFramesToTrack = labeler.tracker.nFramesTrack ;
+      nFramesToTrack = labeler.tracker.nFramesToTrack ;
 
       % These instance variables are not really needed anymore.
       obj.dtObj = dtObj;
@@ -110,7 +110,8 @@ classdef TrackMonitorViz < handle
       obj.hfig = TrackMonitorGUI(obj);
       %parent.addSatellite(obj.hfig);  % Don't think we need this
       handles = guidata(obj.hfig);
-      TrackMonitorViz.updateStartStopButton(handles,true,false);
+      obj.updateStopButton() ;
+      %TrackMonitorViz.updateStartStopButton(handles,true,false);
       %handles.pushbutton_startstop.Enable = 'on';
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
@@ -240,7 +241,7 @@ classdef TrackMonitorViz < handle
       end
       
       obj.resLast = [];
-      obj.isKilled = false;
+      obj.wasAborted = false;
       drawnow;            
     end
     
@@ -268,7 +269,7 @@ classdef TrackMonitorViz < handle
         return;
       end
 
-      if obj.isKilled,
+      if obj.wasAborted,
         msg = 'Tracking jobs killed.';
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
         return;
@@ -384,7 +385,7 @@ classdef TrackMonitorViz < handle
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      nJobs = numel(pollingResult);  % nJobs == nmovies * nviews * nstages
+      nJobs = numel(pollingResult.tfComplete);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
       isTrackComplete = false;
       isErr = false;
@@ -401,8 +402,8 @@ classdef TrackMonitorViz < handle
         isRunning = true ;
       end
       
-      if obj.isKilled,
-        status = 'Tracking process killed.';
+      if obj.wasAborted,
+        status = 'Tracking process aborted.';
         tfSucc = false;
       elseif isTrackComplete
         status = 'Tracking complete.';
@@ -413,8 +414,9 @@ classdef TrackMonitorViz < handle
         else
           status = 'No tracking jobs running.';
         end
-        handles = guidata(obj.hfig);
-        TrackMonitorViz.updateStartStopButton(handles,false,false);        
+        % handles = guidata(obj.hfig);
+        % TrackMonitorViz.updateStartStopButton(handles,false,false);        
+        obj.updateStopButton() ;
         tfSucc = false;
       elseif isErr,
         status = 'Error while tracking.';
@@ -459,12 +461,12 @@ classdef TrackMonitorViz < handle
       end
       obj.updateClusterInfo();
       handles.text_clusterinfo.ForegroundColor = 'r';
-      TrackMonitorViz.updateStartStopButton(handles,false,false);
+      %TrackMonitorViz.updateStartStopButton(handles,false,false);
+      obj.updateStopButton() ;
       drawnow;
     end  % function
 
     function updateStatusFinal(obj,nJobs)
-      handles = guidata(obj.hfig);
       for ijob = 1:nJobs
         if nJobs > 1,
           sview = obj.jobDescs{ijob};
@@ -476,7 +478,7 @@ classdef TrackMonitorViz < handle
       end
       set(obj.hline,'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED,'XData',[0,0,1,1,0]);
       obj.bulkMovTracked(:) = true;
-      TrackMonitorViz.updateStartStopButton(handles,false,true);
+      obj.updateStopButton() ;
     end  % function
         
     function abortTracking(obj)
@@ -498,7 +500,8 @@ classdef TrackMonitorViz < handle
       % else
       %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       % end
-      TrackMonitorViz.updateStartStopButton(handles,false,false);
+      % TrackMonitorViz.updateStartStopButton(handles,false,false);
+      obj.updateStopButton() ;
       obj.setStatusDisplayLine('Tracking process killed.', false);
       drawnow;
 
@@ -563,6 +566,27 @@ classdef TrackMonitorViz < handle
       end
     end  % function
         
+    function updateStopButton(obj)
+      % A conventional update method for the (start/)stop button.
+      handles = guidata(obj.hfig) ;
+      labeler = obj.labeler_ ;
+      isRunning = labeler.bgTrkIsRunning ;
+      if isRunning
+        isComplete = [] ;
+      else
+        isComplete = (labeler.lastTrackEndCause == EndCause.complete) ;
+      end      
+      if isRunning ,
+        set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+      else
+        if isComplete ,
+          set(handles.pushbutton_startstop,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
+        else
+          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
+        end
+      end      
+    end  % function
+        
   end  % methods
   
   methods (Static)
@@ -597,27 +621,6 @@ classdef TrackMonitorViz < handle
           jobDescs{imovset,iset} = [movstr,setstr];
         end
       end
-    end
-    
-    function updateStartStopButton(handles,isStop,isDone,msg)
-      
-      if nargin < 3,
-        isDone = false;
-      end
-      if nargin < 4,
-        msg = 'Tracking complete';
-      end
-      
-      if isDone == 1,
-        set(handles.pushbutton_startstop,'String',msg,'BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
-      else
-        if isStop,
-          set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
-        else
-          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
-        end
-      end
-      
     end
     
     function [nrowind,ncolind] = ...

@@ -58,6 +58,9 @@ classdef LabelCoreSeqMA < LabelCore
     %kpfIPtFor1Key; % scalar positive integer. This is the point index that
                    % the '1' hotkey maps to, eg typically this will take the 
                    % values 1, 11, 21, ...
+    
+    unsupportedKPFFns = {'tbAccept'}; % cell array of field names for objects that have general keypressfcn 
+                                      % callbacks but are not supported for this LabelCore
                    
   end
   properties (SetObservable)

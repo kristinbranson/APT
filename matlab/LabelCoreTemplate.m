@@ -180,6 +180,11 @@ classdef LabelCoreTemplate < LabelCore
     hPtsTxtPVNotPredUnadjusted
   end
   
+  properties
+    unsupportedKPFFns = {} ;  % cell array of field names for objects that have general keypressfcn 
+                              % callbacks but are not supported for this LabelCore
+  end
+  
   methods
     
     function obj = LabelCoreTemplate(varargin)

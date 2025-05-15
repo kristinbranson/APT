@@ -173,21 +173,21 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     bgTrnIsRunning
     bgTrkIsRunning
-    didLastTrainSucceed  
-      % Did the last bout of training complete without erroring or being aborted.
+    lastTrainEndCause 
+      % Did the last bout of training complete or error or was it aborted by user.
       % Only meaningful if training has been run at least once in the current session.
-      % Defaults to false if training has not been run in the current session.
+      % Defaults to EndCause.undefined if training has not been run in the current session.
       % In other words not persisted to the .lbl file in any way.
-    didLastTrackSucceed  
-      % Did the last bout of tracking complete without erroring or being aborted.
+    lastTrackEndCause  
+      % Did the last bout of tracking complete or error or was it aborted by user.
       % Only meaningful if tracking has been run at least once in the current session.
-      % Defaults to false if tracking has not been run in the current session.
+      % Defaults to EndCause.undefined if tracking has not been run in the current session.
       % In other words not persisted to the .lbl file in any way.
   end
 
   properties (Transient)
-    didLastTrainSucceed_ = false
-    didLastTrackSucceed_ = false
+    lastTrainEndCause_ = EndCause.undefined
+    lastTrackEndCause_ = EndCause.undefined
   end
 
   properties    
@@ -216,6 +216,7 @@ classdef DeepTracker < LabelTracker
   properties (Dependent)
     nPts % number of label points     
     nview 
+    nFramesToTrack
   end
   
   properties
@@ -233,7 +234,7 @@ classdef DeepTracker < LabelTracker
   end
   
   properties (Transient)
-    nFramesTrack
+    nFramesToTrack_
   end
 
   methods
@@ -1544,9 +1545,6 @@ classdef DeepTracker < LabelTracker
       % Start the monitor.  Do this after spawning so we can do it in foreground for
       % debuging sometimes.
       bgTrnMonitor.start();
-
-      % Finally, prod the labeler to signal the controller that training has ended
-      obj.lObj.doNotify('trainStart') ;
     end  % trnSpawn_() function
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
@@ -2647,20 +2645,17 @@ classdef DeepTracker < LabelTracker
       poller = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
 
       % KB 20190115: adding trkviz
-      nFramesTrack = totrackinfo.getNFramesTrack(obj.lObj);
-      nFramesTrackSum = sum(nFramesTrack);
-      if totrackinfo.islistjob
-        fprintf('Tracking %d frames.\n',nFramesTrackSum);
-      else
-        fprintf('Tracking %d frames across %d movies.\n',nFramesTrackSum,...
-        numel(nFramesTrack));
-      end
+      nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);  
+        % When doing normal tracking (not GT), the length of nFramesToTrack is equal to the
+        % number of movies.
+      nFramesToTrackSum = sum(nFramesToTrack);
+      fprintf('Tracking %d frames.\n',nFramesToTrackSum);
 
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
       obj.bgTrackPoller = poller;
       %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
-      obj.nFramesTrack = nFramesTrack ;  % stash it so it's available for TrackMonitorViz() in controller
+      obj.nFramesToTrack_ = nFramesToTrack ;  % stash it so it's available for TrackMonitorViz() in controller
       obj.lObj.needRefreshTrackMonitorViz() ;
 
       bgTrkMonitorObj = ...
@@ -2682,7 +2677,6 @@ classdef DeepTracker < LabelTracker
       % running runPollingLoop() synchronously, the tracking job(s) will already
       % have started.
       bgTrkMonitorObj.start() ;
-      obj.lObj.doNotify('trackStart') ;      
     end  % function setupBGTrack()
 
     function trkSpawnList_(obj,totrackinfo,backend,varargin)
@@ -2916,11 +2910,6 @@ classdef DeepTracker < LabelTracker
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.didLastTrainSucceed_ = true ;
-        % Set obj.didLastTrainSucceed_ before calling
-        % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
-        % and want listeners to be able to know whether the training bout succeeded or
-        % failed      
       obj.killJobsAndPerformPostTrainingCleanup(EndCause.complete) ;
     end
 
@@ -2929,10 +2918,9 @@ classdef DeepTracker < LabelTracker
       % tracking is complete.
       obj.bgTrkMonitor.stop() ;  % stop monitoring
       obj.waitForJobsToExit('track') ;
-        % Right now, tfComplete is true as soon as the output files *exist*.
+        % Right now, pollingResult.tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.killJobsAndPerformPostTrackingCleanup(EndCause.complete) ;
 
       try
         % Put things into some local vars
@@ -3001,16 +2989,17 @@ classdef DeepTracker < LabelTracker
         end      
       catch me 
         warning('Error gathering tracking results:\n%s', getReport(me)) ;
-        obj.didLastTrackSucceed_ = false ;
+        obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
         return
       end
       
+      % Is this is GT tracking, take steps appropraite to that.
       if obj.trkSysInfo.ttis(1).isgtjob
         obj.gtComplete();
       end      
 
       % If get here, declare victory.
-      obj.didLastTrackSucceed_ = true ;
+      obj.killJobsAndPerformPostTrackingCleanup(EndCause.complete) ;
     end  % function
 
     function jumpToNearestTracking(obj)
@@ -3109,6 +3098,15 @@ classdef DeepTracker < LabelTracker
     function killJobsAndPerformPostTrainingCleanup(obj, endCause)
       % Does what it says on the tin.
 
+      % Check for programmer error
+      if endCause == EndCause.undefined
+        error(strcatg('Internal Error.  Please notify the APT developers that endCause was equal to EndCause.undefined on entry ', ...
+                      'to DeepTracker.killJobsAndPerformPostTrainingCleanup().')) ;
+      end
+
+      % Set now to listeners can determine training bout outcome
+      obj.lastTrainEndCause_ = endCause ;
+
       % Someday, training splits will return!
       trainSplits = obj.isTrainingSplits_ ;
       if trainSplits
@@ -3177,6 +3175,15 @@ classdef DeepTracker < LabelTracker
     end  % function
     
     function killJobsAndPerformPostTrackingCleanup(obj, endCause)
+      % Check for programmer error
+      if endCause == EndCause.undefined
+        error(strcatg('Internal Error.  Please notify the APT developers that endCause was equal to EndCause.undefined on entry ', ...
+                      'to DeepTracker.killJobsAndPerformPostTrackingCleanup().')) ;
+      end
+
+      % Set this now, so that listeners can know the tracking bout outcome
+      obj.lastTrackEndCause_ = endCause ;
+      
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('track') ;
@@ -4311,19 +4318,9 @@ classdef DeepTracker < LabelTracker
     function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
       if strcmp(train_or_track, 'track') ,
         obj.bgTrkMonitor.stop();
-        obj.didLastTrackSucceed_ = false ;       
-          % Set obj.didLastTrackSucceed_ before calling
-          % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
-          % and want listeners to be able to know whether the tracking bout succeeded or
-          % failed
         obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
-        obj.didLastTrainSucceed_ = false ;
-          % Set obj.didLastTrainSucceed_ before calling
-          % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
-          % and want listeners to be able to know whether the training bout succeeded or
-          % failed
         obj.killJobsAndPerformPostTrainingCleanup(EndCause.error) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
@@ -4349,33 +4346,25 @@ classdef DeepTracker < LabelTracker
     end  % function
 
     function abortTraining(obj)
-      %obj.killAndClearRegisteredJobs('train') ;
       obj.bgTrnMonitor.stop() ;
-      obj.didLastTrainSucceed_ = false ;
-        % Set obj.didLastTrainSucceed_ before calling
-        % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
-        % and want listeners to be able to know whether the training bout succeeded or
-        % failed      
       obj.killJobsAndPerformPostTrainingCleanup(EndCause.abort) ;
     end  % function
 
     function abortTracking(obj)
-      %obj.killAndClearRegisteredJobs('track') ;
       obj.bgTrkMonitor.stop() ;
-      obj.didLastTrainSucceed_ = false ;
-        % Set obj.didLastTrainSucceed_ before calling
-        % obj.killJobsAndPerformPostTrainingCleanup() b/c that method fires events,
-        % and want listeners to be able to know whether the training bout succeeded or
-        % failed      
       obj.killJobsAndPerformPostTrackingCleanup(EndCause.abort) ;
     end  % function
 
-    function result = get.didLastTrainSucceed(obj)
-      result = obj.didLastTrainSucceed_ ;
+    function result = get.lastTrainEndCause(obj)
+      result = obj.lastTrainEndCause_ ;
     end
 
-    function result = get.didLastTrackSucceed(obj)
-      result = obj.didLastTrackSucceed_ ;
+    function result = get.lastTrackEndCause(obj)
+      result = obj.lastTrackEndCause_ ;
+    end
+
+    function result = get.nFramesToTrack(obj)
+      result = obj.nFramesToTrack_ ;
     end
   end  % methods    
 end  % classdef

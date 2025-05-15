@@ -9,6 +9,10 @@ classdef LabelCoreCPRView2 < LabelCore
     
     tfFrmLbled;
   end
+  properties
+    unsupportedKPFFns = {} ;  % cell array of field names for objects that have general keypressfcn 
+                              % callbacks but are not supported for this LabelCore
+  end  
   methods
     function obj = LabelCoreCPRView2(lObj)
       obj@LabelCore(lObj);

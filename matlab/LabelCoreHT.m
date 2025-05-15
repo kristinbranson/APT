@@ -69,6 +69,11 @@ classdef LabelCoreHT < LabelCore
     unlabeledPointColor = [1 1 1];
     otherLabeledPointColor = [0.4 0.4 0.4];
   end
+
+  properties
+    unsupportedKPFFns = {} ;  % cell array of field names for objects that have general keypressfcn 
+                              % callbacks but are not supported for this LabelCore
+  end
   
   methods
     function set.nFrameSkip(obj,val)
