@@ -95,7 +95,7 @@ classdef TrainMonitorViz < handle
     
     function obj = TrainMonitorViz(parent, labeler)
 
-      obj.parent_ = parent ;
+      obj.parent_ = parent ;  % parent a LabelerController
       obj.labeler_ = labeler ;
 
       dmc = labeler.tracker.trnLastDMC ;
@@ -117,7 +117,10 @@ classdef TrainMonitorViz < handle
       obj.backendType = labeler.backend.type ;
       obj.hfig = TrainMonitorGUI(obj);
       % parent.addSatellite(obj.hfig);  % Don't think we need this
-      
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trainMonitorVizCloseRequested()) ;
+        % Override the CloseRequestFcn callback in TrainMonitorGUI with this one, 
+        % which lets that LabelerController handle things in a coordinated way.
+
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles, false, []) ;
       handles.pushbutton_startstop.Enable = 'on';
