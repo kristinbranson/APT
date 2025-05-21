@@ -1914,12 +1914,22 @@ classdef LabelerController < handle
         shs = struct2cell(newShortcuts);
         % everything should just be one character
         % no repeats
-        uniqueshs = unique(shs);
-        isproblem = any(cellfun(@numel,shs) ~= 1) || numel(uniqueshs) < numel(shs);
+        isproblem = false;
+        msg = '';
+        if any(cellfun(@numel,shs) ~= 1),
+          isproblem = true;
+          msg = [msg,'All shortcuts must be single-character letters. '];
+        end
+        [uniqueshs,~,idx] = unique(shs);
+        if numel(uniqueshs) < numel(shs),
+          isproblem = true;
+          count = accumarray(idx,1);
+          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. '];
+        end
         if ~isproblem,
           break;
         end
-        res = questdlg('All shortcuts must be unique, single-character letters','Error setting shortcuts','Try again','Cancel','Try again');
+        res = questdlg(msg,'Try again','Cancel','Try again');
         if strcmpi(res,'Cancel'),
           return;
         end
