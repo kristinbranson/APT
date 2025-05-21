@@ -13,6 +13,10 @@ classdef LabelCoreCPRView < LabelCore
     isLabeled % [nfrm], true if pGT(i,:,:) are not nan
     iLabeled % [nlabeled]
   end
+  properties
+    unsupportedKPFFns = {} ;  % cell array of field names for objects that have general keypressfcn 
+                              % callbacks but are not supported for this LabelCore
+  end  
   methods
     function obj = LabelCoreCPRView(lObj)
       obj@LabelCore(lObj);

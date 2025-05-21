@@ -185,7 +185,7 @@ classdef LabelerProjectTester < handle
       % labeler.rehomeProjectCacheIfNeeded() ;      
 
       % Make sure tracking was successful
-      if labeler.lastTrackEndCause ~= EndCause.complete
+      if obj.labeler.lastTrackEndCause ~= EndCause.complete
         error('Tracking for GT did not complete successfully') ;
       end
       

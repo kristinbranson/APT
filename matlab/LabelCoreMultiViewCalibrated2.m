@@ -91,6 +91,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     iPt2iSet      % [npts]. set index for each point.
     showCalibration = true; % whether to show calibration-based info
   end
+
+  properties
+    unsupportedKPFFns = {} ;  % cell array of field names for objects that have general keypressfcn 
+                              % callbacks but are not supported for this LabelCore
+  end
+  
   properties (Dependent)
     nView         % scalar
     nPointSet     % scalar, number of 'point sets'.    
