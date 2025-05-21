@@ -382,7 +382,7 @@ classdef LabelerController < handle
       hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
       hP = pan(mainFigure);  % hP is a "pan object"
       hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
-      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.figure_CloseRequestFcn())) ;    
+      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.quitRequested())) ;    
       % obj.menu_track_reset_current_tracker.Callback = ...
       %   @(s,e)(obj.controlActuated('menu_track_reset_current_tracker', s, e)) ;
       % obj.menu_track_delete_current_tracker.Callback = ...
@@ -454,12 +454,12 @@ classdef LabelerController < handle
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
       % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
       % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetTrackerHideViz', @(src,evt) (obj.cbkTrackerHideVizChanged())) ;
       obj.listeners_(end+1) = ...
@@ -1574,9 +1574,9 @@ classdef LabelerController < handle
     end  % function
 
     function updateTrackMonitorViz(obj)
-      labeler = obj.labeler_ ;
-      pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
-      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_) ,
+      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+        labeler = obj.labeler_ ;
+        pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
         obj.trackingMonitorVisualizer_.resultsReceived(pollingResult) ;
       end
     end  % function
@@ -1595,9 +1595,11 @@ classdef LabelerController < handle
     end  % function
 
     function updateTrainMonitorViz(obj)
-      labeler = obj.labeler_ ;
-      pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
-      obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
+      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_) 
+        labeler = obj.labeler_ ;
+        pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
+        obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
+      end
     end  % function
 
     function addSatellite(obj, h)
@@ -1622,8 +1624,7 @@ classdef LabelerController < handle
     function raiseTrainingEndedDialog_(obj)
       % Raise a dialog that reports how many training iterations have completed, and
       % ask if the user wants to save the project.  Normally called via event
-      % notification after training is stopped early via user pressing the "Stop
-      % training" button in the "Training Monitor" window.
+      % notification after training ends.
       labeler = obj.labeler_ ;
       tracker = labeler.tracker ;
       iterCurr = tracker.trackerInfo.iterCurr ;
@@ -2608,14 +2609,14 @@ classdef LabelerController < handle
     %   obj.txBGTrain.Visible = 'on';
     % end  % function
 
-    % function cbkTrackerTrainEnd(obj)
-    %   labeler = obj.labeler_ ;
-    %   obj.trainingMonitorVisualizer_.trainingDidEnd() ;
-    %   if ~labeler.silent ,
-    %     obj.raiseTrainingEndedDialog_() ;
-    %   end
-    %   obj.update() ;
-    % end  % function
+    function cbkTrackerTrainEnd(obj)
+      labeler = obj.labeler_ ;
+      % obj.trainingMonitorVisualizer_.trainingDidEnd() ;
+      if ~labeler.silent ,
+        obj.raiseTrainingEndedDialog_() ;
+      end
+      obj.update() ;
+    end  % function
 
     % function cbkTrackerStart(obj)
     %   lObj = obj.labeler_ ;
@@ -2628,9 +2629,9 @@ classdef LabelerController < handle
     %   obj.txBGTrain.Visible = 'on';
     % end  % function
 
-    % function cbkTrackerEnd(obj)
-    %   obj.update() ;
-    % end  % function
+    function cbkTrackerEnd(obj)
+      obj.update() ;
+    end  % function
 
     function cbkTrackerHideVizChanged(obj)
       lObj = obj.labeler_ ;
@@ -3685,9 +3686,9 @@ classdef LabelerController < handle
       obj.labeler_.labelingInit('labelMode',lblMode);
     end
     
-    function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
-      obj.quitRequested() ;
-    end
+    % function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
+    %   obj.quitRequested() ;
+    % end
 
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
@@ -5860,5 +5861,82 @@ classdef LabelerController < handle
     function handleCreationTimeAdditionalArgumentsGUI_actuated_(obj, ~, ~, varargin)
       obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
     end
+
+    function trainMonitorVizCloseRequested(obj)
+      doReallyClose = false ;
+      tfbatch = batchStartupOptionUsed() ; % ci
+      trainMonitorViz = obj.trainingMonitorVisualizer_ ;
+      if tfbatch ,
+        doReallyClose = true ;
+      else        
+        trainMonitorFig = trainMonitorViz.hfig ;
+        handles = guidata(trainMonitorFig) ;
+  
+        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+  
+        if strcmpi(mode,'stop') ,
+          res = questdlg({'Training currently in progress. Please stop training before'
+                          'closing this monitor. If you have already clicked Stop training,'
+                          'please wait for training processes to be killed before closing'
+                          'this monitor.'
+                          'Only override this warning if you know what you are doing.'} , ...
+                         'Stop training before closing monitor', ...
+                         'Ok','Override and close anyways', ...
+                         'Ok');
+          if ~strcmpi(res,'Ok'),
+            doReallyClose = true ;
+          end
+        elseif strcmpi(mode,'start') || strcmpi(mode,'done') ,
+          doReallyClose = true ;
+        else
+          % sanity check
+          error('Internal error: Bad userdata value for pushbutton_startstop');
+        end
+      end
+
+      if doReallyClose ,
+        delete(trainMonitorViz);
+        obj.trainingMonitorVisualizer_ = [] ;
+      end        
+    end  % function
+
+    function trackMonitorVizCloseRequested(obj)
+      doReallyClose = false ;
+      tfbatch = batchStartupOptionUsed() ; % ci
+      trackMonitorViz = obj.trackingMonitorVisualizer_ ;
+      if tfbatch ,
+        doReallyClose = true ;
+      else        
+        trackMonitorFig = trackMonitorViz.hfig ;
+        handles = guidata(trackMonitorFig) ;
+  
+        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+  
+        if strcmpi(mode,'stop') ,
+          res = questdlg({'Tracking currently in progress. Please stop tracking before'
+                          'closing this monitor. If you have already clicked Stop tracking,'
+                          'please wait for tracking processes to be killed before closing'
+                          'this monitor.'
+                          'Only override this warning if you know what you are doing.'} , ...
+                         'Stop tracking before closing monitor', ...
+                         'Ok','Override and close anyways', ...
+                         'Ok');
+          if ~strcmpi(res,'Ok'),
+            doReallyClose = true ;
+          end
+        elseif strcmpi(mode,'start') || strcmpi(mode,'done') ,
+          doReallyClose = true ;
+        else
+          % sanity check
+          error('Internal error: Bad userdata value for pushbutton_startstop');
+        end
+      end
+
+      if doReallyClose ,
+        delete(trackMonitorViz);
+        obj.trackingMonitorVisualizer_ = [] ;
+      end        
+    end  % function
+
   end  % methods  
 end  % classdef

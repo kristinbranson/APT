@@ -190,9 +190,9 @@ classdef Labeler < handle
     newTrackingResults 
     
     % trainStart
-    % trainEnd
+    trainEnd
     % trackStart
-    % trackEnd    
+    trackEnd    
 
     didSetTrackerHideViz
     didSetTrackerShowPredsCurrTargetOnly
@@ -15349,7 +15349,8 @@ classdef Labeler < handle
       if endCause == EndCause.complete 
         obj.setDoesNeedSave(true, 'Tracker trained') ;
       end
-      obj.notify('update') ;
+      % obj.notify('update') ;
+      obj.notify('trainEnd') ;
     end
     
     function trackingEnded(obj, endCause)
@@ -15358,7 +15359,8 @@ classdef Labeler < handle
       if endCause == EndCause.complete 
         obj.setDoesNeedSave(true, 'New frames tracked') ;
       end
-      obj.notify('update') ;
+      % obj.notify('update') ;
+      obj.notify('trackEnd') ;
     end
     
     function result= get.backgroundProcessingStatusString(obj)

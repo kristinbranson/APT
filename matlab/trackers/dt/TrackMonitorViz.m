@@ -108,6 +108,9 @@ classdef TrackMonitorViz < handle
       nmov = nMovSets*nview;
       
       obj.hfig = TrackMonitorGUI(obj);
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trackMonitorVizCloseRequested()) ;
+        % Override the CloseRequestFcn callback in TrackMonitorGUI with this one, 
+        % which lets that LabelerController handle things in a coordinated way.
       %parent.addSatellite(obj.hfig);  % Don't think we need this
       handles = guidata(obj.hfig);
       obj.updateStopButton() ;
