@@ -51,39 +51,50 @@ function autoparams = compute_auto_params(lobj)
   % second dim has the coordinates
 
   %%
-  %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
-  %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+
   l_min = permute(nanmin(all_labels,[],1),[2,3,1]);
   l_max = permute(nanmax(all_labels,[],1),[2,3,1]);
   l_span = l_max-l_min;
-  % l_span is labels span in x and y direction
 
+  multi_bbox_scale = isfield(lobj.trackParams.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox') && ...
+    lobj.trackParams.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox;
   l_span_pc = prctile(l_span,95,2);
-  l_span_max = nanmax(l_span,[],2);
-
-  % Check and flag outliers..
-  if any( (l_span_max./l_span_pc)>2)
-    outliers = zeros(0,3);
-    for jj = find( (l_span_max/l_span_pc)>2)
-      ix = find(l_span(jj,:)>l_span_pc(jj)*2);
-      for xx = ix(:)'
-        mov = all_mov(xx);
-        yy = all_id(xx);
-        cur_fr = lobj.labels{mov}.frm(yy);
-        cur_tgt = lobj.labels{mov}.tgt(yy);
-        outliers(end+1,:) = [mov,cur_fr,cur_tgt];
+  if ~multi_bbox_scale
+    %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
+    %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+    % l_span is labels span in x and y direction
+  
+    l_span_pc = prctile(l_span,95,2);
+    l_span_max = nanmax(l_span,[],2);
+  
+    % Check and flag outliers..
+    if any( (l_span_max./l_span_pc)>2)
+      outliers = zeros(0,3);
+      for jj = find( (l_span_max/l_span_pc)>2)
+        ix = find(l_span(jj,:)>l_span_pc(jj)*2);
+        for xx = ix(:)'
+          mov = all_mov(xx);
+          yy = all_id(xx);
+          cur_fr = lobj.labels{mov}.frm(yy);
+          cur_tgt = lobj.labels{mov}.tgt(yy);
+          outliers(end+1,:) = [mov,cur_fr,cur_tgt];
+        end
       end
+      wstr = 'Some bounding boxes have sizes much larger than normal. This suggests that they may have labeing errors\n';
+      wstr = sprintf('%s The list of examples is \n',wstr);
+      for zz = 1:size(outliers,1)
+        wstr = sprintf('%s Movie:%d, frame:%d, target:%d\n',wstr,outliers(zz,1),outliers(zz,2),outliers(zz,3));
+      end
+      warning(wstr);
     end
-    wstr = 'Some bounding boxes have sizes much larger than normal. This suggests that they may have labeing errors\n';
-    wstr = sprintf('%s The list of examples is \n',wstr);
-    for zz = 1:size(outliers,1)
-      wstr = sprintf('%s Movie:%d, frame:%d, target:%d\n',wstr,outliers(zz,1),outliers(zz,2),outliers(zz,3));
-    end
-    warning(wstr);
+  
+    crop_radius = nanmax(l_span_pc);
+    crop_radius = ceil(crop_radius/16)*16;
+  else
+    l_span_median = prctile(l_span,50,2);
+    crop_radius = nanmax(l_span_median);
+    crop_radius = ceil(crop_radius/16)*16;   
   end
-
-  crop_radius = nanmax(l_span_pc);
-  crop_radius = ceil(crop_radius/16)*16;
   autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
@@ -102,7 +113,7 @@ function autoparams = compute_auto_params(lobj)
   % If the distances between center of animals is much less than the
   % span then warn about using bbox based methods
   if(d_pairs_pc<min(l_span_pc/10)) && lobj.trackerIsObjDet
-    wstr = 'The distances between the center of animals is much smaller than the spans of the animals';
+    wstr = 'The distances between the center of animals is much smaller than the size of the animals';
     wstr = sprintf('%s\n Avoid using object detection based top-down methods',wstr);
     warning(wstr);  %#ok<SPWRN>
   end

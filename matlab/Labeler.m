@@ -3309,7 +3309,7 @@ classdef Labeler < handle
           try
             s.trackerData{i}.trnLastDMC = ...
               DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
-                                             'netmode',[s.trackerData{1}.trnNetMode]);
+                                             'netmode',[s.trackerData{1}.stg1.trnNetMode]);
           catch ME
             warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
             s.trackerData{i}.trnLastDMC = [];
