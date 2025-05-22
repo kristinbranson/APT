@@ -30,7 +30,6 @@ arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
 arena.load_state_dict(checkpoint)
 
 # %%
-#NOTE: This is wrong. Needs to be fixed. Start with providing the correct R and T 
 def get_annotations_curve(arena, user_annotation, 
                           camera_real, cam_real_dist_coeff,
                           camera_virtual, cam_virtual_dist_coeff):
@@ -41,7 +40,7 @@ def get_annotations_curve(arena, user_annotation,
         _, _, emergent_ray, _ = arena.prism(cam_1_ray)
         origin = emergent_ray.origin[:,0][:,None]
         direction = emergent_ray.direction[:,0][:,None]
-        s = torch.linspace(0, 3, 100).to(torch.float64)
+        s = torch.linspace(-3, 6, 100).to(torch.float64)
         r = origin + s[None, :] * direction
 
         R1 = torch.eye(3, 3).to(torch.float64)
@@ -139,7 +138,7 @@ def get_epipolar_line(arena, user_annotation,
             cam_1_ray = labelled_camera(undistorted_annotations)
             origin = cam_1_ray.origin[:,0][:,None]
             direction = cam_1_ray.direction[:,0][:,None]
-            s = torch.linspace(prism_distance, prism_distance + 10, 50).to(torch.float64)
+            s = torch.linspace(prism_distance, prism_distance + 20, 50).to(torch.float64)
             r = origin + s[None, :] * direction       
             
             annotations_curve_unlabelled_camera = unlabelled_camera.reproject(r, R_unlabelled, T_unlabelled)            
@@ -182,8 +181,12 @@ if rotmat:
     R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
     R_theta = torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]).to(torch.float64)
     user_annotation = R_theta_inv @ user_annotation
-    user_annotation[0, :] = -user_annotation[0, :] + dividing_col_cam  # 1-based indexing for dividing_col 
-    user_annotation[1, :] = -user_annotation[1, :]
+    if "virtual" in cam_label:
+        user_annotation[0, :] = -user_annotation[0, :] + dividing_col_cam  # 1-based indexing for dividing_col 
+        user_annotation[1, :] = -user_annotation[1, :]
+    if "real" in cam_label:
+        user_annotation[0, :] = -user_annotation[0, :] + image_width_cam
+        user_annotation[1, :] = -user_annotation[1, :]
 
 if "virtual" in cam_label:
     epipolar_line_unlabelled, epipolar_line_labelled = get_epipolar_line(arena, user_annotation, cam_label)
@@ -200,6 +203,11 @@ if "virtual" in cam_label:
 
 elif "real" in cam_label:
     epipolar_line_unlabelled = get_epipolar_line(arena, user_annotation, cam_label)
+    if rotmat:
+        user_annotation = R_theta @ user_annotation
+        epipolar_line_unlabelled = R_theta @ epipolar_line_unlabelled
+        epipolar_line_unlabelled[1, :] = -epipolar_line_unlabelled[1, :] + image_width_cam - 1
+        epipolar_line_unlabelled[0, :] *= -1
     epipolar_line_unlabelled = epipolar_line_unlabelled.numpy()
     epipolar_line_labelled = np.array([])
 # %%
