@@ -122,8 +122,9 @@ classdef TrainMonitorViz < handle
         % which lets that LabelerController handle things in a coordinated way.
 
       handles = guidata(obj.hfig);
-      TrainMonitorViz.updateStartStopButton(handles, false, []) ;
-      handles.pushbutton_startstop.Enable = 'on';
+      % TrainMonitorViz.updateStartStopButton(handles, false, []) ;
+      obj.updateStopButton() ;
+      %handles.pushbutton_startstop.Enable = 'on';
             
       obj.haxs = [handles.axes_loss;handles.axes_dist];
       %obj.hannlastupdated = handles.text_clusterstatus;
@@ -136,7 +137,7 @@ classdef TrainMonitorViz < handle
       arrayfun(@(x)cla(x),obj.haxs);
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      obj.setStatusDisplayLine(str, true) ;
+      obj.setStatusDisplayLine_(str, true) ;
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       handles.text_clusterinfo.String = '...';
       handles.popupmenu_actions.String = obj.actions.(char(obj.backendType));
@@ -331,8 +332,6 @@ classdef TrainMonitorViz < handle
       
       % Check arguments
       assert(isstruct(pollingResult) && isscalar(pollingResult)) ;
-
-      tfSucc = true;
       
       pollsuccess = pollingResult.pollsuccess;
       isTrainComplete = pollingResult.tfComplete;
@@ -355,32 +354,37 @@ classdef TrainMonitorViz < handle
       if any(obj.wasAborted),
         status = sprintf('Training process killed (%d/%d models).',nnz(obj.wasAborted),obj.nmodels);
         tfSucc = false;
-        handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,false);
+        % handles = guidata(obj.hfig);
+        % TrainMonitorViz.updateStartStopButton(handles,false,false);
       elseif any(isErr),
         status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
         tfSucc = false;
-        handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,false);
+        % handles = guidata(obj.hfig);
+        % TrainMonitorViz.updateStartStopButton(handles,false,false);
       elseif all(isTrainComplete),
         status = 'Training complete.';
-        handles = guidata(obj.hfig);
-        TrainMonitorViz.updateStartStopButton(handles,false,true);
+        tfSucc = true;
+        % handles = guidata(obj.hfig);
+        % TrainMonitorViz.updateStartStopButton(handles,false,true);
       elseif ~isAnyRunning,
         status = 'No training jobs running.';
         tfSucc = false;
       elseif any(isLogFile) && all(~isJsonFile),
         status = 'Training in progress. Preprocessing.';
+        tfSucc = true;
       elseif any(isLogFile) && any(isJsonFile),
         status = sprintf('Training in progress. %s iterations completed.',mat2str(obj.lastTrainIter));
+        tfSucc = true;
       else
         status = 'Initializing training.';
+        tfSucc = true;
       end
+      obj.updateStopButton() ;
 
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
       isAllGood = pollsuccess && ~any(isErr) ;
-      obj.setStatusDisplayLine(str, isAllGood) ;
+      obj.setStatusDisplayLine_(str, isAllGood) ;
     end
     
     function adjustAxes(obj,lineUpdateMaxStep,iset)
@@ -396,7 +400,7 @@ classdef TrainMonitorViz < handle
     
     function abortTraining(obj)
       % Called in response to the user pressing the stop button
-      obj.setStatusDisplayLine('Killing training jobs...', false);
+      obj.setStatusDisplayLine_('Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
@@ -405,9 +409,10 @@ classdef TrainMonitorViz < handle
       obj.labeler_.abortTraining() ;
 
       obj.wasAborted(:) = true ;
-      obj.setStatusDisplayLine('Training process killed.', true);
+      obj.setStatusDisplayLine_('Training process killed.', true);
 
-      TrainMonitorViz.updateStartStopButton(handles,false,false);
+      % TrainMonitorViz.updateStartStopButton(handles,false,false);
+      obj.updateStopButton() ;
     end
     
     function startTraining(obj)
@@ -522,22 +527,7 @@ classdef TrainMonitorViz < handle
       drawnow;
       hAnn.Position(1) = ax.Position(1)+ax.Position(3)-hAnn.Position(3);
       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
-    end   
-    
-    function updateStartStopButton(handles, isRunning, isComplete)
-      if isRunning || isempty(isComplete),
-        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
-      else
-        if isComplete,
-          set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],...
-              'Enable','off','UserData','done');
-        else
-          set(handles.pushbutton_startstop,'String','Training incomplete',...
-              'Enable','off','UserData','done');
-        end
-      end      
-    end  % function
-
+    end       
   end  % methods (Static)
   
   methods
@@ -551,10 +541,18 @@ classdef TrainMonitorViz < handle
       else
         isComplete = (labeler.lastTrainEndCause == EndCause.complete) ;
       end      
-      TrainMonitorViz.updateStartStopButton(handles, isRunning, isComplete) ;
+      if isRunning || isempty(isComplete),
+        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on');
+      else
+        if isComplete,
+          set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],'Enable','off');
+        else
+          set(handles.pushbutton_startstop,'String','Training incomplete','Enable','off');
+        end
+      end            
     end  % function
 
-    function setStatusDisplayLine(obj, str, isallgood)
+    function setStatusDisplayLine_(obj, str, isallgood)
       % Set either or both of the status message line and the color of the status
       % message.  Any of the two (non-obj) args can be empty, in which case that
       % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus

@@ -1575,9 +1575,9 @@ classdef LabelerController < handle
 
     function updateTrackMonitorViz(obj)
       if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
-        labeler = obj.labeler_ ;
-        pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
-        obj.trackingMonitorVisualizer_.resultsReceived(pollingResult) ;
+        % labeler = obj.labeler_ ;
+        % pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
+        obj.trackingMonitorVisualizer_.update() ;
       end
     end  % function
 
@@ -5863,18 +5863,16 @@ classdef LabelerController < handle
     end
 
     function trainMonitorVizCloseRequested(obj)
-      doReallyClose = false ;
       tfbatch = batchStartupOptionUsed() ; % ci
       trainMonitorViz = obj.trainingMonitorVisualizer_ ;
       if tfbatch ,
         doReallyClose = true ;
       else        
-        trainMonitorFig = trainMonitorViz.hfig ;
-        handles = guidata(trainMonitorFig) ;
-  
-        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
-  
-        if strcmpi(mode,'stop') ,
+        isRunning = obj.labeler_.bgTrnIsRunning ;
+        % trainMonitorFig = trainMonitorViz.hfig ;  
+        % handles = guidata(trainMonitorFig) ;
+        % mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+        if isRunning ,
           res = questdlg({'Training currently in progress. Please stop training before'
                           'closing this monitor. If you have already clicked Stop training,'
                           'please wait for training processes to be killed before closing'
@@ -5883,14 +5881,9 @@ classdef LabelerController < handle
                          'Stop training before closing monitor', ...
                          'Ok','Override and close anyways', ...
                          'Ok');
-          if ~strcmpi(res,'Ok'),
-            doReallyClose = true ;
-          end
-        elseif strcmpi(mode,'start') || strcmpi(mode,'done') ,
-          doReallyClose = true ;
+          doReallyClose = strcmp(res,'Override and close anyways') ;
         else
-          % sanity check
-          error('Internal error: Bad userdata value for pushbutton_startstop');
+          doReallyClose = true ;
         end
       end
 
@@ -5901,18 +5894,16 @@ classdef LabelerController < handle
     end  % function
 
     function trackMonitorVizCloseRequested(obj)
-      doReallyClose = false ;
       tfbatch = batchStartupOptionUsed() ; % ci
       trackMonitorViz = obj.trackingMonitorVisualizer_ ;
       if tfbatch ,
         doReallyClose = true ;
       else        
-        trackMonitorFig = trackMonitorViz.hfig ;
-        handles = guidata(trackMonitorFig) ;
-  
-        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
-  
-        if strcmpi(mode,'stop') ,
+        isRunning = obj.labeler_.bgTrkIsRunning ;
+        % trackMonitorFig = trackMonitorViz.hfig ;
+        % handles = guidata(trackMonitorFig) ;  
+        % mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+        if isRunning ,
           res = questdlg({'Tracking currently in progress. Please stop tracking before'
                           'closing this monitor. If you have already clicked Stop tracking,'
                           'please wait for tracking processes to be killed before closing'
@@ -5921,14 +5912,9 @@ classdef LabelerController < handle
                          'Stop tracking before closing monitor', ...
                          'Ok','Override and close anyways', ...
                          'Ok');
-          if ~strcmpi(res,'Ok'),
-            doReallyClose = true ;
-          end
-        elseif strcmpi(mode,'start') || strcmpi(mode,'done') ,
-          doReallyClose = true ;
+          doReallyClose = strcmp(res,'Override and close anyways') ;
         else
-          % sanity check
-          error('Internal error: Bad userdata value for pushbutton_startstop');
+          doReallyClose = true ;
         end
       end
 

@@ -125,29 +125,32 @@ function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: delete(hObject) closes the figure
+% This method will be overridden in the TrackMonitorViz class.
 
-tfbatch = batchStartupOptionUsed; % ci
-mode = get(handles.pushbutton_startstop,'UserData');
-
-if strcmpi(mode,'stop') && ~tfbatch,
-  
-  res = questdlg({'Training currently in progress. Please stop training before'
-    'closing this monitor. If you have already clicked Stop training,'
-    'please wait for training processes to be killed before closing'
-    'this monitor.'
-    'Only override this warning if you know what you are doing.'},...
-    'Stop training before closing monitor','Ok','Override and close anyways','Ok');
-  if ~strcmpi(res,'Ok'),
-    delete(hObject);
-  end
-  
-elseif strcmpi(mode,'start') || strcmpi(mode,'done') || tfbatch,
-  
-  delete(hObject);
-  
-else
-  % sanity check
-  error('Bad userdata value for pushbutton_startstop');
-end
+% % Hint: delete(hObject) closes the figure
+% 
+% 
+% tfbatch = batchStartupOptionUsed; % ci
+% mode = get(handles.pushbutton_startstop,'UserData');
+% 
+% if strcmpi(mode,'stop') && ~tfbatch,
+% 
+%   res = questdlg({'Training currently in progress. Please stop training before'
+%     'closing this monitor. If you have already clicked Stop training,'
+%     'please wait for training processes to be killed before closing'
+%     'this monitor.'
+%     'Only override this warning if you know what you are doing.'},...
+%     'Stop training before closing monitor','Ok','Override and close anyways','Ok');
+%   if ~strcmpi(res,'Ok'),
+%     delete(hObject);
+%   end
+% 
+% elseif strcmpi(mode,'start') || strcmpi(mode,'done') || tfbatch,
+% 
+%   delete(hObject);
+% 
+% else
+%   % sanity check
+%   error('Bad userdata value for pushbutton_startstop');
+% end
 

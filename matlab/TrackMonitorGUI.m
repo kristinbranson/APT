@@ -108,14 +108,7 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-switch hObject.UserData
-  case 'stop'
-    handles.vizobj.abortTracking();
-  case 'start'
-    warning('not implemented');
-  otherwise
-    assert(false);
-end
+handles.vizobj.abortTracking();
 
 
 % --- Executes when user attempts to close figure_TrackMonitor.
@@ -124,30 +117,32 @@ function figure_TrackMonitor_CloseRequestFcn(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hint: delete(hObject) closes the figure
+% This method will be overridden in the TrackMonitorViz class.
 
-mode = get(handles.pushbutton_startstop,'UserData');
-if strcmpi(mode,'stop'),
-  
-  res = questdlg({'Tracking currently in progress. Please stop tracking before'
-    'closing this monitor. If you have already clicked Stop tracking,'
-    'please wait for tracking processes to be killed before closing'
-    'this monitor.'
-    'Only override this warning if you know what you are doing.'},...
-    'Stop tracking before closing monitor','Ok','Override and close anyways','Ok');
-  if ~strcmpi(res,'Ok'),
-    delete(hObject);
-  end
-  return;
-  
-elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
-  
-  delete(hObject);
-  
-else
-  % sanity check
-  error('Bad userdata value for pushbutton_startstop');
-end
+% % Hint: delete(hObject) closes the figure
+% 
+% mode = get(handles.pushbutton_startstop,'UserData');
+% if strcmpi(mode,'stop'),
+% 
+%   res = questdlg({'Tracking currently in progress. Please stop tracking before'
+%     'closing this monitor. If you have already clicked Stop tracking,'
+%     'please wait for tracking processes to be killed before closing'
+%     'this monitor.'
+%     'Only override this warning if you know what you are doing.'},...
+%     'Stop tracking before closing monitor','Ok','Override and close anyways','Ok');
+%   if ~strcmpi(res,'Ok'),
+%     delete(hObject);
+%   end
+%   return;
+% 
+% elseif strcmpi(mode,'start') || strcmpi(mode,'done'),
+% 
+%   delete(hObject);
+% 
+% else
+%   % sanity check
+%   error('Bad userdata value for pushbutton_startstop');
+% end
 
 
 

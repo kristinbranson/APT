@@ -21,7 +21,7 @@ classdef TrackMonitorViz < handle
     htrackerInfo % scalar text box handle showing information about current tracker
     wasAborted = false;  % scalar, whether tracking has been aborted
     
-    resLast = []; % last contents received
+    % resLast = []; % last contents received
     dtObj % DeepTracker Obj
     poller = [];
     backendType  % scalar DLBackEnd (a DLBackEnd enum, not a DLBackEndClass)
@@ -50,8 +50,8 @@ classdef TrackMonitorViz < handle
       'Show error messages'}});
     minFracComplete = .001;
     
-    % twostage mode
-    twoStgMode = false;
+    % % twostage mode
+    % twoStgMode = false;
     
     % bulk mode 
     bulkAxsIsBulkMode = false; % if true, waitbar is in "bulk mode"
@@ -121,9 +121,9 @@ classdef TrackMonitorViz < handle
       %obj.hannlastupdated = handles.text_clusterstatus;
       obj.htrackerInfo = handles.edit_trackerinfo;
 
-      obj.twoStgMode = dtObj.getNumStages() > 1;
+      twoStgMode = dtObj.getNumStages() > 1;
       obj.bulkAxsIsBulkMode = nmov > obj.bulkNmovThreshold;
-      % if obj.twoStgMode AND .bulk* are true, twoStg will take precedence
+      % if twoStgMode AND .bulk* are true, twoStg will take precedence
       % for now
       
       % reset plots
@@ -131,7 +131,7 @@ classdef TrackMonitorViz < handle
       %obj.hannlastupdated.String = 'Cluster status: Initializing...';
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: Initializing...', clusterstr) ;
-      obj.setStatusDisplayLine(str, true) ;
+      obj.setStatusDisplayLine_(str, true) ;
       handles.text_clusterinfo.String = '...';
       % set info about current tracker
       s = obj.dtObj.getTrackerInfoString();
@@ -140,7 +140,7 @@ classdef TrackMonitorViz < handle
       handles.popupmenu_actions.Value = 1;
       
       axwait = handles.axes_wait;
-      if obj.twoStgMode
+      if twoStgMode
         nstg = 2*nmov;
         axwait.YLim = [0,nstg];
         axwait.XLim = [0,1+obj.minFracComplete];
@@ -200,7 +200,7 @@ classdef TrackMonitorViz < handle
       hold(axwait,'on');
       
       % create hline/htext
-      if obj.twoStgMode
+      if twoStgMode
         clrs = lines(nMovSets);
         DESCSTGPAT = {'%s (detect)' '%s (pose)'};
         for stg=1:2          
@@ -243,7 +243,7 @@ classdef TrackMonitorViz < handle
         end
       end
       
-      obj.resLast = [];
+      % obj.resLast = [];
       obj.wasAborted = false;
       drawnow;            
     end
@@ -253,29 +253,23 @@ classdef TrackMonitorViz < handle
       obj.hfig = [];
     end
         
-    function [tfSucc,msg] = resultsReceived(obj, pollingResult, forceupdate)
-      % Callback executed when new result received from monitor BG
-      % worker
-      %
-      % trnComplete: scalar logical, true when all views done
-      
-      tfSucc = false;
-      msg = '';  %#ok<NASGU> 
-      
+    function update(obj, pollingResult, forceupdate)      
+      % Deal with optional arguments
+      if nargin<2
+        pollingResult = obj.labeler_.tracker.bgTrkMonitor.pollingResult ;
+      end
       if nargin < 3,
-        forceupdate = false;
+        forceupdate = false ;
       end
       
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
-        msg = 'Monitor closed.';
         TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
-        return;
+        return
       end
 
       if obj.wasAborted,
-        msg = 'Tracking jobs killed.';
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
-        return;
+        return
       end
       
       TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
@@ -377,17 +371,17 @@ classdef TrackMonitorViz < handle
       TrackMonitorViz.debugfprintf('\n');
       TrackMonitorViz.debugfprintf('Update of nFramesTracked took %f s.\n',toc(ticId));
       
-      obj.resLast = pollingResult ;
+      % obj.resLast = pollingResult ;
       
       obj.updateErrDisplay(pollingResult);
-      [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);      
+      obj.updateStatusDisplayLine_(pollingResult);      
     end
     
-    function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
+    function updateStatusDisplayLine_(obj, pollingResult)
       % pollsuccess: [nview] logical
       % pollts: [nview] timestamps
       
-      tfSucc = true;
+      % tfSucc = true;
       nJobs = numel(pollingResult.tfComplete);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
       isTrackComplete = false;
@@ -407,10 +401,10 @@ classdef TrackMonitorViz < handle
       
       if obj.wasAborted,
         status = 'Tracking process aborted.';
-        tfSucc = false;
+        % tfSucc = false;
       elseif isTrackComplete
         status = 'Tracking complete.';
-        obj.updateStatusFinal(nJobs)
+        obj.updateStatusFinal_(nJobs)
       elseif ~isRunning,
         if isErr,
           status = 'Error while tracking.';
@@ -420,10 +414,10 @@ classdef TrackMonitorViz < handle
         % handles = guidata(obj.hfig);
         % TrackMonitorViz.updateStartStopButton(handles,false,false);        
         obj.updateStopButton() ;
-        tfSucc = false;
+        % tfSucc = false;
       elseif isErr,
         status = 'Error while tracking.';
-        tfSucc = false;
+        % tfSucc = false;
       elseif isLogFile,
         if obj.bulkAxsIsBulkMode
           status = sprintf('Tracking in progress. %d/%d movies tracked.',...
@@ -440,13 +434,17 @@ classdef TrackMonitorViz < handle
       clusterstr = apt.monitorBackendDescription(obj.backendType) ;
       str = sprintf('%s status: %s (at %s)',clusterstr,status,strtrim(datestr(now(),'HH:MM:SS PM'))) ;
       isAllGood = all(pollsuccess) && ~isErr ;
-      obj.setStatusDisplayLine(str, isAllGood) ;
+      obj.setStatusDisplayLine_(str, isAllGood) ;
     end  % function
     
     function updateErrDisplay(obj, pollingResult)
+      % If there has been an error, update the text_clusterinfo editbox
+      % to reflect the error.  We do this by setting the item selected in the
+      % popupmenu_actions popup menu and then calling updateClusterInfo().
+      % Then we make that editbox red and update the stop button.
       isErr = any([pollingResult.errFileExists]) ;
       if ~isErr,
-        return;
+        return
       end
       handles = guidata(obj.hfig);
       if any([pollingResult.errFileExists]),
@@ -464,12 +462,11 @@ classdef TrackMonitorViz < handle
       end
       obj.updateClusterInfo();
       handles.text_clusterinfo.ForegroundColor = 'r';
-      %TrackMonitorViz.updateStartStopButton(handles,false,false);
       obj.updateStopButton() ;
       drawnow;
     end  % function
 
-    function updateStatusFinal(obj,nJobs)
+    function updateStatusFinal_(obj,nJobs)
       for ijob = 1:nJobs
         if nJobs > 1,
           sview = obj.jobDescs{ijob};
@@ -487,31 +484,20 @@ classdef TrackMonitorViz < handle
     function abortTracking(obj)
       if isempty(obj.poller),
         warning('trackWorkerObj is empty -- cannot kill process');
-        return;
+        return
       end
-      obj.setStatusDisplayLine('Killing tracking jobs...', false) ;
+      obj.setStatusDisplayLine_('Killing tracking jobs...', false) ;
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping tracking...';
       handles.pushbutton_startstop.Enable = 'off';
       obj.labeler_.abortTracking() ;
-
-      % [tfsucc,warnings] = obj.trackWorkerObj.killProcess();
-      % if tfsucc,
-      % 
-      %   % AL: .isKilled set in resultsReceived
-      %   %obj.isKilled = true;
-      % else
-      %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
-      % end
-      % TrackMonitorViz.updateStartStopButton(handles,false,false);
       obj.updateStopButton() ;
-      obj.setStatusDisplayLine('Tracking process killed.', false);
-      drawnow;
-
+      obj.setStatusDisplayLine_('Tracking process killed.', false);
+      drawnow();
     end
     
     function updateClusterInfo(obj)
-      
+      % Update the stuff in the big text box (the lower one).
       handles = guidata(obj.hfig);
       actions = handles.popupmenu_actions.String; %#ok<PROP>
       v = handles.popupmenu_actions.Value;
@@ -520,31 +506,22 @@ classdef TrackMonitorViz < handle
         case 'Show log files',
          ss = obj.getLogFilesSummary();
          handles.text_clusterinfo.String = ss;
-         drawnow;
         case 'Update tracking monitor',
-          obj.updateMonitorPlots();
-          drawnow;
+          obj.updateMonitorPlots_();
         case {'List all jobs on cluster','List all docker jobs','List all conda jobs'},
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
-          drawnow;
         case 'Show tracking jobs'' status',
           ss = obj.queryAllJobsStatus();
           handles.text_clusterinfo.String = ss;
-          drawnow;
         case 'Show error messages',
-          if isempty(obj.resLast) || ~any([obj.resLast.errFileExists]),
-            ss = 'No error messages.';
-          else
-            ss = obj.getErrorFilesSummary() ;
-          end
+          ss = obj.getErrorFilesSummary() ;
           handles.text_clusterinfo.String = ss;
-          drawnow;
         otherwise
           fprintf('%s not implemented\n',action);
-          return;
+          return
       end
-      %handles.text_clusterinfo.ForegroundColor = 'w';
+      drawnow() ;
     end    
     
     function ss = getLogFilesSummary(obj)      
@@ -555,9 +532,9 @@ classdef TrackMonitorViz < handle
       ss = obj.dtObj.getTrackingErrorFilesSummary() ;      
     end
     
-    function updateMonitorPlots(obj)      
+    function updateMonitorPlots_(obj)      
       pollingResult = obj.poller.poll() ;
-      obj.resultsReceived(pollingResult, true) ;
+      obj.update(pollingResult, true) ;
     end
     
     function result = queryAllJobsStatus(obj)      
@@ -580,12 +557,12 @@ classdef TrackMonitorViz < handle
         isComplete = (labeler.lastTrackEndCause == EndCause.complete) ;
       end      
       if isRunning ,
-        set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+        set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on');
       else
         if isComplete ,
-          set(handles.pushbutton_startstop,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
+          set(handles.pushbutton_startstop,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off');
         else
-          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
+          set(handles.pushbutton_startstop,'String','Tracking incomplete','BackgroundColor',[.64,.08,.18],'Enable','off');
         end
       end      
     end  % function
@@ -698,7 +675,7 @@ classdef TrackMonitorViz < handle
   end  % methods (Static)
 
   methods
-    function setStatusDisplayLine(obj, str, isallgood)
+    function setStatusDisplayLine_(obj, str, isallgood)
       % Set either or both of the status message line and the color of the status
       % message.  Any of the two (non-obj) args can be empty, in which case that
       % aspect is not changed.  obj.hfig's guidata must have a text_clusterstatus
