@@ -5,6 +5,7 @@ import scipy.io as sio
 import os
 from matplotlib.widgets import Cursor
 import sys
+import math
 
 raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
 sys.path.append(raytracing_lib_path)
@@ -62,8 +63,12 @@ def get_annotations_curve(arena, user_annotation,
         return annotations_curve_real, annotations_curve_virtual
     
 
-def get_epipolar_line(arena, user_annotation, 
+def get_epipolar_line_in_real_cam(arena, user_annotation, 
                           cam_label):
+    num_epipolar_pts = 2
+    """
+    Returns epipolar lines projected in real cameras
+    """
     if "primary" in cam_label:
         labelled_camera = arena.camera1
         cam_labelled_dist_coeff = arena.radial_dist_coeffs_cam_0
@@ -117,7 +122,7 @@ def get_epipolar_line(arena, user_annotation,
             origin = emergent_ray.origin[:,0][:,None]
             
             direction = emergent_ray.direction[:,0][:,None]
-            s = torch.linspace(0, 8, 50).to(torch.float64)
+            s = torch.linspace(0, 8, num_epipolar_pts).to(torch.float64)
             r = origin + s[None, :] * direction        
             annotations_curve_unlabelled_camera = unlabelled_camera.reproject(r, R_unlabelled, T_unlabelled)
             annotations_curve_labelled_camera = labelled_camera.reproject(r, R_labelled, T_labelled)
@@ -138,7 +143,7 @@ def get_epipolar_line(arena, user_annotation,
             cam_1_ray = labelled_camera(undistorted_annotations)
             origin = cam_1_ray.origin[:,0][:,None]
             direction = cam_1_ray.direction[:,0][:,None]
-            s = torch.linspace(prism_distance, prism_distance + 20, 50).to(torch.float64)
+            s = torch.linspace(prism_distance, prism_distance + 20, num_epipolar_pts).to(torch.float64)
             r = origin + s[None, :] * direction       
             
             annotations_curve_unlabelled_camera = unlabelled_camera.reproject(r, R_unlabelled, T_unlabelled)            
@@ -146,6 +151,121 @@ def get_epipolar_line(arena, user_annotation,
                                                                 annotations_curve_unlabelled_camera,
                                                                 cam_unlabelled_dist_coeff)
             return annotations_curve_unlabelled_camera
+
+
+def get_epipolar_line_in_virtual_cam(arena, user_annotation):
+    """
+    Returns epipolar line in virtual camera
+    This is different from get_epipolar_line_in_real_cam because the line going from the world into the virtual camera is not easily defined
+    """
+    num_epipolar_pts = 2
+    if "primary" in cam_label:
+        labelled_camera = arena.camera1
+        cam_labelled_dist_coeff = arena.radial_dist_coeffs_cam_0
+        unlabelled_camera = get_secondary_camera(arena)
+        cam_unlabelled_dist_coeff = arena.radial_dist_coeffs_cam_1
+        R_labelled = torch.eye(3, 3).to(torch.float64)
+        T_labelled = torch.zeros(3, 1).to(torch.float64)
+        R_unlabelled = get_rot_mat(
+            arena.stereo_camera_angles[0],
+            arena.stereo_camera_angles[1],
+            arena.stereo_camera_angles[2],
+            ) 
+        T_unlabelled = arena.T_stereo_cam
+
+    elif "secondary" in cam_label:
+        labelled_camera = get_secondary_camera(arena)
+        cam_labelled_dist_coeff = arena.radial_dist_coeffs_cam_1
+        unlabelled_camera = arena.camera1
+        cam_unlabelled_dist_coeff = arena.radial_dist_coeffs_cam_0    
+        R_unlabelled = torch.eye(3, 3).to(torch.float64)
+        T_unlabelled = torch.zeros(3, 1).to(torch.float64)
+        R_labelled = get_rot_mat(
+            arena.stereo_camera_angles[0],
+            arena.stereo_camera_angles[1],
+            arena.stereo_camera_angles[2],
+            ) 
+        T_labelled = arena.T_stereo_cam
+    else:
+        print("Please provide appropriate camera labels")
+
+    annotations_curve_primary_camera = torch.zeros(2, num_epipolar_pts).to(dtype=torch.float64, device=device)
+    annotations_curve_secondary_camera = torch.zeros_like(annotations_curve_primary_camera)
+
+    if cam_label in ["primary_virtual", "secondary_virtual"]:                
+        with torch.no_grad():
+            undistorted_annotations = labelled_camera.undistort_pixels_classical(user_annotation[:2],
+                                                                                cam_labelled_dist_coeff)
+            cam_1_ray = labelled_camera(undistorted_annotations)
+            _, _, emergent_ray, _ = arena.prism(cam_1_ray)
+            origin = emergent_ray.origin[:,0][:,None]
+            
+            direction = emergent_ray.direction[:,0][:,None]
+
+
+    elif cam_label in ["primary_real", "secondary_real"]:
+        with torch.no_grad():
+            prism_distance = torch.norm(arena.prism_center)
+            undistorted_annotations = labelled_camera.undistort_pixels_classical(user_annotation[:2],
+                                                                                cam_labelled_dist_coeff)
+            cam_1_ray = labelled_camera(undistorted_annotations)
+            origin = cam_1_ray.origin[:,0][:,None]
+            direction = cam_1_ray.direction[:,0][:,None]
+    
+    s = torch.linspace(prism_distance + 3, prism_distance + 18, num_epipolar_pts).to(dtype=torch.float64, device=device)
+    r = origin + s[None, :] * direction     
+    for pt_id in range(num_epipolar_pts):
+        reprojection_pixel = closest_virtual_pixel_to_point(arena, r[:, pt_id].unsqueeze(-1), image_width, image_height=[1200, 1200])
+        annotations_curve_primary_camera[:, pt_id] = reprojection_pixel[:2, 0]
+        annotations_curve_secondary_camera[:, pt_id] = reprojection_pixel[2:, 0]
+
+
+    if "primary" in cam_label:
+        annotations_curve_unlabelled_camera = annotations_curve_secondary_camera
+        annotations_curve_labelled_camera = annotations_curve_primary_camera
+    elif "secondary" in cam_label:
+        annotations_curve_unlabelled_camera = annotations_curve_primary_camera
+        annotations_curve_labelled_camera = annotations_curve_secondary_camera    
+    return annotations_curve_unlabelled_camera, annotations_curve_labelled_camera
+
+
+def closest_virtual_pixel_to_point(arena, point, image_width, image_height=[1200, 1200]):    
+    """
+    
+    """    
+    resolution_for_virtual_projection = 0.1 # pixel accuracy needed to get reprojection in the virtual camera
+    grid_factor = 14
+    virtual_pixels_grid = torch.zeros(4, grid_factor * grid_factor).to(dtype=torch.float64, device=device)
+    num_iterations = math.ceil(math.log(image_width[0] / resolution_for_virtual_projection, grid_factor)) # number of iterations needed to get the virtual pixel
+    num_iterations = int(num_iterations)
+    width = image_width
+    height = image_height
+    center = torch.zeros(4, 1).to(dtype=torch.float64, device=device) 
+    with torch.no_grad():
+        center[:2, 0] = torch.tensor([width[0] / 2, height[0] / 2]).to(dtype=torch.float64, device=device)
+        center[2:, 0] = torch.tensor([width[1] / 2, height[1] / 2]).to(dtype=torch.float64, device=device)        
+        #multiplier = [[],[]]
+        #multiplier[0] = [-1, 1, -1, 1] # top left, top right, bottom left, bottom right for the x coordinate
+        #multiplier[1] = [-1, -1, 1, 1] # top left, top right, bottom left, bottom right for the y coordinate
+        x = torch.linspace(-0.5 + 1/grid_factor/2, 0.5 - 1/grid_factor/2, grid_factor)
+        y = torch.linspace(-0.5 + 1/grid_factor/2, 0.5 - 1/grid_factor/2, grid_factor) 
+        
+        [xx, yy] = torch.meshgrid(x, y)
+        xx = xx.flatten().unsqueeze(-1).T
+        yy = yy.flatten().unsqueeze(-1).T
+        
+        for _ in range(num_iterations):                        
+            virtual_pixels_grid = torch.vstack((xx * width[0] + center[0,0], yy * height[0] + center[1,0], xx * width[1] + center[2,0], yy * height[1] + center[3,0]))
+            rays_dict = arena.pass_through_virtual_cam(virtual_pixels_grid)
+            ray1, ray2 = rays_dict["cam_1_ray_virtual"], rays_dict["cam_2_ray_virtual"]
+            distance1 = ray1.distance_to_point(point)
+            min_arg1 = torch.argmin(distance1)
+            distance2 = ray2.distance_to_point(point)
+            min_arg2 = torch.argmin(distance2)            
+            center = torch.vstack((virtual_pixels_grid[:2, min_arg1][:, None], virtual_pixels_grid[2:, min_arg2][:, None]))
+            width = [width_el / grid_factor for width_el in width]
+            height = [height_el / grid_factor for height_el in height]
+    return center
 
 
 def get_secondary_camera(arena):
@@ -189,7 +309,7 @@ if rotmat:
         user_annotation[1, :] = -user_annotation[1, :]
 
 if "virtual" in cam_label:
-    epipolar_line_unlabelled, epipolar_line_labelled = get_epipolar_line(arena, user_annotation, cam_label)
+    epipolar_line_unlabelled, epipolar_line_labelled = get_epipolar_line_in_real_cam(arena, user_annotation, cam_label)
     if rotmat:
         user_annotation = R_theta @ user_annotation
         epipolar_line_unlabelled = R_theta @ epipolar_line_unlabelled
@@ -202,12 +322,18 @@ if "virtual" in cam_label:
     epipolar_line_labelled = epipolar_line_labelled.numpy()
 
 elif "real" in cam_label:
-    epipolar_line_unlabelled = get_epipolar_line(arena, user_annotation, cam_label)
+    epipolar_line_unlabelled = get_epipolar_line_in_real_cam(arena, user_annotation, cam_label)
+    _, epipolar_line_labelled = get_epipolar_line_in_virtual_cam(arena, user_annotation)
     if rotmat:
         user_annotation = R_theta @ user_annotation
         epipolar_line_unlabelled = R_theta @ epipolar_line_unlabelled
         epipolar_line_unlabelled[1, :] = -epipolar_line_unlabelled[1, :] + image_width_cam - 1
         epipolar_line_unlabelled[0, :] *= -1
+        epipolar_line_labelled = R_theta @ epipolar_line_labelled
+        epipolar_line_labelled[1, :] = -epipolar_line_labelled[1, :] + dividing_col_cam - 1
+        epipolar_line_labelled[0, :] *= -1
+
     epipolar_line_unlabelled = epipolar_line_unlabelled.numpy()
-    epipolar_line_labelled = np.array([])
+    epipolar_line_labelled = epipolar_line_labelled.numpy()    
+    #epipolar_line_labelled = np.array([])
 # %%

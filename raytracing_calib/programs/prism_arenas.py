@@ -149,6 +149,8 @@ class Arena_3D_loss(nn.Module):
         output['intersection_penalty_2'] = intersection_penalty_2
         return output
     
+    
+
 
     def visualize(self, pixels_virtual_two_cams, color_labels=None):
         num_samples = 10
@@ -618,6 +620,45 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         output['pairwise_distance'] = pairwise_distance        
         return output
 
+    def pass_through_virtual_cam(self, pixels_virtual_two_cams):
+        # Input pixels aren't provided in pairs
+        self.prism = Prism(prism_size=self.prism_size,
+                        prism_center=self.prism_center,
+                        prism_angles=self.prism_angles,
+                        refractive_index_glass=self.refractive_index_glass,
+                        )
+
+        R_stereo_cam = get_rot_mat(
+            self.stereo_camera_angles[0],
+            self.stereo_camera_angles[1],
+            self.stereo_camera_angles[2],
+            )
+
+        camera2 = self.get_stereo_camera(self.principal_point_pixel_cam_1,
+                                    self.focal_length_cam_1,
+                                    R_stereo_cam,
+                                    self.T_stereo_cam,
+                                    r1=self.stereocam_r1,
+                                    radial_dist_coeffs=self.radial_dist_coeffs_cam_1)
+
+        distorted_virtual_pixels_cam_0 = pixels_virtual_two_cams[:2,:]
+        distorted_virtual_pixels_cam_1 = pixels_virtual_two_cams[2:4,:]
+
+        undistorted_virtual_pixels_cam_0 = self.camera1.undistort_pixels_classical(distorted_virtual_pixels_cam_0,
+                                                                                self.radial_dist_coeffs_cam_0)
+
+        undistorted_virtual_pixels_cam_1 = camera2.undistort_pixels_classical(distorted_virtual_pixels_cam_1,
+                                                                            self.radial_dist_coeffs_cam_1)
+
+        cam_1_ray_virtual = self.camera1(undistorted_virtual_pixels_cam_0)
+        cam_2_ray_virtual = camera2(undistorted_virtual_pixels_cam_1)
+        _, _, cam_1_ray_virtual, _ = self.prism(cam_1_ray_virtual)
+        _, _, cam_2_ray_virtual, _ = self.prism(cam_2_ray_virtual)
+
+        output = {}
+        output['cam_1_ray_virtual'] = cam_1_ray_virtual
+        output['cam_2_ray_virtual'] = cam_2_ray_virtual
+        return output
 
     def visualize(self, pixels_virtual_two_cams, color_labels=None):
         num_samples = 10
