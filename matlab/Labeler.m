@@ -189,9 +189,9 @@ classdef Labeler < handle
     % movie
     newTrackingResults 
     
-    % trainStart
+    updateTrainingMonitor
     trainEnd
-    % trackStart
+    updateTrackingMonitor
     trackEnd    
 
     didSetTrackerHideViz
@@ -15383,4 +15383,16 @@ classdef Labeler < handle
       result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
     end  % function
   end  % methods (Static)
+
+  methods
+    function updateTrainingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrainingMonitor') ;
+    end  % function
+
+    function updateTrackingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrackingMonitor') ;
+    end  % function
+  end  % methods
 end  % classdef

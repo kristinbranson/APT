@@ -252,7 +252,12 @@ classdef TrackMonitorViz < handle
       deleteValidGraphicsHandles(obj.hfig);
       obj.hfig = [];
     end
-        
+    
+    function update(obj)
+      % Traditional controller update method.
+      obj.resultsReceived() ;
+    end
+
     function [tfSucc,msg] = resultsReceived(obj, pollingResult, forceupdate)
       % Callback executed when new result received from monitor BG
       % worker
@@ -262,6 +267,9 @@ classdef TrackMonitorViz < handle
       tfSucc = false;
       msg = '';  %#ok<NASGU> 
       
+      if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
+        pollingResult = obj.labeler_.tracker.bgTrkMonitor.pollingResult ;
+      end
       if nargin < 3,
         forceupdate = false;
       end
@@ -269,15 +277,23 @@ classdef TrackMonitorViz < handle
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed.';
         TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
-        return;
+        return
       end
 
       if obj.wasAborted,
+        obj.updateStopButton() ;
         msg = 'Tracking jobs killed.';
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
-        return;
+        return
       end
       
+      if isempty(pollingResult) ,
+        tfSucc = true ;
+        msg = 'No one will read this.' ;
+        obj.updateStopButton() ;
+        return
+      end
+
       TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
        
       if isfield(pollingResult,'parttrkfile')
@@ -381,6 +397,7 @@ classdef TrackMonitorViz < handle
       
       obj.updateErrDisplay(pollingResult);
       [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);      
+      obj.updateStopButton() ;
     end
     
     function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
@@ -465,7 +482,6 @@ classdef TrackMonitorViz < handle
       obj.updateClusterInfo();
       handles.text_clusterinfo.ForegroundColor = 'r';
       %TrackMonitorViz.updateStartStopButton(handles,false,false);
-      obj.updateStopButton() ;
       drawnow;
     end  % function
 
