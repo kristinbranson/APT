@@ -104,7 +104,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
 
         end
 
-        function [xEPL, yEPL] = rayTracingComputeEpipolarLine(obj, iView1, iView2, xy1)
+        function [xEPL, yEPL] = rayTracingComputeEpipolarLine_old(obj, iView1, iView2, xy1)
             % Aniket Ravan, 4th of Feb 2025
             % View id convention: 1-primary camera (virtual)
             %                     2-primary camera (real)
@@ -189,7 +189,26 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             end
         end
 
-
+        function [xEPL, yEPL] = rayTracingComputeEpipolarLine(obj, iView1, iView2, xy1)
+            % Aniket Ravan, 4th of Feb 2025
+            % View id convention: 1-primary camera (virtual)
+            %                     2-primary camera (real)
+            %                     3-secondary camera (virtual)
+            %                     4-secondary camera (real)
+            % iView1: View that has been labelled
+            % iView2: View on which epipolar line is drawn
+            cam_label = obj.viewIdToLabel(iView1);
+            cam_projecting = obj.viewIdToLabel(iView2);
+            epipolar_line = getEPLRayTracing(obj.model_path, ...
+                                    obj.python_script_path, ...
+                                    obj.dividing_col,...
+                                    obj.image_width,...
+                                    cam_label, ...
+                                    cam_projecting,...
+                                    xy1);
+            xEPL = epipolar_line(1,:);
+            yEPL = epipolar_line(2,:);
+        end
 
         %CalRig
         function [xEPL,yEPL] = computeEpiPolarLine(obj,iView1,xy1,iViewEpi,imroi)
