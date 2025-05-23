@@ -285,6 +285,9 @@ classdef TrainMonitorViz < handle
       for i = 1:obj.nmodels,
         if pollingResult.jsonPresent(i) && (forceupdate || pollingResult.tfUpdate(i)),
           contents = pollingResult.contents{i};
+          if isempty(contents)
+            continue
+          end
           set(obj.hline(i,1),'XData',contents.step,'YData',contents.train_loss);
           set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
           iset = obj.setidx(i);

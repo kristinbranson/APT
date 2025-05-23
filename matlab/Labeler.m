@@ -13086,7 +13086,11 @@ classdef Labeler < handle
       catch ME
         warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
-      
+
+      if isnan(iTgt)
+        return;
+      end
+
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       
