@@ -228,7 +228,12 @@ classdef TrainMonitorViz < handle
       end
       obj.haxs = haxnew;
     end
-        
+    
+    function update(obj)
+      % Traditional controller update method.
+      obj.resultsReceived() ;
+    end
+    
     function [tfSucc,msg] = resultsReceived(obj,pollingResult,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
@@ -242,9 +247,21 @@ classdef TrainMonitorViz < handle
       tfSucc = false;
       msg = '';  %#ok<NASGU> 
       
+      if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
+        pollingResult = obj.labeler_.tracker.bgTrnMonitor.pollingResult ;
+      end      
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
         TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
+        return
+      end
+
+      % If there is no pollingResult, just update the stop button.
+      % May add more here in the future.
+      if isempty(pollingResult) ,
+        tfSucc = true ;
+        msg = 'No one will read this.' ;
+        obj.updateStopButton() ;
         return
       end
       

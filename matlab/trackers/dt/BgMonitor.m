@@ -38,7 +38,7 @@ classdef BgMonitor < handle
   methods
     function obj = BgMonitor(parent, type_string, poller, varargin)      
       % Is obj for monitoring training or tracking?
-      obj.parent_ = parent ;
+      obj.parent_ = parent ;  % a DeepTracker
       if strcmp(type_string, 'train') ,
         obj.processName = 'train' ;
         obj.pollInterval = 30 ;  % secs
@@ -110,10 +110,17 @@ classdef BgMonitor < handle
     
     function start(obj)
       obj.isEnded_ = false ;
-      % obj.tfComplete_ = false ;
       bgc = obj.bgClientObj;
       bgc.startPollingLoop(obj.pollInterval) ;
-    end
+      % Generate an update of the monitor window, if one is present
+      if strcmp(obj.processName, 'train')
+        obj.parent_.updateTrainingMonitorRetrograde() ;
+      elseif strcmp(obj.processName, 'track')
+        obj.parent_.updateTrackingMonitorRetrograde() ;
+      else
+        error('Internal error: obj.processName has an illegal value') ;
+      end
+    end  % function
     
     function stop(obj)
       % Stop polling for training/tracking results.

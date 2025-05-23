@@ -189,9 +189,9 @@ classdef Labeler < handle
     % movie
     newTrackingResults 
     
-    % trainStart
+    updateTrainingMonitor
     trainEnd
-    % trackStart
+    updateTrackingMonitor
     trackEnd    
 
     didSetTrackerHideViz
@@ -3310,11 +3310,11 @@ classdef Labeler < handle
             if isfield(s.trackerData{1},'stg1')
               netmode=s.trackerData{1}.stg1.trnNetMode;
             else
-              netmod = s.trackerData{1}.trnNetMode;
+              netmode = s.trackerData{1}.trnNetMode;
             end
             s.trackerData{i}.trnLastDMC = ...
               DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
-                                             'netmode',[netmode]);
+                                             'netmode',netmode);
           catch ME
             warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
             s.trackerData{i}.trnLastDMC = [];
@@ -5735,7 +5735,6 @@ classdef Labeler < handle
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
         obj.notify('updateTrxSetShowTrue') ;
-        %obj.updateTrxSetShowTrue() ;      
       end
     end
             
@@ -13006,14 +13005,9 @@ classdef Labeler < handle
       
       if updateTables
         obj.updateTrxTable();
-%         obj.updateCurrSusp();
       end
       
-      %fprintf('setFrame %d, update tables took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
-
-      
       if updateTrajs
-        %obj.updateTrxSetShowFalse();
         obj.notify('updateTrxSetShowFalse') ;
       end
       
@@ -15383,4 +15377,16 @@ classdef Labeler < handle
       result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
     end  % function
   end  % methods (Static)
+
+  methods
+    function updateTrainingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrainingMonitor') ;
+    end  % function
+
+    function updateTrackingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrackingMonitor') ;
+    end  % function
+  end  % methods
 end  % classdef

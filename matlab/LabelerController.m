@@ -144,13 +144,13 @@ classdef LabelerController < handle
     menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_hide_predictions
-    menu_view_hide_trajectories
+    menu_view_show_trajectories
     menu_view_landmark_colors
     menu_view_landmark_label_colors
     menu_view_landmark_prediction_colors
     menu_view_occluded_points_box
     menu_view_pan_toggle
-    menu_view_plot_trajectories_current_target_only
+    menu_view_show_trajectories_current_target_only
     menu_view_reset_views
     menu_view_rotate_video_target_up
     menu_view_show_axes_toolbar
@@ -452,12 +452,12 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config()) ) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrainingMonitor', @(src,evt) (obj.updateTrainingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrackingMonitor', @(src,evt) (obj.updateTrackingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
       obj.listeners_(end+1) = ...
@@ -1375,6 +1375,14 @@ classdef LabelerController < handle
       set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
       set(obj.menu_file_quit,'Enable','on');
       
+      % Update items in the View menu
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx  && labeler.showTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
+
       % Update setup menu item
       set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
 
@@ -1919,13 +1927,13 @@ classdef LabelerController < handle
         msg = '';
         if any(cellfun(@numel,shs) ~= 1),
           isproblem = true;
-          msg = [msg,'All shortcuts must be single-character letters. '];
+          msg = [msg,'All shortcuts must be single-character letters. ']; %#ok<AGROW>
         end
         [uniqueshs,~,idx] = unique(shs);
         if numel(uniqueshs) < numel(shs),
           isproblem = true;
           count = accumarray(idx,1);
-          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. '];
+          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. ']; %#ok<AGROW>
         end
         if ~isproblem,
           break;
@@ -2609,15 +2617,9 @@ classdef LabelerController < handle
       obj.labelTLInfo.didChangeCurrentTracker();
     end  % function
     
-    % function cbkTrackerTrainStart(obj)
-    %   lObj = obj.labeler_ ;
-    %   algName = lObj.tracker.algorithmName;
-    %   backend_type_string = lObj.trackDLBackEnd.prettyName();
-    %   obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
-    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-    %   obj.txBGTrain.FontWeight = 'normal';
-    %   obj.txBGTrain.Visible = 'on';
-    % end  % function
+    function updateTrainingMonitor(obj)
+      obj.trainingMonitorVisualizer_.update() ;
+    end  % function
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
@@ -2628,16 +2630,9 @@ classdef LabelerController < handle
       obj.update() ;
     end  % function
 
-    % function cbkTrackerStart(obj)
-    %   lObj = obj.labeler_ ;
-    %   algName = lObj.tracker.algorithmName;
-    %   backend_type_string = lObj.trackDLBackEnd.prettyName() ;
-    %   obj.txBGTrain.String = ...
-    %     sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>
-    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-    %   obj.txBGTrain.FontWeight = 'normal';
-    %   obj.txBGTrain.Visible = 'on';
-    % end  % function
+    function updateTrackingMonitor(obj)
+      obj.trackingMonitorVisualizer_.update() ;
+    end  % function
 
     function cbkTrackerEnd(obj)
       obj.update() ;
@@ -3037,8 +3032,14 @@ classdef LabelerController < handle
 
     function cbkShowTrxChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(~labeler.showTrx);
-      obj.menu_view_hide_trajectories.Checked = onOff;
+      % obj.menu_view_show_trajectories.Checked = ...
+      %   onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;      
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3050,8 +3051,8 @@ classdef LabelerController < handle
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(labeler.showTrxCurrTargetOnly);
-      obj.menu_view_plot_trajectories_current_target_only.Checked = onOff;
+      obj.menu_view_show_trajectories_current_target_only.Checked = ...
+        onIff(labeler.hasProject &&~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ;
     end  % function
 
     function cbkTrackModeIdxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3213,9 +3214,9 @@ classdef LabelerController < handle
       %   handles = rmfield(handles,'newProjAxLimsSetInConfig');
       % end
 
-      if labeler.hasMovie && evt.isFirstMovieOfProject,
-        obj.updateEnablementOfManyControls() ;
-      end
+      % if labeler.hasMovie && evt.isFirstMovieOfProject,
+      obj.updateEnablementOfManyControls() ;
+      % end
 
       if ~labeler.gtIsGTMode,
         set(obj.menu_go_targets_summary,'Enable','on');
@@ -3302,9 +3303,7 @@ classdef LabelerController < handle
 
       TRX_MENUS = {...
         'menu_view_trajectories_centervideoontarget'
-        'menu_view_rotate_video_target_up'
-        'menu_view_hide_trajectories'
-        'menu_view_plot_trajectories_current_target_only'};
+        'menu_view_rotate_video_target_up'};
       %  'menu_setup_label_overlay_montage_trx_centered'};
       tftblon = labeler.hasTrx || labeler.maIsMA;
       onOff = onIff(tftblon);
@@ -4744,10 +4743,6 @@ classdef LabelerController < handle
 
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if ~tfok
       	return;
@@ -4758,47 +4753,22 @@ classdef LabelerController < handle
       end
       gamma = str2double(val{1});
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
-        obj.axes_prev,iAxApply,gamma);
-
+                                      obj.axes_prev,iAxApply,gamma);
     end
 
-
-
     function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       obj.quitRequested() ;
     end
 
-
-
-    function menu_view_hide_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrx(~labeler.showTrx);
-
+      labeler.setShowTrx(~labeler.showTrx);  % toggle it
     end
 
-
-
-    function menu_view_plot_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);
-
+      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);  % toggle
     end
-
-
 
     function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -4904,16 +4874,11 @@ classdef LabelerController < handle
 
 
     function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-      lblCore = labeler.lblCore;
+      lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
-        lblCore.labelsHideToggle();
+        lblCore.labelsHideToggle() ;
       end
-
     end
 
 

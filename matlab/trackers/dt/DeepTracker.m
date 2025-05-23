@@ -3035,10 +3035,16 @@ classdef DeepTracker < LabelTracker
       else
         obj.newLabelerFrame(); % not sure what this does... 
         %obj.lObj.setFrameGUI(curfr); % this should result in call to .newLabelerFrame();
-        sel = tv.iTrx2iTrxViz(active);
+        % sel = tv.iTrx2iTrxViz(active);
+        sel = active ;  % active is already an index into tv.ptrx
       end
 
-      tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+      % tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+      tv.trxSelectedTrxID(sel, true) ;  
+        % Think we want to call tv.trxSelectedTrxID() here, not tv.trxSelected().
+        % sel is an index into tv.pTrx, not an index into tv.tvtrx.  If sel was an
+        % index into tv.tvtrx, tv.trxSelected() would be the one to call.  -- ALT,
+        % 2025-05-22
     end  % function
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
@@ -4373,4 +4379,17 @@ classdef DeepTracker < LabelTracker
       result = obj.nFramesToTrack_ ;
     end
   end  % methods    
+
+  methods
+    function updateTrainingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.lObj.updateTrainingMonitorRetrograde() ;
+    end  % function
+
+    function updateTrackingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.lObj.updateTrackingMonitorRetrograde() ;
+    end  % function
+  end  % methods
+  
 end  % classdef
