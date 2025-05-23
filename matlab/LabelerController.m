@@ -150,7 +150,7 @@ classdef LabelerController < handle
     menu_view_landmark_prediction_colors
     menu_view_occluded_points_box
     menu_view_pan_toggle
-    menu_view_plot_trajectories_current_target_only
+    menu_view_show_trajectories_current_target_only
     menu_view_reset_views
     menu_view_rotate_video_target_up
     menu_view_show_axes_toolbar
@@ -1377,9 +1377,9 @@ classdef LabelerController < handle
       
       % Update items in the View menu
       set(obj.menu_view_show_trajectories, ...
-          'Enable', onIff(hasProject &&~isMA && labeler.hasTrx), ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
           'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
-      set(obj.menu_view_plot_trajectories_current_target_only, ...
+      set(obj.menu_view_show_trajectories_current_target_only, ...
           'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
           'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
 
@@ -3045,7 +3045,7 @@ classdef LabelerController < handle
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      obj.menu_view_plot_trajectories_current_target_only.Checked = ...
+      obj.menu_view_show_trajectories_current_target_only.Checked = ...
         onIff(labeler.hasProject &&~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ;
     end  % function
 
@@ -4868,16 +4868,11 @@ classdef LabelerController < handle
 
 
     function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-      lblCore = labeler.lblCore;
+      lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
-        lblCore.labelsHideToggle();
+        lblCore.labelsHideToggle() ;
       end
-
     end
 
 
