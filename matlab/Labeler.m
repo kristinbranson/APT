@@ -189,9 +189,9 @@ classdef Labeler < handle
     % movie
     newTrackingResults 
     
-    % trainStart
+    updateTrainingMonitor
     trainEnd
-    % trackStart
+    updateTrackingMonitor
     trackEnd    
 
     didSetTrackerHideViz
@@ -3309,7 +3309,7 @@ classdef Labeler < handle
           try
             s.trackerData{i}.trnLastDMC = ...
               DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
-                                             'netmode',[s.trackerData{1}.stg1.trnNetMode]);
+                                             'netmode',[s.trackerData{1}.trnNetMode]);
           catch ME
             warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
             s.trackerData{i}.trnLastDMC = [];
@@ -15378,4 +15378,16 @@ classdef Labeler < handle
       result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
     end  % function
   end  % methods (Static)
+
+  methods
+    function updateTrainingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrainingMonitor') ;
+    end  % function
+
+    function updateTrackingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrackingMonitor') ;
+    end  % function
+  end  % methods
 end  % classdef

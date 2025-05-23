@@ -452,12 +452,12 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config()) ) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrainingMonitor', @(src,evt) (obj.updateTrainingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrackingMonitor', @(src,evt) (obj.updateTrackingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
       obj.listeners_(end+1) = ...
@@ -2609,15 +2609,9 @@ classdef LabelerController < handle
       obj.labelTLInfo.didChangeCurrentTracker();
     end  % function
     
-    % function cbkTrackerTrainStart(obj)
-    %   lObj = obj.labeler_ ;
-    %   algName = lObj.tracker.algorithmName;
-    %   backend_type_string = lObj.trackDLBackEnd.prettyName();
-    %   obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
-    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-    %   obj.txBGTrain.FontWeight = 'normal';
-    %   obj.txBGTrain.Visible = 'on';
-    % end  % function
+    function updateTrainingMonitor(obj)
+      obj.trainingMonitorVisualizer_.update() ;
+    end  % function
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
@@ -2628,16 +2622,9 @@ classdef LabelerController < handle
       obj.update() ;
     end  % function
 
-    % function cbkTrackerStart(obj)
-    %   lObj = obj.labeler_ ;
-    %   algName = lObj.tracker.algorithmName;
-    %   backend_type_string = lObj.trackDLBackEnd.prettyName() ;
-    %   obj.txBGTrain.String = ...
-    %     sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>
-    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-    %   obj.txBGTrain.FontWeight = 'normal';
-    %   obj.txBGTrain.Visible = 'on';
-    % end  % function
+    function updateTrackingMonitor(obj)
+      obj.trackingMonitorVisualizer_.update() ;
+    end  % function
 
     function cbkTrackerEnd(obj)
       obj.update() ;
