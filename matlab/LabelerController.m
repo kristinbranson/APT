@@ -1380,7 +1380,7 @@ classdef LabelerController < handle
           'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
           'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
       set(obj.menu_view_show_trajectories_current_target_only, ...
-          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx  && labeler.showTrx), ...
           'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
 
       % Update setup menu item
@@ -3032,8 +3032,14 @@ classdef LabelerController < handle
 
     function cbkShowTrxChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      obj.menu_view_show_trajectories.Checked = ...
-        onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
+      % obj.menu_view_show_trajectories.Checked = ...
+      %   onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;      
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
@@ -4759,7 +4765,7 @@ classdef LabelerController < handle
       labeler.setShowTrx(~labeler.showTrx);  % toggle it
     end
 
-    function menu_view_plot_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_show_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);  % toggle
     end
