@@ -5735,7 +5735,6 @@ classdef Labeler < handle
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
         obj.notify('updateTrxSetShowTrue') ;
-        %obj.updateTrxSetShowTrue() ;      
       end
     end
             
@@ -13006,14 +13005,9 @@ classdef Labeler < handle
       
       if updateTables
         obj.updateTrxTable();
-%         obj.updateCurrSusp();
       end
       
-      %fprintf('setFrame %d, update tables took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
-
-      
       if updateTrajs
-        %obj.updateTrxSetShowFalse();
         obj.notify('updateTrxSetShowFalse') ;
       end
       
