@@ -144,7 +144,7 @@ classdef LabelerController < handle
     menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_hide_predictions
-    menu_view_hide_trajectories
+    menu_view_show_trajectories
     menu_view_landmark_colors
     menu_view_landmark_label_colors
     menu_view_landmark_prediction_colors
@@ -1375,6 +1375,14 @@ classdef LabelerController < handle
       set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
       set(obj.menu_file_quit,'Enable','on');
       
+      % Update items in the View menu
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(hasProject &&~isMA && labeler.hasTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_plot_trajectories_current_target_only, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
+
       % Update setup menu item
       set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
 
@@ -1919,13 +1927,13 @@ classdef LabelerController < handle
         msg = '';
         if any(cellfun(@numel,shs) ~= 1),
           isproblem = true;
-          msg = [msg,'All shortcuts must be single-character letters. '];
+          msg = [msg,'All shortcuts must be single-character letters. ']; %#ok<AGROW>
         end
         [uniqueshs,~,idx] = unique(shs);
         if numel(uniqueshs) < numel(shs),
           isproblem = true;
           count = accumarray(idx,1);
-          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. '];
+          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. ']; %#ok<AGROW>
         end
         if ~isproblem,
           break;
@@ -3024,8 +3032,8 @@ classdef LabelerController < handle
 
     function cbkShowTrxChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(~labeler.showTrx);
-      obj.menu_view_hide_trajectories.Checked = onOff;
+      obj.menu_view_show_trajectories.Checked = ...
+        onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3037,8 +3045,8 @@ classdef LabelerController < handle
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(labeler.showTrxCurrTargetOnly);
-      obj.menu_view_plot_trajectories_current_target_only.Checked = onOff;
+      obj.menu_view_plot_trajectories_current_target_only.Checked = ...
+        onIff(labeler.hasProject &&~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ;
     end  % function
 
     function cbkTrackModeIdxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3200,9 +3208,9 @@ classdef LabelerController < handle
       %   handles = rmfield(handles,'newProjAxLimsSetInConfig');
       % end
 
-      if labeler.hasMovie && evt.isFirstMovieOfProject,
-        obj.updateEnablementOfManyControls() ;
-      end
+      % if labeler.hasMovie && evt.isFirstMovieOfProject,
+      obj.updateEnablementOfManyControls() ;
+      % end
 
       if ~labeler.gtIsGTMode,
         set(obj.menu_go_targets_summary,'Enable','on');
@@ -3289,9 +3297,7 @@ classdef LabelerController < handle
 
       TRX_MENUS = {...
         'menu_view_trajectories_centervideoontarget'
-        'menu_view_rotate_video_target_up'
-        'menu_view_hide_trajectories'
-        'menu_view_plot_trajectories_current_target_only'};
+        'menu_view_rotate_video_target_up'};
       %  'menu_setup_label_overlay_montage_trx_centered'};
       tftblon = labeler.hasTrx || labeler.maIsMA;
       onOff = onIff(tftblon);
@@ -4731,10 +4737,6 @@ classdef LabelerController < handle
 
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if ~tfok
       	return;
@@ -4745,47 +4747,22 @@ classdef LabelerController < handle
       end
       gamma = str2double(val{1});
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
-        obj.axes_prev,iAxApply,gamma);
-
+                                      obj.axes_prev,iAxApply,gamma);
     end
 
-
-
     function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       obj.quitRequested() ;
     end
 
-
-
-    function menu_view_hide_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrx(~labeler.showTrx);
-
+      labeler.setShowTrx(~labeler.showTrx);  % toggle it
     end
-
-
 
     function menu_view_plot_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);
-
+      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);  % toggle
     end
-
-
 
     function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;

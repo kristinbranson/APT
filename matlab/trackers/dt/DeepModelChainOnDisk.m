@@ -1183,9 +1183,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         
     function [tf,tpdir] = trnPackExists(obj,varargin)
       % Training package exists
-      trainLocLnx = obj.trainLocLnx(varargin{:});
+      trainLocLnx = obj.trainLocLnx();  % old-style string
       tpdir = obj.dirProjLnx;
-      tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
+      tf = logical(exist(tpdir,'dir')) && logical(exist(trainLocLnx,'file')) ;
     end
 
     % function result = getTorchHome(obj)
