@@ -592,9 +592,9 @@ classdef APTParameters
     end
     
     function [tPrm,canceled,do_update] = ...
-        autosetparamsGUI(tPrm,lobj,varargin)
+        autosetparamsGUI(tPrm,lobj)
       
-      silent = myparse(varargin,'silent',false);
+      silent = lobj.silent ;
       
       if lobj.maIsMA && lobj.trackerIsTwoStage  && ~lobj.trackerIsObjDet
           % Using head-tail for the first stage
@@ -604,7 +604,12 @@ classdef APTParameters
             if silent
               res = 'Yes';
             else
-              res = questdlg('For head-tail based two-stage detection, align using head-tail is switched off. Aligning animals using the head-tail direction will lead to better performance. Align using the head-tail direction?','Align using head-tail','Yes','No','Yes');
+              res = questdlg(strcatg('For head-tail based two-stage detection, align using head-tail is switched off. ', ...
+                                     'Aligning animals using the head-tail direction will lead to better performance. ', ...
+                                     'Align using the head-tail direction?'), ...
+                             'Align using head-tail?', ...
+                             'Yes','No', ...
+                             'Yes');
             end
             if strcmp(res,'Yes')
               tPrm.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta').Data.Value = 1;
@@ -618,7 +623,12 @@ classdef APTParameters
             if silent
               res = 'Yes';
             else
-              res = questdlg('When aligning using head-tail for 2 stage tracking, horizontal flipping and not vertical flipping is recommended for augmentation as the animal is rotated to face up. Switch the augmentation flip augmentation type from vertical to horizontal?','Switch flipping?','Yes','No','Yes');
+              res = questdlg(strcatg('When aligning using head-tail for 2 stage tracking, horizontal flipping and not vertical flipping is recommended ', ...
+                                     'for augmentation as the animal is rotated to face up. Switch the augmentation flip augmentation type from vertical ', ...
+                                     'to horizontal?'), ...
+                             'Switch flipping?', ...
+                             'Yes','No', ...
+                             'Yes');
             end
             if strcmp(res,'Yes')
               tPrm.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value = 0;
@@ -646,7 +656,6 @@ classdef APTParameters
       kk = autoparams.keys();
       % If values have been previously updated, then check if they are
       % significantly (>10%) different now
-      %%
       dstr = '';
       diff = false;
       default = true;
@@ -679,13 +688,16 @@ classdef APTParameters
       end
 
       if diff
-        dstr = sprintf('Auto-computed parameters have changed from earlier by more than 10%% \nfor some of the parameters. Update the following parameters? \n%s',dstr);
+        dstr = sprintf(strcatg('Auto-computed parameters have changed from earlier by more than 10%%\n', ...
+                               'for some of the parameters. Update the following parameters?\n', ...
+                               '%s'), ...
+                       dstr);
         
         if lobj.trackAutoSetParams
           if default || silent
             res = 'Update';
           else
-            res = APTParameters.auto_gui(dstr,lobj);
+            res = APTParameters.raiseAcceptAutoParamsDialog(dstr,lobj.hFig);
           end
         else
           res = 'Do not update';
@@ -708,65 +720,92 @@ classdef APTParameters
         do_update = true;
       end
       
-    end
+    end  % function
     
-    function res = auto_gui(dstr,lobj)
-    %%    
-      margin = 10;
-      btn_w = 150;
-      btn_h = 30;
-      n_btn = 3;
-      min_w = n_btn*btn_w+(n_btn+1)*margin;
-      min_h = btn_h + 3*margin;
+    function res = raiseAcceptAutoParamsDialog(dstr, parentFig)
+      % Raise a custom modal dialog that is sized to contain dstr, and looks nice,
+      % and is centered on parentFig.  This function blocks until the user clicks
+      % one of the dialog box buttons.  On return, res is an old-style string
+      % containing the user response.  Either 'Update', 'Do not update', or
+      % 'Cancel'.
 
-     dstr= strtrim(dstr);
-     f = figure('units','pixels','position',[300,300,min_w,150],...
-       'toolbar','none','menu','none');
-     t = uicontrol('style','text','String',dstr,'units','pixels',...
-       'position',[0,0,250,100],'Parent',f);
-     text_sz = get(t,'Extent');
+      % Constants of the figure layout
+      margin = 10;  % space between buttons, above and below buttons, and between textbox and figure boundary.
+      button_width = 150;
+      button_height = 30;
+      button_count = 3;
 
-%       c_box = uicontrol('style','checkbox','String','Always do this action',...
-%         'units','pixels','position',[0,0,250,100]);
-%       c_sz = get(c_box,'Extent');
+      min_w = button_count*button_width+(button_count+1)*margin;
+      min_h = button_height + 3*margin;
 
-     min_h = min_h+text_sz(4);
-     min_w = max(min_w,text_sz(3)+2*margin);
+      dstr = strtrim(dstr) ;
+      fig = figure('units','pixels', ...
+                   'position',[300,300,min_w,150],...
+                   'toolbar','none', ...
+                   'menu','none', ...
+                   'name', 'Auto-update parameters?', ...
+                   'WindowStyle', 'modal', ...
+                   'Resize', 'off', ...
+                   'HandleVisibility', 'off', ...
+                   'NumberTitle','off', ...
+                   'visible', 'off') ;
+      textbox = uicontrol('style','text', ...
+                          'String',dstr, ...
+                          'units','pixels',...
+                          'position',[0,0,250,100], ...
+                          'Parent',fig);
+      textbox_extent = get(textbox,'Extent');
 
-     f.Position(4) = min_h;
-     f.Position(3) = min_w;
-     t.Position(2) = 2*margin+btn_h;
-     t.Position(1) = (min_w-text_sz(3))/2;
-     t.Position(3:4) = t.Extent(3:4);
-%      c_box.Position(3) = c_box.Extent(3)+20;
-%      c_box.Position(4) = c_box.Extent(4);
-%      c_box.Position(2) = margin;
-%      c_box.Position(1) = (min_w-c_sz(3))/2;
+      fig_height = min_h+textbox_extent(4);
+      fig_width = max(min_w,textbox_extent(3)+2*margin);
 
-     btn_bottom = margin; 
-     btn_margin = (min_w-2*margin-n_btn*btn_w)/(n_btn-1);
-     btns = [];
-     btns(1) = uicontrol('style','pushbutton','String','Update',...
-       'units','pixels','position',[margin,btn_bottom,btn_w,btn_h],'Visible','on');
-     btns(2) = uicontrol('style','pushbutton','String','Do not update',...
-       'units','pixels','position',[margin+(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
-     btns(3) = uicontrol('style','pushbutton','String','Cancel',...
-       'units','pixels','position',[margin+2*(btn_margin+btn_w),btn_bottom,btn_w,btn_h],'Visible','on');
+      % Size the figure, center on parent
+      fig.Position(4) = fig_height ;
+      fig.Position(3) = fig_width ;
+      centerOnParentFigure(fig,parentFig);
 
-     set(btns,'Callback',@p_call)
-     centerOnParentFigure(f,lobj.hFig);
+      % Position the textbox
+      textbox.Position(2) = 2*margin+button_height;
+      textbox.Position(1) = (min_w-textbox_extent(3))/2;
+      textbox.Position(3:4) = textbox.Extent(3:4);
 
-      function p_call(hobj,~,handles)
-        handles.action = get(hobj,'String');
-        handles.never_again = false; %get(c_box,'Value');
-        uiresume(f);
-        guidata(hobj,handles);
-      end
-      
-     uiwait(f)
-     handles = guidata(f);
-     res = handles.action;
-     delete(f);
+      % Create the buttons
+      btn_bottom = margin; 
+      btn_margin = (min_w-2*margin-button_count*button_width)/(button_count-1);
+      btns = [];
+      btns(1) = uicontrol('parent', fig, ...
+                          'style','pushbutton', ...
+                          'String','Update',...
+                          'units','pixels', ...
+                          'position',[margin,btn_bottom,button_width,button_height], ...
+                          'Visible','on');
+      btns(2) = uicontrol('parent', fig, ...
+                          'style','pushbutton',...
+                          'String','Do not update',...
+                          'units','pixels',...
+                          'position',[margin+(btn_margin+button_width),btn_bottom,button_width,button_height],...
+                          'Visible','on');
+      btns(3) = uicontrol('parent', fig, ...
+                          'style','pushbutton',...
+                          'String','Cancel',...
+                          'units','pixels',...
+                          'position',[margin+2*(btn_margin+button_width),btn_bottom,button_width,button_height],...
+                          'Visible','on');
+
+      % Define a callback to pass response back to this scope.
+      res = 'Cancel' ;  % Fallback if e.g. user clicks the upper-right window close button
+      function button_pressed(button_h, ~, ~)
+        res = get(button_h,'String') ;
+        delete(fig) ;
+      end     
+      set(btns,'Callback',@button_pressed)
+
+      % Make the figure visible, and make sure it gets drawn
+      fig.Visible = 'on' ;
+      drawnow() ;
+
+      % Wait for the figure to be deleted (in the button_pressed() callback)
+      uiwait(fig) ;
     end
     
     function sPrm0 = defaultParamsOldStyle

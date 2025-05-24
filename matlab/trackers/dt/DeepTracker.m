@@ -2498,7 +2498,8 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = false;
       reason = '';
       
-      if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
+      % if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
+      if obj.bgTrkIsRunning ,
         reason = 'Tracking is already in progress.';
         return
       end
