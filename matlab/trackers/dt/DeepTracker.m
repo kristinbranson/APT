@@ -4284,6 +4284,7 @@ classdef DeepTracker < LabelTracker
       dmcs = obj.trnLastDMC ;
       trnImgInfo = cell(1,dmcs.n);
       necfields = {'idx','ims','locs'};
+      warned = false;
       for i=1:dmcs.n,
         f = dmcs.trainImagesNameLnx(i);
         f = f{1};
@@ -4297,7 +4298,12 @@ classdef DeepTracker < LabelTracker
           trnImgInfo{i}.name = dmcs.getNetDescriptor(i);
           trnImgInfo{i}.name = trnImgInfo{i}.name{1};
         else
-          warningNoTrace('Training image file ''%s'' does not exist yet.',f);
+          ss = sprintf('Training image file ''%s'' does not exist yet.',f);
+          warningNoTrace(ss);
+          if ~warned
+            warndlg(ss);
+            warned = true;
+          end
         end
       end
     end  % function

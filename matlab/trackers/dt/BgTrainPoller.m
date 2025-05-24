@@ -35,7 +35,6 @@ classdef BgTrainPoller < BgPoller
       % - Read the json for every view and see if it has been updated.
       % - Check for completion 
       result = obj.initialPollResults_() ;
-
       try
         result.jsonPresent = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.jsonPath);
         nModels = obj.dmcs_.n;
@@ -138,6 +137,9 @@ classdef BgTrainPoller < BgPoller
       catch ME
         warning('Failed to read json file for training model %d progress update:\n%s',imodel,getReport(ME));
         result.jsonPresent(imodel) = false;
+        return
+      end
+      if numel(trnLog.step)==0
         return
       end
       newStep = trnLog.step(end);

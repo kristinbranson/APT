@@ -58,6 +58,7 @@ classdef LabelerController < handle
     menu_evaluate_gtexportresults
     menu_evaluate_gtloadsuggestions
     menu_evaluate_gtmode
+    menu_evaluate_gt_frames
     menu_evaluate_gtsetsuggestions
     menu_file
     menu_file_bundle_tempdir
@@ -83,7 +84,6 @@ classdef LabelerController < handle
     menu_file_saveas
     menu_file_shortcuts
     menu_go
-    menu_go_gt_frames
     menu_go_movies_summary
     menu_go_nav_prefs
     menu_go_targets_summary
@@ -3162,7 +3162,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
-      obj.menu_go_gt_frames.Enable = onIffGT;
+      obj.menu_evaluate_gt_frames.Enable = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
       if ~isempty(obj.GTManagerFigure)
@@ -5076,7 +5076,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_go_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_evaluate_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.gtShowGTManager();
     end
