@@ -7543,7 +7543,7 @@ classdef Labeler < handle
       sMacro = obj.baseTrkFileMacros();
       fdir = FSPath.macroReplace(rawdir,sMacro);
       fname = FSPath.macroReplace(rawname,sMacro);
-      fname = FSPath.joinPath(fdir,fname);
+      fname = linux_fullfile(fdir,fname);
     end
 
     function fname = getDefaultFilenameExportStrippedLbl(obj)

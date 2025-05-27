@@ -108,23 +108,6 @@ classdef FSPath
     function tf = hasMacro(str,macro)
       tf = ~isempty(regexp(str,['\$' macro],'once'));
     end
-    
-    function p = joinPath(varargin)
-      % p = joinPath(part1,part2,...)
-      % join paths with a forward slash
-      p = '';
-      idx = ~cellfun(@isempty,varargin);
-      if ~any(idx),
-        % all parts are empty
-        return;
-      end
-      parts = varargin(idx);
-      p = parts{1};
-      for i = 2:numel(parts),
-        p = [p,'/',parts{i}]; %#ok<AGROW>
-      end
-
-    end
 
     function [macros,pathstrMacroized] = macrosPresent(pathstr,sMacro)
       % Check to see if any macros in sMacro could apply to pathstr, ie if 
