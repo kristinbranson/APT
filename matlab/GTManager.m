@@ -151,7 +151,7 @@ function cbkGTisGTModeChanged(hObject,src,evt)
 
 function cbkGTSuggUpdated(hObject,src,evt)
 handles = guidata(hObject);
-if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler.controller_.mainFigure_)
   % All is well
 else
   % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
@@ -188,6 +188,11 @@ tbl.mov = movstrs;
 
 COLS = [MFTable.FLDSID {'hasLbl' 'err'}];
 PRETTYCOLS = {'Movie' 'Frame' 'Target' 'Has Labels' 'Error'};
+if lObj.maIsMA
+  % Drop target for multi-animal MK 20250523
+  COLS = COLS([1 2 4 5]);
+  PRETTYCOLS = PRETTYCOLS([1 2 4 5]);
+end
 tbl = tbl(:,COLS);
 ntt.setData(tbl,'prettyHdrs',PRETTYCOLS);
 handles.navTreeTblMovIdxs = tblMovIdxs;
@@ -243,7 +248,11 @@ nData = ntt.nData;
 nttMovIdxs = handles.navTreeTblMovIdxs;
 assert(nData==numel(nttMovIdxs));
 if nData>0
-  tf = mIdx==nttMovIdxs & frm==nttData.frm & iTgt==nttData.iTgt;
+  if lObj.maIsMA
+    tf = mIdx==nttMovIdxs & frm==nttData.frm;
+  else
+    tf = mIdx==nttMovIdxs & frm==nttData.frm & iTgt==nttData.iTgt;
+  end
   iData = find(tf);
   if ~isempty(iData)
     assert(isscalar(iData));
@@ -269,7 +278,12 @@ iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
   lObj.movieSetGUI(iMov);
 end
-lObj.setFrameAndTargetGUI(mftRow.frm,mftRow.iTgt);
+if isfield(mftRow,'iTgt')
+  itgt = mftRow.iTgt;
+else
+  itgt = nan;
+end
+lObj.setFrameAndTargetGUI(mftRow.frm,itgt);
 
 % function imovs = cbkGetSelectedMovies(hMMobj)
 % % Get current selection in Table

@@ -58,6 +58,7 @@ classdef LabelerController < handle
     menu_evaluate_gtexportresults
     menu_evaluate_gtloadsuggestions
     menu_evaluate_gtmode
+    menu_evaluate_gt_frames
     menu_evaluate_gtsetsuggestions
     menu_file
     menu_file_bundle_tempdir
@@ -84,7 +85,6 @@ classdef LabelerController < handle
     menu_file_saveas
     menu_file_shortcuts
     menu_go
-    menu_go_gt_frames
     menu_go_movies_summary
     menu_go_nav_prefs
     menu_go_targets_summary
@@ -145,13 +145,13 @@ classdef LabelerController < handle
     menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_hide_predictions
-    menu_view_hide_trajectories
+    menu_view_show_trajectories
     menu_view_landmark_colors
     menu_view_landmark_label_colors
     menu_view_landmark_prediction_colors
     menu_view_occluded_points_box
     menu_view_pan_toggle
-    menu_view_plot_trajectories_current_target_only
+    menu_view_show_trajectories_current_target_only
     menu_view_reset_views
     menu_view_rotate_video_target_up
     menu_view_show_axes_toolbar
@@ -304,7 +304,7 @@ classdef LabelerController < handle
       obj.updateEnablementOfManyControls() ;
       
       % Update the status
-      obj.updateStatusBar() ;
+      obj.updateStatusAndPointer() ;
 
       % % Populate the callbacks of the controls in the main figure---someday
       % apt.populate_callbacks_bang(mainFigure, obj) ;
@@ -404,7 +404,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateStatus', @(source,event)(obj.updateStatusBar())) ;      
+        addlistener(labeler, 'updateStatusAndPointer', @(source,event)(obj.updateStatusAndPointer())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetTrx', @(source,event)(obj.didSetTrx(source, event))) ;      
       obj.listeners_(end+1) = ...
@@ -453,12 +453,12 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetTrackDLBackEnd', @(src,evt)(obj.update_menu_track_backend_config()) ) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrainingMonitor', @(src,evt) (obj.updateTrainingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateTrackingMonitor', @(src,evt) (obj.updateTrackingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
       obj.listeners_(end+1) = ...
@@ -602,7 +602,7 @@ classdef LabelerController < handle
       end
     end
 
-    function updateStatusBar(obj)
+    function updateStatusAndPointer(obj)
       % Update the status text box to reflect the current model state.
       labeler = obj.labeler_ ;
       is_busy = labeler.isStatusBusy ;
@@ -648,8 +648,8 @@ classdef LabelerController < handle
         end
       end
 
-      % Make sure to update graphics now-ish
-      drawnow('limitrate', 'nocallbacks');
+      % Make sure to update graphics now
+      drawnow('nocallbacks');
     end
 
     function updateBackgroundProcessingStatus_(obj)
@@ -829,8 +829,14 @@ classdef LabelerController < handle
         error('Tracker not fit to be trained: %s', reason) ;
       end
       
-      % Do this stuff
-      labeler.trackSetAutoParamsGUI();
+      % See if the automatically-determined parameters differ from the currently set
+      % ones.  If so, offer user the option to change to the auto-determined params.
+      [~, ~, was_canceled] = obj.setAutoParams();
+      if was_canceled 
+        return
+      end
+
+      % Make sure we have enough GPU memory
       if ~labeler.trackCheckGPUMemGUI()
         return
       end
@@ -1141,7 +1147,7 @@ classdef LabelerController < handle
         while true,
           switch btn
             case 'Launch New'
-              labeler.setStatus('Launching new AWS EC2 instance') ;
+              labeler.pushStatus('Launching new AWS EC2 instance') ;
               [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
               labeler.clearStatus() ;
               if ~didLaunchSucceed
@@ -1212,6 +1218,8 @@ classdef LabelerController < handle
       % way makes it easier to fake control actuations by calling
       % this function with the desired controlName and an empty
       % source and event.
+      % obj.labeler_.pushStatus(sprintf('Control %s actuated...', controlName)) ;
+      % oc = onCleanup(@()(obj.labeler_.popStatus())) ;
       if obj.isInYodaMode_ ,
         % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
@@ -1376,6 +1384,14 @@ classdef LabelerController < handle
       set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
       set(obj.menu_file_quit,'Enable','on');
       
+      % Update items in the View menu
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx  && labeler.showTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
+
       % Update setup menu item
       set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
 
@@ -1819,12 +1835,12 @@ classdef LabelerController < handle
 
     function didChangeProjectName(obj)
       obj.updateMainFigureName() ;
-      obj.updateStatusBar() ;      
+      obj.updateStatusAndPointer() ;      
     end  % function
 
     function didChangeProjFSInfo(obj)
       obj.updateMainFigureName() ;
-      obj.updateStatusBar() ;      
+      obj.updateStatusAndPointer() ;      
     end  % function
 
     function didChangeMovieInvert(obj)
@@ -1920,13 +1936,13 @@ classdef LabelerController < handle
         msg = '';
         if any(cellfun(@numel,shs) ~= 1),
           isproblem = true;
-          msg = [msg,'All shortcuts must be single-character letters. '];
+          msg = [msg,'All shortcuts must be single-character letters. ']; %#ok<AGROW>
         end
         [uniqueshs,~,idx] = unique(shs);
         if numel(uniqueshs) < numel(shs),
           isproblem = true;
           count = accumarray(idx,1);
-          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. '];
+          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. ']; %#ok<AGROW>
         end
         if ~isproblem,
           break;
@@ -2610,15 +2626,9 @@ classdef LabelerController < handle
       obj.labelTLInfo.didChangeCurrentTracker();
     end  % function
     
-    % function cbkTrackerTrainStart(obj)
-    %   lObj = obj.labeler_ ;
-    %   algName = lObj.tracker.algorithmName;
-    %   backend_type_string = lObj.trackDLBackEnd.prettyName();
-    %   obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));  %#ok<TNOW1,DATST>
-    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-    %   obj.txBGTrain.FontWeight = 'normal';
-    %   obj.txBGTrain.Visible = 'on';
-    % end  % function
+    function updateTrainingMonitor(obj)
+      obj.trainingMonitorVisualizer_.update() ;
+    end  % function
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
@@ -2629,16 +2639,9 @@ classdef LabelerController < handle
       obj.update() ;
     end  % function
 
-    % function cbkTrackerStart(obj)
-    %   lObj = obj.labeler_ ;
-    %   algName = lObj.tracker.algorithmName;
-    %   backend_type_string = lObj.trackDLBackEnd.prettyName() ;
-    %   obj.txBGTrain.String = ...
-    %     sprintf('%s tracking on %s (started %s)', algName, backend_type_string, datestr(now(),'HH:MM')) ;  %#ok<TNOW1,DATST>
-    %   obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-    %   obj.txBGTrain.FontWeight = 'normal';
-    %   obj.txBGTrain.Visible = 'on';
-    % end  % function
+    function updateTrackingMonitor(obj)
+      obj.trackingMonitorVisualizer_.update() ;
+    end  % function
 
     function cbkTrackerEnd(obj)
       obj.update() ;
@@ -3038,8 +3041,14 @@ classdef LabelerController < handle
 
     function cbkShowTrxChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(~labeler.showTrx);
-      obj.menu_view_hide_trajectories.Checked = onOff;
+      % obj.menu_view_show_trajectories.Checked = ...
+      %   onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;      
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3051,8 +3060,8 @@ classdef LabelerController < handle
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(labeler.showTrxCurrTargetOnly);
-      obj.menu_view_plot_trajectories_current_target_only.Checked = onOff;
+      obj.menu_view_show_trajectories_current_target_only.Checked = ...
+        onIff(labeler.hasProject &&~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ;
     end  % function
 
     function cbkTrackModeIdxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3154,7 +3163,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
-      obj.menu_go_gt_frames.Enable = onIffGT;
+      obj.menu_evaluate_gt_frames.Enable = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
       if ~isempty(obj.GTManagerFigure)
@@ -3214,9 +3223,9 @@ classdef LabelerController < handle
       %   handles = rmfield(handles,'newProjAxLimsSetInConfig');
       % end
 
-      if labeler.hasMovie && evt.isFirstMovieOfProject,
-        obj.updateEnablementOfManyControls() ;
-      end
+      % if labeler.hasMovie && evt.isFirstMovieOfProject,
+      obj.updateEnablementOfManyControls() ;
+      % end
 
       if ~labeler.gtIsGTMode,
         set(obj.menu_go_targets_summary,'Enable','on');
@@ -3303,9 +3312,7 @@ classdef LabelerController < handle
 
       TRX_MENUS = {...
         'menu_view_trajectories_centervideoontarget'
-        'menu_view_rotate_video_target_up'
-        'menu_view_hide_trajectories'
-        'menu_view_plot_trajectories_current_target_only'};
+        'menu_view_rotate_video_target_up'};
       %  'menu_setup_label_overlay_montage_trx_centered'};
       tftblon = labeler.hasTrx || labeler.maIsMA;
       onOff = onIff(tftblon);
@@ -4530,7 +4537,7 @@ classdef LabelerController < handle
 
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;            
-      labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
+      labeler.pushStatus('Plotting all labels on one axes to visualize label distribution...');
       oc = onCleanup(@()(labeler.clearStatus())) ;
       if labeler.hasTrx
         labeler.labelOverlayMontageGUI();
@@ -4763,10 +4770,6 @@ classdef LabelerController < handle
 
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if ~tfok
       	return;
@@ -4777,47 +4780,22 @@ classdef LabelerController < handle
       end
       gamma = str2double(val{1});
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
-        obj.axes_prev,iAxApply,gamma);
-
+                                      obj.axes_prev,iAxApply,gamma);
     end
 
-
-
     function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       obj.quitRequested() ;
     end
 
-
-
-    function menu_view_hide_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrx(~labeler.showTrx);
-
+      labeler.setShowTrx(~labeler.showTrx);  % toggle it
     end
 
-
-
-    function menu_view_plot_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);
-
+      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);  % toggle
     end
-
-
 
     function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -4923,16 +4901,11 @@ classdef LabelerController < handle
 
 
     function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-      lblCore = labeler.lblCore;
+      lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
-        lblCore.labelsHideToggle();
+        lblCore.labelsHideToggle() ;
       end
-
     end
 
 
@@ -5017,21 +4990,38 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if any(labeler.bgTrnIsRunningFromTrackerIndex()),
         warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
-        return;
+        return
       end
-      [tPrm,do_update] = labeler.trackSetAutoParamsGUI();
-      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
+      
+      % Actually takes a while for first response to happen, so show busy
+      obj.labeler_.pushStatus('Setting training parameters...') ;
+      oc = onCleanup(@()(obj.labeler_.popStatus())) ;
+      
+      % Compute the automatic parameters, give user chance to accept/reject them.
+      % did_update will be true iff they accepted them.
+      % tPrm will we be the current parameter tree, whether or not it incorporates
+      % the automatically-generated suggestions.
+      [tPrm, did_update, was_canceled] = obj.setAutoParams();
+      if was_canceled ,
+        return
+      end
+
+      % Show the GUI window that allows users to set parameters.  sPrmNew will be
+      % empty if user mode no changes, otherwise will be parameter structure holding
+      % the new parameters (which have not yet been 'written' to the model).
+      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler);  % modal
+
+      % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
+      % labeler, as needed.     
       if isempty(sPrmNew)
-        if do_update
-          RC.saveprop('lastCPRAPTParams',sPrmNew);
+        if did_update
           labeler.setDoesNeedSave(true,'Parameters changed') ;
         end
       else
         labeler.trackSetTrainingParams(sPrmNew);
-        RC.saveprop('lastCPRAPTParams',sPrmNew);
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end
-    end
+    end  % function
 
 
 
@@ -5105,7 +5095,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_go_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_evaluate_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.gtShowGTManager();
     end
@@ -5709,7 +5699,7 @@ classdef LabelerController < handle
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
       obj.update_text_trackerinfo() ;
-      obj.updateStatusBar() ;
+      obj.updateStatusAndPointer() ;
       obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
       obj.cbkGTResUpdated() ;
@@ -5967,5 +5957,65 @@ classdef LabelerController < handle
       end        
     end  % function
 
+    function [tPrm, did_update, was_canceled] = setAutoParams(obj)
+      % Compute auto parameters and update them based on user feedback.
+      %
+      % AL: note this sets the project-level params based on the current
+      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
+      % MA-TD) and switches between them, the behavior may be odd (eg the
+      % user may get prompted constantly about "changed suggestions" etc)
+
+      % On exit, returns the current parameter tree in the labeler in tPrm (whether
+      % modified or not).  do_update is a logical scalar that is true iff the
+      % suggested automatically-determined paramters were applied to the labeler.
+
+      labeler = obj.labeler_ ;
+        
+      sPrmCurrent = labeler.trackGetTrainingParams();
+      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
+      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+      % over.
+      
+      % Start with default "new" parameter tree/specification
+      tPrm = APTParameters.defaultParamsTree() ;
+      % Overlay our starting point
+      tPrm.structapply(sPrmCurrent) ;
+      
+      if labeler.isMultiView        
+        warningNoTrace('Multiview project: not auto-setting params.');
+        did_update = false;
+        was_canceled = false ;
+        return
+      end      
+      
+      if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
+        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
+        landmark_specs('lObj',labeler,'waiton_ui',true);
+        if isempty(labeler.skelHead)
+          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
+                         [], ...
+                         'modal'));
+          did_update = false;
+          was_canceled = false ;        
+          return
+        end
+      end
+      
+      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler) ;
+      if was_canceled
+        did_update = false ;
+        return
+      end
+
+      % Finally, apply the update, if called for.
+      if do_update
+        sPrmNew = tPrm.structize() ;
+        labeler.trackSetTrainingParams(sPrmNew);
+        did_update = true ;
+      else
+        did_update = false ;
+      end
+    end  % function
+        
   end  % methods  
 end  % classdef
