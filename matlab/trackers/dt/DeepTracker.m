@@ -1424,7 +1424,7 @@ classdef DeepTracker < LabelTracker
       % labels.json.
       % Output:
       % res: cell containing relative names of all files output
-      
+
       [jsonfilename] = myparse(varargin,'jsonfilename','labels.json');
 
       % create/ensure config file; set trainID
@@ -1462,6 +1462,8 @@ classdef DeepTracker < LabelTracker
       obj.genTrnPack(dmc,'cocoformat',true,'jsonfilename',jsonfilename);
       imdir = fullfile(dmc.dirProjLnx,TrnPack.SUBDIRIM);
       jsonfile = fullfile(dmc.dirProjLnx,jsonfilename);
+      % this will zip all images in the im directory, not just those
+      % generated just now
       res = zip(outzipfile,{jsonfile,imdir},dmc.dirProjLnx);
     end
 

@@ -10923,7 +10923,7 @@ classdef Labeler < handle
       % labels there are? 
       warnst = warning('off','Labeler:infData'); % ignore "Not including n rows with fully-occ labels"
       oc = onCleanup(@()warning(warnst));
-      tblMFTp = obj.preProcGetMFTableLbled();
+      tblMFTp = obj.preProcGetMFTableLbled('gtModeOK',true);
     
       nlabels = size(tblMFTp,1);
       
