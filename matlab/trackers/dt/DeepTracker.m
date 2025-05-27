@@ -1277,7 +1277,7 @@ classdef DeepTracker < LabelTracker
   methods
     %% BSub Trainer
       
-    function ntgtstot = genTrnPack(obj,dmc)
+    function ntgtstot = genTrnPack(obj,dmc,varargin)
       % Generate/write a trnpack; can be used for both stages.
       %
       
@@ -1289,7 +1289,7 @@ classdef DeepTracker < LabelTracker
           error('Failed to create dir %s: %s',dlConfigLclDir,msg);
         end
       end
-      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc);
+      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc,varargin{:});
     end
 
     function [jobs,gpuids] = SplitTrackIntoJobs(obj,backend,totrackinfo) %#ok<INUSL> 
@@ -1410,6 +1410,59 @@ classdef DeepTracker < LabelTracker
       else
         trainID = obj.trnNameLbl;
       end
+    end
+
+    function res = export_coco_db(obj,outzipfile,varargin)
+      % res = export_coco_db(obj,outzipfile,...)
+      % Output current project's labels to COCO file format.
+      % Creates a zip file outzipfile that contains all the labeled images
+      % and a json file with all the labels. 
+      % Inputs:
+      % outzipfile: Output file path
+      % Optional arguments:
+      % jsonfilename: Name of COCO json file within zip file. Default:
+      % labels.json.
+      % Output:
+      % res: cell containing relative names of all files output
+      
+      [jsonfilename] = myparse(varargin,'jsonfilename','labels.json');
+
+      % create/ensure config file; set trainID
+      nstage = obj.getNumStages();
+      [view,stage] = ndgrid(1:obj.nview,1:nstage); 
+      view = view(:)';
+      stage = stage(:)';
+      nmodel = obj.nview*nstage; 
+      jobidx = 1:nmodel;
+
+      trnType = DLTrainType.New;
+      netType = obj.getNetType(); % will have one value for each stage
+      netMode = obj.getNetMode();
+
+      % determine trainID, modelChainID -- I don't understand the
+      % difference between these
+      modelChainID = sprintf('%s_coco_db',obj.lObj.projname);
+      trainID = datetime('now','format','yyyyMMdd''T''HHmmSS');
+
+      % Create DMC
+      cacheDir = obj.lObj.DLCacheDir ;  % native cache dir
+      dmc = DeepModelChainOnDisk('rootDir',cacheDir,...
+                                 'projID',obj.lObj.projname,...
+                                 'netType',netType(stage),...
+                                 'netMode',netMode(stage),...
+                                 'jobidx',jobidx,...
+                                 'view',view-1,...
+                                 'stage',stage,...
+                                 'splitIdx',zeros(1,nmodel),...
+                                 'modelChainID',modelChainID,... % will get copied for all models
+                                 'trainID',trainID,... % will get copied for all models
+                                 'trainType',trnType,... % will get copied for all models
+                                 'iterFinal',zeros(size(stage)),...
+                                 'prev_models',[] ) ;
+      obj.genTrnPack(dmc,'cocoformat',true,'jsonfilename',jsonfilename);
+      imdir = fullfile(dmc.dirProjLnx,TrnPack.SUBDIRIM);
+      jsonfile = fullfile(dmc.dirProjLnx,jsonfilename);
+      res = zip(outzipfile,{jsonfile,imdir},dmc.dirProjLnx);
     end
 
     function trnSpawn_(obj, backend, trnType, modelChainID, varargin)
