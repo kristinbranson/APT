@@ -149,6 +149,8 @@ class Ray():
                 point = point.reshape((3, 1))
         distance = torch.linalg.cross(self.direction, (point - self.origin), dim=0)
         distance = torch.linalg.norm(distance, dim=0)
+        bad_rays = torch.argwhere(torch.linalg.vector_norm(self.direction, dim=0) < 1e-1)
+        distance[bad_rays] = torch.inf
         return distance
 
     def visualize(self, fig=None, ax=None, color_labels=None):
