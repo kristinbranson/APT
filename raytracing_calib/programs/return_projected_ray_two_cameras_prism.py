@@ -416,17 +416,16 @@ image_width_dict['secondary_virtual'] = image_width[1]
 if not(type(user_annotation) == torch.Tensor):
     user_annotation = torch.tensor(user_annotation).to(torch.float64)[:, None]
 
-
 if rotmat:
     theta = torch.tensor(torch.pi / 2)
     R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
     R_theta = torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]).to(torch.float64)
     user_annotation = R_theta_inv @ user_annotation
     if "virtual" in cam_label:
-        user_annotation[0, :] = -user_annotation[0, :] + dividing_col_dict[cam_label]  # 1-based indexing for dividing_col 
+        user_annotation[0, :] = -user_annotation[0, :] + dividing_col_dict[cam_label] - 1  # 1-based indexing for dividing_col 
         user_annotation[1, :] = -user_annotation[1, :]
     if "real" in cam_label:
-        user_annotation[0, :] = -user_annotation[0, :] + image_width_dict[cam_label]
+        user_annotation[0, :] = -user_annotation[0, :] + image_width_dict[cam_label] - 1
         user_annotation[1, :] = -user_annotation[1, :]
 
 
