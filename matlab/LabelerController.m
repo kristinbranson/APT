@@ -605,22 +605,30 @@ classdef LabelerController < handle
       % Update the status text box to reflect the current model state.
       labeler = obj.labeler_ ;
       is_busy = labeler.isStatusBusy ;
-      if is_busy
-        color = obj.busystatuscolor;
-        if any(isgraphics(obj.figs_all)),
-          set(obj.figs_all(isgraphics(obj.figs_all)),'Pointer','watch');
-        else
-          set(obj.mainFigure_,'Pointer','watch');
-        end
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      valid_figs_all = obj.figs_all(isgraphics(obj.figs_all)) ;
+      % Seems like "set(valid_figs_all,'Pointer',pointer);" should be sufficient,
+      % istead of the if-else clause below.  Is obj.figs_all not always kept up to
+      % date?  Normally obj.mainFigure_ == obj.figs_all(1).
+      if ~isempty(valid_figs_all) ,
+        set(valid_figs_all,'Pointer',pointer);
       else
-        color = obj.idlestatuscolor;
-        if any(isgraphics(obj.figs_all)),
-          set(obj.figs_all(isgraphics(obj.figs_all)),'Pointer','arrow');
-        else
-          set(obj.mainFigure_,'Pointer','arrow');
+        mainFigure = obj.mainFigure_ ;
+        if ~isempty(mainFigure) && isgraphics(mainFigure) ,
+          set(mainFigure,'Pointer',pointer);
         end
       end
-      set(obj.txStatus,'ForegroundColor',color);
+      statusColor = fif(is_busy, obj.busystatuscolor, obj.idlestatuscolor) ;
+      set(obj.txStatus,'ForegroundColor',statusColor);      
+      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_)
+        obj.trainingMonitorVisualizer_.updatePointer() ;
+      end
+      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+        obj.trackingMonitorVisualizer_.updatePointer() ;
+      end
+      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_)
+        obj.movieManagerController_.updatePointer() ;
+      end
 
       % Actually update the String in the status text box.  Use the shorter status
       % string from the labeler if the normal one is too long for the text box.
@@ -808,7 +816,12 @@ classdef LabelerController < handle
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
       
+      % Switch to watch cursor
       labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
+      oc = onCleanup(@()(labeler.popBusyStatus()));
+
+      % Check for project, movie
       [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
       if ~doTheyExist ,
         error(message) ;
@@ -869,8 +882,8 @@ classdef LabelerController < handle
 
       % The dialog for a custom two-stage tracker takes a while to come up, so
       % want to show the watch pointer.
-      labeler.pushStatus('Creating new tracker...') ;
-      oc = onCleanup(@()(labeler.popStatus())) ;
+      labeler.pushBusyStatus('Creating new tracker...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
 
       % Validation happens inside Labeler now
       % % Validate it
@@ -1174,7 +1187,7 @@ classdef LabelerController < handle
         while true,
           switch btn
             case 'Launch New'
-              labeler.pushStatus('Launching new AWS EC2 instance') ;
+              labeler.pushBusyStatus('Launching new AWS EC2 instance') ;
               [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
               labeler.clearStatus() ;
               if ~didLaunchSucceed
@@ -1245,8 +1258,8 @@ classdef LabelerController < handle
       % way makes it easier to fake control actuations by calling
       % this function with the desired controlName and an empty
       % source and event.
-      % obj.labeler_.pushStatus(sprintf('Control %s actuated...', controlName)) ;
-      % oc = onCleanup(@()(obj.labeler_.popStatus())) ;
+      % obj.labeler_.pushBusyStatus(sprintf('Control %s actuated...', controlName)) ;
+      % oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       if obj.isInYodaMode_ ,
         % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
@@ -4546,7 +4559,7 @@ classdef LabelerController < handle
 
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;            
-      labeler.pushStatus('Plotting all labels on one axes to visualize label distribution...');
+      labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
       oc = onCleanup(@()(labeler.clearStatus())) ;
       if labeler.hasTrx
         labeler.labelOverlayMontageGUI();
@@ -5003,8 +5016,8 @@ classdef LabelerController < handle
       end
       
       % Actually takes a while for first response to happen, so show busy
-      obj.labeler_.pushStatus('Setting training parameters...') ;
-      oc = onCleanup(@()(obj.labeler_.popStatus())) ;
+      obj.labeler_.pushBusyStatus('Setting training parameters...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       
       % Compute the automatic parameters, give user chance to accept/reject them.
       % did_update will be true iff they accepted them.

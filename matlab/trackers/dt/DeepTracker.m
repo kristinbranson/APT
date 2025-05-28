@@ -2893,7 +2893,11 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function didCompleteTrainingOrTracking(obj, train_or_track, pollingResult)
+    function didCompleteTrainingOrTrackingRetrograde(obj, train_or_track, pollingResult)
+      % Called by the child BgMonitor when the latest poll result indicates that
+      % training/tracking is complete.
+      obj.lObj.pushBusyStatusRetrograde(sprintf('Wrapping up seemingly-successful %sing bout...', train_or_track)) ;
+      oc = onCleanup(@()(obj.lObj.popBusyStatusRetrograde())) ;
       if strcmp(train_or_track, 'track') ,
         obj.didCompleteTracking_(pollingResult) ;
       elseif strcmp(train_or_track, 'train') ,
@@ -2903,20 +2907,16 @@ classdef DeepTracker < LabelTracker
       end      
     end  % function
 
-    function didCompleteTraining_(obj, ~)
-      % Called by the child BgMonitor when the latest poll result indicates that
-      % training is complete.
+    function didCompleteTraining_(obj, pollingResult)  %#ok<INUSD>
       obj.bgTrnMonitor.stop() ;  % stop monitoring
       obj.waitForJobsToExit('train') ;
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.killJobsAndPerformPostTrainingCleanup(EndCause.complete) ;
+      obj.killJobsAndPerformPostTrainingCleanup_(EndCause.complete) ;
     end
 
     function didCompleteTracking_(obj, pollingResult)
-      % Called by the child BgMonitor when the latest poll result indicates that
-      % tracking is complete.
       obj.bgTrkMonitor.stop() ;  % stop monitoring
       obj.waitForJobsToExit('track') ;
         % Right now, pollingResult.tfComplete is true as soon as the output files *exist*.
@@ -2990,7 +2990,7 @@ classdef DeepTracker < LabelTracker
         end      
       catch me 
         warning('Error gathering tracking results:\n%s', getReport(me)) ;
-        obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
+        obj.killJobsAndPerformPostTrackingCleanup_(EndCause.error) ;
         return
       end
       
@@ -3000,7 +3000,7 @@ classdef DeepTracker < LabelTracker
       end      
 
       % If get here, declare victory.
-      obj.killJobsAndPerformPostTrackingCleanup(EndCause.complete) ;
+      obj.killJobsAndPerformPostTrackingCleanup_(EndCause.complete) ;
     end  % function
 
     function jumpToNearestTracking(obj)
@@ -3102,7 +3102,7 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function killJobsAndPerformPostTrainingCleanup(obj, endCause)
+    function killJobsAndPerformPostTrainingCleanup_(obj, endCause)
       % Does what it says on the tin.
 
       % Check for programmer error
@@ -3178,14 +3178,14 @@ classdef DeepTracker < LabelTracker
 
       % Finally, prod the Labeler to signal the controller that training has ended
       %obj.lObj.doNotify('trainEnd');
-      obj.lObj.trainingEnded(endCause) ;
+      obj.lObj.trainingEndedRetrograde(endCause) ;
     end  % function
     
-    function killJobsAndPerformPostTrackingCleanup(obj, endCause)
+    function killJobsAndPerformPostTrackingCleanup_(obj, endCause)
       % Check for programmer error
       if endCause == EndCause.undefined
         error(strcatg('Internal Error.  Please notify the APT developers that endCause was equal to EndCause.undefined on entry ', ...
-                      'to DeepTracker.killJobsAndPerformPostTrackingCleanup().')) ;
+                      'to DeepTracker.killJobsAndPerformPostTrackingCleanup_().')) ;
       end
 
       % Set this now, so that listeners can know the tracking bout outcome
@@ -3200,8 +3200,7 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
 
       % Inform parent Labeler that tracking has ended
-      % obj.lObj.doNotify('trackEnd');
-      obj.lObj.trackingEnded(endCause) ;
+      obj.lObj.trackingEndedRetrograde(endCause) ;
     end  % function
 
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
@@ -4308,8 +4307,8 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
     
-    function didReceivePollResults(obj, track_or_train)
-      obj.lObj.didReceivePollResults(track_or_train) ;
+    function didReceivePollResultsRetrograde(obj, track_or_train)
+      obj.lObj.didReceivePollResultsRetrograde(track_or_train) ;
     end
 
     % function didReceiveTrackingPollResults_(obj)
@@ -4328,13 +4327,15 @@ classdef DeepTracker < LabelTracker
       obj.backend.killAndClearRegisteredJobs(train_or_track) ;
     end    
 
-    function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
+    function didErrorDuringTrainingOrTrackingRetrograde(obj, train_or_track, pollingResult)
+      obj.lObj.pushBusyStatusRetrograde(sprintf('Wrapping up errored %sing bout...', train_or_track)) ;
+      oc = onCleanup(@()(obj.lObj.popBusyStatusRetrograde())) ;      
       if strcmp(train_or_track, 'track') ,
         obj.bgTrkMonitor.stop();
-        obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
+        obj.killJobsAndPerformPostTrackingCleanup_(EndCause.error) ;
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
-        obj.killJobsAndPerformPostTrainingCleanup(EndCause.error) ;
+        obj.killJobsAndPerformPostTrainingCleanup_(EndCause.error) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end
@@ -4360,12 +4361,12 @@ classdef DeepTracker < LabelTracker
 
     function abortTraining(obj)
       obj.bgTrnMonitor.stop() ;
-      obj.killJobsAndPerformPostTrainingCleanup(EndCause.abort) ;
+      obj.killJobsAndPerformPostTrainingCleanup_(EndCause.abort) ;
     end  % function
 
     function abortTracking(obj)
       obj.bgTrkMonitor.stop() ;
-      obj.killJobsAndPerformPostTrackingCleanup(EndCause.abort) ;
+      obj.killJobsAndPerformPostTrackingCleanup_(EndCause.abort) ;
     end  % function
 
     function result = get.lastTrainEndCause(obj)
