@@ -45,12 +45,7 @@ classdef LabelerProjectTester < handle
       
       % Set things up for training
       if ~isempty(algo_name) ,
-        labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
-        % if labeler.trackIsTrackerInHistoryByName(algo_name) 
-        %   labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
-        % else
-        %   labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
-        % end          
+        labeler.trackMakeNewTrackerGivenAlgoName(algo_name) ;
       end
       % % HACK START
       % backend_type_as_string = 'conda' ;
@@ -110,7 +105,7 @@ classdef LabelerProjectTester < handle
     
       % Set things up
       if ~isempty(algo_name) ,
-        labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
+        labeler.trackMakeExistingTrackerCurrentGivenAlgoName(algo_name) ;
       end
       % % HACK START
       % backend_type_as_string = 'conda' ;

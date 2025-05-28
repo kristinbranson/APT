@@ -261,12 +261,13 @@ classdef Labeler < handle
     currentTrackerIndexInTrackersAll_
   end
   properties (Dependent)
-    hasProject            % scalar logical
-    projectfile           % Full path to current project 
-    projectroot           % Parent dir of projectfile, if it exists
-    bgTrnIsRunning        % True iff background training is running
-    bgTrkIsRunning        % True iff background tracking is running
-    trackersAll           % All the 'template' trackers
+    hasProject             % scalar logical
+    projectfile            % Full path to current project 
+    projectroot            % Parent dir of projectfile, if it exists
+    bgTrnIsRunning         % True iff background training is running
+    bgTrkIsRunning         % True iff background tracking is running
+    trackersAll            % All the 'template' trackers
+    trackersAllCreateInfo  % The creation info for each tracker in trackersAll
     trackerHistory        
     lastTrainEndCause 
       % Did the last bout of training complete or error or was it aborted by user.
@@ -10379,7 +10380,7 @@ classdef Labeler < handle
     %   iTrk = 0;
     % end
   
-    function trackMakeOldTrackerCurrent(obj, iTrk)      
+    function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)      
       % Validate the new value
       trackers = obj.trackerHistory_ ;
       tracker_count = numel(trackers) ;
@@ -10446,9 +10447,11 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;
     end  % function
 
-    function trackMakeNewTrackerCurrent(obj, tciIndex)
+    function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
       % Make a new tracker, and make it current.  tciIndex should be a valid index
-      % into obj.trackersAll and/or obj.trackersAllCreateInfo_.
+      % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
+      % constain the stage 1 and stage 2 constructor args if and only if tciIndex
+      % indicates a custom two-stage tracker.
 
       % Validate the new value      
       tcis = obj.trackersAllCreateInfo_ ;
@@ -10471,9 +10474,22 @@ classdef Labeler < handle
           trackers = trackers(2:end) ;
         end
       end
-
+      
       % Create the new tracker
-      tci = tcis{tciIndex} ;
+      if isempty(varargin)
+        % Typical case, not a custom top-down tracker
+        tci = tcis{tciIndex} ;
+      else
+        % This means we're creating a custom top-down tracker, so we need to supply
+        % the factory method with the details about stage 1 and stage 2.
+        stage1ConstructorArgs = varargin{1} ;
+        stage2ConstructorArgs = varargin{2} ;
+        tci = { 'DeepTrackerTopDownCustom', ...
+                stage1ConstructorArgs, ...
+                stage2ConstructorArgs, ...
+                'valid', ...
+                true } ;
+      end
       newTracker = LabelTracker.create(obj, tci) ;     
       
       % Filter untrained trackers out of trackers
@@ -10502,10 +10518,10 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;      
     end  % function
 
-    function trackMakeNewTrackerCurrentByName(obj, algoName)
+    function trackMakeNewTrackerGivenAlgoName(obj, algoName)
       algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
-                                              obj.trackersAll_, ...
-                                              'UniformOutput', false) ;
+                                          obj.trackersAll_, ...
+                                          'UniformOutput', false) ;
       matchingIndices = find(strcmp(algoName, algorithmNameFromTciIndex)) ;
       if isempty(matchingIndices) ,
         error('No algorithm named %s among the available trackers', algoName) ;
@@ -10516,10 +10532,10 @@ classdef Labeler < handle
         tciIndex = matchingIndices(1) ;
         warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, tciIndex) ;
       end
-      obj.trackMakeNewTrackerCurrent(tciIndex) ;
+      obj.trackMakeNewTrackerGivenIndex(tciIndex) ;
     end  % function
 
-    function trackMakeOldTrackerCurrentByName(obj, algoName)
+    function trackMakeExistingTrackerCurrentGivenAlgoName(obj, algoName)
       algorithmNameFromHistoryIndex = cellfun(@(tracker)(tracker.algorithmName), ...
                                               obj.trackerHistory_, ...
                                               'UniformOutput', false) ;
@@ -10533,7 +10549,7 @@ classdef Labeler < handle
         trackerIndex = matchingIndices(1) ;
         warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, trackerIndex) ;
       end
-      obj.trackMakeOldTrackerCurrent(trackerIndex) ;
+      obj.trackMakeExistingTrackerCurrentGivenIndex(trackerIndex) ;
     end  % function
 
     function result = trackIsTrackerInHistoryByName(obj, algoName)
@@ -14844,6 +14860,10 @@ classdef Labeler < handle
       result = obj.trackersAll_ ;
     end
 
+    function result = get.trackersAllCreateInfo(obj)
+      result = obj.trackersAllCreateInfo_ ;
+    end
+
     % function set.currTracker(obj, newValue)
     %   % Want to do some stuff before the set, apparently
     %   if ~obj.isinit ,
@@ -15082,14 +15102,13 @@ classdef Labeler < handle
       cellfun(@delete, obj.trackersAll_) ;
 
       % Create new templates, trackers
-      rawTrackersCreateInfo = ...
-        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % number-of-trackers x 1
-      trackersCreateInfo = rawTrackersCreateInfo(:)' ;  % want a row vector
+      trackersCreateInfo = ...
+        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % 1 x number-of-trackers
       tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
                      trackersCreateInfo, ...
                      'UniformOutput', false) ;  % 1 x number-of-trackers
       obj.trackersAllCreateInfo_ = trackersCreateInfo ;
-      obj.trackersAll_ = tAll;
+      obj.trackersAll_ = tAll ;
       %obj.notify('update_menu_track_tracking_algorithm') ;
     end
 

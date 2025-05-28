@@ -864,8 +864,13 @@ classdef LabelerController < handle
 
     function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
       % Get the tracker index
-      tracker_index = source.UserData;
+      trackerIndex = source.UserData;
       labeler = obj.labeler_ ;
+
+      % The dialog for a custom two-stage tracker takes a while to come up, so
+      % want to show the watch pointer.
+      labeler.pushStatus('Creating new tracker...') ;
+      oc = onCleanup(@()(labeler.popStatus())) ;
 
       % Validation happens inside Labeler now
       % % Validate it
@@ -883,8 +888,31 @@ classdef LabelerController < handle
       %   do_use_previous = [] ;  % value will be ignored
       % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
-      % Finally, call the model method to set the tracker
-      labeler.trackMakeNewTrackerCurrent(tracker_index) ;      
+      % Check for a custom tracker
+      tcis = labeler.trackersAllCreateInfo ;
+      trackerCount = numel(tcis) ;
+      if ~is_index_in_range(trackerIndex, trackerCount)
+        error('No tracker at index %d.  There are %d trackers.', trackerIndex, trackerCount) ;
+      end
+      tci = tcis{trackerIndex} ;
+      trackerClassName = tci{1} ;
+      if strcmp(trackerClassName, 'DeepTrackerTopDownCustom') ,
+        stage1ModeArgs = tci{2} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDDetectObj}
+        stage2ModeArgs = tci{3} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDPoseObj}
+        stage1Mode = stage1ModeArgs{2} ;  % should be a DLNetMode
+        stage2Mode = stage2ModeArgs{2} ;  % should be a DLNetMode        
+        [docontinue, stg1ctorargs, stg2ctorargs] = obj.raiseDialogsToChooseStageAlgosForCustomTopDownTracker(stage1Mode, stage2Mode) ;
+        if ~docontinue ,
+          return
+        end
+        % Call the model method to set the tracker, providing extra args to specify
+        % the two custom stages   
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex, stg1ctorargs, stg2ctorargs) ;
+      else
+        % If not a custom tracker, our job is easier.
+        % Call the model method to set the tracker.
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex) ;
+      end
     end
 
     function menu_track_tracker_history_item_actuated_(obj, source, event)  %#ok<INUSD> 
@@ -893,7 +921,7 @@ classdef LabelerController < handle
 
       % Call the labeler method
       labeler = obj.labeler_ ;
-      labeler.trackMakeOldTrackerCurrent(trackerHistoryIndex) ;      
+      labeler.trackMakeExistingTrackerCurrentGivenIndex(trackerHistoryIndex) ;      
     end
 
     function showDialogAfterSpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
@@ -5998,5 +6026,35 @@ classdef LabelerController < handle
       end
     end  % function
         
+    function [docontinue, stg1ctorargs, stg2ctorargs] = raiseDialogsToChooseStageAlgosForCustomTopDownTracker(obj, stg1mode, stg2mode)
+      % What it says on the tin.
+      dlnets = enumeration('DLNetType') ;
+      isma = [dlnets.isMultiAnimal] ;
+      stg2nets = dlnets(~isma) ;
+      
+      is_bbox = false(1,numel(dlnets)) ;
+      for dndx = 1:numel(dlnets)          
+        is_bbox(dndx) = dlnets(dndx).isMultiAnimal && startsWith(char(dlnets(dndx)),'detect_') ;
+      end  % for
+      
+      stg1nets_ht = dlnets(isma & ~is_bbox) ;
+      stg1nets_bbox = dlnets(isma & is_bbox) ;
+      if stg1mode == DLNetMode.multiAnimalTDDetectHT
+        stg1nets = stg1nets_ht ;
+      else
+        stg1nets = stg1nets_bbox ;
+      end
+      [stg1net, stg2net] = apt.get_custom_two_stage_tracker_nets_ui(obj.mainFigure_, stg1nets, stg2nets) ;
+
+      docontinue = ~isempty(stg1net) ;
+      if docontinue
+        stg1ctorargs = {'trnNetMode', stg1mode, 'trnNetType', stg1net} ;
+        stg2ctorargs = {'trnNetMode', stg2mode, 'trnNetType', stg2net} ;
+      else
+        stg1ctorargs = [] ;
+        stg2ctorargs = [] ;
+      end      
+    end  % function
+
   end  % methods  
 end  % classdef

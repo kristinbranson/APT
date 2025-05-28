@@ -614,10 +614,10 @@ classdef TestAPT < handle
       if isnumeric(alg)
         trackerIndex = alg;
         assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-        labeler.trackMakeNewTrackerCurrent(trackerIndex);
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex);
       else
         algName = alg ;
-        labeler.trackMakeNewTrackerCurrentByName(algName) ;
+        labeler.trackMakeNewTrackerGivenAlgoName(algName) ;
           % Make a virgin tracker for training
       end
     end  % function
@@ -636,10 +636,10 @@ classdef TestAPT < handle
       if isnumeric(alg)
         trackerIndex = alg;
         assert(trackerIndex > 0, sprintf('No algorithm named %s', alg)) ;
-        labeler.trackMakeOldTrackerCurrent(trackerIndex);
+        labeler.trackMakeExistingTrackerCurrentGivenIndex(trackerIndex);
       else
         algName = alg ;
-        labeler.trackMakeOldTrackerCurrentByName(algName) ;
+        labeler.trackMakeExistingTrackerCurrentGivenAlgoName(algName) ;
       end
     end  % function
     
