@@ -1684,11 +1684,10 @@ classdef LabelerController < handle
       % notification after training ends.
       labeler = obj.labeler_ ;
       tracker = labeler.tracker ;
-      iterCurrRaw = tracker.trackerInfo.iterCurr ;
-      iterCurr = fif(isnan(iterCurrRaw), 0, iterCurrRaw) ;
+      iterCurr = tracker.trackerInfo.iterCurr ;  % a row vector, in general
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      if iterCurr > 0 ,
+      if ~all(isnan(iterCurr)) ,
         if labeler.lastTrainEndCause == EndCause.complete
           question_string = sprintf('Training completed %s iterations.  Save project now?',...
                                     n_out_of_d_string) ;
@@ -1699,7 +1698,7 @@ classdef LabelerController < handle
           question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
                                     n_out_of_d_string) ;
         else
-          error('Internal error.  Please report to the APT developers.') ;
+          error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
         end        
         res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
         if strcmpi(res,'Save'),
@@ -1710,7 +1709,8 @@ classdef LabelerController < handle
           % do nothing
         end  % if      
       else
-        % iterCurr == 0
+        % all(isnan(iterCurr)) == true
+        % This means there was an error or abort early in training.
         if labeler.lastTrainEndCause == EndCause.complete
           uiwait(errordlg(sprintf('Training allegedly completed, but after %s iterations.  Odd.', n_out_of_d_string), ...
                           'Strangeness', ...
@@ -1722,7 +1722,7 @@ classdef LabelerController < handle
         elseif labeler.lastTrainEndCause == EndCause.abort
           % just proceed on abort
         else
-          error('Internal error.  Please report to the APT developers.') ;
+          error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
         end
       end
     end  % function
