@@ -76,7 +76,8 @@ classdef LabelerController < handle
     menu_file_import_labels2_trk_curr_mov
     menu_file_import_labels_table
     menu_file_import_labels_trk_curr_mov
-    menu_file_importexport
+    menu_file_import
+    menu_file_export
     menu_file_load
     menu_file_managemovies
     menu_file_new
@@ -1379,7 +1380,8 @@ classdef LabelerController < handle
       set(obj.menu_file_load,'Enable','on');
       set(obj.menu_file_shortcuts,'Enable',onIff(hasProject));
       set(obj.menu_file_managemovies,'Enable',onIff(hasProject));
-      set(obj.menu_file_importexport,'Enable',onIff(hasProject));
+      set(obj.menu_file_import,'Enable',onIff(hasProject));
+      set(obj.menu_file_export,'Enable',onIff(hasMovie));
       set(obj.menu_file_crop_mode,'Enable',onIff(hasMovie));
       set(obj.menu_file_clean_tempdir,'Enable',onIff(hasProject));
       set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
