@@ -6565,9 +6565,57 @@ classdef Labeler < handle
     end
 
     function labelPosBulkImportCOCOJson(obj,cocos,varargin)
+      % labelPosBulkImportCOCOJson(obj,cocos,...)
+      % Import labels and movies from the COCO-structured data cocos.
+      % If information is given about the movies that were used to
+      % crop out the images that are labeled, then these movies will be
+      % added. Otherwise, a new movie will be created which is actually a
+      % directory containing consecutively named frames that APT will read
+      % as if it is a single movie, with one frame per labeled image. 
+      % Labels for each referenced movie will be REPLACED by labels in
+      % cocos. 
+      %
+      % Input:
+      % cocos: struct containing data read from COCO json file
+      % Fields:
+      % .images: struct array with an entry for each labeled image, with
+      % the following fields:
+      %   .id: Unique id for this labeled image, from 0 to
+      %   numel(locs.locdata)-1
+      %   .file_name: Relative path to file containing this image
+      %   .movid: Id of the movie this image come from, 0-indexed. This is
+      %   used iff movie information is available
+      %   .frmid: Index of frame this image comes from, 0-indexed. This is
+      %   used iff movie information is available
+      % .annotations: struct array with an entry for each annotation, with
+      % the following fields:
+      %   .iscrowd: Whether this is a labeled target (0) or mask (1). If
+      %   not available, it is assumed that this is a labeled target (0).
+      %   .segmentation: cell of length 1 containing array of length 8 x 1,
+      %   containing the x (segmentation{1}(1:2:end)) and y
+      %   (segmentation{1}(2:2:end)) coordinates of the mask considered
+      %   labeled, 0-indexed. This is only used for label ROIs.
+      %   .image_id: Index (0-indexed) of corresponding image
+      %   .num_keypoints: Number of keypoints in this target (0 if mask)
+      %   .keypoints: array of size nkeypoints*3 containing the x
+      %   (keypoints(1:3:end)), y (keypoints(2:3:end)), and occlusion
+      %   status (keypoints(3:3:end)). (x,y) are 0-indexed. for occlusion
+      %   status, 2 means not occluded, 1 means occluded but labeled, 0
+      %   means not labeled. 
+      % .info:
+      %   .movies: Cell containing paths to movies. If this is available,
+      %   then these movies are added to the project. 
+      % Optional arguments:
+      % outimdir: If no movie info is available, then this is where the
+      % dummy movie will be created. Must be provided if movie info is not
+      % in the coco structure. 
+      % overwrite: Whether to overwrite files that exist. Default: true
+      % imname: Base name of created images. Default: 'frame'.
+      % cocojsonfile: Path to coco json file. Must be provided if movie
+      % info is not in the coco structure. 
 
-      [outimdir,overwrite,imname,imext,cocojsonfile] = myparse(varargin,...
-        'outimdir','','overwrite',false,'imname','frame','imext','.png',...
+      [outimdir,overwrite,imname,cocojsonfile] = myparse(varargin,...
+        'outimdir','','overwrite',true,'imname','frame',...
         'cocojsonfile','');
 
       % import labels from COCO json file
@@ -6628,6 +6676,7 @@ classdef Labeler < handle
         inrootdir = fileparts(cocojsonfile);
         nim = numel(cocos.images);
         nz = max(5,ceil(log10(nim)));
+        [~,~,imext] = fileparts(cocos.images(1));
         namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
         for i = 1:nim,
           imcurr = cocos.images(i);

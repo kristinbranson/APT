@@ -4403,6 +4403,7 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+      % callback for importing labels from coco json
 
       res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning','Yes','No','Cancel','No');
       if ~strcmpi(res,'yes'),
@@ -4436,7 +4437,6 @@ classdef LabelerController < handle
         end
         outdirname = 'movie';
         imname = 'frame';
-        imext = '.png';
         % if the name of the directory is movie, then assume that we want
         % to use this directory to output images to
         [~,n] = fileparts(outimdirparent);
@@ -4455,6 +4455,7 @@ classdef LabelerController < handle
           end
         end
         if exist(outimdir,'dir'),
+          [~,~,imext] = fileparts(cocos.images(1).file_name);
           dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
           if ~isempty(dircontents),
             res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
@@ -4463,7 +4464,7 @@ classdef LabelerController < handle
             end
           end
         end
-        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'imext',imext,'cocojsonfile',cocojsonfile};
+        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'cocojsonfile',cocojsonfile};
       else
         args = {};
       end
