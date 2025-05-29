@@ -6564,7 +6564,10 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
 
-    function labelPosBulkImportCOCOJson(obj,cocojsonfile)
+    function labelPosBulkImportCOCOJson(obj,cocojsonfile,varargin)
+
+      [outimdir,overwrite,imname] = myparse(varargin,'outimdir','','overwrite',false,'imname','frame');
+
       % import labels from COCO json file
       if ~exist(cocojsonfile,'file'),
         warning('File %s does not exist',cocojsonfile);
@@ -6618,7 +6621,55 @@ classdef Labeler < handle
           end
         end
       else
-        % todo deal with no movies case
+
+        % create a directory with frames in order
+        assert(~isempty(outimdir));
+        if ~exist(outimdir,'dir'),
+          mkdir(outimdir);
+        end
+        inrootdir = fileparts(cocojsonfile);
+        nim = numel(cocos.images);
+        nz = max(5,ceil(log10(nim)));
+        namepat = sprintf('%s%%0%dd.png',imname,nz);
+        for i = 1:nim,
+          imcurr = cocos.images(i);
+          inp = fullfile(inrootdir,imcurr.file_name);
+          outp = fullfile(outimdir,sprintf(namepat,i));
+          if i == 1,
+            moviepath = outp;
+          end
+          assert(exist(inp,'file'));
+          if overwrite || ~exist(outp,'file'),
+            [success,msg] = copyfile(inp,outp);
+            assert(success,msg);
+          end
+        end
+        [didfind,imovmatch] = obj.movieSetInProj(moviepath);
+        if ~didfind,
+          obj.movieAddAllModes(moviepath);
+        end
+        [didfind,imovmatch] = obj.movieSetInProj(moviepath);
+        assert(didfind,'Failed to add stitched movie');
+
+        fprintf('Project movie index = %d\n',imovmatch);
+        % convert from coco format to label format for this movie
+        label_s = Labels.fromcoco(cocos,'tsnow',tsnow);
+        if ~isempty(label_s),
+          fprintf('Imported %d labels\n',size(label_s.p,2));
+          % store in obj.labels
+          obj.(PROPS.LBL){imovmatch} = label_s;
+        end
+        % add label rois
+        % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
+        labelroi_s = LabelROI.fromcoco(cocos);
+        if ~isempty(labelroi_s),
+          fprintf('Imported %d labeled ROIs\n',size(labelroi_s.verts,3));
+          % store in obj.labels
+          obj.labelsRoi{imovmatch} = labelroi_s;
+        end
+        if isempty(label_s) && isempty(labelroi_s),
+          fprintf('No labels found');
+        end
       end
 
       obj.updateFrameTableComplete();
