@@ -7527,17 +7527,28 @@ classdef Labeler < handle
       rawname = fullfile('$movdir',basename);
     end
     
-    function fname = getDefaultFilenameExportStrippedLbl(obj)
-      lblstr = 'TrainData';
+    function fname = getDefaultFilenameExport(obj,lblstr,ext,varargin)
+      includedate = myparse(varargin,'includedate',false);
+      rawdir = '$projdir';
       if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' lblstr '.mat'];
+        rawname = ['$projfile_' lblstr ext];
       elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' lblstr '.mat'];
+        rawname = ['$projname_' lblstr ext];
       else
-        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.mat'];
+        if includedate,
+          rawname = [lblstr datestr(now,'yyyymmddTHHMMSS') ext];
+        else
+          rawname = [lblstr ext];
+        end
       end
       sMacro = obj.baseTrkFileMacros();
+      fdir = FSPath.macroReplace(rawdir,sMacro);
       fname = FSPath.macroReplace(rawname,sMacro);
+      fname = linux_fullfile(fdir,fname);
+    end
+
+    function fname = getDefaultFilenameExportStrippedLbl(obj)
+      fname = getDefaultFilenameExport(obj,'TrainData','.mat','includedate',true);
     end
     
     function fname = getDefaultFilenameExportLabelTable(obj)
@@ -7546,15 +7557,16 @@ classdef Labeler < handle
       else
         lblstr = 'labels';
       end
-      if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' lblstr '.mat'];
-      elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' lblstr '.mat'];
+      fname = getDefaultFilenameExport(obj,lblstr,'.mat');
+    end
+
+    function fname = getDefaultFilenameExportCOCOJson(obj)
+      if obj.gtIsGTMode
+        lblstr = 'gtcoco';
       else
-        rawname = ['$projdir/' lblstr '.mat'];
+        lblstr = 'coco';
       end
-      sMacro = obj.baseTrkFileMacros();
-      fname = FSPath.macroReplace(rawname,sMacro);
+      fname = getDefaultFilenameExport(obj,lblstr,'.zip');
     end
         
     function [tfok,trkfiles] = getTrkFileNamesForExportGUI(obj,movfiles,...
@@ -9535,14 +9547,7 @@ classdef Labeler < handle
     end
     function fname = getDefaultFilenameExportGTResults(obj)
       gtstr = 'gtresults';
-      if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' gtstr '.mat'];
-      elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' gtstr '.mat'];
-      else
-        rawname = ['$projdir/' gtstr '.mat'];
-      end
-      sMacro = obj.baseTrkFileMacros();
+      fname = getDefaultFilenameExport(obj,gtstr,'.mat');
       fname = FSPath.macroReplace(rawname,sMacro);
     end
     function tbl = gtLabeledFrameSummary(obj)
@@ -9946,6 +9951,9 @@ classdef Labeler < handle
         'tblMFTrestrict',tblMFTrestrict);
       if tfWB && wbObj.isCancel
         % tblP indeterminate, return it anyway
+        return;
+      end
+      if isempty(tblP),
         return;
       end
       
@@ -10861,6 +10869,45 @@ classdef Labeler < handle
       result = cellfun(@(t)(t.bgTrnIsRunning), trackers) ;
     end  % function
     
+    function [tfCanExport,reason] = trackCanExport(obj,varargin)
+      
+      tfCanExport = false;
+      % is tracker and movie
+      if isempty(obj.tracker),
+        reason = 'The tracker has not been set.';
+        return;
+      end
+      if ~obj.hasMovie,
+        reason = 'There must be at least one movie in the project.';
+        return;
+      end
+      
+      if isempty(obj.trackParams)
+        reason = 'Tracking parameters have not been set.';
+        return;
+      end
+      
+      % allow 'treatInfPosAsOcc' to default to false in these calls; we are
+      % just checking number of labeled rows
+      % this is probably overkill, but no other way to figure out how many
+      % labels there are? 
+      warnst = warning('off','Labeler:infData'); % ignore "Not including n rows with fully-occ labels"
+      oc = onCleanup(@()warning(warnst));
+      tblMFTp = obj.preProcGetMFTableLbled('gtModeOK',true);
+    
+      nlabels = size(tblMFTp,1);
+      
+      if nlabels < 2,
+        tfCanExport = false;
+        reason = 'There must be at least two labeled frames in the project.';
+        return;
+      end
+      
+      tfCanExport = true;
+      reason = '';
+      
+    end
+
     function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
       
       tfCanTrain = false;

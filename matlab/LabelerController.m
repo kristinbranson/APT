@@ -68,6 +68,7 @@ classdef LabelerController < handle
     menu_file_export_all_movies
     menu_file_export_labels2_trk_curr_mov
     menu_file_export_labels_table
+    menu_file_export_labels_cocojson
     menu_file_export_labels_trks
     menu_file_export_stripped_lbl
     menu_file_import_export_advanced
@@ -4453,6 +4454,24 @@ classdef LabelerController < handle
       s.(VARNAME) = labeler.labelGetMFTableLabeled('useMovNames',true);
       save(fname,'-mat','-struct','s');
       fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
+    end
+
+    function menu_file_export_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      [tfCanExport,reason] = labeler.trackCanExport();
+      if ~tfCanExport,
+        uiwait(warndlg(reason,'Cannot export labels'));
+        return;
+      end
+      fname = labeler.getDefaultFilenameExportCOCOJson();
+      [f,p] = uiputfile(fname,'Export File');
+      if isequal(f,0)
+        return;
+      end
+      fname = fullfile(p,f);
+      fprintf('Exporting COCO json file and labeled images for current tracker to %s...\n',fname);
+      labeler.tracker.export_coco_db(fname);
+      fprintf('Done.\n');
     end
 
     function menu_file_import_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
