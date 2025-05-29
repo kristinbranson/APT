@@ -6566,7 +6566,9 @@ classdef Labeler < handle
 
     function labelPosBulkImportCOCOJson(obj,cocos,varargin)
 
-      [outimdir,overwrite,imname,imext] = myparse(varargin,'outimdir','','overwrite',false,'imname','frame','imext','.png');
+      [outimdir,overwrite,imname,imext,cocojsonfile] = myparse(varargin,...
+        'outimdir','','overwrite',false,'imname','frame','imext','.png',...
+        'cocojsonfile','');
 
       % import labels from COCO json file
       hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
@@ -6619,6 +6621,7 @@ classdef Labeler < handle
 
         % create a directory with frames in order
         assert(~isempty(outimdir));
+        assert(~isempty(cocojsonfile));
         if ~exist(outimdir,'dir'),
           mkdir(outimdir);
         end

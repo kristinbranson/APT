@@ -4454,7 +4454,7 @@ classdef LabelerController < handle
             end
           end
         end
-        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'imext',imext};
+        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'imext',imext,'cocojsonfile',cocojsonfile};
       else
         args = {};
       end
