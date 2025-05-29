@@ -6580,7 +6580,7 @@ classdef Labeler < handle
         moviefilepaths = cocos.info.movies;
         for imov = 1:numel(moviefilepaths),
           moviecurr = moviefilepaths(imov,:); 
-          % todo: check multiview, hastrx, gtmode, macros, check non-empty
+          % todo: check multiview, hastrx, gtmode, macros
           % projects
           % is this movie already added to the project?
           [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
@@ -6601,11 +6601,11 @@ classdef Labeler < handle
           % convert from coco format to label format for this movie
           label_s = Labels.fromcoco(cocos,'imov',imov,'tsnow',tsnow);
           if ~isempty(label_s),
-            fprintf('Imported %d labels\n',size(label_s.p,1));
+            fprintf('Imported %d labels\n',size(label_s.p,2));
             % store in obj.labels
             obj.(PROPS.LBL){imovmatch} = label_s;
           end
-          % todo add label rois
+          % add label rois
           % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
           labelroi_s = LabelROI.fromcoco(cocos,'imov',imov);
           if ~isempty(labelroi_s),
