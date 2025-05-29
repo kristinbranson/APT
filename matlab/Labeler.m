@@ -6564,16 +6564,11 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = true;
     end
 
-    function labelPosBulkImportCOCOJson(obj,cocojsonfile,varargin)
+    function labelPosBulkImportCOCOJson(obj,cocos,varargin)
 
-      [outimdir,overwrite,imname] = myparse(varargin,'outimdir','','overwrite',false,'imname','frame');
+      [outimdir,overwrite,imname,imext] = myparse(varargin,'outimdir','','overwrite',false,'imname','frame','imext','.png');
 
       % import labels from COCO json file
-      if ~exist(cocojsonfile,'file'),
-        warning('File %s does not exist',cocojsonfile);
-        return;
-      end
-      cocos = TrnPack.hlpLoadJson(cocojsonfile);
       hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
 
       PROPS = obj.gtGetSharedProps();
@@ -6630,7 +6625,7 @@ classdef Labeler < handle
         inrootdir = fileparts(cocojsonfile);
         nim = numel(cocos.images);
         nz = max(5,ceil(log10(nim)));
-        namepat = sprintf('%s%%0%dd.png',imname,nz);
+        namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
         for i = 1:nim,
           imcurr = cocos.images(i);
           inp = fullfile(inrootdir,imcurr.file_name);
@@ -7693,7 +7688,15 @@ classdef Labeler < handle
       end
       fname = getDefaultFilenameExport(obj,lblstr,'.zip');
     end
-        
+
+    function fname = getDefaultFilenameImportCOCOJson(obj)
+
+      rawdir = '$projdir';
+      sMacro = obj.baseTrkFileMacros();
+      fdir = FSPath.macroReplace(rawdir,sMacro);
+      fname = linux_fullfile(fdir,'*.json');
+
+    end        
     function [tfok,trkfiles] = getTrkFileNamesForExportGUI(obj,movfiles,...
         rawname,varargin)
       % Concretize a raw trkfilename, then check for conflicts etc.

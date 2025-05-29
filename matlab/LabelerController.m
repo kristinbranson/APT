@@ -69,6 +69,7 @@ classdef LabelerController < handle
     menu_file_export_labels2_trk_curr_mov
     menu_file_export_labels_table
     menu_file_export_labels_cocojson
+    menu_file_import_labels_cocojson
     menu_file_export_labels_trks
     menu_file_export_stripped_lbl
     menu_file_import_export_advanced
@@ -4395,6 +4396,70 @@ classdef LabelerController < handle
       fname = fullfile(p,f);
       fprintf('Exporting COCO json file and labeled images for current tracker to %s...\n',fname);
       labeler.tracker.export_coco_db(fname);
+      fprintf('Done.\n');
+    end
+
+    function menu_file_import_labels_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      fname = labeler.getDefaultFilenameImportCOCOJson();
+      [f,p] = uigetfile(fname,'Import COCO Json File');
+      if isequal(f,0)
+        return;
+      end
+      cocojsonfile = fullfile(p,f);
+      if ~exist(cocojsonfile,'file'),
+        errordlg(sprintf('File %s does not exist',cocojsonfile),'Error importing COCO labels');
+        return;
+      end
+      try
+        cocos = TrnPack.hlpLoadJson(cocojsonfile);
+      catch ME,
+        warningNoTrace('Error loading json file %s:\n%s\n',cocojsonfile,getReport(ME));
+        errordlg(sprintf('Error loading json file %s',cocojsonfile),'Error importing COCO labels');
+        return;
+      end
+      hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
+      % we will create a fake movie directory, where should we put it?
+      if ~hasmovies,
+        outimdirparent = uigetdir(p,'Folder to output movie frames to');
+        if ~ischar(outimdirparent),
+          return;
+        end
+        outdirname = 'movie';
+        imname = 'frame';
+        imext = '.png';
+        % if the name of the directory is movie, then assume that we want
+        % to use this directory to output images to
+        [~,n] = fileparts(outimdirparent);
+        if strcmp(n,outdirname),
+          outimdir = outdirname;
+        else
+          % if this is an empty directory, also assume we want to output
+          % here
+          dircontents = mydir(outimdirparent);
+          if isempty(dircontents),
+            outimdir = outimdirparent;
+          else
+            % assume we should create a new directory named movie in this
+            % directory
+            outimdir = fullfile(outimdirparent,outdirname);
+          end
+        end
+        if exist(outimdir,'dir'),
+          dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
+          if ~isempty(dircontents),
+            res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
+            if ~strcmpi(res,'Yes'),
+              return;
+            end
+          end
+        end
+        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'imext',imext};
+      else
+        args = {};
+      end
+      fprintf('Importing labels from %s...\n',cocojsonfile);
+      labeler.labelPosBulkImportCOCOJson(cocos,args{:});
       fprintf('Done.\n');
     end
 
