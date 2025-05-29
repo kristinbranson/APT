@@ -3612,6 +3612,14 @@ classdef Labeler < handle
   %% Movie
   methods
     
+    function movieAddAllModes(obj,moviefile,varargin)
+      if obj.isMultiView,
+        obj.movieSetAdd(moviefile,varargin{:});
+      else
+        obj.movieAdd(moviefile,varargin{:});
+      end
+    end
+
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
@@ -6554,6 +6562,73 @@ classdef Labeler < handle
         obj.lastLabelChangeTS = tsnow;
       end
       obj.labeledposNeedsSave = true;
+    end
+
+    function labelPosBulkImportCOCOJson(obj,cocojsonfile)
+      % import labels from COCO json file
+      if ~exist(cocojsonfile,'file'),
+        warning('File %s does not exist',cocojsonfile);
+        return;
+      end
+      cocos = TrnPack.hlpLoadJson(cocojsonfile);
+      hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
+
+      PROPS = obj.gtGetSharedProps();
+      tsnow = now;
+
+      if hasmovies,
+        moviefilepaths = cocos.info.movies;
+        for imov = 1:numel(moviefilepaths),
+          moviecurr = moviefilepaths(imov,:); 
+          % todo: check multiview, hastrx, gtmode, macros, check non-empty
+          % projects
+          % is this movie already added to the project?
+          [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
+          if ~didfind,
+            % add movie to project
+            fprintf('Adding movie %d:',imov);
+            fprintf('  %s',moviecurr{:});
+            fprintf('\n');
+            obj.movieAddAllModes(moviecurr);
+            [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
+            assert(didfind,'Failed to add movie');
+          else
+            fprintf('Movie %d already in project:',imov);
+            fprintf('  %s',moviecurr{:});
+            fprintf('\n');
+          end
+          fprintf('Project movie index = %d\n',imovmatch);
+          % convert from coco format to label format for this movie
+          label_s = Labels.fromcoco(cocos,'imov',imov,'tsnow',tsnow);
+          if ~isempty(label_s),
+            fprintf('Imported %d labels\n',size(label_s.p,1));
+            % store in obj.labels
+            obj.(PROPS.LBL){imovmatch} = label_s;
+          end
+          % todo add label rois
+          % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
+          labelroi_s = LabelROI.fromcoco(cocos,'imov',imov);
+          if ~isempty(labelroi_s),
+            fprintf('Imported %d labeled ROIs\n',size(labelroi_s.p,3));
+            % store in obj.labels
+            obj.labelsRoi{imovmatch} = labelroi_s;
+          end
+          if isempty(label_s) && isempty(labelroi_s),
+            fprintf('No labels found for this movie\n');
+          end
+        end
+      else
+        % todo deal with no movies case
+      end
+
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = tsnow;
+      end
+      obj.labeledposNeedsSave = true;
+
     end
     
     function labelPosBulkImportTbl(obj,tblMFT)

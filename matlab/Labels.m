@@ -502,6 +502,55 @@ classdef Labels
       s.tgt(:) = t.iTgt;
     end
 
+    function s = fromcoco(cocos,varargin)
+      [imov,tsnow] = myparse(varargin,'imov',[],'tsnow',now);
+      s = [];
+      if numel(cocos.annotations) == 0,
+        return;
+      end
+      hasmovies = ~isempty(imov) && isfield(cocos,'info') && isfield(cocos.info,'movies');
+      allnpts = [cocos.annotations.num_keypoints];
+      npts = unique(allnpts(allnpts>0));
+      assert(numel(npts) == 1,'All labels must have the same number of keypoints');
+      if hasmovies,
+        imidx = find([cocos.images.movid]==(imov-1))-1; % subtract 1 for 0-indexing
+        ismov = ismember([cocos.annotations.image_id],imidx);
+      else
+        % assume we have created a single movie from ims, use all annotations
+        ismov = true(1,numel(cocos.annotations));
+      end
+      if isfield(cocos.annotations,'iscrowd'),
+        iskeypts = [cocos.annotations.iscrowd]==false;
+        annidx = find(ismov & iskeypts);
+      else
+        annidx = find(ismov);
+      end
+      n = numel(annidx);
+      if n == 0,
+        return;
+      end
+      s = Labels.new(npts,n);
+      s.ts(:) = tsnow;
+      im2tgt = ones(1,numel(cocos.images));
+      for i = 1:n,
+        ann = cocos.annotations(annidx(i));
+        px = ann.keypoints(1:3:end);
+        py = ann.keypoints(2:3:end);
+        s.p(:,i) = [px(:);py(:)]+1; % add 1 for 1-indexing
+        s.occ(:,i) = 2-ann.keypoints(3:3:end);
+        imid = ann.image_id+1; % add 1 for 1-indexing
+        if hasmovies,
+          s.frm(i) = cocos.images(imid).frm+1; % add 1 for 1-indexing
+        else
+          s.frm(i) = imid;
+        end
+        imid = ann.image_id+1; % add 1 for 1-indexing
+        s.tgt(i) = im2tgt(imid);
+        im2tgt(imid) = im2tgt(imid) + 1;
+      end
+      assert(~any(s.frm==0) && ~any(s.tgt==0));
+    end
+
     function [lpos,lposTS,lpostag] = toarray(s,varargin)
       % Convert to old-style full arrays
       %

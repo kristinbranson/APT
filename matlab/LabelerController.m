@@ -15,7 +15,7 @@ classdef LabelerController < handle
     splashScreenFigureOrEmpty_  % GH to the splash screen figure, or empty
   end
 
-  properties  % private/protected by convention
+  properties  % private/protected by conventione
     tvTrx_  % scalar TrackingVisualizerTrx
     isInYodaMode_ = false  
       % Set to true to allow control actuation to happen *ouside* or a try/catch
