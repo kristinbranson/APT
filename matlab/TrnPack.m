@@ -175,7 +175,9 @@ classdef TrnPack
       
     function s = hlpLoadJson(jsonfile)
       jse = readtxtfile(jsonfile);
-      s = jsondecode(jse{1});
+      % convert to one-line string
+      jse = sprintf('%s\n',jse{:});
+      s = jsondecode(jse);
       fprintf(1,'loaded %s\n',jsonfile);
     end
     
