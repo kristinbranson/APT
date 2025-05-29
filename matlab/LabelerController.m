@@ -1189,7 +1189,7 @@ classdef LabelerController < handle
             case 'Launch New'
               labeler.pushBusyStatus('Launching new AWS EC2 instance') ;
               [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
-              labeler.clearStatus() ;
+              labeler.popBusyStatus() ;
               if ~didLaunchSucceed
                 reason = 'Could not launch AWS EC2 instance.';
                 error(reason) ;
@@ -1269,7 +1269,7 @@ classdef LabelerController < handle
           obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
           exceptionMaybe = {} ;
         catch exception
-          obj.labeler_.clearStatus() ;
+          obj.labeler_.popBusyStatus() ;
           if isequal(exception.identifier,'APT:invalidPropertyValue') || isequal(exception.identifier,'APT:cancelled'),
             % ignore completely, don't even pass on to output
             exceptionMaybe = {} ;
@@ -4595,7 +4595,7 @@ classdef LabelerController < handle
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;            
       labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
-      oc = onCleanup(@()(labeler.clearStatus())) ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       if labeler.hasTrx
         labeler.labelOverlayMontageGUI();
         labeler.labelOverlayMontageGUI('ctrMeth','trx');
