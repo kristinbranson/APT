@@ -4326,6 +4326,7 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
         error('LabelerGUI:noMovie','No movie is loaded.');
@@ -4402,6 +4403,12 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+
+      res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning','Yes','No','Cancel','No');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+
       labeler = obj.labeler_ ;
       fname = labeler.getDefaultFilenameImportCOCOJson();
       [f,p] = uigetfile(fname,'Import COCO Json File');
@@ -4466,6 +4473,12 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
+
+      res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning!','Yes','No','Cancel','No');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+
       labeler = obj.labeler_ ;
       lastFile = RC.getprop('lastLabelMatfile');
       if isempty(lastFile)
