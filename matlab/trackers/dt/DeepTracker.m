@@ -2907,13 +2907,14 @@ classdef DeepTracker < LabelTracker
       end      
     end  % function
 
-    function didCompleteTraining_(obj, pollingResult)  %#ok<INUSD>
+    function didCompleteTraining_(obj, pollingResult)
       obj.bgTrnMonitor.stop() ;  % stop monitoring
       obj.waitForJobsToExit('train') ;
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
       obj.killJobsAndPerformPostTrainingCleanup_(EndCause.complete) ;
+      obj.lObj.trainingEndedRetrograde(EndCause.complete, pollingResult) ;
     end
 
     function didCompleteTracking_(obj, pollingResult)
@@ -2991,6 +2992,7 @@ classdef DeepTracker < LabelTracker
       catch me 
         warning('Error gathering tracking results:\n%s', getReport(me)) ;
         obj.killJobsAndPerformPostTrackingCleanup_(EndCause.error) ;
+        obj.lObj.trackingEndedRetrograde(EndCause.error, pollingResult) ;
         return
       end
       
@@ -3001,6 +3003,7 @@ classdef DeepTracker < LabelTracker
 
       % If get here, declare victory.
       obj.killJobsAndPerformPostTrackingCleanup_(EndCause.complete) ;
+      obj.lObj.trackingEndedRetrograde(EndCause.complete, pollingResult) ;      
     end  % function
 
     function jumpToNearestTracking(obj)
@@ -3114,24 +3117,15 @@ classdef DeepTracker < LabelTracker
       % Set now to listeners can determine training bout outcome
       obj.lastTrainEndCause_ = endCause ;
 
-      % Someday, training splits will return!
-      trainSplits = obj.isTrainingSplits_ ;
-      if trainSplits
-        % unchecked codepath 20210806
-        assert(backEnd.type==DLBackEnd.Bsub);
-        % obj.killJobsAndPerformPostCrossValidationCleanup_() ;
-        return
-      end
-      
-      % % Stop any running track monitors
-      % if obj.bgTrkIsRunning,
-      %   fprintf('Stopping tracking...\n');
-      %   obj.bgTrkMonitor.stop();
-      %   obj.killJobsAndPerformPostTrackingCleanup() ;      
-      %   obj.bgTrkMonitor.reset();
-      %   assert(~obj.bgTrkIsRunning);
+      % % Someday, training splits will return!
+      % trainSplits = obj.isTrainingSplits_ ;
+      % if trainSplits
+      %   % unchecked codepath 20210806
+      %   assert(backEnd.type==DLBackEnd.Bsub);
+      %   % obj.killJobsAndPerformPostCrossValidationCleanup_() ;
+      %   return
       % end
-
+      
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('train') ;
@@ -3166,19 +3160,6 @@ classdef DeepTracker < LabelTracker
         %   end
         % end
       end  % if
-      
-      % % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
-      % obj.syncInfoFromDMC_();
-
-      % % Possibly signal the controller/view to raise a dialog asking if the user wants to
-      % % save the project.
-      % if isempty(obj.skip_dlgs) || ~obj.skip_dlgs ,
-      %   obj.lObj.raiseTrainingStoppedDialog_() ;
-      % end  % if
-
-      % Finally, prod the Labeler to signal the controller that training has ended
-      %obj.lObj.doNotify('trainEnd');
-      obj.lObj.trainingEndedRetrograde(endCause) ;
     end  % function
     
     function killJobsAndPerformPostTrackingCleanup_(obj, endCause)
@@ -3198,9 +3179,6 @@ classdef DeepTracker < LabelTracker
       % Do other stuff
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
-
-      % Inform parent Labeler that tracking has ended
-      obj.lObj.trackingEndedRetrograde(endCause) ;
     end  % function
 
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
@@ -4333,40 +4311,26 @@ classdef DeepTracker < LabelTracker
       if strcmp(train_or_track, 'track') ,
         obj.bgTrkMonitor.stop();
         obj.killJobsAndPerformPostTrackingCleanup_(EndCause.error) ;
+        obj.lObj.trackingEndedRetrograde(EndCause.error, pollingResult) ;        
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
         obj.killJobsAndPerformPostTrainingCleanup_(EndCause.error) ;
+        obj.lObj.trainingEndedRetrograde(EndCause.error, pollingResult) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
-      end
-
-      % Produce an error message on the console
-      fprintf('Error occurred during %sing:\n', train_or_track) ;
-      errorFileIndexMaybe = find(pollingResult.errFileExists, 1) ; 
-      if isempty(errorFileIndexMaybe) ,
-        fprintf('One of the background jobs exited, for unknown reasons.  No error file was produced.\n') ;
-      else
-        errorFileIndex = errorFileIndexMaybe ;
-        errFile = pollingResult.errFile{errorFileIndex} ;
-        doesErrorFileExist = obj.backend.fileExists(errFile) ;
-        if doesErrorFileExist ,
-          fprintf('\n### %s\n\n',errFile);
-          errContents = obj.backend.fileContents(errFile) ;
-          disp(errContents);
-        else
-          fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
-        end      
       end
     end  % function
 
     function abortTraining(obj)
       obj.bgTrnMonitor.stop() ;
       obj.killJobsAndPerformPostTrainingCleanup_(EndCause.abort) ;
+      obj.lObj.trainingEndedRetrograde(EndCause.abort, []) ;
     end  % function
 
     function abortTracking(obj)
       obj.bgTrkMonitor.stop() ;
       obj.killJobsAndPerformPostTrackingCleanup_(EndCause.abort) ;
+      obj.lObj.trackingEndedRetrograde(EndCause.abort, []) ;
     end  % function
 
     function result = get.lastTrainEndCause(obj)

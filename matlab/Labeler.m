@@ -15322,26 +15322,53 @@ classdef Labeler < handle
     %   obj.notify('trainStart') ;
     % end
 
-    function trainingEndedRetrograde(obj, endCause)
+    function trainingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
       % Normally called from children of Labeler to inform it that training has
       % just ended.
       if endCause == EndCause.complete 
         obj.setDoesNeedSave(true, 'Tracker trained') ;
+      elseif endCause == EndCause.error
+        obj.printErrorInfo_('train', pollingResultOrEmpty)
       end
-      % obj.notify('update') ;
-      obj.notify('trainEnd') ;
+      obj.notify('trainEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
     end
     
-    function trackingEndedRetrograde(obj, endCause)
+    function trackingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
       % Normally called from children of Labeler to inform it that tracking has
       % just ended.
       if endCause == EndCause.complete 
         obj.setDoesNeedSave(true, 'New frames tracked') ;
+      elseif endCause == EndCause.error
+        obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
-      % obj.notify('update') ;
-      obj.notify('trackEnd') ;
+      obj.notify('trackEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
     end
     
+    function printErrorInfo_(obj, train_or_track, pollingResultOrEmpty)
+      % Produce an error message on the console
+      fprintf('Error occurred during %sing:\n', train_or_track) ;
+      if isempty(pollingResultOrEmpty) ,
+        fprintf('Something went very wrong.  No other information is available.\n') ;
+      else
+        pollingResult = pollingResultOrEmpty ;
+        errorFileIndexMaybe = find(pollingResult.errFileExists, 1) ; 
+        if isempty(errorFileIndexMaybe) ,
+          fprintf('One of the background jobs exited, for unknown reasons.  No error file was produced.\n') ;
+        else
+          errorFileIndex = errorFileIndexMaybe ;
+          errFile = pollingResult.errFile{errorFileIndex} ;
+          doesErrorFileExist = obj.backend.fileExists(errFile) ;
+          if doesErrorFileExist ,
+            fprintf('\n### %s\n\n',errFile);
+            errContents = obj.backend.fileContents(errFile) ;
+            disp(errContents);
+          else
+            fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
+          end      
+        end      
+      end
+    end  % function
+
     function result= get.backgroundProcessingStatusString(obj)
       result = obj.backgroundProcessingStatusString_ ;
     end

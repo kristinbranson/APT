@@ -1684,29 +1684,61 @@ classdef LabelerController < handle
       % notification after training ends.
       labeler = obj.labeler_ ;
       tracker = labeler.tracker ;
-      iterCurr = tracker.trackerInfo.iterCurr ;
-      if all(isnan(iterCurr)) ,
-        % Don't bother with the dialog if training didn't really happen.
-        return
-      end
+      iterCurrRaw = tracker.trackerInfo.iterCurr ;
+      iterCurr = fif(isnan(iterCurrRaw), 0, iterCurrRaw) ;
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      if labeler.lastTrainEndCause == EndCause.complete
-      question_string = sprintf('Training completed %s iterations. Save project now?',...
-                                n_out_of_d_string) ;
+      if iterCurr > 0 ,
+        if labeler.lastTrainEndCause == EndCause.complete
+          question_string = sprintf('Training completed %s iterations.  Save project now?',...
+                                    n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.error
+          question_string = sprintf('Training errored after %s iterations.  (See console for details.)  Save project now?',...
+                                    n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.abort
+          question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
+                                    n_out_of_d_string) ;
+        else
+          error('Internal error.  Please report to the APT developers.') ;
+        end        
+        res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
+        if strcmpi(res,'Save'),
+          obj.save();
+        elseif strcmpi(res,'Save as...'),
+          obj.saveAs();
+        else
+          % do nothing
+        end  % if      
       else
-        question_string = sprintf('Training errored or was aborted after %s iterations. Save project now?',...
-                                  n_out_of_d_string) ;
+        % iterCurr == 0
+        if labeler.lastTrainEndCause == EndCause.complete
+          uiwait(errordlg(sprintf('Training allegedly completed, but after %s iterations.  Odd.', n_out_of_d_string), ...
+                          'Strangeness', ...
+                          'modal')) ;          
+        elseif labeler.lastTrainEndCause == EndCause.error
+          uiwait(errordlg(sprintf('Training errored after %s iterations.  See console for details.', n_out_of_d_string), ...
+                          'Training Error', ...
+                          'modal')) ;
+        elseif labeler.lastTrainEndCause == EndCause.abort
+          % just proceed on abort
+        else
+          error('Internal error.  Please report to the APT developers.') ;
+        end
+      end
+    end  % function
+
+    function raiseTrackingEndedDialog_(obj)
+      % Raise a dialog if tracking hit an error.  Normally called via event
+      % notification after training ends.
+      labeler = obj.labeler_ ;
+      if labeler.lastTrackEndCause == EndCause.error
+          uiwait(errordlg('Error while tracking.  See console for details.', ...
+                          'Tracking Error', ...
+                          'modal')) ;
+      else
+        % Don't want a dialog on abort or complete (or undefined).
       end        
-      res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
-      if strcmpi(res,'Save'),
-        obj.save();
-      elseif strcmpi(res,'Save as...'),
-        obj.saveAs();
-      else
-        % do nothing
-      end  % if      
-    end
+    end  % function
 
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
@@ -2672,7 +2704,6 @@ classdef LabelerController < handle
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
-      % obj.trainingMonitorVisualizer_.trainingDidEnd() ;
       if ~labeler.silent ,
         obj.raiseTrainingEndedDialog_() ;
       end
@@ -2684,6 +2715,10 @@ classdef LabelerController < handle
     end  % function
 
     function cbkTrackerEnd(obj)
+      labeler = obj.labeler_ ;
+      if ~labeler.silent ,
+        obj.raiseTrackingEndedDialog_() ;
+      end
       obj.update() ;
     end  % function
 
