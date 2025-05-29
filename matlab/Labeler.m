@@ -6609,7 +6609,7 @@ classdef Labeler < handle
           % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
           labelroi_s = LabelROI.fromcoco(cocos,'imov',imov);
           if ~isempty(labelroi_s),
-            fprintf('Imported %d labeled ROIs\n',size(labelroi_s.p,3));
+            fprintf('Imported %d labeled ROIs\n',size(labelroi_s.verts,3));
             % store in obj.labels
             obj.labelsRoi{imovmatch} = labelroi_s;
           end

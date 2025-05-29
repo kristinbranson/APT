@@ -35,7 +35,7 @@ classdef LabelROI
     function s = fromcoco(cocos,varargin)
       [imov] = myparse(varargin,'imov',[]);
       s = [];
-      if numel(cocos.annotations) == 0 || isfield(cocos.annotations,'iscrowd'),
+      if numel(cocos.annotations) == 0 || ~isfield(cocos.annotations,'iscrowd'),
         return;
       end
       hasmovies = ~isempty(imov) && isfield(cocos,'info') && isfield(cocos.info,'movies');
@@ -64,9 +64,9 @@ classdef LabelROI
         s.verts(:,2,i) = py+1; % add 1 for 1-indexing
         imid = ann.image_id+1; % add 1 for 1-indexing
         if hasmovies,
-          s.frm(i) = cocos.images(imid).frm+1; % add 1 for 1-indexing
+          s.f(i) = cocos.images(imid).frm+1; % add 1 for 1-indexing
         else
-          s.frm(i) = imid;
+          s.f(i) = imid;
         end
       end
     end
