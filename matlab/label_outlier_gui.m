@@ -3,8 +3,8 @@ function label_outlier_gui(lobj)
   if ~lobj.hasMovie ,
     error('Need to have at least one movie in order to label outliers')
   end    
-  lobj.setStatus('Finding outliers in labels...');
-  oc = onCleanup(@()(lobj.clearStatus())) ;
+  lobj.pushStatus('Finding outliers in labels...');
+  oc = onCleanup(@()(lobj.popStatus())) ;
   
   [err_tables,labels] = label_outliers(lobj);
   if size(labels,3)<20 
