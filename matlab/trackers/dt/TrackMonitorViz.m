@@ -541,7 +541,7 @@ classdef TrackMonitorViz < handle
           obj.updateMonitorPlots();
           drawnow;
         case {'List all jobs on cluster','List all docker jobs','List all conda jobs'},
-          ss = obj.queryAllJobsStatus();
+          ss = obj.detailedStatusStringFromRegisteredJobIndex_();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show tracking jobs'' status',
@@ -584,6 +584,16 @@ classdef TrackMonitorViz < handle
         result = ss ;
       end
     end  % function
+
+    function result = detailedStatusStringFromRegisteredJobIndex_(obj)
+      ss = obj.dtObj.detailedStatusStringFromRegisteredJobIndex('track') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
+      else
+        result = ss ;
+      end
+    end  % function
+
         
     function updateStopButton(obj)
       % A conventional update method for the (start/)stop button.

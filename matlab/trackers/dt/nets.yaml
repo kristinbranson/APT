@@ -176,8 +176,21 @@ multi_dekr:
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
+# this is DeTR detector. 
 detect_mmdetect:
   shortString: mmdetect
+  displayString: Object Detection
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, traindata*] 
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
+detect_frcnn:
+  shortString: mmdetect_frcnn
   displayString: Object Detection
   modelCheckpointPat: deepnet-%d
   modelGlobs: [deepnet-%d, traindata*] 
