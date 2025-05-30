@@ -32,9 +32,9 @@ classdef LabelerProjectTester < handle
     function test_training(obj, varargin)
       % Test tracking in obj.labeler.  Optional arguments allow caller to change
       % algorithm name, backedn from those specified in the .lbl file.
-      [algo_name, backend_type_as_string, backend_params, training_params, niters] = ...
+      [algo_spec, backend_type_as_string, backend_params, training_params, niters] = ...
         myparse(varargin,...
-                'algo_name','',...
+                'algo_spec',{},...
                 'backend','',...
                 'backend_params',struct(), ...
                 'training_params', [], ...
@@ -44,8 +44,13 @@ classdef LabelerProjectTester < handle
       % controller = obj.controller ;
       
       % Set things up for training
-      if ~isempty(algo_name) ,
-        labeler.trackMakeNewTrackerGivenAlgoName(algo_name) ;
+      if ~isempty(algo_spec) ,
+        if ischar(algo_spec) ,
+          algo_name = algo_spec ;
+          labeler.trackMakeNewTrackerGivenAlgoName(algo_name) ;          
+        else
+          labeler.trackMakeNewTrackerGivenAlgoName(algo_spec{:}) ;
+        end
       end
       % % HACK START
       % backend_type_as_string = 'conda' ;

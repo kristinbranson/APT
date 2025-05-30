@@ -10484,19 +10484,13 @@ classdef Labeler < handle
       end
       
       % Create the new tracker
-      if isempty(varargin)
-        % Typical case, not a custom top-down tracker
-        tci = tcis{tciIndex} ;
+      rawTCI = tcis{tciIndex} ;
+      if strcmp(rawTCI{1}, 'DeepTrackerTopDownCustom') ,
+        % Need to take steps to determine type of each stage
+        tci = apt.fillInCustomStages(rawTCI, varargin{:}) ;
       else
-        % This means we're creating a custom top-down tracker, so we need to supply
-        % the factory method with the details about stage 1 and stage 2.
-        stage1ConstructorArgs = varargin{1} ;
-        stage2ConstructorArgs = varargin{2} ;
-        tci = { 'DeepTrackerTopDownCustom', ...
-                stage1ConstructorArgs, ...
-                stage2ConstructorArgs, ...
-                'valid', ...
-                true } ;
+        % Typical case, not a custom top-down tracker
+        tci = rawTCI ;
       end
       newTracker = LabelTracker.create(obj, tci) ;     
       
@@ -10526,7 +10520,7 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;      
     end  % function
 
-    function trackMakeNewTrackerGivenAlgoName(obj, algoName)
+    function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
       algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
                                           obj.trackersAll_, ...
                                           'UniformOutput', false) ;
@@ -10540,7 +10534,7 @@ classdef Labeler < handle
         tciIndex = matchingIndices(1) ;
         warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, tciIndex) ;
       end
-      obj.trackMakeNewTrackerGivenIndex(tciIndex) ;
+      obj.trackMakeNewTrackerGivenIndex(tciIndex, varargin{:}) ;
     end  % function
 
     function trackMakeExistingTrackerCurrentGivenAlgoName(obj, algoName)
