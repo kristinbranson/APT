@@ -9260,7 +9260,13 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
+      % [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
+      mftflds = MFTable.FLDSID;
+      if obj.maIsMA  
+        % remove tgt field for multi-animal projects
+        mftflds(strcmp(mftflds,'iTgt')) = [];
+      end
+      [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
 
       % tblMFTLbld includes rows where any pt/coord is labeled;
       % obj.gtSuggMFTableLbled is only true if all pts/coords labeled 
