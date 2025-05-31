@@ -3567,6 +3567,18 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end
+
+      % If the GT suggestions are old-school style for an MA project, fix it.
+      if s.maIsMA
+        mfTable = s.gtSuggMFTable ;
+        if ismember('iTgt', mfTable.Properties.VariableNames)
+          % Need to set all the iTgt's to nan, but avoid repeats
+          mfTable.iTgt = zeros(size(mfTable.iTgt)) ;  % first set all iTgts to zero
+          mfTable = unique(mfTable) ;  % eliminate now-redudant rows
+          mfTable.iTgt = nan(size(mfTable.iTgt)) ;  % replace iTgt's with nans (couldn't do before b/c nan~=nan)
+          s.gtSuggMFTable = mfTable ;
+        end
+      end
     end  % function lblModernize()
     
     function s = resetTrkResFieldsStruct(s)
