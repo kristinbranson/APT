@@ -606,22 +606,30 @@ classdef LabelerController < handle
       % Update the status text box to reflect the current model state.
       labeler = obj.labeler_ ;
       is_busy = labeler.isStatusBusy ;
-      if is_busy
-        color = obj.busystatuscolor;
-        if any(isgraphics(obj.figs_all)),
-          set(obj.figs_all(isgraphics(obj.figs_all)),'Pointer','watch');
-        else
-          set(obj.mainFigure_,'Pointer','watch');
-        end
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      valid_figs_all = obj.figs_all(isgraphics(obj.figs_all)) ;
+      % Seems like "set(valid_figs_all,'Pointer',pointer);" should be sufficient,
+      % istead of the if-else clause below.  Is obj.figs_all not always kept up to
+      % date?  Normally obj.mainFigure_ == obj.figs_all(1).
+      if ~isempty(valid_figs_all) ,
+        set(valid_figs_all,'Pointer',pointer);
       else
-        color = obj.idlestatuscolor;
-        if any(isgraphics(obj.figs_all)),
-          set(obj.figs_all(isgraphics(obj.figs_all)),'Pointer','arrow');
-        else
-          set(obj.mainFigure_,'Pointer','arrow');
+        mainFigure = obj.mainFigure_ ;
+        if ~isempty(mainFigure) && isgraphics(mainFigure) ,
+          set(mainFigure,'Pointer',pointer);
         end
       end
-      set(obj.txStatus,'ForegroundColor',color);
+      statusColor = fif(is_busy, obj.busystatuscolor, obj.idlestatuscolor) ;
+      set(obj.txStatus,'ForegroundColor',statusColor);      
+      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_)
+        obj.trainingMonitorVisualizer_.updatePointer() ;
+      end
+      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+        obj.trackingMonitorVisualizer_.updatePointer() ;
+      end
+      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_)
+        obj.movieManagerController_.updatePointer() ;
+      end
 
       % Actually update the String in the status text box.  Use the shorter status
       % string from the labeler if the normal one is too long for the text box.
@@ -809,7 +817,12 @@ classdef LabelerController < handle
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
       
+      % Switch to watch cursor
       labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
+      oc = onCleanup(@()(labeler.popBusyStatus()));
+
+      % Check for project, movie
       [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
       if ~doTheyExist ,
         error(message) ;
@@ -865,8 +878,13 @@ classdef LabelerController < handle
 
     function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
       % Get the tracker index
-      tracker_index = source.UserData;
+      trackerIndex = source.UserData;
       labeler = obj.labeler_ ;
+
+      % The dialog for a custom two-stage tracker takes a while to come up, so
+      % want to show the watch pointer.
+      labeler.pushBusyStatus('Creating new tracker...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
 
       % Validation happens inside Labeler now
       % % Validate it
@@ -884,8 +902,31 @@ classdef LabelerController < handle
       %   do_use_previous = [] ;  % value will be ignored
       % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
-      % Finally, call the model method to set the tracker
-      labeler.trackMakeNewTrackerCurrent(tracker_index) ;      
+      % Check for a custom tracker
+      tcis = labeler.trackersAllCreateInfo ;
+      trackerCount = numel(tcis) ;
+      if ~is_index_in_range(trackerIndex, trackerCount)
+        error('No tracker at index %d.  There are %d trackers.', trackerIndex, trackerCount) ;
+      end
+      tci = tcis{trackerIndex} ;
+      trackerClassName = tci{1} ;
+      if strcmp(trackerClassName, 'DeepTrackerTopDownCustom') ,
+        stage1ModeArgs = tci{2} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDDetectObj}
+        stage2ModeArgs = tci{3} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDPoseObj}
+        stage1Mode = stage1ModeArgs{2} ;  % should be a DLNetMode
+        stage2Mode = stage2ModeArgs{2} ;  % should be a DLNetMode        
+        [docontinue, stg1ctorargs, stg2ctorargs] = obj.raiseDialogsToChooseStageAlgosForCustomTopDownTracker(stage1Mode, stage2Mode) ;
+        if ~docontinue ,
+          return
+        end
+        % Call the model method to set the tracker, providing extra args to specify
+        % the two custom stages   
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex, stg1ctorargs, stg2ctorargs) ;
+      else
+        % If not a custom tracker, our job is easier.
+        % Call the model method to set the tracker.
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex) ;
+      end
     end
 
     function menu_track_tracker_history_item_actuated_(obj, source, event)  %#ok<INUSD> 
@@ -894,7 +935,7 @@ classdef LabelerController < handle
 
       % Call the labeler method
       labeler = obj.labeler_ ;
-      labeler.trackMakeOldTrackerCurrent(trackerHistoryIndex) ;      
+      labeler.trackMakeExistingTrackerCurrentGivenIndex(trackerHistoryIndex) ;      
     end
 
     function showDialogAfterSpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
@@ -1147,9 +1188,9 @@ classdef LabelerController < handle
         while true,
           switch btn
             case 'Launch New'
-              labeler.pushStatus('Launching new AWS EC2 instance') ;
+              labeler.pushBusyStatus('Launching new AWS EC2 instance') ;
               [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
-              labeler.popStatus() ;
+              labeler.popBusyStatus() ;
               if ~didLaunchSucceed
                 reason = 'Could not launch AWS EC2 instance.';
                 error(reason) ;
@@ -1218,8 +1259,8 @@ classdef LabelerController < handle
       % way makes it easier to fake control actuations by calling
       % this function with the desired controlName and an empty
       % source and event.
-      % obj.labeler_.pushStatus(sprintf('Control %s actuated...', controlName)) ;
-      % oc = onCleanup(@()(obj.labeler_.popStatus())) ;
+      % obj.labeler_.pushBusyStatus(sprintf('Control %s actuated...', controlName)) ;
+      % oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       if obj.isInYodaMode_ ,
         % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
@@ -1229,7 +1270,7 @@ classdef LabelerController < handle
           obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
           exceptionMaybe = {} ;
         catch exception
-          obj.labeler_.popStatus() ;
+          obj.labeler_.popBusyStatus() ;
           if isequal(exception.identifier,'APT:invalidPropertyValue') || isequal(exception.identifier,'APT:cancelled'),
             % ignore completely, don't even pass on to output
             exceptionMaybe = {} ;
@@ -1644,29 +1685,61 @@ classdef LabelerController < handle
       % notification after training ends.
       labeler = obj.labeler_ ;
       tracker = labeler.tracker ;
-      iterCurr = tracker.trackerInfo.iterCurr ;
-      if all(isnan(iterCurr)) ,
-        % Don't bother with the dialog if training didn't really happen.
-        return
-      end
+      iterCurr = tracker.trackerInfo.iterCurr ;  % a row vector, in general
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      if labeler.lastTrainEndCause == EndCause.complete
-      question_string = sprintf('Training completed %s iterations. Save project now?',...
-                                n_out_of_d_string) ;
+      if ~all(isnan(iterCurr)) ,
+        if labeler.lastTrainEndCause == EndCause.complete
+          question_string = sprintf('Training completed %s iterations.  Save project now?',...
+                                    n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.error
+          question_string = sprintf('Training errored after %s iterations.  (See console for details.)  Save project now?',...
+                                    n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.abort
+          question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
+                                    n_out_of_d_string) ;
+        else
+          error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
+        end        
+        res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
+        if strcmpi(res,'Save'),
+          obj.save();
+        elseif strcmpi(res,'Save as...'),
+          obj.saveAs();
+        else
+          % do nothing
+        end  % if      
       else
-        question_string = sprintf('Training errored or was aborted after %s iterations. Save project now?',...
-                                  n_out_of_d_string) ;
+        % all(isnan(iterCurr)) == true
+        % This means there was an error or abort early in training.
+        if labeler.lastTrainEndCause == EndCause.complete
+          uiwait(errordlg(sprintf('Training allegedly completed, but after %s iterations.  Odd.', n_out_of_d_string), ...
+                          'Strangeness', ...
+                          'modal')) ;          
+        elseif labeler.lastTrainEndCause == EndCause.error
+          uiwait(errordlg(sprintf('Training errored after %s iterations.  See console for details.', n_out_of_d_string), ...
+                          'Training Error', ...
+                          'modal')) ;
+        elseif labeler.lastTrainEndCause == EndCause.abort
+          % just proceed on abort
+        else
+          error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
+        end
+      end
+    end  % function
+
+    function raiseTrackingEndedDialog_(obj)
+      % Raise a dialog if tracking hit an error.  Normally called via event
+      % notification after training ends.
+      labeler = obj.labeler_ ;
+      if labeler.lastTrackEndCause == EndCause.error
+          uiwait(errordlg('Error while tracking.  See console for details.', ...
+                          'Tracking Error', ...
+                          'modal')) ;
+      else
+        % Don't want a dialog on abort or complete (or undefined).
       end        
-      res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
-      if strcmpi(res,'Save'),
-        obj.save();
-      elseif strcmpi(res,'Save as...'),
-        obj.saveAs();
-      else
-        % do nothing
-      end  % if      
-    end
+    end  % function
 
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
@@ -2632,7 +2705,6 @@ classdef LabelerController < handle
 
     function cbkTrackerTrainEnd(obj)
       labeler = obj.labeler_ ;
-      % obj.trainingMonitorVisualizer_.trainingDidEnd() ;
       if ~labeler.silent ,
         obj.raiseTrainingEndedDialog_() ;
       end
@@ -2644,6 +2716,10 @@ classdef LabelerController < handle
     end  % function
 
     function cbkTrackerEnd(obj)
+      labeler = obj.labeler_ ;
+      if ~labeler.silent ,
+        obj.raiseTrackingEndedDialog_() ;
+      end
       obj.update() ;
     end  % function
 
@@ -4537,8 +4613,8 @@ classdef LabelerController < handle
 
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;            
-      labeler.pushStatus('Plotting all labels on one axes to visualize label distribution...');
-      oc = onCleanup(@()(labeler.popStatus())) ;
+      labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       if labeler.hasTrx
         labeler.labelOverlayMontageGUI();
         labeler.labelOverlayMontageGUI('ctrMeth','trx');
@@ -4994,8 +5070,8 @@ classdef LabelerController < handle
       end
       
       % Actually takes a while for first response to happen, so show busy
-      obj.labeler_.pushStatus('Setting training parameters...') ;
-      oc = onCleanup(@()(obj.labeler_.popStatus())) ;
+      obj.labeler_.pushBusyStatus('Setting training parameters...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       
       % Compute the automatic parameters, give user chance to accept/reject them.
       % did_update will be true iff they accepted them.
@@ -6017,5 +6093,35 @@ classdef LabelerController < handle
       end
     end  % function
         
+    function [docontinue, stg1ctorargs, stg2ctorargs] = raiseDialogsToChooseStageAlgosForCustomTopDownTracker(obj, stg1mode, stg2mode)
+      % What it says on the tin.
+      dlnets = enumeration('DLNetType') ;
+      isma = [dlnets.isMultiAnimal] ;
+      stg2nets = dlnets(~isma) ;
+      
+      is_bbox = false(1,numel(dlnets)) ;
+      for dndx = 1:numel(dlnets)          
+        is_bbox(dndx) = dlnets(dndx).isMultiAnimal && startsWith(char(dlnets(dndx)),'detect_') ;
+      end  % for
+      
+      stg1nets_ht = dlnets(isma & ~is_bbox) ;
+      stg1nets_bbox = dlnets(isma & is_bbox) ;
+      if stg1mode == DLNetMode.multiAnimalTDDetectHT
+        stg1nets = stg1nets_ht ;
+      else
+        stg1nets = stg1nets_bbox ;
+      end
+      [stg1net, stg2net] = apt.get_custom_two_stage_tracker_nets_ui(obj.mainFigure_, stg1nets, stg2nets) ;
+
+      docontinue = ~isempty(stg1net) ;
+      if docontinue
+        stg1ctorargs = {'trnNetMode', stg1mode, 'trnNetType', stg1net} ;
+        stg2ctorargs = {'trnNetMode', stg2mode, 'trnNetType', stg2net} ;
+      else
+        stg1ctorargs = [] ;
+        stg2ctorargs = [] ;
+      end      
+    end  % function
+
   end  % methods  
 end  % classdef

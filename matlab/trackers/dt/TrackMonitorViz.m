@@ -752,5 +752,14 @@ classdef TrackMonitorViz < handle
       end
       drawnow('limitrate', 'nocallbacks') ;
     end  % function
+    
+    function updatePointer(obj)
+      % Update the mouse pointer to reflect the Labeler state.
+      labeler = obj.labeler_ ;
+      is_busy = labeler.isStatusBusy ;
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      set(obj.hfig, 'Pointer', pointer) ;
+    end  % function
+    
   end  % methods    
 end  % classdef
