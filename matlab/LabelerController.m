@@ -69,13 +69,15 @@ classdef LabelerController < handle
     menu_file_export_labels2_trk_curr_mov
     menu_file_export_labels_table
     menu_file_export_labels_cocojson
+    menu_file_import_labels_cocojson
     menu_file_export_labels_trks
     menu_file_export_stripped_lbl
     menu_file_import_export_advanced
     menu_file_import_labels2_trk_curr_mov
     menu_file_import_labels_table
     menu_file_import_labels_trk_curr_mov
-    menu_file_importexport
+    menu_file_import
+    menu_file_export
     menu_file_load
     menu_file_managemovies
     menu_file_new
@@ -1419,7 +1421,8 @@ classdef LabelerController < handle
       set(obj.menu_file_load,'Enable','on');
       set(obj.menu_file_shortcuts,'Enable',onIff(hasProject));
       set(obj.menu_file_managemovies,'Enable',onIff(hasProject));
-      set(obj.menu_file_importexport,'Enable',onIff(hasProject));
+      set(obj.menu_file_import,'Enable',onIff(hasProject));
+      set(obj.menu_file_export,'Enable',onIff(hasMovie));
       set(obj.menu_file_crop_mode,'Enable',onIff(hasMovie));
       set(obj.menu_file_clean_tempdir,'Enable',onIff(hasProject));
       set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
@@ -4399,6 +4402,7 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
         error('LabelerGUI:noMovie','No movie is loaded.');
@@ -4474,7 +4478,86 @@ classdef LabelerController < handle
       fprintf('Done.\n');
     end
 
+    function menu_file_import_labels_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+      % callback for importing labels from coco json
+
+      res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning','Yes','No','Cancel','No');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+
+      labeler = obj.labeler_ ;
+      fname = labeler.getDefaultFilenameImportCOCOJson();
+      [f,p] = uigetfile(fname,'Import COCO Json File');
+      if isequal(f,0)
+        return;
+      end
+      cocojsonfile = fullfile(p,f);
+      if ~exist(cocojsonfile,'file'),
+        errordlg(sprintf('File %s does not exist',cocojsonfile),'Error importing COCO labels');
+        return;
+      end
+      try
+        cocos = TrnPack.hlpLoadJson(cocojsonfile);
+      catch ME,
+        warningNoTrace('Error loading json file %s:\n%s\n',cocojsonfile,getReport(ME));
+        errordlg(sprintf('Error loading json file %s',cocojsonfile),'Error importing COCO labels');
+        return;
+      end
+      hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
+      % we will create a fake movie directory, where should we put it?
+      if ~hasmovies,
+        outimdirparent = uigetdir(p,'Folder to output movie frames to');
+        if ~ischar(outimdirparent),
+          return;
+        end
+        outdirname = 'movie';
+        imname = 'frame';
+        % if the name of the directory is movie, then assume that we want
+        % to use this directory to output images to
+        [~,n] = fileparts(outimdirparent);
+        if strcmp(n,outdirname),
+          outimdir = outdirname;
+        else
+          % if this is an empty directory, also assume we want to output
+          % here
+          dircontents = mydir(outimdirparent);
+          if isempty(dircontents),
+            outimdir = outimdirparent;
+          else
+            % assume we should create a new directory named movie in this
+            % directory
+            outimdir = fullfile(outimdirparent,outdirname);
+          end
+        end
+        overwrite = true;
+        if exist(outimdir,'dir'),
+          [~,~,imext] = fileparts(cocos.images(1).file_name);
+          dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
+          if ~isempty(dircontents),
+            res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
+            if strcmpi(res,'Cancel'),
+              return;
+            end
+            overwrite = strcmpi(res,'Yes');
+          end
+        end
+        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'cocojsonfile',cocojsonfile};
+      else
+        args = {};
+      end
+      fprintf('Importing labels from %s...\n',cocojsonfile);
+      labeler.labelPosBulkImportCOCOJson(cocos,args{:});
+      fprintf('Done.\n');
+    end
+
     function menu_file_import_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
+
+      res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning!','Yes','No','Cancel','No');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+
       labeler = obj.labeler_ ;
       lastFile = RC.getprop('lastLabelMatfile');
       if isempty(lastFile)

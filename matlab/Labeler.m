@@ -3625,6 +3625,14 @@ classdef Labeler < handle
   %% Movie
   methods
     
+    function movieAddAllModes(obj,moviefile,varargin)
+      if obj.isMultiView,
+        obj.movieSetAdd(moviefile,varargin{:});
+      else
+        obj.movieAdd(moviefile,varargin{:});
+      end
+    end
+
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
@@ -6568,6 +6576,171 @@ classdef Labeler < handle
       end
       obj.labeledposNeedsSave = true;
     end
+
+    function labelPosBulkImportCOCOJson(obj,cocos,varargin)
+      % labelPosBulkImportCOCOJson(obj,cocos,...)
+      % Import labels and movies from the COCO-structured data cocos.
+      % If information is given about the movies that were used to
+      % crop out the images that are labeled, then these movies will be
+      % added. Otherwise, a new movie will be created which is actually a
+      % directory containing consecutively named frames that APT will read
+      % as if it is a single movie, with one frame per labeled image. 
+      % Labels for each referenced movie will be REPLACED by labels in
+      % cocos. 
+      %
+      % Input:
+      % cocos: struct containing data read from COCO json file
+      % Fields:
+      % .images: struct array with an entry for each labeled image, with
+      % the following fields:
+      %   .id: Unique id for this labeled image, from 0 to
+      %   numel(locs.locdata)-1
+      %   .file_name: Relative path to file containing this image
+      %   .movid: Id of the movie this image come from, 0-indexed. This is
+      %   used iff movie information is available
+      %   .frmid: Index of frame this image comes from, 0-indexed. This is
+      %   used iff movie information is available
+      % .annotations: struct array with an entry for each annotation, with
+      % the following fields:
+      %   .iscrowd: Whether this is a labeled target (0) or mask (1). If
+      %   not available, it is assumed that this is a labeled target (0).
+      %   .segmentation: cell of length 1 containing array of length 8 x 1,
+      %   containing the x (segmentation{1}(1:2:end)) and y
+      %   (segmentation{1}(2:2:end)) coordinates of the mask considered
+      %   labeled, 0-indexed. This is only used for label ROIs.
+      %   .image_id: Index (0-indexed) of corresponding image
+      %   .num_keypoints: Number of keypoints in this target (0 if mask)
+      %   .keypoints: array of size nkeypoints*3 containing the x
+      %   (keypoints(1:3:end)), y (keypoints(2:3:end)), and occlusion
+      %   status (keypoints(3:3:end)). (x,y) are 0-indexed. for occlusion
+      %   status, 2 means not occluded, 1 means occluded but labeled, 0
+      %   means not labeled. 
+      % .info:
+      %   .movies: Cell containing paths to movies. If this is available,
+      %   then these movies are added to the project. 
+      % Optional arguments:
+      % outimdir: If no movie info is available, then this is where the
+      % dummy movie will be created. Must be provided if movie info is not
+      % in the coco structure. 
+      % overwrite: Whether to overwrite files that exist. Default: true
+      % imname: Base name of created images. Default: 'frame'.
+      % cocojsonfile: Path to coco json file. Must be provided if movie
+      % info is not in the coco structure. 
+
+      [outimdir,overwrite,imname,cocojsonfile] = myparse(varargin,...
+        'outimdir','','overwrite',true,'imname','frame',...
+        'cocojsonfile','');
+
+      % import labels from COCO json file
+      hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
+
+      PROPS = obj.gtGetSharedProps();
+      tsnow = now;
+
+      if hasmovies,
+        moviefilepaths = cocos.info.movies;
+        for imov = 1:numel(moviefilepaths),
+          moviecurr = moviefilepaths(imov,:); 
+          % todo: check multiview, hastrx, gtmode, macros
+          % projects
+          % is this movie already added to the project?
+          [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
+          if ~didfind,
+            % add movie to project
+            fprintf('Adding movie %d:',imov);
+            fprintf('  %s',moviecurr{:});
+            fprintf('\n');
+            obj.movieAddAllModes(moviecurr);
+            [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
+            assert(didfind,'Failed to add movie');
+          else
+            fprintf('Movie %d already in project:',imov);
+            fprintf('  %s',moviecurr{:});
+            fprintf('\n');
+          end
+          fprintf('Project movie index = %d\n',imovmatch);
+          % convert from coco format to label format for this movie
+          label_s = Labels.fromcoco(cocos,'imov',imov,'tsnow',tsnow);
+          if ~isempty(label_s),
+            fprintf('Imported %d labels\n',size(label_s.p,2));
+            % store in obj.labels
+            obj.(PROPS.LBL){imovmatch} = label_s;
+          end
+          % add label rois
+          % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
+          labelroi_s = LabelROI.fromcoco(cocos,'imov',imov);
+          if ~isempty(labelroi_s),
+            fprintf('Imported %d labeled ROIs\n',size(labelroi_s.verts,3));
+            % store in obj.labels
+            obj.labelsRoi{imovmatch} = labelroi_s;
+          end
+          if isempty(label_s) && isempty(labelroi_s),
+            fprintf('No labels found for this movie\n');
+          end
+        end
+      else
+
+        % create a directory with frames in order
+        assert(~isempty(outimdir));
+        assert(~isempty(cocojsonfile));
+        if ~exist(outimdir,'dir'),
+          mkdir(outimdir);
+        end
+        inrootdir = fileparts(cocojsonfile);
+        nim = numel(cocos.images);
+        nz = max(5,ceil(log10(nim)));
+        [~,~,imext] = fileparts(cocos.images(1).file_name);
+        namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
+        for i = 1:nim,
+          imcurr = cocos.images(i);
+          inp = fullfile(inrootdir,imcurr.file_name);
+          outp = fullfile(outimdir,sprintf(namepat,i));
+          if i == 1,
+            moviepath = outp;
+          end
+          assert(exist(inp,'file'));
+          if overwrite || ~exist(outp,'file'),
+            [success,msg] = copyfile(inp,outp);
+            assert(success,msg);
+          end
+        end
+        [didfind,imovmatch] = obj.movieSetInProj(moviepath);
+        if ~didfind,
+          obj.movieAddAllModes(moviepath);
+        end
+        [didfind,imovmatch] = obj.movieSetInProj(moviepath);
+        assert(didfind,'Failed to add stitched movie');
+
+        fprintf('Project movie index = %d\n',imovmatch);
+        % convert from coco format to label format for this movie
+        label_s = Labels.fromcoco(cocos,'tsnow',tsnow);
+        if ~isempty(label_s),
+          fprintf('Imported %d labels\n',size(label_s.p,2));
+          % store in obj.labels
+          obj.(PROPS.LBL){imovmatch} = label_s;
+        end
+        % add label rois
+        % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
+        labelroi_s = LabelROI.fromcoco(cocos);
+        if ~isempty(labelroi_s),
+          fprintf('Imported %d labeled ROIs\n',size(labelroi_s.verts,3));
+          % store in obj.labels
+          obj.labelsRoi{imovmatch} = labelroi_s;
+        end
+        if isempty(label_s) && isempty(labelroi_s),
+          fprintf('No labels found');
+        end
+      end
+
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = tsnow;
+      end
+      obj.labeledposNeedsSave = true;
+
+    end
     
     function labelPosBulkImportTbl(obj,tblMFT)
       % Like labelPosBulkImportTblMov, but table may include movie 
@@ -7580,7 +7753,15 @@ classdef Labeler < handle
       end
       fname = getDefaultFilenameExport(obj,lblstr,'.zip');
     end
-        
+
+    function fname = getDefaultFilenameImportCOCOJson(obj)
+
+      rawdir = '$projdir';
+      sMacro = obj.baseTrkFileMacros();
+      fdir = FSPath.macroReplace(rawdir,sMacro);
+      fname = linux_fullfile(fdir,'*.json');
+
+    end        
     function [tfok,trkfiles] = getTrkFileNamesForExportGUI(obj,movfiles,...
         rawname,varargin)
       % Concretize a raw trkfilename, then check for conflicts etc.
