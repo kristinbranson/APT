@@ -6689,7 +6689,7 @@ classdef Labeler < handle
         inrootdir = fileparts(cocojsonfile);
         nim = numel(cocos.images);
         nz = max(5,ceil(log10(nim)));
-        [~,~,imext] = fileparts(cocos.images(1));
+        [~,~,imext] = fileparts(cocos.images(1).file_name);
         namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
         for i = 1:nim,
           imcurr = cocos.images(i);

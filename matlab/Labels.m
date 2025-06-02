@@ -581,7 +581,7 @@ classdef Labels
         if hasmovies,
           s.frm(i) = cocos.images(imidxcurr).frm+1; % add 1 for 1-indexing
         else
-          s.frm(i) = imid;
+          s.frm(i) = imid+1; % add 1 for 1-indexing
         end
         imid = ann.image_id+1; % add 1 for 1-indexing
         s.tgt(i) = im2tgt(imid);

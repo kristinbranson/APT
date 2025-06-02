@@ -4530,14 +4530,16 @@ classdef LabelerController < handle
             outimdir = fullfile(outimdirparent,outdirname);
           end
         end
+        overwrite = true;
         if exist(outimdir,'dir'),
           [~,~,imext] = fileparts(cocos.images(1).file_name);
           dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
           if ~isempty(dircontents),
             res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
-            if ~strcmpi(res,'Yes'),
+            if strcmpi(res,'Cancel'),
               return;
             end
+            overwrite = strcmpi(res,'Yes');
           end
         end
         args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'cocojsonfile',cocojsonfile};
