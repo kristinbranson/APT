@@ -133,7 +133,7 @@ classdef BgMonitor < handle
       sendMaybe(obj.bgClientObj, 'stopPollingLoop') ;
     end
     
-    function didReceivePollResults(obj, pollingResult)
+    function didReceivePollResultsRetrograde(obj, pollingResult)
       % Called by the BgClient when a polling result is received.  Checks for error
       % or completion and notifies the parent DeepTracker accordingly.
 
@@ -147,7 +147,7 @@ classdef BgMonitor < handle
 
       % Cause views/controllers to be updated with the latest poll results
       obj.pollingResult = pollingResult ;  % Stash so to controllers/views have access to it.
-      obj.parent_.didReceivePollResults(obj.processName) ;
+      obj.parent_.didReceivePollResultsRetrograde(obj.processName) ;
         % This call causes (through a child-to-parent call chain) the labeler to
         % notify() views/controllers that there's a training/tracking result, and that they should
         % update themselves accordingly.  But that's it. Determining that training/tracking is
@@ -158,7 +158,7 @@ classdef BgMonitor < handle
       if ~didPollingItselfSucceed
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
+        obj.parent_.didErrorDuringTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
@@ -196,7 +196,7 @@ classdef BgMonitor < handle
 
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
+        obj.parent_.didErrorDuringTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
@@ -213,7 +213,7 @@ classdef BgMonitor < handle
         
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has completed.
-        obj.parent_.didCompleteTrainingOrTracking(obj.processName, pollingResult) ;
+        obj.parent_.didCompleteTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result
         return

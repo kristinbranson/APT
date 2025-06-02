@@ -281,7 +281,7 @@ end
 if isfield(mftRow,'iTgt')
   itgt = mftRow.iTgt;
 else
-  itgt = nan;
+  itgt = NaN;
 end
 lObj.setFrameAndTargetGUI(mftRow.frm,itgt);
 

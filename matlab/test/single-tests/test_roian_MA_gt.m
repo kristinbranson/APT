@@ -1,6 +1,6 @@
 function test_roian_MA_gt()
   if ispc() 
-    warning('The project videos are two large to easily copy, so %s always passes on Windows', mfilename());
+    warning('The project videos are too large to easily copy, so %s always passes on Windows', mfilename());
     return
   end    
   [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
