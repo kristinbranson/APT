@@ -53,6 +53,7 @@ function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
 %   skelSpecs: [3] struct array 
 
 handles.output = hObject;
+set(hObject,'MenuBar','None');
 
 hObject.CloseRequestFcn = @figure_landmarkcolors_CloseRequestFcn;
 

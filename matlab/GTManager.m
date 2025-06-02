@@ -35,6 +35,7 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 % 3c. Labeler prop listeners update GTTable selection, expand/collapse
 %   (frame, target etc)
 
+set(hObject,'MenuBar','None');
 handles.menu_get_gt_frames.Label = 'GT Frames';
 
 handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
