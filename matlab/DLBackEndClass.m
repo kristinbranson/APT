@@ -35,37 +35,30 @@ classdef DLBackEndClass < handle
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
     jrchost = 'login1.int.janelia.org'
-    jrcprefix = ''
-    jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod'
+    % jrcprodrepo = '/groups/branson/bransonlab/apt/repo/prod'
     default_jrcgpuqueue = 'gpu_a100'
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
 
-    default_conda_env = 'APT'
+    default_conda_env = 'apt_20230427_tf211_pytorch113_ampere'
     default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt_20230427_tf211_pytorch113_ampere.sif' 
     legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
-
-    %default_docker_api_version = '1.40'
   end
 
   properties
     type  % scalar DLBackEnd
 
     % Used only for type==Bsub
-    deepnetrunlocal = true
-      % scalar logical. if true, bsub backend runs code in APT.Root/deepnet.
-      % This path must be visible in the backend or else.
-      % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
-    bsubaptroot = []  % root of APT repo for bsub backend running     
+    % deepnetrunlocal = true
+    %   % scalar logical. if true, bsub backend runs code in APT.Root/deepnet.
+    %   % This path must be visible in the backend or else.
+    %   % Applies only to bsub. Name should be eg 'bsubdeepnetrunlocal'
+    % bsubaptroot = []  % root of APT repo for bsub backend running     
     jrcsimplebindpaths = true  % whether to bind '/groups', '/nrs' for the Bsub/JRC backend
         
     % Used only for type==AWS
     awsec2  % a scalar AWSec2 object (present whether we need it or not)
-    awsgitbranch  
-      % Stores the branch name of APT to use when updating APT on the AWS EC2
-      % instance.  This is never set in the APT codebase, as near as I can tell.
-      % Likely used only for debugging?  -- ALT, 2024-03-07
     
     % Used only for type==Docker  
     %dockerapiver = DLBackEndClass.default_docker_api_version  % docker codegen will occur against this docker api ver
@@ -82,9 +75,6 @@ classdef DLBackEndClass < handle
       % Linux boxes on the Janelia network.)
 
     gpuids = []  % for now used by docker/conda
-%     dockercontainername = []  
-%       % transient
-%       % Also, seemingly never read -- ALT, 2024-03-07
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
     jrcgpuqueue
@@ -362,7 +352,7 @@ classdef DLBackEndClass < handle
       end
 
       % 20211101 turn on by default
-      obj.jrcsimplebindpaths = 1;
+      obj.jrcsimplebindpaths = true ;
       
       % In modern versions, we always have a .awsec2, whether we need it or not
       if isempty(obj.awsec2) ,
@@ -560,7 +550,8 @@ classdef DLBackEndClass < handle
     function r = aptSourceDirRoot(obj)
       switch obj.type
         case DLBackEnd.Bsub
-          r = obj.bsubaptroot;
+          % r = obj.bsubaptroot;
+          r = APT.Root;          
         case DLBackEnd.AWS
           r = AWSec2.remoteAPTSourceRootDir ;
         case DLBackEnd.Docker
@@ -610,12 +601,12 @@ classdef DLBackEndClass < handle
     end  % function
   end  % methods block
   
-  methods % Bsub
-    function aptroot = bsubSetRootUpdateRepo_(obj)
-      aptroot = apt.bsubSetRootUpdateRepo(obj.deepnetrunlocal) ;
-      obj.bsubaptroot = aptroot;
-    end
-  end  % methods
+  % methods % Bsub
+  %   function aptroot = bsubSetRootUpdateRepo_(obj)
+  %     aptroot = apt.bsubSetRootUpdateRepo(obj.deepnetrunlocal) ;
+  %     obj.bsubaptroot = aptroot;
+  %   end
+  % end  % methods
   
   methods % Docker
     % KB 20191219: moved this to not be a static function so that we could
@@ -752,9 +743,9 @@ classdef DLBackEndClass < handle
       % localCacheDir is not currently used, but will be needed to get the JRC
       % backend working properly for AD-linked Linux workstations.
       switch obj.type
-        case DLBackEnd.Bsub ,
-          obj.bsubSetRootUpdateRepo_();
-        case {DLBackEnd.Conda, DLBackEnd.Docker} ,
+        % case DLBackEnd.Bsub ,
+        %   obj.bsubSetRootUpdateRepo_();
+        case {DLBackEnd.Conda, DLBackEnd.Docker, DLBackEnd.Bsub} ,
           aptroot = APT.Root;
           apt.downloadPretrainedWeights('aptroot', aptroot) ;
         case DLBackEnd.AWS ,
@@ -1251,17 +1242,6 @@ classdef DLBackEndClass < handle
       end
     end  % function    
 
-    % function setAwsPemFileAndKeyName(obj, pemFile, keyName)
-    %   ec2 = obj.awsec2 ;
-    %   ec2.pem = pemFile ;
-    %   ec2.keyName = keyName ;
-    % end
-    
-    % function setAWSInstanceIDAndType(obj, instanceID, instanceType)
-    %   ec2 = obj.awsec2 ;
-    %   ec2.setInstanceIDAndType(instanceID, instanceType) ;
-    % end
-    
     function [tfsucc,res] = batchPoll(obj, native_fspollargs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
       %
@@ -1425,7 +1405,7 @@ classdef DLBackEndClass < handle
         end
         if isTextFile ,
           s = obj.fileContents(nativeFilePath) ;
-          nframes = TrkFile.getNFramesTrackedPartFile(s) ;
+          nframes = TrkFile.getNFramesTrackedTextFile(s) ;
         else
           try
             nframes = TrkFile.getNFramesTrackedMatFile(nativeFilePath) ;
@@ -1587,9 +1567,9 @@ classdef DLBackEndClass < handle
       obj.awsec2.pem = value ;
     end  % function
 
-    function set.awsInstanceType(obj, value)
-      obj.awsec2.instanceType = value ;
-    end  % function
+    % function set.awsInstanceType(obj, value)
+    %   obj.awsec2.instanceType = value ;
+    % end  % function
     
     function statusStringFromJobIndex = queryAllJobsStatus(obj, train_or_track)
       % Returns a cell array of status strings, one for each spawned job.
@@ -1802,14 +1782,15 @@ classdef DLBackEndClass < handle
       assert(obj.type==DLBackEnd.Bsub || obj.type==DLBackEnd.Docker);
       
       if isempty(aptroot)
-        switch obj.type
-          case DLBackEnd.Bsub
-            aptroot = obj.bsubaptroot;
-          case DLBackEnd.Docker
-            % could add prop to backend for this but 99% of the time for 
-            % docker the backend should run the same code as frontend
-            aptroot = APT.Root;  % native path
-        end
+        aptroot = APT.Root;  % native path
+        % switch obj.type
+        %   case DLBackEnd.Bsub
+        %     aptroot = obj.bsubaptroot;
+        %   case DLBackEnd.Docker
+        %     % could add prop to backend for this but 99% of the time for 
+        %     % docker the backend should run the same code as frontend
+        %     aptroot = APT.Root;  % native path
+        % end
       end
       
       if ~isempty(tracker.containerBindPaths)
@@ -2048,6 +2029,13 @@ classdef DLBackEndClass < handle
         codestr = wrapCommandSSH(codestr,'host',obj.dockerremotehost);
       end
     end  % function 
+    
+    function [didLaunchSucceed, instanceID] = launchNewAWSInstance(obj)
+      if obj.type ~= DLBackEnd.AWS 
+        error('Can only launch new AWS EC2 instance when backend is AWS') ;
+      end
+      [didLaunchSucceed, instanceID] = obj.awsec2.launchNewInstance() ;
+    end
     
   end  % methods
 end  % classdef

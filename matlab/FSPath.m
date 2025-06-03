@@ -108,7 +108,7 @@ classdef FSPath
     function tf = hasMacro(str,macro)
       tf = ~isempty(regexp(str,['\$' macro],'once'));
     end
-    
+
     function [macros,pathstrMacroized] = macrosPresent(pathstr,sMacro)
       % Check to see if any macros in sMacro could apply to pathstr, ie if 
       % any macro values are present in pathstr. If so, return which macros 

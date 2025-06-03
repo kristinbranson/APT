@@ -12,7 +12,8 @@ set(handles.pumTrack,'TooltipString','Which set of frames and targets to track w
 set(handles.tbAccept,'TooltipString','Accept and store labels for current frame (all parts must be labeled)');
 
 set(handles.pbPlay,'TooltipString','Play movie');
-set(handles.pbPlaySeg,'TooltipString','Play frames around current frame');
+set(handles.pbPlaySeg,'TooltipString','Jump back a bit, then play to current frame');
+set(handles.pbPlaySegRev,'TooltipString','Jump forward a bit, then play in reverse to current frame');
 
 set(handles.pbClearSelection,'TooltipString','Clear frames selected in timeline');
 set(handles.tbTLSelectMode,'TooltipString','Select Frames in the timeline');

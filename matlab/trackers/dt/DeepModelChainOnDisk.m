@@ -1133,7 +1133,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       % undergone at least one iteration of training.  Note also that a model that
       % has been trained for nan iterations is not considered to be in a state that
       % allows tracking.
-      tf = (obj.iterCurr >= 0) ;
+      tf = (obj.iterCurr > 0) ;
     end
     
     % read nLabels from config file
@@ -1183,9 +1183,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         
     function [tf,tpdir] = trnPackExists(obj,varargin)
       % Training package exists
-      trainLocLnx = obj.trainLocLnx(varargin{:});
+      trainLocLnx = obj.trainLocLnx();  % old-style string
       tpdir = obj.dirProjLnx;
-      tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
+      tf = logical(exist(tpdir,'dir')) && logical(exist(trainLocLnx,'file')) ;
     end
 
     % function result = getTorchHome(obj)
