@@ -5,6 +5,11 @@ classdef BgMonitor < handle
   % point of contact for controlling the monitoring.  E.g. monitoring starts
   % when the BgMonitor gets the start() message from the DeepTracker.
    
+  properties (Constant)
+    thresholdErroryPollCount = 2  
+      % if this many poll results seem to indicate an error, we consider it an error
+  end
+
   properties
     pollInterval  % scalar double, in secs    
     bgClientObj  % the BgClient
@@ -13,9 +18,9 @@ classdef BgMonitor < handle
     processName  % 'train' or 'track'
     parent_  % the (typically) DeepTracker object that created this BgMonitor
     projTempDirMaybe_
-    tfComplete_  
-      % Initialized to false in start() method, set to true when completion detected.
-      % Used to prevent post-completion code from running twice.
+    % tfComplete_  
+    %   % Initialized to false in start() method, set to true when completion detected.
+    %   % Used to prevent post-completion code from running twice.
   end
 
   properties (Dependent)
@@ -24,12 +29,16 @@ classdef BgMonitor < handle
 
   properties (Transient)
     pollingResult
+    erroryPollCount_ = 0
+    isEnded_ = false  
+      % Set to true when the training/tracking bout has ended, regardless of
+      % whether it ended successefully, errored out, or was aborted by the user.
   end
 
   methods
     function obj = BgMonitor(parent, type_string, poller, varargin)      
       % Is obj for monitoring training or tracking?
-      obj.parent_ = parent ;
+      obj.parent_ = parent ;  % a DeepTracker
       if strcmp(type_string, 'train') ,
         obj.processName = 'train' ;
         obj.pollInterval = 30 ;  % secs
@@ -100,29 +109,45 @@ classdef BgMonitor < handle
     end
     
     function start(obj)
-      obj.tfComplete_ = false ;
+      obj.isEnded_ = false ;
       bgc = obj.bgClientObj;
       bgc.startPollingLoop(obj.pollInterval) ;
-    end
+      % Generate an update of the monitor window, if one is present
+      if strcmp(obj.processName, 'train')
+        obj.parent_.updateTrainingMonitorRetrograde() ;
+      elseif strcmp(obj.processName, 'track')
+        obj.parent_.updateTrackingMonitorRetrograde() ;
+      else
+        error('Internal error: obj.processName has an illegal value') ;
+      end
+    end  % function
     
     function stop(obj)
       % Stop polling for training/tracking results.
+
+      % Record that the current training/tracking bout is now ended
+      obj.isEnded_ = true ;
 
       % This can be called from the delete() method, so we are extra careful about
       % making sure the message targets are valid.
       sendMaybe(obj.bgClientObj, 'stopPollingLoop') ;
     end
     
-    function didReceivePollResults(obj, pollingResult)
+    function didReceivePollResultsRetrograde(obj, pollingResult)
       % Called by the BgClient when a polling result is received.  Checks for error
       % or completion and notifies the parent DeepTracker accordingly.
 
       % % DEBUG
       % pollingResult  %#ok<NOPRT>
 
+      % If the bout is over, ignore any late-arriving poll results
+      if obj.isEnded_ ,
+        return
+      end
+
       % Cause views/controllers to be updated with the latest poll results
       obj.pollingResult = pollingResult ;  % Stash so to controllers/views have access to it.
-      obj.parent_.didReceivePollResults(obj.processName) ;
+      obj.parent_.didReceivePollResultsRetrograde(obj.processName) ;
         % This call causes (through a child-to-parent call chain) the labeler to
         % notify() views/controllers that there's a training/tracking result, and that they should
         % update themselves accordingly.  But that's it. Determining that training/tracking is
@@ -133,7 +158,7 @@ classdef BgMonitor < handle
       if ~didPollingItselfSucceed
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
+        obj.parent_.didErrorDuringTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
@@ -147,32 +172,53 @@ classdef BgMonitor < handle
         % However shaped, the four vars above should have the *same* shape.
         % isPopulated indicates which elements of the other three correspond to
         % actual jobs, rather than just being set to a default value.
-      didErrorOccur = any(isPopulated & (errFileExists | (~tfComplete & ~isRunning)), 'all') ;
+      isSimpleError =  any(isPopulated & errFileExists) ;
+        % If an error file exists, then clearly an error has occurred.
+      if isSimpleError ,
+        didErrorOccur = true ;
+      else        
+        isPollErrory = any(isPopulated & (~tfComplete & ~isRunning), 'all') ;
+          % Because of e.g. NFS issues, it can seem like something has gone wrong just
+          % because a file change is not visible locally yet.  So we wait for "errory"
+          % conditions to persist for several poll cycles before we declare an error ;
+        if isPollErrory ,
+          obj.erroryPollCount_ = obj.erroryPollCount_ + 1 ;
+          % fprintf('obj.erroryPollCount_ = %d\n', obj.erroryPollCount_) ;
+          didErrorOccur = (obj.erroryPollCount_ >= BgMonitor.thresholdErroryPollCount) ;        
+        else
+          obj.erroryPollCount_ = 0 ;
+          didErrorOccur = false ;
+        end
+      end
       if didErrorOccur
+        % Record that the current training/tracking bout is over.
+        obj.isEnded_ = true ;
+
         % Signal to parent object, typically a DeepTracker, that tracking/training
         % has errored.
-        obj.parent_.didErrorDuringTrainingOrTracking(obj.processName, pollingResult) ;
+        obj.parent_.didErrorDuringTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
 
         % If we get here, we're done dealing with the current polling result        
         return
       end
                   
-      % Check for completion.
-      if ~obj.tfComplete_  % If we've already done the post-completion stuff, don't want to do it again
-        obj.tfComplete_ = all(~isPopulated | tfComplete, 'all') ;
-        if obj.tfComplete_
-          % Send message to console
-          fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
-          
-          % Signal to parent object, typically a DeepTracker, that tracking/training
-          % has completed.
-          obj.parent_.didCompleteTrainingOrTracking(obj.processName, pollingResult) ;
+      % Check for (successful) completion.
+      isBoutComplete = all(~isPopulated | tfComplete, 'all') ;
+      if isBoutComplete
+        % Record that the current training/tracking bout is over.
+        obj.isEnded_ = true ;
+        
+        % Send message to console
+        fprintf('%s complete at %s.\n',obj.processName,datestr(now()));
+        
+        % Signal to parent object, typically a DeepTracker, that tracking/training
+        % has completed.
+        obj.parent_.didCompleteTrainingOrTrackingRetrograde(obj.processName, pollingResult) ;
 
-          % If we get here, we're done dealing with the current polling result
-          return
-        end
-      end
-    end  % function didReceivePollResults
+        % If we get here, we're done dealing with the current polling result
+        return
+      end  % if
+    end  % function
   end  % methods
   
   % methods (Static)

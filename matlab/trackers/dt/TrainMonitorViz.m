@@ -12,7 +12,7 @@ classdef TrainMonitorViz < handle
     trainMontageFigs = []; % figure handles for showing training image montages
     setidx % [1 x nmodel], which set each line belongs to
     
-    isKilled = []; % scalar, whether any training has been halted
+    wasAborted = []  % 1 x nmodel, whether training has been aborted
     lastTrainIter; % [nset x nview] last iteration of training
     
     axisXRange = 2e3; % [nset] show last (this many) iterations along x-axis
@@ -95,7 +95,7 @@ classdef TrainMonitorViz < handle
     
     function obj = TrainMonitorViz(parent, labeler)
 
-      obj.parent_ = parent ;
+      obj.parent_ = parent ;  % parent a LabelerController
       obj.labeler_ = labeler ;
 
       dmc = labeler.tracker.trnLastDMC ;
@@ -117,9 +117,12 @@ classdef TrainMonitorViz < handle
       obj.backendType = labeler.backend.type ;
       obj.hfig = TrainMonitorGUI(obj);
       % parent.addSatellite(obj.hfig);  % Don't think we need this
-      
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trainMonitorVizCloseRequested()) ;
+        % Override the CloseRequestFcn callback in TrainMonitorGUI with this one, 
+        % which lets that LabelerController handle things in a coordinated way.
+
       handles = guidata(obj.hfig);
-      TrainMonitorViz.updateStartStopButton(handles,true,false);
+      TrainMonitorViz.updateStartStopButton(handles, false, []) ;
       handles.pushbutton_startstop.Enable = 'on';
             
       obj.haxs = [handles.axes_loss;handles.axes_dist];
@@ -185,7 +188,7 @@ classdef TrainMonitorViz < handle
       obj.hline = h;
       obj.hlinekill = hkill;
       obj.resLast = [];
-      obj.isKilled = false(1,nmodels);
+      obj.wasAborted = false(1,nmodels);
       obj.lastTrainIter = zeros(1,nmodels);
       obj.axisXRange = repmat(obj.axisXRange,[1 nsets]);
 
@@ -225,7 +228,12 @@ classdef TrainMonitorViz < handle
       end
       obj.haxs = haxnew;
     end
-        
+    
+    function update(obj)
+      % Traditional controller update method.
+      obj.resultsReceived() ;
+    end
+    
     function [tfSucc,msg] = resultsReceived(obj,pollingResult,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
@@ -239,9 +247,21 @@ classdef TrainMonitorViz < handle
       tfSucc = false;
       msg = '';  %#ok<NASGU> 
       
+      if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
+        pollingResult = obj.labeler_.tracker.bgTrnMonitor.pollingResult ;
+      end      
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
         TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
+        return
+      end
+
+      % If there is no pollingResult, just update the stop button.
+      % May add more here in the future.
+      if isempty(pollingResult) ,
+        tfSucc = true ;
+        msg = 'No one will read this.' ;
+        obj.updateStopButton() ;
         return
       end
       
@@ -265,6 +285,9 @@ classdef TrainMonitorViz < handle
       for i = 1:obj.nmodels,
         if pollingResult.jsonPresent(i) && (forceupdate || pollingResult.tfUpdate(i)),
           contents = pollingResult.contents{i};
+          if isempty(contents)
+            continue
+          end
           set(obj.hline(i,1),'XData',contents.step,'YData',contents.train_loss);
           set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
           iset = obj.setidx(i);
@@ -347,14 +370,18 @@ classdef TrainMonitorViz < handle
       end
 
       TrainMonitorViz.debugfprintf('updateAnn: isRunning = %d, isTrainComplete = %d/%d, isErr = %d/d, isKilled = %d/%d\n',...
-                                   isAnyRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.isKilled),obj.nmodels);
+                                   isAnyRunning,nnz(isTrainComplete),obj.nmodels,nnz(isErr),obj.nmodels,nnz(obj.wasAborted),obj.nmodels);
       
-      if any(obj.isKilled),
-        status = sprintf('Training process killed (%d/%d models).',nnz(obj.isKilled),obj.nmodels);
+      if any(obj.wasAborted),
+        status = sprintf('Training process killed (%d/%d models).',nnz(obj.wasAborted),obj.nmodels);
         tfSucc = false;
+        handles = guidata(obj.hfig);
+        TrainMonitorViz.updateStartStopButton(handles,false,false);
       elseif any(isErr),
         status = sprintf('Error (%d/%d models) while training after %s iterations',nnz(isErr),obj.nmodels,mat2str(obj.lastTrainIter));
         tfSucc = false;
+        handles = guidata(obj.hfig);
+        TrainMonitorViz.updateStartStopButton(handles,false,false);
       elseif all(isTrainComplete),
         status = 'Training complete.';
         handles = guidata(obj.hfig);
@@ -388,67 +415,17 @@ classdef TrainMonitorViz < handle
     end
     
     function abortTraining(obj)
-      % if isempty(obj.trainWorkerObj),
-      %   warning('trainWorkerObj is empty -- cannot kill process');
-      %   return
-      % end
+      % Called in response to the user pressing the stop button
       obj.setStatusDisplayLine('Killing training jobs...', false);
       handles = guidata(obj.hfig);
       handles.pushbutton_startstop.String = 'Stopping training...';
       handles.pushbutton_startstop.Enable = 'inactive';
-      drawnow;
+      drawnow();
 
       obj.labeler_.abortTraining() ;
 
-      obj.isKilled(:) = true ;
+      obj.wasAborted(:) = true ;
       obj.setStatusDisplayLine('Training process killed.', true);
-
-      % [tfsucc,warnings] = obj.trainWorkerObj.killProcess();
-      % obj.isKilled(:) = tfsucc;
-      % obj.setStatusDisplayLine('Checking that training jobs were killed...', false);
-      % wereTrainingProcessesKilledForSure = false ;
-      % if tfsucc ,        
-      %   startTime = tic() ;
-      %   maxWaitTime = 30;
-      %   while true,
-      %     if toc(startTime) > maxWaitTime,
-      %       fprintf('Stopping training processes is taking too long, giving up.\n') ;
-      %       if isempty(warnings) ,
-      %         fprintf('But there were no warnings while trying to stop training processes.\n') ;
-      %       else
-      %         fprintf('Warning(s) while trying to stop training processes:\n') ;
-      %         cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
-      %         fprintf('\n') ;
-      %       end
-      %       warndlg('Stopping training processes took too long.  See console for details.', 'Problem stopping training', 'modal') ;
-      %       break
-      %     end
-      %     if ~obj.dtObj.bgTrnIsRunning,
-      %       wereTrainingProcessesKilledForSure = true ;
-      %       break
-      %     end
-      %     pause(1);
-      %   end        
-      % else
-      %   %warndlg([{'Training processes may not have been killed properly:'},warnings],'Problem stopping training','modal');
-      %   fprintf('There was a problem stopping training processes.\n') ;
-      %   fprintf('Training processes may not have been killed properly.\n') ;
-      %   if isempty(warnings) ,
-      %     fprintf('But there were no warnings while trying to stop training processes.\n') ;
-      %   else
-      %     fprintf('Warning(s) while trying to stop training processes:\n') ;
-      %     cellfun(@(warning)(fprintf('%s\n', warning)), warnings) ;
-      %     fprintf('\n') ;
-      %   end
-      %   warndlg('There was a problem while stopping training processes.  See console for details.', 'Problem stopping training', 'modal') ;
-      % end
-      % if wereTrainingProcessesKilledForSure ,
-      %   str = 'Training process killed.' ;
-      % else
-      %   str = 'Tried to kill training process, but there were issues.' ;
-      % end        
-      % obj.setStatusDisplayLine(str, true);
-
 
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
@@ -465,8 +442,7 @@ classdef TrainMonitorViz < handle
       obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
     end
     
-    function updateClusterInfo(obj)
-      
+    function updateClusterInfo(obj)      
       handles = guidata(obj.hfig);
       actions = handles.popupmenu_actions.String; %#ok<PROP>
       v = handles.popupmenu_actions.Value;
@@ -568,30 +544,36 @@ classdef TrainMonitorViz < handle
       hAnn.Position(2) = ax.Position(2)+ax.Position(4)-hAnn.Position(4);
     end   
     
-    function updateStartStopButton(handles,isStop,isDone)
-      
-      if nargin < 3,
-        isDone = false;
-      end
-      
-      if isDone,
-        set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],...
-          'Enable','inactive','UserData','done');
+    function updateStartStopButton(handles, isRunning, isComplete)
+      if isRunning || isempty(isComplete),
+        set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
       else
-        if isStop,
-          set(handles.pushbutton_startstop,'String','Stop training','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+        if isComplete,
+          set(handles.pushbutton_startstop,'String','Training complete','BackgroundColor',[.466,.674,.188],...
+              'Enable','off','UserData','done');
         else
-          set(handles.pushbutton_startstop,'String','Training stopped',...
-            'Enable','inactive','UserData','start');
-          %set(handles.pushbutton_startstop,'String','Restart training','BackgroundColor',[.3,.75,.93],'Enable','on','UserData','start');
+          set(handles.pushbutton_startstop,'String','Training incomplete',...
+              'Enable','off','UserData','done');
         end
-      end
-      
-    end
+      end      
+    end  % function
 
   end  % methods (Static)
   
   methods
+    function updateStopButton(obj)
+      % A conventional update method for the (start/)stop button.
+      handles = guidata(obj.hfig);
+      labeler = obj.labeler_ ;
+      isRunning = labeler.bgTrnIsRunning ;
+      if isRunning
+        isComplete = [] ;
+      else
+        isComplete = (labeler.lastTrainEndCause == EndCause.complete) ;
+      end      
+      TrainMonitorViz.updateStartStopButton(handles, isRunning, isComplete) ;
+    end  % function
+
     function setStatusDisplayLine(obj, str, isallgood)
       % Set either or both of the status message line and the color of the status
       % message.  Any of the two (non-obj) args can be empty, in which case that
@@ -620,6 +602,15 @@ classdef TrainMonitorViz < handle
       end
       drawnow('limitrate', 'nocallbacks') ;
     end  % function
+
+    function updatePointer(obj)
+      % Update the mouse pointer to reflect the Labeler state.
+      labeler = obj.labeler_ ;
+      is_busy = labeler.isStatusBusy ;
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      set(obj.hfig, 'Pointer', pointer) ;
+    end  % function
+
   end  % methods    
   
 end  % classdef

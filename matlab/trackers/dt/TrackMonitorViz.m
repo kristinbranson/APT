@@ -19,7 +19,7 @@ classdef TrackMonitorViz < handle
     jobDescs = {}; % sae numel as hline. string description for hline. unused if bulkAxsIsBulkMode=true
 
     htrackerInfo % scalar text box handle showing information about current tracker
-    isKilled = false; % scalar, whether tracking has been halted
+    wasAborted = false;  % scalar, whether tracking has been aborted
     
     resLast = []; % last contents received
     dtObj % DeepTracker Obj
@@ -97,7 +97,7 @@ classdef TrackMonitorViz < handle
       dtObj = labeler.tracker ;
       poller = labeler.tracker.bgTrackPoller ;
       backendType = labeler.backend.type ;
-      nFramesToTrack = labeler.tracker.nFramesTrack ;
+      nFramesToTrack = labeler.tracker.nFramesToTrack ;
 
       % These instance variables are not really needed anymore.
       obj.dtObj = dtObj;
@@ -108,9 +108,13 @@ classdef TrackMonitorViz < handle
       nmov = nMovSets*nview;
       
       obj.hfig = TrackMonitorGUI(obj);
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trackMonitorVizCloseRequested()) ;
+        % Override the CloseRequestFcn callback in TrackMonitorGUI with this one, 
+        % which lets that LabelerController handle things in a coordinated way.
       %parent.addSatellite(obj.hfig);  % Don't think we need this
       handles = guidata(obj.hfig);
-      TrackMonitorViz.updateStartStopButton(handles,true,false);
+      obj.updateStopButton() ;
+      %TrackMonitorViz.updateStartStopButton(handles,true,false);
       %handles.pushbutton_startstop.Enable = 'on';
       obj.hfig.UserData = 'running';
       obj.haxs = [handles.axes_wait];
@@ -240,7 +244,7 @@ classdef TrackMonitorViz < handle
       end
       
       obj.resLast = [];
-      obj.isKilled = false;
+      obj.wasAborted = false;
       drawnow;            
     end
     
@@ -248,7 +252,12 @@ classdef TrackMonitorViz < handle
       deleteValidGraphicsHandles(obj.hfig);
       obj.hfig = [];
     end
-        
+    
+    function update(obj)
+      % Traditional controller update method.
+      obj.resultsReceived() ;
+    end
+
     function [tfSucc,msg] = resultsReceived(obj, pollingResult, forceupdate)
       % Callback executed when new result received from monitor BG
       % worker
@@ -258,6 +267,9 @@ classdef TrackMonitorViz < handle
       tfSucc = false;
       msg = '';  %#ok<NASGU> 
       
+      if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
+        pollingResult = obj.labeler_.tracker.bgTrkMonitor.pollingResult ;
+      end
       if nargin < 3,
         forceupdate = false;
       end
@@ -265,15 +277,23 @@ classdef TrackMonitorViz < handle
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed.';
         TrackMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
-        return;
+        return
       end
 
-      if obj.isKilled,
+      if obj.wasAborted,
+        obj.updateStopButton() ;
         msg = 'Tracking jobs killed.';
         TrackMonitorViz.debugfprintf('Tracking jobs killed, results received %s\n',datestr(now()));
-        return;
+        return
       end
       
+      if isempty(pollingResult) ,
+        tfSucc = true ;
+        msg = 'No one will read this.' ;
+        obj.updateStopButton() ;
+        return
+      end
+
       TrackMonitorViz.debugfprintf('%s: TrackMonitorViz results received:\n',datestr(now()));
        
       if isfield(pollingResult,'parttrkfile')
@@ -377,6 +397,7 @@ classdef TrackMonitorViz < handle
       
       obj.updateErrDisplay(pollingResult);
       [tfSucc,msg] = obj.updateStatusDisplayLine_(pollingResult);      
+      obj.updateStopButton() ;
     end
     
     function [tfSucc,status] = updateStatusDisplayLine_(obj, pollingResult)
@@ -384,7 +405,7 @@ classdef TrackMonitorViz < handle
       % pollts: [nview] timestamps
       
       tfSucc = true;
-      nJobs = numel(pollingResult);  % nJobs == nmovies * nviews * nstages
+      nJobs = numel(pollingResult.tfComplete);  % nJobs == nmovies * nviews * nstages
       pollsuccess = true(1,nJobs);
       isTrackComplete = false;
       isErr = false;
@@ -401,8 +422,8 @@ classdef TrackMonitorViz < handle
         isRunning = true ;
       end
       
-      if obj.isKilled,
-        status = 'Tracking process killed.';
+      if obj.wasAborted,
+        status = 'Tracking process aborted.';
         tfSucc = false;
       elseif isTrackComplete
         status = 'Tracking complete.';
@@ -413,8 +434,9 @@ classdef TrackMonitorViz < handle
         else
           status = 'No tracking jobs running.';
         end
-        handles = guidata(obj.hfig);
-        TrackMonitorViz.updateStartStopButton(handles,false,false);        
+        % handles = guidata(obj.hfig);
+        % TrackMonitorViz.updateStartStopButton(handles,false,false);        
+        obj.updateStopButton() ;
         tfSucc = false;
       elseif isErr,
         status = 'Error while tracking.';
@@ -459,12 +481,11 @@ classdef TrackMonitorViz < handle
       end
       obj.updateClusterInfo();
       handles.text_clusterinfo.ForegroundColor = 'r';
-      TrackMonitorViz.updateStartStopButton(handles,false,false);
+      %TrackMonitorViz.updateStartStopButton(handles,false,false);
       drawnow;
     end  % function
 
     function updateStatusFinal(obj,nJobs)
-      handles = guidata(obj.hfig);
       for ijob = 1:nJobs
         if nJobs > 1,
           sview = obj.jobDescs{ijob};
@@ -476,7 +497,7 @@ classdef TrackMonitorViz < handle
       end
       set(obj.hline,'FaceColor',obj.COLOR_AXSWAIT_BULK_TRACKED,'XData',[0,0,1,1,0]);
       obj.bulkMovTracked(:) = true;
-      TrackMonitorViz.updateStartStopButton(handles,false,true);
+      obj.updateStopButton() ;
     end  % function
         
     function abortTracking(obj)
@@ -498,7 +519,8 @@ classdef TrackMonitorViz < handle
       % else
       %   warndlg([{'Tracking processes may not have been killed properly:'},warnings],'Problem stopping tracking','modal');
       % end
-      TrackMonitorViz.updateStartStopButton(handles,false,false);
+      % TrackMonitorViz.updateStartStopButton(handles,false,false);
+      obj.updateStopButton() ;
       obj.setStatusDisplayLine('Tracking process killed.', false);
       drawnow;
 
@@ -519,7 +541,7 @@ classdef TrackMonitorViz < handle
           obj.updateMonitorPlots();
           drawnow;
         case {'List all jobs on cluster','List all docker jobs','List all conda jobs'},
-          ss = obj.queryAllJobsStatus();
+          ss = obj.detailedStatusStringFromRegisteredJobIndex_();
           handles.text_clusterinfo.String = ss;
           drawnow;
         case 'Show tracking jobs'' status',
@@ -562,6 +584,37 @@ classdef TrackMonitorViz < handle
         result = ss ;
       end
     end  % function
+
+    function result = detailedStatusStringFromRegisteredJobIndex_(obj)
+      ss = obj.dtObj.detailedStatusStringFromRegisteredJobIndex('track') ;
+      if isempty(ss) ,
+        result = {'(No active jobs.)'} ;
+      else
+        result = ss ;
+      end
+    end  % function
+
+        
+    function updateStopButton(obj)
+      % A conventional update method for the (start/)stop button.
+      handles = guidata(obj.hfig) ;
+      labeler = obj.labeler_ ;
+      isRunning = labeler.bgTrkIsRunning ;
+      if isRunning
+        isComplete = [] ;
+      else
+        isComplete = (labeler.lastTrackEndCause == EndCause.complete) ;
+      end      
+      if isRunning ,
+        set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
+      else
+        if isComplete ,
+          set(handles.pushbutton_startstop,'String','Tracking complete','BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
+        else
+          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
+        end
+      end      
+    end  % function
         
   end  % methods
   
@@ -597,27 +650,6 @@ classdef TrackMonitorViz < handle
           jobDescs{imovset,iset} = [movstr,setstr];
         end
       end
-    end
-    
-    function updateStartStopButton(handles,isStop,isDone,msg)
-      
-      if nargin < 3,
-        isDone = false;
-      end
-      if nargin < 4,
-        msg = 'Tracking complete';
-      end
-      
-      if isDone == 1,
-        set(handles.pushbutton_startstop,'String',msg,'BackgroundColor',[.466,.674,.188],'Enable','off','UserData','done');
-      else
-        if isStop,
-          set(handles.pushbutton_startstop,'String','Stop tracking','BackgroundColor',[.64,.08,.18],'Enable','on','UserData','stop');
-        else
-          set(handles.pushbutton_startstop,'String','Tracking stopped','BackgroundColor',[.64,.08,.18],'Enable','off','UserData','done');
-        end
-      end
-      
     end
     
     function [nrowind,ncolind] = ...
@@ -720,5 +752,14 @@ classdef TrackMonitorViz < handle
       end
       drawnow('limitrate', 'nocallbacks') ;
     end  % function
+    
+    function updatePointer(obj)
+      % Update the mouse pointer to reflect the Labeler state.
+      labeler = obj.labeler_ ;
+      is_busy = labeler.isStatusBusy ;
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      set(obj.hfig, 'Pointer', pointer) ;
+    end  % function
+    
   end  % methods    
 end  % classdef

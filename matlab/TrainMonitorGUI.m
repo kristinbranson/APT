@@ -53,6 +53,7 @@ function TrainMonitorGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 % varargin   command line arguments to TrainMonitorGUI (see VARARGIN)
 
 % Choose default command line output for TrainMonitorGUI
+set(hObject,'MenuBar','None');
 handles.output = hObject;
 handles.vizobj = varargin{1};
 
@@ -109,14 +110,15 @@ function pushbutton_startstop_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-switch hObject.UserData
-  case 'stop'
-    handles.vizobj.abortTraining();
-  case 'start'
-    handles.vizobj.startTraining();
-  otherwise
-    assert(false);
-end
+handles.vizobj.abortTraining();
+% switch hObject.UserData
+%   case 'stop'
+%     handles.vizobj.abortTraining();
+%   case 'start'
+%     handles.vizobj.startTraining();
+%   otherwise
+%     assert(false);
+% end
 
 % --- Executes when user attempts to close figure_TrainMonitor.
 function figure_TrainMonitor_CloseRequestFcn(hObject, eventdata, handles)

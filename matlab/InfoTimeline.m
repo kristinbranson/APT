@@ -521,17 +521,28 @@ classdef InfoTimeline < handle
     
     function newFrame(obj,frm)
       % Respond to new .lObj.currFrame
+      % This gets called after the user changes the frame they're looking at.
       
       if isnan(obj.npts), return; end
             
-      r = obj.prefs.FrameRadius;
-      if r==0
+      nominal_xspan = 2*obj.prefs.FrameRadius;
+      nominal_dxtick = obj.prefs.dXTick ;
+      if nominal_xspan==0 || nominal_xspan > obj.nfrm
         x0 = 1;
         x1 = obj.nfrm;
+        xspan = x1-x0 ;
       else
+        xspan = nominal_xspan ;
+        r = xspan/2 ;
         x0 = frm-r; %max(frm-r,1);
         x1 = frm+r; %min(frm+r,obj.nfrm);
       end
+      if xspan/nominal_dxtick > 20 ,
+        dxtick = apt.heuristic_dxtick_from_xspan(xspan) ;
+      else
+        dxtick = nominal_dxtick ;
+      end
+      obj.hAx.XTick = 0 : dxtick : obj.nfrm ;
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[frm frm]);
       if obj.isL,

@@ -65,14 +65,39 @@ function result = decode_encoding_container(encoding_container, warning_logger)
                     % Usually, the property_name is the same as the field
                     % name, but we do some ad-hoc translations to support
                     % old files.
-                    if false ,
+                    if ~isprop(result,field_name) || ~ismember(field_name, persisted_property_names) ,
+                        % If the field name is not a property name or the object, or not a persisted
+                        % property name, try adding an underscore to the field name.  (But first check
+                        % that the underscored version is not already a field in the encoding.  And
+                        % don't do this if the field name already ends in an underscore.)
+                        if ~isempty(field_name) && ~strcmp(field_name(end),'_') 
+                            underscored_field_name = strcatg(field_name, '_') ;
+                            if ismember(underscored_field_name, field_names) ,
+                                % The underscored name is already a field name, so just use the original field
+                                % name, which will just generate a warning below.
+                                property_name = field_name ;
+                            else
+                                % The underscored name is not already a field name, so check if the
+                                % underscored version is a persisted property name.
+                                if isprop(result,underscored_field_name) && ismember(underscored_field_name, persisted_property_names)
+                                    % Go ahead and use the underscored version as the property name
+                                    property_name = underscored_field_name ;
+                                else
+                                    % Just use the original field name, which will just generate a warning below.
+                                    property_name = field_name ;
+                                end
+                            end
+                        else
+                          % The field name already ends with an underscore, do just leave it alone and
+                          % let it generate a warning below.
+                          property_name = field_name ;
+                        end
                     else
                         % The typical case
                         property_name = field_name ;
                     end
-                    % Only decode if there's a property to receive
-                    % it, and that property is one of the
-                    % persisted ones.
+                    % Only decode if there's a property to receive it, and that property is one of
+                    % the persisted ones.
                     if isprop(result,property_name) && ismember(property_name, persisted_property_names) ,
                         subencoding = encoding.(field_name) ;  % the encoding is a struct, so no worries about access
                         if false ,

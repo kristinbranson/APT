@@ -57,6 +57,7 @@ function ParameterSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 %
 % sPrm: If "Apply" is pushed, parameter structure; otherwise, []
 
+set(hObject,'MenuBar','None');
 hParent = varargin{1};
 handles.tree = varargin{2};
 pvargs = varargin(3:end);

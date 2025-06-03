@@ -28,6 +28,7 @@ function MovieManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*IN
 % MovieManager is created with Visible='off'.
 
 mmc = varargin{1};
+set(hObject,'MenuBar','None');
 handles.mmController = mmc;
 handles.output = hObject;
 hObject.Visible = 'off';

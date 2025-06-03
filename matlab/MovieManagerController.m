@@ -304,7 +304,15 @@ classdef MovieManagerController < handle
       obj.setVisible(true) ;  % make sure is visible
       figure(obj.hFig) ;
     end
-  end
+    
+    function updatePointer(obj)
+      % Update the mouse pointer to reflect the Labeler state.
+      labeler = obj.labeler ;
+      is_busy = labeler.isStatusBusy ;
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      set(obj.hFig, 'Pointer', pointer) ;
+    end  % function    
+  end  % methods
   
   methods (Hidden)
     
@@ -430,6 +438,6 @@ classdef MovieManagerController < handle
       end
     end
     
-  end
+  end  % methods (Hidden)
   
-end
+end  % classdef
