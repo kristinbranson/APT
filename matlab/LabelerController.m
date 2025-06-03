@@ -4542,7 +4542,7 @@ classdef LabelerController < handle
             overwrite = strcmpi(res,'Yes');
           end
         end
-        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'cocojsonfile',cocojsonfile};
+        args = {'outimdir',outimdir,'overwrite',overwrite,'imname',imname,'cocojsonfile',cocojsonfile};
       else
         args = {};
       end
@@ -5024,20 +5024,10 @@ classdef LabelerController < handle
 
 
     function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       ax = obj.axes_curr;
-      if strcmp(src.Checked,'on')
-        onoff = 'off';
-      else
-        onoff = 'on';
-      end
+      onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
       ax.Toolbar.Visible = onoff;
       src.Checked = onoff;
-      % For now not listening to ax.Toolbar.Visible for cmdline changes
-
-
     end
 
 
