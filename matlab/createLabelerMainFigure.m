@@ -3982,6 +3982,7 @@ hold(handles.axes_occ,'on');
 axis(handles.axes_occ,'ij');
 set(handles.axes_occ,'XTick',[],'YTick',[]);
 
+% Do stuff to axes_curr
 image_curr = imagesc(0,'Parent',axes_curr,'Tag','image_curr');
 set(image_curr,'PickableParts','none');
 hold(axes_curr,'on');  % Is this needed/wanted?  -- ALT, 2024-06-02
@@ -3989,8 +3990,10 @@ hold(axes_curr,'on');  % Is this needed/wanted?  -- ALT, 2024-06-02
 enableDefaultInteractivity(axes_curr);  % have to do this after something is in the axes
 % Create and show the axes toolbar, even though there is no figure toolbar
 axes_curr_toolbar = axtoolbar(axes_curr, 'default'); 
-axes_curr_toolbar.Visible = 'on';
+axes_curr_toolbar.Visible = 'off';
 % set(handles.axes_curr.Toolbar,'Visible','off');
+
+% Do stuff to axes_prev
 image_prev = imagesc(0,'Parent',handles.axes_prev,'Tag','image_prev');
 set(image_prev,'PickableParts','none');
 hold(handles.axes_prev,'on');

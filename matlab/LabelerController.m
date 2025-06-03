@@ -1467,7 +1467,7 @@ classdef LabelerController < handle
       set(obj.edit_frame,'Enable',onIff(hasProject));
       set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
       set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
-      set(obj.toolbar,'Visible',onIff(hasProject))
+      set(obj.toolbar,'Visible',onIff(hasProject)) ;
       
       obj.menu_track.Enable = onIff(hasTracker);
       obj.pbTrain.Enable = onIff(hasTracker);
