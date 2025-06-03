@@ -6627,9 +6627,9 @@ classdef Labeler < handle
       % cocojsonfile: Path to coco json file. Must be provided if movie
       % info is not in the coco structure. 
 
-      [outimdir,overwrite,imname,cocojsonfile] = myparse(varargin,...
+      [outimdir,overwrite,imname,cocojsonfile,copyims] = myparse(varargin,...
         'outimdir','','overwrite',true,'imname','frame',...
-        'cocojsonfile','');
+        'cocojsonfile','','copyims',true);
 
       % import labels from COCO json file
       hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
@@ -6683,28 +6683,33 @@ classdef Labeler < handle
         % create a directory with frames in order
         assert(~isempty(outimdir));
         assert(~isempty(cocojsonfile));
-        if ~exist(outimdir,'dir'),
-          mkdir(outimdir);
-        end
         inrootdir = fileparts(cocojsonfile);
-        nim = numel(cocos.images);
-        nz = max(5,ceil(log10(nim)));
-        [~,~,imext] = fileparts(cocos.images(1).file_name);
-        namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
-        for i = 1:nim,
-          imcurr = cocos.images(i);
-          inp = fullfile(inrootdir,imcurr.file_name);
-          outp = fullfile(outimdir,sprintf(namepat,i));
-          if i == 1,
-            moviepath = outp;
+        if copyims,
+          if ~exist(outimdir,'dir'),
+            mkdir(outimdir);
           end
-          assert(exist(inp,'file'));
-          if overwrite || ~exist(outp,'file'),
-            [success,msg] = copyfile(inp,outp);
-            assert(success,msg);
+          nim = numel(cocos.images);
+          nz = max(5,ceil(log10(nim)));
+          [~,~,imext] = fileparts(cocos.images(1).file_name);
+          namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
+          for i = 1:nim,
+            imcurr = cocos.images(i);
+            inp = fullfile(inrootdir,imcurr.file_name);
+            outp = fullfile(outimdir,sprintf(namepat,i));
+            if i == 1,
+              moviepath = outp;
+            end
+            assert(exist(inp,'file'));
+            if overwrite || ~exist(outp,'file'),
+              [success,msg] = copyfile(inp,outp);
+              assert(success,msg);
+            end
           end
+        else
+          sortedimfiles = sort({cocos.images.file_name});
+          moviepath = fullfile(inrootdir,sortedimfiles{1});
         end
-        [didfind,imovmatch] = obj.movieSetInProj(moviepath);
+        [didfind,~] = obj.movieSetInProj(moviepath);
         if ~didfind,
           obj.movieAddAllModes(moviepath);
         end

@@ -4503,45 +4503,81 @@ classdef LabelerController < handle
         errordlg(sprintf('Error loading json file %s',cocojsonfile),'Error importing COCO labels');
         return;
       end
+      if ~isfield(cocos,'images') || ~isfield(cocos,'annotations'),
+        warningNoTrace('COCO json file must contain entries "images" and "annotations"');
+        errordlg('COCO json file must contain entries "images" and "annotations"','Bad COCO json file','modal');
+        return;
+      end
       hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
       % we will create a fake movie directory, where should we put it?
       if ~hasmovies,
-        outimdirparent = uigetdir(p,'Folder to output movie frames to');
-        if ~ischar(outimdirparent),
+        if isempty(cocos.images) || isempty(cocos.annotations),
+          warningNoTrace('No annotations/images to import');
           return;
         end
-        outdirname = 'movie';
-        imname = 'frame';
-        % if the name of the directory is movie, then assume that we want
-        % to use this directory to output images to
-        [~,n] = fileparts(outimdirparent);
-        if strcmp(n,outdirname),
-          outimdir = outdirname;
+        % see if the images are named in a way parsable by
+        % get_readframe_fcn
+        [p1,filename,imext] = fileparts(cocos.images(1).file_name);
+        outimdir = fullfile(p,p1);
+        m = regexp(filename,'^(.*[^\d])(\d+)$','tokens','once');
+        isseq = false;
+        if ~isempty(m),
+          imname = m{1};
+          basename = fullfile(p1,imname);
+          imfiles = {cocos.images.file_name};
+          if numel(imfiles) == 1,
+            isseq = true;
+          else
+            framenum = regexp(imfiles,[basename,'(\d+)\',imext,'$'],'tokens','once');
+            if ~any(cellfun(@isempty,framenum)),
+              framenum = cellfun(@str2double,framenum);
+              sortedframenum = sort(framenum);
+              if all(diff(sortedframenum)==1),
+                isseq = true;
+              end
+            end
+          end
+        end
+        if isseq,          
+          args = {'outimdir',outimdir,'overwrite',false,'imname',imname,'cocojsonfile',cocojsonfile,'copyims',false};
         else
-          % if this is an empty directory, also assume we want to output
-          % here
-          dircontents = mydir(outimdirparent);
-          if isempty(dircontents),
+          outimdirparent = uigetdir(p,'Folder to output movie frames to');
+          if ~ischar(outimdirparent),
+            return;
+          end
+          outdirname = 'movie';
+          imname = 'frame';
+          % if the name of the directory is movie, then assume that we want
+          % to use this directory to output images to
+          [~,n] = fileparts(outimdirparent);
+          if strcmp(n,outdirname),
             outimdir = outimdirparent;
           else
-            % assume we should create a new directory named movie in this
-            % directory
-            outimdir = fullfile(outimdirparent,outdirname);
-          end
-        end
-        overwrite = true;
-        if exist(outimdir,'dir'),
-          [~,~,imext] = fileparts(cocos.images(1).file_name);
-          dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
-          if ~isempty(dircontents),
-            res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
-            if strcmpi(res,'Cancel'),
-              return;
+            % if this is an empty directory, also assume we want to output
+            % here
+            dircontents = mydir(outimdirparent);
+            if isempty(dircontents),
+              outimdir = outimdirparent;
+            else
+              % assume we should create a new directory named movie in this
+              % directory
+              outimdir = fullfile(outimdirparent,outdirname);
             end
-            overwrite = strcmpi(res,'Yes');
           end
+          overwrite = true;
+          if exist(outimdir,'dir'),
+            [~,~,imext] = fileparts(cocos.images(1).file_name);
+            dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
+            if ~isempty(dircontents),
+              res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
+              if strcmpi(res,'Cancel'),
+                return;
+              end
+              overwrite = strcmpi(res,'Yes');
+            end
+          end
+          args = {'outimdir',outimdir,'overwrite',overwrite,'imname',imname,'cocojsonfile',cocojsonfile};
         end
-        args = {'outimdir',outimdir,'overwrite',true,'imname',imname,'cocojsonfile',cocojsonfile};
       else
         args = {};
       end
