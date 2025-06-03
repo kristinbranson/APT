@@ -71,7 +71,6 @@ classdef LabelerController < handle
     menu_file_export_labels_cocojson
     menu_file_import_labels_cocojson
     menu_file_export_labels_trks
-    menu_file_export_stripped_lbl
     menu_file_import_export_advanced
     menu_file_import_labels2_trk_curr_mov
     menu_file_import_labels_table

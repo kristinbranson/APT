@@ -45,6 +45,7 @@ end
 
 % MFTSetCreate(lObj)
 function MFTSetCreate_OpeningFcn(hObject, eventdata, handles, varargin)
+set(hObject,'MenuBar','None');
 lObj = varargin{1};
 handles.lObj = lObj;
 handles.etFrameRadius.String = num2str(lObj.trackNFramesNear);
