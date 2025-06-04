@@ -635,7 +635,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
                 if mask is not None:
-                    out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST)
+                    out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST,borderValue=1)
 
         lr[~high_valid,0] = -100000
         lr[~high_valid,1] = -100000

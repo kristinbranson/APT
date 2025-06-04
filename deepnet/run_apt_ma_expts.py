@@ -755,7 +755,6 @@ class ma_expt(object):
                 conf.img_dim = 3
                 conf.batch_size = 1
                 conf.db_format = 'coco'
-                conf.img_dim = 3
                 models = self.get_model_files(settings, v)
                 if alg.startswith('2stage'):
                     curt2 = (curt[0],'nocrop','second')

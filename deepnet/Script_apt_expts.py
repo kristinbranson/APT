@@ -1250,6 +1250,10 @@ marked_movies_close = ['/groups/branson/bransonlab/roian/apt_testing/multianimal
 '/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210906_m186741silpb_no_odor_m186370_f0181320.mjpg',
 '/groups/branson/bransonlab/roian/apt_testing/multianimal/pb_assay_data/set_10/mjpg/20210907_m186370silpb_no_odor_m186741_f0186560.mjpg']
 
+sel_movies = ['/groups/branson/home/kabram/temp/ma_expts/roian/movs/200928_m170234silpb_no_odor_m170232_f0180388.mjpg',
+ '/groups/branson/home/kabram/temp/ma_expts/roian/movs/190705_m165837silpb_no_odor_m165836_ft164992.mjpg'             ]
+# movies selected by roian 20250506
+
 # gt_movies = marked_movies_close
 
 t_types = [('2stageHT','crop','nomask'),
@@ -1257,6 +1261,7 @@ t_types = [('2stageHT','crop','nomask'),
            ('2stageBBox','nomask'),
            ('grone','crop','nomask'),
            ('grone','nocrop','nomask'),
+           ('grone_hrnet','crop','nomask'),
            ('2stageBBox_hrformer','nomask'),
            ('cid','crop'),('cid','nocrop'),
            ('dekr','crop','nomask'),
@@ -1268,7 +1273,7 @@ run_type = 'dry'
 sing_img = '/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif'
 # sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x.sif'
 
-for cur_mov in gt_movies[-4:]:
+for cur_mov in gt_movies:
     exp_name = os.path.splitext(os.path.split(cur_mov)[1])[0]
     for tt in t_types:
         cur_str = '_'.join(tt)
@@ -1527,6 +1532,13 @@ for ndx in range(nfr):
     ov[ndx] =  overlaps.max()
 
 ######################
+######################
+######################
+######################
+######################
+######################
+######################
+
 ## Alice
 
 ## Add neg ROIs for experiments
@@ -1625,7 +1637,7 @@ movies = nm
 # to do id tracking at scale 2, need to make changes in run_apt_ma_expts.py
 
 run_type = 'dry'
-tts = [('grone','crop'),('2stageBBox','first'),('2stageBBox_hrformer','first'),('grone_hrnet','crop'),('2stageHT','crop','first'),('2stageHT_hrformer','crop','first'),('2stageHT_hrnet_hrformer','crop','first')]
+tts = [('grone','crop'),('2stageBBox','first'),('2stageBBox_hrformer','first'),('grone_hrnet','crop'),('2stageHT','crop','first'),('2stageHT_hrformer','crop','first'),('2stageHT_hrnet_hrformer','crop','first'),('2stageHT_hrnet_grone_hrnet','crop','first')]
 for cur_mov in movies:
     exp_name = os.path.split(os.path.split(cur_mov)[0])[1]
     for curt in tts:
@@ -2061,6 +2073,8 @@ skel =    [#[1   ,  6],
      ]
 skel = np.array(skel)-1
 ##
+
+# frame 13083 in movie 1 is interesting for comparing heatmap (hrformer) and grone
 cur_info = {
 'sel_int': [3200,3300],
 'n_fr' : 5,

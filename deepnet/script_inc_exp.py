@@ -2781,7 +2781,7 @@ plt.title('Size of bounding box for predictions')
 ##############################################################
 ## PLOT TRACKING EXAMPLES
 gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
-trk_file = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/trks/20210924_four_female_mice_again_rand_7.trk'
+trk_file = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint/trks/20210924_four_female_mice_again_joint.trk'
 import TrkFile
 tt = TrkFile.Trk(trk_file)
 import movies
@@ -2989,7 +2989,7 @@ import time
 
 ## classify the db
 
-start_round = 0
+start_round = 5
 estr = '_rep_2'
 for round in range(start_round,8):
 
@@ -3179,6 +3179,7 @@ gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
 idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/confidence/'
 
+estr = '_rep_2'
 
 out_dir = f'{idir}/trks'
 import os
@@ -3191,7 +3192,7 @@ nets = [['multi_mdn_joint_torch',{}],]
 for rndx in range(7):
     train_name = f'round_{rndx}'
     for net in nets:
-        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}/traindata'
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}{estr}/traindata'
         A = pt.pickle_load(tfile)
         conf = A[1]
         if net[0] == 'multi_mdn_joint_torch':
@@ -3200,7 +3201,7 @@ for rndx in range(7):
         else:
             sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x_pycharm.sif'
             nname = 'dekr'
-        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}_{nname}.trk',sing_img=sing_img,name=f'confidence_{nname}_round_{rndx}')
+        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}{estr}_{nname}.trk',sing_img=sing_img,name=f'confidence_{nname}_round_{rndx}{estr}')
 
 
 ## Compare tracking. .Random results
@@ -3481,8 +3482,8 @@ import APT_interface as apt
 nets = [['multi_mdn_joint_torch',{}],['multi_mmpose',{'mmpose_net':'dekr'}]]
 ## classify the db
 
-start_round = 0
-estr = '_rep_2'
+start_round = 3
+estr = '_rep_1'
 for round in range(start_round,8):
     # time.sleep(100)
     # while (pt.get_job_status(f'inc_diff_dekr_round_{round}{estr}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round}{estr}') in ['PENDING','RUN']):
@@ -3637,6 +3638,7 @@ gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
 idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/tracker_diff/'
 
+estr = '_rep_2'
 
 out_dir = f'{idir}/trks'
 import os
@@ -3649,7 +3651,7 @@ nets = [['multi_mdn_joint_torch',{}],['multi_mmpose',{'mmpose_net':'dekr'}]]
 for rndx in range(7):
     train_name = f'round_{rndx}'
     for net in nets:
-        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}/traindata'
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}{estr}/traindata'
         A = pt.pickle_load(tfile)
         conf = A[1]
         if net[0] == 'multi_mdn_joint_torch':
@@ -3658,7 +3660,7 @@ for rndx in range(7):
         else:
             sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x_pycharm.sif'
             nname = 'dekr'
-        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}_{nname}.trk',sing_img=sing_img,name=f'inc_diff_{nname}_round_{rndx}')
+        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}{estr}_{nname}.trk',sing_img=sing_img,name=f'inc_diff_{nname}_round_{rndx}{estr}')
 
 
 ## Compare tracking

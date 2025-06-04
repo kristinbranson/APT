@@ -1,50 +1,9 @@
-# from reuse import *
-# conf_file = '/groups/branson/home/kabram/del/tmpnwx7g6xe.pkl'
-# tdict = pt.pickle_load(conf_file)
-# conf = tdict['conf']
-# net_type = tdict['net_type']
-# train_name = tdict['train_name']
-# mov_file = tdict['mov_file']
-# out_file = tdict['out_file']
-#
-# import ap36_train as a36
-# a36.track(conf, net_type, train_name, mov_file, out_file)
-
-nims = len(K['images'])
-pp = np.ones((nims,10,2,2))*np.nan
-count = np.zeros((nims,)).astype(np.int32)
-for aa in K['annotations']:
-    if aa['iscrowd']:
-        continue
-    iid = aa['image_id']
-    bb = np.array(aa['keypoints']).reshape(2,3)
-    pp[iid,count[iid],...] = bb[:,:2]
-    count[iid] += 1
-
-# find the distance of the points that belong to the same image
-# and are not NaN
-
-dd = np.ones((nims,100*4))*np.nan
-for ii in range(nims):
-    if count[ii] < 2:
-        continue
-    xx = pp[ii,...]
-    xx = xx[~np.isnan(xx).any(axis=-1)]
-    curd = np.linalg.norm(xx[:,None,...]-xx[None,:,:],axis=-1)
-    # find the bottom triangle values
-    count1 = 0
-    for jj in range(curd.shape[0]):
-        for kk in range(jj):
-            if np.isnan(curd[jj,kk]):
-                continue
-            dd[ii,count1] = curd[jj,kk]
-            count1 += 1
-
-
-##
 import os
-#os.environ['CUDA_VISIBLE_DEVICES'] ='0'
-cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/conf_crop.json -name 2stageHT_crop_mask_first_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 link_id False link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -conf_params2 mmpose_net \"hrformer\" -type2 mdn_joint_fpn -name2 2stageHT_nocrop_second_12072023 -model_files /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/2stageHT_crop_mask_first_12072023/deepnet-100000 -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageHT_nocrop_second_12072023/deepnet-100000 -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/temp.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageBBox_hrformer_scale2_stg1_1.trk -start_frame 3810 -end_frame 4500' #
+# os.environ['CUDA_VISIBLE_DEVICES'] =''
+# cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/conf_crop.json -name 2stageHT_hrnet_grone_hrnet_crop_mask_first_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/loc_neg.json  -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage second -model_files /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageHT_hrnet_grone_hrnet_nocrop_second_12072023/assign_weigh_dist-100000 -conf_params rescale 0.5 mdn_use_hrnet True -type mdn_joint_fpn -name 2stageHT_hrnet_grone_hrnet_nocrop_second_12072023  track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageHT_hrnet_grone_hrnet_scale2_del.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageHT_hrnet_grone_hrnet_scale2_stg1.trk -start_frame 15 -end_frame 20'
+cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/conf_crop.json -name grone_vitpose_crop_mask_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 rescale 0.5 mdn_use_hrnet True mdn_backbone \"vit\" mdn_joint_layer_num 2 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch train -use_cache -skip_db'
+
+# cmd = '/groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/20250510T113930_20250510T113932.json -name 20250510T113930 -stage multi -type detect_mmdetect -model_files /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/deepnet-40000 -type2 mdn_joint_fpn -model_files2 /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/mdn_joint_fpn/view_0/20250510T113930/deepnet-20000 -name2 20250510T113930 -ignore_local 1 -cache /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474 track -config_file /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/trk/trkconfig_VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280_4f02c3_trn20250510T113930_view0_iter40000_20250510T180048.json -track_type only_predict -out /groups/branson/home/kabram/temp/a.trk -mov /groups/branson/bransonlab/projects/DanionellaFieldTrip/VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280.avi -start_frame 1378 -end_frame 1578 -trx /groups/branson/home/kabram/temp/b.trk'
 
 # cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/conf_crop.json -name grone_crop_mask_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 link_id True link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/temp.trk -start_frame 3810 -end_frame 10000' #
 
@@ -72,6 +31,9 @@ if __name__ == '__main__':
         apt.main(cmd.split())
 
 
+
+
+##
 ## convert ufmf to h.264
 
 import movies
