@@ -135,6 +135,17 @@ classdef DLBackEndClass < handle
         ty = DLBackEnd.Bsub ;
       end
       obj.type = ty ;
+      % set jrc backend fields to valid values
+      if isempty(obj.jrcgpuqueue),
+        obj.jrcgpuqueue = DLBackEndClass.default_jrcgpuqueue ;
+      end
+      if isempty(obj.jrcnslots) ,
+        obj.jrcnslots = DLBackEndClass.default_jrcnslots_train ;
+      end
+      if isempty(obj.jrcnslotstrack) ,
+        obj.jrcnslotstrack = DLBackEndClass.default_jrcnslots_track ;
+      end      
+
       % Set the singularity fields to valid values
       obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
       obj.does_have_special_singularity_detection_image_path_ = false ;
