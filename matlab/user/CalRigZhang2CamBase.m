@@ -50,6 +50,10 @@ classdef CalRigZhang2CamBase < CalRig
     T
   end  
   methods
+    
+    function obj = CalRigZhang2CamBase(s)
+    end
+
     function s = get.R(obj)
       s = struct(...
         'LR',obj.RLR,'RL',obj.RRL);

@@ -103,10 +103,40 @@ classdef CalRig < handle
       % X2: [3xN] 3d points in coords of iView2 cam.
       assert(false,'Unimplemented.');
     end
-    
+
+    function props = getInstanceProperties(obj)
+      mc = metaclass(obj);
+      allProps = mc.PropertyList;
+
+      % Create logical filters
+      isNotConstant = ~[allProps.Constant];
+      isNotDependent = ~[allProps.Dependent];
+      isNotAbstract = ~[allProps.Abstract];
+
+      % Combine all filters
+      validProps = allProps(isNotConstant & isNotDependent & isNotAbstract);
+
+      % Return names
+      props = {validProps.Name};
+    end
+
+    function s = getSaveStruct(obj)
+      s = struct;
+      s.class_name = class(obj);
+      props = obj.getInstanceProperties();
+      for i = 1:numel(props),
+        prop = props{i};
+        s.(prop) = obj.(prop);
+      end
+    end
+
   end
   
   methods (Static)
+
+    function obj = createCalRigObjFromStruct(s)
+      obj = feval(s.class_name,s);
+    end
     
     function obj = loadCreateCalRigObjFromFile(fname)
       % Create/load a concerete CalRig object from file
@@ -131,14 +161,6 @@ classdef CalRig < handle
 %         tfSetViewRois = false;
       elseif all(ismember({'calibrations', 'nviews', 'raytracing', 'python_script_path', 'model_path', 'dividing_col', 'image_width'}, vars))
         obj = CalRigNPairwiseCalibratedRayTracing(s);
-        conda_env = 'APT_raytracing';
-        command = sprintf('conda run -n %s which python', conda_env);
-        [~, cmdout] = system(command);
-        % py.sys.setdlopenflags(int32(bitor(int64(py.os.RTLD_NOW),
-        % int64(py.os.RTLD_DEEPBIND)))); https://stackoverflow.com/questions/76485995/intel-mkl-error-when-calling-scipy-function-from-matlab
-        python_env_path = strtrim(cmdout); % Remove the end-of-line character
-        pyenv('Version', python_env_path); % Initialize python environment
-        pyenv(ExecutionMode='OutOfProcess'); % This is important to avoid clashes between incompatible MKL libraries between PyTorch and MATLAB
       elseif isa(s.(vars{1}),'vision.internal.calibration.tool.Session')
         obj = CalRigMLStro(s.(vars{1})); % will auto-calibrate and offer save
       elseif all(ismember({'DLT_1' 'DLT_2'},vars))

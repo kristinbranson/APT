@@ -9,9 +9,20 @@ classdef CalRigDummy < CalRig
   
   methods
     function obj = CalRigDummy(numVw,vwNames,vwSizes)
-      obj.nviews = numVw;
-      obj.viewNames = vwNames;
-      obj.viewSizes = vwSizes;
+      if isstruct(numVw), % handle creating from struct with all fields
+        s = numVw;
+        propscopy = {'nviews','viewNames','viewSizes'};
+        for i = 1:numel(propscopy),
+          fn = propscopy{i};
+          if isfield(s,fn),
+            obj.(fn) = s.(fn);
+          end
+        end
+      else
+        obj.nviews = numVw;
+        obj.viewNames = vwNames;
+        obj.viewSizes = vwSizes;
+      end
     end
   end
   

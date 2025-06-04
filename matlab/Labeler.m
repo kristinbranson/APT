@@ -2211,6 +2211,23 @@ classdef Labeler < handle
             container = encode_for_persistence(backend) ;
             s.(f) = container ;
           end
+        elseif ismember(f,{'viewCalibrationData','viewCalProjWide','viewClaibrationDataGT'}),
+          if iscell(obj.(f)),
+            s.(f) = cell(size(obj.(f)));
+            for i = 1:numel(obj.(f)),
+              if isa(obj.(f){i},'CalRig'),
+                s.(f){i} = obj.(f){i}.getSaveStruct();
+              else
+                s.(f){i} = obj.(f){i};
+              end
+            end
+          else
+            if isa(obj.(f),'CalRig'),
+              s.(f) = obj.(f).getSaveStruct();
+            else
+              s.(f) = obj.(f);
+            end
+          end
         else
           % Used for most fields
           s.(f) = obj.(f);
@@ -2342,6 +2359,33 @@ classdef Labeler < handle
 
       s = Labeler.lblModernize(s);
 
+      % convert CalRig structs to CalRig objects
+      for fn1 = {'viewCalibrationData','viewCalibrationDataGT','viewValProjWide'},
+        fn = fn1{1};
+        if ~isfield(s,fn),
+          continue;
+        end
+        if iscell(s.(fn)),
+          for i = 1:numel(s.(fn)),
+            if isstruct(s.(fn){i}),
+              try
+                ss = CalRig.createCalRigObjFromStruct(s.(fn){i});
+              catch ME,
+                warning(getReport(ME));
+                ss = s.(fn){i};
+              end
+              s.(fn){i} = ss;
+            end
+          end
+        elseif isstruct(s.(fn)),
+          try
+            ss = CalRig.createCalRigObjFromStruct(s.(fn));
+          catch
+            ss = s.(fn);
+          end
+          s.(fn) = ss;
+        end
+      end
       % Set this so all the prop-setting below doesn't create issues 
       % when the associated events fire.
       obj.isinit = true;
@@ -3577,6 +3621,34 @@ classdef Labeler < handle
           mfTable = unique(mfTable) ;  % eliminate now-redudant rows
           mfTable.iTgt = nan(size(mfTable.iTgt)) ;  % replace iTgt's with nans (couldn't do before b/c nan~=nan)
           s.gtSuggMFTable = mfTable ;
+        end
+      end
+
+      % 20250603 - calrig information should be saved as a struct so that
+      % we create new objects
+      for fn1 = {'viewCalibrationData','viewCalibrationDataGT','viewValProjWide'},
+        fn = fn1{1};
+        if ~isfield(s,fn),
+          continue;
+        end
+        if iscell(s.(fn)),
+          for i = 1:numel(s.(fn)),
+            if isa(s.(fn){i},'CalRig'),
+              try
+                ss = s.(fn){i}.getSaveStruct();
+              catch
+                ss = s.(fn){i};
+              end
+              s.(fn){i} = ss;
+            end
+          end
+        elseif isa(s.(fn),'CalRig'),
+          try
+            ss = s.(fn).getSaveStruct();
+          catch
+            ss = s.(fn);
+          end
+          s.(fn) = ss;
         end
       end
     end  % function lblModernize()

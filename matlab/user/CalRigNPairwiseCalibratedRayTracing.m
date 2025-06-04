@@ -9,6 +9,10 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
     properties (Dependent)
         ncams % same as nviews
     end
+    properties (Constant)
+        conda_env = 'APT_raytracing';
+    end
+
     methods
         function v = get.ncams(obj)
             v = obj.nviews;
@@ -36,8 +40,13 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
                 end
             end
 
+            CalRigNPairwiseCalibratedRayTracing.setPythonEnv();
             obj.nviews = s.nviews;
-            obj.crigStros = s.calibrations;
+            if isfield(s,'crigStros'),
+              obj.crigStros = s.crigStros;
+            else
+              obj.crigStros = s.calibrations;
+            end
             % The following two lines were added by Aniket Ravan
             obj.model_path = s.model_path;
             % obj.python_script_path = s.python_script_path;
@@ -49,14 +58,13 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             % for icam=1:ncam
             % for jcam=icam+1:ncam
             %   obj.crigStros{icam,jcam} = crigs{c};
-            %   c = c+1;
+            %   c = c+1;lObj
             % end
             % end
             %assert(c==numel(crigs)+1);
 
             obj.viewNames = arrayfun(@(x)sprintf('view%d',x),(1:obj.nviews)','uni',0);
         end
-
     end
 
     methods
@@ -361,5 +369,23 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
 
     end
 
+    methods (Static)
 
+      function setPythonEnv()
+        persistent isset
+        if ~isempty(isset) && isset,
+          return;
+        end
+        command = sprintf('conda run -n %s which python', CalRigNPairwiseCalibratedRayTracing.conda_env);
+        [~, cmdout] = system(command);
+        python_env_path = strtrim(cmdout); % Remove the end-of-line character
+        try
+          pyenv('Version', python_env_path,'ExecutionMode','OutOfProcess'); % Initialize python environment
+          isset = true;
+          % ExecutionMode=OutOfProcess is important to avoid clashes between incompatible MKL libraries between PyTorch and MATLAB
+        catch ME
+          warning(getReport(ME));
+        end
+      end
+    end    
 end
