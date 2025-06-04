@@ -1198,12 +1198,14 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       %#%CALOKedit LabelCoreMul
       
       if tfResetPts
+        obj.tfEstOcc(:) = 0; % reset all points to NOT be occluded
         if obj.streamlined
           [obj.hPts.XData] = deal(nan);
           [obj.hPts.YData] = deal(nan);
           [obj.hPtsTxt.Position] = deal([nan nan 1]);
         else
           tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
+          obj.refreshPtMarkers();
           arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
         end
         obj.tfAdjusted(:) = false;

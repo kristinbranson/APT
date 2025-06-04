@@ -40,7 +40,10 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
                 end
             end
 
-            CalRigNPairwiseCalibratedRayTracing.setPythonEnv();
+            [tfSuccess,msg] = CalRigNPairwiseCalibratedRayTracing.setPythonEnv();
+            if ~tfSuccess,
+              warningNoTrace(msg);
+            end
             obj.nviews = s.nviews;
             if isfield(s,'crigStros'),
               obj.crigStros = s.crigStros;
@@ -371,20 +374,26 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
 
     methods (Static)
 
-      function setPythonEnv()
+      function [tfSuccess,msg] = setPythonEnv()
         persistent isset
+        tfSuccess = true;
+        msg = '';
         if ~isempty(isset) && isset,
           return;
         end
         command = sprintf('conda run -n %s which python', CalRigNPairwiseCalibratedRayTracing.conda_env);
-        [~, cmdout] = system(command);
+        [res, cmdout] = system(command);
+        if res ~= 0,
+          tfSuccess = false;
+          msg = sprintf('Conda environment %s no found: %s', CalRigNPairwiseCalibratedRayTracing.conda_env,strtrim(cmdout));
+        end
         python_env_path = strtrim(cmdout); % Remove the end-of-line character
         try
           pyenv('Version', python_env_path,'ExecutionMode','OutOfProcess'); % Initialize python environment
           isset = true;
           % ExecutionMode=OutOfProcess is important to avoid clashes between incompatible MKL libraries between PyTorch and MATLAB
         catch ME
-          warning(getReport(ME));
+          warningNoTrace('Error setting python environment to %s:\n%s',python_env_path,getReport(ME));
         end
       end
     end    

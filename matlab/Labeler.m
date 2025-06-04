@@ -2371,7 +2371,7 @@ classdef Labeler < handle
               try
                 ss = CalRig.createCalRigObjFromStruct(s.(fn){i});
               catch ME,
-                warning(getReport(ME));
+                warningNoTrace('Load error creating CalRig object from %s{%d} struct:\n',fn,i,getReport(ME));
                 ss = s.(fn){i};
               end
               s.(fn){i} = ss;
@@ -2380,7 +2380,8 @@ classdef Labeler < handle
         elseif isstruct(s.(fn)),
           try
             ss = CalRig.createCalRigObjFromStruct(s.(fn));
-          catch
+          catch ME
+            warningNoTrace('Load error creating CalRig object from %s struct:\n%s',fn,getReport(ME));
             ss = s.(fn);
           end
           s.(fn) = ss;
@@ -3636,7 +3637,8 @@ classdef Labeler < handle
             if isa(s.(fn){i},'CalRig'),
               try
                 ss = s.(fn){i}.getSaveStruct();
-              catch
+              catch ME,
+                warningNoTrace('Modernize error converting %s{%d} CalRig object to struct:\n%s',fn,i,getReport(ME));
                 ss = s.(fn){i};
               end
               s.(fn){i} = ss;
@@ -3645,7 +3647,8 @@ classdef Labeler < handle
         elseif isa(s.(fn),'CalRig'),
           try
             ss = s.(fn).getSaveStruct();
-          catch
+          catch ME,
+            warningNoTrace('Modernize error converting %s CalRig object to struct:\n%s',fn,getReport(ME));
             ss = s.(fn);
           end
           s.(fn) = ss;
