@@ -95,7 +95,7 @@ classdef TrainMonitorViz < handle
     
     function obj = TrainMonitorViz(parent, labeler)
 
-      obj.parent_ = parent ;
+      obj.parent_ = parent ;  % parent a LabelerController
       obj.labeler_ = labeler ;
 
       dmc = labeler.tracker.trnLastDMC ;
@@ -117,7 +117,10 @@ classdef TrainMonitorViz < handle
       obj.backendType = labeler.backend.type ;
       obj.hfig = TrainMonitorGUI(obj);
       % parent.addSatellite(obj.hfig);  % Don't think we need this
-      
+      obj.hfig.CloseRequestFcn = @(s,e)(parent.trainMonitorVizCloseRequested()) ;
+        % Override the CloseRequestFcn callback in TrainMonitorGUI with this one, 
+        % which lets that LabelerController handle things in a coordinated way.
+
       handles = guidata(obj.hfig);
       TrainMonitorViz.updateStartStopButton(handles, false, []) ;
       handles.pushbutton_startstop.Enable = 'on';
@@ -225,7 +228,12 @@ classdef TrainMonitorViz < handle
       end
       obj.haxs = haxnew;
     end
-        
+    
+    function update(obj)
+      % Traditional controller update method.
+      obj.resultsReceived() ;
+    end
+    
     function [tfSucc,msg] = resultsReceived(obj,pollingResult,forceupdate)
       % Callback executed when new result received from training monitor BG
       % worker
@@ -239,9 +247,21 @@ classdef TrainMonitorViz < handle
       tfSucc = false;
       msg = '';  %#ok<NASGU> 
       
+      if ~exist('pollingResult', 'var') || isempty(pollingResult) ,
+        pollingResult = obj.labeler_.tracker.bgTrnMonitor.pollingResult ;
+      end      
       if isempty(obj.hfig) || ~ishandle(obj.hfig),
         msg = 'Monitor closed';
         TrainMonitorViz.debugfprintf('Monitor closed, results received %s\n',datestr(now()));
+        return
+      end
+
+      % If there is no pollingResult, just update the stop button.
+      % May add more here in the future.
+      if isempty(pollingResult) ,
+        tfSucc = true ;
+        msg = 'No one will read this.' ;
+        obj.updateStopButton() ;
         return
       end
       
@@ -265,6 +285,9 @@ classdef TrainMonitorViz < handle
       for i = 1:obj.nmodels,
         if pollingResult.jsonPresent(i) && (forceupdate || pollingResult.tfUpdate(i)),
           contents = pollingResult.contents{i};
+          if isempty(contents)
+            continue
+          end
           set(obj.hline(i,1),'XData',contents.step,'YData',contents.train_loss);
           set(obj.hline(i,2),'XData',contents.step,'YData',contents.train_dist);
           iset = obj.setidx(i);
@@ -579,6 +602,15 @@ classdef TrainMonitorViz < handle
       end
       drawnow('limitrate', 'nocallbacks') ;
     end  % function
+
+    function updatePointer(obj)
+      % Update the mouse pointer to reflect the Labeler state.
+      labeler = obj.labeler_ ;
+      is_busy = labeler.isStatusBusy ;
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      set(obj.hfig, 'Pointer', pointer) ;
+    end  % function
+
   end  % methods    
   
 end  % classdef

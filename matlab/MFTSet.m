@@ -134,7 +134,7 @@ classdef MFTSet < handle
 
       [wbObj,istrack] = myparse(varargin,...
         'wbObj',[], ... % (opt) WaitBarWithCancel or ProgressMeter. If cancel, tblMFT indeterminate.
-        'istrack',false ... % if true and labelerObj is MA, then 'targets' are ignored/meaningless.
+        'istrack',true ... % if true and labelerObj is MA, then 'targets' are ignored/meaningless.
         ); 
       tfWB = ~isempty(wbObj);      
       

@@ -1277,7 +1277,7 @@ classdef DeepTracker < LabelTracker
   methods
     %% BSub Trainer
       
-    function ntgtstot = genTrnPack(obj,dmc)
+    function ntgtstot = genTrnPack(obj,dmc,varargin)
       % Generate/write a trnpack; can be used for both stages.
       %
       
@@ -1289,7 +1289,7 @@ classdef DeepTracker < LabelTracker
           error('Failed to create dir %s: %s',dlConfigLclDir,msg);
         end
       end
-      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc);
+      [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc,varargin{:});
     end
 
     function [jobs,gpuids] = SplitTrackIntoJobs(obj,backend,totrackinfo) %#ok<INUSL> 
@@ -1410,6 +1410,61 @@ classdef DeepTracker < LabelTracker
       else
         trainID = obj.trnNameLbl;
       end
+    end
+
+    function res = export_coco_db(obj,outzipfile,varargin)
+      % res = export_coco_db(obj,outzipfile,...)
+      % Output current project's labels to COCO file format.
+      % Creates a zip file outzipfile that contains all the labeled images
+      % and a json file with all the labels. 
+      % Inputs:
+      % outzipfile: Output file path
+      % Optional arguments:
+      % jsonfilename: Name of COCO json file within zip file. Default:
+      % labels.json.
+      % Output:
+      % res: cell containing relative names of all files output
+
+      [jsonfilename] = myparse(varargin,'jsonfilename','labels.json');
+
+      % create/ensure config file; set trainID
+      nstage = obj.getNumStages();
+      [view,stage] = ndgrid(1:obj.nview,1:nstage); 
+      view = view(:)';
+      stage = stage(:)';
+      nmodel = obj.nview*nstage; 
+      jobidx = 1:nmodel;
+
+      trnType = DLTrainType.New;
+      netType = obj.getNetType(); % will have one value for each stage
+      netMode = obj.getNetMode();
+
+      % determine trainID, modelChainID -- I don't understand the
+      % difference between these
+      modelChainID = sprintf('%s_coco_db',obj.lObj.projname);
+      trainID = datetime('now','format','yyyyMMdd''T''HHmmSS');
+
+      % Create DMC
+      cacheDir = obj.lObj.DLCacheDir ;  % native cache dir
+      dmc = DeepModelChainOnDisk('rootDir',cacheDir,...
+                                 'projID',obj.lObj.projname,...
+                                 'netType',netType(stage),...
+                                 'netMode',netMode(stage),...
+                                 'jobidx',jobidx,...
+                                 'view',view-1,...
+                                 'stage',stage,...
+                                 'splitIdx',zeros(1,nmodel),...
+                                 'modelChainID',modelChainID,... % will get copied for all models
+                                 'trainID',trainID,... % will get copied for all models
+                                 'trainType',trnType,... % will get copied for all models
+                                 'iterFinal',zeros(size(stage)),...
+                                 'prev_models',[] ) ;
+      obj.genTrnPack(dmc,'cocoformat',true,'jsonfilename',jsonfilename);
+      imdir = fullfile(dmc.dirProjLnx,TrnPack.SUBDIRIM);
+      jsonfile = fullfile(dmc.dirProjLnx,jsonfilename);
+      % this will zip all images in the im directory, not just those
+      % generated just now
+      res = zip(outzipfile,{jsonfile,imdir},dmc.dirProjLnx);
     end
 
     function trnSpawn_(obj, backend, trnType, modelChainID, varargin)
@@ -2498,7 +2553,8 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = false;
       reason = '';
       
-      if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
+      % if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
+      if obj.bgTrkIsRunning ,
         reason = 'Tracking is already in progress.';
         return
       end
@@ -2699,10 +2755,10 @@ classdef DeepTracker < LabelTracker
       totrackinfo.setDefaultFiles();
 
       totrackinfo.makeListFile(isgt, backend);
-      gpuid =nan;
+      gpuids = backend.getFreeGPUs(1) ;
 
       backend.killAndClearRegisteredJobs('track') ;
-      backend.registerTrackingJob(totrackinfo, obj, gpuid, 'track') ;      
+      backend.registerTrackingJob(totrackinfo, obj, gpuids, 'track') ;      
 %       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
 %       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
 %       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
@@ -2892,7 +2948,11 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function didCompleteTrainingOrTracking(obj, train_or_track, pollingResult)
+    function didCompleteTrainingOrTrackingRetrograde(obj, train_or_track, pollingResult)
+      % Called by the child BgMonitor when the latest poll result indicates that
+      % training/tracking is complete.
+      obj.lObj.pushBusyStatusRetrograde(sprintf('Wrapping up seemingly-successful %sing bout...', train_or_track)) ;
+      oc = onCleanup(@()(obj.lObj.popBusyStatusRetrograde())) ;
       if strcmp(train_or_track, 'track') ,
         obj.didCompleteTracking_(pollingResult) ;
       elseif strcmp(train_or_track, 'train') ,
@@ -2902,20 +2962,17 @@ classdef DeepTracker < LabelTracker
       end      
     end  % function
 
-    function didCompleteTraining_(obj, ~)
-      % Called by the child BgMonitor when the latest poll result indicates that
-      % training is complete.
+    function didCompleteTraining_(obj, pollingResult)
       obj.bgTrnMonitor.stop() ;  % stop monitoring
       obj.waitForJobsToExit('train') ;
         % Right now, tfComplete is true as soon as the output files *exist*.
         % This can lead to issues if they're not done being written to, so we wait for
         % the job(s) to exit before proceeding.
-      obj.killJobsAndPerformPostTrainingCleanup(EndCause.complete) ;
+      obj.killJobsAndPerformPostTrainingCleanup_(EndCause.complete) ;
+      obj.lObj.trainingEndedRetrograde(EndCause.complete, pollingResult) ;
     end
 
     function didCompleteTracking_(obj, pollingResult)
-      % Called by the child BgMonitor when the latest poll result indicates that
-      % tracking is complete.
       obj.bgTrkMonitor.stop() ;  % stop monitoring
       obj.waitForJobsToExit('track') ;
         % Right now, pollingResult.tfComplete is true as soon as the output files *exist*.
@@ -2989,7 +3046,8 @@ classdef DeepTracker < LabelTracker
         end      
       catch me 
         warning('Error gathering tracking results:\n%s', getReport(me)) ;
-        obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
+        obj.killJobsAndPerformPostTrackingCleanup_(EndCause.error) ;
+        obj.lObj.trackingEndedRetrograde(EndCause.error, pollingResult) ;
         return
       end
       
@@ -2999,7 +3057,8 @@ classdef DeepTracker < LabelTracker
       end      
 
       % If get here, declare victory.
-      obj.killJobsAndPerformPostTrackingCleanup(EndCause.complete) ;
+      obj.killJobsAndPerformPostTrackingCleanup_(EndCause.complete) ;
+      obj.lObj.trackingEndedRetrograde(EndCause.complete, pollingResult) ;      
     end  % function
 
     function jumpToNearestTracking(obj)
@@ -3035,10 +3094,16 @@ classdef DeepTracker < LabelTracker
       else
         obj.newLabelerFrame(); % not sure what this does... 
         %obj.lObj.setFrameGUI(curfr); % this should result in call to .newLabelerFrame();
-        sel = tv.iTrx2iTrxViz(active);
+        % sel = tv.iTrx2iTrxViz(active);
+        sel = active ;  % active is already an index into tv.ptrx
       end
 
-      tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+      % tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
+      tv.trxSelectedTrxID(sel, true) ;  
+        % Think we want to call tv.trxSelectedTrxID() here, not tv.trxSelected().
+        % sel is an index into tv.pTrx, not an index into tv.tvtrx.  If sel was an
+        % index into tv.tvtrx, tv.trxSelected() would be the one to call.  -- ALT,
+        % 2025-05-22
     end  % function
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
@@ -3095,7 +3160,7 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function killJobsAndPerformPostTrainingCleanup(obj, endCause)
+    function killJobsAndPerformPostTrainingCleanup_(obj, endCause)
       % Does what it says on the tin.
 
       % Check for programmer error
@@ -3107,24 +3172,15 @@ classdef DeepTracker < LabelTracker
       % Set now to listeners can determine training bout outcome
       obj.lastTrainEndCause_ = endCause ;
 
-      % Someday, training splits will return!
-      trainSplits = obj.isTrainingSplits_ ;
-      if trainSplits
-        % unchecked codepath 20210806
-        assert(backEnd.type==DLBackEnd.Bsub);
-        % obj.killJobsAndPerformPostCrossValidationCleanup_() ;
-        return
-      end
-      
-      % % Stop any running track monitors
-      % if obj.bgTrkIsRunning,
-      %   fprintf('Stopping tracking...\n');
-      %   obj.bgTrkMonitor.stop();
-      %   obj.killJobsAndPerformPostTrackingCleanup() ;      
-      %   obj.bgTrkMonitor.reset();
-      %   assert(~obj.bgTrkIsRunning);
+      % % Someday, training splits will return!
+      % trainSplits = obj.isTrainingSplits_ ;
+      % if trainSplits
+      %   % unchecked codepath 20210806
+      %   assert(backEnd.type==DLBackEnd.Bsub);
+      %   % obj.killJobsAndPerformPostCrossValidationCleanup_() ;
+      %   return
       % end
-
+      
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('train') ;
@@ -3159,26 +3215,13 @@ classdef DeepTracker < LabelTracker
         %   end
         % end
       end  % if
-      
-      % % completed/stopped training. old tracking results are deleted/updated, so trackerInfo should be updated
-      % obj.syncInfoFromDMC_();
-
-      % % Possibly signal the controller/view to raise a dialog asking if the user wants to
-      % % save the project.
-      % if isempty(obj.skip_dlgs) || ~obj.skip_dlgs ,
-      %   obj.lObj.raiseTrainingStoppedDialog_() ;
-      % end  % if
-
-      % Finally, prod the Labeler to signal the controller that training has ended
-      %obj.lObj.doNotify('trainEnd');
-      obj.lObj.trainingEnded(endCause) ;
     end  % function
     
-    function killJobsAndPerformPostTrackingCleanup(obj, endCause)
+    function killJobsAndPerformPostTrackingCleanup_(obj, endCause)
       % Check for programmer error
       if endCause == EndCause.undefined
         error(strcatg('Internal Error.  Please notify the APT developers that endCause was equal to EndCause.undefined on entry ', ...
-                      'to DeepTracker.killJobsAndPerformPostTrackingCleanup().')) ;
+                      'to DeepTracker.killJobsAndPerformPostTrackingCleanup_().')) ;
       end
 
       % Set this now, so that listeners can know the tracking bout outcome
@@ -3191,10 +3234,6 @@ classdef DeepTracker < LabelTracker
       % Do other stuff
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
-
-      % Inform parent Labeler that tracking has ended
-      % obj.lObj.doNotify('trackEnd');
-      obj.lObj.trackingEnded(endCause) ;
     end  % function
 
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
@@ -4277,6 +4316,7 @@ classdef DeepTracker < LabelTracker
       dmcs = obj.trnLastDMC ;
       trnImgInfo = cell(1,dmcs.n);
       necfields = {'idx','ims','locs'};
+      warned = false;
       for i=1:dmcs.n,
         f = dmcs.trainImagesNameLnx(i);
         f = f{1};
@@ -4290,13 +4330,18 @@ classdef DeepTracker < LabelTracker
           trnImgInfo{i}.name = dmcs.getNetDescriptor(i);
           trnImgInfo{i}.name = trnImgInfo{i}.name{1};
         else
-          warningNoTrace('Training image file ''%s'' does not exist yet.',f);
+          ss = sprintf('Training image file ''%s'' does not exist yet.',f);
+          warningNoTrace(ss);
+          if ~warned
+            warndlg(ss);
+            warned = true;
+          end
         end
       end
     end  % function
     
-    function didReceivePollResults(obj, track_or_train)
-      obj.lObj.didReceivePollResults(track_or_train) ;
+    function didReceivePollResultsRetrograde(obj, track_or_train)
+      obj.lObj.didReceivePollResultsRetrograde(track_or_train) ;
     end
 
     % function didReceiveTrackingPollResults_(obj)
@@ -4315,44 +4360,32 @@ classdef DeepTracker < LabelTracker
       obj.backend.killAndClearRegisteredJobs(train_or_track) ;
     end    
 
-    function didErrorDuringTrainingOrTracking(obj, train_or_track, pollingResult)
+    function didErrorDuringTrainingOrTrackingRetrograde(obj, train_or_track, pollingResult)
+      obj.lObj.pushBusyStatusRetrograde(sprintf('Wrapping up errored %sing bout...', train_or_track)) ;
+      oc = onCleanup(@()(obj.lObj.popBusyStatusRetrograde())) ;      
       if strcmp(train_or_track, 'track') ,
         obj.bgTrkMonitor.stop();
-        obj.killJobsAndPerformPostTrackingCleanup(EndCause.error) ;
+        obj.killJobsAndPerformPostTrackingCleanup_(EndCause.error) ;
+        obj.lObj.trackingEndedRetrograde(EndCause.error, pollingResult) ;        
       elseif strcmp(train_or_track, 'train') ,
         obj.bgTrnMonitor.stop();
-        obj.killJobsAndPerformPostTrainingCleanup(EndCause.error) ;
+        obj.killJobsAndPerformPostTrainingCleanup_(EndCause.error) ;
+        obj.lObj.trainingEndedRetrograde(EndCause.error, pollingResult) ;
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
-      end
-
-      % Produce an error message on the console
-      fprintf('Error occurred during %sing:\n', train_or_track) ;
-      errorFileIndexMaybe = find(pollingResult.errFileExists, 1) ; 
-      if isempty(errorFileIndexMaybe) ,
-        fprintf('One of the background jobs exited, for unknown reasons.  No error file was produced.\n') ;
-      else
-        errorFileIndex = errorFileIndexMaybe ;
-        errFile = pollingResult.errFile{errorFileIndex} ;
-        doesErrorFileExist = obj.backend.fileExists(errFile) ;
-        if doesErrorFileExist ,
-          fprintf('\n### %s\n\n',errFile);
-          errContents = obj.backend.fileContents(errFile) ;
-          disp(errContents);
-        else
-          fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
-        end      
       end
     end  % function
 
     function abortTraining(obj)
       obj.bgTrnMonitor.stop() ;
-      obj.killJobsAndPerformPostTrainingCleanup(EndCause.abort) ;
+      obj.killJobsAndPerformPostTrainingCleanup_(EndCause.abort) ;
+      obj.lObj.trainingEndedRetrograde(EndCause.abort, []) ;
     end  % function
 
     function abortTracking(obj)
       obj.bgTrkMonitor.stop() ;
-      obj.killJobsAndPerformPostTrackingCleanup(EndCause.abort) ;
+      obj.killJobsAndPerformPostTrackingCleanup_(EndCause.abort) ;
+      obj.lObj.trackingEndedRetrograde(EndCause.abort, []) ;
     end  % function
 
     function result = get.lastTrainEndCause(obj)
@@ -4367,4 +4400,17 @@ classdef DeepTracker < LabelTracker
       result = obj.nFramesToTrack_ ;
     end
   end  % methods    
+
+  methods
+    function updateTrainingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.lObj.updateTrainingMonitorRetrograde() ;
+    end  % function
+
+    function updateTrackingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.lObj.updateTrackingMonitorRetrograde() ;
+    end  % function
+  end  % methods
+  
 end  % classdef

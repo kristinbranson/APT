@@ -1472,7 +1472,11 @@ class list_loader(torch.utils.data.Dataset):
             mov = mov[conf.view]
 
         cur_f = cur_i[2]-1
-        tgt_id = cur_i[1]-1
+        if cur_i[1] is None:
+            tgt_id = None
+        else:
+            tgt_id = cur_i[1]-1
+
         if self.prev_item is None or cur_i[0]!=self.prev_item[0]:
             cap = movies.Movie(mov)
             n_frames = cap.get_n_frames()
@@ -1507,7 +1511,10 @@ class list_loader(torch.utils.data.Dataset):
         else:
             locs = np.ones([conf.n_classes,2])*conf.imsz[0]/2
 
-        info = [cur_i[0]-1,cur_f,tgt_id]
+        if tgt_id == None:
+            info = [cur_i[0]-1,cur_f,-1] # having None creates problem when writing results for classifying lists
+        else:
+            info = [cur_i[0]-1,cur_f,tgt_id]
         occ = np.zeros_like(locs[...,0])
         features = [im, locs, info, occ,scale]
         return features

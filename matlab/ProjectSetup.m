@@ -78,6 +78,7 @@ function ProjectSetup_OpeningFcn(hObject, eventdata, handles, varargin)
 
 h1 = findall(handles.figure1,'-property','Units');
 set(h1,'Units','Normalized');
+set(handles.figure1,'MenuBar','None');
 
 if numel(varargin)>=1
   hParentFig = varargin{1};

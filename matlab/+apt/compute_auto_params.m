@@ -51,20 +51,37 @@ function autoparams = compute_auto_params(lobj)
   % second dim has the coordinates
 
   %%
-  %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
-  %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+
   l_min = permute(nanmin(all_labels,[],1),[2,3,1]);
   l_max = permute(nanmax(all_labels,[],1),[2,3,1]);
   l_span = l_max-l_min;
-  % l_span is labels span in x and y direction
 
+
+  l_span_pc = prctile(l_span,[5,50,95],2);
+
+  auto_multi_bbox_scale = nanmax(l_span_pc(:,3))/nanmax(l_span_pc(:,2))>2;
+  % set whether to crop detections by their detected size based on the
+  % variations observed in the labels
+
+  if isfield(lobj.trackParams.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
+    if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox ~= auto_multi_bbox_scale
+      % if the current setting is different than auto setting then change
+      % the setting
+      autoparams('MultiAnimal.TargetCrop.multi_scale_by_bbox') = auto_multi_bbox_scale;
+    end    
+  end
+
+    %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
+    %l_max = reshape(max(all_labels,[],1),size(all_labels,[2,3]));
+    % l_span is labels span in x and y direction
+  
   l_span_pc = prctile(l_span,95,2);
   l_span_max = nanmax(l_span,[],2);
 
   % Check and flag outliers..
   if any( (l_span_max./l_span_pc)>2)
     outliers = zeros(0,3);
-    for jj = find( (l_span_max/l_span_pc)>2)
+    for jj = find( (l_span_max./l_span_pc)>2)
       ix = find(l_span(jj,:)>l_span_pc(jj)*2);
       for xx = ix(:)'
         mov = all_mov(xx);
@@ -82,8 +99,14 @@ function autoparams = compute_auto_params(lobj)
     warning(wstr);
   end
 
-  crop_radius = nanmax(l_span_pc);
+  if isfield(lobj.trackParams.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox') && auto_multi_bbox_scale
+    l_span_median = prctile(l_span,50,2);
+    crop_radius = nanmax(l_span_median);
+  else
+    crop_radius = nanmax(l_span_pc);
+  end
   crop_radius = ceil(crop_radius/16)*16;
+
   autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
     autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
@@ -102,7 +125,7 @@ function autoparams = compute_auto_params(lobj)
   % If the distances between center of animals is much less than the
   % span then warn about using bbox based methods
   if(d_pairs_pc<min(l_span_pc/10)) && lobj.trackerIsObjDet
-    wstr = 'The distances between the center of animals is much smaller than the spans of the animals';
+    wstr = 'The distances between the center of animals is much smaller than the size of the animals';
     wstr = sprintf('%s\n Avoid using object detection based top-down methods',wstr);
     warning(wstr);  %#ok<SPWRN>
   end

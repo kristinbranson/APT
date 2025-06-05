@@ -53,6 +53,7 @@ function TrainMonitorGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 % varargin   command line arguments to TrainMonitorGUI (see VARARGIN)
 
 % Choose default command line output for TrainMonitorGUI
+set(hObject,'MenuBar','None');
 handles.output = hObject;
 handles.vizobj = varargin{1};
 

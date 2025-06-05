@@ -111,7 +111,7 @@ classdef Labeler < handle
     
     dataImported
     updateDoesNeedSave
-    updateStatus
+    updateStatusAndPointer
     didSetTrx
     updateTrxSetShowTrue
     updateTrxSetShowFalse
@@ -189,10 +189,10 @@ classdef Labeler < handle
     % movie
     newTrackingResults 
     
-    % trainStart
-    % trainEnd
-    % trackStart
-    % trackEnd    
+    updateTrainingMonitor
+    trainEnd
+    updateTrackingMonitor
+    trackEnd    
 
     didSetTrackerHideViz
     didSetTrackerShowPredsCurrTargetOnly
@@ -261,12 +261,13 @@ classdef Labeler < handle
     currentTrackerIndexInTrackersAll_
   end
   properties (Dependent)
-    hasProject            % scalar logical
-    projectfile           % Full path to current project 
-    projectroot           % Parent dir of projectfile, if it exists
-    bgTrnIsRunning        % True iff background training is running
-    bgTrkIsRunning        % True iff background tracking is running
-    trackersAll           % All the 'template' trackers
+    hasProject             % scalar logical
+    projectfile            % Full path to current project 
+    projectroot            % Parent dir of projectfile, if it exists
+    bgTrnIsRunning         % True iff background training is running
+    bgTrkIsRunning         % True iff background tracking is running
+    trackersAll            % All the 'template' trackers
+    trackersAllCreateInfo  % The creation info for each tracker in trackersAll
     trackerHistory        
     lastTrainEndCause 
       % Did the last bout of training complete or error or was it aborted by user.
@@ -505,9 +506,12 @@ classdef Labeler < handle
     doesNeedSave_ = false
   end
   properties (Transient)  % private by convention
-    isStatusBusy_ = false
-    rawStatusString_  = 'Ready.'
-    rawStatusStringWhenClear_ = 'Ready.'
+    howBusy_ = 0  % increases with calls to pushBusyStatus(), decreases with calls to popBusyStatus()
+    %isStatusBusy_ = false
+    rawStatusStringStack_  = cell(1,0)
+    rawClearStatusString_ = 'Ready.'
+    % rawStatusString_  = 'Ready.'
+    % rawStatusStringWhenClear_ = 'Ready.'
     progressMeter_
     backgroundProcessingStatusString_ = '' 
   end
@@ -2058,8 +2062,8 @@ classdef Labeler < handle
    
     function projNew(obj, cfg)
       % Create new project based on configuration in cfg.
-      obj.setStatus('Configuring new project...') ;
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Configuring new project...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
 
       obj.initFromConfig_(cfg) ;
 
@@ -2134,8 +2138,8 @@ classdef Labeler < handle
     function projSave(obj, fname)      
       % This is the proper model save operation for clients.  (That does not require
       % a GUI.)
-      obj.setStatus('Saving project...');
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Saving project...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       try
         obj.saveVersionInfo = GetGitMatlabStatus(APT.Root);
       catch
@@ -2263,8 +2267,8 @@ classdef Labeler < handle
       % If the movie is able to set the project correctly, currProjInfo
       % will be [].
             
-      obj.setStatus('Loading project...') ;
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Loading project...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       
       starttime = tic();
       
@@ -2937,8 +2941,8 @@ classdef Labeler < handle
     end  % function
 
     function projExportTrainData(obj,outfile)
-      obj.setStatus(sprintf('Exporting training data to %s',outfile));
-      oc = onCleanup(@()(obj.clearStatus())) ;            
+      obj.pushBusyStatus(sprintf('Exporting training data to %s',outfile));
+      oc = onCleanup(@()(obj.popBusyStatus())) ;            
       [tfsucc,~,s] = ...
         obj.trackCreateDeepTrackerStrippedLbl();
       if ~tfsucc,
@@ -2976,8 +2980,8 @@ classdef Labeler < handle
         
     
     function projBundleTempDir(obj, tfile)
-      obj.setStatus('Bundling the temp directory...') ;
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Bundling the temp directory...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       tar(tfile,obj.projTempDir);
     end
     
@@ -3307,9 +3311,14 @@ classdef Labeler < handle
         % KB 20220804 refactor DMC
         if isfield(s.trackerData{i},'trnLastDMC') && ~isempty(s.trackerData{i}.trnLastDMC)
           try
+            if isfield(s.trackerData{1},'stg1')
+              netmode=s.trackerData{1}.stg1.trnNetMode;
+            else
+              netmode = s.trackerData{1}.trnNetMode;
+            end
             s.trackerData{i}.trnLastDMC = ...
               DeepModelChainOnDisk.modernize(s.trackerData{i}.trnLastDMC,...
-                                             'netmode',[s.trackerData{1}.trnNetMode]);
+                                             'netmode',netmode);
           catch ME
             warning('Could not modernize DMC for tracker %d, setting to empty:\n%s',i,getReport(ME));
             s.trackerData{i}.trnLastDMC = [];
@@ -3558,6 +3567,18 @@ classdef Labeler < handle
       if ~isfloat(s.currFrame)        
         s.currFrame = double(s.currFrame);
       end
+
+      % If the GT suggestions are old-school style for an MA project, fix it.
+      if s.maIsMA
+        mfTable = s.gtSuggMFTable ;
+        if ismember('iTgt', mfTable.Properties.VariableNames)
+          % Need to set all the iTgt's to nan, but avoid repeats
+          mfTable.iTgt = zeros(size(mfTable.iTgt)) ;  % first set all iTgts to zero
+          mfTable = unique(mfTable) ;  % eliminate now-redudant rows
+          mfTable.iTgt = nan(size(mfTable.iTgt)) ;  % replace iTgt's with nans (couldn't do before b/c nan~=nan)
+          s.gtSuggMFTable = mfTable ;
+        end
+      end
     end  % function lblModernize()
     
     function s = resetTrkResFieldsStruct(s)
@@ -3604,6 +3625,14 @@ classdef Labeler < handle
   %% Movie
   methods
     
+    function movieAddAllModes(obj,moviefile,varargin)
+      if obj.isMultiView,
+        obj.movieSetAdd(moviefile,varargin{:});
+      else
+        obj.movieAdd(moviefile,varargin{:});
+      end
+    end
+
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
@@ -3614,8 +3643,8 @@ classdef Labeler < handle
       
       assert(~obj.isMultiView,'Unsupported for multiview labeling.');
       
-      obj.setStatus('Adding new movie...');
-      oc = onCleanup(@()(obj.clearStatus()));
+      obj.pushBusyStatus('Adding new movie...');
+      oc = onCleanup(@()(obj.popBusyStatus()));
       
       [offerMacroization,gt] = myparse(varargin,...
         'offerMacroization',~isdeployed&&obj.isgui, ... % If true, look for matches with existing macros
@@ -3759,8 +3788,8 @@ classdef Labeler < handle
         error('Labeler:movieAddBatchFile','Cannot find file ''%s''.',bfile);
       end
 
-      obj.setStatus(sprintf('Adding movies from file %s...',bfile));
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus(sprintf('Adding movies from file %s...',bfile));
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       
       movs = importdata(bfile);
       try
@@ -4027,8 +4056,8 @@ classdef Labeler < handle
         end
       end
       
-      obj.setStatus('Removing movie...') ;
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Removing movie...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       
       if tfProceedRm
         PROPS = Labeler.gtGetSharedPropsStc(gt);
@@ -4495,8 +4524,8 @@ classdef Labeler < handle
       assert(any(iMov==1:obj.nmoviesGTaware),...
                     'Invalid movie index ''%d''.',iMov);
 
-      obj.setStatus(sprintf('Switching to movie %d...',iMov));
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus(sprintf('Switching to movie %d...',iMov));
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
 
       [isFirstMovie] = myparse(varargin,...
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
@@ -5730,7 +5759,6 @@ classdef Labeler < handle
         % viz when both tfHideViz==false and tfShowTraj==true.
       elseif obj.hasTrx
         obj.notify('updateTrxSetShowTrue') ;
-        %obj.updateTrxSetShowTrue() ;      
       end
     end
             
@@ -6547,6 +6575,176 @@ classdef Labeler < handle
         obj.lastLabelChangeTS = tsnow;
       end
       obj.labeledposNeedsSave = true;
+    end
+
+    function labelPosBulkImportCOCOJson(obj,cocos,varargin)
+      % labelPosBulkImportCOCOJson(obj,cocos,...)
+      % Import labels and movies from the COCO-structured data cocos.
+      % If information is given about the movies that were used to
+      % crop out the images that are labeled, then these movies will be
+      % added. Otherwise, a new movie will be created which is actually a
+      % directory containing consecutively named frames that APT will read
+      % as if it is a single movie, with one frame per labeled image. 
+      % Labels for each referenced movie will be REPLACED by labels in
+      % cocos. 
+      %
+      % Input:
+      % cocos: struct containing data read from COCO json file
+      % Fields:
+      % .images: struct array with an entry for each labeled image, with
+      % the following fields:
+      %   .id: Unique id for this labeled image, from 0 to
+      %   numel(locs.locdata)-1
+      %   .file_name: Relative path to file containing this image
+      %   .movid: Id of the movie this image come from, 0-indexed. This is
+      %   used iff movie information is available
+      %   .frmid: Index of frame this image comes from, 0-indexed. This is
+      %   used iff movie information is available
+      % .annotations: struct array with an entry for each annotation, with
+      % the following fields:
+      %   .iscrowd: Whether this is a labeled target (0) or mask (1). If
+      %   not available, it is assumed that this is a labeled target (0).
+      %   .segmentation: cell of length 1 containing array of length 8 x 1,
+      %   containing the x (segmentation{1}(1:2:end)) and y
+      %   (segmentation{1}(2:2:end)) coordinates of the mask considered
+      %   labeled, 0-indexed. This is only used for label ROIs.
+      %   .image_id: Index (0-indexed) of corresponding image
+      %   .num_keypoints: Number of keypoints in this target (0 if mask)
+      %   .keypoints: array of size nkeypoints*3 containing the x
+      %   (keypoints(1:3:end)), y (keypoints(2:3:end)), and occlusion
+      %   status (keypoints(3:3:end)). (x,y) are 0-indexed. for occlusion
+      %   status, 2 means not occluded, 1 means occluded but labeled, 0
+      %   means not labeled. 
+      % .info:
+      %   .movies: Cell containing paths to movies. If this is available,
+      %   then these movies are added to the project. 
+      % Optional arguments:
+      % outimdir: If no movie info is available, then this is where the
+      % dummy movie will be created. Must be provided if movie info is not
+      % in the coco structure. 
+      % overwrite: Whether to overwrite files that exist. Default: true
+      % imname: Base name of created images. Default: 'frame'.
+      % cocojsonfile: Path to coco json file. Must be provided if movie
+      % info is not in the coco structure. 
+
+      [outimdir,overwrite,imname,cocojsonfile,copyims] = myparse(varargin,...
+        'outimdir','','overwrite',true,'imname','frame',...
+        'cocojsonfile','','copyims',true);
+
+      % import labels from COCO json file
+      hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
+
+      PROPS = obj.gtGetSharedProps();
+      tsnow = now;
+
+      if hasmovies,
+        moviefilepaths = cocos.info.movies;
+        for imov = 1:numel(moviefilepaths),
+          moviecurr = moviefilepaths(imov,:); 
+          % todo: check multiview, hastrx, gtmode, macros
+          % projects
+          % is this movie already added to the project?
+          [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
+          if ~didfind,
+            % add movie to project
+            fprintf('Adding movie %d:',imov);
+            fprintf('  %s',moviecurr{:});
+            fprintf('\n');
+            obj.movieAddAllModes(moviecurr);
+            [didfind,imovmatch] = obj.movieSetInProj(moviecurr);
+            assert(didfind,'Failed to add movie');
+          else
+            fprintf('Movie %d already in project:',imov);
+            fprintf('  %s',moviecurr{:});
+            fprintf('\n');
+          end
+          fprintf('Project movie index = %d\n',imovmatch);
+          % convert from coco format to label format for this movie
+          label_s = Labels.fromcoco(cocos,'imov',imov,'tsnow',tsnow);
+          if ~isempty(label_s),
+            fprintf('Imported %d labels\n',size(label_s.p,2));
+            % store in obj.labels
+            obj.(PROPS.LBL){imovmatch} = label_s;
+          end
+          % add label rois
+          % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
+          labelroi_s = LabelROI.fromcoco(cocos,'imov',imov);
+          if ~isempty(labelroi_s),
+            fprintf('Imported %d labeled ROIs\n',size(labelroi_s.verts,3));
+            % store in obj.labels
+            obj.labelsRoi{imovmatch} = labelroi_s;
+          end
+          if isempty(label_s) && isempty(labelroi_s),
+            fprintf('No labels found for this movie\n');
+          end
+        end
+      else
+
+        % create a directory with frames in order
+        assert(~isempty(outimdir));
+        assert(~isempty(cocojsonfile));
+        inrootdir = fileparts(cocojsonfile);
+        if copyims,
+          if ~exist(outimdir,'dir'),
+            mkdir(outimdir);
+          end
+          nim = numel(cocos.images);
+          nz = max(5,ceil(log10(nim)));
+          [~,~,imext] = fileparts(cocos.images(1).file_name);
+          namepat = sprintf('%s%%0%dd%s',imname,nz,imext);
+          for i = 1:nim,
+            imcurr = cocos.images(i);
+            inp = fullfile(inrootdir,imcurr.file_name);
+            outp = fullfile(outimdir,sprintf(namepat,i));
+            if i == 1,
+              moviepath = outp;
+            end
+            assert(exist(inp,'file'));
+            if overwrite || ~exist(outp,'file'),
+              [success,msg] = copyfile(inp,outp);
+              assert(success,msg);
+            end
+          end
+        else
+          sortedimfiles = sort({cocos.images.file_name});
+          moviepath = fullfile(inrootdir,sortedimfiles{1});
+        end
+        [didfind,~] = obj.movieSetInProj(moviepath);
+        if ~didfind,
+          obj.movieAddAllModes(moviepath);
+        end
+        [didfind,imovmatch] = obj.movieSetInProj(moviepath);
+        assert(didfind,'Failed to add stitched movie');
+
+        fprintf('Project movie index = %d\n',imovmatch);
+        % convert from coco format to label format for this movie
+        label_s = Labels.fromcoco(cocos,'tsnow',tsnow);
+        if ~isempty(label_s),
+          fprintf('Imported %d labels\n',size(label_s.p,2));
+          % store in obj.labels
+          obj.(PROPS.LBL){imovmatch} = label_s;
+        end
+        % add label rois
+        % label boxes are stored in labelsRoi as corners (xl,yt);(xl,yb);(xr,yb);(xr,yb)
+        labelroi_s = LabelROI.fromcoco(cocos);
+        if ~isempty(labelroi_s),
+          fprintf('Imported %d labeled ROIs\n',size(labelroi_s.verts,3));
+          % store in obj.labels
+          obj.labelsRoi{imovmatch} = labelroi_s;
+        end
+        if isempty(label_s) && isempty(labelroi_s),
+          fprintf('No labels found');
+        end
+      end
+
+      obj.updateFrameTableComplete();
+      if obj.gtIsGTMode
+        obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
+      else
+        obj.lastLabelChangeTS = tsnow;
+      end
+      obj.labeledposNeedsSave = true;
+
     end
     
     function labelPosBulkImportTbl(obj,tblMFT)
@@ -7519,17 +7717,28 @@ classdef Labeler < handle
       rawname = fullfile('$movdir',basename);
     end
     
-    function fname = getDefaultFilenameExportStrippedLbl(obj)
-      lblstr = 'TrainData';
+    function fname = getDefaultFilenameExport(obj,lblstr,ext,varargin)
+      includedate = myparse(varargin,'includedate',false);
+      rawdir = '$projdir';
       if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' lblstr '.mat'];
+        rawname = ['$projfile_' lblstr ext];
       elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' lblstr '.mat'];
+        rawname = ['$projname_' lblstr ext];
       else
-        rawname = ['$projdir/' lblstr datestr(now,'yyyymmddTHHMMSS') '.mat'];
+        if includedate,
+          rawname = [lblstr datestr(now,'yyyymmddTHHMMSS') ext];
+        else
+          rawname = [lblstr ext];
+        end
       end
       sMacro = obj.baseTrkFileMacros();
+      fdir = FSPath.macroReplace(rawdir,sMacro);
       fname = FSPath.macroReplace(rawname,sMacro);
+      fname = linux_fullfile(fdir,fname);
+    end
+
+    function fname = getDefaultFilenameExportStrippedLbl(obj)
+      fname = getDefaultFilenameExport(obj,'TrainData','.mat','includedate',true);
     end
     
     function fname = getDefaultFilenameExportLabelTable(obj)
@@ -7538,17 +7747,26 @@ classdef Labeler < handle
       else
         lblstr = 'labels';
       end
-      if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' lblstr '.mat'];
-      elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' lblstr '.mat'];
-      else
-        rawname = ['$projdir/' lblstr '.mat'];
-      end
-      sMacro = obj.baseTrkFileMacros();
-      fname = FSPath.macroReplace(rawname,sMacro);
+      fname = getDefaultFilenameExport(obj,lblstr,'.mat');
     end
-        
+
+    function fname = getDefaultFilenameExportCOCOJson(obj)
+      if obj.gtIsGTMode
+        lblstr = 'gtcoco';
+      else
+        lblstr = 'coco';
+      end
+      fname = getDefaultFilenameExport(obj,lblstr,'.zip');
+    end
+
+    function fname = getDefaultFilenameImportCOCOJson(obj)
+
+      rawdir = '$projdir';
+      sMacro = obj.baseTrkFileMacros();
+      fdir = FSPath.macroReplace(rawdir,sMacro);
+      fname = linux_fullfile(fdir,'*.json');
+
+    end        
     function [tfok,trkfiles] = getTrkFileNamesForExportGUI(obj,movfiles,...
         rawname,varargin)
       % Concretize a raw trkfilename, then check for conflicts etc.
@@ -7699,8 +7917,8 @@ classdef Labeler < handle
       % iMov: optional, indices into (rows of) .movieFilesAllGTaware to 
       %   export. Defaults to 1:obj.nmoviesGTaware.
       
-      obj.setStatus('Exporting tracking results...');
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Exporting tracking results...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       
       [trkfiles,rawtrkname] = myparse(varargin,...
         'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
@@ -7855,8 +8073,8 @@ classdef Labeler < handle
         error('Labeler:noMovie','No movie is loaded.');
       end
       
-      obj.setStatus('Importing tracking results...');
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Importing tracking results...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       
       gtok = myparse(varargin,...
         'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
@@ -9240,7 +9458,13 @@ classdef Labeler < handle
         TargetSetVariable.AllTgts);    
       tblMFTLbld = mfts.getMFTable(obj);
       
-      [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
+      % [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
+      mftflds = MFTable.FLDSID;
+      if obj.maIsMA  
+        % remove tgt field for multi-animal projects
+        mftflds(strcmp(mftflds,'iTgt')) = [];
+      end
+      [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
 
       % tblMFTLbld includes rows where any pt/coord is labeled;
       % obj.gtSuggMFTableLbled is only true if all pts/coords labeled 
@@ -9291,8 +9515,8 @@ classdef Labeler < handle
       end
 
       % On to business...
-      obj.setStatus('Compiling list of Ground Truth Labels frames and tracking them...');
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Compiling list of Ground Truth Labels frames and tracking them...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       tblMFT = obj.gtGetTblSuggAndLbled();
 
       % Either spawn the computation of the GT predictions, or import them and show the
@@ -9406,7 +9630,7 @@ classdef Labeler < handle
       obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
       % obj.didSpawnTrackingForGT_ = [] ;  % reset this
       obj.notify('didComputeGTResults') ;
-      obj.clearStatus();
+      obj.popBusyStatus();
     end  % function
 
     function tblGTres = gtComputeGTPerformanceTable(obj, ...
@@ -9527,14 +9751,7 @@ classdef Labeler < handle
     end
     function fname = getDefaultFilenameExportGTResults(obj)
       gtstr = 'gtresults';
-      if ~isempty(obj.projectfile)
-        rawname = ['$projdir/$projfile_' gtstr '.mat'];
-      elseif ~isempty(obj.projname)
-        rawname = ['$projdir/$projname_' gtstr '.mat'];
-      else
-        rawname = ['$projdir/' gtstr '.mat'];
-      end
-      sMacro = obj.baseTrkFileMacros();
+      fname = getDefaultFilenameExport(obj,gtstr,'.mat');
       fname = FSPath.macroReplace(rawname,sMacro);
     end
     function tbl = gtLabeledFrameSummary(obj)
@@ -9938,6 +10155,9 @@ classdef Labeler < handle
         'tblMFTrestrict',tblMFTrestrict);
       if tfWB && wbObj.isCancel
         % tblP indeterminate, return it anyway
+        return;
+      end
+      if isempty(tblP),
         return;
       end
       
@@ -10372,7 +10592,7 @@ classdef Labeler < handle
     %   iTrk = 0;
     % end
   
-    function trackMakeOldTrackerCurrent(obj, iTrk)      
+    function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)      
       % Validate the new value
       trackers = obj.trackerHistory_ ;
       tracker_count = numel(trackers) ;
@@ -10439,9 +10659,11 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;
     end  % function
 
-    function trackMakeNewTrackerCurrent(obj, tciIndex)
+    function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
       % Make a new tracker, and make it current.  tciIndex should be a valid index
-      % into obj.trackersAll and/or obj.trackersAllCreateInfo_.
+      % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
+      % constain the stage 1 and stage 2 constructor args if and only if tciIndex
+      % indicates a custom two-stage tracker.
 
       % Validate the new value      
       tcis = obj.trackersAllCreateInfo_ ;
@@ -10464,9 +10686,16 @@ classdef Labeler < handle
           trackers = trackers(2:end) ;
         end
       end
-
+      
       % Create the new tracker
-      tci = tcis{tciIndex} ;
+      rawTCI = tcis{tciIndex} ;
+      if strcmp(rawTCI{1}, 'DeepTrackerTopDownCustom') ,
+        % Need to take steps to determine type of each stage
+        tci = apt.fillInCustomStages(rawTCI, varargin{:}) ;
+      else
+        % Typical case, not a custom top-down tracker
+        tci = rawTCI ;
+      end
       newTracker = LabelTracker.create(obj, tci) ;     
       
       % Filter untrained trackers out of trackers
@@ -10495,10 +10724,10 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;      
     end  % function
 
-    function trackMakeNewTrackerCurrentByName(obj, algoName)
+    function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
       algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
-                                              obj.trackersAll_, ...
-                                              'UniformOutput', false) ;
+                                          obj.trackersAll_, ...
+                                          'UniformOutput', false) ;
       matchingIndices = find(strcmp(algoName, algorithmNameFromTciIndex)) ;
       if isempty(matchingIndices) ,
         error('No algorithm named %s among the available trackers', algoName) ;
@@ -10509,10 +10738,10 @@ classdef Labeler < handle
         tciIndex = matchingIndices(1) ;
         warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, tciIndex) ;
       end
-      obj.trackMakeNewTrackerCurrent(tciIndex) ;
+      obj.trackMakeNewTrackerGivenIndex(tciIndex, varargin{:}) ;
     end  % function
 
-    function trackMakeOldTrackerCurrentByName(obj, algoName)
+    function trackMakeExistingTrackerCurrentGivenAlgoName(obj, algoName)
       algorithmNameFromHistoryIndex = cellfun(@(tracker)(tracker.algorithmName), ...
                                               obj.trackerHistory_, ...
                                               'UniformOutput', false) ;
@@ -10526,7 +10755,7 @@ classdef Labeler < handle
         trackerIndex = matchingIndices(1) ;
         warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, trackerIndex) ;
       end
-      obj.trackMakeOldTrackerCurrent(trackerIndex) ;
+      obj.trackMakeExistingTrackerCurrentGivenIndex(trackerIndex) ;
     end  % function
 
     function result = trackIsTrackerInHistoryByName(obj, algoName)
@@ -10556,8 +10785,8 @@ classdef Labeler < handle
       %          .CPR
       %          .DeepTrack
       
-      obj.setStatus('Setting training parameters...');
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Setting training parameters...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       
       [setall, istrack] = ...
         myparse(varargin, ...
@@ -10605,53 +10834,6 @@ classdef Labeler < handle
       
     end  % function trackSetParams
     
-    function [tPrm,do_update] = trackSetAutoParamsGUI(obj,varargin)
-      % Compute auto parameters and update them based on user feedback
-      %
-      % AL: note this sets the project-level params based on the current
-      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
-      % MA-TD) and switches between them, the behavior may be odd (eg the
-      % user may get prompted constantly about "changed suggestions" etc)
-      %
-      % ALT: Does UI stuff, should be moved into controller
-
-      silent = myparse(varargin,'silent',false) | obj.silent;
-        
-      sPrmCurrent = obj.trackGetTrainingParams();
-      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
-      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
-      % over.
-      
-      % Start with default "new" parameter tree/specification
-      tPrm = APTParameters.defaultParamsTree() ;
-      % Overlay our starting pt
-      tPrm.structapply(sPrmCurrent);
-      
-      if obj.isMultiView        
-        warningNoTrace('Multiview project: not auto-setting params.');
-        do_update = false;
-        return
-      end      
-      
-      if obj.trackerIsTwoStage && ~obj.trackerIsObjDet && isempty(obj.skelHead)
-        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks'));
-        landmark_specs('lObj',obj,'waiton_ui',true);
-        if isempty(obj.skelHead)
-          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters'));
-          do_update = false;
-          return
-        end
-      end
-      
-      [tPrm, canceled, do_update] = APTParameters.autosetparamsGUI(tPrm,obj,'silent',silent);
-      if canceled
-        return
-      elseif do_update
-        sPrmNew = tPrm.structize;
-        obj.trackSetTrainingParams(sPrmNew);
-      end
-    end  % function
-    
     function tPrm = trackGetTrackParams(obj)
       % Get current parameters related to tracking
 
@@ -10663,17 +10845,17 @@ classdef Labeler < handle
       tPrm.structapply(sPrmCurrent);      
     end
     
-    function [sPrmAll] = trackSetTrackParams(obj,sPrmTrack,varargin)      
-      sPrmAll = obj.trackGetTrainingParams();
-      sPrmAll = APTParameters.setTrackParams(sPrmAll,sPrmTrack);
-      
-      obj.trackSetTrainingParams(sPrmAll,varargin{:},'istrack',true);
-      
-      % set all tracker parameters
-      for i = 1:numel(obj.trackerHistory_),
-        obj.trackerHistory_{i}.setTrackParams(sPrmTrack);
-      end
-    end  % function
+    % function sPrmAll = trackSetTrackParamsCore_(obj,sPrmTrack,varargin)      
+    %   sPrmAll = obj.trackGetTrainingParams();
+    %   sPrmAll = APTParameters.setTrackParams(sPrmAll,sPrmTrack);
+    % 
+    %   obj.trackSetTrainingParams(sPrmAll,varargin{:},'istrack',true);
+    % 
+    %   % set all tracker parameters
+    %   for i = 1:numel(obj.trackerHistory_),
+    %     obj.trackerHistory_{i}.setTrackParams(sPrmTrack);
+    %   end
+    % end  % function
     
     function [sPrmDT,sPrmCPRold,ppPrms,trackNFramesSmall,trackNFramesLarge,...
         trackNFramesNear] = convertNew2OldParams(obj,sPrm) % obj CONST
@@ -10756,17 +10938,11 @@ classdef Labeler < handle
       oc2 = onCleanup(@()(obj.notify('update'))) ;
 
       % Update the status
-      obj.setStatus('Spawning training job...') ;
-      oc = onCleanup(@()(obj.clearStatus()));
+      obj.pushBusyStatus('Spawning training job...') ;
+      oc = onCleanup(@()(obj.popBusyStatus()));
 
       % Update the 'status' on the console
       fprintf('Training started at %s...\n',datestr(now()));
-      
-      % % Do stuff that should be done in the controller
-      % obj.trackSetAutoParamsGUI();  % Does UI stuff, should be moved into controller
-      % if ~obj.trackCheckGPUMemGUI()  % Does UI stuff, should be moved into controller
-      %   return
-      % end
       
       % Do something, for some reason.  Maybe vestigial?  -- ALT, 2025-01-24
       if ~isempty(tblMFTtrn)
@@ -10891,6 +11067,45 @@ classdef Labeler < handle
       result = cellfun(@(t)(t.bgTrnIsRunning), trackers) ;
     end  % function
     
+    function [tfCanExport,reason] = trackCanExport(obj,varargin)
+      
+      tfCanExport = false;
+      % is tracker and movie
+      if isempty(obj.tracker),
+        reason = 'The tracker has not been set.';
+        return;
+      end
+      if ~obj.hasMovie,
+        reason = 'There must be at least one movie in the project.';
+        return;
+      end
+      
+      if isempty(obj.trackParams)
+        reason = 'Tracking parameters have not been set.';
+        return;
+      end
+      
+      % allow 'treatInfPosAsOcc' to default to false in these calls; we are
+      % just checking number of labeled rows
+      % this is probably overkill, but no other way to figure out how many
+      % labels there are? 
+      warnst = warning('off','Labeler:infData'); % ignore "Not including n rows with fully-occ labels"
+      oc = onCleanup(@()warning(warnst));
+      tblMFTp = obj.preProcGetMFTableLbled('gtModeOK',true);
+    
+      nlabels = size(tblMFTp,1);
+      
+      if nlabels < 2,
+        tfCanExport = false;
+        reason = 'There must be at least two labeled frames in the project.';
+        return;
+      end
+      
+      tfCanExport = true;
+      reason = '';
+      
+    end
+
     function [tfCanTrain,reason] = trackCanTrain(obj,varargin)
       
       tfCanTrain = false;
@@ -10988,8 +11203,8 @@ classdef Labeler < handle
       if ~okToProceed ,
         error(message) ;
       end
-      obj.setStatus('Preparing for tracking...');
-      cleaner = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Preparing for tracking...');
+      cleaner = onCleanup(@()(obj.popBusyStatus())) ;
       tblMFT = tm.getMFTable(obj,'istrack',true);
       if isempty(tblMFT) ,
         error('All frames already tracked.') ;
@@ -11015,8 +11230,8 @@ classdef Labeler < handle
       % mftset: an MFTSet or table tblMFT
 
       % Let user know what's going on...
-      obj.setStatus('Spawning tracking job...');
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Spawning tracking job...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       if obj.maIsMA
         args = horzcat({'track_type', 'detect'}, varargin) ;
       else
@@ -11109,8 +11324,8 @@ classdef Labeler < handle
     end
     
     function deleteOldTrackers(obj)
-      obj.setStatus('Deleting old trained trackers and all tracking results...');
-      oc = onCleanup(@()(obj.clearStatus())) ;      
+      obj.pushBusyStatus('Deleting old trained trackers and all tracking results...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;      
       trackers = obj.trackerHistory_ ;
       cellfun(@delete, trackers(2:end)) ;
       currentTracker = trackers(1) ;  % singleton cell array
@@ -11119,8 +11334,8 @@ classdef Labeler < handle
     end
     
     function resetCurrentTracker(obj)
-      obj.setStatus('Resetting current trained tracker and all tracking results...');      
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Resetting current trained tracker and all tracking results...');      
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       tracker = obj.tracker ;
       tracker.init() ;
       obj.notify('update_text_trackerinfo') ;
@@ -11128,8 +11343,8 @@ classdef Labeler < handle
     end
     
     function deleteCurrentTracker(obj)
-      obj.setStatus('Deleting current tracker and all tracking results...');
-      oc = onCleanup(@()(obj.clearStatus())) ;      
+      obj.pushBusyStatus('Deleting current tracker and all tracking results...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;      
       trackers = obj.trackerHistory_ ;
       if numel(trackers) > 1 ,
         delete(trackers{1}) ;
@@ -11476,8 +11691,8 @@ classdef Labeler < handle
       %
       % mftset: scalar MFTSet
 
-      obj.setStatus('Tracking...');
-      cleaner = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Tracking...');
+      cleaner = onCleanup(@()(obj.popBusyStatus())) ;
 
       if isempty(mftset) ,
         mftset = obj.getTrackModeMFTSet() ;
@@ -12458,8 +12673,8 @@ classdef Labeler < handle
       if obj.hasTrx && tf
         error('User-specied cropping is unsupported for projects with trx.');
       end
-      obj.setStatus('Switching crop mode...');      
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Switching crop mode...');      
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       obj.cropCheckCropSizeConsistency();
       if obj.cropIsCropMode,
         obj.syncCropInfoToCurrMov();
@@ -13001,14 +13216,9 @@ classdef Labeler < handle
       
       if updateTables
         obj.updateTrxTable();
-%         obj.updateCurrSusp();
       end
       
-      %fprintf('setFrame %d, update tables took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
-
-      
       if updateTrajs
-        %obj.updateTrxSetShowFalse();
         obj.notify('updateTrxSetShowFalse') ;
       end
       
@@ -13040,8 +13250,8 @@ classdef Labeler < handle
       % Set target index, maintaining current movie/frameframe.
       % iTgt: INDEX into obj.trx
       
-      obj.setStatus(sprintf('Switching to target %d...',iTgt));
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus(sprintf('Switching to target %d...',iTgt));
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
 
       if obj.hasTrx
         frm = obj.currFrame;
@@ -13087,7 +13297,11 @@ classdef Labeler < handle
       catch ME
         warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
-      
+
+      if isnan(iTgt)
+        return;
+      end
+
       prevTarget = obj.currTarget;
       obj.currTarget = iTgt;
       
@@ -14586,44 +14800,47 @@ classdef Labeler < handle
       end      
     end
    
-    function setStatus(obj, new_raw_status_string, is_busy)
-      if nargin<3 ,
-        is_busy = true;
-      end
-      obj.isStatusBusy_ = is_busy ;
-      obj.rawStatusString_ = new_raw_status_string ;
-      if ~is_busy ,
-        obj.rawStatusStringWhenClear_ = new_raw_status_string ;
-      end
-      obj.notify('updateStatus') ;      
+    function pushBusyStatus(obj, new_raw_status_string)
+      % Called to indicate the Labeler is doing something.
+      % If there's a controller, it will show the status string in the lower left,
+      % and the mouse pointer will be a watch/hourglass/whatever.  We keep a stack
+      % of the status strings to we can pop them off as nested tasks complete.
+      obj.howBusy_ = obj.howBusy_ + 1 ;
+      obj.rawStatusStringStack_ = horzcat(obj.rawStatusStringStack_, {new_raw_status_string}) ;
+      obj.notify('updateStatusAndPointer') ;      
     end
 
-    function clearStatus(obj)
-      obj.isStatusBusy_ = false ;
-      obj.rawStatusString_ = obj.rawStatusStringWhenClear_ ;
-      obj.notify('updateStatus') ;      
+    function popBusyStatus(obj)
+      % Called to indicate the Labeler is done doing something.  If this call
+      % indicates that the Labeler has finished its last nested task, and there's a
+      % controller attached, this will cause the main window to show the idle status
+      % message in the lower left, and the mouse pointer will go back to being an
+      % arrow.
+      obj.howBusy_ = max(0, obj.howBusy_ - 1) ;
+      obj.rawStatusStringStack_ = obj.rawStatusStringStack_(1:obj.howBusy_) ;
+      obj.notify('updateStatusAndPointer') ;      
     end
 
     function result = get.isStatusBusy(obj)
-      result = obj.isStatusBusy_ ;
+      result = (obj.howBusy_ > 0) ;
     end
 
     function result = get.rawStatusString(obj)
-      result = obj.rawStatusString_ ;
+      if obj.howBusy_ == 0
+        result = obj.rawClearStatusString_ ;
+      else
+        result = obj.rawStatusStringStack_{end} ;
+      end
     end
-
-%     function result = get.rawStatusStringWhenClear(obj)
-%       result = obj.rawStatusStringWhenClear_ ;
-%     end
 
     % function result = get.didSpawnTrackingForGT(obj)
     %   result = obj.didSpawnTrackingForGT_ ;
     % end
 
-    function setRawStatusStringWhenClear_(obj, new_value)
+    function setRawClearStatusString_(obj, new_value)
       % This should go away eventually, once a few more functions in LabelerGUI get
       % folded into Labeler.
-      obj.rawStatusStringWhenClear_ = new_value ;
+      obj.rawClearStatusString_ = new_value ;
     end
     
     function v = allMovIdx(obj)      
@@ -14727,11 +14944,11 @@ classdef Labeler < handle
       value = obj.doesNeedSave_ ;
     end
 
-    function setDoesNeedSave(obj, new_value, why)
+    function setDoesNeedSave(obj, doesNeedSave, why)
       % Can't have a normal setter b/c of the why string.
-      if islogical(new_value) && isscalar(new_value) ,
-        obj.doesNeedSave_ = new_value ;
-        if new_value ,
+      if islogical(doesNeedSave) && isscalar(doesNeedSave) ,
+        obj.doesNeedSave_ = doesNeedSave ;
+        if doesNeedSave ,
           if ~exist('why', 'var') || isempty(why) ,
             why = 'Save needed' ;
           end
@@ -14739,15 +14956,14 @@ classdef Labeler < handle
           if isempty(info) ,
             if isempty(obj.projectfile) ,
               % This indicates a new project, just created.
-              raw_status_string = sprintf('%s, not yet saved.', why) ;
+              obj.rawClearStatusString_ = sprintf('%s, not yet saved.', why) ;
             else
-              raw_status_string = sprintf('%s since $PROJECTNAME saved.', why) ;
+              obj.rawClearStatusString_ = sprintf('%s since $PROJECTNAME saved.', why) ;
             end
           else
-            raw_status_string = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
+            obj.rawClearStatusString_ = sprintf('%s since $PROJECTNAME %s at %s', why, info.action, datestr(info.timestamp,16)) ;
           end
-          is_busy = false ;
-          obj.setStatus(raw_status_string, is_busy) ;  % this will generate an event to update status string in GUI (if present)
+          obj.notify('updateStatusAndPointer') ;
         end        
       else
         error('APT:invalidValue', 'Illegal value for doesNeedSave') ;
@@ -14755,7 +14971,7 @@ classdef Labeler < handle
 
       obj.notify('updateDoesNeedSave') ;
     end
-
+    
     function value = get_backend_property(obj, property_name)
       backend = obj.trackDLBackEnd ;
       value = backend.(property_name) ;
@@ -14773,7 +14989,7 @@ classdef Labeler < handle
     function set.projname(obj, newValue)
       obj.projname = newValue ;
       str = sprintf('Project $PROJECTNAME created (unsaved) at %s',datestr(now(),16));
-      obj.setRawStatusStringWhenClear_(str) ;      
+      obj.setRawClearStatusString_(str) ;      
       obj.notify('didSetProjectName') ;
     end
 
@@ -14782,7 +14998,7 @@ classdef Labeler < handle
       info = obj.projFSInfo ;
       if ~isempty(info)
         str = sprintf('Project $PROJECTNAME %s at %s',info.action,datestr(info.timestamp,16)) ;
-        obj.setRawStatusStringWhenClear_(str) ;
+        obj.setRawClearStatusString_(str) ;
       end
       obj.notify('didSetProjFSInfo') ;
     end
@@ -14887,6 +15103,10 @@ classdef Labeler < handle
 
     function result = get.trackersAll(obj)
       result = obj.trackersAll_ ;
+    end
+
+    function result = get.trackersAllCreateInfo(obj)
+      result = obj.trackersAllCreateInfo_ ;
     end
 
     % function set.currTracker(obj, newValue)
@@ -15067,7 +15287,7 @@ classdef Labeler < handle
       obj.notify('refreshTrackMonitorViz') ;
     end
 
-    function didReceivePollResults(obj, track_or_train)
+    function didReceivePollResultsRetrograde(obj, track_or_train)
       if strcmp(track_or_train, 'train') ,
         obj.notify('updateTrainMonitorViz') ;
       elseif strcmp(track_or_train, 'track') ,
@@ -15127,14 +15347,13 @@ classdef Labeler < handle
       cellfun(@delete, obj.trackersAll_) ;
 
       % Create new templates, trackers
-      rawTrackersCreateInfo = ...
-        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % number-of-trackers x 1
-      trackersCreateInfo = rawTrackersCreateInfo(:)' ;  % want a row vector
+      trackersCreateInfo = ...
+        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % 1 x number-of-trackers
       tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
                      trackersCreateInfo, ...
                      'UniformOutput', false) ;  % 1 x number-of-trackers
       obj.trackersAllCreateInfo_ = trackersCreateInfo ;
-      obj.trackersAll_ = tAll;
+      obj.trackersAll_ = tAll ;
       %obj.notify('update_menu_track_tracking_algorithm') ;
     end
 
@@ -15165,24 +15384,29 @@ classdef Labeler < handle
       else
         statusMessage = 'Switching back to Labeling Mode...' ;
       end
-      obj.setStatus(statusMessage);
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus(statusMessage);
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       obj.gtSetGTMode(gtNew);
     end
 
     function setTrackingParameters(obj, sPrmTrack)
-      obj.setStatus('Setting tracking parameters...');
-      on = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Setting tracking parameters...');
+      on = onCleanup(@()(obj.popBusyStatus())) ;
       if ~isempty(sPrmTrack),
-        sPrmNew = obj.trackSetTrackParams(sPrmTrack);
-        RC.saveprop('lastCPRAPTParams',sPrmNew);
+        sPrmAll = obj.trackGetTrainingParams();
+        sPrmAllNew = APTParameters.setTrackParams(sPrmAll,sPrmTrack);        
+        obj.trackSetTrainingParams(sPrmAllNew,'istrack',true);        
+        % set all tracker parameters
+        for i = 1:numel(obj.trackerHistory_),
+          obj.trackerHistory_{i}.setTrackParams(sPrmTrack);
+        end
         obj.setDoesNeedSave(true, 'Parameters changed') ;
       end
-    end
+    end  % function
 
     function projRemoveOtherTempDirs(obj, todelete)
-      obj.setStatus('Deleting temp directories...');
-      oc = onCleanup(@()(obj.clearStatus())) ;      
+      obj.pushBusyStatus('Deleting temp directories...');
+      oc = onCleanup(@()(obj.popBusyStatus())) ;      
       ndelete = 0;
       for i = 1:numel(todelete),
         [success, msg, ~] = rmdir(todelete{i},'s');
@@ -15200,8 +15424,8 @@ classdef Labeler < handle
     end    
     
     function clearTrackingResults(obj)
-      obj.setStatus('Clearing tracking results...') ;
-      oc = onCleanup(@()(obj.clearStatus())) ;
+      obj.pushBusyStatus('Clearing tracking results...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       tracker = obj.tracker ;
       if ~isempty(tracker) 
         tracker.clearTrackingResults() ;
@@ -15343,24 +15567,53 @@ classdef Labeler < handle
     %   obj.notify('trainStart') ;
     % end
 
-    function trainingEnded(obj, endCause)
+    function trainingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
       % Normally called from children of Labeler to inform it that training has
       % just ended.
       if endCause == EndCause.complete 
         obj.setDoesNeedSave(true, 'Tracker trained') ;
+      elseif endCause == EndCause.error
+        obj.printErrorInfo_('train', pollingResultOrEmpty)
       end
-      obj.notify('update') ;
+      obj.notify('trainEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
     end
     
-    function trackingEnded(obj, endCause)
+    function trackingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
       % Normally called from children of Labeler to inform it that tracking has
       % just ended.
       if endCause == EndCause.complete 
         obj.setDoesNeedSave(true, 'New frames tracked') ;
+      elseif endCause == EndCause.error
+        obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
-      obj.notify('update') ;
+      obj.notify('trackEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
     end
     
+    function printErrorInfo_(obj, train_or_track, pollingResultOrEmpty)
+      % Produce an error message on the console
+      fprintf('Error occurred during %sing:\n', train_or_track) ;
+      if isempty(pollingResultOrEmpty) ,
+        fprintf('Something went very wrong.  No other information is available.\n') ;
+      else
+        pollingResult = pollingResultOrEmpty ;
+        errorFileIndexMaybe = find(pollingResult.errFileExists, 1) ; 
+        if isempty(errorFileIndexMaybe) ,
+          fprintf('One of the background jobs exited, for unknown reasons.  No error file was produced.\n') ;
+        else
+          errorFileIndex = errorFileIndexMaybe ;
+          errFile = pollingResult.errFile{errorFileIndex} ;
+          doesErrorFileExist = obj.backend.fileExists(errFile) ;
+          if doesErrorFileExist ,
+            fprintf('\n### %s\n\n',errFile);
+            errContents = obj.backend.fileContents(errFile) ;
+            disp(errContents);
+          else
+            fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
+          end      
+        end      
+      end
+    end  % function
+
     function result= get.backgroundProcessingStatusString(obj)
       result = obj.backgroundProcessingStatusString_ ;
     end
@@ -15376,4 +15629,27 @@ classdef Labeler < handle
       result = fullfile(APT.Root, 'matlab', 'config.default.yaml') ;
     end  % function
   end  % methods (Static)
+
+  methods
+    function updateTrainingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrainingMonitor') ;
+    end  % function
+
+    function updateTrackingMonitorRetrograde(obj)
+      % Called by children to generate a notification
+      obj.notify('updateTrackingMonitor') ;
+    end  % function
+
+    function pushBusyStatusRetrograde(obj, new_raw_status_string)
+      % Called by children when they want to update the busy status
+      obj.pushBusyStatus(new_raw_status_string) ;
+    end
+
+    function popBusyStatusRetrograde(obj)
+      % Called by children when they want to update the busy status
+      obj.popBusyStatus() ;
+    end
+    
+  end  % methods
 end  % classdef
