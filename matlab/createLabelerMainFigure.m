@@ -4015,16 +4015,9 @@ set(tbl0,...
   'FontUnits','points',...
   'FontSize',9.75,... % matches .tblTrx
   'BackgroundColor',[.3 .3 .3; .45 .45 .45]);  
-% AL 20210209: jtable performance is too painful for larger projs (more 
-% labels in any single movie). As of 2020x only cost to using regular 
-% table is inability to set selected/hilite row.
-
 % AL 20210209: jtable performance is too painful for larger projs (more
 % labels in any single movie). As of 2020x only cost to using regular
 % table is inability to set selected/hilite row.
-
-figSetPosAPTDefault(main_figure);
-set(main_figure,'Units','normalized');
 
 handles.sldZoom.Min = 0;
 handles.sldZoom.Max = 1;
@@ -4055,10 +4048,22 @@ handles.pbPlay.BackgroundColor = handles.edit_frame.BackgroundColor;
 %   'Tag','pbPlaySegRev');
 % % handles.pbPlaySegRev = hps1;
 
+% Adjust the positions of the edit_frame and the slider_frame
 pbPlaySegRevright1 = pbPlaySegRev.Position(1)+pbPlaySegRev.Position(3);
 dx = pbPlaySegRevright1 - pbPlaySegright0; % edit_frame, slider_frame shifted to right by this much
 handles.edit_frame.Position(1) = handles.edit_frame.Position(1) + dx;
 handles.slider_frame.Position([1 3]) = handles.slider_frame.Position([1 3]) + dx*[1 -1];
+
+% The GUIDE .fig has the units of most things normalized, but for some reason
+% the exported .m mode has those all converted to pixels.  Se those all back
+% to normalized so that resizing works as before.
+% Need to do this before the call to figSetPosAPTDefault() since that can
+% potentially resize the figure.
+visit_children(main_figure, @set_pixel_units_to_normalized) ;
+
+% Make sure the APT window is not bigger than the screen
+figSetPosAPTDefault(main_figure);
+set(main_figure,'Units','normalized');  % Why do we do this?  -- ALT, 2025-06-05
 
 %handles.controller.enableControls_('tooltipinit');
 set(main_figure,'Visible','on');
@@ -4120,11 +4125,6 @@ if ismac()  % Change color of buttons
     set(handles.(toChange{ndx}),'ForegroundColor',[1.0,0.0,1.0]);
   end
 end
-
-% The GUIDE .fig has the units of most things normalized, but for some reason
-% the exported .m mode has those all converted to pixels.  Se those all back
-% to normalized so that resizing works as before
-visit_children(main_figure, @set_pixel_units_to_normalized) ;
 
 % % Write the modified handles structure back to the figure guidata
 % guidata(main_figure, handles);
