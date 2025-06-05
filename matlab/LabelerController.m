@@ -1466,7 +1466,7 @@ classdef LabelerController < handle
       set(obj.edit_frame,'Enable',onIff(hasProject));
       set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
       set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
-      set(obj.toolbar,'Visible',onIff(hasProject))
+      set(obj.toolbar,'Visible',onIff(hasProject)) ;
       
       obj.menu_track.Enable = onIff(hasTracker);
       obj.pbTrain.Enable = onIff(hasTracker);
@@ -5059,20 +5059,10 @@ classdef LabelerController < handle
 
 
     function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       ax = obj.axes_curr;
-      if strcmp(src.Checked,'on')
-        onoff = 'off';
-      else
-        onoff = 'on';
-      end
+      onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
       ax.Toolbar.Visible = onoff;
       src.Checked = onoff;
-      % For now not listening to ax.Toolbar.Visible for cmdline changes
-
-
     end
 
 
