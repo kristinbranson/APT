@@ -42,7 +42,7 @@ classdef BgClient < handle
       projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
 
       % Configure poller object
-      assert(ismethod(parent,'didReceivePollResults'));      
+      assert(ismethod(parent,'didReceivePollResultsRetrograde'));      
       obj.parent_ = parent ;
       obj.poller = poller ; % will be parfeval-copied into background process
       
@@ -71,7 +71,7 @@ classdef BgClient < handle
       % Start runPollingLoop() on new thread
       
       fromPollingLoopDataQueue = parallel.pool.DataQueue() ;
-      fromPollingLoopDataQueue.afterEach(@(dat)obj.didReceivePollResults(dat));
+      fromPollingLoopDataQueue.afterEach(@(dat)obj.didReceivePollResultsFromPollingLoop(dat));
       obj.qPoller2Me = fromPollingLoopDataQueue;
       
       p = gcp() ;
@@ -158,9 +158,9 @@ classdef BgClient < handle
     %   end
     % end    
     
-    function didReceivePollResults(obj, data)
+    function didReceivePollResultsFromPollingLoop(obj, data)
       % Pass poll results on to the parent BgMonitor
-      obj.parent_.didReceivePollResults(data) ;
+      obj.parent_.didReceivePollResultsRetrograde(data) ;
     end  % function
     
   end

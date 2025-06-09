@@ -92,7 +92,9 @@ classdef LabelCoreSeqMA < LabelCore
       obj.roiInit();
 
       obj.labeler.currImHud.updateReadoutFields('hasTgt',true);
-      obj.labeler.gdata.axes_curr.Toolbar.Visible = 1;
+      % obj.labeler.gdata.axes_curr.Toolbar.Visible = 1;  
+        % Commented out line above b/c doesn't respect menu setting.  
+        % -- ALT, 2025-06-02
       obj.tcOn = obj.labeler.isTwoClickAlign;
     end
     function addMAbuttons(obj)
