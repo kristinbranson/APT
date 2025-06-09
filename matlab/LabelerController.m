@@ -4548,10 +4548,29 @@ classdef LabelerController < handle
         labeler.labelOverlayMontageGUI();
         if ~labeler.isMultiView
           labeler.labelOverlayMontageGUI('ctrMeth','centroid');
+          if labeler.maIsMA
+            prms = labeler.trackParams;
+            if ~isempty(prms)
+              if isfield(prms.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
+                tfScale = prms.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox;
+              else
+                tfScale = false;
+              end
+            end
+          else
+            tfScale = false;
+          end
+%           if tfScale
+%             labeler.labelOverlayMontageGUI('ctrMeth','centroid','scale',true);          
+%           end
           tfHTdefined = ~isempty(labeler.skelHead) && ~isempty(labeler.skelTail);
           if tfHTdefined
             labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail');
+            if tfScale
+              labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail','scale',true);
+            end
           else
+            labeler.labelOverlayMontageGUI('ctrMeth','centroid','scale',true);
             warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
           end
         end

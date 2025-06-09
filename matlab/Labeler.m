@@ -8241,8 +8241,14 @@ classdef Labeler < handle
       else
         tfaf = [];
       end
+      if obj.maIsMA
+        max_animals = obj.tracker.sPrmAll.ROOT.MultiAnimal.Track.max_n_animals;
+      else
+        max_animals = 1;
+      end
+
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,obj.(PROPS.LBL),...
-        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:});
+        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:},'isma',obj.maIsMA,'maxanimals',max_animals);
     end
 
 %     function tblMF = labelAddLabelsMFTable_Old(obj,tblMF,varargin)
@@ -8269,15 +8275,16 @@ classdef Labeler < handle
     
     function hFgs = labelOverlayMontageGUI(obj,varargin)
       [ctrMeth,rotAlignMeth,roiRadius,roiPadVal,hFig0,...
-        addMarkerSizeSlider] = myparse(varargin,...
+        addMarkerSizeSlider,scale] = myparse(varargin,...
         'ctrMeth','none',... % {'none' 'trx' 'centroid'}; see hlpOverlay...
         'rotAlignMeth','none',... % Rotational alignment method when ctrMeth is not 'none'. One of {'none','headtail','trxtheta'}. 
         ... % 'trxCtredSizeNorm',false,... True to normalize shapes by trx.a, trx.b. SKIP THIS for now. Have found that doing this normalization 
         ... % tightens shape distributions a bit (when tracking/trx is good)
         'roiRadius',nan,... % A little unusual, used if .preProcParams.TargetCrop.Radius is not avail
         'roiPadVal',0,...% A little unsuual, used if .preProcParams.TargetCrop.PadBkgd is not avail
-        'hFig0',[],... % Optional, previous figure to use with figurecascaded
-        'addMarkerSizeSlider',true ...
+        'hFig0',[],... % Optional, previous figure to use with figurecascaded        
+        'addMarkerSizeSlider',true, ...
+        'scale',false ...
         ); 
 
       if ~obj.hasMovie
@@ -8304,10 +8311,35 @@ classdef Labeler < handle
       tMFT = obj.labelAddLabelsMFTable(tMFT);
             
       [ims,p] = obj.hlpOverlayMontageGenerateImP(tMFT,nphyspts,...
-                                                 ctrMeth,rotAlignMeth,roiRadius,roiPadVal);
+                                                 ctrMeth,rotAlignMeth,roiRadius,roiPadVal,'scale',scale);
       n = size(p,1);
-      % p is [n x nphyspts*nvw*2]
-      p = reshape(p',[nphyspts nvw 2 n]);
+      if ndims(p) == 2
+        % p is [n x nphyspts*nvw*2]
+        p = reshape(p',[nphyspts nvw 2 n]);
+      else
+        [p_tgt,p_mov] = meshgrid(1:size(p,2),tMFT.mov);
+        p_frm = repmat(tMFT.frm,[1,size(p,2)]);
+        p_tgt = p_tgt'; p_tgt= uint32(p_tgt(:));
+        p_mov = p_mov'; p_mov = uint32(p_mov(:));
+        p_frm = p_frm'; p_frm = p_frm(:);
+
+        p = permute(p,[2,1,3]);
+        p = permute(reshape(p,[n*size(p,1) nphyspts nvw 2]),[2,3,4,1]);
+        p_tgt = p_tgt(:);
+        remove = all(isnan(p(:,:,1,:)),1);
+        p(:,:,:,remove(1,1,1,:)) = [];
+        p_tgt(remove(1,1,1,:)) = [];
+        p_mov(remove(1,1,1,:)) = [];
+        p_frm(remove(1,1,1,:)) = [];
+        p4tbl = reshape(p,[],size(p,4))';
+        tMFT1 = table('Size',[size(p_mov,1),4],'VariableTypes',{'uint32','uint32','uint32','double'}, ...
+          'VariableNames',{'mov','frm','iTgt','p'});        
+        tMFT1.mov = p_mov;
+        tMFT1.frm = p_frm;
+        tMFT1.iTgt = p_tgt;
+        tMFT1.p = p4tbl;
+        tMFT = tMFT1;
+      end
       
       % KB 20181022 - removing references to ColorsSets
       lppi = obj.labelPointsPlotInfo;
@@ -8348,6 +8380,9 @@ classdef Labeler < handle
             case 'trxtheta'
               rotStr = 'Centered, trx/theta aligned';
           end
+          if scale
+            rotStr = [rotStr ', scaled'];
+          end
         else
           rotStr = '';
         end
@@ -8363,7 +8398,7 @@ classdef Labeler < handle
         end
         title(tstr,'fontweight','bold');
         tbases{ivw} = tstr;
-        
+     
         xall = squeeze(p(:,ivw,1,:)); % [npts x nfrm]
         yall = squeeze(p(:,ivw,2,:)); % [npts x nfrm]
         eids = repmat(1:height(tMFT),nphyspts,1);
@@ -8437,7 +8472,7 @@ classdef Labeler < handle
     end
 
     function [ims,p] = hlpOverlayMontageGenerateImP(obj,tMFT,nphyspts,...
-                                                    ctrMeth,rotAlignMeth,~,roiPadVal)
+                                                    ctrMeth,rotAlignMeth,~,roiPadVal,varargin)
       % Generate images and shapes to plot
       %
       % tMFT: table with labeled frames
@@ -8466,6 +8501,8 @@ classdef Labeler < handle
       % 
       % ims: [nview] cell array of images to plot
       % p: all labels [nlbledfrm x D==(nphyspts*nvw*d)]      
+
+      [scale] = myparse(varargin,'scale',false);
 
       tfCtred = true;
       switch ctrMeth
@@ -8571,16 +8608,26 @@ classdef Labeler < handle
         
         % Step 1: add central pt when appropriate
         p = tMFT.p; % [nLbld x nphyspts*(nvw==1)*2]
+        p_dims = ndims(p);
+        nrows = size(p,1);
+        nanimals = 1;
+        if p_dims == 3
+          nanimals =  size(p,2);
+          p = reshape(permute(p,[2 1 3]),[size(p,1)*size(p,2) size(p,3)]); % remove a dimension
+        end
+
         switch ctrMeth
           case 'trx'
             pc = tMFT.pTrx; % [nLbld x 2]
+            pc = permute(pc,[1 3 2]);
           case 'centroid'
             assert(size(p,2)==nphyspts*2);
-            pc = [mean(p(:,1:nphyspts),2, 'omitnan') mean(p(:,nphyspts+1:end),2,'omitnan')];
+            pc = cat(2,mean(p(:,1:nphyspts),2, 'omitnan'),mean(p(:,nphyspts+1:end),2,'omitnan'));
+    
         end
         % central point added as (nphyspts+1)th point, we will use it to
         % center our aligned shapes
-        pWithCtr = [p(:,1:nphyspts) pc(:,1) p(:,nphyspts+1:end) pc(:,2)];
+        pWithCtr = cat(2,p(:,1:nphyspts),pc(:,1), p(:,nphyspts+1:end),pc(:,2));
             
         % Step 2: rotate
         % Step 3: subtract off center pt
@@ -8588,16 +8635,18 @@ classdef Labeler < handle
           case 'none'
             pWithCtrAligned = pWithCtr;
           case 'headtail'
+
             pWithCtrAligned = Shape.alignOrientationsOrigin(pWithCtr,iptHead,iptTail);
             % aligned based on iHead/iTailpts, now with arbitrary offset
             % b/c was rotated about origin. Note the presence of pc as
             % the "last" point should not affect iptHead/iptTail defns
           case 'trxtheta'
+            assert(p_dims==2)
             thTrx = tMFT.thetaTrx;
             pWithCtrAligned = Shape.rotate(pWithCtr,-thTrx,[0 0]); % could rotate about pTrx but shouldn't matter
             % aligned based on trx.theta, now with arbitrary offset
         end
-        
+
         n = size(p,1);
         twoRadP1 = 2*roiRadius+1;
         for i=1:n
@@ -8605,14 +8654,25 @@ classdef Labeler < handle
           xyRowWithTrx = bsxfun(@minus,xyRowWithTrx,xyRowWithTrx(end,:));
           % subtract off pCtr. All pts/coords now relative to origin at
           % pCtr, with shape aligned.
+          if scale
+            sz_x = max(xyRowWithTrx(1:end-1,1),[],1,'omitnan') - min(xyRowWithTrx(1:end-1,1),[],1,'omitnan');
+            sz_y = max(xyRowWithTrx(1:end-1,2),[],1,'omitnan') - min(xyRowWithTrx(1:end-1,2),[],1,'omitnan');
+            sz = max(sz_x,sz_y);
+            xyRowWithTrx = xyRowWithTrx./sz*roiRadius;
+          end
+
+
           xyRow = xyRowWithTrx(1:end-1,:) + roiRadius + 1; % places origin at center of roi
           tfOOB = xyRow<1 | xyRow>twoRadP1; % [nphyspts x 2]
-          if any(tfOOB(:))
-            trow = tMFT(i,:);
+          if any(tfOOB(:)) && ~all(isnan(xyRow(:)))
+            trow = tMFT(int32(i/nanimals)+1,:);
             warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
               trow.mov,trow.frm,trow.iTgt);
           end
           p(i,:) = Shape.xy2vec(xyRow); % in-place modification of p
+        end
+        if p_dims==3
+          p = permute(reshape(p,nanimals,nrows,nphyspts*2),[2,1,3]);
         end
       else
         % ims: no change
