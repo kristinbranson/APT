@@ -5,13 +5,14 @@ classdef LabelerController < handle
     listeners_
     satellites_ = gobjects(1,0)  % handles of dialogs, figures, etc that will get deleted when this object is deleted
     waitbarFigure_ = gobjects(1,0)  % a GH to a waitbar() figure, or empty
-    trackingMonitorVisualizer_
-    trainingMonitorVisualizer_
+    trackingMonitorVisualizer_  % a subcontroller
+    trainingMonitorVisualizer_  % a subcontroller
     movieManagerController_
     pxTxUnsavedChangesWidth_  
       % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
     isPlaying_ = false  % whether a video is currently playing or not
     labelTLInfo  % an InfoTimeline object
+    splashScreenFigureOrEmpty_  % GH to the splash screen figure, or empty
   end
 
   properties  % private/protected by convention
@@ -40,11 +41,11 @@ classdef LabelerController < handle
     axes_timeline_manual
     cropHRect
     edit_frame
-    h_addpoints_only
-    h_ma_only
-    h_multiview_only
-    h_nonma_only
-    h_singleview_only
+    % h_addpoints_only
+    % h_ma_only
+    % h_multiview_only
+    % h_nonma_only
+    % h_singleview_only
     image_curr
     image_prev
     labelMode2SetupMenu
@@ -57,6 +58,7 @@ classdef LabelerController < handle
     menu_evaluate_gtexportresults
     menu_evaluate_gtloadsuggestions
     menu_evaluate_gtmode
+    menu_evaluate_gt_frames
     menu_evaluate_gtsetsuggestions
     menu_file
     menu_file_bundle_tempdir
@@ -66,13 +68,15 @@ classdef LabelerController < handle
     menu_file_export_all_movies
     menu_file_export_labels2_trk_curr_mov
     menu_file_export_labels_table
+    menu_file_export_labels_cocojson
+    menu_file_import_labels_cocojson
     menu_file_export_labels_trks
-    menu_file_export_stripped_lbl
     menu_file_import_export_advanced
     menu_file_import_labels2_trk_curr_mov
     menu_file_import_labels_table
     menu_file_import_labels_trk_curr_mov
-    menu_file_importexport
+    menu_file_import
+    menu_file_export
     menu_file_load
     menu_file_managemovies
     menu_file_new
@@ -82,7 +86,6 @@ classdef LabelerController < handle
     menu_file_saveas
     menu_file_shortcuts
     menu_go
-    menu_go_gt_frames
     menu_go_movies_summary
     menu_go_nav_prefs
     menu_go_targets_summary
@@ -143,13 +146,13 @@ classdef LabelerController < handle
     menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_hide_predictions
-    menu_view_hide_trajectories
+    menu_view_show_trajectories
     menu_view_landmark_colors
     menu_view_landmark_label_colors
     menu_view_landmark_prediction_colors
     menu_view_occluded_points_box
     menu_view_pan_toggle
-    menu_view_plot_trajectories_current_target_only
+    menu_view_show_trajectories_current_target_only
     menu_view_reset_views
     menu_view_rotate_video_target_up
     menu_view_show_axes_toolbar
@@ -172,7 +175,6 @@ classdef LabelerController < handle
     pbClearSelection
     pbPlay
     pbPlaySeg
-    pbPlaySegBoth
     pbPlaySegRev
     pbRecallZoom
     pbResetZoom
@@ -262,7 +264,6 @@ classdef LabelerController < handle
 
       % Set up the main instance variables
       obj.labeler_ = labeler ;
-      % obj.mainFigure_ = LabelerGUI(labeler, obj) ;
       mainFigure = createLabelerMainFigure() ;
       obj.mainFigure_ = mainFigure ;
       obj.labeler_.registerController(obj) ;  % hack
@@ -270,7 +271,12 @@ classdef LabelerController < handle
       obj.isInYodaMode_ = isInYodaMode ;  
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
-        
+
+      % Create the splash screen figure
+      % (Do this after creation of main figure so splash screen figure is on top.)
+      obj.splashScreenFigureOrEmpty_ = createSplashScreenFigure() ;
+      oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
+              
       % Initialize all the instance vars that will hold references to GUI controls
       handles = guihandles(mainFigure) ;
       tags = fieldnames(handles) ;
@@ -299,7 +305,7 @@ classdef LabelerController < handle
       obj.updateEnablementOfManyControls() ;
       
       % Update the status
-      obj.updateStatusBar() ;
+      obj.updateStatusAndPointer() ;
 
       % % Populate the callbacks of the controls in the main figure---someday
       % apt.populate_callbacks_bang(mainFigure, obj) ;
@@ -343,34 +349,30 @@ classdef LabelerController < handle
       obj.setupMenu2LabelMode = struct(tmp{:});
 
       % Set up arrays of handles of various kinds
-      obj.h_multiview_only = [...
-        handles.menu_setup_multiview_calibrated_mode_2...
-        ];
-      obj.h_singleview_only = [...
-         handles.menu_setup_sequential_mode ...
-         handles.menu_setup_template_mode ...
-         handles.menu_setup_highthroughput_mode ...
-         handles.menu_setup_multianimal_mode ...
-         handles.menu_setup_sequential_add_mode ...
-         ];
-      obj.h_ma_only = [...
-        handles.menu_setup_multianimal_mode, ...
-        %handles.menu_track_id ...
-        ];
-      obj.h_nonma_only = [ ...
-        handles.menu_setup_multiview_calibrated_mode_2...
-        handles.menu_setup_sequential_mode ...
-        handles.menu_setup_template_mode ...
-        handles.menu_setup_highthroughput_mode ...
-        handles.menu_setup_sequential_add_mode ...
-        ];
-      obj.h_addpoints_only = [...
-        handles.menu_setup_sequential_add_mode ...
-        ];
+      % obj.h_multiview_only = [...
+      %   handles.menu_setup_multiview_calibrated_mode_2...
+      %   ];
+      % obj.h_singleview_only = [...
+      %    handles.menu_setup_sequential_mode ...
+      %    handles.menu_setup_template_mode ...
+      %    handles.menu_setup_highthroughput_mode ...
+      %    handles.menu_setup_multianimal_mode ...
+      %    handles.menu_setup_sequential_add_mode ...
+      %    ];
+      % obj.h_ma_only = [...
+      %   handles.menu_setup_multianimal_mode, ...
+      %   ];
+      % obj.h_nonma_only = [ ...
+      %   handles.menu_setup_multiview_calibrated_mode_2...
+      %   handles.menu_setup_sequential_mode ...
+      %   handles.menu_setup_template_mode ...
+      %   handles.menu_setup_highthroughput_mode ...
+      %   handles.menu_setup_sequential_add_mode ...
+      %   ];
+      % obj.h_addpoints_only = [...
+      %   handles.menu_setup_sequential_add_mode ...
+      %   ];
 
-      % Initialize this thing
-      obj.pbPlaySegBoth = [ obj.pbPlaySeg obj.pbPlaySegRev ] ;
-      
       % Make the debug menu visible, if called for
       obj.menu_debug.Visible = onIff(labeler.isInDebugMode) ;      
 
@@ -382,7 +384,7 @@ classdef LabelerController < handle
       hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
       hP = pan(mainFigure);  % hP is a "pan object"
       hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
-      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.figure_CloseRequestFcn())) ;    
+      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.quitRequested())) ;    
       % obj.menu_track_reset_current_tracker.Callback = ...
       %   @(s,e)(obj.controlActuated('menu_track_reset_current_tracker', s, e)) ;
       % obj.menu_track_delete_current_tracker.Callback = ...
@@ -394,12 +396,16 @@ classdef LabelerController < handle
       % method name.
       visit_children(mainFigure, @set_standard_callback_if_none_bang, obj) ;
 
+      % Manually clear ones that use ContinuousValueChange events
+      obj.slider_frame.Callback = [] ;
+      obj.sldZoom.Callback = [] ;
+
       % Add the listeners
       obj.listeners_ = event.listener.empty(1,0) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateDoesNeedSave', @(source,event)(obj.updateDoesNeedSave(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateStatus', @(source,event)(obj.updateStatusBar())) ;      
+        addlistener(labeler, 'updateStatusAndPointer', @(source,event)(obj.updateStatusAndPointer())) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetTrx', @(source,event)(obj.didSetTrx(source, event))) ;      
       obj.listeners_(end+1) = ...
@@ -407,7 +413,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'didHopefullySpawnTrackingForGT', @(source,event)(obj.showDialogAfterHopefullySpawningTrackingForGT(source, event))) ;      
+        addlistener(labeler, 'didSpawnTrackingForGT', @(source,event)(obj.showDialogAfterSpawningTrackingForGT(source, event))) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;
       obj.listeners_(end+1) = ...
@@ -422,8 +428,8 @@ classdef LabelerController < handle
         addlistener(labeler,'refreshTrainMonitorViz',@(source,event)(obj.refreshTrainMonitorViz()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTrainMonitorViz',@(source,event)(obj.updateTrainMonitorViz()));      
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingStoppedDialog()));      
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'raiseTrainingStoppedDialog',@(source,event)(obj.raiseTrainingEndedDialog_()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'newProject',@(source,event)(obj.didCreateNewProject()));
       obj.listeners_(end+1) = ...
@@ -449,11 +455,11 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'updateTargetCentrationAndZoom', @(src,evt)(obj.updateTargetCentrationAndZoom()) ) ;
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'trainStart', @(src,evt) (obj.cbkTrackerTrainStart())) ;
+        addlistener(labeler,'updateTrainingMonitor', @(src,evt) (obj.updateTrainingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trainEnd', @(src,evt) (obj.cbkTrackerTrainEnd())) ;
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'trackStart', @(src,evt) (obj.cbkTrackerStart())) ;
+        addlistener(labeler,'updateTrackingMonitor', @(src,evt) (obj.updateTrackingMonitor())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler,'trackEnd', @(src,evt) (obj.cbkTrackerEnd())) ;
       obj.listeners_(end+1) = ...
@@ -559,7 +565,13 @@ classdef LabelerController < handle
       obj.update() ;
 
       % Do this once listeners are set up
-      obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
+      obj.controlActuated('handleCreationTimeAdditionalArgumentsGUI', [], [], varargin{:}) ;
+      % This will lead to 
+      %   obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:})
+      % getting called, but we call it via obj.controlActuated() b/c we want to
+      % be able to throw errors in the model method and have them get handled via
+      % a dialog box vs the error percolating up to the top, depending on whether
+      % a LabelerController is present.
     end
 
     function delete(obj)
@@ -591,26 +603,34 @@ classdef LabelerController < handle
       end
     end
 
-    function updateStatusBar(obj)
+    function updateStatusAndPointer(obj)
       % Update the status text box to reflect the current model state.
       labeler = obj.labeler_ ;
       is_busy = labeler.isStatusBusy ;
-      if is_busy
-        color = obj.busystatuscolor;
-        if any(isgraphics(obj.figs_all)),
-          set(obj.figs_all(isgraphics(obj.figs_all)),'Pointer','watch');
-        else
-          set(obj.mainFigure_,'Pointer','watch');
-        end
+      pointer = fif(is_busy, 'watch', 'arrow') ;
+      valid_figs_all = obj.figs_all(isgraphics(obj.figs_all)) ;
+      % Seems like "set(valid_figs_all,'Pointer',pointer);" should be sufficient,
+      % istead of the if-else clause below.  Is obj.figs_all not always kept up to
+      % date?  Normally obj.mainFigure_ == obj.figs_all(1).
+      if ~isempty(valid_figs_all) ,
+        set(valid_figs_all,'Pointer',pointer);
       else
-        color = obj.idlestatuscolor;
-        if any(isgraphics(obj.figs_all)),
-          set(obj.figs_all(isgraphics(obj.figs_all)),'Pointer','arrow');
-        else
-          set(obj.mainFigure_,'Pointer','arrow');
+        mainFigure = obj.mainFigure_ ;
+        if ~isempty(mainFigure) && isgraphics(mainFigure) ,
+          set(mainFigure,'Pointer',pointer);
         end
       end
-      set(obj.txStatus,'ForegroundColor',color);
+      statusColor = fif(is_busy, obj.busystatuscolor, obj.idlestatuscolor) ;
+      set(obj.txStatus,'ForegroundColor',statusColor);      
+      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_)
+        obj.trainingMonitorVisualizer_.updatePointer() ;
+      end
+      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+        obj.trackingMonitorVisualizer_.updatePointer() ;
+      end
+      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_)
+        obj.movieManagerController_.updatePointer() ;
+      end
 
       % Actually update the String in the status text box.  Use the shorter status
       % string from the labeler if the normal one is too long for the text box.
@@ -637,9 +657,26 @@ classdef LabelerController < handle
         end
       end
 
-      % Make sure to update graphics now-ish
-      drawnow('limitrate', 'nocallbacks');
+      % Make sure to update graphics now
+      drawnow('nocallbacks');
     end
+
+    function updateBackgroundProcessingStatus_(obj)
+      % Update obj.txBGTrain (the lower-right corner text box) is reflect the
+      % current training/tracking bout.
+      labeler = obj.labeler_ ;      
+      isTrainingOrTracking = labeler.bgTrnIsRunning || labeler.bgTrkIsRunning ;
+      if isTrainingOrTracking
+        obj.txBGTrain.String = labeler.backgroundProcessingStatusString ;
+        % obj.txBGTrain.ForegroundColor = LabelerController.busystatuscolor ;
+        obj.txBGTrain.Visible = 'on' ;
+      else
+        % This below here is all wrong.  Should just be an update.
+        % obj.txBGTrain.String = 'Idle' ;
+        % obj.txBGTrain.ForegroundColor = obj.idlestatuscolor ;
+        obj.txBGTrain.Visible = 'off' ;
+      end
+    end  % function
 
     function didSetTrx(obj, ~, ~)
       trx = obj.labeler_.trx ;
@@ -781,7 +818,12 @@ classdef LabelerController < handle
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true) ;
       
+      % Switch to watch cursor
       labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
+      oc = onCleanup(@()(labeler.popBusyStatus()));
+
+      % Check for project, movie
       [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
       if ~doTheyExist ,
         error(message) ;
@@ -801,8 +843,14 @@ classdef LabelerController < handle
         error('Tracker not fit to be trained: %s', reason) ;
       end
       
-      % Do this stuff
-      labeler.trackSetAutoParamsGUI();
+      % See if the automatically-determined parameters differ from the currently set
+      % ones.  If so, offer user the option to change to the auto-determined params.
+      [~, ~, was_canceled] = obj.setAutoParams();
+      if was_canceled 
+        return
+      end
+
+      % Make sure we have enough GPU memory
       if ~labeler.trackCheckGPUMemGUI()
         return
       end
@@ -820,19 +868,24 @@ classdef LabelerController < handle
     end  % method    
 
     function menu_track_backend_config_aws_configure_actuated_(obj, source, event)  %#ok<INUSD> 
-      obj.selectAwsInstance_('canlaunch',1,...
-                             'canconfigure',2, ...
-                             'forceSelect',1) ;
+      obj.selectAwsInstanceGUI_('canlaunch',true,...
+                                'canconfigure',2, ...
+                                'forceSelect',true) ;
     end
 
     function menu_track_backend_config_aws_setinstance_actuated_(obj, source, event)  %#ok<INUSD> 
-      obj.selectAwsInstance_() ;
+      obj.selectAwsInstanceGUI_() ;
     end
 
     function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
       % Get the tracker index
-      tracker_index = source.UserData;
+      trackerIndex = source.UserData;
       labeler = obj.labeler_ ;
+
+      % The dialog for a custom two-stage tracker takes a while to come up, so
+      % want to show the watch pointer.
+      labeler.pushBusyStatus('Creating new tracker...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
 
       % Validation happens inside Labeler now
       % % Validate it
@@ -850,8 +903,31 @@ classdef LabelerController < handle
       %   do_use_previous = [] ;  % value will be ignored
       % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
       
-      % Finally, call the model method to set the tracker
-      labeler.trackMakeNewTrackerCurrent(tracker_index) ;      
+      % Check for a custom tracker
+      tcis = labeler.trackersAllCreateInfo ;
+      trackerCount = numel(tcis) ;
+      if ~is_index_in_range(trackerIndex, trackerCount)
+        error('No tracker at index %d.  There are %d trackers.', trackerIndex, trackerCount) ;
+      end
+      tci = tcis{trackerIndex} ;
+      trackerClassName = tci{1} ;
+      if strcmp(trackerClassName, 'DeepTrackerTopDownCustom') ,
+        stage1ModeArgs = tci{2} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDDetectObj}
+        stage2ModeArgs = tci{3} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDPoseObj}
+        stage1Mode = stage1ModeArgs{2} ;  % should be a DLNetMode
+        stage2Mode = stage2ModeArgs{2} ;  % should be a DLNetMode        
+        [docontinue, stg1ctorargs, stg2ctorargs] = obj.raiseDialogsToChooseStageAlgosForCustomTopDownTracker(stage1Mode, stage2Mode) ;
+        if ~docontinue ,
+          return
+        end
+        % Call the model method to set the tracker, providing extra args to specify
+        % the two custom stages   
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex, stg1ctorargs, stg2ctorargs) ;
+      else
+        % If not a custom tracker, our job is easier.
+        % Call the model method to set the tracker.
+        labeler.trackMakeNewTrackerGivenIndex(trackerIndex) ;
+      end
     end
 
     function menu_track_tracker_history_item_actuated_(obj, source, event)  %#ok<INUSD> 
@@ -860,23 +936,17 @@ classdef LabelerController < handle
 
       % Call the labeler method
       labeler = obj.labeler_ ;
-      labeler.trackMakeOldTrackerCurrent(trackerHistoryIndex) ;      
+      labeler.trackMakeExistingTrackerCurrentGivenIndex(trackerHistoryIndex) ;      
     end
 
-    function showDialogAfterHopefullySpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
-      % Event handler that gets called after the labeler tries to spawn jobs for GT.
-      % Raises a dialog, and registers it as a 'satellite' window so we can delete
+    function showDialogAfterSpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
+      % Event handler that gets called after the labeler successfully spawns jobs for GT.
+      % Raises a non-modal dialog, and registers it as a 'satellite' window so we can delete
       % it when the main window closes.
-      labeler = obj.labeler_ ;
-      tfsucc = labeler.didSpawnTrackingForGT ;
+      % labeler = obj.labeler_ ;
       DIALOGTTL = 'GT Tracking';
-      if isscalar(tfsucc) && tfsucc ,
-        msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
-        h = msgbox(msg,DIALOGTTL);
-      else
-        msg = sprintf('GT tracking failed');
-        h = warndlg(msg,DIALOGTTL);
-      end
+      msg = 'Tracking of GT frames spawned. GT results will be shown when tracking is complete.';
+      h = msgbox(msg,DIALOGTTL);
       obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
       %obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
     end
@@ -1060,13 +1130,14 @@ classdef LabelerController < handle
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
     end  % function
     
-    function selectAwsInstance_(obj, varargin)
+    function selectAwsInstanceGUI_(obj, varargin)
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
                 'canlaunch',true,...
                 'canconfigure',1,...
                 'forceSelect',true);
             
+      didLaunchNewInstance = false ;
       labeler = obj.labeler_ ;
       backend = labeler.trackDLBackEnd ;
       if isempty(backend) ,
@@ -1082,12 +1153,11 @@ classdef LabelerController < handle
             promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
           if tfsucc ,
             % For changing things in the model, we go through the top-level model object
-            %labeler.setAwsPemFileAndKeyName(pemFile, keyName) ;
             labeler.set_backend_property('awsPEM', pemFile) ;
             labeler.set_backend_property('awsKeyName', keyName) ;            
           end
           if ~tfsucc && ~awsec2.areCredentialsSet,
-            reason = 'AWS EC2 instance is not configured.';
+            reason = 'AWS EC2 instance is not configured.' ;
             error(reason) ;
           end
         else
@@ -1119,11 +1189,14 @@ classdef LabelerController < handle
         while true,
           switch btn
             case 'Launch New'
-              tf = awsec2.launchInstance();
-              if ~tf
+              labeler.pushBusyStatus('Launching new AWS EC2 instance') ;
+              [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
+              labeler.popBusyStatus() ;
+              if ~didLaunchSucceed
                 reason = 'Could not launch AWS EC2 instance.';
                 error(reason) ;
               end
+              didLaunchNewInstance = true ;
               break
             case 'Attach to Existing',
               [tfsucc,instanceIDs,instanceTypes] = awsec2.listInstances();
@@ -1161,7 +1234,6 @@ classdef LabelerController < handle
               tfsucc = ~isempty(resp);
               if tfsucc
                 instanceID = instanceIDs{resp{1}};
-                instanceType = instanceTypes{resp{1}};
               else
                 return
               end
@@ -1171,12 +1243,15 @@ classdef LabelerController < handle
               return
           end
         end
-        % For changing things in the model, we go through the top-level model object
-        %labeler.setAWSInstanceIDAndType(instanceID, instanceType) ;
-        labeler.set_backend_property('awsInstanceID', instanceID) ;
-        labeler.set_backend_property('awsInstanceType', instanceType) ;
+        % Set the instanceID in the model, if needed
+        if didLaunchNewInstance
+          % do nothing, the instance ID will already be set in the labeler
+        else
+          % For changing things in the model, we go through the top-level model object
+          labeler.set_backend_property('awsInstanceID', instanceID) ;
+        end
       end
-    end  % function selectAwsInstance_()
+    end  % function
 
     function exceptionMaybe = controlActuated(obj, controlName, source, event, varargin)  % public so that control actuation can be easily faked
       % The advantage of passing in the controlName, rather than,
@@ -1185,6 +1260,8 @@ classdef LabelerController < handle
       % way makes it easier to fake control actuations by calling
       % this function with the desired controlName and an empty
       % source and event.
+      % obj.labeler_.pushBusyStatus(sprintf('Control %s actuated...', controlName)) ;
+      % oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       if obj.isInYodaMode_ ,
         % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
@@ -1194,7 +1271,7 @@ classdef LabelerController < handle
           obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
           exceptionMaybe = {} ;
         catch exception
-          obj.labeler_.clearStatus() ;
+          obj.labeler_.popBusyStatus() ;
           if isequal(exception.identifier,'APT:invalidPropertyValue') || isequal(exception.identifier,'APT:cancelled'),
             % ignore completely, don't even pass on to output
             exceptionMaybe = {} ;
@@ -1302,225 +1379,109 @@ classdef LabelerController < handle
       %   return
       % end      
 
-      % Determine the state from the state of the Labeler
+      % Determine the state from the state of the Labeler      
       labeler = obj.labeler_ ;
-      if labeler.isinit 
-        state = 'init' ;
-      elseif labeler.hasProject ,
-        state = 'projectloaded' ;
-      else
-        state = 'noproject' ;
+      hasProject = labeler.hasProject ;
+      hasMovie = labeler.hasMovie ;  
+        % Project has one or more movie specified.  
+        % Note that hasMovie implies hasProject
+      nview = labeler.nview ;
+      isMultiView = nview>1 ;
+      isSingleView = ~isMultiView ;
+      isMA = labeler.maIsMA ;  % is a multi-animal project
+        % Note that isMA implies isSingleView
+      nLabelPointsAdd = labeler.nLabelPointsAdd ;
+      isInCropMode = labeler.cropIsCropMode ;
+      hasTracker = ~isempty(labeler.tracker);
+        % Note that hasTracker implies hasProject
+      isInGTMode = labeler.gtIsGTMode ;
+        
+      %
+      % Update the enablement of the controls, depending on various aspects of the
+      % label state
+      %
+
+      % Update the main menubar menus
+      set(obj.menu_file,'Enable','on');
+      set(obj.menu_view,'Enable',onIff(hasMovie));
+      set(obj.menu_labeling_setup,'Enable',onIff(hasMovie));
+      set(obj.menu_go,'Enable',onIff(hasMovie));
+      set(obj.menu_track,'Enable',onIff(hasMovie));
+      set(obj.menu_evaluate,'Enable',onIff(hasMovie));
+      set(obj.menu_help,'Enable','on');
+      if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
+        set(obj.menu_debug,'Enable',onIff(hasProject)) ;
       end
 
-      % Update the enablement of the controls, depending on the state
-      switch lower(state),
-        case 'init',
-          
-          set(obj.menu_file,'Enable','off');
-          set(obj.menu_view,'Enable','off');
-          set(obj.menu_labeling_setup,'Enable','off');
-          set(obj.menu_track,'Enable','off');
-          set(obj.menu_go,'Enable','off');
-          set(obj.menu_evaluate,'Enable','off');
-          set(obj.menu_help,'Enable','off');
-          
-          set(obj.tbAdjustCropSize,'Enable','off');
-          set(obj.pbClearAllCrops,'Enable','off');
-          set(obj.pushbutton_exitcropmode,'Enable','off');
-          set(obj.uipanel_cropcontrols,'Visible','off');
-          set(obj.text_trackerinfo,'Visible','on');
-          
-          set(obj.pbClearSelection,'Enable','off');
-          set(obj.pumInfo,'Enable','off');
-          set(obj.pumInfo_labels,'Enable','off');
-          set(obj.tbTLSelectMode,'Enable','off');
-          set(obj.pumTrack,'Enable','off');
-          set(obj.pbTrack,'Enable','off');
-          set(obj.pbTrain,'Enable','off');
-          set(obj.pbClear,'Enable','off');
-          set(obj.tbAccept,'Enable','off');
-          set(obj.pbRecallZoom,'Enable','off');
-          set(obj.pbSetZoom,'Enable','off');
-          set(obj.pbResetZoom,'Enable','off');
-          set(obj.sldZoom,'Enable','off');
-          set(obj.pbPlaySegBoth,'Enable','off');
-          set(obj.pbPlay,'Enable','off');
-          set(obj.slider_frame,'Enable','off');
-          set(obj.edit_frame,'Enable','off');
-          set(obj.popupmenu_prevmode,'Enable','off');
-          set(obj.pushbutton_freezetemplate,'Enable','off');
-          set(obj.toolbar,'Visible','off') ;
-          if isgraphics(obj.menu_debug)
-            set(obj.menu_debug,'Enable','off') ;
-          end
-            
-        % case 'tooltipinit',
-        % 
-        %   set(obj.menu_file,'Enable','on');
-        %   set(obj.menu_view,'Enable','on');
-        %   set(obj.menu_labeling_setup,'Enable','on');
-        %   set(obj.menu_track,'Enable','on');
-        %   set(obj.menu_go,'Enable','on');
-        %   set(obj.menu_evaluate,'Enable','on');
-        %   set(obj.menu_help,'Enable','on');
-        % 
-        %   set(obj.tbAdjustCropSize,'Enable','off');
-        %   set(obj.pbClearAllCrops,'Enable','off');
-        %   set(obj.pushbutton_exitcropmode,'Enable','off');
-        %   set(obj.uipanel_cropcontrols,'Visible','off');
-        %   set(obj.text_trackerinfo,'Visible','off');
-        % 
-        %   set(obj.pbClearSelection,'Enable','off');
-        %   set(obj.pumInfo,'Enable','off');
-        %   set(obj.pumInfo_labels,'Enable','off');
-        %   set(obj.tbTLSelectMode,'Enable','off');
-        %   set(obj.pumTrack,'Enable','off');
-        %   set(obj.pbTrack,'Enable','off');
-        %   set(obj.pbTrain,'Enable','off');
-        %   set(obj.pbClear,'Enable','off');
-        %   set(obj.tbAccept,'Enable','off');
-        %   set(obj.pbRecallZoom,'Enable','off');
-        %   set(obj.pbSetZoom,'Enable','off');
-        %   set(obj.pbResetZoom,'Enable','off');
-        %   set(obj.sldZoom,'Enable','off');
-        %   set(obj.pbPlaySegBoth,'Enable','off');
-        %   set(obj.pbPlay,'Enable','off');
-        %   set(obj.slider_frame,'Enable','off');
-        %   set(obj.edit_frame,'Enable','off');
-        %   set(obj.popupmenu_prevmode,'Enable','off');
-        %   set(obj.pushbutton_freezetemplate,'Enable','off');
-        %   set(obj.toolbar,'Visible','off')
-        %   if isgraphics(obj.menu_debug)
-        %     set(obj.menu_debug,'Enable','off') ;
-        %   end
-        % 
-        case 'noproject',
-          set(obj.menu_file,'Enable','on');
-          set(obj.menu_view,'Enable','off');
-          set(obj.menu_labeling_setup,'Enable','off');
-          set(obj.menu_track,'Enable','off');
-          set(obj.menu_evaluate,'Enable','off');
-          set(obj.menu_go,'Enable','off');
-          set(obj.menu_help,'Enable','off');
+      % Update items in the File menu
+      set(obj.menu_file_new,'Enable','on');
+      set(obj.menu_file_save,'Enable',onIff(hasProject));
+      set(obj.menu_file_saveas,'Enable',onIff(hasProject));
+      set(obj.menu_file_load,'Enable','on');
+      set(obj.menu_file_shortcuts,'Enable',onIff(hasProject));
+      set(obj.menu_file_managemovies,'Enable',onIff(hasProject));
+      set(obj.menu_file_import,'Enable',onIff(hasProject));
+      set(obj.menu_file_export,'Enable',onIff(hasMovie));
+      set(obj.menu_file_crop_mode,'Enable',onIff(hasMovie));
+      set(obj.menu_file_clean_tempdir,'Enable',onIff(hasProject));
+      set(obj.menu_file_bundle_tempdir,'Enable',onIff(hasProject));        
+      set(obj.menu_file_quit,'Enable','on');
       
-          set(obj.menu_file_quit,'Enable','on');
-          set(obj.menu_file_crop_mode,'Enable','off');
-          set(obj.menu_file_importexport,'Enable','off');
-          set(obj.menu_file_managemovies,'Enable','off');
-          set(obj.menu_file_load,'Enable','on');
-          set(obj.menu_file_saveas,'Enable','off');
-          set(obj.menu_file_save,'Enable','off');
-          set(obj.menu_file_shortcuts,'Enable','off');
-          set(obj.menu_file_new,'Enable','on');
-          %set(obj.menu_file_quick_open,'Enable','on','Visible','on');
-          
-          set(obj.tbAdjustCropSize,'Enable','off');
-          set(obj.pbClearAllCrops,'Enable','off');
-          set(obj.pushbutton_exitcropmode,'Enable','off');
-          set(obj.uipanel_cropcontrols,'Visible','off');    
-          set(obj.text_trackerinfo,'Visible','off');
-      
-          
-          set(obj.pbClearSelection,'Enable','off');
-          set(obj.pumInfo,'Enable','off');
-          set(obj.tbTLSelectMode,'Enable','off');
-          set(obj.pumTrack,'Enable','off');
-          set(obj.pbTrack,'Enable','off');
-          set(obj.pbTrain,'Enable','off');
-          set(obj.pbClear,'Enable','off');
-          set(obj.tbAccept,'Enable','off');
-          set(obj.pbRecallZoom,'Enable','off');
-          set(obj.pbSetZoom,'Enable','off');
-          set(obj.pbResetZoom,'Enable','off');
-          set(obj.sldZoom,'Enable','off');
-          set(obj.pbPlaySegBoth,'Enable','off');
-          set(obj.pbPlay,'Enable','off');
-          set(obj.slider_frame,'Enable','off');
-          set(obj.edit_frame,'Enable','off');
-          set(obj.popupmenu_prevmode,'Enable','off');
-          set(obj.pushbutton_freezetemplate,'Enable','off');
-          set(obj.toolbar,'Visible','off')
-          if isgraphics(obj.menu_debug)
-            set(obj.menu_debug,'Enable','off') ;
-          end
-      
-        case 'projectloaded'
-      
-          set(findobj(obj.menu_file,'-property','Enable'),'Enable','on');
-          set(obj.menu_view,'Enable','on');
-          set(obj.menu_labeling_setup,'Enable','on');
-          set(obj.menu_track,'Enable','on');
-          set(obj.menu_evaluate,'Enable','on');
-          set(obj.menu_go,'Enable','on');
-          set(obj.menu_help,'Enable','on');
-          
-          % KB 20200504: I think this is confusing when a project is already open
-          % AL 20220719: now always hiding
-          % set(obj.menu_file_quick_open,'Visible','off');
-          
-          set(obj.tbAdjustCropSize,'Enable','on');
-          set(obj.pbClearAllCrops,'Enable','on');
-          set(obj.pushbutton_exitcropmode,'Enable','on');
-          %set(obj.uipanel_cropcontrols,'Visible','on');
-      
-          set(obj.pbClearSelection,'Enable','on');
-          set(obj.pumInfo,'Enable','on');
-          set(obj.pumInfo_labels,'Enable','on');
-          set(obj.tbTLSelectMode,'Enable','on');
-          set(obj.pumTrack,'Enable','on');
-          %set(obj.pbTrack,'Enable','on');
-          %set(obj.pbTrain,'Enable','on');
-          set(obj.pbClear,'Enable','on');
-          set(obj.tbAccept,'Enable','on');
-          set(obj.pbRecallZoom,'Enable','on');
-          set(obj.pbSetZoom,'Enable','on');
-          set(obj.pbResetZoom,'Enable','on');
-          set(obj.sldZoom,'Enable','on');
-          set(obj.pbPlaySegBoth,'Enable','on');
-          set(obj.pbPlay,'Enable','on');
-          set(obj.slider_frame,'Enable','on');
-          set(obj.edit_frame,'Enable','on');
-          set(obj.popupmenu_prevmode,'Enable','on');
-          set(obj.pushbutton_freezetemplate,'Enable','on');
-          set(obj.toolbar,'Visible','on')         
-          if isgraphics(obj.menu_debug)
-            set(obj.menu_debug,'Enable','on') ;
-          end
-          
-          lObj = obj.labeler_ ;
-          tObj = lObj.tracker;    
-          tfTracker = ~isempty(tObj);
-          onOff = onIff(tfTracker);
-          obj.menu_track.Enable = onOff;
-          obj.pbTrain.Enable = onOff;
-          obj.pbTrack.Enable = onOff;
-          obj.menu_view_hide_predictions.Enable = onOff;    
-          set(obj.menu_track_auto_params_update, 'Checked', lObj.trackAutoSetParams) ;
-      
-          tfGoTgts = ~lObj.gtIsGTMode;
-          set(obj.menu_go_targets_summary,'Enable',onIff(tfGoTgts));
-          
-          if lObj.nview == 1,
-            set(obj.h_multiview_only,'Enable','off');
-          elseif lObj.nview > 1,
-            set(obj.h_singleview_only,'Enable','off');
-          else
-            error('Internal error: nview == 0');
-          end
-          if lObj.maIsMA
-            set(obj.h_nonma_only,'Enable','off');
-          else
-            set(obj.h_ma_only,'Enable','off');
-          end
-          if lObj.nLabelPointsAdd == 0,
-            set(obj.h_addpoints_only,'Visible','off');
-          else
-            set(obj.h_addpoints_only,'Visible','on');
-          end
+      % Update items in the View menu
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx  && labeler.showTrx), ...
+          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
 
-        otherwise
-          error('Not implemented') ;
-      end
+      % Update setup menu item
+      set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
+
+      % These things
+      set(obj.tbAdjustCropSize,'Enable',onIff(hasProject));
+      set(obj.pbClearAllCrops,'Enable',onIff(hasProject));
+      set(obj.pushbutton_exitcropmode,'Enable',onIff(hasProject));
+
+      % Crop mode stuff
+      set(obj.uipanel_cropcontrols,'Visible',onIff(hasProject && isInCropMode)) ;
+      set(obj.text_trackerinfo,'Visible',onIff(hasProject && ~isInCropMode)) ;
+
+      set(obj.pbClearSelection,'Enable',onIff(hasProject));
+      set(obj.pumInfo,'Enable',onIff(hasProject));
+      set(obj.pumInfo_labels,'Enable',onIff(hasProject));
+      set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
+      set(obj.pumTrack,'Enable',onIff(hasProject));
+
+      set(obj.pbClear,'Enable',onIff(hasProject));
+      set(obj.tbAccept,'Enable',onIff(hasProject));
+      set(obj.pbRecallZoom,'Enable',onIff(hasProject));
+      set(obj.pbSetZoom,'Enable',onIff(hasProject));
+      set(obj.pbResetZoom,'Enable',onIff(hasProject));
+      set(obj.sldZoom,'Enable',onIff(hasProject));
+      set(obj.pbPlaySeg,'Enable',onIff(hasProject));
+      set(obj.pbPlaySegRev,'Enable',onIff(hasProject));
+      set(obj.pbPlay,'Enable',onIff(hasProject));
+      set(obj.slider_frame,'Enable',onIff(hasProject));
+      set(obj.edit_frame,'Enable',onIff(hasProject));
+      set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
+      set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
+      set(obj.toolbar,'Visible',onIff(hasProject)) ;
+      
+      obj.menu_track.Enable = onIff(hasTracker);
+      obj.pbTrain.Enable = onIff(hasTracker);
+      obj.pbTrack.Enable = onIff(hasTracker);
+      obj.menu_view_hide_predictions.Enable = onIff(hasTracker);
+      set(obj.menu_track_auto_params_update, 'Checked', hasProject && labeler.trackAutoSetParams) ;
+      
+      set(obj.menu_go_targets_summary,'Enable',onIff(hasProject && ~isInGTMode)) ;
+
+      set(obj.menu_setup_sequential_mode,'Enable',onIff(hasMovie && isSingleView)) ;
+      set(obj.menu_setup_template_mode,'Enable',onIff(hasMovie && isSingleView)) ;
+      set(obj.menu_setup_highthroughput_mode,'Enable',onIff(hasMovie && isSingleView)) ;
+      set(obj.menu_setup_multiview_calibrated_mode_2,'Enable',onIff(hasMovie && isMultiView));
+      set(obj.menu_setup_multianimal_mode,'Enable',onIff( hasMovie && isMA));
+      set(obj.menu_setup_sequential_add_mode, 'Visible', onIff(hasMovie && isSingleView && nLabelPointsAdd~=0)) ;
     end  % function
 
     function update_text_trackerinfo(obj)
@@ -1673,10 +1634,10 @@ classdef LabelerController < handle
     end  % function
 
     function updateTrackMonitorViz(obj)
-      labeler = obj.labeler_ ;
-      sRes = labeler.tracker.bgTrkMonitor.sRes ;
-      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_) ,
-        obj.trackingMonitorVisualizer_.resultsReceived(sRes) ;
+      if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
+        labeler = obj.labeler_ ;
+        pollingResult = labeler.tracker.bgTrkMonitor.pollingResult ;
+        obj.trackingMonitorVisualizer_.resultsReceived(pollingResult) ;
       end
     end  % function
 
@@ -1694,9 +1655,11 @@ classdef LabelerController < handle
     end  % function
 
     function updateTrainMonitorViz(obj)
-      labeler = obj.labeler_ ;
-      sRes = labeler.tracker.bgTrnMonitor.sRes ;
-      obj.trainingMonitorVisualizer_.resultsReceived(sRes) ;
+      if ~isempty(obj.trainingMonitorVisualizer_) && isvalid(obj.trainingMonitorVisualizer_) 
+        labeler = obj.labeler_ ;
+        pollingResult = labeler.tracker.bgTrnMonitor.pollingResult ;
+        obj.trainingMonitorVisualizer_.resultsReceived(pollingResult) ;
+      end
     end  % function
 
     function addSatellite(obj, h)
@@ -1718,25 +1681,67 @@ classdef LabelerController < handle
       obj.satellites_ = gobjects(1,0);
     end  % function
 
-    function raiseTrainingStoppedDialog(obj)
+    function raiseTrainingEndedDialog_(obj)
       % Raise a dialog that reports how many training iterations have completed, and
       % ask if the user wants to save the project.  Normally called via event
-      % notification after training is stopped early via user pressing the "Stop
-      % training" button in the "Training Monitor" window.
+      % notification after training ends.
       labeler = obj.labeler_ ;
       tracker = labeler.tracker ;
-      iterCurr = tracker.trackerInfo.iterCurr ;
+      iterCurr = tracker.trackerInfo.iterCurr ;  % a row vector, in general
       iterFinal = tracker.trackerInfo.iterFinal ;
       n_out_of_d_string = DeepTracker.printIter(iterCurr, iterFinal) ;
-      question_string = sprintf('Training stopped after %s iterations. Save project now?',...
-                                n_out_of_d_string) ;
-      res = questdlg(question_string,'Save?','Save','Save as...','No','Save');
-      if strcmpi(res,'Save'),
-        obj.save();
-      elseif strcmpi(res,'Save as...'),
-        obj.saveAs();
-      end  % if      
-    end
+      if ~all(isnan(iterCurr)) ,
+        if labeler.lastTrainEndCause == EndCause.complete
+          question_string = sprintf('Training completed %s iterations.  Save project now?',...
+                                    n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.error
+          question_string = sprintf('Training errored after %s iterations.  (See console for details.)  Save project now?',...
+                                    n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.abort
+          question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
+                                    n_out_of_d_string) ;
+        else
+          error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
+        end        
+        res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
+        if strcmpi(res,'Save'),
+          obj.save();
+        elseif strcmpi(res,'Save as...'),
+          obj.saveAs();
+        else
+          % do nothing
+        end  % if      
+      else
+        % all(isnan(iterCurr)) == true
+        % This means there was an error or abort early in training.
+        if labeler.lastTrainEndCause == EndCause.complete
+          uiwait(errordlg(sprintf('Training allegedly completed, but after %s iterations.  Odd.', n_out_of_d_string), ...
+                          'Strangeness', ...
+                          'modal')) ;          
+        elseif labeler.lastTrainEndCause == EndCause.error
+          uiwait(errordlg(sprintf('Training errored after %s iterations.  See console for details.', n_out_of_d_string), ...
+                          'Training Error', ...
+                          'modal')) ;
+        elseif labeler.lastTrainEndCause == EndCause.abort
+          % just proceed on abort
+        else
+          error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
+        end
+      end
+    end  % function
+
+    function raiseTrackingEndedDialog_(obj)
+      % Raise a dialog if tracking hit an error.  Normally called via event
+      % notification after training ends.
+      labeler = obj.labeler_ ;
+      if labeler.lastTrackEndCause == EndCause.error
+          uiwait(errordlg('Error while tracking.  See console for details.', ...
+                          'Tracking Error', ...
+                          'modal')) ;
+      else
+        % Don't want a dialog on abort or complete (or undefined).
+      end        
+    end  % function
 
     function didCreateNewProject(obj)
       labeler =  obj.labeler_ ;
@@ -1905,12 +1910,12 @@ classdef LabelerController < handle
 
     function didChangeProjectName(obj)
       obj.updateMainFigureName() ;
-      obj.updateStatusBar() ;      
+      obj.updateStatusAndPointer() ;      
     end  % function
 
     function didChangeProjFSInfo(obj)
       obj.updateMainFigureName() ;
-      obj.updateStatusBar() ;      
+      obj.updateStatusAndPointer() ;      
     end  % function
 
     function didChangeMovieInvert(obj)
@@ -2002,12 +2007,22 @@ classdef LabelerController < handle
         shs = struct2cell(newShortcuts);
         % everything should just be one character
         % no repeats
-        uniqueshs = unique(shs);
-        isproblem = any(cellfun(@numel,shs) ~= 1) || numel(uniqueshs) < numel(shs);
+        isproblem = false;
+        msg = '';
+        if any(cellfun(@numel,shs) ~= 1),
+          isproblem = true;
+          msg = [msg,'All shortcuts must be single-character letters. ']; %#ok<AGROW>
+        end
+        [uniqueshs,~,idx] = unique(shs);
+        if numel(uniqueshs) < numel(shs),
+          isproblem = true;
+          count = accumarray(idx,1);
+          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. ']; %#ok<AGROW>
+        end
         if ~isproblem,
           break;
         end
-        res = questdlg('All shortcuts must be unique, single-character letters','Error setting shortcuts','Try again','Cancel','Try again');
+        res = questdlg(msg,'Try again','Cancel','Try again');
         if strcmpi(res,'Cancel'),
           return;
         end
@@ -2066,35 +2081,6 @@ classdef LabelerController < handle
       tfShift = any(strcmp('shift',event.Modifier));
       tfCtrl = any(strcmp('control',event.Modifier));
       
-      isMA = labeler.maIsMA;
-      % KB20160724: shortcuts from preferences
-      % skip this for MA projs where we need separate hotkey mappings
-      if ~isMA && ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
-        % control key pressed?
-        if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
-          i = find(strcmpi(event.Key,obj.shortcutkeys),1);
-          h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
-          if isempty(h)
-            fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
-          else
-            cb = get(h,'Callback');
-            if isa(cb,'function_handle')
-              cb(h,[]);
-              tfKPused = true;
-            elseif iscell(cb)
-              cb{1}(cb{2:end});
-              tfKPused = true;
-            elseif ischar(cb)
-              evalin('base',[cb,';']);
-              tfKPused = true;
-            end
-          end
-        end  
-      end
-      if tfKPused
-        return
-      end
-      
       lcore = labeler.lblCore;
       if ~isempty(lcore)
         tfKPused = lcore.kpf(source,event);
@@ -2102,7 +2088,35 @@ classdef LabelerController < handle
           return
         end
       end
-      
+
+      if ~isempty(obj.shortcutkeys) && ~isempty(obj.shortcutfns)
+        % control key pressed?
+        if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
+          i = find(strcmpi(event.Key,obj.shortcutkeys),1);
+          if ~ismember(obj.shortcutfns{i},labeler.lblCore.unsupportedKPFFns),
+            h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
+            if isempty(h)
+              fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
+            else
+              cb = get(h,'Callback');
+              if isa(cb,'function_handle')
+                cb(h,[]);
+                tfKPused = true;
+              elseif iscell(cb)
+                cb{1}(cb{2:end});
+                tfKPused = true;
+              elseif ischar(cb)
+                evalin('base',[cb,';']);
+                tfKPused = true;
+              end
+            end
+          end
+        end  
+      end
+      if tfKPused
+        return
+      end
+            
       %disp(evt);
       if any(strcmp(event.Key,{'leftarrow' 'rightarrow'}))
         switch event.Key
@@ -2687,46 +2701,28 @@ classdef LabelerController < handle
       obj.labelTLInfo.didChangeCurrentTracker();
     end  % function
     
-    function cbkTrackerTrainStart(obj)
-      lObj = obj.labeler_ ;
-      algName = lObj.tracker.algorithmName;
-      %algLabel = lObj.tracker.algorithmNamePretty;
-      backend_type_string = lObj.trackDLBackEnd.prettyName();
-      obj.txBGTrain.String = sprintf('%s training on %s (started %s)',algName,backend_type_string,datestr(now(),'HH:MM'));
-      obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-      obj.txBGTrain.FontWeight = 'normal';
-      obj.txBGTrain.Visible = 'on';
+    function updateTrainingMonitor(obj)
+      obj.trainingMonitorVisualizer_.update() ;
     end  % function
 
     function cbkTrackerTrainEnd(obj)
-      lObj = obj.labeler_ ;
-      obj.txBGTrain.Visible = 'off';
-      obj.txBGTrain.String = 'Idle';
-      obj.txBGTrain.ForegroundColor = obj.idlestatuscolor;
-      val = true;
-      str = 'Tracker trained';
-      lObj.setDoesNeedSave(val, str) ;
+      labeler = obj.labeler_ ;
+      if ~labeler.silent ,
+        obj.raiseTrainingEndedDialog_() ;
+      end
+      obj.update() ;
     end  % function
 
-    function cbkTrackerStart(obj)
-      lObj = obj.labeler_ ;
-      algName = lObj.tracker.algorithmName;
-      %algLabel = lObj.tracker.algorithmNamePretty;
-      backend_type_string = lObj.trackDLBackEnd.prettyName() ;
-      obj.txBGTrain.String = sprintf('%s tracking on %s (started %s)',algName,backend_type_string,datestr(now,'HH:MM'));
-      obj.txBGTrain.ForegroundColor = obj.busystatuscolor;
-      obj.txBGTrain.FontWeight = 'normal';
-      obj.txBGTrain.Visible = 'on';
+    function updateTrackingMonitor(obj)
+      obj.trackingMonitorVisualizer_.update() ;
     end  % function
 
     function cbkTrackerEnd(obj)
-      lObj = obj.labeler_ ;
-      obj.txBGTrain.Visible = 'off';
-      obj.txBGTrain.String = 'Idle';
-      obj.txBGTrain.ForegroundColor = obj.idlestatuscolor;
-      val = true;
-      str = 'New frames tracked';
-      lObj.setDoesNeedSave(val, str) ;
+      labeler = obj.labeler_ ;
+      if ~labeler.silent ,
+        obj.raiseTrackingEndedDialog_() ;
+      end
+      obj.update() ;
     end  % function
 
     function cbkTrackerHideVizChanged(obj)
@@ -2839,7 +2835,7 @@ classdef LabelerController < handle
     function cbkTrackerBackendSetCondaEnv(obj)
       lObj = obj.labeler_ ;      
       original_value = lObj.get_backend_property('condaEnv') ;
-      dialog_result = inputdlg({'Conda environment:'},'Set environment...',1,{original_value});
+      dialog_result = inputdlg({'Conda environment:'},'Set environment...',[1 50],{original_value});
       if isempty(dialog_result)
         return
       end
@@ -3123,8 +3119,14 @@ classdef LabelerController < handle
 
     function cbkShowTrxChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(~labeler.showTrx);
-      obj.menu_view_hide_trajectories.Checked = onOff;
+      % obj.menu_view_show_trajectories.Checked = ...
+      %   onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
+      set(obj.menu_view_show_trajectories, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ) ;
+      set(obj.menu_view_show_trajectories_current_target_only, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx), ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;      
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3136,8 +3138,8 @@ classdef LabelerController < handle
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      onOff = onIff(labeler.showTrxCurrTargetOnly);
-      obj.menu_view_plot_trajectories_current_target_only.Checked = onOff;
+      obj.menu_view_show_trajectories_current_target_only.Checked = ...
+        onIff(labeler.hasProject &&~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ;
     end  % function
 
     function cbkTrackModeIdxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3166,9 +3168,16 @@ classdef LabelerController < handle
         menustrs_compact = arrayfun(@(x)x.getPrettyStrMoreCompact(labeler.getMftInfoStruct()),mfts,'uni',0);
       end
       pumTrack = obj.pumTrack;
-      set(pumTrack, 'String', menustrs_compact, 'Value', labeler.trackModeIdx) ;  
+      rawMenuIndex = labeler.trackModeIdx ;
+      if 1<=rawMenuIndex && rawMenuIndex<=numel(menustrs) ,
+        menuIndex = rawMenuIndex ;
+      else
+        % This seems to happen sometimes when loading very old projects
+        menuIndex = 1 ;
+      end
+      set(pumTrack, 'String', menustrs_compact, 'Value', menuIndex) ;  
         % Set these at same time to avoid possibility of Value out of range for String
-      set(obj.text_framestotrackinfo,'String',menustrs{labeler.trackModeIdx});
+      set(obj.text_framestotrackinfo,'String',menustrs{menuIndex});
     end  % function
 
     function cbkMovieCenterOnTargetChanged(obj, src, evt)   %#ok<INUSD>
@@ -3232,7 +3241,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
-      obj.menu_go_gt_frames.Enable = onIffGT;
+      obj.menu_evaluate_gt_frames.Enable = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
       if ~isempty(obj.GTManagerFigure)
@@ -3292,9 +3301,9 @@ classdef LabelerController < handle
       %   handles = rmfield(handles,'newProjAxLimsSetInConfig');
       % end
 
-      if labeler.hasMovie && evt.isFirstMovieOfProject,
-        obj.updateEnablementOfManyControls() ;
-      end
+      % if labeler.hasMovie && evt.isFirstMovieOfProject,
+      obj.updateEnablementOfManyControls() ;
+      % end
 
       if ~labeler.gtIsGTMode,
         set(obj.menu_go_targets_summary,'Enable','on');
@@ -3381,9 +3390,7 @@ classdef LabelerController < handle
 
       TRX_MENUS = {...
         'menu_view_trajectories_centervideoontarget'
-        'menu_view_rotate_video_target_up'
-        'menu_view_hide_trajectories'
-        'menu_view_plot_trajectories_current_target_only'};
+        'menu_view_rotate_video_target_up'};
       %  'menu_setup_label_overlay_montage_trx_centered'};
       tftblon = labeler.hasTrx || labeler.maIsMA;
       onOff = onIff(tftblon);
@@ -3485,9 +3492,9 @@ classdef LabelerController < handle
     
     function cropReactNewCropMode_(obj)
       labeler = obj.labeler_ ;
-      tf = labeler.cropIsCropMode ;
+      isInCropMode = labeler.cropIsCropMode ;
 
-      if isempty(tf) ,
+      if isempty(isInCropMode) ,
         return
       end
 
@@ -3498,15 +3505,15 @@ classdef LabelerController < handle
         'pbTrack'
         'pumTrack'};
 
-      onIfTrue = onIff(tf);
-      offIfTrue = onIff(~tf);
+      onIfIsInCropMode = onIff(isInCropMode);
+      offIfIsInCropMode = onIff(~isInCropMode);
 
       %cellfun(@(x)set(obj.(x),'Visible',onIfTrue),CROPCONTROLS);
-      set(obj.uipanel_cropcontrols,'Visible',onIfTrue);
-      set(obj.text_trackerinfo,'Visible',offIfTrue);
+      set(obj.uipanel_cropcontrols,'Visible',onIfIsInCropMode);
+      set(obj.text_trackerinfo,'Visible',offIfIsInCropMode);
 
-      cellfun(@(x)set(obj.(x),'Visible',offIfTrue),REGCONTROLS);
-      obj.menu_file_crop_mode.Checked = onIfTrue;
+      cellfun(@(x)set(obj.(x),'Visible',offIfIsInCropMode),REGCONTROLS);
+      obj.menu_file_crop_mode.Checked = onIfIsInCropMode;
 
       obj.cropUpdateCropHRects_() ;
       obj.cropUpdateCropAdjustingCropSize_(false) ;
@@ -3775,9 +3782,9 @@ classdef LabelerController < handle
       obj.labeler_.labelingInit('labelMode',lblMode);
     end
     
-    function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
-      obj.quitRequested() ;
-    end
+    % function figure_CloseRequestFcn(obj, src, evt)  %#ok<INUSD>
+    %   obj.quitRequested() ;
+    % end
 
     function videoZoom(obj,zoomRadius)
       % Zoom to square window over current frame center with given radius.
@@ -3889,18 +3896,18 @@ classdef LabelerController < handle
         'setFrameArgs',{'updateTables',false});
     end
     
-    function videoPlaySegment(obj)
-      % Play segment centererd at .currFrame
-      
-      labeler = obj.labeler_ ;
-      
-      f = labeler.currFrame;
-      df = labeler.moviePlaySegRadius;
-      fstart = max(1,f-df);
-      fend = min(labeler.nframes,f+df);
-      obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
-        'setFrameArgs',{'updateTables',false,'updateLabels',false});
-    end
+    % function videoPlaySegment(obj)
+    %   % Play segment centererd at .currFrame
+    % 
+    %   labeler = obj.labeler_ ;
+    % 
+    %   f = labeler.currFrame;
+    %   df = labeler.moviePlaySegRadius;
+    %   fstart = max(1,f-df);
+    %   fend = min(labeler.nframes,f+df);
+    %   obj.videoPlaySegmentCore(fstart,fend,'freset',f,...
+    %     'setFrameArgs',{'updateTables',false,'updateLabels',false});
+    % end
 
     function videoPlaySegFwdEnding(obj)
       % Play segment ending at .currFrame
@@ -4064,22 +4071,23 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function play(obj, iconStrPlay, playMethodName)
-      %labeler = obj.labeler_ ;      
-      
+    function play_(obj, playMethodName)
       pbPlay = obj.pbPlay ;
-      oc = onCleanup(@()(obj.playCleanup(pbPlay, iconStrPlay))) ;
-      if ~obj.isPlaying_
-        obj.isPlaying_ = true ;
-        pbPlay.CData = Icons.ims.stop ;
-        obj.(playMethodName) ;
+      if obj.isPlaying_ ,
+        obj.isPlaying_ = false ;  
+          % setting this this will cause the already-running video playback loop from the previous cal to play_() to exit
+        return
       end
-    end
+      oc = onCleanup(@()(obj.playCleanup_())) ;
+      obj.isPlaying_ = true ;
+      pbPlay.CData = Icons.ims.stop ;
+      obj.(playMethodName) ;
+    end  % function
 
-    function playCleanup(obj, pbPlay, iconStrPlay)
-      pbPlay.CData = Icons.ims.(iconStrPlay) ;
+    function playCleanup_(obj)
+      obj.pbPlay.CData = Icons.ims.play ;
       obj.isPlaying_ = false ;
-    end
+    end  % function
 
     function tblTrx_cell_selected_(obj, src, evt) %#ok<*DEFNU>
       % Current/last row selection is maintained in hObject.UserData
@@ -4137,7 +4145,7 @@ classdef LabelerController < handle
 
       debugtiming = false;
       if debugtiming,
-        starttime = tic() ;
+        starttime = tic() ;  %#ok<UNRCH>
       end
 
 
@@ -4175,7 +4183,7 @@ classdef LabelerController < handle
       end
 
       if debugtiming,
-        fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));
+        fprintf('Slider callback setting to frame %d took %f seconds\n',f,toc(starttime));  %#ok<UNRCH>
       end
 
 
@@ -4393,6 +4401,7 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
         error('LabelerGUI:noMovie','No movie is loaded.');
@@ -4450,7 +4459,140 @@ classdef LabelerController < handle
       fprintf('Saved table ''%s'' to file ''%s''.\n',VARNAME,fname);
     end
 
+    function menu_file_export_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      [tfCanExport,reason] = labeler.trackCanExport();
+      if ~tfCanExport,
+        uiwait(warndlg(reason,'Cannot export labels'));
+        return;
+      end
+      fname = labeler.getDefaultFilenameExportCOCOJson();
+      [f,p] = uiputfile(fname,'Export File');
+      if isequal(f,0)
+        return;
+      end
+      fname = fullfile(p,f);
+      fprintf('Exporting COCO json file and labeled images for current tracker to %s...\n',fname);
+      labeler.tracker.export_coco_db(fname);
+      fprintf('Done.\n');
+    end
+
+    function menu_file_import_labels_cocojson_actuated_(obj, src, evt)  %#ok<INUSD>
+      % callback for importing labels from coco json
+
+      res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning','Yes','No','Cancel','No');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+
+      labeler = obj.labeler_ ;
+      fname = labeler.getDefaultFilenameImportCOCOJson();
+      [f,p] = uigetfile(fname,'Import COCO Json File');
+      if isequal(f,0)
+        return;
+      end
+      cocojsonfile = fullfile(p,f);
+      if ~exist(cocojsonfile,'file'),
+        errordlg(sprintf('File %s does not exist',cocojsonfile),'Error importing COCO labels');
+        return;
+      end
+      try
+        cocos = TrnPack.hlpLoadJson(cocojsonfile);
+      catch ME,
+        warningNoTrace('Error loading json file %s:\n%s\n',cocojsonfile,getReport(ME));
+        errordlg(sprintf('Error loading json file %s',cocojsonfile),'Error importing COCO labels');
+        return;
+      end
+      if ~isfield(cocos,'images') || ~isfield(cocos,'annotations'),
+        warningNoTrace('COCO json file must contain entries "images" and "annotations"');
+        errordlg('COCO json file must contain entries "images" and "annotations"','Bad COCO json file','modal');
+        return;
+      end
+      hasmovies = isfield(cocos,'info') && isfield(cocos.info,'movies');
+      % we will create a fake movie directory, where should we put it?
+      if ~hasmovies,
+        if isempty(cocos.images) || isempty(cocos.annotations),
+          warningNoTrace('No annotations/images to import');
+          return;
+        end
+        % see if the images are named in a way parsable by
+        % get_readframe_fcn
+        [p1,filename,imext] = fileparts(cocos.images(1).file_name);
+        outimdir = fullfile(p,p1);
+        m = regexp(filename,'^(.*[^\d])(\d+)$','tokens','once');
+        isseq = false;
+        if ~isempty(m),
+          imname = m{1};
+          basename = fullfile(p1,imname);
+          imfiles = {cocos.images.file_name};
+          if numel(imfiles) == 1,
+            isseq = true;
+          else
+            framenum = regexp(imfiles,[basename,'(\d+)\',imext,'$'],'tokens','once');
+            if ~any(cellfun(@isempty,framenum)),
+              framenum = cellfun(@str2double,framenum);
+              sortedframenum = sort(framenum);
+              if all(diff(sortedframenum)==1),
+                isseq = true;
+              end
+            end
+          end
+        end
+        if isseq,          
+          args = {'outimdir',outimdir,'overwrite',false,'imname',imname,'cocojsonfile',cocojsonfile,'copyims',false};
+        else
+          outimdirparent = uigetdir(p,'Folder to output movie frames to');
+          if ~ischar(outimdirparent),
+            return;
+          end
+          outdirname = 'movie';
+          imname = 'frame';
+          % if the name of the directory is movie, then assume that we want
+          % to use this directory to output images to
+          [~,n] = fileparts(outimdirparent);
+          if strcmp(n,outdirname),
+            outimdir = outimdirparent;
+          else
+            % if this is an empty directory, also assume we want to output
+            % here
+            dircontents = mydir(outimdirparent);
+            if isempty(dircontents),
+              outimdir = outimdirparent;
+            else
+              % assume we should create a new directory named movie in this
+              % directory
+              outimdir = fullfile(outimdirparent,outdirname);
+            end
+          end
+          overwrite = true;
+          if exist(outimdir,'dir'),
+            [~,~,imext] = fileparts(cocos.images(1).file_name);
+            dircontents = mydir(fullfile(outimdir,[imname,'*',imext]));
+            if ~isempty(dircontents),
+              res = questdlg(sprintf('Images exist in %s, overwrite?',imname),'Overwrite?','Yes','No','Cancel','Yes');
+              if strcmpi(res,'Cancel'),
+                return;
+              end
+              overwrite = strcmpi(res,'Yes');
+            end
+          end
+          args = {'outimdir',outimdir,'overwrite',overwrite,'imname',imname,'cocojsonfile',cocojsonfile};
+        end
+      else
+        args = {};
+      end
+      fprintf('Importing labels from %s...\n',cocojsonfile);
+      labeler.labelPosBulkImportCOCOJson(cocos,args{:});
+      fprintf('Done.\n');
+    end
+
     function menu_file_import_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
+
+      res = questdlg('WARNING! Importing labels will overwrite labels in your current project. Proceed?','Warning!','Yes','No','Cancel','No');
+      if ~strcmpi(res,'yes'),
+        return;
+      end
+
       labeler = obj.labeler_ ;
       lastFile = RC.getprop('lastLabelMatfile');
       if isempty(lastFile)
@@ -4479,6 +4621,9 @@ classdef LabelerController < handle
 
     function menu_file_crop_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
+      if ~labeler.hasMovie ,
+        error('Can''t do that without a movie') ;
+      end
       if ~isempty(labeler.tracker) && ~labeler.gtIsGTMode && labeler.labelPosMovieHasLabels(labeler.currMovie),
         res = questdlg('Frames of the current movie are labeled. Editing the crop region for this movie will cause trackers to be reset. Continue?');
         if ~strcmpi(res,'Yes'),
@@ -4491,7 +4636,7 @@ classdef LabelerController < handle
     function menu_file_clean_tempdir_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if isempty(labeler.projTempDir),
-        rootdir = APT.getdotaptdirpath() ;
+        rootdir = APT.getdotaptdirpath() ;  % native path
       else
         rootdir = fileparts(labeler.projTempDir);
       end
@@ -4586,8 +4731,8 @@ classdef LabelerController < handle
 
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;            
-      labeler.setStatus('Plotting all labels on one axes to visualize label distribution...');
-      oc = onCleanup(@()(labeler.clearStatus())) ;
+      labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       if labeler.hasTrx
         labeler.labelOverlayMontageGUI();
         labeler.labelOverlayMontageGUI('ctrMeth','trx');
@@ -4597,10 +4742,29 @@ classdef LabelerController < handle
         labeler.labelOverlayMontageGUI();
         if ~labeler.isMultiView
           labeler.labelOverlayMontageGUI('ctrMeth','centroid');
+          if labeler.maIsMA
+            prms = labeler.trackParams;
+            if ~isempty(prms)
+              if isfield(prms.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
+                tfScale = prms.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox;
+              else
+                tfScale = false;
+              end
+            end
+          else
+            tfScale = false;
+          end
+%           if tfScale
+%             labeler.labelOverlayMontageGUI('ctrMeth','centroid','scale',true);          
+%           end
           tfHTdefined = ~isempty(labeler.skelHead) && ~isempty(labeler.skelTail);
           if tfHTdefined
             labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail');
+            if tfScale
+              labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail','scale',true);
+            end
           else
+            labeler.labelOverlayMontageGUI('ctrMeth','centroid','scale',true);
             warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
           end
         end
@@ -4611,8 +4775,6 @@ classdef LabelerController < handle
 
     function menu_setup_label_outliers_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setStatus('Finding outliers in labels...');
-      oc = onCleanup(@()(labeler.clearStatus())) ;
       label_outlier_gui(labeler) ;
     end
 
@@ -4821,10 +4983,6 @@ classdef LabelerController < handle
 
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
       if ~tfok
       	return;
@@ -4835,47 +4993,22 @@ classdef LabelerController < handle
       end
       gamma = str2double(val{1});
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
-        obj.axes_prev,iAxApply,gamma);
-
+                                      obj.axes_prev,iAxApply,gamma);
     end
 
-
-
     function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-
       obj.quitRequested() ;
     end
 
-
-
-    function menu_view_hide_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrx(~labeler.showTrx);
-
+      labeler.setShowTrx(~labeler.showTrx);  % toggle it
     end
 
-
-
-    function menu_view_plot_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
+    function menu_view_show_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-
-
-      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);
-
+      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);  % toggle
     end
-
-
 
     function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -4945,20 +5078,10 @@ classdef LabelerController < handle
 
 
     function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       ax = obj.axes_curr;
-      if strcmp(src.Checked,'on')
-        onoff = 'off';
-      else
-        onoff = 'on';
-      end
+      onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
       ax.Toolbar.Visible = onoff;
       src.Checked = onoff;
-      % For now not listening to ax.Toolbar.Visible for cmdline changes
-
-
     end
 
 
@@ -4981,16 +5104,11 @@ classdef LabelerController < handle
 
 
     function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-      lblCore = labeler.lblCore;
+      lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
-        lblCore.labelsHideToggle();
+        lblCore.labelsHideToggle() ;
       end
-
     end
 
 
@@ -5075,21 +5193,38 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if any(labeler.bgTrnIsRunningFromTrackerIndex()),
         warndlg('Cannot change training parameters while trackers are training.','Training in progress','modal');
-        return;
+        return
       end
-      [tPrm,do_update] = labeler.trackSetAutoParamsGUI();
-      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler); % modal
+      
+      % Actually takes a while for first response to happen, so show busy
+      obj.labeler_.pushBusyStatus('Setting training parameters...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
+      
+      % Compute the automatic parameters, give user chance to accept/reject them.
+      % did_update will be true iff they accepted them.
+      % tPrm will we be the current parameter tree, whether or not it incorporates
+      % the automatically-generated suggestions.
+      [tPrm, did_update, was_canceled] = obj.setAutoParams();
+      if was_canceled ,
+        return
+      end
+
+      % Show the GUI window that allows users to set parameters.  sPrmNew will be
+      % empty if user mode no changes, otherwise will be parameter structure holding
+      % the new parameters (which have not yet been 'written' to the model).
+      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler);  % modal
+
+      % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
+      % labeler, as needed.     
       if isempty(sPrmNew)
-        if do_update
-          RC.saveprop('lastCPRAPTParams',sPrmNew);
+        if did_update
           labeler.setDoesNeedSave(true,'Parameters changed') ;
         end
       else
-        labeler.trackSetParams(sPrmNew);
-        RC.saveprop('lastCPRAPTParams',sPrmNew);
+        labeler.trackSetTrainingParams(sPrmNew);
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end
-    end
+    end  % function
 
 
 
@@ -5163,7 +5298,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_go_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_evaluate_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.gtShowGTManager();
     end
@@ -5234,6 +5369,7 @@ classdef LabelerController < handle
 
     function menu_track_current_movie_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
+      mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
       toTrackIn = labeler.mIdx2TrackListGUI(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
@@ -5241,7 +5377,7 @@ classdef LabelerController < handle
       if ~dostore,
         return;
       end
-      trackBatch('labeler',labeler,'toTrack',toTrackOut);
+      labeler.trackBatch('toTrack',toTrackOut);
     end
 
 
@@ -5536,7 +5672,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play('playsegment', 'videoPlaySegFwdEnding') ;
+      obj.play_('videoPlaySegFwdEnding') ;
     end
 
 
@@ -5546,7 +5682,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play('playsegmentrev', 'videoPlaySegRevEnding') ;
+      obj.play_('videoPlaySegRevEnding') ;
     end
 
 
@@ -5556,20 +5692,20 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      obj.play('play', 'videoPlay') ;
+      obj.play_('videoPlay') ;
     end
 
 
 
     function tbAdjustCropSize_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      cropUpdateCropAdjustingCropSize(handles);
+      obj.cropUpdateCropAdjustingCropSize_() ;
       tb = obj.tbAdjustCropSize;
       if tb.Value==tb.Min
         % user clicked "Done Adjusting"
         warningNoTrace('All movies in a given view must share the same crop size. The sizes of all crops have been updated as necessary.');
       elseif tb.Value==tb.Max
         % user clicked "Adjust Crop Size"
+        labeler = obj.labeler_ ;
         if ~labeler.cropProjHasCrops
           labeler.cropInitCropsAllMovies;
           fprintf(1,'Default crop initialized for all movies.\n');
@@ -5618,7 +5754,7 @@ classdef LabelerController < handle
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      landmark_specs('labeler',labeler);
+      landmark_specs('lObj',labeler);
     end
 
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5744,6 +5880,7 @@ classdef LabelerController < handle
       % Intended to be a full update of all GUI controls to bring them into sync
       % with obj.labeler_.  Currently a work in progress.
 
+      obj.updateEnablementOfManyControls() ;
       obj.cbkLabelModeChanged() ;
       obj.cbkShowTrxChanged() ;
       obj.cbkShowTrxCurrTargetOnlyChanged() ;
@@ -5765,13 +5902,16 @@ classdef LabelerController < handle
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
       obj.update_text_trackerinfo() ;
-      obj.updateStatusBar() ;
+      obj.updateStatusAndPointer() ;
+      obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
       obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;
       if ~isempty(obj.movieManagerController_) ,
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ;
       end
+      sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
+      sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
     end
     
     function save(obj)
@@ -5927,5 +6067,188 @@ classdef LabelerController < handle
         GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
       end
     end  % function
+
+    function deleteSpashScreenFigureIfItExists_(obj)
+      hfigsplash = obj.splashScreenFigureOrEmpty_ ;
+      if isempty(hfigsplash) || ~ishghandle(hfigsplash) 
+        obj.splashScreenFigureOrEmpty_ = [] ;
+        return
+      end
+      main_figure = obj.mainFigure_ ;
+      refocusSplashScreen(hfigsplash, main_figure) ;
+      delete(hfigsplash) ;
+      obj.splashScreenFigureOrEmpty_ = [] ;
+    end
+
+    function handleCreationTimeAdditionalArgumentsGUI_actuated_(obj, ~, ~, varargin)
+      obj.labeler_.handleCreationTimeAdditionalArgumentsGUI_(varargin{:}) ;
+    end
+
+    function trainMonitorVizCloseRequested(obj)
+      doReallyClose = false ;
+      tfbatch = batchStartupOptionUsed() ; % ci
+      trainMonitorViz = obj.trainingMonitorVisualizer_ ;
+      if tfbatch ,
+        doReallyClose = true ;
+      else        
+        trainMonitorFig = trainMonitorViz.hfig ;
+        handles = guidata(trainMonitorFig) ;
+  
+        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+  
+        if strcmpi(mode,'stop') ,
+          res = questdlg({'Training currently in progress. Please stop training before'
+                          'closing this monitor. If you have already clicked Stop training,'
+                          'please wait for training processes to be killed before closing'
+                          'this monitor.'
+                          'Only override this warning if you know what you are doing.'} , ...
+                         'Stop training before closing monitor', ...
+                         'Ok','Override and close anyways', ...
+                         'Ok');
+          if ~strcmpi(res,'Ok'),
+            doReallyClose = true ;
+          end
+        elseif strcmpi(mode,'start') || strcmpi(mode,'done') ,
+          doReallyClose = true ;
+        else
+          % sanity check
+          error('Internal error: Bad userdata value for pushbutton_startstop');
+        end
+      end
+
+      if doReallyClose ,
+        delete(trainMonitorViz);
+        obj.trainingMonitorVisualizer_ = [] ;
+      end        
+    end  % function
+
+    function trackMonitorVizCloseRequested(obj)
+      doReallyClose = false ;
+      tfbatch = batchStartupOptionUsed() ; % ci
+      trackMonitorViz = obj.trackingMonitorVisualizer_ ;
+      if tfbatch ,
+        doReallyClose = true ;
+      else        
+        trackMonitorFig = trackMonitorViz.hfig ;
+        handles = guidata(trackMonitorFig) ;
+  
+        mode = get(handles.pushbutton_startstop,'UserData');  % this is not a good way to store application state.
+  
+        if strcmpi(mode,'stop') ,
+          res = questdlg({'Tracking currently in progress. Please stop tracking before'
+                          'closing this monitor. If you have already clicked Stop tracking,'
+                          'please wait for tracking processes to be killed before closing'
+                          'this monitor.'
+                          'Only override this warning if you know what you are doing.'} , ...
+                         'Stop tracking before closing monitor', ...
+                         'Ok','Override and close anyways', ...
+                         'Ok');
+          if ~strcmpi(res,'Ok'),
+            doReallyClose = true ;
+          end
+        elseif strcmpi(mode,'start') || strcmpi(mode,'done') ,
+          doReallyClose = true ;
+        else
+          % sanity check
+          error('Internal error: Bad userdata value for pushbutton_startstop');
+        end
+      end
+
+      if doReallyClose ,
+        delete(trackMonitorViz);
+        obj.trackingMonitorVisualizer_ = [] ;
+      end        
+    end  % function
+
+    function [tPrm, did_update, was_canceled] = setAutoParams(obj)
+      % Compute auto parameters and update them based on user feedback.
+      %
+      % AL: note this sets the project-level params based on the current
+      % tracker; if a user uses multiple tracker types (eg: MA-BU and 
+      % MA-TD) and switches between them, the behavior may be odd (eg the
+      % user may get prompted constantly about "changed suggestions" etc)
+
+      % On exit, returns the current parameter tree in the labeler in tPrm (whether
+      % modified or not).  do_update is a logical scalar that is true iff the
+      % suggested automatically-determined paramters were applied to the labeler.
+
+      labeler = obj.labeler_ ;
+        
+      sPrmCurrent = labeler.trackGetTrainingParams();
+      % Future todo: if sPrm0 is empty (or partially-so), read "last params" in 
+      % eg RC/lastCPRAPTParams. Previously we had an impl but it was messy, start
+      % over.
+      
+      % Start with default "new" parameter tree/specification
+      tPrm = APTParameters.defaultParamsTree() ;
+      % Overlay our starting point
+      tPrm.structapply(sPrmCurrent) ;
+      
+      if labeler.isMultiView        
+        warningNoTrace('Multiview project: not auto-setting params.');
+        did_update = false;
+        was_canceled = false ;
+        return
+      end      
+      
+      if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
+        uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
+        landmark_specs('lObj',labeler,'waiton_ui',true);
+        if isempty(labeler.skelHead)
+          uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
+                         [], ...
+                         'modal'));
+          did_update = false;
+          was_canceled = false ;        
+          return
+        end
+      end
+      
+      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler) ;
+      if was_canceled
+        did_update = false ;
+        return
+      end
+
+      % Finally, apply the update, if called for.
+      if do_update
+        sPrmNew = tPrm.structize() ;
+        labeler.trackSetTrainingParams(sPrmNew);
+        did_update = true ;
+      else
+        did_update = false ;
+      end
+    end  % function
+        
+    function [docontinue, stg1ctorargs, stg2ctorargs] = raiseDialogsToChooseStageAlgosForCustomTopDownTracker(obj, stg1mode, stg2mode)
+      % What it says on the tin.
+      dlnets = enumeration('DLNetType') ;
+      isma = [dlnets.isMultiAnimal] ;
+      stg2nets = dlnets(~isma) ;
+      
+      is_bbox = false(1,numel(dlnets)) ;
+      for dndx = 1:numel(dlnets)          
+        is_bbox(dndx) = dlnets(dndx).isMultiAnimal && startsWith(char(dlnets(dndx)),'detect_') ;
+      end  % for
+      
+      stg1nets_ht = dlnets(isma & ~is_bbox) ;
+      stg1nets_bbox = dlnets(isma & is_bbox) ;
+      if stg1mode == DLNetMode.multiAnimalTDDetectHT
+        stg1nets = stg1nets_ht ;
+      else
+        stg1nets = stg1nets_bbox ;
+      end
+      [stg1net, stg2net] = apt.get_custom_two_stage_tracker_nets_ui(obj.mainFigure_, stg1nets, stg2nets) ;
+
+      docontinue = ~isempty(stg1net) ;
+      if docontinue
+        stg1ctorargs = {'trnNetMode', stg1mode, 'trnNetType', stg1net} ;
+        stg2ctorargs = {'trnNetMode', stg2mode, 'trnNetType', stg2net} ;
+      else
+        stg1ctorargs = [] ;
+        stg2ctorargs = [] ;
+      end      
+    end  % function
+
   end  % methods  
 end  % classdef

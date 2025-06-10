@@ -328,7 +328,7 @@ end
 
 %% Train init/params
 PARAMFILE = 'f:\romain\20161214MoreData\tp@18pts@3d_jitterForeMore@2lmdiff.yaml';
-sPrm = ReadYaml(PARAMFILE);
+sPrm = yaml.ReadYaml(PARAMFILE);
 sPrm.Model.nviews = 3;
 sPrm.Model.Prm3D.iViewBase = 1;
 rc = RegressorCascade(sPrm);

@@ -501,13 +501,14 @@ registerModularToolWithManager(hFig,imageHandle);
             'Callback', @undoAllChanges);
 
         % Help menu
-        if ~isdeployed
+        if ~isdeployed()
+            %#exclude docroot helpview demo
             helpmenu = uimenu(hFig, ...
                 'Label', getString(message('images:commonUIString:helpMenubarLabel')), ...
                 'Tag', 'help menu');
             
             invokeHelp = @(varargin) ...
-                helpview([docroot '/toolbox/images/images.map'],'imtool_imagecontrast_help');
+                helpview(fullfile(docroot(),'toolbox/images/images.map'),'imtool_imagecontrast_help');
             
             uimenu(helpmenu, ...
                 'Label', getString(message('images:imcontrastUIString:adjustContrastHelpMenubarLabel')), ...

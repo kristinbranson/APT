@@ -1,9 +1,9 @@
 classdef APT
   
   properties (Constant)
-    Root = getRootGeneral(); %fileparts(mfilename('fullpath'));
-    MANIFESTFILE = 'Manifest.txt';
-    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh');
+    Root = APT.getRoot_()
+    MANIFESTFILE = 'Manifest.txt'
+    SnapshotScript = fullfile(APT.Root,'matlab','repo_snapshot.sh')
     
     BUILDSNAPSHOTFILE = 'build.snapshot';
     BUILDSNAPSHOTFULLFILE = fullfile(APT.Root,APT.BUILDSNAPSHOTFILE);
@@ -21,10 +21,14 @@ classdef APT
   
   methods (Static)
     
-    function root = getRoot()
+    function root = getRoot_()
       % root: the folder containing APT.m. When deployed, it is
       % assumed the tree under root matches the dev repo
-      root = getRootGeneral();
+      if isdeployed()
+        root = fullfile(ctfroot(), 'APT_deployed') ;
+      else
+        root = fileparts(mfilename('fullpath')) ;
+      end
     end
     
     function m = readManifest()
@@ -55,8 +59,8 @@ classdef APT
       
       m = APT.readManifest();
       
-      root = APT.Root;
-      mlroot = fullfile(root,'matlab');
+      aptroot = APT.Root;
+      mlroot = fullfile(aptroot,'matlab');
       cprroot = fullfile(mlroot,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
@@ -84,12 +88,12 @@ classdef APT
 %         visionpath = 'vision_postinc17b';
 %       end
       aptpath = { ...
-        root; ...
+        aptroot; ...
         mlroot; ...
         fullfile(mlroot,'util'); ...
         fullfile(mlroot,'misc'); ...
         fullfile(mlroot,'private_imuitools'); ...
-        fullfile(root,'external','netlab'); ...
+        fullfile(aptroot,'external','netlab'); ...
         fullfile(mlroot,'user'); ...
         fullfile(mlroot,'user','orthocam'); ... %         fullfile(mlroot,'user','orthocam',visionpath); ...
         fullfile(mlroot,'YAMLMatlab_0.4.3'); ...
@@ -97,7 +101,10 @@ classdef APT
         fullfile(mlroot,'propertiesGUI'); ...
         fullfile(mlroot,'treeTable'); ...
         fullfile(mlroot,'jsonlab-1.2','jsonlab'); ...
-        fullfile(root,'unittest'); ...
+        fullfile(mlroot,'unittest'); ...
+        fullfile(mlroot,'test'); ...
+        fullfile(mlroot,'test/single-tests'); ...
+        fullfile(mlroot,'test/single-tests/remote'); ...
         fullfile(mlroot,'compute_landmark_features'); ...
         fullfile(mlroot,'compute_landmark_transforms'); ...
         fullfile(mlroot,'trk'); ...
@@ -141,7 +148,7 @@ classdef APT
         fullfile('matlab','JavaTableWrapper','+uiextras','+jTable','UIExtrasTable.jar'); ...
         fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
         fullfile('matlab','treeTable')};
-      jp = fullfile(root,jprel);
+      jp = fullfile(aptroot,jprel);
     end
     
     function jaabapath = getjaabapath()
@@ -191,8 +198,8 @@ classdef APT
       % Don't set MATLAB path if it appears it is already set
       % "smart" in quotes, of course
       
-      if isdeployed
-        return;
+      if isdeployed()
+        return
       end
         
       [p,jp] = APT.getpath();
@@ -205,7 +212,7 @@ classdef APT
       if ismac()
         setenv('PATH',['/usr/local/bin:' getenv('PATH')]);
       end
-    end
+    end  % function
     
     % AL20210813 
     % User on win10, ML2021a encountring obscure java classpath issues.
@@ -299,7 +306,9 @@ classdef APT
       pposetf = fullfile(r,'deepnet');
     end
     
-    function result = getdotaptdirpath()  % returns e.g. /home/joesixpack/.apt
+    function result = getdotaptdirpath()  
+      % Returns the path to the .apt dir.  E.g. '/home/joesixpack/.apt'.  This is
+      % returned as a *native* path.      
       envar_value = getenv('APT_DOT_APT_DIR') ;
       if ~isempty(envar_value) ,
         result = envar_value ;
@@ -314,8 +323,11 @@ classdef APT
       end
     end  % function
     
-    function tr = torchhome()
-      tr = fullfile(APT.getdotaptdirpath(),'torch');
+    function result = gettorchhomepath()
+      % Returns the path to the Torch cache dir, passed to Python in the envar
+      % TORCH_HOME.  E.g. '/home/joesixpack/.apt/torch'.  This is returned as a
+      % *native* path.
+      result = fullfile(APT.getdotaptdirpath(),'torch') ;
     end
     
     function s = codesnapshot()
@@ -589,14 +601,4 @@ classdef APT
     
   end
   
-end
-
-
-function root = getRootGeneral()
-  if isdeployed
-    root = fullfile(ctfroot,'APT_deployed');
-  else
-    root = fileparts(mfilename('fullpath'));   
-  end
-
 end

@@ -12,8 +12,8 @@ function status_string = ...
 
 does_input_string_contain_variable = contains(raw_status_string,'$PROJECTNAME') ;
 if does_input_string_contain_variable && hasProject ,
-  if ~ischar(projectfile) ,
-    project_file_path = '' ;
+  if ~ischar(projectfile) || isempty(projectfile) ,
+    project_file_path = '<unnamed project>' ;
   else
     project_file_path = projectfile ;
   end

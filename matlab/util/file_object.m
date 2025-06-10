@@ -4,8 +4,6 @@ classdef file_object < handle
     
     properties (Access = protected)
         fid_ = []
-        %uid_ = []
-        %file_name_ = []
     end
     
     methods

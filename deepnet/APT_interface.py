@@ -1117,6 +1117,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
                       'multi_dekr': 'DeKR',
+                      'detect_frcnn':'MMDetect_FRCNN'
                       }
 
     if not 'ProjectFile' in A:
@@ -4108,7 +4109,7 @@ def train_other(conf, args, restore, split, split_file, model_file, net_type, fi
         return
 
     if conf.multi_only_ht:
-        assert conf.stage!='second', 'multi_ony_ht should be True only for the first stage'
+        assert conf.stage!='second', 'multi_only_ht should be True only for the first stage'
         conf.n_classes = 2
         conf.flipLandmarkMatches = {}
         conf.op_affinity_graph = [[0, 1]]

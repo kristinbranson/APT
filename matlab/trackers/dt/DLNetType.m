@@ -48,6 +48,7 @@ classdef DLNetType < handle
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')
+    detect_frcnn ('detect_frcnn')
     hrformer ('hrformer')
     multi_cid ('multi_cid')
     multi_dekr ('multi_dekr')
@@ -105,9 +106,9 @@ classdef DLNetType < handle
       end
     end
   end
-end 
+end  % classdef 
   
 function s = lclReadNetYaml()
-yaml = fullfile(APT.Root,'matlab','trackers','dt','nets.yaml');
-s = ReadYaml(yaml);
+  netsYamlFilePath = fullfile(APT.Root, 'matlab', 'trackers', 'dt', 'nets.yaml') ;
+  s = yaml.ReadYaml(netsYamlFilePath);
 end

@@ -35,6 +35,7 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 % 3c. Labeler prop listeners update GTTable selection, expand/collapse
 %   (frame, target etc)
 
+set(hObject,'MenuBar','None');
 handles.menu_get_gt_frames.Label = 'GT Frames';
 
 handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
@@ -67,7 +68,7 @@ handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
 
 
 lObj = varargin{1};
-if isdeployed || ~lObj.isgui,
+if isdeployed() || ~lObj.isgui,
   % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
   % require Java Swing" from
   % cbkGTSuggUpdated->NavTreeTable/setData->treeTable.
@@ -151,6 +152,12 @@ function cbkGTisGTModeChanged(hObject,src,evt)
 
 function cbkGTSuggUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler.controller_.mainFigure_)
+  % All is well
+else
+  % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 % if lObj.isinit
 %   return;
@@ -182,6 +189,11 @@ tbl.mov = movstrs;
 
 COLS = [MFTable.FLDSID {'hasLbl' 'err'}];
 PRETTYCOLS = {'Movie' 'Frame' 'Target' 'Has Labels' 'Error'};
+if lObj.maIsMA
+  % Drop target for multi-animal MK 20250523
+  COLS = COLS([1 2 4 5]);
+  PRETTYCOLS = PRETTYCOLS([1 2 4 5]);
+end
 tbl = tbl(:,COLS);
 ntt.setData(tbl,'prettyHdrs',PRETTYCOLS);
 handles.navTreeTblMovIdxs = tblMovIdxs;
@@ -200,6 +212,12 @@ ntt.updateDataColumn('hasLbl',num2cell(tf));
 
 function cbkGTResUpdated(hObject,src,evt)
 handles = guidata(hObject);
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+  % All is well
+else
+  % Sometimes cbkGTResUpdated() gets called very early on, before handles.labeler is set
+  return
+end
 lObj = handles.labeler;
 tblSugg = lObj.gtSuggMFTable;
 ntt = handles.navTreeTbl;
@@ -231,7 +249,11 @@ nData = ntt.nData;
 nttMovIdxs = handles.navTreeTblMovIdxs;
 assert(nData==numel(nttMovIdxs));
 if nData>0
-  tf = mIdx==nttMovIdxs & frm==nttData.frm & iTgt==nttData.iTgt;
+  if lObj.maIsMA
+    tf = mIdx==nttMovIdxs & frm==nttData.frm;
+  else
+    tf = mIdx==nttMovIdxs & frm==nttData.frm & iTgt==nttData.iTgt;
+  end
   iData = find(tf);
   if ~isempty(iData)
     assert(isscalar(iData));
@@ -257,7 +279,12 @@ iMov = mftRow.mov.get();
 if iMov~=lObj.currMovie
   lObj.movieSetGUI(iMov);
 end
-lObj.setFrameAndTargetGUI(mftRow.frm,mftRow.iTgt);
+if isfield(mftRow,'iTgt')
+  itgt = mftRow.iTgt;
+else
+  itgt = NaN;
+end
+lObj.setFrameAndTargetGUI(mftRow.frm,itgt);
 
 % function imovs = cbkGetSelectedMovies(hMMobj)
 % % Get current selection in Table

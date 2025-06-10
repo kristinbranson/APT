@@ -432,7 +432,7 @@ classdef LabelTracker < handle
         error('LabelTracker:noParams',...
           'Tracking parameter file needs to be set.');
       end
-      prm = ReadYaml(prmFile);
+      prm = yaml.ReadYaml(prmFile);
     end
             
   end
