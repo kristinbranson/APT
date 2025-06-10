@@ -567,19 +567,19 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       lObj = obj.labeler;
       scPrefs = lObj.projPrefs.Shortcuts;     
       tfKPused = true;
-      if strcmp(key,scPrefs.menu_view_hide_labels) && tfCtrl ...
+      if strcmp(key,scPrefs.menu_view_showhide_labels) && tfCtrl ...
           && isfield(src.UserData,'view') && src.UserData.view>1
         % HACK multiview. MATLAB menu accelerators only work when
         % figure-containing-the-menu (main fig) has focus
         obj.labelsHideToggle();
-      elseif strcmp(key,scPrefs.menu_view_hide_predictions) && tfCtrl ...
+      elseif strcmp(key,scPrefs.menu_view_showhide_predictions) && tfCtrl ...
           && isfield(src.UserData,'view') && src.UserData.view>1
         % Hack etc
         tracker = lObj.tracker;
         if ~isempty(tracker)
           tracker.hideVizToggle();
         end
-      elseif strcmp(key,scPrefs.menu_view_hide_imported_predictions) ...
+      elseif strcmp(key,scPrefs.menu_view_showhide_imported_predictions) ...
           && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
         lObj.labels2VizToggle();
       elseif strcmp(key,'space')

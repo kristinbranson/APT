@@ -5,5 +5,11 @@ function menuReorder(hParent,tags)
 % tags: cellstr, some permutation of {hParent.Children.Tag}'
 
 tag0 = {hParent.Children.Tag}';
-[~,loc] = ismember(tags,tag0);
+[ism,loc] = ismember(tags,tag0);
+if ~all(ism),
+  error('Missing child tag: %s\n',tags{~ism});
+end
+rest = setdiff(1:numel(tag0),loc);
+loc = [loc(:);rest(:)];
+
 hParent.Children = hParent.Children(loc(end:-1:1));

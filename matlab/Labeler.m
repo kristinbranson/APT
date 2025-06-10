@@ -2769,7 +2769,7 @@ classdef Labeler < handle
       
       try
         starttime = tic;
-        fprintf('Untarring project into %s\n',tname);
+        fprintf('Untarring project %s into %s\n',fname,tname);
         untar(fname,tname);
         obj.unTarLoc = tname;
         fprintf('... done with untar, elapsed time = %fs.\n',toc(starttime));

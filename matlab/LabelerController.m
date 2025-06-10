@@ -143,24 +143,28 @@ classdef LabelerController < handle
     menu_view_flip_flipud
     menu_view_flip_flipud_movie_only
     menu_view_gammacorrect
-    menu_view_hide_imported_predictions
-    menu_view_hide_labels
-    menu_view_hide_predictions
-    menu_view_show_trajectories
-    menu_view_landmark_colors
+    menu_view_showhide_imported_predictions
+    menu_view_showhide_imported_preds_all
+    menu_view_showhide_imported_preds_curr_target_only
+    menu_view_showhide_imported_preds_none
+    menu_view_showhide_labels
+    menu_view_showhide_predictions
+    menu_view_showhide_trajectories
+    menu_view_keypoint_appearance
     menu_view_landmark_label_colors
     menu_view_landmark_prediction_colors
     menu_view_occluded_points_box
     menu_view_pan_toggle
-    menu_view_show_trajectories_current_target_only
     menu_view_reset_views
     menu_view_rotate_video_target_up
     menu_view_show_axes_toolbar
     menu_view_show_bgsubbed_frames
     menu_view_show_grid
-    menu_view_show_imported_preds_curr_target_only
-    menu_view_show_preds_curr_target_only
+    menu_view_showhide_preds_all_targets
+    menu_view_showhide_preds_curr_target_only
+    menu_view_showhide_preds_none
     menu_view_show_tick_labels
+    menu_view_showhide_labelrois
     menu_view_showhide_maroi
     menu_view_showhide_maroiaux
     menu_view_showhide_skeleton
@@ -259,8 +263,15 @@ classdef LabelerController < handle
                         'isInAwsDebugMode',false, ...
                         'isInYodaMode', false) ;
 
+      % Create the splash screen figure
+      % (Do this after creation of main figure so splash screen figure is on top.)
+      obj.splashScreenFigureOrEmpty_ = createSplashScreenFigure() ;
+      oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
+
       % Create the labeler, tell it there will be a GUI attached
       labeler = Labeler('isgui', true, 'isInDebugMode', isInDebugMode,  'isInAwsDebugMode', isInAwsDebugMode) ;  
+
+      figure(obj.splashScreenFigureOrEmpty_);
 
       % Set up the main instance variables
       obj.labeler_ = labeler ;
@@ -271,11 +282,6 @@ classdef LabelerController < handle
       obj.isInYodaMode_ = isInYodaMode ;  
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
-
-      % Create the splash screen figure
-      % (Do this after creation of main figure so splash screen figure is on top.)
-      obj.splashScreenFigureOrEmpty_ = createSplashScreenFigure() ;
-      oc = onCleanup(@()(obj.deleteSpashScreenFigureIfItExists_())) ;
               
       % Initialize all the instance vars that will hold references to GUI controls
       handles = guihandles(mainFigure) ;
@@ -762,7 +768,7 @@ classdef LabelerController < handle
     function lblCoreHideLabelsChanged(obj)
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
-      obj.menu_view_hide_labels.Checked = onIff(lblCore.hideLabels) ;
+      obj.menu_view_showhide_labels.Checked = onIff(~lblCore.hideLabels) ;
     end
     
     function lblCoreStreamlinedChanged(obj)
@@ -1428,12 +1434,7 @@ classdef LabelerController < handle
       set(obj.menu_file_quit,'Enable','on');
       
       % Update items in the View menu
-      set(obj.menu_view_show_trajectories, ...
-          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx), ...
-          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrx) ) ;
-      set(obj.menu_view_show_trajectories_current_target_only, ...
-          'Enable', onIff(hasProject && ~isMA && labeler.hasTrx  && labeler.showTrx), ...
-          'Checked', onIff(hasProject && ~isMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
+      obj.updateTrxMenuCheckEnable();
 
       % Update setup menu item
       set(obj.menu_setup_label_outliers, 'Enable', onIff(hasMovie)) ;
@@ -1471,7 +1472,7 @@ classdef LabelerController < handle
       obj.menu_track.Enable = onIff(hasTracker);
       obj.pbTrain.Enable = onIff(hasTracker);
       obj.pbTrack.Enable = onIff(hasTracker);
-      obj.menu_view_hide_predictions.Enable = onIff(hasTracker);
+      obj.menu_view_showhide_predictions.Enable = onIff(hasTracker);
       set(obj.menu_track_auto_params_update, 'Checked', hasProject && labeler.trackAutoSetParams) ;
       
       set(obj.menu_go_targets_summary,'Enable',onIff(hasProject && ~isInGTMode)) ;
@@ -2688,8 +2689,7 @@ classdef LabelerController < handle
       obj.menu_track.Enable = onOrOff;
       obj.pbTrain.Enable = onOrOff;
       obj.pbTrack.Enable = onOrOff;
-      obj.menu_view_hide_predictions.Enable = onOrOff;
-      obj.menu_view_show_preds_curr_target_only.Enable = onOrOff;
+      obj.menu_view_showhide_predictions.Enable = onOrOff;
 
       % % Remake the tracker history submenu
       % obj.update_menu_track_tracker_history_() ;
@@ -2725,16 +2725,60 @@ classdef LabelerController < handle
       obj.update() ;
     end  % function
 
+    function updateShowPredMenus(obj)
+      lObj = obj.labeler_ ;
+      tracker = lObj.tracker ;
+      if isempty(tracker),
+        return;
+      end
+      obj.menu_view_showhide_preds_all_targets.Checked = onIff(~tracker.hideViz && ~tracker.showPredsCurrTargetOnly) ;
+      obj.menu_view_showhide_preds_curr_target_only.Checked = onIff(~tracker.hideViz && tracker.showPredsCurrTargetOnly) ;
+      obj.menu_view_showhide_preds_none.Checked = onIff(tracker.hideViz) ;
+    end
+
+    function updateShowImportedPredMenus(obj,src,evt) %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      if nargin < 2,
+        src = nan;
+      end
+      % during initiatialization, these have not been set to bools yet
+      if isempty(labeler.labels2ShowCurrTargetOnly),
+        showcurrent = false;
+      else
+        showcurrent = labeler.labels2ShowCurrTargetOnly;
+      end
+      if isempty(labeler.labels2Hide),
+        hide = false;
+      else
+        hide = labeler.labels2Hide;
+      end
+      if src ~= obj.menu_view_showhide_imported_preds_all,
+        obj.menu_view_showhide_imported_preds_all.Checked = onIff(~hide && ~showcurrent) ;
+      end
+      if src ~= obj.menu_view_showhide_imported_preds_curr_target_only,
+        obj.menu_view_showhide_imported_preds_curr_target_only.Checked = onIff(~hide && showcurrent);
+      end
+      if src ~= obj.menu_view_showhide_imported_preds_none
+        obj.menu_view_showhide_imported_preds_none.Checked = onIff(hide) ;
+      end
+      
+    end
+
+
+
     function cbkTrackerHideVizChanged(obj)
       lObj = obj.labeler_ ;
       tracker = lObj.tracker ;
-      obj.menu_view_hide_predictions.Checked = onIff(tracker.hideViz) ;
+      obj.updateShowPredMenus()
     end  % function
 
     function cbkTrackerShowPredsCurrTargetOnlyChanged(obj)
       lObj = obj.labeler_ ;
       tracker = lObj.tracker ;
-      obj.menu_view_show_preds_curr_target_only.Checked = onIff(tracker.showPredsCurrTargetOnly) ;
+      obj.updateShowPredMenus();
+      % obj.menu_view_showhide_preds_curr_target_only.Checked = onIff(tracker.showPredsCurrTargetOnly) ;
+      % obj.menu_view_showhide_preds_all_targets.Checked = onIff(~tracker.showPredsCurrTargetOnly) ;
+      % obj.menu_view_showhide_preds_none.Checked = onIff(~tracker.showPredsCurrTargetOnly) ;
     end  % function
 
     function update_menu_track_backend_config(obj)
@@ -3033,8 +3077,7 @@ classdef LabelerController < handle
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
           obj.menu_view_zoom_toggle.Visible = 'off';
           obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_maroi.Visible = 'off';
-          obj.menu_view_showhide_maroiaux.Visible = 'off';
+          obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.SEQUENTIALADD
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
@@ -3046,8 +3089,7 @@ classdef LabelerController < handle
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
           obj.menu_view_zoom_toggle.Visible = 'off';
           obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_maroi.Visible = 'off';
-          obj.menu_view_showhide_maroiaux.Visible = 'off';
+          obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.MULTIANIMAL
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
@@ -3060,8 +3102,7 @@ classdef LabelerController < handle
           obj.menu_setup_ma_twoclick_align.Checked = labeler.isTwoClickAlign;
           obj.menu_view_zoom_toggle.Visible = 'on';
           obj.menu_view_pan_toggle.Visible = 'on';
-          obj.menu_view_showhide_maroi.Visible = 'on';
-          obj.menu_view_showhide_maroiaux.Visible = 'on';
+          obj.menu_view_showhide_labelrois.Visible = 'on';
         case LabelMode.TEMPLATE
           %     obj.menu_setup_createtemplate.Visible = 'on';
           obj.menu_setup_set_labeling_point.Visible = 'off';
@@ -3074,8 +3115,7 @@ classdef LabelerController < handle
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
           obj.menu_view_zoom_toggle.Visible = 'off';
           obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_maroi.Visible = 'off';
-          obj.menu_view_showhide_maroiaux.Visible = 'off';
+          obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.HIGHTHROUGHPUT
           %     obj.menu_setup_createtemplate.Visible = 'off';
           obj.menu_setup_set_labeling_point.Visible = 'on';
@@ -3088,8 +3128,7 @@ classdef LabelerController < handle
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
           obj.menu_view_zoom_toggle.Visible = 'off';
           obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_maroi.Visible = 'off';
-          obj.menu_view_showhide_maroiaux.Visible = 'off';
+          obj.menu_view_showhide_labelrois.Visible = 'off';
         case LabelMode.MULTIVIEWCALIBRATED2
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
@@ -3101,32 +3140,46 @@ classdef LabelerController < handle
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
           obj.menu_view_zoom_toggle.Visible = 'off';
           obj.menu_view_pan_toggle.Visible = 'off';
-          obj.menu_view_showhide_maroi.Visible = 'off';
-          obj.menu_view_showhide_maroiaux.Visible = 'off';
+          obj.menu_view_showhide_labelrois.Visible = 'off';
       end
     end  % function
 
-    function cbkLabels2HideChanged(obj, src, evt)  %#ok<INUSD>
+    function cbkLabels2HideChanged(obj, varargin)  
       labeler = obj.labeler_ ;
-      obj.menu_view_hide_imported_predictions.Checked = onIff(labeler.labels2Hide);
+      obj.updateShowImportedPredMenus(varargin{:});
     end  % function
 
-    function cbkLabels2ShowCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
+    function cbkLabels2ShowCurrTargetOnlyChanged(obj, varargin)  
       labeler = obj.labeler_ ;       
-      obj.menu_view_show_imported_preds_curr_target_only.Checked = ...
-        onIff(labeler.labels2ShowCurrTargetOnly);
+      obj.updateShowImportedPredMenus(varargin{:});
     end  % function
 
-    function cbkShowTrxChanged(obj, src, evt)  %#ok<INUSD>
+    function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
+      if nargin < 2,
+        src = nan;
+      end
+      labeler = obj.labeler_;
+      if src ~= obj.menu_view_showhide_trajectories,
+        set(obj.menu_view_showhide_trajectories, ...
+          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx));
+      end
+      if src ~= obj.menu_view_trajectories_showall,
+        set(obj.menu_view_trajectories_showall, ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx && ~labeler.showTrxCurrTargetOnly) ) ;
+      end
+      if src ~= obj.menu_view_trajectories_showcurrent,
+        set(obj.menu_view_trajectories_showcurrent, ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;
+      end
+      if src ~= obj.menu_view_trajectories_dontshow,
+        set(obj.menu_view_trajectories_dontshow, ...
+          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && ~labeler.showTrx && ~labeler.showTrxCurrTargetOnly) ) ;
+      end
+    end
+
+    function cbkShowTrxChanged(obj, varargin)
       labeler = obj.labeler_ ;
-      % obj.menu_view_show_trajectories.Checked = ...
-      %   onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ;
-      set(obj.menu_view_show_trajectories, ...
-          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx), ...
-          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx) ) ;
-      set(obj.menu_view_show_trajectories_current_target_only, ...
-          'Enable', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrx), ...
-          'Checked', onIff(labeler.hasProject && ~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ) ;      
+      obj.updateTrxMenuCheckEnable(varargin{:});
     end  % function
 
     function cbkShowOccludedBoxChanged(obj, src, evt)  %#ok<INUSD>
@@ -3136,10 +3189,9 @@ classdef LabelerController < handle
       set([obj.text_occludedpoints,obj.axes_occ],'Visible',onOff);
     end  % function
 
-    function cbkShowTrxCurrTargetOnlyChanged(obj, src, evt)  %#ok<INUSD>
+    function cbkShowTrxCurrTargetOnlyChanged(obj, varargin)
       labeler = obj.labeler_ ;
-      obj.menu_view_show_trajectories_current_target_only.Checked = ...
-        onIff(labeler.hasProject &&~labeler.maIsMA && labeler.hasTrx && labeler.showTrxCurrTargetOnly) ;
+      obj.updateTrxMenuCheckEnable(varargin{:});
     end  % function
 
     function cbkTrackModeIdxChanged(obj, src, evt)  %#ok<INUSD>
@@ -4981,14 +5033,24 @@ classdef LabelerController < handle
       obj.quitRequested() ;
     end
 
-    function menu_view_show_trajectories_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_trajectories_showall_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setShowTrx(~labeler.showTrx);  % toggle it
+      labeler.setShowTrx(true);
+      labeler.setShowTrxCurrTargetOnly(false);
+      obj.updateTrxMenuCheckEnable(src);
     end
 
-    function menu_view_show_trajectories_current_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_trajectories_showcurrent_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.setShowTrxCurrTargetOnly(~labeler.showTrxCurrTargetOnly);  % toggle
+      labeler.setShowTrxCurrTargetOnly(true); 
+      obj.updateTrxMenuCheckEnable(src);
+    end
+
+    function menu_view_trajectories_dontshow_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      labeler.setShowTrx(false); 
+      labeler.setShowTrxCurrTargetOnly(false); 
+      obj.updateTrxMenuCheckEnable(src);
     end
 
     function menu_view_trajectories_centervideoontarget_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5094,7 +5156,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_showhide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
@@ -5104,7 +5166,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_view_hide_predictions_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_showhide_preds_all_targets_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
 
@@ -5113,14 +5175,34 @@ classdef LabelerController < handle
 
       tracker = labeler.tracker;
       if ~isempty(tracker)
-        tracker.hideVizToggle();
+        tracker.setHideViz(false); % show tracking
+        tracker.setShowPredsCurrTargetOnly(false); % not only current target
       end
+
+      obj.updateShowPredMenus();
 
     end
 
 
 
-    function menu_view_show_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_showhide_preds_curr_target_only_actuated_(obj, src, evt) %#ok<INUSD>
+
+      
+
+      labeler = obj.labeler_ ;
+
+
+      tracker = labeler.tracker;
+      if ~isempty(tracker)
+        tracker.setHideViz(false); % show tracking
+        tracker.setShowPredsCurrTargetOnly(true);
+        obj.updateShowPredMenus();
+      end
+
+
+    end
+
+    function menu_view_showhide_preds_none_actuated_(obj, src, evt) %#ok<INUSD>
 
 
 
@@ -5129,39 +5211,51 @@ classdef LabelerController < handle
 
       tracker = labeler.tracker;
       if ~isempty(tracker)
-        tracker.showPredsCurrTargetOnlyToggle();
+        tracker.setHideViz(true); % do not show tracking
+        obj.updateShowPredMenus();
       end
 
     end
 
 
 
-    function menu_view_hide_imported_predictions_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_showhide_imported_preds_all_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
 
       labeler = obj.labeler_ ;
-
-
-      labeler.labels2VizToggle();
-
+      labeler.labels2VizShow();
+      labeler.labels2VizSetShowCurrTargetOnly(false);
+      obj.updateShowImportedPredMenus(src);
 
 
     end
 
 
 
-    function menu_view_show_imported_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_showhide_imported_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
 
       labeler = obj.labeler_ ;
+      labeler.labels2VizShow();
+      labeler.labels2VizSetShowCurrTargetOnly(true);
+      obj.updateShowImportedPredMenus(src);
 
 
-      labeler.labels2VizSetShowCurrTargetOnly(~labeler.labels2ShowCurrTargetOnly);
     end
 
 
+    function menu_view_showhide_imported_preds_none_actuated_(obj, src, evt)  %#ok<INUSD>
+
+
+
+      labeler = obj.labeler_ ;
+      labeler.labels2VizHide();
+      obj.updateShowImportedPredMenus(src);
+
+
+    end
 
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
@@ -5733,7 +5827,7 @@ classdef LabelerController < handle
     function menu_track_tracking_algorithm_actuated_(obj, src, evt)  %#ok<INUSD>
     end
 
-    function menu_view_landmark_colors_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
       LandmarkColors(labeler,cbkApply);
@@ -5889,6 +5983,8 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_) ,
         obj.movieManagerController_.lblerLstnCbkGTMode() ;
       end
+      obj.updateShowPredMenus();
+      obj.updateShowImportedPredMenus();
       obj.update_menu_track_tracking_algorithm() ;
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
