@@ -8603,6 +8603,7 @@ classdef Labeler < handle
         eids = repmat(1:height(tMFT),nphyspts,1);
         clckHandlers(ivw,1) = OlyDat.XYPlotClickHandler(hAxs(ivw),xall(:),yall(:),eids(:),ec,false);
         
+        pause(0.5); % just a breather 
         for ipts=1:nphyspts
           x = squeeze(p(ipts,ivw,1,:));
           y = squeeze(p(ipts,ivw,2,:));
