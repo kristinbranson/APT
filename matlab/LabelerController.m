@@ -4970,7 +4970,7 @@ classdef LabelerController < handle
         catch ME
           switch ME.identifier
             case 'images:imcontrast:unsupportedImageType'
-              error(ME.identifier,'%s %s',ME.message,'Try View > Convert to grayscale.');
+              error(ME.identifier,'%s %s',ME.message,'Try View > Display in grayscale.');
             otherwise
               ME.rethrow();
           end
@@ -5006,11 +5006,21 @@ classdef LabelerController < handle
       if ~tfok
       	return;
       end
-      val = inputdlg('Gamma value:','Gamma correction');
+      ud = obj.axes_all(iAxApply(1)).UserData;
+      if isstruct(ud) && isfield(ud,'gamma') && ~isempty(ud.gamma),
+        def = ud.gamma;
+      else
+        def = 1;        
+      end
+      val = inputdlg('Gamma value (0 < Gamma < 1 reduces contrast, Gamma > 1 increases contrast)','Gamma correction',[1,50],{num2str(def)});
       if isempty(val)
         return;
       end
       gamma = str2double(val{1});
+      if ~(gamma > 0),
+        errordlg('Gamma must be a positive number. (0 < Gamma < 1 reduces contrast, Gamma > 1 increases contrast.','Bad value for gamma');
+        return;
+      end
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
                                       obj.axes_prev,iAxApply,gamma);
     end

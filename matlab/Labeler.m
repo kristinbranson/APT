@@ -4627,6 +4627,15 @@ classdef Labeler < handle
           % here.
           obj.labelingInitTemplate();
         end
+
+        for i = 1:obj.nview,
+          ud = obj.gdata.axes_all(i).UserData;
+          if isstruct(ud) && isfield(ud,'gamma') && ~isempty(ud.gamma),
+            gam = ud.gamma;
+            ViewConfig.applyGammaCorrection(obj.gdata.images_all,obj.gdata.axes_all,obj.gdata.axes_prev,i,gam);
+          end
+        end
+
       end
 
       % AL20160615: omg this is the plague.
