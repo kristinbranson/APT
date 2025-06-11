@@ -158,7 +158,6 @@ classdef LabelerController < handle
     menu_view_reset_views
     menu_view_rotate_video_target_up
     menu_view_show_axes_toolbar
-    menu_view_show_bgsubbed_frames
     menu_view_show_grid
     menu_view_showhide_preds_all_targets
     menu_view_showhide_preds_curr_target_only
@@ -3266,10 +3265,6 @@ classdef LabelerController < handle
     end  % function
 
     function cbkMovieViewBGsubbedChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
-      tf = labeler.movieViewBGsubbed;
-      mnu = obj.menu_view_show_bgsubbed_frames;
-      mnu.Checked = onIff(tf);
     end  % function
 
     function didSetGTMode(obj)       
@@ -4964,15 +4959,6 @@ classdef LabelerController < handle
       RC.saveprop('lastCalibrationFile',fname);
     end
 
-
-
-    function menu_view_show_bgsubbed_frames_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.toggleMovieViewBGsubbedGUI() ;
-    end
-
-
-
     function menu_view_adjustbrightness_actuated_(obj, src, evt)  %#ok<INUSD>
 
 
@@ -5075,6 +5061,9 @@ classdef LabelerController < handle
         if labeler.hasMovie
           labeler.setFrameGUI(labeler.currFrame,'tfforcereadmovie',true);
         end
+        if ~labeler.isMultiView,
+          toggleOnOff(obj.menu_view_flip_flipud_movie_only,'Checked');
+        end
       end
     end
 
@@ -5093,6 +5082,9 @@ classdef LabelerController < handle
           ax.YDir = toggleAxisDir(ax.YDir);
         end
         labeler.UpdatePrevAxesDirections();
+        if ~labeler.isMultiView,
+          toggleOnOff(obj.menu_view_flip_flipud,'Checked');
+        end
       end
     end
 
@@ -5114,11 +5106,42 @@ classdef LabelerController < handle
           %       ax2.XDir = toggleAxisDir(ax2.XDir);
           %     end
           labeler.UpdatePrevAxesDirections();
+          toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
+        if ~labeler.isMultiView,
+          toggleOnOff(obj.menu_view_flip_fliplr,'Checked');
+        end
+
       end
     end
 
+    function updateFlipMenus(obj)
+      labeler = obj.labeler_;
+      if labeler.isMultiView,
+        return;
+      end
+      if isempty(labeler.projPrefs),
+        return;
+      end
+      viewCfg = labeler.projPrefs.View;
 
+      movieInvert = ViewConfig.getMovieInvert(viewCfg);
+      obj.menu_view_flip_flipud_movie_only.Checked = onIff(any(movieInvert));
+
+      for i = 1:numel(obj.axes_all),
+        if strcmpi(obj.axes_all(i).XDir,'reverse'),
+          obj.menu_view_flip_fliplr.Checked = 'on';
+          break;
+        end
+      end
+
+      for i = 1:numel(obj.axes_all),
+        if strcmpi(obj.axes_all(i).YDir,'normal'),
+          obj.menu_view_flip_fliplr.Checked = 'on';
+          break;
+        end
+      end
+    end
 
     function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
 
@@ -5985,6 +6008,7 @@ classdef LabelerController < handle
       end
       obj.updateShowPredMenus();
       obj.updateShowImportedPredMenus();
+      obj.updateFlipMenus();
       obj.update_menu_track_tracking_algorithm() ;
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
