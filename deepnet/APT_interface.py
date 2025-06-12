@@ -1114,6 +1114,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
                       'hrformer': 'HRFormer',
+                      'vitpose': 'ViTPose',
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
                       'multi_dekr': 'DeKR',

@@ -80,6 +80,18 @@ hrformer:
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
+vitpose:
+  shortString: vitpose
+  displayString: ViTPose
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, deepnet_ckpt, traindata*, '*json']
+  trkAuxFields: [pTrkConf]
+  trkAuxLabels: [confidence]
+  doesOccPred: 0
+  isMultiAnimal: 0
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
 hrnet:
   shortString: hrnet
   displayString: HRNet

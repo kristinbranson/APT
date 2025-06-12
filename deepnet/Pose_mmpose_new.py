@@ -331,6 +331,18 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
             else:
                 cfg.model.head.decoder = cfg.codec
             cfg.model.head.out_channels = conf.n_classes
+            if 'out_shape' in cfg.model.head:
+                if type(cfg.codec) == list:
+                    cfg.model.head.out_shape = [csz // 4 for csz in cfg.codec[-1].input_size[::-1]]
+                else:
+                    cfg.model.head.out_shape = [csz // 4 for csz in cfg.codec.input_size[::-1]]
+
+            if 'loss' in cfg.model.head and type(cfg.model.head.loss) == list:
+                for ll in cfg.model.head.loss:
+                    if ll.type == 'KeypointOHKMMSELoss':
+                        if conf.n_classes<8:
+                            ll.topk = conf.n_classes
+
 
     if 'train_cfg' in cfg.model:
         cfg.model.train_cfg.max_train_instances = conf.max_n_animals
