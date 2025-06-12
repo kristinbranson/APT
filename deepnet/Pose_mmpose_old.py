@@ -472,16 +472,6 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name, zero_seeds=False, img_
     if debug:
         cfg.data.workers_per_gpu = 0
 
-    # NEEDS REVIEW MK: Does this look right?  CiD cfg does not have
-    # cfg.data.samples_per_gpu, it has these three:
-    #
-    #         cfg.data.train_dataloader['samples_per_gpu']
-    #         cfg.data.test_dataloader['samples_per_gpu']
-    #         cfg.data.val_dataloader['samples_per_gpu']
-    #
-    # I'm not sure I've handled this s.t. it will work properly for testing and
-    # validation.
-    #
     # Idea is that there's an LR and a samples_per_gpu set in the MMPose config
     # file.  But there's a batch_size set in the conf that we want to honor.
     # And according to Goyal et al (2017), the LR should be scaled

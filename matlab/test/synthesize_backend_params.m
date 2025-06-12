@@ -1,5 +1,6 @@
 function result = synthesize_backend_params(backend)
-  environment_base_name = 'apt_20230427_tf211_pytorch113_ampere' ;
+  % environment_base_name = 'apt_20230427_tf211_pytorch113_ampere' ;
+  environment_base_name = 'apt-20250505-tf215-pytorch21-hopper' ;
   user_name = get_user_name() ;  
   % We could just result a list with params for *all* backends, but then we
   % would have to error if user has not customized this function to add *their*
@@ -18,7 +19,7 @@ function result = synthesize_backend_params(backend)
       'jrcnslots',4, ...
       'jrcAdditionalBsubArgs',jrcAdditionalBsubArgs } ;    
   elseif strcmp(backend, 'aws')
-    generalAWSParams = {'awsInstanceID', 'i-0da079e9b4d2d66b9'} ;
+    generalAWSParams = {'awsInstanceID', 'i-0c893bbd7b6cf1853'} ;
     if strcmp(user_name, 'taylora') ,
       personalAWSParams = { ...
         'awsKeyName', 'alt_taylora-ws4', ...

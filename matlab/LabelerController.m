@@ -4072,7 +4072,6 @@ classdef LabelerController < handle
     end  % function
 
     function play_(obj, playMethodName)
-      pbPlay = obj.pbPlay ;
       if obj.isPlaying_ ,
         obj.isPlaying_ = false ;  
           % setting this this will cause the already-running video playback loop from the previous cal to play_() to exit
@@ -4080,7 +4079,7 @@ classdef LabelerController < handle
       end
       oc = onCleanup(@()(obj.playCleanup_())) ;
       obj.isPlaying_ = true ;
-      pbPlay.CData = Icons.ims.stop ;
+      obj.pbPlay.CData = Icons.ims.stop ;
       obj.(playMethodName) ;
     end  % function
 

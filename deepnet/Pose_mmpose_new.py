@@ -20,6 +20,7 @@ from mmpose.datasets import CombinedDataset
 from mmpose.datasets import build_dataset
 import torch
 
+import mmengine
 from mmengine.runner import Runner
 from mmengine.hooks import Hook
 from mmengine.config import Config
@@ -282,6 +283,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     data_bdir = conf.cachedir
 
     cfg = Config.fromfile(mmpose_config_file_path)
+    set_BottomupResize_size_factor_bang(cfg.val_pipeline, 32)  # size_factor defaults to 64
     imsz = [int(c / conf.rescale / 32) * 32 for c in conf.imsz[::-1]]  # conf.imsz[0]
     if type(cfg.codec) == list:
         ex_codec = cfg.codec[0]
@@ -359,8 +361,6 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
             cfg[dname].dataset.ann_file = cfg['train_dataloader']['dataset']['ann_file']
         else:
             cfg[dname].dataset.ann_file = ann_file
-        # ALTTODO: Fix this:
-        # cfg.data[ttype].img_prefix = os.path.join(data_bdir, name)
         cfg[dname].dataset.data_prefix.img = ''
         if ttype != 'train':
             cfg[dname].dataset.bbox_file = None
@@ -400,7 +400,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                         (cfg.data[ttype].pipeline[2].type == 'BottomUpRandomFlip'), \
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:3] = []
-                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    cfg.data[ttype].pipeline[1] = mmengine.config.ConfigDict({'type': 'APTtransform', 'distort': True})
                 elif (cfg.data[ttype].pipeline[1].type == 'TopDownRandomFlip'):
                     # old style top down pipeline
                     assert \
@@ -409,7 +409,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                         (cfg.data[ttype].pipeline[3].type == 'TopDownAffine'), \
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:4] = []
-                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    cfg.data[ttype].pipeline[1] = mmengine.config.ConfigDict({'type': 'APTtransform', 'distort': True})
                 else:
                     assert \
                         (cfg.data[ttype].pipeline[1].type == 'TopDownGetBboxCenterScale') and \
@@ -419,7 +419,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                         (cfg.data[ttype].pipeline[5].type == 'TopDownAffine'), \
                         'Unusual mmpose augmentation pipeline cannot be substituted by APT augmentation'
                     cfg.data[ttype].pipeline[2:6] = []
-                    cfg.data[ttype].pipeline[1] = ConfigDict({'type': 'APTtransform', 'distort': True})
+                    cfg.data[ttype].pipeline[1] = mmengine.config.ConfigDict({'type': 'APTtransform', 'distort': True})
                     # else:
         #     assert conf.rescale == 1, 'MMpose aug with rescale has not been implemented'
 
@@ -458,13 +458,17 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
                 p.get_invalid = conf.get('mmpose_mask_valid',True)
 
         cfg[dname].dataset.pipeline = cfg[pname]
-        cfg[dname].batch_size = conf.batch_size
+        if ttype == 'val' and conf.is_multi and (conf.mmpose_net == 'dekr' or conf.mmpose_net == 'cid'):
+            cfg[dname].batch_size = 1  # dekr and cid need the batch size to be one during validation/testing
+        else:
+            cfg[dname].batch_size = conf.batch_size
+
         if ttype != 'train':
             cfg[ename].ann_file = cfg[dname].dataset.ann_file
 
 
     cfg.test_dataloader = cfg.val_dataloader
-    cfg.test_evaluator = cfg.test_evaluator
+    cfg.test_evaluator = cfg.val_evaluator
 
 
     # if torch.cuda.is_available():
@@ -479,16 +483,11 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     # else:
     #     cfg.seed = None
 
-    # NEEDS REVIEW MK: Does this look right?  CiD cfg does not have
-    # cfg.data.samples_per_gpu, it has these three:
-    #
-    #         cfg.data.train_dataloader['samples_per_gpu']
-    #         cfg.data.test_dataloader['samples_per_gpu']
-    #         cfg.data.val_dataloader['samples_per_gpu']
-    #
-    # I'm not sure I've handled this s.t. it will work properly for testing and
-    # validation.
-    #
+    # # TODOALT: Remove this debug code
+    # cfg['train_dataloader']['num_workers'] = 1
+    # cfg['test_dataloader']['num_workers'] = 1
+    # cfg['val_dataloader']['num_workers'] = 1
+
     # Idea is that there's an LR and a samples_per_gpu set in the MMPose config
     # file.  But there's a batch_size set in the conf that we want to honor.
     # And according to Goyal et al (2017), the LR should be scaled
@@ -551,13 +550,12 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
     # cfg.fp16 = {}
 #    cfg.fp16 = None
 
-    J = PoseTools.json_load(cfg.train_dataloader.dataset.ann_file)
-    n_train = len(J['images'])
+    # J = PoseTools.json_load(cfg.train_dataloader.dataset.ann_file)
+    # n_train = len(J['images'])
     del cfg.train_cfg['max_epochs']
     cfg.train_cfg.max_iters = conf.dl_steps
     cfg.train_cfg.val_interval = conf.dl_steps+1
     cfg.train_cfg.by_epoch = False
-
 
     return cfg
 
@@ -608,8 +606,6 @@ class TrainingDebuggingHook(Hook):
             training_loss = runner.log_buffer.output['all_loss'].copy()
         runner.log_buffer.clear_output()  # Don't want to interfere with other hooks
         self.training_loss_from_i.append(training_loss)
-        # TODOALT: Take this out
-        print('step: %d, loss: %g' % (step, training_loss))
         pass
 
 
@@ -628,7 +624,8 @@ def get_handler_by_name(logger, name):
 def rectify_log_level_bang(logger, debug=False):
     '''
     Reset the log level for the "log" handler of the root logger to DEBUG or INFO, depending.
-    mmpose.models.build_posenet() seems to bork this, so this function fixes it.
+    mmpose.models.build_posenet() seems to bork this, so this function fixes it.  The "_bang" 
+    in the name indicates that it modifies logger in place.
     '''
     handler = get_handler_by_name(logger, 'log')
     if handler:
@@ -636,6 +633,16 @@ def rectify_log_level_bang(logger, debug=False):
             handler.setLevel(logging.DEBUG)
         else:
             handler.setLevel(logging.INFO)
+
+
+def set_BottomupResize_size_factor_bang(pipeline: list[mmengine.config.config.ConfigDict], new_size_factor: int):
+    '''
+    Sets the size_factor for any stages in pipeline of type BottomupResize to new_size_factor.
+    The "_bang" in the name indicates that it modifies pipeline in place.
+    '''
+    for stage in pipeline:
+        if stage['type'] == 'BottomupResize':
+            stage['size_factor'] = new_size_factor
 
 
 class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
@@ -713,12 +720,12 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
 
         logger.info(f'Config:\n{cfg.pretty_text}')
 
-        # Hack to work around what is seemingly a bug in MMPose 0.29.0...
-        try:
-            if cfg.model.type == 'CID':
-                del cfg.model.keypoint_head['out_channels']
-        except:
-            pass
+        # # Hack to work around what is seemingly a bug in MMPose 0.29.0...
+        # try:
+        #     if cfg.model.type == 'CID':
+        #         del cfg.model.keypoint_head['out_channels']
+        # except:
+        #     pass
 
 
         cfg.resume = False
@@ -741,7 +748,7 @@ class Pose_mmpose(PoseCommon_pytorch.PoseCommon_pytorch):
         # runner.max_iters = steps
         logging.debug("Running the runner...")
 
-        # ALTTODO: Get rid of this debugging code
+        # TODOALT: Get rid of this debugging code
         # thangs = {'runner': runner, 'workflow': cfg.workflow, 'cfg': cfg} #'dataloader': dataloader,
         # import pickle
         # with open('/groups/branson/bransonlab/taylora/apt/compare-cid-in-apt-to-plain-cid/pre-run-variables-in-apt.pkl',
