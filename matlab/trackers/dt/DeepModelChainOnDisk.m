@@ -127,7 +127,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     nviews
     njobs
     nstages
-    rootDir  % The (local) root dir of the DMCoD
+    rootDir  % The (native) root dir of the DMCoD
     %localRootDir
     %remoteRootDir
   end
@@ -776,11 +776,10 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     end
 
     function obj = DeepModelChainOnDisk(varargin)
-
       % allow to call with no inputs, but then all responsibility for
       % properly setting variables is on outside code.
       if nargin == 0,
-        return;
+        return
       end
         
       nmodels = [];
@@ -1128,68 +1127,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       end      
     end
     
-    % function updateCurrInfo(obj, backend)
-    %   % Update .iterCurr by probing filesys
-    % 
-    %   assert(isscalar(obj));
-    %   % will update for all
-    %   maxiter = backend.getMostRecentModel(obj) ;
-    % 
-    %   obj.iterCurr = maxiter;
-    %   %tfSuccess = (maxiter >= 0) ;
-    % 
-    %   if any(maxiter>obj.iterFinal),
-    %     warningNoTrace('Current model iteration exceeds specified maximum/target iteration: %s.',...
-    %        DeepTracker.printIter(maxiter,obj.iterFinal));
-    %   end
-    % end  % function
-
-    % function maxiter = getMostRecentModel_(obj, backend)  % constant method
-    %   if obj.isRemote_ ,
-    %     % maxiter is nan if something bad happened or if DNE
-    %     % TODO allow polling for multiple models at once
-    %     [dirModelChainLnx,idx] = obj.dirModelChainLnx();
-    %     fspollargs = {};
-    %     for i = 1:numel(idx),
-    %       fspollargs = [fspollargs,{'mostrecentmodel' dirModelChainLnx{i}}]; %#ok<AGROW>
-    %     end
-    %     [tfsucc,res] = backend.batchPoll(fspollargs);
-    %     if tfsucc
-    %       maxiter = str2double(res(1:numel(idx))); % includes 'DNE'->nan
-    %     else
-    %       maxiter = nan(1,numel(idx));
-    %     end        
-    %   else
-    %     maxiter = obj.getMostRecentModelLocal_() ;
-    %   end
-    % end  % function
-
-    function maxiter = getMostRecentModelLocal(obj)  % constant method
-      [modelglob,idx] = obj.trainModelGlob();
-      [dirModelChainLnx] = obj.dirModelChainLnx(idx);
-
-      maxiter = nan(1,numel(idx));
-      for i = 1:numel(idx),
-        modelfiles= mydir(fullfile(dirModelChainLnx{i},modelglob{i}));
-        if isempty(modelfiles),
-          continue;
-        end
-        for j = 1:numel(modelfiles),
-          iter = DeepModelChainOnDisk.getModelFileIter(modelfiles{j});
-          if ~isempty(iter),
-            maxiter(i) = max(maxiter(i),iter);
-          end
-        end
-      end
-    end  % function
-
     function tf = canTrack(obj)
       % For each known model, whether or not it is in a state that allows tracking.
       % We consider a model to be in a state that allows tracking if it has
       % undergone at least one iteration of training.  Note also that a model that
       % has been trained for nan iterations is not considered to be in a state that
       % allows tracking.
-      tf = (obj.iterCurr >= 0) ;
+      tf = (obj.iterCurr > 0) ;
     end
     
     % read nLabels from config file
@@ -1239,9 +1183,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         
     function [tf,tpdir] = trnPackExists(obj,varargin)
       % Training package exists
-      trainLocLnx = obj.trainLocLnx(varargin{:});
+      trainLocLnx = obj.trainLocLnx();  % old-style string
       tpdir = obj.dirProjLnx;
-      tf = exist(tpdir,'dir')>0 & cellfun(@(x) exist(x,'file')>0,trainLocLnx);
+      tf = logical(exist(tpdir,'dir')) && logical(exist(trainLocLnx,'file')) ;
     end
 
     % function result = getTorchHome(obj)

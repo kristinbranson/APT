@@ -1,0 +1,20 @@
+# * Each node has a list of metadata:
+# - 1 - pretty name (displayed). Note, the node name/identifier itself is also meaningful as the fieldname in the data struct. 
+# - 2 - type (see PropertiesGUIProp.m for options)
+# - 3 - isEditable
+# - 4 - description
+# - 5 - default value
+# - 6 - visualization function
+# - 7 - level - one of {'Important','Beginner','Advanced','Developer'}. All important features need to be reset for each project. Default values should work for all non-Important features, but better results could potentially be achieved by changing these. The rest of the parameters are split into those that often are helpful to adjust (Beginner), those that should be rarely adjusted (Intermediate), and those that only someone working with a developer should touch. This property is only used for leaf nodes. Level of non-leaf nodes is based on maximum level of children, with important being highest, developer being lowest. 
+# - 8 - requirements - some parameters will only be used in certain kinds of projects. list here keys for including these parameters. Non-leaf nodes included if any child node is included. 
+# * After the metadata comes a list of child nodes.
+# * As a shortcut, leaf nodes can contain the metadata directly as their value.
+
+ROOT:
+  - ['','',false,DUMMY,'','','','']
+  - MMDetect_FRCNN:
+    - ['','',false,Object detection parameters,'','']
+    - db_format: ['DB Format',string,true,'Format for Training DB','coco','','Developer','']
+    - test: ['Test prop',string,true,'Test','test','','Developer','',true]
+    - mmdetect_net: ['MMDetect network',string,false,'Network to use','frcnn','','Developer','']
+

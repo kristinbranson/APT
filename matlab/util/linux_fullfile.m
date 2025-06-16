@@ -4,13 +4,19 @@ function result = linux_fullfile(varargin)
 % Windows-style leading drive letter intact.
 
 % Insert / between the elements of varargin, making a single string
+result = '' ;
 if nargin==0 ,
-  result = '' ;
   return
 end
-protoresult_so_far = varargin{1} ;
-for i = 2 : nargin ,
-  protoresult_so_far = horzcat(protoresult_so_far, '/', varargin{i}) ;  %#ok<AGROW>
+% remove empty arguments
+idx = ~cellfun(@isempty,varargin);
+if ~any(idx),
+  return;
+end
+args = varargin(idx);
+protoresult_so_far = args{1} ;
+for i = 2 : numel(args) ,
+  protoresult_so_far = horzcat(protoresult_so_far, '/', args{i}) ;  %#ok<AGROW>
 end
 
 % Translate \s to /s

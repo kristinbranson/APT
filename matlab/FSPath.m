@@ -49,22 +49,33 @@ classdef FSPath
       stdmed = [upperlast '/' stdshort];      
     end
     
-    function str = macroReplace(str,sMacro)
+    function result = macroReplace(input, sMacro)
+      % Replaces any macros present in input with the values given in sMacro.
+      % input: string or cell array of strings
       % sMacro: macro struct
       
-      macros = fieldnames(sMacro);
-      for i=1:numel(macros)
-        mpat = ['\$' macros{i}];
-        val = sMacro.(macros{i});
-        val = regexprep(val,'\\','\\\\');
-        str = regexprep(str,mpat,val);
+      if iscell(input)
+        result = cellfun(@(s)(FSPath.macroReplace(s,sMacro)), ...
+                         input, ...
+                         'UniformOutput', false) ;
+      else
+        % if input is a single string
+        result = input ;
+        macros = fieldnames(sMacro);
+        for i=1:numel(macros)
+          macro = macros{i} ;
+          mpat = ['\$' macro];
+          val = sMacro.(macro);
+          val = regexprep(val,'\\','\\\\');
+          result = regexprep(result,mpat,val);
+        end
       end
-    end    
+    end  % function
     
-    function str = fullyLocalizeStandardizeChar(str,sMacro)
-      str = FSPath.macroReplace(str,sMacro);
-      str = FSPath.standardPathChar(str);
-      str = FSPath.platformizePath(str);
+    function result = fullyLocalizeStandardizeChar(str0,sMacro)
+      str1 = FSPath.macroReplace(str0,sMacro);
+      str2 = FSPath.standardPathChar(str1);
+      result = FSPath.platformizePath(str2);
     end
     
     function s = fullyLocalizeStandardize(s,sMacro)
@@ -97,7 +108,7 @@ classdef FSPath
     function tf = hasMacro(str,macro)
       tf = ~isempty(regexp(str,['\$' macro],'once'));
     end
-    
+
     function [macros,pathstrMacroized] = macrosPresent(pathstr,sMacro)
       % Check to see if any macros in sMacro could apply to pathstr, ie if 
       % any macro values are present in pathstr. If so, return which macros 

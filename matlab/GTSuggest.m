@@ -46,6 +46,7 @@ end
 % GTSuggest(lObj)
 function GTSuggest_OpeningFcn(hObject, eventdata, handles, varargin)
 lObj = varargin{1};  % Should change things so we pass in the LabelerController, not the Labeler
+set(hObject,'MenuBar','None');
 
 centerOnParentFigure(hObject,lObj.hFig);
 

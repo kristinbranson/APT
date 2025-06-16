@@ -656,22 +656,25 @@ classdef ToTrackInfo < matlab.mixin.Copyable
           end
         end
       end
-    end
+    end  % function
     
     function v = getListfile(obj)
       v = obj.listfile;
     end
+
     function setListfile(obj,v)
       obj.listfile = v;
     end
-    function makeListFile(obj,isgt)
+
+    function makeListFile(obj, isgt, backend)
+      % Make the TrackList*.json file for tracking.  Throws if something goes wrong.
       assert(~isequal(obj.tblMFT,'unset'),'No table has been set')
       if nargin<2
         isgt = false;
       end
 
-      trnstr = obj.trainDMC.getTrainID{1};
-      nowstr = datestr(now,'yyyymmddTHHMMSS');
+      trnstr = obj.trainDMC.getTrainID{1} ;
+      nowstr = datestr(now(), 'yyyymmddTHHMMSS') ;
       if isgt
         extrastr = '_gt';
       else
@@ -693,15 +696,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         args = {};
       end
       if ~isempty(obj.croprois)
-        args = [args {'croprois',obj.croprois}];
+        args = [args {'croprois',obj.croprois}] ;
       end
-      mov_rem = obj.movfiles;
-      % this should be changed if we want to do it on AWS or other remote
-      % backends
-      DeepTracker.trackWriteListFile(...
-        mov_rem,obj.movidx,obj.tblMFT,obj.listfile,args{:});
+      backend.trackWriteListFile(...
+        obj.movfiles, obj.movidx, obj.tblMFT, obj.listfile, args{:}) ;
       obj.islistjob = true;
-    end
+    end  % backend
+
     function v = getMovidx(obj,varargin)
       if isempty(varargin),
         v = obj.movidx;
@@ -1330,9 +1331,45 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       nframestrack = size(obj.tblMFT,1);
     end
 
-    function changePathsToLocalFromRemote(obj, localCacheRoot, backend)
-      % Converts all paths in obj from paths on the backend's remote filesytem 
-      % to their corresponding local paths.  If backend is a local-filesystem
+    % function changePathsToLocalFromRemote(obj, localCacheRoot, backend)
+    %   % Converts all paths in obj from paths on the backend's remote filesytem 
+    %   % to their corresponding local paths.  If backend is a local-filesystem
+    %   % backend, do nothing.
+    % 
+    %   % If backend has local filesystem, do nothing
+    %   if backend.isFilesystemLocal() ,
+    %     return
+    %   end
+    % 
+    %   % Generate all the relocated paths
+    %   remoteCacheRoot = backend.remoteDMCRootDir ;
+    %   newmovfiles = cellfun(@(old_path)(backend.getLocalMoviePathFromRemote(old_path)), ...
+    %                         obj.movfiles, ...
+    %                         'UniformOutput', false) ;
+    %   newtrkfiles = replace_prefix_path(obj.trkfiles, remoteCacheRoot, localCacheRoot) ;
+    %   newerrfile = replace_prefix_path(obj.errfile, remoteCacheRoot, localCacheRoot) ;
+    %   newlogfile = replace_prefix_path(obj.logfile, remoteCacheRoot, localCacheRoot) ;
+    %   newcmdfile = replace_prefix_path(obj.cmdfile, remoteCacheRoot, localCacheRoot) ;
+    %   newkillfile = replace_prefix_path(obj.killfile, remoteCacheRoot, localCacheRoot) ;
+    %   newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, remoteCacheRoot, localCacheRoot) ;
+    %   % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+    %   % would need to be relocated, but so far hasn't been an issue 
+    %   % -- ALT, 2024-07-31
+    % 
+    %   % Actually write all the new paths to the obj only after all the above things
+    %   % have finished, to make a borked state less likely.
+    %   obj.movfiles = newmovfiles ;
+    %   obj.trkfiles = newtrkfiles ;
+    %   obj.errfile = newerrfile ;
+    %   obj.logfile = newlogfile ;
+    %   obj.cmdfile = newcmdfile ;
+    %   obj.killfile = newkillfile ;
+    %   obj.trackconfigfile = newtrackconfigfile ;
+    % end  % function
+
+    function changePathsToRemoteFromWsl(obj, wslCacheRoot, backend)
+      % Converts all paths in obj from WSL paths on the frontend's filesytem to
+      % their corresponding paths on the backend.  If backend is a local-filesystem
       % backend, do nothing.
 
       % If backend has local filesystem, do nothing
@@ -1342,51 +1379,15 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       
       % Generate all the relocated paths
       remoteCacheRoot = backend.remoteDMCRootDir ;
-      newmovfiles = cellfun(@(old_path)(backend.getLocalMoviePathFromRemote(old_path)), ...
+      newmovfiles = cellfun(@(old_path)(backend.remote_movie_path_from_wsl(old_path)), ...
                             obj.movfiles, ...
                             'UniformOutput', false) ;
-      newtrkfiles = replace_prefix_path(obj.trkfiles, remoteCacheRoot, localCacheRoot) ;
-      newerrfile = replace_prefix_path(obj.errfile, remoteCacheRoot, localCacheRoot) ;
-      newlogfile = replace_prefix_path(obj.logfile, remoteCacheRoot, localCacheRoot) ;
-      newcmdfile = replace_prefix_path(obj.cmdfile, remoteCacheRoot, localCacheRoot) ;
-      newkillfile = replace_prefix_path(obj.killfile, remoteCacheRoot, localCacheRoot) ;
-      newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, remoteCacheRoot, localCacheRoot) ;
-      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
-      % would need to be relocated, but so far hasn't been an issue 
-      % -- ALT, 2024-07-31
-
-      % Actually write all the new paths to the obj only after all the above things
-      % have finished, to make a borked state less likely.
-      obj.movfiles = newmovfiles ;
-      obj.trkfiles = newtrkfiles ;
-      obj.errfile = newerrfile ;
-      obj.logfile = newlogfile ;
-      obj.cmdfile = newcmdfile ;
-      obj.killfile = newkillfile ;
-      obj.trackconfigfile = newtrackconfigfile ;
-    end  % function
-
-    function changePathsToRemoteFromLocal(obj, localCacheRoot, backend)
-      % Converts all paths in obj from paths on the backend's remote filesytem 
-      % to their corresponding local paths.  If backend is a local-filesystem
-      % backend, do nothing.
-
-      % If backend has local filesystem, do nothing
-      if backend.isFilesystemLocal() ,
-        return
-      end
-      
-      % Generate all the relocated paths
-      remoteCacheRoot = backend.remoteDMCRootDir ;
-      newmovfiles = cellfun(@(old_path)(backend.getRemoteMoviePathFromLocal(old_path)), ...
-                            obj.movfiles, ...
-                            'UniformOutput', false) ;
-      newtrkfiles = replace_prefix_path(obj.trkfiles, localCacheRoot, remoteCacheRoot) ;
-      newerrfile = replace_prefix_path(obj.errfile, localCacheRoot, remoteCacheRoot) ;
-      newlogfile = replace_prefix_path(obj.logfile, localCacheRoot, remoteCacheRoot) ;
-      newcmdfile = replace_prefix_path(obj.cmdfile, localCacheRoot, remoteCacheRoot) ;
-      newkillfile = replace_prefix_path(obj.killfile, localCacheRoot, remoteCacheRoot) ;
-      newtrackconfigfile = replace_prefix_path(obj.trackconfigfile, localCacheRoot, remoteCacheRoot) ;
+      newtrkfiles = linux_replace_prefix_path(obj.trkfiles, wslCacheRoot, remoteCacheRoot) ;
+      newerrfile = linux_replace_prefix_path(obj.errfile, wslCacheRoot, remoteCacheRoot) ;
+      newlogfile = linux_replace_prefix_path(obj.logfile, wslCacheRoot, remoteCacheRoot) ;
+      newcmdfile = linux_replace_prefix_path(obj.cmdfile, wslCacheRoot, remoteCacheRoot) ;
+      newkillfile = linux_replace_prefix_path(obj.killfile, wslCacheRoot, remoteCacheRoot) ;
+      newtrackconfigfile = linux_replace_prefix_path(obj.trackconfigfile, wslCacheRoot, remoteCacheRoot) ;
       % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
       % would need to be relocated, but so far hasn't been an issue 
       % -- ALT, 2024-07-31

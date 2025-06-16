@@ -8,7 +8,7 @@ classdef BgClient < handle
     poller  % Object with method .poll()
 
     qPoller2Me % matlab.pool.DataQueue for receiving data from poller (interrupts)
-    qMe2Poller % matlab.pool.PollableDataQueue for sending data to poller (polled)    
+    % qMe2Poller % matlab.pool.PollableDataQueue for sending data to poller (polled)    
     fevalFuture % FevalFuture output from parfeval
     idPool % scalar uint for cmd ids
     idTics % [numIDsSent] uint64 col vec of start times for each command id sent 
@@ -42,7 +42,7 @@ classdef BgClient < handle
       projTempDirMaybe = myparse(varargin, 'projTempDirMaybe', {}) ;
 
       % Configure poller object
-      assert(ismethod(parent,'didReceivePollResults'));      
+      assert(ismethod(parent,'didReceivePollResultsRetrograde'));      
       obj.parent_ = parent ;
       obj.poller = poller ; % will be parfeval-copied into background process
       
@@ -54,10 +54,10 @@ classdef BgClient < handle
         delete(obj.qPoller2Me);
         obj.qPoller2Me = [];
       end
-      if ~isempty(obj.qMe2Poller)
-        delete(obj.qMe2Poller);
-        obj.qMe2Poller = [];
-      end
+      % if ~isempty(obj.qMe2Poller)
+      %   delete(obj.qMe2Poller);
+      %   obj.qMe2Poller = [];
+      % end
       if ~isempty(obj.fevalFuture)
         obj.fevalFuture.cancel();
         delete(obj.fevalFuture);
@@ -71,7 +71,7 @@ classdef BgClient < handle
       % Start runPollingLoop() on new thread
       
       fromPollingLoopDataQueue = parallel.pool.DataQueue() ;
-      fromPollingLoopDataQueue.afterEach(@(dat)obj.didReceivePollResults(dat));
+      fromPollingLoopDataQueue.afterEach(@(dat)obj.didReceivePollResultsFromPollingLoop(dat));
       obj.qPoller2Me = fromPollingLoopDataQueue;
       
       p = gcp() ;
@@ -84,10 +84,12 @@ classdef BgClient < handle
       % We pack a suitcase so we can restore Transient properties on the other side.
       poller = obj.poller ;
       parfevalSuitcase = poller.packParfevalSuitcase() ;
+
       % Start production code
       obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 1, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
+        parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
       % End production code
+
       % % Start debug code
       % tempfilename = tempname() ;
       % saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
@@ -101,41 +103,32 @@ classdef BgClient < handle
       obj.idTics = uint64(0);
       obj.idTocs = nan;
     end
-        
-    function sendCommand(obj,sCmd)
-      % Send command to poller; runPollingLoop() must have been called
-      % 
-      % sCmd: struct with fields {'action' 'data'}
-            
-      if ~obj.isRunning
-        error('BgClient:run','Runner is not running.');
-      end      
-      
-      assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
-      sCmd.id = obj.idPool;
-      obj.idPool = obj.idPool + 1;
-      
-      q = obj.qMe2Poller;
-      if isempty(q)
-        warningNoTrace('BgClient:queue','Send queue not configured.');
-      else
-        obj.idTics(sCmd.id) = tic();
-        q.send(sCmd);
-        obj.log('Sent command id %d',sCmd.id);
-      end
-    end
+    
+    % function sendCommand(obj,sCmd)
+    %   % Send command to poller; runPollingLoop() must have been called
+    %   % 
+    %   % sCmd: struct with fields {'action' 'data'}
+    % 
+    %   if ~obj.isRunning
+    %     error('BgClient:run','Runner is not running.');
+    %   end      
+    % 
+    %   assert(isstruct(sCmd) && all(isfield(sCmd,{'action' 'data'})));
+    %   sCmd.id = obj.idPool;
+    %   obj.idPool = obj.idPool + 1;
+    % 
+    %   q = obj.qMe2Poller;
+    %   if isempty(q)
+    %     warningNoTrace('BgClient:queue','Send queue not configured.');
+    %   else
+    %     obj.idTics(sCmd.id) = tic();
+    %     q.send(sCmd);
+    %     obj.log('Sent command id %d',sCmd.id);
+    %   end
+    % end
     
     function stopPollingLoop(obj)
-      % "Proper" stop; STOP message is sent to runPollingLoop(); it reads
-      % STOP message and breaks from polling loop      
-      if obj.isRunning
-        sCmd = struct('action','STOP','data',[]);
-        obj.sendCommand(sCmd);
-      end
-    end  % function
-    
-    function stopPollingLoopHard(obj)
-      % Harder stop, cancel fevalFuture      
+      % Stop polling loop by cancel fevalFuture      
       if obj.isRunning
         obj.fevalFuture.cancel();
       end
@@ -165,14 +158,9 @@ classdef BgClient < handle
     %   end
     % end    
     
-    function didReceivePollResults(obj,dat)
-      if isa(dat,'parallel.pool.PollableDataQueue')
-        obj.qMe2Poller = dat;
-        obj.log('Received pollableDataQueue from poller.');
-      else
-        % Pass poll results on to the parent BgMonitor
-        obj.parent_.didReceivePollResults(dat) ;
-      end
+    function didReceivePollResultsFromPollingLoop(obj, data)
+      % Pass poll results on to the parent BgMonitor
+      obj.parent_.didReceivePollResultsRetrograde(data) ;
     end  % function
     
   end

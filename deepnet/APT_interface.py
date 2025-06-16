@@ -1023,11 +1023,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
         else:
             raise Exception('openpose not implemented')
     elif net_type == 'dpk':
-        if conf.dpk_use_op_affinity_graph:
-            apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
-        else:
-            assert conf.dpk_skel_csv is not None
-            apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
+        raise Exception('dpk network not implemented')
+        # if conf.dpk_use_op_affinity_graph:
+        #     apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        # else:
+        #     assert conf.dpk_skel_csv is not None
+        #     apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
 
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
@@ -1114,9 +1115,11 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_mdn_joint_torch_2': 'MultiAnimalGRONe',
                       'mmpose': 'MSPN',
                       'hrformer': 'HRFormer',
+                      'vitpose': 'ViTPose',
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
                       'multi_dekr': 'DeKR',
+                      'detect_frcnn':'MMDetect_FRCNN'
                       }
 
     if not 'ProjectFile' in A:
@@ -1277,12 +1280,12 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         else:
             raise Exception('openpose network not implemented')
     elif net_type == 'dpk':
-        if conf.dpk_use_op_affinity_graph:
-            apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
-        else:
-            assert conf.dpk_skel_csv is not None
-            apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
-
+        raise Exception('dpk network not implemented')
+        # if conf.dpk_use_op_affinity_graph:
+        #     apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
+        # else:
+        #     assert conf.dpk_skel_csv is not None
+        #     apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
     # elif net_type == 'deeplabcut':
     #     conf.batch_size = 1
     elif net_type == 'unet':
@@ -2594,7 +2597,8 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
 
     '''
     if model_type == 'dpk':
-        pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file, **kwargs)
+        raise RuntimeError('dpk network not implemented')
+        # pred_fn, close_fn, model_file = apt_dpk.get_pred_fn(conf, model_file, **kwargs)
     elif model_type == 'openpose':
         if ISOPENPOSE:
             pred_fn, close_fn, model_file = op.get_pred_fn(conf, model_file,name=name,**kwargs)
@@ -4081,19 +4085,19 @@ def train_deepcut(conf, args, split_file=None, model_file=None):
     tf1.reset_default_graph()
 
 
-def train_dpk(conf, args, split, split_file=None):
-    if not args.skip_db:
-        create_tfrecord(conf,
-                        split=split,
-                        use_cache=args.use_cache,
-                        split_file=split_file)
-    if args.only_db:
-        return
+# def train_dpk(conf, args, split, split_file=None):
+#     if not args.skip_db:
+#         create_tfrecord(conf,
+#                         split=split,
+#                         use_cache=args.use_cache,
+#                         split_file=split_file)
+#     if args.only_db:
+#         return
 
-    gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
-    if args.only_aug: return
-    tf1.reset_default_graph()
-    apt_dpk.train(conf)
+#     gen_train_samples(conf, model_type=args.type, nsamples=args.nsamples, train_name=args.train_name)
+#     if args.only_aug: return
+#     tf1.reset_default_graph()
+#     apt_dpk.train(conf)
 
 
 def train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view):
@@ -4108,7 +4112,7 @@ def train_other(conf, args, restore, split, split_file, model_file, net_type, fi
         return
 
     if conf.multi_only_ht:
-        assert conf.stage!='second', 'multi_ony_ht should be True only for the first stage'
+        assert conf.stage!='second', 'multi_only_ht should be True only for the first stage'
         conf.n_classes = 2
         conf.flipLandmarkMatches = {}
         conf.op_affinity_graph = [[0, 1]]
@@ -4359,7 +4363,8 @@ def train(lbl_file, nviews, name, args, first_stage=False, second_stage=False):
                     deeplabcut.train.set_deepcut_defaults(conf)
                 train_deepcut(conf, args, split_file=split_file, model_file=model_file)
             elif net_type == 'dpk':
-                train_dpk(conf, args, split, split_file=split_file)
+                raise Exception('dpk not implemented')
+                # train_dpk(conf, args, split, split_file=split_file)
             else:
                 do_continue = train_other(conf, args, restore, split, split_file, model_file, net_type, first_stage, second_stage, cur_view)
                 if do_continue:
@@ -4467,6 +4472,7 @@ def parse_args(argv):
     parser_classify.add_argument('-list_file', dest='list_file', help='JSON file with list of movies, targets and frames to track', default=None)
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
     parser_classify.add_argument('-config_file', dest='trk_config_file', help='JSON file with parameters related to tracking.', default=None)
+    parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
     parser_gt.add_argument('-out', dest='out_files', help='Mat file (full path with .mat extension) where GT output will be saved', nargs='+', required=True)

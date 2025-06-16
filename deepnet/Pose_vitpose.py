@@ -1,0 +1,1 @@
+from Pose_mmpose import Pose_mmpose as Pose_vitpose

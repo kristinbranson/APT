@@ -11,11 +11,13 @@ function dump_struct_helper(s, path_so_far)
         field_name = field_names{i} ;
         path = horzcat(path_so_far, {field_name}) ;
         path_as_string = string_from_path_as_list(path) ;
-        fprintf('%s\n', path_as_string) ;
         % If the field's value is a struct, recurse
         value = s.(field_name) ;
         if isstruct(value) ,
+            fprintf('%s\n', path_as_string) ;
             dump_struct_helper(value, path) ;
+        else
+            fprintf('%s: %s\n', path_as_string, strtrim(formattedDisplayText(value))) ;
         end
     end
 end

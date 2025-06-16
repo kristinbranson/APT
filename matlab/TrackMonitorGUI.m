@@ -53,6 +53,7 @@ function TrackMonitorGUI_OpeningFcn(hObject, eventdata, handles, varargin)
 % varargin   command line arguments to TrackMonitorGUI (see VARARGIN)
 
 % Choose default command line output for TrackMonitorGUI
+set(hObject,'MenuBar','None');
 handles.output = hObject;
 handles.vizobj = varargin{1};
 

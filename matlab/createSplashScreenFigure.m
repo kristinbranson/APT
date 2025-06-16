@@ -3,8 +3,7 @@ function hfig = createSplashScreenFigure()
 
 %hparent = handles.figure;
 hfig = nan;
-p = APT.Root; %fileparts(mfilename('fullpath'));
-splashimfilename = fullfile(p,'gfx','SplashScreen.png');
+splashimfilename = fullfile(APT.Root,'gfx','SplashScreen.png');
 if ~exist(splashimfilename,'file'),
   return
 end

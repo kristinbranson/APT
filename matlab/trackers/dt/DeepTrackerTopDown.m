@@ -76,7 +76,7 @@ classdef DeepTrackerTopDown < DeepTracker
     function v = getNetsUsed(obj)
       v = cellstr([obj.stage1Tracker.trnNetType; obj.trnNetType]);
     end
-    function v = getNumStages(obj)
+    function v = getNumStages(obj)  %#ok<MANU>
       v = 2;
     end
     function v = get.isHeadTail(obj)
@@ -189,7 +189,7 @@ classdef DeepTrackerTopDown < DeepTracker
 %           end
 %         end
 % 
-%         o.setAllParams(lblObj.trackGetParams());
+%         o.setAllParams(lblObj.trackGetTrainingParams());
 % 
 %         if isempty(o.sPrmAll)
 %           error('No tracking parameters have been set.');
@@ -256,19 +256,19 @@ classdef DeepTrackerTopDown < DeepTracker
 %       % Nothing should occur here as failed trnSpawn* will early return
     
     
-    function trainCompleteCbkStg1(obj,src,evt)
-      obj.trnDoneStage1 = true;
-      if obj.trnDoneStage2
-        obj.trainStoppedCbk();
-      end
-    end
-    
-    function trainCompleteCbkStg2(obj,src,evt)
-      obj.trnDoneStage2 = true;
-      if obj.trnDoneStage1
-        obj.trainStoppedCbk();
-      end
-    end
+    % function trainCompleteCbkStg1(obj,src,evt)
+    %   obj.trnDoneStage1 = true;
+    %   if obj.trnDoneStage2
+    %     obj.trainStoppedCbk();
+    %   end
+    % end
+    % 
+    % function trainCompleteCbkStg2(obj,src,evt)
+    %   obj.trnDoneStage2 = true;
+    %   if obj.trnDoneStage1
+    %     obj.trainStoppedCbk();
+    %   end
+    % end
     
     function tc = getTrackerClassAugmented(obj2)
       obj1 = obj2.stage1Tracker;
@@ -309,7 +309,7 @@ classdef DeepTrackerTopDown < DeepTracker
     end
 
     
-  end
+  end  % mehtods
   
   methods (Static)
     
@@ -329,8 +329,8 @@ classdef DeepTrackerTopDown < DeepTracker
              'trnNetMode' DLNetMode.multiAnimalTDPoseObj} ...
           }; ...
         };
-    end    
+    end  % function    
 
-  end
+  end  % methods (Static)
  
-end
+end  % classdef

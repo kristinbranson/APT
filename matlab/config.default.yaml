@@ -189,5 +189,6 @@ Shortcuts: # shortcuts. case insensitive!
   menu_view_showhide_maroi: g
   tbAccept: f # accept toggle button
   pbTrain: t # train pushbutton
-
+  pbPlaySeg: u # play a few frames before the current frame
+  pbPlaySegRev: i # play a few frames after the current frame backwards
 ...
