@@ -478,7 +478,78 @@ def plot_hist(in_exp, ps = [50,75,90,95],cmap=None):
     except Tkinter.TclError:
         pass
 
+
 def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
+    data_in, ex_im, ex_loc = in_exp
+    k = list(data_in.keys())[0]
+    npts = data_in[k][0][0].shape[1]
+
+    n_types = len(data_in)
+    nc = n_types # int(np.ceil(np.sqrt(n_types)))
+    nr = 1#int(np.ceil(n_types/float(nc)))
+    nc = int(np.ceil(np.sqrt(n_types)))
+    nr = int(np.ceil(n_types/float(nc)))
+    if cmap is None:
+        cmap = PoseTools.get_cmap(n_types,'hsv')
+    f, axx = plt.subplots(1, 1, figsize=(12, 12), squeeze=False)
+    axx = axx.flat
+    ax = axx[0]
+    if ex_im.ndim == 2:
+        ax.imshow(ex_im, 'gray')
+    elif ex_im.shape[2] == 1:
+        ax.imshow(ex_im[:, :, 0], 'gray')
+    else:
+        ax.imshow(ex_im)
+
+    all_jj = []
+    all_str = []
+    for idx,k in enumerate(data_in.keys()):
+        if len(data_in[k]) == 0:
+            continue
+        o = data_in[k][-1]
+        dd = np.sqrt(np.sum((o[0] - o[1]) ** 2, axis=-1))
+
+        jj = np.sort(dd,axis=0)
+        all_jj.append(jj)
+        mm = np.nanpercentile(dd, ps, axis=0)
+        ttl = '{} (n={})'.format(k,dd.shape[0])
+        all_str.append(ttl)
+
+    for nndx1, n in enumerate(all_str):
+        plt.plot([0, 0], [1, 1], c=cmap[nndx1])
+    plt.legend(all_str)
+    plt.scatter(ex_loc[:, 0], ex_loc[:, 1], c='r', s=10, marker='+')
+
+    for idx,k in enumerate(data_in.keys()):
+        for pt in range(ex_loc.shape[0]):
+            jj = all_jj[idx]
+            for ix in range(ex_loc.shape[0]):
+                vv = ~np.all(np.isnan(o[1][..., 0]), axis=-1)
+                n_ex = np.count_nonzero(~np.isnan(o[1][vv][..., ix, 0]))
+                st = n_ex * 8 // 10
+                n_t = n_ex - st
+                th = np.arange(n_t) / n_t * np.pi * 2
+                xj = jj[st:n_ex, ix] * np.sin(th)
+                yj = jj[st:n_ex, ix] * np.cos(th)
+                plt.scatter(xj + ex_loc[ix, 0], yj + ex_loc[ix, 1], c=cmap[idx], marker='.', alpha=0.5, s=2)
+                min_jj = min([all_jj[nndx1][st, ix] for nndx1 in range(len(all_jj))])
+                aa = np.maximum(0.5 * min_jj / jj[st:n_ex, ix], 0.05)
+                aa[np.isnan(aa)] = 0
+                for qx, ixx in enumerate(range(st, n_ex - 1)):
+                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[idx], lw=2,alpha=aa[qx + 1])
+
+
+    for ax in axx:
+        ax.set_xlim([0,ex_im.shape[1]])
+        ax.set_ylim([ex_im.shape[0],0])
+        ax.axis('off')
+
+    f.tight_layout()
+    return f
+
+
+
+def plot_hist1_circular(in_exp,ps = [50, 75, 90, 95],cmap=None):
     data_in, ex_im, ex_loc = in_exp
     k = list(data_in.keys())[0]
     npts = data_in[k][0][0].shape[1]

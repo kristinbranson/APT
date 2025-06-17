@@ -1110,9 +1110,13 @@ class ma_expt(object):
         files.sort(key=os.path.getmtime)
         # res = hdf5storage.loadmat(files[-1])
         K = h5py.File(files[-1],'r')
-        X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
-        ex_im = X[0][0]
-        ex_loc = X[1][0]
+        # X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
+        # ex_im = X[0][0]
+        # ex_loc = X[1][0]
+
+        X = pt.json_load(self.ex_db)
+        ex_im = cv2.imread(X['images'][0]['file_name'])
+        ex_loc = np.array(X['annotations'][0]['keypoints']).reshape([self.n_pts,3])[:, :2]
 
         if t_types is None:
             t_types = self.get_types((('first',),))
@@ -1121,13 +1125,13 @@ class ma_expt(object):
 
         n_types = len(t_types)
         prcs = [50,75,90,95,98,99]
-        cmap = pt.get_cmap(len(n_types), 'hsv')
+        cmap = pt.get_cmap(n_types, 'hsv')
         if f is None:
             f, axx = plt.subplots(1, 1, figsize=(12, 8), squeeze=False)
         else:
             axx = f.subplots(1, 1, squeeze=False)
 
-        ax = axx
+        ax = axx[0,0]
         if ex_im.ndim == 2:
             ax.imshow(ex_im, 'gray')
         elif ex_im.shape[2] == 1:
@@ -1182,7 +1186,6 @@ class ma_expt(object):
 
             all_dist.append(cur_dist)
 
-
             ajj = cur_dist.copy()
             jj = np.sort(ajj,axis=0)
             all_jj.append(jj)
@@ -1209,7 +1212,7 @@ class ma_expt(object):
                 aa = np.maximum(0.5 * min_jj / jj[st:n_ex, ix], 0.05)
                 aa[np.isnan(aa)] = 0
                 for qx, idx in enumerate(range(st, n_ex - 1)):
-                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[ix], lw=2,alpha=aa[qx + 1])
+                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[idx], lw=2,alpha=aa[qx + 1])
                 # plt.scatter(xj + ll[None,:,0], yj + ll[None,:, 1], c=cc[nndx], marker='.',alpha=0.3)
                 # plt.plot(xj + ll[None,:,0], yj + ll[None,:,1], color=cc[nndx], lw=1,alpha=0.3)
             # sz = max(ex_loc.max(axis=0) - ex_loc.min(axis=0)) + 100
