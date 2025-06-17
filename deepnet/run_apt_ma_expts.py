@@ -903,7 +903,7 @@ class ma_expt(object):
         return use
 
 
-    def show_results(self, t_types=None,condition=None,f=None):
+    def show_results_circular(self, t_types=None,condition=None,f=None):
         res_file_ptn = os.path.join(out_dir,f'{self.name}_ma_res_[0-9]*.mat')
 
         files = glob.glob(res_file_ptn)
@@ -999,6 +999,129 @@ class ma_expt(object):
             ax.set_xlim([0,ex_im.shape[1]])
             ax.set_ylim([ex_im.shape[0],0])
 
+        f.tight_layout()
+        return f
+
+    def show_results(self, t_types=None,condition=None,f=None):
+        res_file_ptn = os.path.join(out_dir,f'{self.name}_ma_res_[0-9]*.mat')
+
+        files = glob.glob(res_file_ptn)
+        files.sort(key=os.path.getmtime)
+        # res = hdf5storage.loadmat(files[-1])
+        K = h5py.File(files[-1],'r')
+        X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
+        ex_im = X[0][0]
+        ex_loc = X[1][0]
+
+        if t_types is None:
+            t_types = self.get_types((('first',),))
+        else:
+            t_types = self.get_types(t_types)
+
+        n_types = len(t_types)
+        prcs = [50,75,90,95,98,99]
+        cmap = pt.get_cmap(len(n_types), 'hsv')
+        if f is None:
+            f, axx = plt.subplots(1, 1, figsize=(12, 8), squeeze=False)
+        else:
+            axx = f.subplots(1, 1, squeeze=False)
+
+        ax = axx
+        if ex_im.ndim == 2:
+            ax.imshow(ex_im, 'gray')
+        elif ex_im.shape[2] == 1:
+            ax.imshow(ex_im[:, :, 0], 'gray')
+        else:
+            ax.imshow(ex_im)
+
+
+        axx = axx.flat
+        dropoff = self.dropoff
+
+        all_dist = []
+        all_jj = []
+        all_str = []
+        for idx,curt in enumerate(t_types):
+            curt_str = '_'.join(curt)
+
+            # K = res[curt_str]
+            # ll = K['labeled_locs']
+            # pp = K['pred_locs']
+            if K['results']['res_'+curt_str].ndim == 1:
+                continue
+
+            pp = K[K[K['results']['res_'+curt_str][0,0]][0,0]]['pred_locs'][()].T
+            ll = K[K[K['results']['res_'+curt_str][0,0]][0,0]]['labeled_locs'][()].T
+            info = K[K[K['results']['res_'+curt_str][0,0]][0,0]]['list'][()][:,0]
+            info = np.array([K[ii][()] for ii in info])[:,:,0]
+            if condition is not None:
+                cond_idx = self.cond_idx(condition,info)
+                pp = pp[cond_idx]
+                ll = ll[cond_idx]
+                info = info[cond_idx]
+            ll[ll<-1000] = np.nan
+            valid_l = np.any(~np.isnan(ll[:,:,:,0]),axis=-1)
+
+            # assign closest prediction. Multiple predictions can be assigned to the same label
+            dd = np.linalg.norm(ll[:, :, None] - pp[:, None], axis=-1)
+            dd1 = dd[valid_l]
+            max_val = np.nanmax(dd1)
+
+            dd1_m = np.nanmean(dd1,axis=-1)
+            no_preds = np.where(np.all(np.isnan(dd1_m),axis=-1))[0]
+            dd1_m[no_preds] = max_val
+            ax = np.nanargmin(dd1_m, axis=1)
+            cur_dist = dd1[np.arange(dd1.shape[0]), ax, :]
+            cur_dist[np.isnan(cur_dist)] = max_val
+
+            # match closest prediction to each label. One prediction to one label
+            # dd = np.linalg.norm(ll[:,None]-pp[:,:,None],axis=-1)
+            # dd1 = find_dist_match(dd)
+            # cur_dist = dd1[valid_l]
+
+            all_dist.append(cur_dist)
+
+
+            ajj = cur_dist.copy()
+            jj = np.sort(ajj,axis=0)
+            all_jj.append(jj)
+            all_str.append(curt_str)
+
+        for nndx1, n in enumerate(all_str):
+            plt.plot([0, 0], [1, 1], c=cmap[nndx1])
+        plt.legend(all_str)
+        plt.scatter(ex_loc[:, 0], ex_loc[:, 1], c='r', s=10, marker='+')
+
+        for idx, curt in enumerate(t_types):
+            jj = all_jj[idx]
+            curt_str = all_str[idx]
+            for ix in range(ex_loc.shape[0]):
+                vv = ~np.all(np.isnan(ll[..., 0]), axis=-1)
+                n_ex = np.count_nonzero(~np.isnan(ll[vv][..., ix, 0]))
+                st = n_ex * 8 // 10
+                n_t = n_ex - st
+                th = np.arange(n_t) / n_t * np.pi * 2
+                xj = jj[st:n_ex, ix] * np.sin(th)
+                yj = jj[st:n_ex, ix] * np.cos(th)
+                plt.scatter(xj + ex_loc[ix, 0], yj + ex_loc[ix, 1], c=cmap[ix], marker='.', alpha=0.5, s=2)
+                min_jj = min([all_jj[nndx1][st, ix] for nndx1 in range(len(all_jj))])
+                aa = np.maximum(0.5 * min_jj / jj[st:n_ex, ix], 0.05)
+                aa[np.isnan(aa)] = 0
+                for qx, idx in enumerate(range(st, n_ex - 1)):
+                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[ix], lw=2,alpha=aa[qx + 1])
+                # plt.scatter(xj + ll[None,:,0], yj + ll[None,:, 1], c=cc[nndx], marker='.',alpha=0.3)
+                # plt.plot(xj + ll[None,:,0], yj + ll[None,:,1], color=cc[nndx], lw=1,alpha=0.3)
+            # sz = max(ex_loc.max(axis=0) - ex_loc.min(axis=0)) + 100
+            # llm = (ll.max(axis=0) + ll.min(axis=0)) / 2
+            # plt.xlim([llm[0] - sz / 2, llm[0] + sz / 2])
+            # plt.ylim([llm[1] - sz / 2, llm[1] + sz / 2])
+
+
+        for ax in axx:
+            ax.set_xlim([0,ex_im.shape[1]])
+            ax.set_ylim([ex_im.shape[0],0])
+
+        ax.axis('off')
         f.tight_layout()
         return f
 
