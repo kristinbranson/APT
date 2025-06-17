@@ -125,8 +125,6 @@ classdef LabelerController < handle
     menu_track_delete_current_tracker
     menu_track_delete_old_trackers
     menu_track_edit_skeleton
-    menu_track_reset_current_tracker
-    menu_track_select_training_data
     menu_track_set_labels
     menu_track_setparametersfile
     menu_track_settrackparams
@@ -390,12 +388,6 @@ classdef LabelerController < handle
       hP = pan(mainFigure);  % hP is a "pan object"
       hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
       set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.quitRequested())) ;    
-      % obj.menu_track_reset_current_tracker.Callback = ...
-      %   @(s,e)(obj.controlActuated('menu_track_reset_current_tracker', s, e)) ;
-      % obj.menu_track_delete_current_tracker.Callback = ...
-      %   @(s,e)(obj.controlActuated('menu_track_delete_current_tracker', s, e)) ;
-      % obj.menu_track_delete_old_trackers.Callback = ...
-      %   @(s,e)(obj.controlActuated('menu_track_delete_old_trackers', s, e)) ;
       
       % Set up the figure callbacks to call obj, using the tag to determine the
       % method name.
@@ -2468,12 +2460,13 @@ classdef LabelerController < handle
         % set up first time only, should not change
         return
       end
-      obj.menu_track_backend_config = uimenu( ...
-        'Parent',obj.menu_track,...
-        'Label','Backend configuration',...
-        'Visible','on',...
-        'Tag','menu_track_backend_config');
-      moveMenuItemAfter(obj.menu_track_backend_config, obj.menu_track_tracker_history) ;
+      % moved this to createLabelerMainFigure
+      % obj.menu_track_backend_config = uimenu( ...
+      %   'Parent',obj.menu_track,...
+      %   'Label','Backend configuration',...
+      %   'Visible','on',...
+      %   'Tag','menu_track_backend_config');
+      % moveMenuItemAfter(obj.menu_track_backend_config, obj.menu_track_tracker_history) ;
       obj.menu_track_backend_config_jrc = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','JRC Cluster',...
@@ -2988,22 +2981,7 @@ classdef LabelerController < handle
           delete(src)
       end    
     end   % function
-
-    function menu_track_reset_current_tracker_actuated_(obj, source, event)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      response = ...
-        questdlg(strcatg('Reset current tracker? This will clear your trained tracker, along with all tracking results. ', ...
-                         'Hit cancel if you do not want to do this.'), ...
-                 'Reset current tracker?', ...
-                 'Reset', 'Cancel', ...
-                 'Cancel') ;
-      if strcmpi(response, 'Reset') ,
-        labeler.resetCurrentTracker() ;
-      else
-        return
-      end
-    end  % function
-
+    
     function menu_track_delete_current_tracker_actuated_(obj, source, event)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       response = ...
@@ -5330,7 +5308,7 @@ classdef LabelerController < handle
       % Show the GUI window that allows users to set parameters.  sPrmNew will be
       % empty if user mode no changes, otherwise will be parameter structure holding
       % the new parameters (which have not yet been 'written' to the model).
-      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler);  % modal
+      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler,'name','Training parameters');  % modal
 
       % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
       % labeler, as needed.     
@@ -5349,7 +5327,7 @@ classdef LabelerController < handle
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       tPrm = labeler.trackGetTrackParams();
-      sPrmTrack = ParameterSetup(obj.mainFigure_, tPrm, 'labelerObj', labeler);  % modal
+      sPrmTrack = ParameterSetup(obj.mainFigure_, tPrm, 'labelerObj', labeler,'name','Tracking parameters');  % modal
       labeler.setTrackingParameters(sPrmTrack) ;
     end
 

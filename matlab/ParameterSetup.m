@@ -62,11 +62,14 @@ hParent = varargin{1};
 handles.tree = varargin{2};
 pvargs = varargin(3:end);
 
-handles.labelerObj = myparse(pvargs,...
-  'labelerObj',[]);
+[handles.labelerObj,name] = myparse(pvargs,...
+  'labelerObj',[],'name','');
 tfLabelerSupplied = ~isempty(handles.labelerObj);
 
 hFig = handles.figParameterSetup;
+if ~isempty(name),
+  set(hFig,'Name',name);
+end
 centerOnParentFigure(hFig,hParent);
 
 % cbk for toggling parameter viz pane

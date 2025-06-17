@@ -11345,8 +11345,6 @@ classdef Labeler < handle
     function resetCurrentTracker(obj)
       obj.pushBusyStatus('Resetting current trained tracker and all tracking results...');      
       oc = onCleanup(@()(obj.popBusyStatus())) ;
-      tracker = obj.tracker ;
-      tracker.init() ;
       obj.notify('update_text_trackerinfo') ;
       obj.notify('update_menu_track_tracker_history') ;
     end
@@ -11358,11 +11356,12 @@ classdef Labeler < handle
       if numel(trackers) > 1 ,
         delete(trackers{1}) ;
         obj.trackerHistory_ = trackers(2:end) ;
-        obj.notify('update_text_trackerinfo') ;
-        obj.notify('update_menu_track_tracker_history') ;
       else
-        error('Can''t delete the current tracker if it''s the only tracker in the history') ;
+        tracker = obj.tracker ;
+        tracker.init() ;
       end
+      obj.notify('update_text_trackerinfo') ;
+      obj.notify('update_menu_track_tracker_history') ;
     end  % function
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
