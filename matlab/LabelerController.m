@@ -80,7 +80,6 @@ classdef LabelerController < handle
     menu_file_load
     menu_file_managemovies
     menu_file_new
-    menu_file_quick_open
     menu_file_quit
     menu_file_save
     menu_file_saveas
@@ -100,7 +99,6 @@ classdef LabelerController < handle
     menu_setup_label_outliers
     menu_setup_label_overlay_montage
     menu_setup_load_calibration_file
-    menu_setup_lock_all_frames
     menu_setup_ma_twoclick_align
     menu_setup_multianimal_mode
     % menu_setup_multiview_calibrated_mode
@@ -112,7 +110,6 @@ classdef LabelerController < handle
     menu_setup_streamlined
     menu_setup_template_mode
     % menu_setup_tracking_correction_mode
-    menu_setup_unlock_all_frames
     menu_setup_use_calibration
     menu_start_tracking_but_dont_call_python
     menu_start_training_but_dont_call_python
@@ -2148,36 +2145,36 @@ classdef LabelerController < handle
       end
     end  % function
           
-    function menu_file_quick_open_actuated_(obj, source, event)  %#ok<INUSD>
-      lObj = obj.labeler_ ;
-      if obj.raiseUnsavedChangesDialogIfNeeded() ,
-        [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
-        if ~tfsucc
-          return;
-        end
-        
-        movfile = movfile{1};
-        trxfile = trxfile{1};
-        
-        cfg = Labeler.cfgGetLastProjectConfigNoView() ;
-        if cfg.NumViews>1
-          warndlg('Your last project had multiple views. Opening movie with single view.');
-          cfg.NumViews = 1;
-          cfg.ViewNames = cfg.ViewNames(1);
-          cfg.View = cfg.View(1);
-        end
-        lm = LabelMode.(cfg.LabelMode);
-        if lm.multiviewOnly
-          cfg.LabelMode = char(LabelMode.TEMPLATE);
-        end
-        
-        [~,projName,~] = fileparts(movfile);
-        cfg.ProjectName = projName ;
-        lObj.projNew(cfg);
-        lObj.movieAdd(movfile,trxfile);
-        lObj.movieSetGUI(1,'isFirstMovie',true);      
-      end
-    end  % function
+    % function menu_file_quick_open_actuated_(obj, source, event)  %#ok<INUSD>
+    %   lObj = obj.labeler_ ;
+    %   if obj.raiseUnsavedChangesDialogIfNeeded() ,
+    %     [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
+    %     if ~tfsucc
+    %       return;
+    %     end
+    % 
+    %     movfile = movfile{1};
+    %     trxfile = trxfile{1};
+    % 
+    %     cfg = Labeler.cfgGetLastProjectConfigNoView() ;
+    %     if cfg.NumViews>1
+    %       warndlg('Your last project had multiple views. Opening movie with single view.');
+    %       cfg.NumViews = 1;
+    %       cfg.ViewNames = cfg.ViewNames(1);
+    %       cfg.View = cfg.View(1);
+    %     end
+    %     lm = LabelMode.(cfg.LabelMode);
+    %     if lm.multiviewOnly
+    %       cfg.LabelMode = char(LabelMode.TEMPLATE);
+    %     end
+    % 
+    %     [~,projName,~] = fileparts(movfile);
+    %     cfg.ProjectName = projName ;
+    %     lObj.projNew(cfg);
+    %     lObj.movieAdd(movfile,trxfile);
+    %     lObj.movieSetGUI(1,'isFirstMovie',true);      
+    %   end
+    % end  % function
     
     function projAddLandmarks(obj, nadd)
       % Function to add new kinds of landmarks to an existing project.  E.g. If you
@@ -3047,8 +3044,6 @@ classdef LabelerController < handle
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_unlock_all_frames.Visible = 'off';
-          obj.menu_setup_lock_all_frames.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
@@ -3059,8 +3054,6 @@ classdef LabelerController < handle
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_unlock_all_frames.Visible = 'off';
-          obj.menu_setup_lock_all_frames.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
@@ -3071,8 +3064,6 @@ classdef LabelerController < handle
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_unlock_all_frames.Visible = 'off';
-          obj.menu_setup_lock_all_frames.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
           obj.menu_setup_ma_twoclick_align.Visible = 'on';
@@ -3085,8 +3076,6 @@ classdef LabelerController < handle
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_unlock_all_frames.Visible = 'off';
-          obj.menu_setup_lock_all_frames.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
@@ -3098,8 +3087,6 @@ classdef LabelerController < handle
           obj.menu_setup_set_labeling_point.Visible = 'on';
           obj.menu_setup_set_nframe_skip.Visible = 'on';
           obj.menu_setup_streamlined.Visible = 'off';
-          obj.menu_setup_unlock_all_frames.Visible = 'off';
-          obj.menu_setup_lock_all_frames.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'off';
           obj.menu_setup_use_calibration.Visible = 'off';
           obj.menu_setup_ma_twoclick_align.Visible = 'off';
@@ -3110,8 +3097,6 @@ classdef LabelerController < handle
           obj.menu_setup_set_labeling_point.Visible = 'off';
           obj.menu_setup_set_nframe_skip.Visible = 'off';
           obj.menu_setup_streamlined.Visible = 'on';
-          obj.menu_setup_unlock_all_frames.Visible = 'off';
-          obj.menu_setup_lock_all_frames.Visible = 'off';
           obj.menu_setup_load_calibration_file.Visible = 'on';
           obj.menu_setup_use_calibration.Visible = 'on';
           obj.menu_setup_ma_twoclick_align.Visible = 'off';

@@ -49,9 +49,6 @@ for i = 1:numel(jobjs),
 end
 
 % file menu
-if isfield(handles,'menu_file_quick_open'),
-  SetTooltip(handles.menu_file_quick_open,'Create a new project with a single movie in it',jobjs,jobjnames);
-end
 if isfield(handles,'menu_file_managemovies'),
   SetTooltip(handles.menu_file_managemovies,'Open movie manager dialog to switch to a different movie or add or remove movies from the project',jobjs,jobjnames);
 end
