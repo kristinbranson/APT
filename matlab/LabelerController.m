@@ -133,6 +133,7 @@ classdef LabelerController < handle
     menu_view_adjustbrightness
     menu_view_converttograyscale
     menu_view_fit_entire_image
+    menu_view_fps
     menu_view_flip
     menu_view_flip_fliplr
     menu_view_flip_flipud
@@ -5024,6 +5025,11 @@ classdef LabelerController < handle
       labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
     end
 
+    function menu_view_fps_actuated_(obj,src,evt)
+      % redundant with Go > Navigation preferences, but hard to find
+      labeler = obj.labeler_ ;
+      labeler.navPrefsUI();
+    end
 
 
     function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
