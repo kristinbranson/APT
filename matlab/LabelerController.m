@@ -236,17 +236,9 @@ classdef LabelerController < handle
     menu_track_backend_config_aws
     menu_track_backend_config_docker
     menu_track_backend_config_conda
+    menu_track_backend_settings
     menu_track_backend_config_moreinfo
     menu_track_backend_config_test
-    menu_track_backend_config_jrc_setconfig
-    menu_track_backend_config_jrc_setconfig_track
-    menu_track_backend_config_jrc_additional_bsub_args
-    menu_track_backend_config_jrc_set_singularity_image
-    menu_track_backend_config_aws_configure
-    menu_track_backend_config_aws_setinstance
-    menu_track_backend_config_setdockerssh
-    menu_track_backend_config_docker_image_spec
-    menu_track_backend_set_conda_env
   end
 
   methods
@@ -862,16 +854,6 @@ classdef LabelerController < handle
       obj.quitRequested() ;
     end  % method    
 
-    function menu_track_backend_config_aws_configure_actuated_(obj, source, event)  %#ok<INUSD> 
-      obj.selectAwsInstanceGUI_('canlaunch',true,...
-                                'canconfigure',2, ...
-                                'forceSelect',true) ;
-    end
-
-    function menu_track_backend_config_aws_setinstance_actuated_(obj, source, event)  %#ok<INUSD> 
-      obj.selectAwsInstanceGUI_() ;
-    end
-
     function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
       % Get the tracker index
       trackerIndex = source.UserData;
@@ -1125,13 +1107,14 @@ classdef LabelerController < handle
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
     end  % function
     
-    function selectAwsInstanceGUI_(obj, varargin)
+    function tfsucc = selectAwsInstanceGUI_(obj, varargin)
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
                 'canlaunch',true,...
                 'canconfigure',1,...
                 'forceSelect',true);
             
+      tfsucc = true;
       didLaunchNewInstance = false ;
       labeler = obj.labeler_ ;
       backend = labeler.trackDLBackEnd ;
@@ -1146,12 +1129,13 @@ classdef LabelerController < handle
         if canConfigure,
           [tfsucc,keyName,pemFile] = ...
             promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
-          if tfsucc ,
-            % For changing things in the model, we go through the top-level model object
-            labeler.set_backend_property('awsPEM', pemFile) ;
-            labeler.set_backend_property('awsKeyName', keyName) ;            
+          if ~tfsucc,
+            return;
           end
-          if ~tfsucc && ~awsec2.areCredentialsSet,
+          % For changing things in the model, we go through the top-level model object
+          labeler.set_backend_property('awsPEM', pemFile) ;
+          labeler.set_backend_property('awsKeyName', keyName) ;
+          if ~awsec2.areCredentialsSet,
             reason = 'AWS EC2 instance is not configured.' ;
             error(reason) ;
           end
@@ -1166,20 +1150,21 @@ classdef LabelerController < handle
         else
           instanceID = '';
         end
+        opts = {'Attach to Existing','Cancel'};
+        default = 'Cancel';
         if canLaunch,
-          qstr = 'Launch a new instance or attach to an existing instance?';
-          if ~awsec2.isInstanceIDSet,
-            qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
-          else
-            qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
-          end
-          tstr = 'Specify AWS EC2 instance';
-          btn = questdlg(qstr,tstr,'Launch New','Attach to Existing','Cancel','Cancel');
-          if isempty(btn)
-            btn = 'Cancel';
-          end
+          opts{end+1} = 'Launch New';
+        end
+        qstr = 'Launch a new instance or attach to an existing instance?';
+        if ~awsec2.isInstanceIDSet,
+          qstr = ['APT is not attached to an AWS EC2 instance. ',qstr];
         else
-          btn = 'Attach to Existing';
+          qstr = sprintf('APT currently attached to AWS EC2 instance %s. %s',instanceID,qstr);
+        end
+        tstr = 'Specify AWS EC2 instance';
+        btn = questdlg(qstr,tstr,opts{:},default);
+        if isempty(btn) || strcmp(btn,'Cancel'),
+          return;
         end
         while true,
           switch btn
@@ -2454,7 +2439,7 @@ classdef LabelerController < handle
 
       % Get out the main objects
       
-      if ~isempty(obj.menu_track_backend_config)
+      if ~isempty(obj.menu_track_backend_config_jrc)
         % set up first time only, should not change
         return
       end
@@ -2465,18 +2450,6 @@ classdef LabelerController < handle
       %   'Visible','on',...
       %   'Tag','menu_track_backend_config');
       % moveMenuItemAfter(obj.menu_track_backend_config, obj.menu_track_tracker_history) ;
-      obj.menu_track_backend_config_jrc = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Label','JRC Cluster',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
-        'Tag','menu_track_backend_config_jrc',...
-        'userdata',DLBackEnd.Bsub);
-      obj.menu_track_backend_config_aws = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Label','AWS Cloud',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
-        'Tag','menu_track_backend_config_aws',...
-        'userdata',DLBackEnd.AWS);
       obj.menu_track_backend_config_docker = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','Docker',...
@@ -2489,82 +2462,40 @@ classdef LabelerController < handle
         'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
         'Tag','menu_track_backend_config_conda',...
         'userdata',DLBackEnd.Conda,...
-        'Visible',true);
-      obj.menu_track_backend_config_conda.Enable = 'on';
-      % KB added menu item to get more info about how to set up
-      obj.menu_track_backend_config_moreinfo = uimenu( ...
+        'Visible',true,...
+        'Enable','on');
+      obj.menu_track_backend_config_jrc = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
-        'Separator','on',...
-        'Label','More information...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenuMoreInfo()),...
-        'Tag','menu_track_backend_config_moreinfo');  
+        'Label','JRC Cluster',...
+        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
+        'Tag','menu_track_backend_config_jrc',...
+        'userdata',DLBackEnd.Bsub);
+      obj.menu_track_backend_config_aws = uimenu( ...
+        'Parent',obj.menu_track_backend_config,...
+        'Label','AWS Cloud',...
+        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
+        'Tag','menu_track_backend_config_aws',...
+        'userdata',DLBackEnd.AWS);
+
+      obj.menu_track_backend_settings = uimenu( ...
+        'Parent',obj.menu_track_backend_config,...
+        'Label','Settings...',...
+        'Callback',@(s,e)(obj.cbkTrackerBackendSettings(s,e)),...
+        'Tag','menu_track_backend_settings',...
+        'Separator','on');
+
       obj.menu_track_backend_config_test = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','Test backend configuration',...
         'Callback',@(s,e)(obj.cbkTrackerBackendTest()),...
         'Tag','menu_track_backend_config_test');
-      
-      % JRC Cluster 'submenu'
-      obj.menu_track_backend_config_jrc_setconfig = uimenu( ...
+
+      % KB added menu item to get more info about how to set up
+      obj.menu_track_backend_config_moreinfo = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
-        'Separator','on',...
-        'Label','(JRC) Set number of slots for training...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSetJRCNSlots()),...
-        'Tag','menu_track_backend_config_jrc_setconfig');  
-    
-      obj.menu_track_backend_config_jrc_setconfig_track = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Separator','off',...
-        'Label','(JRC) Set number of slots for tracking...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSetJRCNSlotsTrack()),...
-        'Tag','menu_track_backend_config_jrc_setconfig_track');  
-    
-      obj.menu_track_backend_config_jrc_additional_bsub_args = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Label','(JRC) Additional bsub arguments...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendAdditionalBsubArgs()),...
-        'Tag','menu_track_backend_config_jrc_additional_bsub_args');  
-    
-      obj.menu_track_backend_config_jrc_set_singularity_image = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Separator','off',...
-        'Label','(JRC) Set Singularity image...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSetSingularityImage()),...
-        'Tag','menu_track_backend_config_jrc_set_singularity_image');  
-    
-      % AWS submenu (enabled when backend==AWS)
-      obj.menu_track_backend_config_aws_configure = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Separator','on',...
-        'Label','(AWS) Configure...',...
-        'Tag','menu_track_backend_config_aws_configure');  
-    
-      obj.menu_track_backend_config_aws_setinstance = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Label','(AWS) Set EC2 instance',...
-        'Tag','menu_track_backend_config_aws_setinstance');  
-      
-      % Docker 'submenu' (added by KB)
-      obj.menu_track_backend_config_setdockerssh = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Separator','on',...
-        'Label','(Docker) Set remote host...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSetDockerSSH()),...
-        'Tag','menu_track_backend_config_setdockerssh');  
-    
-      obj.menu_track_backend_config_docker_image_spec = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Label','(Docker) Set image spec...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSetDockerImageSpec()),...
-        'Tag','menu_track_backend_config_docker_image_spec');  
-    
-      % Conda submenu
-      obj.menu_track_backend_set_conda_env = uimenu( ...
-        'Parent',obj.menu_track_backend_config,...
-        'Separator','on', ...
-        'Label','(Conda) Set environment...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSetCondaEnv()),...
-        'Tag','menu_track_backend_set_conda_env');        
+        'Label','More information...',...
+        'Callback',@(s,e)(obj.cbkTrackerBackendMenuMoreInfo()),...
+        'Tag','menu_track_backend_config_moreinfo');   
 
       % Set up the figure callbacks to call obj, using the tag to determine the
       % method name.  (Most have custom callbacks, but a few use standard ones.
@@ -2576,6 +2507,35 @@ classdef LabelerController < handle
       beType = source.UserData;
       lObj.set_backend_property('type', beType) ;
     end  % function
+
+    function cbkTrackerBackendSettings(obj, varargin)
+      labeler = obj.labeler_;
+      
+      beType = labeler.trackDLBackEnd.type;
+      if beType==DLBackEnd.Bsub,
+        obj.cbkTrackerBackendJRCSettings(varargin{:});
+      elseif beType==DLBackEnd.Docker,
+        obj.cbkTrackerBackendDockerSettings(varargin{:});
+      elseif beType==DLBackEnd.Conda,
+        obj.cbkTrackerBackendSetCondaEnv();
+      elseif beType == DLBackEnd.AWS,
+        obj.selectAwsInstanceGUI_('canlaunch',true,...
+          'canconfigure',2, ...
+          'forceSelect',true) ;
+      else
+        error('Unknown backend %s',beType);
+      end
+
+    end
+
+    function cbkTrackerBackendJRCSettings(obj,varargin)
+      uiwait(JRCBackEndSettingsDialog(obj));
+    end
+
+    function cbkTrackerBackendDockerSettings(obj,varargin)
+      uiwait(DockerBackEndSettingsDialog(obj));
+    end
+
 
     function cbkTrackerBackendMenuMoreInfo(obj)
       lObj = obj.labeler_ ;
@@ -2790,82 +2750,10 @@ classdef LabelerController < handle
       set(obj.menu_track_backend_config_docker,'checked',oiDckr);
       set(obj.menu_track_backend_config_conda,'checked',oiCnda, 'Enable', onIff(~ispc()));
       set(obj.menu_track_backend_config_aws,'checked',oiAWS);
-      set(obj.menu_track_backend_config_aws_setinstance,'Enable',oiAWS);
-      set(obj.menu_track_backend_config_aws_configure,'Enable',oiAWS);
-      set(obj.menu_track_backend_config_setdockerssh,'Enable',oiDckr);
-      set(obj.menu_track_backend_config_docker_image_spec,'Enable',oiDckr);
-      set(obj.menu_track_backend_config_jrc_setconfig,'Enable',oiBsub);
-      set(obj.menu_track_backend_config_jrc_setconfig_track,'Enable',oiBsub);
-      set(obj.menu_track_backend_config_jrc_additional_bsub_args,'Enable',oiBsub);
-      set(obj.menu_track_backend_config_jrc_set_singularity_image,'Enable',oiBsub);
-      set(obj.menu_track_backend_set_conda_env,'Enable',onIff(beType==DLBackEnd.Conda&&~ispc())) ;
+      set(obj.menu_track_backend_settings,'Enable','on');
     end  % function
     
-    function cbkTrackerBackendSetDockerSSH(obj)
-      lObj = obj.labeler_ ;
-      assert(lObj.trackDLBackEnd.type==DLBackEnd.Docker);
-      drh = lObj.trackDLBackEnd.dockerremotehost;
-      if isempty(drh),
-        defans = 'Local';
-      else
-        defans = 'Remote';
-      end
-      
-      res = questdlg('Run docker on your Local machine, or SSH to a Remote machine?',...
-        'Set Docker Remote Host','Local','Remote','Cancel',defans);
-      if strcmpi(res,'Cancel'),
-        return;
-      end
-      if strcmpi(res,'Remote'),
-        res = inputdlg({'Remote Host Name:'},'Set Docker Remote Host',1,{drh});
-        if isempty(res) || isempty(res{1}),
-          return;
-        end
-        lObj.trackDLBackEnd.dockerremotehost = res{1};
-      else
-        lObj.trackDLBackEnd.dockerremotehost = '';
-      end
-      
-      ischange = ~strcmp(drh,lObj.trackDLBackEnd.dockerremotehost);
-      
-      if ischange,
-        res = questdlg('Test new Docker configuration now?','Test Docker configuration','Yes','No','Yes');
-        if strcmpi(res,'Yes'),
-          try
-            tfsucc = lObj.trackDLBackEnd.testDockerConfig();
-          catch ME,
-            tfsucc = false;
-            disp(getReport(ME));
-          end
-          if ~tfsucc,
-            res = questdlg('Test failed. Revert to previous Docker settings?','Backend test failed','Yes','No','Yes');
-            if strcmpi(res,'Yes'),
-              lObj.trackDLBackEnd.dockerremotehost = drh;
-            end
-          end
-        end
-      end
-    end  % function
-    
-    function cbkTrackerBackendSetDockerImageSpec(obj)
-      lObj = obj.labeler_ ;      
-      original_full_image_spec = lObj.get_backend_property('dockerimgfull') ;
-      dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec});
-      if isempty(dialog_result)
-        return
-      end
-      new_full_image_spec = dialog_result{1};
-      try
-        lObj.set_backend_property('dockerimgfull', new_full_image_spec) ;
-      catch exception
-        if strcmp(exception.identifier, 'APT:invalidValue') ,
-          uiwait(errordlg(exception.message));
-        else
-          rethrow(exception);
-        end
-      end
-    end  % function
-    
+
     function cbkTrackerBackendSetCondaEnv(obj)
       lObj = obj.labeler_ ;      
       original_value = lObj.get_backend_property('condaEnv') ;
@@ -3252,7 +3140,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       gt = labeler.gtIsGTMode;
       onIffGT = onIff(gt);
-      obj.menu_evaluate_gt_frames.Enable = onIffGT;
+      obj.menu_evaluate_gt_frames.Visible = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
       if ~isempty(obj.GTManagerFigure)
@@ -3271,11 +3159,11 @@ classdef LabelerController < handle
       gt = labeler.gtIsGTMode ;
       onIffGT = onIff(gt) ;
       obj.menu_evaluate_gtmode.Checked = onIffGT;
-      obj.menu_evaluate_gtloadsuggestions.Enable = onIffGT;
-      obj.menu_evaluate_gtsetsuggestions.Enable = onIffGT;
-      obj.menu_evaluate_gtcomputeperf.Enable = onIffGT;
-      obj.menu_evaluate_gtcomputeperfimported.Enable = onIffGT;
-      obj.menu_evaluate_gtexportresults.Enable = onIffGT;      
+      obj.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
+      obj.menu_evaluate_gtsetsuggestions.Visible = onIffGT;
+      obj.menu_evaluate_gtcomputeperf.Visible = onIffGT;
+      obj.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
+      obj.menu_evaluate_gtexportresults.Visible = onIffGT;      
     end
 
     function cbkCropIsCropModeChanged(obj, src, evt)  %#ok<INUSD>
