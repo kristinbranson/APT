@@ -113,7 +113,7 @@ uicontrol('Parent',hfig,...
   'HorizontalAlignment','center',...
   'Callback',@Cancel);
 
-centerOnParentFigure(hfig,lObj.gdata.mainFigure_);
+centerOnParentFigure(hfig,obj.mainFigure_);
 
   function SetLocalVsRemote(src,evt)
     res.isremote = evt.NewValue == hs.isremote;

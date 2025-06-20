@@ -565,24 +565,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       lObj = obj.labeler;
-      scPrefs = lObj.projPrefs.Shortcuts;     
       tfKPused = true;
-      if strcmp(key,scPrefs.menu_view_showhide_labels) && tfCtrl ...
-          && isfield(src.UserData,'view') && src.UserData.view>1
-        % HACK multiview. MATLAB menu accelerators only work when
-        % figure-containing-the-menu (main fig) has focus
-        obj.labelsHideToggle();
-      elseif strcmp(key,scPrefs.menu_view_showhide_predictions) && tfCtrl ...
-          && isfield(src.UserData,'view') && src.UserData.view>1
-        % Hack etc
-        tracker = lObj.tracker;
-        if ~isempty(tracker)
-          tracker.hideVizToggle();
-        end
-      elseif strcmp(key,scPrefs.menu_view_showhide_imported_predictions) ...
-          && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
-        lObj.labels2VizToggle();
-      elseif strcmp(key,'space')
+
+      match = lObj.gdata.matchShortcut(evt);
+
+      if strcmp(key,'space')
         obj.toggleEpipolarState();
         %[tfSel,iSel] = obj.projectionPointSelected();
         %if tfSel && ~obj.tfOcc(iSel)
@@ -691,23 +678,128 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
             obj.projectionWorkingSetSet(iSet);
           end
         end
+      elseif ~isempty(match),
+        for i = 1:size(match,1),
+          tag = match{i,1};
+          cb = lObj.gdata.(tag).Callback;
+          if ischar(cb),
+            eval(cb);
+          else
+            cb(lObj.gdata.(tag),evt);
+          end
+        end
+
       else
+        fprintf('keypress not handled\n');
+        disp(evt);
         tfKPused = false;
       end
     end
     
-    function h = getLabelingHelp(obj) %#ok<MANU>
-      h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
-        '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
-        '* <shift>+A/D, LEFT/RIGHT etc move to next labeled frame.'
-        '* S accepts the labels for the current frame/target.'        
-        '* 0..9 selects/unselects a point (in all views). When a point is selected:'
-        '*   Clicking any view jumps the point to the clicked location.'         
-        '*   After clicking, LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '*   <shift>-LEFT, etc adjusts the point by larger steps.' 
-        '*   <space> can toggle display of epipolar lines or reconstructed points.' 
-        '* ` (backquote) increments the mapping of the 0-9 hotkeys.'};
+    function shortcuts = LabelShortcuts(obj)
+
+      shortcuts = cell(0,3);
+
+      shortcuts{end+1,1} = 'Toggle whether epipolar lines are shown';
+      shortcuts{end,2} = 'space';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Accept current labels';
+      shortcuts{end,2} = 's';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Undo last label click';
+      shortcuts{end,2} = 'z';
+      shortcuts{end,3} = {'Ctrl'};
+
+      shortcuts{end+1,1} = 'Toggle whether selected kpt is occluded';
+      shortcuts{end,2} = 'o';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Toggle whether selected kpt is fully occluded';
+      shortcuts{end,2} = 'u';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Forward one frame';
+      shortcuts{end,2} = '= or d';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Backward one frame';
+      shortcuts{end,2} = '- or a';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Un/Select kpt of current target';
+      shortcuts{end,2} = '0-9';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = 'Toggle which kpts 0-9 correspond to';
+      shortcuts{end,2} = '`';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by 1/%.1fth of axis size, ow forward one frame',obj.DXFAC);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by 1/%.1fth of axis size, ow back one frame',obj.DXFAC);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by 1/%.1fth of axis size',obj.DXFAC);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by 1/%.1f of axis size',obj.DXFAC);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = '+';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = '-';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by 1/%.1fth of axis size ow go to next %s',obj.DXFACBIG,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by 1/%.1fth of axis size, ow go to previous %s',obj.DXFACBIG,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = 'Zoom in/out';
+      shortcuts{end,2} = 'Mouse scroll';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Pan view';
+      shortcuts{end,2} = 'Mouse right-click-drag';
+      shortcuts{end,3} = {};
+
+    end
+
+
+    function h = getLabelingHelp(obj) 
+      h = cell(0,1);
+      h{end+1} = 'Adjust all keypoints for all views, then click Accept to store';
+      h{end+1} = 'Points can be adjusted by:';
+      h{end+1} = '  Dragging them.';
+      h{end+1} = '  Selecting a point and using keyboard shortcuts to move it.';
+      h{end+1} = '  Typing the identifier of the keypoint and clicking.';
+      h{end+1} = '';
+      h1 = getLabelingHelp@LabelCore(obj);
+      h = [h(:);h1(:)];
+
     end
     
     function refreshOccludedPts(obj)

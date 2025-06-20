@@ -138,7 +138,7 @@ uicontrol('Parent',hdlg,...
 
 
 
-centerOnParentFigure(hdlg,lObj.gdata.mainFigure_);
+centerOnParentFigure(hdlg,obj.mainFigure_);
 
   function ValidateSetNSlots(src,evt,fn)
 

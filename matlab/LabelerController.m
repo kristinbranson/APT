@@ -1975,6 +1975,36 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function match = matchShortcut(obj,evt)
+      match = {};
+      key = evt.Key;
+      modifier = evt.Modifier;      
+      tfCtrl = any(strcmp('control',modifier));
+      tfShft = any(strcmp('shift',modifier));
+      if ~tfCtrl,
+        return;
+      end
+      scs = obj.labeler_.getShortcuts();
+      keys = struct2cell(scs);
+      iscap = cellfun(@(x) strcmp(x,upper(x)),keys);
+      ismatch = strcmp(keys,key);
+      if ~any(ismatch),
+        return;
+      end
+      if tfShft,
+        i = find(iscap & ismatch);
+      else
+        i = find(~iscap & ismatch);
+      end
+      if isempty(i),
+        return;
+      end
+      fns = fieldnames(scs);
+      tagsmatch = fns(i);
+      keysmatch = keys(i);
+      match = [tagsmatch(:),keysmatch(:)];
+    end
+
     function menu_file_shortcuts_actuated_(obj, source, event)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       while true,

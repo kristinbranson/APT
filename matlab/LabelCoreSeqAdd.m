@@ -440,20 +440,20 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
-              dxdy = -lObj.videoCurrentRightVec();
+              dxdy = -lObj.controller_.videoCurrentRightVec();
             case 'rightarrow'
-              dxdy = lObj.videoCurrentRightVec();
+              dxdy = lObj.controller_.videoCurrentRightVec();
             case 'uparrow'
-              dxdy = lObj.videoCurrentUpVec();
+              dxdy = lObj.controller_.videoCurrentUpVec();
             case 'downarrow'
-              dxdy = -lObj.videoCurrentUpVec();
+              dxdy = -lObj.controller_.videoCurrentUpVec();
           end
           if tfShift
             xy = xy + dxdy*10;
           else
             xy = xy + dxdy;
           end
-          xy = lObj.videoClipToVideo(xy);
+          xy = obj.controller.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST

@@ -1893,7 +1893,16 @@ classdef Labeler < handle
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
     end
-    
+
+    function shortcuts = getShortcuts(obj)
+      prefs = obj.projPrefs;
+      if isfield(prefs,'Shortcuts'),
+        shortcuts = prefs.Shortcuts;
+      else
+        shortcuts = struct;
+      end
+    end
+
   end
     
   % Consider moving this stuff to Config.m
