@@ -178,7 +178,19 @@ multi_dekr:
 
 detect_mmdetect:
   shortString: mmdetect
-  displayString: Object Detection
+  displayString: DeTR Object Detection
+  modelCheckpointPat: deepnet-%d
+  modelGlobs: [deepnet-%d, traindata*] 
+  trkAuxFields: []
+  trkAuxLabels: []
+  doesOccPred: 0
+  isMultiAnimal: 1
+#  docker: tf23_mmdetection
+#  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
+
+detect_frcnn:
+  shortString: frcnn
+  displayString: FRCNN Object Detection
   modelCheckpointPat: deepnet-%d
   modelGlobs: [deepnet-%d, traindata*] 
   trkAuxFields: []
