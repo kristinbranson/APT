@@ -7,16 +7,15 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % different number key un-selects the previous ptset and selects a new.
   %
   % Clicking on an axes when a ptset is working will i) jump the working pt
-  % in that view to the clicked loc; ii) "select" that pt, turning it into 
-  % an 'x' and enabling arrowkeys for fine adjustment; and iii) add the pt
-  % to the "anchorsset", (unless two anchored pts already exist), which 
-  % projects EPLs or RePts into other views as appropriate.
-  %
+  % in that view to the clicked loc and ii) "select" that pt, turning it into 
+  % an 'x' and enabling arrowkeys for fine adjustment. 
+  % 
+  % All points that are selected and have been adjusted are "anchor" points
+  % in previous terminology, and will show epipolar lines and include an
+  % 'a' in their label.
+  % 
   % Giving a window the focus when a workingset is selected will Select the
   % WSpt in that view.
-  %
-  % To un-anchor a WSpoint, right-click it, or hit <space> when the 
-  % appropriate view has the focus.
   %
   % Any WSpt can be dragged.
   %
@@ -24,8 +23,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   %
   % When done with all points, hit Accept to Accept labels.
   %
-  % This requires a 'CalibratedRig' that knows how to compute EPLs and
-  % reconstruct 3dpts.
+  % This requires a 'CalibratedRig' that knows how to compute epipolar lines
+  % and reconstruct 3dpts.
  
   % Alternative description
   %
@@ -54,16 +53,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % keys.
   %
   % AnchorSet
-  % One or two points may be anchored. When one point is anchored, EPLs are
-  % drawn in all other views. When two pts are anchored, REpts are drawn in
-  % all other views.
-  %
-  % If nviews==2, only one point may be anchored.
+  % Epipolar lines for the anchor set are shown in all other views. 
   % 
-  % The anchorset starts empty when a WSset first becomes active. If an
-  % axes is clicked or a view is given focus, that view is added to the
-  % anchorset, displacing other anchored points if necessary. To un-anchor 
-  % a WSpt, give its view the focus and hit <space>.
+  % The anchorset starts empty when a WSset first becomes active. All
+  % adjusted or accepted and selected points are anchor points. 
  
   properties (SetObservable)
     % If true, streamlined labeling process; labels not shown unless they
@@ -143,6 +136,19 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     function v = get.nPointSet(obj)
       v = size(obj.iSet2iPt,1);
+    end
+    function v = get.pjtIPts(obj)
+      iSet = obj.iSetWorking;
+      v = nan(1,obj.nView);
+      if isempty(iSet) || isnan(iSet),
+        return;
+      end
+      for iAx = 1:obj.nView,
+        iPt = find(obj.iPt2iSet==iSet & obj.iPt2iAx==iAx);
+        if obj.tfAdjusted(iPt),
+          v(iAx) = iPt;
+        end
+      end
     end
     function v = get.pjtState(obj)
       v = nnz(~isnan(obj.pjtIPts));
@@ -424,7 +430,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 %           obj.toggleSelectPoint(iPt);
 %         end
         
-        obj.projectAddToAnchorSet(iPt, iAx)
         if obj.tfOcc(iPt)
           obj.tfOcc(iPt) = false;
           obj.refreshOccludedPts();
@@ -541,12 +546,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
-        if obj.tfMoved
-          % none
-        else
-          % point was clicked but not moved
-          obj.projectToggleState(iPt, -1);
-        end
+        obj.projectionRefresh();
       end
       obj.iPtMove = nan;
       obj.tfMoved = false;
@@ -591,7 +591,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       elseif strcmp(key,'u') && ~tfCtrl
         iAx = find(gcf==obj.hFig);
         iWS = obj.iSetWorking;        
-        if isscalar(iAx) && ~isnan(iWS)
+        if isscalar(iAx) && ~isnan(iWS) && obj.labeler.showOccludedBox,
           iPt = obj.iSet2iPt(iWS,iAx);
           obj.setPtFullOcc(iPt);
         end
@@ -690,8 +690,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         end
 
       else
-        fprintf('keypress not handled\n');
-        disp(evt);
         tfKPused = false;
       end
     end
@@ -708,15 +706,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       shortcuts{end,2} = 's';
       shortcuts{end,3} = {};
 
-      shortcuts{end+1,1} = 'Undo last label click';
-      shortcuts{end,2} = 'z';
-      shortcuts{end,3} = {'Ctrl'};
-
       shortcuts{end+1,1} = 'Toggle whether selected kpt is occluded';
       shortcuts{end,2} = 'o';
       shortcuts{end,3} = {};
 
-      shortcuts{end+1,1} = 'Toggle whether selected kpt is fully occluded';
+      shortcuts{end+1,1} = 'If fully-occluded box is shown, move selected keypoint to occluded box.';
       shortcuts{end,2} = 'u';
       shortcuts{end,3} = {};
 
@@ -791,11 +785,29 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 
     function h = getLabelingHelp(obj) 
       h = cell(0,1);
-      h{end+1} = 'Adjust all keypoints for all views, then click Accept to store';
-      h{end+1} = 'Points can be adjusted by:';
-      h{end+1} = '  Dragging them.';
-      h{end+1} = '  Selecting a point and using keyboard shortcuts to move it.';
-      h{end+1} = '  Typing the identifier of the keypoint and clicking.';
+      h{end+1} = 'Adjust all keypoints for all views, then click Accept to store. ';
+      h{end+1} = '';
+      h{end+1} = ['Select a keypoint by typing the number identifying it. ',...
+        'If you have more than 10 keypoints, the ` (backquote) key lets you ',...
+        'change which set of 10 keypoints the number keys correspond to.'];
+      h{end+1} = ['Once a keypoint is selected, it can be adjusted in any of ',...
+        'the views by clicking on the desired location in an image. ',...
+        'Fine adjustments can be made using the arrow keys. '];
+      h{end+1} = ['Type the keypoint number again to deselect it, or type another ',...
+        'keypoint number to select a different keypoint. '];
+      h{end+1} = ['If no keypoints are selected, you can adjust any keypoint by ',...
+        'clicking down on it and dragging it to the desired location.'];
+      h{end+1} = '';
+      h{end+1} = ['To convert from 2D keypoint coordinates in each view to a 3D ',...
+        'coordinate, the cameras must be calibrated and calibration information must be ',...
+        'loaded into the project. '];
+      h{end+1} = ['If calibration information is provided, "epipolar" lines can be shown ',...
+        'to help with labeling. If we know the 2-D coordinate of a point in one view, the ',...
+        'epipolar line is the line that this point may lie on in another view. '];
+      h{end+1} = ['Epipolar lines will be shown for keypoints after they are adjusted in any ',...
+        'of the ways described above. An "a" will appear next to the keypoint number to ',...
+        'indicate that its epipolar line is being shown. '];
+      h{end+1} = 'You can toggle whether epipolar lines are shown or hidden with the space key.';
       h{end+1} = '';
       h1 = getLabelingHelp@LabelCore(obj);
       h = [h(:);h1(:)];
@@ -888,6 +900,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       obj.iSetWorking = iSet;
       obj.labeler.currImHud.updateLblPoint(iSet,obj.nPointSet);
+      obj.projectionRefresh();
     end
     
     function projectionWorkingSetToggle(obj,iSet)
@@ -925,7 +938,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionInit(obj)
-      obj.pjtIPts = nan(1, obj.nView);
+      %obj.pjtIPts = nan(1, obj.nView);
       %obj.pjtIPts = [nan nan];
       %hLEpi = gobjects(1,obj.nView * (obj.nView - 1));
       hLEpi = gobjects(obj.nView, obj.nView);
@@ -975,7 +988,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         set(obj.hPtsTxt(iPt),'String',obj.hPtsTxtStrs{iPt});
       end
       
-      obj.pjtIPts = nan(1, obj.nView);
+      %obj.pjtIPts = nan(1, obj.nView);
       %obj.pjtIPts = [nan nan];
       % this will look odd, but make sure the visibilty is true. Although
       % the lines won't be visible due to the clearing. The next click will
@@ -1006,44 +1019,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
     end
-    
-    function projectAddToAnchorSet(obj,iPt,iAx)
-      obj.projectToggleState(iPt,iAx);
-      % if any(obj.pjtIPts==iPt)
-      %   % already anchored
-      % else
-      % end
-    end
-    
-    function projectToggleState(obj,iPt,iAx)
-      % Toggle projection status of point iPt.
-      %
-      % AL: not sure this meth needs to exist bc callers who use iAx==-1 
-      % can just call refreshEPlines directly and then everybody else just
-      % calls projectionSetAnchor.  
-      if iAx == -1
-        obj.projectionRefreshEPlines();
-      else
-        obj.projectionSetAnchor(iPt,iAx);
-      end
-    end
-    
-    function projectionSetAnchor(obj,iPt1,iAx)
-%       idx = obj.pjtIPts == iPt1;
-%       if ~any(idx)
-%         % this point isn't part of the anchor list. add it to the anchor
-%         % list.
-%         nan_idx = find(isnan(obj.pjtIPts));
-%         obj.pjtIPts(nan_idx(1)) = iPt1;
-%       end
-      obj.pjtIPts(iAx) = iPt1;
 
-      hPt1 = obj.hPtsTxt(iPt1);
-      set(hPt1,'String',[obj.hPtsTxtStrs{iPt1} 'a']);
-
-      obj.projectionRefreshEPlines();
-    end
-    
     function projectionRefreshEPlines(obj)
       % update EPlines based on .pjtIPt1 and coords of that hPt.
       
@@ -1072,6 +1048,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         %iAxOther = setdiff(1:obj.nView,iAx1);
         crig = obj.pjtCalRig;
         %for iAx = iAxOther
+        % update text marker to include an a
+        set(obj.hPtsTxt(iPt1),'String',[obj.hPtsTxtStrs{iPt1} 'a']);
         for iAx = 1:obj.nView
           if iAx == i
             continue
@@ -1095,7 +1073,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       assert(~isnan(obj.pjtIPts(1)));
       assert(isnan(obj.pjtIPts(2)));
       assert(iPt2~=obj.pjtIPts(1),'Second projection point must differ from anchor point.');
-      obj.pjtIPts(2) = iPt2;
+      %obj.pjtIPts(2) = iPt2;
       set(obj.pjtHLinesEpi,'Visible','off');
       
       set(obj.hPtsTxt(iPt2),'String',[obj.hPtsTxtStrs{iPt2} 'a']);
@@ -1343,7 +1321,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.state = LabelState.ACCEPTED;
     end
     
-    function setPointAdjusted(obj,iSel)      
+    function setPointAdjusted(obj,iSel)     
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
         % KB 20181022 not sure why there is hPtsColors and
