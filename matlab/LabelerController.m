@@ -2073,6 +2073,7 @@ classdef LabelerController < handle
     end  % function
     
     function tfKPused = cbkKPF(obj, source, event)
+
       labeler = obj.labeler_ ;
       if ~labeler.isReady ,
         return

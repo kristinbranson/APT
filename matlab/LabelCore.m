@@ -741,9 +741,10 @@ classdef LabelCore < handle
     
     function toggleSelectPoint(obj,iPts)
       tfSl = ~obj.tfSel(iPts);
+      oldPts = find(obj.tfSel);
       obj.tfSel(:) = false;
       obj.tfSel(iPts) = tfSl;
-      obj.refreshPtMarkers('iPts',iPts,'doPtsOcc',true);
+      obj.refreshPtMarkers('iPts',[oldPts(:);iPts(:)],'doPtsOcc',true);
     end
     
     function clearSelected(obj,iExclude)

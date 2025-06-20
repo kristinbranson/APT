@@ -604,14 +604,23 @@ classdef LabelCoreTemplate < LabelCore
 
     end
 
-
     function h = getLabelingHelp(obj) 
       h = cell(0,1);
-      h{end+1} = 'Adjust all keypoints, then click Accept to store';
-      h{end+1} = 'Points can be adjusted by:';
-      h{end+1} = '  Dragging them.';
-      h{end+1} = '  Selecting a point and using keyboard shortcuts to move it.';
-      h{end+1} = '  Typing the identifier of the keypoint and clicking.';
+      h{end+1} = 'Adjust all keypoints, then click Accept to store.';
+      h{end+1} = '';
+      h{end+1} = ['In Template labeling mode, there is a set of template/"white" points on the ',...
+      'image at all times. To ',...
+      'label a frame, adjust the points as necessary and accept. Adjusted ',...
+      'points are shown in colors (rather than white). '];
+      h{end+1} = ['Points may also be Selected using hotkeys (0..9). When a point is ',...
+        'selected, the arrow-keys adjust the point as if by mouse. Mouse-clicks ',...
+        'on the image also jump the point immediately to that location. '];
+      h{end+1} = 'If no point is selected, you can click and drag a point to move it. ';
+      h{end+1} = '';
+      h{end+1} = ['Once you have finished adjusting all points, click the Accept button ',...
+        'to store the coordinates. If you change frames before accepting, your work will be lost.'];
+      h{end+1} = ['You can adjust points once they are accepted. If you change the points, you ',...
+        'must click the Accept button again to store your work.'];
       h{end+1} = '';
       h1 = getLabelingHelp@LabelCore(obj);
       h = [h(:);h1(:)];

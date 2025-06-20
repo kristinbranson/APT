@@ -332,12 +332,9 @@ classdef LabelCoreSeq < LabelCore
           end
           xy = obj.controller.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
-          switch obj.state
-            case LabelState.ADJUST
-              % none
-            case LabelState.ACCEPTED              
-              % KB 20181029: removing adjust state
-              %obj.beginAdjust();
+          % this is pretty slow... 
+          if obj.state == LabelState.ACCEPTED,
+            obj.storeLabels();
           end
         else
           tfKPused = false;
@@ -358,7 +355,6 @@ classdef LabelCoreSeq < LabelCore
           if iPt>obj.nPts
             return;
           end
-          %obj.clearSelected(iPt);
           obj.toggleSelectPoint(iPt);
         end
       else
@@ -446,8 +442,21 @@ classdef LabelCoreSeq < LabelCore
     
     function h = getLabelingHelp(obj) 
       h = cell(0,1);
-      h{end+1} = 'Click all keypoints in order. ';
-      h{end+1} = 'Shift + click will label the point with the occude flag (point will be an o).';
+      h{end+1} = 'Click all keypoints in order to label an animal/frame. ';
+      h{end+1} = 'After you finish adding all keypoints, you can adjust their positions.';
+      h{end+1} = ['After entering all keypoints, select a keypoint to modify ',...
+        'by typing the number identifying it. ',...
+        'If you have more than 10 keypoints, the ` (backquote) key lets you ',...
+        'change which set of 10 keypoints the number keys correspond to.'];
+      h{end+1} = ['Once a keypoint is selected, it can be adjusted ',...
+        'by clicking on the desired location in an image. ',...
+        'Fine adjustments can be made using the arrow keys. '];
+      h{end+1} = ['Type the keypoint number again to deselect it, or type another ',...
+        'keypoint number to select a different keypoint. '];
+      h{end+1} = ['If no keypoints are selected, you can adjust any keypoint by ',...
+        'clicking down on it and dragging it to the desired location.'];
+      h{end+1} = '';
+      h{end+1} = 'Shift + click will label the point with the "occuded" flag (point will be an o).';
       h{end+1} = '';
       h1 = getLabelingHelp@LabelCore(obj);
       h = [h(:);h1(:)];
