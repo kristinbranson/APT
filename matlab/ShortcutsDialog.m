@@ -260,6 +260,8 @@ centerOnParentFigure(hfig,obj.mainFigure_);
     gladd2.Layout.Row = 3;
     addokbutton = uibutton(gladd2,'Text','OK','ButtonPushedFcn',@AddOK);
     addokbutton = uibutton(gladd2,'Text','Cancel','ButtonPushedFcn',@(src,evt) delete(hfig_add));
+    centerOnParentFigure(hfig_add,hfig);
+
     uiwait(hfig_add);
     
     function AddOK(src,evt)

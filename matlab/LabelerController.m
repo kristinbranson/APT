@@ -550,9 +550,11 @@ classdef LabelerController < handle
 
 
       obj.fakeMenuTags = {
-        'menu_view_zoom_toggle',
-        'menu_view_pan_toggle',
+        'menu_view_zoom_toggle'
+        'menu_view_pan_toggle'
         'menu_view_hide_trajectories'
+        'menu_view_hide_predictions'
+        'menu_view_hide_imported_predictions'
         };
 
       % % Stash the guidata
@@ -1969,7 +1971,8 @@ classdef LabelerController < handle
       ismenu = false(1,numel(fns));
       for i = 1:numel(fns)
         h = findobj(main_figure,'Tag',fns{i},'-property','Accelerator');
-        if isempty(h) || ~ishandle(h)
+        if isempty(h) || ~ishandle(h) || ...
+            (ismember(fns{i},obj.fakeMenuTags) && isprop(h,'Visible') && strcmpi(h.Visible,'off')),
           continue;
         end
         ismenu(i) = true;
@@ -2016,7 +2019,11 @@ classdef LabelerController < handle
     end
 
     function menu_file_shortcuts_actuated_(obj, source, event)  %#ok<INUSD>
+      labeler = obj.labeler_;
+      labeler.pushBusyStatus('Editing keyboard shortcuts...');
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;
       uiwait(ShortcutsDialog(obj));
+
     end  % function
 
     function cropInitImRects_(obj)
@@ -2083,11 +2090,17 @@ classdef LabelerController < handle
         if tfCtrl && numel(event.Modifier)==1 && any(strcmpi(event.Key,obj.shortcutkeys))
           i = find(strcmpi(event.Key,obj.shortcutkeys),1);
           if ~ismember(obj.shortcutfns{i},labeler.lblCore.unsupportedKPFFns),
-            h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i},'-property','Callback');
-            if isempty(h)
+            h = findobj(obj.mainFigure_,'Tag',obj.shortcutfns{i});
+            if isprop(h,'Callback'),
+              cb = h.Callback;
+            elseif isprop(h,'MenuSelectedFcn'),
+              cb = h.MenuSelectedFcn;
+            else
+              cb = [];
+            end
+            if isempty(cb)
               fprintf('Unknown shortcut handle %s\n',obj.shortcutfns{i});
             else
-              cb = get(h,'Callback');
               if isa(cb,'function_handle')
                 cb(h,[]);
                 tfKPused = true;
