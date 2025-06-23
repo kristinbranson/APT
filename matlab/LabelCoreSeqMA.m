@@ -849,6 +849,16 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.updateHideTarget(iTgt); 
     end
 
+    function labelsHide(obj)
+      obj.tv.setHideViz(true);
+      labelsHide@LabelCore(obj);
+    end
+    
+    function labelsShow(obj)
+      obj.tv.setHideViz(false);
+      labelsShow@LabelCore(obj);
+    end
+
     function enableControls(obj)
       
       if obj.state == LabelState.LABEL,
