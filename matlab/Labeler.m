@@ -1903,6 +1903,13 @@ classdef Labeler < handle
       end
     end
 
+    function setShortcuts(obj,scs)
+      obj.projPrefs.Shortcuts = scs;
+      if ~isempty(obj.controller_)
+        obj.controller_.setShortcuts_() ;
+      end
+    end
+
   end
     
   % Consider moving this stuff to Config.m

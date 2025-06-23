@@ -143,7 +143,8 @@ classdef LabelerController < handle
     menu_view_showhide_imported_preds_all
     menu_view_showhide_imported_preds_curr_target_only
     menu_view_showhide_imported_preds_none
-    menu_view_showhide_labels
+    menu_view_hide_imported_predictions
+    menu_view_hide_labels
     menu_view_showhide_predictions
     menu_view_showhide_trajectories
     menu_view_keypoint_appearance
@@ -158,6 +159,7 @@ classdef LabelerController < handle
     menu_view_showhide_preds_all_targets
     menu_view_showhide_preds_curr_target_only
     menu_view_showhide_preds_none
+    menu_view_hide_predictions
     menu_view_show_tick_labels
     menu_view_showhide_labelrois
     menu_view_showhide_maroi
@@ -168,6 +170,7 @@ classdef LabelerController < handle
     menu_view_trajectories_dontshow
     menu_view_trajectories_showall
     menu_view_trajectories_showcurrent
+    menu_view_hide_trajectories
     menu_view_zoom_toggle
     pbClear
     pbClearAllCrops
@@ -231,6 +234,7 @@ classdef LabelerController < handle
     GTManagerFigure  % the ground truth manager *figure*
     shortcutkeys
     shortcutfns
+    fakeMenuTags
     menu_track_backend_config
     menu_track_backend_config_jrc
     menu_track_backend_config_aws
@@ -545,6 +549,12 @@ classdef LabelerController < handle
         addlistener(labeler, 'updateStuffInHlpSetCurrPrevFrame', @(s,e)(obj.updateStuffInHlpSetCurrPrevFrame())) ;
 
 
+      obj.fakeMenuTags = {
+        'menu_view_zoom_toggle',
+        'menu_view_pan_toggle',
+        'menu_view_hide_trajectories'
+        };
+
       % % Stash the guidata
       % guidata(mainFigure, obj) ;
       
@@ -749,7 +759,7 @@ classdef LabelerController < handle
     function lblCoreHideLabelsChanged(obj)
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
-      obj.menu_view_showhide_labels.Checked = onIff(~lblCore.hideLabels) ;
+      obj.menu_view_hide_labels.Checked = onIff(~lblCore.hideLabels) ;
     end
     
     function lblCoreStreamlinedChanged(obj)
@@ -2006,34 +2016,7 @@ classdef LabelerController < handle
     end
 
     function menu_file_shortcuts_actuated_(obj, source, event)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      while true,
-        [~,newShortcuts] = propertiesGUI([],labeler.projPrefs.Shortcuts);
-        shs = struct2cell(newShortcuts);
-        % everything should just be one character
-        % no repeats
-        isproblem = false;
-        msg = '';
-        if any(cellfun(@numel,shs) ~= 1),
-          isproblem = true;
-          msg = [msg,'All shortcuts must be single-character letters. ']; %#ok<AGROW>
-        end
-        [uniqueshs,~,idx] = unique(shs);
-        if numel(uniqueshs) < numel(shs),
-          isproblem = true;
-          count = accumarray(idx,1);
-          msg = [msg,'All shortcuts must be unique, the following shortcuts are duplicated: ',cell2str(uniqueshs(count>1)),'. ']; %#ok<AGROW>
-        end
-        if ~isproblem,
-          break;
-        end
-        res = questdlg(msg,'Try again','Cancel','Try again');
-        if strcmpi(res,'Cancel'),
-          return;
-        end
-      end
-      labeler.projPrefs.Shortcuts = newShortcuts ;
-      obj.setShortcuts_() ;
+      uiwait(ShortcutsDialog(obj));
     end  % function
 
     function cropInitImRects_(obj)
@@ -4931,6 +4914,12 @@ classdef LabelerController < handle
       obj.quitRequested() ;
     end
 
+    function menu_view_hide_trajectories_actuated_(obj,src,evt)
+      labeler = obj.labeler_ ;
+      labeler.setShowTrx(~labeler.showTrx);
+      obj.updateTrxMenuCheckEnable(src);      
+    end
+
     function menu_view_trajectories_showall_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setShowTrx(true);
@@ -5086,7 +5075,7 @@ classdef LabelerController < handle
 
 
 
-    function menu_view_showhide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_view_hide_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
@@ -5147,6 +5136,15 @@ classdef LabelerController < handle
 
     end
 
+    function menu_view_hide_predictions_actuated_(obj,src,evt)
+      labeler = obj.labeler_ ;
+      tracker = labeler.tracker;
+      if ~isempty(tracker)
+        tracker.setHideViz(~tracker.hideViz); % toggle
+        obj.updateShowPredMenus();
+      end
+
+    end
 
 
     function menu_view_showhide_imported_preds_all_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5184,6 +5182,14 @@ classdef LabelerController < handle
       labeler.labels2VizHide();
       obj.updateShowImportedPredMenus(src);
 
+
+    end
+
+    function menu_view_hide_imported_predictions_actuated(obj,src,evt)
+
+      labeler = obj.labeler_ ;
+      labeler.labels2VizToggle();
+      obj.updateShowImportedPredMenus(src);      
 
     end
 
