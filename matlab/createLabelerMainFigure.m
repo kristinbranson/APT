@@ -51,6 +51,13 @@ main_figure = figure(...
 'KeyPressFcn',blanks(0),...
 'KeyReleaseFcn',blanks(0));
 
+% Fix for >=2025a issue
+if isMATLABReleaseOlderThan('R2025a')
+  % do nothing
+else
+  enableLegacyExplorationModes(main_figure) ;
+end
+
 % Add a callback so the figure can be easily closed.  This will be replaced if
 % a controller is registered with the main_figure.
 set(main_figure, 'CloseRequestFcn',@(hObject,eventdata)(delete(main_figure))) ;
