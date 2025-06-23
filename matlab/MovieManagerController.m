@@ -50,7 +50,19 @@ classdef MovieManagerController < handle
 
     function obj = MovieManagerController(lObj)
       assert(isa(lObj,'Labeler'));
-      obj.hFig = MovieManager(obj);
+      %obj.hFig = MovieManager(obj);
+
+      
+      handles = struct;
+      obj.hFig = uifigure('Units','pixels','Position',[951,1400,733,436],...
+        'Name','Manage Movies');
+      obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
+      obj.hTG = uitabgroup(obj.hFig,...
+        'Position',[0 0 1 1],'Units','normalized',...
+        'SelectionChangedFcn',@(s,e)obj.cbkTabGrpSelChanged(s,e));
+      
+      
+      obj.hFig = NewMovieManager(obj);
       %obj.gdata = guidata(obj.hFig);
       obj.labeler = lObj;
       
@@ -81,6 +93,11 @@ classdef MovieManagerController < handle
       centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
     end
     
+
+    function CloseRequestFcn(src,evt)
+      src.Visible = 'off';
+    end
+
     function delete(obj)
       delete(obj.hFig);
       for i=1:numel(obj.listeners)
@@ -112,7 +129,7 @@ classdef MovieManagerController < handle
         h.Parent = hT1;
         gdata(1).(tag) = h;
         if isequal(tag(1:2),'pb')
-          h.Callback = @(s,e)obj.cbkPushButton(s,e);
+          h.ButtonPushedFcn = @(s,e)obj.cbkPushButton(s,e);
           hpbs{1}(end+1,1) = h;
         end
       end
@@ -130,12 +147,12 @@ classdef MovieManagerController < handle
         h.Tag = tag;
         gdata(2).(tag) = h;
         if isequal(tag(1:2),'pb')
-          h.Callback = @(s,e)obj.cbkPushButton(s,e);
+          h.ButtonPushedFcn = @(s,e)obj.cbkPushButton(s,e);
           hpbs{2}(end+1,1) = h;
         end
       end
       % Special case, pbNextUnlabeled->GT Frames
-      gdata(2).pbNextUnlabeled.String = 'GT Frames';
+      gdata(2).pbNextUnlabeled.Text = 'GT Frames';
       gdata(2).pbNextUnlabeled.Tag = 'pbGTFrames';
       gdata(2).pbGTFrames = gdata(2).pbNextUnlabeled;
       gdata(2).pbNextUnlabeled = [];
