@@ -128,14 +128,15 @@ classdef MovieReader < handle
       end
       
       ifo = obj.info;
-      if isfield(ifo,'nr') && isfield(ifo,'nc')
-        obj.nr = ifo.nr;
-        obj.nc = ifo.nc;
-        obj.nchan = nan;
-      else
+      % ifo.nr and ifo.nc are not reliable...
+      % if isfield(ifo,'nr') && isfield(ifo,'nc')
+      %   obj.nr = ifo.nr;
+      %   obj.nc = ifo.nc;
+      %   obj.nchan = nan;
+      % else
         im = obj.readFrameFcn(1);
         [obj.nr,obj.nc,obj.nchan] = size(im);
-      end
+      % end
       
       tfHasBG = ~isempty(bgTy) && ~isempty(bgReadFcn);
       if tfHasBG
