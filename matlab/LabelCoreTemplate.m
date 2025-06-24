@@ -447,20 +447,20 @@ classdef LabelCoreTemplate < LabelCore
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
-              dxdy = -lObj.videoCurrentRightVec();
+              dxdy = -obj.controller.videoCurrentRightVec();
             case 'rightarrow'
-              dxdy = lObj.videoCurrentRightVec();
+              dxdy = obj.controller.videoCurrentRightVec();
             case 'uparrow'
-              dxdy = lObj.videoCurrentUpVec();
+              dxdy = obj.controller.videoCurrentUpVec();
             case 'downarrow'
-              dxdy = -lObj.videoCurrentUpVec();
+              dxdy = -obj.controller.videoCurrentUpVec();
           end
           if tfShift
             xy = xy + dxdy*10;
           else
             xy = xy + dxdy;
           end
-          xy = lObj.videoClipToVideo(xy);
+          xy = obj.controller.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST
@@ -489,6 +489,8 @@ classdef LabelCoreTemplate < LabelCore
         %obj.clearSelected(iPt);
         obj.toggleSelectPoint(iPt);
       else
+        fprintf('kp not handled:\n');
+        disp(evt);
         tfKPused = false;
       end
     end
@@ -521,17 +523,107 @@ classdef LabelCoreTemplate < LabelCore
       end   
     end
 
-    function h = getLabelingHelp(obj) %#ok<MANU>
-      h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
-        '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
-        '* S or <space> accepts the labels for the current frame/target.'
-        '* (The letter) O toggles occluded-estimated status.'
-        '* 0..9 selects/unselects a point. When a point is selected:'
-        '* ` (backquote) increments the mapping of the 0-9 hotkeys.'
-        '* LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '* Shift-LEFT, etc adjusts the point by larger steps.' 
-        '* Clicking on the image moves the selected point to that location.'};
+    function shortcuts = LabelShortcuts(obj)
+
+      shortcuts = cell(0,3);
+
+      shortcuts{end+1,1} = 'Accept current labels';
+      shortcuts{end,2} = 's or space';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Toggle whether selected kpt is occluded';
+      shortcuts{end,2} = 'o';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Toggle whether selected kpt is fully occluded';
+      shortcuts{end,2} = 'u';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Forward one frame';
+      shortcuts{end,2} = '= or d';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Backward one frame';
+      shortcuts{end,2} = '- or a';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Un/Select kpt of current target';
+      shortcuts{end,2} = '0-9';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = 'Toggle which kpts 0-9 correspond to';
+      shortcuts{end,2} = '`';
+      shortcuts{end,3} = {};
+
+      rightpx = obj.controller.videoCurrentRightVec;
+      rightpx = rightpx(1);
+      uppx = obj.controller.videoCurrentUpVec;
+      uppx = abs(uppx(2));
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by %.1f px, ow forward one frame',rightpx);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by %.1f px, ow back one frame',rightpx);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by %.1f px',uppx);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by %.1f px',uppx);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by %.1f px, ow go to next %s',10*rightpx,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by %.1f px, ow go to previous %s',10*rightpx,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by %.1f px',10*uppx);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by %.1f px',10*uppx);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = 'Zoom in/out';
+      shortcuts{end,2} = 'Mouse scroll';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Pan view';
+      shortcuts{end,2} = 'Mouse right-click-drag';
+      shortcuts{end,3} = {};
+
+    end
+
+    function h = getLabelingHelp(obj) 
+      h = cell(0,1);
+      h{end+1} = 'Adjust all keypoints, then click Accept to store.';
+      h{end+1} = '';
+      h{end+1} = ['In Template labeling mode, there is a set of template/"white" points on the ',...
+      'image at all times. To ',...
+      'label a frame, adjust the points as necessary and accept. Adjusted ',...
+      'points are shown in colors (rather than white). '];
+      h{end+1} = ['Points may also be Selected using hotkeys (0..9). When a point is ',...
+        'selected, the arrow-keys adjust the point as if by mouse. Mouse-clicks ',...
+        'on the image also jump the point immediately to that location. '];
+      h{end+1} = 'If no point is selected, you can click and drag a point to move it. ';
+      h{end+1} = '';
+      h{end+1} = ['Once you have finished adjusting all points, click the Accept button ',...
+        'to store the coordinates. If you change frames before accepting, your work will be lost.'];
+      h{end+1} = ['You can adjust points once they are accepted. If you change the points, you ',...
+        'must click the Accept button again to store your work.'];
+      h{end+1} = '';
+      h1 = getLabelingHelp@LabelCore(obj);
+      h = [h(:);h1(:)];
     end
             
   end

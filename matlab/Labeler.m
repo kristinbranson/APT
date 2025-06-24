@@ -1893,7 +1893,23 @@ classdef Labeler < handle
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
       cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
     end
-    
+
+    function shortcuts = getShortcuts(obj)
+      prefs = obj.projPrefs;
+      if isfield(prefs,'Shortcuts'),
+        shortcuts = prefs.Shortcuts;
+      else
+        shortcuts = struct;
+      end
+    end
+
+    function setShortcuts(obj,scs)
+      obj.projPrefs.Shortcuts = scs;
+      if ~isempty(obj.controller_)
+        obj.controller_.setShortcuts_() ;
+      end
+    end
+
   end
     
   % Consider moving this stuff to Config.m
@@ -2814,7 +2830,7 @@ classdef Labeler < handle
       
       try
         starttime = tic;
-        fprintf('Untarring project into %s\n',tname);
+        fprintf('Untarring project %s into %s\n',fname,tname);
         untar(fname,tname);
         obj.unTarLoc = tname;
         fprintf('... done with untar, elapsed time = %fs.\n',toc(starttime));
@@ -4703,6 +4719,15 @@ classdef Labeler < handle
           % here.
           obj.labelingInitTemplate();
         end
+
+        for i = 1:obj.nview,
+          ud = obj.gdata.axes_all(i).UserData;
+          if isstruct(ud) && isfield(ud,'gamma') && ~isempty(ud.gamma),
+            gam = ud.gamma;
+            ViewConfig.applyGammaCorrection(obj.gdata.images_all,obj.gdata.axes_all,obj.gdata.axes_prev,i,gam);
+          end
+        end
+
       end
 
       % AL20160615: omg this is the plague.
@@ -11473,8 +11498,6 @@ classdef Labeler < handle
     function resetCurrentTracker(obj)
       obj.pushBusyStatus('Resetting current trained tracker and all tracking results...');      
       oc = onCleanup(@()(obj.popBusyStatus())) ;
-      tracker = obj.tracker ;
-      tracker.init() ;
       obj.notify('update_text_trackerinfo') ;
       obj.notify('update_menu_track_tracker_history') ;
     end
@@ -11486,11 +11509,12 @@ classdef Labeler < handle
       if numel(trackers) > 1 ,
         delete(trackers{1}) ;
         obj.trackerHistory_ = trackers(2:end) ;
-        obj.notify('update_text_trackerinfo') ;
-        obj.notify('update_menu_track_tracker_history') ;
       else
-        error('Can''t delete the current tracker if it''s the only tracker in the history') ;
+        tracker = obj.tracker ;
+        tracker.init() ;
       end
+      obj.notify('update_text_trackerinfo') ;
+      obj.notify('update_menu_track_tracker_history') ;
     end  % function
     
     function [tfsucc,tblPCache,s] = trackCreateDeepTrackerStrippedLbl(obj, varargin)
