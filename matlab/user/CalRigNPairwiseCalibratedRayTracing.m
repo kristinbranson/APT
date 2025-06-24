@@ -386,8 +386,19 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
         if res ~= 0,
           tfSuccess = false;
           msg = sprintf('Conda environment %s no found: %s', CalRigNPairwiseCalibratedRayTracing.conda_env,strtrim(cmdout));
-        end
+        end        
+
         python_env_path = strtrim(cmdout); % Remove the end-of-line character
+        try
+            supported_MATLAB_releases = {'2023b'}; % Newer versions are most likely supported but not tested yet
+            current_release = version('-release');
+            if ~ismember(current_release, supported_MATLAB_releases)
+                error('MATLAB release mismatch: required one of [%s] to support %s, but found %s.', ...
+                    strjoin(supported_MATLAB_releases, ','), python_env_path, current_release);
+            end
+        catch ME
+            error('MATLAB release check failed: %s', ME.message);
+        end
         try
           pyenv('Version', python_env_path,'ExecutionMode','OutOfProcess'); % Initialize python environment
           isset = true;
@@ -395,6 +406,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
         catch ME
           warningNoTrace('Error setting python environment to %s:\n%s',python_env_path,getReport(ME));
         end
+        
       end
     end    
 end
