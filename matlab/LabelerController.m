@@ -1786,7 +1786,7 @@ classdef LabelerController < handle
                  'UserData',struct('view',iView), ...
                  'Tag', sprintf('figs_all(%d)', iView) ...
                  );
-        axs(iView) = axes('Parent', figs(iView));
+        axs(iView) = axes('Parent', figs(iView),'Position',[0,0,1,1]);
         obj.addSatellite(figs(iView)) ;
         
         ims(iView) = imagesc(0,'Parent',axs(iView));
@@ -3607,14 +3607,44 @@ classdef LabelerController < handle
       if eventdata.VerticalScrollCount>0
         scrl = 1/scrl;
       end
+
+      % how big is the axes in pixels?
+      units = get(ax,'Units');
+      set(ax,'Units','pixels');
+      axpos_px = get(ax,'Position');
+      set(ax,'Units',units);
+      szpx = axpos_px(3:4);
+      
+      dx = xlim(2)-xlim(1);
+      dy = ylim(2)-ylim(1);
+      xscale = szpx(1)/dx;
+      yscale = szpx(2)/dy;
+      scale = min(xscale,yscale); % px per data unit      
       him = obj.images_all(ivw);
       imglimx = get(him,'XData');
       imglimy = get(him,'YData');
-      xlim(1) = max(imglimx(1),curp(1,1)-(curp(1,1)-xlim(1))/scrl);
-      xlim(2) = min(imglimx(2),curp(1,1)+(xlim(2)-curp(1,1))/scrl);
-      ylim(1) = max(imglimy(1),curp(1,2)-(curp(1,2)-ylim(1))/scrl);
-      ylim(2) = min(imglimy(2),curp(1,2)+(ylim(2)-curp(1,2))/scrl);
-      axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+
+      % how big would the xlim, ylim be if we went beyond the edges of the
+      % image
+      vdx = szpx(1)/scale;
+      vdy = szpx(2)/scale;
+      x0 = (xlim(1)+xlim(2))/2;
+      y0 = (ylim(1)+ylim(2))/2;
+      vxlim = [x0-vdx/2,x0+vdx/2];
+      vylim = [y0-vdy/2,y0+vdy/2];
+
+      xlim(1) = curp(1,1)-(curp(1,1)-vxlim(1))/scrl;
+      xlim(2) = curp(1,1)+(vxlim(2)-curp(1,1))/scrl;
+      ylim(1) = curp(1,2)-(curp(1,2)-vylim(1))/scrl;
+      ylim(2) = curp(1,2)+(vylim(2)-curp(1,2))/scrl;
+      xlim(1) = max(xlim(1),imglimx(1));
+      xlim(2) = min(xlim(2),imglimx(2));
+      ylim(1) = max(ylim(1),imglimy(1));
+      ylim(2) = min(ylim(2),imglimy(2));
+      set(ax,'XLim',xlim,'YLim',ylim);
+      %set(ax,'DataAspectRatioMode','auto');
+      %axis(ax,[xlim(1),xlim(2),ylim(1),ylim(2)]);
+      %set(ax,'DataAspectRatio',[1,1,1]);
       % fprintf('Scrolling %d!!\n',eventdata.VerticalScrollAmount)
     end
 
