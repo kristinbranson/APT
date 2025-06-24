@@ -74,6 +74,8 @@ classdef CalRigMLStro < CalRigZhang2CamBase
         calSessObj = s.calibrationSession;
       elseif isa(calSess,'vision.internal.calibration.tool.Session')
         calSessObj = calSess;
+      elseif isstruct(calSess),
+        calSessObj = calSess.calSess;
       else
         error('Input argument must be a MATLAB Stereo Calibration Session.');
       end

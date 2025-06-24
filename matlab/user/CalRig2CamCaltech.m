@@ -100,19 +100,30 @@ classdef CalRig2CamCaltech < CalRig & matlab.mixin.Copyable
       %
       % Reads intrinsic/extrinsic params from calibration files
       
-      obj.calibFile = calibRes;
-      
-      [nameL,nameR,ifo,int,ext] = CalibratedRig.loadStroCalibResults(calibRes,false);
-      %assert(strncmp(nameL,'cam0',4),'Unexpected left/right cam names for stereo calibration results.');
-      %assert(strncmp(nameR,'cam1',4),'Unexpected left/right cam names for stereo calibration results.');
-      fprintf('Loaded: %s\n',calibRes);
-      fprintf('''left'' cam: %s. ''right'' cam: %s.\n',nameL,nameR);
-      
-      obj.viewNames = {'L' 'R'}; % For now all props expect these viewNames
-      obj.stroInfo = ifo;
-      obj.int = struct('L',int.l,'R',int.r);
-      obj.omLR = ext.om;
-      obj.TLR = ext.T;
+      if isstruct(calibRes),
+        s = calibRes;
+        propscopy = {'calibFile','viewNames','strInfo','int','omLR','TLR'};
+        for i = 1:numel(propscopy),
+          fn = propscopy{i};
+          if isfield(s,fn),
+            obj.(fn) = s.(fn);
+          end
+        end
+      else
+        obj.calibFile = calibRes;
+
+        [nameL,nameR,ifo,int,ext] = CalibratedRig.loadStroCalibResults(calibRes,false);
+        %assert(strncmp(nameL,'cam0',4),'Unexpected left/right cam names for stereo calibration results.');
+        %assert(strncmp(nameR,'cam1',4),'Unexpected left/right cam names for stereo calibration results.');
+        fprintf('Loaded: %s\n',calibRes);
+        fprintf('''left'' cam: %s. ''right'' cam: %s.\n',nameL,nameR);
+
+        obj.viewNames = {'L' 'R'}; % For now all props expect these viewNames
+        obj.stroInfo = ifo;
+        obj.int = struct('L',int.l,'R',int.r);
+        obj.omLR = ext.om;
+        obj.TLR = ext.T;
+      end
     end
 
   end
