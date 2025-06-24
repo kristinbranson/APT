@@ -8,6 +8,8 @@ classdef MovieManagerController < handle
     hTG % tab group
     hTabs % [2] uitabs
     mmTbls % [2] MovieManagerTables
+    tblMovies
+    tblMovieSet
     tabHandles % [2] "handles" struct array
     hPBs % [2] cell array, convenience handles. hPBs{1/2} contains handle array of reg/gt pb handles
   end
@@ -51,20 +53,68 @@ classdef MovieManagerController < handle
     function obj = MovieManagerController(lObj)
       assert(isa(lObj,'Labeler'));
       %obj.hFig = MovieManager(obj);
-
+      obj.labeler = lObj;
       
-      handles = struct;
       obj.hFig = uifigure('Units','pixels','Position',[951,1400,733,436],...
         'Name','Manage Movies');
+      handles.figure1 = obj.hFig;
       obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
-      obj.hTG = uitabgroup(obj.hFig,...
-        'Position',[0 0 1 1],'Units','normalized',...
-        'SelectionChangedFcn',@(s,e)obj.cbkTabGrpSelChanged(s,e));
-      
-      
-      obj.hFig = NewMovieManager(obj);
-      %obj.gdata = guidata(obj.hFig);
-      obj.labeler = lObj;
+
+      if lObj.nview == 1,
+        gl_args = {[2 1],'RowHeight',{'1x',40}};
+      else
+        gl_args = {[3 1],'RowHeight',{'1x',20*(lObj.nview+1),40}};
+      end
+      handles.gl = uigridlayout(obj.hFig,gl_args{:},'tag','gl');
+
+      handles.tblMovies = uitable(handles.gl,...
+        'ColumnName',{'Movie','Has Lbls'},...
+        'ColumnWidth',{'1x',70},...
+        'tag','tblMovies',...
+        'ButtonDownFcn',@(src,evt) obj.buttonDownFcnTblMovies(src,evt),...
+        'CellSelectionCallback',@(src,evt) obj.cellSelectionCallbackTblMovies(src,evt));
+      obj.tblMovies = handles.tblMovies;
+      handles.gl_buttons = uigridlayout(handles.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
+
+      if lObj.gtIsGTMode,
+        handles.pbGTFrames = uibutton(handles.gl_buttons,'Text','GT Frames','tag','pbGTFrames',...
+          'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+      else
+        handles.pbSwitch = uibutton(handles.gl_buttons,'Text','Switch to Movie','tag','pbSwitch',...
+          'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+      end
+      handles.pbNextUnlabeled = uibutton(handles.gl_buttons,'Text','Next Unlabeled','tag','pbNextUnlabeled',...
+        'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+      if lObj.gtIsGTMode,
+        handles.pbNextUnlabeled.Visible = 'off';
+      end
+
+      handles.pbAdd = uibutton(handles.gl_buttons,'Text','Add Movie','tag','pbAdd',...
+        'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+      handles.pbRm = uibutton(handles.gl_buttons,'Text','Remove Movie','tag','pbRemove',...
+        'ButtonPushedFcn',@(src,evt) cbkPushButton(obj,src,evt));
+
+      if lObj.nview > 1,
+        handles.tblMovieSet = uitable(handles.gl,...
+          'ColumnName',{},'tag','tblMovieSet');
+        obj.tblMovieSet = handles.tblMovieSet;
+      else
+        obj.tblMovieSet = [];
+      end
+
+      handles.menu_file = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
+      handles.menu_file_add_movies_from_text_file = uimenu('Tag','menu_file_add_movies_from_text_file',...
+        'Text','Add movies from text file','Parent',handles.menu_file);
+      handles.menu_help = uimenu('Tag','menu_help','Text','Help','Parent',obj.hFig);
+
+      handles.menu_file_add_movies_from_text_file.MenuSelectedFcn = ...
+          @(s,e)obj.mnuFileAddMoviesBatch();
+
+      guidata(obj.hFig,handles);
+
+      set(obj.hFig,'MenuBar','None');
+      obj.hFig.Visible = 'off';
+      obj.hFig.DeleteFcn = @(s,e)delete(mmc);
       
       %PROPS = {};
       %GTPROPS = {};
@@ -82,19 +132,22 @@ classdef MovieManagerController < handle
       %lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
       lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
       lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
+
+      % TODO figure out 
+      % lObjs{end+1,1} = addlistener(handles.tblMovies,'tableClicked',...
+      %   @(s,e)obj.notify('tableClicked'));
+
       obj.listeners = lObjs;
-      
-      obj.tabSetup();
-      
-      gdata = guidata(obj.hFig);
-      gdata.menu_file_add_movies_from_text_file.Callback = ...
-          @(s,e)obj.mnuFileAddMoviesBatch();
-      
+            
       centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
     end
     
+    function buttonDownFcnTblMovies(obj,src,evt)
+    end
 
-    function CloseRequestFcn(src,evt)
+    function cellSelectionCallbackTblMovies(obj,src,evt)
+    end
+    function CloseRequestFcn(obj,src,evt)
       src.Visible = 'off';
     end
 
@@ -109,64 +162,19 @@ classdef MovieManagerController < handle
       obj.mmTbls = [];
     end
     
-    function tabSetup(obj)
-      obj.hTG = uitabgroup(obj.hFig,...
-        'Position',[0 0 1 1],'Units','normalized',...
-        'SelectionChangedFcn',@(s,e)obj.cbkTabGrpSelChanged(s,e));
-      hT1 = uitab(obj.hTG,'Title','Movie List');
-      hT2 = uitab(obj.hTG,'Title','GT Movie List');
-      obj.hTabs = [hT1 hT2];
-      
-      gdata = struct();
-      
-      % Take everything in MovieManager and move it onto reg tab
-      HANDLES = {'uipanel1' 'pbSwitch' 'pbNextUnlabeled' 'pbAdd' 'pbRm'};
-      mmgd = guidata(obj.hFig);
-      hpbs = cell(1,2);
-      for tag=HANDLES,tag=tag{1}; %#ok<FXSET>
-        h = mmgd.(tag);
-        h.Tag = tag;
-        h.Parent = hT1;
-        gdata(1).(tag) = h;
-        if isequal(tag(1:2),'pb')
-          h.ButtonPushedFcn = @(s,e)obj.cbkPushButton(s,e);
-          hpbs{1}(end+1,1) = h;
-        end
-      end
-      tblOrig = mmgd.tblMovies;
-      tblOrig.Visible = 'off';
-      tblReg = MovieManagerTable.create(obj.labeler.nview,tblOrig.Parent,...
-        tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
-      obj.listeners{end+1,1} = addlistener(tblReg,'tableClicked',...
-        @(s,e)obj.notify('tableClicked'));
-      
-      % Copy stuff onto GT tab
-      HANDLES = {'uipanel1' 'pbSwitch' 'pbNextUnlabeled' 'pbAdd' 'pbRm'};
-      for tag=HANDLES,tag=tag{1}; %#ok<FXSET>
-        h = copyobj(mmgd.(tag),hT2);
-        h.Tag = tag;
-        gdata(2).(tag) = h;
-        if isequal(tag(1:2),'pb')
-          h.ButtonPushedFcn = @(s,e)obj.cbkPushButton(s,e);
-          hpbs{2}(end+1,1) = h;
-        end
-      end
-      % Special case, pbNextUnlabeled->GT Frames
-      gdata(2).pbNextUnlabeled.Text = 'GT Frames';
-      gdata(2).pbNextUnlabeled.Tag = 'pbGTFrames';
-      gdata(2).pbGTFrames = gdata(2).pbNextUnlabeled;
-      gdata(2).pbNextUnlabeled = [];
-      tblGT = MovieManagerTable.create(obj.labeler.nview,gdata(2).uipanel1,...
-        tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
-      obj.listeners{end+1,1} = addlistener(tblGT,'tableClicked',...
-        @(s,e)obj.notify('tableClicked'));
-      
-      obj.mmTbls = [tblReg tblGT];
-      obj.tabHandles = gdata;
-      obj.hPBs = hpbs;
-      
-      obj.selectTab(1);
-    end
+    % function tabSetup(obj)
+    % 
+    %   tblReg = MovieManagerTable.create(obj.labeler.nview,tblOrig.Parent,...
+    %     tblOrig.Position,@(iMov)obj.tblCbkMovieSelected(iMov));
+    %   obj.listeners{end+1,1} = addlistener(tblReg,'tableClicked',...
+    %     @(s,e)obj.notify('tableClicked'));
+    % 
+    %   obj.mmTbls = [tblReg tblGT];
+    %   obj.tabHandles = gdata;
+    %   obj.hPBs = hpbs;
+    % 
+    %   obj.selectTab(1);
+    % end
         
   end
   
@@ -361,17 +369,21 @@ classdef MovieManagerController < handle
       gdata.menu_file_add_movies_from_text_file.Enable = onoff;
     end
     
+    function setSelectedMovie(obj,iMov)
+      if isempty(iMov),
+        obj.tblMovies.Selection = zeros(0,2);
+      else
+        obj.tblMovies.Selection = [iMov,1];
+      end
+      % todo update movieset table
+    end
+
     function updateMMTblRowSelection(obj)
       % Update one of the MM tables per lObj.currMovie, lObj.gtIsGTMode
       
-      lObj = obj.labeler;
-      tfGT = lObj.gtIsGTMode;
-      tbl = obj.getMMTblGT(tfGT);
-      iMov = lObj.currMovie;
-      if ~isempty(iMov)
-        % - first clause: this can occur during projload
-        tbl.updateSelectedMovie(iMov);
-      end
+      iMov = obj.labeler.currMovie;
+      obj.setSelectedMovie(iMov);
+
     end
     
     function hlpLblerLstnCbkUpdateTable(obj,tfGT)
