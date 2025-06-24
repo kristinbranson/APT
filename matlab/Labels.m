@@ -1022,7 +1022,7 @@ classdef Labels
             wbtime = tic() ;
             if isa(wbObj, 'ProgressMeter') ,
               wbObj.bump(nRowsComplete) ;
-              if wbObj.isCanceled ,
+              if wbObj.wasCanceled ,
                 return
               end
             else
