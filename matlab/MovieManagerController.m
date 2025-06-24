@@ -13,6 +13,12 @@ classdef MovieManagerController < handle
     tabHandles % [2] "handles" struct array
     hPBs % [2] cell array, convenience handles. hPBs{1/2} contains handle array of reg/gt pb handles
   end
+  properties (Constant)
+    JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
+                         'ColumnWidth',{'1x',250}};
+    JTABLEPROPS_TRX = {'ColumnName',{'Movie' 'Trx' 'Num Labels'},...
+                       'ColumnPreferredWidth',{'2x','1x',100}};
+  end
   properties (Dependent)
     gtTabSelected % true if GT tab is current tab selection
     selectedTabMatchesLabelerGTMode % if true, the current tab selection is consistent with .labeler.gtIsGTMode
@@ -385,6 +391,60 @@ classdef MovieManagerController < handle
       obj.setSelectedMovie(iMov);
 
     end
+
+    function updateMovieData(obj,movNames,trxNames,movsHaveLbls)
+
+      szassert(trxNames,size(movNames));
+      assert(size(movNames,1)==numel(movsHaveLbls));
+
+
+      nSets = size(movNames,1);
+      assert(size(movNames,2)==obj.labeler.nview);
+      assert(nSets==numel(movsHaveLbls));
+      
+      movNames = movNames';
+      movsHaveLbls = repmat(movsHaveLbls(:),1,obj.nmovsPerSet);
+      movsHaveLbls = movsHaveLbls';
+      dat = [num2cell(iSet(:)) movNames(:) num2cell(movsHaveLbls(:))];
+      
+      tt = treeTable(obj.hParent,obj.HEADERS,dat,...
+        'ColumnTypes',obj.COLTYPES,...
+        'ColumnEditable',obj.COLEDIT,...
+        'Groupable',true,...
+        'IconFilenames',...
+            {'' fullfile(matlabroot,'/toolbox/matlab/icons/file_open.png') fullfile(matlabroot,'/toolbox/matlab/icons/foldericon.gif')});
+      cwMap = obj.COLWIDTHS;
+      keys = cwMap.keys;
+      for k=keys(:)',k=k{1}; %#ok<FXSET>
+        tblCol = tt.getColumn(k);
+        tblCol.setPreferredWidth(cwMap(k));
+      end
+      
+      tt.MouseClickedCallback = @(s,e)obj.cbkClickedDefault(s,e);
+      tt.setDoubleClickEnabled(false);
+      if ~isempty(obj.tbl)
+        delete(obj.tbl);
+      end
+      obj.tbl = tt;
+
+      
+      tfTrx = any(cellfun(@(x)~isempty(x),trxNames));
+      if tfTrx
+        assert(size(trxNames,2)==1,'Expect single column.');
+        dat = [movNames trxNames num2cell(int64(movsHaveLbls))];
+        args = MovieManagerController.JTABLEPROPS_TRX;
+      else
+        dat = [movNames num2cell(int64(movsHaveLbls))];
+        args = MovieManagerController.JTABLEPROPS_NOTRX;
+      end
+
+
+
+
+
+      set(obj.tblMovies,args{:},'Data',dat);
+
+    end
     
     function hlpLblerLstnCbkUpdateTable(obj,tfGT)
       lObj = obj.labeler;
@@ -412,9 +472,7 @@ classdef MovieManagerController < handle
         return
       end
       
-      iTbl = double(tfGT)+1;
-      tbl = obj.mmTbls(iTbl);
-      tbl.updateMovieData(movs,trxs,movsHaveLbls);
+      obj.updateMovieData(movs,trxs,movsHaveLbls);
       if tfGT==lObj.gtIsGTMode
         % Not conditional is necessary, could just always update
         obj.updateMMTblRowSelection();
