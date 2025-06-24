@@ -5198,7 +5198,7 @@ classdef LabelerController < handle
 
     end
 
-    function menu_view_hide_imported_predictions_actuated(obj,src,evt)
+    function menu_view_hide_imported_predictions_actuated_(obj,src,evt)
 
       labeler = obj.labeler_ ;
       labeler.labels2VizToggle();

@@ -3815,6 +3815,13 @@ classdef Labeler < handle
         error('Labeler:batchfile',...
           'Error reading file %s: %s',bfile,ME.message);
       end
+      trxfiles = cell(size(movs,1),1);
+      if obj.hasTrx,
+        if size(movs,2) == obj.nview*2,
+          trxfiles = movs(:,2:2:end);
+          movs = movs(:,1:2:end);
+        end
+      end
       if size(movs,2)~=obj.nview
         error('Labeler:batchfile',...
           'Expected file %s to have %d column(s), one for each view.',...
@@ -3827,7 +3834,7 @@ classdef Labeler < handle
       nMovSetImport = size(movs,1);
       if obj.nview==1
         fprintf('Importing %d movies from file ''%s''.\n',nMovSetImport,bfile);
-        obj.movieAdd(movs,[],'offerMacroization',false);
+        obj.movieAdd(movs,trxfiles,'offerMacroization',false);
       else
         fprintf('Importing %d movie sets from file ''%s''.\n',nMovSetImport,bfile);
         for i=1:nMovSetImport
