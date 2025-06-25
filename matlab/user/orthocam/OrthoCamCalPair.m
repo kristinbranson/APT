@@ -275,10 +275,22 @@ classdef OrthoCamCalPair < CalRig
       
       switch icam
         case 1
-          R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
+          if verLessThan('matlab','9.13')  %#ok<VERLESSMATLAB>
+            % For Matlab < 2022b
+            R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
+          else
+            % For Matlab >= 2022b
+            R2 = rotvec2mat3d(obj.r2vec1);
+          end            
           t2 = obj.t2vec1;
         case 2
-          R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+          if verLessThan('matlab','9.13')  %#ok<VERLESSMATLAB>
+            % For Matlab < 2022b
+            R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+          else
+            % For Matlab >= 2022b
+            R2 = rotvec2mat3d(obj.r2vec1);
+          end            
           t2 = obj.t2vec2;
       end
       int = obj.tblInt(icam,:);
