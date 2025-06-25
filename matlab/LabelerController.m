@@ -1489,8 +1489,10 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function raiseTargetsTableFigure(obj)
+    function raiseTargetsTableFigure_(obj)
       labeler = obj.labeler_ ;
+      labeler.pushBusyStatus('Making figure for big summary table...') ;
+      oc = onCleanup(@()(labeler.popBusyStatus())) ;      
       main_figure = obj.mainFigure_ ;
       [tfok,tblBig] = labeler.hlpTargetsTableUIgetBigTable();
       if ~tfok
@@ -5349,7 +5351,7 @@ classdef LabelerController < handle
       if labeler.maIsMA
         TrkInfoUI(labeler);
       else
-        obj.raiseTargetsTableFigure();
+        obj.raiseTargetsTableFigure_();
       end
     end
 
