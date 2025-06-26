@@ -31,7 +31,7 @@ classdef DLBackEndClass < handle
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
-    defaultDockerImgTag = 'apt-20250505-tf215-pytorch21-hopper'
+    defaultDockerImgTag = 'apt-20250626-tf215-pytorch21-hopper'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
     jrchost = 'login1.int.janelia.org'
@@ -40,8 +40,8 @@ classdef DLBackEndClass < handle
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
 
-    default_conda_env = 'apt-20250505-tf215-pytorch21-hopper'
-    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt-20250505-tf215-pytorch21-hopper.sif' 
+    default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif' 
     %legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
     %legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
   end
