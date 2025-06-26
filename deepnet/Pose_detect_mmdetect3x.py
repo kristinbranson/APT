@@ -312,6 +312,36 @@ class APT_DETRHeadMask(DETRHead):
 
 ## COPIED and updated from mmdet.models.dense_heads.detr_head. Mostly needed to pass gt_bboxes_ignore to the assigner.
 
+    def loss(self, hidden_states,
+             batch_data_samples):
+        """Perform forward propagation and loss calculation of the detection
+        head on the features of the upstream network.
+
+        Args:
+            hidden_states (Tensor): Feature from the transformer decoder, has
+                shape (num_decoder_layers, bs, num_queries, cls_out_channels)
+                or (num_decoder_layers, num_queries, bs, cls_out_channels).
+            batch_data_samples (List[:obj:`DetDataSample`]): The Data
+                Samples. It usually includes information such as
+                `gt_instance`, `gt_panoptic_seg` and `gt_sem_seg`.
+
+        Returns:
+            dict: A dictionary of loss components.
+        """
+        batch_gt_instances = []
+        batch_img_metas = []
+        batch_gt_instances_ignore = []
+        for data_sample in batch_data_samples:
+            batch_img_metas.append(data_sample.metainfo)
+            batch_gt_instances.append(data_sample.gt_instances)
+            batch_gt_instances_ignore.append(data_sample.ignored_instances if hasattr(data_sample, 'ignored_instances') else None)
+
+        outs = self(hidden_states)
+        loss_inputs = outs + (batch_gt_instances, batch_img_metas,batch_gt_instances_ignore)
+        losses = self.loss_by_feat(*loss_inputs)
+        return losses
+
+
     def loss_by_feat(
         self,
         all_layers_cls_scores,
@@ -400,12 +430,14 @@ class APT_DETRHeadMask(DETRHead):
         bbox_preds_list = [bbox_preds[i] for i in range(num_imgs)]
         cls_reg_targets = self.get_targets(cls_scores_list, bbox_preds_list,
                                            batch_gt_instances, batch_img_metas,batch_gt_instances_ignore)
-        (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
-         num_total_pos, num_total_neg) = cls_reg_targets
+        (cls_scores_list,labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
+         num_total_pos, num_total_neg,sel_ndx_list) = cls_reg_targets
+        cls_scores = torch.cat(cls_scores_list, 0)
         labels = torch.cat(labels_list, 0)
         label_weights = torch.cat(label_weights_list, 0)
         bbox_targets = torch.cat(bbox_targets_list, 0)
         bbox_weights = torch.cat(bbox_weights_list, 0)
+        bbox_preds_list = [bbox_preds[sel_ndx] for bbox_preds, sel_ndx in zip(bbox_preds_list, sel_ndx_list)]
 
         # classification loss
         cls_scores = cls_scores.reshape(-1, self.cls_out_channels)
@@ -445,7 +477,7 @@ class APT_DETRHeadMask(DETRHead):
 
         # construct factors used for rescale bboxes
         factors = []
-        for img_meta, bbox_pred in zip(batch_img_metas, bbox_preds):
+        for img_meta, bbox_pred in zip(batch_img_metas, bbox_targets_list):
             img_h, img_w, = img_meta['img_shape']
             factor = bbox_pred.new_tensor([img_w, img_h, img_w,
                                            img_h]).unsqueeze(0).repeat(
@@ -456,6 +488,7 @@ class APT_DETRHeadMask(DETRHead):
         # DETR regress the relative position of boxes (cxcywh) in the image,
         # thus the learning target is normalized by the image size. So here
         # we need to re-scale them for calculating IoU loss
+        bbox_preds = torch.cat(bbox_preds_list, 0)
         bbox_preds = bbox_preds.reshape(-1, 4)
         bboxes = bbox_cxcywh_to_xyxy(bbox_preds) * factors
         bboxes_gt = bbox_cxcywh_to_xyxy(bbox_targets) * factors
@@ -502,15 +535,15 @@ class APT_DETRHeadMask(DETRHead):
         """
         if gt_bboxes_ignore_list is None:
             gt_bboxes_ignore_list = [None] * len(batch_gt_instances)
-        (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
+        (cls_score_list,labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
          pos_inds_list,
-         neg_inds_list) = multi_apply(self._get_targets_single,
+         neg_inds_list,sel_ndx_list) = multi_apply(self._get_targets_single,
                                       cls_scores_list, bbox_preds_list,
                                       batch_gt_instances, batch_img_metas,gt_bboxes_ignore_list)
         num_total_pos = sum((inds.numel() for inds in pos_inds_list))
         num_total_neg = sum((inds.numel() for inds in neg_inds_list))
-        return (labels_list, label_weights_list, bbox_targets_list,
-                bbox_weights_list, num_total_pos, num_total_neg)
+        return (cls_score_list,labels_list, label_weights_list, bbox_targets_list,
+                bbox_weights_list, num_total_pos, num_total_neg,sel_ndx_list)
 
     def _get_targets_single(self, cls_score, bbox_pred,
                             gt_instances,
@@ -582,8 +615,26 @@ class APT_DETRHeadMask(DETRHead):
         pos_gt_bboxes_normalized = pos_gt_bboxes / factor
         pos_gt_bboxes_targets = bbox_xyxy_to_cxcywh(pos_gt_bboxes_normalized)
         bbox_targets[pos_inds] = pos_gt_bboxes_targets
-        return (labels, label_weights, bbox_targets, bbox_weights, pos_inds,
-                neg_inds)
+
+        # remove predictions that are not in pos_inds or neg_inds
+        sel_inds = torch.zeros(num_bboxes, dtype=torch.bool, device=bbox_pred.device)
+        sel_inds[pos_inds] = True
+        sel_inds[neg_inds] = True
+        pp = torch.zeros_like(sel_inds, dtype=torch.bool, device=bbox_pred.device)
+        pp[pos_inds] = True
+        pos_inds = torch.where(pp[sel_inds])[0]
+        nn = torch.zeros_like(sel_inds, dtype=torch.bool, device=bbox_pred.device)
+        nn[neg_inds] = True
+        neg_inds = torch.where(nn[sel_inds])[0]
+        bbox_targets = bbox_targets[sel_inds]
+        bbox_weights = bbox_weights[sel_inds]
+        labels = labels[sel_inds]
+        label_weights = label_weights[sel_inds]
+        cls_score = cls_score[sel_inds]
+        sel_ndx = torch.where(sel_inds)[0]
+
+        return (cls_score,labels, label_weights, bbox_targets, bbox_weights, pos_inds,
+                neg_inds,sel_ndx)
 
 
 
