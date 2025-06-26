@@ -48,6 +48,7 @@ classdef DLNetType < handle
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')
     detect_mmdetect ('detect_mmdetect')
+    detect_frcnn ('detect_frcnn')
     hrformer ('hrformer')
     multi_cid ('multi_cid')
     multi_dekr ('multi_dekr')

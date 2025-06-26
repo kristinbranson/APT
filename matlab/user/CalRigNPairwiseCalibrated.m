@@ -31,7 +31,11 @@ classdef CalRigNPairwiseCalibrated < CalRig & matlab.mixin.Copyable
       end
 
       obj.nviews = s.nviews;
-      obj.crigStros = s.calibrations;
+      if isfield(s,'crigStros'),
+        obj.crigStros = s.crigStros;
+      else
+        obj.crigStros = s.calibrations;
+      end
       % c = 1;
       % % ordering of stereo crigs assumed
       % for icam=1:ncam

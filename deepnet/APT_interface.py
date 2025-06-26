@@ -1118,6 +1118,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
                       'multi_cid': 'CiD',
                       'hrnet': 'HRNet',
                       'multi_dekr': 'DeKR',
+                      'detect_frcnn':'MMDetect_FRCNN'
                       }
 
     if not 'ProjectFile' in A:

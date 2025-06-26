@@ -52,47 +52,59 @@ classdef OrthoCamCalPair < CalRig
       % Meanwhile the r2vec1/t2vec1/r2vec2/t2vec2 are relative to some
       % arbitrary WorldSys.
       
-      tfAlt = strcmp(varargin{1},'alt');
-      if tfAlt
-        varargin = varargin(2:end);
-      end
-      p = varargin{1};
-      nPat = varargin{2};
-      nPts = varargin{3};
-      worldPts = varargin{4};
-      imPts = varargin{5};
-      calPatFPNs = varargin{6};
-      
-      if ~tfAlt
-        obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat);
-        [~,~,~,~,~,~,~,~,~,~,~,~,...
-         obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,rvecs2thrun,tvecs2thrun] = ...
-           OrthoCam.unpackParamsStro(p,nPat);
-        obj.rvecs = [0 0 0;rvecs2thrun];
-        obj.tvecs = [0 0 0;tvecs2thrun];
+      if isstruct(varargin{1}),
+        s = varargin{1};
+        fns = fieldnames(s);
+        for i = 1:numel(fns),
+          fn = fns{i};
+          if strcmp(fn,'class_name'),
+            continue;
+          end
+          obj.(fn) = s.(fn);
+        end
       else
-        assert(false,'TODO unsupported.');
-%         obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat+1);
-%         [~,~,~,~,~,~,~,~,~,~,~,~,...
-%           obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs] = ...
-%           OrthoCam.unpackParamsStro(p,nPat+1);
+        tfAlt = strcmp(varargin{1},'alt');
+        if tfAlt
+          varargin = varargin(2:end);
+        end
+        p = varargin{1};
+        nPat = varargin{2};
+        nPts = varargin{3};
+        worldPts = varargin{4};
+        imPts = varargin{5};
+        calPatFPNs = varargin{6};
+
+        if ~tfAlt
+          obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat);
+          [~,~,~,~,~,~,~,~,~,~,~,~,...
+            obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,rvecs2thrun,tvecs2thrun] = ...
+            OrthoCam.unpackParamsStro(p,nPat);
+          obj.rvecs = [0 0 0;rvecs2thrun];
+          obj.tvecs = [0 0 0;tvecs2thrun];
+        else
+          assert(false,'TODO unsupported.');
+          %         obj.tblInt = OrthoCam.summarizeIntrinsicsStro(p,nPat+1);
+          %         [~,~,~,~,~,~,~,~,~,~,~,~,...
+          %           obj.r2vec1,obj.t2vec1,obj.r2vec2,obj.t2vec2,obj.rvecs,obj.tvecs] = ...
+          %           OrthoCam.unpackParamsStro(p,nPat+1);
+        end
+
+        obj.calNumPatterns = nPat;
+        obj.calNumPoints = nPts;
+        szassert(worldPts,[3 nPts]);
+        szassert(imPts,[2 nPts nPat 2]);
+        szassert(calPatFPNs,[nPat 2]);
+        obj.calWorldPoints = worldPts;
+        obj.calImPoints = imPts;
+        obj.calPatternFPNs = calPatFPNs;
+        [obj.optCtr1,~,~,~,obj.ijkCamWorld1] = ...
+          OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1),obj.t2vec1);
+        [obj.optCtr2,~,~,~,obj.ijkCamWorld2] = ...
+          OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2),obj.t2vec2);
+        obj.optCtr1(end+1) = 0;
+        obj.optCtr2(end+1) = 0;
+        obj.calTS = now;
       end
-      
-      obj.calNumPatterns = nPat;
-      obj.calNumPoints = nPts;
-      szassert(worldPts,[3 nPts]);
-      szassert(imPts,[2 nPts nPat 2]);
-      szassert(calPatFPNs,[nPat 2]);
-      obj.calWorldPoints = worldPts;
-      obj.calImPoints = imPts;
-      obj.calPatternFPNs = calPatFPNs;
-      [obj.optCtr1,~,~,~,obj.ijkCamWorld1] = ...
-        OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1),obj.t2vec1);
-      [obj.optCtr2,~,~,~,obj.ijkCamWorld2] = ...
-        OrthoCam.opticalCenter(vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2),obj.t2vec2);
-      obj.optCtr1(end+1) = 0;
-      obj.optCtr2(end+1) = 0;
-      obj.calTS = now;
     end
     
     function hFig = viewExtrinsics(obj,varargin)
@@ -263,10 +275,22 @@ classdef OrthoCamCalPair < CalRig
       
       switch icam
         case 1
-          R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
+          if verLessThan('matlab','9.13')  %#ok<VERLESSMATLAB>
+            % For Matlab < 2022b
+            R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec1);
+          else
+            % For Matlab >= 2022b
+            R2 = rotvec2mat3d(obj.r2vec1);
+          end            
           t2 = obj.t2vec1;
         case 2
-          R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+          if verLessThan('matlab','9.13')  %#ok<VERLESSMATLAB>
+            % For Matlab < 2022b
+            R2 = vision.internal.calibration.rodriguesVectorToMatrix(obj.r2vec2);
+          else
+            % For Matlab >= 2022b
+            R2 = rotvec2mat3d(obj.r2vec1);
+          end            
           t2 = obj.t2vec2;
       end
       int = obj.tblInt(icam,:);
