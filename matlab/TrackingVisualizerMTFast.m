@@ -266,7 +266,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     end
   end
   methods (Static)
-    function updateSkelStc(hSkel,skelEdges,npt,xy,linestyle)
+    function updateSkelStc(hSkel,skelEdges,npt,xy,varargin)
       % Set hSkel.XData/.YData per xy
       %
       % hSkel: [nview] graphics handles
@@ -278,9 +278,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % apply to all views. Recall currently pts in all views correspond to 
       % the same physical pts.
       
-      if nargin<5
-        linestyle='-';
-      end
+      [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','','alpha',0.5, 'linewidth',0.5);
 
       se = skelEdges;
       k = size(se,1);
@@ -315,7 +313,15 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
         xdata(idatapt2) = xyview(ixpt2);
         ydata(idatapt1) = xyview(iypt1);
         ydata(idatapt2) = xyview(iypt2);        
-        set(hSkel(iview),'XData',xdata,'YData',ydata,'LineStyle',linestyle);
+        cc = get(hSkel(iview),'Color');
+        if numel(cc) == 3
+          cc(end+1) = alpha;
+        else
+          cc(end) = alpha;
+        end
+        set(hSkel(iview),'XData',xdata,'YData',ydata,'LineStyle',linestyle,...
+          'linewidth',linewidth,'Color',cc);
+
       end
     end
   end

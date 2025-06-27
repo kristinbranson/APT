@@ -77,8 +77,8 @@ classdef DLBackEndClass < handle
     gpuids = []  % for now used by docker/conda
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
-    jrcgpuqueue
-    jrcnslots
+    jrcgpuqueue 
+    jrcnslots 
     jrcnslotstrack
 
     % condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
@@ -148,6 +148,7 @@ classdef DLBackEndClass < handle
         ty = DLBackEnd.Bsub ;
       end
       obj.type = ty ;
+
       % set jrc backend fields to valid values
       if isempty(obj.jrcgpuqueue),
         obj.jrcgpuqueue = DLBackEndClass.default_jrcgpuqueue ;
