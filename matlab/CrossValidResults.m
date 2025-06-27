@@ -25,6 +25,7 @@ end
 % hFig = CrossValidateResults(labelerObj,resultsStr,tblXVRes);
 function CrossValidResults_OpeningFcn(hObject, eventdata, handles, varargin)
 
+set(hObject,'MenuBar','None');
 labelerObj = varargin{1};
 resultsStr = varargin{2};
 tblXVRes = varargin{3};

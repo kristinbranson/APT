@@ -124,7 +124,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.tfShowOnlyPrimary = false;
       obj.tfShowPch = false;
       obj.tfShowSkel = false;
-      
+
       obj.handleTagPfix = handleTagPfix;    
     end
     
@@ -212,7 +212,11 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
 
       assert(~obj.doPch);
-      obj.iTgtPrimary = zeros(1,0);
+      if ~obj.lObj.maIsMA,
+        obj.iTgtPrimary = obj.lObj.currTarget;
+      else
+        obj.iTgtPrimary = zeros(1,0);
+      end
 
       % tf* props are NOT updated here. See comments above      
       %obj.vizInitHook();

@@ -29,29 +29,30 @@ classdef LabelerProjectTester < handle
       end      
     end
 
-    function test_training(obj, varargin)
+    function algo_name = test_training(obj, varargin)
       % Test tracking in obj.labeler.  Optional arguments allow caller to change
       % algorithm name, backedn from those specified in the .lbl file.
-      [algo_name, backend_type_as_string, backend_params, training_params, niters] = ...
+      [algo_spec, backend_type_as_string, backend_params, training_params, niters] = ...
         myparse(varargin,...
-                'algo_name','',...
+                'algo_spec',{},...
                 'backend','',...
                 'backend_params',struct(), ...
                 'training_params', [], ...
-                'niters', 1000) ;
+                'niters', 200) ;
     
       labeler = obj.labeler ;
       % controller = obj.controller ;
       
       % Set things up for training
-      if ~isempty(algo_name) ,
-        labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
-        % if labeler.trackIsTrackerInHistoryByName(algo_name) 
-        %   labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
-        % else
-        %   labeler.trackMakeNewTrackerCurrentByName(algo_name) ;
-        % end          
+      if ~isempty(algo_spec) ,
+        if ischar(algo_spec) ,
+          desired_algo_name = algo_spec ;
+          labeler.trackMakeNewTrackerGivenAlgoName(desired_algo_name) ;          
+        else
+          labeler.trackMakeNewTrackerGivenAlgoName(algo_spec{:}) ;
+        end
       end
+      algo_name = labeler.tracker.algorithmName ;
       % % HACK START
       % backend_type_as_string = 'conda' ;
       % backend_params = { 'condaEnv', 'apt-2025-04' }  ;
@@ -96,7 +97,7 @@ classdef LabelerProjectTester < handle
       % tracking.  Will perform some basic checks that tracking succeeded.
       [algo_name, backend_type_as_string, backend_params, ~, ~] = ...
         myparse(varargin,...
-                'algo_name','',...
+                'algo_name',{},...
                 'backend','',...
                 'backend_params',struct(), ...
                 'training_params', [], ...
@@ -110,7 +111,7 @@ classdef LabelerProjectTester < handle
     
       % Set things up
       if ~isempty(algo_name) ,
-        labeler.trackMakeOldTrackerCurrentByName(algo_name) ;
+        labeler.trackMakeExistingTrackerCurrentGivenAlgoName(algo_name) ;
       end
       % % HACK START
       % backend_type_as_string = 'conda' ;
@@ -151,8 +152,10 @@ classdef LabelerProjectTester < handle
     end  % function
 
     function test_training_then_tracking(obj, varargin)
-      obj.test_training(varargin{:}) ;
-      obj.test_tracking(varargin{:}) ;      
+      % Need to take care that we request the full algorithm name when tracking.
+      algo_name = obj.test_training(varargin{:}) ;      
+      tracking_args = remove_pair_from_key_value_list_if_present(varargin, 'algo_spec') ;
+      obj.test_tracking(tracking_args{:}, 'algo_name', algo_name) ;      
     end
     
     function test_gtcompute(obj, varargin)
@@ -185,7 +188,7 @@ classdef LabelerProjectTester < handle
       % labeler.rehomeProjectCacheIfNeeded() ;      
 
       % Make sure tracking was successful
-      if labeler.lastTrackEndCause ~= EndCause.complete
+      if obj.labeler.lastTrackEndCause ~= EndCause.complete
         error('Tracking for GT did not complete successfully') ;
       end
       

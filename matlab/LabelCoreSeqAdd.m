@@ -38,6 +38,11 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
                    % values 1, 11, 21, ...
   end
     
+  properties
+    unsupportedKPFFns = {} ;  % cell array of field names for objects that have general keypressfcn 
+                              % callbacks but are not supported for this LabelCore
+  end
+  
   methods
     
     function obj = LabelCoreSeqAdd(varargin)
@@ -435,20 +440,20 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
-              dxdy = -lObj.videoCurrentRightVec();
+              dxdy = -lObj.controller_.videoCurrentRightVec();
             case 'rightarrow'
-              dxdy = lObj.videoCurrentRightVec();
+              dxdy = lObj.controller_.videoCurrentRightVec();
             case 'uparrow'
-              dxdy = lObj.videoCurrentUpVec();
+              dxdy = lObj.controller_.videoCurrentUpVec();
             case 'downarrow'
-              dxdy = -lObj.videoCurrentUpVec();
+              dxdy = -lObj.controller_.videoCurrentUpVec();
           end
           if tfShift
             xy = xy + dxdy*10;
           else
             xy = xy + dxdy;
           end
-          xy = lObj.videoClipToVideo(xy);
+          xy = obj.controller.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST
@@ -484,11 +489,17 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
       end
     end
     
-    function h = getLabelingHelp(obj) %#ok<MANU>
-      h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrement/increment the frame shown.'
-        '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
-        '* S or <space> accepts the labels for the current frame/target.'};
+    function h = getLabelingHelp(obj) 
+      h = {};
+      h{end+1} = 'Click new keypoints to add in order.';
+      h{end+1} = '';
+      h{end+1} = 'Navigate to a frame that is partially labeled.';
+      h{end+1} = 'Click to add the new points in order.';
+      h{end+1} = 'Adjust as you like, either with the keypoint numbers or click to select.';
+      h{end+1} = 'Click the Next button to advance to the next partially labeled frame.';
+      h{end+1} = '';
+      h1 = getLabelingHelp@LabelCore(obj);
+      h = [h(:);h1(:)];
     end
     
   end

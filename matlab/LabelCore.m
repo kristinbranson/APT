@@ -26,6 +26,9 @@ classdef LabelCore < handle
     supportsMultiView % scalar logical
     supportsCalibration % scalar logical    
     supportsMultiAnimal
+    unsupportedKPFFns; % cell array of field names for objects that have general keypressfcn 
+                       % callbacks but are not supported for this LabelCore
+
   end
   
   properties (SetObservable)
@@ -395,7 +398,26 @@ classdef LabelCore < handle
       tfKPused = false;
     end
     
-    function getLabelingHelp(obj) %#ok<MANU>
+    function shortcuts = LabelShortcuts(obj)
+      shortcuts = cell(0,3);
+    end
+
+    function h = getLabelingHelp(obj) 
+
+      h = cell(0,1);
+      h{end+1} = '{\bf{Shortcuts}}:';
+      shortcuts = obj.LabelShortcuts();
+      for i = 1:size(shortcuts,1),
+        desc = shortcuts{i,1};
+        key = shortcuts{i,2};
+        mod = shortcuts{i,3};
+        if ~isempty(mod),
+          key = [sprintf('%s ',mod{:}),key];
+        end
+        h{end+1} = sprintf('{\\fontname{Courier} %s }: %s.',key,desc);
+      end
+
+
     end
     
     % Cosmetics: see "Cosmetics notes" in Labeler.m
@@ -719,9 +741,10 @@ classdef LabelCore < handle
     
     function toggleSelectPoint(obj,iPts)
       tfSl = ~obj.tfSel(iPts);
+      oldPts = find(obj.tfSel);
       obj.tfSel(:) = false;
       obj.tfSel(iPts) = tfSl;
-      obj.refreshPtMarkers('iPts',iPts,'doPtsOcc',true);
+      obj.refreshPtMarkers('iPts',[oldPts(:);iPts(:)],'doPtsOcc',true);
     end
     
     function clearSelected(obj,iExclude)
