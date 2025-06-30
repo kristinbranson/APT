@@ -2488,9 +2488,18 @@ classdef DeepTracker < LabelTracker
     end  % function trackList()
 
     function gtComplete(obj)      
-      gtmatfiles = obj.trkSysInfo.getListOutfiles;
-      gtmovs = obj.lObj.movieFilesAllGTFull;
-      tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
+      t0 = tic;
+      while true
+        gtmatfiles = obj.trkSysInfo.getListOutfiles;
+        gtmovs = obj.lObj.movieFilesAllGTFull;
+        tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
+        if ~isempty(tblGT),
+          break;
+        end
+        if toc(t0) > 5,
+          break;
+        end
+      end
       obj.trkGTtrkTbl = tblGT;
       obj.lObj.showGTResults('gtResultTbl',tblGT);
     end
@@ -2500,6 +2509,18 @@ classdef DeepTracker < LabelTracker
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
       
+      t0 = tic;
+      while true,
+        if toc(t0) > 5,
+          break;
+        end
+        if all(cellfun(@(x) exist(x,'file'),gtmatfiles)),
+          break;
+        end
+        pause(1);
+      end
+
+        
       gtmats = cellfun(@(x)load(x,'-mat'),gtmatfiles); %#ok<LOAD>
       cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
       

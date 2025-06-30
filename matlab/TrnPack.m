@@ -425,7 +425,7 @@ classdef TrnPack
 
       if cocoformat,
         % convert to COCO format
-        s = TrnPack.ConvertTrnPackLocToCOCO(s,packdir,'skeleton',lObj.skeletonEdges,'keypoint_names',lObj.skelNames);
+        s = TrnPack.ConvertTrnPackLocToCOCO(s,packdir,'skeleton',lObj.skeletonEdges,'keypoint_names',lObj.skelNames,'isma',isma);
       end
 
       TrnPack.hlpSaveJson(s,jsonoutf);
@@ -504,7 +504,7 @@ classdef TrnPack
       %   status, 2 means not occluded, 1 means occluded but labeled, 0
       %   means not labeled. 
       %   .category_id: 1 if a target, 2 if a label mas box
-      [imwidth,imheight,skeleton,animaltype,keypoint_names] = myparse(varargin,'imwidth',[],'imheight',[],'skeleton',[],'animaltype','animal','keypoint_names',{});
+      [imwidth,imheight,skeleton,animaltype,keypoint_names,isma] = myparse(varargin,'imwidth',[],'imheight',[],'skeleton',[],'animaltype','animal','keypoint_names',{},'isma',true);
 
       isimsize = ~isempty(imwidth) && ~isempty(imheight);
 
@@ -518,7 +518,10 @@ classdef TrnPack
       nims = numel(locs.locdata);
       anntemplate = struct('iscrowd',false,'segmentation',[],'area',0,'image_id',0,'id',0,'num_keypoints',0,'bbox',[],'keypoints',[],'category_id',0);
       cocos.images = repmat(imagetemplate,[nims,1]);
-      nann = sum([locs.locdata.ntgt]) + sum([locs.locdata.nextra_roi]);
+      nann = sum([locs.locdata.ntgt]);
+      if isfield(locs.locdata,'nextra_roi'),
+        nann = nann + sum([locs.locdata.nextra_roi]);
+      end
       cocos.annotations = repmat(anntemplate,[nann,1]);
 
       annid = 0;
@@ -539,7 +542,10 @@ classdef TrnPack
         end
         imcurr.movid = loccurr.imov-1;
         imcurr.frm = loccurr.frm-1;
-        imcurr.patch = loccurr.ntgt + loccurr.nextra_roi - 1; % patch is the number of targets + number of extra rois - 1 for some reason
+        imcurr.patch = loccurr.ntgt;
+        if isfield(loccurr,'nextra_roi'),
+          imcurr.patch = imcurr.patch + loccurr.nextra_roi - 1; % patch is the number of targets + number of extra rois - 1 for some reason
+        end
         cocos.images(i) = imcurr;
         for j = 1:loccurr.ntgt,
           anncurr = anntemplate;
@@ -548,9 +554,18 @@ classdef TrnPack
           segy = loccurr.roi(size(loccurr.roi,1)/2+1:end,j)-1;
           anncurr.segmentation = [segx(:),segy(:)]';
           anncurr.segmentation = {anncurr.segmentation(:)'};
-          px = loccurr.pabs(1:size(loccurr.pabs,1)/2,j)-1;
-          py = loccurr.pabs(size(loccurr.pabs,1)/2+1:end,j)-1;
-          occ = 2-double(loccurr.occ(:,j));
+          % seems like whether this is stored as a row or a column
+          % varies... 
+          if isma,
+            p = loccurr.pabs;
+            occ = loccurr.occ;
+          else
+            p = loccurr.pabs';
+            occ = loccurr.occ';
+          end
+          px = p(1:size(p,1)/2,j)-1;
+          py = p(size(p,1)/2+1:end,j)-1;
+          occ = 2-double(occ(:,j));
           minx = min(px);
           maxx = max(px);
           miny = min(py);
@@ -567,28 +582,29 @@ classdef TrnPack
           annid = annid + 1;
           cocos.annotations(annid) = anncurr;
         end
-        for j = 1:loccurr.nextra_roi,
-          anncurr = anntemplate;
-          anncurr.iscrowd = true;
-          roi = loccurr.extra_roi(:,j);
-          segx = roi(1:size(roi,1)/2)-1;
-          segy = roi(size(roi,1)/2+1:end)-1;
-          anncurr.segmentation = [segx(:),segy(:)]';
-          anncurr.segmentation = {anncurr.segmentation(:)'};
-          minx = min(segx);
-          maxx = max(segx);
-          miny = min(segy);
-          maxy = max(segy);
-          anncurr.area = (maxy-miny)*(maxx-minx);
-          anncurr.image_id = i-1;
-          anncurr.id = annid;
-          anncurr.num_keypoints = 0;
-          anncurr.bbox = [];
-          anncurr.keypoints = [];
-          anncurr.category_id = 2;
-          annid = annid + 1;
-          cocos.annotations(annid) = anncurr;
-
+        if isfield(loccurr,'nextra_roi'),
+          for j = 1:loccurr.nextra_roi,
+            anncurr = anntemplate;
+            anncurr.iscrowd = true;
+            roi = loccurr.extra_roi(:,j);
+            segx = roi(1:size(roi,1)/2)-1;
+            segy = roi(size(roi,1)/2+1:end)-1;
+            anncurr.segmentation = [segx(:),segy(:)]';
+            anncurr.segmentation = {anncurr.segmentation(:)'};
+            minx = min(segx);
+            maxx = max(segx);
+            miny = min(segy);
+            maxy = max(segy);
+            anncurr.area = (maxy-miny)*(maxx-minx);
+            anncurr.image_id = i-1;
+            anncurr.id = annid;
+            anncurr.num_keypoints = 0;
+            anncurr.bbox = [];
+            anncurr.keypoints = [];
+            anncurr.category_id = 2;
+            annid = annid + 1;
+            cocos.annotations(annid) = anncurr;
+          end
         end
       end
 

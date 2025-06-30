@@ -63,22 +63,13 @@ classdef FrameSetVariable < FrameSet
       frms = frms(~tfOOB);
       
       if labelerObj.hasTrx
-        tfaf = labelerObj.getTrxFilesAllFullMovIdx(mIdx);
-        tfafempty = cellfun(@isempty,tfaf);
-        assert(all(tfafempty) || all(~tfafempty)); % for given movie, either all views have a trx or all don't
-        if all(tfafempty)
-          % unusual, given that labeledObj.hasTrx -- but currently allowed
-          assert(iTgt==1);
-        else
-          [~,~,frm2trxTotAnd] = Labeler.getTrxCacheAcrossViewsStc(...
-            labelerObj.trxCache,tfaf,nfrm);
-          frm2trxTotAndTgt = frm2trxTotAnd(:,iTgt);        
-          % frm2trxOverallTgt is [nfrmx1] logical, true at frames where iTgt 
-          % is live in all views
 
-          tfFrmOK = frm2trxTotAndTgt(frms);
-          frms(~tfFrmOK) = [];
-        end
+        frm2trxTotAndTgt = labelerObj.getFrm2Trx(mIdx,'tgts',iTgt);
+        % frm2trxOverallTgt is [nfrmx1] logical, true at frames where iTgt
+        % is live in all views
+        
+        tfFrmOK = frm2trxTotAndTgt(frms);
+        frms(~tfFrmOK) = [];
       elseif labelerObj.maIsMA
         % pass
       else

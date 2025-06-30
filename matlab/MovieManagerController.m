@@ -109,8 +109,19 @@ classdef MovieManagerController < handle
       lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
 
       obj.listeners = lObjs;
-            
+      obj.hFig.DeleteFcn = @obj.lclDeleteFig;
+      
       centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
+    end
+
+    function lclDeleteFig(obj,src,evt)
+      listenObjs = obj.listeners;
+      for i=1:numel(listenObjs)
+        o = listenObjs{i};
+        if isvalid(o)
+          delete(o);
+        end
+      end
     end
     
     function rowheights = getGridLayoutRowHeights(obj)
@@ -309,7 +320,7 @@ classdef MovieManagerController < handle
         return;
       end
       if isempty(obj.tblMovies.Data),
-        keyboard;
+        return;
       end
       if isempty(iMov),
         obj.tblMovies.Selection = zeros(0,2);

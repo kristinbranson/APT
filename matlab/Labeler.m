@@ -580,6 +580,8 @@ classdef Labeler < handle
       % gtTblRes(:,MFTable.FLDSID) need not match
       % gtSuggMFTable(:,MFTable.FLDSID) because eg GT performance can be 
       % computed even if some suggested frames are not be labeled.
+    gtPlotParams = struct('prc_vals',[50,75,90,95,98],...
+      'nbins',50); % parameters for ShowGTResults
   end
   properties (Dependent)
     gtNumSugg  % height(gtSuggMFTable)
@@ -1192,7 +1194,9 @@ classdef Labeler < handle
       for i=1:numel(ntgts)        
         %trxfile = tfaf{iMov(i)};
         nfrms(i) = mia{iMov(i)}.nframes;
-        ntgts(i) = tia{iMov(i),1}.ntgts;
+        if ~isempty(tia{iMov(i),1}), % KB todo -- hacked so this didn't error
+          ntgts(i) = tia{iMov(i),1}.ntgts;
+        end
 %         if isempty(trxfile)
 %           % none; ntgts(i) is 1
 %         else
@@ -1421,8 +1425,8 @@ classdef Labeler < handle
     function v = getIsLabeled(obj,tbl)
       v = Labels.lObjGetIsLabeled(obj,'labels',tbl,false);
     end
-    function v = getIsLabeledGT(obj,tbl)
-      v = Labels.lObjGetIsLabeled(obj,'labelsGT',tbl,true);
+    function v = getIsLabeledGT(obj,tbl,varargin)
+      v = Labels.lObjGetIsLabeled(obj,'labelsGT',tbl,true,varargin{:});
     end
 
     
@@ -3741,29 +3745,31 @@ classdef Labeler < handle
         'offerMacroization',~isdeployed&&obj.isgui, ... % If true, look for matches with existing macros
         'gt',obj.gtIsGTMode ... % If true, add moviefile/trxfile to GT lists. Could be a separate method, but there is a lot of shared code/logic.
         );
-      
-      PROPS = Labeler.gtGetSharedPropsStc(gt);
-      
-      if exist('trxfile','var')==0 || isequal(trxfile,[])
-        if ischar(moviefile)
-          trxfile = '';
-        elseif iscellstr(moviefile)  %#ok<ISCLSTR> 
-          trxfile = repmat({''},size(moviefile));
+      istrxfile = exist('trxfile','var');
+      if istrxfile,
+        if iscell(trxfile),
+          istrxfile = ~all(cellfun(@isempty,trxfile));
         else
-          error('Labeler:movieAdd',...
-            '''Moviefile'' must be a char or cellstr.');
+          istrxfile = ~isempty(trxfile);
         end
       end
+
+      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      
       moviefile = cellstr(moviefile);
-      trxfile = cellstr(trxfile);
-      szassert(moviefile,size(trxfile));
+      if istrxfile,
+        trxfile = cellstr(trxfile);
+        szassert(moviefile,size(trxfile));
+      end
       nMov = numel(moviefile);
         
       mr = MovieReader();
       mr.preload = obj.movieReadPreLoadMovies;
       for iMov = 1:nMov
         movFile = moviefile{iMov};
-        tFile = trxfile{iMov};
+        if istrxfile,
+          tFile = trxfile{iMov};
+        end
         
         if offerMacroization 
           % Optionally replace movFile, tFile with macroized versions
@@ -3782,10 +3788,12 @@ classdef Labeler < handle
           % Note, tFile could already look like $movdir\trx.mat which would
           % be fine.
           movFileFull = obj.projLocalizePath(movFile);
-          [tfMatch,tFileMacroized] = FSPath.tryTrxfileMacroization(...
-            tFile,fileparts(movFileFull));
-          if tfMatch
-            tFile = tFileMacroized;
+          if istrxfile,
+            [tfMatch,tFileMacroized] = FSPath.tryTrxfileMacroization(...
+              tFile,fileparts(movFileFull));
+            if tfMatch
+              tFile = tFileMacroized;
+            end
           end
         end
       
@@ -3809,11 +3817,12 @@ classdef Labeler < handle
             movFile,movfilefull);
         end
         
-        tFileFull = Labeler.trxFilesLocalize(tFile,movfilefull);
-        if ~(isempty(tFileFull) || exist(tFileFull,'file')>0)
-          FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
+        if istrxfile,
+          tFileFull = Labeler.trxFilesLocalize(tFile,movfilefull);
+          if ~(isempty(tFileFull) || exist(tFileFull,'file')>0)
+            FSPath.throwErrFileNotFoundMacroAware(tFile,tFileFull,'trxfile');
+          end
         end
-
         % Could use movieMovieReaderOpen but we are just using MovieReader 
         % to get/save the movieinfo.
       
@@ -3823,7 +3832,11 @@ classdef Labeler < handle
         ifo.info = mr.info;
         mr.close();
         
-        [trxinfo] = obj.GetTrxInfo(tFileFull,ifo.nframes);
+        if istrxfile,
+          [trxinfo] = obj.GetTrxInfo(tFileFull,ifo.nframes);
+        else
+          trxinfo = [];
+        end
                 
         nlblpts = obj.nLabelPoints;
         nfrms = ifo.nframes;
@@ -3838,7 +3851,11 @@ classdef Labeler < handle
             'iMov',numel(obj.(PROPS.MFACI)));
         end
         obj.(PROPS.MFALUT){end+1,1} = [];
-        obj.(PROPS.TFA){end+1,1} = tFile;
+        if istrxfile,
+          obj.(PROPS.TFA){end+1,1} = tFile;
+        else
+          obj.(PROPS.TFA){end+1,1} = '';
+        end
         %obj.(PROPS.LPOS){end+1,1} = nan(nlblpts,2,nfrms,nTgt);
         
         obj.(PROPS.LBL){end+1,1} = Labels.new(nlblpts);
@@ -3847,7 +3864,12 @@ classdef Labeler < handle
           tfo.initFrm2Tlt(nfrms);
           obj.(PROPS.LBL2){end+1,1} = tfo;
         else
-          tfo = TrkFile(nlblpts,1:trxinfo.ntgts);
+          if istrxfile,
+            ntgts = trxinfo.ntgts;
+          else
+            ntgts = 1;
+          end
+          tfo = TrkFile(nlblpts,1:ntgts);
           tfo.initFrm2Tlt(nfrms);          
           obj.(PROPS.LBL2){end+1,1} = tfo;
         end
@@ -5441,8 +5463,48 @@ classdef Labeler < handle
       % Forcibly clear .trxCache
       obj.trxCache = containers.Map();
     end
+
+    function tia = getTrxInfoMovIdx(obj,iMov)
+      [movi,gt] = iMov.get;
+      if gt,
+        tia = obj.trxInfoAll(:,movi);
+      else
+        tia = obj.trxInfoAllGT(:,movi);
+      end
+    end
+
+    function frm2trx = getFrm2Trx(obj,movi,varargin)
+      [tgts,gt] = myparse(varargin,'tgts','unset','gt',[]);
+      if isa(movi,'MovieIndex')
+        [movi,gt] = movi.get;
+      elseif isempty(gt)
+        gt = false;
+      end
+      PROPS = obj.gtGetSharedPropsStc(gt);
+      mia = obj.(PROPS.MIA)(movi,:);
+      tia = obj.(PROPS.TIA)(movi,:);
+      nframes = max(cellfun(@(x) x.nframes,mia));
+      ntgts = max(cellfun(@(x) x.ntgts,tia));
+      if ischar(tgts),
+        tgts = 1:ntgts;
+      end
+      frm2trx = false(nframes,numel(tgts),obj.nview);
+      if obj.hasTrx,
+        for viewi = 1:obj.nview,
+          for i = 1:numel(tgts),
+            frm2trx(tia{viewi}.firstframes(tgts(i)):tia{viewi}.endframes(tgts(i)),i,viewi) = true;
+          end
+        end
+      else
+        frm2trx(:) = true;
+      end
+      frm2trx = all(frm2trx,3);
+    end
+
+
   end
   methods (Static)
+    
     function [trx,frm2trx] = getTrxCacheStc(trxCache,filename,nfrm)
       % Get trx data for iMov/iView from .trxCache; load from filesys if
       % necessary
@@ -8535,7 +8597,7 @@ classdef Labeler < handle
       tblMF(tfRmRow,:) = [];
     end
 
-    function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)  % const
+    function tblMF = labelAddLabelsMFTable(obj,tblMF,varargin)  % const % todo this is slow
       mIdx = tblMF.mov;
       assert(isa(mIdx,'MovieIndex'));
       [~,gt] = mIdx.get();
@@ -9613,13 +9675,18 @@ classdef Labeler < handle
       tf = ~isempty(idx);
     end
 
-    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj)
+    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj,checksuggest)
       % Compile table of GT suggestions with their labels.
       % 
       % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg. To
       % be included, a row must be i) labeled for at least one pt/coord and
       % ii) in gtSuggMFTable
+      % checksuggest: whether to ask if non-suggested labeled frames should be
+      % included in computation, default = False
 
+      if nargin < 2,
+        checksuggest = false;
+      end
       
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
@@ -9633,14 +9700,43 @@ classdef Labeler < handle
         % remove tgt field for multi-animal projects
         mftflds(strcmp(mftflds,'iTgt')) = [];
       end
-      [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
+      [tfSuggIsLbld,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
+      tfLbldExtra = ~tblismember(tblMFTLbld,tblMFTSugg,mftflds);
 
+      nSuggAnyLbled = nnz(tfSuggIsLbld);
+      nNewLbls = nnz(tfLbldExtra);
+      if nNewLbls > 0,
+        % nothing suggested, so use all
+        if nSuggAnyLbled == 0,
+          tblMFTSugg = tblMFTLbld;
+          tfSuggIsLbld = true(nNewLbls,1);
+          loc = 1:nNewLbls;
+          nSuggAnyLbled = nNewLbls;
+          nNewLbls = 0;
+        elseif checksuggest,
+          res = questdlg(sprintf('%d labeled frames were not in list of groundtruth frames to be labeled, add them to the list?',nNewLbls),'Update suggestions','Yes','No','Cancel','Yes');
+          if strcmpi(res,'Cancel'),
+            return;
+          elseif strcmpi(res,'Yes'),
+            obj.gtSetUserSuggestions([]);
+            tblMFTSugg = obj.gtSuggMFTable;
+            [tfSuggIsLbld,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
+            nSuggAnyLbled = nnz(tfSuggIsLbld);
+            nNewLbls = 0;
+          end
+        else
+          warningNoTrace('Labeler:gt',...
+            '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
+            nNewLbls);
+        end
+      end
+      
       % tblMFTLbld includes rows where any pt/coord is labeled;
       % obj.gtSuggMFTableLbled is only true if all pts/coords labeled 
-      tfSuggFullyLbled = obj.gtSuggMFTableLbled;
-      assert(all(tfSuggAnyLbl(tfSuggFullyLbled)));
-      tfSuggPartiallyLbled = tfSuggAnyLbl & ~tfSuggFullyLbled;
-      tfSuggUnLbled = ~tfSuggAnyLbl;
+      tfSuggFullyLbled = obj.getIsLabeledGT(tblMFTSugg,true); % true asks for fully labeled
+      assert(all(tfSuggIsLbld(tfSuggFullyLbled)));
+      tfSuggPartiallyLbled = tfSuggIsLbld & ~tfSuggFullyLbled;
+      tfSuggUnLbled = ~tfSuggIsLbld;
       
       nSuggUnlbled = nnz(tfSuggUnLbled);
       if nSuggUnlbled>0
@@ -9654,16 +9750,10 @@ classdef Labeler < handle
           '%d suggested GT frames have only been partially labeled.',nSuggPartiallyLbled);
       end
       
-      nSuggAnyLbled = nnz(tfSuggAnyLbl);
-      nTotGTLbled = height(tblMFTLbld);
-      if nTotGTLbled>nSuggAnyLbled
-        warningNoTrace('Labeler:gt',...
-          '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
-          nTotGTLbled-nSuggAnyLbled);
-      end
-      
+
+
       % Labeled GT table, in order of tblMFTSugg
-      tblMFT_SuggAndLbled = tblMFTLbld(loc(tfSuggAnyLbl),:);
+      tblMFT_SuggAndLbled = tblMFTLbld(loc(tfSuggIsLbld),:);
       if obj.maIsMA
         tblMFT_SuggAndLbled = MFTable.unsetTgt(tblMFT_SuggAndLbled );
       end
@@ -9674,8 +9764,9 @@ classdef Labeler < handle
       % Front door entry point for computing gt performance
       
       % Deal with optional args
-      [useLabels2] = myparse(varargin,...
-                             'useLabels2',false);  % if true, use labels2 "imported preds" instead of tracking
+      [checksuggest,argsrest] = myparse_nocheck(varargin,'checksuggest',false); % whether to ask user if labels outside suggestions should be used
+      [useLabels2] = myparse(argsrest,...
+                             'useLabels2',false); % if true, use labels2 "imported preds" instead of tracking
 
       % Make sure in GT mode
       if ~obj.gtIsGTMode
@@ -9686,7 +9777,7 @@ classdef Labeler < handle
       % On to business...
       obj.pushBusyStatus('Compiling list of Ground Truth Labels frames and tracking them...');
       oc = onCleanup(@()(obj.popBusyStatus())) ;
-      tblMFT = obj.gtGetTblSuggAndLbled();
+      tblMFT = obj.gtGetTblSuggAndLbled(checksuggest);
 
       % Either spawn the computation of the GT predictions, or import them and show the
       % results.
@@ -9759,7 +9850,7 @@ classdef Labeler < handle
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
                       'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
-        tObj.trackList('totrackinfo',totrackinfo,'backend',backend,varargin{:});
+        tObj.trackList('totrackinfo',totrackinfo,'backend',backend,argsrest{:});
 
         % Broadcast a notification about recent events
         obj.notify('didSpawnTrackingForGT') ;
@@ -9796,6 +9887,7 @@ classdef Labeler < handle
         gtResultTbl.pTrk = gtResultTbl.p; % .p is imported positions => imported tracking
         gtResultTbl(:,'p') = [];
       end
+
       obj.gtComputeGTPerformanceTable(tblLbl,gtResultTbl); % also sets obj.gtTblRes
       % obj.didSpawnTrackingForGT_ = [] ;  % reset this
       obj.notify('didComputeGTResults') ;
@@ -9826,7 +9918,13 @@ classdef Labeler < handle
 %         'pTrkOccThresh',0.5 ... % threshold for predicted occlusions
 %         );
       
-      [tf,loc] = tblismember(tblMFT_SuggAndLbled,tblTrkRes,MFTable.FLDSID);
+      tblLblMovStr = tblMFT_SuggAndLbled;
+      tblLblMovStr.mov = obj.getMovieFilesAllFullMovIdx(tblMFT_SuggAndLbled.mov(:,1));
+
+      tblTrkResMovStr = tblTrkRes;
+      tblTrkResMovStr.mov = obj.getMovieFilesAllFullMovIdx(tblTrkResMovStr.mov(:,1));
+
+      [tf,loc] = tblismember(tblLblMovStr,tblTrkResMovStr,MFTable.FLDSID);
       if ~all(tf)
         warningNoTrace('Tracking/prediction results not present for %d GT rows. Results will be computed with those rows removed.',...
           nnz(~tf));
@@ -14263,6 +14361,46 @@ classdef Labeler < handle
         isrotated = true;
       end
     end  % function
+
+    function [allims,allpos] = cropTargetImageFromMovie(obj,mov,frm,iTgt,p)
+      % [allims,allpos] = cropTargetImageFromMovie(obj,mov,frm,iTgt,p)
+      % called by LabelerController.createGTResultFigures_ to crop out an
+      % image around label p. 
+      % allims are the cropped images around p and allpos are the labels in
+      % the coordinate system of the cropped images
+
+      nviews = obj.nview;
+      npts = numel(p)/2;
+      nphyspt = npts/nviews;
+      p = reshape(p,npts,2);
+      allims = cell(1,nviews);
+      allpos = zeros([nphyspt,2,nviews]);
+      for view = 1:nviews
+        curl = p( ((view-1)*nphyspt+1):view*nphyspt,:);
+        [im,isrotated,xdata,ydata,A] = obj.readTargetImageFromMovie(mov,frm,iTgt,view);
+        if isrotated
+          curl = [curl,ones(nphyspt,1)]*A;
+          curl = curl(:,1:2);
+          curl(:,1) = curl(:,1)-xdata(1)+1;
+          curl(:,2) = curl(:,2)-ydata(1)+1;
+        end
+        minpos = min(curl,[],1);
+        maxpos = max(curl,[],1);
+        centerpos = (minpos+maxpos)/2;
+        % border defined by borderfrac
+        r = max(1,(maxpos-minpos));
+        xlim = round(centerpos(1)+[-1,1]*r(1));
+        ylim = round(centerpos(2)+[-1,1]*r(2));
+        xlim = min(size(im,2),max(1,xlim));
+        ylim = min(size(im,1),max(1,ylim));
+        im = im(ylim(1):ylim(2),xlim(1):xlim(2),:);
+        curl(:,1) = curl(:,1)-xlim(1)+1;
+        curl(:,2) = curl(:,2)-ylim(1)+1;
+        allpos(:,:,view) = curl;
+        allims{view} = im;
+      end  % for
+
+    end
       
     function axes_curr = determinePrevAxesProperties(obj, paModeInfo)
       % Returns a struct containing several properties of the "prev" axes, 
@@ -14557,9 +14695,25 @@ classdef Labeler < handle
     function labels2Clear(obj)
       % Operates based on current reg/GT mode
       PROPS = obj.gtGetSharedProps();
-      PROPLBL2 = PROPS.LBL2;
-      lbl2 = obj.(PROPLBL2);
-      cellfun(@(x)x.clearTracklet(),lbl2);
+
+      % resetting rather than clearing
+      nlblpts = obj.nLabelPoints;
+      for i = 1:obj.nmoviesGTaware,
+        trxinfo = obj.(PROPS.TIA){i};
+        nfrms = obj.(PROPS.MIA){i}.nframes;
+        if obj.maIsMA
+          tfo = TrkFile(nlblpts,zeros(0,1));
+          tfo.initFrm2Tlt(nfrms);
+          obj.(PROPS.LBL2){i,1} = tfo;
+        else
+          tfo = TrkFile(nlblpts,1:trxinfo.ntgts);
+          tfo.initFrm2Tlt(nfrms);
+          obj.(PROPS.LBL2){i,1} = tfo;
+        end
+      end
+
+      % lbl2 = obj.(PROPLBL2);
+      % cellfun(@(x)x.clearTracklet(),lbl2);
       obj.labels2TrkVizInit();
       obj.labels2VizUpdate();
       obj.notify('dataImported');

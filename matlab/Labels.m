@@ -830,8 +830,12 @@ classdef Labels
       [lpos,lposTS,lpostag] = cellfun(fcn,lObj.(labelsfld),nfrms(:),ntgts(:),'uni',0);
     end
 
-    function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt)
+    function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt,fullylabeled)
       
+      if nargin < 5,
+        fullylabeled = false; % KB: set default to be any kps labeled
+      end
+
       tf = false(height(tbl),1);
       for i = 1:numel(lObj.(labelsfld)),
         if gt,
@@ -849,7 +853,13 @@ classdef Labels
         idx = find(idx);
         idx = idx(ism);
         j = j(ism);
-        tf(idx) = ~any(isnan(lObj.(labelsfld){i}.p(:,j)));
+        if fullylabeled,
+          % only count fully labeled
+          tf(idx) = ~any(isnan(lObj.(labelsfld){i}.p(:,j))); 
+        else
+          % any kps labeled
+          tf(idx) = ~all(isnan(lObj.(labelsfld){i}.p(:,j))); 
+        end
       end      
     end
 

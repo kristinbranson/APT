@@ -952,12 +952,14 @@ classdef LabelerController < handle
 
     function createGTResultFigures_(obj, varargin)
       labeler = obj.labeler_ ;      
+      plotParams = labeler.gtPlotParams;
       t = labeler.gtTblRes;
 
-      [fcnAggOverPts,aggLabel] = ...
+      [fcnAggOverPts,aggLabel,lbli] = ...
         myparse(varargin,...
                 'fcnAggOverPts',@(x)max(x,[],ndims(x)), ... % or eg @mean
-                'aggLabel','Max' ...
+                'aggLabel','Max', ...
+                'lbli',1 ... % which example to plot
                 );
       
       l2err = t.L2err;  % For single-view MA, nframes x nanimals x npts.  For single-view SA, nframes x npts
@@ -976,6 +978,8 @@ classdef LabelerController < handle
         warningNoTrace('Labeler:gt',...
           'Number of colors do not match number of points.');
       end
+      nviews = labeler.nview;
+      nphyspt = npts/nviews;
 
       if ndims(l2err) == 3
         l2err_reshaped = reshape(l2err,[],npts);  % For single-view MA, (nframes*nanimals) x npts
@@ -983,112 +987,46 @@ classdef LabelerController < handle
         l2err_filtered = l2err_reshaped(valid,:);  % For single-view MA, nvalidanimalframes x npts
       else        
         % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
-        l2err_filtered = l2err ;
+        valid = ~all(isnan(l2err),2);
+        l2err_filtered = l2err(valid,:);
       end
-      nviews = labeler.nview;
-      nphyspt = npts/nviews;
-      prc_vals = [50,75,90,95,98];
-      prcs = prctile(l2err_filtered,prc_vals,1);
-      prcs = reshape(prcs,[],nphyspt,nviews);
-      lpos = t(1,:).pLbl;
-      if ndims(lpos)==3
-        lpos = squeeze(lpos(1,1,:));
-      else
-        lpos = squeeze(lpos(1,:));
-      end
-      lpos = reshape(lpos,npts,2);
-      allims = cell(1,nviews);
-      allpos = zeros([nphyspt,2,nviews]);
-      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
-      for view = 1:nviews
-        curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
-        [im,isrotated,~,~,A] = labeler.readTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),view);
-        if isrotated
-          curl = [curl,ones(nphyspt,1)]*A;
-          curl = curl(:,1:2);
-        end
-        minpos = min(curl,[],1);
-        maxpos = max(curl,[],1);
-        centerpos = (minpos+maxpos)/2;
-        % border defined by borderfrac
-        r = max(1,(maxpos-minpos));
-        xlim = round(centerpos(1)+[-1,1]*r(1));
-        ylim = round(centerpos(2)+[-1,1]*r(2));
-        xlim = min(size(im,2),max(1,xlim));
-        ylim = min(size(im,1),max(1,ylim));
-        im = im(ylim(1):ylim(2),xlim(1):xlim(2),:);
-        curl(:,1) = curl(:,1)-xlim(1);
-        curl(:,2) = curl(:,2)-ylim(1);
-        allpos(:,:,view) = curl;
-        allims{view} = im;
-      end  % for
-      
-      fig_1 = figure('Name','GT err percentiles');
+
+      units = get(obj.mainFigure_,'Units');
+      set(obj.mainFigure_,'Units','pixels');
+      mainfig_pos = get(obj.mainFigure_,'Position');
+      set(obj.mainFigure_,'Units',units);
+      hmain = mainfig_pos(end);
+
+      % circles around keypoints indicating prctiles of error
+      fig_1 = figure('Name','Groundtruth error percentiles');
       %obj.satellites_(1,end+1) = fig_1 ;
       obj.addSatellite(fig_1) ;
-      plotPercentileHist(allims,prcs,allpos,prc_vals,fig_1,txtOffset)
+
+      [allims,allpos] = labeler.cropTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),t(1,:).pLbl);
+      prcs = prctile(l2err_filtered,plotParams.prc_vals,1);
+      prcs = reshape(prcs,[],nphyspt,nviews);
+      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
+      islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset);
+      figh = hmain*.75;
+      hpx = max(cellfun(@(x) size(x,1),allims));
+      wpx = sum(cellfun(@(x) size(x,2),allims));
+      figw = figh*wpx/hpx+200;
+      set(fig_1,'Position',[10,10,figw,figh]);
+      centerfig(fig_1, obj.mainFigure_);
 
       % Err by landmark
-      fig_2 = figure('Name','GT err by landmark');
+      fig_2 = figure('Name','Groundtruth error per keypoint');
       %obj.satellites_(1,end+1) = fig_2 ;
       obj.addSatellite(fig_2) ;
-      ax = axes(fig_2) ;
-      boxplot(ax,l2err_filtered,'colors',clrs,'boxstyle','filled');
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Landmark/point',args{:});
-      if nviews>1
-        xtick_str = {};
-        for view = 1:nviews
-          for n = 1:nphyspt
-            if n==1
-              xtick_str{end+1} = sprintf('View %d -- %d',view,n); %#ok<AGROW> 
-            else
-              xtick_str{end+1} = sprintf('%d',n); %#ok<AGROW> 
-            end
-          end
-        end
-        xticklabels(xtick_str)
-      end
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'GT err by landmark',args{:});
-      ax.YGrid = 'on';
-      
-      % AvErrAcrossPts by movie
-      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
-      fig_3 = figurecascaded(fig_2,'Name',tstr);
-      % obj.satellites_(1,end+1) = fig_3 ;
-      obj.addSatellite(fig_3) ;      
-      ax = axes(fig_3);
-      [iMovAbs,gt] = t.mov.get();  % both outputs are nframes x 1
-      assert(all(gt));
-      grp = categorical(iMovAbs);
-      if ndims(aggOverPtsL2err)==3
-        taggerr = permute(aggOverPtsL2err,[1,3,2]);
-      else
-        taggerr = aggOverPtsL2err ;
-      end
-      % expand out grp to match elements of taggerr 1-to-1
-      assert(isequal(size(taggerr,1), size(grp,1))) ;
-      taggerr_shape = size(taggerr) ;
-      biggrp = repmat(grp, [1 taggerr_shape(2:end)]) ;
-      assert(isequal(size(taggerr), size(biggrp))) ;
-      % columnize
-      taggerr_column = taggerr(:) ;
-      grp_column = biggrp(:) ;
-      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
-                         categories(grp_column),countcats(grp_column),...
-                         'UniformOutput',false);
-      boxplot(ax, ...
-              taggerr_column,...
-              grp_column,...
-              'colors',clrs,...
-              'boxstyle','filled',...
-              'labels',grplbls);
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Movie',args{:});
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,tstr,args{:});
-      ax.YGrid = 'on';
+      errs = reshape(l2err_filtered,[],nphyspt,nviews);
+      PlotErrorHists(errs,'hparent',fig_2,'kpcolors',clrs,...
+        'prcs',prcs,'prc_vals',plotParams.prc_vals,...
+        'nbins',plotParams.nbins,'maxprctile',plotParams.prc_vals(end),...
+        'kpnames',labeler.skelNames,'islight',islight);
+      figh = hmain;
+      figw = figh/2*nviews;
+      set(fig_2,'Position',[10,10,figw,figh]);
+      centerfig(fig_2,obj.mainFigure_);
 %      
       % Mean err by movie, pt
 %       fig_4 = figurecascaded(fig_3,'Name','Mean GT err by movie, landmark');
@@ -5684,7 +5622,7 @@ classdef LabelerController < handle
     function menu_evaluate_gtcomputeperf_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance();
+      labeler.gtComputeGTPerformance('checksuggest',true);
     end
 
 
