@@ -8073,7 +8073,8 @@ classdef Labeler < handle
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
-          if (iVw==1) && size(scell{iVw}.pTrk{1},1)~=obj.nLabelPoints
+          % if (iVw==1) && size(scell{iVw}.pTrk{1},1)~=obj.nLabelPoints
+	  if (iVw==1) && size(scell{1}.pTrk, 1) * (size(scell{1}.pTrk, 2))~=obj.nLabelPoints
             warning('Number of landmarks in the trk file does not match with the project')
           end
             %displaying when .trk file was last updated
