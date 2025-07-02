@@ -1802,9 +1802,9 @@ classdef LabelerController < handle
         % buttons/figure back into a good state)   
       obj.movieManagerController_.setVisible(false);
       
-      obj.GTManagerFigure = GTManager(labeler);
-      obj.GTManagerFigure.Visible = 'off';
-      obj.addSatellite(obj.GTManagerFigure) ;
+      % obj.GTManagerFigure = GTManager(labeler);
+      % obj.GTManagerFigure.Visible = 'off';
+      % obj.addSatellite(obj.GTManagerFigure) ;
     end  % function
 
     function menu_file_new_actuated_(obj, ~, ~)
@@ -3111,9 +3111,9 @@ classdef LabelerController < handle
       obj.menu_evaluate_gt_frames.Visible = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
-      if ~isempty(obj.GTManagerFigure)
-        obj.GTManagerFigure.Visible = onIffGT;
-      end
+      % if ~isempty(obj.GTManagerFigure)
+      %   obj.GTManagerFigure.Visible = onIffGT;
+      % end
       obj.updateHighlightingOfAxes();
       obj.labelTLInfo.cbkGTIsGTModeUpdated() ;
       mmc = obj.movieManagerController_ ;
@@ -5304,8 +5304,7 @@ classdef LabelerController < handle
 
 
     function menu_evaluate_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.gtShowGTManager();
+      obj.gtShowGTManager();
     end
 
 
@@ -5853,13 +5852,15 @@ classdef LabelerController < handle
     end
     
     function cbkGTSuggUpdated(obj, s, e)
+      % i think there are listeners in the GTManager, not sure why we need
+      % this too
       if ~exist('s', 'var') ,
         s = [] ;
       end
       if ~exist('e', 'var') ,
         e = [] ;
       end
-      if ~isempty(obj.GTManagerFigure) ,
+      if obj.isGTManagerFigure() , % todo -- call code directly rather than 
         GTManager('cbkGTSuggUpdated', obj.GTManagerFigure, s, e) ;
         %obj.GTMgr.cbkGTSuggUpdated(s, e) ;
       end
@@ -5869,17 +5870,38 @@ classdef LabelerController < handle
     end
 
     function cbkGTResUpdated(obj, s, e)
+      % i think there are listeners in the GTManager, not sure why we need
+      % this too
       if ~exist('s', 'var') ,
         s = [] ;
       end
       if ~exist('e', 'var') ,
         e = [] ;
       end
-      if ~isempty(obj.GTManagerFigure) ,
+      if obj.isGTManagerFigure(),
         GTManager('cbkGTResUpdated', obj.GTManagerFigure, s, e) ;
       end
       %obj.labelTLInfo.cbkGTResUpdated(s, e) ;
     end
+
+    function gtGoToNextUnlabeled(obj)
+      
+      labeler = obj.labeler_;
+      assert(labeler.gtIsGTMode);
+
+      nextmft = labeler.gtNextUnlabeledMFT();
+      if isempty(nextmft),
+        msgbox('No more unlabeled frames in to-label list.','','modal');
+        return;
+      end
+
+      iMov = nextmft.mov.get();
+      if iMov~=labeler.currMovie
+        labeler.movieSetGUI(iMov);
+      end
+      labeler.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
+    end
+
 
     function update(obj)
       % Intended to be a full update of all GUI controls to bring them into sync
@@ -6010,6 +6032,21 @@ classdef LabelerController < handle
         end
       end      
     end
+
+    function tf = isGTManagerFigure(obj)
+      hGTMgr = obj.GTManagerFigure ;
+      tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
+    end
+
+    function gtShowGTManager(obj) % todo move this to LabelerController
+      if obj.isGTManagerFigure()
+        %hGTMgr.Visible = 'on';
+        figure(obj.GTManagerFigure);
+      else
+        obj.GTManagerFigure = GTManager(obj.labeler_);
+      end
+    end
+
   end  % methods
 
   methods (Static)
@@ -6071,7 +6108,7 @@ classdef LabelerController < handle
       end
       set(obj.slider_frame,'Value',sldval);
       obj.updateHighlightingOfAxes() ;      
-      if labeler.gtIsGTMode
+      if labeler.gtIsGTMode && obj.isGTManagerFigure(),
         GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
       end
     end  % function

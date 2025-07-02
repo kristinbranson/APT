@@ -9991,22 +9991,51 @@ classdef Labeler < handle
       obj.notify('gtResUpdated') ;
     end
 
+    function [nextmft,loc] = gtNextUnlabeledMFT(obj)
+
+      fldsid = MFTable.FLDSID;
+
+      currmft = MFTable.allocateTable(fldsid,1);
+      currmft.mov(1) = obj.currMovIdx;
+      currmft.frm(1) = obj.currFrame;
+      currmft.iTgt(1) = obj.currTarget;
+
+      tblLbl = obj.gtSuggMFTable(~obj.gtSuggMFTableLbled,fldsid);
+      isafter = MFTable.isAfter(tblLbl,currmft);
+      if ~any(isafter),
+        nextmft = MFTable.emptyTable(fldsid);
+        loc = [];
+        return;
+      end
+      loc = find(isafter,1);
+      nextmft = tblLbl(loc,:);
+
+    end
+
     function gtNextUnlabeledUI(obj)
       % Like pressing "Next Unlabeled" in GTManager.
-      if obj.gtIsGTMode
-        gtMgr = obj.controller_.GTManagerFigure ;
-        controller = guidata(gtMgr);
-        pb = controller.pbNextUnlabeled;
-        cbk = pb.Callback;
-        cbk(pb,[]);
-      else
+
+      if ~obj.gtIsGTMode,
         warningNoTrace('Not in GT mode.');
+        return;
       end
+
+      nextmft = obj.gtNextUnlabeledMFT();
+      if isempty(nextmft),
+        msgbox('No more unlabeled frames in to-label list.','','modal');
+        return;
+      end
+
+      iMov = nextmft.mov.get();
+      if iMov~=obj.currMovie
+        obj.movieSetGUI(iMov);
+      end
+      obj.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
+
     end
-    function gtShowGTManager(obj)
-      hGTMgr = obj.controller_.GTManagerFigure ;
-      hGTMgr.Visible = 'on';
-      figure(hGTMgr);
+    
+    function gtShowGTManager(obj) % todo move this to LabelerController
+      obj.controller_.gtShowGTManager();
     end
     function [iMov,iMovGT] = gtCommonMoviesRegGT(obj)
       % Find movies common to both regular and GT lists

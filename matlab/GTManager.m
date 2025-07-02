@@ -25,7 +25,7 @@ handles = struct;
 handles.labeler = lObj;
       
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
-  'Name','Groundtruthing','Visible','off','CloseRequestFcn',@CloseRequestFcn);
+  'Name','Groundtruthing','Visible','off');%,'CloseRequestFcn',@CloseRequestFcn);
 handles.figure1 = hFig;
 
 handles.gl = uigridlayout(hFig,[4,1],'RowHeight',{'1x','1x',40},'tag','gl');
@@ -53,7 +53,7 @@ handles.pbNextUnlabeled = uibutton(handles.gl_buttons,'Text','Next Unlabeled','t
 
 handles.pbGoSelected = uibutton(handles.gl_buttons,'Text','Go to Selected','tag','pbGoSelected',...
   'ButtonPushedFcn',@(src,evt) pbGoSelected_Callback(hFig,src,evt),'Enable','off');
-handles.pbComputeGT = uibutton(handles.gl_buttons,'Text','Compute GT Performance','tag','pbComputeGT',...
+handles.pbComputeGT = uibutton(handles.gl_buttons,'Text','Compute Accuracy','tag','pbComputeGT',...
   'ButtonPushedFcn',@(src,evt) pbComputeGT_Callback(hFig,src,evt),'Enable','off');
 handles.pbUpdate = uibutton(handles.gl_buttons,'Text','Update','tag','pbUpdate',...
   'ButtonPushedFcn',@(src,evt) pbUpdate_Callback(hFig,src,evt),'Enable','on');
