@@ -136,6 +136,14 @@ if ~isempty(handles) && isfield(handles,'listener'),
   end
 end
 
+function setTableSelection(uitbl,row)
+
+uitbl.Selection = row;
+if ~isempty(row),
+  scroll(uitbl,"row",row);
+end
+
+
 function updateTblFrame(handles,fn)
 rows = handles.tblGTMovie.Selection;
 columnnames = getTblFrameColumnNames(handles);
@@ -176,7 +184,7 @@ else
   end
   handles.tblFrame.Data = data;
   if isempty(handles.tblFrame.Selection) && ~isempty(data),
-    handles.tblFrame.Selection = 1;
+    setTableSelection(handles.tblFrame,1);
   end
 end
 
@@ -275,11 +283,10 @@ end
 mIdx = lObj.currMovIdx;
 frm = lObj.currFrame;
 iTgt = lObj.currTarget;
-% handles.tblGTMovie.Selection = find(handles.mov
 newrow = find(handles.iMovUn==mIdx);
 oldrow = handles.tblGTMovie.Selection;
 if ~isequal(newrow,oldrow),
-  handles.tblGTMovie.Selection = newrow;
+  setTableSelection(handles.tblGTMovie,newrow);
   updateTblFrame(handles);
 end
 
@@ -289,7 +296,7 @@ if lObj.hasTrx,
 else
   newrow = find(cell2mat(data(:,1))==frm);
 end
-handles.tblFrame.Selection = newrow;
+setTableSelection(handles.tblFrame,newrow);
 
 function doubleClickFcnCallbacktblFrame(hObject,src,evt)
 handles = guidata(hObject);
@@ -395,10 +402,10 @@ end
 if isempty(iRow)
   msgbox('No more unlabeled frames.');
 else
-  handles.tblGTMovie.Selection = movrow;
+  setTableSelection(handles.tblGtMovie,movrow);
   handles = updateAll(handles);
   [mov,ft] = getMFT(handles,movrow,iRow);
-  handles.tblFrame.Selection = iRow;
+  setTableSelection(handles.tblFrame,iRow);
   lclNavToMFT(lObj,mov,ft);
 end
 
