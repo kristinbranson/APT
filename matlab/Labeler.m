@@ -9675,7 +9675,7 @@ classdef Labeler < handle
       tf = ~isempty(idx);
     end
 
-    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj,checksuggest)
+    function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj,whichlabels)
       % Compile table of GT suggestions with their labels.
       % 
       % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg. To
@@ -9684,8 +9684,10 @@ classdef Labeler < handle
       % checksuggest: whether to ask if non-suggested labeled frames should be
       % included in computation, default = False
 
-      if nargin < 2,
-        checksuggest = false;
+      tblMFT_SuggAndLbled = [];
+
+      if nargin < 2 || isempty(whichlabels),
+        whichlabels = 'suggestonly';
       end
       
       tblMFTSugg = obj.gtSuggMFTable;
@@ -9705,30 +9707,27 @@ classdef Labeler < handle
 
       nSuggAnyLbled = nnz(tfSuggIsLbld);
       nNewLbls = nnz(tfLbldExtra);
-      if nNewLbls > 0,
-        % nothing suggested, so use all
-        if nSuggAnyLbled == 0,
-          tblMFTSugg = tblMFTLbld;
-          tfSuggIsLbld = true(nNewLbls,1);
-          loc = 1:nNewLbls;
-          nSuggAnyLbled = nNewLbls;
-          nNewLbls = 0;
-        elseif checksuggest,
-          res = questdlg(sprintf('%d labeled frames were not in list of groundtruth frames to be labeled, add them to the list?',nNewLbls),'Update suggestions','Yes','No','Cancel','Yes');
-          if strcmpi(res,'Cancel'),
-            return;
-          elseif strcmpi(res,'Yes'),
-            obj.gtSetUserSuggestions([]);
-            tblMFTSugg = obj.gtSuggMFTable;
-            [tfSuggIsLbld,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
-            nSuggAnyLbled = nnz(tfSuggIsLbld);
-            nNewLbls = 0;
-          end
-        else
-          warningNoTrace('Labeler:gt',...
-            '%d labeled GT frames were not in list of suggestions. These labels will NOT be used in assessing GT performance.',...
-            nNewLbls);
+      if strcmpi(whichlabels,'suggestonly') || (nNewLbls == 0),
+        res = 'No';
+      elseif strcmpi(whichlabels,'all'),
+        res = 'Yes';
+      else % whichlabels == 'ask' && nNewLbls > 0
+        res = questdlg(sprintf('%d labeled frames were not in the to-label list, include them in analysis?',nNewLbls),'Update to-label list?','Yes','No','Cancel','Yes');
+        if strcmpi(res,'Cancel'),
+          return;
         end
+      end
+      if strcmpi(res,'Yes'),
+        obj.gtSetUserSuggestions([]);
+        tblMFTSugg = obj.gtSuggMFTable;
+        [tfSuggIsLbld,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
+        nSuggAnyLbled = nnz(tfSuggIsLbld);
+        nNewLbls = 0;
+      end
+      if ~strcmp(whichlabels,'suggestonly') && nNewLbls > 0,
+        warningNoTrace('Labeler:gt',...
+          '%d labeled GT frames were not in the to-label list. These labels will NOT be used in assessing GT performance. Using %d labels to assess.',...
+          nNewLbls,nSuggAnyLbled);
       end
       
       % tblMFTLbld includes rows where any pt/coord is labeled;
@@ -9764,7 +9763,7 @@ classdef Labeler < handle
       % Front door entry point for computing gt performance
       
       % Deal with optional args
-      [checksuggest,argsrest] = myparse_nocheck(varargin,'checksuggest',false); % whether to ask user if labels outside suggestions should be used
+      [whichlabels,argsrest] = myparse_nocheck(varargin,'whichlabels',false); % whether to use all labels ('all'), suggestonly ('suggestonly'), or ask ('ask')
       [useLabels2] = myparse(argsrest,...
                              'useLabels2',false); % if true, use labels2 "imported preds" instead of tracking
 
@@ -9777,7 +9776,7 @@ classdef Labeler < handle
       % On to business...
       obj.pushBusyStatus('Compiling list of Ground Truth Labels frames and tracking them...');
       oc = onCleanup(@()(obj.popBusyStatus())) ;
-      tblMFT = obj.gtGetTblSuggAndLbled(checksuggest);
+      tblMFT = obj.gtGetTblSuggAndLbled(whichlabels);
 
       % Either spawn the computation of the GT predictions, or import them and show the
       % results.
@@ -9865,7 +9864,11 @@ classdef Labeler < handle
                 'useLabels2',false);
 
       if isempty(tblLbl)
-        tblLbl = obj.gtGetTblSuggAndLbled();
+        if ~isempty(gtResultTbl),
+          tblLbl = gtResultTbl(:,MFTable.FLDSID);
+        else
+          tblLbl = obj.gtGetTblSuggAndLbled();
+        end
       end
         
       if useLabels2

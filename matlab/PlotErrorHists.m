@@ -1,11 +1,12 @@
 function PlotErrorHists(errs,varargin)
 
-[hpar,kpcolors,prcs,prc_vals,binedges,nbins,maxprctile,kpnames,islight] = ...
+[hpar,kpcolors,prcs,prc_vals,binedges,nbins,maxprctile,kpnames,islight,nperkp] = ...
   myparse(varargin,'hparent',[],...
   'kpcolors',[],...
   'prcs',[],'prc_vals',[],...
   'binedges',[],'nbins',50,'maxprctile',98,...
-  'kpnames',{},'islight',true);
+  'kpnames',{},'islight',true,...
+  'nperkp',[]);
 
 [n,nkpts,nviews] = size(errs);
 
@@ -76,16 +77,22 @@ for viewi = 1:nviews,
   end
 end
 
-
-viewi = 1;
-for kp = 1:nkpts,
-  haxcurr = hax(kp,viewi);
-  if numel(kpnames) >= kp,
-    s = sprintf('(%d) %s',kp,kpnames{kp});
-  else 
-    sprintf('(%d)',kp);
+for viewi = 1:nviews,
+  for kp = 1:nkpts,
+    haxcurr = hax(kp,viewi);
+    if numel(kpnames) >= kp,
+      s = sprintf('(%d) %s',kp,kpnames{kp});
+    else
+      sprintf('(%d)',kp);
+    end
+    if nviews > 1,
+      s = [s,sprintf(', view %d',viewi)];
+    end
+    if size(nperkp,1) >= kp && size(nperkp,2) >= viewi && ~isnan(nperkp(kp,viewi)),
+      s = [s,sprintf(', n = %d',nperkp(kp,viewi))];
+    end
+    text(binedgesplot(end),ylim(2),s,'HorizontalAlignment','right',...
+      'VerticalAlignment','top','Parent',haxcurr,'Interpreter','none','Color',textcolor);
   end
-  text(binedgesplot(end),ylim(2),s,'HorizontalAlignment','right',...
-    'VerticalAlignment','top','Parent',haxcurr,'Interpreter','none','Color',textcolor);
 end
 xlabel(hax(end,1),'Error (px)');

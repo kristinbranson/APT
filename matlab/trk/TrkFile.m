@@ -844,7 +844,7 @@ classdef TrkFile < dynamicprops
       %sfsAll = {allobjs.startframes};
       %efsAll = {allobjs.endframes};
       
-      itgtsun = unique(cat(2,itgtsAll{:}));
+      itgtsun = unique(cat(1,itgtsAll{:}));
       itgtmax = max(itgtsun);
       cls = class(obj.startframes);
       itgt2spep = [intmax('int64')*ones(1,itgtmax,'int64');...

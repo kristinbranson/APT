@@ -10,8 +10,8 @@ classdef LabelerGT
       % Use GTSuggest UI to auto-generate GT frames
       
       if ~isempty(lObj.gtSuggMFTable) && any(lObj.gtSuggMFTableLbled)
-        qmsg = 'One or more GT frames have been labeled. These labels will not be used/considered if new suggestions are generated.';
-        resp = questdlg(qmsg,'GT labels exist','OK, proceed','Cancel','OK, proceed');
+        qmsg = 'Frames to label for groundtruthing have already been selected and some have been labeled. Are you sure you want to re-choose the list of frames to label?';
+        resp = questdlg(qmsg,'Groundtruthing already started','OK, proceed','Cancel','OK, proceed');
         if isempty(resp)
           resp = 'Cancel';
         end

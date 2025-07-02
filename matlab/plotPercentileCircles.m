@@ -1,10 +1,13 @@
-function islight = plotPercentileCircles(im,prcs,labels,prc_vals,hpar,txtOffset)
+function islight = plotPercentileCircles(im,prcs,labels,prc_vals,hpar,txtOffset,ntotal)
 
 if nargin<5
   hpar = figure;
 end
 if nargin<6
   txtOffset = 5;
+end
+if nargin<7,
+  ntotal = [];
 end
 
 nviews = size(prcs,3);
@@ -69,8 +72,15 @@ for viewi = 1:nviews
         prcs(p,l,viewi),prcs(p,l,viewi),'Color',colors(p,:),'Parent',hax(viewi));
     end
   end
+  s = {};
   if nviews > 1,
-    text(5,5,sprintf('view %d',viewi),'Color',tcol,'Parent',hax(viewi),...
+    s{end+1} = sprintf('View %d',viewi);
+  end
+  if numel(ntotal) >= viewi && ~isnan(ntotal(viewi)),
+    s{end+1} = sprintf('N examples = %d',ntotal(viewi));
+  end
+  if ~isempty(s),
+    text(5,5,s,'Color',tcol,'Parent',hax(viewi),...
       'VerticalAlignment','top');
   end
 end

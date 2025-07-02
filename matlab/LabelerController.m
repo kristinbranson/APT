@@ -945,9 +945,7 @@ classdef LabelerController < handle
       % Raises a dialog, and registers it as a 'satellite' window so we can delete
       % it when the main window closes.
       obj.createGTResultFigures_() ;
-      h = msgbox('GT results available in Labeler property ''gtTblRes''.');
       % obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
-      obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
     end
 
     function createGTResultFigures_(obj, varargin)
@@ -1005,8 +1003,12 @@ classdef LabelerController < handle
       [allims,allpos] = labeler.cropTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),t(1,:).pLbl);
       prcs = prctile(l2err_filtered,plotParams.prc_vals,1);
       prcs = reshape(prcs,[],nphyspt,nviews);
+      nperkp = sum(~isnan(l2err_filtered),1);
+      nperkp = reshape(nperkp,[nphyspt,nviews]);
+      ntotal = sum(~all(isnan(l2err_filtered),2),1);
+      ntotal = reshape(ntotal,[nviews,1]);
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
-      islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset);
+      islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal);
       figh = hmain*.75;
       hpx = max(cellfun(@(x) size(x,1),allims));
       wpx = sum(cellfun(@(x) size(x,2),allims));
@@ -1022,7 +1024,8 @@ classdef LabelerController < handle
       PlotErrorHists(errs,'hparent',fig_2,'kpcolors',clrs,...
         'prcs',prcs,'prc_vals',plotParams.prc_vals,...
         'nbins',plotParams.nbins,'maxprctile',plotParams.prc_vals(end),...
-        'kpnames',labeler.skelNames,'islight',islight);
+        'kpnames',labeler.skelNames,'islight',islight,...
+        'nperkp',nperkp);
       figh = hmain;
       figw = figh/2*nviews;
       set(fig_2,'Position',[10,10,figw,figh]);
@@ -5622,7 +5625,7 @@ classdef LabelerController < handle
     function menu_evaluate_gtcomputeperf_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance('checksuggest',true);
+      labeler.gtComputeGTPerformance('whichlabels','ask');
     end
 
 
