@@ -258,7 +258,9 @@ classdef MovieManagerController < handle
     end
     
     function mnuFileAddMoviesBatch(obj)
-      lastTxtFile = RC.getprop('lastMovieBatchFile');
+      lObj = obj.labeler;
+
+      lastTxtFile = lObj.rcGetProp('lastMovieBatchFile');
       if ~isempty(lastTxtFile)
         [~,~,ext] = fileparts(lastTxtFile);
         ext = ['*' ext];
@@ -272,11 +274,10 @@ classdef MovieManagerController < handle
         return;
       end
       
-      lObj = obj.labeler;
       nmovieOrig = lObj.nmoviesGTaware;
       fname = fullfile(pname,fname);
       lObj.movieAddBatchFile(fname);
-      RC.saveprop('lastMovieBatchFile',fname);
+      lObj.rcSaveProp('lastMovieBatchFile',fname);
       if nmovieOrig==0 && lObj.nmoviesGTaware>0
         lObj.movieSetGUI(1);
       end
@@ -409,7 +410,7 @@ classdef MovieManagerController < handle
 
       else
         assert(lObj.nTargets==1,'Adding trx files currently unsupported.');
-        lastmov = RC.getprop('lbl_lastmovie');
+        lastmov = lObj.rcGetProp('lbl_lastmovie');
         if isempty(lastmov)
           lastmovpath = pwd;
         else

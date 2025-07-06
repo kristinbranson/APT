@@ -57,6 +57,7 @@ classdef LabelerController < handle
     menu_evaluate_gtcomputeperfimported
     menu_evaluate_gtexportresults
     menu_evaluate_gtloadsuggestions
+    menu_evaluate_gtsavesuggestions
     menu_evaluate_gtmode
     menu_evaluate_gt_frames
     menu_evaluate_gtsetsuggestions
@@ -307,11 +308,11 @@ classdef LabelerController < handle
       % % Populate the callbacks of the controls in the main figure---someday
       % apt.populate_callbacks_bang(mainFigure, obj) ;
 
-      % Create the waitbar figure, which we re-use  
-      obj.waitbarFigure_ = waitbar(0, '', ...
-                                   'Visible', 'off', ...
-                                   'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
-      obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
+      % Create the waitbar on demand
+      % obj.waitbarFigure_ = waitbar(0, '', ...
+      %                              'Visible', 'off', ...
+      %                              'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
+      % obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
         
       % Add some controls to the UI that we can set up before there is a project
       obj.initialize_menu_track_backend_config_() ;
@@ -590,7 +591,7 @@ classdef LabelerController < handle
       % there's still a reference to it in the top level scope.
       delete(obj.labeler_) ;
     end  % function
-    
+
     function updateDoesNeedSave(obj, ~, ~)      
       labeler = obj.labeler_ ;
       doesNeedSave = labeler.doesNeedSave ;
@@ -640,7 +641,6 @@ classdef LabelerController < handle
         interpolate_status_string(raw_status_string, has_project, project_file_path) ;
       set(obj.txStatus,'String',status_string) ;
       % If the textbox is overstuffed, change to the shorter status string
-      drawnow('nocallbacks') ;  % Make sure extent is accurate
       extent = get(obj.txStatus,'Extent') ;  % reflects the size fo the String property
       position = get(obj.txStatus,'Position') ;  % reflects the size of the text box
       string_width = extent(3) ;
@@ -657,7 +657,7 @@ classdef LabelerController < handle
       end
 
       % Make sure to update graphics now
-      drawnow('nocallbacks');
+      %drawnow('nocallbacks');
     end
 
     function updateBackgroundProcessingStatus_(obj)
@@ -1245,9 +1245,23 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function initWaitbar(obj)
+
+      if ~isempty(obj.waitbarFigure_) && ishandle(obj.waitbarFigure_),
+        return;
+      end
+      obj.waitbarFigure_ = waitbar(0, '', ...
+                                   'Visible', 'off', ...
+                                   'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
+      obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
+
+    end
+
+
     function armWaitbar(obj)
       % When we arm, want to re-center figure on main window, then do a normal
       % update.
+      obj.initWaitbar();
       centerOnParentFigure(obj.waitbarFigure_, obj.mainFigure_) ;
       obj.updateWaitbar() ;
     end
@@ -1795,11 +1809,9 @@ classdef LabelerController < handle
       obj.labelTLInfo.initNewProject();
       
       delete(obj.movieManagerController_) ;
+      t0 = tic;
       obj.movieManagerController_ = MovieManagerController(labeler) ;
-      drawnow(); 
-        % 20171002 Without this drawnow(), new tabbed MovieManager shows up with 
-        % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
-        % buttons/figure back into a good state)   
+      fprintf('Creating movie manager takes %f s\n',toc(t0));
       obj.movieManagerController_.setVisible(false);
       
       % obj.GTManagerFigure = GTManager(labeler);
@@ -3128,6 +3140,7 @@ classdef LabelerController < handle
       onIffGT = onIff(gt) ;
       obj.menu_evaluate_gtmode.Checked = onIffGT;
       obj.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
+      obj.menu_evaluate_gtsavesuggestions.Visible = onIffGT;
       obj.menu_evaluate_gtsetsuggestions.Visible = onIffGT;
       obj.menu_evaluate_gtcomputeperf.Visible = onIffGT;
       obj.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
@@ -4491,7 +4504,7 @@ classdef LabelerController < handle
       end
 
       labeler = obj.labeler_ ;
-      lastFile = RC.getprop('lastLabelMatfile');
+      lastFile = labeler.rcGetProp('lastLabelMatfile');
       if isempty(lastFile)
         lastFile = pwd;
       end
@@ -4775,7 +4788,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
 
 
-      lastCalFile = RC.getprop('lastCalibrationFile');
+      lastCalFile = labeler.rcGetProp('lastCalibrationFile');
       if isempty(lastCalFile)
         lastCalFile = pwd;
       end
@@ -4825,7 +4838,7 @@ classdef LabelerController < handle
         lc.setShowCalibration(true);
       end
       obj.menu_setup_use_calibration.Checked = onIff(lc.showCalibration);
-      RC.saveprop('lastCalibrationFile',fname);
+      labeler.rcSaveProp('lastCalibrationFile',fname);
     end
 
     function menu_view_adjustbrightness_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5603,6 +5616,11 @@ classdef LabelerController < handle
     function menu_evaluate_gtmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.gtToggleGTMode() ;
+      if labeler.gtIsGTMode,
+        obj.gtShowGTManager();
+      else
+        obj.gtCloseGTManager();
+      end
     end
 
 
@@ -5613,6 +5631,10 @@ classdef LabelerController < handle
     end
 
 
+    function menu_evaluate_gtsavesuggestions_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      LabelerGT.saveSuggestionsUI(labeler);
+    end
 
     function menu_evaluate_gtsetsuggestions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5860,10 +5882,6 @@ classdef LabelerController < handle
       if ~exist('e', 'var') ,
         e = [] ;
       end
-      if obj.isGTManagerFigure() , % todo -- call code directly rather than 
-        GTManager('cbkGTSuggUpdated', obj.GTManagerFigure, s, e) ;
-        %obj.GTMgr.cbkGTSuggUpdated(s, e) ;
-      end
       if ~isempty(obj.labelTLInfo) ,
         obj.labelTLInfo.cbkGTSuggUpdated(s, e) ;
       end
@@ -5877,9 +5895,6 @@ classdef LabelerController < handle
       end
       if ~exist('e', 'var') ,
         e = [] ;
-      end
-      if obj.isGTManagerFigure(),
-        GTManager('cbkGTResUpdated', obj.GTManagerFigure, s, e) ;
       end
       %obj.labelTLInfo.cbkGTResUpdated(s, e) ;
     end
@@ -5906,7 +5921,6 @@ classdef LabelerController < handle
     function update(obj)
       % Intended to be a full update of all GUI controls to bring them into sync
       % with obj.labeler_.  Currently a work in progress.
-
       obj.updateEnablementOfManyControls() ;
       obj.cbkLabelModeChanged() ;
       obj.cbkShowTrxChanged() ;
@@ -5963,7 +5977,7 @@ classdef LabelerController < handle
         filterspec = labeler.projectfile;
       else
         % Guess a path/location for save
-        lastLblFile = RC.getprop('lastLblFile');
+        lastLblFile = labeler.rcGetProp('lastLblFile');
         if isempty(lastLblFile)
           if labeler.hasMovie
             savepath = fileparts(labeler.moviefile);
@@ -6019,7 +6033,7 @@ classdef LabelerController < handle
           % no trkfile is found alongside movie, or if user cancels during
           % a prompt.
           
-          lastTrkFileImported = RC.getprop('lastTrkFileImported');
+          lastTrkFileImported = labeler.rcGetProp('lastTrkFileImported');
           if isempty(lastTrkFileImported)
             lastTrkFileImported = pwd;
           end
@@ -6038,12 +6052,18 @@ classdef LabelerController < handle
       tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
     end
 
-    function gtShowGTManager(obj) % todo move this to LabelerController
+    function gtShowGTManager(obj)
       if obj.isGTManagerFigure()
         %hGTMgr.Visible = 'on';
         figure(obj.GTManagerFigure);
       else
         obj.GTManagerFigure = GTManager(obj.labeler_);
+      end
+    end
+
+    function gtCloseGTManager(obj)
+      if obj.isGTManagerFigure(),
+        close(obj.GTManagerFigure);
       end
     end
 
@@ -6108,9 +6128,6 @@ classdef LabelerController < handle
       end
       set(obj.slider_frame,'Value',sldval);
       obj.updateHighlightingOfAxes() ;      
-      if labeler.gtIsGTMode && obj.isGTManagerFigure(),
-        GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
-      end
     end  % function
 
     function deleteSpashScreenFigureIfItExists_(obj)

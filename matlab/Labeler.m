@@ -720,6 +720,9 @@ classdef Labeler < handle
   % Primary lifecycle methods
   methods 
     function obj = Labeler(varargin)
+
+      obj.rc = RC();
+
       [isgui, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
                         'isgui', false, ...
@@ -1478,7 +1481,7 @@ classdef Labeler < handle
       end
     end 
     function v = get.trackerIsTwoStage(obj)
-      %% here we actually mean MA-TD
+      % here we actually mean MA-TD
       v = obj.tracker;
       v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isTwoStage;
     end
@@ -1845,7 +1848,7 @@ classdef Labeler < handle
       obj.trxCache = containers.Map();
       
       if obj.isgui,
-        RC.saveprop('lastProjectConfig',obj.getCurrentConfig());
+        obj.rcSaveProp('lastProjectConfig',obj.getCurrentConfig());
       end
       
       obj.isinit = isinit0;
@@ -2076,6 +2079,21 @@ classdef Labeler < handle
     end
         
   end
+
+  properties
+    rc = [];
+  end
+
+  methods % interacting with RC file
+    
+    function rcSaveProp(obj,name,v)
+      obj.rc.set(name,v);
+    end
+    function v = rcGetProp(obj,name)
+      v = obj.rc.get(name);
+    end
+
+  end
   
   %% Project/Lbl files
   methods
@@ -2179,7 +2197,7 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
       obj.projFSInfo = ProjectFSInfo('saved',fname);
-      RC.saveprop('lastLblFile',fname);      
+      obj.rcSaveProp('lastLblFile',fname);      
       % Assign the projname from the proj file name if appropriate
       if isempty(obj.projname) && ~isempty(obj.projectfile)
         [~,fname] = fileparts(obj.projectfile);
@@ -2320,7 +2338,7 @@ classdef Labeler < handle
       currMovInfo = [];
       
       if exist('fname','var')==0
-        lastLblFile = RC.getprop('lastLblFile');
+        lastLblFile = obj.rcGetProp('lastLblFile');
         if isempty(lastLblFile)
           lastLblFile = pwd;
         end
@@ -2354,6 +2372,7 @@ classdef Labeler < handle
       warnst0 = warning('off','MATLAB:class:EnumerationValueChanged');
       warnst1 = warning('off','MATLAB:class:EnumerationNameMissing'); 
       s = load(tlbl,'-mat');
+      fprintf('Loaded project data from file.\n');
       warning([warnst0 warnst1]);
 
       % ALT 2023-05-02      
@@ -2375,9 +2394,11 @@ classdef Labeler < handle
       if ~all(isfield(s,{'VERSION' 'movieFilesAll'}))
         error('Labeler:load','Unexpected contents in Label file.');
       end
-      RC.saveprop('lastLblFile',fname);
+      obj.rcSaveProp('lastLblFile',fname);
 
+      t0 = tic;
       s = Labeler.lblModernize(s);
+      fprintf('Modernized project (%f s).\n',toc(t0));
 
       % convert CalRig structs to CalRig objects
       for fn1 = {'viewCalibrationData','viewCalibrationDataGT','viewValProjWide'},
@@ -2411,13 +2432,16 @@ classdef Labeler < handle
       % when the associated events fire.
       obj.isinit = true;
       
+      t0 = tic;
       obj.initFromConfig_(s.cfg);
+      fprintf('Initialized configuration (%f s).\n',toc(t0));
       
       % From here to the end of this method is a parallel initialization to
       % projNew()
       
       % For all the loadable properties in s, load them into the obj, doing path
       % replacement along the way if called for.
+      t0 = tic;
       LOADPROPS = Labeler.SAVEPROPS(~ismember(Labeler.SAVEPROPS,...
                                               Labeler.SAVEBUTNOTLOADPROPS));
       path_to_replace = replace_path{1} ;
@@ -2518,7 +2542,9 @@ classdef Labeler < handle
           obj.ppdb = s.ppdb;
         end
       end
+      fprintf('Initialized properties from loaded data (%f s).\n',toc(t0));
 
+      t0 = tic;
       if obj.nmoviesGTaware==0 || s.currMovie==0 || nomovie
         obj.movieSetNoMovie();
       else
@@ -2539,11 +2565,14 @@ classdef Labeler < handle
           obj.setFrameAndTargetGUI(s.currFrame,s.currTarget);
         end
       end
+      fprintf('Opened current movie (%f s).\n',toc(t0));
       
 %       % Needs to occur after tracker has been set up so that labelCore can
 %       % communicate with tracker if necessary (in particular, Template Mode 
 %       % <-> Hide Predictions)
 %       obj.labelingInit();
+
+      t0 = tic;
 
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
@@ -2565,7 +2594,7 @@ classdef Labeler < handle
       obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
  
       % obj.setPropertiesToFireCallbacksToInitializeUI_() ;
-      obj.notify('update') ;
+      %obj.notify('update') ;
 
       % The fact that we (presumably) have to update before doing these next few
       % things suggests to me (along with their visual-centric names) that maybe
@@ -2602,7 +2631,6 @@ classdef Labeler < handle
           end
         end
       end
-      fprintf('\n\n');
       obj.projUpdateDLCache_();  % this can fail (output arg not checked)
 
       % % Surely this should have happened when the current tracker was set up...
@@ -2622,9 +2650,7 @@ classdef Labeler < handle
       % obj.notify('update_menu_track_tracker_history') ;
       % obj.notify('didSetCurrTracker') ;
       % obj.notify('update_text_trackerinfo') ;
-
-      % Final sign-off
-      fprintf('Finished loading project, elapsed time %f s.\n',toc(starttime)); 
+      fprintf('Updated GUI (%f s).\n',toc(t0));
 
       % If any movies were missing, error now.  We do this late so that the
       % project still gets loaded, and the user can fix any missing movies in the
@@ -2652,6 +2678,10 @@ classdef Labeler < handle
       else
         error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use Movie Manager to fix.') ;
       end
+      % Final sign-off
+      fprintf('\nFinished loading project, elapsed time %f s.\n',toc(starttime)); 
+
+
     end  % function projLoadGUI
     
     function [movs,tgts,frms] = findPartiallyLabeledFrames(obj)
@@ -4533,7 +4563,7 @@ classdef Labeler < handle
             case 'Browse to movie'
               pathguess = FSPath.maxExistingBasePath(movfileFull);
               if isempty(pathguess)
-                pathguess = RC.getprop('lbl_lastmovie');
+                pathguess = obj.rcGetProp('lbl_lastmovie');
               end
               if isempty(pathguess)
                 pathguess = pwd;
@@ -4613,7 +4643,7 @@ classdef Labeler < handle
             end
             obj.(PROPS.TFA){iMov,iView} = trxFile;
           end
-          RC.saveprop('lbl_lasttrxfile',trxFile);
+          obj.rcSaveProp('lbl_lasttrxfile',trxFile);
         end
       end
       
@@ -4678,7 +4708,7 @@ classdef Labeler < handle
         else
           mr.setCropInfo([]);
         end
-        RC.saveprop('lbl_lastmovie',mov);
+        obj.rcSaveProp('lbl_lastmovie',mov);
         if iView==1
           if numel(obj.moviefile) > obj.MAX_MOVIENAME_LENGTH,
             obj.moviename = ['..',obj.moviefile(end-obj.MAX_MOVIENAME_LENGTH+3:end)];
@@ -6960,7 +6990,7 @@ classdef Labeler < handle
       end
       obj.labeledposNeedsSave = true;
       obj.notify('dataImported');
-      RC.saveprop('lastTrkFileImported',trkfiles{end});
+      obj.rcSaveProp('lastTrkFileImported',trkfiles{end});
     end
 %     
 %     function labelPosSetUnmarkedFramesMovieFramesUnmarked(obj,xy,iMov,frms)
@@ -8204,12 +8234,16 @@ classdef Labeler < handle
 %       %now, since what we are importing is already in the .trk file.
 %       obj.labelsUpdateNewFrame(true);
 %       
-%       RC.saveprop('lastTrkFileImported',trkfiles{end});
+%       obj.rcSaveProp('lastTrkFileImported',trkfiles{end});
 %     end
     
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS_Old(obj)      
-      obj.lastLabelChangeTS = max(cellfun(@(x) max(x(:)),obj.labeledposTS));
+      obj.lastLabelChangeTS = max(cellfun(@(x) max(x.ts(:)),obj.labels));
+
+      % this actually takes a few seconds since it reallocates everything
+      % as full arrays
+      %obj.lastLabelChangeTS = max(cellfun(@(x) max(x(:)),obj.labeledposTS));
     end
     
     % 20180628 iss 202.
@@ -9533,9 +9567,9 @@ classdef Labeler < handle
         'sortcanonical',false);
       
       if isequal(tblMFT,[])
-        fprintf(1,'Defaulting to all labeled GT frames in project...\n');
+        fprintf(1,'Setting to-label list for groundtruthing to all current groundtruth labels...\n');
         tblMFT = obj.labelGetMFTableLabeled('useTrain',0,'mftonly',true);
-        fprintf(1,'... found %d GT rows.\n',height(tblMFT));
+        fprintf(1,'... found %d groundtruth labels.\n',height(tblMFT));
       end
       
       if ~istable(tblMFT) && ~all(tblfldscontains(tblMFT,MFTable.FLDSID))
@@ -10034,9 +10068,10 @@ classdef Labeler < handle
 
     end
     
-    function gtShowGTManager(obj) % todo move this to LabelerController
+    function gtShowGTManager(obj) 
       obj.controller_.gtShowGTManager();
     end
+
     function [iMov,iMovGT] = gtCommonMoviesRegGT(obj)
       % Find movies common to both regular and GT lists
       %
@@ -12750,7 +12785,7 @@ classdef Labeler < handle
 %       % rawMeth: track*Raw method to call when a file is specified
 %       
 %       % Guess a path/location for save/load
-%       lastFile = RC.getprop(rcprop);
+%       lastFile = obj.rcGetProp(rcprop);
 %       if isempty(lastFile)
 %         projFile = obj.projectfile;
 %         if ~isempty(projFile)
@@ -14760,7 +14795,7 @@ classdef Labeler < handle
       obj.labels2VizUpdate();
       obj.labels2VizShowHideUpdate();
       obj.notify('dataImported');
-      RC.saveprop('lastTrkFileImported',trkfiles{end});
+      obj.rcSaveProp('lastTrkFileImported',trkfiles{end});
     end
     
     function colors = Set2PointColors(obj,colors)

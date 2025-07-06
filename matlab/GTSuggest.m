@@ -84,20 +84,21 @@ output = handles.output;
 
   function setGUIfromRC(handles)
 
-    tag = RC.getprop('gtsuggest_btngrpMovies_selectedObject');
+    labeler = handles.labeler;
+    tag = labeler.rcGetProp('gtsuggest_btngrpMovies_selectedObject');
     if ~isempty(tag) && isfield(handles,tag)
       handles.btngrpMovies.SelectedObject = handles.(tag);
     else
       handles.btngrpMovies.SelectedObject = handles.rbAllMovies;
     end
 
-    tag = RC.getprop('gtsuggest_btngrpFrames_selectedObject');
+    tag = labeler.rcGetProp('gtsuggest_btngrpFrames_selectedObject');
     if isempty(tag) || ~ismember(tag,handles.dropdownTags),
       tag = 'rbInTotal';
     end
     handles.dropdownFrames.Value = handles.dropdownItems{strcmp(handles.dropdownTags,tag)};
 
-    val = RC.getprop('gtsuggest_numFrames');
+    val = labeler.rcGetProp('gtsuggest_numFrames');
     if ~isempty(val)
       handles.etNumFrames.Value = val;
     else
@@ -105,7 +106,7 @@ output = handles.output;
       handles.etNumFrames.Value = val;
     end
 
-    val = RC.getprop('gtsuggest_minDistTrainingFrames');
+    val = labeler.rcGetProp('gtsuggest_minDistTrainingFrames');
     if ~isempty(val)
       handles.etMinDistTrainingFrames.Value = val;
     else
@@ -117,13 +118,15 @@ output = handles.output;
 
   function setRCfromGUI(handles)
 
-    RC.saveprop('gtsuggest_btngrpMovies_selectedObject',...
+    labeler = handles.labeler;
+
+    labeler.rcSaveProp('gtsuggest_btngrpMovies_selectedObject',...
       handles.btngrpMovies.SelectedObject.Tag);
-    RC.saveprop('gtsuggest_btngrpFrames_selectedObject',...
+    labeler.rcSaveProp('gtsuggest_btngrpFrames_selectedObject',...
       handles.dropdownTags{strcmp(handles.dropdownItems,handles.dropdownFrames.Value)});
-    RC.saveprop('gtsuggest_numFrames',...
+    labeler.rcSaveProp('gtsuggest_numFrames',...
       handles.etNumFrames.Value);
-    RC.saveprop('gtsuggest_minDistTrainingFrames',...
+    labeler.rcSaveProp('gtsuggest_minDistTrainingFrames',...
       handles.etMinDistTrainingFrames.Value);
 
   end

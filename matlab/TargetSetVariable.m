@@ -4,12 +4,18 @@ classdef TargetSetVariable < TargetSet
     prettyCompactString
     % fcn with sig iTgts = fcn(labeler,mIdx). 
     getTargetIndicesHook 
+    id % id for testing for special cases
   end
   methods
-    function obj = TargetSetVariable(ps,pcs,fcn)
+    function obj = TargetSetVariable(ps,pcs,fcn,id)
       obj.prettyString = ps;
       obj.prettyCompactString = pcs;
       obj.getTargetIndicesHook = fcn;
+      if nargin < 4,
+        obj.id = 'custom';
+      else
+        obj.id = id;
+      end
     end
     function str = getPrettyString(obj,labelerObj)
       assert(isstruct(labelerObj), 'labelerObj, despite the name, must be a struct') ;      
@@ -32,8 +38,8 @@ classdef TargetSetVariable < TargetSet
   end
   
   properties (Constant) % canned/enumerated vals
-    AllTgts = TargetSetVariable('All targets','All targ',@lclAllTargetsFcn);
-    CurrTgt = TargetSetVariable('Current target','Cur targ',@lclCurrTargetFcn);
+    AllTgts = TargetSetVariable('All targets','All targ',@lclAllTargetsFcn,'all');
+    CurrTgt = TargetSetVariable('Current target','Cur targ',@lclCurrTargetFcn,'curr');
   end  
 end
 

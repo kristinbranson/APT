@@ -319,7 +319,7 @@ classdef Labels
       % frms: [nfrmslbled] vec of frames that are labeled for target itgt.
       %   Not guaranteed to be in any order
       
-      if isnan(itgt)
+      if isnan(itgt) || isempty(itgt)
         frms = unique(s.frm);
       else
         tf = s.tgt==itgt;

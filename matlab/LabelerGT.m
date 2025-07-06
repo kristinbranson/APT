@@ -37,16 +37,36 @@ classdef LabelerGT
       end
     end
     
-    function loadSuggestionsUI(lObj)
-      gtsuggmat = RC.getprop('gtsuggestionsmat');
+    function saveSuggestionsUI(lObj)
+      tbl = lObj.gtSuggMFTable;
+      if isempty(tbl),
+        warndlg('To-label list is empty','To-label list is empty','modal');
+        return;
+      end
+      gtsuggmat = lObj.rcGetProp('gtsuggestionsmat');
       if isempty(gtsuggmat)
         gtsuggmat = pwd;
       end
-      [fname,pth] = uigetfile('*.mat','Load GT Table',gtsuggmat);
+      [fname,pth] = uiputfile('*.mat','Save to-label list',gtsuggmat);
       if isequal(fname,0)
         return;
       end
       fname = fullfile(pth,fname);
+      lObj.rcSaveProp('gtsuggestionsmat',fname);
+      save(fname,'tbl','-mat');
+    end
+
+    function loadSuggestionsUI(lObj)
+      gtsuggmat = lObj.rcGetProp('gtsuggestionsmat');
+      if isempty(gtsuggmat)
+        gtsuggmat = pwd;
+      end
+      [fname,pth] = uigetfile('*.mat','Load to-label list from MAT file',gtsuggmat);
+      if isequal(fname,0)
+        return;
+      end
+      fname = fullfile(pth,fname);
+      lObj.rcSaveProp('gtsuggestionsmat',fname);
       
       assert(lObj.gtIsGTMode);
       tbl = MFTable.loadTableFromMatfile(fname);
@@ -69,7 +89,7 @@ classdef LabelerGT
       end
       
       lObj.gtSetUserSuggestions(tbl);
-      msgstr = sprintf('Loaded GT table with %d rows spanning %d GT movies.',...
+      msgstr = sprintf('Loaded to-label list for groundtruthing with %d examples spanning %d GT movies.',...
         height(tbl),numel(unique(tbl.mov)));
       msgbox(msgstr,'GT Table Loaded');
     end
@@ -78,7 +98,7 @@ classdef LabelerGT
       assert(lObj.gtIsGTMode);
       lObj.gtSetUserSuggestions([]);
       tbl = lObj.gtSuggMFTable;
-      msgstr = sprintf('Set GT suggestions table with %d rows spanning %d GT movies.',...
+      msgstr = sprintf('Set to-label list for groundtruthing to %d examples spanning %d GT movies.',...
         height(tbl),numel(unique(tbl.mov)));
       msgbox(msgstr,'GT Table Loaded');
     end

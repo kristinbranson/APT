@@ -25,7 +25,7 @@ handles = struct;
 handles.labeler = lObj;
       
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
-  'Name','Groundtruthing','Visible','off');%,'CloseRequestFcn',@CloseRequestFcn);
+  'Name','Groundtruth Navigator','Visible','off');%,'CloseRequestFcn',@CloseRequestFcn);
 handles.figure1 = hFig;
 
 handles.gl = uigridlayout(hFig,[4,1],'RowHeight',{'1x','1x',40},'tag','gl');
@@ -36,8 +36,7 @@ handles.tblGTMovie = uitable(handles.gl,...
   'ColumnWidth',{35,'1x',100,100},...
   'tag','tblGTMovie',...
   'SelectionType','row','Multiselect','off',...
-  'CellSelectionCallback',@(src,evt) cellSelectionCallbacktblGTMovie(hFig,src,evt),... % todo
-  'DoubleClickedFcn',@(src,evt) doubleClickFcnCallbacktblGTMovie(hFig,src,evt)); % todo
+  'CellSelectionCallback',@(src,evt) cellSelectionCallbacktblGTMovie(hFig,src,evt)); % todo
 
 columnnames = getTblFrameColumnNames(handles);
 handles.tblFrame = uitable(handles.gl,...
@@ -91,8 +90,8 @@ handles.listener = cell(0,1);
 % Following listeners for table maintenance
 % handles.listener{end+1,1} = addlistener(lObj,...
 %   'gtIsGTModeChanged',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
-% handles.listener{end+1,1} = addlistener(lObj,...
-%   'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hFig,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
   'gtSuggMFTableLbledUpdated',@(s,e)cbkGTSuggUpdated(hFig,s,e));
 % handles.listener{end+1,1} = addlistener(lObj,...
@@ -106,6 +105,10 @@ handles.listener{end+1,1} = addlistener(lObj,...
   'didSetCurrTarget',@(s,e)(cbkCurrMovFrmTgtChanged(hFig,s,e)));
 handles.listener{end+1,1} = addlistener(lObj,...
   'gtResUpdated',@(s,e) (cbkGTResUpdated(hFig,s,e)));
+handles.listener{end+1,1} = addlistener(lObj, ...
+  'updateStuffInHlpSetCurrPrevFrame', @(s,e) cbkCurrMovFrmTgtChanged(hFig,s,e));
+
+
 
 handles.figure1.DeleteFcn = @lclDeleteFig;
 handles = updateAll(handles);
@@ -138,6 +141,9 @@ end
 
 function setTableSelection(uitbl,row)
 
+if isequal(uitbl.Selection,row),
+  return;
+end
 uitbl.Selection = row;
 if ~isempty(row),
   scroll(uitbl,"row",row);
@@ -231,18 +237,48 @@ pbEnable = onIff(~isempty(handles.tbl));
 set(handles.pbs,'Enable',pbEnable);
 
 function cbkGTisGTModeChanged(hObject,src,evt)
+fprintf('\nGTManager:cbkGTisGTModeChanged\n');
+stack = dbstack;
+for i = 1:length(stack)
+    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+end
+if nargin >= 3,
+  disp(evt);
+end
 % none atm
 
 function cbkGTSuggUpdated(hObject,src,evt)
+
+fprintf('\nGTManager:cbkGTSuggUpdated\n');
+stack = dbstack;
+for i = 1:length(stack)
+    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+end
+if nargin >= 3,
+  disp(evt);
+end
+t0 = tic;
+
 handles = guidata(hObject);
 handles = updateAll(handles);
 guidata(hObject,handles);
+disp(toc(t0));
 
 function cellSelectionCallbacktblGTMovie(hFig,src,evt)
 handles = guidata(hFig);
 updateTblFrame(handles);
 
 function cbkGTSuggMFTableLbledUpdated(hObject,src,evt) % todo, remove this hook, put update button
+fprintf('\nGTManager:cbkGTSuggMFTableLbledUpdated\n');
+stack = dbstack;
+for i = 1:length(stack)
+    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+end
+if nargin >= 3,
+  disp(evt);
+end
+t0 = tic;
+
 handles = guidata(hObject);
 lObj = handles.labeler;
 newHasLbl = lObj.gtSuggMFTableLbled;
@@ -253,7 +289,19 @@ end
 handles = updateAll(handles);
 guidata(hObject,handles);
 
+disp(toc(t0));
+
 function cbkGTResUpdated(hObject,src,evt)
+fprintf('\nGTManager:cbkGTResUpdated\n');
+stack = dbstack;
+for i = 1:length(stack)
+    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+end
+if nargin >= 3,
+  disp(evt);
+end
+t0 = tic;
+
 handles = guidata(hObject);
 if isfield(handles, 'labeler') && isscalar(handles.labeler) && isa(handles.labeler,'Labeler'),
   % All is well
@@ -263,6 +311,7 @@ else
 end
 handles = updateAll(handles);
 guidata(hObject,handles);
+disp(toc(t0));
 
 function err = hlpGetGTErr(tblSugg,lObj)
 % Get computed GT results/err for given suggestion table
@@ -275,6 +324,16 @@ if ~isempty(tblRes)
 end
 
 function cbkCurrMovFrmTgtChanged(hObject,src,evt)
+fprintf('\nGTManager:cbkCurrMovFrmTgtChanged\n');
+stack = dbstack;
+for i = 1:length(stack)
+    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+end
+if nargin >= 3,
+  disp(evt);
+end
+t0 = tic;
+
 handles = guidata(hObject);
 lObj = handles.labeler;
 if lObj.isinit || ~lObj.hasMovie || ~lObj.gtIsGTMode
@@ -297,6 +356,7 @@ else
   newrow = find(cell2mat(data(:,1))==frm);
 end
 setTableSelection(handles.tblFrame,newrow);
+disp(toc(t0));
 
 function doubleClickFcnCallbacktblFrame(hObject,src,evt)
 handles = guidata(hObject);
@@ -374,13 +434,16 @@ handles = updateAll(handles);
 guidata(handles.figure1,handles);
 
 function pbNextUnlabeled_Callback(hObject,src,evt)
+% todo, use table sorting order
+% todo sorting order seems to change when we call this
 handles = guidata(hObject);
 lObj = handles.labeler;
 if ~any(handles.hasLbl),
   msgbox('No more unlabeled frames.','','modal');
 end
 
-[movrow,ftrow] = getSelection(handles);
+[movrow0,ftrow] = getSelection(handles);
+movrow = movrow0;
 if isempty(movrow),
   movrow = 1;
   ftrow = 0;
@@ -402,8 +465,10 @@ end
 if isempty(iRow)
   msgbox('No more unlabeled frames.');
 else
-  setTableSelection(handles.tblGtMovie,movrow);
-  handles = updateAll(handles);
+  if ~isequal(movrow,movrow0),
+    setTableSelection(handles.tblGTMovie,movrow);
+    handles = updateAll(handles);
+  end
   [mov,ft] = getMFT(handles,movrow,iRow);
   setTableSelection(handles.tblFrame,iRow);
   lclNavToMFT(lObj,mov,ft);
