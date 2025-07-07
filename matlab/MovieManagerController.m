@@ -36,7 +36,7 @@ classdef MovieManagerController < handle
       obj.hFig = uifigure('Units','pixels','Position',[951,1400,733,436],...
         'Name','Manage Movies');
       handles.figure1 = obj.hFig;
-      obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
+      %obj.hFig.CloseRequestFcn = @(hObject,eventdata) obj.CloseRequestFcn(hObject,eventdata);
 
       handles.gl = uigridlayout(obj.hFig,[4,1],'RowHeight',obj.getGridLayoutRowHeights(),'tag','gl');
 
@@ -81,7 +81,6 @@ classdef MovieManagerController < handle
       handles.menu_file = uimenu('Tag','menu_file','Text','File','Parent',obj.hFig);
       handles.menu_file_add_movies_from_text_file = uimenu('Tag','menu_file_add_movies_from_text_file',...
         'Text','Add movies from text file','Parent',handles.menu_file);
-      handles.menu_help = uimenu('Tag','menu_help','Text','Help','Parent',obj.hFig);
 
       handles.menu_file_add_movies_from_text_file.MenuSelectedFcn = ...
           @(s,e)obj.mnuFileAddMoviesBatch();
@@ -89,7 +88,8 @@ classdef MovieManagerController < handle
       guidata(obj.hFig,handles);
 
       set(obj.hFig,'MenuBar','None');
-      obj.hFig.Visible = 'off';
+      obj.update();
+      obj.hFig.Visible = 'on';
       
       %PROPS = {};
       %GTPROPS = {};
@@ -104,7 +104,7 @@ classdef MovieManagerController < handle
       lObjs{end+1,1} = addlistener(lObj,'didSetTrxFilesAllGT',@(s,e)(obj.lblerLstnCbkUpdateTableGT(s,e)));      
       %lObjs{end+1,1} = listenPropsPostSet(lObj,GTPROPS,@(s,e)obj.lblerLstnCbkUpdateTableGT(s,e));
 
-      %lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
+      lObjs{end+1,1} = addlistener(lObj,'didLoadProject',@(s,e)obj.lblerLstnCbkProjLoaded(s,e));
       lObjs{end+1,1} = addlistener(lObj,'newMovie',@(s,e)obj.lblerLstnCbkNewMovie(s,e));
       lObjs{end+1,1} = addlistener(lObj,'gtIsGTModeChanged',@(s,e)obj.lblerLstnCbkGTMode(s,e));
 
@@ -161,10 +161,6 @@ classdef MovieManagerController < handle
       obj.tblCbkMovieSelected(row);
     end
 
-    function CloseRequestFcn(obj,src,evt)
-      src.Visible = 'off';
-    end
-
     function delete(obj)
       delete(obj.hFig);
       for i=1:numel(obj.listeners)
@@ -183,6 +179,10 @@ classdef MovieManagerController < handle
       if tf
         figure(obj.hFig);
       end
+    end
+
+    function tf = isValid(obj)
+      tf = isvalid(obj.hFig);
     end
 
     function idx = getSelectedMovies(obj)
@@ -244,17 +244,7 @@ classdef MovieManagerController < handle
     end
     
     function lblerLstnCbkGTMode(obj,~,~)
-      lObj = obj.labeler;
-      if lObj.isinit
-        return;
-      end
-      tfGT = lObj.gtIsGTMode;
-      assert(islogical(tfGT));
-      
-      obj.updateMovieData();
-      obj.updatePushButtonsEnable();
-      obj.updateMMTblRowSelection();
-      obj.updateMenusEnable();
+      obj.update();
     end
     
     function mnuFileAddMoviesBatch(obj)
@@ -297,6 +287,23 @@ classdef MovieManagerController < handle
   end  % methods
   
   methods (Hidden)
+
+
+    function update(obj)
+
+      lObj = obj.labeler;
+      if lObj.isinit
+        return;
+      end
+      tfGT = lObj.gtIsGTMode;
+      assert(islogical(tfGT));
+      
+      obj.updateMovieData();
+      obj.updatePushButtonsEnable();
+      obj.updateMMTblRowSelection();
+      obj.updateMenusEnable();
+
+    end
     
     function updatePushButtonsEnable(obj)
 
@@ -323,8 +330,10 @@ classdef MovieManagerController < handle
       if isempty(obj.tblMovies.Data),
         return;
       end
-      if isempty(iMov),
+      if isempty(iMov) || iMov == 0,
         obj.tblMovies.Selection = zeros(0,2);
+      elseif isequal(obj.tblMovies.Selection(1),iMov),
+        return;
       else
         obj.tblMovies.Selection = [iMov,1];
       end
@@ -376,7 +385,7 @@ classdef MovieManagerController < handle
       set(obj.tblMovies,args{:},'Data',dat);
 
     end
-    
+
     function hlpLblerLstnCbkUpdateTable(obj)
       lObj = obj.labeler;
       if lObj.isinit

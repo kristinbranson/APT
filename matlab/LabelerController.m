@@ -582,7 +582,7 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
-      delete(obj.movieManagerController_) ;
+      deleteValidGraphicsHandles(obj.movieManagerController_) ;
       deleteValidGraphicsHandles(obj.mainFigure_) ;
       % In principle, a controller shouldn't delete its model---the model should be
       % allowed to persist until there are no more references to it.  
@@ -628,7 +628,7 @@ classdef LabelerController < handle
       if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
         obj.trackingMonitorVisualizer_.updatePointer() ;
       end
-      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_)
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid()
         obj.movieManagerController_.updatePointer() ;
       end
 
@@ -1289,7 +1289,6 @@ classdef LabelerController < handle
     function didLoadProject(obj)
       obj.updateTarget_();
       obj.updateEnablementOfManyControls() ;
-      obj.movieManagerController_.lblerLstnCbkProjLoaded() ;
     end
     
     function updateTarget_(obj)
@@ -1808,11 +1807,12 @@ classdef LabelerController < handle
       
       obj.labelTLInfo.initNewProject();
       
-      delete(obj.movieManagerController_) ;
-      t0 = tic;
-      obj.movieManagerController_ = MovieManagerController(labeler) ;
-      fprintf('Creating movie manager takes %f s\n',toc(t0));
-      obj.movieManagerController_.setVisible(false);
+      deleteValidGraphicsHandles(obj.movieManagerController_) ;
+      obj.movieManagerController_ = [];
+      % t0 = tic;
+      % obj.movieManagerController_ = MovieManagerController(labeler) ;
+      % fprintf('Creating movie manager takes %f s\n',toc(t0));
+      % obj.movieManagerController_.setVisible(false);
       
       % obj.GTManagerFigure = GTManager(labeler);
       % obj.GTManagerFigure.Visible = 'off';
@@ -1826,10 +1826,10 @@ classdef LabelerController < handle
         cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
         if ~isempty(cfg)    
           labeler.projNew(cfg);
-          if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+          if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
             obj.movieManagerController_.setVisible(true);
           else
-            error('LabelerController:menu_file_new_actuated_', 'Please create or load a project.') ;
+            obj.movieManagerController_ = MovieManagerController(obj.labeler_);
           end
         end  
       end
@@ -3104,14 +3104,14 @@ classdef LabelerController < handle
       % not, and then also brings the movie manager window to the fore if we just
       % switched to GT mode.
       obj.updateGTModeRelatedControls() ;
-      mmc = obj.movieManagerController_ ;
-      if ~isempty(mmc) ,
-        labeler = obj.labeler_ ;     
-        gt = labeler.gtIsGTMode ;
-        if gt
-          mmc.bringWindowToFront() ;
-        end
-      end      
+      % mmc = obj.movieManagerController_ ;
+      % if ~isempty(mmc) ,
+      %   labeler = obj.labeler_ ;     
+      %   gt = labeler.gtIsGTMode ;
+      %   if gt
+      %     mmc.bringWindowToFront() ;
+      %   end
+      % end      
     end
 
     function updateGTModeRelatedControls(obj)
@@ -3128,10 +3128,10 @@ classdef LabelerController < handle
       % end
       obj.updateHighlightingOfAxes();
       obj.labelTLInfo.cbkGTIsGTModeUpdated() ;
-      mmc = obj.movieManagerController_ ;
-      if ~isempty(mmc) ,
-        mmc.lblerLstnCbkGTMode() ;
-      end
+      % mmc = obj.movieManagerController_ ;
+      % if ~isempty(mmc) ,
+      %   mmc.lblerLstnCbkGTMode() ;
+      % end
     end
 
     function update_menu_evaluate(obj)
@@ -4285,15 +4285,15 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         currMovInfo = labeler.projLoadGUI();
-        if ~isempty(currMovInfo)
-          obj.movieManagerController_.setVisible(true);
-          wstr = ...
-            sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
-                            'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
-                    currMovInfo.iMov, ...
-                    currMovInfo.badfile);
-          warndlg(wstr,'Movie not found','modal');
-        end
+        % if ~isempty(currMovInfo)
+        %   obj.movieManagerController_.setVisible(true);
+        %   wstr = ...
+        %     sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
+        %                     'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
+        %             currMovInfo.iMov, ...
+        %             currMovInfo.badfile);
+        %   warndlg(wstr,'Movie not found','modal');
+        % end
       end
     end
 
@@ -4303,11 +4303,16 @@ classdef LabelerController < handle
 
     function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
       % labeler = obj.labeler_ ;
-      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
         obj.movieManagerController_.setVisible(true);
       else
-        error('LabelerGUI:movieManagerController','Please create or load a project.');
+        obj.movieManagerController_ = MovieManagerController(obj.labeler_);
       end
+      % if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+      %   obj.movieManagerController_.setVisible(true);
+      % else
+      %   error('LabelerGUI:movieManagerController','Please create or load a project.');
+      % end
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5936,8 +5941,8 @@ classdef LabelerController < handle
       obj.cbkShowOccludedBoxChanged() ;
       obj.cbkUpdateCropGUITools() ;
       obj.updateGTModeRelatedControls() ;
-      if ~isempty(obj.movieManagerController_) ,
-        obj.movieManagerController_.lblerLstnCbkGTMode() ;
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
+        obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
       obj.updateShowPredMenus();
       obj.updateShowImportedPredMenus();
@@ -5952,7 +5957,7 @@ classdef LabelerController < handle
       obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;
       if ~isempty(obj.movieManagerController_) ,
-        obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ;
+        obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;

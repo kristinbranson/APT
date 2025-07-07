@@ -4487,7 +4487,7 @@ def parse_args(argv):
     parser_test = subparsers.add_parser('test', help='Perform tests')
     parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
 
-    logging.info("APT_interface arguments, as parsed:\n" + str(argv))
+    logging.info("APT_interface raw arguments:\n" + str(argv))
     
     args = parser.parse_args(argv)
     if args.view is not None:
@@ -4997,11 +4997,6 @@ def main(argv):
     # args.debug = False
     # args.no_except = True
 
-    # What the heck is this?
-    if args.sub_name == 'test':
-        logging.info("Hello this is APT!")
-        return
-
     # issues arise with docker and installed python packages that end up getting bound
     # remove these from the python path if ignore_local == 1
     if args.ignore_local:
@@ -5023,6 +5018,11 @@ def main(argv):
     logging.info('Args: {}'.format(argv))
     if args.ignore_local:
         logging.info('Removed .local paths from Python path.')
+
+    # for testing the environment imports
+    if args.sub_name == 'test':
+        logging.info("Hello this is APT!")
+        return
 
     # import copy
     # j_args = copy.deepcopy(args)

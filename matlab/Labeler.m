@@ -15196,7 +15196,8 @@ classdef Labeler < handle
       % of the status strings to we can pop them off as nested tasks complete.
       obj.howBusy_ = obj.howBusy_ + 1 ;
       obj.rawStatusStringStack_ = horzcat(obj.rawStatusStringStack_, {new_raw_status_string}) ;
-      obj.notify('updateStatusAndPointer') ;      
+      obj.notify('updateStatusAndPointer') ;     
+      drawnow;
     end
 
     function popBusyStatus(obj)

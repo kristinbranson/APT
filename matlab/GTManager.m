@@ -237,47 +237,47 @@ pbEnable = onIff(~isempty(handles.tbl));
 set(handles.pbs,'Enable',pbEnable);
 
 function cbkGTisGTModeChanged(hObject,src,evt)
-fprintf('\nGTManager:cbkGTisGTModeChanged\n');
-stack = dbstack;
-for i = 1:length(stack)
-    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
-end
-if nargin >= 3,
-  disp(evt);
-end
+% fprintf('\nGTManager:cbkGTisGTModeChanged\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
 % none atm
 
 function cbkGTSuggUpdated(hObject,src,evt)
 
-fprintf('\nGTManager:cbkGTSuggUpdated\n');
-stack = dbstack;
-for i = 1:length(stack)
-    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
-end
-if nargin >= 3,
-  disp(evt);
-end
-t0 = tic;
+% fprintf('\nGTManager:cbkGTSuggUpdated\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
 
 handles = guidata(hObject);
 handles = updateAll(handles);
 guidata(hObject,handles);
-disp(toc(t0));
+% disp(toc(t0));
 
 function cellSelectionCallbacktblGTMovie(hFig,src,evt)
 handles = guidata(hFig);
 updateTblFrame(handles);
 
 function cbkGTSuggMFTableLbledUpdated(hObject,src,evt) % todo, remove this hook, put update button
-fprintf('\nGTManager:cbkGTSuggMFTableLbledUpdated\n');
-stack = dbstack;
-for i = 1:length(stack)
-    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
-end
-if nargin >= 3,
-  disp(evt);
-end
-t0 = tic;
+% fprintf('\nGTManager:cbkGTSuggMFTableLbledUpdated\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
 
 handles = guidata(hObject);
 lObj = handles.labeler;
@@ -289,18 +289,18 @@ end
 handles = updateAll(handles);
 guidata(hObject,handles);
 
-disp(toc(t0));
+% disp(toc(t0));
 
 function cbkGTResUpdated(hObject,src,evt)
-fprintf('\nGTManager:cbkGTResUpdated\n');
-stack = dbstack;
-for i = 1:length(stack)
-    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
-end
-if nargin >= 3,
-  disp(evt);
-end
-t0 = tic;
+% fprintf('\nGTManager:cbkGTResUpdated\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
 
 handles = guidata(hObject);
 if isfield(handles, 'labeler') && isscalar(handles.labeler) && isa(handles.labeler,'Labeler'),
@@ -311,7 +311,7 @@ else
 end
 handles = updateAll(handles);
 guidata(hObject,handles);
-disp(toc(t0));
+% disp(toc(t0));
 
 function err = hlpGetGTErr(tblSugg,lObj)
 % Get computed GT results/err for given suggestion table
@@ -324,15 +324,15 @@ if ~isempty(tblRes)
 end
 
 function cbkCurrMovFrmTgtChanged(hObject,src,evt)
-fprintf('\nGTManager:cbkCurrMovFrmTgtChanged\n');
-stack = dbstack;
-for i = 1:length(stack)
-    fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
-end
-if nargin >= 3,
-  disp(evt);
-end
-t0 = tic;
+% fprintf('\nGTManager:cbkCurrMovFrmTgtChanged\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
 
 handles = guidata(hObject);
 lObj = handles.labeler;
@@ -356,7 +356,7 @@ else
   newrow = find(cell2mat(data(:,1))==frm);
 end
 setTableSelection(handles.tblFrame,newrow);
-disp(toc(t0));
+% disp(toc(t0));
 
 function doubleClickFcnCallbacktblFrame(hObject,src,evt)
 handles = guidata(hObject);
