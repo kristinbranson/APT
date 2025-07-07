@@ -541,6 +541,9 @@ classdef TrkFile < dynamicprops
 %           % breaks this should be updated. MK 20230515
 %           continue
 %         end
+        if strcmp(obj.(f),TrkFile.unsetVal)
+          continue;
+        end
         if ~iscell(v)
           warning('%s is not a cell',f);
           continue;
@@ -918,6 +921,9 @@ classdef TrkFile < dynamicprops
 %               if strcmp(f,'pTrkSingleView') && ~TrkFile.has3Dpts(o)
 %                 continue;
 %               end
+              if isequal(o.(f),TrkFile.unsetVal),
+                continue;
+              end
               if any(strcmp(f,flds_ptrk_dim))
                 objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
               else

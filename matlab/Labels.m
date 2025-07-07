@@ -848,8 +848,13 @@ classdef Labels
           continue;
         end
         cc = Labels.CLS_MD;
-        frs = eval(sprintf('%s([tbl.frm(idx),tbl.iTgt(idx)])',cc));
-        [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
+        if lObj.maIsMA,
+          frs = eval(sprintf('%s([tbl.frm(idx)])',cc));
+          [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm],'rows');
+        else
+          frs = eval(sprintf('%s([tbl.frm(idx),tbl.iTgt(idx)])',cc));
+          [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
+        end
         idx = find(idx);
         idx = idx(ism);
         j = j(ism);

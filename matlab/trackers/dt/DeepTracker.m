@@ -2473,8 +2473,8 @@ classdef DeepTracker < LabelTracker
     end  % function track()
 
     function trackList(obj, varargin)
-      [totrackinfo, backend] = ...
-        myparse(varargin,'totrackinfo',[],'backend',obj.lObj.trackDLBackEnd);
+      [totrackinfo, backend, argsrest] = ...
+        myparse_nocheck(varargin,'totrackinfo',[],'backend',obj.lObj.trackDLBackEnd);
       obj.validateAndSetupForTracking_(totrackinfo, backend);
 
       % nothing to track?
@@ -2484,7 +2484,7 @@ classdef DeepTracker < LabelTracker
       end
 
       obj.bgTrkReset_();
-      obj.trkSpawnList_(totrackinfo,backend);
+      obj.trkSpawnList_(totrackinfo,backend,argsrest{:});
     end  % function trackList()
 
     function gtComplete(obj)      
@@ -3022,6 +3022,7 @@ classdef DeepTracker < LabelTracker
 
         if islistjob
           obj.createTrkfilesFromListout();
+          stages = stages(end);
         end
 
         for movi = 1:nMovies,

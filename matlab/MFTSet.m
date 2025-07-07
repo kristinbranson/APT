@@ -123,6 +123,10 @@ classdef MFTSet < handle
       else
         s = labelerObj.getLabelsMovIdx(mIdx);
       end
+      % use 0s here rather than labeling order
+      if labelerObj.maIsMA,
+        s.tgt(:) = 0;
+      end
       tblMFT = table(...
         repmat(mIdx,numel(s.frm),1),s.frm(:),s.tgt,...
         'VariableNames',{'mov' 'frm' 'iTgt'});
@@ -169,7 +173,7 @@ classdef MFTSet < handle
 
         % special case for speed when we just want all labeled frames
         tfFastLabeled = ((isMA && istrack) || isequal(tgtSet.id,'all')) && decFac == 1 && ...
-          (isequal(frmSet.id,'labeled') || isequal(frmSet.id,'labeled'));
+          (isequal(frmSet.id,'labeled') || isequal(frmSet.id,'labeled2'));
         tflabeled2 = isequal(frmSet.id,'labeled2');
         
         if isMA && istrack
@@ -219,6 +223,9 @@ classdef MFTSet < handle
               iTgt = iTgts(j);
               frms = frmSet.getFrames(labelerObj,mIdx,iTgt,decFac);
               nfrm = numel(frms);
+              if isnan(iTgt),
+                iTgt = 0;
+              end
               tblMFT{end+1,1} = table(...
                 repmat(mIdx,nfrm,1),frms(:),repmat(iTgt,nfrm,1),...
                 'VariableNames',{'mov' 'frm' 'iTgt'}); %#ok<AGROW>

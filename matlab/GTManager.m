@@ -408,10 +408,12 @@ if iMov~=lObj.currMovie
 end
 if numel(ft) > 1,
   itgt = ft(2);
+  lObj.setFrameAndTargetGUI(ft(1),itgt);
 else
+  lObj.setFrameGUI(ft(1));
+
   itgt = nan;
 end
-lObj.setFrameAndTargetGUI(ft(1),itgt);
 
 % function imovs = cbkGetSelectedMovies(hMMobj)
 % % Get current selection in Table

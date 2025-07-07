@@ -960,7 +960,7 @@ classdef LabelerController < handle
                 'lbli',1 ... % which example to plot
                 );
       
-      l2err = t.L2err;  % For single-view MA, nframes x nanimals x npts.  For single-view SA, nframes x npts
+      l2err = t.L2err;  % For MA, nframes x nanimals x npts.  For SA, nframes x npts
       aggOverPtsL2err = fcnAggOverPts(l2err);  
         % t.L2err, for a single-view MA project, seems to be 
         % ground-truth-frame-count x animal-count x keypoint-count, and
@@ -979,14 +979,24 @@ classdef LabelerController < handle
       nviews = labeler.nview;
       nphyspt = npts/nviews;
 
-      if ndims(l2err) == 3
-        l2err_reshaped = reshape(l2err,[],npts);  % For single-view MA, (nframes*nanimals) x npts
+      if labeler.maIsMA,
+        % note that we might have only a subset of views that are valid
+        % for a given example, maybe should fix that
+
+        % this reshape makes (nframes*nanimals) x npts
+        l2err_reshaped = reshape(l2err,[],npts);  
         valid = ~all(isnan(l2err_reshaped),2);
-        l2err_filtered = l2err_reshaped(valid,:);  % For single-view MA, nvalidanimalframes x npts
+        l2err_reshaped = reshape(l2err_reshaped,[],npts);
+        % nvalidanimalframes x npts
+        l2err_filtered = l2err_reshaped(valid,:);
+
+        exampleLbl = t(1,:).pLbl(:,1,:);
+        exampleLbl = reshape(exampleLbl,1,[]);
       else        
         % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
         valid = ~all(isnan(l2err),2);
         l2err_filtered = l2err(valid,:);
+        exampleLbl = t(1,:).pLbl;
       end
 
       units = get(obj.mainFigure_,'Units');
@@ -1000,7 +1010,7 @@ classdef LabelerController < handle
       %obj.satellites_(1,end+1) = fig_1 ;
       obj.addSatellite(fig_1) ;
 
-      [allims,allpos] = labeler.cropTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),t(1,:).pLbl);
+      [allims,allpos] = labeler.cropTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),exampleLbl);
       prcs = prctile(l2err_filtered,plotParams.prc_vals,1);
       prcs = reshape(prcs,[],nphyspt,nviews);
       nperkp = sum(~isnan(l2err_filtered),1);
@@ -3604,7 +3614,8 @@ classdef LabelerController < handle
       % drop into Java and not super simple.
       % - Don't use uitables, or use them in a separate figure window.
 
-      uicontrol(obj.txStatus);
+      obj.mainFigure_.CurrentObject = obj.axes_curr;
+      %uicontrol(obj.txStatus);
     end
 
     function tblFrames_cell_selected_(obj, src, evt)

@@ -2562,7 +2562,7 @@ classdef Labeler < handle
             s.currFrame = 1;
             s.currTarget = 1;
           end
-          obj.setFrameAndTargetGUI(s.currFrame,s.currTarget);
+          obj.setFrameAndTargetGUI(s.currFrame,s.currTarget,true); % force updates of everything
         end
       end
       fprintf('Opened current movie (%f s).\n',toc(t0));
@@ -8239,7 +8239,9 @@ classdef Labeler < handle
     
     % compute lastLabelChangeTS from scratch
     function computeLastLabelChangeTS_Old(obj)      
-      obj.lastLabelChangeTS = max(cellfun(@(x) max(x.ts(:)),obj.labels));
+      % do this because some movies might not be labeled
+      maxperlabel = cellfun(@(x) max(x.ts(:)),obj.labels,'Uni',0);
+      obj.lastLabelChangeTS = max(cat(1,maxperlabel{:}));
 
       % this actually takes a few seconds since it reallocates everything
       % as full arrays
@@ -9804,7 +9806,6 @@ classdef Labeler < handle
       % Make sure in GT mode
       if ~obj.gtIsGTMode
         error('Project is not in Ground-Truthing mode.');
-        return
       end
 
       % On to business...
@@ -9882,8 +9883,9 @@ classdef Labeler < handle
         totrackinfo = ...
           ToTrackInfo('tblMFT',tblMFT,'movfiles',movfiles,...
                       'trxfiles',trxfiles,'views',1:obj.nview,'stages',1:tObj.getNumStages(),'croprois',croprois,...
-                      'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true);
-        tObj.trackList('totrackinfo',totrackinfo,'backend',backend,argsrest{:});
+                      'calibrationdata',caldata,'isma',obj.maIsMA,'isgtjob',true,...
+                      'islistjob',true);
+        tObj.trackList('totrackinfo',totrackinfo,'backend',backend,'isgt',true,argsrest{:});
 
         % Broadcast a notification about recent events
         obj.notify('didSpawnTrackingForGT') ;
@@ -9979,7 +9981,7 @@ classdef Labeler < handle
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled,'isma',obj.maIsMA,'maxanimals',maxn);
 
       if obj.maIsMA
-        err = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled);  % nframes x nanimals x nkeypoints
+        err = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled);  % nframes x maxn x nkeypoints
       else
         pTrk = tblTrkRes.pTrk; % absolute coords
         pLbl = tblMFT_SuggAndLbled.p; % absolute coords
@@ -9996,7 +9998,9 @@ classdef Labeler < handle
         err(tflblinf) = nan; % treat fully-occ err as nan here
       end
 
-      muerr = mean(err,ndims(err),'omitnan'); % and ignore in meanL2err  % in MA case, will be nframes x nanimals
+      muerr = mean(err,ndims(err),'omitnan'); % and ignore in meanL2err  
+      % in MA case, will be nframes x nanimals, take the mean again
+      muerr = mean(muerr,2,'omitnan');
           
       % ctab for occlusion pred
 %       % this is not adding value yet
@@ -13611,7 +13615,7 @@ classdef Labeler < handle
       obj.currTarget = iTgt;
     end
         
-    function setFrameAndTargetGUI(obj,frm,iTgt)
+    function setFrameAndTargetGUI(obj,frm,iTgt,tfforce)
       % Set to new frame and target for current movie.
       % Prefer setFrameGUI() or setTarget() if possible to
       % provide better continuity wrt labeling etc.
@@ -13619,14 +13623,18 @@ classdef Labeler < handle
 %       validateattributes(iTgt,{'numeric'},...
 %         {'positive' 'integer' '<=' obj.nTargets});
 
+      % changed this to default to NOT forcing
+      if nargin < 4,
+        tfforce = false;
+      end
+
       if ~obj.isinit && obj.hasTrx && ~obj.frm2trx(frm,iTgt)
         error('Labeler:target',...
           'Target idx %d is not live at current frame (%d).',iTgt,frm);
       end
 
-      % 2nd arg true to match legacy
       try
-        obj.hlpSetCurrPrevFrameGUI(frm,true);
+        obj.hlpSetCurrPrevFrameGUI(frm,tfforce);
       catch ME
         warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
