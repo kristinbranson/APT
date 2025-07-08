@@ -5835,7 +5835,7 @@ classdef LabelerController < handle
 
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.retrainAugOnly() ;
+      labeler.trainAugOnly() ;
     end
 
     function menu_view_showhide_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>

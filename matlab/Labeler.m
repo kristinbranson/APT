@@ -15350,11 +15350,10 @@ classdef Labeler < handle
       result.hasMovie = obj.hasMovie ;
     end  % function
  
-    function retrainAugOnly(obj)
-      % No idea what this does, but I know LabelerGUI methods shouldn't be calling
-      % non-getter methods on Labeler internals. --ALT, 2024-08-28
-      t = obj.tracker;
-      t.retrain('augOnly',true);
+    function trainAugOnly(obj)
+      % This function exists just to hide the Labeler internals a bit more.
+      tracker = obj.tracker ;
+      tracker.train('augOnly', true) ;
     end  % function
 
     function mftset = getTrackModeMFTSet(obj)
