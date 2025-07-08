@@ -4317,7 +4317,11 @@ classdef LabelerController < handle
     end
 
     function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
-      % labeler = obj.labeler_ ;
+      labeler = obj.labeler_ ;
+
+      labeler.pushBusyStatus('Opening Movie Manager...') ;  % Want to do this here, b/c the stuff in this method can take a while
+      oc = onCleanup(@()(labeler.popBusyStatus()));
+
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
         obj.movieManagerController_.setVisible(true);
       else
@@ -5971,7 +5975,7 @@ classdef LabelerController < handle
       obj.cbkGTSuggUpdated() ;
       obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;
-      if ~isempty(obj.movieManagerController_) ,
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
