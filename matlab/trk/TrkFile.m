@@ -916,6 +916,7 @@ classdef TrkFile < dynamicprops
             % write trkflds
             for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
               if ~isprop(objMerged,f)
+                addprop(objMerged,f);
                 objMerged.(f) = cell(1,numel(objMerged.pTrkiTgt));
               end
 %               if strcmp(f,'pTrkSingleView') && ~TrkFile.has3Dpts(o)
@@ -1356,6 +1357,11 @@ classdef TrkFile < dynamicprops
           tfocc(:,isinterval,i) = ptag(:,idx);
           for iaux=1:naux
             paux = pcellaux{iaux}{j};
+            if isempty(paux),
+              % merging trk files for which some have this property and
+              % some do not
+              continue;
+            end
             aux(:,isinterval,i,iaux) = paux(:,idx);
           end
         end
