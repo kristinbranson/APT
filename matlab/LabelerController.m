@@ -154,7 +154,7 @@ classdef LabelerController < handle
     menu_view_pan_toggle
     menu_view_reset_views
     menu_view_rotate_video_target_up
-    menu_view_show_axes_toolbar
+    % menu_view_show_axes_toolbar
     menu_view_show_grid
     menu_view_showhide_preds_all_targets
     menu_view_showhide_preds_curr_target_only
@@ -1777,6 +1777,14 @@ classdef LabelerController < handle
                  );
         axs(iView) = axes('Parent', figs(iView),'Position',[0,0,1,1]);
         obj.addSatellite(figs(iView)) ;
+
+        % Want the zoom/pan buttons in the figure toolbar
+        addToolbarExplorationButtons(figs(iView)) ;
+        
+        % Hide the "Rotate 3D" button on the toolbar
+        toolbar = findall(figs(iView), 'Type', 'uitoolbar', 'Parent', figs(iView), 'Tag', 'FigureToolBar') ;
+        button = findall(toolbar, 'Tag', 'Exploration.Rotate') ;
+        button.Visible = false ;
         
         ims(iView) = imagesc(0,'Parent',axs(iView));
         set(ims(iView),'PickableParts','none');
@@ -5094,12 +5102,12 @@ classdef LabelerController < handle
       end
     end
 
-    function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
-      ax = obj.axes_curr;
-      onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
-      ax.Toolbar.Visible = onoff;
-      src.Checked = onoff;
-    end
+    % function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   ax = obj.axes_curr;
+    %   onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
+    %   ax.Toolbar.Visible = onoff;
+    %   src.Checked = onoff;
+    % end
 
 
 
