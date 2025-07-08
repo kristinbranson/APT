@@ -5708,12 +5708,10 @@ classdef Labeler < handle
     end
 
     function [tfok,tblBig] = hlpTargetsTableUIgetBigTable(obj)
-      % wbObj = WaitBarWithCancel('Target Summary Table');
-      % centerOnParentFigure(wbObj.hWB,obj.controller_.mainFigure_);
-      % oc = onCleanup(@()delete(wbObj));      
+      % Generate the big target summary table.
       obj.progressMeter_.arm('title', 'Target Summary Table') ;
       cleaner = onCleanup(@()(obj.disarmProgressMeter())) ;
-      tblBig = obj.trackGetBigLabeledTrackedTable('wbObj',obj.progressMeter_) ;
+      tblBig = obj.trackGetBigLabeledTrackedTable_() ;
       tfok = ~(obj.progressMeter_.wasCanceled) ;
       % if ~tfok, tblBig indeterminate
     end
@@ -12585,34 +12583,39 @@ classdef Labeler < handle
     
   end
   methods
-    function tblBig = trackGetBigLabeledTrackedTable(obj,varargin)
-      % tbl: MFT table indcating isLbled, isTrked, trkErr, etc.
+    function tblBig = trackGetBigLabeledTrackedTable_(obj)
+      % Do the core work of generating the big target summary table.
+      % tblBig: MFT table indcating isLbled, isTrked, trkErr, etc.
       
-      wbObj = myparse(varargin,...
-        'wbObj',[]); % optional WaitBarWithContext. If .isCancel:
-                     % 1. tblBig is indeterminate
-                     % 2. obj should be logically const
-      tfWB = ~isempty(wbObj);
+      progressMeter = obj.progressMeter_ ;
+      assert(~isempty(progressMeter)) ;
       
-      tblLbled = obj.labelGetMFTableLabeled('wbObj',wbObj);
-      if tfWB ,
-        if wbObj.wasCanceled
-          tblBig = [];
-          return
-        end
-      end      
+      tblLbled = obj.labelGetMFTableLabeled('wbObj',progressMeter);
+      if progressMeter.wasCanceled
+        tblBig = [];
+        return
+      end
       tblLbled = Labeler.hlpTblLbled(tblLbled);
       
-      tblLbled2 = obj.labelGetMFTableLabeled('wbObj',wbObj,'useLabels2',true);
-      if tfWB && wbObj.wasCanceled
+      tblLbled2 = obj.labelGetMFTableLabeled('wbObj',progressMeter,'useLabels2',true);
+      if progressMeter.wasCanceled
         tblBig = [];
-        return;
+        return
       end
 
       tblLbled2 = Labeler.hlpTblLbled(tblLbled2);
       tblfldsassert(tblLbled2,[MFTable.FLDSID {'p' 'isLbled'}]);
       tblLbled2.Properties.VariableNames(end-1:end) = {'pImport' 'isImported'};
       
+      % Sanity check
+      nptsLabels = size(tblLbled.p,2)/2 ;
+      nptsLabels2 = size(tblLbled2.pImport,2)/2 ;
+      if nptsLabels ~= nptsLabels2 
+        error('The number of keypoints in the labels (%d) does not match the number of keypoints in the imported labels (%d)', ...
+              nptsLabels, ...
+              nptsLabels2) ;
+      end
+
       %npts = obj.nLabelPoints;
 
       tObj = obj.tracker;
@@ -12670,13 +12673,14 @@ classdef Labeler < handle
       if tfhasXV && ~isequal(tblBig.isLbled,tblXV.hasXV)
         warningNoTrace('Cross-validation results appear out-of-date with respect to current set of labeled frames.');
       end
-    end
+    end  % function
     
     function tblSumm = trackGetSummaryTable(obj,tblBig)
       % tblSumm: Big summary table, one row per (mov,tgt)
       
       assert(~obj.gtIsGTMode,'Currently unsupported in GT mode.');
-      
+      obj.pushBusyStatus('Computing big summary table...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;
       % generate tblSummBase
       if obj.hasTrx
         assert(obj.nview==1,'Currently unsupported for multiview projects.');
