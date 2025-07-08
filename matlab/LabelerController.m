@@ -154,7 +154,7 @@ classdef LabelerController < handle
     menu_view_pan_toggle
     menu_view_reset_views
     menu_view_rotate_video_target_up
-    menu_view_show_axes_toolbar
+    % menu_view_show_axes_toolbar
     menu_view_show_grid
     menu_view_showhide_preds_all_targets
     menu_view_showhide_preds_curr_target_only
@@ -207,7 +207,7 @@ classdef LabelerController < handle
     text_framestotrackinfo
     text_occludedpoints
     text_trackerinfo
-    toolbar
+    % toolbar
     txBGTrain
     txCropMode
     txGTMode
@@ -1453,7 +1453,7 @@ classdef LabelerController < handle
       set(obj.edit_frame,'Enable',onIff(hasProject));
       set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
       set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
-      set(obj.toolbar,'Visible',onIff(hasProject)) ;
+      %set(obj.toolbar,'Visible',onIff(hasProject)) ;
       
       obj.menu_track.Enable = onIff(hasTracker);
       obj.pbTrain.Enable = onIff(hasTracker);
@@ -1767,22 +1767,28 @@ classdef LabelerController < handle
       set(ims(1),'CData',0); % reset image
       %controller = obj.controller ;
       for iView=2:nview
-        figs(iView) = ...
+        thisfig = ...
           figure('CloseRequestFcn',@(s,e)(obj.cbkAuxFigCloseReq(s,e)),...
                  'Color',figs(1).Color, ...
+                 'DockControls', false, ...
                  'Menubar','none', ...
-                 'Toolbar','figure', ...
+                 'Toolbar','none', ...
                  'UserData',struct('view',iView), ...
                  'Tag', sprintf('figs_all(%d)', iView) ...
                  );
-        axs(iView) = axes('Parent', figs(iView),'Position',[0,0,1,1]);
-        obj.addSatellite(figs(iView)) ;
+        figs(iView) = thisfig ;
+        axs(iView) = axes('Parent', thisfig, 'Position', [0,0,1,1]) ;
+        obj.addSatellite(thisfig) ;
+
+        % Set up the figure toolbar how we want it
+        makeFigureToolbarAPTAppropriateBang(thisfig) ;
         
-        ims(iView) = imagesc(0,'Parent',axs(iView));
+        ims(iView) = imagesc(0,'Parent',axs(iView));  % N.B.: this clears any Tag property set on the axes...
         set(ims(iView),'PickableParts','none');
         %axisoff(axs(iView));
-        hold(axs(iView),'on');
+        hold(axs(iView),'on');  % Do we still need/want this?
         set(axs(iView),'Color',[0 0 0]);
+        set(axs(iView),'Tag','axes_curr');
         
         axparent = axs(iView).Parent;
         axpos = axs(iView).Position;
@@ -1791,10 +1797,15 @@ classdef LabelerController < handle
         axsOcc(iView) = ...
           axes('Parent',axparent,'Position',axpos,'Units',axunits,...
                'Color',[0 0 0],'Box','on','XTick',[],'YTick',[],'XColor',axOcc1XColor,...
-               'YColor',axOcc1XColor);
+               'YColor',axOcc1XColor, ...
+               'Tag', 'axes_occ') ;
         hold(axsOcc(iView),'on');
         axis(axsOcc(iView),'ij');
-      end
+
+        % Hide axes toolbar
+        axes_toolbar = axtoolbar(axs(iView), 'default');
+        axes_toolbar.Visible = 'off';        
+      end  % for loop over non-primary view figures
       obj.figs_all = figs;
       obj.axes_all = axs;
       obj.images_all = ims;
@@ -2746,14 +2757,14 @@ classdef LabelerController < handle
 
 
     function cbkTrackerHideVizChanged(obj)
-      lObj = obj.labeler_ ;
-      tracker = lObj.tracker ;
+      % lObj = obj.labeler_ ;
+      % tracker = lObj.tracker ;
       obj.updateShowPredMenus()
     end  % function
 
     function cbkTrackerShowPredsCurrTargetOnlyChanged(obj)
-      lObj = obj.labeler_ ;
-      tracker = lObj.tracker ;
+      % lObj = obj.labeler_ ;
+      % tracker = lObj.tracker ;
       obj.updateShowPredMenus();
       % obj.menu_view_showhide_preds_curr_target_only.Checked = onIff(tracker.showPredsCurrTargetOnly) ;
       % obj.menu_view_showhide_preds_all_targets.Checked = onIff(~tracker.showPredsCurrTargetOnly) ;
@@ -3025,12 +3036,12 @@ classdef LabelerController < handle
     end  % function
 
     function cbkLabels2HideChanged(obj, varargin)  
-      labeler = obj.labeler_ ;
+      % labeler = obj.labeler_ ;
       obj.updateShowImportedPredMenus(varargin{:});
     end  % function
 
     function cbkLabels2ShowCurrTargetOnlyChanged(obj, varargin)  
-      labeler = obj.labeler_ ;       
+      % labeler = obj.labeler_ ;       
       obj.updateShowImportedPredMenus(varargin{:});
     end  % function
 
@@ -3058,7 +3069,7 @@ classdef LabelerController < handle
     end
 
     function cbkShowTrxChanged(obj, varargin)
-      labeler = obj.labeler_ ;
+      % labeler = obj.labeler_ ;
       obj.updateTrxMenuCheckEnable(varargin{:});
     end  % function
 
@@ -3070,7 +3081,7 @@ classdef LabelerController < handle
     end  % function
 
     function cbkShowTrxCurrTargetOnlyChanged(obj, varargin)
-      labeler = obj.labeler_ ;
+      % labeler = obj.labeler_ ;
       obj.updateTrxMenuCheckEnable(varargin{:});
     end  % function
 
@@ -4959,7 +4970,7 @@ classdef LabelerController < handle
       obj.quitRequested() ;
     end
 
-    function menu_view_hide_trajectories_actuated_(obj,src,evt)
+    function menu_view_hide_trajectories_actuated_(obj, src, evt) %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setShowTrx(~labeler.showTrx);
       obj.updateTrxMenuCheckEnable(src);      
@@ -4997,7 +5008,7 @@ classdef LabelerController < handle
       labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
     end
 
-    function menu_view_fps_actuated_(obj,src,evt)
+    function menu_view_fps_actuated_(obj,src,evt)  %#ok<INUSD>
       % redundant with Go > Navigation preferences, but hard to find
       labeler = obj.labeler_ ;
       labeler.navPrefsUI();
@@ -5094,12 +5105,12 @@ classdef LabelerController < handle
       end
     end
 
-    function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
-      ax = obj.axes_curr;
-      onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
-      ax.Toolbar.Visible = onoff;
-      src.Checked = onoff;
-    end
+    % function menu_view_show_axes_toolbar_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   ax = obj.axes_curr;
+    %   onoff = fif(strcmp(src.Checked,'on'), 'off', 'on') ;  % toggle it
+    %   ax.Toolbar.Visible = onoff;
+    %   src.Checked = onoff;
+    % end
 
 
 
@@ -5181,15 +5192,14 @@ classdef LabelerController < handle
 
     end
 
-    function menu_view_hide_predictions_actuated_(obj,src,evt)
+    function menu_view_hide_predictions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       tracker = labeler.tracker;
       if ~isempty(tracker)
         tracker.setHideViz(~tracker.hideViz); % toggle
         obj.updateShowPredMenus();
       end
-
-    end
+    end  % function
 
 
     function menu_view_showhide_imported_preds_all_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5230,7 +5240,7 @@ classdef LabelerController < handle
 
     end
 
-    function menu_view_hide_imported_predictions_actuated_(obj,src,evt)
+    function menu_view_hide_imported_predictions_actuated_(obj,src,evt)  %#ok<INUSD>
 
       labeler = obj.labeler_ ;
       labeler.labels2VizToggle();
@@ -6143,8 +6153,8 @@ classdef LabelerController < handle
         obj.splashScreenFigureOrEmpty_ = [] ;
         return
       end
-      main_figure = obj.mainFigure_ ;
-      refocusSplashScreen(hfigsplash, main_figure) ;
+      % main_figure = obj.mainFigure_ ;
+      % refocusSplashScreen(hfigsplash, main_figure) ;  % why refocus on the splash screen just before deleting it?  -- ALT, 2025-07-08
       delete(hfigsplash) ;
       obj.splashScreenFigureOrEmpty_ = [] ;
     end
