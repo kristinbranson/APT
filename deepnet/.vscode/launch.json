@@ -171,34 +171,6 @@
             "program": "test_grone_tracking_on_sam2view.py",
             "console": "integratedTerminal",
             "justMyCode": false
-        },
-        {
-            "name": "ma track",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/APT_interface.py",
-            "args": [
-                "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be/multiflyMA/20250626T221020_20250626T221020.json",
-                "-name", "20250626T221020",
-                "-stage", "multi",
-                "-type", "detect_mmdetect", "-model_files", "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be/multiflyMA/detect_mmdetect/view_0/20250626T221020/deepnet-40000",
-                "-type2", "hrnet",
-                "-model_files2", "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be/multiflyMA/hrnet/view_0/20250626T221020/deepnet-20000",
-                "-name2", "20250626T221020",
-                "-ignore_local", "1",
-                "-cache", "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be", "track",
-                "-config_file", "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be/multiflyMA/detect_mmdetect/view_0/20250626T221020/trk/trkconfig_movie_31db65_trn20250626T221020_view0_iter40000_20250707T133315.json",
-                "-track_type", "only_predict",
-                "-out", "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be/multiflyMA/hrnet/view_0/20250626T221020/trk/movie_31db65_trn20250626T221020_view0_iter20000_20250707T133315.trk",
-                "-mov", "/groups/branson/bransonlab/DataforAPT/FlyBubble/APTtrackerData/cx_GMR_SS00006_CsChr_RigC_20151014T093157/movie.ufmf",
-                "-start_frame", "27768",
-                "-end_frame", "27968",
-                "-trx", "/groups/branson/home/bransonk/.apt/tpe730d3c6_85fc_4680_9cec_b0b8a74601be/multiflyMA/detect_mmdetect/view_0/20250626T221020/trk/movie_31db65_trn20250626T221020_view0_iter40000_20250707T133315.trk"
-            ],
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "stopOnEntry": false,
-            "env": {}
-        },
+        }
     ]
 }

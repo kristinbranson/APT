@@ -3758,6 +3758,68 @@ classdef Labeler < handle
       end
     end
 
+    function rereadMovieInfo(obj,updatetrackers)
+      % there was a bug in ufmf movie info, reread all movie info
+      % also updates the json file for each trained tracker
+      mr = MovieReader();
+      for isgt = [false,true],
+        if isgt,
+          movfiles = obj.movieFilesAllGTFull;
+        else
+          movfiles = obj.movieFilesAllFull;
+        end
+        nMov = numel(movfiles);
+        for iMov = 1:nMov
+          movfile = movfiles{iMov};
+          mr.open(movfile);
+          ifo = struct();
+          ifo.nframes = mr.nframes;
+          ifo.info = mr.info;
+          mr.close();
+          fprintf('Before update, movie %d info: \n',iMov);
+          if isgt,
+            disp(obj.movieInfoAllGT{iMov}.info);
+            obj.movieInfoAllGT{iMov} = ifo;
+          else
+            disp(obj.movieInfoAll{iMov}.info);
+            obj.movieInfoAll{iMov} = ifo;
+          end
+          fprintf('updated to: \n');
+          disp(ifo.info);
+        end
+      end
+
+      istracker = cellfun(@(x) ~isempty(x) && x.canTrack, obj.trackerHistory);
+      if any(istracker),
+        if nargin < 2,
+          res = questdlg('Update trackers too?','Update trackers?','Yes','No','Yes');
+          updatetrackers = strcmpi(res,'Yes');
+        end
+        if updatetrackers,
+
+          mia = cellfun(@(x)struct('NumRows',x.info.nr,...
+            'NumCols',x.info.nc),obj.movieInfoAll);
+          for ivw=1:size(mia,2)
+            nr = [mia(:,ivw).NumRows];
+            nc = [mia(:,ivw).NumCols];
+            assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);
+          end
+
+          for i = find(istracker(:)'),
+            dmc = obj.trackerHistory{i}.trnLastDMC;
+            nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
+            trainConfig = wsl_path_from_native(nativeTrainConfig) ;
+            if exist(trainConfig,'file')
+              js = TrnPack.hlpLoadJson(trainConfig);
+              js.MovieInfo = mia(1,:);
+              TrnPack.hlpSaveJson(js,trainConfig);
+            end
+          end
+        end
+      end
+
+    end
+
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
