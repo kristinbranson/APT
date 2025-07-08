@@ -838,11 +838,11 @@ classdef TrkFile < dynamicprops
         cur_s = 0;
         for ndx = 1:nobj
           tgt_starts(ndx) = cur_s;
-          itgtsAll{ndx} = allobjs{ndx}.pTrkiTgt + cur_s;
+          itgtsAll{ndx} = allobjs{ndx}.pTrkiTgt(:) + cur_s;
           cur_s = cur_s + numel(allobjs{ndx}.pTrkiTgt);
         end
       else
-        itgtsAll = cellfun(@(x)x.pTrkiTgt,allobjs,'uni',0);
+        itgtsAll = cellfun(@(x)x.pTrkiTgt(:),allobjs,'uni',0);
       end
       %sfsAll = {allobjs.startframes};
       %efsAll = {allobjs.endframes};

@@ -115,7 +115,7 @@ classdef MFTable
       tf(idx) = tf(idx) & (tbl(idx,:).frm >= row.frm);
       % for labels on the same movie and frame, if tbl.iTgt < row.iTgt, false
       idx = idx & (tbl.frm == row.frm);
-      if ~isnan(row.iTgt),
+      if ~MFTable.isTgtUnset(row),
         tf(idx) = tf(idx) & (tbl(idx,:).iTgt >= row.iTgt);
         idx = idx & (tbl.iTgt == row.iTgt);
       end
@@ -441,7 +441,7 @@ classdef MFTable
     end
 
     function v = isTgtUnset(tblMFT)
-      v = isnan(tblMFT.iTgt);
+      v = isnan(tblMFT.iTgt) | (tblMFT.iTgt==0);
     end
 
     function tblMFT = unsetTgt(tblMFT)

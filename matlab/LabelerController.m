@@ -983,7 +983,7 @@ classdef LabelerController < handle
         % note that we might have only a subset of views that are valid
         % for a given example, maybe should fix that
 
-        % this reshape makes (nframes*nanimals) x npts
+        % this reshape makes (nframes*maxnanimals) x npts
         l2err_reshaped = reshape(l2err,[],npts);  
         valid = ~all(isnan(l2err_reshaped),2);
         l2err_reshaped = reshape(l2err_reshaped,[],npts);
@@ -994,6 +994,10 @@ classdef LabelerController < handle
         exampleLbl = reshape(exampleLbl,1,[]);
       else        
         % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
+        % probably don't need to filter for either, since computations are
+        % nan-robust. But, the multi-animal mode has lots of extra nans
+        % because it is represented as matrices with maxnanimals as one of
+        % its dimensions
         valid = ~all(isnan(l2err),2);
         l2err_filtered = l2err(valid,:);
         exampleLbl = t(1,:).pLbl;

@@ -3789,6 +3789,9 @@ classdef DeepTracker < LabelTracker
             trkfilesI(:,ivw),'uni',0);
           tfsuccload = cell2mat(tfsuccload);
           trkfilesIobj = trkfilesIobj(tfsuccload);
+          hasdata = cellfun(@(trk) trk.hasdata(),trkfilesIobj);
+          trkfilesIobj = trkfilesIobj(hasdata);
+
           if isempty(trkfilesIobj)
             % if all loads failed
             % none; trkfiles, tfHasRes OK

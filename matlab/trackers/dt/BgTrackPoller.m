@@ -62,7 +62,7 @@ classdef BgTrackPoller < BgPoller
     function sz = get.resultSize(obj)
       if strcmp(obj.trackType_,'list'),
         sz = [obj.njobs,1,1];
-      elseif strcmp(obj.trackerType_,'movie'),
+      elseif strcmp(obj.trackType_,'movie'),
         sz = [obj.nMovies,obj.nViews,obj.nStages];
       else
         sz = [];

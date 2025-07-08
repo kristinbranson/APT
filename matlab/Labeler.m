@@ -9571,6 +9571,7 @@ classdef Labeler < handle
       if isequal(tblMFT,[])
         fprintf(1,'Setting to-label list for groundtruthing to all current groundtruth labels...\n');
         tblMFT = obj.labelGetMFTableLabeled('useTrain',0,'mftonly',true);
+        tblMFT = unique(tblMFT,'rows');
         fprintf(1,'... found %d groundtruth labels.\n',height(tblMFT));
       end
       
