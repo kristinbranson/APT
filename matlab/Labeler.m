@@ -6996,7 +6996,7 @@ classdef Labeler < handle
           fprintf('No labels found');
         end
       end
-
+      obj.updateMovieFilesAllHaveLbls();
       obj.updateFrameTableComplete();
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
@@ -14059,6 +14059,13 @@ classdef Labeler < handle
       tx = obj.controller_.txTotalFramesLabeled;
       tx.String = num2str(nTgtsTot);
     end    
+    
+    function updateMovieFilesAllHaveLbls(obj)
+      fcnNumLbledRows = @Labels.numLbls;
+      obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labels);
+      obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);
+    end
+
     function updateFrameTableComplete(obj)
       [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
       tfFrm = nTgts>0 | nPts>0 | nRois>0;
