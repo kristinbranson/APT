@@ -6,11 +6,12 @@ addToolbarExplorationButtons(fig) ;
   % N.B.: this sets fig.MenuBar to 'figure'
 
 % Make sure the menubar and toolbar are showing
-fig.MenuBar = 'figure' ;
+fig.MenuBar = fif(strcmp(fig.Tag, 'main_figure'), 'figure', 'none') ;
 fig.ToolBar = 'figure' ;
+fig.DockControls = false ;
 
 % Delete all the default menubar items
-pulldownMenus = findall(fig,'type','uimenu');
+pulldownMenus = findall(fig,'type','uimenu') ;
 deleteValidGraphicsHandles(pulldownMenus) ;
 
 % Delete all the toolbar buttons we don't want.
