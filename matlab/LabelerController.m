@@ -1781,7 +1781,7 @@ classdef LabelerController < handle
         obj.addSatellite(thisfig) ;
 
         % Set up the figure toolbar how we want it
-        makeFigureToolbarAPTAppropriateBang(thisfig) ;
+        makeFigureMenubarAndToolbarAPTAppropriateBang(thisfig) ;
         
         ims(iView) = imagesc(0,'Parent',axs(iView));  % N.B.: this clears any Tag property set on the axes...
         set(ims(iView),'PickableParts','none');

@@ -1,9 +1,19 @@
-function makeFigureToolbarAPTAppropriateBang(fig)
+function makeFigureMenubarAndToolbarAPTAppropriateBang(fig)
 % Delete buttons from the figure toolbar that are not wanted in APT, etc
 
 % Want the zoom/pan buttons in the figure toolbar
-addToolbarExplorationButtons(fig) ;
+addToolbarExplorationButtons(fig) ;  
+  % N.B.: this sets fig.MenuBar to 'figure'
 
+% Make sure the menubar and toolbar are showing
+fig.MenuBar = 'figure' ;
+fig.ToolBar = 'figure' ;
+
+% Delete all the default menubar items
+pulldownMenus = findall(fig,'type','uimenu');
+deleteValidGraphicsHandles(pulldownMenus) ;
+
+% Delete all the toolbar buttons we don't want.
 hs = findall(fig,'type','uitoolbar');
 KEEP = {'Exploration.Rotate' 'Exploration.Pan' 'Exploration.ZoomOut' ...
         'Exploration.ZoomIn'};
