@@ -212,14 +212,11 @@ handles.tbl = unique([tbl_sugg;tbl_label],'rows');
 
 handles.err = hlpGetGTErr(handles.tbl,lObj);
 handles.hasLbl = lObj.getIsLabeledGT(handles.tbl);
-[handles.iMovUn,handles.movidx] = unique(handles.tbl.mov);
+iMovUnAbs = (1:lObj.nmoviesGT)';
+handles.iMovUn = MovieIndex(iMovUnAbs,true);
+
 % replace .mov with strings
 iMov = handles.tbl.mov;
-[iMovUnAbs,gt] = handles.iMovUn.get;
-assert(all(gt));
-[iMovUnAbs,order] = sort(iMovUnAbs);
-handles.iMovUn = handles.iMovUn(order);
-handles.movidx = handles.movidx(order);
 iMovUnLabeledCnt = arrayfun(@(x)nnz(x==iMov&handles.hasLbl),handles.iMovUn);
 iMovUnToLabelCnt = arrayfun(@(x)nnz(x==iMov&~handles.hasLbl),handles.iMovUn);
 movStrsUn = lObj.getMovieFilesAllFullMovIdx(handles.iMovUn);
@@ -227,7 +224,7 @@ movStrsUn = lObj.getMovieFilesAllFullMovIdx(handles.iMovUn);
 % movstrs = movstrs(:,1);
 % movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
 
-movTableData = [num2cell(iMovUnAbs(:)),movStrsUn,num2cell(iMovUnToLabelCnt(:)),num2cell(iMovUnLabeledCnt)];
+movTableData = [num2cell(iMovUnAbs(:)),movStrsUn(:,1),num2cell(iMovUnToLabelCnt(:)),num2cell(iMovUnLabeledCnt)];
 
 handles.tblGTMovie.Data = movTableData;
 

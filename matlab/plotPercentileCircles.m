@@ -18,6 +18,7 @@ if numel(hpar) == 1 && strcmpi(hpar.Type,'figure'),
   hax = createsubplots(1,nviews,.01,hfig);
 else
   hax = hpar;
+  hfig = get(hax(1),'Parent');
 end
 
 nprctiles = size(prcs,1);
@@ -48,8 +49,11 @@ if islight,
   colors = colors*.75;
   kpcolor = kpcolor*.75;
   tcol = 'k';
+  axescolor = 'w';
 else
+  colors = .25 + colors*.75;
   tcol = 'w';
+  axescolor = 'k';
 end
 
 hcirc = gobjects(nprctiles+1,1);
@@ -60,7 +64,7 @@ for viewi = 1:nviews
     curim = repmat(curim(:,:,1),[1,1,3]);
   end
   image(curim,'Parent',hax(viewi));
-  axis(hax(viewi),'image','off');
+  axis(hax(viewi),'image');
   hold(hax(viewi),'on');
   hcirc(1) = plot(hax(viewi),labels(:,1,viewi),labels(:,2,viewi),'+','Color',kpcolor);
   for l=1:nlandmarks
@@ -83,8 +87,9 @@ for viewi = 1:nviews
     text(5,5,s,'Color',tcol,'Parent',hax(viewi),...
       'VerticalAlignment','top');
   end
+  set(hax(viewi),'Color',axescolor,'XColor',tcol,'YColor',tcol,'XTick',[],'YTick',[]);
 end
-
+set(hfig,'Color',axescolor);
 
 legends = cell(nprctiles+1,1);
 legends{1} = 'Label';
@@ -92,6 +97,5 @@ for p = 1:nprctiles,
   legends{p+1} = sprintf('%sth %%ile',num2str(prc_vals(p)));
 end
 hl = legend(hcirc,legends,'Location','NorthEastOutside');
-if ~islight,
-  set(hl,'Color','k','TextColor','w');
-end
+set(hl,'Color',axescolor,'TextColor',tcol,'EdgeColor',tcol);
+set(hl,'Position',get(hl,'Position')*1.000001)

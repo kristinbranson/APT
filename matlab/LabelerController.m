@@ -998,6 +998,7 @@ classdef LabelerController < handle
         % nan-robust. But, the multi-animal mode has lots of extra nans
         % because it is represented as matrices with maxnanimals as one of
         % its dimensions
+        % l2err is nframes x (nphyspt*nviews)
         valid = ~all(isnan(l2err),2);
         l2err_filtered = l2err(valid,:);
         exampleLbl = t(1,:).pLbl;
@@ -1019,7 +1020,7 @@ classdef LabelerController < handle
       prcs = reshape(prcs,[],nphyspt,nviews);
       nperkp = sum(~isnan(l2err_filtered),1);
       nperkp = reshape(nperkp,[nphyspt,nviews]);
-      ntotal = sum(~all(isnan(l2err_filtered),2),1);
+      ntotal = sum(~all(isnan(reshape(l2err_filtered,[],nphyspt,nviews)),2),1);
       ntotal = reshape(ntotal,[nviews,1]);
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
       islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal);
