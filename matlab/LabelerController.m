@@ -1367,7 +1367,7 @@ classdef LabelerController < handle
       set(obj.menu_labeling_setup,'Enable',onIff(hasMovie));
       set(obj.menu_go,'Enable',onIff(hasMovie));
       set(obj.menu_track,'Enable',onIff(hasMovie));
-      set(obj.menu_evaluate,'Enable',onIff(hasMovie));
+      set(obj.menu_evaluate,'Enable',onIff(hasMovie||isInGTMode));
       set(obj.menu_help,'Enable','on');
       if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
         set(obj.menu_debug,'Enable',onIff(hasProject)) ;
@@ -4318,7 +4318,8 @@ classdef LabelerController < handle
       obj.menu_file_managemovies_actuated_(src, evt) ;
     end
 
-    function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
+    function ShowMovieManager(obj)
+
       labeler = obj.labeler_ ;
 
       labeler.pushBusyStatus('Opening Movie Manager...') ;  % Want to do this here, b/c the stuff in this method can take a while
@@ -4329,11 +4330,12 @@ classdef LabelerController < handle
       else
         obj.movieManagerController_ = MovieManagerController(obj.labeler_);
       end
-      % if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
-      %   obj.movieManagerController_.setVisible(true);
-      % else
-      %   error('LabelerGUI:movieManagerController','Please create or load a project.');
-      % end
+
+    end
+
+    function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.ShowMovieManager();
+
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5644,6 +5646,9 @@ classdef LabelerController < handle
       labeler.gtToggleGTMode() ;
       if labeler.gtIsGTMode,
         obj.gtShowGTManager();
+        if ~obj.labeler_.hasMovie,
+          obj.ShowMovieManager();
+        end
       else
         obj.gtCloseGTManager();
       end
