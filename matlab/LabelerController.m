@@ -57,6 +57,7 @@ classdef LabelerController < handle
     menu_evaluate_gtcomputeperfimported
     menu_evaluate_gtexportresults
     menu_evaluate_gtloadsuggestions
+    menu_evaluate_gtsavesuggestions
     menu_evaluate_gtmode
     menu_evaluate_gt_frames
     menu_evaluate_gtsetsuggestions
@@ -307,11 +308,11 @@ classdef LabelerController < handle
       % % Populate the callbacks of the controls in the main figure---someday
       % apt.populate_callbacks_bang(mainFigure, obj) ;
 
-      % Create the waitbar figure, which we re-use  
-      obj.waitbarFigure_ = waitbar(0, '', ...
-                                   'Visible', 'off', ...
-                                   'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
-      obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
+      % Create the waitbar on demand
+      % obj.waitbarFigure_ = waitbar(0, '', ...
+      %                              'Visible', 'off', ...
+      %                              'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
+      % obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
         
       % Add some controls to the UI that we can set up before there is a project
       obj.initialize_menu_track_backend_config_() ;
@@ -581,7 +582,7 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
-      delete(obj.movieManagerController_) ;
+      deleteValidGraphicsHandles(obj.movieManagerController_) ;
       deleteValidGraphicsHandles(obj.mainFigure_) ;
       % In principle, a controller shouldn't delete its model---the model should be
       % allowed to persist until there are no more references to it.  
@@ -590,7 +591,7 @@ classdef LabelerController < handle
       % there's still a reference to it in the top level scope.
       delete(obj.labeler_) ;
     end  % function
-    
+
     function updateDoesNeedSave(obj, ~, ~)      
       labeler = obj.labeler_ ;
       doesNeedSave = labeler.doesNeedSave ;
@@ -627,7 +628,7 @@ classdef LabelerController < handle
       if ~isempty(obj.trackingMonitorVisualizer_) && isvalid(obj.trackingMonitorVisualizer_)
         obj.trackingMonitorVisualizer_.updatePointer() ;
       end
-      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_)
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid()
         obj.movieManagerController_.updatePointer() ;
       end
 
@@ -640,7 +641,6 @@ classdef LabelerController < handle
         interpolate_status_string(raw_status_string, has_project, project_file_path) ;
       set(obj.txStatus,'String',status_string) ;
       % If the textbox is overstuffed, change to the shorter status string
-      drawnow('nocallbacks') ;  % Make sure extent is accurate
       extent = get(obj.txStatus,'Extent') ;  % reflects the size fo the String property
       position = get(obj.txStatus,'Position') ;  % reflects the size of the text box
       string_width = extent(3) ;
@@ -657,7 +657,7 @@ classdef LabelerController < handle
       end
 
       % Make sure to update graphics now
-      drawnow('nocallbacks');
+      %drawnow('nocallbacks');
     end
 
     function updateBackgroundProcessingStatus_(obj)
@@ -945,22 +945,22 @@ classdef LabelerController < handle
       % Raises a dialog, and registers it as a 'satellite' window so we can delete
       % it when the main window closes.
       obj.createGTResultFigures_() ;
-      h = msgbox('GT results available in Labeler property ''gtTblRes''.');
       % obj.satellites_(1,end+1) = h ;  % register dialog to we can delete when main window closes
-      obj.addSatellite(h) ;  % register dialog to we can delete when main window closes
     end
 
     function createGTResultFigures_(obj, varargin)
       labeler = obj.labeler_ ;      
+      plotParams = labeler.gtPlotParams;
       t = labeler.gtTblRes;
 
-      [fcnAggOverPts,aggLabel] = ...
+      [fcnAggOverPts,aggLabel,lbli] = ...
         myparse(varargin,...
                 'fcnAggOverPts',@(x)max(x,[],ndims(x)), ... % or eg @mean
-                'aggLabel','Max' ...
+                'aggLabel','Max', ...
+                'lbli',1 ... % which example to plot
                 );
       
-      l2err = t.L2err;  % For single-view MA, nframes x nanimals x npts.  For single-view SA, nframes x npts
+      l2err = t.L2err;  % For MA, nframes x nanimals x npts.  For SA, nframes x npts
       aggOverPtsL2err = fcnAggOverPts(l2err);  
         % t.L2err, for a single-view MA project, seems to be 
         % ground-truth-frame-count x animal-count x keypoint-count, and
@@ -976,119 +976,75 @@ classdef LabelerController < handle
         warningNoTrace('Labeler:gt',...
           'Number of colors do not match number of points.');
       end
-
-      if ndims(l2err) == 3
-        l2err_reshaped = reshape(l2err,[],npts);  % For single-view MA, (nframes*nanimals) x npts
-        valid = ~all(isnan(l2err_reshaped),2);
-        l2err_filtered = l2err_reshaped(valid,:);  % For single-view MA, nvalidanimalframes x npts
-      else        
-        % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
-        l2err_filtered = l2err ;
-      end
       nviews = labeler.nview;
       nphyspt = npts/nviews;
-      prc_vals = [50,75,90,95,98];
-      prcs = prctile(l2err_filtered,prc_vals,1);
-      prcs = reshape(prcs,[],nphyspt,nviews);
-      lpos = t(1,:).pLbl;
-      if ndims(lpos)==3
-        lpos = squeeze(lpos(1,1,:));
-      else
-        lpos = squeeze(lpos(1,:));
+
+      if labeler.maIsMA,
+        % note that we might have only a subset of views that are valid
+        % for a given example, maybe should fix that
+
+        % this reshape makes (nframes*maxnanimals) x npts
+        l2err_reshaped = reshape(l2err,[],npts);  
+        valid = ~all(isnan(l2err_reshaped),2);
+        l2err_reshaped = reshape(l2err_reshaped,[],npts);
+        % nvalidanimalframes x npts
+        l2err_filtered = l2err_reshaped(valid,:);
+
+        exampleLbl = t(1,:).pLbl(:,1,:);
+        exampleLbl = reshape(exampleLbl,1,[]);
+      else        
+        % Why don't we need to filter for e.g. single-view SA?  -- ALT, 2024-11-21
+        % probably don't need to filter for either, since computations are
+        % nan-robust. But, the multi-animal mode has lots of extra nans
+        % because it is represented as matrices with maxnanimals as one of
+        % its dimensions
+        % l2err is nframes x (nphyspt*nviews)
+        valid = ~all(isnan(l2err),2);
+        l2err_filtered = l2err(valid,:);
+        exampleLbl = t(1,:).pLbl;
       end
-      lpos = reshape(lpos,npts,2);
-      allims = cell(1,nviews);
-      allpos = zeros([nphyspt,2,nviews]);
-      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
-      for view = 1:nviews
-        curl = lpos( ((view-1)*nphyspt+1):view*nphyspt,:);
-        [im,isrotated,~,~,A] = labeler.readTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),view);
-        if isrotated
-          curl = [curl,ones(nphyspt,1)]*A;
-          curl = curl(:,1:2);
-        end
-        minpos = min(curl,[],1);
-        maxpos = max(curl,[],1);
-        centerpos = (minpos+maxpos)/2;
-        % border defined by borderfrac
-        r = max(1,(maxpos-minpos));
-        xlim = round(centerpos(1)+[-1,1]*r(1));
-        ylim = round(centerpos(2)+[-1,1]*r(2));
-        xlim = min(size(im,2),max(1,xlim));
-        ylim = min(size(im,1),max(1,ylim));
-        im = im(ylim(1):ylim(2),xlim(1):xlim(2),:);
-        curl(:,1) = curl(:,1)-xlim(1);
-        curl(:,2) = curl(:,2)-ylim(1);
-        allpos(:,:,view) = curl;
-        allims{view} = im;
-      end  % for
-      
-      fig_1 = figure('Name','GT err percentiles');
+
+      units = get(obj.mainFigure_,'Units');
+      set(obj.mainFigure_,'Units','pixels');
+      mainfig_pos = get(obj.mainFigure_,'Position');
+      set(obj.mainFigure_,'Units',units);
+      hmain = mainfig_pos(end);
+
+      % circles around keypoints indicating prctiles of error
+      fig_1 = figure('Name','Groundtruth error percentiles');
       %obj.satellites_(1,end+1) = fig_1 ;
       obj.addSatellite(fig_1) ;
-      plotPercentileHist(allims,prcs,allpos,prc_vals,fig_1,txtOffset)
+
+      [allims,allpos] = labeler.cropTargetImageFromMovie(t.mov(1),t.frm(1),t.iTgt(1),exampleLbl);
+      prcs = prctile(l2err_filtered,plotParams.prc_vals,1);
+      prcs = reshape(prcs,[],nphyspt,nviews);
+      nperkp = sum(~isnan(l2err_filtered),1);
+      nperkp = reshape(nperkp,[nphyspt,nviews]);
+      ntotal = sum(~all(isnan(reshape(l2err_filtered,[],nphyspt,nviews)),2),1);
+      ntotal = reshape(ntotal,[nviews,1]);
+      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
+      islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal);
+      figh = hmain*.75;
+      hpx = max(cellfun(@(x) size(x,1),allims));
+      wpx = sum(cellfun(@(x) size(x,2),allims));
+      figw = figh*wpx/hpx+200;
+      set(fig_1,'Position',[10,10,figw,figh]);
+      centerfig(fig_1, obj.mainFigure_);
 
       % Err by landmark
-      fig_2 = figure('Name','GT err by landmark');
+      fig_2 = figure('Name','Groundtruth error per keypoint');
       %obj.satellites_(1,end+1) = fig_2 ;
       obj.addSatellite(fig_2) ;
-      ax = axes(fig_2) ;
-      boxplot(ax,l2err_filtered,'colors',clrs,'boxstyle','filled');
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Landmark/point',args{:});
-      if nviews>1
-        xtick_str = {};
-        for view = 1:nviews
-          for n = 1:nphyspt
-            if n==1
-              xtick_str{end+1} = sprintf('View %d -- %d',view,n); %#ok<AGROW> 
-            else
-              xtick_str{end+1} = sprintf('%d',n); %#ok<AGROW> 
-            end
-          end
-        end
-        xticklabels(xtick_str)
-      end
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,'GT err by landmark',args{:});
-      ax.YGrid = 'on';
-      
-      % AvErrAcrossPts by movie
-      tstr = sprintf('%s (over landmarks) GT err by movie',aggLabel);
-      fig_3 = figurecascaded(fig_2,'Name',tstr);
-      % obj.satellites_(1,end+1) = fig_3 ;
-      obj.addSatellite(fig_3) ;      
-      ax = axes(fig_3);
-      [iMovAbs,gt] = t.mov.get();  % both outputs are nframes x 1
-      assert(all(gt));
-      grp = categorical(iMovAbs);
-      if ndims(aggOverPtsL2err)==3
-        taggerr = permute(aggOverPtsL2err,[1,3,2]);
-      else
-        taggerr = aggOverPtsL2err ;
-      end
-      % expand out grp to match elements of taggerr 1-to-1
-      assert(isequal(size(taggerr,1), size(grp,1))) ;
-      taggerr_shape = size(taggerr) ;
-      biggrp = repmat(grp, [1 taggerr_shape(2:end)]) ;
-      assert(isequal(size(taggerr), size(biggrp))) ;
-      % columnize
-      taggerr_column = taggerr(:) ;
-      grp_column = biggrp(:) ;
-      grplbls = arrayfun(@(z1,z2)sprintf('mov%s (n=%d)',z1{1},z2),...
-                         categories(grp_column),countcats(grp_column),...
-                         'UniformOutput',false);
-      boxplot(ax, ...
-              taggerr_column,...
-              grp_column,...
-              'colors',clrs,...
-              'boxstyle','filled',...
-              'labels',grplbls);
-      args = {'fontweight' 'bold' 'interpreter' 'none'};
-      xlabel(ax,'Movie',args{:});
-      ylabel(ax,'L2 err (px)',args{:});
-      title(ax,tstr,args{:});
-      ax.YGrid = 'on';
+      errs = reshape(l2err_filtered,[],nphyspt,nviews);
+      PlotErrorHists(errs,'hparent',fig_2,'kpcolors',clrs,...
+        'prcs',prcs,'prc_vals',plotParams.prc_vals,...
+        'nbins',plotParams.nbins,'maxprctile',plotParams.prc_vals(end),...
+        'kpnames',labeler.skelNames,'islight',islight,...
+        'nperkp',nperkp);
+      figh = hmain;
+      figw = figh/2*nviews;
+      set(fig_2,'Position',[10,10,figw,figh]);
+      centerfig(fig_2,obj.mainFigure_);
 %      
       % Mean err by movie, pt
 %       fig_4 = figurecascaded(fig_3,'Name','Mean GT err by movie, landmark');
@@ -1304,9 +1260,23 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function initWaitbar(obj)
+
+      if ~isempty(obj.waitbarFigure_) && ishandle(obj.waitbarFigure_),
+        return;
+      end
+      obj.waitbarFigure_ = waitbar(0, '', ...
+                                   'Visible', 'off', ...
+                                   'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
+      obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
+
+    end
+
+
     function armWaitbar(obj)
       % When we arm, want to re-center figure on main window, then do a normal
       % update.
+      obj.initWaitbar();
       centerOnParentFigure(obj.waitbarFigure_, obj.mainFigure_) ;
       obj.updateWaitbar() ;
     end
@@ -1334,7 +1304,6 @@ classdef LabelerController < handle
     function didLoadProject(obj)
       obj.updateTarget_();
       obj.updateEnablementOfManyControls() ;
-      obj.movieManagerController_.lblerLstnCbkProjLoaded() ;
     end
     
     function updateTarget_(obj)
@@ -1399,7 +1368,7 @@ classdef LabelerController < handle
       set(obj.menu_labeling_setup,'Enable',onIff(hasMovie));
       set(obj.menu_go,'Enable',onIff(hasMovie));
       set(obj.menu_track,'Enable',onIff(hasMovie));
-      set(obj.menu_evaluate,'Enable',onIff(hasMovie));
+      set(obj.menu_evaluate,'Enable',onIff(hasMovie||isInGTMode));
       set(obj.menu_help,'Enable','on');
       if ~isempty(obj.menu_debug) && isgraphics(obj.menu_debug)
         set(obj.menu_debug,'Enable',onIff(hasProject)) ;
@@ -1863,17 +1832,16 @@ classdef LabelerController < handle
       
       obj.labelTLInfo.initNewProject();
       
-      delete(obj.movieManagerController_) ;
-      obj.movieManagerController_ = MovieManagerController(labeler) ;
-      drawnow(); 
-        % 20171002 Without this drawnow(), new tabbed MovieManager shows up with 
-        % buttons clipped at bottom edge of UI (manually resizing UI then "snaps"
-        % buttons/figure back into a good state)   
-      obj.movieManagerController_.setVisible(false);
+      deleteValidGraphicsHandles(obj.movieManagerController_) ;
+      obj.movieManagerController_ = [];
+      % t0 = tic;
+      % obj.movieManagerController_ = MovieManagerController(labeler) ;
+      % fprintf('Creating movie manager takes %f s\n',toc(t0));
+      % obj.movieManagerController_.setVisible(false);
       
-      obj.GTManagerFigure = GTManager(labeler);
-      obj.GTManagerFigure.Visible = 'off';
-      obj.addSatellite(obj.GTManagerFigure) ;
+      % obj.GTManagerFigure = GTManager(labeler);
+      % obj.GTManagerFigure.Visible = 'off';
+      % obj.addSatellite(obj.GTManagerFigure) ;
     end  % function
 
     function menu_file_new_actuated_(obj, ~, ~)
@@ -1883,10 +1851,10 @@ classdef LabelerController < handle
         cfg = ProjectSetup(obj.mainFigure_);  % launches the project setup window
         if ~isempty(cfg)    
           labeler.projNew(cfg);
-          if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+          if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
             obj.movieManagerController_.setVisible(true);
           else
-            error('LabelerController:menu_file_new_actuated_', 'Please create or load a project.') ;
+            obj.movieManagerController_ = MovieManagerController(obj.labeler_);
           end
         end  
       end
@@ -3161,14 +3129,14 @@ classdef LabelerController < handle
       % not, and then also brings the movie manager window to the fore if we just
       % switched to GT mode.
       obj.updateGTModeRelatedControls() ;
-      mmc = obj.movieManagerController_ ;
-      if ~isempty(mmc) ,
-        labeler = obj.labeler_ ;     
-        gt = labeler.gtIsGTMode ;
-        if gt
-          mmc.bringWindowToFront() ;
-        end
-      end      
+      % mmc = obj.movieManagerController_ ;
+      % if ~isempty(mmc) ,
+      %   labeler = obj.labeler_ ;     
+      %   gt = labeler.gtIsGTMode ;
+      %   if gt
+      %     mmc.bringWindowToFront() ;
+      %   end
+      % end      
     end
 
     function updateGTModeRelatedControls(obj)
@@ -3180,15 +3148,15 @@ classdef LabelerController < handle
       obj.menu_evaluate_gt_frames.Visible = onIffGT;
       obj.update_menu_evaluate() ;
       obj.txGTMode.Visible = onIffGT;
-      if ~isempty(obj.GTManagerFigure)
-        obj.GTManagerFigure.Visible = onIffGT;
-      end
+      % if ~isempty(obj.GTManagerFigure)
+      %   obj.GTManagerFigure.Visible = onIffGT;
+      % end
       obj.updateHighlightingOfAxes();
       obj.labelTLInfo.cbkGTIsGTModeUpdated() ;
-      mmc = obj.movieManagerController_ ;
-      if ~isempty(mmc) ,
-        mmc.lblerLstnCbkGTMode() ;
-      end
+      % mmc = obj.movieManagerController_ ;
+      % if ~isempty(mmc) ,
+      %   mmc.lblerLstnCbkGTMode() ;
+      % end
     end
 
     function update_menu_evaluate(obj)
@@ -3197,6 +3165,7 @@ classdef LabelerController < handle
       onIffGT = onIff(gt) ;
       obj.menu_evaluate_gtmode.Checked = onIffGT;
       obj.menu_evaluate_gtloadsuggestions.Visible = onIffGT;
+      obj.menu_evaluate_gtsavesuggestions.Visible = onIffGT;
       obj.menu_evaluate_gtsetsuggestions.Visible = onIffGT;
       obj.menu_evaluate_gtcomputeperf.Visible = onIffGT;
       obj.menu_evaluate_gtcomputeperfimported.Visible = onIffGT;
@@ -3660,7 +3629,8 @@ classdef LabelerController < handle
       % drop into Java and not super simple.
       % - Don't use uitables, or use them in a separate figure window.
 
-      uicontrol(obj.txStatus);
+      obj.mainFigure_.CurrentObject = obj.axes_curr;
+      %uicontrol(obj.txStatus);
     end
 
     function tblFrames_cell_selected_(obj, src, evt)
@@ -4341,15 +4311,15 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
         currMovInfo = labeler.projLoadGUI();
-        if ~isempty(currMovInfo)
-          obj.movieManagerController_.setVisible(true);
-          wstr = ...
-            sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
-                            'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
-                    currMovInfo.iMov, ...
-                    currMovInfo.badfile);
-          warndlg(wstr,'Movie not found','modal');
-        end
+        % if ~isempty(currMovInfo)
+        %   obj.movieManagerController_.setVisible(true);
+        %   wstr = ...
+        %     sprintf(strcatg('Could not find file for movie(set) %d: %s.\n\nProject opened with no movie selected. ', ...
+        %                     'Double-click a row in the MovieManager or use the ''Switch to Movie'' button to start working on a movie.'), ...
+        %             currMovInfo.iMov, ...
+        %             currMovInfo.badfile);
+        %   warndlg(wstr,'Movie not found','modal');
+        % end
       end
     end
 
@@ -4357,13 +4327,24 @@ classdef LabelerController < handle
       obj.menu_file_managemovies_actuated_(src, evt) ;
     end
 
-    function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
-      % labeler = obj.labeler_ ;
-      if ~isempty(obj.movieManagerController_) && isvalid(obj.movieManagerController_) ,
+    function ShowMovieManager(obj)
+
+      labeler = obj.labeler_ ;
+
+      labeler.pushBusyStatus('Opening Movie Manager...') ;  % Want to do this here, b/c the stuff in this method can take a while
+      oc = onCleanup(@()(labeler.popBusyStatus()));
+
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
         obj.movieManagerController_.setVisible(true);
       else
-        error('LabelerGUI:movieManagerController','Please create or load a project.');
+        obj.movieManagerController_ = MovieManagerController(obj.labeler_);
       end
+
+    end
+
+    function menu_file_managemovies_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.ShowMovieManager();
+
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -4560,7 +4541,7 @@ classdef LabelerController < handle
       end
 
       labeler = obj.labeler_ ;
-      lastFile = RC.getprop('lastLabelMatfile');
+      lastFile = labeler.rcGetProp('lastLabelMatfile');
       if isempty(lastFile)
         lastFile = pwd;
       end
@@ -4844,7 +4825,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
 
 
-      lastCalFile = RC.getprop('lastCalibrationFile');
+      lastCalFile = labeler.rcGetProp('lastCalibrationFile');
       if isempty(lastCalFile)
         lastCalFile = pwd;
       end
@@ -4894,7 +4875,7 @@ classdef LabelerController < handle
         lc.setShowCalibration(true);
       end
       obj.menu_setup_use_calibration.Checked = onIff(lc.showCalibration);
-      RC.saveprop('lastCalibrationFile',fname);
+      labeler.rcSaveProp('lastCalibrationFile',fname);
     end
 
     function menu_view_adjustbrightness_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5372,8 +5353,7 @@ classdef LabelerController < handle
 
 
     function menu_evaluate_gt_frames_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.gtShowGTManager();
+      obj.gtShowGTManager();
     end
 
 
@@ -5672,6 +5652,14 @@ classdef LabelerController < handle
     function menu_evaluate_gtmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.gtToggleGTMode() ;
+      if labeler.gtIsGTMode,
+        obj.gtShowGTManager();
+        if ~obj.labeler_.hasMovie,
+          obj.ShowMovieManager();
+        end
+      else
+        obj.gtCloseGTManager();
+      end
     end
 
 
@@ -5682,6 +5670,10 @@ classdef LabelerController < handle
     end
 
 
+    function menu_evaluate_gtsavesuggestions_actuated_(obj, src, evt)  %#ok<INUSD>
+      labeler = obj.labeler_ ;
+      LabelerGT.saveSuggestionsUI(labeler);
+    end
 
     function menu_evaluate_gtsetsuggestions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5693,7 +5685,7 @@ classdef LabelerController < handle
     function menu_evaluate_gtcomputeperf_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance();
+      labeler.gtComputeGTPerformance('whichlabels','ask');
     end
 
 
@@ -5921,15 +5913,13 @@ classdef LabelerController < handle
     end
     
     function cbkGTSuggUpdated(obj, s, e)
+      % i think there are listeners in the GTManager, not sure why we need
+      % this too
       if ~exist('s', 'var') ,
         s = [] ;
       end
       if ~exist('e', 'var') ,
         e = [] ;
-      end
-      if ~isempty(obj.GTManagerFigure) ,
-        GTManager('cbkGTSuggUpdated', obj.GTManagerFigure, s, e) ;
-        %obj.GTMgr.cbkGTSuggUpdated(s, e) ;
       end
       if ~isempty(obj.labelTLInfo) ,
         obj.labelTLInfo.cbkGTSuggUpdated(s, e) ;
@@ -5937,22 +5927,39 @@ classdef LabelerController < handle
     end
 
     function cbkGTResUpdated(obj, s, e)
+      % i think there are listeners in the GTManager, not sure why we need
+      % this too
       if ~exist('s', 'var') ,
         s = [] ;
       end
       if ~exist('e', 'var') ,
         e = [] ;
       end
-      if ~isempty(obj.GTManagerFigure) ,
-        GTManager('cbkGTResUpdated', obj.GTManagerFigure, s, e) ;
-      end
       %obj.labelTLInfo.cbkGTResUpdated(s, e) ;
     end
+
+    function gtGoToNextUnlabeled(obj)
+      
+      labeler = obj.labeler_;
+      assert(labeler.gtIsGTMode);
+
+      nextmft = labeler.gtNextUnlabeledMFT();
+      if isempty(nextmft),
+        msgbox('No more unlabeled frames in to-label list.','','modal');
+        return;
+      end
+
+      iMov = nextmft.mov.get();
+      if iMov~=labeler.currMovie
+        labeler.movieSetGUI(iMov);
+      end
+      labeler.setFrameAndTargetGUI(nextmft.frm,nextmft.iTgt);
+    end
+
 
     function update(obj)
       % Intended to be a full update of all GUI controls to bring them into sync
       % with obj.labeler_.  Currently a work in progress.
-
       obj.updateEnablementOfManyControls() ;
       obj.cbkLabelModeChanged() ;
       obj.cbkShowTrxChanged() ;
@@ -5968,8 +5975,8 @@ classdef LabelerController < handle
       obj.cbkShowOccludedBoxChanged() ;
       obj.cbkUpdateCropGUITools() ;
       obj.updateGTModeRelatedControls() ;
-      if ~isempty(obj.movieManagerController_) ,
-        obj.movieManagerController_.lblerLstnCbkGTMode() ;
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
+        obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
       obj.updateShowPredMenus();
       obj.updateShowImportedPredMenus();
@@ -5983,8 +5990,8 @@ classdef LabelerController < handle
       obj.cbkGTSuggUpdated() ;
       obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;
-      if ~isempty(obj.movieManagerController_) ,
-        obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ;
+      if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
+        obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
       end
       sendMaybe(obj.trainingMonitorVisualizer_, 'updateStopButton') ;
       sendMaybe(obj.trackingMonitorVisualizer_, 'updateStopButton') ;
@@ -6009,7 +6016,7 @@ classdef LabelerController < handle
         filterspec = labeler.projectfile;
       else
         % Guess a path/location for save
-        lastLblFile = RC.getprop('lastLblFile');
+        lastLblFile = labeler.rcGetProp('lastLblFile');
         if isempty(lastLblFile)
           if labeler.hasMovie
             savepath = fileparts(labeler.moviefile);
@@ -6065,7 +6072,7 @@ classdef LabelerController < handle
           % no trkfile is found alongside movie, or if user cancels during
           % a prompt.
           
-          lastTrkFileImported = RC.getprop('lastTrkFileImported');
+          lastTrkFileImported = labeler.rcGetProp('lastTrkFileImported');
           if isempty(lastTrkFileImported)
             lastTrkFileImported = pwd;
           end
@@ -6078,6 +6085,27 @@ classdef LabelerController < handle
         end
       end      
     end
+
+    function tf = isGTManagerFigure(obj)
+      hGTMgr = obj.GTManagerFigure ;
+      tf = ~isempty(hGTMgr) && ishandle(hGTMgr);
+    end
+
+    function gtShowGTManager(obj)
+      if obj.isGTManagerFigure()
+        %hGTMgr.Visible = 'on';
+        figure(obj.GTManagerFigure);
+      else
+        obj.GTManagerFigure = GTManager(obj.labeler_);
+      end
+    end
+
+    function gtCloseGTManager(obj)
+      if obj.isGTManagerFigure(),
+        close(obj.GTManagerFigure);
+      end
+    end
+
   end  % methods
 
   methods (Static)
@@ -6139,9 +6167,6 @@ classdef LabelerController < handle
       end
       set(obj.slider_frame,'Value',sldval);
       obj.updateHighlightingOfAxes() ;      
-      if labeler.gtIsGTMode
-        GTManager('cbkCurrMovFrmTgtChanged', obj.GTManagerFigure) ;
-      end
     end  % function
 
     function deleteSpashScreenFigureIfItExists_(obj)

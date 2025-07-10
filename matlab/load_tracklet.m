@@ -30,10 +30,10 @@ for i = 1:ntargets,
   trxcurr = struct;
   trxcurr.id = td.pTrkiTgt(i);
   trxcurr.p = td.pTrk{i};
-  if isfield(td,'pTrkTag') || isprop(td,'pTrkTag')
+  if (isfield(td,'pTrkTag') || isprop(td,'pTrkTag')) && ~isequal(td.pTrkTag,TrkFile.unsetVal),
     trxcurr.pocc = td.pTrkTag{i};
   end
-  if isfield(td,'pTrkTS') || isprop(td,'pTrkTS')
+  if isfield(td,'pTrkTS') || isprop(td,'pTrkTS') && ~isequal(td.pTrkTS,TrkFile.unsetVal),
     trxcurr.TS = td.pTrkTS{i};
   end
 %   for f=fldsaux,f=f{1}; %#ok<FXSET>

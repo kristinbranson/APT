@@ -76,6 +76,13 @@ classdef MFTable
       tbl = table(args{:},'VariableNames',varNames);
       tbl.mov = MovieIndex(tbl.mov);
     end
+
+    function tbl = allocateTable(varNames,nrows)
+      assert(strcmp(varNames{1},'mov'));
+      n = numel(varNames);
+      tbl = table('size',[nrows,n],'VariableNames',varNames,'VariableTypes',repmat(["double"],[1,n]));
+      tbl.mov = MovieIndex(tbl.mov);
+    end
     
     function tbl = emptySusp()
       x = nan(0,1);
@@ -96,6 +103,27 @@ classdef MFTable
       tbl = tbl(ib,:);
     end
     
+    function tf = isAfter(tbl,row)
+      % follows canonical ordering
+      % sortvars = {'mov' 'iTgt' 'frm'};
+      % if isgt mismatch, false
+      tf = sign(tbl.mov) == sign(row.mov);
+      % if tbl.mov < row.mov, false
+      tf = tf & abs(tbl.mov) >= abs(row.mov);
+      idx = tbl.mov == row.mov;
+      % for frames in the same movie, if tbl.frm < row.frm, false
+      tf(idx) = tf(idx) & (tbl(idx,:).frm >= row.frm);
+      % for labels on the same movie and frame, if tbl.iTgt < row.iTgt, false
+      idx = idx & (tbl.frm == row.frm);
+      if ~MFTable.isTgtUnset(row),
+        tf(idx) = tf(idx) & (tbl(idx,:).iTgt >= row.iTgt);
+        idx = idx & (tbl.iTgt == row.iTgt);
+      end
+      % exact same mft,false
+      tf(idx) = false;
+
+    end
+
     function tbl = sortCanonical(tbl)
       %assert(isa(tbl.mov,'MovieIndex'));
       tfgt = tbl.mov<0;
@@ -413,7 +441,7 @@ classdef MFTable
     end
 
     function v = isTgtUnset(tblMFT)
-      v = isnan(tblMFT.iTgt);
+      v = isnan(tblMFT.iTgt) | (tblMFT.iTgt==0);
     end
 
     function tblMFT = unsetTgt(tblMFT)

@@ -11,10 +11,10 @@ from mmcv.utils import get_git_hash
 
 import mmdet
 from mmdet import __version__
-from mmdet.apis import set_random_seed, train_detector
+#from mmdet.apis import set_random_seed, train_detector
 from mmdet.datasets import build_dataset
 from mmdet.models import build_detector, DETRHead, HEADS
-from mmdet.utils import collect_env, get_root_logger
+#from mmdet.utils import collect_env, get_root_logger
 from mmcv.runner import DistSamplerSeedHook, EpochBasedRunner, OptimizerHook, IterBasedRunner, Hook, load_checkpoint,Fp16OptimizerHook,build_optimizer,build_runner
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmdet.core import DistEvalHook, EvalHook,bbox_cxcywh_to_xyxy, bbox_xyxy_to_cxcywh, build_assigner, build_sampler, multi_apply,reduce_mean
@@ -33,7 +33,7 @@ from mmcv.runner import force_fp32
 
 
 from scipy.optimize import linear_sum_assignment
-import download_pretrained as down_pre
+#import download_pretrained as down_pre
 
 import urllib.request as urllib
 import logging
@@ -46,7 +46,7 @@ import glob
 
 from PoseCommon_pytorch import PoseCommon_pytorch
 import poseConfig
-import PoseTools
+#import PoseTools
 import logging
 
 @BBOX_ASSIGNERS.register_module()

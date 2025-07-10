@@ -1190,7 +1190,11 @@ classdef AWSec2 < handle
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.        
         % download trkfiles 
-        nativeLocalTrackFilePaths = pollingResult.trkfile ;
+        if isfield(pollingresult,'outfile'),
+          nativeLocalTrackFilePaths = pollingResult.outfile;
+        else
+          nativeLocalTrackFilePaths = pollingResult.trkfile ;
+        end
         wslLocalTrackFilePaths = wsl_path_from_native(nativeLocalTrackFilePaths) ;
         remoteTrackFilePaths = linux_replace_prefix_path(wslLocalTrackFilePaths, wslProjectCachePath, remoteProjectCachePath) ;
         % sysCmdArgs = {'failbehavior', 'err'};
