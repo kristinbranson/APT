@@ -120,7 +120,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
 
+    currFrameAdjust; % which frame was most recently adjusted
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
+    tfStored;  % nPts x 1 logical vec. If true, pt has accepted and stored in labeler object
     
     numHotKeyPtSet; % scalar positive integer. This is the pointset that 
                     % the '1' hotkey currently maps to
@@ -128,6 +130,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     hAxXLabels; % [nview] xlabels for axes
     hAxXLabelsFontSize = 11;
     showEpiLines = true;
+
   end
   
   methods % dep prop getters
@@ -264,6 +267,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.setRandomTemplate();
            
       obj.tfAdjusted = false(obj.nPts,1);
+      obj.tfStored = false(obj.nPts,1);
+      obj.currFrameAdjust = nan;
 
       obj.hAxXLabels = gobjects(obj.nView,1);
       for iView=1:obj.nView
@@ -366,6 +371,27 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
       %#%CALOK
+      if (iFrm0 == iFrm1) && (iTgt0 == iTgt1),
+        return;
+      end
+
+      if iFrm1 == obj.currFrameAdjust,
+        % call is originating from checkAdjust failure
+        return;
+      end
+
+      res = obj.checkAccept();
+      if strcmpi(res,'Yes')
+        % accept before going on
+        obj.acceptLabels();
+        obj.clearSelected();
+      elseif strcmpi(res,'Cancel'),
+        % go back a frame
+        obj.labeler.setFrameAndTargetGUI(iFrm0,iTgt0);
+        return;
+      else % answer = No
+        % pass
+      end
       [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
@@ -1268,7 +1294,24 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 	%
     % Regardless of projection state, you can Accept, which writes
     % current positions to Labeler.
+
+    function v = isUnsavedState(obj)
+      v = any(obj.tfAdjusted & ~obj.tfStored);
+    end
+
+    function v = isAdjustFrameChange(obj)
+      v = ~isnan(obj.currFrameAdjust) && (obj.currFrameAdjust ~= obj.labeler.currFrame);
+    end
     
+    function res = checkAccept(obj)
+      res = 'No';
+      if obj.isUnsavedState() && obj.isAdjustFrameChange(),
+        res = questdlg('Some keypoints have been adjusted but not accepted. Accept before losing this information?','Accept labels','Yes','No','Cancel','Yes');
+        figure(gcf); % somehow focus gets lost after question, and keyboard shortcuts don't work...
+      end
+
+    end
+
     function enterAdjust(obj,tfResetPts,tfClearLabeledPos)
       % Enter adjustment state for current frame/tgt.
       %
@@ -1276,7 +1319,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % if tfClearLabeledPos, clear labeled pos.
 
       %#%CALOKedit LabelCoreMul
-      
       if tfResetPts
         obj.tfEstOcc(:) = 0; % reset all points to NOT be occluded
         if obj.streamlined
@@ -1289,6 +1331,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
         end
         obj.tfAdjusted(:) = false;
+        obj.tfStored(:) = false;
+        obj.currFrameAdjust = obj.labeler.currFrame;
       end
       if tfClearLabeledPos
         obj.labeler.labelPosClear();
@@ -1299,6 +1343,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
+      obj.currFrameAdjust = obj.labeler.currFrame;
       obj.state = LabelState.ADJUST;
     end
         
@@ -1322,6 +1367,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
+      obj.tfStored(:) = true;
+      obj.currFrameAdjust = nan;
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -1330,10 +1377,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
+
+      obj.currFrameAdjust = nan;
       obj.state = LabelState.ACCEPTED;
     end
     
     function setPointAdjusted(obj,iSel)     
+      obj.tfStored(iSel) = false;
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
         % KB 20181022 not sure why there is hPtsColors and
