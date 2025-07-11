@@ -13915,7 +13915,7 @@ classdef Labeler < handle
         ischange = ~isempty(obj.tblTrxData);
         if ischange,
           obj.tblTrxData = zeros(0,2);
-          set(tbl,'Data',cell(0,2));
+          obj.controller_.setTblTrxData(cell(0,2));
         end
         %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
         return;
@@ -13951,7 +13951,7 @@ classdef Labeler < handle
 %         ischange(1:nr,1:nc) = obj.tblTrxData(1:nr,1:nc) ~= tblTrxData(1:nr,1:nc);
 %         [is,js] = find(ischange);
         
-        obj.tblTrxData = tblTrxData;
+        obj.controller_.setTblTrxData(tblTrxData);
         tbldat = [num2cell(idxLive) num2cell(tfLbled)];
         %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
         %tbl.setDataUnsafe(tbldat);
@@ -13967,7 +13967,7 @@ classdef Labeler < handle
         ischange = ~isempty(obj.tblTrxData);
         if ischange,
           obj.tblTrxData = zeros(0,2);
-          set(tblTrx,'Data',cell(0,2));
+          obj.controller_.setTblTrxData(cell(0,2));
         end
         return;
       end
@@ -13990,10 +13990,7 @@ classdef Labeler < handle
         tbldat = [num2cell(idxLive) num2cell(tfLbled)];
         %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
         %tbl.setDataUnsafe(tbldat);
-        set(tblTrx,'Data',tbldat);
-        tblTrx.Units = 'Pixel';
-        ww = tblTrx.Position(3);
-        tblTrx.ColumnWidth = {ww/2-5,ww/2-5};
+        obj.controller_.setTblTrxData(tbldat);
       end
     end
     
@@ -14004,7 +14001,7 @@ classdef Labeler < handle
       % might be unnecessary/premature optim
       
       tbl = obj.controller_.tblFrames;
-      dat = get(tbl,'Data');
+      dat = obj.controller_.getTblFramesData();
       tblFrms = cell2mat(dat(:,1));
       cfrm = obj.currFrame;
       tfRow = (tblFrms==cfrm);
@@ -14019,7 +14016,7 @@ classdef Labeler < handle
           else
             dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
           end          
-          set(tbl,'Data',dat);
+          obj.controller_.setTblFramesData(dat);
           %tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
           %  size(dat,1),size(dat,2));
         else
@@ -14033,8 +14030,7 @@ classdef Labeler < handle
           [~,idx] = sort(tblFrms);
           dat = dat(idx,:);
           %iRow = find(idx==n);
-          
-          set(tbl,'Data',dat);
+          obj.controller_.setTblFramesData(dat);
         end
       else
         %iRow = [];
@@ -14081,8 +14077,7 @@ classdef Labeler < handle
       else
         dat = [num2cell(iFrm) num2cell(nPtsLbledFrms) ];
       end
-      tbl = obj.controller_.tblFrames;
-      set(tbl,'Data',dat);
+      obj.controller_.setTblFramesData(dat);
 
       nTgtsTot = sum(nTgtsLbledFrms);
 
@@ -15281,7 +15276,6 @@ classdef Labeler < handle
       obj.howBusy_ = obj.howBusy_ + 1 ;
       obj.rawStatusStringStack_ = horzcat(obj.rawStatusStringStack_, {new_raw_status_string}) ;
       obj.notify('updateStatusAndPointer') ;     
-      drawnow;
     end
 
     function popBusyStatus(obj)
