@@ -1829,7 +1829,7 @@ classdef LabelerController < handle
       
       % eg when going from proj-with-trx to proj-no-trx, targets table needs to
       % be cleared
-      set(obj.tblTrx,'Data',cell(0,size(obj.tblTrx.ColumnName,2)));
+      obj.setTblTrxData(cell(0,size(obj.tblTrx.ColumnName,2)));
       
       obj.setShortcuts_() ;
       
@@ -2801,12 +2801,9 @@ classdef LabelerController < handle
       % Initialize the uitable of labeled frames in the 'Labeled Frames' window.
 
       labeler = obj.labeler_ ;
-      t0 = tic;
-      fprintf('In initTblFramesTrx_\n');
-
 
       isMA = labeler.maIsMA ;
-      hasTrx = labeler.hasTrx;
+      hasTrx = labeler.projectHasTrx;
       obj.tblFrames.Units = 'normalized';
       obj.tblFrames.RowName = '';
       showtargets = isMA || hasTrx;
@@ -2838,14 +2835,12 @@ classdef LabelerController < handle
         obj.uipanel_frames.Position = posframes;        
       end
       obj.resizeTblFramesTrx_();
-      fprintf('initTblFramesTrx_ took %f s\n',toc(t0));
     end  % function
 
 
     function resizeTblFramesTrx_(obj)
 
-      t0 = tic;
-      fprintf('In resizeTblFramesTrx_\n');
+      minwidth = 5;
       for tbl0 = [obj.tblFrames, obj.tblTrx],
         colnames = tbl0.ColumnName;
         ncols = numel(colnames);
@@ -2853,10 +2848,9 @@ classdef LabelerController < handle
         tbl0.Units = 'pixel';
         tw = tbl0.InnerPosition(3);
         tbl0.Units = u;
-        COLWIDTH = num2cell(repmat((tw-20)/ncols,[1,ncols]));
+        COLWIDTH = num2cell(repmat(max(minwidth,(tw-20)/ncols),[1,ncols]));
         tbl0.ColumnWidth = COLWIDTH;
       end
-      fprintf('resizeTblFramesTrx_ took %f s\n',toc(t0));
     end
 
     function data = getTblFramesData(obj)
@@ -2880,9 +2874,12 @@ classdef LabelerController < handle
 
     function setTblTrxData(obj,data)
       if size(data,1) < obj.minTblTrxRows,
+        if ~iscell(data),
+          data = num2cell(data);
+        end
         data = [data;cell(obj.minTblTrxRows-size(data,1),size(data,2))];
       end
-      obj.tblFrames.Data = data;
+      obj.tblTrx.Data = data;
     end
 
     function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews_(obj, viewCfg, centerOnTarget)
@@ -3692,7 +3689,6 @@ classdef LabelerController < handle
       % - Figure out how to disable arrow-key nav in uitables. Looks like need to
       % drop into Java and not super simple.
       % - Don't use uitables, or use them in a separate figure window.
-
       obj.mainFigure_.CurrentObject = obj.axes_curr;
       %uicontrol(obj.txStatus);
     end
@@ -4097,6 +4093,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
 
       if ~(labeler.hasTrx || labeler.maIsMA)
+        obj.hlpRemoveFocus_();
         return
       end
 

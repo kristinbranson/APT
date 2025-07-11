@@ -1791,6 +1791,7 @@ classdef Labeler < handle
       % A few minor subprops of projPrefs have explicit props
 
       obj.maIsMA = cfg.MultiAnimal && ~cfg.Trx.HasTrx;
+      obj.projectHasTrx = cfg.Trx.HasTrx;
 
       obj.notify('newProject');
 
@@ -1818,7 +1819,6 @@ classdef Labeler < handle
       obj.trackDLBackEnd.isInAwsDebugMode = obj.isInAwsDebugMode ;
       obj.trackParams = [];
       
-      obj.projectHasTrx = cfg.Trx.HasTrx;
       obj.showOccludedBox = cfg.View.OccludedBox;
       
       obj.showTrx = cfg.Trx.ShowTrx;
