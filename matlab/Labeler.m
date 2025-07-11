@@ -15279,7 +15279,6 @@ classdef Labeler < handle
       obj.howBusy_ = obj.howBusy_ + 1 ;
       obj.rawStatusStringStack_ = horzcat(obj.rawStatusStringStack_, {new_raw_status_string}) ;
       obj.notify('updateStatusAndPointer') ;     
-      drawnow;
     end
 
     function popBusyStatus(obj)
