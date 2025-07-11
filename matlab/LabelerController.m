@@ -2807,19 +2807,19 @@ classdef LabelerController < handle
       if tw<50,  tw= 50; end
       tbl0.Units = 'normalized';
       if isMA
-        COLNAMES = {'Frm' 'Tgts' 'Pts' 'ROIs'};
-        COLWIDTH = {min(tw/4-1,80) min(tw/4-5,40) max(tw/4-7,10) max(tw/4-7,10)};
+        COLNAMES = {'Frame' 'N Tgts' 'N Pts' 'N ROIs'};
+        %COLWIDTH = {'2x','1x','1x','1x'};
+      elseif labeler.hasTrx,
+        COLNAMES = {'Frame' 'N Tgts' 'N Pts'};
+        %COLWIDTH = {'2x','1x','1x'};
       else
-        COLNAMES = {'Frame' 'Tgts' 'Pts'};
-        COLWIDTH = {100 50 'auto'};
+        COLNAMES = {'Frame' 'N Pts'};
+        %COLWIDTH = {'2x','1x'};
       end
 
-      set(tbl0,...
-        'ColumnWidth',COLWIDTH,...
+      set(tbl0,...         %'ColumnWidth',COLWIDTH,...
         'ColumnName',COLNAMES,...
         'Data',cell(0,numel(COLNAMES)),...
-        'FontUnits','points',...
-        'FontSize',9.75,... % matches .tblTrx
         'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
     end  % function
     

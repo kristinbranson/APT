@@ -14076,8 +14076,10 @@ classdef Labeler < handle
       nRoisLbledFrms = nRois(tfFrm);
       if obj.maIsMA
         dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) num2cell(nRoisLbledFrms)];
-      else
+      elseif obj.hasTrx
         dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) ];
+      else
+        dat = [num2cell(iFrm) num2cell(nPtsLbledFrms) ];
       end
       tbl = obj.controller_.tblFrames;
       set(tbl,'Data',dat);
