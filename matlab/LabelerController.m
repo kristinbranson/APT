@@ -31,6 +31,8 @@ classdef LabelerController < handle
   properties (Constant)
     busystatuscolor = [ 1 0 1 ]
     idlestatuscolor = [ 0 1 0 ]
+    minTblFramesRows = 12;
+    minTblTrxRows = 12;
   end
 
   properties  % these are all the things that used to be in the main figure's guidata
@@ -220,8 +222,9 @@ classdef LabelerController < handle
     txTotalFramesLabeledLabel
     txUnsavedChanges
     tx_timeline_islabeled
-    uipanel3
-    uipanel4
+    uipanel_targets
+    uipanel_targetzoom
+    uipanel_frames
     uipanel_cropcontrols
     uipanel_curr
     uipanel_prev
@@ -1707,7 +1710,7 @@ classdef LabelerController < handle
       obj.clearSatellites() ;
       
       % Initialize the uitable of labeled frames
-      obj.initTblFrames_() ;
+      obj.initTblFramesTrx_() ;
       
       % figs, axes, images
       deleteValidGraphicsHandles(obj.figs_all(2:end));
@@ -1826,7 +1829,7 @@ classdef LabelerController < handle
       
       % eg when going from proj-with-trx to proj-no-trx, targets table needs to
       % be cleared
-      set(obj.tblTrx,'Data',cell(0,size(obj.tblTrx.ColumnName,2)));
+      obj.setTblTrxData(cell(0,size(obj.tblTrx.ColumnName,2)));
       
       obj.setShortcuts_() ;
       
@@ -2794,35 +2797,91 @@ classdef LabelerController < handle
       obj.text_trackerinfo.String = lObj.tracker.getTrackerInfoString() ;
     end  % function
     
-    function initTblFrames_(obj)
+    function initTblFramesTrx_(obj)
       % Initialize the uitable of labeled frames in the 'Labeled Frames' window.
 
-      labeler = obj.labeler_ ;      
+      labeler = obj.labeler_ ;
 
-      tbl0 = obj.tblFrames ;
       isMA = labeler.maIsMA ;
-
-      tbl0.Units = 'pixel';
-      tw = tbl0.Position(3);
-      if tw<50,  tw= 50; end
-      tbl0.Units = 'normalized';
+      hasTrx = labeler.projectHasTrx;
+      obj.tblFrames.Units = 'normalized';
+      obj.tblFrames.RowName = '';
+      showtargets = isMA || hasTrx;
       if isMA
-        COLNAMES = {'Frm' 'Tgts' 'Pts' 'ROIs'};
-        COLWIDTH = {min(tw/4-1,80) min(tw/4-5,40) max(tw/4-7,10) max(tw/4-7,10)};
+        COLNAMES = {'Frame' 'N Tgts' 'N Pts' 'N ROIs'};
+        %COLWIDTH = {'2x','1x','1x','1x'};
+      elseif hasTrx,
+        COLNAMES = {'Frame' 'N Tgts' 'N Pts'};
+        %COLWIDTH = {'2x','1x','1x'};
       else
-        COLNAMES = {'Frame' 'Tgts' 'Pts'};
-        COLWIDTH = {100 50 'auto'};
+        COLNAMES = {'Frame' 'N Pts'};
+        %COLWIDTH = {'2x','1x'};
       end
-
-      set(tbl0,...
-        'ColumnWidth',COLWIDTH,...
+      set(obj.tblFrames,...
         'ColumnName',COLNAMES,...
-        'Data',cell(0,numel(COLNAMES)),...
-        'FontUnits','points',...
-        'FontSize',9.75,... % matches .tblTrx
+        'Data',cell(obj.minTblFramesRows,numel(COLNAMES)),...
         'BackgroundColor',[.3 .3 .3; .45 .45 .45]);
+
+      obj.uipanel_targets.Visible = onIff(showtargets);
+      obj.uipanel_targetzoom.Visible = onIff(showtargets);
+      postargets = obj.uipanel_targets.Position;
+      posframes = obj.uipanel_frames.Position;
+
+      if showtargets,
+        posframes(1) = postargets(1)+postargets(3);
+        obj.uipanel_frames.Position = posframes;        
+      else
+        posframes(1) = postargets(1);
+        obj.uipanel_frames.Position = posframes;        
+      end
+      obj.resizeTblFramesTrx_();
     end  % function
+
+
+    function resizeTblFramesTrx_(obj)
+
+      minwidth = 5;
+      for tbl0 = [obj.tblFrames, obj.tblTrx],
+        colnames = tbl0.ColumnName;
+        ncols = numel(colnames);
+        u = tbl0.Units;
+        tbl0.Units = 'pixel';
+        tw = tbl0.InnerPosition(3);
+        tbl0.Units = u;
+        COLWIDTH = num2cell(repmat(max(minwidth,(tw-20)/ncols),[1,ncols]));
+        tbl0.ColumnWidth = COLWIDTH;
+      end
+    end
+
+    function data = getTblFramesData(obj)
+      data = obj.tblFrames.Data;
+      tfpad = cellfun(@isempty,data(:,1));
+      data = data(~tfpad,:);
+    end
+
+    function setTblFramesData(obj,data)
+      if size(data,1) < obj.minTblFramesRows,
+        data = [data;cell(obj.minTblFramesRows-size(data,1),size(data,2))];
+      end
+      obj.tblFrames.Data = data;
+    end
     
+    function data = getTblTrxData(obj)
+      data = obj.tblTrx.Data;
+      tfpad = cellfun(@isempty,data(:,1));
+      data = data(~tfpad,:);
+    end
+
+    function setTblTrxData(obj,data)
+      if size(data,1) < obj.minTblTrxRows,
+        if ~iscell(data),
+          data = num2cell(data);
+        end
+        data = [data;cell(obj.minTblTrxRows-size(data,1),size(data,2))];
+      end
+      obj.tblTrx.Data = data;
+    end
+
     function tfAxLimsSpecifiedInCfg = hlpSetConfigOnViews_(obj, viewCfg, centerOnTarget)
       % Configure the figures and axes showing the different views of the animal(s)
       % according to the specification in viewCfg.
@@ -3392,6 +3451,8 @@ classdef LabelerController < handle
       hTx.Position(3) = pxTxUnsavedChangesWidth ;
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
+      obj.resizeTblFramesTrx_();
+
       %obj.updateStatus() ;  % do we need this here?
     end
     
@@ -3628,7 +3689,6 @@ classdef LabelerController < handle
       % - Figure out how to disable arrow-key nav in uitables. Looks like need to
       % drop into Java and not super simple.
       % - Don't use uitables, or use them in a separate figure window.
-
       obj.mainFigure_.CurrentObject = obj.axes_curr;
       %uicontrol(obj.txStatus);
     end
@@ -3639,7 +3699,9 @@ classdef LabelerController < handle
       if ~isempty(row)
         row = row(1);
         dat = get(src,'Data');
-        labeler.setFrameGUI(dat{row,1},'changeTgtsIfNec',true);
+        if ~isempty(dat{row,1}),
+          labeler.setFrameGUI(dat{row,1},'changeTgtsIfNec',true);
+        end
       end
       obj.hlpRemoveFocus_() ;
     end
@@ -4031,6 +4093,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
 
       if ~(labeler.hasTrx || labeler.maIsMA)
+        obj.hlpRemoveFocus_();
         return
       end
 
