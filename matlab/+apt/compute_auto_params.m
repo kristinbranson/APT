@@ -96,7 +96,7 @@ function autoparams = compute_auto_params(lobj)
     for zz = 1:size(outliers,1)
       wstr = sprintf('%s Movie:%d, frame:%d, target:%d\n',wstr,outliers(zz,1),outliers(zz,2),outliers(zz,3));
     end
-    warning(wstr);
+    warningNoTrace(wstr);
   end
 
   if isfield(lobj.trackParams.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox') && auto_multi_bbox_scale

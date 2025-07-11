@@ -309,6 +309,12 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       for iview=1:nview
         iptview = (1:nptphys) + (iview-1)*nptphys;
         xyview = xy(iptview,:,:);
+        if all(isnan(xyview(:))),
+          xdata = hSkel(iview).XData;
+          if all(isnan(xdata(:))),
+            continue;
+          end
+        end
         xdata = nan(1,totlen);
         ydata = nan(1,totlen);
         xdata(idatapt1) = xyview(ixpt1);

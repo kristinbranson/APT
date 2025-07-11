@@ -390,7 +390,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
 
         python_env_path = strtrim(cmdout); % Remove the end-of-line character
         try
-            supported_MATLAB_releases = {'2023b'}; % Newer versions are most likely supported but not tested yet
+            supported_MATLAB_releases = {'2023b','2024a','2024b','2025a'}; % Newer versions are most likely supported but not tested yet
             current_release = version('-release');
             if ~ismember(current_release, supported_MATLAB_releases)
                 error('MATLAB release mismatch: required one of [%s] to support %s, but found %s.', ...

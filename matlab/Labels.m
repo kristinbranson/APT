@@ -319,7 +319,7 @@ classdef Labels
       % frms: [nfrmslbled] vec of frames that are labeled for target itgt.
       %   Not guaranteed to be in any order
       
-      if isnan(itgt)
+      if isnan(itgt) || isempty(itgt)
         frms = unique(s.frm);
       else
         tf = s.tgt==itgt;
@@ -830,8 +830,12 @@ classdef Labels
       [lpos,lposTS,lpostag] = cellfun(fcn,lObj.(labelsfld),nfrms(:),ntgts(:),'uni',0);
     end
 
-    function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt)
+    function [tf] = lObjGetIsLabeled(lObj,labelsfld,tbl,gt,fullylabeled)
       
+      if nargin < 5,
+        fullylabeled = false; % KB: set default to be any kps labeled
+      end
+
       tf = false(height(tbl),1);
       for i = 1:numel(lObj.(labelsfld)),
         if gt,
@@ -844,12 +848,23 @@ classdef Labels
           continue;
         end
         cc = Labels.CLS_MD;
-        frs = eval(sprintf('%s([tbl.frm(idx),tbl.iTgt(idx)])',cc));
-        [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
+        if lObj.maIsMA,
+          frs = eval(sprintf('%s([tbl.frm(idx)])',cc));
+          [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm],'rows');
+        else
+          frs = eval(sprintf('%s([tbl.frm(idx),tbl.iTgt(idx)])',cc));
+          [ism,j] = ismember(frs,[lObj.(labelsfld){i}.frm,lObj.(labelsfld){i}.tgt],'rows');
+        end
         idx = find(idx);
         idx = idx(ism);
         j = j(ism);
-        tf(idx) = ~any(isnan(lObj.(labelsfld){i}.p(:,j)));
+        if fullylabeled,
+          % only count fully labeled
+          tf(idx) = ~any(isnan(lObj.(labelsfld){i}.p(:,j))); 
+        else
+          % any kps labeled
+          tf(idx) = ~all(isnan(lObj.(labelsfld){i}.p(:,j))); 
+        end
       end      
     end
 

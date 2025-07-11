@@ -567,7 +567,12 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       lObj = obj.labeler;
       tfKPused = true;
 
-      match = lObj.gdata.matchShortcut(evt);
+      % shortcuts in main figure will be handled by menu items themselves
+      if src == lObj.gdata.mainFigure_,
+        match = [];
+      else
+        match = lObj.gdata.matchShortcut(evt);
+      end
 
       if strcmp(key,'space')
         obj.toggleEpipolarState();

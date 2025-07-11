@@ -328,7 +328,7 @@ classdef APTInterf
         tf = escape_cellstring_for_bash(wsl_path_from_native(trkfiles(movidx,:,:)));
         code_as_list = [code_as_list {'-out'} tf(:)'];
         if sum(nextra) > 0,
-          warning('Tracking contiguous intervals, tracking %d extra frames',sum(nextra));
+          warningNoTrace('Tracking %d already-tracked frames',sum(nextra));
         end
         nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths
         movFiles = wsl_path_from_native(nativeMovFiles) ;
