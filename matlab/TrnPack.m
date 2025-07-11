@@ -426,6 +426,10 @@ classdef TrnPack
       if cocoformat,
         % convert to COCO format
         s = TrnPack.ConvertTrnPackLocToCOCO(s,packdir,'skeleton',lObj.skeletonEdges,'keypoint_names',lObj.skelNames,'isma',isma);
+      else
+        s.kpt_info = struct();
+        s.kpt_info.skeleton=lObj.skeletonEdges;
+        s.kpt_info.keypoint_names = lObj.skelNames;
       end
 
       TrnPack.hlpSaveJson(s,jsonoutf);
