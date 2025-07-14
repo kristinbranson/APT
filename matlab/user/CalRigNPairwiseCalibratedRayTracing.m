@@ -29,6 +29,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
         python_script_path
         dividing_col
         image_width
+        view_labels
     end
 
     methods
@@ -56,6 +57,9 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             obj.python_script_path = fullfile(APT.Root, 'raytracing_calib', 'programs', 'return_projected_ray_two_cameras_prism.py');
             obj.dividing_col = s.dividing_col;
             obj.image_width = s.image_width;
+            if isfield(s, 'view_labels')
+                obj.view_labels = s.view_labels;
+            end
             % c = 1;
             % % ordering of stereo crigs assumed
             % for icam=1:ncam
@@ -93,7 +97,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             end
         end
 
-        function cam_label = viewIdToLabel(obj, iView1)
+        function cam_label = viewIdToLabel(obj, iView)
             % Aniket Ravan, 4th of Feb 2025
             % Converts a pair of View indices (used in APT) to camera labels (used in Pytorch ray
             % tracing-based calibration)
@@ -101,16 +105,23 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             %             2-primary camera (real)
             %             3-secondary camera (virtual)
             %             4-secondary camera (real)
-
-            switch iView1
-                case 1
-                    cam_label = "primary_virtual";
-                case 2
-                    cam_label = "primary_real";
-                case 3
-                    cam_label = "secondary_virtual";
-                case 4
-                    cam_label = "secondary_real";
+            
+            % If view_label definitions are provided in the calibration
+            % file, use them. Else, use the default for four views
+            
+            if isprop(obj, 'view_labels')
+                cam_label = obj.view_labels{iView};
+            else
+                switch iView
+                    case 1
+                        cam_label = "primary_virtual";
+                    case 2
+                        cam_label = "primary_real";
+                    case 3
+                        cam_label = "secondary_virtual";
+                    case 4
+                        cam_label = "secondary_real";
+                end
             end
 
         end
@@ -210,6 +221,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             % iView2: View on which epipolar line is drawn
             cam_label = obj.viewIdToLabel(iView1);
             cam_projecting = obj.viewIdToLabel(iView2);
+            
             epipolar_line = getEPLRayTracing(obj.model_path, ...
                                     obj.python_script_path, ...
                                     obj.dividing_col,...
