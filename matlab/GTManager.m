@@ -25,7 +25,7 @@ handles = struct;
 handles.labeler = lObj;
       
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
-  'Name','Groundtruth Navigator','Visible','off');%,'CloseRequestFcn',@CloseRequestFcn);
+  'Name','Groundtruth Navigator','Visible','off');
 handles.figure1 = hFig;
 
 handles.gl = uigridlayout(hFig,[4,1],'RowHeight',{'1x','1x',40},'tag','gl');
@@ -116,9 +116,6 @@ guidata(hFig,handles);
 set(hFig,'Visible','on');
 
 centerfig(handles.figure1,lObj.gdata.mainFigure_);
-
-function CloseRequestFcn(src,evt)
-src.Visible = 'off';
 
 function columnnames = getTblFrameColumnNames(handles)
 if handles.labeler.hasTrx,

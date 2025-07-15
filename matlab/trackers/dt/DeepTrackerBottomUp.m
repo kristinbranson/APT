@@ -23,6 +23,24 @@ classdef DeepTrackerBottomUp < DeepTracker
           {'DeepTrackerBottomUp' 'trnNetType' DLNetType.multi_dekr 'trnNetMode' DLNetMode.multiAnimalBU};
           };
     end    
+    function [tf,loc] = isMemberTrnTypes(trntypes)
+      % [tf,loc] = isMemberTrnTypes(trntypes)
+      % Based on getTrackerInfos(), figure out if trntypes is a possible
+      % instantiation for this class
+      tf = false;
+      loc = 0;
+      if numel(trntypes) ~= 1,
+        return;
+      end
+      infos = DeepTrackerTopDown.getTrackerInfos();
+      for i = 1:numel(infos),
+        if strcmp(infos{i}{3}.shortString,trntypes.shortString),
+          tf = true;
+          loc = i;
+          return;
+        end
+      end
+    end  % function
   end
 
 end
