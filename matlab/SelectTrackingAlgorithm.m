@@ -96,7 +96,7 @@ else
     'RowHeight',{'1x',40},'tag','gl');
   maxnstages = 1;
   handles.sa_stage_name = 'Pose algorithm';
-  handles.stage_names = {sa_stage_names};
+  handles.stage_names = {handles.sa_stage_name};
   handles.sa_algorithms = {handles.saposenets.displayString};
   handles.algorithms = {handles.sa_algorithms};
   handles.sa_nets = handles.saposenets;
@@ -140,7 +140,7 @@ handles.pb_cancel = uibutton(gl1,'push',...
 handles.pb_cancel.Layout.Column = 3;
 
 if ~handles.isMA,
-  handles.listbox_stages.Items = handles.algorithms;
+  handles.listbox_stages.Items = handles.algorithms{1};
   handles.listbox_stages.ValueIndex = handles.last_algorithm_idx;
 end
 update();

@@ -152,7 +152,7 @@ classdef Labeler < handle
     gtSuggMFTableLbledUpdated  % incremental update of gtSuggMFTableLbled occurred
     gtResUpdated  % update of GT performance results occurred
     
-    update_menu_track_tracking_algorithm
+    % update_menu_track_tracking_algorithm
     % update_menu_track_tracking_algorithm_quick
     update_menu_track_tracker_history
     didSetCurrTracker
@@ -4810,8 +4810,6 @@ classdef Labeler < handle
         % obj.labelingInit('dosettemplate',false); 
       end
       
-      obj.setFrameAndTargetGUI(1,1);
-      
       trxFile = obj.trxFilesAllFullGTaware{iMov,1};
       tfTrx = ~isempty(trxFile);
       if tfTrx
@@ -4825,6 +4823,8 @@ classdef Labeler < handle
       obj.trxSet(trxvar);
       %obj.trxfile = trxFile; % this must come after .trxSet() call
         
+      obj.setFrameAndTargetGUI(1,1,true);
+      
       obj.isinit = isInitOrig; % end Initialization hell      
 
       % needs to be done after trx are set as labels2trkviz handles
@@ -4877,9 +4877,9 @@ classdef Labeler < handle
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
       if obj.hasTrx
-        obj.setFrameAndTargetGUI(obj.currTrx.firstframe,obj.currTarget);
+        obj.setFrameAndTargetGUI(obj.currTrx.firstframe,obj.currTarget,true);
       else
-        obj.setFrameAndTargetGUI(1,1);
+        obj.setFrameAndTargetGUI(1,1,true);
       end
             
     end  % function
@@ -11129,7 +11129,7 @@ classdef Labeler < handle
       if nargin < 2,
         trackercurr = obj.tracker;
       end
-      if isa(trackercurr,'DeepTrackerBottomUp'),
+      if isa(trackercurr,'DeepTrackerBottomUp') || isa(trackercurr,'DeepTracker'),
         t = trackercurr.trnNetType;
       else
         t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
@@ -11160,12 +11160,14 @@ classdef Labeler < handle
         end
       end
       % look for a match in possible nettypes
-      for idx = 1:numel(obj.trackersAll),
-        [tfmatch,loc] = obj.trackersAll{idx}.isMemberTrnTypes(nettypes);
-        if tfmatch,
-          extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes,loc);
-          obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
-          return;
+      if obj.maIsMA,
+        for idx = 1:numel(obj.trackersAll),
+          [tfmatch,loc] = obj.trackersAll{idx}.isMemberTrnTypes(nettypes);
+          if tfmatch,
+            extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes,loc);
+            obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
+            return;
+          end
         end
       end
 

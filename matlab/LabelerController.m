@@ -433,8 +433,8 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetProjFSInfo',@(source,event)(obj.didChangeProjFSInfo()));      
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'update_menu_track_tracking_algorithm',@(source,event)(obj.update_menu_track_tracking_algorithm()));            
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'update_menu_track_tracking_algorithm',@(source,event)(obj.update_menu_track_tracking_algorithm()));            
       % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'update_menu_track_tracking_algorithm_quick',@(source,event)(obj.update_menu_track_tracking_algorithm_quick()));            
       obj.listeners_(end+1) = ...
@@ -782,6 +782,9 @@ classdef LabelerController < handle
     end
     
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
+      obj.labeler_.pushBusyStatus('Spawning tracking job...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+
       obj.labeler_.track(varargin{:}) ;
     end
 
@@ -802,6 +805,7 @@ classdef LabelerController < handle
     end
 
     function pbTrain_actuated_(obj, source, event)
+      
       obj.train_core_(source, event) ;
     end
 
@@ -824,6 +828,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Spawning training job...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
+      drawnow;
 
       % Check for project, movie
       [doTheyExist, message] = labeler.doProjectAndMovieExist() ;
@@ -869,60 +874,16 @@ classdef LabelerController < handle
       obj.quitRequested() ;
     end  % method    
 
-    function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
-      % Get the tracker index
-      trackerIndex = source.UserData;
-      labeler = obj.labeler_ ;
-
-      % The dialog for a custom two-stage tracker takes a while to come up, so
-      % want to show the watch pointer.
-      labeler.pushBusyStatus('Creating new tracker...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus())) ;
-
-      % Validation happens inside Labeler now
-      % % Validate it
-      % trackers = labeler.trackersAll;
-      % tracker_count = numel(trackers) ;
-      % if ~is_index_in_range(tracker_index, tracker_count)
-      %   error('APT:invalidPropertyValue', 'Invalid tracker index') ;
-      % end
-      
-      % % If a custom top-down tracker, ask if we want to keep it or make a new one.
-      % previousTracker = trackers{tracker_index};
-      % if isa(previousTracker,'DeepTrackerTopDownCustom')
-      %   do_use_previous = ask_if_should_use_previous_custom_top_down_tracker(previousTracker) ;
-      % else
-      %   do_use_previous = [] ;  % value will be ignored
-      % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
-      
-      % Check for a custom tracker
-      tcis = labeler.trackersAllCreateInfo ;
-      trackerCount = numel(tcis) ;
-      if ~is_index_in_range(trackerIndex, trackerCount)
-        error('No tracker at index %d.  There are %d trackers.', trackerIndex, trackerCount) ;
-      end
-      tci = tcis{trackerIndex} ;
-      trackerClassName = tci{1} ;
-      if strcmp(trackerClassName, 'DeepTrackerTopDownCustom') ,
-        stage1ModeArgs = tci{2} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDDetectObj}
-        stage2ModeArgs = tci{3} ;  % should itself be a two-element cell array like {'trnNetMode', DLNetMode.multiAnimalTDPoseObj}
-        stage1Mode = stage1ModeArgs{2} ;  % should be a DLNetMode
-        stage2Mode = stage2ModeArgs{2} ;  % should be a DLNetMode        
-        [docontinue, stg1ctorargs, stg2ctorargs] = obj.raiseDialogsToChooseStageAlgosForCustomTopDownTracker(stage1Mode, stage2Mode) ;
-        if ~docontinue ,
-          return
-        end
-        % Call the model method to set the tracker, providing extra args to specify
-        % the two custom stages   
-        labeler.trackMakeNewTrackerGivenIndex(trackerIndex, stg1ctorargs, stg2ctorargs) ;
-      else
-        % If not a custom tracker, our job is easier.
-        % Call the model method to set the tracker.
-        labeler.trackMakeNewTrackerGivenIndex(trackerIndex) ;
-      end
-    end
+    % function menu_track_tracking_algorithm_item_actuated_(obj, source, event)  %#ok<INUSD> 
+    % 
+    % end
 
     function menu_track_tracker_history_item_actuated_(obj, source, event)  %#ok<INUSD> 
+
+      obj.labeler_.pushBusyStatus('Switching tracker...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+      drawnow;
+
       % Get the index of the tracker in the tracker history
       trackerHistoryIndex = source.UserData ;
 
@@ -1141,8 +1102,9 @@ classdef LabelerController < handle
           switch btn
             case 'Launch New'
               labeler.pushBusyStatus('Launching new AWS EC2 instance') ;
+              drawnow;
               [didLaunchSucceed, instanceID] = labeler.launchNewAWSInstance() ;
-              labeler.popBusyStatus() ;
+              obj.labeler_.popBusyStatus() ;
               if ~didLaunchSucceed
                 reason = 'Could not launch AWS EC2 instance.';
                 error(reason) ;
@@ -1464,7 +1426,8 @@ classdef LabelerController < handle
     function raiseTargetsTableFigure_(obj)
       labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Making figure for big summary table...') ;
-      oc = onCleanup(@()(labeler.popBusyStatus())) ;      
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;      
+      drawnow;
       main_figure = obj.mainFigure_ ;
       [tfok,tblBig] = labeler.hlpTargetsTableUIgetBigTable();
       if ~tfok
@@ -1522,12 +1485,22 @@ classdef LabelerController < handle
     
     function target_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the target table row is selected.
+
+      obj.labeler_.pushBusyStatus('Switching target...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+      drawnow;
+
       labeler = obj.labeler_ ;
       labeler.setMFTGUI(rowdata.mov,rowdata.frm1,rowdata.iTgt) ;
     end  % function
 
     function target_table_update_button_actuated_(obj, source, event)  %#ok<INUSD>
       % Does what needs doing when the target table update button is actuated.
+
+      obj.labeler_.pushBusyStatus('Updating target table...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+      drawnow;
+
       labeler = obj.labeler_ ;      
       [tfok, tblBig] = labeler.hlpTargetsTableUIgetBigTable() ;
       if tfok
@@ -1577,6 +1550,11 @@ classdef LabelerController < handle
 
     function susp_frame_table_row_actuated_(obj, source, event, row, rowdata)  %#ok<INUSD>
       % Does what needs doing when the suspicious frame table row is selected.
+
+      obj.labeler_.pushBusyStatus('Switching to suspicious [movie, frame, target]...') ;
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+      drawnow;
+
       labeler = obj.labeler_ ;
       labeler.suspCbkTblNavedGUI(row) ;
     end  % function
@@ -2003,6 +1981,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_;
       labeler.pushBusyStatus('Editing keyboard shortcuts...');
       oc = onCleanup(@()(labeler.popBusyStatus())) ;
+      drawnow;
       uiwait(ShortcutsDialog(obj));
 
     end  % function
@@ -2324,40 +2303,40 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function update_menu_track_tracking_algorithm(obj)
-      % Populate the Track > 'Tracking algorithm' submenu.
-      % This only needs to be done when starting a new project or loading a project.
-
-      % Get out the main objects
-      labeler = obj.labeler_ ;
-      if labeler.isinit || ~labeler.hasProject ,
-        return
-      end
-
-      % Delete the old submenu items
-      old_menu_track_trackers = obj.menu_track_tracking_algorithm.Children ;
-      deleteValidGraphicsHandles(old_menu_track_trackers) ;
-      
-      % Remake the submenu items
-      tag = 'menu_track_tracking_algorithm_item' ;
-      trackers = labeler.trackersAll ;
-      trackerCount = numel(trackers) ;
-      for i=1:trackerCount  
-        algName = trackers{i}.algorithmName;
-        algLabel = trackers{i}.algorithmNamePretty;
-        enable = onIff(~strcmp(algName,'dpk'));
-        uimenu('Parent',obj.menu_track_tracking_algorithm,...
-               'Label',algLabel,...
-               'Callback',@(s,e)(obj.controlActuated(tag, s, e)),...
-               'Tag',tag,...
-               'UserData',i,...
-               'Enable',enable,...
-               'Position',i) ;
-      end
-
-      % % Update the checkboxes, etc
-      % obj.update_menu_track_tracking_algorithm_quick() ;
-    end  % function
+    % function update_menu_track_tracking_algorithm(obj)
+    %   % Populate the Track > 'Tracking algorithm' submenu.
+    %   % This only needs to be done when starting a new project or loading a project.
+    % 
+    %   % Get out the main objects
+    %   labeler = obj.labeler_ ;
+    %   if labeler.isinit || ~labeler.hasProject ,
+    %     return
+    %   end
+    % 
+    %   % Delete the old submenu items
+    %   old_menu_track_trackers = obj.menu_track_tracking_algorithm.Children ;
+    %   deleteValidGraphicsHandles(old_menu_track_trackers) ;
+    % 
+    %   % Remake the submenu items
+    %   tag = 'menu_track_tracking_algorithm_item' ;
+    %   trackers = labeler.trackersAll ;
+    %   trackerCount = numel(trackers) ;
+    %   for i=1:trackerCount  
+    %     algName = trackers{i}.algorithmName;
+    %     algLabel = trackers{i}.algorithmNamePretty;
+    %     enable = onIff(~strcmp(algName,'dpk'));
+    %     uimenu('Parent',obj.menu_track_tracking_algorithm,...
+    %            'Label',algLabel,...
+    %            'Callback',@(s,e)(obj.controlActuated(tag, s, e)),...
+    %            'Tag',tag,...
+    %            'UserData',i,...
+    %            'Enable',enable,...
+    %            'Position',i) ;
+    %   end
+    % 
+    %   % % Update the checkboxes, etc
+    %   % obj.update_menu_track_tracking_algorithm_quick() ;
+    % end  % function
 
     % function update_menu_track_tracking_algorithm_quick(obj)
     %   % Update the Track > 'Tracking algorithm' submenu.
@@ -4396,6 +4375,7 @@ classdef LabelerController < handle
 
       labeler.pushBusyStatus('Opening Movie Manager...') ;  % Want to do this here, b/c the stuff in this method can take a while
       oc = onCleanup(@()(labeler.popBusyStatus()));
+      drawnow;
 
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid() ,
         obj.movieManagerController_.setVisible(true);
@@ -4743,6 +4723,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;            
       labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
       oc = onCleanup(@()(labeler.popBusyStatus())) ;
+      drawnow;
       if labeler.hasTrx
         labeler.labelOverlayMontageGUI();
         labeler.labelOverlayMontageGUI('ctrMeth','trx');
@@ -5316,7 +5297,8 @@ classdef LabelerController < handle
       % Actually takes a while for first response to happen, so show busy
       obj.labeler_.pushBusyStatus('Setting training parameters...') ;
       oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
-      
+      drawnow;
+
       % Compute the automatic parameters, give user chance to accept/reject them.
       % did_update will be true iff they accepted them.
       % tPrm will we be the current parameter tree, whether or not it incorporates
@@ -5868,6 +5850,10 @@ classdef LabelerController < handle
     end
 
     function menu_track_tracking_algorithm_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.labeler_.pushBusyStatus('Creating new tracker...') ; 
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+      drawnow;
+      SelectTrackingAlgorithm(obj.labeler_,obj.mainFigure_);
     end
 
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6044,7 +6030,6 @@ classdef LabelerController < handle
       obj.updateShowPredMenus();
       obj.updateShowImportedPredMenus();
       obj.updateFlipMenus();
-      obj.update_menu_track_tracking_algorithm() ;
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
       obj.update_text_trackerinfo() ;

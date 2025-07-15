@@ -3258,6 +3258,10 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
     end  % function
 
+    function args = trnType2ConstructorArgs(obj,trntypes,loc)
+      args = {};
+    end
+
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
     %   % load xv res
     %   % KB TODO update this code once cross-val is debugged
