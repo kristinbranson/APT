@@ -881,6 +881,16 @@ classdef LabelerController < handle
 
     function menu_track_tracker_history_item_actuated_(obj, source, event)  %#ok<INUSD> 
 
+      labeler = obj.labeler_;
+      if labeler.tracker.bgTrnIsRunning
+        uiwait(warndlg('Cannot switch tracker while training is in progress','Training in progress'));
+        return;
+      end
+      if labeler.tracker.bgTrkIsRunning
+        uiwait(warndlg('Cannot switch tracker while tracking is in progress.','Tracking in progress'));
+        return;
+      end
+
       obj.labeler_.pushBusyStatus('Switching tracker...') ;
       oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
       drawnow;
@@ -2878,7 +2888,16 @@ classdef LabelerController < handle
     end   % function
     
     function menu_track_delete_current_tracker_actuated_(obj, source, event)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
+
+      labeler = obj.labeler_;
+      if labeler.tracker.bgTrnIsRunning
+        uiwait(warndlg('Cannot delete current tracker while training is in progress. Cancel training first.','Training in progress'));
+        return;
+      end
+      if labeler.tracker.bgTrkIsRunning
+        uiwait(warndlg('Cannot delete current tracker while tracking is in progress. Cancel tracking first.','Tracking in progress'));
+        return;
+      end
       response = ...
         questdlg(strcatg('Delete current tracker? This will clear your trained tracker, along with all tracking results. ', ...
                          'Hit cancel if you do not want to do this.'), ...
@@ -5816,10 +5835,22 @@ classdef LabelerController < handle
     end
 
     function menu_track_tracking_algorithm_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.labeler_.pushBusyStatus('Creating new tracker...') ; 
-      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
+
+      labeler = obj.labeler_;
+      if labeler.tracker.bgTrnIsRunning
+        uiwait(warndlg('Cannot change tracker while training is in progress.','Training in progress'));
+        return;
+      end
+      if labeler.tracker.bgTrkIsRunning
+        uiwait(warndlg('Cannot change tracker while tracking is in progress.','Tracking in progress'));
+        return;
+      end
+
+      labeler.pushBusyStatus('Creating new tracker...') ; 
+      oc = onCleanup(@()(labeler.popBusyStatus()));
       drawnow;
-      SelectTrackingAlgorithm(obj.labeler_,obj.mainFigure_);
+      SelectTrackingAlgorithm(labeler,obj.mainFigure_);
+
     end
 
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
