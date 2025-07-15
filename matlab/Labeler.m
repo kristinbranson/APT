@@ -10990,6 +10990,7 @@ classdef Labeler < handle
     %   tObj = [];
     %   iTrk = 0;
     % end
+
   
     function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)      
       % Validate the new value
@@ -11122,6 +11123,56 @@ classdef Labeler < handle
       obj.notify('update_menu_track_tracker_history') ;      
       obj.notify('update_text_trackerinfo') ;      
     end  % function
+
+    function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+
+      if nargin < 2,
+        trackercurr = obj.tracker;
+      end
+      if isa(trackercurr,'DeepTrackerBottomUp'),
+        t = trackercurr.trnNetType;
+      else
+        t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
+      end
+
+    end
+
+    function tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
+      tfSucc = true;
+      nstages = numel(nettypes);
+      % look for a match in instantiated nettypes
+      for idx = 1:numel(obj.trackersAll),
+        t = obj.trackGetCurrTrackerStageNetTypes(obj.trackersAll{idx});
+        if numel(t) ~= nstages,
+          continue;
+        end
+        for s = 1:nstages,
+          tfmatch = strcmp(t(s).shortString,nettypes(s).shortString);
+          if ~tfmatch,
+            break;
+          end
+        end
+        if tfmatch,
+          % add extra arguments
+          extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes);
+          obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
+          return;
+        end
+      end
+      % look for a match in possible nettypes
+      for idx = 1:numel(obj.trackersAll),
+        [tfmatch,loc] = obj.trackersAll{idx}.isMemberTrnTypes(nettypes);
+        if tfmatch,
+          extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes,loc);
+          obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
+          return;
+        end
+      end
+
+      tfSucc = false;
+
+    end  % function
+
 
     function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
       algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
@@ -15827,6 +15878,31 @@ classdef Labeler < handle
 
     function result = get.trackerHistory(obj)
       result = obj.trackerHistory_ ;
+    end
+
+    function [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
+
+      dlnets = enumeration('DLNetType') ;
+      isma = [dlnets.isMultiAnimal] ;
+      saposenets = dlnets(~isma) ;
+      
+      is_bbox = false(1,numel(dlnets)) ;
+      for dndx = 1:numel(dlnets)          
+        is_bbox(dndx) = dlnets(dndx).isMultiAnimal && startsWith(char(dlnets(dndx)),'detect_') ;
+      end  % for
+      
+      maposenets = dlnets(isma & ~is_bbox) ;
+      mabboxnets = dlnets(isma & is_bbox) ;
+
+      dokeep = cellfun(@isempty,regexp({maposenets.displayString},'Deprecated','once'));
+      maposenets = maposenets(dokeep);
+      
+      dokeep = cellfun(@isempty,regexp({mabboxnets.displayString},'Deprecated','once'));
+      mabboxnets = mabboxnets(dokeep);
+
+      dokeep = cellfun(@isempty,regexp({saposenets.displayString},'Deprecated','once'));
+      saposenets = saposenets(dokeep);
+
     end
 
     function result = doesCurrentTrackerMatchFromTrackersAllIndex(obj)

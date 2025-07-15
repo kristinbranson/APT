@@ -308,6 +308,13 @@ classdef DeepTrackerTopDown < DeepTracker
       setTrackParams@DeepTracker(obj.stage1Tracker,sPrmTrack);
     end
 
+    function args = trnType2ConstructorArgs(obj,trntypes,loc)
+      args = {};
+    end
+
+
+
+
     
   end  % mehtods
   
@@ -330,6 +337,27 @@ classdef DeepTrackerTopDown < DeepTracker
           }; ...
         };
     end  % function    
+
+    function [tf,loc] = isMemberTrnTypes(trntypes)
+      % [tf,loc] = isMemberTrnTypes(trntypes)
+      % Based on getTrackerInfos(), figure out if trntypes is a possible
+      % instantiation for this class
+      tf = false;
+      loc = 0;
+      if numel(trntypes) ~= 2,
+        return;
+      end
+      infos = DeepTrackerTopDown.getTrackerInfos();
+      for i = 1:numel(infos),
+        if strcmp(infos{i}{2}{2}.shortString,trntypes(1).shortString) && ...
+          strcmp(infos{i}{3}{2}.shortString,trntypes(2).shortString),
+            infos{i}{3}.netTypeMatches(trntypes(1),2,1),
+          tf = true;
+          loc = i;
+          return;
+        end
+      end
+    end  % function
 
   end  % methods (Static)
  
