@@ -258,7 +258,7 @@ detect_mmdetect:
   isMultiAnimal: 1
   description: >
     Detection TRansformer (DeTR) is a transformer-based algorithm for generic object detection.
-    It is implemented by the <a href="https://mmdetection.readthedocs.io/en/latest/overview.html>MMDetection</a> library. 
+    It is implemented by the <a href="https://mmdetection.readthedocs.io/en/latest/overview.html">MMDetection</a> library. 
     
     <i>Carion, N. et al., 2020. "End-to-end object detection with transformers", ECCV.</i>
 
@@ -276,7 +276,7 @@ detect_frcnn:
   isMultiAnimal: 1
   description: >
     Faster R-CNN is a popular, efficient, convolutional network for generic object detection. It is implemented by the
-    <a href="https://mmdetection.readthedocs.io/en/latest/overview.html>MMDetection</a> library.
+    <a href="https://mmdetection.readthedocs.io/en/latest/overview.html">MMDetection</a> library.
     
     <i>Ren, S., et al., 2016. "Faster R-CNN: Towards real-time object detection with region proposal networks", PAMI.</i>
 #  docker: tf23_mmdetection
