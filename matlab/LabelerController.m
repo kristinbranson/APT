@@ -583,7 +583,10 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
-      deleteValidGraphicsHandles(obj.movieManagerController_) ;
+      try
+        deleteValidGraphicsHandles(obj.movieManagerController_.hFig) ;
+      catch % fail silently :)
+      end
       deleteValidGraphicsHandles(obj.mainFigure_) ;
       % In principle, a controller shouldn't delete its model---the model should be
       % allowed to persist until there are no more references to it.  
