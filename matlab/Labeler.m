@@ -11131,10 +11131,12 @@ classdef Labeler < handle
       if nargin < 2,
         trackercurr = obj.tracker;
       end
-      if isa(trackercurr,'DeepTrackerBottomUp') || isa(trackercurr,'DeepTracker'),
+      if isa(trackercurr,'DeepTrackerTopDown') || isa(trackercurr,'DeepTrackerTopDownCuston'),
+        t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
+      elseif isa(trackercurr,'DeepTrackerBottomUp') || isa(trackercurr,'DeepTracker'),
         t = trackercurr.trnNetType;
       else
-        t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
+        t = [];
       end
 
     end
