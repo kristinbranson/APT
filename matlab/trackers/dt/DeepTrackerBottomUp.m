@@ -11,10 +11,6 @@ classdef DeepTrackerBottomUp < DeepTracker
     function tc = getTrackerClassAugmented(obj)
       tc = {class(obj) 'trnNetType' obj.trnNetType 'trnNetMode' obj.trnNetMode};
     end
-    function args = trnType2ConstructorArgs(obj,trntypes,loc)
-      args = {};
-    end
-
   end
       
   methods (Static)

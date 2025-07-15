@@ -308,13 +308,6 @@ classdef DeepTrackerTopDown < DeepTracker
       setTrackParams@DeepTracker(obj.stage1Tracker,sPrmTrack);
     end
 
-    function args = trnType2ConstructorArgs(obj,trntypes,loc)
-      args = {};
-    end
-
-
-
-
     
   end  % mehtods
   

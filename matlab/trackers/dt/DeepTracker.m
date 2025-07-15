@@ -3259,6 +3259,9 @@ classdef DeepTracker < LabelTracker
     end  % function
 
     function args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % Returns extra arguments necessary for instantiating this network based on trntypes. 
+      % For DeepTracker, this is an empty cell. 
       args = {};
     end
 

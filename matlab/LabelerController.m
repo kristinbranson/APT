@@ -434,8 +434,6 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetMovieInvert',@(source,event)(obj.didChangeMovieInvert()));      
       % obj.listeners_(end+1) = ...
-      %   addlistener(labeler,'update_menu_track_tracking_algorithm',@(source,event)(obj.update_menu_track_tracking_algorithm()));            
-      % obj.listeners_(end+1) = ...
       %   addlistener(labeler,'update_menu_track_tracking_algorithm_quick',@(source,event)(obj.update_menu_track_tracking_algorithm_quick()));            
       obj.listeners_(end+1) = ...
         addlistener(labeler,'update_menu_track_tracker_history',@(source,event)(obj.update_menu_track_tracker_history()));            
@@ -2303,41 +2301,6 @@ classdef LabelerController < handle
       end
     end  % function
     
-    % function update_menu_track_tracking_algorithm(obj)
-    %   % Populate the Track > 'Tracking algorithm' submenu.
-    %   % This only needs to be done when starting a new project or loading a project.
-    % 
-    %   % Get out the main objects
-    %   labeler = obj.labeler_ ;
-    %   if labeler.isinit || ~labeler.hasProject ,
-    %     return
-    %   end
-    % 
-    %   % Delete the old submenu items
-    %   old_menu_track_trackers = obj.menu_track_tracking_algorithm.Children ;
-    %   deleteValidGraphicsHandles(old_menu_track_trackers) ;
-    % 
-    %   % Remake the submenu items
-    %   tag = 'menu_track_tracking_algorithm_item' ;
-    %   trackers = labeler.trackersAll ;
-    %   trackerCount = numel(trackers) ;
-    %   for i=1:trackerCount  
-    %     algName = trackers{i}.algorithmName;
-    %     algLabel = trackers{i}.algorithmNamePretty;
-    %     enable = onIff(~strcmp(algName,'dpk'));
-    %     uimenu('Parent',obj.menu_track_tracking_algorithm,...
-    %            'Label',algLabel,...
-    %            'Callback',@(s,e)(obj.controlActuated(tag, s, e)),...
-    %            'Tag',tag,...
-    %            'UserData',i,...
-    %            'Enable',enable,...
-    %            'Position',i) ;
-    %   end
-    % 
-    %   % % Update the checkboxes, etc
-    %   % obj.update_menu_track_tracking_algorithm_quick() ;
-    % end  % function
-
     % function update_menu_track_tracking_algorithm_quick(obj)
     %   % Update the Track > 'Tracking algorithm' submenu.
     %   % This essentially means updating what elements are checked or not.

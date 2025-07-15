@@ -31,7 +31,7 @@ classdef DLNetType < handle
                 % will be included in the stripped lbl as p=nan and tfocc=true.
                 % (and this is the only effect)
     isMultiAnimal % TODO: rename to "isMA bottom up" or similar
-    description % added by KB 20250714
+    description % added by KB 20250714, description of the network used in UI
     %docker % docker tag
     %sing % path to singularity image
   end

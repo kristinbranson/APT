@@ -10990,7 +10990,6 @@ classdef Labeler < handle
     %   tObj = [];
     %   iTrk = 0;
     % end
-
   
     function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)      
       % Validate the new value
@@ -11125,6 +11124,9 @@ classdef Labeler < handle
     end  % function
 
     function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+      % t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+      % returns the trnNetTypes for the current tracker. trackercurr
+      % can be given as an optional input, otherwise obj.tracker is used.
 
       if nargin < 2,
         trackercurr = obj.tracker;
@@ -11138,6 +11140,12 @@ classdef Labeler < handle
     end
 
     function tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
+      % tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
+      % Create a new tracker based on the input nettypes. 
+      % This finds the tracker in trackersAll that matches the input
+      % nettypes and then calls obj.trackMakeNewTrackerGivenIndex to 
+      % create this. 
+
       tfSucc = true;
       nstages = numel(nettypes);
       % look for a match in instantiated nettypes
@@ -15883,6 +15891,13 @@ classdef Labeler < handle
     end
 
     function [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
+      % [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
+      % returns all deep learning nettypes. 
+      % All trackers are found with enumeration('DLNetType'), and they are
+      % segreagated into multi-animal-pose networks (maposenets), multi-animal
+      % bounding-box networks (mabboxnets), and single-animal posenets (saposenets).
+      % Parsing is somewhat based on the names of the trackers, so this is pretty
+      % delicate. 
 
       dlnets = enumeration('DLNetType') ;
       isma = [dlnets.isMultiAnimal] ;

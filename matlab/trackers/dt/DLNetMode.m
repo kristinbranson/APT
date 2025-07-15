@@ -1,5 +1,5 @@
 classdef DLNetMode < handle   
-  % While DLNetType captures a network type, the DLNetType by itobj does
+  % While DLNetType captures a network type, the DLNetType by itself does
   % not tell the entire story as a given network may be used in various 
   % ways for pose tracking.
   %
@@ -61,6 +61,11 @@ classdef DLNetMode < handle
       obj.isTrnPack = istp;
     end
     function tf = netTypeMatches(obj,nettypes,nstages,stage)
+      % tf = netTypeMatches(obj,nettypes,nstages,stage)
+      % Tests whether the input nettypes are instances of this netmode
+      % nettypes: array of DLNetTypes
+      % nstages: total number of stages
+      % stage: which stage this is 
       
       isma = [nettypes.isMultiAnimal] ;
       is_bbox = false(1,numel(nettypes)) ;
