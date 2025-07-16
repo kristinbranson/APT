@@ -109,7 +109,7 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             % If view_label definitions are provided in the calibration
             % file, use them. Else, use the default for four views
             
-            if isprop(obj, 'view_labels')
+            if isprop(obj, 'view_labels') && ~isempty(obj.view_labels)
                 cam_label = obj.view_labels{iView};
             else
                 switch iView
