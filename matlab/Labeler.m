@@ -152,7 +152,7 @@ classdef Labeler < handle
     gtSuggMFTableLbledUpdated  % incremental update of gtSuggMFTableLbled occurred
     gtResUpdated  % update of GT performance results occurred
     
-    update_menu_track_tracking_algorithm
+    % update_menu_track_tracking_algorithm
     % update_menu_track_tracking_algorithm_quick
     update_menu_track_tracker_history
     didSetCurrTracker
@@ -4810,8 +4810,6 @@ classdef Labeler < handle
         % obj.labelingInit('dosettemplate',false); 
       end
       
-      obj.setFrameAndTargetGUI(1,1);
-      
       trxFile = obj.trxFilesAllFullGTaware{iMov,1};
       tfTrx = ~isempty(trxFile);
       if tfTrx
@@ -4825,6 +4823,8 @@ classdef Labeler < handle
       obj.trxSet(trxvar);
       %obj.trxfile = trxFile; % this must come after .trxSet() call
         
+      obj.setFrameAndTargetGUI(1,1,true);
+      
       obj.isinit = isInitOrig; % end Initialization hell      
 
       % needs to be done after trx are set as labels2trkviz handles
@@ -4877,9 +4877,9 @@ classdef Labeler < handle
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
       if obj.hasTrx
-        obj.setFrameAndTargetGUI(obj.currTrx.firstframe,obj.currTarget);
+        obj.setFrameAndTargetGUI(obj.currTrx.firstframe,obj.currTarget,true);
       else
-        obj.setFrameAndTargetGUI(1,1);
+        obj.setFrameAndTargetGUI(1,1,true);
       end
             
     end  % function
@@ -11123,6 +11123,69 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;      
     end  % function
 
+    function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+      % t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+      % returns the trnNetTypes for the current tracker. trackercurr
+      % can be given as an optional input, otherwise obj.tracker is used.
+
+      if nargin < 2,
+        trackercurr = obj.tracker;
+      end
+      if isa(trackercurr,'DeepTrackerTopDown') || isa(trackercurr,'DeepTrackerTopDownCuston'),
+        t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
+      elseif isa(trackercurr,'DeepTrackerBottomUp') || isa(trackercurr,'DeepTracker'),
+        t = trackercurr.trnNetType;
+      else
+        t = [];
+      end
+
+    end
+
+    function tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
+      % tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
+      % Create a new tracker based on the input nettypes. 
+      % This finds the tracker in trackersAll that matches the input
+      % nettypes and then calls obj.trackMakeNewTrackerGivenIndex to 
+      % create this. 
+
+      tfSucc = true;
+      nstages = numel(nettypes);
+      % look for a match in instantiated nettypes
+      for idx = 1:numel(obj.trackersAll),
+        t = obj.trackGetCurrTrackerStageNetTypes(obj.trackersAll{idx});
+        if numel(t) ~= nstages,
+          continue;
+        end
+        for s = 1:nstages,
+          tfmatch = strcmp(t(s).shortString,nettypes(s).shortString);
+          if ~tfmatch,
+            break;
+          end
+        end
+        if tfmatch,
+          % add extra arguments
+          extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes);
+          obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
+          return;
+        end
+      end
+      % look for a match in possible nettypes
+      if obj.maIsMA,
+        for idx = 1:numel(obj.trackersAll),
+          [tfmatch,loc] = obj.trackersAll{idx}.isMemberTrnTypes(nettypes);
+          if tfmatch,
+            extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes,loc);
+            obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
+            return;
+          end
+        end
+      end
+
+      tfSucc = false;
+
+    end  % function
+
+
     function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
       algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
                                           obj.trackersAll_, ...
@@ -15827,6 +15890,38 @@ classdef Labeler < handle
 
     function result = get.trackerHistory(obj)
       result = obj.trackerHistory_ ;
+    end
+
+    function [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
+      % [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
+      % returns all deep learning nettypes. 
+      % All trackers are found with enumeration('DLNetType'), and they are
+      % segreagated into multi-animal-pose networks (maposenets), multi-animal
+      % bounding-box networks (mabboxnets), and single-animal posenets (saposenets).
+      % Parsing is somewhat based on the names of the trackers, so this is pretty
+      % delicate. 
+
+      dlnets = enumeration('DLNetType') ;
+      isma = [dlnets.isMultiAnimal] ;
+      saposenets = dlnets(~isma) ;
+      
+      is_bbox = false(1,numel(dlnets)) ;
+      for dndx = 1:numel(dlnets)          
+        is_bbox(dndx) = dlnets(dndx).isMultiAnimal && startsWith(char(dlnets(dndx)),'detect_') ;
+      end  % for
+      
+      maposenets = dlnets(isma & ~is_bbox) ;
+      mabboxnets = dlnets(isma & is_bbox) ;
+
+      dokeep = cellfun(@isempty,regexp({maposenets.displayString},'Deprecated','once'));
+      maposenets = maposenets(dokeep);
+      
+      dokeep = cellfun(@isempty,regexp({mabboxnets.displayString},'Deprecated','once'));
+      mabboxnets = mabboxnets(dokeep);
+
+      dokeep = cellfun(@isempty,regexp({saposenets.displayString},'Deprecated','once'));
+      saposenets = saposenets(dokeep);
+
     end
 
     function result = doesCurrentTrackerMatchFromTrackersAllIndex(obj)

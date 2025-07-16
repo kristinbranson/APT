@@ -3258,6 +3258,13 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
     end  % function
 
+    function args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % Returns extra arguments necessary for instantiating this network based on trntypes. 
+      % For DeepTracker, this is an empty cell. 
+      args = {};
+    end
+
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
     %   % load xv res
     %   % KB TODO update this code once cross-val is debugged
