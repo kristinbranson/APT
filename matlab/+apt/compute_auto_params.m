@@ -23,8 +23,6 @@ function autoparams = compute_auto_params(lobj,varargin)
     'rotation_range_precision',10,...
     'rotation_range_angle_span',2);
 
-  DEBUG = true;
-
   assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
 
   %% collate all labels and compute distances between centroids of bounding boxes of pairs of animals labeled on the same frame
@@ -90,27 +88,6 @@ function autoparams = compute_auto_params(lobj,varargin)
   % KB 20250717 switched this to using the the diagonal
   l_diagonal = sum((l_min - l_max).^2,1);
 
-  if DEBUG,
-    
-    figure;
-    clf;
-    tiledlayout('flow','TileSpacing','tight','Padding','tight');
-    nexttile;
-    nsizes = 20;
-    ns = unique(round(logspace(0,log10(size(all_labels,3)),nsizes)));
-    nsizes = numel(ns);
-    stat = nan(1,nsizes);
-    for i = 1:nsizes,
-      pc = prctile(l_diagonal(1:ns(i)),[50,100-SCALE_PRCTILE_SPAN],2);
-      stat(i) = pc(2)/pc(1);
-    end    
-    plot(ns,stat,'ko','markerfacecolor','b');
-    xlabel('N labels');
-    ylabel('diagonal large to med ratio');
-    set(gca,'xscale','log');
-
-  end
-
   l_diagonal_pc = prctile(l_diagonal,[50,100-SCALE_PRCTILE_SPAN],2);
   big_l_diagonal = l_diagonal_pc(2);
   med_l_diagonal = l_diagonal_pc(1);
@@ -173,21 +150,6 @@ function autoparams = compute_auto_params(lobj,varargin)
 
   autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
 
-  if DEBUG,
-
-    stat = nan(1,nsizes);
-    for i = 1:nsizes,
-      pc = prctile(l_span(1:ns(i)),100-SCALE_PRCTILE_SPAN,2); % [w;h]
-      stat(i) = max(pc);
-    end    
-    nexttile;
-    plot(ns,stat,'ko','markerfacecolor','b');
-    xlabel('N labels');
-    ylabel('large span');
-    set(gca,'xscale','log');
-
-  end
-
 
   %% rotation range parameters
 
@@ -198,19 +160,6 @@ function autoparams = compute_auto_params(lobj,varargin)
   % default case: percentiles of angle span of all keypoints around
   % centroid
   rrange_default = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
-
-  if DEBUG,
-
-    stat = nan(1,nsizes);
-    for i = 1:nsizes,
-      stat(i) = rrange_keypoints_around_centroid(all_labels(:,:,1:ns(i)),ROTATION_PRCTILE_ANGLE_SPAN,1);
-    end    
-    nexttile;
-    plot(ns,stat,'ko','markerfacecolor','b');
-    xlabel('N labels');
-    ylabel('rrange default');
-    set(gca,'xscale','log');
-  end
 
   if lobj.maIsMA && lobj.trackerIsTwoStage,
     if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta,
@@ -268,27 +217,6 @@ function autoparams = compute_auto_params(lobj,varargin)
 
   fprintf('New: trange_frame: %.1f, trange_pair: %.1f, trange_crop: %.1f\n',...
     trange_frame,trange_pair,trange_crop);
-
-
-  if DEBUG
-    if ~isempty(d_pairs),
-
-      nexttile;
-
-      npairstest = unique(round(logspace(0,log10(numel(d_pairs)),nsizes)));
-      stat = nan(1,numel(npairstest));
-      for i = 1:numel(npairstest),
-        stat(i) = prctile(d_pairs(1:npairstest(i)),TRANSLATION_PRCTILE_D_PAIRS);
-      end
-      plot(npairstest,stat,'ko','markerfacecolor','b');
-      xlabel('N label pairs');
-      ylabel('dpairs prctile');
-      set(gca,'xscale','log');
-    
-    end
-
-  end
-
 
   if lobj.maIsMA && lobj.trackParams.ROOT.MultiAnimal.multi_crop_ims,
     % If we are cutting the images into pieces (i think this is only for
