@@ -34,6 +34,7 @@ classdef BgTrackPoller < BgPoller
     nStages % number of unique stages being tracked
     njobs % number of jobs being tracked simultaneously
     nMovies % number of movies being tracked    
+    resultSize % number of results
   end  
 
   methods
@@ -57,6 +58,15 @@ classdef BgTrackPoller < BgPoller
     end
     function v = get.nMovies(obj)
       v = size(obj.movfiles,1);
+    end
+    function sz = get.resultSize(obj)
+      if strcmp(obj.trackType_,'list'),
+        sz = [1,obj.nViews,1];
+      elseif strcmp(obj.trackType_,'movie'),
+        sz = [obj.nMovies,obj.nViews,obj.nStages];
+      else
+        sz = [];
+      end
     end
   end    
     

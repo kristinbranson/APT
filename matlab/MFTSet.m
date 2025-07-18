@@ -115,6 +115,23 @@ classdef MFTSet < handle
       end
       str(1) = upper(str(1));
     end  % function
+
+    function tblMFT = getMFTableAllLabeled(obj,labelerObj,mIdx,tflabeled2)
+
+      if tflabeled2,
+        s = labelerObj.getLabels2MovIdx(mIdx);
+      else
+        s = labelerObj.getLabelsMovIdx(mIdx);
+      end
+      % use 0s here rather than labeling order
+      if labelerObj.maIsMA,
+        s.tgt(:) = 0;
+      end
+      tblMFT = table(...
+        repmat(mIdx,numel(s.frm),1),s.frm(:),s.tgt,...
+        'VariableNames',{'mov' 'frm' 'iTgt'});
+
+    end
     
     function tblMFT = getMFTable(obj,labelerObj,varargin)
       % tblMFT: MFTable with MFTable.ID
@@ -144,14 +161,21 @@ classdef MFTSet < handle
         iTgt = zeros(0,1);
         tblMFT = table(mov,frm,iTgt);
       else
-        mis = obj.movieIndexSet.getMovieIndices(labelerObj.getMftInfoStruct());
-        decFac = obj.decimation.getDecimation(labelerObj.getMftInfoStruct());
+        mftsinfo = labelerObj.getMftInfoStruct();
+        mis = obj.movieIndexSet.getMovieIndices(mftsinfo);
+        decFac = obj.decimation.getDecimation(mftsinfo);
         tgtSet = obj.targetSet;
         frmSet = obj.frameSet;
         
         nMovs = numel(mis);
         tblMFT = cell(0,1);
         isMA = labelerObj.maIsMA;
+
+        % special case for speed when we just want all labeled frames
+        tfFastLabeled = ((isMA && istrack) || isequal(tgtSet.id,'all')) && decFac == 1 && ...
+          (isequal(frmSet.id,'labeled') || isequal(frmSet.id,'labeled2'));
+        tflabeled2 = isequal(frmSet.id,'labeled2');
+        
         if isMA && istrack
           % nan targets here represent "Any target/MA" and should be so
           % interpreted within frmSet.
@@ -189,14 +213,23 @@ classdef MFTSet < handle
           end
           
           mIdx = mis(i);
-          iTgts = iTgtsArr{i};
-          for j=1:numel(iTgts)
-            iTgt = iTgts(j);
-            frms = frmSet.getFrames(labelerObj,mIdx,iTgt,decFac);
-            nfrm = numel(frms);
-            tblMFT{end+1,1} = table(...
-              repmat(mIdx,nfrm,1),frms(:),repmat(iTgt,nfrm,1),...
-              'VariableNames',{'mov' 'frm' 'iTgt'}); %#ok<AGROW>
+
+          if tfFastLabeled,
+            tblMFT{end+1,1} = obj.getMFTableAllLabeled(labelerObj,mIdx,tflabeled2); %#ok<AGROW>
+          else
+
+            iTgts = iTgtsArr{i};
+            for j=1:numel(iTgts)
+              iTgt = iTgts(j);
+              frms = frmSet.getFrames(labelerObj,mIdx,iTgt,decFac);
+              nfrm = numel(frms);
+              if isnan(iTgt),
+                iTgt = 0;
+              end
+              tblMFT{end+1,1} = table(...
+                repmat(mIdx,nfrm,1),frms(:),repmat(iTgt,nfrm,1),...
+                'VariableNames',{'mov' 'frm' 'iTgt'}); %#ok<AGROW>
+            end
           end
         end
         tblMFT = cat(1,tblMFT{:});

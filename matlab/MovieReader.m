@@ -123,10 +123,15 @@ classdef MovieReader < handle
       [obj.readFrameFcn,obj.nframes,obj.fid,obj.info] = ...
         get_readframe_fcn(obj.filename,'preload',obj.preload);%,'neednframes',obj.neednframes);
       
+      im = obj.readFrameFcn(1);
+      [obj.nr,obj.nc,obj.nchan] = size(im);
+
       if isfield(obj.info,'readerobj')
         obj.info = rmfield(obj.info,'readerobj');
       end
-      
+      obj.info.nr = obj.nr;
+      obj.info.nc = obj.nc;
+
       ifo = obj.info;
       % ifo.nr and ifo.nc are not reliable...
       % if isfield(ifo,'nr') && isfield(ifo,'nc')
@@ -134,8 +139,8 @@ classdef MovieReader < handle
       %   obj.nc = ifo.nc;
       %   obj.nchan = nan;
       % else
-        im = obj.readFrameFcn(1);
-        [obj.nr,obj.nc,obj.nchan] = size(im);
+      % ifo.nr = obj.nr;
+      % ifo.nc = obj.nc;
       % end
       
       tfHasBG = ~isempty(bgTy) && ~isempty(bgReadFcn);

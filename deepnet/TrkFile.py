@@ -501,6 +501,26 @@ class Tracklet:
     ismat_tracklet = isinstance(trk,dict) and 'startframes' in trk.keys()
     ish5py_tracklet = isinstance(trk,h5py._hl.files.File) and 'startframes' in trk.keys()
     return (ismat_tracklet or ish5py_tracklet)
+
+  def isEmpty(self,iTgts=None):
+    """
+    isEmpty(self,iTgts=None)
+    Check whether this tracklet is empty. If iTgts is None, check all targets.
+    If iTgts is a list of target indices, check only those targets.
+    :param iTgts: list of target indices to check
+    :return: array of booleans of length len(iTgts), where True indicates that the target is empty.
+    """
+    if iTgts is None:
+      iTgts = range(self.ntargets)
+    if isinstance(iTgts,int):
+      iTgts = [iTgts]
+    tf = np.zeros(len(iTgts),dtype=bool)
+    for i,itgt in enumerate(iTgts):
+      if self.data[itgt] is None or self.data[itgt].size == 0:
+        tf[i] = True
+      else:
+        tf[i] = np.all(equals_nan(self.data[itgt],self.defaultval))
+    return tf
       
   def allocate(self,size_rest,startframes,endframes):
     self.max_startframes = startframes.copy()
@@ -1123,7 +1143,25 @@ class Tracklet:
     startframes = to_mat(self.startframes)
     endframes = to_mat(self.endframes)
     return data,startframes,endframes
+
+  def remove_tgts(self,itgts):
+    """
+    remove_tgts(self,itgts)
+    Remove targets from this tracklet.
+    :param itgts: Scalar, list, or 1-d array of target indices to remove.
+    :return:
+    """
     
+    itgts = np.atleast_1d(itgts).flatten()
+    if itgts.size == 0:
+      return
+    
+    itgts = np.unique(itgts)
+    
+    self.data = [self.data[itgt] for itgt in range(self.ntargets) if itgt not in itgts]
+    self.startframes = self.startframes[[itgt for itgt in range(self.ntargets) if itgt not in itgts]]
+    self.endframes = self.endframes[[itgt for itgt in range(self.ntargets) if itgt not in itgts]]
+    self.ntargets = len(self.data)
 
 class Trk:
   
@@ -1266,6 +1304,21 @@ class Trk:
       if kwargs[k] is not None:
         assert isinstance(kwargs[k],np.ndarray)
         self.__dict__[k] = kwargs[k]
+        
+  def consolidate(self):
+    """
+    consolidate(self)
+    Consolidate the data in this object, removing empty targets and frames.
+    :return:
+    """
+    
+    if self.pTrk is None:
+        return
+    canremove = self.pTrk.isEmpty()
+    idxremove = np.nonzero(canremove)[0]
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k].remove_tgts(idxremove)
 
   def copy(self):
     """

@@ -76,7 +76,7 @@ classdef DeepTrackerTopDownCustom < DeepTrackerTopDown
       obj.valid = valid;      
     end  % function
 
-    function ctorargs = get_constructor_args_to_match_stage_types(obj)  % constant method
+    function ctorargs = get_constructor_args_to_match_stage_types(obj)
       % Get the arguments that, when passed to the DeepTrackerTopDownCustom
       % constructor, will cause the constructor to return a newly-minted tracker
       % with the same stage types as obj.
@@ -86,7 +86,25 @@ classdef DeepTrackerTopDownCustom < DeepTrackerTopDown
                    {'trnNetMode' stg2type} 
                    };
     end  % function
-    
+
+    function args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % The goal of this is what is stated for get_constructor_args_to_match_stage_types,
+      % but it seems ilke these are actually the arguments you need to make
+      % train types match; the above will only match the train *modes*
+      args = {};
+      if nargin < 2,
+        [tf,loc] = isMemberTrnTypes(trntypes);
+        if ~tf,
+          return;
+        end
+      end
+      infos = obj.getTrackerInfos();
+      stg1ctorargs = {'trnNetMode', infos{loc}{2}{2}, 'trnNetType', trntypes(1)} ;
+      stg2ctorargs = {'trnNetMode', infos{loc}{3}{2}, 'trnNetType', trntypes(2)} ;
+      args = {stg1ctorargs,stg2ctorargs};
+    end
+
   end  % methods
   
   methods (Static)
@@ -106,6 +124,27 @@ classdef DeepTrackerTopDownCustom < DeepTrackerTopDown
           }; ...
         };
     end  % function   
+
+    function [tf,loc] = isMemberTrnTypes(trntypes)
+      % [tf,loc] = isMemberTrnTypes(trntypes)
+      % Based on getTrackerInfos(), figure out if trntypes is a possible
+      % instantiation for this class
+
+      tf = false;
+      loc = 0;
+      if numel(trntypes) ~= 2,
+        return;
+      end
+      infos = DeepTrackerTopDownCustom.getTrackerInfos();
+      for i = 1:numel(infos),
+        if infos{i}{2}{2}.netTypeMatches(trntypes(1),2,1) && ...
+            infos{i}{3}{2}.netTypeMatches(trntypes(1),2,2),
+          tf = true;
+          loc = i;
+          return;
+        end
+      end
+    end
         
   end  % methods (Static)
     
