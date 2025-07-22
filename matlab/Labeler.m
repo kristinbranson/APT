@@ -4584,12 +4584,27 @@ classdef Labeler < handle
         assert(~obj.isMultiView,...
           'Multiview labeling with targets unsupported.');
       end
-                
+
+      movies_done = {};
+      movies_done_new = {};
+      movies_all = obj.(PROPS.MFAF)(:);
+
       for iView = 1:obj.nview
         movfile = obj.(PROPS.MFA){iMov,iView};
         movfileFull = obj.(PROPS.MFAF){iMov,iView};
         
-        if exist(movfileFull,'file')==0
+        % check if we have already replaced and that file exists
+        mndx = find(strcmp(movies_done,movfileFull));
+        done = false;
+        if ~isempty(mndx) && isscalar(mndx)
+          if exist(movies_done_new{mndx},'file')==0
+            movfileFull = movies_done_new{mndx};
+            done = true;
+          end
+        end
+
+
+        if exist(movfileFull,'file')==0 && ~done
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
@@ -4630,12 +4645,13 @@ classdef Labeler < handle
               if isempty(pathguess)
                 pathguess = pwd;
               end
+              oldmovfileFull = movfileFull;
               promptstr = sprintf('Select movie for %s',movfileFull);
               [newmovfile,newmovpath] = uigetfile('*.*',promptstr,pathguess);
               if isequal(newmovfile,0)
                 return; % Cancel
               end
-              movfileFull = fullfile(newmovpath,newmovfile);
+              movfileFull = fullfile(newmovpath,newmovfile);              
               if exist(movfileFull,'file')==0
                 emsg = FSPath.errStrFileNotFound(movfileFull,'movie');
                 FSPath.errDlgFileNotFound(emsg);
@@ -4655,6 +4671,42 @@ classdef Labeler < handle
                 movfileFull = obj.(PROPS.MFAF){iMov,iView};
               else
                 obj.(PROPS.MFA){iMov,iView} = movfileFull;
+              end
+
+              % If no macros then try to replace the movies with a simple
+              % pattern
+              
+              if ~FSPath.hasAnyMacro(movfile)
+
+                % Find the largest match from the end and see if the user
+                % wants to replace them for other movies
+                old_s = strrep(oldmovfileFull,'\',filesep);
+                old_s = strrep(old_s,'/',filesep);
+                new_s = strrep(movfileFull,'\',filesep);
+                new_s = strrep(new_s,'/',filesep);                
+                mlen = min(numel(old_s),numel(new_s));
+                matching_path = old_s(end-mlen+1:end) == new_s(end-mlen+1:end);
+                e_ndx = find(matching_path==0,1,'last');
+                old_str = old_s(1:end-mlen+e_ndx);
+                new_str = new_s(1:end-mlen+e_ndx);
+                movies_done{end+1} = oldmovfileFull;
+                movies_done_new{end+1} = movfileFull;
+                not_done = setdiff(movies_all,movies_done);
+                
+                if ~strcmp(old_str,old_s) && numel(not_done)>0
+                  [sel,tf] = listdlg('PromptString',{'Select movies to replace', ...
+                    sprintf('"%s"',old_str),'with', sprintf('"%s"',new_str),''},...
+                    'Name','Select movies to replace...',...
+                    'ListString',not_done);
+                  if tf
+                    for jj = sel(:)'
+                      cur_mov = strrep(not_done{jj},'\',filesep);
+                      cur_mov = strrep(cur_mov,'/',filesep);
+                      movies_done_new{end+1} = strrep(cur_mov,old_str,new_str);
+                      movies_done{end+1} = not_done{jj};
+                    end
+                  end
+                end
               end
           end
           
@@ -4728,6 +4780,7 @@ classdef Labeler < handle
       tfsuccess = true;
     end  % function
     
+
     function tfsuccess = movieSetGUI(obj, iMov, varargin)
       % Set the current movie to the one indicated by iMov.
       % iMov: If multiview, movieSet index (row index into .movieFilesAll)
