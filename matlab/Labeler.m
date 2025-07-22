@@ -4597,8 +4597,9 @@ classdef Labeler < handle
         mndx = find(strcmp(movies_done,movfileFull));
         done = false;
         if ~isempty(mndx) && isscalar(mndx)
-          if exist(movies_done_new{mndx},'file')==0
+          if ~(exist(movies_done_new{mndx},'file')==0)
             movfileFull = movies_done_new{mndx};
+            obj.(PROPS.MFA){iMov,iView} = movfileFull;
             done = true;
           end
         end
