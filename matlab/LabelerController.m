@@ -5301,9 +5301,10 @@ classdef LabelerController < handle
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      tPrm = labeler.trackGetTrackParams();
-      sPrmTrack = ParameterSetup(obj.mainFigure_, tPrm, 'labelerObj', labeler,'name','Tracking parameters');  % modal
-      labeler.setTrackingParameters(sPrmTrack) ;
+      sPrmTrack = NewParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',false);  % modal
+      if ~isempty(sPrmTrack),
+        labeler.setTrackingParameters(sPrmTrack) ;
+      end
     end
 
 
