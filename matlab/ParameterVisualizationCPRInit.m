@@ -7,8 +7,8 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
   
   methods
     
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)
-      obj.init(hAx,lObj,sPrm);
+    function propSelected(obj,hAx,lObj,propFullName,prm)
+      obj.init(hAx,lObj,prm);
     end
     
     function propUnselected(obj)
@@ -16,21 +16,21 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       obj.initVizInfo = [];
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
+    function propUpdated(obj,hAx,lObj,propFullName,prm)
       %prmFtr = sPrm.ROOT.CPR.Feature;
-      obj.init(hAx,lObj,sPrm);
+      obj.init(hAx,lObj,prm);
     end
 
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) %#ok<INUSD>
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,prm,val) %#ok<INUSD>
       
-
+      propFullName = ParameterVisualizationCPRInit.modernizePropName(propFullName);
       try
-        eval(sprintf('sPrm.ROOT.%s;',propFullName));
+        eval(sprintf('sPrm.%s;',propFullName));
       catch 
         warningNoTrace(sprintf('Unknown property %s',propFullName));
         return;
       end
-      eval(sprintf('sPrm.ROOT.%s = val;',propFullName));
+      eval(sprintf('sPrm.%s = val;',propFullName));
       
 %       % to do: store val in sPrm
 %       switch propFullName,
@@ -50,11 +50,11 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
 %           error('Unknown property changed: %s',propFullName);
 %       end
       
-      obj.init(hAx,lObj,sPrm);
+      obj.init(hAx,lObj,prm);
       
     end
     
-    function init(obj,hAx,lObj,sPrm)
+    function init(obj,hAx,lObj,prm)
       % plot sample processed training images
       % Set .initSuccessful, initVizInfo
       % Subsequent changes to can be handled via update(). This avoids
@@ -64,7 +64,9 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       obj.initVizInfo = [];
       nrepplot = 10;
       
-      set(hAx,'Units','normalized','Position',obj.axPos);
+      if ~strcmp(hAx.Parent.Type,'tiledlayout'),
+        set(hAx,'Units','normalized','Position',obj.axPos);
+      end
             
       % AL 20210722 CPR not maintained for now    
 %       if ~lObj.hasMovie
@@ -75,7 +77,10 @@ classdef ParameterVisualizationCPRInit < ParameterVisualization
       ParameterVisualization.setBusy(hAx,'Computing visualization. Please wait...');
       
       % Choose labeled frames to read in
-      [~,sPrmCPRold,ppPrms] = lObj.convertNew2OldParams(sPrm);
+      if isa(prm,'TreeNode'),
+        prm = prm.structize();
+      end
+      [~,sPrmCPRold,ppPrms] = lObj.convertNew2OldParams(prm);
       
       tblPTrn = lObj.preProcGetMFTableLbled('preProcParams',ppPrms,...
         'treatInfPosAsOcc',false);      

@@ -25,16 +25,16 @@ classdef ParameterVisualizationMemory < ParameterVisualization
   
 
   methods(Static)
-    function imsz = getProjImsz(lObj,sPrm,is_ma,is2stage,stage)
+    function imsz = getProjImsz(lObj,prm,is_ma,is2stage,stage)
       % sets .imsz
       imsz = [];
       if lObj.hasTrx || (is_ma && is2stage && (stage==2))
-        prmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        prmTgtCrop = ParameterVisualizationMemory.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');
         cropRad = maGetTgtCropRad(prmTgtCrop);
         imsz = cropRad*2+[1,1];
       elseif lObj.maIsMA
-        if sPrm.ROOT.MultiAnimal.multi_crop_ims
-          i_sz = sPrm.ROOT.MultiAnimal.multi_crop_im_sz;
+        if ParameterVisualizationMemory.getParamValue(prm,'ROOT.MultiAnimal.multi_crop_ims'),
+          i_sz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.MultiAnimal.multi_crop_im_sz');
         else
           i_sz = lObj.getMovieRoiMovIdx(MovieIndex(1));
           i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
@@ -63,26 +63,39 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       end
     end
 
-    function [ds,nettype,bsz] = getOtherProps(lObj,sPrm,is_ma,is2stage,stage)
+    function [ds,nettype,bsz] = getOtherProps(lObj,prm,is_ma,is2stage,stage)
+
       ds =1; nettype= ''; bsz = 1;
       if is_ma && is2stage && stage == 2
-        ds = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        ds = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.ImageProcessing.scale');
         nettype = string(lObj.tracker.trnNetType);
-        bsz = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
+        bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.GradientDescent.batch_size');
       elseif is_ma && is2stage && stage == 1
-        ds = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.ImageProcessing.scale;
+        ds = ParameterVisualizationMemory.getParamValue(prm,'ROOT.MultiAnimal.Detect.DeepTrack.ImageProcessing.scale');
         nettype = lObj.tracker.stage1Tracker.algorithmName;
-        bsz = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size;        
+        bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size');        
       elseif is_ma
-        ds = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        ds = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.ImageProcessing.scale');
         nettype = string(lObj.tracker.trnNetType);
-        bsz = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;        
+        bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.GradientDescent.batch_size');        
         
       else
-        ds = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+        ds = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.ImageProcessing.scale');
         nettype = lObj.tracker.algorithmName;
-        bsz = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;        
+        bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.GradientDescent.batch_size');        
       end      
+
+      % ds = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.ImageProcessing.scale');
+      % if is_ma && is2stage && stage == 1
+      %   nettype = lObj.tracker.stage1Tracker.algorithmName;
+      %   bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size');
+      % elseif is_ma
+      %   nettype = string(lObj.tracker.trnNetType);        
+      %   bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.GradientDescent.batch_size');
+      % else
+      %   nettype = lObj.tracker.algorithmName;
+      %   bsz = ParameterVisualizationMemory.getParamValue(prm,'ROOT.DeepTrack.GradientDescent.batch_size');
+      % end
       
     end
 
@@ -94,7 +107,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
 
       if is_ma 
         if is2stage
-          if startsWith(prop,'Deep Learning (pose)')
+          if startsWith(prop,'Deep Learning (pose)') || startsWith(prop,'DeepTrack'),
             stage = 2;
           else
             stage = 1;
@@ -113,16 +126,18 @@ classdef ParameterVisualizationMemory < ParameterVisualization
 
   methods
         
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)      
-      obj.init(hAx,lObj,propFullName,sPrm);    
+    function propSelected(obj,hAx,lObj,propFullName,prm)      
+      obj.init(hAx,lObj,propFullName,prm);    
     end
     
         
     
-    function init(obj,hAx,lObj,propFullName,sPrm)
+    function init(obj,hAx,lObj,propFullName,prm)
       %fprintf('init\n');      
-      obj.axPos = [.1,.1,.85,.85];
-      set(hAx,'Units','normalized','Position',obj.axPos);
+      if ~strcmp(hAx.Parent.Type,'tiledlayout'),
+        obj.axPos = [.1,.1,.85,.85];
+        set(hAx,'Units','normalized','Position',obj.axPos);
+      end
       
       obj.initSuccessful = false;
       [is_ma,is2stage,stage,is_ma_net] = ...
@@ -133,16 +148,16 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.stage = stage;
       obj.is_ma_net = is_ma_net;
       obj.imsz = ParameterVisualizationMemory.getProjImsz(...
-        lObj,sPrm,obj.is_ma,obj.is2stage,obj.stage);
+        lObj,prm,obj.is_ma,obj.is2stage,obj.stage);
       [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        lObj,sPrm,is_ma,is2stage,stage);
+        lObj,prm,is_ma,is2stage,stage);
       obj.downsample = ds;
       obj.nettype = nettype;
       obj.batchsize = bsz;
   
       if endsWith(propFullName,...
           {'Image Processing.Downsample factor',...
-          'Image Processing.scale'})
+          'ImageProcessing.scale'})
         
         xstr = 'Downsample factor';
         xs = logspace(log10(0.25),log10(max(obj.downsample,ParameterVisualizationMemory.maxDownsample)),ParameterVisualizationMemory.nDownsamples);
@@ -196,34 +211,23 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.is_ma_net = false;
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
-      %fprintf('propUpdated: %s.\n',propFullName);
-      
-      if obj.initSuccessful,
-        switch propFullName,
-        case {'DeepTrack.ImageProcessing.Downsample factor','DeepTrack.ImageProcessing.scale'},
-          if sPrm.ROOT.DeepTrack.ImageProcessing.scale == obj.downsample,
-            return;
-          end
-        case {'DeepTrack.GradientDescent.Training batch size','DeepTrack.GradientDescent.batch_size'},
-          if sPrm.ROOT.DeepTrack.GradientDescent.batch_size == obj.batchsize,
-            return;
-          end
-        end
-      end
-      
-      obj.init(hAx,lObj,propFullName,sPrm);
+    function propUpdated(obj,hAx,lObj,propFullName,prm)
+      %fprintf('propUpdated: %s.\n',propFullName);      
+      obj.init(hAx,lObj,propFullName,prm);
     end
     
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) 
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,prm,val) 
       %fprintf('propUpdatedDynamic: %s = %f.\n',propFullName,val);
+      propFullName = ParameterVisualizationMemory.modernizePropName(propFullName);
       try
-        eval(sprintf('sPrm.ROOT.%s = %f;',propFullName,val));
+        if isstruct(prm),
+          eval(sprintf('prm.%s = %f;',propFullName,val));
+        end
       catch
         warningNoTrace(sprintf('Unknown property %s',propFullName));
         return;
       end
-      obj.propUpdated(hAx,lObj,propFullName,sPrm)
+      obj.propUpdated(hAx,lObj,propFullName,prm)
     end
     
   end

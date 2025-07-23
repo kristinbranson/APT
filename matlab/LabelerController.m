@@ -5284,27 +5284,14 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
       drawnow;
 
-      % Compute the automatic parameters, give user chance to accept/reject them.
-      % did_update will be true iff they accepted them.
-      % tPrm will we be the current parameter tree, whether or not it incorporates
-      % the automatically-generated suggestions.
-      [tPrm, did_update, was_canceled] = obj.setAutoParams();
-      if was_canceled ,
-        return
-      end
-
       % Show the GUI window that allows users to set parameters.  sPrmNew will be
       % empty if user mode no changes, otherwise will be parameter structure holding
       % the new parameters (which have not yet been 'written' to the model).
-      sPrmNew = ParameterSetup(obj.mainFigure_,tPrm,'labelerObj',labeler,'name','Training parameters');  % modal
+      sPrmNew = NewParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',true);
 
       % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
       % labeler, as needed.     
-      if isempty(sPrmNew)
-        if did_update
-          labeler.setDoesNeedSave(true,'Parameters changed') ;
-        end
-      else
+      if ~isempty(sPrmNew)
         labeler.trackSetTrainingParams(sPrmNew);
         labeler.setDoesNeedSave(true,'Parameters changed') ;
       end

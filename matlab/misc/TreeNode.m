@@ -126,6 +126,38 @@ classdef TreeNode < handle
         t = n.Children;
       end
     end
+
+    function [n,p] = findfield(t,fn,leafonly)
+      if nargin < 3,
+        leafonly = false;
+      end
+      n = [];
+      p = {};
+      if strcmp(t.Data.Field,fn) && (~leafonly || numel(t.Children) == 0),
+        n = t;
+        p = {[]};
+      end
+      for c = t.Children(:)',
+        [nc,pc] = findfield(c,fn,leafonly);
+        if isempty(nc),
+          continue;
+        end
+        for i = 1:numel(pc),
+          if isempty(pc{i}),
+            pc{i} = t;
+          else
+            pc{i} = [t,pc{i}];
+          end
+        end
+        if isempty(n),
+          n = nc;
+          p = pc;
+        else
+          n(end+1:end+numel(nc)) = nc;
+          p(end+1:end+numel(nc)) = pc;
+        end
+      end
+    end
     
     function nodelist = flatten(t)
       % return flat nodelist

@@ -29,6 +29,8 @@ classdef ParameterVisualization < handle
     % Called when a property is no longer selected. For cleanup purposes
     propUnselected(obj)
 
+    init(obj,hAx,lObj,propFullName,sPrm)
+
     % All args are as in init(...); sPrm contains the latest/updated
     % parameters.
     propUpdated(obj,hAx,lObj,propFullName,sPrm)
@@ -95,7 +97,34 @@ classdef ParameterVisualization < handle
       drawnow;
       
     end      
-        
+
+    function s = modernizePropName(s)
+      if ~startsWith(s,'ROOT.'),
+        s = ['ROOT.',s];
+      end
+    end
+
+    function v = getParamValue(sPrm,fullPath)
+      if isstruct(sPrm)
+        fns = strsplit(fullPath,'.');
+        v = sPrm;
+        for i = 1:numel(fns),
+          v = v.(fns{i});
+        end
+      elseif isa(sPrm,'TreeNode'),
+        v = sPrm.findnode(fullPath);
+        if isempty(v.Children),
+          v = v.Data.Value;
+        else
+          v = v.structize();
+          fns = fieldnames(v);
+          assert(numel(fns)==1);
+          v = v.(fns{1});
+        end
+      end
+
+    end
+
   end
   
 end

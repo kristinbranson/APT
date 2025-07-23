@@ -151,6 +151,29 @@ classdef APTParameters
       sPrm0 = APTParameters.defaultParamsOldStyle();
       sPrm0 = rmfield(sPrm0,'PreProc');
     end
+    function leaves = getVisibleLeaves(tree)
+      % leaves = getVisibleLeaves(tree)
+      % returns an array of all visible leaf data
+      leaves = [];
+      if ~tree.Data.Visible,
+        return;
+      end
+      if isempty(tree.Children),
+        leaves = tree.Data;
+        return;
+      end
+      for i = 1:numel(tree.Children),
+        leavescurr = APTParameters.getVisibleLeaves(tree.Children(i));
+        if isempty(leavescurr),
+          continue;
+        end
+        if isempty(leaves),
+          leaves = leavescurr;
+        else
+          leaves(end+1:end+numel(leavescurr)) = leavescurr;
+        end
+      end
+    end
     function [tPrm,minLevel] = propagateLevelFromLeaf(tPrm)
       
       if isempty(tPrm.Children),
@@ -197,6 +220,23 @@ classdef APTParameters
         end
       end
       
+    end
+
+    function filterPropertiesByAffectsTraining(tree,istrain)
+
+      if isempty(tree.Children),
+        tree.Data.Visible = tree.Data.Visible && (tree.Data.AffectsTraining == istrain);
+        return;
+      end
+      
+      if tree.Data.Visible,
+        tree.Data.Visible = false;
+        for i = 1:numel(tree.Children),
+          APTParameters.filterPropertiesByAffectsTraining(tree.Children(i),istrain);
+          tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
+        end
+      end
+
     end
     
     function tree = setAllVisible(tree)
@@ -346,6 +386,54 @@ classdef APTParameters
       sPrmFilter0 = APTParameters.filterStructPropertiesByCondition(sPrm0,'tree',tPrm0,leftovers{:});
       sPrmFilter1 = APTParameters.filterStructPropertiesByCondition(sPrm1,'tree',tPrm1,leftovers{:});
       v = isequaln(sPrmFilter0,sPrmFilter1);
+
+    end
+
+    function [minv,maxv] = numberRange(tPrm)
+      if ~tPrm.Data.Visible,
+        minv = nan;
+        maxv = nan;
+        return;
+      end
+      minv = tPrm.Data.Index;
+      maxv = tPrm.Data.Index;
+      for c = tPrm.Children(:)',
+        [minvc,maxvc] = APTParameters.numberRange(c);
+        minv = min(minv,minvc);
+        maxv = max(maxv,maxvc);
+      end
+    end
+
+    function addNumbers(tPrm,minv,maxv)
+
+      if ~tPrm.Data.Visible,
+        return;
+      end
+      if nargin < 2,
+        minv = 0;
+        maxv = 1;
+      end
+      tPrm.Data.Index = minv; %(minv+maxv)/2;
+      if isempty(tPrm.Children),
+        return;
+      end
+      n = numel(tPrm.Children);
+      isvisible = false(1,n);
+      for i = 1:n,
+        child = tPrm.Children(i);
+        isvisible(i) = child.Data.Visible;
+      end
+      if ~any(isvisible),
+        %tPrm.Data.Index = (minv+maxv)/2;
+        return;
+      end
+      idxvisible = find(isvisible);
+      n = numel(idxvisible);
+      dv = (maxv-minv)/n;
+      for i = 1:n,
+        child = tPrm.Children(idxvisible(i));
+        APTParameters.addNumbers(child,minv+dv*(i-1),minv+dv*i);
+      end
 
     end
     
