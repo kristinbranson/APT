@@ -18,6 +18,10 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
     Requirements = {}
     Visible = true
     AffectsTraining = true
+    Index = nan % leaf number
+    FullPath = '' % path in the parameters tree to this parameter
+    UserData = [];
+    
   end
   properties (Dependent)
     DispNameUse
@@ -48,7 +52,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
     end
   end
   methods 
-    function obj = PropertiesGUIProp(fld,dispname,type,editable,desc,...
+    function obj = PropertiesGUIProp(fullPath,fld,dispname,type,editable,desc,...
         dfltval,val,prmViz,level,rqts,visible,affectsTraining)
       obj.Field = fld;
       obj.DispName = dispname;
@@ -58,6 +62,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
       obj.DefaultValue = dfltval;      
       obj.Value = val;
       obj.ParamViz = prmViz;
+      obj.FullPath = fullPath;
       if isempty(level),
         level = 'Important';
       end

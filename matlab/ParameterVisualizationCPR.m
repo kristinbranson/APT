@@ -7,8 +7,8 @@ classdef ParameterVisualizationCPR < ParameterVisualization
   
   methods
     
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)
-      obj.init(hAx,lObj,sPrm);
+    function propSelected(obj,hAx,lObj,propFullName,prm)
+      obj.init(hAx,lObj,prm);
     end
     
     function propUnselected(obj)
@@ -16,21 +16,24 @@ classdef ParameterVisualizationCPR < ParameterVisualization
       obj.initVizInfo = [];
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
+    function propUpdated(obj,hAx,lObj,propFullName,prm)
       %prmFtr = sPrm.ROOT.CPR.Feature;
-      obj.init(hAx,lObj,sPrm);
+      obj.init(hAx,lObj,prm);
     end
 
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) %#ok<INUSD>
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,prm,val) %#ok<INUSD>
       
 
       try
-        eval(sprintf('sPrm.ROOT.%s;',propFullName));
+        ParameterVisualizationCPR.getParamValue(prm,propFullName);
       catch 
         warningNoTrace(sprintf('Unknown property %s',propFullName));
         return;
       end
-      eval(sprintf('sPrm.ROOT.%s = val;',propFullName));
+      % don't need to set values if treeNode
+      if isstruct(prm),
+        eval(sprintf('sPrm.%s = val;',propFullName));
+      end
       
 %       % to do: store val in sPrm
 %       switch propFullName,
@@ -50,11 +53,11 @@ classdef ParameterVisualizationCPR < ParameterVisualization
 %           error('Unknown property changed: %s',propFullName);
 %       end
       
-      obj.init(hAx,lObj,sPrm);
+      obj.init(hAx,lObj,prm);
       
     end
     
-    function init(obj,hAx,lObj,sPrm)
+    function init(obj,hAx,lObj,prm)
       % plot sample processed training images
       % Set .initSuccessful, initVizInfo
       % Subsequent changes to can be handled via update(). This avoids
@@ -64,7 +67,9 @@ classdef ParameterVisualizationCPR < ParameterVisualization
         return;
       end
 
-      set(hAx,'Units','normalized','Position',obj.axPos);
+      if ~strcmp(hAx.Parent.Type,'tiledlayout'),
+        set(hAx,'Units','normalized','Position',obj.axPos);
+      end
       
       obj.initSuccessful = false;
       obj.initVizInfo = [];

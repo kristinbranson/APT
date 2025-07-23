@@ -25,14 +25,16 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       isOk = ~isempty(obj.hRect) && ishandle(obj.hRect);
     end
     
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)      
-      obj.init(hAx,lObj,propFullName,sPrm);
+    function propSelected(obj,hAx,lObj,propFullName,prm)      
+      obj.init(hAx,lObj,propFullName,prm);
     end
     
-    function init(obj,hAx,lObj,propFullName,sPrm)
+    function init(obj,hAx,lObj,propFullName,prm)
       
       obj.initSuccessful = false;
-      set(hAx,'Units','normalized','Position',obj.axPos);
+      if ~strcmp(hAx.Parent.Type,'tiledlayout'),
+        set(hAx,'Units','normalized','Position',obj.axPos);
+      end
       
       if ~lObj.hasMovie
         ParameterVisualization.grayOutAxes(hAx,'No movie available.');
@@ -72,7 +74,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
         return;
       end
       
-      sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;     
+      sPrm_MultiTgt_TargetCrop = ParameterVisualizationTgtCropRadius.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');     
       rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
           
       cla(hAx);
@@ -86,7 +88,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       title(hAx,tstr,'interpreter','none','fontweight','normal',...
         'fontsize',10);
       deleteValidGraphicsHandles(obj.hRect);
-      obj.hRect = plot(rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
+      obj.hRect = plot(hAx,rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
       
       obj.initSuccessful = true;
     end
@@ -97,27 +99,28 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       obj.initSuccessful = false;
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
+    function propUpdated(obj,hAx,lObj,propFullName,prm)
       if obj.initSuccessful && obj.plotOk(),
-        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;     
+        sPrm_MultiTgt_TargetCrop = ParameterVisualizationTgtCropRadius.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop'); 
         rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
         set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
       else
-        obj.init(hAx,lObj,propFullName,sPrm);
+        obj.init(hAx,lObj,propFullName,prm);
       end
     end
     
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val)
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,prm,val)
+      propFullName = ParameterVisualizationTgtCropRadius.modernizePropName(propFullName);
       if obj.initSuccessful && obj.plotOk()
-        sPrm_MultiTgt_TargetCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
-        assert(startsWith(propFullName,'MultiAnimal.TargetCrop.'));
+        sPrm_MultiTgt_TargetCrop = ParameterVisualizationTgtCropRadius.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');
+        assert(startsWith(propFullName,'ROOT.MultiAnimal.TargetCrop.'));
         toks = strsplit(propFullName,'.');        
         propShort = toks{end};
         sPrm_MultiTgt_TargetCrop.(propShort) = val;        
         rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
         set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
       else
-        obj.init(hAx,lObj,propFullName,sPrm);
+        obj.init(hAx,lObj,propFullName,prm);
       end
     end
     

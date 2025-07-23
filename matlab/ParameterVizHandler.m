@@ -12,18 +12,19 @@ classdef ParameterVizHandler < handle
     lObj 
     hFig % scalar fig handle, SetParameter fig. For accessing appdata
     hAx % scalar visualization axis
-    cbkToggleParamViz % if true, expand Tracking Params pane to expose param viz panel
+    cbkToggleParamViz % if true, expand Tracking Params pane to exposeproptoparam viz panel
     
     prop2ParamViz % containers.Map. key: prop object. val: ParameterVisualization obj
     id2ParamViz % containers.Map. key: ID. val: ParameterVisualization obj. Note, not all ParameterVisualizations will have an ID.
     
     paramVizSelected % Either [], or scalar ParameterVisualization associated with currently selected property
     cbkTS = 0;
+    fcnPropToKey = [];
   end
   
   methods
     
-    function obj = ParameterVizHandler(labelerObj,hFig,ax,cbkTogglePV)
+    function obj = ParameterVizHandler(labelerObj,hFig,ax,cbkTogglePV,varargin)      
       obj.lObj = labelerObj;
       obj.hFig = hFig;
       obj.hAx = ax;
@@ -34,6 +35,9 @@ classdef ParameterVizHandler < handle
       
       obj.paramVizSelected = [];
       obj.cbkTS = 0;
+
+      [obj.fcnPropToKey] = myparse(varargin,'fcnPropToKey',@(p) char(p.toString));
+
     end
     
     function delete(obj)
@@ -84,7 +88,7 @@ classdef ParameterVizHandler < handle
         error('ParameterVisualization with ID ''%s'' has already been added.',pvID);
       end
       
-      key = char(prop.toString);
+      key = obj.fcnPropToKey(prop);
       obj.prop2ParamViz(key) = pvObj;
       if ~isempty(pvID)
         obj.id2ParamViz(pvID) = pvObj;
@@ -92,14 +96,14 @@ classdef ParameterVizHandler < handle
     end
     
     function addPropExisting(obj,prop,pvObj,pvID)
-      key = char(prop.toString);
+      key = obj.fcnPropToKey(prop);
       obj.prop2ParamViz(key) = pvObj;
       assert(~isempty(pvID));
       assert(obj.id2ParamViz(pvID)==pvObj);
     end
     
     function [tf,pvObj] = isprop(obj,prop)
-      key = char(prop.toString);
+      key = obj.fcnPropToKey(prop);
       m = obj.prop2ParamViz;
       tf = m.isKey(key);
       if tf
@@ -240,4 +244,5 @@ classdef ParameterVizHandler < handle
     end
     
   end
+
 end

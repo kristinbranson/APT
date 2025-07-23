@@ -26,16 +26,18 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       obj.update(hAx,lObj,sPrm,propFullName);
     end
 
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,sPrm,val) %#ok<INUSD>
+    function propUpdatedDynamic(obj,hAx,lObj,propFullName,prm,val) %#ok<INUSD>
       
-
+      propFullName = ParameterVisualizationPreproc.ParameterVisualizationPreproc.modernizePropName(propFullName);
       try
-        eval(sprintf('sPrm.ROOT.%s;',propFullName));
+        ParameterVisualizationPreproc.getParamValue(prm,propFullName);
       catch 
         warningNoTrace(sprintf('Unknown property %s',propFullName));
         return;
       end
-      eval(sprintf('sPrm.ROOT.%s = val;',propFullName));
+      if isstruct(prm),
+        eval(sprintf('prm.%s = val;',propFullName));
+      end
       
 %       % to do: store val in sPrm
 %       switch propFullName,
@@ -55,11 +57,11 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 %           error('Unknown property changed: %s',propFullName);
 %       end
       
-      obj.update(hAx,lObj,sPrm,propFullName);
+      obj.update(hAx,lObj,prm,propFullName);
       
     end
     
-    function init(obj,hAx,lObj,sPrm,propFullName)
+    function init(obj,hAx,lObj,prm,propFullName)
       % plot sample processed training images
       % Set .initSuccessful, initVizInfo
       % Subsequent changes to can be handled via update(). This avoids
@@ -85,7 +87,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       
       obj.initializeVizInfo();
       
-      obj.update(hAx,lObj,sPrm,propFullName);
+      obj.update(hAx,lObj,prm,propFullName);
       
 
     end
@@ -121,6 +123,9 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
     end
     
     function update(obj,hAx,lObj,sPrm,propFullName)
+      if ~isstruct(sPrm),
+        sPrm = sPrm.structize();
+      end
 
       if obj.tfUpdating,
         %fprintf('Update already running, canceling this call.\n');

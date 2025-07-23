@@ -12,12 +12,12 @@ classdef ParameterVisualizationFeature < ParameterVisualization
   
   methods
     
-    function propSelected(obj,hAx,lObj,propFullName,sPrm)
+    function propSelected(obj,hAx,lObj,propFullName,prm)
       if obj.initSuccessful
-        prmFtr = sPrm.ROOT.CPR.Feature;
+        prmFtr = ParameterVisualizationFeature.getParamValue(prm,'ROOT.CPR.Feature');
         assert(strcmp(prmFtr.Type,obj.initFeatureType));
       else
-        obj.init(hAx,lObj,sPrm);
+        obj.init(hAx,lObj,prm);
       end
     end
     
@@ -28,13 +28,13 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       obj.initFtrVizInfo = [];
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,sPrm)
-      prmFtr = sPrm.ROOT.CPR.Feature;
+    function propUpdated(obj,hAx,lObj,propFullName,prm)
+      prmFtr = ParameterVisualizationFeature.getParamValue(prm,'ROOT.CPR.Feature');
       if obj.initSuccessful && strcmp(prmFtr.Type,obj.initFeatureType)
-        obj.update(hAx,lObj,sPrm);
+        obj.update(hAx,lObj,prm);
       else
         % New init, or feature type changed
-        obj.init(hAx,lObj,sPrm);
+        obj.init(hAx,lObj,prm);
       end
     end
 
@@ -47,7 +47,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
     
     
     
-    function init(obj,hAx,lObj,sPrm)
+    function init(obj,hAx,lObj,prm)
       % plot a labeled frame + viz feature for current Feature.Type.
       % Set .initSuccessful, .initFeatureType, initFtrVizInfo, .hPlot.
       % Subsequent changes to Feature.Radius or Feature.ABRatio can be 
@@ -118,14 +118,14 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         assert(nviews==1,'Unsupported for multiview projects with trx.');
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
         %cropRadius = sPrm.ROOT.MultiAnimal.TargetCrop.Radius;
-        prmsTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+        prmsTgtCrop = ParameterVisualizationFeature.getParamValue.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');
         cropRadius = maGetTgtCropRad(prmsTgtCrop);
         [roixlo,roixhi,roiylo,roiyhi] = xyRad2roi(xTrx,yTrx,cropRadius);
         axis(hAx,[roixlo roixhi roiylo roiyhi]);
       end
       
       % Viz feature; set .hPlot
-      prmFtr = sPrm.ROOT.CPR.Feature;
+      prmFtr = ParameterVisualizationFeature.getParamValue.getParamValue(prm,'ROOT.CPR.Feature');
       % generate 'fake' model parameters
       prmModel = struct('nfids',nphyspts,'d',2,'nviews',1);
       fvIfo = struct();
@@ -164,11 +164,11 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       obj.initFtrVizInfo = fvIfo;
     end
 
-    function update(obj,hAx,lObj,sPrm)
+    function update(obj,hAx,lObj,prm)
       % Update visualization for unchanged featuretype (eg radius, abratio
       % changed)
       
-      prmFtr = sPrm.ROOT.CPR.Feature;
+      prmFtr = ParameterVisualizationFeature.getParamValue.getParamValue(prm,'ROOT.CPR.Feature');
       
       if obj.initSuccessful
         assert(strcmp(prmFtr.Type,obj.initFeatureType));
