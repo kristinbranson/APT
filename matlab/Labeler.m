@@ -21,7 +21,7 @@ classdef Labeler < handle
       'viewCalibrationData' 'viewCalProjWide' ...
       'viewCalibrationDataGT' ...
       'labels' 'labels2' 'labelsGT' 'labels2GT' ...
-      'labelsRoi' ...
+      'labelsRoi' 'labelsRoiGT' ...
       'currMovie' 'currFrame' 'currTarget' ...
       'gtIsGTMode' 'gtSuggMFTable' 'gtTblRes' ...
       'labelTemplate' ...
@@ -459,6 +459,7 @@ classdef Labeler < handle
     labelsGT 
     labels2GT 
     labelsRoi 
+    labelsRoiGT
     labels2Hide           % scalar logical
     labels2ShowCurrTargetOnly   % scalar logical, transient    
     skeletonEdges = zeros(0,2)  % nEdges x 2 matrix containing indices of vertex landmarks
@@ -1548,6 +1549,12 @@ classdef Labeler < handle
         obj.updateFrameTableIncremental(); 
       end
     end
+    function set.labelsRoiGT(obj,v)      
+      obj.labelsRoiGT = v;
+      if ~obj.isinit %#ok<MCSUP> 
+        obj.updateFrameTableIncremental(); 
+      end
+    end
     function set.movieForceGrayscale(obj,v)
       if isscalar(v) && islogical(v) ,
         [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
@@ -2137,6 +2144,7 @@ classdef Labeler < handle
       obj.labelsGT = cell(0,1);
       obj.labels2GT = cell(0,1);      
       obj.labelsRoi = cell(0,1);
+      obj.labelsRoiGT = cell(0,1);
       obj.lastLabelChangeTS = 0;
       obj.gtIsGTMode = false;
       obj.gtSuggMFTable = MFTable.emptyTable(MFTable.FLDSID);
@@ -3612,6 +3620,10 @@ classdef Labeler < handle
         nmov = numel(s.labels);
         s.labelsRoi = repmat({LabelROI.new()},nmov,1);
       end
+      if ~isfield(s,'labelsRoiGT')
+        nmov = numel(s.labelsGT);
+        s.labelsRoiGT = repmat({LabelROI.new()},nmov,1);
+      end
       
       % 20210317 MA use tracklets in labels2
       % Used Labels earlier in dev
@@ -3965,7 +3977,9 @@ classdef Labeler < handle
           tfo.initFrm2Tlt(nfrms);          
           obj.(PROPS.LBL2){end+1,1} = tfo;
         end
-        if ~gt
+        if gt
+          obj.labelsRoiGT{end+1,1} = LabelROI.new();
+        else
           obj.labelsRoi{end+1,1} = LabelROI.new();
         end
 %        obj.labeledposY{end+1,1} = nan(4,0);
@@ -4152,7 +4166,9 @@ classdef Labeler < handle
       tfo = TrkFile(nLblPts,1:nTgt); % one target
       tfo.initFrm2Tlt(nFrms);
       obj.(PROPS.LBL2){end+1,1} = tfo;
-      if ~gt
+      if gt
+        obj.labelsRoiGT{end+1,1} = LabelROI.new();
+      else
         obj.labelsRoi{end+1,1} = LabelROI.new();
       end
       if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
@@ -4300,7 +4316,9 @@ classdef Labeler < handle
 %         obj.(PROPS.LPOS2)(iMov,:) = [];
         obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
         obj.(PROPS.LBL2)(iMov,:) = [];
-        if ~gt
+        if gt
+          obj.labelsRoiGT(iMov,:) = [];
+        else
           obj.labelsRoi(iMov,:) = [];
         end
         if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
@@ -6863,12 +6881,17 @@ classdef Labeler < handle
 
         n = height(tblFT);
         npts = obj.nLabelPoints;
-        szassert(tblFT.p,[n 2*npts]);
-        szassert(tblFT.tfocc,[n npts]);
+        if obj.maIsMA
+          assert((size(tblFT.p,1)==n)&&(size(tblFT.p,3)==2*npts));
+          assert((size(tblFT.tfocc,1)==n)&&(size(tblFT.tfocc,3)==npts));
+        else
+          szassert(tblFT.p,[n 2*npts]);
+          szassert(tblFT.tfocc,[n npts]);
+        end
         %assert(islogical(tblFT.tfocc));
 
         warningNoTrace('Existing labels cleared!');
-        tblFT.pTS = tsnow*ones(n,npts);
+        tblFT.pTS = tsnow*ones(size(tblFT.tfocc));
         s = Labels.fromtable(tblFT);
       else
         s = tblFT;
@@ -7502,7 +7525,7 @@ classdef Labeler < handle
       isMA = obj.maIsMA;
       if isMA
         if obj.gtIsGTMode
-          sroi = LabelROI.new();
+          sroi = obj.labelsRoiGT{obj.currMovie};
         else
           sroi = obj.labelsRoi{obj.currMovie};
         end
@@ -7620,15 +7643,18 @@ classdef Labeler < handle
 
     function labelroiSet(obj,v)
       % Set/replace all rois for current mov/frm
-      assert(~obj.gtIsGTMode);
+      %assert(~obj.gtIsGTMode);
       iMov = obj.currMovie;
       frm = obj.currFrame;
-      s = obj.labelsRoi{iMov};
-      obj.labelsRoi{iMov} = LabelROI.setF(s,v,frm);
-
-      if ~obj.gtIsGTMode
-        obj.lastLabelChangeTS = now;
+      if obj.gtIsGTMode
+        s = obj.labelsRoiGT{iMov};
+        obj.labelsRoiGT{iMov} = LabelROI.setF(s,v,frm);
+      else
+        s = obj.labelsRoi{iMov};
+        obj.labelsRoi{iMov} = LabelROI.setF(s,v,frm);
       end
+
+      obj.lastLabelChangeTS = now;
       obj.labeledposNeedsSave = true;
     end
     
@@ -8609,8 +8635,14 @@ classdef Labeler < handle
         end
       end
       
+      if obj.maIsMA
+        maxn = obj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
+      else
+        maxn = 1;
+      end
+
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,lpos,argsTrx{:},...
-                                              'wbObj',wbObj);
+         'wbObj',wbObj,'isma',obj.maIsMA,'maxanimals',maxn);
       if tfWB ,
         if wbObj.wasCanceled ,
           return
@@ -10096,7 +10128,9 @@ classdef Labeler < handle
       tblMFT_SuggAndLbled = obj.labelAddLabelsMFTable(tblMFT_SuggAndLbled,'isma',obj.maIsMA,'maxanimals',maxn);
 
       if obj.maIsMA
-        err = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled);  % nframes x maxn x nkeypoints
+        [err,fp,fn] = computeMAErr(tblTrkRes,tblMFT_SuggAndLbled,obj.tracker.sPrmAll.ROOT.MultiAnimal.multi_loss_mask);  % nframes x maxn x nkeypoints
+        fp = sum(fp,2,'omitmissing');
+        fn = sum(fn,2,'omitmissing');
       else
         pTrk = tblTrkRes.pTrk; % absolute coords
         pLbl = tblMFT_SuggAndLbled.p; % absolute coords
@@ -10111,6 +10145,8 @@ classdef Labeler < handle
         err = sqrt(sum((pTrk-pLbl).^2,3));      
         tflblinf = any(isinf(pLbl),3); % [nrow x npts] fully-occ indicator mat; lbls currently coded as inf
         err(tflblinf) = nan; % treat fully-occ err as nan here
+        fp = nan([nrow,1]);
+        fn = nan([nrow,1]);
       end
 
       muerr = mean(err,ndims(err),'omitnan'); % and ignore in meanL2err  
@@ -10133,7 +10169,7 @@ classdef Labeler < handle
         end
         tblTrkRes(:,'pTrx') = [];
       end
-      tblGTres = [tblTrkRes tblTmp table(err,muerr,'VariableNames',{'L2err' 'meanL2err'})];
+      tblGTres = [tblTrkRes tblTmp table(err,muerr,fp,fn,'VariableNames',{'L2err' 'meanL2err','FP','FN'})];
       
       obj.gtTblRes = tblGTres;
       obj.notify('gtResUpdated');

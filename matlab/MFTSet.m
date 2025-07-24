@@ -123,12 +123,15 @@ classdef MFTSet < handle
       else
         s = labelerObj.getLabelsMovIdx(mIdx);
       end
+      frm = s.frm;
+      tgt = s.tgt;
       % use 0s here rather than labeling order
-      if labelerObj.maIsMA,
-        s.tgt(:) = 0;
+      if labelerObj.maIsMA
+        frm = unique(frm);
+        tgt = uint32(zeros(size(frm)));
       end
       tblMFT = table(...
-        repmat(mIdx,numel(s.frm),1),s.frm(:),s.tgt,...
+        repmat(mIdx,numel(frm),1),frm(:),tgt,...
         'VariableNames',{'mov' 'frm' 'iTgt'});
 
     end

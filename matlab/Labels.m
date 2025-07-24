@@ -382,6 +382,9 @@ classdef Labels
 
       tf = s.frm==frm;
       itgts = s.tgt(tf);
+      if max(itgts)==0
+        itgts = ones(size(s.frm));
+      end
       
       % for MA, itgts will be compaticified ie always equal to 1:max(itgts)
       % but possibly out of order. for now don't rely on compactness in 
@@ -422,11 +425,18 @@ classdef Labels
       % tflbled: [nf itgtmax] tflbled(f,itgt) is true if itgt is labeled at f
       if isempty(s.tgt)
         itgtmax = 0;
+        tgts = ones(size(s.frm));
       else
-        itgtmax = max(s.tgt);
+        if max(s.tgt)==0
+          itgtmax = 1;
+          tgts = s.tgt+1;
+        else
+          itgtmax = max(s.tgt);
+          tgts = s.tgt;
+        end
       end      
       tflbled = false(nf,itgtmax);
-      idx = sub2ind([nf itgtmax],s.frm,s.tgt);
+      idx = sub2ind([nf itgtmax],s.frm,tgts);
       tflbled(idx) = true;
       %ntgt = sum(tflbled,2);
     end
@@ -488,9 +498,15 @@ classdef Labels
         assert(all(t.mov==t.mov(1)));
         warningNoTrace('.mov column will be ignored.');        
       end
+
+      if ndims(t.p)==3
+        s = Labels.fromtableMA(t);
+        return;
+      end
       
       n = height(t);
-      npts = size(t.p,2)/2;
+      sz = size(t.p);
+      npts = sz(end)/2;
       s = Labels.new(npts,n);      
       p = t.p.';
       ts = t.pTS.';
@@ -500,6 +516,39 @@ classdef Labels
       s.occ(:) = occ(:);
       s.frm(:) = t.frm;
       s.tgt(:) = t.iTgt;
+      % if max(t.iTgt)==0
+      %   % when exporting for MA, all the iTgt can get set to 0
+      %   tgt = zeros(size(s.frm));
+      %   for i=1:numel(s.frm)
+      %     tgt(i) = sum(s.frm(1:i)==s.frm(i));
+      %   end
+      %   s.tgt(:) = uint32(tgt);
+      % end
+    end
+
+    function s = fromtableMA(t)
+      sz = size(t.p);
+      npts = sz(end)/2;
+      p = t.p;
+      ts = t.pTS;
+      occ = t.tfocc;
+      nlbls = nnz(~all(isnan(p),3));
+      s = Labels.new(npts,nlbls);      
+      count = 1;
+      for fndx = 1:size(p,1)
+        curt = 1;
+        for tndx = 1:size(p,2)
+          if all(isnan(p(fndx,tndx,:))), continue; end
+          s.p(:,count) = p(fndx,tndx,:);
+          s.ts(:,count) = ts(fndx,tndx,:);
+          s.occ(:,count) = occ(fndx,tndx,:);
+          s.frm(count) = t.frm(fndx);
+          s.tgt(count) = uint32(curt);
+          curt = curt+1;
+          count = count+1;
+        end
+      end
+
     end
 
     function s = fromcoco(cocos,varargin)
