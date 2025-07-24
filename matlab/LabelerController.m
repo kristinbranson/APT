@@ -936,6 +936,8 @@ classdef LabelerController < handle
                 );
       
       l2err = t.L2err;  % For MA, nframes x nanimals x npts.  For SA, nframes x npts
+      fp = t.FP;
+      fn = t.FN;
       aggOverPtsL2err = fcnAggOverPts(l2err);  
         % t.L2err, for a single-view MA project, seems to be 
         % ground-truth-frame-count x animal-count x keypoint-count, and
@@ -997,8 +999,10 @@ classdef LabelerController < handle
       nperkp = reshape(nperkp,[nphyspt,nviews]);
       ntotal = sum(~all(isnan(reshape(l2err_filtered,[],nphyspt,nviews)),2),1);
       ntotal = reshape(ntotal,[nviews,1]);
+      fp_all = sum(fp,'omitmissing');
+      fn_all = sum(fn,'omitmissing');
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
-      islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal);
+      islight = plotPercentileCircles(allims,prcs,allpos,plotParams.prc_vals,fig_1,txtOffset,ntotal,fp_all,fn_all,labeler.maIsMA);
       figh = hmain*.75;
       hpx = max(cellfun(@(x) size(x,1),allims));
       wpx = sum(cellfun(@(x) size(x,2),allims));
