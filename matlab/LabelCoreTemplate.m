@@ -489,8 +489,6 @@ classdef LabelCoreTemplate < LabelCore
         %obj.clearSelected(iPt);
         obj.toggleSelectPoint(iPt);
       else
-        fprintf('kp not handled:\n');
-        disp(evt);
         tfKPused = false;
       end
     end
