@@ -1,4 +1,4 @@
-function islight = plotPercentileCircles(im,prcs,labels,prc_vals,hpar,txtOffset,ntotal)
+function islight = plotPercentileCircles(im,prcs,labels,prc_vals,hpar,txtOffset,ntotal,fp,fn,isma)
 
 if nargin<5
   hpar = figure;
@@ -82,6 +82,10 @@ for viewi = 1:nviews
   end
   if numel(ntotal) >= viewi && ~isnan(ntotal(viewi)),
     s{end+1} = sprintf('N examples = %d',ntotal(viewi));
+  end
+  if isma
+    s{end+1} = sprintf('False Positive Rate: %.3f',fp/ntotal(viewi));
+    s{end+1} = sprintf('False Negative Rate: %.3f',fn/ntotal(viewi));
   end
   if ~isempty(s),
     text(5,5,s,'Color',tcol,'Parent',hax(viewi),...
