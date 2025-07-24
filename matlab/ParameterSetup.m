@@ -1,4 +1,4 @@
-function output = NewParameterSetup(varargin)
+function output = ParameterSetup(varargin)
 
 persistent lastLevel;
 

@@ -5291,7 +5291,7 @@ classdef LabelerController < handle
       % Show the GUI window that allows users to set parameters.  sPrmNew will be
       % empty if user mode no changes, otherwise will be parameter structure holding
       % the new parameters (which have not yet been 'written' to the model).
-      sPrmNew = NewParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',true);
+      sPrmNew = ParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',true);
 
       % Write the parameters to the labeler, if called for.  Set doesNeedSave in the
       % labeler, as needed.     
@@ -5305,7 +5305,7 @@ classdef LabelerController < handle
 
     function menu_track_settrackparams_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      sPrmTrack = NewParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',false);  % modal
+      sPrmTrack = ParameterSetup(labeler,'hPar',obj.mainFigure_,'istrain',false);  % modal
       if ~isempty(sPrmTrack),
         labeler.setTrackingParameters(sPrmTrack) ;
       end
