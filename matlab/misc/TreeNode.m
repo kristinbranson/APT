@@ -13,7 +13,7 @@ classdef TreeNode < handle
       if nargin >= 2 && isjsonstruct,
         obj.initFromJsonStruct(dat,varargin{:});
       else
-        obj.Children = TreeNode.empty(1,0);
+        obj.Children = TreeNode.empty(0,1);
         obj.Data = dat;
       end
     end

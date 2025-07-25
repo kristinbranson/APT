@@ -252,9 +252,14 @@ classdef APTParameters
       % note on netsUsed
       % Currently, topdown trackers include 2 'netsUsed'
       
+      [stage,argsrest] = myparse_nocheck(varargin,'stage','last');
+      if strcmp(tree.Data.Field,{'Detect'})
+        stage = 'first';
+      end
+
       if isempty(tree.Children),
         
-        [netsUsed,hasTrx,trackerIsDL] = myparse(varargin,...
+        [netsUsed,hasTrx,trackerIsDL] = myparse(argsrest,...
           'netsUsed',[],'hasTrx',[],'trackerIsDL',[]);
         if isempty(netsUsed),
           netsUsed = labelerObj.trackerNetsUsed;
@@ -270,12 +275,19 @@ classdef APTParameters
         isbu = labelerObj.trackerIsBotUp;
         isod = labelerObj.trackerIsObjDet;
         isht = is2stg && ~isod;
-        
+        if strcmpi(stage,'first'),
+          netsUsed = netsUsed(1);
+        elseif strcmpi(stage,'last')
+          netsUsed = netsUsed(end);
+        end
         % AL20210901: note: in parameter jsons, the 'isTopDown' requirement
         % is used; but this actually means "isTD-2stg"; vs SA-trx which is
         % conceptually TD.
       
         reqs = tree.Data.Requirements;
+        if isempty(reqs),
+          return;
+        end
         if ismember('isCPR',reqs) && ~any(strcmpi('cpr',netsUsed)),
           tree.Data.Visible = false;
         elseif all(ismember({'hasTrx' 'isTopDown'},reqs))
@@ -314,9 +326,11 @@ classdef APTParameters
           dlnets = enumeration('DLNetType');
           for i=1:numel(dlnets)
             net = dlnets(i);
-            if ismember(net,reqs) && ~any(strcmp(net,netsUsed))
+            if ismember(lower(char(net)),lower(reqs)) && ~any(strcmp(net,netsUsed))
               tree.Data.Visible = false;
               break;
+            elseif ismember(['~',lower(char(net))],lower(reqs)) && any(strcmp(net,netsUsed)),
+              tree.Data.Visible = false;
             end
           end
         end
@@ -953,6 +967,17 @@ classdef APTParameters
         end
         value = struct('json', {json_file_path}, 'tree', {param_tree}) ;
         s.(fn) = value ;
+      end
+      % under ma.detect, we have the same deeptrack structure
+      if isfield(s,'ma') && isfield(s,'deeptrack'),
+        t1 = s.ma.tree.findnode('ROOT.MultiAnimal.Detect.DeepTrack');
+        t2 = s.deeptrack.tree.findnode('ROOT.DeepTrack');
+        if isempty(t1.Children),
+          t1.Children = TreeNode.empty(0,1);
+        end      
+        for i = 1:numel(t2.Children),
+          t1.Children(end+1,1) = t2.Children(i).copy();
+        end
       end
       % % Print s
       % fprintf('s:\n') ;
