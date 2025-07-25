@@ -603,7 +603,7 @@ end  % demoParameters
 
 function propsList = preparePropsList(parameters,fqnBase,hFig,...
   paramVizHandler,paramCheckerFcn,paramConstraints)
-% parameters: Tree from parseConfigYaml
+% parameters: Tree from parseConfigJson
 % fqnBase: FQN base for recursion
 
 propsList = java.util.ArrayList();

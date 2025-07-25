@@ -1,0 +1,92 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "OpenPose": {
+    "Description": "Mixture Density Network (MDN) parameters",
+    "DispName": "",
+    "op_base_lr": {
+      "AffectsTraining": true,
+      "DefaultValue": 4E-5,
+      "Description": "Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 4e-5",
+      "DispName": "Base Learning Rate",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "openpose",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "op_param_hmap_thres": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.1,
+      "Description": "Threshold to use on heatmaps for landmark detections. Heatmap predictions lie in the range between 0 to 1",
+      "DispName": "Heatmap threshold",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "openpose",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "op_param_paf_thres": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.05,
+      "Description": "Threshold to use on Pose Affinity Fields (PAF) for grouping landmarks into animals. PAF intensity values lie in the range between 0 to 1",
+      "DispName": "PAF threshold",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "openpose",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "ignore_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Do not train on landmarks labeled as occluded.",
+      "DispName": "Ignore occluded landmarks",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "openpose",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "op_hires_ndeconv": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Number of deconvolution layers to improve the resolutions of the predictions",
+      "DispName": "Number of deconv layers",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "openpose",
+        "isDeepTrack"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "pretrain_freeze_bnorm": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Freeze batch norm weights of the backbone to the pretrained weights",
+      "DispName": "Freeze batch norm",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "openpose",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    }
+  }
+}

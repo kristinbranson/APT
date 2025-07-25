@@ -1,0 +1,106 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "GRONe": {
+    "Description": "Mixture Density Network (MDN) parameters",
+    "DispName": "",
+    "mdn_base_lr": {
+      "AffectsTraining": true,
+      "DefaultValue": 0.0001,
+      "Description": "Base learning rate for training. This learning rate is multiplied by learning rate multiplier. This might get displayed as 0. The default value is 0.0001",
+      "DispName": "Base Learning Rate",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "float",
+      "isEditable": true
+    },
+    "mdn_pred_dist": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Predict confidence for MDN predictions.",
+      "DispName": "Predict confidence",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "ignore_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 0,
+      "Description": "Do not train on landmarks labeled as occluded.",
+      "DispName": "Ignore occluded landmarks",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "predict_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Predict whether landmarks are occluded or not.",
+      "DispName": "Predict occluded",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "pretrain_freeze_bnorm": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Freeze batch norm weights of the backbone to the pretrained weights",
+      "DispName": "Freeze batch norm",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    },
+    "mdn_resnet_source": {
+      "AffectsTraining": true,
+      "DefaultValue": "official_tf",
+      "Description": "Resnet model to use for backbone. Choices are \"official_tf\" and \"slim\"",
+      "DispName": "Resnet source",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Db format",
+      "DispName": "Database Format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "mdn_joint_fpn",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": false
+    }
+  }
+}

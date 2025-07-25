@@ -1,0 +1,26 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "PostProcess": {
+    "Description": "Parameters related to postprocessing and 3D reconciliation.",
+    "DispName": "PostProcessing",
+    "reconcile3dType": {
+      "AffectsTraining": true,
+      "DefaultValue": "triangulate",
+      "Description": "Whether/how to perform 3D reconciliation of multiview tracking results. For no 3D reconciliation, choose \"none\"; for stereo triangulation using project calibration(s), choose \"triangulate\".",
+      "DispName": "3D Reconciliation",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "isMultiView",
+        "isDeepTrack"
+      ],
+      "Type": [
+        "none",
+        "triangulate",
+        "experimental"
+      ],
+      "isEditable": true
+    }
+  }
+}

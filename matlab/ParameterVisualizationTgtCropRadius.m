@@ -25,42 +25,36 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       isOk = ~isempty(obj.hRect) && ishandle(obj.hRect);
     end
     
-    function propSelected(obj,hAx,lObj,propFullName,prm)      
-      obj.init(hAx,lObj,propFullName,prm);
-    end
-    
     function init(obj,hAx,lObj,propFullName,prm)
       
-      obj.initSuccessful = false;
-      if ~strcmp(hAx.Parent.Type,'tiledlayout'),
-        set(hAx,'Units','normalized','Position',obj.axPos);
+      if nargin > 1,
+        init@ParameterVisualization(obj,hAx,lObj,propFullName,prm);
       end
-      
-      if ~lObj.hasMovie
-        ParameterVisualization.grayOutAxes(hAx,'No movie available.');
+
+      if ~obj.lObj.hasMovie
+        ParameterVisualizationTgtCropRadius.grayOutAxes('No movie available.');
         return;
       end
       
       % Set .xTrx, .yTrx; get im
-      obj.isMA = lObj.maIsMA;
-      if lObj.hasTrx
-        frm = lObj.currFrame;
-        trx = lObj.currTrx;
+      obj.isMA = obj.lObj.maIsMA;
+      if obj.lObj.hasTrx
+        frm = obj.lObj.currFrame;
+        trx = obj.lObj.currTrx;
         [obj.xTrx,obj.yTrx] = readtrx(trx,frm,1);
         obj.xyLbl = [];
-        gdata = lObj.gdata;
+        gdata = obj.lObj.gdata;
         im = gdata.image_curr;
         im = im.CData;
         tstr = 'Movie images will be cropped as shown for tracking';
-      elseif lObj.maIsMA
-        [tffound,mIdx,frm,~,xyLbl] = lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
+      elseif obj.lObj.maIsMA
+        [tffound,mIdx,frm,~,xyLbl] = obj.lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
         if ~tffound
-          ParameterVisualization.grayOutAxes(hAx,...
-            'Visualization unavailable until at least one animal is labeled.');
+          ParameterVisualization.grayOutAxes('Visualization unavailable until at least one animal is labeled.');
           return;
         end        
         mr = MovieReader();
-        assert(~lObj.isMultiView);
+        assert(~obj.lObj.isMultiView);
         IVIEW = 1;
         mr.openForLabeler(lObj,mIdx,IVIEW);
         im = mr.readframe(frm);
@@ -70,69 +64,53 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
         obj.yTrx = [];
         tstr = 'Region within ROI used during training';
       else
-        ParameterVisualization.grayOutAxes(hAx,'Project is single-animal.');
+        ParameterVisualization.grayOutAxes('Project is single-animal.');
         return;
       end
       
-      sPrm_MultiTgt_TargetCrop = ParameterVisualizationTgtCropRadius.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');     
-      rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
+      rectPos = obj.getRectPos();
           
-      cla(hAx);
-      hold(hAx,'off');
-      imshow(im,'Parent',hAx);
-      hold(hAx,'on');
-      axis(hAx,'image');
-      colormap(hAx,'gray');
-      caxis(hAx,'auto');
-%       axis(hAx,'auto');
-      title(hAx,tstr,'interpreter','none','fontweight','normal',...
+      cla(obj.hAx);
+      hold(obj.hAx,'off');
+      imshow(im,'Parent',obj.hAx);
+      hold(obj.hAx,'on');
+      axis(obj.hAx,'image');
+      colormap(obj.hAx,'gray');
+      clim(obj.hAx,'auto');
+%       axis(obj.hAx,'auto');
+      title(obj.hAx,tstr,'interpreter','none','fontweight','normal',...
         'fontsize',10);
       deleteValidGraphicsHandles(obj.hRect);
-      obj.hRect = plot(hAx,rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
+      obj.hRect = plot(obj.hAx,rectPos(:,1),rectPos(:,2),obj.hRectArgs{:});
       
       obj.initSuccessful = true;
     end
     
-    function propUnselected(obj)
-      deleteValidGraphicsHandles(obj.hRect);
-      obj.hRect = [];
+    function clear(obj)
+      cla(obj.hAx);
       obj.initSuccessful = false;
     end
 
-    function propUpdated(obj,hAx,lObj,propFullName,prm)
+    function update(obj)
       if obj.initSuccessful && obj.plotOk(),
-        sPrm_MultiTgt_TargetCrop = ParameterVisualizationTgtCropRadius.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop'); 
-        rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
+        rectPos = obj.getRectPos();
         set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
       else
-        obj.init(hAx,lObj,propFullName,prm);
+        obj.init();
       end
     end
     
-    function propUpdatedDynamic(obj,hAx,lObj,propFullName,prm,val)
-      propFullName = ParameterVisualizationTgtCropRadius.modernizePropName(propFullName);
-      if obj.initSuccessful && obj.plotOk()
-        sPrm_MultiTgt_TargetCrop = ParameterVisualizationTgtCropRadius.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');
-        assert(startsWith(propFullName,'ROOT.MultiAnimal.TargetCrop.'));
-        toks = strsplit(propFullName,'.');        
-        propShort = toks{end};
-        sPrm_MultiTgt_TargetCrop.(propShort) = val;        
-        rectPos = obj.getRectPos(lObj,sPrm_MultiTgt_TargetCrop);
-        set(obj.hRect,'XData',rectPos(:,1),'YData',rectPos(:,2));
-      else
-        obj.init(hAx,lObj,propFullName,prm);
-      end
-    end
-    
-    function rectPos = getRectPos(obj,lObj,sPrm)
+    function rectPos = getRectPos(obj)
       % rectPos: [c x 2] col1 is [x1;x2;x3;x4;x5]; col2 is [y1;y2; etc].
       
+      sPrm = ParameterVisualizationTgtCropRadius.getParamValue(obj.prm,'ROOT.MultiAnimal.TargetCrop');     
+
       rad = maGetTgtCropRad(sPrm);
       if obj.isMA
-        xyc = nanmean(obj.xyLbl,1);
+        xyc = mean(obj.xyLbl,1,'omitmissing');
         xc = xyc(1);
         yc = xyc(2);
-        %rectPos = lObj.maGetRoi(obj.xyLbl,sPrm);
+        %rectPos = obj.lObj.maGetRoi(obj.xyLbl,sPrm);
       else
         xc = obj.xTrx;
         yc = obj.yTrx;

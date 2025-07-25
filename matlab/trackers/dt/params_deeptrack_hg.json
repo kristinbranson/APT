@@ -1,0 +1,22 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "HourGlass": {
+    "Description": "hourglass settings.",
+    "DispName": "",
+    "hg_dorefine": {
+      "AffectsTraining": true,
+      "DefaultValue": true,
+      "Description": "Whether to include deconvolutional layers to predict at input resolution.",
+      "DispName": "Include refinement",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "hg",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    }
+  }
+}

@@ -84,6 +84,49 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
       obj.Requirements{end+1} = req;
     end
   end
+
+  methods (Static)
+
+    function [obj,fnsused] = initFromStruct(s,fld)
+ 
+      fns = {'FullPath','Field','DispName','Type','isEditable',...
+        'Description','DefaultValue','Value','ParamViz',...
+        'Level','Requirements','Visible','AffectsTraining'};
+
+      defaults = struct;
+      defaults.DispName = '';
+      defaults.Type = '';
+      defaults.isEditable = false;
+      defaults.Description = '';
+      defaults.DefaultValue = [];
+      defaults.Value = [];
+      defaults.ParamViz = '';
+      defaults.FullPath = '';
+      defaults.Level = '';
+      defaults.Requirements = {};
+      defaults.AffectsTraining = [];
+      defaults.Visible = [];
+
+      args = cell(size(fns));
+
+      for i = 1:numel(fns),
+        fn = fns{i};
+        if strcmp(fn,'Field'),
+          args{i} = fld;
+          continue;
+        end
+        if isfield(s,fn),
+          args{i} = s.(fn);
+        else
+          args{i} = defaults.(fn);
+        end
+      end
+      fnsused = intersect(fns,fieldnames(s));
+      obj = PropertiesGUIProp(args{:});
+
+    end
+
+  end
 end
     
     

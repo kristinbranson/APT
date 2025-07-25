@@ -1,0 +1,392 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "DeepTrack": {
+    "Description": "Hyperparameters for training the pose recognition network",
+    "DispName": "Pose Network",
+    "Saving": {
+      "Description": "Saving of intermediate results during training",
+      "DispName": "",
+      "save_step": {
+        "AffectsTraining": true,
+        "DefaultValue": 1000,
+        "Description": "How often (number of iterations of gradient descent) to save intermediate networks during training. Intermediate networks can be used to test out tracking while training is in progress. But, saving the intermediate networks takes time.",
+        "DispName": "Saving interval during training",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "display_step": {
+        "AffectsTraining": true,
+        "DefaultValue": 50,
+        "Description": "How often (number of iterations of gradient descient) to compute the training error, which is shown in the training monitor during training. This affects how often the training monitor plot is updated.",
+        "DispName": "Training error interval",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "maxckpt": {
+        "AffectsTraining": true,
+        "DefaultValue": 5,
+        "Description": "Number of intermediate networks to store. ",
+        "DispName": "Number of networks to store",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      }
+    },
+    "ImageProcessing": {
+      "Description": "Processing of video frames before they are input to the network.",
+      "DispName": "Image Processing",
+      "scale": {
+        "AffectsTraining": true,
+        "DefaultValue": 1,
+        "Description": "Downsample or images' width and height by this factor. If Downsample Factor is > 1, this will decrease the amount of (GPU) memory needed, but may hurt the precision of the predictions, as the images will be lower resolution. This parameter can also be less than 1 (and greater than 0), in which case it increases the amount of GPU memory needed, and could improve the precision of the predictions.",
+        "DispName": "Downsample factor",
+        "Level": "Important",
+        "ParamViz": "ParameterVisualizationMemory#scale",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "adjustContrast": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Normalize image contrast using Contrast Limited Adaptive Histogram Equalization (CLAHE). Obsolete, a better approach is to include contrast and brightness in data augmentation.",
+        "DispName": "Histogram equalization",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "clahe_grid_size": {
+        "AffectsTraining": true,
+        "DefaultValue": 20,
+        "Description": "CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels. Obsolete, a better approach is to include contrast and brightness in data augmentation.",
+        "DispName": "Neighborhood size for histogram equalization",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "normalize": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Normalize images by subtracting the average pixel intensity in the image. Obsolete, a better approach is to include contrast and brightness in data augmentation.",
+        "DispName": "Brightness normalization",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "flipud": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Whether to flip all video frames upside down. ",
+        "DispName": "Flip movie",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "imax": {
+        "AffectsTraining": true,
+        "DefaultValue": 255,
+        "Description": "Maximum pixel value in the video. Most videos' pixel intensities range from 0 to 255.",
+        "DispName": "Max pixel value",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      }
+    },
+    "GradientDescent": {
+      "Description": "Parameters related to gradient-descent-based optimization of the network.",
+      "DispName": "Gradient Descent",
+      "dl_steps": {
+        "AffectsTraining": true,
+        "DefaultValue": 60000,
+        "Description": "Number of iterations of gradient descent to train the network for. Longer training generally works better, but takes longer. We trained our trackers for 60-100K iterations.",
+        "DispName": "N. training iterations",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+            "isDeepTrack", "notDeepLabCut"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "batch_size": {
+        "AffectsTraining": true,
+        "DefaultValue": 8,
+        "Description": "Number of training examples used in each iteration of gradient descent. Too large of values may cause the GPU to run out of memory. Too small values may result in poor optimization and make training slower. We recommend you change 'N. training iterations' if you change 'Batch size'. If you decrease batch size by a factor X, then increase training iterations by the same factor X. ",
+        "DispName": "Training batch size",
+        "Level": "Important",
+        "ParamViz": "ParameterVisualizationMemory",
+        "Requirements": [
+            "isDeepTrack", "notDeepLabCut"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "learning_rate_multiplier": {
+        "AffectsTraining": true,
+        "DefaultValue": 1,
+        "Description": "Multiplier for initial learning rate -- the step size for gradient descent used for optimizing the network.",
+        "DispName": "Learning rate multiplier",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+            "isDeepTrack", "notDeepLabCut", "notLEAP"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "lr_drop_step": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.15,
+        "Description": "We decrease the learning rate for the last N*F iterations of training, where N is 'N. training iterations'. This parameter is F -- the fraction of training iterations before the end at which we should decrease the learning rate. This smaller learning rate allows the network to fine tune its parameters, and you should see a bigger decrease in the training loss at this point. ",
+        "DispName": "Learning rate drop iteration fraction",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "cos_steps": {
+        "AffectsTraining": true,
+        "DefaultValue": 2,
+        "Description": "OBSOLETE Number of times to restart training",
+        "DispName": "OBSOLETE N. warm restarts",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+            "isDeepTrack", "Obsolete"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "decay_steps": {
+        "AffectsTraining": true,
+        "DefaultValue": 25000,
+        "Description": "OBSOLETE The learning rate is decayed by gamma (below) after this many iterations of training. Does not apply to LEAP and DeepLabCut.",
+        "DispName": "OBSOLETE Learning rate decay iterations",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+            "isDeepTrack", "Obsolete"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "gamma": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.1,
+        "Description": "OBSOLETE Amount to decay the learning rate by after the number of decay iterations above. Does not apply to LEAP and DeepLabCut.",
+        "DispName": "OBSOLETE Learning rate decay (gamma)",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+            "isDeepTrack", "Obsolete"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "num_test": {
+        "AffectsTraining": true,
+        "DefaultValue": 24,
+        "Description": "Number of training examples to use to estimate the training error during training. ",
+        "DispName": "Number of validation examples",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "normalize_loss_batch": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "Normalize the loss at each iteration by the batch size. This is effectively a multiplier on the learning rate. We recommend not normalizing.",
+        "DispName": "Normalize loss",
+        "Level": "Developer",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    },
+    "DataAugmentation": {
+      "Description": "To learn invariances to certain kinds of transformations, we can augment our training data by randomly transforming images and labels during training. It is important to choose the data augmentation parameters so that the transformed examples are reasonable examples you might see in your setup. Augmenting can greatly decrease the number of training labels needed. However, over-augmenting -- augmenting with transformed examples that are impossible in your setup -- can destroy structure in your data.",
+      "DispName": "Data Augmentation",
+      "rrange": {
+        "AffectsTraining": true,
+        "DefaultValue": 20,
+        "Description": "Augment by rotating training images and labels by a random angle less than this number of degrees in either direction. If your camera is directly above/below the scene, then you should set this to 180. Otherwise (e.g. a side view of your scene), set this to a small number. ",
+        "DispName": "Rotation range radius",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "trange": {
+        "AffectsTraining": true,
+        "DefaultValue": 20,
+        "Description": "Augment by translating training images and labels by a random amounts in both x- and y- directions less than this number of pixels. Consider the size of your targets in pixels when choosing this parameter value. If you are using a two-stage/top-down network (or have body tracking), then you should also consider the distance between the animals. In the second stage, we cut out a box around the target. If there are multiple targets, then the network knows which target to track because it is at the center. Too much translation augmentation can obscure this. ",
+        "DispName": "Translation range radius",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "scale_factor_range": {
+        "AffectsTraining": true,
+        "DefaultValue": 1.2,
+        "Description": "Augment by scaling the training images and labels by a random factor between (1/this number) to (this number). 1 indicates no scale adjustment, 2 indicates scaling by a factor between 1/2 to 2. More scaling can help particularly if your targets are at variable distances from your camera. For example, if you are recording your scene from the side, then targets can walk closer to and farther from the camera (the size of the target in image pixels is proportional to 1 divided by the camera-to-target distance). If your are recording from above/below, targets usually are at a fixed distance, assuming your camera does not move.",
+        "DispName": "Scale factor range radius",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "crange": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.1,
+        "Description": "Augment by adjusting image contrast by a random amount less than this number. 0 indicates no contrast adjustment, 1 indicates maximum contrast adjustment. Set this value to be larger if there is a lot of lighting variability in your setup/data.",
+        "DispName": "Contrast range",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "brange": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.1,
+        "Description": "Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment. Set this value to be larger if there is a lot of lighting variability in your setup/data.",
+        "DispName": "Brightness range",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "horz_flip": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Augment by flipping the training image and labels horizontally (left to right). This is useful if your targets are bilaterally symmetric. If you enable flipping, you MUST set pairs of correspondences of landmarks. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
+        "DispName": "Flip horizontally",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "vert_flip": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Augment by flipping the training image ang labels vertically (bottom to top). If you enable flipping, you MUST set pairs of correspondences of landmarks. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
+        "DispName": "Flip vertically",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "perturb_color": {
+        "AffectsTraining": true,
+        "DefaultValue": 0,
+        "Description": "Augment by perturbing image color.",
+        "DispName": "Perturb color",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "check_bounds_distort": {
+        "AffectsTraining": true,
+        "DefaultValue": 1,
+        "Description": "Check that landmarks remain within the image during augmentation.",
+        "DispName": "Check landmarks during augmentation",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    },
+    "LossFunction": {
+      "Description": "Parameters related to the deep-learning error criterion minimized.",
+      "DispName": "Loss Function",
+      "label_blur_rad": {
+        "AffectsTraining": true,
+        "DefaultValue": 3,
+        "Description": "Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location. Only applicable to heatmap based methods. Not applicable to DeepLabCut and LEAP.",
+        "DispName": "Label uncertainty radius",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isDeepTrack"
+        ],
+        "Type": "float",
+        "isEditable": true
+      }
+    }
+  }
+}

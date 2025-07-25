@@ -9,9 +9,13 @@ classdef TreeNode < handle
   
   methods
     
-    function obj = TreeNode(dat)
-      obj.Children = TreeNode.empty(1,0);
-      obj.Data = dat;
+    function obj = TreeNode(dat,isjsonstruct,varargin)
+      if nargin >= 2 && isjsonstruct,
+        obj.initFromJsonStruct(dat,varargin{:});
+      else
+        obj.Children = TreeNode.empty(1,0);
+        obj.Data = dat;
+      end
     end
     
     function traverse(t,fcn)
@@ -55,6 +59,35 @@ classdef TreeNode < handle
       end
     end
     
+    function s = jsonify(t)
+      % Convert Tree to a struct for outputting to json file
+      s = struct;
+      isleaf = numel(t.Children) == 0;
+      fns = setdiff(fieldnames(t.Data),{'Field','FullPath','Index','UserData','Visible','DispNameUse','Value'});
+      for i = 1:numel(fns),
+        fn = fns{i};
+        if ~isleaf && ismember(fn,{'Type','ParamViz','Level','AffectsTraining','Requirements','DefaultValue','Value','isEditable'}),
+          continue;
+        end
+        s.(fn) = t.Data.(fn);
+      end
+      for i = 1:numel(t.Children),
+        fld = t.Children(i).Data.Field;
+        s.(fld) = jsonify(t.Children(i));
+      end
+    end
+
+    function initFromJsonStruct(obj,s,varargin)
+      [fld,fcnStruct2Data] = myparse(varargin,'Field','ROOT','fcnStruct2Data',@PropertiesGUIProp.initFromStruct);
+      [obj.Data,fnsused] = fcnStruct2Data(s,fld);
+      childrenflds = setdiff(fieldnames(s),fnsused);
+      obj.Children = TreeNode.empty(0,1);
+      for i = 1:numel(childrenflds),
+        childfld = childrenflds{i};
+        obj.Children(i,1) = TreeNode(s.(childfld),true,'Field',childfld,'fcnStruct2Data',fcnStruct2Data);
+      end
+    end
+
     function tcopy = copy(t)
       % Deep copy
 

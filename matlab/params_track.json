@@ -1,0 +1,54 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "Track": {
+    "Description": "Parameters related to what the \"Track\" button in the user interface does.",
+    "DispName": "Tracking interface",
+    "NFramesSmall": {
+      "AffectsTraining": true,
+      "DefaultValue": 5,
+      "Description": "When the track button is pushed, one option is to track every Nth frame. Specify the smaller choice for N here.",
+      "DispName": "Decimation Small",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "NFramesLarge": {
+      "AffectsTraining": true,
+      "DefaultValue": 10,
+      "Description": "When the track button is pushed, one option is to track every Nth frame. Specify the larger choice for N here.",
+      "DispName": "Decimation Large",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "NFramesNeighborhood": {
+      "AffectsTraining": true,
+      "DefaultValue": 100,
+      "Description": "When the track button is pushed, one option is to track frames within a radius of the currently selected frame. Set the radius in frames here.",
+      "DispName": "Neighborhood Radius",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "ChunkSize": {
+      "AffectsTraining": true,
+      "DefaultValue": 3000,
+      "Description": "Track large movies in chunks of this size (in frames).",
+      "DispName": "Chunk Size",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "isCPR"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    }
+  }
+}
