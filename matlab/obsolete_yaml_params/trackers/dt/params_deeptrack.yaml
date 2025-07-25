@@ -1,6 +1,6 @@
 # * Each node has a list of metadata:
 # - 1 - pretty name (displayed). Note, the node name/identifier itself is also meaningful as the fieldname in the data struct. 
-# - 2 - type (see PropertiesGUIProp.m for options)
+# - 2 - type, only applicable for leaves. Options: cellstr 'unsigned' 'signed' 'string' 'color' 'font' 'date' 'float' 'boolean'
 # - 3 - isEditable
 # - 4 - description
 # - 5 - default value
@@ -14,10 +14,10 @@
 ROOT:
   - ['','',false,DUMMY,'','']
   - DeepTrack:
-    - ['Deep Learning (pose)','',false,Deep learning parameters,'','']
+    - ['Pose Network','',false,'Hyperparameters for training the pose recognition network','','','','','']
     - Saving:
-      - ['','',false,'Saving, display, and communication parameters','','']
-      - save_step: ['Training tracker save interval',unsigned,true,'How often (number of iterations of gradient descent) to save intermediate trackers during training.',1000,'','Advanced','isDeepTrack',false]
+      - ['','',false,'Saving of intermediate results during training','','','','','']
+      - save_step: ['Saving interval during training',unsigned,true,'How often (number of iterations of gradient descent) to save intermediate trackers during training.',1000,'','Advanced','isDeepTrack',false]
 #      - save_td_step: ['Training error save interval',unsigned,true,'How often (number of iterations of gradient descient) to update the training error in the Training Monitor.',100,'','Developer','isDeepTrack',false]
       - display_step: ['Training error interval',unsigned,true,'How often (number of iterations of gradient descient) to compute the training error.',50,'','Developer','isDeepTrack',false]
       - maxckpt: ['Number of trackers to keep',unsigned,true,'Number of intermediate trackers during training to keep at once. ',5,'','Developer','isDeepTrack',false]

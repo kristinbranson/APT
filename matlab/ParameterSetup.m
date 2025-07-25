@@ -353,7 +353,7 @@ output = handles.output;
       end
     end
 
-    hauto.gl = uigridlayout(handles.tab_autotune,[nfields+1,1],'RowHeight',repmat({'fit'},[1,nfields+1]));
+    hauto.gl = uigridlayout(handles.tab_autotune,[nfields+1,1],'RowHeight',repmat({'fit'},[1,nfields+1]),'Scrollable','on');
     parent = hauto.gl;
     hauto.auto = {};
 
@@ -569,7 +569,7 @@ output = handles.output;
     if ~isequal(handles.vizid,vizid),
       return;
     end
-    handles.vizobj.propUpdatedDynamic(handles.ax_viz,handles.labelerObj,data.FullPath,handles.tree,data.Value);
+    handles.vizobj.update();
   end
 
   function cbkApply(src,evt)

@@ -39,7 +39,7 @@
     * batch_size: Batch size defined by user.
     * rescale: How much to downsample the input image before feeding into the network.
     * dl_steps: Number of steps to run training for.
-    Details of other settings can be found APT/tracker/dt/params_deeptrack.yaml.
+    Details of other settings can be found APT/tracker/dt/params_deeptrack.json.
 
 '''
 

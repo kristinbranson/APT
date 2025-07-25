@@ -1,11 +1,11 @@
 classdef APTParameters
   properties (Constant)
-    % This property stores parsetrees for yamls so that yaml files only 
+    % This property stores parsetrees for jsons so that json files only 
     % need to be parsed once.
     %
     % This property is private as these trees are handles and mutable.
     % Use getParamTrees to access copies of these trees.
-    PARAM_FILES_TREES = APTParameters.paramFilesTrees() ; 
+    PARAM_FILES_TREES = APTParameters.paramFilesTrees() ;
   end
   methods (Static)
     function trees = getParamTrees(subtree)
@@ -125,7 +125,7 @@ classdef APTParameters
       if ~ischar(nettype)
         nettype = char(nettype);
       end
-      % first non-ROOT top-level field in parameter yaml 
+      % first non-ROOT top-level field in parameter json 
       f = APTParameters.PARAM_FILES_TREES.(nettype).tree.Children(1).Data.Field;      
     end
     
@@ -271,7 +271,7 @@ classdef APTParameters
         isod = labelerObj.trackerIsObjDet;
         isht = is2stg && ~isod;
         
-        % AL20210901: note: in parameter yamls, the 'isTopDown' requirement
+        % AL20210901: note: in parameter jsons, the 'isTopDown' requirement
         % is used; but this actually means "isTD-2stg"; vs SA-trx which is
         % conceptually TD.
       
@@ -911,22 +911,22 @@ classdef APTParameters
     end
 
     function [s,deepnets] = paramFileSpecs()
-      % Specifies/finds yamls in APT tree.
+      % Specifies/finds jsons in APT tree.
       %
       % Deepnets are found dynamically to easy adding new nets.
 
-      s.preprocess = 'params_preprocess.yaml';
-      s.track = 'params_track.yaml';
-      s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
-      s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
-      s.ma = fullfile('trackers','dt','params_ma.yaml');
-      s.postprocess = 'params_postprocess.yaml';
+      s.preprocess = 'params_preprocess.json';
+      s.track = 'params_track.json';
+      s.cpr = fullfile('trackers','cpr','params_cpr.json');
+      s.deeptrack = fullfile('trackers','dt','params_deeptrack.json');
+      s.ma = fullfile('trackers','dt','params_ma.json');
+      s.postprocess = 'params_postprocess.json';
       resourceFolderPath = fullfile(APT.Root, 'matlab') ;
-      dd = dir(fullfile(resourceFolderPath,'trackers','dt','params_deeptrack_*.yaml'));
-      dtyamls = {dd.name}';
-      sre = regexp(dtyamls,'params_deeptrack_(?<net>[a-zA-Z_]+).yaml','names');
-      for i=1:numel(dtyamls)
-        s.(sre{i}.net) = fullfile('trackers','dt',dtyamls{i});
+      dd = dir(fullfile(resourceFolderPath,'trackers','dt','params_deeptrack_*.json'));
+      dtjsons = {dd.name}';
+      sre = regexp(dtjsons,'params_deeptrack_(?<net>[a-zA-Z_]+).json','names');
+      for i=1:numel(dtjsons)
+        s.(sre{i}.net) = fullfile('trackers','dt',dtjsons{i});
       end
       deepnets = cellfun(@(x)x.net,sre,'uni',0);
     end  % function
@@ -944,14 +944,14 @@ classdef APTParameters
       for i = 1 : numel(field_names)
         fn = field_names{i} ;
         spec = specs.(fn) ;
-        yaml_file_path = fullfile(resourceFolderPath, spec) ;
-        param_tree = parseConfigYaml(yaml_file_path) ;
+        json_file_path = fullfile(resourceFolderPath, spec) ;
+        param_tree = parseConfigJson(json_file_path) ;
         if any(strcmp(fn,deepnets))
           % AL 20190711: automatically create requirements for all deep net
           %   param trees
           param_tree.traverse(@(x)set(x.Data,'Requirements',{fn,'isDeepTrack'})) ;
         end
-        value = struct('yaml', {yaml_file_path}, 'tree', {param_tree}) ;
+        value = struct('json', {json_file_path}, 'tree', {param_tree}) ;
         s.(fn) = value ;
       end
       % % Print s

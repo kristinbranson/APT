@@ -80,13 +80,13 @@ class Pose_hg(PoseBaseGeneral):
         '''
         Initialize the pose object.
 
-        :param conf: Configuration object has all the parameters defined in params_netname.yaml. Some important parameters are:
+        :param conf: Configuration object has all the parameters defined in params_netname.json. Some important parameters are:
             imsz: 2 element tuple specifying the size of the input image.
             img_dim: Number of channels in input image
             batch_size
             rescale: How much to downsample the input image before feeding into the network.
             dl_steps: Number of steps to run training for.
-            In addition, any configuration setting defined in APT_basedir/trackers/dt/params_<netname>.yaml will be available to objects Pose_<netname> in file Pose_<netname> are created.
+            In addition, any configuration setting defined in APT_basedir/trackers/dt/params_<netname>.json will be available to objects Pose_<netname> in file Pose_<netname> are created.
 
         '''
 

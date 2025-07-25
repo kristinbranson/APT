@@ -1,0 +1,36 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "MMDetect": {
+    "Description": "Object detection parameters",
+    "DispName": "",
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for Training DB",
+      "DispName": "DB Format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "detect_mmdetect",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "test": {
+      "AffectsTraining": true,
+      "DefaultValue": "test",
+      "Description": "Test",
+      "DispName": "Test prop",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "detect_mmdetect",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    }
+  }
+}

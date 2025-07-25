@@ -1,0 +1,50 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "MultiAnimalGRONe": {
+    "Description": "MultiAnimal settings.",
+    "DispName": "",
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for Training DB",
+      "DispName": "DB Format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
+    },
+    "mdn_joint_layer_num": {
+      "AffectsTraining": true,
+      "DefaultValue": 3,
+      "Description": "Layer number for joint pose prediction in the FPN neck. Higher layer numbers do predictions at lower resolution. Valid range is integers between 0 and 3 including both. The downsampling factor is 4*2^(layer number). Layer 3 will predict at a scale of 1/32, and layer 0 will predict at a scale 1/4 ",
+      "DispName": "Layer for joint prediction",
+      "Level": "Advanced",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "predict_occluded": {
+      "AffectsTraining": true,
+      "DefaultValue": 1,
+      "Description": "Predict whether landmarks are occluded or not.",
+      "DispName": "Predict occluded",
+      "Level": "Beginner",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_mdn_joint_torch",
+        "isDeepTrack"
+      ],
+      "Type": "boolean",
+      "isEditable": true
+    }
+  }
+}

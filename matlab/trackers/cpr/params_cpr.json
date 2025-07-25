@@ -1,0 +1,386 @@
+{
+  "Description": "DUMMY",
+  "DispName": "",
+  "CPR": {
+    "Description": "Settings for the Cascaded Pose Regression (CPR) tracking algorithm.",
+    "DispName": "",
+    "NumMajorIter": {
+      "AffectsTraining": true,
+      "DefaultValue": 50,
+      "Description": "Number of stages of regression. Each stage of regression predicts an update to the current pose estimate. More stages generally perform better, but are also slower in both training and tracking. If the training accuracy is poor, consider increasing the number of stages.",
+      "DispName": "Num regression stages",
+      "Level": "Advanced",
+      "ParamViz": "ParameterVisualizationCPR#cpr1",
+      "Requirements": [
+        "isCPR"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "NumMinorIter": {
+      "AffectsTraining": true,
+      "DefaultValue": 30,
+      "Description": "Number of regressors (random ferns) combined (ensembled) in each stage of regression. More regressors generally performs better, but are also slower in both training and tracking. If the training accuracy is poor, consider increasing the number of regressors.",
+      "DispName": "Num boosted regressors",
+      "Level": "Advanced",
+      "ParamViz": "ParameterVisualizationCPR#cpr1",
+      "Requirements": [
+        "isCPR"
+      ],
+      "Type": "unsigned",
+      "isEditable": true
+    },
+    "Ferns": {
+      "Description": "Random ferns",
+      "DispName": "",
+      "Depth": {
+        "AffectsTraining": true,
+        "DefaultValue": 5,
+        "Description": "Depth of the random fern, similar to the depth of a decision tree. This corresponds to the number of features used for fern binning. Larger depths may improve accuracy if the training accuracy is poor.",
+        "DispName": "",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPR#cpr1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "Threshold": {
+        "Description": "Random fern thresholds",
+        "DispName": "",
+        "Lo": {
+          "AffectsTraining": true,
+          "DefaultValue": -0.2,
+          "Description": "Random ferns are constructed very randomly. (Somewhat) random features are chosen and then they are thresholded at randomly chosen values. Set the lower range of the thresholds here. Features should be in the range of -1 to 1.",
+          "DispName": "",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "isCPR"
+          ],
+          "Type": "float",
+          "isEditable": true
+        },
+        "Hi": {
+          "AffectsTraining": true,
+          "DefaultValue": 0.2,
+          "Description": "Random ferns are constructed very randomly. (Somewhat) random features are chosen and then they are thresholded at randomly chosen values. Set the upper range of the thresholds here. Features should be in the range of -1 to 1.",
+          "DispName": "",
+          "Level": "Advanced",
+          "ParamViz": "",
+          "Requirements": [
+            "isCPR"
+          ],
+          "Type": "float",
+          "isEditable": true
+        }
+      },
+      "RegFactor": {
+        "AffectsTraining": true,
+        "DefaultValue": 0.01,
+        "Description": "Regularization factor for random fern bins with low counts. Bin counts in random ferns are at minimum this factor times the total number of training samples.",
+        "DispName": "Regularization factor",
+        "Level": "Advanced",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      }
+    },
+    "Feature": {
+      "Description": "CPR begins by transforming the input image into a sequence of \"features\". These parameters are related to how these features are chosen.",
+      "DispName": "",
+      "Type": {
+        "AffectsTraining": true,
+        "DefaultValue": "2lm",
+        "Description": "How feature locations are chosen. CPR regression takes as input pixel intensities at locations in the image that are chosen relative to the current estimates of the part locations. The initial pool of feature locations is chosen randomly from regions specified by landmarks as follows. * two landmark elliptical: a pair of parts (landmarks) are first chosen randomly. Then, a location is chosen randomly from within an ellipse around these two landmarks. The major axis of this ellipse is aligned with the direction between the two landmarks, the major axis length is the distance between the points multiplied by the Radius (Advanced) parameter below, and the minor axis length is set to the major axis length divided by the ABRatio (Advanced) parameter below. * single landmark: A single landmark is chosen, then a location is chosen randomly within a circle around the landmark location with radius defined by the Radius parameter (in pixels) below. * 2lm: Deprecated. Do not use this. * 2lmdiff: Deprecated. Do not use this.",
+        "DispName": "",
+        "Level": "Beginner",
+        "ParamViz": "ParameterVisualizationFeature#feature1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": [
+          "two landmark elliptical",
+          "single landmark",
+          "2lm",
+          "2lmdiff"
+        ],
+        "isEditable": true
+      },
+      "Radius": {
+        "AffectsTraining": true,
+        "DefaultValue": 1.5,
+        "Description": "Parameter defining the size of the ellipse or circle from which feature locations are selected (see Feature Type above). For two landmark elliptical feature type, this is a multiplier for the distance between the landmark pair that defines the major axis length. For single landmark feature type, this is the radius of the circle in pixels.",
+        "DispName": "",
+        "Level": "Beginner",
+        "ParamViz": "ParameterVisualizationFeature#feature1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "ABRatio": {
+        "AffectsTraining": true,
+        "DefaultValue": 2,
+        "Description": "Ratio of ellipse major/minor axes. This parameter is only applicable when feature type two landmark elliptical is selected.",
+        "DispName": "Major/minor axis ratio",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationFeature#feature1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "Metatype": {
+        "AffectsTraining": true,
+        "DefaultValue": "diff",
+        "Description": "How features are computed from the image and selected feature locations (see Feature Type above). If single is selected, the feature for a selected pixel location is the corresponding image intensity. If diff is selected, each feature corresponds to a pair of locations, and the difference in image intensity is computed.",
+        "DispName": "Feature function",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": [
+          "single",
+          "diff"
+        ],
+        "isEditable": true
+      },
+      "NGenerate": {
+        "AffectsTraining": true,
+        "DefaultValue": 400,
+        "Description": "For each stage of regression, a large pool of features are generated, and a subset of them are selected based on their correlation with the output variable. The larger this number, the slower training and testing will be.",
+        "DispName": "Pool size",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPR#cpr1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "Nsample_std": {
+        "AffectsTraining": true,
+        "DefaultValue": 1000,
+        "Description": "Number of samples used to approximate standard deviation when computing correlation between features and regression output during feature selection. The higher this number, the more accurate standard deviation computation will be, but the slower training will be.",
+        "DispName": "Num samples std",
+        "Level": "Beginner",
+        "ParamViz": "ParameterVisualizationCPR#cpr1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "Nsample_cor": {
+        "AffectsTraining": true,
+        "DefaultValue": 5000,
+        "Description": "Number of samples used to approximate correlation between features and regression output during feature selection. The higher this number is, the more accurate the correlation computation will be, but the slower training will be.",
+        "DispName": "Num samples correlation",
+        "Level": "Beginner",
+        "ParamViz": "ParameterVisualizationCPR#cpr1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      }
+    },
+    "RotCorrection": {
+      "Description": "Are the directions of the x- and y-axes in the image arbitrary with respect to the animals' positions, as would be the case for an overhead view of the animals, or are they meaningful, as would be the case if the y-axis corresponds to the up direction in the world?",
+      "DispName": "Rotational Invariance",
+      "OrientationType": {
+        "AffectsTraining": true,
+        "DefaultValue": "fixed",
+        "Description": "Are the directions of the x- and y-axes in the image arbitrary with respect to the animals' positions, as would be the case for an overhead view of the animals, or are they meaningful, as would be the case if the y-axis corresponds to the up direction in the world? * fixed: The directions of the x- and y-axes *are* meaningful, and we do *not* want our tracker to be rotationally invariant. This would be the case in side views of animals, in which the y-axis corresponds to the up direction in the real world. * arbitrary: The directions of the x- and y-axes are *not* meaningful. To make the tracker rotation invariant, CPR performs regression in a coordinate system based on the current pose estimate, with the x-axis corresponding to the direction between a pair of landmarks, the TailPoint and HeadPoint, specified below.",
+        "DispName": "Movie Orientation",
+        "Level": "Important",
+        "ParamViz": "ParameterVisualizationCPRInit#CPRInit1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": [
+          "fixed",
+          "arbitrary"
+        ],
+        "isEditable": true
+      },
+      "HeadPoint": {
+        "AffectsTraining": true,
+        "DefaultValue": 1,
+        "Description": "Identity of the landmark (part) corresponding to the animal's head - the front of the animal. This parameter is only used if OrientationType is arbitrary or arbitrary trx-specified. To make the tracker rotation invariant, CPR performs regression in a coordinate system based on the current pose estimate, with the x-axis corresponding to the direction between a pair of landmarks, the TailPoint and HeadPoint. See Orientation parameter description for more information.",
+        "DispName": "Head landmark",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "TailPoint": {
+        "AffectsTraining": true,
+        "DefaultValue": 2,
+        "Description": "Identity of the landmark (part) corresponding to the animal's tail - the back of the animal. This parameter is only used if OrientationType is arbitrary or arbitrary trx-specified. To make the tracker rotation invariant, CPR performs regression in a coordinate system based on the current pose estimate, with the x-axis corresponding to the direction between a pair of landmarks, the TailPoint and HeadPoint. See Orientation parameter description for more information.",
+        "DispName": "Tail landmark",
+        "Level": "Important",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      }
+    },
+    "Replicates": {
+      "Description": "CPR is an iterative algorithm that begins with an initial pose estimate. We train using multiple initializations, effectively augmenting our training data set. These parameters relate to how and how many times we reinitialize.",
+      "DispName": "Training and test initialization parameters",
+      "NrepTrain": {
+        "AffectsTraining": true,
+        "DefaultValue": 50,
+        "Description": "Training set augmentation factor. Each training example is utilized/replicated this many times during training, each corresponding to a different pose initialization. Bigger numbers may improve accuracy, but will also slow down training.",
+        "DispName": "Num training replicates",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "NrepTrack": {
+        "AffectsTraining": true,
+        "DefaultValue": 50,
+        "Description": "Number of reinitializations used when tracking. The final tracking output is estimated using the distribution of final pose estimates corresponding to each of these initializations. Bigger numbers may improve accuracy, but will also slow down tracking.",
+        "DispName": "Num tracking replicates",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "unsigned",
+        "isEditable": true
+      },
+      "DoPtJitter": {
+        "AffectsTraining": true,
+        "DefaultValue": true,
+        "Description": "To choose initial poses, we select a random training pose and adjust the pose by jittering and rotating (depending on the choice of OrientationType above). This parameter determines whether we jitter (randomly translate) individual landmarks.",
+        "DispName": "Jitter initial shapes",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPRInit#CPRInit1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "PtJitterFac": {
+        "AffectsTraining": true,
+        "DefaultValue": 12,
+        "Description": "To choose initial poses, we select a random training pose and adjust the pose by jittering and rotating (depending on the choice of OrientationType above). This parameter determines how much we jitter (randomly translate) individual landmarks. Points in initial shape are jittered by the reciprocal of this factor. For instance, a value of 12 indicates jittering by 1/12th of the image/ROI size. This parameter is only used if DoPtJitter is true.",
+        "DispName": "Initial shape jitter/randomization factor",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPRInit#CPRInit1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "DoBBoxJitter": {
+        "AffectsTraining": true,
+        "DefaultValue": true,
+        "Description": "To choose initial poses, we select a random training pose and adjust the pose by jittering and rotating (depending on the choice of OrientationType above). This parameter determines whether we perturb the centroids of the initializations relative to the image/region of interest.",
+        "DispName": "Jitter initial shape locations",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPRInit#CPRInit1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      },
+      "AugJitterFac": {
+        "AffectsTraining": true,
+        "DefaultValue": 16,
+        "Description": "To choose initial poses, we select a random training pose and adjust the pose by jittering and rotating (depending on the choice of OrientationType above). This parameter determines how much we perturb the centroids of the initializations relative to the image/region of interest. The initial shape centroid is jittered by the reciprocal of this factor. For instance, a value of 12 indicates that initial shapes will be shifted by 1/12th of the image/ROI size.",
+        "DispName": "Initial shape location jitter/randomization factor",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPRInit#CPRInit1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "AugUseFF": {
+        "AffectsTraining": true,
+        "DefaultValue": false,
+        "Description": "To choose initial poses, we select a random training pose and adjust the pose by jittering and rotating. We can maximize the distance between initializations by using the furthest-first algorithm, which starts by randomly selecting one training pose, then selecting the training pose farthest from this one, then selecting the training pose farthest from both of these, etc. This parameter controls whether to use the furthest-first algorithm for initialization.",
+        "DispName": "Maximize spread of initial conditions",
+        "Level": "Advanced",
+        "ParamViz": "ParameterVisualizationCPRInit#CPRInit1",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "boolean",
+        "isEditable": true
+      }
+    },
+    "Prune": {
+      "Description": "Parameters related how we choose a single trajectory from the clouds of pose estimates resulting from multiple tracking initializations.",
+      "DispName": "Post-processing",
+      "Method": {
+        "AffectsTraining": true,
+        "DefaultValue": "maxdensity",
+        "Description": "Algorithm for selecting a single pose estimate per frame. * median: The median of the x- and y- positions is taken independently for each landmark. * maxdensity: For each landmark independently, each replicate votes for other replicates based on how close they are (voting neighborhood size determined by \"Density length scale\" below). The replicate with the most votes is chosen. * maxdensity global: For all landmarks jointly, each replicate votes for other replicates (neighborhood size determined by DensitySigma below) based on how close they are. The replicate with the most votes is chosen. * smoothed trajectory: Uses dynamic programming to find a trajectory that is both smooth and has high density, computed as in maxdensity global above. The relative weight of the smoothness of motion criterion to the density criterion is \"Trajectory smoothing weight factor\". This is the only type of post-processing that takes into account multiple frames.",
+        "DispName": "",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": [
+          "median",
+          "maxdensity",
+          "maxdensity global",
+          "smoothed trajectory"
+        ],
+        "isEditable": true
+      },
+      "DensitySigma": {
+        "AffectsTraining": true,
+        "DefaultValue": 5,
+        "Description": "Length scale (in pixels) for Gaussian kernel used during post-processing. Used for 'maxdensity', 'maxdensity global', and 'smoothed trajectory' methods. Larger values include more distant shapes when computing a given shape's likelihood.",
+        "DispName": "Density length scale",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      },
+      "PositionLambdaFactor": {
+        "AffectsTraining": true,
+        "DefaultValue": 1,
+        "Description": "Scale factor applied to empirically-estimated ratio balancing trajectory smoothness against replicate density. Larger values upweight smoother trajectories. Used only for 'smoothed trajectory' method.",
+        "DispName": "Trajectory smoothing weight factor",
+        "Level": "Beginner",
+        "ParamViz": "",
+        "Requirements": [
+          "isCPR"
+        ],
+        "Type": "float",
+        "isEditable": true
+      }
+    }
+  }
+}
