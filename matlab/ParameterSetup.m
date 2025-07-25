@@ -29,9 +29,8 @@ APTParameters.addNumbers(handles.tree);
 handles.colors = jet(256)*.25+.75;
 handles.nodeNum2Color = @(x) handles.colors(round(1 + (x-handles.minNodeNumber)/(handles.maxNodeNumber-handles.minNodeNumber)*255),:);
 
-mc = ?PropertyLevelsEnum;
 handles.important_level = PropertyLevelsEnum('Important');
-handles.levels_str = setdiff({mc.EnumerationMemberList.Name},{'Important'});
+handles.levels_str = {'Beginner','Advanced','Developer'};
 handles.levels = PropertyLevelsEnum(handles.levels_str);
 
 if isempty(lastLevel),
