@@ -140,7 +140,7 @@
         "Level": "Important",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "~DeepLabCut"
+            "isDeepTrack"
         ],
         "Type": "unsigned",
         "isEditable": true
