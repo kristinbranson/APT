@@ -140,7 +140,7 @@
         "Level": "Important",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "notDeepLabCut"
+            "isDeepTrack", "~DeepLabCut"
         ],
         "Type": "unsigned",
         "isEditable": true
@@ -153,7 +153,7 @@
         "Level": "Important",
         "ParamViz": "ParameterVisualizationMemory",
         "Requirements": [
-            "isDeepTrack", "notDeepLabCut"
+            "isDeepTrack", "~DeepLabCut"
         ],
         "Type": "unsigned",
         "isEditable": true
@@ -166,7 +166,7 @@
         "Level": "Advanced",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "notDeepLabCut", "notLEAP"
+            "isDeepTrack", "~DeepLabCut", "~LEAP"
         ],
         "Type": "float",
         "isEditable": true
@@ -346,8 +346,8 @@
       },
       "perturb_color": {
         "AffectsTraining": true,
-        "DefaultValue": 0,
-        "Description": "Augment by perturbing image color.",
+        "DefaultValue": false,
+        "Description": "Whether to augment by perturbing image color by offsetting each color channel by up to ('Max pixel value')/8. This is only useful if you have color videos and variable lighting. ",
         "DispName": "Perturb color",
         "Level": "Advanced",
         "ParamViz": "",
@@ -360,9 +360,9 @@
       "check_bounds_distort": {
         "AffectsTraining": true,
         "DefaultValue": 1,
-        "Description": "Check that landmarks remain within the image during augmentation.",
-        "DispName": "Check landmarks during augmentation",
-        "Level": "Advanced",
+        "Description": "When augmenting, do we require that all the label keypoints remain within the image bounds? Set this to true if your targets are always completely within view (e.g. they are in an enclosed environment). Set this to false if sometimes targets are partly in and partly out of view.",
+        "DispName": "Augmented keypoints within image",
+        "Level": "Beginner",
         "ParamViz": "",
         "Requirements": [
           "isDeepTrack"
@@ -372,17 +372,17 @@
       }
     },
     "LossFunction": {
-      "Description": "Parameters related to the deep-learning error criterion minimized.",
+      "Description": "Parameters related to the objective minimized during network training.",
       "DispName": "Loss Function",
       "label_blur_rad": {
         "AffectsTraining": true,
         "DefaultValue": 3,
-        "Description": "Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location. Only applicable to heatmap based methods. Not applicable to DeepLabCut and LEAP.",
-        "DispName": "Label uncertainty radius",
+        "Description": "Standard deviation, in pixels, of the labeled keypoint location specified in heatmap-based networks. In the label heatmap created during training, a Gaussian with this standard deviation is placed at each labeled keypoint location.",
+        "DispName": "Keypoint uncertainty radius",
         "Level": "Advanced",
         "ParamViz": "",
         "Requirements": [
-          "isDeepTrack"
+            "isDeepTrack", "~DeepLabCut", "~LEAP"
         ],
         "Type": "float",
         "isEditable": true
