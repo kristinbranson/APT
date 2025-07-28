@@ -58,7 +58,7 @@ class config(object):
         # otherwise, if scale_range is read in, use that
         self.use_scale_factor_range = True
         self.imax = 255.
-        self.check_bounds_distort = True
+        self.check_bounds_distort = False
         self.adjust_contrast = False
         self.clahe_grid_size = 20
         self.normalize_img_mean = False
@@ -222,7 +222,8 @@ class config(object):
 
         # ============== MULTIANIMAL ==========
         self.is_multi = False
-        self.max_n_animals = 1
+        self.max_n_animals_user = 1 # this is the maximum number of animals that the user enters in the front-end.
+        self.max_n_animals = 1 # this is the actual number of detections to do while doing inference. this is set to 1.25 times the max_n_animals_user
         self.min_n_animals = 0
         self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
         self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
@@ -279,6 +280,7 @@ class config(object):
         self.link_id_batch_size = 16
         self.link_id_ignore_far = False
         self.link_id_motion_link = False
+        self.link_id_save_int_wts = False
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'

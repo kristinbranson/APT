@@ -339,12 +339,14 @@ def create_full_tf_record(conf):
     print('%d,%d number of pos examples added to the db and val-db' % (count, val_count))
 
 def get_labeled_frames(lbl, ndx, trx_ndx=None, on_gt=False):
-    cur_pts = trx_pts(lbl, ndx, on_gt)
-    if cur_pts.ndim == 4:
-        frames = np.where(np.invert(np.all(np.isnan(cur_pts[trx_ndx, :, :, :]), axis=(1, 2))))[0]
+    if 'labeledpos' in lbl:
+        cur_pts = trx_pts(lbl, ndx, on_gt)
+        if cur_pts.ndim == 4:
+            frames = np.where(np.invert(np.all(np.isnan(cur_pts[trx_ndx, :, :, :]), axis=(1, 2))))[0]
+        else:
+            frames = np.where(np.invert(np.all(np.isnan(cur_pts[:, :, :]), axis=(1, 2))))[0]
     else:
-        frames = np.where(np.invert(np.all(np.isnan(cur_pts[:, :, :]), axis=(1, 2))))[0]
-
+        frames = np.array(lbl[lbl['labels'][0][ndx]]['frm'][()].flatten())
     return frames
 
 
