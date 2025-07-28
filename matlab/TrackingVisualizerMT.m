@@ -532,39 +532,50 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       hPT = obj.hPchTxt;
       dx = obj.txtOffPx;
       xyoff = xy+dx;
-      for iTgt=1:ntgts
-        if iTgt>ntgtsgiven
-          set(h(:,iTgt),'XData',nan,'YData',nan);
-          set(hTxt(:,iTgt),'Position',[nan nan 0]);
-          %LabelCore.setSkelCoords(nan(npts,2),false(npts,1),hSkl(:,iTgt),skelEdges);
-          if obj.doPch
-            set(hP(iTgt),'XData',nan,'YData',nan);
-            set(hPT(iTgt),'Position',[nan nan 0]);
-          end
-        else
-          xytgt = xy(:,:,iTgt);
-          
-          for iPt=1:npts
-            set(h(iPt,iTgt),'XData',xytgt(iPt,1),'YData',xytgt(iPt,2));
-            set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:,iTgt) 0]);
-          end        
-          if ~isempty(tfeo)
-            %pppi = obj.ptsPlotInfo;
-            set(h(tfeo(:,iTgt),iTgt),'Marker',obj.mrkrOcc);
-            set(h(~tfeo(:,iTgt),iTgt),'Marker',obj.mrkrReg);
-          end
 
-          %tfOccld = any(isinf(xytgt),2);
-          %LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
+      for iTgt=1:ntgtsgiven,
+        xytgt = xy(:,:,iTgt);
 
-          if obj.doPch
-            roi = obj.lObj.maGetLossMask(xytgt);
-            set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2)); 
-            set(hPT(iTgt),'Position',[roi(1,:) 0]);
+        for iPt=1:npts
+          set(h(iPt,iTgt),'XData',xytgt(iPt,1),'YData',xytgt(iPt,2));
+          set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:,iTgt) 0]);
+        end
+        if ~isempty(tfeo)
+          %pppi = obj.ptsPlotInfo;
+          set(h(tfeo(:,iTgt),iTgt),'Marker',obj.mrkrOcc);
+          set(h(~tfeo(:,iTgt),iTgt),'Marker',obj.mrkrReg);
+        end
+
+        %tfOccld = any(isinf(xytgt),2);
+        %LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
+
+        if obj.doPch
+          roi = obj.lObj.maGetLossMask(xytgt);
+          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));
+          set(hPT(iTgt),'Position',[roi(1,:) 0]);
+        end
+      end
+
+
+      if ntgts > ntgtsgiven,
+        needupdate = false(npts,ntgts);
+        needupdate(:,ntgtsgiven+1:end) = reshape(cellfun(@(x) any(~isnan(x(:))), {h(:,ntgtsgiven+1:end).XData}),npts,[]);
+        if any(needupdate(:)),
+          set(h(needupdate),'XData',nan,'YData',nan);
+          set(hTxt(needupdate),'Position',[nan nan 0]);
+        end
+        %LabelCore.setSkelCoords(nan(npts,2),false(npts,1),hSkl(:,iTgt),skelEdges);
+        if obj.doPch
+          needupdate = false(ntgts,1);
+          needupdate(ntgtsgiven+1:end) = cellfun(@(x) any(~isnan(x(:))), {hP(ntgtsgiven+1:end).XData});
+          if any(needupdate(:)),
+            set(hP(needupdate),'XData',nan,'YData',nan);
+            set(hPT(needupdate),'Position',[nan nan 0]);
           end
         end
       end
-      
+
+
       if ntgts>ntgtsgiven
         xy = cat(3,xy,nan(npts,2,ntgts-ntgtsgiven));
       end

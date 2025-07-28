@@ -3,7 +3,7 @@ function rawLbl(lbl_file,out_file)
 tname = tempname;
 mkdir(tname);
 try
-  fprintf('Untarring project into %s\n',tname);
+  fprintf('Untarring project %s into %s\n',lbl_file,tname);
   untar(lbl_file,tname);
   fprintf('... done with untar.\n');
   rawLblFile = fullfile(tname,'label_file.lbl');

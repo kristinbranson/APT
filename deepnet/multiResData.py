@@ -1455,7 +1455,13 @@ class list_loader(torch.utils.data.Dataset):
         self.augment = augment
         self.prev_item = None
         self.movs = self.list['movieFiles']
-        self.toTrack = self.list['toTrack']
+        self.toTrack = []
+        for cur_i in self.list['toTrack']:
+            if isinstance(cur_i[2], list) or isinstance(cur_i[2], tuple):
+                for i in range(cur_i[2][0], cur_i[2][1]):
+                    self.toTrack.append([cur_i[0], cur_i[1], i])
+            else:
+                self.toTrack.append(cur_i)
         self.cropLocs = self.list['cropLocs']
         self.trx_files = self.list['trxFiles']
         self.cap = None

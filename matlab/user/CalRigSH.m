@@ -20,8 +20,18 @@ classdef CalRigSH < CalRig
   
   methods
     
-    function obj = CalRigSH
-      obj.setKineData('');
+    function obj = CalRigSH(s)
+      if ~exist('s','var'),
+        obj.setKineData('');
+        return;
+      end
+      propscopy = {'kineData','kineDataFile','kineData'};
+      for i = 1:numel(propscopy),
+        fn = propscopy{i};
+        if isfield(s,fn),
+          obj.(fn) = s.(fn);
+        end
+      end
     end
     
     function setKineData(obj,kdfile)

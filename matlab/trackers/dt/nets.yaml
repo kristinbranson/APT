@@ -29,6 +29,14 @@ mdn_joint_fpn:
   trkAuxLabels: [confidence]
   doesOccPred: 1
   isMultiAnimal: 0
+  description: >
+    Grid Regression Output Network (GRONe) is a convolutional network for pose recognition
+    developed specifically for lab-animal pose tracking by the developers of
+    <a href="https://kristinbranson.github.io/APT/index.html">APT</a>, and achieved
+    best or near-best performance for all tested datasets. It excels at achieving subpixel
+    resolution and disambiguating close, social interactions. It combines heatmap-based and regression-based
+    approaches. 
+  
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -41,6 +49,8 @@ mdn:
   trkAuxLabels: [conf_mdn] #, conf_unet]
   doesOccPred: 1
   isMultiAnimal: 0
+  description: >
+    Former name for GRONe, depricated. 
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -53,6 +63,11 @@ unet:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    Unet is a single-animal pose recognition algorithm based on the simple U-Net convolutional network architecture. It is a heatmap
+    based approach, and works best when there are not many occlusions.
+    
+    <i>Ronneberger, O., Fischer, P., and Brox, T., 2015. "U-net: Convolutional networks for biomedical image segmentation", MICCAI.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -65,6 +80,10 @@ mmpose:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    Multi-Stage Pose Network (MSPN) is a convolutional network designed for human pose recogntition. It is the winner of the 2018 COCO human keypoint recognition challenge and implemented by the <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+
+    <i>Li, W., et al., 2019. "Rethinking on multi-stage networks for human pose estimation", arXiv.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -77,6 +96,11 @@ hrformer:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    High-Resolution Transformer (HRFormer) is a large, transformer-based method. It is a leading algorithm for human pose recognition when used as the final stage of a multi-stage algorithm. We use the implementation in the <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+    
+    <i>Yuan, Y. et al., 2021. "HRFormer: High-resolution vision transformer for dense predict", NeurIPS.</i>
+    
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -101,6 +125,14 @@ hrnet:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    High-Resolution Net (HRNet) is a convolutional network designed for pixel-level resolution in
+    human pose recognition. It is implemented by the
+    <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+    
+    <i>Sun, K., et al., 2019. "Deep high-resolution representation learning for human pose estimation", CVPR.</i>
+
+  
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -113,6 +145,11 @@ deeplabcut:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    DeepLabCut is convolutional network developed for animal pose tracking. Our implementation uses code from the original
+    DeepLabCut repository. 
+    
+    <i>Mathis, A., et al., 2018. "DeepLabCut: markerless pose estimation of user-defined body parts with deep learning", Nature neuroscience.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -125,6 +162,11 @@ dpk:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    DeepPoseKit is a convolutional network developed for animal pose tracking. Our implementation uses code from the
+    original DeepPoseKit repository.
+
+    <i>Graving, J.M. et al., 2019. "DeepPoseKit, a software toolkit for fast and robust animal pose estimation using deep learning", elife.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -137,6 +179,11 @@ openpose:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 0
+  description: >
+    OpenPose is a light-weight, convolutional-network, bottom-up algorithm for multi-person pose recognition. It was the
+    first real-time capable pose recognition algorithm for multi-person pose tracking.
+    
+    <i> Cao, Z., et al., 2017. "Realtime multi-person 2d pose estimation using part affinity fields", CVPR.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -149,6 +196,14 @@ multi_mdn_joint_torch:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
+  description: >
+    Grid Regression Output Network (GRONe) is a multi-target, bottom-up, convolutional-network-based algorithm for pose recognition
+    developed specifically for lab-animal pose tracking by the developers of
+    <a href="https://kristinbranson.github.io/APT/index.html">APT</a>, and achieved
+    best or near-best performance for all tested datasets. It excels at achieving subpixel
+    resolution and disambiguating close, social interactions. It combines heatmap-based and regression-based
+    approaches. 
+
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -161,6 +216,12 @@ multi_openpose:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
+  description: >
+    OpenPose is a light-weight, bottom-up, convolutional-network-based algorithm for multi-person pose recognition. It was
+    the first real-time capable
+    pose recognition algorithm for multi-person pose tracking. It is implemented by the <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+    
+    <i> Cao, Z., et al., 2017. "Realtime multi-person 2d pose estimation using part affinity fields", CVPR.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -173,6 +234,11 @@ multi_cid:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 1
+  description: >
+    Contextual Instance Decoupling (CID) is a bottom-up, convolutional-network-based, mutli-target tracking algorithm, designed for human pose recognition. It
+    achieves state-of-the-art results on the CrowdPose dataset. It is implemented by the <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+    
+    <i>Wang, D. and Zhang, S., 2022. "Contextual instance decoupling for robust multi-person pose estimation", CVPR.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -185,6 +251,11 @@ multi_dekr:
   trkAuxLabels: [confidence]
   doesOccPred: 0
   isMultiAnimal: 1
+  description: >
+    Disentangled Keypoint Regression (DEKR) is a bottom-up mutli-target tracking algorithm, designed for human pose recognition. It
+    achieves state-of-the-art results on the COCO keypoint and CrowdPose dataset. It is implemented by the <a href="https://mmpose.readthedocs.io/en/latest/overview.html">MMPose</a> library.
+    
+    <i>Geng, Z., et al., 2021. "Bottom-up human pose estimation via disentangled keypoint regression", CVPR.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -197,6 +268,12 @@ detect_mmdetect:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
+  description: >
+    Detection TRansformer (DeTR) is a transformer-based algorithm for generic object detection.
+    It is implemented by the <a href="https://mmdetection.readthedocs.io/en/latest/overview.html">MMDetection</a> library. 
+    
+    <i>Carion, N. et al., 2020. "End-to-end object detection with transformers", ECCV.</i>
+
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif
 
@@ -209,5 +286,10 @@ detect_frcnn:
   trkAuxLabels: []
   doesOccPred: 0
   isMultiAnimal: 1
+  description: >
+    Faster R-CNN is a popular, efficient, convolutional network for generic object detection. It is implemented by the
+    <a href="https://mmdetection.readthedocs.io/en/latest/overview.html">MMDetection</a> library.
+    
+    <i>Ren, S., et al., 2016. "Faster R-CNN: Towards real-time object detection with region proposal networks", PAMI.</i>
 #  docker: tf23_mmdetection
 #  sing: /groups/branson/bransonlab/apt/sif/apt_tf23_mmdetection_20210708.sif

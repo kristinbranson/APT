@@ -7,16 +7,15 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % different number key un-selects the previous ptset and selects a new.
   %
   % Clicking on an axes when a ptset is working will i) jump the working pt
-  % in that view to the clicked loc; ii) "select" that pt, turning it into 
-  % an 'x' and enabling arrowkeys for fine adjustment; and iii) add the pt
-  % to the "anchorsset", (unless two anchored pts already exist), which 
-  % projects EPLs or RePts into other views as appropriate.
-  %
+  % in that view to the clicked loc and ii) "select" that pt, turning it into 
+  % an 'x' and enabling arrowkeys for fine adjustment. 
+  % 
+  % All points that are selected and have been adjusted are "anchor" points
+  % in previous terminology, and will show epipolar lines and include an
+  % 'a' in their label.
+  % 
   % Giving a window the focus when a workingset is selected will Select the
   % WSpt in that view.
-  %
-  % To un-anchor a WSpoint, right-click it, or hit <space> when the 
-  % appropriate view has the focus.
   %
   % Any WSpt can be dragged.
   %
@@ -24,8 +23,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   %
   % When done with all points, hit Accept to Accept labels.
   %
-  % This requires a 'CalibratedRig' that knows how to compute EPLs and
-  % reconstruct 3dpts.
+  % This requires a 'CalibratedRig' that knows how to compute epipolar lines
+  % and reconstruct 3dpts.
  
   % Alternative description
   %
@@ -54,16 +53,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
   % keys.
   %
   % AnchorSet
-  % One or two points may be anchored. When one point is anchored, EPLs are
-  % drawn in all other views. When two pts are anchored, REpts are drawn in
-  % all other views.
-  %
-  % If nviews==2, only one point may be anchored.
+  % Epipolar lines for the anchor set are shown in all other views. 
   % 
-  % The anchorset starts empty when a WSset first becomes active. If an
-  % axes is clicked or a view is given focus, that view is added to the
-  % anchorset, displacing other anchored points if necessary. To un-anchor 
-  % a WSpt, give its view the focus and hit <space>.
+  % The anchorset starts empty when a WSset first becomes active. All
+  % adjusted or accepted and selected points are anchor points. 
  
   properties (SetObservable)
     % If true, streamlined labeling process; labels not shown unless they
@@ -127,7 +120,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     iPtMove;     % scalar. Either nan, or index of pt being moved
     tfMoved;     % scalar logical; if true, pt being moved was actually moved
 
+    currFrameAdjust; % which frame was most recently adjusted
     tfAdjusted;  % nPts x 1 logical vec. If true, pt has been adjusted from template
+    tfStored;  % nPts x 1 logical vec. If true, pt has accepted and stored in labeler object
     
     numHotKeyPtSet; % scalar positive integer. This is the pointset that 
                     % the '1' hotkey currently maps to
@@ -135,6 +130,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     hAxXLabels; % [nview] xlabels for axes
     hAxXLabelsFontSize = 11;
     showEpiLines = true;
+
   end
   
   methods % dep prop getters
@@ -143,6 +139,19 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     function v = get.nPointSet(obj)
       v = size(obj.iSet2iPt,1);
+    end
+    function v = get.pjtIPts(obj)
+      iSet = obj.iSetWorking;
+      v = nan(1,obj.nView);
+      if isempty(iSet) || isnan(iSet),
+        return;
+      end
+      for iAx = 1:obj.nView,
+        iPt = find(obj.iPt2iSet==iSet & obj.iPt2iAx==iAx);
+        if obj.tfAdjusted(iPt),
+          v(iAx) = iPt;
+        end
+      end
     end
     function v = get.pjtState(obj)
       v = nnz(~isnan(obj.pjtIPts));
@@ -258,6 +267,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.setRandomTemplate();
            
       obj.tfAdjusted = false(obj.nPts,1);
+      obj.tfStored = false(obj.nPts,1);
+      obj.currFrameAdjust = nan;
 
       obj.hAxXLabels = gobjects(obj.nView,1);
       for iView=1:obj.nView
@@ -360,6 +371,27 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
       %#%CALOK
+      if (iFrm0 == iFrm1) && (iTgt0 == iTgt1),
+        return;
+      end
+
+      if iFrm1 == obj.currFrameAdjust,
+        % call is originating from checkAdjust failure
+        return;
+      end
+
+      res = obj.checkAccept();
+      if strcmpi(res,'Yes')
+        % accept before going on
+        obj.acceptLabels();
+        obj.clearSelected();
+      elseif strcmpi(res,'Cancel'),
+        % go back a frame
+        obj.labeler.setFrameAndTargetGUI(iFrm0,iTgt0);
+        return;
+      else % answer = No
+        % pass
+      end
       [tflabeled,lpos,lpostag] = obj.labeler.labelPosIsLabeled(iFrm1,iTgt1);
       if tflabeled
         obj.assignLabelCoords(lpos,'lblTags',lpostag);
@@ -424,7 +456,6 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 %           obj.toggleSelectPoint(iPt);
 %         end
         
-        obj.projectAddToAnchorSet(iPt, iAx)
         if obj.tfOcc(iPt)
           obj.tfOcc(iPt) = false;
           obj.refreshOccludedPts();
@@ -541,12 +572,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       iPt = obj.iPtMove;
       if ~isnan(iPt)
-        if obj.tfMoved
-          % none
-        else
-          % point was clicked but not moved
-          obj.projectToggleState(iPt, -1);
-        end
+        obj.projectionRefresh();
       end
       obj.iPtMove = nan;
       obj.tfMoved = false;
@@ -565,24 +591,16 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       tfShft = any(strcmp('shift',modifier));
       
       lObj = obj.labeler;
-      scPrefs = lObj.projPrefs.Shortcuts;     
       tfKPused = true;
-      if strcmp(key,scPrefs.menu_view_hide_labels) && tfCtrl ...
-          && isfield(src.UserData,'view') && src.UserData.view>1
-        % HACK multiview. MATLAB menu accelerators only work when
-        % figure-containing-the-menu (main fig) has focus
-        obj.labelsHideToggle();
-      elseif strcmp(key,scPrefs.menu_view_hide_predictions) && tfCtrl ...
-          && isfield(src.UserData,'view') && src.UserData.view>1
-        % Hack etc
-        tracker = lObj.tracker;
-        if ~isempty(tracker)
-          tracker.hideVizToggle();
-        end
-      elseif strcmp(key,scPrefs.menu_view_hide_imported_predictions) ...
-          && tfCtrl && isfield(src.UserData,'view') && src.UserData.view>1
-        lObj.labels2VizToggle();
-      elseif strcmp(key,'space')
+
+      % shortcuts in main figure will be handled by menu items themselves
+      if src == lObj.gdata.mainFigure_,
+        match = [];
+      else
+        match = lObj.gdata.matchShortcut(evt);
+      end
+
+      if strcmp(key,'space')
         obj.toggleEpipolarState();
         %[tfSel,iSel] = obj.projectionPointSelected();
         %if tfSel && ~obj.tfOcc(iSel)
@@ -604,7 +622,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       elseif strcmp(key,'u') && ~tfCtrl
         iAx = find(gcf==obj.hFig);
         iWS = obj.iSetWorking;        
-        if isscalar(iAx) && ~isnan(iWS)
+        if isscalar(iAx) && ~isnan(iWS) && obj.labeler.showOccludedBox,
           iPt = obj.iSet2iPt(iWS,iAx);
           obj.setPtFullOcc(iPt);
         end
@@ -691,23 +709,145 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
             obj.projectionWorkingSetSet(iSet);
           end
         end
+      elseif ~isempty(match),
+        for i = 1:size(match,1),
+          tag = match{i,1};
+          cb = lObj.gdata.(tag).Callback;
+          if ischar(cb),
+            eval(cb);
+          else
+            cb(lObj.gdata.(tag),evt);
+          end
+        end
+
       else
         tfKPused = false;
       end
     end
     
-    function h = getLabelingHelp(obj) %#ok<MANU>
-      h = { ...
-        '* A/D, LEFT/RIGHT, or MINUS(-)/EQUAL(=) decrements/increments the frame shown.'
-        '* <ctrl>+A/D, LEFT/RIGHT etc decrement/increment by 10 frames.'
-        '* <shift>+A/D, LEFT/RIGHT etc move to next labeled frame.'
-        '* S accepts the labels for the current frame/target.'        
-        '* 0..9 selects/unselects a point (in all views). When a point is selected:'
-        '*   Clicking any view jumps the point to the clicked location.'         
-        '*   After clicking, LEFT/RIGHT/UP/DOWN adjusts the point.'
-        '*   <shift>-LEFT, etc adjusts the point by larger steps.' 
-        '*   <space> can toggle display of epipolar lines or reconstructed points.' 
-        '* ` (backquote) increments the mapping of the 0-9 hotkeys.'};
+    function shortcuts = LabelShortcuts(obj)
+
+      shortcuts = cell(0,3);
+
+      shortcuts{end+1,1} = 'Toggle whether epipolar lines are shown';
+      shortcuts{end,2} = 'space';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Accept current labels';
+      shortcuts{end,2} = 's';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Toggle whether selected kpt is occluded';
+      shortcuts{end,2} = 'o';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'If fully-occluded box is shown, move selected keypoint to occluded box.';
+      shortcuts{end,2} = 'u';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Forward one frame';
+      shortcuts{end,2} = '= or d';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Backward one frame';
+      shortcuts{end,2} = '- or a';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Un/Select kpt of current target';
+      shortcuts{end,2} = '0-9';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = 'Toggle which kpts 0-9 correspond to';
+      shortcuts{end,2} = '`';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by 1/%.1fth of axis size, ow forward one frame',obj.DXFAC);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by 1/%.1fth of axis size, ow back one frame',obj.DXFAC);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by 1/%.1fth of axis size',obj.DXFAC);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by 1/%.1f of axis size',obj.DXFAC);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = '+';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = '-';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by 1/%.1fth of axis size ow go to next %s',obj.DXFACBIG,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by 1/%.1fth of axis size, ow go to previous %s',obj.DXFACBIG,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by 1/%.1fth of axis size',obj.DXFACBIG);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = 'Zoom in/out';
+      shortcuts{end,2} = 'Mouse scroll';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Pan view';
+      shortcuts{end,2} = 'Mouse right-click-drag';
+      shortcuts{end,3} = {};
+
+    end
+
+
+    function h = getLabelingHelp(obj) 
+      h = cell(0,1);
+      h{end+1} = 'Adjust all keypoints for all views, then click Accept to store. ';
+      h{end+1} = '';
+      h{end+1} = ['There is a set of template/"white" points on the ',...
+        'image at all times. To ',...
+        'label a frame, adjust the points as necessary and accept. Adjusted ',...
+        'points are shown in colors (rather than white). '];
+      h{end+1} = '';
+      h{end+1} = ['Select a keypoint by typing the number identifying it. ',...
+        'If you have more than 10 keypoints, the ` (backquote) key lets you ',...
+        'change which set of 10 keypoints the number keys correspond to.'];
+      h{end+1} = ['Once a keypoint is selected, it can be adjusted in any of ',...
+        'the views by clicking on the desired location in an image. ',...
+        'Fine adjustments can be made using the arrow keys. '];
+      h{end+1} = ['Type the keypoint number again to deselect it, or type another ',...
+        'keypoint number to select a different keypoint. '];
+      h{end+1} = ['If no keypoints are selected, you can adjust any keypoint by ',...
+        'clicking down on it and dragging it to the desired location.'];
+      h{end+1} = '';
+      h{end+1} = ['To convert from 2D keypoint coordinates in each view to a 3D ',...
+        'coordinate, the cameras must be calibrated and calibration information must be ',...
+        'loaded into the project. '];
+      h{end+1} = ['If calibration information is provided, "epipolar" lines can be shown ',...
+        'to help with labeling. If we know the 2-D coordinate of a point in one view, the ',...
+        'epipolar line is the line that this point may lie on in another view. '];
+      h{end+1} = ['Epipolar lines will be shown for keypoints after they are adjusted in any ',...
+        'of the ways described above. An "a" will appear next to the keypoint number to ',...
+        'indicate that its epipolar line is being shown. '];
+      h{end+1} = 'You can toggle whether epipolar lines are shown or hidden with the space key.';
+      h{end+1} = '';
+      h1 = getLabelingHelp@LabelCore(obj);
+      h = [h(:);h1(:)];
+
     end
     
     function refreshOccludedPts(obj)
@@ -796,6 +936,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       obj.iSetWorking = iSet;
       obj.labeler.currImHud.updateLblPoint(iSet,obj.nPointSet);
+      obj.projectionRefresh();
     end
     
     function projectionWorkingSetToggle(obj,iSet)
@@ -833,7 +974,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     end
     
     function projectionInit(obj)
-      obj.pjtIPts = nan(1, obj.nView);
+      %obj.pjtIPts = nan(1, obj.nView);
       %obj.pjtIPts = [nan nan];
       %hLEpi = gobjects(1,obj.nView * (obj.nView - 1));
       hLEpi = gobjects(obj.nView, obj.nView);
@@ -883,7 +1024,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         set(obj.hPtsTxt(iPt),'String',obj.hPtsTxtStrs{iPt});
       end
       
-      obj.pjtIPts = nan(1, obj.nView);
+      %obj.pjtIPts = nan(1, obj.nView);
       %obj.pjtIPts = [nan nan];
       % this will look odd, but make sure the visibilty is true. Although
       % the lines won't be visible due to the clearing. The next click will
@@ -914,44 +1055,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
     end
-    
-    function projectAddToAnchorSet(obj,iPt,iAx)
-      obj.projectToggleState(iPt,iAx);
-      % if any(obj.pjtIPts==iPt)
-      %   % already anchored
-      % else
-      % end
-    end
-    
-    function projectToggleState(obj,iPt,iAx)
-      % Toggle projection status of point iPt.
-      %
-      % AL: not sure this meth needs to exist bc callers who use iAx==-1 
-      % can just call refreshEPlines directly and then everybody else just
-      % calls projectionSetAnchor.  
-      if iAx == -1
-        obj.projectionRefreshEPlines();
-      else
-        obj.projectionSetAnchor(iPt,iAx);
-      end
-    end
-    
-    function projectionSetAnchor(obj,iPt1,iAx)
-%       idx = obj.pjtIPts == iPt1;
-%       if ~any(idx)
-%         % this point isn't part of the anchor list. add it to the anchor
-%         % list.
-%         nan_idx = find(isnan(obj.pjtIPts));
-%         obj.pjtIPts(nan_idx(1)) = iPt1;
-%       end
-      obj.pjtIPts(iAx) = iPt1;
 
-      hPt1 = obj.hPtsTxt(iPt1);
-      set(hPt1,'String',[obj.hPtsTxtStrs{iPt1} 'a']);
-
-      obj.projectionRefreshEPlines();
-    end
-    
     function projectionRefreshEPlines(obj)
       % update EPlines based on .pjtIPt1 and coords of that hPt.
       
@@ -980,6 +1084,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         %iAxOther = setdiff(1:obj.nView,iAx1);
         crig = obj.pjtCalRig;
         %for iAx = iAxOther
+        % update text marker to include an a
+        set(obj.hPtsTxt(iPt1),'String',[obj.hPtsTxtStrs{iPt1} 'a']);
         for iAx = 1:obj.nView
           if iAx == i
             continue
@@ -1003,7 +1109,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       assert(~isnan(obj.pjtIPts(1)));
       assert(isnan(obj.pjtIPts(2)));
       assert(iPt2~=obj.pjtIPts(1),'Second projection point must differ from anchor point.');
-      obj.pjtIPts(2) = iPt2;
+      %obj.pjtIPts(2) = iPt2;
       set(obj.pjtHLinesEpi,'Visible','off');
       
       set(obj.hPtsTxt(iPt2),'String',[obj.hPtsTxtStrs{iPt2} 'a']);
@@ -1188,7 +1294,24 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
 	%
     % Regardless of projection state, you can Accept, which writes
     % current positions to Labeler.
+
+    function v = isUnsavedState(obj)
+      v = any(obj.tfAdjusted & ~obj.tfStored);
+    end
+
+    function v = isAdjustFrameChange(obj)
+      v = ~isnan(obj.currFrameAdjust) && (obj.currFrameAdjust ~= obj.labeler.currFrame);
+    end
     
+    function res = checkAccept(obj)
+      res = 'No';
+      if obj.isUnsavedState() && obj.isAdjustFrameChange(),
+        res = questdlg('Some keypoints have been adjusted but not accepted. Accept before losing this information?','Accept labels','Yes','No','Cancel','Yes');
+        figure(gcf); % somehow focus gets lost after question, and keyboard shortcuts don't work...
+      end
+
+    end
+
     function enterAdjust(obj,tfResetPts,tfClearLabeledPos)
       % Enter adjustment state for current frame/tgt.
       %
@@ -1196,17 +1319,20 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       % if tfClearLabeledPos, clear labeled pos.
 
       %#%CALOKedit LabelCoreMul
-      
       if tfResetPts
+        obj.tfEstOcc(:) = 0; % reset all points to NOT be occluded
         if obj.streamlined
           [obj.hPts.XData] = deal(nan);
           [obj.hPts.YData] = deal(nan);
           [obj.hPtsTxt.Position] = deal([nan nan 1]);
         else
           tpClr = obj.ptsPlotInfo.TemplateMode.TemplatePointColor;
+          obj.refreshPtMarkers();
           arrayfun(@(x)set(x,'Color',tpClr),obj.hPts);
         end
         obj.tfAdjusted(:) = false;
+        obj.tfStored(:) = false;
+        obj.currFrameAdjust = obj.labeler.currFrame;
       end
       if tfClearLabeledPos
         obj.labeler.labelPosClear();
@@ -1217,6 +1343,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       
       set(obj.tbAccept,'BackgroundColor',[0.6,0,0],'String','Accept',...
         'Value',0,'Enable','on');
+      obj.currFrameAdjust = obj.labeler.currFrame;
       obj.state = LabelState.ADJUST;
     end
         
@@ -1240,6 +1367,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       
       obj.tfAdjusted(:) = true;
+      obj.tfStored(:) = true;
+      obj.currFrameAdjust = nan;
       
       if tfSetLabelPos
         xy = obj.getLabelCoords();
@@ -1248,10 +1377,13 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       end
       set(obj.tbAccept,'BackgroundColor',[0,0.4,0],'String','Accepted',...
         'Value',1,'Enable','on');
+
+      obj.currFrameAdjust = nan;
       obj.state = LabelState.ACCEPTED;
     end
     
-    function setPointAdjusted(obj,iSel)      
+    function setPointAdjusted(obj,iSel)     
+      obj.tfStored(iSel) = false;
       if ~obj.tfAdjusted(iSel)
         obj.tfAdjusted(iSel) = true;
         % KB 20181022 not sure why there is hPtsColors and

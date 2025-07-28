@@ -21,8 +21,8 @@ classdef InfoTimeline < handle
     hCMenuClearAll % scalar context menu
     hCMenuClearBout % scalar context menu
 
-    hZoom % zoom handle for hAx
-    hPan % pan handle "
+    % hZoom % zoom handle for hAx
+    % hPan % pan handle "
 
     hPts % [npts] line handles
     hPtStat % scalar line handle
@@ -142,20 +142,24 @@ classdef InfoTimeline < handle
         obj.hCurrFrameL = [];
       end
 
-      fig = axtm.Parent;
-      hZ = zoom(fig);
-      setAxesZoomMotion(hZ,axtm,'vertical');
-      obj.hZoom = hZ;
-      hZ.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
-      hP = pan(fig);
-      setAxesPanMotion(hP,axtm,'vertical');
-      obj.hPan = hP;
-      hP.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
-
-      if obj.isL,
-        setAxesZoomMotion(hZ,axti,'horizontal');
-        setAxesPanMotion(hP,axti,'horizontal');
-      end
+      % None of this below seemed to actually do anything, presumably b/c the
+      % ButtonDownFcn for axtm and atxi are set above, and that overrides them.
+      % (Not 100% clear why ButtonDownFcn would override the scroll wheel, but
+      % empirically seems to be the case.)  The setAxesZoomMotion() was erroring
+      % out on r2025a, which prompted this whole investigation.  -- ALT, 2025-06-19
+      %
+      % fig = axtm.Parent ;  % the main figure
+      % hZ = zoom(fig);
+      % setAxesZoomMotion(hZ,axtm,'vertical');  % Make zooming gesture (scroll wheel) only zoom the timeline axes in y
+      % hZ.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
+      % hP = pan(fig);
+      % setAxesPanMotion(hP,axtm,'vertical');  % Make pannning gesture (drag) only pan the timeline axes in y
+      % hP.ActionPostCallback = @(src,evt) obj.cbkPostZoom(src,evt);
+      % 
+      % if obj.isL,
+      %   setAxesZoomMotion(hZ,axti,'horizontal');
+      %   setAxesPanMotion(hP,axti,'horizontal');
+      % end
       
       obj.hPts = [];
       obj.hPtStat = [];
@@ -244,12 +248,12 @@ classdef InfoTimeline < handle
       obj.hCurrFrame = [];
       obj.hCurrFrameL = [];
       obj.hStatThresh = [];
-      if ~isempty(obj.hZoom)
-        delete(obj.hZoom);
-      end
-      if ~isempty(obj.hPan)
-        delete(obj.hPan);
-      end
+      % if ~isempty(obj.hZoom)
+      %   delete(obj.hZoom);
+      % end
+      % if ~isempty(obj.hPan)
+      %   delete(obj.hPan);
+      % end
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtStat);
       obj.hPts = [];
@@ -673,6 +677,8 @@ classdef InfoTimeline < handle
 %     end
     
     function v = isL(obj)
+      % Returns true if obj.hAxL (which hold the is-labeled timeline axes handle)
+      % points to a valid graphics object.
       v = ~isempty(obj.hAxL) && ishandle(obj.hAxL);
     end
     
@@ -810,17 +816,12 @@ classdef InfoTimeline < handle
     
   methods  % callbacks
     function cbkBDF(obj,src,evt) 
-      if ~obj.lObj.isReady,
+      if ~obj.lObj.isReady || ~(obj.lObj.hasProject && obj.lObj.hasMovie)
         return
-      end
-      
-      if ~(obj.lObj.hasProject && obj.lObj.hasMovie)
-        return;
       end
 
       if evt.Button==1
-        % Navigate to clicked frame
-        
+        % Navigate to clicked frame        
         pos = get(src,'CurrentPoint');
         if obj.lObj.hasTrx,
           [sf,ef] = obj.lObj.trxGetFrameLimits();
@@ -832,7 +833,8 @@ classdef InfoTimeline < handle
         frm = min(max(frm,sf),ef);
         obj.lObj.setFrameGUI(frm);
       end
-    end
+    end  % function
+
 %     function cbkLabelMode(obj,src,evt) %#ok<INUSD>
 % %       onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
 %       onoff = 'off';
@@ -987,11 +989,11 @@ classdef InfoTimeline < handle
       obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
     end
     
-    function cbkPostZoom(obj,src,evt) %#ok<INUSD>
-      if ishandle(obj.hSelIm),
-        obj.hSelIm.YData = obj.hAx.YLim;
-      end
-    end
+    % function cbkPostZoom(obj,src,evt) %#ok<INUSD>
+    %   if ishandle(obj.hSelIm),
+    %     obj.hSelIm.YData = obj.hAx.YLim;
+    %   end
+    % end
     
   end
 

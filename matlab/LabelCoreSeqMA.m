@@ -406,6 +406,111 @@ classdef LabelCoreSeqMA < LabelCore
       end
     end
     
+    function shortcuts = LabelShortcuts(obj)
+
+      shortcuts = cell(0,3);
+
+      shortcuts{end+1,1} = 'New target';
+      shortcuts{end,2} = 'w';
+      shortcuts{end,3} = {'Ctrl'};
+
+      shortcuts{end+1,1} = 'Undo last label click';
+      shortcuts{end,2} = 'z';
+      shortcuts{end,3} = {'Ctrl'};
+
+      shortcuts{end+1,1} = 'Toggle whether selected kpt is occluded';
+      shortcuts{end,2} = 'o';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = 'Rotate axes CCW by 2 degrees';
+      shortcuts{end,2} = 'A';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Rotate axes CW by 2 degrees';
+      shortcuts{end,2} = 'D';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Toggle whether panning tool is on';
+      shortcuts{end,2} = 'a';
+      shortcuts{end,3} = {'Ctrl'};
+
+      shortcuts{end+1,1} = 'Toggle whether panning tool is on';
+      shortcuts{end,2} = 'd';
+      shortcuts{end,3} = {'Ctrl'};
+
+      shortcuts{end+1,1} = 'Forward one frame';
+      shortcuts{end,2} = '= or d';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Backward one frame';
+      shortcuts{end,2} = '- or a';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Un/Select kpt of current target';
+      shortcuts{end,2} = '0-9';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = 'Toggle which kpts 0-9 correspond to';
+      shortcuts{end,2} = '`';
+      shortcuts{end,3} = {};
+
+      rightpx = obj.controller.videoCurrentRightVec;
+      rightpx = rightpx(1);
+      uppx = obj.controller.videoCurrentUpVec;
+      uppx = abs(uppx(2));
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by %.1f px, ow forward one frame',rightpx);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by %.1f px, ow back one frame',rightpx);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by %.1f px',uppx);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {};
+      
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by %.1f px',uppx);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by %.1f px',10*rightpx);
+      shortcuts{end,2} = '+';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by %.1f px',10*rightpx);
+      shortcuts{end,2} = '-';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move left by %.1f px, ow go to next %s',10*rightpx,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Left arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move right by %.1f px, ow go to previous %s',10*rightpx,...
+        obj.labeler.movieShiftArrowNavMode.prettyStr);
+      shortcuts{end,2} = 'Right arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move up by %.1f px',10*uppx);
+      shortcuts{end,2} = 'Up arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = sprintf('If kpt selected, move down by %.1f px',10*uppx);
+      shortcuts{end,2} = 'Down arrow';
+      shortcuts{end,3} = {'Shift'};
+
+      shortcuts{end+1,1} = 'Zoom in/out';
+      shortcuts{end,2} = 'Mouse scroll';
+      shortcuts{end,3} = {};
+
+      shortcuts{end+1,1} = 'Pan view';
+      shortcuts{end,2} = 'Mouse right-click-drag';
+      shortcuts{end,3} = {};
+
+    end
+
     function tfKPused = kpf(obj,~,evt)
       if ~obj.labeler.isReady
         return;
@@ -444,20 +549,20 @@ classdef LabelCoreSeqMA < LabelCore
           xy = obj.getLabelCoordsI(iSel);
           switch key
             case 'leftarrow'
-              dxdy = -lObj.videoCurrentRightVec();
+              dxdy = -lObj.controller_.videoCurrentRightVec();
             case 'rightarrow'
-              dxdy = lObj.videoCurrentRightVec();
+              dxdy = lObj.controller_.videoCurrentRightVec();
             case 'uparrow'
-              dxdy = lObj.videoCurrentUpVec();
+              dxdy = lObj.controller_.videoCurrentUpVec();
             case 'downarrow'
-              dxdy = -lObj.videoCurrentUpVec();
+              dxdy = -lObj.controller_.videoCurrentUpVec();
           end
           if tfShft
             xy = xy + dxdy*10;
           else
             xy = xy + dxdy;
           end
-          xy = lObj.videoClipToVideo(xy);
+          xy = obj.controller.videoClipToVideo(xy);
           obj.assignLabelCoordsIRaw(xy,iSel);
           switch obj.state
             case LabelState.ADJUST
@@ -744,6 +849,16 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.updateHideTarget(iTgt); 
     end
 
+    function labelsHide(obj)
+      obj.tv.setHideViz(true);
+      labelsHide@LabelCore(obj);
+    end
+    
+    function labelsShow(obj)
+      obj.tv.setHideViz(false);
+      labelsShow@LabelCore(obj);
+    end
+
     function enableControls(obj)
       
       if obj.state == LabelState.LABEL,
@@ -929,35 +1044,10 @@ classdef LabelCoreSeqMA < LabelCore
       h{end+1} = ' - Right-click the box and select Remove Rectangle to delete it.';
       h{end+1} = ' - Re-click Edit Label Boxes to register your changes.';
       h{end+1} = '';      
-      h{end+1} = '{\bf{Shortcuts}}:';
-      h{end+1} = '{\fontname{Courier} Ctrl  + w }: New Target.';
-      h{end+1} = '{\fontname{Courier} Ctrl  + z }: Undo Last Label Click.';      
-      h{end+1} = '{\fontname{Courier}         o }: Toggle whether selected kpt is occluded.';
-      h{end+1} = '{\fontname{Courier} Shift + a }: Rotate axes CCW by 2 degrees.';
-      h{end+1} = '{\fontname{Courier} Shift + d }: Rotate axes CW by 2 degrees.';
-      h{end+1} = '{\fontname{Courier} Ctrl  + a }: Toggle whether panning tool is on.';
-      h{end+1} = '{\fontname{Courier} Ctrl  + d }: Toggle whether zoom in tool is on.';
-      
-      h{end+1} = '{\fontname{Courier}    = OR d }: Forward one frame.';
-      h{end+1} = '{\fontname{Courier}    - OR a }: Backward one frame.';
-      h{end+1} = '{\fontname{Courier}       0-9 }: Un/Select kpt of current target.';
-      h{end+1} = '{\fontname{Courier}         ` }: Toggle which kpts 0-9 correspond to.';
-      rightpx = obj.controller.videoCurrentRightVec;
-      rightpx = rightpx(1);
-      uppx = obj.controller.videoCurrentUpVec;
-      uppx = abs(uppx(2));
-      h{end+1} = sprintf('{\\fontname{Courier}Left/right }: If kpt selected, move by %.1f px.',rightpx);
-      h{end+1} = '{\fontname{Courier}     arrow }: Otherwise, go back/forward one frame.';
-      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }: If kpt selected, move by %.1f px.',uppx);
-      h{end+1} = '{\fontname{Courier}     arrow }';
-      h{end+1} = sprintf('{\\fontname{Courier}   Shift + }: If kpt selected, move by %.1f px.',10*rightpx);
-      h{end+1} = sprintf('{\\fontname{Courier}Left/right }  Otherwise, go to');
-      h{end+1} = sprintf('{\\fontname{Courier}     arrow }  %s',obj.labeler.movieShiftArrowNavMode.prettyStr);
-      h{end+1} = sprintf('{\\fontname{Courier}   Shift + }: If kpt selected, move by %.1f px.',10*uppx);
-      h{end+1} = sprintf('{\\fontname{Courier}   Up/down }');
-      h{end+1} = '{\fontname{Courier}     arrow }';
-      h{end+1} = '{\fontname{Courier}Mouse scroll }: Zoom in/out.';
-      h{end+1} = '{\fontname{Courier}Mouse right-click-drag }: Pan view.';
+
+      h1 = getLabelingHelp@LabelCore(obj);
+      h = [h(:);h1(:)];
+
     end
 
   end

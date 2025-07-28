@@ -206,10 +206,15 @@ def assign_ids(trk, params, T=np.inf):
   pcurr = trk.getframe(trk.T0)
   idxcurr = trk.real_idx(pcurr)
   pcurr = pcurr[:, :, idxcurr]
-  ids = TrkFile.Tracklet(defaultval=-1, size=(1, trk.ntargets, T))
+  ids = TrkFile.Tracklet(defaultval=-1, ntargets=trk.ntargets) 
   # allocate for speed!
   [sf, ef] = trk.get_startendframes()
-  ids.allocate((1,), sf-trk.T0, np.minimum(T-1, ef-trk.T0))
+  ids.allocate((1,), sf-trk.T0, np.minimum(T-1, ef-trk.T0)) # allocate(size_rest,startframes,endframes):
+  
+  if T == 0:
+    costs = np.zeros(0)
+    return ids, costs
+  
   # ids = -np.ones((trk.T,trk.ntargets),dtype=int)
   idscurr = np.arange(np.count_nonzero(idxcurr), dtype=int)
   
@@ -1007,6 +1012,20 @@ def check_motion_link(p1, p2, p3, vel_mag_eps, pred_error_thresh):
   return match_ndx, d2pred/(vmag+vel_mag_eps)
 
 def merge_ids(id1, id2, t0s, t1s, ids):
+  """
+merge_ids(id1, id2, t0s, t1s, ids):
+Removes overwrite_ndx = max(id1,id2) and merges it into use_ndx = min(id1,id2) by
+setting t0s[use_ndx] to min(t0s[id1], t0s[id2]) and t1s[use_ndx] to max(t1s[id1], t1s[id2]),
+and t0s[overwrite_ndx] and t1s[overwrite_ndx] to -100, indicating it is invalid. 
+t0s and t1s are modified in place.
+:param id1: first id to merge
+:param id2: second id to merge
+:param t0s: start times for each id
+:param t1s: end times for each id
+:param ids: TrkFile.Tracklet object containing the ids
+Returns the id that is used for the merge, which is the one with the smaller index.
+    
+  """
   use_ndx, overwrite_ndx = [id1, id2] if id1 > id2 else [id2, id1]
   idx_m = ids.where(overwrite_ndx)
   for mx in zip(*idx_m):
@@ -1019,6 +1038,9 @@ def merge_ids(id1, id2, t0s, t1s, ids):
 
 
 def motion_link(trk,ids,T,t0s,t1s,params):
+
+  if len(t0s) == 0:
+    return
 
   mpred_stats = []
   for ndx in range(200):
