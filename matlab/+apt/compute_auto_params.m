@@ -1,4 +1,4 @@
-function autoparams = compute_auto_params(lobj,varargin)
+function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
 
   [SCALE_PRCTILE_SPAN,...
     THRESH_MULTI_BBOX_SCALE,...
@@ -28,6 +28,8 @@ function autoparams = compute_auto_params(lobj,varargin)
   %% collate all labels and compute distances between centroids of bounding boxes of pairs of animals labeled on the same frame
   view = 1;
   autoparams = containers.Map();
+  vizdata = struct;
+
   nmov = numel(lobj.labels);
   npts = lobj.nLabelPoints;
   d = 2;
@@ -88,9 +90,16 @@ function autoparams = compute_auto_params(lobj,varargin)
   % KB 20250717 switched this to using the the diagonal
   l_diagonal = sum((l_min - l_max).^2,1);
 
+  vizdata.scale = struct;
+  vizdata.scale.bboxDiagonalLength = l_diagonal;
+  vizdata.scale.bboxWidthHeight = l_span;
+
   l_diagonal_pc = prctile(l_diagonal,[50,100-SCALE_PRCTILE_SPAN],2);
   big_l_diagonal = l_diagonal_pc(2);
   med_l_diagonal = l_diagonal_pc(1);
+
+  vizdata.scale.bigBboxDiagonalLength  = big_l_diagonal;
+  vizdata.scale.medBboxDiagonalLength  = med_l_diagonal;
 
   % switched the order of operations: take the max over x and y spans (ignore whether 
   % this a horizontal box or a vertical box) and then take the percentiles
@@ -99,12 +108,8 @@ function autoparams = compute_auto_params(lobj,varargin)
   % set whether to crop detections by their detected size based on the
   % variations observed in the labels
 
-  if isfield(lobj.trackParams.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
-    if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox ~= auto_multi_bbox_scale
-      % if the current setting is different than auto setting then change
-      % the setting
-      autoparams('MultiAnimal.TargetCrop.multi_scale_by_bbox') = auto_multi_bbox_scale;
-    end    
+  if lobj.trackerIsTwoStage,
+    autoparams('MultiAnimal.TargetCrop.multi_scale_by_bbox') = auto_multi_bbox_scale;
   end
 
     %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
@@ -113,6 +118,7 @@ function autoparams = compute_auto_params(lobj,varargin)
   
   l_span_pc = prctile(l_span,100-SCALE_PRCTILE_SPAN,2); % [w;h]
   l_span_max = max(l_span,[],2); % box size
+  vizdata.scale.bigBboxSide = l_span_max;
 
   % Check and flag outliers..
   if any( (l_span_max./l_span_pc)>2)
@@ -135,12 +141,13 @@ function autoparams = compute_auto_params(lobj,varargin)
     end
     warningNoTrace(sprintf('%s\n',wstr{:}));
   end
+  l_span_median = prctile(l_span,50,2); % [w;h]
+  vizdata.scale.medBboxWidthHeight = l_span_median;
 
-  if isfield(lobj.trackParams.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox') && auto_multi_bbox_scale
+  if lobj.trackerIsTwoStage && auto_multi_bbox_scale,
     % scaling bounding box == true, size to scale to
 
     % median span in x and y 
-    l_span_median = prctile(l_span,50,2); % [w;h]
     crop_radius = max(l_span_median);
     
   else
@@ -159,7 +166,10 @@ function autoparams = compute_auto_params(lobj,varargin)
 
   % default case: percentiles of angle span of all keypoints around
   % centroid
-  rrange_default = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+  [rrange_default,l_thetas] = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+
+  vizdata.rrange = struct;
+  vizdata.rrange.centroidKeypointAngle = l_thetas;
 
   if lobj.maIsMA && lobj.trackerIsTwoStage,
     if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta,
@@ -167,11 +177,13 @@ function autoparams = compute_auto_params(lobj,varargin)
       % head and tail.
       headidx = lobj.skelHead;
       tailidx = lobj.skelTail;
-      rrange_stage1 = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+      [rrange_stage1,l_thetas] = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.stage1_headTailAngle = l_thetas;
       % we have already cropped a region around the animal and aligned
       % based on detected head/tail position. compute span of difference
       % between keypoint angles and head-tail angle
-      rrange_stage2 = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION);
+      [rrange_stage2,l_thetas] = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.stage2_keypoints2HeadTailAngle = l_thetas;
     else
       rrange_stage1 = rrange_default;
       rrange_stage2 = rrange_default;
@@ -197,6 +209,10 @@ function autoparams = compute_auto_params(lobj,varargin)
   % Look at distances between labeled pairs to find what to set for
   % translation range for data augmentation
   d_pairs_pc = prctile(d_pairs,TRANSLATION_PRCTILE_D_PAIRS);
+
+  vizdata.trange = struct;
+  vizdata.trange.distPairs = d_pairs;
+  vizdata.trange.smallDistPairs = d_pairs_pc;
 
   % If the distances between center of animals is much less than the
   % span then warn about using bbox based methods
@@ -260,15 +276,15 @@ function ang_span = get_angle_span(theta,ROTATION_PRCTILE_ANGLE_SPAN)
   end
 end
 
-function rrange = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
+function [rrange,l_thetas] = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
 
 htidx = [headidx,tailidx];
 mid_labels = mean(all_labels,1); % should this be mean(all_labels(htidx)) ?
-rrange = helper_rotation_range(all_labels(htidx,:,:),mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+[rrange,l_thetas] = helper_rotation_range(all_labels(htidx,:,:),mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
 
 end
 
-function rrange = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION)
+function [rrange,l_thetas] = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION)
 
 npts = size(all_labels,1);
 if npts <= 2,
@@ -285,22 +301,22 @@ body_ctr = (hd+tl)/2;
 htangle = atan2(all_labels(headidx,2,:)-body_ctr(:,2,:),...
   all_labels(headidx,1,:)-body_ctr(:,1,:));
 
-rrange = helper_rotation_range(all_labels(ptidx,:,:),body_ctr,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,htangle);
+[rrange,l_thetas] = helper_rotation_range(all_labels(ptidx,:,:),body_ctr,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,htangle);
 
 end
 
-function rrange = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
+function [rrange,l_thetas] = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
 
 % If uses object detection for the first stage or hastrx and not 
 % using theta to align 
 % then the look at the variation in angles relative to the center of the
 % keypoints
 mid_labels = mean(all_labels,1);
-rrange = helper_rotation_range(all_labels,mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+[rrange,l_thetas] = helper_rotation_range(all_labels,mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
 
 end
 
-function rrange = helper_rotation_range(all_labels,ctrpts,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,ctrangles)
+function [rrange,l_thetas] = helper_rotation_range(all_labels,ctrpts,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,ctrangles)
 
 assert(numel(ROTATION_PRCTILE_ANGLE_SPAN) == 1);
 assert(numel(ROTATION_RANGE_PRECISION) == 1);

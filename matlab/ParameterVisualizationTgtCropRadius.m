@@ -25,17 +25,20 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       isOk = ~isempty(obj.hRect) && ishandle(obj.hRect);
     end
     
-    function init(obj,hAx,lObj,propFullName,prm)
+    function init(obj,hTile,lObj,propFullName,prm)
       
       if nargin > 1,
-        init@ParameterVisualization(obj,hAx,lObj,propFullName,prm);
+        init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);
+      end
+      if isempty(obj.hAx),
+        obj.hAx = nexttile(obj.hTile);
       end
 
       if ~obj.lObj.hasMovie
         ParameterVisualizationTgtCropRadius.grayOutAxes('No movie available.');
         return;
       end
-      
+     
       % Set .xTrx, .yTrx; get im
       obj.isMA = obj.lObj.maIsMA;
       if obj.lObj.hasTrx
@@ -87,7 +90,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     end
     
     function clear(obj)
-      cla(obj.hAx);
+      clear@ParameterVisualization(obj);
       obj.initSuccessful = false;
     end
 

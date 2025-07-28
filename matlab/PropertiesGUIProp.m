@@ -87,8 +87,12 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
 
   methods (Static)
 
-    function [obj,fnsused] = initFromStruct(s,fld)
+    function [obj,fnsused] = initFromStruct(s,fld,prefix)
  
+      if nargin < 3,
+        prefix = '';
+      end
+
       fns = {'FullPath','Field','DispName','Type','isEditable',...
         'Description','DefaultValue','Value','ParamViz',...
         'Level','Requirements','Visible','AffectsTraining'};
@@ -114,6 +118,12 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
         if strcmp(fn,'Field'),
           args{i} = fld;
           continue;
+        elseif strcmp(fn,'FullPath'),
+          if isempty(prefix),
+            args{i} = fld;
+          else
+            args{i} = [prefix,'.',fld];
+          end
         end
         if isfield(s,fn),
           args{i} = s.(fn);
