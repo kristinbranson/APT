@@ -1,25 +1,32 @@
 function PlotErrorHists(errs,varargin)
 
-[hpar,kpcolors,prcs,prc_vals,binedges,nbins,maxprctile,kpnames,islight,nperkp] = ...
+[hpar,kpcolors,prcs,prc_vals,binedges,nbins,maxprctile,kpnames,islight,nperkp,fp,fn,isma,ntotal] = ...
   myparse(varargin,'hparent',[],...
   'kpcolors',[],...
   'prcs',[],'prc_vals',[],...
   'binedges',[],'nbins',50,'maxprctile',98,...
   'kpnames',{},'islight',true,...
-  'nperkp',[]);
+  'nperkp',[],'fp',[],'fn',[],'isma',false,'ntotal',[]);
 
 [n,nkpts,nviews] = size(errs);
 
+if isma && ~isempty(fp)
+  nplots = nkpts+1;
+  yborder = 0.05;
+else
+  nplots = nkpts;
+  yborder = 0.05;
+end
 if isempty(hpar),
   hfig = figure;
-  hax = createsubplots(nkpts,nviews,[[.1,.025];[.05,0.002]],hfig);
-  hax = reshape(hax,[nkpts,nviews]);
+  hax = createsubplots(nplots,nviews,[[.1,.025];[yborder,0.002]],hfig);
+  hax = reshape(hax,[nplots,nviews]);
 else
   if numel(hpar) == 1 && strcmpi(hpar.Type,'figure'),
     hfig = hpar;
     clf(hfig);
-    hax = createsubplots(nkpts,nviews,[[.1,.025];[.05,0.002]],hfig);
-    hax = reshape(hax,[nkpts,nviews]);
+    hax = createsubplots(nplots,nviews,[[.1,.025];[yborder,0.002]],hfig);
+    hax = reshape(hax,[nplots,nviews]);
   else
     hax = hpar;
   end
@@ -95,4 +102,39 @@ for viewi = 1:nviews,
       'VerticalAlignment','top','Parent',haxcurr,'Interpreter','none','Color',textcolor);
   end
 end
-xlabel(hax(end,1),'Error (px)');
+xlabel(hax(nkpts,1),'Error (px)');
+
+if ~isma || isempty(fp)
+  % don't add fp/fn table
+  return
+end
+
+for viewi = 1:nviews,
+  for kp = 1:nkpts,
+      pp = get(hax(kp,viewi),'Position');
+      pp(1) = pp(1) + 0.025;
+      set(hax(kp,viewi),'Position',pp);
+  end
+end
+
+pos = get(hax(end,1), 'Position');
+delete(hax(end,1));
+
+table_data = [fp fn];
+column_names = {sprintf('False Positives'), sprintf('False Negatives')};
+row_names = {'Absolute'};
+if ~isempty(ntotal)
+  table_data = [table_data; fp/ntotal fn/ntotal];
+  row_names = [row_names,{'Fraction'}];
+end
+
+t5 = uitable('Parent', hfig, ...
+            'Data', table_data, ...
+            'ColumnName', column_names, ...
+            'RowName', row_names, ...
+            'Units', 'normalized', ...
+            'Position', [pos(1), 0.025, pos(3), pos(4)+0.01] ...
+            );
+
+
+

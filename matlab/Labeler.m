@@ -1352,6 +1352,7 @@ classdef Labeler < handle
       else 
         v = obj.labels2{iMov};
       end
+      v = Labels.fromTrkfile(v);
     end
     function v = get.labeledposTSGTaware(obj)
       if obj.gtIsGTMode
@@ -8562,7 +8563,7 @@ classdef Labeler < handle
       tfWB = ~isempty(wbObj);
       tfRestrict = ~isempty(tblMFTrestrict);
       
-      if useLabels2
+      if useLabels2 
         if isempty(useTrain)
           mfts = MFTSetEnum.AllMovAllLabeled2;
         elseif useTrain
@@ -8798,8 +8799,15 @@ classdef Labeler < handle
         max_animals = 1;
       end
 
+      if obj.gtIsGTMode
+        roi = obj.labelsRoiGT;
+      else
+        roi = obj.labelsRoi;
+      end
+
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,obj.(PROPS.LBL),...
-        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:},'isma',obj.maIsMA,'maxanimals',max_animals);
+        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:},...
+        'isma',obj.maIsMA,'maxanimals',max_animals,'roi',roi);
     end
 
 %     function tblMF = labelAddLabelsMFTable_Old(obj,tblMF,varargin)
@@ -10065,7 +10073,7 @@ classdef Labeler < handle
         gtResultTbl = obj.labelGetMFTableLabeled('wbObj',obj.progressMeter_,...          
                                                  'useLabels2',true,...  % in GT mode, so this compiles labels2GT
                                                  'tblMFTrestrict',tblLbl);
-        if wbObj.wasCanceled
+        if obj.progressMeter_.wasCanceled
           warningNoTrace('Labeler property .gtTblRes not set.');
           return
         end
