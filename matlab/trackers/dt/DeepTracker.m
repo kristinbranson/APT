@@ -2473,8 +2473,8 @@ classdef DeepTracker < LabelTracker
     end  % function track()
 
     function trackList(obj, varargin)
-      [totrackinfo, backend] = ...
-        myparse(varargin,'totrackinfo',[],'backend',obj.lObj.trackDLBackEnd);
+      [totrackinfo, backend, argsrest] = ...
+        myparse_nocheck(varargin,'totrackinfo',[],'backend',obj.lObj.trackDLBackEnd);
       obj.validateAndSetupForTracking_(totrackinfo, backend);
 
       % nothing to track?
@@ -2484,13 +2484,22 @@ classdef DeepTracker < LabelTracker
       end
 
       obj.bgTrkReset_();
-      obj.trkSpawnList_(totrackinfo,backend);
+      obj.trkSpawnList_(totrackinfo,backend,argsrest{:});
     end  % function trackList()
 
     function gtComplete(obj)      
-      gtmatfiles = obj.trkSysInfo.getListOutfiles;
-      gtmovs = obj.lObj.movieFilesAllGTFull;
-      tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
+      t0 = tic;
+      while true
+        gtmatfiles = obj.trkSysInfo.getListOutfiles;
+        gtmovs = obj.lObj.movieFilesAllGTFull;
+        tblGT = obj.trackGTgtmat2tbl(gtmatfiles,gtmovs);
+        if ~isempty(tblGT),
+          break;
+        end
+        if toc(t0) > 5,
+          break;
+        end
+      end
       obj.trkGTtrkTbl = tblGT;
       obj.lObj.showGTResults('gtResultTbl',tblGT);
     end
@@ -2500,6 +2509,18 @@ classdef DeepTracker < LabelTracker
       GTMATLOCFLD = 'locs';
       GTMATOCCFLD = 'occ';
       
+      t0 = tic;
+      while true,
+        if toc(t0) > 5,
+          break;
+        end
+        if all(cellfun(@(x) exist(x,'file'),gtmatfiles)),
+          break;
+        end
+        pause(1);
+      end
+
+        
       gtmats = cellfun(@(x)load(x,'-mat'),gtmatfiles); %#ok<LOAD>
       cellfun(@(x)fprintf(1,'Loaded gt output mat-file %s.\n',x),gtmatfiles);
       
@@ -3001,6 +3022,7 @@ classdef DeepTracker < LabelTracker
 
         if islistjob
           obj.createTrkfilesFromListout();
+          stages = stages(end);
         end
 
         for movi = 1:nMovies,
@@ -3235,6 +3257,13 @@ classdef DeepTracker < LabelTracker
       obj.trackCurrResUpdate();
       obj.newLabelerFrame();
     end  % function
+
+    function args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % args = trnType2ConstructorArgs(obj,trntypes,loc)
+      % Returns extra arguments necessary for instantiating this network based on trntypes. 
+      % For DeepTracker, this is an empty cell. 
+      args = {};
+    end
 
     % function killJobsAndPerformPostCrossValidationCleanup_(obj,varargin)      
     %   % load xv res
@@ -3767,6 +3796,9 @@ classdef DeepTracker < LabelTracker
             trkfilesI(:,ivw),'uni',0);
           tfsuccload = cell2mat(tfsuccload);
           trkfilesIobj = trkfilesIobj(tfsuccload);
+          hasdata = cellfun(@(trk) trk.hasdata(),trkfilesIobj);
+          trkfilesIobj = trkfilesIobj(hasdata);
+
           if isempty(trkfilesIobj)
             % if all loads failed
             % none; trkfiles, tfHasRes OK

@@ -47,7 +47,19 @@ or
 ```
 depending on which version you want.
 
-
+## KB 20250706
+These conda environments didn't work on my desktop, which has CUDA 12.2 installed on it.
+I created a new conda environment.yml file which sets the cuda version (11.6 seemed to work):
+```
+apt_2507.env.yaml
+```
+which has all the dependencies except the MM dependencies. As I use openmim to install
+mmcv-full, I made a script
+```
+make_conda_environment_apt_2507.bash
+```
+which creates the conda environment and then uses openmim to install mmcv-full, followed
+by pip to install mmdet and mmpose.
 
 # Docker
 
