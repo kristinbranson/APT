@@ -123,7 +123,7 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       end
     end
             
-    function init(obj,hTile,lObj,propFullName,prm)
+    function init(obj,hTile,lObj,propFullName,prm,varargin)
       %fprintf('init\n');      
 
       if nargin > 1,

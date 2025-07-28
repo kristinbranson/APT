@@ -112,6 +112,7 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
       defaults.Visible = [];
 
       args = cell(size(fns));
+      fnsused = {};
 
       for i = 1:numel(fns),
         fn = fns{i};
@@ -124,14 +125,13 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
           else
             args{i} = [prefix,'.',fld];
           end
-        end
-        if isfield(s,fn),
+        elseif isfield(s,fn) && ~isstruct(s.(fn)), % sometimes special names are also Field names...
           args{i} = s.(fn);
+          fnsused{end+1} = fn; %#ok<AGROW>
         else
           args{i} = defaults.(fn);
         end
       end
-      fnsused = intersect(fns,fieldnames(s));
       obj = PropertiesGUIProp(args{:});
 
     end

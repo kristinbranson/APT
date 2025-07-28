@@ -88,7 +88,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   l_span = l_max-l_min; % [d,nlabels] 
 
   % KB 20250717 switched this to using the the diagonal
-  l_diagonal = sum((l_min - l_max).^2,1);
+  l_diagonal = sqrt(sum((l_min - l_max).^2,1));
 
   vizdata.scale = struct;
   vizdata.scale.bboxDiagonalLength = l_diagonal;

@@ -130,9 +130,9 @@
         "AffectsTraining": true,
         "DefaultValue": true,
         "Description": "For pose estimation (stage 2), crop the image around animal based on their detected size and scale the cropped image to a common size before estimating the pose. Useful if the visual scale of the animals varies a lot. Unselect if the apparent scale of all the animals does not change. In this case, all detected animals are cropped uniformly.",
-        "DispName": "Use animal's size to determine the cropping size",
-        "Level": "Beginner",
-        "ParamViz": "",
+        "DispName": "Scale bounding box?",
+        "Level": "Important",
+        "ParamViz": "ParameterVisualizationScale#multi_scale_by_bbox",
         "Requirements": [
           "isTopDown"
         ],
