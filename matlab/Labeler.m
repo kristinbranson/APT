@@ -14174,17 +14174,21 @@ classdef Labeler < handle
           iRow = find(tfRow);
           if obj.maIsMA
             dat(iRow,2:4) = {nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
-          else
+          elseif obj.hasTrx
             dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
+          else
+            dat{iRow,2} = nPtsCurFrm;
           end          
           obj.controller_.setTblFramesData(dat);
           %tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
           %  size(dat,1),size(dat,2));
         else
           if obj.maIsMA
-            dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+            dat(end+1,1:4) = {cfrm nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          elseif obj.hasTrx,
+            dat(end+1,1:3) = {cfrm nTgtsCurFrm nPtsCurFrm};
           else
-            dat(end+1,:) = {cfrm nTgtsCurFrm nPtsCurFrm};
+            dat(end+1,1:2) = {cfrm,nPtsCurFrm};
           end
           %n = size(dat,1);
           tblFrms(end+1,1) = cfrm;
