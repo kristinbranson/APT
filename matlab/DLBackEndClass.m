@@ -31,7 +31,7 @@ classdef DLBackEndClass < handle
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
-    defaultDockerImgTag = 'apt-20250505-tf215-pytorch21-hopper'
+    defaultDockerImgTag = 'apt-20250626-tf215-pytorch21-hopper'
     defaultDockerImgRoot = 'bransonlabapt/apt_docker'
  
     jrchost = 'login1.int.janelia.org'
@@ -40,10 +40,10 @@ classdef DLBackEndClass < handle
     default_jrcnslots_train = 4
     default_jrcnslots_track = 4
 
-    default_conda_env = 'apt-20250505-tf215-pytorch21-hopper'
-    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt-20250505-tf215-pytorch21-hopper.sif' 
-    legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
-    legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
+    default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
+    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif' 
+    %legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
+    %legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
   end
 
   properties
@@ -62,10 +62,10 @@ classdef DLBackEndClass < handle
     
     % Used only for type==Docker  
     %dockerapiver = DLBackEndClass.default_docker_api_version  % docker codegen will occur against this docker api ver
-    dockerimgroot = DLBackEndClass.defaultDockerImgRoot
-      % We have an instance prop for this to support running on older/custom
-      % docker images.
-    dockerimgtag = DLBackEndClass.defaultDockerImgTag
+    % dockerimgroot = DLBackEndClass.defaultDockerImgRoot
+    %   % We have an instance prop for this to support running on older/custom
+    %   % docker images.
+    % dockerimgtag = DLBackEndClass.defaultDockerImgTag
     dockerremotehost = ''
       % The docker backend can run the docker container on a remote host.
       % dockerremotehost will contain the DNS name of the remote host in this case.
@@ -77,17 +77,27 @@ classdef DLBackEndClass < handle
     gpuids = []  % for now used by docker/conda
     
     jrcAdditionalBsubArgs = ''  % Additional arguments to be passed to JRC bsub command, e.g. '-P scicompsoft'    
-    jrcgpuqueue
-    jrcnslots
+    jrcgpuqueue 
+    jrcnslots 
     jrcnslotstrack
 
-    condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
+    % condaEnv = DLBackEndClass.default_conda_env   % used only for Conda
 
-    % We set these to the string 'invalid' so we can catch them in loadobj()
-    % They are set properly in the constructor.
-    singularity_image_path_ = '<invalid>'
-    does_have_special_singularity_detection_image_path_ = '<invalid>'
-    singularity_detection_image_path_ = '<invalid>'
+    %singularity_image_path_ = ''
+    %does_have_special_singularity_detection_image_path_ = '<invalid>'
+    %singularity_detection_image_path_ = '<invalid>'
+  end
+
+  properties  % these are SetAccess=private by gentleperson's agreement
+    % These keep track of whether we use the default image specs, or the custom
+    % ones.
+    didOverrideDefaultDockerImgSpec_ = false
+    customDockerImgRoot_ = ''
+    customDockerImgTag_ = ''
+    didOverrideDefaultCondaEnv_ = false    
+    customCondaEnv_ = ''
+    didOverrideDefaultSingularityImagePath_ = false
+    customSingularityImagePath_ = '' 
   end
 
   properties (Transient)
@@ -117,7 +127,7 @@ classdef DLBackEndClass < handle
   properties (Dependent)
     dockerimgfull % full docker img spec (with tag if specified)
     singularity_image_path
-    singularity_detection_image_path
+    % singularity_detection_image_path
     isInAwsDebugMode
     isProjectCacheRemote
     isProjectCacheLocal
@@ -127,6 +137,9 @@ classdef DLBackEndClass < handle
     awsKeyName
     awsPEM
     awsInstanceType
+    condaEnv
+    dockerimgroot
+    dockerimgtag    
   end
   
   methods
@@ -135,6 +148,7 @@ classdef DLBackEndClass < handle
         ty = DLBackEnd.Bsub ;
       end
       obj.type = ty ;
+
       % set jrc backend fields to valid values
       if isempty(obj.jrcgpuqueue),
         obj.jrcgpuqueue = DLBackEndClass.default_jrcgpuqueue ;
@@ -146,10 +160,6 @@ classdef DLBackEndClass < handle
         obj.jrcnslotstrack = DLBackEndClass.default_jrcnslots_track ;
       end      
 
-      % Set the singularity fields to valid values
-      obj.singularity_image_path_ = DLBackEndClass.default_singularity_image_path ;
-      obj.does_have_special_singularity_detection_image_path_ = false ;
-      obj.singularity_detection_image_path_ = '' ;
       % Just populate this now, whether or not we end up using it      
       obj.awsec2 = AWSec2() ;
     end
@@ -201,26 +211,31 @@ classdef DLBackEndClass < handle
       obj.dockerimgtag = tag ;
     end    
 
-    function result = get.singularity_detection_image_path(obj)
-      if obj.does_have_special_singularity_detection_image_path_ ,
-        result = obj.singularity_detection_image_path_ ;
-      else
-        result = obj.singularity_image_path_ ;
-      end
-    end
+    % function result = get.singularity_detection_image_path(obj)
+    %   if obj.does_have_special_singularity_detection_image_path_ ,
+    %     result = obj.singularity_detection_image_path_ ;
+    %   else
+    %     result = obj.singularity_image_path ;
+    %   end
+    % end
 
     function set.singularity_image_path(obj, new_value)
-      if ischar(new_value) && exist(new_value, 'file') ,
-        obj.singularity_image_path_ = new_value ;
-        obj.does_have_special_singularity_detection_image_path_ = false ;
-        obj.singularity_detection_image_path_ = '' ;
+      if ischar(new_value) && exist(new_value, 'file') ,        
+        obj.customSingularityImagePath_ = new_value ;
+        % obj.does_have_special_singularity_detection_image_path_ = false ;
+        % obj.singularity_detection_image_path_ = '' ;
+        obj.didOverrideDefaultSingularityImagePath_ = true ;
       else
         error('APT:invalidValue', 'Invalid value for the Singularity image path');
       end        
     end
 
     function result = get.singularity_image_path(obj)
-      result = obj.singularity_image_path_ ;
+      if obj.didOverrideDefaultSingularityImagePath_
+        result = obj.customSingularityImagePath_ ;
+      else
+        result = DLBackEndClass.default_singularity_image_path ;
+      end
     end
 
     function set.jrcAdditionalBsubArgs(obj, new_value)
@@ -234,16 +249,16 @@ classdef DLBackEndClass < handle
       obj.jrcAdditionalBsubArgs = new_value ;
     end    
 
-    function set.condaEnv(obj, new_value)
-      % Check for crazy values
-      if ischar(new_value) && ~isempty(new_value) ,
-        % all is well
-      else
-        error('APT:invalidValue', '"%s" is a not valid value for the conda environment', new_value);
-      end        
-      % Actually set the value
-      obj.condaEnv = new_value ;
-    end    
+    % function set.condaEnv(obj, new_value)
+    %   % Check for crazy values
+    %   if ischar(new_value) && ~isempty(new_value) ,
+    %     % all is well
+    %   else
+    %     error('APT:invalidValue', '"%s" is a not valid value for the conda environment', new_value);
+    %   end        
+    %   % Actually set the value
+    %   obj.condaEnv = new_value ;
+    % end    
   end  % methods block
  
   methods
@@ -817,12 +832,12 @@ classdef DLBackEndClass < handle
       else
         error('Unable to deal with a larva of class %s', class(larva)) ;
       end       
-      if strcmp(obj.singularity_image_path_, '<invalid>') ,
-        % This must come from an older .mat file, so we use the legacy values
-        obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
-        obj.does_have_special_singularity_detection_image_path_ = true ;
-        obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
-      end  
+      % if strcmp(obj.singularity_image_path_, '<invalid>') ,
+      %   % This must come from an older .mat file, so we use the legacy values
+      %   obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
+      %   %obj.does_have_special_singularity_detection_image_path_ = true ;
+      %   %obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
+      % end  
     end
 
     function jobid = parseJobID(backend_type, response)
@@ -2048,5 +2063,73 @@ classdef DLBackEndClass < handle
       [didLaunchSucceed, instanceID] = obj.awsec2.launchNewInstance() ;
     end
     
+    function result = get.condaEnv(obj)
+      if obj.didOverrideDefaultCondaEnv_
+        result = obj.customCondaEnv_ ;
+      else
+        result = DLBackEndClass.default_conda_env ;
+      end      
+    end  % function
+
+    function set.condaEnv(obj, newValue)
+      if ischar(newValue) && ~isempty(newValue) && isrow(newValue)
+        % all is well
+      else
+        error('APT:invalidValue', '"%s" is a not valid value for the conda environment', newValue);
+      end
+      obj.customCondaEnv_ = newValue ;
+      obj.didOverrideDefaultCondaEnv_ = true ;
+    end  % function
+    
+    function result = get.dockerimgroot(obj)
+      if obj.didOverrideDefaultDockerImgSpec_
+        result = obj.customDockerImgRoot_ ;
+      else
+        result = DLBackEndClass.defaultDockerImgRoot ;
+      end      
+    end
+
+    function set.dockerimgroot(obj, newValue)
+      if ischar(newValue) && ~isempty(newValue) && isrow(newValue)
+        % all is well
+      else
+        error('APT:invalidValue', '"%s" is a not valid value for the Docker image root', newValue);
+      end
+      obj.customDockerImgRoot_ = newValue ;
+      % There's only a single didOverride field for the docker image spec, so need
+      % to make sure .customDockerImgTag_ gets set if needed.
+      if obj.didOverrideDefaultDockerImgSpec_
+        % nothing else to do
+      else
+        obj.didOverrideDefaultDockerImgSpec_ = true ;
+        obj.customDockerImgTag_ = DLBackEndClass.defaultDockerImgTag ;
+      end
+    end
+
+    function result = get.dockerimgtag(obj)
+      if obj.didOverrideDefaultDockerImgSpec_
+        result = obj.customDockerImgTag_ ;
+      else
+        result = DLBackEndClass.defaultDockerImgTag ;
+      end      
+    end
+    
+    function set.dockerimgtag(obj, newValue)
+      if ischar(newValue) && ~isempty(newValue) && isrow(newValue)
+        % all is well
+      else
+        error('APT:invalidValue', '"%s" is a not valid value for the Docker image tag', newValue);
+      end
+      obj.customDockerImgTag_ = newValue ;
+      % There's only a single didOverride field for the docker image spec, so need
+      % to make sure .customDockerImgRoot_ gets set if needed.
+      if obj.didOverrideDefaultDockerImgSpec_
+        % nothing else to do
+      else
+        obj.didOverrideDefaultDockerImgSpec_ = true ;
+        obj.customDockerImgRoot_ = DLBackEndClass.defaultDockerImgRoot ;
+      end
+    end
+
   end  % methods
 end  % classdef

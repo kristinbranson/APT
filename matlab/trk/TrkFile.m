@@ -1352,7 +1352,11 @@ classdef TrkFile < dynamicprops
 
           j = iTgt(i);
           ptgt = pcell{j};
-          ptag = pcelltag{j};
+          if ischar(pcelltag) && strcmp(pcelltag,'__UNSET__')
+            ptag = zeros(size(ptgt,1),size(ptgt,3));
+          else
+            ptag = pcelltag{j};
+          end
 
           idx = f(isinterval) + offs(j);
           xy(:,:,isinterval,i) = ptgt(:,:,idx);
