@@ -245,8 +245,7 @@ classdef TrkFile < dynamicprops
       end
       validateattributes(obj.pTrkTS,{'numeric'},{'size' [npttrk nfrm ntgt]},'','pTrkTS');
       
-      if isequal(obj.pTrkTag,TrkFile.unsetVal) || ...
-          (  iscell(obj.pTrkTag) && all(size(obj.pTrkTag)==[npttrk nfrm]))
+      if isequal(obj.pTrkTag,TrkFile.unsetVal) || iscell(obj.pTrkTag)
         obj.pTrkTag = false(npttrk,nfrm,ntgt);
       end
       validateattributes(obj.pTrkTag,{'logical'},...
@@ -541,6 +540,9 @@ classdef TrkFile < dynamicprops
 %           % breaks this should be updated. MK 20230515
 %           continue
 %         end
+        if strcmp(obj.(f),TrkFile.unsetVal)
+          continue;
+        end
         if ~iscell(v)
           warning('%s is not a cell',f);
           continue;
@@ -835,16 +837,16 @@ classdef TrkFile < dynamicprops
         cur_s = 0;
         for ndx = 1:nobj
           tgt_starts(ndx) = cur_s;
-          itgtsAll{ndx} = allobjs{ndx}.pTrkiTgt + cur_s;
+          itgtsAll{ndx} = allobjs{ndx}.pTrkiTgt(:) + cur_s;
           cur_s = cur_s + numel(allobjs{ndx}.pTrkiTgt);
         end
       else
-        itgtsAll = cellfun(@(x)x.pTrkiTgt,allobjs,'uni',0);
+        itgtsAll = cellfun(@(x)x.pTrkiTgt(:),allobjs,'uni',0);
       end
       %sfsAll = {allobjs.startframes};
       %efsAll = {allobjs.endframes};
       
-      itgtsun = unique(cat(2,itgtsAll{:}));
+      itgtsun = unique(cat(1,itgtsAll{:}));
       itgtmax = max(itgtsun);
       cls = class(obj.startframes);
       itgt2spep = [intmax('int64')*ones(1,itgtmax,'int64');...
@@ -913,11 +915,15 @@ classdef TrkFile < dynamicprops
             % write trkflds
             for f=trkfldso(:)',f=f{1}; %#ok<FXSET>
               if ~isprop(objMerged,f)
+                addprop(objMerged,f);
                 objMerged.(f) = cell(1,numel(objMerged.pTrkiTgt));
               end
 %               if strcmp(f,'pTrkSingleView') && ~TrkFile.has3Dpts(o)
 %                 continue;
 %               end
+              if isequal(o.(f),TrkFile.unsetVal),
+                continue;
+              end
               if any(strcmp(f,flds_ptrk_dim))
                 objMerged.(f){jall}(:,:,idxall) = o.(f){j}; 
               else
@@ -1356,6 +1362,11 @@ classdef TrkFile < dynamicprops
           tfocc(:,isinterval,i) = ptag(:,idx);
           for iaux=1:naux
             paux = pcellaux{iaux}{j};
+            if isempty(paux),
+              % merging trk files for which some have this property and
+              % some do not
+              continue;
+            end
             aux(:,isinterval,i,iaux) = paux(:,idx);
           end
         end

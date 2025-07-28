@@ -66,6 +66,31 @@ classdef RC
     end
         
   end
+
+  properties
+    rcmatfile = [];
+  end
+
+  methods
+    function obj = RC()
+      if ~exist(RC.FILE,'file'),
+        tmp = struct;
+        save(RC.FILE,'-struct','tmp');
+        assert(exist(RC.FILE,'file'));
+      end
+      obj.rcmatfile = matfile(RC.FILE,'Writable',true);
+    end
+    function v = get(obj,name)
+      v = [];
+      try
+        v = obj.rcmatfile.(name);
+      end
+    end
+    function set(obj,name,v)
+      obj.rcmatfile.(name) = v;
+    end
+
+  end
   
 end
 

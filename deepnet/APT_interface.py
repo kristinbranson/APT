@@ -3513,8 +3513,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     locs_lnk = np.transpose(pred_locs_in, [2, 3, 0, 1])
 
     ts = np.ones_like(locs_lnk[:, 0, ...]) * datetime2matlabdn()
-    tag = np.ones(ts.shape)<0.5  # tag which is always false for now.
-    # tag = None
+    tag = np.zeros(ts.shape,dtype=bool)  # tag which is always false for now.
     if 'conf' in extra_dict:
         pred_conf = extra_dict['conf']
         locs_conf = np.transpose(pred_conf, [2, 0, 1])
@@ -3523,6 +3522,10 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
 
     if 'occ' in extra_dict:
         pred_occ = extra_dict['occ']>0.5
+        tag = np.transpose(pred_occ, [2, 0, 1])
+    elif 'conf' in extra_dict:
+        # histogram pred_occ
+        pred_occ = extra_dict['conf'] < .5
         tag = np.transpose(pred_occ, [2, 0, 1])
 
     trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)
@@ -4493,7 +4496,7 @@ def parse_args(argv):
     parser_test = subparsers.add_parser('test', help='Perform tests')
     parser_test.add_argument('testrun', choices=['hello'], help="Test to run")
 
-    logging.info("APT_interface arguments, as parsed:\n" + str(argv))
+    logging.info("APT_interface raw arguments:\n" + str(argv))
     
     args = parser.parse_args(argv)
     if args.view is not None:
@@ -4938,7 +4941,7 @@ def set_up_logging(args):
     Returns handles to error (errh) and basic info loggers (logh). 
     """
     
-    log_formatter = logging.Formatter('%(asctime)s %(pathname)s:%(lineno)d %(funcName)s() [%(levelname)-5.5s] %(message)s')
+    err_log_formatter = logging.Formatter('%(asctime)s %(filename)s:%(lineno)d %(funcName)s() [%(levelname)-5.5s] %(message)s')
 
     log = logging.getLogger()  # root logger
     for hdlr in log.handlers[:]:  # remove all old handlers
@@ -4946,18 +4949,22 @@ def set_up_logging(args):
 
     # set up logging
     if args.err_file is None:
-        err_file = os.path.join(expanduser("~"), '{}.err'.format(args.name))
+        errh = logging.StreamHandler()  # log to stderr
     else:
         err_file = args.err_file
-    errh = logging.FileHandler(err_file, 'w')
+        print('Logging errors to file: {}'.format(err_file))
+        errh = logging.FileHandler(err_file, 'w')
+    
     errh.setLevel(logging.ERROR)
-    errh.setFormatter(log_formatter)
+    errh.setFormatter(err_log_formatter)
     errh.name = "err"
     
+    log_formatter = logging.Formatter('[%(levelname)-5.5s] %(message)s')
     if args.log_file is None:
         # output to console if no log file is specified
         logh = logging.StreamHandler()  # log to stderr
     else:
+        print('Logging to file: {}'.format(args.log_file))
         logh = logging.FileHandler(args.log_file, 'w')
 
     if args.debug:
@@ -5003,11 +5010,6 @@ def main(argv):
     # args.debug = False
     # args.no_except = True
 
-    # What the heck is this?
-    if args.sub_name == 'test':
-        logging.info("Hello this is APT!")
-        return
-
     # issues arise with docker and installed python packages that end up getting bound
     # remove these from the python path if ignore_local == 1
     if args.ignore_local:
@@ -5030,6 +5032,11 @@ def main(argv):
     if args.ignore_local:
         logging.info('Removed .local paths from Python path.')
 
+    # for testing the environment imports
+    if args.sub_name == 'test':
+        logging.info("Hello this is APT!")
+        return
+
     # import copy
     # j_args = copy.deepcopy(args)
     # j_args.lbl_file = j_args.lbl_file.replace('.lbl','.json')
@@ -5040,10 +5047,12 @@ def main(argv):
     # main function
     if args.no_except:
         run(args)
+        logging.info('APT_interface finished successfully')
     else:
         try:
             # run(j_args)
             run(args)
+            logging.info('APT_interface finished successfully')
         except Exception as e:
             logging.exception('APT_interface errored: {e}, {type(e)}')
 

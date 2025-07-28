@@ -1,28 +1,12 @@
-function varargout = GTManager(varargin)
-% Movie table GUI
+function hFig = GTManager(varargin)
 
-% Last Modified by GUIDE v2.5 08-May-2020 20:24:42
-
-% Begin initialization code - DO NOT EDIT
-gui_Singleton = 0;
-gui_State = struct('gui_Name',       mfilename, ...
-                   'gui_Singleton',  gui_Singleton, ...
-                   'gui_OpeningFcn', @GTManager_OpeningFcn, ...
-                   'gui_OutputFcn',  @GTManager_OutputFcn, ...
-                   'gui_LayoutFcn',  [] , ...
-                   'gui_Callback',   []);
-if nargin && ischar(varargin{1})
-    gui_State.gui_Callback = str2func(varargin{1});
-end
-
-if nargout  
-    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+if nargin == 1 && isa(varargin{1},'Labeler'),
+  lObj = varargin{1};
 else
-    gui_mainfcn(gui_State, varargin{:});
+  feval(varargin{:});
+  return;
 end
-% End initialization code - DO NOT EDIT
 
-function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL>
 % GTManager(labelerObj)
 %
 % GTManager is created with Visible='off'.
@@ -35,123 +19,180 @@ function GTManager_OpeningFcn(hObject, eventdata, handles, varargin) %#ok<*INUSL
 % 3c. Labeler prop listeners update GTTable selection, expand/collapse
 %   (frame, target etc)
 
-set(hObject,'MenuBar','None');
-handles.menu_get_gt_frames.Label = 'GT Frames';
+assert(isa(lObj,'Labeler'));
+%obj.hFig = MovieManager(obj);
+handles = struct;
+handles.labeler = lObj;
+      
+hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
+  'Name','Groundtruth Navigator','Visible','off');
+handles.figure1 = hFig;
 
+handles.gl = uigridlayout(hFig,[4,1],'RowHeight',{'1x','1x',40},'tag','gl');
+
+handles.tblGTMovie = uitable(handles.gl,...
+  'ColumnName',{'','Movie','N to Label','N Labeled'},...
+  'RowName',{},...
+  'ColumnWidth',{35,'1x',100,100},...
+  'tag','tblGTMovie',...
+  'SelectionType','row','Multiselect','off',...
+  'CellSelectionCallback',@(src,evt) cellSelectionCallbacktblGTMovie(hFig,src,evt)); % todo
+
+columnnames = getTblFrameColumnNames(handles);
+handles.tblFrame = uitable(handles.gl,...
+  'ColumnName',columnnames,'tag','tblFrame',...
+  'SelectionType','row','Multiselect','off',...
+  'DoubleClickedFcn',@(src,evt) doubleClickFcnCallbacktblFrame(hFig,src,evt),...
+  'ColumnSortable',true(1,numel(columnnames))); 
+%   'CellSelectionCallback',@(src,evt) cellSelectionCallbacktblFrame(hFig,src,evt),... % todo
+
+handles.gl_buttons = uigridlayout(handles.gl,[1,4],'Padding',[0,0,0,0],'tag','gl_buttons');
+handles.pbNextUnlabeled = uibutton(handles.gl_buttons,'Text','Next Unlabeled','tag','pbNextUnlabeled',...
+  'ButtonPushedFcn',@(src,evt) pbNextUnlabeled_Callback(hFig,src,evt),'Enable','off');
+
+handles.pbGoSelected = uibutton(handles.gl_buttons,'Text','Go to Selected','tag','pbGoSelected',...
+  'ButtonPushedFcn',@(src,evt) pbGoSelected_Callback(hFig,src,evt),'Enable','off');
+handles.pbComputeGT = uibutton(handles.gl_buttons,'Text','Compute Accuracy','tag','pbComputeGT',...
+  'ButtonPushedFcn',@(src,evt) pbComputeGT_Callback(hFig,src,evt),'Enable','off');
+handles.pbUpdate = uibutton(handles.gl_buttons,'Text','Update','tag','pbUpdate',...
+  'ButtonPushedFcn',@(src,evt) pbUpdate_Callback(hFig,src,evt),'Enable','on');
+handles.pbs = [handles.pbNextUnlabeled,handles.pbGoSelected,handles.pbComputeGT,handles.pbUpdate];
+set(hFig,'MenuBar','None');
+
+handles.menu_get_gt_frames = uimenu('Tag','menu_get_gt_frames','Text','To-Label List','Parent',hFig);
 handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
-  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_suggest_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Auto-generate GT Frames',...
+  'Callback',@(hObject,eventdata) menu_gtframes_suggest_Callback(hObject,eventdata,guidata(hObject)),...
+  'Label','Randomly select to-label list...',...
   'Tag','menu_gtframes_suggest',...
   'Checked','off',...
   'Visible','on');
 handles.menu_gtframes_setlabeled = uimenu('Parent',handles.menu_get_gt_frames,...
-  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_setlabeled_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Set GT Frames to Current GT Labels',...
+  'Callback',@(hObject,eventdata) menu_gtframes_setlabeled_Callback(hObject,eventdata,guidata(hObject)),...
+  'Label','Set to-label list to current groundtruth labels',...
   'Tag','menu_gtframes_setlabeled',...
   'Checked','off',...
   'Visible','on');
 handles.menu_gtframes_load = uimenu('Parent',handles.menu_get_gt_frames,...
-  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_load_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','Load GT Frames from file',...
+  'Callback',@(hObject,eventdata) menu_gtframes_load_Callback(hObject,eventdata,guidata(hObject)),...
+  'Label','Load to-label list from file...',...
   'Tag','menu_gtframes_load',...
   'Checked','off',...
   'Visible','on');
 
-handles.menu_gtframes_suggest = uimenu('Parent',handles.menu_get_gt_frames,...
-  'Callback',@(hObject,eventdata)GTManager('menu_gtframes_summary_Callback',hObject,eventdata,guidata(hObject)),...
-  'Label','GT Frames Summary',...
-  'Tag','menu_gtframes_summary',...
-  'Separator','on',...
-  'Visible','on');
-%moveMenuItemAfter(handles.menu_file_export_labels_table,...
-%  handles.menu_file_export_labels_trks);
-
-
-lObj = varargin{1};
-if isdeployed() || ~lObj.isgui,
-  % AL 20171215. Compiled APTCluster on 15b, GTManager throws "Java tables
-  % require Java Swing" from
-  % cbkGTSuggUpdated->NavTreeTable/setData->treeTable.
-  % 
-  % This is foolishness, just avoid it for now. Should probably make a 
-  % stripped-down track-only APTCluster that skips all the UI stuff anyway.
-  handles.output = hObject;
-  guidata(hObject,handles);
-  return;
-end
-
-handles.labeler = lObj;
-handles.output = hObject;
-hObject.Visible = 'off';
-
-if isa(handles.tblGT,'matlab.ui.control.Table')
-  tblOrig = handles.tblGT;
-  tblOrig.Visible = 'off';
-  handles.tblGTOrig = tblOrig;
-else
-  assert(false);
-end
-
-h = findall(handles.figure1,'-property','Units');
-set(h,'Units','normalized');
-
-% enabled when gt table set
-h = findall(handles.figure1,'style','pushbutton');
-set(h,'Enable','off');
-
-cbkNavDataRow = @(iData)cbkTreeTableDataRowNaved(hObject,iData);
-% The Data table of this NTT has fields mov/frm/iTgt/hasLbl/GTerr. mov is
-% an index into lObj.movieFilesAllGT.
-ntt = NavigationTreeTable(tblOrig.Parent,[],cbkNavDataRow);
-handles.navTreeTbl = ntt;
-handles.navTreeTblMovIdxs = nan(0,1);
+% cbkNavDataRow = @(iData)cbkTreeTableDataRowNaved(hObject,iData);
+% % The Data table of this NTT has fields mov/frm/iTgt/hasLbl/GTerr. mov is
+% % an index into lObj.movieFilesAllGT.
+% ntt = NavigationTreeTable(tblOrig.Parent,[],cbkNavDataRow);
+% handles.navTreeTbl = ntt;
+% handles.navTreeTblMovIdxs = nan(0,1);
 
 handles.listener = cell(0,1);
 % Following listeners for table maintenance
 % handles.listener{end+1,1} = addlistener(lObj,...
 %   'gtIsGTModeChanged',@(s,e)cbkGTisGTModeChanged(hObject,s,e));
-% handles.listener{end+1,1} = addlistener(lObj,...
-%   'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
-  'gtSuggMFTableLbledUpdated',@(s,e)cbkGTSuggMFTableLbledUpdated(hObject,s,e));
+  'gtSuggUpdated',@(s,e)cbkGTSuggUpdated(hFig,s,e));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtSuggMFTableLbledUpdated',@(s,e)cbkGTSuggUpdated(hFig,s,e));
 % handles.listener{end+1,1} = addlistener(lObj,...
 %   'gtResUpdated',@(s,e)cbkGTResUpdated(hObject,s,e));
 % Following listeners for table row selection
 handles.listener{end+1,1} = addlistener(lObj,...
-  'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
+  'newMovie',@(s,e)cbkCurrMovFrmTgtChanged(hFig,s,e));
 % handles.listener{end+1,1} = addlistener(lObj,...
 %   'currFrame','PostSet',@(s,e)cbkCurrMovFrmTgtChanged(hObject,s,e));
 handles.listener{end+1,1} = addlistener(lObj,...
-  'didSetCurrTarget',@(s,e)(cbkCurrMovFrmTgtChanged(hObject,s,e)));
+  'didSetCurrTarget',@(s,e)(cbkCurrMovFrmTgtChanged(hFig,s,e)));
+handles.listener{end+1,1} = addlistener(lObj,...
+  'gtResUpdated',@(s,e) (cbkGTResUpdated(hFig,s,e)));
+handles.listener{end+1,1} = addlistener(lObj, ...
+  'updateStuffInHlpSetCurrPrevFrame', @(s,e) cbkCurrMovFrmTgtChanged(hFig,s,e));
+
+
 
 handles.figure1.DeleteFcn = @lclDeleteFig;
-guidata(hObject,handles);
+handles = updateAll(handles);
+guidata(hFig,handles);
+set(hFig,'Visible','on');
+
 centerfig(handles.figure1,lObj.gdata.mainFigure_);
 
-function varargout = GTManager_OutputFcn(hObject, eventdata, handles) 
-varargout{1} = handles.output;
-
-function figure1_CloseRequestFcn(hObject, eventdata, handles)
-hObject.Visible = 'off';
+function columnnames = getTblFrameColumnNames(handles)
+if handles.labeler.hasTrx,
+  columnnames = {'Frame','Target','Labeled','Error'};
+else
+  columnnames = {'Frame','Has Labels','Error'};
+end
 
 function lclDeleteFig(src,evt)
 handles = guidata(src);
-listenObjs = handles.listener;
-for i=1:numel(listenObjs)
-  o = listenObjs{i};
-  if isvalid(o)
-    delete(o);
+if ~isempty(handles) && isfield(handles,'listener'),
+  listenObjs = handles.listener;
+  for i=1:numel(listenObjs)
+    o = listenObjs{i};
+    if isvalid(o)
+      delete(o);
+    end
   end
 end
-if isfield(handles,'navTreeTbl') && ~isempty(handles.navTreeTbl)
-  delete(handles.navTreeTbl);
+
+function setTableSelection(uitbl,row)
+
+if isequal(uitbl.Selection,row),
+  return;
+end
+uitbl.Selection = row;
+if ~isempty(row),
+  scroll(uitbl,"row",row);
 end
 
-function cbkGTisGTModeChanged(hObject,src,evt)
-% none atm
 
-function cbkGTSuggUpdated(hObject,src,evt)
-handles = guidata(hObject);
+function updateTblFrame(handles,fn)
+rows = handles.tblGTMovie.Selection;
+columnnames = getTblFrameColumnNames(handles);
+handles.tblFrame.ColumnName = columnnames;
+columnnames = getTblFrameColumnNames(handles);
+handles.tblFrame.ColumnSortable = true(1,numel(columnnames));
+
+doupdate = nargin > 1;
+
+if isempty(rows)
+  handles.tblFrame.Data = cell(0,numel(columnnames));
+else
+  row = rows(1);
+  imov = handles.iMovUn(row);
+  idx = handles.tbl.mov == imov;
+  if doupdate,
+    data = handles.tblFrame.Data;
+  else
+    data = cell(nnz(idx),numel(columnnames));
+  end
+  if ~doupdate || strcmpi(fn,'frm'),
+    data(:,1) = num2cell(handles.tbl.frm(idx));
+  end
+  if handles.labeler.hasTrx && (~doupdate || strcmpi(fn,'iTgt')),
+    data(:,2) = num2cell(handles.tbl.iTgt(idx));
+  end
+  if ~doupdate || strcmp(fn,'hasLbl'),
+    col = double(handles.labeler.hasTrx) + 2;
+    data(:,col) = num2cell(handles.hasLbl(idx));
+  end
+  if ~doupdate || strcmp(fn,'err'),
+    col = double(handles.labeler.hasTrx) + 3;    
+    if any(~isnan(handles.err)),
+      data(:,col) = num2cell(handles.err(idx));
+    else
+      data(:,col) = cell(size(data,1),1);
+    end
+  end
+  handles.tblFrame.Data = data;
+  if isempty(handles.tblFrame.Selection) && ~isempty(data),
+    setTableSelection(handles.tblFrame,1);
+  end
+end
+
+function handles = updateAll(handles)
+
 if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler.controller_.mainFigure_)
   % All is well
 else
@@ -162,67 +203,109 @@ lObj = handles.labeler;
 % if lObj.isinit
 %   return;
 % end
-ntt = handles.navTreeTbl;
-tbl = lObj.gtSuggMFTable;
-err = hlpGetGTErr(tbl,lObj);
-hasLbl = lObj.gtSuggMFTableLbled;
-tbl = [tbl table(hasLbl,err)];
+tbl_sugg = lObj.gtSuggMFTable;
+tbl_label = lObj.labelGetMFTableLabeled('useTrain',0,'mftonly',true);
+handles.tbl = unique([tbl_sugg;tbl_label],'rows');
+
+handles.err = hlpGetGTErr(handles.tbl,lObj);
+handles.hasLbl = lObj.getIsLabeledGT(handles.tbl);
+iMovUnAbs = (1:lObj.nmoviesGT)';
+handles.iMovUn = MovieIndex(iMovUnAbs,true);
 
 % replace .mov with strings
-tblMovIdxs = tbl.mov;
-[iMovAbs,gt] = tblMovIdxs.get;
-assert(all(gt));
-iMovAbsUn = unique(iMovAbs);
-iMovAbsUnCnt = arrayfun(@(x)nnz(x==iMovAbs),iMovAbsUn);
-iMovAbsMax = max(iMovAbsUn);
-iMovAbs2Cnt = zeros(iMovAbsMax,1); % iMovAbs2Cnt(iMovAbs) gives number of gt lbled frames for that mov
-iMovAbs2Cnt(iMovAbsUn) = iMovAbsUnCnt;
-iMovAbsCnt = iMovAbs2Cnt(iMovAbs);
+iMov = handles.tbl.mov;
+iMovUnLabeledCnt = arrayfun(@(x)nnz(x==iMov&handles.hasLbl),handles.iMovUn);
+iMovUnToLabelCnt = arrayfun(@(x)nnz(x==iMov&~handles.hasLbl),handles.iMovUn);
+movStrsUn = lObj.getMovieFilesAllFullMovIdx(handles.iMovUn);
 % movstrs = lObj.getMovieFilesAllFullMovIdx(tblMovIdxs);
 % movstrs = movstrs(:,1);
 % movstrs = cellfun(@FSPath.twoLevelFilename,movstrs,'uni',0);
-numDigits = floor(log10(lObj.nmoviesGT)+1);
-fmt = sprintf('%%0%dd -- %%d frames',numDigits);
-%movstrs = strcat(arrayfun(@(x)sprintf(fmt,x),iMovAbs,'uni',0),movstrs);
-movstrs = arrayfun(@(x,y)sprintf(fmt,x,y),iMovAbs,iMovAbsCnt,'uni',0);
-tbl.mov = movstrs;
 
-COLS = [MFTable.FLDSID {'hasLbl' 'err'}];
-PRETTYCOLS = {'Movie' 'Frame' 'Target' 'Has Labels' 'Error'};
-if lObj.maIsMA
-  % Drop target for multi-animal MK 20250523
-  COLS = COLS([1 2 4 5]);
-  PRETTYCOLS = PRETTYCOLS([1 2 4 5]);
-end
-tbl = tbl(:,COLS);
-ntt.setData(tbl,'prettyHdrs',PRETTYCOLS);
-handles.navTreeTblMovIdxs = tblMovIdxs;
+movTableData = [num2cell(iMovUnAbs(:)),movStrsUn(:,1),num2cell(iMovUnToLabelCnt(:)),num2cell(iMovUnLabeledCnt)];
+
+handles.tblGTMovie.Data = movTableData;
+
+updateTblFrame(handles);
+
+pbEnable = onIff(~isempty(handles.tbl));
+set(handles.pbs,'Enable',pbEnable);
+
+function cbkGTisGTModeChanged(hObject,src,evt)
+% fprintf('\nGTManager:cbkGTisGTModeChanged\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% none atm
+
+function cbkGTSuggUpdated(hObject,src,evt)
+
+% fprintf('\nGTManager:cbkGTSuggUpdated\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
+
+handles = guidata(hObject);
+handles = updateAll(handles);
 guidata(hObject,handles);
+% disp(toc(t0));
 
-pbEnable = onIff(~isempty(tbl));
-h = findall(handles.figure1,'style','pushbutton');
-set(h,'Enable',pbEnable);
+function cellSelectionCallbacktblGTMovie(hFig,src,evt)
+handles = guidata(hFig);
+updateTblFrame(handles);
 
-function cbkGTSuggMFTableLbledUpdated(hObject,src,evt)
+function cbkGTSuggMFTableLbledUpdated(hObject,src,evt) % todo, remove this hook, put update button
+% fprintf('\nGTManager:cbkGTSuggMFTableLbledUpdated\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
+
 handles = guidata(hObject);
 lObj = handles.labeler;
-ntt = handles.navTreeTbl;
-tf = lObj.gtSuggMFTableLbled;
-ntt.updateDataColumn('hasLbl',num2cell(tf));
+newHasLbl = lObj.gtSuggMFTableLbled;
+oldHasLbl = handles.hasLbl;
+if isequaln(oldHasLbl,newHasLbl),
+  return;
+end
+handles = updateAll(handles);
+guidata(hObject,handles);
+
+% disp(toc(t0));
 
 function cbkGTResUpdated(hObject,src,evt)
+% fprintf('\nGTManager:cbkGTResUpdated\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
+
 handles = guidata(hObject);
-if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler)
+if isfield(handles, 'labeler') && isscalar(handles.labeler) && isa(handles.labeler,'Labeler'),
   % All is well
 else
   % Sometimes cbkGTResUpdated() gets called very early on, before handles.labeler is set
   return
 end
-lObj = handles.labeler;
-tblSugg = lObj.gtSuggMFTable;
-ntt = handles.navTreeTbl;
-err = hlpGetGTErr(tblSugg,lObj);
-ntt.updateDataColumn('err',num2cell(err));
+handles = updateAll(handles);
+guidata(hObject,handles);
+% disp(toc(t0));
 
 function err = hlpGetGTErr(tblSugg,lObj)
 % Get computed GT results/err for given suggestion table
@@ -235,6 +318,16 @@ if ~isempty(tblRes)
 end
 
 function cbkCurrMovFrmTgtChanged(hObject,src,evt)
+% fprintf('\nGTManager:cbkCurrMovFrmTgtChanged\n');
+% stack = dbstack;
+% for i = 1:length(stack)
+%     fprintf('%s (line %d)\n', stack(i).name, stack(i).line);
+% end
+% if nargin >= 3,
+%   disp(evt);
+% end
+% t0 = tic;
+
 handles = guidata(hObject);
 lObj = handles.labeler;
 if lObj.isinit || ~lObj.hasMovie || ~lObj.gtIsGTMode
@@ -243,25 +336,23 @@ end
 mIdx = lObj.currMovIdx;
 frm = lObj.currFrame;
 iTgt = lObj.currTarget;
-ntt = handles.navTreeTbl;
-nttData = ntt.treeTblData;
-nData = ntt.nData;
-nttMovIdxs = handles.navTreeTblMovIdxs;
-assert(nData==numel(nttMovIdxs));
-if nData>0
-  if lObj.maIsMA
-    tf = mIdx==nttMovIdxs & frm==nttData.frm;
-  else
-    tf = mIdx==nttMovIdxs & frm==nttData.frm & iTgt==nttData.iTgt;
-  end
-  iData = find(tf);
-  if ~isempty(iData)
-    assert(isscalar(iData));
-    ntt.setSelectedDataRow(iData);
-  end
+newrow = find(handles.iMovUn==mIdx);
+oldrow = handles.tblGTMovie.Selection;
+if ~isequal(newrow,oldrow),
+  setTableSelection(handles.tblGTMovie,newrow);
+  updateTblFrame(handles);
 end
 
-function cbkTreeTableDataRowNaved(hObject,iData)
+data = handles.tblFrame.Data;
+if lObj.hasTrx,
+  newrow = find(cell2mat(data(:,1))==frm & cell2mat(data(:,2))==iTgt);
+else
+  newrow = find(cell2mat(data(:,1))==frm);
+end
+setTableSelection(handles.tblFrame,newrow);
+% disp(toc(t0));
+
+function doubleClickFcnCallbacktblFrame(hObject,src,evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
 if ~lObj.gtIsGTMode
@@ -269,22 +360,54 @@ if ~lObj.gtIsGTMode
     'Nagivation via GT Manager is disabled. Labeler is not in GT mode.');
   return;
 end
-ntt = handles.navTreeTbl;
-mftRow = ntt.treeTblData(iData,:);
-mftRow.mov = handles.navTreeTblMovIdxs(iData);
-lclNavToMFT(lObj,mftRow);
 
-function lclNavToMFT(lObj,mftRow)
-iMov = mftRow.mov.get();
+[mov,ft] = getMFT(handles);
+if numel(mov) ~= 1 || size(ft,1) ~= 1,
+  return;
+end
+lclNavToMFT(lObj,mov(1),ft(1,:));
+
+function [movrow,ftrow] = getSelection(handles)
+if isempty(handles.tblFrame.Selection),
+  ftrow = [];
+else
+  ftrow = unique(handles.tblFrame.Selection(:,1));
+end
+if isempty(handles.tblGTMovie.Selection),
+  movrow = [];
+else
+  movrow = unique(handles.tblGTMovie.Selection(:,1));
+end
+
+
+function [mov,ft] = getMFT(handles,movrow,ftrow)
+lObj = handles.labeler;
+if nargin < 2,
+  [movrow,ftrow] = getSelection(handles);
+end
+
+if isempty(handles.tblFrame.Data),
+
+end
+ft = double(cell2mat(handles.tblFrame.Data(ftrow,1)));
+if lObj.hasTrx,
+  ft = [ft,double(cell2mat(handles.tblFrame.Data(ftrow,2)))];
+end
+mov = handles.iMovUn(movrow);
+
+function lclNavToMFT(lObj,mov,ft)
+iMov = mov.get();
 if iMov~=lObj.currMovie
   lObj.movieSetGUI(iMov);
 end
-if isfield(mftRow,'iTgt')
-  itgt = mftRow.iTgt;
+if numel(ft) > 1,
+  itgt = ft(2);
+  lObj.setFrameAndTargetGUI(ft(1),itgt);
 else
-  itgt = NaN;
+  lObj.setFrameGUI(ft(1));
+
+  itgt = nan;
 end
-lObj.setFrameAndTargetGUI(mftRow.frm,itgt);
 
 % function imovs = cbkGetSelectedMovies(hMMobj)
 % % Get current selection in Table
@@ -293,78 +416,91 @@ lObj.setFrameAndTargetGUI(mftRow.frm,itgt);
 
 function menu_gtframes_suggest_Callback(hObject, eventdata, handles)
 LabelerGT.generateSuggestionsUI(handles.labeler);
+handles = updateAll(handles);
+guidata(handles.figure1,handles);
+
 function menu_gtframes_setlabeled_Callback(hObject, eventdata, handles)
 LabelerGT.setSuggestionsToLabeledUI(handles.labeler);
+handles = updateAll(handles);
+guidata(handles.figure1,handles);
+
 function menu_gtframes_load_Callback(hObject, eventdata, handles)
 LabelerGT.loadSuggestionsUI(handles.labeler);
-function menu_gtframes_summary_Callback(hObject, eventdata, handles)
-lObj = handles.labeler;
-disp(lObj.gtLabeledFrameSummary);
+handles = updateAll(handles);
+guidata(handles.figure1,handles);
 
-function pbNextUnlabeled_Callback(hObject, eventdata, handles)
+function pbNextUnlabeled_Callback(hObject,src,evt)
+% todo, use table sorting order
+% todo sorting order seems to change when we call this
+handles = guidata(hObject);
 lObj = handles.labeler;
-ntt = handles.navTreeTbl;
-% if ntt.isEmpty()
-%   msgbox('Groundtruthing frames have not been set. See the "Get GT Frames" menu.',...
-%     'No GT frames set');
-%   return;
-% end
-
-iDataSel = ntt.getSelectedDataRow();
-if isempty(iDataSel)
-  iDataSel = 0;
-else
-  iDataSel = iDataSel(end); 
+if ~any(handles.hasLbl),
+  msgbox('No more unlabeled frames.','','modal');
 end
 
-% Assumed invariant: rows of ntt.treeTblData, lObj.gtSuggMFTable,
-% lObj.gtSuggMFTableLbled all correspond
-
-nttData = ntt.treeTblData;
-tfUnlbled = ~lObj.gtSuggMFTableLbled;
-nGT = height(nttData);
-szassert(tfUnlbled,[nGT 1]);
-rowsLook = iDataSel+1:nGT; % could be empty
-iRow = find(tfUnlbled(rowsLook),1); % offset not applied yet
+[movrow0,ftrow] = getSelection(handles);
+movrow = movrow0;
+if isempty(movrow),
+  movrow = 1;
+  ftrow = 0;
+end
+if isempty(ftrow),
+  ftrow = 0;
+end
+for movrow = movrow:numel(handles.iMovUn),
+  mov = handles.iMovUn(movrow);
+  idx = handles.tbl.mov == mov;
+  tfUnlbled = ~handles.hasLbl(idx);
+  iRow = find(tfUnlbled(ftrow+1:end),1);
+  if ~isempty(iRow),
+    iRow = iRow + ftrow;
+    break;
+  end
+  ftrow = 0;
+end
 if isempty(iRow)
   msgbox('No more unlabeled frames.');
 else
-  iRow = iRow+iDataSel;
-  mftRow = lObj.gtSuggMFTable(iRow,:);
-  lclNavToMFT(lObj,mftRow)
+  if ~isequal(movrow,movrow0),
+    setTableSelection(handles.tblGTMovie,movrow);
+    handles = updateAll(handles);
+  end
+  [mov,ft] = getMFT(handles,movrow,iRow);
+  setTableSelection(handles.tblFrame,iRow);
+  lclNavToMFT(lObj,mov,ft);
 end
 
-function pbGoSelected_Callback(hObject, eventdata, handles)
+guidata(hObject,handles);
+
+function pbGoSelected_Callback(hObject, src, evt)
 % Switch to selected row (mov/frm/tgt)
-
-ntt = handles.navTreeTbl;
-% if ntt.isEmpty()
-%   msgbox('Groundtruthing frames have not been set. See the "Get GT Frames" menu.',...
-%     'No GT frames set');
-%   return
-% end
-
-iData = ntt.getSelectedDataRow();
-if isempty(iData)
-  msgbox('Please select a row in the table.','No row selected');
+handles = guidata(hObject);
+lObj = handles.labeler;
+if ~lObj.gtIsGTMode
+  warningNoTrace('GTManager:nav',...
+    'Nagivation via GT Manager is disabled. Labeler is not in GT mode.');
   return;
 end
-if numel(iData)>1
-  warningNoTrace('Multiple rows selected. Using first selected row.');
-  iData = iData(1);
+
+[mov,ft] = getMFT(handles);
+if isempty(mov)
+  msgbox('Please select a row in each table.','No movie selected');
+  return;
 end
-mftRow = ntt.treeTblData(iData,:);
-mftRow.mov = handles.navTreeTblMovIdxs(iData);
-lObj = handles.labeler;
-lclNavToMFT(lObj,mftRow);
+if isempty(ft),
+  msgbox('Please select a row in each table.','No frame/target selected');
+  return;
+end
+lclNavToMFT(lObj,mov(1),ft(1,:));
 
-function pbComputeGT_Callback(hObject, eventdata, handles)
-% ntt = handles.navTreeTbl;
-% if ntt.isEmpty()
-%   msgbox('Groundtruthing frames have not been set. See the "Get GT Frames" menu.',...
-%     'No GT frames set');
-%   return;
-% end
-
+function pbComputeGT_Callback(hObject, src, evt)
+handles = guidata(hObject);
 lObj = handles.labeler;
-lObj.gtComputeGTPerformance();
+lObj.gtComputeGTPerformance('whichlabels','ask');
+handles = updateAll(handles);
+guidata(hObject,handles);
+
+function pbUpdate_Callback(hFig,src,evt)
+handles = guidata(hFig);
+handles = updateAll(handles);
+guidata(hFig,handles);

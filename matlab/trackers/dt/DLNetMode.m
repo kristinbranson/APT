@@ -60,5 +60,22 @@ classdef DLNetMode < handle
       obj.isObjDet = od;
       obj.isTrnPack = istp;
     end
+    function tf = netTypeMatches(obj,nettypes,nstages,stage)
+      % tf = netTypeMatches(obj,nettypes,nstages,stage)
+      % Tests whether the input nettypes are instances of this netmode
+      % nettypes: array of DLNetTypes
+      % nstages: total number of stages
+      % stage: which stage this is 
+      
+      isma = [nettypes.isMultiAnimal] ;
+      is_bbox = false(1,numel(nettypes)) ;
+      for dndx = 1:numel(nettypes)          
+        is_bbox(dndx) = nettypes(dndx).isMultiAnimal && startsWith(char(nettypes(dndx)),'detect_') ;
+      end  % for
+      tf = (isma == obj.isMA) & (obj.isObjDet == is_bbox) & (obj.isHeadTail == ~is_bbox) & ...
+        ((nstages > 1) == obj.isTopDown) & (stage == obj.topDownStage);
+
+    end
+
   end
 end

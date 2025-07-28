@@ -52,6 +52,9 @@ classdef TrackMonitorViz < handle
     
     % twostage mode
     twoStgMode = false;
+
+    % list tracking mode
+    listMode = false;
     
     % bulk mode 
     bulkAxsIsBulkMode = false; % if true, waitbar is in "bulk mode"
@@ -122,6 +125,7 @@ classdef TrackMonitorViz < handle
       obj.htrackerInfo = handles.edit_trackerinfo;
 
       obj.twoStgMode = dtObj.getNumStages() > 1;
+      obj.listMode = isequal(poller.trackType_,'list');
       obj.bulkAxsIsBulkMode = nmov > obj.bulkNmovThreshold;
       % if obj.twoStgMode AND .bulk* are true, twoStg will take precedence
       % for now
@@ -140,19 +144,12 @@ classdef TrackMonitorViz < handle
       handles.popupmenu_actions.Value = 1;
       
       axwait = handles.axes_wait;
-      if obj.twoStgMode
-        nstg = 2*nmov;
-        axwait.YLim = [0,nstg];
-        axwait.XLim = [0,1+obj.minFracComplete];
-        obj.hline = gobjects(nstg,1);
-        obj.htext = gobjects(nstg,1);
-        obj.nFramesToTrack = double(repmat(nFramesToTrack,2,1));
-        obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
-        obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
-        obj.jobDescs = TrackMonitorViz.initJobDescs(nMovSets,nview,true);        
-        % ordering of hline is: mov1s1 mov2s1 ... movNs1 mov1s2 ...
-        % aka all stage1s, then all stage2s.
-      elseif obj.bulkAxsIsBulkMode
+      % if tracking movies, output size will be [poller.nMovies,poller.nViews,poller.nStages]
+      % if tracking list, it will be [poller.njobs,1,1]
+      pollingResultSize = obj.poller.resultSize;
+      nPollingResults = prod(pollingResultSize);
+      nPollingRepeats = pollingResultSize(2)*pollingResultSize(3);
+      if obj.bulkAxsIsBulkMode
         pbaspect(axwait,'auto');
         axwait.DataAspectRatio = [1 1 1]; % "axis equal"
         axwait.Units = 'pixels';
@@ -182,65 +179,51 @@ classdef TrackMonitorViz < handle
         obj.parttrkfileTimestamps = zeros(nmov,1);
         obj.jobDescs = {};
       else
-        axwait.YLim = [0,nmov];
+
+        %nstg = 2*nmov;
+        axwait.YLim = [0,nPollingResults];
         axwait.XLim = [0,1+obj.minFracComplete];
-        obj.hline = gobjects(nmov,1);
-        obj.htext = gobjects(nmov,1);        
-        obj.nFramesToTrack = repmat(nFramesToTrack,nview,1);
+        obj.hline = gobjects(nPollingResults,1);
+        obj.htext = gobjects(nPollingResults,1);
+        obj.nFramesToTrack = double(repmat(nFramesToTrack,nPollingRepeats,1));
         obj.nFramesTracked = zeros(size(obj.nFramesToTrack));
         obj.parttrkfileTimestamps = zeros(size(obj.nFramesToTrack));
-        obj.jobDescs = TrackMonitorViz.initJobDescs(nMovSets,nview,false);        
-
-        % ordering of hline is: mov1v1 mov2v1 ... movNv1 mov1v2 ...
-        % aka all view1s, then all view2s...
+        obj.jobDescs = TrackMonitorViz.initJobDescs(pollingResultSize(1),pollingResultSize(2),pollingResultSize(3),obj.listMode);        
+        % ordering of hline is: movMvw1s1 ... movMvw1s1 ... mov1vw2s1 movMvwNs1 ... mov1vw1s2 ... movMvwNs2
+        % for multi-stage, single view: all stage1s, then all stage2s.
+        % for multi-view, single stage: all view1s, then all view2s
       end
+
       axwait.YDir = 'reverse';
       axwait.XTick = [];
       axwait.YTick = [];
       hold(axwait,'on');
       
       % create hline/htext
-      if obj.twoStgMode
-        clrs = lines(nMovSets);
-        DESCSTGPAT = {'%s (detect)' '%s (pose)'};
-        for stg=1:2          
-          for imovset=1:nMovSets
-            istg = (stg-1)*nMovSets + imovset;
-            clrI = clrs(imovset,:);
-            obj.hline(istg) = patch([0,0,1,1,0]*obj.minFracComplete,...
-              istg-[0,1,1,0,0],clrI,...
-              'Parent',handles.axes_wait,...
-              'EdgeColor','w');
-            descstg = sprintf(DESCSTGPAT{stg},obj.jobDescs{istg});
-            obj.htext(istg) = text((1+obj.minFracComplete)/2,istg-.5,...
-              sprintf('0/%d frames tracked%s',obj.nFramesToTrack(istg),descstg),...
-              'Color','w','HorizontalAlignment','center',...
-              'VerticalAlignment','middle','Parent',handles.axes_wait);
-          end
-        end
-      elseif obj.bulkAxsIsBulkMode
+      if obj.bulkAxsIsBulkMode
         obj.hline = TrackMonitorViz.makeIndicatorPatches(nmov,...
           obj.bulkIndNrow,obj.bulkIndNcol,axwait,...
           obj.COLOR_AXSWAIT_BULK_UNTRACKED,...
           {'EdgeColor',obj.COLOR_AXSWAIT_BULK_EDGE}); 
         % obj.htext initted above
       else
-        clrs = lines(nmov);
-        for imov = 1:nmov,
-          obj.hline(imov) = patch([0,0,1,1,0]*obj.minFracComplete,...
-            imov-[0,1,1,0,0],clrs(imov,:),...
-            'Parent',handles.axes_wait,...
-            'EdgeColor','w');
-          if nmov > 1,
-            sview = obj.jobDescs{imov};
-          else
-            sview = '';
+
+        clrs = lines(nMovSets);
+        for irep = 1:nPollingRepeats,
+          for imovset=1:nMovSets
+            itot = (irep-1)*nMovSets + imovset;
+            clrI = clrs(imovset,:);
+            obj.hline(itot) = patch([0,0,1,1,0]*obj.minFracComplete,...
+              irep-[0,1,1,0,0],clrI,...
+              'Parent',handles.axes_wait,...
+              'EdgeColor','w');
+            obj.htext(itot) = text((1+obj.minFracComplete)/2,itot-.5,...
+              sprintf('0/%d frames tracked%s',obj.nFramesToTrack(itot),obj.jobDescs{itot}),...
+              'Color','w','HorizontalAlignment','center',...
+              'VerticalAlignment','middle','Parent',handles.axes_wait);
           end
-          obj.htext(imov) = text((1+obj.minFracComplete)/2,imov-.5,...
-            sprintf('0/%d frames tracked%s',obj.nFramesToTrack(imov),sview),...
-            'Color','w','HorizontalAlignment','center',...
-            'VerticalAlignment','middle','Parent',handles.axes_wait);          
         end
+
       end
       
       obj.resLast = [];
@@ -302,7 +285,7 @@ classdef TrackMonitorViz < handle
       end
       TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
       nJobs = numel(pollingResult.tfComplete); 
-      
+
       % It is assumed that there is a correspondence between res and .hline
       if nJobs~=numel(obj.hline)
         warningNoTrace('Unexpected monitor results size (%d); expected (%d).',...
@@ -620,34 +603,39 @@ classdef TrackMonitorViz < handle
   
   methods (Static)
     
-    function jobDescs = initJobDescs(nMovSets,nview,tf2stg)
+    function jobDescs = initJobDescs(nMovSets,nview,nstage,listmode)
       % jobDescs: cellstr, either [nMovSets x nview], or 
       %                           [nMovSets x 2] if tf2stg==true
       
-      if tf2stg
-        nset = 2;
-      else
-        nset = nview;
+      if nargin < 4,
+        listmode = false;
       end
       
-      jobDescs = cell(nMovSets,nset);
+      jobDescs = cell(nMovSets,nview,nstage);
       for imovset = 1:nMovSets,
         if nMovSets > 1,
-          movstr = sprintf(', Mov %d',imovset);
+          if listmode,
+            movstr = sprintf(', Job %d',imovset);
+          else
+            movstr = sprintf(', Mov %d',imovset);
+          end
         else
           movstr = '';
         end
-        for iset = 1:nset
-          if nset > 1,
-            if tf2stg              
-              setstr = sprintf(', Stg %d',iset);
-            else
-              setstr = sprintf(', Vw %d',iset);
-            end
+        for iview = 1:nview
+          if nview> 1,
+            viewstr = sprintf(', Vw %d',iview);
           else
-            setstr = '';
+            viewstr = '';
           end
-          jobDescs{imovset,iset} = [movstr,setstr];
+          for istage = 1:nstage,
+            if nstage > 1,
+              stagestr = sprintf(', Stg %d',istage);
+            else
+              stagestr = '';
+            end
+            jobDescs{imovset,iview,istage} = [movstr,viewstr,stagestr];
+          end
         end
       end
     end

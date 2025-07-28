@@ -31,6 +31,7 @@ classdef DLNetType < handle
                 % will be included in the stripped lbl as p=nan and tfocc=true.
                 % (and this is the only effect)
     isMultiAnimal % TODO: rename to "isMA bottom up" or similar
+    description % added by KB 20250714
     %docker % docker tag
     %sing % path to singularity image
   end
@@ -111,5 +112,6 @@ end  % classdef
   
 function s = lclReadNetYaml()
   netsYamlFilePath = fullfile(APT.Root, 'matlab', 'trackers', 'dt', 'nets.yaml') ;
+  fprintf('Rereading net info from %s\n',netsYamlFilePath);
   s = yaml.ReadYaml(netsYamlFilePath);
 end

@@ -1914,7 +1914,7 @@ classdef DLBackEndClass < handle
       ismultiview = (nviews > 1) ;      
       listinfo = struct() ;
       if ismultiview,
-        assert(size(croprois,1) == nmoviesets) ;
+        assert(isempty(croprois) || (size(croprois,1) == nmoviesets)) ;
         listinfo.movieFiles = cell(nmoviesets,1);
         for i = 1:nmoviesets,
           listinfo.movieFiles{i} = wsl_path_from_native(movFileNativePath(i,:)) ;
@@ -1923,8 +1923,8 @@ classdef DLBackEndClass < handle
         for i = 1:size(trxFilesLcl,1),
           listinfo.trxFiles{i} = wsl_path_from_native(trxFilesLcl(i,:)) ;
         end
-        listinfo.cropLocs = cell(nmoviesets,1);
-        for i = 1:nmoviesets,
+        listinfo.cropLocs = cell(size(croprois,1),1);
+        for i = 1:size(croprois,1),
           listinfo.cropLocs{i} = croprois(i,:);
         end
       else
