@@ -94,11 +94,10 @@ handles.pb_cancel = uibutton(handles.gl_buttons,'Text','Cancel',...
 
 handles.panel_right = uipanel(handles.gl,'Tag','panel_right');
 handles.tile_viz = tiledlayout(handles.panel_right,'flow','TileSpacing','compact','Padding','compact');
-handles.ax_viz = nexttile(handles.tile_viz);
-clearParamViz();
 
 handles.vizid = '';
 handles.vizobj = [];
+clearParamViz();
 
 uiwait(handles.figure);
 output = handles.output;
@@ -329,7 +328,7 @@ output = handles.output;
     hauto = struct;    
 
     % automatically set the parameters based on labels.
-    handles.autoparams = apt.compute_auto_params(handles.labelerObj);
+    [handles.autoparams,handles.autoparams_vizdata] = apt.compute_auto_params(handles.labelerObj);
     kk = handles.autoparams.keys();
     align_trx_theta_prm = handles.tree.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta');
     horz_flip_prm = handles.tree.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip');
@@ -536,13 +535,11 @@ output = handles.output;
   end
 
   function clearParamViz()
-    cla(handles.ax_viz);
+    if ~isempty(handles.vizobj),
+      handles.vizobj.clear();
+    end
     handles.vizid = '';
     handles.vizobj = [];
-    hs = findall(handles.ax_viz);
-    for h = hs(:)',
-      h.Visible = 'off';
-    end
   end
 
   function initParamViz(data)
@@ -555,11 +552,7 @@ output = handles.output;
     % we are going to ignore paramVizID -- I don't understand its function
     [vizclassname,paramVizID] = ParameterVisualization.parseParamVizSpec(vizid); %#ok<ASGLU>
     handles.vizobj = feval(vizclassname);
-    handles.vizobj.init(handles.ax_viz,handles.labelerObj,data.FullPath,handles.tree);
-    hs = findall(handles.ax_viz);
-    for h = hs(:)',
-      h.Visible = 'on';
-    end
+    handles.vizobj.init(handles.tile_viz,handles.labelerObj,data.FullPath,handles.tree);
   end
 
   function updateParamViz(data)

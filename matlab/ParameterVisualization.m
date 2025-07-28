@@ -3,6 +3,7 @@ classdef ParameterVisualization < handle
   % subclass this abstract base class
   
   properties
+    hTile
     hAx
     lObj
     prm
@@ -21,9 +22,6 @@ classdef ParameterVisualization < handle
     %   a modified/edited state and these changes are not written to the 
     %   Labeler until the user clicks Apply.
     
-    % For cleanup purposes
-    clear(obj)
-
     % parameters have changed, update plot
     update(obj)
         
@@ -32,11 +30,24 @@ classdef ParameterVisualization < handle
   methods
 
     % initialize the plot and properties
-    function init(obj,hAx,lObj,propFullName,prm)
-      obj.hAx = hAx;
+    function init(obj,hTile,lObj,propFullName,prm)
+      obj.hTile = hTile;
+      obj.hAx = gobjects(1,0);
       obj.lObj = lObj;
       obj.prm = prm;
       obj.propFullName = propFullName;
+    end
+
+    % For cleanup purposes
+    function clear(obj)
+      cla(obj.hAx);    
+      for i = 1:numel(obj.hAx),
+        obj.hAx(i).Title.String = '';
+        obj.hAx(i).XLabel.String = '';
+        obj.hAx(i).YLabel.String = '';
+        obj.hAx(i).ZLabel.String = '';
+        delete(obj.hAx(i).Legend);
+      end
     end
 
   end
@@ -83,62 +94,49 @@ classdef ParameterVisualization < handle
   end
 
   methods 
-    
-    function hs = getAxesAndFriendsHandles(obj)
 
-      hs = [];
-      if isempty(obj.hAx) || ~ishandle(obj.hAx),
-        return
-      end
-      hs = [obj.hAx.Title,obj.hAx.XLabel,obj.hAx.YLabel,obj.hAx.ZLabel,obj.hAx.Legend];
-      hs = hs(ishandles(hs));
-      
+    function hAx = getFirstAx(obj)
+      hAx = obj.hAx(find(ishandle(obj.hAx),1));
     end
 
     function grayOutAxes(obj,str)
-      if isempty(obj.hAx) || ~ishandle(obj.hAx),
+      obj.clear();
+      if isempty(obj.hAx) || all(~ishandle(obj.hAx)),
         return;
       end
-      obj.hAx.Visible = 'off';
-      hs = obj.getAxesAndFriendsHandles();
-      [hs.Visible] = deal('off');
-
+      [obj.hAx(ishandle(obj.hAx)).Visible] = 'off';
       if nargin >= 2 && ~isempty(str)
-        hti = title(obj.hAx,str);
+        hti = title(obj.getFirstAx(),str);
         hti.Visible = 'on';
       end
     end
     
     function setBusy(obj,str)
       
-      if isempty(obj.hAx) || ~ishandle(obj.hAx),
+      if isempty(obj.hAx) || all(~ishandle(obj.hAx)),
         return;
       end
       if nargin < 2,
         str = 'Updating visualization. Please wait...';
       end
-      xlabel(obj.hAx,str);
-      set(obj.hAx,'XColor','m');
+      hax = obj.getFirstAx();
+      xlabel(hax,str);
+      set(hax,'XColor','m');
       drawnow;
       
     end
     
     function setReady(obj)
       
-      if isempty(obj.hAx) || ~ishandle(obj.hAx),
+      if isempty(obj.hAx) || all(~ishandle(obj.hAx)),
         return;
       end
-      xlabel(obj.hAx,sprintf('Visualization updated at %s',datestr(now)));
-      set(obj.hAx,'XColor','k');
+      hax = obj.getFirstAx();
+      xlabel(hax,sprintf('Visualization updated at %s',datestr(now)));
+      set(hax,'XColor','k');
       drawnow;
       
     end      
-
-    function s = modernizePropName(s)
-      if ~startsWith(s,'ROOT.'),
-        s = ['ROOT.',s];
-      end
-    end
 
   end
   

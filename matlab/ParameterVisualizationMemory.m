@@ -123,13 +123,16 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       end
     end
             
-    function init(obj,hAx,lObj,propFullName,prm)
+    function init(obj,hTile,lObj,propFullName,prm)
       %fprintf('init\n');      
 
       if nargin > 1,
-        init@ParameterVisualization(obj,hAx,lObj,propFullName,prm);
+        init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);
       end
       obj.initSuccessful = false;
+      if isempty(obj.hAx),
+        obj.hAx = nexttile(obj.hTile);
+      end
 
       [~,idx] = regexp(obj.propFullName,'\.DeepTrack','once');
       assert(numel(idx)==1);
@@ -162,9 +165,9 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.initSuccessful = true;
 
     end
-    
+
     function clear(obj)
-      cla(obj.hAx);
+      clear@ParameterVisualization(obj);
       obj.initSuccessful = false;
       obj.hMemCurr = [];
       obj.hMem = [];
