@@ -55,6 +55,7 @@ handles.gl = uigridlayout(handles.figure,[1,2],'ColumnWidth',{'1x','1x'});
 handles.gl_left = uigridlayout(handles.gl,[2,1],'RowHeight',{'1x','fit'},'Padding',[0,0,0,0]);
 
 handles.tb_viz_all = gobjects(1,0);
+handles.vizdata = struct;
 
 if handles.istrain,
 
@@ -328,7 +329,7 @@ output = handles.output;
     hauto = struct;    
 
     % automatically set the parameters based on labels.
-    [handles.autoparams,handles.autoparams_vizdata] = apt.compute_auto_params(handles.labelerObj);
+    [handles.autoparams,handles.vizdata.autoparams] = apt.compute_auto_params(handles.labelerObj);
     kk = handles.autoparams.keys();
     align_trx_theta_prm = handles.tree.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta');
     horz_flip_prm = handles.tree.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip');
@@ -538,6 +539,7 @@ output = handles.output;
     if ~isempty(handles.vizobj),
       handles.vizobj.clear();
     end
+    delete(handles.tile_viz.Children);
     handles.vizid = '';
     handles.vizobj = [];
   end
@@ -552,7 +554,7 @@ output = handles.output;
     % we are going to ignore paramVizID -- I don't understand its function
     [vizclassname,paramVizID] = ParameterVisualization.parseParamVizSpec(vizid); %#ok<ASGLU>
     handles.vizobj = feval(vizclassname);
-    handles.vizobj.init(handles.tile_viz,handles.labelerObj,data.FullPath,handles.tree);
+    handles.vizobj.init(handles.tile_viz,handles.labelerObj,data.FullPath,handles.tree,handles.vizdata);
   end
 
   function updateParamViz(data)

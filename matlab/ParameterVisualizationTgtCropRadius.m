@@ -25,7 +25,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
       isOk = ~isempty(obj.hRect) && ishandle(obj.hRect);
     end
     
-    function init(obj,hTile,lObj,propFullName,prm)
+    function init(obj,hTile,lObj,propFullName,prm,varargin)
       
       if nargin > 1,
         init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);

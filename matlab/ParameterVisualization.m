@@ -30,7 +30,7 @@ classdef ParameterVisualization < handle
   methods
 
     % initialize the plot and properties
-    function init(obj,hTile,lObj,propFullName,prm)
+    function init(obj,hTile,lObj,propFullName,prm,varargin)
       obj.hTile = hTile;
       obj.hAx = gobjects(1,0);
       obj.lObj = lObj;

@@ -80,7 +80,7 @@ classdef TreeNode < handle
     function initFromJsonStruct(obj,s,varargin)
       [fld,fcnStruct2Data,prefix] = myparse(varargin,'Field','ROOT',...
         'fcnStruct2Data',@PropertiesGUIProp.initFromStruct,'prefix','');
-      [obj.Data,fnsused] = fcnStruct2Data(s,fld,'prefix',prefix);
+      [obj.Data,fnsused] = fcnStruct2Data(s,fld,prefix);
       childrenflds = setdiff(fieldnames(s),fnsused);
       obj.Children = TreeNode.empty(0,1);
       if isempty(prefix),
