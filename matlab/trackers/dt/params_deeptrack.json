@@ -285,7 +285,7 @@
         "Description": "Augment by scaling the training images and labels by a random factor between (1/this number) to (this number). 1 indicates no scale adjustment, 2 indicates scaling by a factor between 1/2 to 2. More scaling can help particularly if your targets are at variable distances from your camera. For example, if you are recording your scene from the side, then targets can walk closer to and farther from the camera (the size of the target in image pixels is proportional to 1 divided by the camera-to-target distance). If your are recording from above/below, targets usually are at a fixed distance, assuming your camera does not move.",
         "DispName": "Scale factor range radius",
         "Level": "Important",
-        "ParamViz": "",
+        "ParamViz": "ParameterVisualizationScale#scale_factor_range",
         "Requirements": [
           "isDeepTrack"
         ],
