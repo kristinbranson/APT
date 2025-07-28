@@ -10,7 +10,7 @@ classdef ParameterVisualizationScale < ParameterVisualization
     xtick = [];
     xticklabel = {};
     fld = '';
-
+    prmin = [];
   end
   
   methods
@@ -22,18 +22,18 @@ classdef ParameterVisualizationScale < ParameterVisualization
         obj.scaledata = vizdata.autoparams.scale;
         propPath = strsplit(obj.propFullName,'.');
         obj.fld = propPath{end};
+        obj.prmin = obj.prm.findnode(obj.propFullName);
       end
 
       if isempty(obj.hAx),
         obj.hAx = nexttile(obj.hTile);
       end
 
-
       if strcmpi(obj.fld,'ManualRadius'),
         data = max(obj.scaledata.bboxWidthHeight,[],1);
         xstr = 'Max bounding box side (pixels)';
-        paramdata = prm.Value;
-        paraminfo = {obj.prm.Data.DisplayNameUse};
+        paramdata = obj.prmin.Value;
+        paraminfo = {obj.prmin.Data.DisplayNameUse};
       elseif strcmpi(obj.fld,'multi_scale_by_bbox')
         data = obj.scaledata.bboxDiagonalLength;
         xstr = 'Bounding box diagonal (px)';
@@ -42,10 +42,10 @@ classdef ParameterVisualizationScale < ParameterVisualization
       elseif strcmpi(obj.fld,'scale_factor_range')
         data = obj.scaledata.bboxDiagonalLength;
         xstr = 'Bounding box diagonal length (pixels)';
-        paramdata = obj.scaledata.medBboxDiagonalLength.*[1,1/prm.Value,prm.Value];
+        paramdata = obj.scaledata.medBboxDiagonalLength.*[1,1/obj.prmin.Data.Value,obj.prmin.Data.Value];
         paraminfo = {'Median','Median / Scale Factor', 'Median * Scale Factor'};
       else
-        error('Unknown field %s',obj.prm.Data.Field);
+        error('Unknown field %s',obj.fld);
       end
       binlimits = [min(data),max(data)];
       obj.hHist = histogram(obj.hAx,data,'FaceColor','k','BinLimits',binlimits);
@@ -60,7 +60,7 @@ classdef ParameterVisualizationScale < ParameterVisualization
       xtick = obj.xtick; %#ok<*PROPLC>
       xticklabel = obj.xticklabel;
       for i = 1:numel(paramdata),
-        obj.hParams(i) = plot(paamdata(i)+[0,0],ylim,'-','Color',colors(i,:));
+        obj.hParams(i) = plot(obj.hAx,paramdata(i)+[0,0],ylim,'-','Color',colors(i,:),'LineWidth',2);
         xtick(end+1) = paramdata(i); %#ok<AGROW>
         xticklabel{end+1} = paraminfo{i}; %#ok<AGROW>
       end
@@ -88,16 +88,16 @@ classdef ParameterVisualizationScale < ParameterVisualization
       if obj.initSuccessful,
 
         if strcmpi(obj.fld,'ManualRadius'),
-          paramdata = prm.Value;
-          paraminfo = {obj.prm.Data.DisplayNameUse};
+          paramdata = obj.prmin.Data.Value;
+          paraminfo = {obj.prmin.Data.DisplayNameUse};
         elseif strcmpi(obj.fld,'multi_scale_by_bbox')
           paramdata = [];
           paraminfo = {};
         elseif strcmpi(obj.fld,'scale_factor_range')
-          paramdata = obj.scaledata.medBboxDiagonalLength.*[1,1/prm.Value,prm.Value];
+          paramdata = obj.scaledata.medBboxDiagonalLength.*[1,1/prmin.Data.Value,obj.prmin.Data.Value];
           paraminfo = {'Median','Median / Scale Factor', 'Median * Scale Factor'};
         else
-          error('Unknown field %s',obj.prm.Field);
+          error('Unknown field %s',obj.fld);
         end
         xtick = obj.xtick; %#ok<*PROP>
         xticklabel = obj.xticklabel;
