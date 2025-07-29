@@ -26,6 +26,11 @@ handles.labeler = lObj;
       
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
   'Name','Groundtruth Navigator','Visible','off');
+mainController = lObj.controller_ ;
+if ~isempty(mainController)
+  mainController.addSatellite(hFig) ;
+end
+
 handles.figure1 = hFig;
 
 handles.gl = uigridlayout(hFig,[4,1],'RowHeight',{'1x','1x',40},'tag','gl');
@@ -496,7 +501,17 @@ lclNavToMFT(lObj,mov(1),ft(1,:));
 function pbComputeGT_Callback(hObject, src, evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-lObj.gtComputeGTPerformance('whichlabels','ask');
+mainController = lObj.controller_ ;
+if isempty(mainController)
+  whichlabels = 'all' ;
+else
+  response = mainController.askAboutUnrequestedGTLabelsIfNeeded_() ;
+  if strcmp(response, 'cancel') 
+    return
+  end
+  whichlabels = response ;
+end
+lObj.gtComputeGTPerformance('whichlabels',whichlabels);
 handles = updateAll(handles);
 guidata(hObject,handles);
 

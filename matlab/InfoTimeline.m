@@ -816,6 +816,7 @@ classdef InfoTimeline < handle
     
   methods  % callbacks
     function cbkBDF(obj,src,evt) 
+      % fprintf('InfoTimeline.cbkBDF() called\n') ;
       if ~obj.lObj.isReady || ~(obj.lObj.hasProject && obj.lObj.hasMovie)
         return
       end
