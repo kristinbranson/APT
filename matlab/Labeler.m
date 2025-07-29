@@ -4443,7 +4443,7 @@ classdef Labeler < handle
     %     if ~strcmp(currVal,str)
     %       qstr = sprintf('Project macro ''%s'' is currently defined as ''%s''. This value can be redefined later if desired.',...
     %         macro,currVal);
-    %       btn = questdlg(qstr,'Existing Macro definition','OK, Proceed','Cancel','Cancel');
+    %       btn = questiondlg(qstr,'Existing Macro definition','OK, Proceed','Cancel','Cancel');
     %       if isempty(btn)
     %         btn = 'Cancel';
     %       end
@@ -9471,7 +9471,7 @@ classdef Labeler < handle
     
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizesGUI(obj)
       % Check for consistency of movie sizes in current proj. Throw
-      % warning dial for each view where sizes differ.
+      % warning dialog for each view where sizes differ.
       %
       % This considers the raw movie sizes and ignores any cropping.
       % 
