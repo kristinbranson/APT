@@ -58,7 +58,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     hXYPrdRedTxt; % [nPts x ntgt] handle vec, text labels for hXYPrdRed
     hSkel   % [1 x nview]  skeleton line handle (all edges/tgts)
             % format of .XData, .YData: see setSkelCoords
-    skel_linestyle = '-';
+    skel_linestyle = '-'
     hPch  % [1 x ntgt] handle vec
     hPchTxt % [1 x ntgt] text/lbl for pch
     doPch % if false, don't draw pches at all
@@ -371,7 +371,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         xy = xy(:,:,itgtshow);
       end
       
-      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy,'linestyle',obj.skel_linestyle);
+      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy,obj.skel_linestyle);
     end
     function setShowSkeleton(obj,tf)
       obj.tfShowSkel = tf;

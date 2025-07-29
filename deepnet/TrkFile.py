@@ -1139,11 +1139,7 @@ class Tracklet:
     return s
   
   def to_mat(self):
-    if self.dtype == bool:
-      data = self.data
-    else:
-      data = to_mat(self.data)
-
+    data = to_mat(self.data)
     startframes = to_mat(self.startframes)
     endframes = to_mat(self.endframes)
     return data,startframes,endframes
