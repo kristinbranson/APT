@@ -26,6 +26,11 @@ handles.labeler = lObj;
       
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
   'Name','Groundtruth Navigator','Visible','off');
+mainController = lObj.controller_ ;
+if ~isempty(mainController)
+  mainController.addSatellite(hFig) ;
+end
+
 handles.figure1 = hFig;
 
 handles.gl = uigridlayout(hFig,[4,1],'RowHeight',{'1x','1x',40},'tag','gl');

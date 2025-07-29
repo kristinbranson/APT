@@ -1617,7 +1617,7 @@ classdef LabelerController < handle
     end  % function
 
     function addSatellite(obj, h)
-      % Add a 'satellite' figure, so we don't lose track of them
+      % Add a 'satellite' figure, so we don't lose track of them.
 
       % 'GC' dead handles
       isValid = arrayfun(@isvalid, obj.satellites_) ;
