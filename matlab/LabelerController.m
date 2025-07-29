@@ -1617,7 +1617,7 @@ classdef LabelerController < handle
     end  % function
 
     function addSatellite(obj, h)
-      % Add a 'satellite' figure, so we don't lose track of them
+      % Add a 'satellite' figure, so we don't lose track of them.
 
       % 'GC' dead handles
       isValid = arrayfun(@isvalid, obj.satellites_) ;
@@ -5782,18 +5782,46 @@ classdef LabelerController < handle
     function menu_evaluate_gtcomputeperf_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance('whichlabels','ask');
+      response = obj.askAboutUnrequestedGTLabelsIfNeeded_() ;
+      if strcmp(response, 'cancel')
+        return
+      end      
+      whichlabels = response ;
+      labeler.gtComputeGTPerformance('whichlabels',whichlabels);
     end
 
-
+    function response = askAboutUnrequestedGTLabelsIfNeeded_(obj)
+      labeler = obj.labeler_ ;
+      assert(labeler.gtIsGTMode);
+      nNewLbls = labeler.gtComputeNewLabelCount() ;
+      if nNewLbls == 0
+         response = 'suggestonly' ;  % will be ignored when the rubber meets the road, but that's ok
+         return
+      end
+      res = questdlg(sprintf('%d labeled frames were not in the to-label list, include them in analysis?',nNewLbls),'Update to-label list?','Yes','No','Cancel','Yes');
+      if strcmpi(res,'Cancel'),
+        response = 'cancel' ;
+      elseif strcmpi(res,'No'),
+        response = 'suggestonly' ;
+      elseif strcmpi(res,'Yes'),
+        response = 'all' ;
+      else
+        error('Internal error: The dialog returned an unanticpated value') ;
+      end
+    end  % function
 
     function menu_evaluate_gtcomputeperfimported_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance('useLabels2',true);
+
+      response = obj.askAboutUnrequestedGTLabelsIfNeeded_() ;
+      if strcmp(response, 'cancel')
+        return
+      end      
+      whichlabels = response ;
+
+      labeler.gtComputeGTPerformance('whichlabels',whichlabels,'useLabels2',true);
     end
-
-
 
     function menu_evaluate_gtexportresults_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
