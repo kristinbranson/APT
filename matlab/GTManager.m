@@ -496,7 +496,17 @@ lclNavToMFT(lObj,mov(1),ft(1,:));
 function pbComputeGT_Callback(hObject, src, evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-lObj.gtComputeGTPerformance('whichlabels','ask');
+mainController = lObj.controller_ ;
+if isempty(mainController)
+  whichlabels = 'all' ;
+else
+  response = mainController.askAboutUnrequestedGTLabelsIfNeeded_() ;
+  if strcmp(response, 'cancel') 
+    return
+  end
+  whichlabels = response ;
+end
+lObj.gtComputeGTPerformance('whichlabels',whichlabels);
 handles = updateAll(handles);
 guidata(hObject,handles);
 
