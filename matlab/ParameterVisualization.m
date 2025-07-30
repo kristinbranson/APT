@@ -8,6 +8,10 @@ classdef ParameterVisualization < handle
     lObj
     prm
     propFullName
+    is_ma = false;
+    is2stage = false;
+    is_ma_net = false;
+    stage = 1;
   end
 
   methods (Abstract)
@@ -49,6 +53,29 @@ classdef ParameterVisualization < handle
         delete(obj.hAx(i).Legend);
       end
     end
+
+    function setStage(obj)
+
+      [~,idx] = regexp(obj.propFullName,'\.DeepTrack','once');
+      if isempty(idx),
+        return;
+      end
+      propPrefix = obj.propFullName(1:idx);
+
+      obj.is_ma = obj.lObj.maIsMA;
+      obj.is2stage = obj.lObj.trackerIsTwoStage;
+      obj.is_ma_net = false;
+      obj.stage = 1;
+
+      if obj.is_ma,
+        if obj.is2stage && startsWith(propPrefix,'ROOT.DeepTrack'),
+          obj.stage = 2;
+        else
+          obj.is_ma_net = true;
+        end
+      end
+    end
+
 
   end
   

@@ -94,7 +94,7 @@ handles.pb_cancel = uibutton(handles.gl_buttons,'Text','Cancel',...
   'ButtonPushedFcn',@cbkCancel,'Tag','pb_cancel');
 
 handles.panel_right = uipanel(handles.gl,'Tag','panel_right');
-handles.tile_viz = tiledlayout(handles.panel_right,'flow','TileSpacing','compact','Padding','compact');
+handles.tile_viz = tiledlayout(handles.panel_right,'vertical','TileSpacing','compact','Padding','compact');
 
 handles.vizid = '';
 handles.vizobj = [];
