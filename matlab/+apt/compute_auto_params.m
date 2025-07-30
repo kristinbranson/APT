@@ -1,6 +1,6 @@
 function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
 
-  [SCALE_PRCTILE_SPAN,...
+  [prmtree,SCALE_PRCTILE_SPAN,...
     THRESH_MULTI_BBOX_SCALE,...
     CROP_RADIUS_PRECISION,...
     TRANSLATION_PRCTILE_D_PAIRS,...
@@ -11,7 +11,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
     TRANSLATION_RANGE_PRECISION,...
     ROTATION_RANGE_PRECISION,...
     ROTATION_PRCTILE_ANGLE_SPAN] = myparse(varargin,...
-    'scale_prctile_span',5,...
+    'prmtree',[],'scale_prctile_span',5,...
     'thresh_multi_bbox_scale',2,...
     'crop_radius_precision',16,...
     'translation_prctile_d_pairs',5,...
@@ -24,6 +24,13 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
     'rotation_range_angle_span',2);
 
   assert(lobj.nview==1, 'Auto setting of parameters not tested for multivew');
+
+  if isempty(prmtree),
+    sPrmCurrent = lobj.trackGetTrainingParams();
+    prmtree = APTParameters.defaultParamsTree() ;
+    % Overlay our starting point
+    prmtree.structapply(sPrmCurrent);
+  end
 
   %% collate all labels and compute distances between centroids of bounding boxes of pairs of animals labeled on the same frame
   view = 1;
@@ -164,29 +171,75 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
     autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
   end
 
-  % default case: percentiles of angle span of all keypoints around
-  % centroid
-  [rrange_default,l_thetas] = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+  laststage_horzflip = prmtree.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip').Data.Value;
+  firststage_horzflip = prmtree.findnode('ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.horz_flip').Data.Value;
+  laststage_vertflip = prmtree.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value;
+  firststage_vertflip = prmtree.findnode('ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.vert_flip').Data.Value;
+
+  % flip to best match template
+  [all_labels_horzflipped,all_labels_vertflipped] = flip_labels(all_labels,lobj);
 
   vizdata.rrange = struct;
-  vizdata.rrange.centroidKeypointAngle = l_thetas;
 
   if lobj.maIsMA && lobj.trackerIsTwoStage,
+
     if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta,
       % compute span of angles head and tail keypoints around midpoint of
       % head and tail.
       headidx = lobj.skelHead;
       tailidx = lobj.skelTail;
-      [rrange_stage1,l_thetas] = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
-      vizdata.rrange.stage1_headTailAngle = l_thetas;
+
+      if firststage_horzflip,
+        all_labels_use = all_labels_horzflipped;
+      elseif firststage_vertflip,
+        all_labels_use = all_labels_vertflipped;
+      else
+        all_labels_use = all_labels;
+      end
+
+      [rrange_stage1,l_thetas,minthetao] = rrange_headtail_around_centroid(all_labels_use,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.firststage_headTailAngle = l_thetas;
+      vizdata.rrange.offset.firststage_headTailAngle = minthetao;
+
       % we have already cropped a region around the animal and aligned
       % based on detected head/tail position. compute span of difference
       % between keypoint angles and head-tail angle
-      [rrange_stage2,l_thetas] = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION);
-      vizdata.rrange.stage2_keypoints2HeadTailAngle = l_thetas;
+      if laststage_horzflip,
+        all_labels_use = all_labels_horzflipped;
+      elseif laststage_vertflip,
+        all_labels_use = all_labels_vertflipped;
+      else
+        all_labels_use = all_labels;
+      end
+      [rrange_stage2,l_thetas,minthetao] = rrange_keypoints_relative_headtail(all_labels_use,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.laststage_keypoints2HeadTailAngle = l_thetas;
+      vizdata.rrange.offset.laststage_keypoints2HeadTailAngle = minthetao;
     else
-      rrange_stage1 = rrange_default;
-      rrange_stage2 = rrange_default;
+
+      if firststage_horzflip,
+        all_labels_use = all_labels_horzflipped;
+      elseif firststage_vertflip,
+        all_labels_use = all_labels_vertflipped;
+      else
+        all_labels_use = all_labels;
+      end
+
+      [rrange_stage1,l_thetas,minthetao] = rrange_keypoints_around_centroid(all_labels_use,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.firststage_centroidKeypointAngle = l_thetas;
+      vizdata.rrange.offset.firststage_centroidKeypointAngle = minthetao;
+
+      if laststage_horzflip,
+        all_labels_use = all_labels_horzflipped;
+      elseif laststage_vertflip,
+        all_labels_use = all_labels_vertflipped;
+      else
+        all_labels_use = all_labels;
+      end
+
+      [rrange_stage2,l_thetas,minthetao] = rrange_keypoints_around_centroid(all_labels_use,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.laststage_centroidKeypointAngle = l_thetas;
+      vizdata.rrange.offset.laststage_centroidKeypointAngle = minthetao;
+
     end
 
     autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.rrange') = rrange_stage1;
@@ -199,7 +252,17 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
       % let's just set this to a constant
       rrange = ROTATION_RANGE_ALIGN_THETA;
     else
-      rrange = rrange_default;
+      if laststage_horzflip,
+        all_labels_use = all_labels_horzflipped;
+      elseif laststage_vertflip,
+        all_labels_use = all_labels_vertflipped;
+      else
+        all_labels_use = all_labels;
+      end
+
+      [rrange,l_thetas,minthetao] = rrange_keypoints_around_centroid(all_labels_use,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+      vizdata.rrange.centroidKeypointAngle = l_thetas;
+      vizdata.rrange.offset.centroidKeypointAngle = minthetao;
     end
     autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
   end
@@ -265,26 +328,29 @@ end
 
 %% helper functions
 
-function ang_span = get_angle_span(theta,ROTATION_PRCTILE_ANGLE_SPAN)
+function [ang_span,minthetao] = get_angle_span(theta,ROTATION_PRCTILE_ANGLE_SPAN)
   % Find the span of thetas. Hacky method that rotates the pts by
-  % 10degrees and then checks the span.
+  % 10 degrees and then checks the span.
   ang_span = ones(size(theta,1),1)*2*pi;
-  for offset = 0:10:360
-    thetao = mod(theta + offset*pi/180,2*pi);
+  minthetao = zeros(size(theta,1),1);
+  for offset = -180:10:180,
+    thetao = modrange(theta+offset*pi/180,-pi,pi);
     cur_span = prctile(thetao,100-ROTATION_PRCTILE_ANGLE_SPAN,3) - prctile(thetao,ROTATION_PRCTILE_ANGLE_SPAN,3); % [npts,1]
-    ang_span = min(ang_span,cur_span);
+    isbest = cur_span <= ang_span;
+    ang_span(isbest) = cur_span(isbest);
+    minthetao(isbest) = offset;
   end
 end
 
-function [rrange,l_thetas] = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
+function [rrange,l_thetas,minthetao] = rrange_headtail_around_centroid(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
 
 htidx = [headidx,tailidx];
 mid_labels = mean(all_labels,1); % should this be mean(all_labels(htidx)) ?
-[rrange,l_thetas] = helper_rotation_range(all_labels(htidx,:,:),mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+[rrange,l_thetas,minthetao] = helper_rotation_range(all_labels(htidx,:,:),mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
 
 end
 
-function [rrange,l_thetas] = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION)
+function [rrange,l_thetas,minthetao] = rrange_keypoints_relative_headtail(all_labels,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION)
 
 npts = size(all_labels,1);
 if npts <= 2,
@@ -301,22 +367,22 @@ body_ctr = (hd+tl)/2;
 htangle = atan2(all_labels(headidx,2,:)-body_ctr(:,2,:),...
   all_labels(headidx,1,:)-body_ctr(:,1,:));
 
-[rrange,l_thetas] = helper_rotation_range(all_labels(ptidx,:,:),body_ctr,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,htangle);
+[rrange,l_thetas,minthetao] = helper_rotation_range(all_labels(ptidx,:,:),body_ctr,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,htangle);
 
 end
 
-function [rrange,l_thetas] = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
+function [rrange,l_thetas,minthetao] = rrange_keypoints_around_centroid(all_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION)
 
 % If uses object detection for the first stage or hastrx and not 
 % using theta to align 
 % then the look at the variation in angles relative to the center of the
 % keypoints
 mid_labels = mean(all_labels,1);
-[rrange,l_thetas] = helper_rotation_range(all_labels,mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
+[rrange,l_thetas,minthetao] = helper_rotation_range(all_labels,mid_labels,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
 
 end
 
-function [rrange,l_thetas] = helper_rotation_range(all_labels,ctrpts,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,ctrangles)
+function [rrange,l_thetas,minthetao] = helper_rotation_range(all_labels,ctrpts,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION,ctrangles)
 
 assert(numel(ROTATION_PRCTILE_ANGLE_SPAN) == 1);
 assert(numel(ROTATION_RANGE_PRECISION) == 1);
@@ -330,9 +396,11 @@ if exist('ctrangles','var'),
   l_thetas = modrange(l_thetas - ctrangles,-pi,pi);
 end
 
-ang_span = get_angle_span(l_thetas,ROTATION_PRCTILE_ANGLE_SPAN)*180/pi;
+[ang_span,minthetao] = get_angle_span(l_thetas,ROTATION_PRCTILE_ANGLE_SPAN);
+ang_span = ang_span*180/pi;
 rrange = median(ang_span)/2;
 rrange = round_nearest(rrange,ROTATION_RANGE_PRECISION);
+l_thetas = permute(l_thetas,[1,3,2]);
 end
 
 function xr = round_nearest(x,precision)
@@ -343,4 +411,56 @@ else
   xr = max(1,round(x/precision))*precision;
 end
 
+end
+
+function [all_labels_horzflipped,all_labels_vertflipped] = flip_labels(all_labels,lobj)
+
+  % all_labels is nkpts x d x nlabels
+  templateidx1 = find(all(all(~isnan(all_labels),1),2),1);
+  if isempty(templateidx1),
+    templateidx1 = 1;
+  end
+  centroid = mean(all_labels,1,'omitmissing');
+  all_labels_centered = all_labels - centroid;
+
+  kptmatches = lobj.flipLandmarkMatches;
+
+  ntries = 10;
+  nlabels = size(all_labels,3);
+  templateidx_rest = randsample(nlabels,min(ntries,nlabels),false);
+  bestd_horz = inf;
+  bestd_vert = inf;
+  for templateidx = [templateidx1,templateidx_rest'],
+    [all_labels_horzflipped_curr,d_horz] = flip_labels_helper(1,kptmatches,templateidx,centroid,all_labels_centered);
+    [all_labels_vertflipped_curr,d_vert] = flip_labels_helper(2,kptmatches,templateidx,centroid,all_labels_centered);
+    d_horz = median(d_horz);
+    d_vert = median(d_vert);
+    if d_horz < bestd_horz,
+      all_labels_horzflipped = all_labels_horzflipped_curr;
+    end
+    if d_vert < bestd_vert,
+      all_labels_vertflipped = all_labels_vertflipped_curr;
+    end    
+  end
+
+end
+
+function [all_labels_flipped,d_flipped] = flip_labels_helper(dim,kptmatches,templateidx,centroid,all_labels_centered)
+
+  all_labels_flipped = all_labels_centered;
+  all_labels_flipped(:,dim,:) = -all_labels_centered(:,dim,:);
+  all_labels_flipped(kptmatches(:,1),dim,:) = -all_labels_centered(kptmatches(:,2),dim,:);
+  all_labels_flipped(kptmatches(:,2),dim,:) = -all_labels_centered(kptmatches(:,1),dim,:);
+  % normalize so that it is cos,sin 
+  z = sqrt(sum(all_labels_flipped.^2,2));
+  all_labels_flipped_normed = all_labels_flipped ./ z;
+  z = sqrt(sum(all_labels_centered.^2,2));
+  all_labels_centered_normed = all_labels_centered ./ z;
+
+  d_flipped = sum(sum((all_labels_flipped_normed-all_labels_centered_normed(:,:,templateidx)).^2,2),1);
+  d = sum(sum((all_labels_centered_normed-all_labels_centered_normed(:,:,templateidx)).^2,2),1);
+  idx = d<=d_flipped;
+  all_labels_flipped(:,:,idx) = all_labels_centered(:,:,idx);
+  all_labels_flipped = all_labels_flipped + centroid;
+  d_flipped(idx) = d(idx);
 end

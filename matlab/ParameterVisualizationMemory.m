@@ -11,10 +11,6 @@ classdef ParameterVisualizationMemory < ParameterVisualization
     nettype = '';
     batchsize = nan;
     downsample = nan;
-    is_ma = false;
-    is2stage = false;
-    is_ma_net = false;
-    stage = 1;
     hMem = [];
     hMemCurr = [];
   end
@@ -82,21 +78,6 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         obj.nettype = obj.lObj.tracker.algorithmName;
       end      
       
-    end
-
-    function setStage(obj)
-      obj.is_ma = obj.lObj.maIsMA;
-      obj.is2stage = obj.lObj.trackerIsTwoStage;
-      obj.is_ma_net = false;
-      obj.stage = 1;
-
-      if obj.is_ma,
-        if obj.is2stage && startsWith(obj.propPrefix,'ROOT.DeepTrack'),
-          obj.stage = 2;
-        else
-          obj.is_ma_net = true;
-        end
-      end
     end
 
     function [xs,memuses,xcurr,memusecurr,xstr] = getMemUse(obj)
