@@ -203,6 +203,52 @@
             "program": "test_more_two_stage_mmdetect_tracking_from_apt_2025_05_02.py",
             "console": "integratedTerminal",
             "justMyCode": false
-        }
+        },
+    {
+      "name": "APT Interface - Track Detection",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "/groups/branson/bransonlab/taylora/apt/apt-develop/deepnet/APT_interface.py",
+      "console": "integratedTerminal",
+      "args": [
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1/DanionellaWild/20250522T095539_20250522T095539.json",
+        "-name",
+        "20250522T095539",
+        "-stage",
+        "multi",
+        "-type",
+        "detect_mmdetect",
+        "-model_files",
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1/DanionellaWild/detect_mmdetect/view_0/20250522T095539/deepnet-20000",
+        "-type2",
+        "mdn_joint_fpn",
+        "-model_files2",
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1/DanionellaWild/mdn_joint_fpn/view_0/20250522T095539/deepnet-1000",
+        "-name2",
+        "20250522T095539",
+        "-ignore_local",
+        "0",
+        "-cache",
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1",
+        "track",
+        "-config_file",
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1/DanionellaWild/detect_mmdetect/view_0/20250522T095539/trk/trkconfig_VID_20241209_050417_00_002_r1320to2280_c960to1920_89b49f_trn20250522T095539_view0_iter20000_20250730T144104.json",
+        "-track_type",
+        "only_predict",
+        "-out",
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1/DanionellaWild/mdn_joint_fpn/view_0/20250522T095539/trk/VID_20241209_050417_00_002_r1320to2280_c960to1920_89b49f_trn20250522T095539_view0_iter1000_20250730T144104.trk",
+        "-mov",
+        "/groups/branson/bransonlab/projects/DanionellaFieldTrip/Restitched/VID_20241209_050417_00_002_r1320to2280_c960to1920.avi",
+        "-start_frame",
+        "4880",
+        "-end_frame",
+        "5080",
+        "-trx",
+        "/groups/branson/bransonlab/taylora/.apt/tp62965df3_f71b_4782_a9e5_94972e34baf1/DanionellaWild/detect_mmdetect/view_0/20250522T095539/trk/VID_20241209_050417_00_002_r1320to2280_c960to1920_89b49f_trn20250522T095539_view0_iter20000_20250730T144104.trk"
+      ],
+      "cwd": "${workspaceFolder}",
+      "justMyCode": false
+    }
     ]
 }
+
