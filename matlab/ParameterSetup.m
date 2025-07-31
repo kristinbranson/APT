@@ -192,7 +192,7 @@ output = handles.output;
       'RowHeight',repmat({'fit'},1,n+2),'Scrollable',scrollable);
 
     if ~strcmp(tprm.Data.Field,'ROOT'),
-      s = cleanDisplayName(tprm.Data.DispNameUse);
+      s = getDisplayName(tprm.Data);
       s = [repmat('>',[1,depth]),' ',s];
       ti = sprintf('<b>%s</b>: %s',s,tprm.Data.Description);
       htree.Data.handles.title = uilabel('Parent',htree.Data.handles.gl1,...
@@ -212,6 +212,21 @@ output = handles.output;
 
   end
 
+  function s = getDisplayName(data)
+    s = data.DispNameUse;
+    s = cleanDisplayName(s);
+    isMultiDeepTrack = startsWith(data.FullPath,'ROOT.MultiAnimal.Detect.DeepTrack');
+    isPoseDeepTrack = startsWith(data.FullPath,'ROOT.DeepTrack');
+    if handles.labelerObj.trackerIsTwoStage
+      if isMultiDeepTrack,
+        s = [s,' (detection stage)'];
+      elseif isPoseDeepTrack,
+        s = [s,' (pose stage)'];
+      end
+    end    
+  end
+
+
   function s = cleanDisplayName(s)
     s = regexprep(s,'([a-z])([A-Z])','$1 $2');
   end
@@ -222,13 +237,13 @@ output = handles.output;
       'tag',tprm.Data.Field,'suggestedvalue',[],'extradescr','');
 
     leafhandles = struct;
-    s = cleanDisplayName(tprm.Data.DispNameUse);
+    s = getDisplayName(tprm.Data);
     padding = 0;
     color = handles.nodeNum2Color(tprm.Data.Index);
 
     leafhandles.gl1 = uigridlayout(parent,[2,1],'RowHeight',{'fit','fit'},'Padding',padding+zeros(1,4),...
         'BackgroundColor',color);
-    leafhandles.gl2 = uigridlayout(leafhandles.gl1,[1,3],'ColumnWidth',{'1x','1x','fit'},'Padding',[0,0,0,0],...
+    leafhandles.gl2 = uigridlayout(leafhandles.gl1,[1,3],'ColumnWidth',{'3x','2x','fit'},'Padding',[0,0,0,0],...
         'BackgroundColor',color);
     leafhandles.label = uilabel('Parent',leafhandles.gl2,'Text',s,'FontWeight','bold');
     if iscell(tprm.Data.Type),

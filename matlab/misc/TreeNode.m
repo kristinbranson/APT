@@ -42,6 +42,17 @@ classdef TreeNode < handle
         end
       end
     end
+
+    function setFullPath(t,p) % may only make sense if t.Data is aPropertiesGUIProp
+      if nargin < 2,
+        p = '';
+      end
+      t.Data.FullPath = [p,t.Data.FullPath];
+      p1 = [p,t.Data.Field,'.'];
+      for c = t.Children(:)',
+        setFullPath(c,p1);
+      end
+    end
     
     function s = structize(t)
       % Convert a Tree (Data.Value fields only) to a struct
