@@ -54,7 +54,7 @@ handles.gl = uigridlayout(handles.figure,[1,2],'ColumnWidth',{'1x','1x'});
 
 handles.gl_left = uigridlayout(handles.gl,[2,1],'RowHeight',{'1x','fit'},'Padding',[0,0,0,0]);
 
-handles.tb_viz_all = gobjects(1,0);
+handles.tb_viz_curr = [];
 handles.vizdata = struct;
 
 if handles.istrain,
@@ -139,7 +139,10 @@ output = handles.output;
       delete(tab);
     end
     handles.tree.traverse(@deleteInvalidObjects);
-    handles.tb_viz_all(~ishandle(handles.tb_viz_all)) = [];
+    if ~isempty(handles.tb_viz_curr) && ~ishandle(handles.tb_viz_curr),
+      clearParamViz()
+    end
+
     idxvisible = getChildrenIdxVisible(handles.tree);
     nchil = numel(idxvisible);
     handles.tabs_rest = gobjects(1,nchil);
@@ -276,7 +279,6 @@ output = handles.output;
         'Text','Viz >>','ValueChangedFcn',@cbkVizButton,...
         'UserData',tprm.Data,'tag',['tb_viz_',tag],...
         'Value',0);
-      handles.tb_viz_all(end+1) = leafhandles.tb_viz;
     else
       leafhandles.tb_viz = gobjects(1,0);
     end
@@ -503,32 +505,10 @@ output = handles.output;
     data = src.UserData;
     fprintf('cbkVizButton: %s\n',data.ParamViz);
 
-    % find the rest of these buttons and set their value to match
-    hsameviz = gobjects(1,numel(data.UserData));
-    for i = 1:numel(data.UserData),
-      hsameviz(i) = [data.UserData(i).UserData.htb_viz];
-    end
     if val == 1,
-      for hviz = handles.tb_viz_all,
-        if ~ishandle(hviz),
-          continue;
-        end
-        if hviz == src,
-          continue;
-        end
-        if ismember(hviz,hsameviz),
-          hviz.Value = 1;
-        else
-          hviz.Value = 0;
-        end
-      end
       initParamViz(data);
+      handles.tb_viz_curr = src;
     else
-      for hviz = hsameviz,
-        if hviz ~= src,
-          hviz.Value = 0;
-        end
-      end
       clearParamViz();
 
     end
@@ -542,13 +522,14 @@ output = handles.output;
     delete(handles.tile_viz.Children);
     handles.vizid = '';
     handles.vizobj = [];
+    if ~isempty(handles.tb_viz_curr) && ishandle(handles.tb_viz_curr),
+      handles.tb_viz_curr.Value = 0;
+      handles.tb_viz_curr = [];
+    end
   end
 
   function initParamViz(data)
     vizid = data.ParamViz;
-    if isequal(handles.vizid,vizid),
-      return;
-    end
     clearParamViz();
     handles.vizid = vizid;
     % we are going to ignore paramVizID -- I don't understand its function
