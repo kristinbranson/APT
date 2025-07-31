@@ -328,17 +328,27 @@ end
 
 %% helper functions
 
-function [ang_span,minthetao] = get_angle_span(theta,ROTATION_PRCTILE_ANGLE_SPAN)
+function [ang_span,med_theta] = get_angle_span(theta,ROTATION_PRCTILE_ANGLE_SPAN)
   % Find the span of thetas. Hacky method that rotates the pts by
   % 10 degrees and then checks the span.
   ang_span = ones(size(theta,1),1)*2*pi;
-  minthetao = zeros(size(theta,1),1);
+  med_theta = nan(size(theta,1),1);
   for offset = -180:10:180,
     thetao = modrange(theta+offset*pi/180,-pi,pi);
-    cur_span = prctile(thetao,100-ROTATION_PRCTILE_ANGLE_SPAN,3) - prctile(thetao,ROTATION_PRCTILE_ANGLE_SPAN,3); % [npts,1]
+    theta1 = prctile(thetao,100-ROTATION_PRCTILE_ANGLE_SPAN,3);
+    theta0 = prctile(thetao,ROTATION_PRCTILE_ANGLE_SPAN,3);
+    cur_span = theta1 - theta0; % [npts,1]t
     isbest = cur_span <= ang_span;
     ang_span(isbest) = cur_span(isbest);
-    minthetao(isbest) = offset;
+    % med_theta_curr = modrange((theta0+theta1)/2 - offset*pi/180,-pi,pi);
+    % med_theta(isbest) = med_theta_curr(isbest);
+
+    for i = find(isbest(:)'),
+      med_theta_curr = median(thetao(i,1,thetao(i,1,:)>=theta0(i) & thetao(i,1,:)<=theta1(i)));
+      med_theta_curr = modrange(med_theta_curr-offset*pi/180,-pi,pi);
+      med_theta(i) = med_theta_curr;
+    end
+
   end
 end
 

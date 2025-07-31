@@ -44,7 +44,11 @@ classdef ParameterVisualization < handle
 
     % For cleanup purposes
     function clear(obj)
-      cla(obj.hAx);    
+      for hax = obj.hAx(:)',
+        if ishandle(hax),
+          cla(hax);
+        end
+      end
       for i = 1:numel(obj.hAx),
         obj.hAx(i).Title.String = '';
         obj.hAx(i).XLabel.String = '';

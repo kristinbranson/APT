@@ -7,6 +7,7 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
     autoParamsData = struct;
     hHist = [];
     hParams = gobjects(1,0);
+    hParamsText = gobjects(1,0);
     xtick = [];
     xticklabel = {};
     fld = '';
@@ -31,6 +32,46 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
       end
       obj.setStage();
 
+      [data,xstr,paramdata,paraminfo,titles] = obj.getData();
+
+      binlimits = [min(data(:)),max(data(:))];
+      nbins = 20;
+      colors = lines(size(paramdata,2));
+      obj.hHist = gobjects(1,size(data,1));
+      obj.hParams = gobjects(size(data,1),size(paramdata,2));
+      obj.hParamsText = gobjects(size(data,1),size(paramdata,2));
+      for i = 1:size(data,1),
+        if (numel(obj.hAx) < i) || ~ishandle(obj.hax(i)),
+          obj.hAx(i) = nexttile(obj.hTile);
+        end
+        obj.hHist(i) = histogram(obj.hAx(i),data(i,:),nbins,'FaceColor','k','BinLimits',binlimits);
+        box(obj.hAx(i),'off');
+        if numel(titles) >= i,
+          title(obj.hAx(i),titles{i});
+        end
+      end
+      linkaxes(obj.hAx);
+      ylim = obj.hAx(1).YLim;
+      if size(paramdata,2) == 1,
+        yfactor = .9;
+      else
+        yfactor = linspace(.7,.95,size(paramdata,2));
+      end
+      for i = 1:size(data,1),
+        hold(obj.hAx(i),'on');
+        for j = 1:size(paramdata,2),
+          obj.hParams(i,j) = plot(obj.hAx(i),paramdata(i,j)+[0,0],ylim,'-','Color',colors(j,:),'LineWidth',2);
+          obj.hParamsText(i,j) = text(obj.hAx(i),paramdata(i,j),sum(ylim.*[1-yfactor(j),yfactor(j)]),[' ',paraminfo{j}],'Color',colors(j,:));
+        end
+      end
+      xlabel(obj.hAx(end),xstr);
+      ylabel(obj.hAx(end),'N. training examples');
+
+      obj.initSuccessful = true;
+    end
+    
+    function [data,xstr,paramdata,paraminfo,titles] = getData(obj)
+
       paramdata = [];
       paraminfo = {};
       titles = {};
@@ -46,8 +87,8 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
       elseif strcmpi(obj.fld,'scale_factor_range')
         data = obj.scaledata.bboxDiagonalLength;
         xstr = 'Bounding box diagonal (px)';
-        paramdata = obj.scaledata.medBboxDiagonalLength.*[1,1/obj.prmin.Data.Value,obj.prmin.Data.Value];
-        paraminfo = {'Median','Median/ScaleFactor', 'Median*ScaleFactor'};
+        paramdata = obj.scaledata.medBboxDiagonalLength.*[1/obj.prmin.Data.Value,1,obj.prmin.Data.Value];
+        paraminfo = {'Median/ScaleFactor', 'Median', 'Median*ScaleFactor'};
       elseif strcmpi(obj.fld,'rrange'),
         rrangefns = setdiff(fieldnames(obj.rrangedata),{'offset'});
         if numel(rrangefns) == 1,
@@ -56,7 +97,7 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
           if obj.stage == 1,
             idx = find(startsWith(rrangefns,'firststage'),1);
           else
-            idx = find(startsWith(rrangefns,'lasststage'),1);
+            idx = find(startsWith(rrangefns,'laststage'),1);
           end
           if isempty(idx),
             idx = 1;
@@ -64,103 +105,44 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
           rrangefn = rrangefns{idx};
         end
         data = obj.rrangedata.(rrangefn)*180/pi;
-        paramdata = modrange(obj.rrangedata.offset.(rrangefn)+[0,[-1,1]*obj.prmin.Data.Value],-180,180);
-        paraminfo = {'Median','Median-Rotation','Median+Rotation'};
-        switch rrangefn,
+        paramdata = modrange(obj.rrangedata.offset.(rrangefn)*180/pi+[-1,0,1]*obj.prmin.Data.Value,-180,180);
+        paraminfo = {'Median-Rotation','Median','Median+Rotation'};
+        rrangem = regexp(rrangefn,'^(?<stage>.*stage)?_?(?<name>.*)$','names','once');
+        switch rrangem.name,
           case 'firststage_headTailAngle'
             xstr = 'Tail->Head angle (deg)';
           case 'laststage_keypoints2HeadTailAngle',
             xstr = 'Centroid->Keypoint - Tail->Head angle (deg)';
-            titles = obj.lObj.skelNames;
+            titles = cellfun(@(s) ['Keypoint ',s],obj.lObj.skelNames,'Uni',0);
           case 'centroidKeypointAngle',
             xstr = 'Centroid->Keypoint angle (deg)';
+            titles = cellfun(@(s) ['Keypoint ',s],obj.lObj.skelNames,'Uni',0);
           otherwise
             error('Unknown %s',rrangefn);
         end
       else
         error('Unknown field %s',obj.fld);
       end
-      binlimits = [min(data(:)),max(data(:))];
-      nbins = 20;
-      colors = lines(size(paramdata,2));
-      obj.hHist = gobjects(1,size(data,1));
-      obj.hParams = gobjects(size(data,1),size(paramdata,2));
-      for i = 1:size(data,1),
-        if (numel(obj.hAx) < i) || ~ishandle(obj.hax(i)),
-          obj.hAx(i) = nexttile(obj.hTile);
-        end
-        obj.hHist(i) = histogram(obj.hAx(i),data(i,:),nbins,'FaceColor','k','BinLimits',binlimits);
-        box(obj.hAx(i),'off');
-        if numel(titles) >= i,
-          title(obj.hAx(i),titles{i});
-        end
-      end
-      linkaxes(obj.hAx);
-      ylim = obj.hAx(1).YLim;
-      for i = 1:size(data,1),
-        hold(obj.hAx(i),'on');
-        for j = 1:size(paramdata,2),
-          obj.hParams(i,j) = plot(obj.hAx(i),paramdata(i,j)+[0,0],ylim,'-','Color',colors(j,:),'LineWidth',2);
-        end
-      end
-      obj.hAx(end).XTickMode = 'auto';
-      obj.hAx(end).XTickLabelMode = 'auto';
-      obj.xtick = obj.hAx(end).XTick;
-      obj.xticklabel = obj.hAx(end).XTickLabel;
-      xtick = obj.xtick; %#ok<*PROPLC>
-      xticklabel = obj.xticklabel;
-      for i = 1:size(paramdata,j),
-        xtick(end+1) = paramdata(end,i); %#ok<AGROW>
-        xticklabel{end+1} = paraminfo{end,i}; %#ok<AGROW>
-      end
-      [xtick,order] = sort(xtick);
-      xticklabel = xticklabel(order);
-      if ~isempty(paramdata),
-        set(obj.hAx,'XTick',xtick);
-        set(obj.hAx(1:end-1),'XTickLabel',xticklabel);
-        obj.hAx(end).XTickLabel = xticklabel;
-      end
 
-      xlabel(obj.hAx(end),xstr);
-      ylabel(obj.hAx(end),'N. training examples');
-
-      obj.initSuccessful = true;
     end
-    
+
     function clear(obj)
       clear@ParameterVisualization(obj);
-      obj.hAx.XTickMode = 'auto';
-      obj.hAx.XTickLabelMode = 'auto';
       obj.initSuccessful = false;
     end
 
     function update(obj)
       if obj.initSuccessful,
 
-        if strcmpi(obj.fld,'ManualRadius'),
-          paramdata = obj.prmin.Data.Value;
-          paraminfo = {obj.prmin.Data.DisplayNameUse};
-        elseif strcmpi(obj.fld,'multi_scale_by_bbox')
-          paramdata = [];
-          paraminfo = {};
-        elseif strcmpi(obj.fld,'scale_factor_range')
-          paramdata = obj.scaledata.medBboxDiagonalLength.*[1,1/prmin.Data.Value,obj.prmin.Data.Value];
-          paraminfo = {'Median','Median/ScaleFactor', 'Median*ScaleFactor'};
-        else
-          error('Unknown field %s',obj.fld);
-        end
-        xtick = obj.xtick; %#ok<*PROP>
-        xticklabel = obj.xticklabel;
-        for i = 1:numel(paramdata),
-          obj.hParams(i).XData = paramdata(i)+[0,0];
-          xtick(end+1) = paamdata(i); %#ok<AGROW>
-          xticklabel{end+1} = paraminfo{i}; %#ok<AGROW>
-        end
-        [xtick,order] = sort(xtick);
-        xticklabel = xticklabel(order);
-        if ~isempty(paramdata),
-          obj.hAx.XTick = xtick;
-          obj.hAx.XTickLabel = xticklabel;
+        [~,~,paramdata,~,~] = obj.getData();
+
+        for i = 1:size(paramdata,1),
+          for j = 1:size(paramdata,2),
+            obj.hParams(i,j).XData = paramdata(i,j)+[0,0];
+            pos = obj.hParamsText(i,j).Position;
+            pos(1) = paramdata(i,j);
+            obj.hParamsText(i,j).Position = pos;
+          end
         end
 
       else
