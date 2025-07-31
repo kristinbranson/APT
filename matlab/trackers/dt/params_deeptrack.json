@@ -321,7 +321,7 @@
       "horz_flip": {
         "AffectsTraining": true,
         "DefaultValue": 0,
-        "Description": "Augment by flipping the training image and labels horizontally (left to right). This is useful if your targets are bilaterally symmetric. If you enable flipping, you MUST set pairs of correspondences of landmarks. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
+        "Description": "Augment by flipping the training image and labels horizontally (left to right). This is useful if your targets are bilaterally symmetric. If you enable flipping, you MUST set pairs of corresponding keypoints. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
         "DispName": "Flip horizontally",
         "Level": "Important",
         "ParamViz": "",
@@ -334,7 +334,7 @@
       "vert_flip": {
         "AffectsTraining": true,
         "DefaultValue": 0,
-        "Description": "Augment by flipping the training image ang labels vertically (bottom to top). If you enable flipping, you MUST set pairs of correspondences of landmarks. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
+        "Description": "Augment by flipping the training image ang labels vertically (bottom to top). If you enable flipping, you MUST set pairs of corresponding keypoints. When you flip an image, the left side of the target becomes the right, and vv. You need to define which keypoints are corresponding left-right pairs. If you have a side-view of your scene, then flipping horizontally makes more sense than vertically. If you have an over/underhead view of the scene and you have Rotation range radius = 180, horizontal and vertical flipping are equivalent. Enable only one of these, as they will cancel each other out.",
         "DispName": "Flip vertically",
         "Level": "Important",
         "ParamViz": "",

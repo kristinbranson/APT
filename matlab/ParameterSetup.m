@@ -362,6 +362,9 @@ output = handles.output;
     if vert_flip_prm.Data.Visible,
       nfields = nfields + 1;
     end
+    if horz_flip_prm.Data.Visible || vert_flip_prm.Data.Visible,
+      nfields = nfields + 1;
+    end
     for i = 1:numel(kk),
       nprm = handles.tree.findnode(['ROOT.' kk{i}]);
       if nprm.Data.Visible,
@@ -393,12 +396,21 @@ output = handles.output;
     if horz_flip_prm.Data.Visible,
       hauto.auto{end+1} = InitLeaf(horz_flip_prm,parent,'suggestedvalue',suggestedvalue.horz,...
         'extradescr',extradescr);
+      flipcolor = handles.nodeNum2Color(horz_flip_prm.Data.Index);
     end
     if vert_flip_prm.Data.Visible,
       hauto.auto{end+1} = InitLeaf(vert_flip_prm,parent,'suggestedvalue',suggestedvalue.vert,...
         'extradescr',extradescr);
+      flipcolor = handles.nodeNum2Color(vert_flip_prm.Data.Index);
     end
     % TODO add flip pairs here
+    if horz_flip_prm.Data.Visible || vert_flip_prm.Data.Visible,
+      descr = ['If you augment your training data by flipping horizontally or vertically, you ',...
+        'MUST set pairs of corresponding keypoints. '];
+      hauto.auto{end+1} = InitButton(parent,...
+        'tag','flippairs','titlestr','Keypoint pairs',...
+        'descr',descr,'buttonlabel','Set','color',flipcolor,'Callback','');
+    end
 
     for i = 1:numel(kk),
       k = kk{i};
@@ -413,6 +425,35 @@ output = handles.output;
         'ButtonPushedFcn',@cbkAcceptSuggestions,'Tag','pb_accept_suggestions');
     hauto.pb_accept_suggestions.Layout.Column = 2;
 
+  end
+
+  function cbkKeypointParams(src,evt)
+    landmark_specs('lObj',handles.labelerObj);
+  end
+
+  function buttonhandles = InitButton(parent,varargin)
+    
+    [tag,titlestr,descr,buttonlabel,color,cbk] = myparse(varargin,...
+      'tag','','titlestr','','descr','','buttonlabel','Button','color',[],'Callback','');
+
+    buttonhandles = struct;
+    padding = 0;
+
+    buttonhandles.gl1 = uigridlayout(parent,[2,1],'RowHeight',{'fit','fit'},'Padding',padding+zeros(1,4));
+    if ~isempty(color),
+      buttonhandles.gl1.BackgroundColor = color;
+    end
+    ncurr = 1 + double(~isempty(titestr));
+    buttonhandles.gl2 = uigridlayout(buttonhandles.gl1,[1,ncurr],'Padding',[0,0,0,0]);
+    if ~isempty(color),
+      buttonhandles.gl2.BackgroundColor = color;
+    end
+    if ~isempty(titlestr),
+      buttonhandles.label = uilabel('Parent',buttonhandles.gl2,'Text',titlestr,'FontWeight','bold');
+    end
+    buttonhandles.button = uibutton('Parent',buttonhandles.gl2,'Text',buttonlabel,'Tag',['pb_',tag]);
+    buttonhandles.descr = uilabel('Parent',buttonhandles.gl1,'Text',descr,...
+      'WordWrap','on','Interpreter','html','ButtonPushedFcn',cbk);
   end
 
   function cbkValueDropdown(src,evt)
