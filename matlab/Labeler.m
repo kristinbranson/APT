@@ -8315,10 +8315,19 @@ classdef Labeler < handle
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
-          if (iVw==1) && size(scell{iVw}.pTrk{1},1)~=obj.nLabelPoints
-            warning('Number of landmarks in the trk file does not match with the project')
+      	  if iVw == 1
+            pTrkOrCellArray = scell{1}.pTrk ;
+            if iscell(pTrkOrCellArray)
+              pTrk = pTrkOrCellArray{1} ;
+            else
+              pTrk = pTrkOrCellArray ;
+            end
+            nLabelPointsInFile = size(pTrk, 1) * size(pTrk, 2) ;
+            if nLabelPointsInFile ~= obj.nLabelPoints
+              warning('Number of landmarks in the trk file does not match with the project')
+            end
           end
-            %displaying when .trk file was last updated
+          % Display when .trk file was last updated
           tfileDir = dir(tfile);
           disp(['  trk file last modified: ',tfileDir.date]);
 
