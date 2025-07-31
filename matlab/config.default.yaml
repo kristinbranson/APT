@@ -181,6 +181,7 @@ Shortcuts: # shortcuts. case insensitive!
   menu_view_showhide_skeleton: e # view -> show skeleton
   menu_view_fit_entire_image: f # view -> Zoom out/full image(s)
   menu_view_showhide_maroi: b
+  menu_track_set_labels: l # accept predictions as labels
   tbAccept: f # accept toggle button
   pbPlaySeg: u # play a few frames before the current frame
   pbPlaySegRev: i # play a few frames after the current frame backwards
