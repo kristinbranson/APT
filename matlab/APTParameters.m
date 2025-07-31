@@ -978,7 +978,13 @@ classdef APTParameters
         for i = 1:numel(t2.Children),
           t1.Children(end+1,1) = t2.Children(i).copy();
         end
+      end 
+      % reset full paths
+      for i = 1:numel(field_names),
+        fn = field_names{i};
+        s.(fn).tree.setFullPath();
       end
+
       % % Print s
       % fprintf('s:\n') ;
       % fprintf('%s', formattedDisplayText(s)) ;
