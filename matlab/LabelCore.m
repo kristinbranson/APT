@@ -890,6 +890,9 @@ classdef LabelCore < handle
         xy1 = [trx1.x(iFrm1) trx1.y(iFrm1)];
         th1 = trx1.theta(iFrm1);
 
+        if isnan(th0-th1)
+          th0 = 0; th1 = 0;
+        end
         uv = transformPoints(uv0,xy0,th0,xy1,th1);
         tfinf = any(isinf(uv0),2); % [inf inf] rows in uv0 can be transformed into eg [inf nan] depending on angle
         uv(tfinf,:) = inf;

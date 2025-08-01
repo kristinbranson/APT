@@ -11,6 +11,7 @@ function [maErr,fp,fn] = computeMAErr(tblPred,tblLbl,hasMask)
   [~,match] = ismember(mov_frm_pred,mov_frm_lbl,'rows');
 
   all_lbl = reshape(tblLbl.p,[nlbl,maxn,npts,2]);
+  all_roi = tblLbl.roi;
   all_pred = reshape(tblPred.pTrk,[size(tblPred,1),maxn,npts,2]);
 
   maErr = nan(nfrm,maxn,npts);  
@@ -24,7 +25,8 @@ function [maErr,fp,fn] = computeMAErr(tblPred,tblLbl,hasMask)
     epreds = repmat(epreds1,[size(elbl1,1),1]);
     elbl = repmat(elbl1,[1,size(epreds1,2)]);
     dist_mat = sqrt(sum( (epreds-elbl).^2,4));
-    [dist_match,fp_cur,fn_cur] = find_dist_match(dist_mat,hasMask,elbl1,epreds1);
+    cur_roi = permute(all_roi(match(ndx),:,:,:),[2,3,4,1]);
+    [dist_match,fp_cur,fn_cur] = find_dist_match(dist_mat,hasMask,elbl1,epreds1,cur_roi);
     maErr(ndx,:,:) = dist_match;
     fp(ndx,:) = fp_cur;
     fn(ndx,:) = fn_cur;
@@ -32,7 +34,7 @@ function [maErr,fp,fn] = computeMAErr(tblPred,tblLbl,hasMask)
 end
 
 
-function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds)
+function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds,rois)
     dout = nan(size(dd(:,1,:)));
     fp = nan(size(dd(1,:,1)));
     fn = nan(size(dd(:,1,1)));
@@ -72,8 +74,14 @@ function [dout,fp,fn] = find_dist_match(dd,hasMask,elbl,epreds)
       bbox_pred = permute(bbox_pred,[1,3,2]);
 
       overlap = bboxOverlapMatrix(bbox_lbl,bbox_pred);
+
+      roi_bbox = [rois(:,1,1) rois(:,1,2) rois(:,3,1) rois(:,3,2)];
+      overlap_roi_area = bboxOverlapAreaMatrix(roi_bbox,bbox_pred);
+      pred_area = ((bbox_pred(:,3)-bbox_pred(:,1)).*(bbox_pred(:,4)-bbox_pred(:,2)));
+      pred_area = permute(pred_area,[2,1]);
+      overlap_roi = overlap_roi_area./pred_area;
       for xx = sel_ndx2(:)'
-        if all(xx~=orig_idx2) && any(overlap(:,xx)>0.2)
+        if all(xx~=orig_idx2) && (any(overlap(:,xx)>0.2)|| any(overlap_roi(:,xx)>0.2))
             fp(xx) = 1;
         end
       end
@@ -144,10 +152,10 @@ function overlap_area = bboxOverlapArea(bbox1, bbox2)
     % Output: overlap_area in pixels
     
     % Find intersection coordinates
-    x1 = max(bbox1(1), bbox2(1));
-    y1 = max(bbox1(2), bbox2(2));
-    x2 = min(bbox1(3), bbox2(3));
-    y2 = min(bbox1(4), bbox2(4));
+    x1 = max(bbox1(1), bbox2(1),"includemissing");
+    y1 = max(bbox1(2), bbox2(2),'includemissing');
+    x2 = min(bbox1(3), bbox2(3),'includemissing');
+    y2 = min(bbox1(4), bbox2(4),'includemissing');
     
     % Compute intersection area
     if x2 > x1 && y2 > y1
@@ -173,6 +181,22 @@ function overlap_matrix = bboxOverlapMatrix(bboxes1, bboxes2)
     end
 end
 
+function overlap_matrix = bboxOverlapAreaMatrix(bboxes1, bboxes2)
+    % Compute overlap ratios between two sets of bounding boxes
+    % Input: bboxes1 (N x 4), bboxes2 (M x 4)
+    % Output: overlap_matrix (N x M) with IoU values
+    
+    n1 = size(bboxes1, 1);
+    n2 = size(bboxes2, 1);
+    overlap_matrix = zeros(n1, n2);
+    
+    for i = 1:n1
+        for j = 1:n2
+            overlap_matrix(i, j) = bboxOverlapArea(bboxes1(i, :), bboxes2(j, :));
+        end
+    end
+end
+
 function is_overlapping = bboxIsOverlapping(bbox1, bbox2, threshold)
     % Check if two bounding boxes overlap above a threshold
     % Input: bbox1, bbox2, threshold (default 0.5)
@@ -185,15 +209,3 @@ function is_overlapping = bboxIsOverlapping(bbox1, bbox2, threshold)
     overlap_ratio = bboxOverlapRatio(bbox1, bbox2);
     is_overlapping = overlap_ratio >= threshold;
 end
-
-% Example usage:
-% bbox1 = [10, 10, 50, 30];  % [x, y, width, height]
-% bbox2 = [30, 20, 40, 25];
-% 
-% overlap_ratio = bboxOverlapRatio(bbox1, bbox2);
-% overlap_area = bboxOverlapArea(bbox1, bbox2);
-% is_overlapping = bboxIsOverlapping(bbox1, bbox2, 0.3);
-% 
-% fprintf('Overlap ratio (IoU): %.3f\n', overlap_ratio);
-% fprintf('Overlap area: %.1f pixels\n', overlap_area);
-% fprintf('Is overlapping (>0.3): %d\n', is_overlapping);

@@ -760,7 +760,9 @@ classdef LabelCoreTemplate < LabelCore
       % Set "white points" to template.
 
       lbler = obj.labeler;      
-      tfTemplateHasTarget = ~any(isnan(tt.loc)) && ~isnan(tt.theta);
+      tfTemplateHasTarget = ~any(isnan(tt.loc)); % && ~isnan(tt.theta); 
+      % For some projects (e.g. larva, theta can be nan. So shouldn't test
+      % theta. MK 20250728
       tfHasTrx = lbler.hasTrx;
       
       if tfHasTrx && ~tfTemplateHasTarget
@@ -773,7 +775,11 @@ classdef LabelCoreTemplate < LabelCore
         
       if tfTemplateHasTarget
         [x1,y1,th1] = lbler.currentTargetLoc;
-        xys = transformPoints(tt.pts,tt.loc,tt.theta,[x1 y1],th1);
+        if isnan(th1-tt.theta)
+          xys = transformPoints(tt.pts,tt.loc,0,[x1 y1],0);
+        else
+          xys = transformPoints(tt.pts,tt.loc,tt.theta,[x1 y1],th1);
+        end
       else        
         xys = tt.pts;
       end

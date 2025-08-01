@@ -83,10 +83,10 @@ for viewi = 1:nviews
   if numel(ntotal) >= viewi && ~isnan(ntotal(viewi)),
     s{end+1} = sprintf('N examples = %d',ntotal(viewi));
   end
-  if isma
-    s{end+1} = sprintf('False Positive Rate: %.3f',fp/ntotal(viewi));
-    s{end+1} = sprintf('False Negative Rate: %.3f',fn/ntotal(viewi));
-  end
+  % if isma
+  %   s{end+1} = sprintf('False Positive Rate: %.3f (%d)',fp/ntotal(viewi),fp);
+  %   s{end+1} = sprintf('False Negative Rate: %.3f (%d)',fn/ntotal(viewi),fn);
+  % end
   if ~isempty(s),
     text(5,5,s,'Color',tcol,'Parent',hax(viewi),...
       'VerticalAlignment','top');
