@@ -79,3 +79,5 @@ target/
 pre.yaml
 Manifest.txt
 *.asv
+
+.vscode/
