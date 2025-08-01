@@ -56,6 +56,7 @@ handles.gl_left = uigridlayout(handles.gl,[2,1],'RowHeight',{'1x','fit'},'Paddin
 
 handles.tb_viz_curr = [];
 handles.vizdata = struct;
+handles.keypointParamState = handles.labelerObj.getKeypointParams();
 
 if handles.istrain,
 
@@ -341,6 +342,20 @@ output = handles.output;
 
   end
 
+  function hkp = InitKeypointParamsButton(parent,color)
+
+    if nargin < 2,
+      color = [];
+    end
+
+    descr = ['If you augment your training data by flipping horizontally or vertically, you ',...
+      'MUST set pairs of corresponding keypoints. '];
+    hkp = InitButton(parent,...
+      'tag','flippairs','titlestr','Keypoint pairs',...
+      'descr',descr,'buttonlabel','Set','color',color,'Callback',@cbkKeypointParams);
+    
+  end
+
   function hauto = InitAutoTune()
     
     hauto = struct;    
@@ -403,13 +418,9 @@ output = handles.output;
         'extradescr',extradescr);
       flipcolor = handles.nodeNum2Color(vert_flip_prm.Data.Index);
     end
-    % TODO add flip pairs here
+
     if horz_flip_prm.Data.Visible || vert_flip_prm.Data.Visible,
-      descr = ['If you augment your training data by flipping horizontally or vertically, you ',...
-        'MUST set pairs of corresponding keypoints. '];
-      hauto.auto{end+1} = InitButton(parent,...
-        'tag','flippairs','titlestr','Keypoint pairs',...
-        'descr',descr,'buttonlabel','Set','color',flipcolor,'Callback','');
+      hauto.auto{end+1} = InitKeypointParamsButton(parent,flipcolor);
     end
 
     for i = 1:numel(kk),
@@ -427,8 +438,13 @@ output = handles.output;
 
   end
 
+  function cbkStoreKeypointParams(state)
+    handles.keypointParamState = state;
+  end
+
   function cbkKeypointParams(src,evt)
-    landmark_specs('lObj',handles.labelerObj);
+    handles.vizobj = ParameterVisualizationKeypointParams();
+    handles.vizobj.init(handles.tile_viz,handles.labelerObj,'',handles.tree,@cbkStoreKeypointParams,handles.keypointParamState);
   end
 
   function buttonhandles = InitButton(parent,varargin)
@@ -443,17 +459,17 @@ output = handles.output;
     if ~isempty(color),
       buttonhandles.gl1.BackgroundColor = color;
     end
-    ncurr = 1 + double(~isempty(titestr));
-    buttonhandles.gl2 = uigridlayout(buttonhandles.gl1,[1,ncurr],'Padding',[0,0,0,0]);
+    ws = {'2x','1x'};
+    ncurr = 2;
+    buttonhandles.gl2 = uigridlayout(buttonhandles.gl1,[1,ncurr],'ColumnWidth',ws,'Padding',[0,0,0,0]);
     if ~isempty(color),
       buttonhandles.gl2.BackgroundColor = color;
     end
-    if ~isempty(titlestr),
-      buttonhandles.label = uilabel('Parent',buttonhandles.gl2,'Text',titlestr,'FontWeight','bold');
-    end
-    buttonhandles.button = uibutton('Parent',buttonhandles.gl2,'Text',buttonlabel,'Tag',['pb_',tag]);
+    buttonhandles.label = uilabel('Parent',buttonhandles.gl2,'Text',titlestr,'FontWeight','bold');
+    buttonhandles.button = uibutton('Parent',buttonhandles.gl2,'Text',buttonlabel,'Tag',['pb_',tag],...
+      'ButtonPushedFcn',cbk);
     buttonhandles.descr = uilabel('Parent',buttonhandles.gl1,'Text',descr,...
-      'WordWrap','on','Interpreter','html','ButtonPushedFcn',cbk);
+      'WordWrap','on','Interpreter','html');
   end
 
   function cbkValueDropdown(src,evt)
@@ -575,7 +591,11 @@ output = handles.output;
     if ~isempty(handles.vizobj),
       handles.vizobj.clear();
     end
-    delete(handles.tile_viz.Children);
+    if ishandle(handles.tile_viz),
+      delete(handles.tile_viz.Children);
+    else
+      handles.tile_viz = tiledlayout(handles.panel_right,'vertical','TileSpacing','compact','Padding','compact');
+    end
     handles.vizid = '';
     handles.vizobj = [];
     if ~isempty(handles.tb_viz_curr) && ishandle(handles.tb_viz_curr),
@@ -604,7 +624,8 @@ output = handles.output;
   end
 
   function cbkApply(src,evt)
-    handles.output = handles.tree.structize();
+    clearParamViz();
+    handles.output = {handles.tree.structize(),handles.keypointParamState};
     close(handles.figure);
   end
 

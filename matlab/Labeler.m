@@ -6168,6 +6168,31 @@ classdef Labeler < handle
     function setSkelNames(obj,names)
       obj.skelNames = names;
     end
+
+    function setKeypointParams(obj,state)
+      obj.setSkeletonEdges(state.sklEdges);
+      obj.setSkelHead(state.htHead);
+      obj.setSkelTail(state.htTail);
+      obj.setFlipLandmarkMatches(state.spEdges);
+      obj.setSkelNames(state.ptNames);
+    end
+    function state = getKeypointParams(obj)
+      state = struct;
+      state.sklEdges = obj.skeletonEdges;
+      if isempty(state.sklEdges)
+        state.sklEdges = zeros(0,2);
+      end
+      state.spEdges = obj.flipLandmarkMatches;
+      if isempty(state.spEdges)
+        state.spEdges = zeros(0,2);
+      end
+      state.htHead = obj.skelHead;
+      state.htTail = obj.skelTail;
+      state.ptNames = obj.skelNames;
+      if isempty(state.ptNames)
+        state.ptNames = arrayfun(@(x)sprintf('pt%d',x),(1:size(pts,1))','uni',0);
+      end
+    end
         
   end
   

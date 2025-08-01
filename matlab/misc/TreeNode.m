@@ -47,7 +47,7 @@ classdef TreeNode < handle
       if nargin < 2,
         p = '';
       end
-      t.Data.FullPath = [p,t.Data.FullPath];
+      t.Data.FullPath = [p,t.Data.Field];
       p1 = [p,t.Data.Field,'.'];
       for c = t.Children(:)',
         setFullPath(c,p1);

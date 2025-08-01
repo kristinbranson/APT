@@ -3,12 +3,13 @@ classdef landmark_specs < handle
   % Properties that correspond to app components
   properties (Access = public)
     hFig
+    gl
     axSkel
     axHT
     axSwap
+    isStandAlone;
     
 %     GridLayout         matlab.ui.container.GridLayout
-    LeftPanel          %matlab.ui.container.Panel
     TabGroup           %matlab.ui.container.TabGroup
     SkeletonTab        %matlab.ui.container.Tab
     AddEdgeButton      %matlab.ui.control.Button
@@ -21,12 +22,18 @@ classdef landmark_specs < handle
     RemovePairButton   %matlab.ui.control.Button
     RightPanel         %atlab.ui.container.Panel
     UITable            %matlab.ui.control.Table
+
   end 
   
   properties (Access = private)
     lObj
     pts % [npt x 2] xy coords for viz purposes
     ptNames % [nphyspts] cellstr; working model/data for UI, to be written to lObj
+    nview
+    nPhysPoints
+    imagescArgs
+    labelCM
+    axesProps 
     
     anyChangeMade = false;
     
@@ -66,97 +73,33 @@ classdef landmark_specs < handle
     unselectedMarker
     unselectedMarkerSize
     unselectedLineWidth
+    txtOffset
+
+    im
   end
   
   methods (Access = public)
     
     function obj = landmark_specs(varargin)
-      obj.createComponents();
-      obj.startupFcn(varargin{:});
+      [hParent,isVert,argsrest] = myparse_nocheck(varargin,'hParent',[],'isVert',false);
+      obj.createComponents('hParent',hParent,'isVert',isVert);
+      obj.startupFcn(argsrest{:});
 %       if nargout == 0
 %         clear app
 %       end
     end
     
     function delete(obj)
-      delete(obj.hFig);
+      if obj.isStandAlone,
+        delete(obj.hFig);
+      else
+        delete(obj.gl);
+      end
     end
   end
-  
-  %#OK
-  methods (Static)
-    function s = parseLabelerState(lObj)
-      freezeInfo = lObj.prevAxesModeInfo;
-      imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
-      im = lObj.prevAxesModeInfo.im;
-      axcProps = freezeInfo.axes_curr;
-      axesProps = {};
-      for prop=fieldnames(axcProps)',
-        axesProps(end+1:end+2) = {prop{1},axcProps.(prop{1})};
-      end
-      if freezeInfo.isrotated,
-        axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};
-      end
-      isrotated = freezeInfo.isrotated;
-      
-      iMov = freezeInfo.iMov;
-      frm = freezeInfo.frm;
-      iTgt = freezeInfo.iTgt;
-      
-      lpos = lObj.labelsGTaware;
-      s = lpos{iMov};
-      [~,p,~] = Labels.isLabeledFT(s,frm,iTgt);
-      pts = reshape(p,numel(p)/2,2);
-      nan_pts = isnan(pts(:,1));
-      max_p = repmat(max(pts,[],1),[size(pts,1),1]);
-      min_p = repmat(min(pts,[],1),[size(pts,1),1]);
-      rp = rand(size(pts)).*(max_p-min_p) + min_p;
-      pts(nan_pts,:) = rp(nan_pts,:);
-      %pts = lpos{iMov}(:,:,frm,iTgt);
-      if isrotated,
-        pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
-        pts = pts(:,1:2);
-      end
-      labelCM = lObj.LabelPointColors;            
-      if isempty(labelCM)
-        labelCM = jet(size(pts,1));
-      end
-      txtOffset = lObj.labelPointsPlotInfo.TextOffset;
-      
-      s = struct();
-      s.skelEdges = lObj.skeletonEdges;
-      if isempty(s.skelEdges)
-        s.skelEdges = zeros(0,2);
-      end
-      s.swaps = lObj.flipLandmarkMatches;
-      if isempty(s.swaps)
-        s.swaps = zeros(0,2);
-      end
-      s.head = lObj.skelHead;
-      s.tail = lObj.skelTail;
-      s.skelNames = lObj.skelNames;
-      if isempty(s.skelNames)
-        s.skelNames = arrayfun(@(x)sprintf('pt%d',x),(1:size(pts,1))','uni',0);
-      end
-      s.im = im;
-      s.pts = pts;
-      s.nview = lObj.nview;
-      s.nPhysPoints = lObj.nPhysPoints;
-      s.imagescArgs = imagescArgs;
-      s.labelCM = labelCM;
-      s.axesProps = axesProps;
-      s.txtOffset = txtOffset;
-    end
-    function hIm = initImage(hAx,slbl)
-      hold(hAx,'off');
-      hIm = imagesc(slbl.im,'Parent',hAx,slbl.imagescArgs{:});
-      hold(hAx,'on');
-      axis(hAx,'off','image');
-      set(hAx,slbl.axesProps{:});
-      colormap(hAx,'gray');
-    end    
-  end
+ 
   methods (Access=private) % cbks
+    
     function edgeClicked(app,h,e)
       if h.Parent==app.axSkel
         app.edgeClickedSkel(h,e);
@@ -300,8 +243,7 @@ classdef landmark_specs < handle
 %       app.htISelected = iSelect;
 %     end
     %#OK
-    function cbkTabGroupSelChanged(obj,e)
-      tab = e.NewValue;
+    function setTab(obj,tab)
       if tab==obj.SkeletonTab
         obj.updateTableSkel();
       elseif tab==obj.HeadTailTab
@@ -311,16 +253,18 @@ classdef landmark_specs < handle
         obj.updateTableSwap();
       end
     end
+    function cbkTabGroupSelChanged(obj,e)
+      tab = e.NewValue;
+      obj.setTab(tab);
+    end
     function updateTableSkel(obj)
       ht = obj.UITable;      
       ht.RowName = 'numbered';
       ht.Data = obj.ptNames(:);
       ht.ColumnName = {'Name'};
       ht.ColumnEditable = true;
-      ht.Units = 'pixels';
-      pos = ht.Position;
-      ht.Units = 'normalized';
-      ht.ColumnWidth = {pos(3)*.8};
+      ht.ColumnWidth = {'1x'};
+      %ht.ColumnWidth = {pos(3)*.8};
     end
     function updateTableHT(obj)
       nphyspts = numel(obj.ptNames); 
@@ -339,10 +283,8 @@ classdef landmark_specs < handle
       tbl.Data = [obj.ptNames(:) num2cell(htmat)];
       tbl.ColumnName = {'Name' 'Head' 'Tail'};
       tbl.ColumnEditable = [true true true];
-      tbl.Units = 'pixels';
-      pos = tbl.Position;
-      tbl.Units = 'normalized';
-      tbl.ColumnWidth = {pos(3)*.5 pos(3)*.15 pos(3)*.15};
+      tbl.ColumnWidth = {'10x','3x','3x'};
+      %tbl.ColumnWidth = {pos(3)*.5 pos(3)*.15 pos(3)*.15};
     end
     function updateTableSwap(obj)
       partners = repmat({'none'},size(obj.ptNames(:)));
@@ -360,10 +302,8 @@ classdef landmark_specs < handle
       ht.Data = [obj.ptNames(:) partners];
       ht.ColumnName = {'Name' 'Partner'};
       ht.ColumnEditable = [false false];
-      ht.Units = 'pixels';
-      pos = ht.Position;
-      ht.Units = 'normalized';
-      ht.ColumnWidth = {pos(3)*.4 pos(3)*.4};
+      ht.ColumnWidth = {'1x','1x'};
+      %ht.ColumnWidth = {pos(3)*.4 pos(3)*.4};
     end    
     function moveEdgesToBack(app,axfld,fldhim,fldhtxt,fldhedges, ...
         fldhedgesel,fldhpts)
@@ -381,91 +321,87 @@ classdef landmark_specs < handle
     
     %#OK
     function startupFcn(obj, varargin)
-      [lblObj,edges,plotptsArgs,textArgs,...
-        txtOffset,selMarkerSize,unselMarkerSize,...
-        selMarker,unselMarker,...
-        unselColor,selColor,...
-        unselLineWidth,selLineWidth,waiton_ui] = myparse(varargin,...
+      [obj.lObj,state,plotptsArgs,textArgs,...
+        obj.txtOffset,obj.selectedMarkerSize,obj.unselectedMarkerSize,...
+        obj.selectedMarker,obj.unselectedMarker,...
+        obj.unselectedColor,obj.selectedColor,...
+        obj.unselectedLineWidth,obj.selectedLineWidth,waiton_ui,...
+        startTabTitle] = myparse(varargin,...
         'lObj',[],...
-        'edges',[], ...
+        'state',struct, ...
         'plotptsArgs',{'linewidth',2},...
         'textArgs',{'fontsize',16}, ...
         'txtOffset',1,...
-        'selectedMarkerSize',12,...
+        'selectedMarkerSize',8,...
         'unselectedMarkerSize',8,...
         'selectedMarker','o','unselectedMarker','+',...
         'unselectedColor',[.5,.5,.5],'selectedColor',[.8,0,.8],...
         'unselectedLineWidth',2,'selectedLineWidth',4, ...
-        'waiton_ui',false ...
+        'waiton_ui',false, ...
+        'startTabTitle',''...
         );
-      
-      if ~isempty(lblObj)
-        centerOnParentFigure(obj.hFig,lblObj.hFig,'setParentFixUnitsPx',true);
-      else
-        centerfig(obj.hFig);
+
+      assert(~isempty(obj.lObj));
+      if obj.isStandAlone,
+        centerOnParentFigure(obj.hFig,obj.lObj.hFig,'setParentFixUnitsPx',true);
       end
       
-      obj.lObj = lblObj;
-      
-      obj.selectedColor = selColor;
-      obj.selectedMarker = selMarker;
-      obj.selectedMarkerSize = selMarkerSize;
-      obj.selectedLineWidth = selLineWidth;
-      obj.unselectedColor = unselColor;
-      obj.unselectedMarker = unselMarker;
-      obj.unselectedMarkerSize = unselMarkerSize;
-      obj.unselectedLineWidth = unselLineWidth;
-      
-      if ~lblObj.isPrevAxesModeInfoSet()
+      if ~obj.lObj.isPrevAxesModeInfoSet()
         errordlg('Please freeze a labeled reference image for use with this UI.',...
           'No Reference Image');
         return;
       end
 
-      slbl = obj.parseLabelerState(obj.lObj);
-      obj.pts = slbl.pts; 
-      obj.ptNames = slbl.skelNames; 
+      obj.parseLabelerState();
 
-      % align axes
-      obj.axHT.Position = obj.axSkel.Position;
-      obj.axSwap.Position = obj.axSkel.Position;
-      
-      obj.sklEdges = slbl.skelEdges;
-      obj.initTabSkel(slbl,textArgs,plotptsArgs);
-      obj.htHead = slbl.head;
-      obj.htTail = slbl.tail;
-      obj.initTabHeadTail(slbl,textArgs,plotptsArgs);
-      obj.spEdges = slbl.swaps;
-      obj.initTabSwap(slbl,textArgs,plotptsArgs);
-      
-      obj.updateTableSkel();
+      % overwrite with optional input state
+      fns = fieldnames(state);
+      for i = 1:numel(fns),
+        obj.(fns{i}) = state.(fns{i});
+      end
+
+      obj.initTabSkel(textArgs,plotptsArgs);
+      obj.initTabHeadTail(textArgs,plotptsArgs);
+      obj.initTabSwap(textArgs,plotptsArgs);
+      if ~isempty(startTabTitle),
+        tabs = obj.TabGroup.Children;
+        tabtitles = {tabs.Title};
+        i = find(strcmp(tabtitles,startTabTitle),1);
+        if isempty(i),
+          warningNoTrace(sprintf('No tab with title %s',startTabTitle));
+        else
+          obj.TabGroup.SelectedTab = tabs(i);
+        end
+      end
+      obj.setTab(obj.TabGroup.SelectedTab);
       if waiton_ui
         uiwait(obj.hFig);
       end
     end
     
     %#OK
-    function [hpts,htxt] = initPtsAx(obj,hAx,slbl,plotptsArgs,textArgs)
+    function [hpts,htxt] = initPtsAx(obj,hAx,plotptsArgs,textArgs)
       unselMarker = obj.unselectedMarker;
       unselMarkerSize = obj.unselectedMarkerSize;
       
       %npts = size(obj.pts,1);
-      nphyspts = slbl.nPhysPoints; % dont want to plot all views' points on hAx
+      nphyspts = obj.nPhysPoints; % dont want to plot all views' points on hAx
       %ptnames = slbl.skelNames;
 
       hpts = gobjects(nphyspts,1);
       htxt = gobjects(nphyspts,1);
+      pat = [repmat(' ',[1,obj.txtOffset]),'%d'];
       for i = 1:nphyspts
-        hpts(i) = plot(hAx,slbl.pts(i,1),slbl.pts(i,2),unselMarker,...
-          'Color',slbl.labelCM(i,:),'MarkerFaceColor',slbl.labelCM(i,:),...
+        hpts(i) = plot(hAx,obj.pts(i,1),obj.pts(i,2),unselMarker,...
+          'Color',obj.labelCM(i,:),'MarkerFaceColor',obj.labelCM(i,:),...
           'UserData',i,'MarkerSize',unselMarkerSize,plotptsArgs{:});
         set(hpts(i),'ButtonDownFcn',@(h,e)obj.ptClicked(h,e));
-        htxt(i) = text(hAx,obj.pts(i,1)+slbl.txtOffset,obj.pts(i,2)+slbl.txtOffset,...
-          num2str(i),'Color',slbl.labelCM(i,:),'PickableParts','none',textArgs{:});
+        htxt(i) = text(hAx,obj.pts(i,1),obj.pts(i,2),...
+          sprintf(pat,i),'Color',obj.labelCM(i,:),'PickableParts','none',textArgs{:});
       end   
     end
     %#OK
-    function [hEdges,hEdgeSel] = initEdgesAx(obj,hAx,slbl,fldEdge)
+    function [hEdges,hEdgeSel] = initEdgesAx(obj,hAx,edges)
       
       selColor = obj.selectedColor;
       %       app.selectedMarker = selMarker;
@@ -474,11 +410,10 @@ classdef landmark_specs < handle
       unselColor = obj.unselectedColor;
       unselLineWidth = obj.unselectedLineWidth;
       
-      edges = slbl.(fldEdge);
       nedge = size(edges,1);
       hEdges = gobjects(1,nedge);
       for i = 1:nedge
-        hEdges(i) = plot(hAx,slbl.pts(edges(i,:),1),slbl.pts(edges(i,:),2),'-',...
+        hEdges(i) = plot(hAx,obj.pts(edges(i,:),1),obj.pts(edges(i,:),2),'-',...
           'Color',selColor,'LineWidth',unselLineWidth,...
           'ButtonDownFcn',@(h,e)obj.edgeClicked(h,e),...
           'UserData',edges(i,:),'Tag',sprintf('edge%d',i));
@@ -488,12 +423,12 @@ classdef landmark_specs < handle
         'LineWidth',selLineWidth,'PickableParts','none');
     end
     %#OK
-    function initTabSkel(obj,slbl,textArgs,plotptsArgs)
+    function initTabSkel(obj,textArgs,plotptsArgs)
       hAx = obj.axSkel;
       
-      hIm = obj.initImage(hAx,slbl);
-      [hpts,htxt] = obj.initPtsAx(hAx,slbl,plotptsArgs,textArgs);
-      [hEdges,hEdgeSel] = obj.initEdgesAx(hAx,slbl,'skelEdges');
+      hIm = obj.initImage(hAx);
+      [hpts,htxt] = obj.initPtsAx(hAx,plotptsArgs,textArgs);
+      [hEdges,hEdgeSel] = obj.initEdgesAx(hAx,obj.sklEdges);
 
       obj.sklHpts = hpts;
       obj.sklHEdges = hEdges;
@@ -503,23 +438,23 @@ classdef landmark_specs < handle
       obj.sklISelected = [];
     end
     %#OK
-    function initTabHeadTail(obj,slbl,textArgs,plotptsArgs)
+    function initTabHeadTail(obj,textArgs,plotptsArgs)
       hAx = obj.axHT;
       
-      hIm = obj.initImage(hAx,slbl);
-      [hpts,htxt] = obj.initPtsAx(hAx,slbl,plotptsArgs,textArgs);         
+      hIm = obj.initImage(hAx);
+      [hpts,htxt] = obj.initPtsAx(hAx,plotptsArgs,textArgs);         
       obj.htHTpts = hpts;
       obj.htHIm = hIm;
       obj.htHTxt = htxt;
       obj.htISelected = [];
     end
     %#OK
-    function initTabSwap(obj,slbl,textArgs,plotptsArgs)
+    function initTabSwap(obj,textArgs,plotptsArgs)
       hAx = obj.axSwap;
       
-      hIm = obj.initImage(hAx,slbl);
-      [hpts,htxt] = obj.initPtsAx(hAx,slbl,plotptsArgs,textArgs);
-      [hEdges,hEdgeSel] = obj.initEdgesAx(hAx,slbl,'swaps');
+      hIm = obj.initImage(hAx);
+      [hpts,htxt] = obj.initPtsAx(hAx,plotptsArgs,textArgs);
+      [hEdges,hEdgeSel] = obj.initEdgesAx(hAx,obj.spEdges);
 
       obj.spHpts = hpts;
       obj.spHEdges = hEdges;
@@ -527,6 +462,59 @@ classdef landmark_specs < handle
       obj.spHTxt = htxt;
       obj.spHEdgeSelected = hEdgeSel;
       obj.spISelected = [];
+    end
+
+    function parseLabelerState(obj)
+      freezeInfo = obj.lObj.prevAxesModeInfo;
+      imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
+      im = obj.lObj.prevAxesModeInfo.im; %#ok<*PROP>
+      axcProps = freezeInfo.axes_curr;
+      axesProps = {};
+      for prop=fieldnames(axcProps)',
+        axesProps(end+1:end+2) = {prop{1},axcProps.(prop{1})};
+      end
+      if freezeInfo.isrotated,
+        axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};
+      end
+      isrotated = freezeInfo.isrotated;
+      
+      iMov = freezeInfo.iMov;
+      frm = freezeInfo.frm;
+      iTgt = freezeInfo.iTgt;
+      
+      lpos = obj.lObj.labelsGTaware;
+      s = lpos{iMov};
+      [~,p,~] = Labels.isLabeledFT(s,frm,iTgt);
+      pts = reshape(p,numel(p)/2,2);
+      nan_pts = isnan(pts(:,1));
+      max_p = repmat(max(pts,[],1),[size(pts,1),1]);
+      min_p = repmat(min(pts,[],1),[size(pts,1),1]);
+      rp = rand(size(pts)).*(max_p-min_p) + min_p;
+      pts(nan_pts,:) = rp(nan_pts,:);
+      %pts = lpos{iMov}(:,:,frm,iTgt);
+      if isrotated,
+        pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
+        pts = pts(:,1:2);
+      end
+      labelCM = obj.lObj.LabelPointColors;            
+      if isempty(labelCM)
+        labelCM = jet(size(pts,1));
+      end
+      
+      state = obj.lObj.getKeypointParams();
+      obj.sklEdges = state.sklEdges;
+      obj.spEdges = state.spEdges;
+      obj.htHead = state.htHead;
+      obj.htTail = state.htTail;
+      obj.ptNames = state.ptNames;
+
+      obj.im = im;
+      obj.pts = pts;
+      obj.nview = obj.lObj.nview;
+      obj.nPhysPoints = obj.lObj.nPhysPoints;
+      obj.imagescArgs = imagescArgs;
+      obj.labelCM = labelCM;
+      obj.axesProps = axesProps;
     end
     
 %     % Changes arrangement of the app based on UIFigure width
@@ -614,7 +602,7 @@ classdef landmark_specs < handle
         return;
       end
       if any(ismember(iSeld(:),edges(:)))
-        error('A landmark can have at most one swap partner. Please remove any existing/conflicting swap pairs.');
+        error('A keypoint can have at most one swap partner. Please remove any existing/conflicting swap pairs.');
       end
       edge = sort(iSeld);
       edges(end+1,:) = edge;
@@ -746,18 +734,38 @@ classdef landmark_specs < handle
           'MarkerSize',obj.selectedMarkerSize)
       end
     end
-    
+
+    function s = getState(obj)
+
+      s = struct;
+      s.sklEdges = obj.sklEdges;
+      s.htHead = obj.htHead;
+      s.htTail = obj.htTail;
+      s.spEdges = obj.spEdges;
+      s.ptNames = obj.ptNames;
+
+    end
+
+    function accept(obj)
+      obj.lObj.setKeypointParams(obj.getState());
+    end
+
+    function AcceptButtonPushed(obj,src,evt)
+      obj.accept();
+      delete(obj);
+    end
+
+    function CancelButtonPushed(obj,src,evt)
+      delete(obj);
+    end
+
     %#OK
     function closereq(obj,src,event)
       if obj.anyChangeMade
         btn = questdlg('Save changes?','Exit','Yes','No','Yes');
         switch btn
           case 'Yes'
-            obj.lObj.setSkeletonEdges(obj.sklEdges);
-            obj.lObj.setSkelHead(obj.htHead);
-            obj.lObj.setSkelTail(obj.htTail);
-            obj.lObj.setFlipLandmarkMatches(obj.spEdges);
-            obj.lObj.setSkelNames(obj.ptNames);
+            obj.accept();
           otherwise
             % none
         end
@@ -765,38 +773,46 @@ classdef landmark_specs < handle
       delete(obj);      
     end
     
-    function resize(obj,src,event)
-      
-      ht = obj.UITable;
-      ht.Units = 'pixels';
-      pos = ht.Position;
-      ht.Units = 'normalized';
-      switch lower(obj.TabGroup.SelectedTab.Title),
-        case 'skeleton'
-          ht.ColumnWidth = {pos(3)*.8};
-        case 'head/tail'
-          ht.ColumnWidth = {pos(3)*.5 pos(3)*.15 pos(3)*.15};
-        case 'swap pairs'
-          ht.ColumnWidth = {pos(3)*.4 pos(3)*.4};
-      end
-    end
   end
   
   % Component initialization
   methods (Access = private)
+
+    function hIm = initImage(obj,hAx)
+      hold(hAx,'off');
+      hIm = imagesc(obj.im,'Parent',hAx,obj.imagescArgs{:});
+      hold(hAx,'on');
+      axis(hAx,'off','image');
+      hAx.XTick = [];
+      hAx.YTick = [];
+      set(hAx,obj.axesProps{:});
+      colormap(hAx,'gray');
+    end
+
     
     % Create UIFigure and components
-    function createComponents(obj)
+    function createComponents(obj,varargin)
       
-      FSIZE = 12;
-      % Create hFig and hide until all components are created
-      obj.hFig = figure('Visible', 'off');
-      obj.hFig.AutoResizeChildren = 'off';
-      obj.hFig.Position = [100 100 686 392];
-      obj.hFig.Name = 'Landmark Specifications';
-      obj.hFig.MenuBar = 'none';
-      obj.hFig.CloseRequestFcn = @(src,evt)obj.closereq(src,evt);
-      obj.hFig.SizeChangedFcn = @(src,evt)obj.resize(src,evt);
+      [hParent,isVert] = myparse(varargin,'hParent',[],'isVert',false);
+
+      if ~isempty(hParent),
+        obj.hFig = hParent;
+        obj.isStandAlone = false;
+      else
+        % Create hFig and hide until all components are created
+        obj.hFig = uifigure; %('Visible', 'off');
+        obj.hFig.Position = [100 100 686 392];
+        obj.hFig.Name = 'Keypoint Specifications';
+        obj.hFig.MenuBar = 'none';
+        obj.hFig.CloseRequestFcn = @(src,evt)obj.closereq(src,evt);
+        obj.isStandAlone = true;
+      end
+      if isVert,
+        obj.gl = uigridlayout(obj.hFig,[2,1],'RowHeight',{'4x','1x'});
+      else
+        obj.gl = uigridlayout(obj.hFig,[1,2],'ColumnWidth',{'3x','2x'});
+      end
+
 %       app.hFig.SizeChangedFcn = createCallbackFcn(app, @updateAppLayout, true);
       
 %       % Create GridLayout
@@ -808,72 +824,48 @@ classdef landmark_specs < handle
 %       app.GridLayout.Padding = [0 0 0 0];
 %       app.GridLayout.Scrollable = 'on';
       
-      lpw = .6;
-      obj.LeftPanel = uipanel('Parent',obj.hFig,'units','normalized',...
-        'Position',[0 0 lpw 1]);
-%       obj.LeftPanel.Layout.Row = 1;
-%       obj.LeftPanel.Layout.Column = 1;
+      glbuttons = cell(1,3);
 
-      obj.TabGroup = uitabgroup(obj.LeftPanel);
+      gl2 = uigridlayout(obj.gl,[1,1],'ColumnSpacing',0,'RowSpacing',0,'Padding',zeros(1,4));
+      obj.TabGroup = uitabgroup(gl2);
 %       obj.TabGroup.Position = [6 6 436 376];
       obj.TabGroup.SelectionChangedFcn = @(s,e)obj.cbkTabGroupSelChanged(e);      
       
       obj.SkeletonTab = uitab(obj.TabGroup);
       obj.SkeletonTab.Title = 'Skeleton';
 
-      % sizes of stuff
-      BTNH = .08;
-      BTNY0 = .01;
-      BTNGAP = .01;
-      
+      gltab = uigridlayout(obj.SkeletonTab,[2,1],'RowHeight',{'1x','fit'},'Padding',zeros(1,4));
+
       % Create axSkel
-      obj.axSkel = axes(obj.SkeletonTab);
-      title(obj.axSkel, '')
-      xlabel(obj.axSkel, '')
-      ylabel(obj.axSkel, '')
+      pan = uipanel(gltab,'BorderType','none');
+      tl = tiledlayout(pan,'vertical','TileSpacing','compact','Padding','compact');
+      obj.axSkel = nexttile(tl);
       obj.axSkel.XTick = [];
       obj.axSkel.YTick = [];
-      obj.axSkel.Units = 'normalized';
-      axpos = [.02 BTNH+.02 .96 1-BTNH-.04];
-      obj.axSkel.Position = axpos;
-      %obj.axSkel.Position = [15 53 390 280];
       
       % Create AddEdgeButton
-      nbuttons = 2;
-      btnw = (.7-BTNGAP*(nbuttons-1))/nbuttons;
-      btnx0 = .5 - (nbuttons*(btnw+BTNGAP)-BTNGAP)/2;
-
-%       BTNX0 = 50;
-%       BTNY0 = 7;
-%       BTNW = 120;
-%       BTNH = 30;
-      obj.AddEdgeButton = uicontrol(obj.SkeletonTab,'style','pushbutton');
-      obj.AddEdgeButton.Callback = @(s,e)obj.AddEdgeButtonPushed(e);
-      obj.AddEdgeButton.String = 'Add Edge';
-      obj.RemoveEdgeButton = uicontrol(obj.SkeletonTab,'style','pushbutton');
-      obj.RemoveEdgeButton.Callback = @(s,e)obj.RemoveEdgeButtonPushed(e);
-      obj.RemoveEdgeButton.String = 'Remove Edge';
-      obj.AddEdgeButton.Units = 'normalized';
-      obj.RemoveEdgeButton.Units = 'normalized';
-      obj.AddEdgeButton.Position = [btnx0 BTNY0 btnw BTNH];
-      obj.RemoveEdgeButton.Position = [btnx0+btnw+BTNGAP BTNY0 btnw BTNH];
-      obj.AddEdgeButton.FontSize = FSIZE;
-      obj.RemoveEdgeButton.FontSize = FSIZE;
+      glbutton = uigridlayout(gltab,[1,4],'ColumnWidth',{'1x','1x','1x','1x'},'RowHeight',{'fit'});
+      obj.AddEdgeButton = uibutton(glbutton,"push",'Text','Add Edge','ButtonPushedFcn',@(s,e)obj.AddEdgeButtonPushed(e));
+      obj.RemoveEdgeButton = uibutton(glbutton,"push",'Text','Remove Edge','ButtonPushedFcn',@(s,e)obj.RemoveEdgeButtonPushed(e));
+      glbuttons{1} = glbutton;
       
       % Create HeadTailTab
       obj.HeadTailTab = uitab(obj.TabGroup);
       obj.HeadTailTab.Title = 'Head/Tail';
-      
+
+      gltab = uigridlayout(obj.HeadTailTab,[2,1],'RowHeight',{'1x','fit'},'Padding',zeros(1,4));
+
+      pan = uipanel(gltab,'BorderType','none');
+      tl = tiledlayout(pan,'vertical','TileSpacing','compact','Padding','compact');
+
       % Create axHT
-      obj.axHT = axes(obj.HeadTailTab);
-      title(obj.axHT, '')
-      xlabel(obj.axHT, '')
-      ylabel(obj.axHT, '')
+      obj.axHT = nexttile(tl);
       obj.axHT.XTick = [];
       obj.axHT.YTick = [];
-      obj.axHT.Units = 'normalized';
-      obj.axHT.Position = axpos;
       
+      glbutton = uigridlayout(gltab,[1,4],'ColumnWidth',{'1x','1x','1x','1x'},'RowHeight',{'fit'});
+      glbuttons{2} = glbutton;
+
       % Create SpecifyHeadButton
 %       obj.SpecifyHeadButton = uicontrol(obj.HeadTailTab,'style','pushbutton');
 %       obj.SpecifyHeadButton.Callback = @(s,e)obj.SpecifyHeadButtonPushed(e);
@@ -888,60 +880,44 @@ classdef landmark_specs < handle
       
       % Create SwapPairsTab
       obj.SwapPairsTab = uitab(obj.TabGroup);
-      obj.SwapPairsTab.Title = 'Swap Pairs';
+      obj.SwapPairsTab.Title = 'Correspondences';
       
+      gltab = uigridlayout(obj.SwapPairsTab,[2,1],'RowHeight',{'1x','fit'},'Padding',zeros(1,4));
+
       % Create axSwap
-      obj.axSwap = axes(obj.SwapPairsTab);
-      title(obj.axSwap, '')
-      xlabel(obj.axSwap, '')
-      ylabel(obj.axSwap, '')
+      pan = uipanel(gltab,'BorderType','none');
+      tl = tiledlayout(pan,'vertical','TileSpacing','compact','Padding','compact');
+      obj.axSwap = nexttile(tl);
       obj.axSwap.XTick = [];
       obj.axSwap.YTick = [];
-      obj.axSwap.Units = 'normalized';
-      obj.axSwap.Position = axpos;
       
-      % Create AddPairButton
-      
-      nbuttons = 2;
-      btnw = (.7-BTNGAP*(nbuttons-1))/nbuttons;
-      btnx0 = .5 - (nbuttons*(btnw+BTNGAP)-BTNGAP)/2;
-      
-      obj.AddPairButton = uicontrol(obj.SwapPairsTab,'style','pushbutton');
-      obj.AddPairButton.Callback = @(s,e)obj.AddPairButtonPushed(e);
-%      obj.AddPairButton.Position = [118 17 100 23];
-      obj.AddPairButton.String = 'Add Pair';
-      obj.RemovePairButton = uicontrol(obj.SwapPairsTab,'style','pushbutton');
-      obj.RemovePairButton.Callback = @(s,e)obj.RemovePairButtonPushed(e);
-      %obj.RemovePairButton.Position = [230 17 100 23];
-      obj.RemovePairButton.String = 'Remove Pair';
-      obj.AddPairButton.Units = 'normalized';
-      obj.RemovePairButton.Units = 'normalized';
-      obj.AddPairButton.Position = [btnx0 BTNY0 btnw BTNH];
-      obj.RemovePairButton.Position = [btnx0+btnw+BTNGAP BTNY0 btnw BTNH];
-      obj.AddPairButton.FontSize = FSIZE;
-      obj.RemovePairButton.FontSize = FSIZE;
-      
-      % Create RightPanel
-      obj.RightPanel = uipanel('Parent',obj.hFig,'units','normalized',...
-        'Position',[lpw 0 1-lpw 1]);
-%       obj.RightPanel.Layout.Row = 1;
-%       obj.RightPanel.Layout.Column = 2;
-      
+      % Create AddPairButton      
+      glbutton = uigridlayout(gltab,[1,4],'ColumnWidth',{'1x','1x','1x','1x'},'RowHeight',{'fit'});
+      obj.AddPairButton = uibutton(glbutton,"push",'Text','Add Pair','ButtonPushedFcn',@(s,e)obj.AddPairButtonPushed(e));
+      obj.RemovePairButton = uibutton(glbutton,"push",'Text','Remove Pair','ButtonPushedFcn',@(s,e)obj.RemovePairButtonPushed(e));
+      glbuttons{3} = glbutton;
+
+      for i = 1:numel(glbuttons),
+        acceptbutton = uibutton(glbuttons{i},"push",'Text','Accept','ButtonPushedFcn',@(s,e)obj.AcceptButtonPushed(s,e));
+        acceptbutton.Layout.Column = 3;
+        cancelbutton = uibutton(glbuttons{i},"push",'Text','Cancel','ButtonPushedFcn',@(s,e)obj.CancelButtonPushed(s,e));
+        cancelbutton.Layout.Column = 4;
+      end
+
+
       % Create UITable
-      obj.UITable = uitable(obj.RightPanel);
+      obj.UITable = uitable(obj.gl);
       obj.UITable.RowName = 'numbered';
 %       app.UITable.Data = app.ptNames(:);
       obj.UITable.ColumnName = {'Name'};
       obj.UITable.ColumnEditable = true;
       obj.UITable.ColumnWidth = {'auto'};      
       obj.UITable.CellEditCallback = @(s,e)obj.UITableCellEdit(e);
-      obj.UITable.Units = 'normalized';
-      obj.UITable.Position = [.02 .02 .96 .96];
-      obj.UITable.FontSize = FSIZE;
-      %obj.UITable.FontUnits = 'normalized';
       
       % Show the figure after all components are created
-      obj.hFig.Visible = 'on';
+      if obj.isStandAlone,
+        obj.hFig.Visible = 'on';
+      end
     end
   end 
  
