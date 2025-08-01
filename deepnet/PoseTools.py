@@ -49,6 +49,8 @@ import hdf5storage
 # from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 ISPY3 = sys.version_info >= (3, 0)
+SMALLVALUE = -100000
+SMALLVALUETHRESH = -1000
 
 # In[ ]:
 
@@ -82,7 +84,7 @@ def rescale_points(locs_hires, scalex, scaley):
         reduce_dim = False
 
     nan_valid = np.invert(np.isnan(locs_hires))
-    high_valid = locs_hires > -10000  # ridiculosly low values are used for multi animal
+    high_valid = locs_hires > SMALLVALUETHRESH  # ridiculosly low values are used for multi animal
     valid = nan_valid & high_valid
 
     bsize, nmax, npts, d = locs_hires.shape[-4:]
@@ -92,7 +94,7 @@ def rescale_points(locs_hires, scalex, scaley):
     locs_lores[..., 0] = (locs_lores[..., 0] - float(scalex - 1) / 2) / scalex
     locs_lores[..., 1] = (locs_lores[..., 1] - float(scaley - 1) / 2) / scaley
     locs_lores[~nan_valid] = np.nan
-    locs_lores[~high_valid] = -100000
+    locs_lores[~high_valid] = SMALLVALUE
 
     if reduce_dim:
         locs_lores = locs_lores[:,0,...]
@@ -122,7 +124,7 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     scalex_actual = sz[2]/szx_ds
 
     nan_valid = np.invert(np.isnan(locs))
-    high_valid = locs > -10000  # ridiculosly low values are used for multi animal
+    high_valid = locs > SMALLVALUETHRESH  # ridiculosly low values are used for multi animal
     valid = nan_valid & high_valid
 
     simg = np.zeros((sz[0], szy_ds, szx_ds, sz[3]))
@@ -149,7 +151,7 @@ def scale_images(img, locs, scale, conf, mask=None, **kwargs):
     # AL 20190909. see also create_label_images
     # new_locs = new_locs/scale
     new_locs = rescale_points(locs, scalex_actual, scaley_actual)
-    new_locs[~valid] = -100000
+    new_locs[~valid] = SMALLVALUE
 
     return simg, new_locs, smask
 
@@ -253,8 +255,8 @@ def randomly_flip_lr(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
                     match = ll
                 for curn in range(orig_locs.shape[1]):
                     for sndx in range(st,en):
-                        if orig_locs[sndx,curn,match,0] < -1000:
-                            locs[sndx,curn,ll,0] = -100000
+                        if orig_locs[sndx,curn,match,0] < SMALLVALUETHRESH:
+                            locs[sndx,curn,ll,0] = SMALLVALUE
                         else:
                             locs[sndx,curn, ll, 0] = wd - 1 - orig_locs[sndx,curn, match, 0]
 
@@ -303,8 +305,8 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
                     match = ll
                 for curn in range(orig_locs.shape[1]):
                     for sndx in range(st,en):
-                        if orig_locs[sndx,curn,match,1] < -1000:
-                            locs[sndx,curn,ll,1] = -100000
+                        if orig_locs[sndx,curn,match,1] < SMALLVALUETHRESH:
+                            locs[sndx,curn,ll,1] = SMALLVALUE
                         else:
                             locs[sndx,curn, ll, 1] = ht - 1 - orig_locs[sndx,curn, match, 1]
 
@@ -318,6 +320,23 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
         occ = None
     return img, locs, mask, occ
 
+def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=np.nan):
+    """
+    Check if the landmarks are in bounds of the image.
+    :param ll: landmarks (bsize x npts x 2). Modified in place to set out of bounds landmarks to NaN.
+    :param rows: number of rows in the image
+    :param cols: number of columns in the image
+    :param check_bounds_distort: if True, sane = True only if all landmarks are in bounds. 
+        If False, sane = True if at least one landmark is in bounds.
+    :param valid: if None, valid is True if landmark is not NaN. 
+    :param badvalue: value to set for out of bounds landmarks. Default is np.nan.
+    """
+    if valid is None:
+        valid = np.invert(np.isnan(ll[...,0]))
+    inbounds = (valid == False) | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
+    ll[~inbounds,:] = badvalue
+    sane = np.all(inbounds) or (not check_bounds_distort and np.any(inbounds))
+    return sane
 
 def randomly_translate(img, locs, conf, group_sz = 1):
     if conf.trange < 1:
@@ -344,7 +363,6 @@ def randomly_translate(img, locs, conf, group_sz = 1):
         ll = orig_locs.copy()
         out_ii = orig_im.copy()
         while not sane:
-            valid = np.invert(np.isnan(orig_locs[:,:, :, 0]))
             dx = np.round(np.random.randint(-conf.trange, conf.trange))
             dy = np.round(np.random.randint(-conf.trange, conf.trange))
             # round the random jitter so that there is no image distortions.
@@ -357,14 +375,8 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             ll = copy.deepcopy(orig_locs)
             ll[:,:, :, 0] += dx
             ll[:,:, :, 1] += dy
-            if np.all(ll[valid,0] >= 0) and \
-                    np.all(ll[valid, 1] >= 0) and \
-                    np.all(ll[valid, 0] < cols) and \
-                    np.all(ll[valid, 1] < rows):
-                sane = True
-            elif not conf.check_bounds_distort:
-                sane = True
-            elif do_move:
+            sane = check_inbounds(ll, rows, cols, conf.check_bounds_distort)
+            if (not sane) and do_move:
                 continue
 
             # else:
@@ -410,7 +422,6 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
         while not sane:
-            valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
             rangle = (np.random.rand() * 2 - 1) * conf.rrange
             count += 1
             if count > 5:
@@ -425,14 +436,9 @@ def randomly_rotate(img, locs, conf, group_sz = 1):
             for e_ndx in range(ll.shape[0]):
                 for i_ndx in range(ll.shape[1]):
                     lr[e_ndx, i_ndx,...] = np.dot(ll[e_ndx, i_ndx], rot) + [old_div(cols, 2), old_div(rows, 2)]
-            if np.all(lr[valid, 0] > 0) \
-                    and np.all(lr[valid, 1] >0) \
-                    and np.all(lr[valid, 0] <= cols) \
-                    and np.all(lr[valid, 1] <= rows):
-                sane = True
-            elif not conf.check_bounds_distort:
-                sane = True
-            elif do_rotate:
+            sane = check_inbounds(lr, rows, cols, conf.check_bounds_distort)
+            # KB 20250801 this check was 1-indexed, while the check in translation was in 0-indexed. sticking with 0-indexed
+            if (not sane) and do_rotate:
                 continue
 
             # else:
@@ -571,7 +577,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
         out_mask = orig_mask.copy() if mask is not None else None
 
         nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
-        high_valid = orig_locs[..., 0] > -1000  # ridiculosly low values are used for multi animal
+        high_valid = orig_locs[..., 0] > SMALLVALUETHRESH  # ridiculosly low values are used for multi animal
         valid = nan_valid & high_valid
         while not sane:
             if np.random.rand() < conf.rot_prob:
@@ -614,17 +620,11 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
             lr = np.matmul(orig_locs,rot_mat[:,:2].T)
             lr[...,0] += rot_mat[0,2]
             lr[...,1] += rot_mat[1,2]
+            
+            # KB 20250801 this check was 1-indexed, while the check in translation was in 0-indexed. sticking with 0-indexed
+            sane = check_inbounds(lr, rows, cols, conf.check_bounds_distort, valid=valid, badvalue=SMALLVALUE)
 
-            if np.all(lr[valid, 0] > 0) \
-                    and np.all(lr[valid, 1] >0) \
-                    and np.all(lr[valid, 0] <= cols) \
-                    and np.all(lr[valid, 1] <= rows):
-                sane = True
-            elif not conf.check_bounds_distort:
-                out_of_range = (lr[...,0]<0) | (lr[...,0]>=cols) | (lr[...,1]<0) | (lr[...,1]>=rows)
-                high_valid = high_valid & ~out_of_range
-                sane = True
-            elif do_transform:
+            if (not sane) and do_transform:
                 continue
 
             for g in range(group_sz):
@@ -637,8 +637,8 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                 if mask is not None:
                     out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST)
 
-        lr[~high_valid,0] = -100000
-        lr[~high_valid,1] = -100000
+        lr[~high_valid,0] = SMALLVALUE
+        lr[~high_valid,1] = SMALLVALUE
         locs[st:en, ...] = lr
         img[st:en, ...] = out_ii
         if mask is not None:
@@ -719,9 +719,9 @@ def create_label_images(locs, im_sz, scale, blur_rad,occluded=None):
     for cls in range(n_classes):
         for andx in range(maxn):
             for ndx in range(len(locs)):
-                if np.isnan(locs[ndx][andx][cls][0]) or np.isinf(locs[ndx][andx][cls][0]) or locs[ndx][andx][cls][0]<-1000:
+                if np.isnan(locs[ndx][andx][cls][0]) or np.isinf(locs[ndx][andx][cls][0]) or locs[ndx][andx][cls][0]<SMALLVALUETHRESH:
                     continue
-                if np.isnan(locs[ndx][andx][cls][1]) or np.isinf(locs[ndx][andx][cls][1]) or locs[ndx][andx][cls][0]<-1000:
+                if np.isnan(locs[ndx][andx][cls][1]) or np.isinf(locs[ndx][andx][cls][1]) or locs[ndx][andx][cls][0]<SMALLVALUETHRESH:
                     continue
                     #             modlocs = [locs[ndx][cls][1],locs[ndx][cls][0]]
                 #             labelims1[ndx,:,:,cls] = blurLabel(imsz,modlocs,scale,blur_rad)
@@ -1346,7 +1346,7 @@ def tfrecord_to_coco_multi(db_file, n_classes, img_dir, out_file, scale=1,skelet
         ann['images'].append({'id': ndx, 'width': cur_im.shape[1], 'height': cur_im.shape[0], 'file_name': im_name})
         for idx in range(cur_locs.shape[0]):
             ix = cur_locs[idx,...]
-            if np.all(ix<-1000) or np.all(np.isnan(ix)):
+            if np.all(ix<SMALLVALUETHRESH) or np.all(np.isnan(ix)):
                 continue
             occ_coco = 2-cur_occ[idx,:,np.newaxis]
             occ_coco[np.isnan(ix[:,0]),:] = 0
@@ -1461,7 +1461,7 @@ def preprocess_ims(ims, in_locs, conf, distort, scale, group_sz = 1,mask=None,oc
         ret.append(mask)
     if occ is not None:
         if not conf.check_bounds_distort:
-            occ = (occ>0.5) | (locs[...,0] < -1000) | np.isnan(locs[...,0])
+            occ = (occ>0.5) | (locs[...,0] < SMALLVALUETHRESH) | np.isnan(locs[...,0])
             occ = occ.astype('float32')
         ret.append(occ)
     return ret
