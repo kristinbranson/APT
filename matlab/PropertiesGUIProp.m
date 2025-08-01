@@ -128,6 +128,8 @@ classdef PropertiesGUIProp < matlab.mixin.SetGet & matlab.mixin.Copyable
         elseif isfield(s,fn) && ~isstruct(s.(fn)), % sometimes special names are also Field names...
           args{i} = s.(fn);
           fnsused{end+1} = fn; %#ok<AGROW>
+        elseif strcmp(fn,'Value') && isfield(s,'DefaultValue'),
+          args{i} = s.DefaultValue;
         else
           args{i} = defaults.(fn);
         end

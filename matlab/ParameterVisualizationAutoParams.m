@@ -64,6 +64,7 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
           obj.hParamsText(i,j) = text(obj.hAx(i),paramdata(i,j),sum(ylim.*[1-yfactor(j),yfactor(j)]),[' ',paraminfo{j}],'Color',colors(j,:));
         end
       end
+      set(obj.hAx(1:end-1),'XTick',[]);
       xlabel(obj.hAx(end),xstr);
       ylabel(obj.hAx(end),'N. training examples');
 
