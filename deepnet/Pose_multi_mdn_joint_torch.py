@@ -13,8 +13,6 @@ import cv2
 from torchvision import transforms
 from torch.nn.parameter import Parameter
 from scipy.optimize import linear_sum_assignment
-from packaging import version
-import mmpose
 
 
 class pred_layers(nn.Module):
@@ -189,18 +187,8 @@ def my_hrnet_fpn_backbone():
                 block='BASIC',
                 num_blocks=(4, 4, 4, 4),
                 num_channels=(32, 64, 128, 256)))
-
-    if version.parse(mmpose.__version__).major == 0:
-        backbone = HRNet(extra,in_channels=3)
-        backbone.init_weights(pretrained='https://download.openmmlab.com/mmpose/pretrain_models/hrnet_w32-36af842e.pth')
-    elif version.parse(mmpose.__version__).major == 1:
-        backbone = HRNet(extra,in_channels=3,
-
-            init_cfg=dict(
-            type='Pretrained',
-            checkpoint='https://download.openmmlab.com/mmpose/'
-            'pretrain_models/hrnet_w32-36af842e.pth'))
-
+    backbone = HRNet(extra,in_channels=3)
+    backbone.init_weights(pretrained='https://download.openmmlab.com/mmpose/pretrain_models/hrnet_w32-36af842e.pth')
     return hrnet_fpn(backbone)
 
 
@@ -426,7 +414,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         self.min_hmap_sz = self.conf.get('mdn_min_hmap_sz',10)
         self.version = 3
         self.do_dist_pred = True
-        self.mdn_assign_weigh_dist = self.conf.get('mdn_assign_weigh_dist',False)
         # version 1 has k_j = 4
         # version 2 has k_j = 1 and k_r = 3
         # version 3 has k_j = 1 and k_r = 1
@@ -538,7 +525,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # Mask the predictions
         if self.conf.multi_loss_mask:
             mask_down = labels_dict['mask'][:,::offset,::offset].to(self.device)
-            ll_joint = torch.where(mask_down[:,None,:,:]>0.5,ll_joint,torch.zeros_like(ll_joint))
+            ll_joint = torch.where(mask_down[:,None,:,:]>0,ll_joint,torch.zeros_like(ll_joint))
 
         ls = locs_joint.shape
         locs_joint_flat = locs_joint.reshape(
@@ -579,8 +566,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         dloss = (assign_norm*dd_all).sum(axis=-1)
         cur_pred_loss = torch.where(valid,dloss,torch.zeros_like(dloss))
 
-
-        # loss for predicting the accuracy of our prediction
         d_pred_valid = torch.abs(dd-dist_pred_flat[:,None])
         dd_valid = torch.where(valid_lbl[:,:,None],d_pred_valid,torch.zeros_like(d_pred_valid))
         dist_pred_loss = (assign_norm_det * dd_valid.sum(axis=-1)).sum(axis=(-1,-2))/50
@@ -601,7 +586,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
 
         # We want only one prediction for each label. We penalize multiple predictions by taking the total weight that gets assigned to a label. This should sum to 1. However this leads to corner case where three close by pixels can have values < 0, but the sum of their sigmoids is 1. To avoid this have that they total weight for each label is 2. With this even for corner cases we will have that one pixels value is greater than 0. Also, this will force close by pixels too to predict the pose.
-
         assign_sum = assign.sum(axis=-1)
         assign_sum_sq = (assign**2).sum(axis=-1)
         assign_sum1 = torch.clamp(assign_sum,0,self.mdn_joint_max_assign*2)
@@ -617,14 +601,6 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             wt_loss_sum_target = min(wt_loss_sum_target,self.mdn_joint_max_assign)
 
         wt_loss_all = (wt_loss_sum_target-assign_sum1)**2 + (wt_loss_sum_target/2-assign_sum_sq)**2 #+ (assign.max(axis=-1).values-1)**2*wt_loss_sum_target
-
-        if self.mdn_assign_weigh_dist:
-            dd_all_min = (dd_all + 1) / (dd_all + 1).min(axis=-1, keepdim=True).values
-            dd_all_min = torch.clamp(dd_all_min.detach()-0.1,1,3)
-            assign_dd = (assign / dd_all_min)
-
-            wt_loss_all = wt_loss_all + ((assign_dd.detach() - assign)**2).sum(axis=-1)
-
         cur_wt_loss = torch.where(valid,wt_loss_all,torch.zeros_like(wt_loss_all))
 
         # when an example has no animal, use a different path.
@@ -1267,31 +1243,17 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         return matched, cur_joint_conf, cur_occ_pred
 
     def set_version(self,model_file):
-        # Set the GRONe version.
-        # version 1 has k_j = 4
-        # version 2 has k_j = 1 and k_r = 3
-        # version 3 has k_j = 1 and k_r = 1
-        # The Pose_multi_mdn_joint_torch constructor assumes version 3.
-        # This method looks for evidence the named model_file is actually an older version, 
-        # and if it determines that it is, it sets .version, .k_j, and .k_r appropriately.
-        # Also sets .do_dist_pred to False in some circumstances.
         ckpt = torch.load(model_file, map_location=torch.device('cpu'))
-        if 'model_state_params' not in ckpt:
-            return        
-        model_state_params = ckpt['model_state_params']
-        if 'module.wts_joint.conv_out.weight' not in model_state_params:
-            return
-        if 'module.wts_ref.conv_out.weight' not in model_state_params:
-            return
-        k_j = model_state_params['module.wts_joint.conv_out.weight'].shape[0]
-        k_r = model_state_params['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
+        k_j = ckpt['model_state_params']['module.wts_joint.conv_out.weight'].shape[0]
+        k_r = ckpt['model_state_params']['module.wts_ref.conv_out.weight'].shape[0]//self.conf.n_classes
         if k_r==3:
             self.version = 2
         elif k_j==4:
             self.version = 1
         self.k_j = k_j
         self.k_r = k_r
-        if 'module.dist_pred.conv_out.weight' not in model_state_params:
+
+        if 'module.dist_pred.conv_out.weight' not in ckpt['model_state_params']:
             self.do_dist_pred = False
 
 
