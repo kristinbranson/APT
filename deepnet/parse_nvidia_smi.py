@@ -1,10 +1,9 @@
 import subprocess
-# import pprint
+import pprint
 import re
 import platform
-# import distutils.spawn
+import distutils.spawn
 import os
-import shutil
 
 import sys
 ISPY3 = sys.version_info >= (3, 0)
@@ -17,8 +16,7 @@ def get_gpu_memory_free():
     memtotal = []
     memfree = []
     # check if nvidia-smi exists
-    # if distutils.spawn.find_executable(nvidiasmi) is None:  # distutils.spawn.find_executable() gives deprecation warning
-    if shutil.which(nvidiasmi) is None:
+    if distutils.spawn.find_executable(nvidiasmi) is None:
         if platform.system() == "Windows":
             nvpath = None
             if 'NVTOOLSEXT_PATH' in os.environ:

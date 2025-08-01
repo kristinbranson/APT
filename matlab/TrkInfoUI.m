@@ -249,9 +249,9 @@ else
   if ~haspred
     % set frame to the closest frame that has prediction for the current
     % fly
-    tdat = trk.getPTrkTgt(tgt);
+    tdat = trk.getPtrkTgt(tgt);
     vfr = find(~all(isnan(tdat),[1,2]));
-    closest = argmin(abs(vfr-curfr+sf(tgt)));
+    closest = argmin(abs(vfr-curfr+sf));
     lobj.setFrameGUI(vfr(closest));
   end
 end

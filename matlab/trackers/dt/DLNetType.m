@@ -45,7 +45,6 @@ classdef DLNetType < handle
     mdn ('mdn')
     unet ('unet')
     hrnet ('hrnet')
-    vitpose ('vitpose')
     %leap ('leap')
     multi_mdn_joint_torch ('multi_mdn_joint_torch')
     multi_openpose ('multi_openpose')

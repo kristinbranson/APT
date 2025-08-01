@@ -12,7 +12,7 @@ function test_roian_MA_gt()
   tester.test_gtcompute('backend',backend, ...
                         'backend_params', backend_params) ;  
   tbl = tester.labeler.gtTblRes ;
-  if ~isequal(size(tbl), [11 13])
+  if ~isequal(size(tbl), [11 11])
       error('After GT tracking, testObj.labeler.gtTblRes is the wrong size') ;
   end
   err = tbl.meanL2err ;
