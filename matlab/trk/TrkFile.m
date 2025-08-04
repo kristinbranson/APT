@@ -1009,9 +1009,9 @@ classdef TrkFile < dynamicprops
       end
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
-        nd = cellfun(@ndims,v);
-        assert(all(nd==nd(1)));
-        nd = nd(1);
+        nds = cellfun(@ndims,v);
+        nd = max(nds);
+        
         v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
         % convert to 2d arrays (in particular for pTrk)
         for i=1:numel(v)

@@ -320,7 +320,7 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
         occ = None
     return img, locs, mask, occ
 
-def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=np.nan):
+def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=SMALLVALUE):
     """
     Check if the landmarks are in bounds of the image.
     :param ll: landmarks (bsize x npts x 2). Modified in place to set out of bounds landmarks to NaN.
@@ -332,7 +332,7 @@ def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=np.nan)
     :param badvalue: value to set for out of bounds landmarks. Default is np.nan.
     """
     if valid is None:
-        valid = np.invert(np.isnan(ll[...,0]))
+        valid = np.invert(np.isnan(ll[...,0])) | (ll[...,0] > SMALLVALUETHRESH)
     inbounds = (valid == False) | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
     ll[~inbounds,:] = badvalue
     sane = np.all(inbounds) or (not check_bounds_distort and np.any(inbounds))
