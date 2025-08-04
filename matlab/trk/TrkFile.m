@@ -245,8 +245,7 @@ classdef TrkFile < dynamicprops
       end
       validateattributes(obj.pTrkTS,{'numeric'},{'size' [npttrk nfrm ntgt]},'','pTrkTS');
       
-      if isequal(obj.pTrkTag,TrkFile.unsetVal) || ...
-          ( all(size(obj.pTrkTag)==[npttrk nfrm ntgt]) && iscell(obj.pTrkTag))
+      if isequal(obj.pTrkTag,TrkFile.unsetVal) || iscell(obj.pTrkTag)
         obj.pTrkTag = false(npttrk,nfrm,ntgt);
       end
       validateattributes(obj.pTrkTag,{'logical'},...
@@ -1010,8 +1009,10 @@ classdef TrkFile < dynamicprops
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
         nd = cellfun(@ndims,v);
-        assert(all(nd==nd(1)));
-        nd = nd(1);
+        %assert(all(nd==nd(1))); Single frame tracklets has the last
+        %dimension of size 1, which matlab interprets as no dimension
+        assert(all(nd<=max(nd)));
+        nd = max(nd);
         v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
         % convert to 2d arrays (in particular for pTrk)
         for i=1:numel(v)
@@ -1350,7 +1351,11 @@ classdef TrkFile < dynamicprops
 
           j = iTgt(i);
           ptgt = pcell{j};
-          ptag = pcelltag{j};
+          if ischar(pcelltag) && strcmp(pcelltag,'__UNSET__')
+            ptag = zeros(size(ptgt,1),size(ptgt,3));
+          else
+            ptag = pcelltag{j};
+          end
 
           idx = f(isinterval) + offs(j);
           xy(:,:,isinterval,i) = ptgt(:,:,idx);

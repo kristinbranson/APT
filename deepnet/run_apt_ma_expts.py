@@ -33,7 +33,7 @@ out_dir = '/groups/branson/bransonlab/mayank/apt_results'
 loc_file_str = 'loc.json'
 loc_file_str_neg = 'loc_neg.json'  # loc file with neg ROIs
 loc_file_str_inc = 'loc_neg_inc_{}.json'
-alg_names = ['2stageHT', '2stageBBox', 'grone', 'grone_hrnet' ,'openpose','cid','dekr','openpose_4x','2stageBBox_hrformer']#,'2stageBBox_vitpose']
+alg_names = ['2stageHT','2stageHT_hrnet_grone_hrnet', '2stageHT_hrformer','2stageHT_hrnet_hrformer','2stageBBox_hrformer','2stageBBox_grone_hrnet','2stageBBox', 'grone', 'grone_hrnet' ,'openpose','cid','dekr','openpose_4x']#,'2stageBBox_vitpose']
 cache_dir = '/groups/branson/bransonlab/mayank/apt_cache_2'
 run_dir = '/groups/branson/bransonlab/mayank/APT/deepnet'
 n_round_inc = 8
@@ -69,15 +69,21 @@ class ma_expt(object):
                 ('openpose_4x',):[{'op_hires_ndeconv':2}],
                 ('2stageBBox_hrformer',):[{},{'mmpose_net':'\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
+                ('2stageHT_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
+                ('2stageHT_hrnet_hrformer',): [{'mdn_use_hrnet': True}, {'mmpose_net': '\\"hrformer\\"'}],
+                ('2stageHT_hrnet_grone_hrnet',): [{'mdn_use_hrnet': True}, {'mdn_use_hrnet':True}],
+                ('2stageBBox_grone_hrnet',): [{}, {'mdn_use_hrnet':True}],
+                ('2stageHT_hrnet_hrformer',): [{'mdn_use_hrnet': True}, {'mmpose_net': '\\"hrformer\\"'}],
                 ('cid','nocrop'):[{'batch_size': 4,'dl_steps':200000}, {}],
                 ('grone_hrnet',):[{'mdn_use_hrnet':True},{}],
                 ('dekr',):[{'mmpose_net':'\\"dekr\\"'},{}],
                 ('dekr','nocrop'):[{'batch_size':2,'dl_steps':400000},{}],
                 ('grone','nocrop'):[{'batch_size':4,'dl_steps':200000},{}],
                 ('grone_hrnet', 'nocrop'): [{'batch_size': 4, 'dl_steps': 200000}, {}],
+                ('2stageHT_hrnet_hrformer', 'nocrop','first'): [{'batch_size': 4, 'dl_steps': 200000}, {}],
                 ('2stageHT','nocrop'): [{'batch_size': 4, 'dl_steps': 200000}, {}],
             }
-            self.ex_db = '/nrs/branson/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/roian_split_ht_grone_single/val_TF.tfrecords'
+            self.ex_db = '/groups/branson/bransonlab/mayank/apt_cache_2/four_points_180806/mdn_joint_fpn/view_0/2stageHT_nocrop_second_07122023/train_TF.json'
             self.n_pts = 4
             self.dropoff = 0.4
             self.cond_file = '/groups/branson/home/kabram/temp/ma_expts/roian/roian_conditions.mat'
@@ -94,14 +100,19 @@ class ma_expt(object):
                            #('grone', 'nocrop'): [{'rescale': 2},{}],
                            #('openpose', 'nocrop'): [{'rescale': 2},{}],
             #                ('openpose', 'crop'): [{'rescale': 2}]
-                ():[{'link_id_rescale':0.5},{}],
+                ():[{'link_id_rescale':0.5},{'rescale':0.5}],
+                ('crop',):[{'rescale':0.5},{}],
                 ('openpose_4x', ):[{'op_hires_ndeconv': 2},{}],
                 ('grone_hrnet',): [{'mdn_use_hrnet': True}, {}],
+                ('2stageHT_hrnet_grone_hrnet',): [{'mdn_use_hrnet': True}, {'mdn_use_hrnet':True}],
+                ('2stageBBox_grone_hrnet',): [{}, {'mdn_use_hrnet':True}],
                 ('2stageBBox_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
                 ('2stageBBox_vitpose',): [{}, {'mmpose_net': '\\"vitpose\\"'}],
+                ('2stageHT_hrformer',): [{}, {'mmpose_net': '\\"hrformer\\"'}],
+                ('2stageHT_hrnet_hrformer',): [{'mdn_use_hrnet': True}, {'mmpose_net': '\\"hrformer\\"'}],
 
             }
-            self.ex_db = '/nrs/branson/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/alice_split_ht_grone_single/val_TF.tfrecords'
+            self.ex_db = '/groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageHT_nocrop_second_12072023/train_TF.json'
             self.n_pts = 17
             self.dropoff = 0.7
             self.cond_file = '/groups/branson/home/kabram/temp/alice_conditions.mat' # code to create this is is in /groups/branson/bransonlab/mayank/APT/script_ma_expts_labels.m
@@ -118,11 +129,12 @@ class ma_expt(object):
     def get_neg_roi_alice(self, debug=False):
         im_sz = (1024, 1024)
         boxsz = 80
-        num_negs = 200 if not debug else 10
+        num_negs = 500 if not debug else 10
         negbox_sz = 240
 
         in_loc = os.path.join(self.trnp_dir, 'grone', loc_file_str)
         T = pt.json_load(in_loc)
+        T = self.rem_close_labels(T)
 
         # Add neg ROI boxes based on ctrax trx
         done_ix = []
@@ -190,6 +202,64 @@ class ma_expt(object):
 
         return neg_info
 
+    def rem_close_labels(self,T):
+        im_sz = (1024, 1024)
+
+        # in_loc = os.path.join(self.trnp_dir, 'grone', loc_file_str)
+        # T = pt.json_load(in_loc)
+        prev_mov = -1
+        has_close = []
+        for ix,curp in enumerate(T['locdata']):
+            if not (curp['imov'] == prev_mov):
+                tt = os.path.split(T['movies'][curp['imov'] - 1])
+                trx = sio.loadmat(os.path.join(tt[0], 'registered_trx.mat'))['trx'][0]
+                prev_mov = curp['imov']
+
+            ntrx = len(trx)
+            fnum = curp['frm']-1
+            all_mask = np.zeros(im_sz)
+            # roi = np.array(curp['roi']).reshape([2,4,-1]).transpose([2,1,0]).astype('int')
+            pts = np.array(curp['pabs']).reshape([2,17,-1]).transpose([2,1,0])
+            roi = np.zeros([pts.shape[0],4,2])
+            roi[:,0,:] = pts.min(axis=1)-32
+            roi[:,2,:] = pts.max(axis=1)+32
+            roi = roi.astype('int')
+            center = pts[:,5]
+            for b in roi:
+                all_mask[b[0,1]:b[2,1],b[0,0]:b[2,0]] = 1
+
+            boxes = []
+            zz = False
+            rix = None
+            for tndx in range(ntrx):
+                cur_trx = trx[tndx]
+                if fnum > cur_trx['endframe'][0, 0] - 1:
+                    continue
+                if fnum < cur_trx['firstframe'][0, 0] - 1:
+                    continue
+                x, y, theta, a = multiResData.read_trx(cur_trx, fnum)
+                cc = np.array([x,y])
+                d1 = np.linalg.norm(center - cc,axis=-1)
+                if any(d1 < 10):
+                    continue
+
+                x = int(round(x))
+                y = int(round(y))
+                h_pt = cc + np.array([np.cos(theta), np.sin(theta)]) * a * 2
+                h_pt = np.clip(h_pt,0,1024).astype('int')
+                t_pt = cc - np.array([np.cos(theta), np.sin(theta)]) * a * 2
+                t_pt = np.clip(t_pt,0,1024).astype('int')
+
+                if all_mask[y,x]+all_mask[t_pt[1],t_pt[0]] + all_mask[h_pt[1],h_pt[0]] > 0:
+                    zz = True
+                    rix = tndx
+                    break
+            if zz:
+                has_close.append(ix)
+
+        T['locdata'] = [T['locdata'][i] for i in range(len(T['locdata'])) if i not in has_close]
+        return T
+
 
     def add_neg_roi_alice(self, force=False, reload=False):
 
@@ -207,10 +277,17 @@ class ma_expt(object):
         for alg in alg_names:
             in_loc = os.path.join(self.trnp_dir, alg, loc_file_str)
             out_loc = os.path.join(self.trnp_dir, alg, loc_file_str_neg)
-            T = pt.json_load(in_loc)
+            try:
+                T = pt.json_load(in_loc)
+                T = self.rem_close_labels(T)
+            except:
+                print(f'Error loading {in_loc}')
+                continue
             for curn in neg_info:
                 ix = curn['loc_ndx']
                 curp = T['locdata'][ix]
+                assert(curp['imov'] == curn['mov_ndx'] + 1)
+                assert(curp['frm'] == curn['frm'] + 1)
                 negx_min = curn['neg_box'][0]
                 negy_min = curn['neg_box'][2]
                 negbox_sz = curn['neg_box'][1] - curn['neg_box'][0]
@@ -220,6 +297,18 @@ class ma_expt(object):
                                      negy_min, negy_min + negbox_sz,
                                      negy_min + negbox_sz, negy_min]
                 curp['nextraroi'] = 1
+
+            # reduce the padding to 16px from 32
+            # not required as we are removing the labels that have close unlabeled flies
+            # for curp in T['locdata']:
+            #     rr = np.array(curp['roi']).reshape([8,-1])
+            #     rr[0:2] += 16
+            #     rr[4:6] += 16
+            #     rr[2:4] -= 16
+            #     rr[6:8] -= 16
+            #     if rr.shape[1] == 1:
+            #         rr = rr[:,0]
+            #     curp['roi'] = rr.tolist()
 
             if not os.path.exists(out_loc) or force:
                 with open(out_loc,'w') as f:
@@ -286,8 +375,10 @@ class ma_expt(object):
         alg_use = alg
         if alg.startswith('openpose'):
             alg_use = 'openpose'
-        if alg == '2stageBBox_hrformer' or alg=='2stageBBox_vitpose':
+        if alg == '2stageBBox_hrformer' or alg=='2stageBBox_vitpose' or alg=='2stageBBox_grone_hrnet':
             alg_use = '2stageBBox'
+        if alg.startswith('2stageHT'):
+            alg_use = '2stageHT'
         if alg.startswith('grone'):
             alg_use = 'grone'
 
@@ -304,6 +395,8 @@ class ma_expt(object):
                 net_type = 'mmpose'
             elif alg.endswith('vitpose') and cndx == 1:
                 net_type = 'mmpose'
+            elif alg.endswith('grone_hrnet') and cndx == 1:
+                net_type = 'mdn_joint_fpn'
 
         else:
             stg_str = ''
@@ -361,6 +454,8 @@ class ma_expt(object):
             elif set(('2stageBBox_hrformer', 'crop')).issubset(set(cur_type)):
                 continue
             elif set(('2stageBBox_vitpose', 'crop')).issubset(set(cur_type)):
+                continue
+            elif set(('2stageBBox_grone_hrnet', 'crop')).issubset(set(cur_type)):
                 continue
             else:
                 new_t_types.append(cur_type)
@@ -464,6 +559,8 @@ class ma_expt(object):
                     if latest_time < submit_time:
                         latest_time = np.nan
                         latest_model_iter = -1
+                        train_dist = -1
+                        val_dist = -1
                     else:
                         # if submit_time is nan, assume the latest model is up to date
                         tfile = rae.get_traindata_file_flexible(train_cache_dir, run_name, proj_name)
@@ -651,12 +748,13 @@ class ma_expt(object):
                     tfile = rae.get_traindata_file_flexible(train_cache_dir, run_name, proj_name)
                 except:
                     continue
+                if not os.path.exists(tfile + '.json'):
+                    continue
                 conf = pt.pickle_load(tfile)[1]
                 conf.imsz = (self.imsz,self.imsz)
                 conf.img_dim = 3
                 conf.batch_size = 1
                 conf.db_format = 'coco'
-                conf.img_dim = 3
                 models = self.get_model_files(settings, v)
                 if alg.startswith('2stage'):
                     curt2 = (curt[0],'nocrop','second')
@@ -910,9 +1008,12 @@ class ma_expt(object):
         files.sort(key=os.path.getmtime)
         # res = hdf5storage.loadmat(files[-1])
         K = h5py.File(files[-1],'r')
-        X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
-        ex_im = X[0][0]
-        ex_loc = X[1][0]
+        # X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
+        # ex_im = X[0][0]
+        # ex_loc = X[1][0]
+        X = pt.json_load(self.ex_db)
+        ex_im = cv2.imread(X['images'][0]['file_name'])
+        ex_loc = np.array(X['annotations'][0]['keypoints']).reshape([self.n_pts,3])[:, :2]
 
         if t_types is None:
             t_types = self.get_types((('first',),))
@@ -1009,9 +1110,13 @@ class ma_expt(object):
         files.sort(key=os.path.getmtime)
         # res = hdf5storage.loadmat(files[-1])
         K = h5py.File(files[-1],'r')
-        X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
-        ex_im = X[0][0]
-        ex_loc = X[1][0]
+        # X = multiResData.read_and_decode_without_session(self.ex_db,self.n_pts)
+        # ex_im = X[0][0]
+        # ex_loc = X[1][0]
+
+        X = pt.json_load(self.ex_db)
+        ex_im = cv2.imread(X['images'][0]['file_name'])
+        ex_loc = np.array(X['annotations'][0]['keypoints']).reshape([self.n_pts,3])[:, :2]
 
         if t_types is None:
             t_types = self.get_types((('first',),))
@@ -1020,13 +1125,13 @@ class ma_expt(object):
 
         n_types = len(t_types)
         prcs = [50,75,90,95,98,99]
-        cmap = pt.get_cmap(len(n_types), 'hsv')
+        cmap = pt.get_cmap(n_types, 'hsv')
         if f is None:
             f, axx = plt.subplots(1, 1, figsize=(12, 8), squeeze=False)
         else:
             axx = f.subplots(1, 1, squeeze=False)
 
-        ax = axx
+        ax = axx[0,0]
         if ex_im.ndim == 2:
             ax.imshow(ex_im, 'gray')
         elif ex_im.shape[2] == 1:
@@ -1081,7 +1186,6 @@ class ma_expt(object):
 
             all_dist.append(cur_dist)
 
-
             ajj = cur_dist.copy()
             jj = np.sort(ajj,axis=0)
             all_jj.append(jj)
@@ -1108,7 +1212,7 @@ class ma_expt(object):
                 aa = np.maximum(0.5 * min_jj / jj[st:n_ex, ix], 0.05)
                 aa[np.isnan(aa)] = 0
                 for qx, idx in enumerate(range(st, n_ex - 1)):
-                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[ix], lw=2,alpha=aa[qx + 1])
+                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[idx], lw=2,alpha=aa[qx + 1])
                 # plt.scatter(xj + ll[None,:,0], yj + ll[None,:, 1], c=cc[nndx], marker='.',alpha=0.3)
                 # plt.plot(xj + ll[None,:,0], yj + ll[None,:,1], color=cc[nndx], lw=1,alpha=0.3)
             # sz = max(ex_loc.max(axis=0) - ex_loc.min(axis=0)) + 100
@@ -1250,7 +1354,7 @@ class ma_expt(object):
             job_name = self.name + '_' + train_name + '_' + trk_name
 
             conf_str = ' '.join([f'{k} {v}' for k, v in params.items()])
-            conf_str += ' ' + ' '.join([f'{k} {v}' for k, v in conf_params.items()])
+            conf_str += ' ' + ' '.join([f'{k} {v}' for k, v in conf_params.items()]) if conf_params is not None else ''
             conf_str += ' link_id True link_id_training_iters 100000'
 
             cmd = f'APT_interface.py {lbl_file} -name {train_name} -json_trn_file {loc_file} -conf_params {conf_str} -cache {cache_dir} {stg2_str} -type {net_type} track -mov {mov_file} -out {trk_file} {stg2_str_track}'
