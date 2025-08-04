@@ -9,11 +9,12 @@ function test_roian_MA_dekr_training()
   [~, unittest_dir_path, replace_path] = get_test_project_paths() ;
   project_file_path = fullfile(unittest_dir_path, 'four-points-testing-2025-04-11-with-rois-added-and-fewer-smaller-avi-movies-mmpose1.lbl') ;  
   backend = 'docker' ;  % project is only set up with correct env/image for docker backend
-  %backend_params = synthesize_backend_params(backend) ;
-  backend_params = cell(1,0) ;  % Use the docker params in the project, b/c dekr use an mmpose 1 environment
+  backend_params = synthesize_backend_params(backend) ;
+  %backend_params = cell(1,0) ;  % Use the docker params in the project, b/c dekr use an mmpose 1 environment
   tester = LabelerProjectTester(project_file_path, 'replace_path', replace_path) ;  
   oc = onCleanup(@()(delete(tester))) ;
   tester.test_training('algo_spec','multi_dekr', ...
                        'backend',backend, ...
-                       'backend_params', backend_params) ;  
+                       'backend_params', backend_params, ...
+                       'niters', 600) ;  
 end  % function
