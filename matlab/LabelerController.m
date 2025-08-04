@@ -1019,7 +1019,7 @@ classdef LabelerController < handle
         'prcs',prcs,'prc_vals',plotParams.prc_vals,...
         'nbins',plotParams.nbins,'maxprctile',plotParams.prc_vals(end),...
         'kpnames',labeler.skelNames,'islight',islight,...
-        'nperkp',nperkp);
+        'nperkp',nperkp,'fp',fp_all,'fn',fn_all,'isma',labeler.maIsMA,'ntotal',ntotal);
       figh = hmain;
       figw = figh/2*nviews;
       set(fig_2,'Position',[10,10,figw,figh]);
@@ -5500,6 +5500,7 @@ classdef LabelerController < handle
         error('LabelerGUI:gt','Unsupported in GT mode.');
       end
 
+      frm = labeler.currFrame;
       if ~isempty(tracker) && tracker.hasBeenTrained() && (~labeler.maIsMA)
         % single animal. Use prediction if available else use imported below
         [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
@@ -5511,7 +5512,6 @@ classdef LabelerController < handle
             return;
           else % for single animal use imported predictions if available
             iMov = labeler.currMovie;
-            frm = labeler.currFrame;
             [tfhaspred,xy] = labeler.labels2{iMov}.getPTrkFrame(frm);
             if ~tfhaspred
               msgbox('No predictions for current frame.');
