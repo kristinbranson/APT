@@ -671,17 +671,18 @@ class Tracklet:
         p[...,idx,itgt] = self.data[itgt][...,fs[idx]-self.startframes[itgt]]
     return p
   
-  def gettarget(self,itgts,T=None):
+  def gettarget(self,itgts,T=None,T0=0):
     """
     gettarget(self,itgts)
     Returns data for the input targets and all frames.
     :param itgts: Scalar, list, or 1-d array of targets.
-    :param T: output size in frames. If None, this object's T parameter, max(endframes)+1, will be used.
+    :param T: output size in frames. If None, this object's T1+1-T0 = max(endframes)+1-T0, will be used.
+    :param T0: offset to apply to startframes and endframes. Default: 0. Might also want to use self.T0. 
     :return: p: nlandmarks x d x T x len(itgts) with data.
     """
     
     if T is None:
-      T = self.T
+      T = self.T1+1-T0
     itgts = np.atleast_1d(itgts)
 
     ntgts = len(itgts)
@@ -691,7 +692,7 @@ class Tracklet:
       itgt = itgts[i]
       if self.data[itgt] is None:
         continue
-      p[...,self.startframes[itgt]:self.endframes[itgt]+1,i] = self.data[itgt]
+      p[...,self.startframes[itgt]-T0:self.endframes[itgt]+1-T0,i] = self.data[itgt]
     return p
   
   def gettargetframe(self,targets,frames):

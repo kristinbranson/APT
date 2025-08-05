@@ -209,7 +209,7 @@ def assign_ids(trk, params, T=np.inf):
   ids = TrkFile.Tracklet(defaultval=-1, ntargets=trk.ntargets) 
   # allocate for speed!
   [sf, ef] = trk.get_startendframes()
-  ids.allocate((1,), sf-trk.T0, np.minimum(T-1, ef-trk.T0)) # allocate(size_rest,startframes,endframes):
+  ids.allocate((1,), sf-trk.T0, ef-trk.T0) # allocate(size_rest,startframes,endframes):
   
   if T == 0:
     costs = np.zeros(0)
