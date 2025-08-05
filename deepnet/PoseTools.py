@@ -323,7 +323,7 @@ def randomly_flip_ud(img, in_locs, conf, group_sz = 1, mask=None,in_occ=None):
 def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=SMALLVALUE):
     """
     Check if the landmarks are in bounds of the image.
-    :param ll: landmarks (bsize x npts x 2). Modified in place to set out of bounds landmarks to NaN.
+    :param ll: landmarks (bsize x maxntgts x npts x 2). Modified in place to set out of bounds landmarks to NaN.
     :param rows: number of rows in the image
     :param cols: number of columns in the image
     :param check_bounds_distort: if True, sane = True only if all landmarks are in bounds. 
@@ -333,9 +333,9 @@ def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=SMALLVA
     """
     if valid is None:
         valid = np.invert(np.isnan(ll[...,0])) | (ll[...,0] > SMALLVALUETHRESH)
-    inbounds = (valid == False) | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
-    ll[~inbounds,:] = badvalue
-    sane = np.all(inbounds) or (not check_bounds_distort and np.any(inbounds))
+    inbounds = valid | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
+    ll[~inbounds] = badvalue
+    sane = (not np.any(valid)) or np.all(inbounds) or (not check_bounds_distort and np.any(inbounds[valid]))
     return sane
 
 def randomly_translate(img, locs, conf, group_sz = 1):
@@ -379,8 +379,6 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             if (not sane) and do_move:
                 continue
 
-            # else:
-            #                 print 'not sane {}'.format(count)
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
@@ -569,9 +567,8 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
         orig_im = img[st:en, ...].copy()
         orig_mask = mask[st:en,...].copy() if mask is not None else None
         sane = False
-        do_transform = True
+        do_transform = False
 
-        count = 0
         lr = orig_locs.copy()
         out_ii = orig_im.copy()
         out_mask = orig_mask.copy() if mask is not None else None
@@ -579,15 +576,16 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
         nan_valid = np.invert(np.isnan(orig_locs[:, :, :, 0]))
         high_valid = orig_locs[..., 0] > SMALLVALUETHRESH  # ridiculosly low values are used for multi animal
         valid = nan_valid & high_valid
-        while not sane:
+                
+        # find a transform that keeps landmarks in bounds
+        for count in range(5):
+
             if np.random.rand() < conf.rot_prob:
                 rangle = (np.random.rand() * 2 - 1) * conf.rrange
             else:
                 rangle = 0
 
             if conf.use_scale_factor_range:
-                # KB 20191218: first choose the scale factor
-                # then decide whether to make it smaller or larger
                 sfactor = 1.+np.random.rand()*np.abs(srange-1.)
                 if np.random.rand() < 0.5:
                     sfactor = 1.0/sfactor
@@ -602,18 +600,6 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
             dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
             dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
 
-            # if np.random.rand()<0.5:
-            #     dx = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
-            #     dy = (np.random.rand()*2 -1)*float(conf.trange)/conf.rescale
-            # else:
-            #     dx = 0; dy= 0
-
-            count += 1
-            if count > 5:
-                rangle = 0; dx = 0; dy=0; sfactor = 1
-                sane = True
-                do_transform = False
-            # print(f'Aug params rot:{rangle},scale:{sfactor},dx:{dx},dy:{dy}')
             rot_mat = cv2.getRotationMatrix2D((cols/2,rows/2), rangle, sfactor)
             rot_mat[0,2] += dx
             rot_mat[1,2] += dy
@@ -623,10 +609,13 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
             
             # KB 20250801 this check was 1-indexed, while the check in translation was in 0-indexed. sticking with 0-indexed
             sane = check_inbounds(lr, rows, cols, conf.check_bounds_distort, valid=valid, badvalue=SMALLVALUE)
+            if sane:
+                do_transform = True
+                break
+                
+        if do_transform:
 
-            if (not sane) and do_transform:
-                continue
-
+            locs[st:en, ...] = lr
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
                 ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=interp_method)
@@ -636,13 +625,10 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                 out_ii[g,...] = ii
                 if mask is not None:
                     out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST)
-
-        lr[~high_valid,0] = SMALLVALUE
-        lr[~high_valid,1] = SMALLVALUE
-        locs[st:en, ...] = lr
-        img[st:en, ...] = out_ii
-        if mask is not None:
-            mask[st:en,...] = out_mask
+            
+            img[st:en, ...] = out_ii
+            if mask is not None:
+                mask[st:en,...] = out_mask
 
     locs = locs[:, 0, ...] if reduce_dim else locs
     return img, locs, mask
