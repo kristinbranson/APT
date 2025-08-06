@@ -1044,7 +1044,7 @@ def motion_link(trk,ids,T,t0s,t1s,params):
 
   mpred_stats = []
   for ndx in range(200):
-    ix = np.random.randint(int(T) - 3)
+    ix = np.random.randint(int(T) - 3)+trk.T0
     pp = trk.getframe(np.arange(ix, ix + 3))
     ii = ids.getframe(np.arange(ix, ix + 3))[0]
     for i in ii[0]:
@@ -1058,6 +1058,9 @@ def motion_link(trk,ids,T,t0s,t1s,params):
       mpred_stats.append([vmag, merror, ix, i])
 
   mpred_stats = np.array(mpred_stats)
+  if mpred_stats.size == 0:
+      logging.warning('No motion stats available, cannot do motion linking')
+      return
   vel_mag_eps = np.percentile(mpred_stats[:, 0], 90)
   pred_error_thresh = np.percentile(mpred_stats[:, 1] / (mpred_stats[:, 0] + vel_mag_eps), 90)
 
@@ -1165,11 +1168,12 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   params['maxframes_delete'] = conf.link_id_min_tracklet_len
 
+  trk.convert2sparse()
+
   T = np.minimum(np.inf, trk.T)
   nframes_test = np.inf
   nframes_test = int(np.minimum(T, nframes_test))
 
-  trk.convert2sparse()
 
   # Do the linking
   ids, costs = assign_ids(trk, params, T=nframes_test)

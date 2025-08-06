@@ -1892,6 +1892,7 @@ class Trk:
     newpTrk = Tracklet(defaultval=self.defaultval)
     newpTrk.setdata_dense(self.pTrk,T0=self.T0)
     self.pTrk = newpTrk
+    self.T0 = newpTrk.T0
 
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
