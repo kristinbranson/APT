@@ -388,7 +388,10 @@ class PoseCommon_pytorch(object):
             ckpt = torch.load(model_file)
         else:
             ckpt = torch.load(model_file,map_location=torch.device('cpu'))
-        model.load_state_dict(ckpt['model_state_params'])
+        if 'state_dict' in ckpt.keys():
+            model.load_state_dict(ckpt['state_dict'], strict=False)
+        else:
+            model.load_state_dict(ckpt['model_state_params'], strict=False)
         if self.conf.use_openvino:
             model = self.convert_openvino(model,model_file)
         if opt is not None:
@@ -399,7 +402,16 @@ class PoseCommon_pytorch(object):
                         state[k] = v.to(self.device)
         if sched is not None:
             sched.load_state_dict(ckpt['sched_state_params'])
-        start_at = ckpt['step'] + 1
+        if 'meta' in ckpt:
+            meta = ckpt['meta']
+            if 'iter' in meta:
+                start_at = meta['iter']
+            else:
+                raise RuntimeError('ckpt[\'meta\'] exists but ckpt[\'meta\'][\'iter\'] does not')
+        elif 'step' in ckpt:                                           
+            start_at = ckpt['step'] + 1
+        else:
+            raise RuntimeError('Cannot determine what iteration to start at from ckpt')        
         self.restore_td(start_at)
         return model, start_at
 
@@ -720,7 +732,10 @@ class PoseCommon_pytorch(object):
                     ckpt =torch.load(model_file,map_location=torch.device('cpu'))
                 else:
                     ckpt = torch.load(model_file)
-                model.load_state_dict(ckpt['model_state_params'])
+                if 'state_dict' in ckpt.keys():
+                    model.load_state_dict(ckpt['state_dict'])
+                else:
+                    model.load_state_dict(ckpt['model_state_params'])
                 logging.info('Inititalizing model weights from {}'.format(model_file))
             except Exception as e:
                 logging.info(f'Could not initialize model weights from {model_file}')

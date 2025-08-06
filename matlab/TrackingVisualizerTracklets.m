@@ -46,7 +46,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   
   methods
     function obj = TrackingVisualizerTracklets(lObj,ptsPlotInfoFld,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix,'skel_linestyle',':');
+      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix,'skel_linestyle','-');
       obj.tvtrx = TrackingVisualizerTrxMA(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
