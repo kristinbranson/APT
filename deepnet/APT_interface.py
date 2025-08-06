@@ -16,7 +16,7 @@ def get_gpu_memory():
     success = False
     try:
         result = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'], 
-                              capture_output=True, text=True, check=True)
+                                capture_output=True, text=True, check=True)
         success = True
         return (success,[int(x.strip()) for x in result.stdout.strip().split('\n')])
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -86,11 +86,6 @@ if ISSB:
     import sb1 as sb
     
 KBDEBUG = False
-if KBDEBUG:
-    import matplotlib
-    matplotlib.use('tkagg')  # use TkAgg backend for matplotlib
-    import matplotlib.pyplot as plt
-    plt.ion()
     
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
@@ -5055,6 +5050,12 @@ def main(argv):
     
     # Parse the arguments
     args = parse_args(argv)
+
+    if args.debug:
+        import matplotlib
+        matplotlib.use('tkagg')  # use TkAgg backend for matplotlib
+        import matplotlib.pyplot as plt
+        plt.ion()
 
     # # For debugging
     # args.debug = False

@@ -1027,6 +1027,14 @@ class Tracklet:
     return tidx,fidx
 
   def where_all(self,nids):
+    """ 
+    where_all(self,nids)
+    Get the indices of all targets and frames for which data is 0:nids
+    :param nids: Unique values to look for in the tracklet data.
+    :return: tidx, fidx: two lists of length nids,
+    where tidx[i] and fidx[i] are the target and frame indices for the i-th id.
+    If an id has no data, tidx[i] and fidx[i] are empty arrays.
+    """
     nt = self.ntargets
     fidx = [np.zeros(0,dtype=int) for n in range(nids)]
     tidx = [np.zeros(0,dtype=int) for n in range(nids)]
@@ -1285,6 +1293,7 @@ class Trk:
     self.ntargets = p.ntargets
     self.pTrk = p
     self.issparse = True
+    self.T0 = p.T0
     for k in kwargs.keys():
       assert k in self.trkFields, f'Unknown tracking data type {k}'
       if kwargs[k] is not None:
@@ -1893,6 +1902,7 @@ class Trk:
     newpTrk = Tracklet(defaultval=self.defaultval)
     newpTrk.setdata_dense(self.pTrk,T0=self.T0)
     self.pTrk = newpTrk
+    self.T0 = self.pTrk.T0
 
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
@@ -2129,10 +2139,10 @@ class Trk:
     
   def apply_ids_sparse(self,ids):
     assert self.issparse
-    self.pTrk.apply_ids(ids,self.T0)
+    self.pTrk.apply_ids(ids)
     for k in self.trkFields:
       if self.__dict__[k] is not None:
-        self.__dict__[k].apply_ids(ids,self.T0)
+        self.__dict__[k].apply_ids(ids)
       
     self.ntargets = self.pTrk.ntargets
     self.size = (self.nlandmarks,self.d,self.pTrk.T,self.ntargets)
