@@ -661,7 +661,11 @@ classdef LabelerController < handle
       end
 
       % Make sure to update graphics now
-      %drawnow('nocallbacks');
+      drawnow('nocallbacks') ;  
+        % Please don't comment out the above drawnow() command!  We want the update of the
+        % pointer to happen ASAP when we update the busy status.  This helps indicate
+        % to the user that APT is working on something, and they don't need to actuate
+        % the control again.  -- ALT, 2025-08-06
     end
 
     function updateBackgroundProcessingStatus_(obj)
@@ -785,7 +789,6 @@ classdef LabelerController < handle
     function track_core_(obj, source, event, varargin)  %#ok<INUSD> 
       obj.labeler_.pushBusyStatus('Spawning tracking job...') ;
       oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
-
       obj.labeler_.track(varargin{:}) ;
     end
 
