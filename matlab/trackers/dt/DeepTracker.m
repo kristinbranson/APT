@@ -2574,8 +2574,7 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = false;
       reason = '';
       
-      % if obj.bgTrkIsRunning || obj.bgTrnIsRunning ,
-      if obj.bgTrkIsRunning ,
+      if obj.bgTrkIsRunning
         reason = 'Tracking is already in progress.';
         return
       end
@@ -3389,6 +3388,7 @@ classdef DeepTracker < LabelTracker
       c = cellfun(@(x)[quotechar x quotechar],c,'uni',0);
       str = String.cellstr2DelimList(c,' '); 
     end
+
 
     % function codestr = trackCodeGenBaseListFile(trnID,cache,dlconfigfile,outfile,...
     %     errfile,nettype,view,listfile,varargin)

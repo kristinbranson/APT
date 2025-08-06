@@ -1,11 +1,15 @@
 import os
-#os.environ['CUDA_VISIBLE_DEVICES'] ='0'
-cmd = '/groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b/train00/20250226T025722_20250226T025725.json -name 20250226T025722 -json_trn_file /groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b/train00/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpefaab1af_1c8f_4d33_8452_b770bd22e77b train -use_cache'
+# os.environ['CUDA_VISIBLE_DEVICES'] =''
+# cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/conf_crop.json -name 2stageHT_hrnet_grone_hrnet_crop_mask_first_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/loc_neg.json  -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage second -model_files /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageHT_hrnet_grone_hrnet_nocrop_second_12072023/assign_weigh_dist-100000 -conf_params rescale 0.5 mdn_use_hrnet True -type mdn_joint_fpn -name 2stageHT_hrnet_grone_hrnet_nocrop_second_12072023  track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageHT_hrnet_grone_hrnet_scale2_del.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_2stageHT_hrnet_grone_hrnet_scale2_stg1.trk -start_frame 15 -end_frame 20'
+cmd = '/groups/branson/home/kabram/.apt/tp6100b24f_de35_4e66_9a42_15e18b994d90/unmarkedMice/20250609T172506_20250609T172509.json -name 20250609T172506 -json_trn_file /groups/branson/home/kabram/.apt/tp6100b24f_de35_4e66_9a42_15e18b994d90/unmarkedMice/loc.json -stage first -conf_params -type detect_frcnn -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp6100b24f_de35_4e66_9a42_15e18b994d90 train -use_cache -skip_db'
 
-# cmd =  ['-name', '20220629T224821', '-view', '1', '-cache', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11', '-conf_params','op_affinity_graph','((1,0),)','-json_trn_file', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/loc.json', '-type', 'multi_openpose', '/groups/branson/home/kabram/APT_bugs/tp657c1885_2aa3_49ac_b34a_57baabbaff11/APTproject/20220705T203931_20220705T203934.lbl', 'train', '-use_cache']
+# cmd = '/groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/20250510T113930_20250510T113932.json -name 20250510T113930 -stage multi -type detect_mmdetect -model_files /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/deepnet-40000 -type2 mdn_joint_fpn -model_files2 /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/mdn_joint_fpn/view_0/20250510T113930/deepnet-20000 -name2 20250510T113930 -ignore_local 1 -cache /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474 track -config_file /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/trk/trkconfig_VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280_4f02c3_trn20250510T113930_view0_iter40000_20250510T180048.json -track_type only_predict -out /groups/branson/home/kabram/temp/a.trk -mov /groups/branson/bransonlab/projects/DanionellaFieldTrip/VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280.avi -start_frame 1378 -end_frame 1578 -trx /groups/branson/home/kabram/temp/b.trk'
 
+# cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/conf_crop.json -name grone_crop_mask_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 link_id True link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/temp.trk -start_frame 3810 -end_frame 10000' #
 
-#cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/conf_nocrop.json -name 2stageBBox_nocrop_mask_first_23022022 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_23022022/2stageBBox/loc_neg.json -conf_params multi_loss_mask True link_id True -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageBBox_nocrop_second_23022022/deepnet-100000 -conf_params2  -type2 mdn_joint_fpn -name2 2stageBBox_nocrop_second_23022022 -type detect_mmdetect track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00030_CsChr_RigC_20150826T144616/movie.ufmf -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/cx_GMR_SS00030_CsChr_RigC_20150826T144616_1_bbox.trk -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/aa.trk -track_type only_predict -start_frame 48800 -end_frame 49000'
+cmd = ['/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/20250612T153510_20250612T153510.json', '-name', '20250612T153510', '-json_trn_file', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/loc.json', '-stage', 'first', '-model_files', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/detect_mmdetect/view_0/20250612T153510/deepnet-40000', '-conf_params', '-type', 'detect_mmdetect', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd', 'train', '-use_cache','-skip_db']
+
+# cmd = '/groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/20250510T113930_20250510T113932.json -name 20250510T113930 -stage multi -type detect_mmdetect -model_files /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/deepnet-40000 -type2 mdn_joint_fpn -model_files2 /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/mdn_joint_fpn/view_0/20250510T113930/deepnet-20000 -name2 20250510T113930 -ignore_local 1 -cache /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474 track -config_file /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/trk/trkconfig_VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280_4f02c3_trn20250510T113930_view0_iter40000_20250510T180048.json -track_type only_predict -out /groups/branson/home/kabram/temp/a.trk -mov /groups/branson/bransonlab/projects/DanionellaFieldTrip/VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280.avi -start_frame 1378 -end_frame 1578 -trx /groups/branson/home/kabram/temp/b.trk'
 
 
 if type(cmd)!=list:
@@ -24,6 +28,39 @@ if __name__ == '__main__':
         # cmd = cmd.replace('\\', '')
         apt.main(cmd.split())
 
+
+
+
+##
+## convert ufmf to h.264
+
+import movies
+import cv2
+from reuse import *
+in_mov = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531//movie.ufmf'
+out_mov = '/groups/branson/home/kabram/temp/nochr_TrpA65F12_Unknown_RigA_20201212T163531.mp4'
+cap = movies.Movie(in_mov)
+
+fps = 30
+fourcc = cv2.VideoWriter_fourcc(*'X264')
+out = cv2.VideoWriter(out_mov, fourcc, fps, (1024,1024))
+
+for ndx in range(cap.get_n_frames()):
+    img = cap.get_frame(ndx)[0]
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    out.write(img)
+
+out.release()
+
+##
+# 3244
+# /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00168_CsChr_RigD_20150909T111218/movie.ufmf
+# frame: 24687
+
+# [    7, 23048,     0]
 
 ##
 cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
@@ -211,9 +248,9 @@ pred_animal_conf = None
 
 ## Training with neg APT
 from importlib import reload
-import Pose_detect_mmdetect as mmdetect_file
+import Pose_detect_mmdetect2x as mmdetect_file
 reload(mmdetect_file)
-from Pose_detect_mmdetect import Pose_detect_mmdetect
+from Pose_detect_mmdetect2x import Pose_detect_mmdetect
 from poseConfig import conf
 conf.mmpose_use_epoch_runner = True
 conf.mmdetect_net = 'test'

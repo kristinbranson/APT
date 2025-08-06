@@ -379,6 +379,8 @@ def randomly_translate(img, locs, conf, group_sz = 1):
             if (not sane) and do_move:
                 continue
 
+            # else:
+            #                 print 'not sane {}'.format(count)
             mat = np.float32([[1, 0, dx], [0, 1, dy]])
             for g in range(group_sz):
                 ii = copy.deepcopy(orig_im[g,...])
@@ -624,7 +626,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
                 if mask is not None:
-                    out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST)
+                    out_mask[g,...] = cv2.warpAffine(orig_mask[g,...],rot_mat,(int(cols),int(rows)),flags=cv2.INTER_NEAREST,borderValue=1)
             
             img[st:en, ...] = out_ii
             if mask is not None:
@@ -1968,6 +1970,26 @@ def make_vid(mov_file,trk_file,out_file,skel,st,en,x,y,fps=10,cmap='tab20',fig_s
 
     out.release()
 
+
+def read_coco(json_file):
+    from collections import Counter
+
+    A = json_load(json_file)
+    ims = [aa['file_name'] for aa in A['images']]
+    n_pts = len(A['categories'][0]['keypoints'])
+    cc = [aa['image_id'] for aa in A['annotations'] if aa['iscrowd'] == 0]
+    im_counts =Counter(cc)
+    max_n = max(im_counts.values())
+    count = np.zeros([len(ims)]).astype('int')
+    kpts = np.ones([len(ims),max_n,n_pts,3])*np.nan
+    for aa in A['annotations']:
+        if aa['iscrowd'] == 1:
+            continue
+        im_id = aa['image_id']
+        kpts[im_id,count[im_id],:] = np.array(aa['keypoints']).reshape([-1,3])
+        count[im_id] += 1
+
+    return ims,kpts
 
 
 if __name__ == "__main__":

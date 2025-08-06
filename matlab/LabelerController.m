@@ -1617,7 +1617,7 @@ classdef LabelerController < handle
     end  % function
 
     function addSatellite(obj, h)
-      % Add a 'satellite' figure, so we don't lose track of them
+      % Add a 'satellite' figure, so we don't lose track of them.
 
       % 'GC' dead handles
       isValid = arrayfun(@isvalid, obj.satellites_) ;
@@ -2720,6 +2720,70 @@ classdef LabelerController < handle
       set(obj.menu_track_backend_settings,'Enable','on');
     end  % function
     
+    % function cbkTrackerBackendSetDockerSSH(obj)
+    %   lObj = obj.labeler_ ;
+    %   assert(lObj.trackDLBackEnd.type==DLBackEnd.Docker);
+    %   drh = lObj.trackDLBackEnd.dockerremotehost;
+    %   if isempty(drh),
+    %     defans = 'Local';
+    %   else
+    %     defans = 'Remote';
+    %   end
+    % 
+    %   res = questdlg('Run docker on your Local machine, or SSH to a Remote machine?',...
+    %     'Set Docker Remote Host','Local','Remote','Cancel',defans);
+    %   if strcmpi(res,'Cancel'),
+    %     return;
+    %   end
+    %   if strcmpi(res,'Remote'),
+    %     res = inputdlg({'Remote Host Name:'},'Set Docker Remote Host',1,{drh});
+    %     if isempty(res) || isempty(res{1}),
+    %       return;
+    %     end
+    %     lObj.trackDLBackEnd.dockerremotehost = res{1};
+    %   else
+    %     lObj.trackDLBackEnd.dockerremotehost = '';
+    %   end
+    % 
+    %   ischange = ~strcmp(drh,lObj.trackDLBackEnd.dockerremotehost);
+    % 
+    %   if ischange,
+    %     res = questdlg('Test new Docker configuration now?','Test Docker configuration','Yes','No','Yes');
+    %     if strcmpi(res,'Yes'),
+    %       try
+    %         tfsucc = lObj.trackDLBackEnd.testDockerConfig();
+    %       catch ME,
+    %         tfsucc = false;
+    %         disp(getReport(ME));
+    %       end
+    %       if ~tfsucc,
+    %         res = questdlg('Test failed. Revert to previous Docker settings?','Backend test failed','Yes','No','Yes');
+    %         if strcmpi(res,'Yes'),
+    %           lObj.trackDLBackEnd.dockerremotehost = drh;
+    %         end
+    %       end
+    %     end
+    %   end
+    % end  % function
+    % 
+    % function cbkTrackerBackendSetDockerImageSpec(obj)
+    %   lObj = obj.labeler_ ;      
+    %   original_full_image_spec = lObj.get_backend_property('dockerimgfull') ;
+    %   dialog_result = inputdlg({'Docker Image Spec:'},'Set image spec...',1,{original_full_image_spec},'on');
+    %   if isempty(dialog_result)
+    %     return
+    %   end
+    %   new_full_image_spec = dialog_result{1};
+    %   try
+    %     lObj.set_backend_property('dockerimgfull', new_full_image_spec) ;
+    %   catch exception
+    %     if strcmp(exception.identifier, 'APT:invalidValue') ,
+    %       uiwait(errordlg(exception.message));
+    %     else
+    %       rethrow(exception);
+    %     end
+    %   end
+    % end  % function
 
     function cbkTrackerBackendSetCondaEnv(obj)
       lObj = obj.labeler_ ;      
@@ -3797,9 +3861,9 @@ classdef LabelerController < handle
     end
 
     function videoCenterOn(obj,x,y)
-      labeler = obj.labeler_ ;
+      % labeler = obj.labeler_ ;
       
-      [xsz,ysz] = labeler.videoCurrentSize();
+      [xsz,ysz] = obj.videoCurrentSize();
       lims = [x-xsz/2,x+xsz/2,y-ysz/2,y+ysz/2];
       axis(obj.axes_curr,lims);      
     end
@@ -4038,7 +4102,6 @@ classdef LabelerController < handle
     end  % function
 
     function play_(obj, playMethodName)
-      pbPlay = obj.pbPlay ;
       if obj.isPlaying_ ,
         obj.isPlaying_ = false ;  
           % setting this this will cause the already-running video playback loop from the previous cal to play_() to exit
@@ -4046,7 +4109,7 @@ classdef LabelerController < handle
       end
       oc = onCleanup(@()(obj.playCleanup_())) ;
       obj.isPlaying_ = true ;
-      pbPlay.CData = Icons.ims.stop ;
+      obj.pbPlay.CData = Icons.ims.stop ;
       obj.(playMethodName) ;
     end  % function
 
@@ -5719,18 +5782,46 @@ classdef LabelerController < handle
     function menu_evaluate_gtcomputeperf_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance('whichlabels','ask');
+      response = obj.askAboutUnrequestedGTLabelsIfNeeded_() ;
+      if strcmp(response, 'cancel')
+        return
+      end      
+      whichlabels = response ;
+      labeler.gtComputeGTPerformance('whichlabels',whichlabels);
     end
 
-
+    function response = askAboutUnrequestedGTLabelsIfNeeded_(obj)
+      labeler = obj.labeler_ ;
+      assert(labeler.gtIsGTMode);
+      nNewLbls = labeler.gtComputeNewLabelCount() ;
+      if nNewLbls == 0
+         response = 'suggestonly' ;  % will be ignored when the rubber meets the road, but that's ok
+         return
+      end
+      res = questdlg(sprintf('%d labeled frames were not in the to-label list, include them in analysis?',nNewLbls),'Update to-label list?','Yes','No','Cancel','Yes');
+      if strcmpi(res,'Cancel'),
+        response = 'cancel' ;
+      elseif strcmpi(res,'No'),
+        response = 'suggestonly' ;
+      elseif strcmpi(res,'Yes'),
+        response = 'all' ;
+      else
+        error('Internal error: The dialog returned an unanticpated value') ;
+      end
+    end  % function
 
     function menu_evaluate_gtcomputeperfimported_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       assert(labeler.gtIsGTMode);
-      labeler.gtComputeGTPerformance('useLabels2',true);
+
+      response = obj.askAboutUnrequestedGTLabelsIfNeeded_() ;
+      if strcmp(response, 'cancel')
+        return
+      end      
+      whichlabels = response ;
+
+      labeler.gtComputeGTPerformance('whichlabels',whichlabels,'useLabels2',true);
     end
-
-
 
     function menu_evaluate_gtexportresults_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;

@@ -1050,7 +1050,7 @@ classdef Labels
         pAcc = nan(nrow,npts*2);
         pTSAcc = -inf(nrow,npts);
         tfoccAcc = false(nrow,npts);
-        roi = nan(nrow,4,2);
+        % roi = nan(nrow,4,2);
       end
       pTrxAcc = nan(nrow,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
       thetaTrxAcc = nan(nrow,nView);
@@ -1177,9 +1177,13 @@ classdef Labels
         end
       end
       
-      
-      tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,roi,...
-        'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx','roi'});
+      if isma
+        tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,roi,...
+          'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx','roi'});
+      else
+        tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,...
+          'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx'});
+      end
       tblMF = [tblMF tLbl];
       
       if any(tfInvalid)

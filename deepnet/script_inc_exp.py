@@ -2374,7 +2374,8 @@ import shutil
 # lbl_json = glob.glob(os.path.join(tempdir, 'unmarkedMice', '*.json'))[0]
 # out_lbl = '/groups/branson/home/kabram/temp/unmarkedMice_rand_labels.json'
 # shutil.copy(lbl_json,out_lbl)
-out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+# out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
+out_lbl = f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
 
 # These are subsets of the random labels
 for rndx in range(n_rounds):
@@ -2465,7 +2466,7 @@ out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/inter
 cdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint/'
 out_json = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint/loc.json'
 
-train_name = f'joint'
+train_name = f'joint_re'
 cmd = f"APT_interface.py {out_lbl} -name {train_name} -conf_params mdn_pred_dist True batch_size 4 dl_steps 100000 multi_crop_ims False -type multi_mdn_joint_torch -cache {cdir} -json_trn_file {cdir}/loc.json train -use_cache"
 pt.submit_job(f'unmarked_mice_inc_joint', cmd, f'{cdir}/run_info', queue='gpu_a100', sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
 
@@ -2508,10 +2509,11 @@ bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint'
 # out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20230823T041646_20230823T041650.json'
 out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
 
+estr = '_re'
 out_dir = f'{bdir}/trks'
-train_name = f'joint'
-cmd = f"APT_interface.py {out_lbl} -name {train_name} -type multi_mdn_joint_torch -conf_params mdn_pred_dist True link_id True link_id_training_iters 100000 -cache {bdir} -json_trn_file {bdir}/loc.json track -mov {gt_movie} -out {bdir}/trks/20210924_four_female_mice_again_joint.trk"
-pt.submit_job(f'unmarked_mice_inc_rand_round_joint_track', cmd, f'{bdir}/run_info', queue='gpu_a100', sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
+train_name = f'joint{estr}'
+cmd = f"APT_interface.py {out_lbl} -name {train_name} -type multi_mdn_joint_torch -conf_params mdn_pred_dist True link_id True link_id_training_iters 100000 -cache {bdir} -json_trn_file {bdir}/loc.json track -mov {gt_movie} -out {bdir}/trks/20210924_four_female_mice_again_joint{estr}.trk"
+pt.submit_job(f'unmarked_mice_inc_rand_round_joint_track{estr}', cmd, f'{bdir}/run_info', queue='gpu_a100', sing_image='/groups/branson/home/kabram/bransonlab/singularity/ampere_pycharm_vscode.sif')
 
 
 ## Compare tracking
@@ -2776,6 +2778,196 @@ plt.xlabel('Size of bounding box')
 plt.ylabel('Density')
 plt.title('Size of bounding box for predictions')
 
+##############################################################
+## PLOT TRACKING EXAMPLES
+gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
+trk_file = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint/trks/20210924_four_female_mice_again_joint.trk'
+import TrkFile
+tt = TrkFile.Trk(trk_file)
+import movies
+import PoseTools as pt
+cap = movies.Movie(gt_movie)
+
+##
+cur_info = {
+'sel_int': [23300,23360],
+'n_fr' : 5,
+'x_lim' : [150,450 ],
+'y_lim' : [1170,1470],
+'skel': [[1,[2,3]],[0,2],[0,3],[3,2]],
+}
+info = []
+info.append(cur_info)
+cur_info = {
+'sel_int': [24020,24060],
+'n_fr' : 5,
+'x_lim' : [350,650 ],
+'y_lim' : [1510,1810],
+'skel': [[1,[2,3]],[0,2],[0,3],[3,2]],
+}
+info.append(cur_info)
+
+cur_info = { # 3 mice, some incorrect localizations
+'sel_int': [59680,59740],
+'n_fr' : 5,
+'x_lim' : [1600,1900 ],
+'y_lim' : [150,450],
+'skel': [[1,[2,3]],[0,2],[0,3],[3,2]],
+}
+info.append(cur_info)
+
+cur_info = { # 3 mice
+'sel_int': [2850,3000],
+'n_fr' : 5,
+'x_lim' : [875,1275],
+'y_lim' : [1300,1700 ],
+'skel': [[1,[2,3]],[0,2],[0,3],[3,2]],
+}
+info.append(cur_info)
+
+cur_info = { # 3 mice
+'sel_int': [72170,72270],
+'n_fr' : 5,
+'x_lim' : [300,600],
+'y_lim' : [1500,1800 ],
+'skel': [[1,[2,3]],[0,2],[0,3],[3,2]],
+}
+info.append(cur_info)
+
+sel_id = 4
+sel_int = info[sel_id]['sel_int']
+n_fr = info[sel_id]['n_fr']
+x_lim = info[sel_id]['x_lim']
+y_lim = info[sel_id]['y_lim']
+skel = info[sel_id]['skel']
+
+f,ax = plt.subplots(1,n_fr,figsize=(n_fr*2,2))
+frs = np.linspace(sel_int[0],sel_int[1],n_fr).astype(int)
+for i,ff in enumerate(frs):
+    curf = cap.get_frame(ff)[0]
+    curt,extra = tt.getframe(ff,extra=True)
+    curt = curt[:,:,0]
+    occ = extra['pTrkTag'][:,0]
+    vv = np.where(~np.all(np.isnan(curt[:,0]),axis=0))[0]
+    curt = curt[:,:,vv]
+    occ = occ[:,vv]
+
+    ax[i].imshow(curf,cmap='gray')
+    cmap = plt.get_cmap('tab10', curt.shape[0])
+    for j in range(curt.shape[0]):
+        for x in range(curt.shape[2]):
+            if np.all(np.isnan(curt[j,:,x])):
+                continue
+            if occ[j,x]>0:
+                ax[i].scatter(curt[j,0,x],curt[j,1,x],edgecolor=cmap(j),s=15,marker='o',facecolor='none')
+            else:
+                ax[i].scatter(curt[j,0,x],curt[j,1,x],color=cmap(j),s=15,marker='x')
+    for ee in skel:
+        if np.all(np.isnan(curt[ee[0],0])):
+            continue
+        if type(ee[1])==list:
+            xx1 = curt[ee[1],0,:].mean(axis=0)
+            yy1 = curt[ee[1],1,:].mean(axis=0)
+        else:
+            xx1 = curt[ee[1],0,:]
+            yy1 = curt[ee[1],1,:]
+        if type(ee[0])==list:
+            xx2 = curt[ee[0],0,:].mean(axis=0)
+            yy2 = curt[ee[0],1,:].mean(axis=0)
+        else:
+            xx2 = curt[ee[0],0,:]
+            yy2 = curt[ee[0],1,:]
+
+        ax[i].plot([xx1,xx2],[yy1,yy2],color='red',linewidth=1,alpha=0.25)
+
+    ax[i].axis('off')
+    ax[i].axis('image')
+    ax[i].set_xlim(x_lim)
+    ax[i].set_ylim(y_lim[::-1])
+    ax[i].text((x_lim[0]+x_lim[1])/2,y_lim[0]+20,f'Frame {ff}',ha='center',va='center',fontsize=10,color='white')
+
+f.tight_layout()
+
+plt.savefig(f'/groups/branson/home/kabram/temp/tracking_example_{sel_id}.svg')
+plt.savefig(f'/groups/branson/home/kabram/temp/tracking_example_{sel_id}.png')
+#
+import cv2
+from reuse import *
+out_file = f'/groups/branson/home/kabram/temp/tracking_example_{sel_id}_mov.mp4'
+fps = 5
+fourcc = cv2.VideoWriter_fourcc(*'X264')
+x = x_lim
+y = y_lim
+
+f = plt.figure(figsize=[4,4*(y[1]-y[0])/(x[1]-x[0])])
+f.set_dpi(400)
+ax = f.add_axes([0, 0, 1, 1])
+trk_fr,extra = tt.getframe(np.arange(sel_int[0],sel_int[1]+1),extra=True)
+occ = extra['pTrkTag']
+
+offset = np.array([x[0], y[0]])
+cc = cmap
+
+fr_s = sel_int[0]
+fr_e = sel_int[1]+1
+for fr in range(fr_s, fr_e):
+    ax.clear()
+    im = cap.get_frame(fr)[0]
+    if im.ndim == 2:
+        im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
+    ax.imshow(im[y[0]:y[1], x[0]:x[1]])
+    ax.axis('off')
+
+    for j in range(trk_fr.shape[0]):
+        for xn in range(trk_fr.shape[3]):
+            if np.all(np.isnan(trk_fr[j,:,fr-fr_s,xn])):
+                continue
+            if occ[j,fr-fr_s,xn]>0:
+                ax.scatter(trk_fr[j,0,fr-fr_s,xn]-x[0],trk_fr[j,1,fr-fr_s,xn]-y[0],edgecolor=cmap(j),s=55,marker='o',facecolor='none')
+            else:
+                ax.scatter(trk_fr[j,0,fr-fr_s,xn]-x[0],trk_fr[j,1,fr-fr_s,xn]-y[0],color=cmap(j),s=55,marker='x')
+
+
+        # ax.scatter(trk_fr[j,0,fr-fr_s,:]-x[0],trk_fr[j,1,fr-fr_s,:]-y[0],color=cmap(j),s=55,marker='+')
+
+    # for ix in range(trk_fr.shape[3]):
+    #     dskl(trk_fr[..., fr - fr_s, ix] - offset[None], skel, cc='red',alpha=0.5, ax=ax)
+
+    curt = trk_fr[:, :, fr - fr_s, :] - offset[None,:,None]
+    vv = np.where(~np.all(np.isnan(curt[:,0]),axis=0))[0]
+    curt = curt[:,:,vv]
+
+    for ee in skel:
+        if np.all(np.isnan(curt[ee[0], 0])):
+            continue
+        if type(ee[1]) == list:
+            xx1 = curt[ee[1], 0, :].mean(axis=0)
+            yy1 = curt[ee[1], 1, :].mean(axis=0)
+        else:
+            xx1 = curt[ee[1], 0, :]
+            yy1 = curt[ee[1], 1, :]
+        if type(ee[0]) == list:
+            xx2 = curt[ee[0], 0, :].mean(axis=0)
+            yy2 = curt[ee[0], 1, :].mean(axis=0)
+        else:
+            xx2 = curt[ee[0], 0, :]
+            yy2 = curt[ee[0], 1, :]
+
+        ax.plot([xx1, xx2], [yy1, yy2], color='red', linewidth=1, alpha=0.25)
+
+    ax.set_xlim([0, x[1] - x[0]])
+    ax.set_ylim([ y[1] - y[0],0])
+    f.canvas.draw()
+    img = np.frombuffer(f.canvas.tostring_rgb(), dtype=np.uint8)
+    img = img.reshape(f.canvas.get_width_height()[::-1] + (3,))
+    if fr == fr_s:
+        fr_sz = img.shape[:2]
+        out = cv2.VideoWriter(out_file, fourcc, fps, (fr_sz[1], fr_sz[0]))
+
+    img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    out.write(img)
+
+out.release()
 
 ##############################################
 ##############################################
@@ -2797,15 +2989,16 @@ import time
 
 ## classify the db
 
-start_round = 3
+start_round = 5
+estr = '_rep_2'
 for round in range(start_round,8):
 
     # check jobs status
-    time.sleep(100)
-    while pt.get_job_status(f'inc_confidence_grone_round_{round}') in ['PENDING','RUN']:
-        time.sleep(100)
+    # time.sleep(100)
+    # while pt.get_job_status(f'inc_confidence_grone_round_{round}') in ['PENDING','RUN']:
+    #     time.sleep(100)
 
-    tfile = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}/traindata'
+    tfile = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}{estr}/traindata'
     A = pt.pickle_load(tfile)
     conf = A[1]
     res = apt.classify_db_all('multi_mdn_joint_torch',conf,full_rand_json)
@@ -2815,13 +3008,15 @@ for round in range(start_round,8):
     pp = res[0]['locs']
     dd = np.linalg.norm(pp[:, :,None] - locs[:, None], axis=-1)
     dd_m = find_dist_match(dd)
-    no_detect = np.where(np.mean(dd_m,axis=-1)>75/2)[0]
+    n_pred = np.count_nonzero(~np.all(np.isnan(pp),axis=(-1,-2)),axis=-1)
+    n_lbl = np.count_nonzero(~np.all(np.isnan(locs),axis=(-1,-2)),axis=-1)
+    no_detect = np.where( np.any((np.mean(dd_m,axis=-1)>75/2),axis=1)|(n_pred<n_lbl) )[0]
     vv = ~np.all(np.isnan(pp),axis=(-1,-2))
 
     # ff(); plt.scatter(cc[vv],dd_m[vv])
     ##
     R = pt.json_load(f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[round+1]}/train_TF.json')
-    C = pt.json_load(f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}/train_TF.json')
+    C = pt.json_load(f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}{estr}/train_TF.json')
     n_extra = len(R['annotations'])-len(C['annotations'])
     aa_r = np.array([jj['iscrowd'] for jj in R['annotations']])
     aa_c = np.array([jj['iscrowd'] for jj in C['annotations']])
@@ -2833,7 +3028,18 @@ for round in range(start_round,8):
     R_f = pt.json_load(full_rand_json)
     done = np.array([ (xx['movid'],xx['frm']) for xx in C['images']])
     info = np.array(res[2])[:,:2]
-    ord = np.argsort(np.nanmin(cc.mean(axis=-1),axis=-1))
+
+    matched_conf = np.ones([len(R_f['images']),4])*np.nan
+    for ndx in range(len(R_f['images'])):
+        for ix in range(4):
+            if np.all(np.isnan(locs[ndx,ix,:,0])):
+                continue
+            dd = np.linalg.norm(locs[ndx,ix,None]-pp[ndx],axis=-1).mean(axis=-1)
+            mid = np.nanargmin(dd)
+            matched_conf[ndx,ix] = cc[ndx,mid].mean(axis=-1)
+
+    # ord = np.argsort(np.nanmin(cc.mean(axis=-1),axis=-1))
+    ord = np.argsort(np.nanmin(matched_conf,axis=-1))
 
     im_idx = np.array([xx['image_id'] for xx in R_f['annotations']])
     aa_f = np.array([jj['iscrowd'] for jj in R_f['annotations']])
@@ -2911,7 +3117,7 @@ for round in range(start_round,8):
         C['annotations'].extend([R_f['annotations'][xx] for xx in asel])
 
 
-    new_dir = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round+1}'
+    new_dir = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round+1}{estr}'
     os.makedirs(new_dir,exist_ok=True)
     import json
     with open(f'{new_dir}/train_TF.json','w') as fid:
@@ -2919,11 +3125,11 @@ for round in range(start_round,8):
 
     import ap36_train as ap36
     conf.cachedir = new_dir
-    conf.rescale = 2
-    # ap36.train(conf,'multi_mdn_joint_torch','deepnet')
-    ap36.train_bsub(conf,'multi_mdn_joint_torch','deepnet',name=f'inc_confidence_grone_round_{round+1}')
-
+    conf.rescale = 1.
     apt.gen_train_samples1(conf,'multi_mdn_joint_torch',out_file=f'{conf.cachedir}/train_samples',nsamples=25)
+    ap36.train(conf,'multi_mdn_joint_torch','deepnet')
+    # ap36.train_bsub(conf,'multi_mdn_joint_torch','deepnet',name=f'inc_confidence_grone_round_{round+1}')
+
 
     # time.sleep(100)
     # while pt.get_job_status(f'inc_confidence_grone_round_{round+1}') in ['PENDING','RUN']:
@@ -2973,6 +3179,7 @@ gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
 idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/confidence/'
 
+estr = '_rep_2'
 
 out_dir = f'{idir}/trks'
 import os
@@ -2985,7 +3192,7 @@ nets = [['multi_mdn_joint_torch',{}],]
 for rndx in range(7):
     train_name = f'round_{rndx}'
     for net in nets:
-        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}/traindata'
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}{estr}/traindata'
         A = pt.pickle_load(tfile)
         conf = A[1]
         if net[0] == 'multi_mdn_joint_torch':
@@ -2994,7 +3201,7 @@ for rndx in range(7):
         else:
             sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x_pycharm.sif'
             nname = 'dekr'
-        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}_{nname}.trk',sing_img=sing_img,name=f'confidence_{nname}_round_{rndx}')
+        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}{estr}_{nname}.trk',sing_img=sing_img,name=f'confidence_{nname}_round_{rndx}{estr}')
 
 
 ## Compare tracking. .Random results
@@ -3016,9 +3223,12 @@ bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
 trks = [f'{idir}/trks/20210924_four_female_mice_again_rand_1_{rndx}_tracklet.trk' for rndx in range(n_rounds-1,-1,-1)]
 trks1 = [f'{idir}/trks/20210924_four_female_mice_again_rand_{rndx}_tracklet.trk' for rndx in range(3)]
 
-trks = trks + trks1
 
 trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
+trks_j_re = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_re_tracklet.trk'
+
+trks = trks + trks1 + [trks_j_re,]
+
 # S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
 S_j = TrkFile.Trk(trks_j)
 # S_4x = TrkFile.Trk(trks_i[-1])
@@ -3077,8 +3287,12 @@ for pndx in range(len(trks)):
     ddq = dds[:,:4]
     ddqs.append([ddq,fn,fp,ee,oo])
 
+ddqj_re = ddqs[-1]
+ddqs = ddqs[:-1]
+
 ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqs]
 plt.legend([f'{x+1}' for x in range(len(trks))])
+plt.plot(np.sort(ddqj_re[0].flatten()),'--')
 plt.title('Random')
 plt.xlim([1.4e6,1.75e6])
 plt.ylim([-5,50])
@@ -3102,7 +3316,7 @@ import torch
 import tqdm
 
 out_dir = f'{bdir}/confidence/trks'
-trks_i = [f'{out_dir}/round_{ndx}_grone_tracklet.trk' for ndx in range(0,6)]
+trks_i = [f'{out_dir}/round_{ndx}_grone_tracklet.trk' for ndx in range(0,7)]
 
 trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
 # S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
@@ -3110,7 +3324,7 @@ S_j = TrkFile.Trk(trks_j)
 # S_4x = TrkFile.Trk(trks_i[-1])
 S_j.convert2dense()
 
-ddqi = []
+ddqc = []
 for pndx in range(len(trks_i)):
     dds = np.ones([108000, 4, 4])*np.nan
     fp = np.zeros([108000])
@@ -3156,10 +3370,10 @@ for pndx in range(len(trks_i)):
         fp[ndx] = np.count_nonzero(matched2==0)
 
     ddq = dds[:,:4]
-    ddqi.append([ddq,fn,fp,ee,oo])
+    ddqc.append([ddq,fn,fp,ee,oo])
 
 
-ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqi]
+ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqc]
 plt.legend([f'{x+1}' for x in range(len(trks_i))])
 plt.title('Tracker difference')
 plt.xlim([1.4e6,1.75e6])
@@ -3176,7 +3390,7 @@ plt.savefig('/groups/branson/home/kabram/temp/confidence_matches.png')
 sel = np.ones([108000])>0.5
 
 # avg animal size is 75px
-tr = 75/2
+tr = 75/4
 ff()
 
 n_rounds = 4
@@ -3190,15 +3404,15 @@ for tt in tfiles:
 
 jj = []
 for dd1 in ddqs:
-    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+    cj = np.count_nonzero(sel)*16-np.count_nonzero(dd1[0][sel]<tr)
     cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
     jj.append(cj)
 
 plt.plot(n_train,jj,marker='o')
 
 jj = []
-for dd1 in ddqi:
-    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+for dd1 in ddqc:
+    cj = np.count_nonzero(sel)*16-np.count_nonzero(dd1[0][sel]<tr)
     cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
     jj.append(cj)
 plt.plot(n_train[:len(jj)],jj,marker='o')
@@ -3216,7 +3430,7 @@ plt.xscale('log')
 
 
 
-##############################################
+############################################## TRACKER DIFFERENCE
 ##############################################
 
 ## train an initial dekr tracker
@@ -3268,15 +3482,16 @@ import APT_interface as apt
 nets = [['multi_mdn_joint_torch',{}],['multi_mmpose',{'mmpose_net':'dekr'}]]
 ## classify the db
 
-start_round = 4
+start_round = 3
+estr = '_rep_1'
 for round in range(start_round,8):
-    time.sleep(100)
-    while (pt.get_job_status(f'inc_diff_dekr_round_{round}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round}') in ['PENDING','RUN']):
-        time.sleep(100)
+    # time.sleep(100)
+    # while (pt.get_job_status(f'inc_diff_dekr_round_{round}{estr}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round}{estr}') in ['PENDING','RUN']):
+    #     time.sleep(100)
 
     a_res = []
     for net in nets:
-        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{round}/traindata'
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{round}{estr}/traindata'
         A = pt.pickle_load(tfile)
         conf = A[1]
         res = apt.classify_db_all(net[0],conf,full_rand_json)
@@ -3313,11 +3528,11 @@ for round in range(start_round,8):
     #
     if round == 6:
         C = pt.json_load(
-            f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[-1]}/train_TF.json')
+            f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[-1]}{estr}/train_TF.json')
     else:
 
         R = pt.json_load(f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/unmarkedMice/multi_mdn_joint_torch/view_0/{rfiles[round+1]}/train_TF.json')
-        C = pt.json_load(f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}/train_TF.json')
+        C = pt.json_load(f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round}{estr}/train_TF.json')
         n_extra = len(R['annotations'])-len(C['annotations'])
         aa_r = np.array([jj['iscrowd'] for jj in R['annotations']])
         aa_c = np.array([jj['iscrowd'] for jj in C['annotations']])
@@ -3389,13 +3604,13 @@ for round in range(start_round,8):
             C['annotations'].extend([R_f['annotations'][xx] for xx in asel])
 
 
-    new_dir = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round+1}'
+    new_dir = f'{idir}/unmarkedMice/multi_mdn_joint_torch/view_0/round_{round+1}{estr}'
     os.makedirs(new_dir,exist_ok=True)
     import json
     with open(f'{new_dir}/train_TF.json','w') as fid:
         json.dump(C,fid)
 
-    new_dir_dekr = f'{idir}/unmarkedMice/multi_mmpose/view_0/round_{round+1}'
+    new_dir_dekr = f'{idir}/unmarkedMice/multi_mmpose/view_0/round_{round+1}{estr}'
     os.makedirs(new_dir_dekr,exist_ok=True)
     # remove existing soft link
     if not os.path.exists(f'{new_dir_dekr}/train_TF.json'):
@@ -3404,16 +3619,17 @@ for round in range(start_round,8):
 
     import ap36_train as ap36
     conf.cachedir = new_dir
-    conf.rescale = 2
-    ap36.train_bsub(conf,'multi_mdn_joint_torch','deepnet',name=f'inc_diff_grone_round_{round+1}')
+    conf.rescale = 1
+    conf.nan_as_occluded = False
+    ap36.train_bsub(conf,'multi_mdn_joint_torch','deepnet',name=f'inc_diff_grone_round_{round+1}{estr}')
 
     conf.cachedir = new_dir_dekr
     conf.mmpose_net = 'dekr'
-    ap36.train_bsub(conf,'multi_mmpose','deepnet',name=f'inc_diff_dekr_round_{round+1}',sing_img='/groups/branson/bransonlab/mayank/singularity/mmpose_1x_pycharm.sif')
+    ap36.train_bsub(conf,'multi_mmpose','deepnet',name=f'inc_diff_dekr_round_{round+1}{estr}',sing_img='/groups/branson/bransonlab/mayank/singularity/mmpose_1x_pycharm.sif')
 
-    # time.sleep(100)
-    # while (pt.get_job_status(f'inc_diff_dekr_round_{round}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round}') in ['PENDING','RUN']):
-    #     time.sleep(100)
+    time.sleep(100)
+    while (pt.get_job_status(f'inc_diff_dekr_round_{round+1}{estr}') in ['PENDING','RUN']) or  (pt.get_job_status(f'inc_diff_grone_round_{round+1}{estr}') in ['PENDING','RUN']):
+        time.sleep(100)
 
 
 ## track gt movie using difference labels
@@ -3422,6 +3638,7 @@ gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_
 bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc'
 idir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/tracker_diff/'
 
+estr = '_rep_2'
 
 out_dir = f'{idir}/trks'
 import os
@@ -3434,7 +3651,7 @@ nets = [['multi_mdn_joint_torch',{}],['multi_mmpose',{'mmpose_net':'dekr'}]]
 for rndx in range(7):
     train_name = f'round_{rndx}'
     for net in nets:
-        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}/traindata'
+        tfile = f'{idir}/unmarkedMice/{net[0]}/view_0/round_{rndx}{estr}/traindata'
         A = pt.pickle_load(tfile)
         conf = A[1]
         if net[0] == 'multi_mdn_joint_torch':
@@ -3443,7 +3660,7 @@ for rndx in range(7):
         else:
             sing_img = '/groups/branson/home/kabram/bransonlab/singularity/mmpose_1x_pycharm.sif'
             nname = 'dekr'
-        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}_{nname}.trk',sing_img=sing_img,name=f'inc_diff_{nname}_round_{rndx}')
+        ap36.track_bsub(conf,net[0],'deepnet',gt_movie,f'{out_dir}/round_{rndx}{estr}_{nname}.trk',sing_img=sing_img,name=f'inc_diff_{nname}_round_{rndx}{estr}')
 
 
 ## Compare tracking
@@ -3538,7 +3755,7 @@ plt.title('Prediction agreement of randomly labeled models')
 # plt.savefig('/groups/branson/home/kabram/temp/random_matches_new.png')
 
 
-## Distance of interactive labels to final interactive
+## Distance of diff labels to final interactive
 
 import TrkFile
 import mmpose
@@ -3550,7 +3767,7 @@ import torch
 import tqdm
 
 out_dir = f'{bdir}/tracker_diff/trks'
-trks_i = [f'{out_dir}/round_{ndx}_grone_tracklet.trk' for ndx in range(0,6)]
+trks_i = [f'{out_dir}/round_{ndx}_grone_tracklet.trk' for ndx in range(0,7)]
 
 trks_j = f'{bdir}/joint/trks/20210924_four_female_mice_again_joint_tracklet.trk'
 # S_all = [TrkFile.Trk(trks[pndx]) for pndx in range(len(trks))]
@@ -3558,7 +3775,7 @@ S_j = TrkFile.Trk(trks_j)
 # S_4x = TrkFile.Trk(trks_i[-1])
 S_j.convert2dense()
 
-ddqi = []
+ddqd = []
 for pndx in range(len(trks_i)):
     dds = np.ones([108000, 4, 4])*np.nan
     fp = np.zeros([108000])
@@ -3604,17 +3821,17 @@ for pndx in range(len(trks_i)):
         fp[ndx] = np.count_nonzero(matched2==0)
 
     ddq = dds[:,:4]
-    ddqi.append([ddq,fn,fp,ee,oo])
+    ddqd.append([ddq,fn,fp,ee,oo])
 
 
-ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqi]
+ff(); [plt.plot(np.sort(dd1[0].flatten())) for dd1 in ddqd]
 plt.legend([f'{x+1}' for x in range(len(trks_i))])
 plt.title('Tracker difference')
 plt.xlim([1.4e6,1.75e6])
 plt.ylim([-5,50])
 plt.ylabel('Distance (px) between predictions')
 plt.xlabel('Predictions Order')
-plt.title('Prediction agreement of interactively labeled models')
+plt.title('Prediction agreement of difference labeled models')
 # plt.savefig('/groups/branson/home/kabram/temp/tracker_diff_matches.svg')
 # plt.savefig('/groups/branson/home/kabram/temp/tracker_diff_matches.png')
 
@@ -3624,7 +3841,7 @@ plt.title('Prediction agreement of interactively labeled models')
 sel = np.ones([108000])>0.5
 
 # avg animal size is 75px
-tr = 75/2
+tr = 75/4
 ff()
 
 
@@ -3638,15 +3855,15 @@ for tt in tfiles:
 
 jj = []
 for dd1 in ddqs:
-    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+    cj = np.count_nonzero(sel)*4*4-np.count_nonzero(dd1[0][sel]<tr)
     cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
     jj.append(cj)
 
 plt.plot(n_train,jj,marker='o')
 
 jj = []
-for dd1 in ddqi:
-    cj = np.count_nonzero(sel)*4-np.count_nonzero(dd1[0][sel].mean(axis=-1)<tr)
+for dd1 in ddqd:
+    cj = np.count_nonzero(sel)*16-np.count_nonzero(dd1[0][sel]<tr)
     cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
     jj.append(cj)
 plt.plot(n_train[:len(jj)],jj,marker='o')
@@ -3659,6 +3876,73 @@ plt.title('Prediction agreement of interactively and randomly labeled models')
 plt.yscale('log')
 plt.xscale('log')
 # plt.savefig('/groups/branson/home/kabram/temp/incremental_training_vs_random_training.svg')
+
+
+
+#################################################
+#################################################
+
+## PLot ALL -- interactive, confidence and difference
+
+
+sel = np.ones([108000])>0.5
+
+# avg animal size is 75px
+tr = 75/4
+ff()
+
+
+tfiles = [f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/random/loc_1_{ix}.json' for ix in range(n_rounds-1,-1,-1)]
+tfiles.extend([f'{bdir}/random/loc_0.json', f'{bdir}/random/loc_1_roi.json',f'{bdir}/random/loc_2_roi.json'])
+n_train = []
+for tt in tfiles:
+    J = pt.json_load(tt)
+    nn = sum([ll['ntgt'] for ll in J['locdata']])
+    n_train.append(nn)
+
+jj = []
+for dd1 in ddqs:
+    cj = np.count_nonzero(sel)*4*4-np.count_nonzero(dd1[0][sel]<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+
+plt.plot(n_train,jj,marker='o')
+
+jj = []
+for dd1 in ddqc:
+    cj = np.count_nonzero(sel)*16-np.count_nonzero(dd1[0][sel]<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+plt.plot(n_train[:len(jj)],jj,marker='o')
+
+jj = []
+for dd1 in ddqd:
+    cj = np.count_nonzero(sel)*16-np.count_nonzero(dd1[0][sel]<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+plt.plot(n_train[:len(jj)],jj,marker='o')
+plt.title('Labeling Strategies')
+
+tfiles= [f'/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/loc_{ix}.json' for ix in range(1,8)]
+n_train_i = []
+for tt in tfiles:
+    J = pt.json_load(tt)
+    nn = sum([ll['ntgt'] for ll in J['locdata']])
+    n_train_i.append(nn)
+
+jj = []
+for dd1 in ddqi:
+    cj = np.count_nonzero(sel)*16-np.count_nonzero(dd1[0][sel]<tr)
+    cj = cj+dd1[1][sel].sum() + dd1[2][sel].sum()
+    jj.append(cj)
+plt.plot(n_train_i[:len(jj)],jj,marker='o')
+
+plt.legend(['Random','Confidence','Difference','Interactive'])
+plt.xlabel('Number of training examples')
+plt.ylabel(f'Number of predictions with error {tr}px')
+plt.title('Prediction agreement of interactively and randomly labeled models')
+plt.yscale('log')
+plt.xscale('log')
 
 
 
@@ -3723,3 +4007,253 @@ y = [200,800]
 pt.make_vid(mov_file,trk_file,out_file,skel,st,en,x,y,cmap=cmap,fig_size=fig_size)
 
 
+############################################################
+#############################################################
+## HEAVY TAIL OF CLOSE INTERACTIONS
+
+import movies
+gt_movie = '/groups/branson/bransonlab/roian/apt_testing/files_for_working_with_apt/four_and_five_mice_recordings_210924/20210924_four_female_mice_again/20210924_four_female_mice_again.mjpg'
+bdir = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/joint'
+out_lbl = '/groups/branson/bransonlab/mayank/apt_cache_2/unmarked_mice_inc/interactive/20241231T012358_20241231T012358.json'
+
+trk_file = f'{bdir}/trks/20210924_four_female_mice_again_joint.trk'
+
+import TrkFile
+tt = TrkFile.Trk(trk_file)
+
+cap = movies.Movie(gt_movie)
+tr = 300 # roughly 2x body len
+
+close_pts = []
+mice_pts = []
+frs = []
+for ndx in range(108000):
+    curp = tt.getframe(ndx)[:,:,0]
+    vv = ~np.all(np.isnan(curp[:,0]),axis=0)
+    curp = curp[:,:,vv]
+
+    curm =  curp[[0,1]].mean(axis=0)
+    d = np.linalg.norm(curm[..., None] - curp[0,:,  None], axis=0) # d[i,j] has distance from the center of mouse i to the nose of mouse j
+    d_all = np.linalg.norm(curp[...,None] - curp[:,:,None], axis=1)
+    for ix in range(d.shape[0]):
+        for jx in range(d.shape[1]):
+            if ix==jx:
+                continue
+            if d[ix,jx]>d[jx,ix]:
+                continue
+            if d[ix,jx]<tr:
+                ht1 = curp[[0,1],:,ix]
+                ht2 = curp[[0,1],:,jx]
+
+                # rotate and center ht2 into ht1 coordinates
+                ht1 = ht1 - curm[:,ix]
+                ht2 = ht2 - curm[:,ix]
+                theta = -np.arctan2(ht1[0,1], ht1[0,0])
+
+                # rotate ht1 by theta
+                ht2_rotated = np.zeros(ht2.shape)
+                ht2_rotated[:,0] = ht2[:,0]*np.cos(theta) - ht2[:,1]*np.sin(theta)
+                ht2_rotated[:,1] = ht2[:,0]*np.sin(theta) + ht2[:,1]*np.cos(theta)
+                close_pts.append(ht2_rotated)
+                frs.append(ndx)
+
+                ht1_rotated = np.zeros(ht1.shape)
+                ht1_rotated[:,0] = ht1[:,0]*np.cos(theta) - ht1[:,1]*np.sin(theta)
+                ht1_rotated[:,1] = ht1[:,0]*np.sin(theta) + ht1[:,1]*np.cos(theta)
+                mice_pts.append(ht1_rotated)
+
+close_pts = np.array(close_pts)
+frs = np.array(frs)
+mice_pts = np.array(mice_pts)
+
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+
+def plot_polar_histogram(x, y, n_bins=36, figsize=(10, 10), color='skyblue',
+                         edgecolor='darkblue', alpha=0.7, normalize=False):
+    """
+    Create a polar histogram from x,y coordinates.
+
+    Parameters:
+    -----------
+    x : array-like
+        X-coordinates of points
+    y : array-like
+        Y-coordinates of points (same length as x)
+    n_bins : int, default=36
+        Number of angular bins (e.g., 36 for 10-degree bins)
+    figsize : tuple, default=(10, 10)
+        Figure size
+    color : str, default='skyblue'
+        Color of the histogram bars
+    edgecolor : str, default='darkblue'
+        Color of the histogram bar edges
+    alpha : float, default=0.7
+        Transparency of the histogram bars
+    normalize : bool, default=False
+        Whether to normalize the histogram (sum to 1)
+
+    Returns:
+    --------
+    fig, ax : matplotlib figure and axis objects
+    """
+    # Convert Cartesian (x,y) to polar coordinates (theta, r)
+    theta = np.arctan2(y, x)
+
+    # Create figure and axis
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection='polar')
+
+    # Create the histogram
+    counts, bin_edges = np.histogram(theta, bins=n_bins, range=(-np.pi, np.pi))
+
+    if normalize:
+        counts = counts / np.sum(counts)
+
+    # Calculate bin centers
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+    # Plot the histogram
+    bars = ax.bar(bin_centers, counts, width=(2 * np.pi) / n_bins,
+                  bottom=0.0, color=color, edgecolor=edgecolor, alpha=alpha)
+
+    # Configure the plot
+    ax.set_theta_zero_location("N")  # Set 0 degrees at the top
+    ax.set_theta_direction(-1)  # Go clockwise
+
+    # Add labels and title
+    ax.set_title('Polar Histogram of Points', y=1.08)
+    ax.set_xlabel('Angle (radians)')
+    ax.set_ylabel('Count')
+
+    plt.tight_layout()
+    return fig, ax
+
+##
+def plot_polar_histogram_with_distance(x, y, n_angular_bins=36, n_radial_bins=5,
+                                       figsize=(12, 10), cmap='viridis',scale='normal',ax=None, x_max =None):
+    """
+    Create a 2D polar histogram showing both angle and distance distribution.
+
+    Parameters:
+    -----------
+    x : array-like
+        X-coordinates of points
+    y : array-like
+        Y-coordinates of points (same length as x)
+    n_angular_bins : int, default=36
+        Number of angular bins
+    n_radial_bins : int, default=5
+        Number of radial (distance) bins
+    figsize : tuple, default=(12, 10)
+        Figure size
+    cmap : str, default='viridis'
+        Colormap for the 2D histogram
+
+    Returns:
+    --------
+    fig, ax : matplotlib figure and axis objects
+    """
+    # Convert Cartesian (x,y) to polar coordinates (theta, r)
+    theta = np.arctan2(y, x)
+    r = np.sqrt(x ** 2 + y ** 2)
+
+    if ax is None:
+        # Create figure and axis
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot(111, projection='polar')
+    else:
+        fig = ax.figure
+
+    # Set the maximum radius if not provided
+    if x_max is None:
+        x_max = np.max(r)
+    # Create the 2D histogram
+    hist, theta_edges, r_edges = np.histogram2d(
+        theta, r,
+        bins=[n_angular_bins, n_radial_bins],
+        range=[[-np.pi, np.pi], [0, x_max]]
+    )
+
+    if scale == 'log':
+        # hist = np.log(hist + 1)
+        hist = hist + 1
+    # Convert to mesh for plotting
+    theta_centers = (theta_edges[:-1] + theta_edges[1:]) / 2
+    r_centers = (r_edges[:-1] + r_edges[1:]) / 2
+
+    # Create meshgrid for pcolormesh
+    THETA, R = np.meshgrid(theta_edges, r_edges)
+
+    # Plot as a pcolormesh
+    if scale == 'log':
+        cax = ax.pcolormesh(THETA, R, hist.T, cmap=cmap,norm=LogNorm(vmin=1,vmax=np.max(hist)))
+    else:
+        cax = ax.pcolormesh(THETA, R, hist.T, cmap=cmap)
+
+    # Add a colorbar
+    cbar = fig.colorbar(cax, ax=ax, pad=0.1)
+    if scale == 'log':
+        cbar.set_label('Count (Log Scale)')
+    else:
+        cbar.set_label('Count')
+
+    # Configure the plot
+    ax.set_theta_zero_location("N")  # Set 0 degrees at the top
+    ax.set_theta_direction(-1)  # Go clockwise
+
+    # Set the ylim (radial distance)
+    ax.set_ylim(0, x_max)
+
+    # Add title
+    ax.set_title('2D Polar Histogram (Angle and Distance)', y=1.08)
+
+    return hist
+
+f = plt.figure(figsize=(14, 10))
+ax = [f.add_subplot(2, 2,gg , projection='polar') for gg in range(1,5)]
+h_all = []
+curh = plot_polar_histogram_with_distance(close_pts[:,0,0],close_pts[:,0,1],n_angular_bins=36,n_radial_bins=10,scale='normal',ax=ax[0],x_max=150)
+h_all.append(curh)
+ax[0].set_title('nose relative to center (normal scale)')
+plot_polar_histogram_with_distance(close_pts[:,0,0],close_pts[:,0,1],n_angular_bins=36,n_radial_bins=10,scale='log',ax=ax[2],x_max=150)
+
+ax[2].set_title('nose relative to center (log scale)')
+close_pts_nose = close_pts - mice_pts[:,0:1,:]
+curh = plot_polar_histogram_with_distance(close_pts_nose[:,0,0],close_pts_nose[:,0,1],n_angular_bins=36,n_radial_bins=10,scale='normal',ax=ax[1],x_max=150)
+h_all.append(curh)
+ax[1].set_title('nose relative to nose (normal scale)')
+plot_polar_histogram_with_distance(close_pts_nose[:,0,0],close_pts_nose[:,0,1],n_angular_bins=36,n_radial_bins=10,scale='log',ax=ax[3],x_max=150)
+ax[3].set_title('nose relative to nose (log scale)')
+plt.tight_layout()
+
+
+if False:
+    plt.savefig('/groups/branson/home/kabram/temp/close_interaction_polar_histogram.svg')
+    plt.savefig('/groups/branson/home/kabram/temp/close_interaction_polar_histogram.png')
+
+##
+f,ax = plt.subplots(1, 2, figsize=(10, 5))
+for ndx,curh in enumerate(h_all):
+    cc = curh.flatten()
+    cc = cc[cc > 0]
+    ax[ndx].plot(np.sort(cc)[::-1])
+    ss = curh.std()
+    gg = np.random.normal(size=1000)*ss
+    gg= gg[gg>0]
+    ax[ndx].plot(np.sort(gg)[::-1])
+    ax[ndx].set_yscale('log')
+    ax[ndx].set_xscale('log')
+
+ax[0].set_title('nose relative to center')
+ax[0].set_xlabel('Cell location')
+ax[0].set_ylabel('Count')
+
+ax[1].set_title('nose relative to nose')
+ax[1].set_xlabel('Cell location')
+ax[1].set_ylabel('Count')
+
+if False:
+    plt.savefig('/groups/branson/home/kabram/temp/close_interaction_log_log.svg')
+    plt.savefig('/groups/branson/home/kabram/temp/close_interaction_log_log.png')
