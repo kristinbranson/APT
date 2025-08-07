@@ -13,11 +13,8 @@ if (vv[0]==1 and vv[1]>12) or vv[0]==2:
 else:
     tf = tensorflow
 
-import matplotlib.pyplot as plt
 from itertools import islice
 import time
-
-import mpl_toolkits.axes_grid1 as axg1
 
 import PoseTools
 import heatmap
@@ -962,7 +959,9 @@ def montage(ims0, ims0type='batchlast',
     :param locsmrkrsz:
     :return:
     '''
+    import matplotlib.pyplot as plt
     from matplotlib import cm
+    import mpl_toolkits.axes_grid1 as axg1
 
     if ims0type == 'batchfirst':
         ims = np.moveaxis(ims0, 0, -1)

@@ -29,7 +29,6 @@ import json
 import logging
 from time import time
 import cv2
-import matplotlib.pyplot as plt
 
 import tfdatagen
 import heatmap
@@ -1576,6 +1575,8 @@ def pafhm_prog_viz(pafhm,
     :param figfaceclr:
     :return:
     '''
+
+    import matplotlib.pyplot as plt
 
     nstg = len(pafhm)
 

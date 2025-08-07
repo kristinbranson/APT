@@ -3092,7 +3092,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
       tv = obj.trkVizer;
-      if isempty(tv.ptrx)
+      if isempty(tv) || isempty(tv.ptrx)
         return;
       end
       curfr = obj.lObj.currFrame;

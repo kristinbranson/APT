@@ -202,14 +202,13 @@ def assign_ids(trk, params, T=np.inf):
   # p is d x nlandmarks x maxnanimals x T
   # nan is used to indicate missing data
   T = int(np.minimum(T, trk.T))
-  T1 = trk.T0+T-1
   pcurr = trk.getframe(trk.T0)
-  idxcurr = trk.real_idx(pcurr)
+  idxcurr = trk.real_idx(pcurr) # whether each id is alive at frame T0
   pcurr = pcurr[:, :, idxcurr]
   ids = TrkFile.Tracklet(defaultval=-1, ntargets=trk.ntargets) 
   # allocate for speed!
   [sf, ef] = trk.get_startendframes()
-  ids.allocate((1,), sf-trk.T0, np.minimum(T-1, ef-trk.T0)) # allocate(size_rest,startframes,endframes):
+  ids.allocate((1,), sf, ef) # allocate(size_rest,startframes,endframes):
   
   if T == 0:
     costs = np.zeros(0)
@@ -218,7 +217,7 @@ def assign_ids(trk, params, T=np.inf):
   # ids = -np.ones((trk.T,trk.ntargets),dtype=int)
   idscurr = np.arange(np.count_nonzero(idxcurr), dtype=int)
   
-  ids.settargetframe(idscurr, np.where(idxcurr.flatten())[0], 0)
+  ids.settargetframe(idscurr, np.where(idxcurr.flatten())[0], trk.T0)
   # ids[idxcurr,0] = idscurr
   if idscurr.size == 0:
     lastid = 0
@@ -228,13 +227,13 @@ def assign_ids(trk, params, T=np.inf):
   
   set_default_params(params)
   
-  for t in tqdm(range(trk.T0, T1+1)):
+  for t in tqdm(range(trk.T0, trk.T1+1)):
     pnext = trk.getframe(t)
     idxnext = trk.real_idx(pnext)
     pnext = pnext[:, :, idxnext]
     idsnext, lastid, costs[t-1-trk.T0], _ = \
       match_frame(pcurr, pnext, idscurr, params, lastid) #,t=t)
-    ids.settargetframe(idsnext, np.where(idxnext.flatten())[0], t-trk.T0)
+    ids.settargetframe(idsnext, np.where(idxnext.flatten())[0], t)
     # ids[t,idxnext] = idsnext
     pcurr = pnext
     idscurr = idsnext
@@ -1037,32 +1036,37 @@ Returns the id that is used for the merge, which is the one with the smaller ind
   return use_ndx
 
 
-def motion_link(trk,ids,T,t0s,t1s,params):
+def motion_link(trk,ids,t0s,t1s,params):
 
   if len(t0s) == 0:
     return
 
+  T0 = np.min(t0s)
+  T1 = np.max(t1s)
+
   mpred_stats = []
-  for ndx in range(200):
-    ix = np.random.randint(int(T) - 3)+trk.T0
-    pp = trk.getframe(np.arange(ix, ix + 3))
-    ii = ids.getframe(np.arange(ix, ix + 3))[0]
-    for i in ii[0]:
-      if i == -1: continue
-      ixx = np.where(ii == i)
+  nsamples = min(200,T1-T0-3)
+  frs = np.random.choice(np.arange(T0,T1-2,dtype=int),nsamples,replace=False)
+  for fr in frs:
+    pp = trk.getframe(np.arange(fr, fr + 3)) # nkpts x d x 3 x maxnids
+    idscurr = ids.getframe(np.arange(fr, fr + 3))[0] # 3 x maxnids
+    for idcurr in idscurr[0]: # ids alive at frame ix
+      if idcurr == -1: continue
+      ixx = np.where(idscurr == idcurr)
       if len(ixx[0]) < 3: continue
       sp = pp[..., ixx[0], ixx[1]]
       vmag = np.linalg.norm(sp[..., 0] - sp[..., 1], axis=1).mean(axis=0)
       mpred = 2 * sp[..., 1] - sp[..., 0]
       merror = np.linalg.norm(sp[..., 2] - mpred, axis=1).mean(axis=0)
-      mpred_stats.append([vmag, merror, ix, i])
+      mpred_stats.append([vmag, merror, fr, idcurr])
 
   mpred_stats = np.array(mpred_stats)
   if mpred_stats.size == 0:
-      logging.warning('No motion stats available, cannot do motion linking')
-      return
-  vel_mag_eps = np.percentile(mpred_stats[:, 0], 90)
-  pred_error_thresh = np.percentile(mpred_stats[:, 1] / (mpred_stats[:, 0] + vel_mag_eps), 90)
+    val_mag_eps = 0.1
+    pred_error_thresh = 0.1
+  else:
+    vel_mag_eps = np.percentile(mpred_stats[:, 0], 90)
+    pred_error_thresh = np.percentile(mpred_stats[:, 1] / (mpred_stats[:, 0] + vel_mag_eps), 90)
 
   cur_ndx = 0
   mcount = 0
@@ -1168,12 +1172,11 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   params['maxframes_delete'] = conf.link_id_min_tracklet_len
 
-  trk.convert2sparse()
-
   T = np.minimum(np.inf, trk.T)
   nframes_test = np.inf
   nframes_test = int(np.minimum(T, nframes_test))
 
+  trk.convert2sparse()
 
   # Do the linking
   ids, costs = assign_ids(trk, params, T=nframes_test)
@@ -1185,16 +1188,16 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
   # get starts and ends for each id
   t0s = np.zeros(nids, dtype=int)
   t1s = np.zeros(nids, dtype=int)
-  all_idx = ids.where_all(nids)
+  all_tidx,all_fidx = ids.where_all(nids) # returns (tdx,fidx), where tidx[id],fidx[id] are the target and frame indices which are assigned id
   for id in range(nids):
-    idx = [all_idx[0][id],all_idx[1][id]]
-    if idx[0].size==0: continue
+    fidx = all_fidx[id]
+    if fidx.size==0: continue
     # idx = np.nonzero(id==ids)
-    t0s[id] = np.min(idx[1])
-    t1s[id] = np.max(idx[1])
+    t0s[id] = np.min(fidx)
+    t1s[id] = np.max(fidx)
 
   if do_motion_link:
-    motion_link(trk,ids,T,t0s,t1s,params)
+    motion_link(trk,ids,t0s,t1s,params)
 
   # isdummy = np.zeros((ids.ntargets,ids.T),dtype=bool)
   isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, ids.T))
