@@ -539,8 +539,19 @@ classdef InfoTimeline < handle
       else
         xspan = nominal_xspan ;
         r = xspan/2 ;
-        x0 = frm-r; %max(frm-r,1);
-        x1 = frm+r; %min(frm+r,obj.nfrm);
+        x0_raw = frm-r;
+        x1_raw = frm+r; %min(frm+r,obj.nfrm);
+        % Make sure the limits don't run off the end
+        if x0_raw<1
+          x0 = 1 ;
+          x1 = 1 + 2*r ;
+        elseif x1_raw>obj.nfrm
+          x1 = obj.nfrm ;
+          x0 = x1 - 2*r ;
+        else
+          x0 = x0_raw ;
+          x1 = x1_raw ;
+        end
       end
       if xspan/nominal_dxtick > 20 ,
         dxtick = apt.heuristic_dxtick_from_xspan(xspan) ;
