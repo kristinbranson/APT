@@ -198,8 +198,10 @@ classdef InfoTimeline < handle
       obj.hSelIm = [];
       obj.selectOn = false;
       obj.selectOnStartFrm = [];
-      obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
-      obj.hSegLineGTLbled = SegmentedLine(axtm,'InfoTimeline_SegLineGTLbled');
+      % obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
+      obj.hSegLineGT = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGT');
+      % obj.hSegLineGTLbled = SegmentedLine(axtm,'InfoTimeline_SegLineGTLbled');
+      obj.hSegLineGTLbled = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGTLbled');
       obj.isinit = false;
       
       hCMenu = uicontextmenu('parent',axtm.Parent,...
@@ -366,11 +368,10 @@ classdef InfoTimeline < handle
       obj.selectInit();
       
       xlims = [1 obj.nfrm];
-      SEGLINEYLOC = 1;
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
-      obj.hSegLineGT.init(xlims,SEGLINEYLOC,sPV);
-      obj.hSegLineGTLbled.init(xlims,SEGLINEYLOC,sPVLbled);
+      initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
+      initSegmentedLineBang(obj.hSegLineGTLbled,xlims,sPVLbled);
       obj.custom_data = [];
       if obj.getCurPropTypeIsAllFrames(),
         obj.setCurPropTypeDefault();
@@ -937,8 +938,8 @@ classdef InfoTimeline < handle
         obj.cbkGTSuggUpdated([],[]);
       end
       onOff = onIff(gt);
-      obj.hSegLineGT.setVisible(onOff);
-      obj.hSegLineGTLbled.setVisible(onOff);   
+      obj.hSegLineGT.Visible = onOff ;
+      obj.hSegLineGTLbled.Visible = onOff ;   
       set(obj.hPtsL,'Visible',onIff(~gt));
     end
     function cbkGTSuggUpdated(obj,src,evt) %#ok<INUSD>
@@ -960,7 +961,8 @@ classdef InfoTimeline < handle
       
       % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
       frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
-      obj.hSegLineGT.setOnAtOnly(frmsOn);
+      % obj.hSegLineGT.setOnAtOnly(frmsOn);
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.nfrm, frmsOn) ;
       
       % For hSegLineGTLbled, we turn on a given frame only if all
       % targets/rows for that frame are labeled.
@@ -968,7 +970,8 @@ classdef InfoTimeline < handle
         'groupingVariables',{'frm'},'inputVariables','hasLbl',...
         'outputVariableNames',{'allTgtsLbled'});
       frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
-      obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
+      % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nfrm, frmsAllTgtsLbled) ;     
     end
     function cbkGTSuggMFTableLbledUpdated(obj,src,evt) %#ok<INUSD>
       % React to incremental update to labeler.gtSuggMFTableLbled
@@ -987,7 +990,8 @@ classdef InfoTimeline < handle
       tfLbled = lblObj.gtSuggMFTableLbled;
       tfLbledCurrMovFrm = tfLbled(tfCurrMovFrm,:);
       tfHiliteOn = numel(tfLbledCurrMovFrm)>0 && all(tfLbledCurrMovFrm);
-      obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
+      %obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
+      setSegmentedLineOnOffAtBang(obj.hSegLineGTLbled, currFrm, tfHiliteOn) ;
     end
     
     % function cbkPostZoom(obj,src,evt) %#ok<INUSD>
