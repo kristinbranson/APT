@@ -244,10 +244,10 @@ def dummy_ids(trk):
   ids = TrkFile.Tracklet(defaultval=-1, size=(1, trk.ntargets, T))
   # allocate for speed!
   [sf, ef] = trk.get_startendframes()
-  ids.allocate((1,), sf - trk.T0, np.minimum(T - 1, ef - trk.T0))
+  ids.allocate((1,), sf, ef) # sz_rest = (1,)
   for t in range(trk.ntargets):
     curid = np.ones(ef[t]-sf[t]+1)*t
-    ids.settargetframe(curid, t, np.arange(sf[t]-trk.T0,ef[t]-trk.T0+1))
+    ids.settargetframe(curid, t, np.arange(sf[t],ef[t]+1))
   return ids
 
 
@@ -455,11 +455,11 @@ def stitch(trk, ids, params):
     t1s[id] = np.max(idx[1])
   
   # isdummy = np.zeros((ids.ntargets,ids.T),dtype=bool)
-  isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids, ids.T))
+  isdummy = TrkFile.Tracklet(defaultval=False, size=(1, nids))
   isdummy.allocate((1,), t0s, t1s)
   
   allt1s = np.unique(t1s)
-  assert allt1s[-1] == ids.T-1
+  assert allt1s[-1] == ids.T1
   # skip deaths in last frame
   for i in range(len(allt1s)-1):
     t = allt1s[i]
@@ -474,8 +474,9 @@ def stitch(trk, ids, params):
     assert np.any(isdummy.gettargetframe(ids_death, t)) == False
     
     for j in range(ids_death.size):
-      pcurr[:, :, j] = trk.gettargetframe(np.where(idscurr == ids_death[j])[2], t+trk.T0).reshape((trk.nlandmarks, trk.d))
+      pcurr[:, :, j] = trk.gettargetframe(np.where(idscurr == ids_death[j])[2], t).reshape((trk.nlandmarks, trk.d))
       # pcurr[:,:,j] = p[:,:,ids[:,t]==ids_death[j],t].reshape((d,nlandmarks))
+      assert not np.all(np.isnan(pcurr[:, :, j])), 'sanity check: predictions are all nan for death frame'
     for nframes_skip in range(2, params['maxframes_missed']+2):
       # all ids that start at frame t+nframes_skip
       ids_birth = np.nonzero(t0s == t+nframes_skip)[0]
@@ -486,7 +487,8 @@ def stitch(trk, ids, params):
       pnext = np.zeros((trk.nlandmarks, trk.d, ids_birth.size))
       for j in range(ids_birth.size):
         pnext[:, :, j] = trk.gettargetframe(np.where(ids.getframe(t+nframes_skip) == ids_birth[j])[2],
-                                            t+nframes_skip+trk.T0).reshape((trk.nlandmarks, trk.d))
+                                            t+nframes_skip).reshape((trk.nlandmarks, trk.d))
+        assert not np.all(np.isnan(pnext[:, :, j])), 'sanity check: predictions are all nan for birth frame'
         # pnext[:,:,j]=p[:,:,ids[:,t+nframes_skip]==ids_birth[j],t+nframes_skip].reshape((d,nlandmarks))
       # try to match
       maxcost = params['maxcost_missed'][np.minimum(params['maxcost_missed'].size-1, nframes_skip-2)]

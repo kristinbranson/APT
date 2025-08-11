@@ -2670,13 +2670,10 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
         poser = Pose_multi_mmpose(conf, name=name)
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
     else:
-        try:
-            module_name = 'Pose_{}'.format(model_type)
-            pose_module = __import__(module_name)
-            tf1.reset_default_graph()
-            poser = getattr(pose_module, module_name)(conf, name=name)
-        except ImportError:
-            raise ImportError(f'Undefined type of network:{model_type}')
+        module_name = 'Pose_{}'.format(model_type)
+        pose_module = __import__(module_name)
+        tf1.reset_default_graph()
+        poser = getattr(pose_module, module_name)(conf, name=name)
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
@@ -4513,6 +4510,7 @@ def parse_args(argv):
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
     parser_classify.add_argument('-config_file', dest='trk_config_file', help='JSON file with parameters related to tracking.', default=None)
     parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
+    #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
     parser_gt.add_argument('-out', dest='out_files', help='Mat file (full path with .mat extension) where GT output will be saved', nargs='+', required=True)
@@ -4930,9 +4928,9 @@ def run(args):
         nmov = len(args.mov[0])
 
         for view_ndx, view in enumerate(views):
-            for mov_ndx in range(nmov):
-                track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
-
+            if not args.track_type == 'only_link':
+                for mov_ndx in range(nmov):
+                    track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
             if not args.track_type == 'only_predict':
                 link(args, view=view, view_ndx=view_ndx)
@@ -5031,7 +5029,7 @@ def set_up_logging(args):
     TQDM_PARAMS['file'] = tqdm_logger
     
     return errh,logh
-        
+
 def main(argv):
     """
     main(...)
