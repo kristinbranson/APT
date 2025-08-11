@@ -1100,25 +1100,25 @@ class Tracklet:
     newdata = [None,]*nids
     newstartframes = np.ones(nids,dtype=int)*-1
     newendframes = np.ones(nids,dtype=int)*-2
-    idx_all = ids.where_all(nids)
-    assert len(idx_all) == 2
+    tgtidx_all,frmidx_all = ids.where_all(nids)
     for id in range(nids):
       # idx = ids.where(id)
       # assert len(idx) == 2
-      idx = [idx_all[0][id],idx_all[1][id]]
-      if idx[1].size == 0:
+      tgtidx = tgtidx_all[id]
+      frmidx = frmidx_all[id]
+      if frmidx.size == 0:
         print('target %d has no data, cleaning not run (correctly)'%id)
         continue
-      t0 = np.min(idx[1])
-      t1 = np.max(idx[1])
+      t0 = np.min(frmidx)
+      t1 = np.max(frmidx)
       newdata[id] = np.zeros(self.size_rest+(t1-t0+1,),dtype=self.dtype)
       newdata[id][:] = self.defaultval
       newstartframes[id] = t0+T0
       newendframes[id] = t1+T0
-      aa,bb = np.unique(idx[0],return_inverse=True)
+      aa,bb = np.unique(tgtidx,return_inverse=True)
       for ndx,itgt in enumerate(aa):
         idx1 = bb==ndx
-        fs = idx[1][idx1]
+        fs = frmidx[idx1]
         newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
         
     self.data = newdata
