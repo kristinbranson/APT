@@ -1,0 +1,254 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "Test MSPN training",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_mspn_training_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "Test MSPN tracking",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_mspn_tracking_on_multitarget_bubble_20200630_touch.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_more_like_prod.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_training_more_like_prod.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        } ,
+        {
+            "name": "test_four_points_training_from_apt.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_training_from_apt.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_fresh_start_tracking.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_fresh_start_tracking.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_coco_training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_coco_training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test-coco-training-from-ready-to-train-point-with-replaced-train-TF.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run-coco-from-apt-training.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "run-coco-from-apt-training-with-db-with-train-tf-replaced.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_four_points_cid_training_from_apt_2024_08_30.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_training_on_carmen.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_training_on_carmen.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_gt_on_carmen.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_gt_on_carmen_missing_to_track.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_gt_on_carmen_missing_to_track.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "test_grone_tracking_on_sam2view.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test_grone_tracking_on_sam2view.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+          {
+            "name": "debug_train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "APT_interface.py",
+            "args": [
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/tp2c01db5d_fa74_4754_bb97_4703fd527c3b/BottomViewsMA/20250801T182953_20250801T183011.json",
+                "-debug",
+                "-name",
+                "20250801T182953",
+                "-json_trn_file",
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/tp2c01db5d_fa74_4754_bb97_4703fd527c3b/BottomViewsMA/loc.json",
+                "-conf_params",
+                "-type",
+                "multi_mdn_joint_torch",
+                "-model_files",
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/tp2c01db5d_fa74_4754_bb97_4703fd527c3b/BottomViewsMA/multi_mdn_joint_torch/view_0/20250801T182953/deepnet-60000",
+                "-ignore_local",
+                "1",
+                "-cache",
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/tp2c01db5d_fa74_4754_bb97_4703fd527c3b",
+                "train",
+                "-use_cache",
+                "-skip_db"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
+        },
+        {
+            "name": "debug_track",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/groups/branson/home/bransonk/tracking/code/APT/deepnet/APT_interface.py",
+            "args": [
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/tp5f4e590c_a590_4416_90ea_ccc6925d0617/BottomViewsMA/20250805T104900_20250805T104902.json", 
+                "-name", "20250805T104900", 
+                "-type", "multi_mdn_joint_torch", 
+                "-model_files", "/groups/branson/home/bransonk/tracking/code/APT/debug/tp5f4e590c_a590_4416_90ea_ccc6925d0617/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T104900/deepnet-60000", 
+                "-ignore_local", "1", 
+                "-cache", "/groups/branson/home/bransonk/tracking/code/APT/debug/tp5f4e590c_a590_4416_90ea_ccc6925d0617", 
+                "-debug",
+                "track", 
+                "-config_file", "/groups/branson/home/bransonk/tracking/code/APT/debug/tp5f4e590c_a590_4416_90ea_ccc6925d0617/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T104900/trk/trkconfig_image_cam_0_date_2025_04_08_time_18_35_18_v001_crop_col0to1331_rot90_6875bd_trn20250805T104900_view0_iter60000_20250805T145010.json",
+                "-track_type", "only_predict", 
+                "-out", "/groups/branson/home/bransonk/tracking/code/APT/debug/tp5f4e590c_a590_4416_90ea_ccc6925d0617/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T104900/trk/tmp.trk", 
+                "-mov", "/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views/exp_32/image_cam_0_date_2025_04_08_time_18_35_18_v001_crop_col0to1331_rot90.ufmf",
+                "-start_frame", "1", 
+                "-end_frame", "282"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
+        },
+        {
+            "name": "debug_track_link",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/groups/branson/home/bransonk/tracking/code/APT/deepnet/APT_interface.py",
+            "args": [
+                "/groups/branson/home/bransonk/.apt/tpce1595b0_4aea_4050_80f6_7ae4595f5e13/combinedSideViewMA/20250806T193037_20250806T193039.json",
+                "-name", "20250806T193037",
+                "-type", "multi_mdn_joint_torch",
+                "-model_files", "/groups/branson/home/bransonk/.apt/tpce1595b0_4aea_4050_80f6_7ae4595f5e13/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250806T193037/deepnet-60000",
+                "-ignore_local", "1",
+                "-cache", "/groups/branson/home/bransonk/.apt/tpce1595b0_4aea_4050_80f6_7ae4595f5e13",
+                "-debug",
+                "track",
+                "-config_file", "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/trkconfig_exp_38.json",
+                "-out", "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/exp_38.trk",
+                "-mov", "/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views/exp_38/image_cam_0_date_2025_06_02_time_10_32_30_v001_crop_col1167to1919_rot90.ufmf",
+                "-track_type", "only_link",
+                "-predict_trk_files", "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/exp_38_tracklet.trk"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "python": "${command:python.interpreterPath}"
+        }
+    ]
+}

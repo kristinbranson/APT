@@ -1197,7 +1197,7 @@ classdef AWSec2 < handle
         % the bg, the project could have been updated, movies
         % renamed/reordered etc.        
         % download trkfiles 
-        if isfield(pollingresult,'outfile'),
+        if isfield(pollingResult,'outfile'),
           nativeLocalTrackFilePaths = pollingResult.outfile;
         else
           nativeLocalTrackFilePaths = pollingResult.trkfile ;

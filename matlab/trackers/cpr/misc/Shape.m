@@ -1122,6 +1122,7 @@ classdef Shape
           end
           iIm = iPlot(iPlt);
           Ithis = I{iIm};
+          szthis = size(Ithis);
           if tfpp
             Ithis = opts.ppFcn(Ithis);
           end
@@ -1137,6 +1138,8 @@ classdef Shape
           for itgt=1:ntgtmax
             % surely suboptimal indexing
             xytmp = reshape(p(iIm,:,itgt),npts,2);
+            outofbounds = xytmp(:,1) < 1 | xytmp(:,2) < 1 | xytmp(:,1) > szthis(2) | xytmp(:,2) > szthis(1);
+            xytmp(outofbounds,:) = nan;
             xytmp(:,1) = xytmp(:,1)+imnc*(iCol-1);
             xytmp(:,2) = xytmp(:,2)+imnr*(iRow-1);
             bigP(:,:,itgt,iPlt) = xytmp;

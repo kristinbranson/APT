@@ -8,6 +8,38 @@ from operator import truediv
 #logging.warning('Entered APT_interface.py')
 
 import os
+os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+import subprocess
+
+def get_gpu_memory():
+    """Get memory info for all GPUs, h/t claude"""
+    success = False
+    try:
+        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'], 
+                                capture_output=True, text=True, check=True)
+        success = True
+        return (success,[int(x.strip()) for x in result.stdout.strip().split('\n')])
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return (success,[])
+    
+def filter_gpus_by_memory(min_memory_mb=4096):
+    """Return GPU indices with at least min_memory_mb MB, h/t claude"""
+    if 'CUDA_VISIBLE_DEVICES' in os.environ:
+        logging.info('CUDA_VISIBLE_DEVICES is already set to {}'.format(os.environ['CUDA_VISIBLE_DEVICES']))
+        return
+    success,gpu_memories = get_gpu_memory()
+    if not success:
+        logging.warning('Failed to get GPU memory info, not setting CUDA_VISIBLE_DEVICES')
+        return
+    valid_gpus = [i for i, mem in enumerate(gpu_memories) if mem >= min_memory_mb]
+    logging.info(f'Setting CUDA_VISIBLE_DEVICES to {valid_gpus} with at least {min_memory_mb} MB memory')
+    if valid_gpus:
+        os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, valid_gpus))
+    else:
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''  # No GPUs available
+
+# this must happen before torch and tf are imported
+filter_gpus_by_memory()
 
 os.environ['DLClight'] = 'False'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -52,6 +84,8 @@ if ISOPENPOSE:
     import open_pose4 as op
 if ISSB:
     import sb1 as sb
+    
+KBDEBUG = False
     
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
@@ -98,7 +132,6 @@ ISWINDOWS = os.name == 'nt'
 ISPY3 = sys.version_info >= (3, 0)
 N_TRACKED_WRITE_INTERVAL_SEC = 10  # interval in seconds between writing n frames tracked
 ISDPK = False
-KBDEBUG = False
 # control how often / whether tqdm displays info
 TQDM_PARAMS = {'mininterval': 5}
 
@@ -113,6 +146,11 @@ except KeyError:
 #     except:
 #         print('deepposekit not available.')
 
+
+def force_cudnn_initialization():
+    s = 32
+    dev = torch.device('cuda')
+    torch.nn.functional.conv2d(torch.zeros(s, s, s, s, device=dev), torch.zeros(s, s, s, s, device=dev))
 
 def savemat_with_catch_and_pickle(filename, out_dict):
     try:
@@ -2632,13 +2670,10 @@ def get_pred_fn(model_type, conf, model_file=None, name='deepnet', distort=False
         poser = Pose_multi_mmpose(conf, name=name)
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
     else:
-        try:
-            module_name = 'Pose_{}'.format(model_type)
-            pose_module = __import__(module_name)
-            tf1.reset_default_graph()
-            poser = getattr(pose_module, module_name)(conf, name=name)
-        except ImportError:
-            raise ImportError(f'Undefined type of network:{model_type}')
+        module_name = 'Pose_{}'.format(model_type)
+        pose_module = __import__(module_name)
+        tf1.reset_default_graph()
+        poser = getattr(pose_module, module_name)(conf, name=name)
         pred_fn, close_fn, model_file = poser.get_pred_fn(model_file)
 
     return pred_fn, close_fn, model_file
@@ -4475,6 +4510,7 @@ def parse_args(argv):
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
     parser_classify.add_argument('-config_file', dest='trk_config_file', help='JSON file with parameters related to tracking.', default=None)
     parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
+    #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
     parser_gt.add_argument('-out', dest='out_files', help='Mat file (full path with .mat extension) where GT output will be saved', nargs='+', required=True)
@@ -4772,6 +4808,16 @@ def get_num_views(args=None,conf_raw=None):
       
     return nviews
 
+def print_torch_cuda_info():
+    logging.info(f"CUDA available: {torch.cuda.is_available()}")
+    if not torch.cuda.is_available():
+        return
+    device = torch.cuda.current_device()
+    logging.info(f"Current_device: {device}, device name: {torch.cuda.get_device_name()}")
+
+    total_memory = torch.cuda.get_device_properties(device).total_memory
+    print(f"Total GPU memory: {total_memory / 1024**3:.2f} GB, allocated: {torch.cuda.memory_allocated(device) / 1024**3:.2f} GB, reserved: {torch.cuda.memory_reserved(device) / 1024**3:.2f} GB, available: {(total_memory - torch.cuda.memory_reserved(device)) / 1024**3:.2f} GB")
+
 def run(args):
     """
     run(args)
@@ -4804,6 +4850,8 @@ def run(args):
         views = [view]
     nviews = len(views)
     check_args(args,nviews)
+        
+    print_torch_cuda_info()
 
     if cmd == 'train':
         train_multi_stage(args,nviews,conf_raw)
@@ -4880,9 +4928,9 @@ def run(args):
         nmov = len(args.mov[0])
 
         for view_ndx, view in enumerate(views):
-            for mov_ndx in range(nmov):
-                track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
-
+            if not args.track_type == 'only_link':
+                for mov_ndx in range(nmov):
+                    track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
             if not args.track_type == 'only_predict':
                 link(args, view=view, view_ndx=view_ndx)
@@ -4981,7 +5029,7 @@ def set_up_logging(args):
     TQDM_PARAMS['file'] = tqdm_logger
     
     return errh,logh
-        
+
 def main(argv):
     """
     main(...)
@@ -5004,6 +5052,12 @@ def main(argv):
     
     # Parse the arguments
     args = parse_args(argv)
+
+    if args.debug:
+        import matplotlib
+        matplotlib.use('tkagg')  # use TkAgg backend for matplotlib
+        import matplotlib.pyplot as plt
+        plt.ion()
 
     # # For debugging
     # args.debug = False
@@ -5065,4 +5119,5 @@ def log_status(logging,stage,value='',info=''):
 
 if __name__ == "__main__":
     # torch.multiprocessing.set_start_method('spawn')
+    force_cudnn_initialization()
     main(sys.argv[1:])
