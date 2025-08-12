@@ -12,6 +12,8 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
     xticklabel = {};
     fld = '';
     prmin = [];
+    maxNAxes = 5;
+    idxplot = [];
   end
   
   properties (Dependent)
@@ -33,21 +35,29 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
       obj.setStage();
 
       [data,xstr,paramdata,paraminfo,titles] = obj.getData();
+      nplot = size(data,1);
+      if nplot > obj.maxNAxes,
+        obj.idxplot = sort(randsample(nplot,obj.maxNAxes));
+        nplot = obj.maxNAxes;
+      else
+        obj.idxplot = 1:nplot;
+      end
 
       binlimits = [min(data(:)),max(data(:))];
       nbins = 20;
       colors = lines(size(paramdata,2));
-      obj.hHist = gobjects(1,size(data,1));
-      obj.hParams = gobjects(size(data,1),size(paramdata,2));
-      obj.hParamsText = gobjects(size(data,1),size(paramdata,2));
-      for i = 1:size(data,1),
+      obj.hHist = gobjects(1,nplot);
+      obj.hParams = gobjects(nplot,size(paramdata,2));
+      obj.hParamsText = gobjects(nplot,size(paramdata,2));
+      for i = 1:nplot,
+        idxcurr = obj.idxplot(i);
         if (numel(obj.hAx) < i) || ~ishandle(obj.hax(i)),
           obj.hAx(i) = nexttile(obj.hTile);
         end
-        obj.hHist(i) = histogram(obj.hAx(i),data(i,:),nbins,'FaceColor','k','BinLimits',binlimits);
+        obj.hHist(i) = histogram(obj.hAx(i),data(idxcurr,:),nbins,'FaceColor','k','BinLimits',binlimits);
         box(obj.hAx(i),'off');
-        if numel(titles) >= i,
-          title(obj.hAx(i),titles{i});
+        if numel(titles) >= idxcurr,
+          title(obj.hAx(i),titles{idxcurr});
         end
       end
       linkaxes(obj.hAx);
@@ -57,16 +67,43 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
       else
         yfactor = linspace(.7,.95,size(paramdata,2));
       end
-      for i = 1:size(data,1),
+      axfontsize = obj.hAx(1).FontSize;
+      axfontunits = obj.hAx(1).FontUnits;
+      for i = 1:nplot,
         hold(obj.hAx(i),'on');
+        idxcurr = obj.idxplot(i);
         for j = 1:size(paramdata,2),
-          obj.hParams(i,j) = plot(obj.hAx(i),paramdata(i,j)+[0,0],ylim,'-','Color',colors(j,:),'LineWidth',2);
-          obj.hParamsText(i,j) = text(obj.hAx(i),paramdata(i,j),sum(ylim.*[1-yfactor(j),yfactor(j)]),[' ',paraminfo{j}],'Color',colors(j,:));
+          obj.hParams(i,j) = plot(obj.hAx(i),paramdata(idxcurr,j)+[0,0],ylim,'-','Color',colors(j,:),'LineWidth',2);
+          obj.hParamsText(i,j) = text(obj.hAx(i),paramdata(idxcurr,j),sum(ylim.*[1-yfactor(j),yfactor(j)]),[' ',paraminfo{j}],'Color',colors(j,:),...
+            'Fontsize',axfontsize,'FontUnits',axfontunits);
         end
       end
-      set(obj.hAx(1:end-1),'XTick',[]);
+      set(obj.hAx(1:end-1),'XTickLabel',{});
       xlabel(obj.hAx(end),xstr);
       ylabel(obj.hAx(end),'N. training examples');
+
+      % units = obj.hAx(1).Units;
+      % obj.hAx(1).Units = 'pixels';
+      % h = obj.hAx(1).Position(4);
+      % obj.hAx(1).Units = units;
+      % minsize = 50;
+      % if h < minsize,
+      %   obj.hTile.Parent.Scrollable = 'on';
+      %   off = nan;
+      %   for i = nplot:-1:1,
+      %     units = obj.hAx(i).Units;
+      %     obj.hAx(i).Units = 'pixels';
+      %     pos = obj.hAx(i).Position;
+      %     if isnan(off),
+      %       off = pos(2) - pos(4);
+      %     end
+      %     off = off + minsize;
+      %     pos(4) = minsize;
+      %     pos(2) = off;
+      %     obj.hAx(i).Position = pos;
+      %     obj.hAx(i).Units = units;
+      %   end
+      % end
 
       obj.initSuccessful = true;
     end
@@ -107,7 +144,7 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
         end
         data = obj.rrangedata.(rrangefn)*180/pi;
         paramdata = modrange(obj.rrangedata.offset.(rrangefn)*180/pi+[-1,0,1]*obj.prmin.Data.Value,-180,180);
-        paraminfo = {'Median-Rotation','Median','Median+Rotation'};
+        paraminfo = {'-Radius','Median','+Radius'};
         rrangem = regexp(rrangefn,'^(?<stage>.*stage)?_?(?<name>.*)$','names','once');
         switch rrangem.name,
           case 'firststage_headTailAngle'
@@ -137,11 +174,12 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
 
         [~,~,paramdata,~,~] = obj.getData();
 
-        for i = 1:size(paramdata,1),
+        for i = 1:numel(obj.idxplot),
+          idxcurr = obj.idxplot(i);
           for j = 1:size(paramdata,2),
-            obj.hParams(i,j).XData = paramdata(i,j)+[0,0];
+            obj.hParams(i,j).XData = paramdata(idxcurr,j)+[0,0];
             pos = obj.hParamsText(i,j).Position;
-            pos(1) = paramdata(i,j);
+            pos(1) = paramdata(idxcurr,j);
             obj.hParamsText(i,j).Position = pos;
           end
         end

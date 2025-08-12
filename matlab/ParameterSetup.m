@@ -95,7 +95,7 @@ handles.pb_cancel = uibutton(handles.gl_buttons,'Text','Cancel',...
   'ButtonPushedFcn',@cbkCancel,'Tag','pb_cancel');
 
 handles.panel_right = uipanel(handles.gl,'Tag','panel_right');
-handles.tile_viz = tiledlayout(handles.panel_right,'vertical','TileSpacing','compact','Padding','compact');
+handles.tile_viz = tiledlayout(handles.panel_right,'vertical','TileSpacing','tight','Padding','compact');
 
 handles.vizid = '';
 handles.vizobj = [];
@@ -550,6 +550,9 @@ output = handles.output;
 
     for i = 1:numel(handles.hauto.auto)
       h = handles.hauto.auto{i};
+      if ~isfield(h,'value'),
+        continue;
+      end
       ud = h.value.UserData;
       if ~isempty(ud.suggestedvalue),
         setUIValue(h.value,ud.data.Type,ud.suggestedvalue)
