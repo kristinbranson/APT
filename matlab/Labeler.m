@@ -2187,6 +2187,10 @@ classdef Labeler < handle
       % a GUI.)
       obj.pushBusyStatus('Saving project...');
       oc = onCleanup(@()(obj.popBusyStatus())) ;
+
+      % If the project cache is remote, make it local
+      obj.downloadProjectCacheIfNeeded() ;
+
       try
         obj.saveVersionInfo = GetGitMatlabStatus(APT.Root);
       catch
@@ -2212,7 +2216,9 @@ classdef Labeler < handle
         [~,fname] = fileparts(obj.projectfile);
         obj.projname = fname;
       end
+      obj.popBusyStatus;
     end  % function
+
     
 %     function projSaveModified(obj,fname,varargin)
 %       try
@@ -2985,9 +2991,6 @@ classdef Labeler < handle
       % allModelFiles will contain all projtempdir artifacts to be tarred
       allModelFiles = {rawLblFile};
       
-      % If the project cache is remote, make it local
-      obj.downloadProjectCacheIfNeeded() ;
-
       % find the model files and then bundle them into the tar directory.
       % but since there isn't much in way of relative path support in
       % matlabs tar/zip functions, we will also have to copy them first the

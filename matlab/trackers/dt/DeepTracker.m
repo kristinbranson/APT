@@ -876,8 +876,8 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload the movies to the backend
-      nativePathFromMovieIndex = obj.lObj.movieFilesAll ;      
-      backend.uploadMovies(nativePathFromMovieIndex) ;
+      % nativePathFromMovieIndex = obj.lObj.movieFilesAll ;      
+      % backend.uploadMovies(nativePathFromMovieIndex) ;
     end
     
     function train(obj,varargin)
@@ -2980,6 +2980,7 @@ classdef DeepTracker < LabelTracker
       else
         error('Internal error: %s should be ''train'' or ''track''', train_or_track) ;
       end      
+      obj.lObj.popBusyStatusRetrograde() ;
     end  % function
 
     function didCompleteTraining_(obj, pollingResult)

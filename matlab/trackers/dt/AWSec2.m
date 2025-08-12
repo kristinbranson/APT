@@ -159,6 +159,9 @@ classdef AWSec2 < handle
       instanceID = json.Instances.InstanceId;
       obj.instanceID = instanceID ;  % This calls a setter function, which e.g. configures the alarms on the new instance
       tfsucc = obj.waitForInstanceStart();
+      if tfsucc
+        msgbox('Connected succesfully to the AWS EC2 instance');
+      end
     end
     
     function [tfexist,tfrunning,json] = inspectInstance(obj,varargin)
@@ -200,6 +203,8 @@ classdef AWSec2 < handle
         obj.instanceIP = inst.PublicIpAddress;
         fprintf('EC2 instanceID %s is running with IP %s.\n',...
           obj.instanceID_,obj.instanceIP);
+        % msgbox('Connected succesfully to the AWS EC2 instance');
+
       else
         % leave IP for now even though may be outdated
       end
@@ -870,6 +875,8 @@ classdef AWSec2 < handle
 
       % Issue the command, gather results
       [st, res] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, restOfVarargin{:}) ;      
+      % at times the res ends with connection to xx closed. Suppress it
+      res = regexprep(res, 'Connection to .* closed\.\r\n', '');
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -1240,8 +1247,17 @@ classdef AWSec2 < handle
       tfsucc = (st==0) ;
       if tfsucc
         res = regexp(res,'\n','split');
-        tfsucc = iscell(res) && (numel(res)==responseCount+1) ;  % last cell is {0x0 char}
-        res = res(1:end-1);
+        tfsucc = iscell(res) ;
+        if tfsucc
+          if (numel(res)==responseCount+1)  % last cell is {0x0 char}
+            res = res(1:end-1);
+          % elseif (numel(res)==responseCount+2)
+          %   res = res(1:end-2); % Sometime ssh will return 'Connection to .. closed' as well
+          else
+            tfsucc = 0;
+            res = [];
+          end
+        end
       else
         res = [];
       end
@@ -1312,9 +1328,12 @@ classdef AWSec2 < handle
       % assert(isscalar(dmc));
 
       % If the DMC is already remote, do nothing
-      if obj.isProjectCacheRemote ,
-        return
-      end
+      % Being defensive here during training and rsyncing the cache always which shouldn't have too much overhead.
+      % There are times when training errors and isProjectCacheRemote_
+      % doesn't get reset. MK 20250807. 
+      % if obj.isProjectCacheRemote ,
+      %   return
+      % end
 
       % % Make sure there is a trained model
       % maxiter = obj.getMostRecentModel(dmc) ;

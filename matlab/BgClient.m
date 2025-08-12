@@ -96,7 +96,7 @@ classdef BgClient < handle
       % cleaner = onCleanup(@()(delete(tempfilename))) ;
       % poller = loadAnonymous(tempfilename) ;
       % feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
-      %   % The feval() (not parfeval) line above is sometimes useful when debugging.
+      % %   The feval() (not parfeval) line above is sometimes useful when debugging.
       % % End debug code
 
       obj.idPool = uint32(1);
