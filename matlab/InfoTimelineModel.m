@@ -4,7 +4,7 @@ classdef InfoTimelineModel < handle
     lObj  % Labeler object that created this model
   end
   
-  properties (SetAccess=private)
+  properties  % Private by convention
     selectOn_  % scalar logical, if true, select "Pen" is down
     selectOnStartFrm_  % frame where selection started
   end

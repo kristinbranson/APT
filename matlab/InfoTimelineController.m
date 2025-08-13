@@ -1102,7 +1102,9 @@ classdef InfoTimelineController < handle
         tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
       end
     end
+  end
 
+  methods
     function didSetTimelineSelectMode(obj)
       % Handle didSetTimelineSelectMode UI updates
       if ~obj.isinit

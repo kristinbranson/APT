@@ -3769,7 +3769,7 @@ classdef LabelerController < handle
     function cbklabelTLInfoPropsUpdated(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
       % labeler = obj.labeler_ ;
-      labelTLInfo = evt.AffectedObject;
+      labelTLInfo = obj.labelTLInfo ;
       props = labelTLInfo.getPropsDisp();
       set(obj.pumInfo,'String',props);
     end
@@ -3777,7 +3777,7 @@ classdef LabelerController < handle
     function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
       % labeler = obj.labeler_ ;
-      labelTLInfo = evt.AffectedObject;
+      labelTLInfo = obj.labelTLInfo ;
       proptypes = labelTLInfo.getPropTypesDisp();
       set(obj.pumInfo_labels,'String',proptypes);
     end
