@@ -16323,10 +16323,10 @@ classdef Labeler < handle
 
     function setTimelineSelectMode(obj, newValue)
       if ~obj.doProjectAndMovieExist()
-        return;
+        return
       end
-      tl = obj.infoTimelineModel ;
-      tl.selectOn = newValue ;
+      tlm = obj.infoTimelineModel ;
+      tlm.setSelectMode(newValue, obj.currFrame) ;
       notify(obj, 'didSetTimelineSelectMode');
     end
   end  % methods

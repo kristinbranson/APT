@@ -1,20 +1,17 @@
 classdef InfoTimelineModel < handle
 
   properties
-    lObj % Labeler object that created this model
+    lObj  % Labeler object that created this model
   end
   
   properties (SetAccess=private)
-    selectOn_ % scalar logical, if true, select "Pen" is down
-    selectOnStartFrm_ % frame where selection started
+    selectOn_  % scalar logical, if true, select "Pen" is down
+    selectOnStartFrm_  % frame where selection started
   end
   
   properties (Dependent)
     selectOn % scalar logical, if true, select "Pen" is down
     selectOnStartFrm % frame where selection started
-  end
-  
-  events
   end
   
   methods
@@ -28,13 +25,13 @@ classdef InfoTimelineModel < handle
     function v = get.selectOn(obj)
       v = obj.selectOn_;
     end
-    
-    function set.selectOn(obj, v)
-      obj.selectOn_ = v;
-      if v
-        obj.selectOnStartFrm_ = obj.lObj.currFrame;
+        
+    function setSelectMode(obj, newValue, currFrame)
+      obj.selectOn_ = newValue ;
+      if newValue
+        obj.selectOnStartFrm_ = currFrame ;
       else
-        obj.selectOnStartFrm_ = [];
+        obj.selectOnStartFrm_ = [] ;
       end
     end
 
@@ -45,7 +42,6 @@ classdef InfoTimelineModel < handle
     function selectInit(obj)
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
-    end
-  end
-  
-end
+    end  % function
+  end  % methods  
+end  % classdef
