@@ -133,9 +133,6 @@ classdef InfoTimelineController < handle
           addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
       obj.listeners = listeners;      
     
-      obj.updateProps();
-
-      
       obj.isinit = true;
       obj.hSelIm = [];
       % obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
@@ -300,24 +297,11 @@ classdef InfoTimelineController < handle
         obj.setCurPropTypeDefault();
       end
       
-      obj.updateProps();
+      obj.lObj.infoTimelineModel.initializePropsEtc();
         
       cbkGTSuggUpdated(obj,[],[]);
     end
     
-    function updateProps(obj)
-      % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
-      
-      % remove body features if no body tracking
-      props = obj.lObj.infoTimelineModel.TLPROPS;
-      if ~obj.lObj.hasTrx,
-        idxremove = strcmpi({props.coordsystem},'Body');
-        props(idxremove) = [];
-      end
-      obj.lObj.infoTimelineModel.props = props;      
-      obj.lObj.infoTimelineModel.initializePropsTracker();
-      obj.lObj.infoTimelineModel.initializePropsAllFrames();
-    end
         
     function didChangeCurrentTracker(obj)
       tracker = obj.lObj.tracker ;
@@ -575,7 +559,7 @@ classdef InfoTimelineController < handle
     
   end
   
-  methods %getters setters
+  methods
     function enforcePropConsistencyWithUI(obj, tfSetLabelsFull)
       % Checks that .curprop is in range for current .props,
       % .props_tracker, .curproptype. 
@@ -605,6 +589,7 @@ classdef InfoTimelineController < handle
         obj.setLabelsFull();
       end
     end
+
     function props = getPropsDisp(obj,ipropType)
       % Get available properties for given propType (idx)
       if nargin < 2,
@@ -618,9 +603,11 @@ classdef InfoTimelineController < handle
         props = {obj.lObj.infoTimelineModel.props.name};
       end
     end
+
     function proptypes = getPropTypesDisp(obj)
       proptypes = obj.lObj.infoTimelineModel.proptypes;
     end
+
     function tfSucc = setCurProp(obj,iprop)
       % setLabelsFull will essentially assert that iprop is in range for
       % current proptype.
@@ -639,9 +626,11 @@ classdef InfoTimelineController < handle
       obj.setLabelsFull();
       obj.lObj.infoTimelineModel.isdefault = false;
     end
+
     function v = getCurProp(obj)
       v = obj.lObj.infoTimelineModel.curprop;
     end
+
     function setCurPropType(obj,iproptype,iprop)
       % iproptype, iprop assumed to be consistent already.
       obj.lObj.infoTimelineModel.curproptype = iproptype;
@@ -651,6 +640,7 @@ classdef InfoTimelineController < handle
       obj.setLabelsFull();
       obj.updateLandmarkColors();
     end
+
     function tfSucc = addCustomFeature(obj)
       tfSucc = false;
       movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
@@ -674,6 +664,7 @@ classdef InfoTimelineController < handle
       obj.lObj.infoTimelineModel.curprop = 1;
       tfSucc = true;      
     end
+
     function [ptype,prop] = getCurPropSmart(obj)
       % Get current proptype, and prop-specification-struct
       
@@ -685,27 +676,29 @@ classdef InfoTimelineController < handle
           prop = obj.lObj.infoTimelineModel.props(obj.lObj.infoTimelineModel.curprop);
       end
     end
+
     function tf = getCurPropTypeIsLabel(obj)
       v = obj.lObj.infoTimelineModel.curproptype;
       tf = strcmp(obj.lObj.infoTimelineModel.proptypes{v},'Labels');
     end
+
     function tf = getCurPropTypeIsAllFrames(obj)
       v = obj.lObj.infoTimelineModel.curproptype;
       tf = strcmpi(obj.lObj.infoTimelineModel.proptypes{v},'All Frames');
     end
+
     function setCurPropTypeDefault(obj)
       obj.setCurPropType(1,1);
       obj.lObj.infoTimelineModel.isdefault = true;
     end
+
     function updatePropsGUI(obj)
       obj.parent_.pumInfo_labels.Value = obj.lObj.infoTimelineModel.curproptype;
       props = obj.getPropsDisp(obj.lObj.infoTimelineModel.curproptype);
       obj.parent_.pumInfo.String = props;
       obj.parent_.pumInfo.Value = obj.lObj.infoTimelineModel.curprop;
     end
-  end
-    
-  methods  % callbacks
+
     function cbkBDF(obj,src,evt) 
       % fprintf('InfoTimeline.cbkBDF() called\n') ;
       if ~obj.lObj.isReady || ~(obj.lObj.hasProject && obj.lObj.hasMovie)
@@ -736,9 +729,11 @@ classdef InfoTimelineController < handle
     function tf = isDefaultProp(obj)
       tf = obj.lObj.infoTimelineModel.isdefault;
     end
+
     function tf = hasPredictionConfidence(obj)
       tf = ~isempty(obj.lObj.infoTimelineModel.TLPROPS_TRACKER);
     end
+
     function tf = hasPrediction(obj)
       tf = ismember('Predictions',obj.lObj.infoTimelineModel.proptypes) && isvalid(obj.lObj.tracker);
       if tf,
@@ -747,6 +742,7 @@ classdef InfoTimelineController < handle
         tf = ~isempty(data) && any(~isnan(data(:)));
       end
     end
+
     function setCurPropTypePredictionDefault(obj)
       proptypei =  find(strcmpi(obj.lObj.infoTimelineModel.proptypes,'Predictions'),1);
       if obj.hasPredictionConfidence(),
@@ -757,7 +753,6 @@ classdef InfoTimelineController < handle
       obj.setCurPropType(proptypei,propi);
       obj.updatePropsGUI();
     end
-
     
     function cbkLabelUpdated(obj, ~, ~)
       if ~obj.lObj.isinit ,
@@ -783,10 +778,12 @@ classdef InfoTimelineController < handle
         obj.newFrame(obj.lObj.currFrame);
       end
     end
+
     function cbkToggleThresholdViz(obj,src,evt)  %#ok<INUSD> 
       tfviz = strcmp(obj.hStatThresh.Visible,'on');
       obj.setStatThreshViz(~tfviz);
     end
+
     function cbkContextMenu(obj,src,evt)  %#ok<INUSD>
       bouts = obj.selectGetSelection;
       nBouts = size(bouts,1);
@@ -813,6 +810,7 @@ classdef InfoTimelineController < handle
         end
       end
     end
+
     function cbkClearBout(obj,src,evt) %#ok<INUSD>
       % Prob should have a select* method, for now just do everything here
       iBout = src.UserData.iBout;
@@ -821,6 +819,7 @@ classdef InfoTimelineController < handle
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
       obj.setLabelerSelectedFrames();
     end    
+
     function cbkGTIsGTModeUpdated(obj,src,evt) %#ok<INUSD>
       lblObj = obj.lObj;
       gt = lblObj.gtIsGTMode;
@@ -832,6 +831,7 @@ classdef InfoTimelineController < handle
       obj.hSegLineGTLbled.Visible = onOff ;   
       set(obj.hPtsL,'Visible',onIff(~gt));
     end
+
     function cbkGTSuggUpdated(obj,src,evt) %#ok<INUSD>
       % full update to any change to labeler.gtSuggMFTable*
       
@@ -863,6 +863,7 @@ classdef InfoTimelineController < handle
       % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
       setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nfrm, frmsAllTgtsLbled) ;     
     end
+
     function cbkGTSuggMFTableLbledUpdated(obj,src,evt) %#ok<INUSD>
       % React to incremental update to labeler.gtSuggMFTableLbled
       
@@ -1008,7 +1009,7 @@ classdef InfoTimelineController < handle
         tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
       end
     end
-  end
+  end  % methods (Access=private)
 
   methods
     function didSetTimelineSelectMode(obj)
@@ -1028,8 +1029,8 @@ classdef InfoTimelineController < handle
           obj.setLabelerSelectedFrames();
         end
       end
-    end
+    end  % function
     
-  end
+  end  % methods
   
-end
+end  % classdef

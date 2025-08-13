@@ -52,7 +52,7 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = true;
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
-      obj.initializePropsAllFrames();
+      obj.initializePropsEtc();
     end
     
     function v = get.selectOn(obj)
@@ -152,6 +152,20 @@ classdef InfoTimelineModel < handle
 
     function initializePropsTracker(obj)
       obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);      
+    end
+
+    function initializePropsEtc(obj)
+      % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
+      
+      % remove body features if no body tracking
+      props = obj.TLPROPS;
+      if ~obj.lObj.hasTrx,
+        idxremove = strcmpi({props.coordsystem},'Body');
+        props(idxremove) = [];
+      end
+      obj.props = props;      
+      obj.initializePropsTracker();
+      obj.initializePropsAllFrames();
     end
   end  % methods  
 end  % classdef
