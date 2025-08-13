@@ -1103,8 +1103,8 @@ classdef InfoTimelineController < handle
       end
     end
 
-    function didSetSelectOn(obj)
-      % Handle didSetSelectOn UI updates
+    function didSetTimelineSelectMode(obj)
+      % Handle didSetTimelineSelectMode UI updates
       if ~obj.isinit
         selectOn = obj.lObj.infoTimelineModel.selectOn;
         if selectOn

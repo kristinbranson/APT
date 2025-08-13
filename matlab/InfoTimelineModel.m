@@ -15,7 +15,6 @@ classdef InfoTimelineModel < handle
   end
   
   events
-    didSetSelectOn % fired when selectOn changes
   end
   
   methods
@@ -37,8 +36,6 @@ classdef InfoTimelineModel < handle
       else
         obj.selectOnStartFrm_ = [];
       end
-      
-      notify(obj, 'didSetSelectOn');
     end
 
     function v = get.selectOnStartFrm(obj)

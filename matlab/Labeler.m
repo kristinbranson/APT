@@ -197,6 +197,7 @@ classdef Labeler < handle
 
     didSetTrackerHideViz
     didSetTrackerShowPredsCurrTargetOnly
+    didSetTimelineSelectMode % fired when timeline selection state changes
   end
   
   %% Project
@@ -16320,5 +16321,13 @@ classdef Labeler < handle
       obj.popBusyStatus() ;
     end
 
+    function setTimelineSelectMode(obj, newValue)
+      if ~obj.doProjectAndMovieExist()
+        return;
+      end
+      tl = obj.infoTimelineModel ;
+      tl.selectOn = newValue ;
+      notify(obj, 'didSetTimelineSelectMode');
+    end
   end  % methods
 end  % classdef

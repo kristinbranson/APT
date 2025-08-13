@@ -499,7 +499,7 @@ classdef LabelerController < handle
         addlistener(obj.axes_curr,'YDir','PostSet',@(s,e)(obj.axescurrYDirChanged(s,e))) ;
 
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_.infoTimelineModel,'didSetSelectOn',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
+        addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labelTLInfo,'updateTimelineProperties',@(s,e)(obj.cbklabelTLInfoPropsUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
@@ -3759,7 +3759,7 @@ classdef LabelerController < handle
     end
 
     function cbklabelTLInfoSelectOn(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.didSetSelectOn();      
+      obj.labelTLInfo.didSetTimelineSelectMode();      
       labeler = obj.labeler_ ;
       lblTLObj = labeler.infoTimelineModel ;
       tb = obj.tbTLSelectMode;
@@ -4340,11 +4340,7 @@ classdef LabelerController < handle
 
     function tbTLSelectMode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      if ~labeler.doProjectAndMovieExist()
-        return;
-      end
-      tl = obj.labelTLInfo;
-      tl.selectOn = src.Value;
+      labeler.setTimelineSelectMode(src.Value) ;
     end
 
 
