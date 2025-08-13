@@ -43,8 +43,8 @@ classdef InfoTimeline < handle
     props_allframes_ % [nallprop]. ". Applicable when proptype is All Frames
   end
   
-  properties (SetObservable)
-    proptypes % property types, eg 'Labels' or 'Predictions'.    
+  properties
+    proptypes_ % property types, eg 'Labels' or 'Predictions'.    
   end
 
   properties
@@ -80,11 +80,13 @@ classdef InfoTimeline < handle
     props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes % [nallprop]. ". Applicable when proptype is All Frames
+    proptypes % property types, eg 'Labels' or 'Predictions'
   end
   
   events
     didSetSelectOn % fired when selectOn changes
     updateTimelineProperties % fired when props, props_tracker, or props_allframes changes
+    updateTimelinePropertyTypes % fired when proptypes changes
   end
     
   methods
@@ -117,6 +119,15 @@ classdef InfoTimeline < handle
     function set.props_allframes(obj, v)
       obj.props_allframes_ = v;
       notify(obj, 'updateTimelineProperties');
+    end
+    
+    function v = get.proptypes(obj)
+      v = obj.proptypes_;
+    end
+    
+    function set.proptypes(obj, v)
+      obj.proptypes_ = v;
+      notify(obj, 'updateTimelinePropertyTypes');
     end
 
     function set.selectOn(obj,v)
