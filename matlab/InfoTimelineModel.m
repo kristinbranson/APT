@@ -1,6 +1,7 @@
 classdef InfoTimelineModel < handle
 
   properties (Constant)
+    TLPROPFILESTR = 'landmark_features.yaml';
     TLPROPTYPES = {'Labels','Predictions','Imported','All Frames'};
   end
 
@@ -18,6 +19,8 @@ classdef InfoTimelineModel < handle
     curprop_ % row index into props, or props_tracker, depending on curproptype
     curproptype_ % row index into proptypes
     isdefault_ % whether this has been changed
+    TLPROPS  % struct array, features we can compute. Initted from yaml at construction-time
+    TLPROPS_TRACKER  % struct array, features for current tracker. Initted at setTracker time
   end
   
   properties (Dependent)
@@ -47,6 +50,9 @@ classdef InfoTimelineModel < handle
       obj.curprop_ = 1;
       obj.curproptype_ = 1;
       obj.isdefault_ = true;
+      obj.readTimelinePropsNew();
+      obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
+      obj.initializePropsAllFrames();
     end
     
     function v = get.selectOn(obj)
@@ -130,5 +136,22 @@ classdef InfoTimelineModel < handle
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
     end  % function
+
+    function readTimelinePropsNew(obj)
+      path = fullfile(APT.Root, 'matlab') ;
+      tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
+      assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
+      obj.TLPROPS = ReadLandmarkFeatureFile(tlpropfile);      
+    end
+
+    function initializePropsAllFrames(obj)
+      obj.props_allframes = struct('name','Add custom...',...
+        'code','add_custom',...
+        'file','');
+    end
+
+    function initializePropsTracker(obj)
+      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);      
+    end
   end  % methods  
 end  % classdef

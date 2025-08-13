@@ -1,13 +1,4 @@
 classdef InfoTimelineController < handle
-
-  properties (Constant)
-    TLPROPFILESTR = 'landmark_features.yaml';
-  end
-   
-  properties (SetAccess=private)
-    TLPROPS  % struct array, features we can compute. Initted from yaml at construction-time
-    TLPROPS_TRACKER  % struct array, features for current tracker. Initted at setTracker time
-  end
   
   properties
     parent_  % scalar LabelerController handle
@@ -32,9 +23,6 @@ classdef InfoTimelineController < handle
     
     color = [1,1,1]  % color when there is only one statistic for all landmarks
   end
-
-
-
   
   %% Select
   properties (SetAccess=private)
@@ -145,10 +133,6 @@ classdef InfoTimelineController < handle
           addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
       obj.listeners = listeners;      
     
-      obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
-      obj.readTimelinePropsNew();
-      obj.initializePropsAllFrames();
-            
       obj.updateProps();
 
       
@@ -234,24 +218,7 @@ classdef InfoTimelineController < handle
   
   methods
     
-    function readTimelinePropsNew(obj)
-      path = fullfile(APT.Root, 'matlab') ;
-      tlpropfile = fullfile(path,obj.TLPROPFILESTR);
-      assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
-      obj.TLPROPS = ReadLandmarkFeatureFile(tlpropfile);      
-    end
     
-    function initializePropsAllFrames(obj)
-      
-      obj.lObj.infoTimelineModel.props_allframes = struct('name','Add custom...',...
-        'code','add_custom',...
-        'file','');
-      
-    end
-    
-    function initializePropsTracker(obj)
-      obj.lObj.infoTimelineModel.props_tracker = cat(1,obj.lObj.infoTimelineModel.props,obj.TLPROPS_TRACKER);      
-    end
     
     function initNewProject(obj)
       obj.npts = obj.lObj.nLabelPoints;
@@ -342,14 +309,14 @@ classdef InfoTimelineController < handle
       % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
       
       % remove body features if no body tracking
-      props = obj.TLPROPS;
+      props = obj.lObj.infoTimelineModel.TLPROPS;
       if ~obj.lObj.hasTrx,
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
       obj.lObj.infoTimelineModel.props = props;      
-      obj.initializePropsTracker();
-      obj.initializePropsAllFrames();
+      obj.lObj.infoTimelineModel.initializePropsTracker();
+      obj.lObj.infoTimelineModel.initializePropsAllFrames();
     end
         
     function didChangeCurrentTracker(obj)
@@ -364,8 +331,8 @@ classdef InfoTimelineController < handle
         if ~ismember('Predictions',obj.lObj.infoTimelineModel.proptypes),
           obj.lObj.infoTimelineModel.proptypes{end+1} = 'Predictions';
         end
-        obj.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
-        obj.initializePropsTracker();
+        obj.lObj.infoTimelineModel.TLPROPS_TRACKER = tracker.propList(); %#ok<*PROPLC>
+        obj.lObj.infoTimelineModel.initializePropsTracker();
       end
       
       obj.enforcePropConsistencyWithUI(false);
@@ -702,7 +669,7 @@ classdef InfoTimelineController < handle
       end
       
       newprop = struct('name',['Custom: ',f],'code','custom','file',file);
-      obj.initializePropsAllFrames();
+      obj.lObj.infoTimelineModel.initializePropsAllFrames();
       obj.lObj.infoTimelineModel.props_allframes = [newprop,obj.lObj.infoTimelineModel.props_allframes];
       obj.lObj.infoTimelineModel.curprop = 1;
       tfSucc = true;      
@@ -770,7 +737,7 @@ classdef InfoTimelineController < handle
       tf = obj.lObj.infoTimelineModel.isdefault;
     end
     function tf = hasPredictionConfidence(obj)
-      tf = ~isempty(obj.TLPROPS_TRACKER);
+      tf = ~isempty(obj.lObj.infoTimelineModel.TLPROPS_TRACKER);
     end
     function tf = hasPrediction(obj)
       tf = ismember('Predictions',obj.lObj.infoTimelineModel.proptypes) && isvalid(obj.lObj.tracker);
