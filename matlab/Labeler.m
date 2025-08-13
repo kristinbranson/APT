@@ -182,6 +182,7 @@ classdef Labeler < handle
     updateMainAxisHighlight
     updateStuffInHlpSetCurrPrevFrame
     update
+    updateTimeline
   end
 
   events  % used to come from labeler.tracker

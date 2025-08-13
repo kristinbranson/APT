@@ -57,9 +57,7 @@ classdef InfoTimeline < handle
     hSelIm % scalar image handle for selection
     selectOnStartFrm 
     isinit
-  end
-  properties (SetObservable)
-    selectOn % scalar logical, if true, select "Pen" is down
+    selectOn_ % scalar logical, if true, select "Pen" is down
   end
   
   %% GT/highlighting
@@ -72,11 +70,20 @@ classdef InfoTimeline < handle
   properties (Dependent)
     prefs % projPrefs.InfoTimelines preferences substruct
     nfrm
+    selectOn % scalar logical, if true, select "Pen" is down
+  end
+  
+  events
+    didSetSelectOn % fired when selectOn changes
   end
     
   methods
+    function v = get.selectOn(obj)
+      v = obj.selectOn_;
+    end
+
     function set.selectOn(obj,v)
-      obj.selectOn = v;
+      obj.selectOn_ = v;
       if ~obj.isinit %#ok<MCSUP>
         if v        
           obj.selectOnStartFrm = obj.lObj.currFrame; %#ok<MCSUP>
@@ -92,11 +99,14 @@ classdef InfoTimeline < handle
           end
           obj.setLabelerSelectedFrames();
         end
+        notify(obj, 'didSetSelectOn');
       end
     end
+
     function v = get.prefs(obj)
       v = obj.lObj.projPrefs.InfoTimelines;
     end
+
     function v = get.nfrm(obj)
       lblObj = obj.lObj;
       if lblObj.hasMovie
@@ -196,7 +206,7 @@ classdef InfoTimeline < handle
       
       obj.isinit = true;
       obj.hSelIm = [];
-      obj.selectOn = false;
+      obj.selectOn_ = false;
       obj.selectOnStartFrm = [];
       % obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
       obj.hSegLineGT = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGT');
@@ -566,7 +576,7 @@ classdef InfoTimeline < handle
         set(obj.hCurrFrameL,'XData',[frm frm]);
       end
       
-      if obj.selectOn
+      if obj.selectOn_
         f0 = obj.selectOnStartFrm;
         f1 = frm;
         if f1>f0
@@ -608,7 +618,7 @@ classdef InfoTimeline < handle
         'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');
 
-      obj.selectOn = false;
+      obj.selectOn_ = false;
       obj.selectOnStartFrm = [];
       colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
       colormap(obj.hAx,[0 0 0;colorTBSelect]);
