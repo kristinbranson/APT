@@ -54,9 +54,7 @@ classdef InfoTimelineController < handle
   %% Select
   properties (SetAccess=private)
     hSelIm % scalar image handle for selection
-    selectOnStartFrm 
     isinit
-    selectOn_ % scalar logical, if true, select "Pen" is down
   end
   
   %% GT/highlighting
@@ -69,7 +67,6 @@ classdef InfoTimelineController < handle
   properties (Dependent)
     prefs % projPrefs.InfoTimelines preferences substruct
     nfrm
-    selectOn % scalar logical, if true, select "Pen" is down
     props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes % [nallprop]. ". Applicable when proptype is All Frames
@@ -77,16 +74,11 @@ classdef InfoTimelineController < handle
   end
   
   events
-    didSetSelectOn % fired when selectOn changes
     updateTimelineProperties % fired when props, props_tracker, or props_allframes changes
     updateTimelinePropertyTypes % fired when proptypes changes
   end
     
   methods
-    function v = get.selectOn(obj)
-      v = obj.selectOn_;
-    end
-    
     function v = get.props(obj)
       v = obj.props_;
     end
@@ -121,27 +113,6 @@ classdef InfoTimelineController < handle
     function set.proptypes(obj, v)
       obj.proptypes_ = v;
       notify(obj, 'updateTimelinePropertyTypes');
-    end
-
-    function set.selectOn(obj,v)
-      obj.selectOn_ = v;
-      if ~obj.isinit %#ok<MCSUP>
-        if v        
-          obj.selectOnStartFrm = obj.lObj.currFrame; %#ok<MCSUP>
-          obj.hCurrFrame.LineWidth = 3; %#ok<MCSUP>
-          if obj.isL,
-            obj.hCurrFrameL.LineWidth = 3; %#ok<MCSUP>
-          end
-        else
-          obj.selectOnStartFrm = []; %#ok<MCSUP>
-          obj.hCurrFrame.LineWidth = 0.5; %#ok<MCSUP>
-          if obj.isL,
-            obj.hCurrFrameL.LineWidth = 0.5; %#ok<MCSUP>
-          end
-          obj.setLabelerSelectedFrames();
-        end
-        notify(obj, 'didSetSelectOn');
-      end
     end
 
     function v = get.prefs(obj)
@@ -244,8 +215,6 @@ classdef InfoTimelineController < handle
       
       obj.isinit = true;
       obj.hSelIm = [];
-      obj.selectOn_ = false;
-      obj.selectOnStartFrm = [];
       % obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
       obj.hSegLineGT = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGT');
       % obj.hSegLineGTLbled = SegmentedLine(axtm,'InfoTimeline_SegLineGTLbled');
@@ -614,8 +583,8 @@ classdef InfoTimelineController < handle
         set(obj.hCurrFrameL,'XData',[frm frm]);
       end
       
-      if obj.selectOn_
-        f0 = obj.selectOnStartFrm;
+      if obj.lObj.infoTimelineModel.selectOn
+        f0 = obj.lObj.infoTimelineModel.selectOnStartFrm;
         f1 = frm;
         if f1>f0
           idx = f0:f1;
@@ -656,8 +625,7 @@ classdef InfoTimelineController < handle
         'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');
 
-      obj.selectOn_ = false;
-      obj.selectOnStartFrm = [];
+      obj.lObj.infoTimelineModel.selectInit();
       colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
       colormap(obj.hAx,[0 0 0;colorTBSelect]);
       

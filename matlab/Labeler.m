@@ -204,6 +204,7 @@ classdef Labeler < handle
     projname              % init: PN
     projFSInfo            % filesystem info
     projTempDir           % temp dir name to save the raw label file
+    infoTimelineModel     % InfoTimelineModel object for timeline selection state
   end
   properties
     projTempDirDontClearOnDestructor = false  % transient. set to true for eg CI testing
@@ -734,6 +735,7 @@ classdef Labeler < handle
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
+      obj.infoTimelineModel = InfoTimelineModel(obj);
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,

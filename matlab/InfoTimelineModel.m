@@ -58,6 +58,11 @@ classdef InfoTimelineModel < handle
       
       notify(obj, 'didSetSelectOn');
     end
+
+    function selectInit(obj)
+      obj.selectOn_ = false;
+      obj.selectOnStartFrm = [];
+    end
   end
   
 end
