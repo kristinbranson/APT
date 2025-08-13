@@ -37,10 +37,13 @@ classdef InfoTimeline < handle
     color = [1,1,1]  % color when there is only one statistic for all landmarks
   end
 
+  properties
+    props_ % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
+    props_tracker_ % [ntrkprop]. ". Applicable when proptype is 'Predictions'
+    props_allframes_ % [nallprop]. ". Applicable when proptype is All Frames
+  end
+  
   properties (SetObservable)
-    props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
-    props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
-    props_allframes % [nallprop]. ". Applicable when proptype is All Frames
     proptypes % property types, eg 'Labels' or 'Predictions'.    
   end
 
@@ -74,15 +77,46 @@ classdef InfoTimeline < handle
     prefs % projPrefs.InfoTimelines preferences substruct
     nfrm
     selectOn % scalar logical, if true, select "Pen" is down
+    props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
+    props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
+    props_allframes % [nallprop]. ". Applicable when proptype is All Frames
   end
   
   events
     didSetSelectOn % fired when selectOn changes
+    updateTimelineProperties % fired when props, props_tracker, or props_allframes changes
   end
     
   methods
     function v = get.selectOn(obj)
       v = obj.selectOn_;
+    end
+    
+    function v = get.props(obj)
+      v = obj.props_;
+    end
+    
+    function set.props(obj, v)
+      obj.props_ = v;
+      notify(obj, 'updateTimelineProperties');
+    end
+    
+    function v = get.props_tracker(obj)
+      v = obj.props_tracker_;
+    end
+    
+    function set.props_tracker(obj, v)
+      obj.props_tracker_ = v;
+      notify(obj, 'updateTimelineProperties');
+    end
+    
+    function v = get.props_allframes(obj)
+      v = obj.props_allframes_;
+    end
+    
+    function set.props_allframes(obj, v)
+      obj.props_allframes_ = v;
+      notify(obj, 'updateTimelineProperties');
     end
 
     function set.selectOn(obj,v)
