@@ -3759,8 +3759,9 @@ classdef LabelerController < handle
     end
 
     function cbklabelTLInfoSelectOn(obj, src, evt)  %#ok<INUSD>
-      % labeler = obj.labeler_ ;
-      lblTLObj = evt.AffectedObject;
+      obj.labelTLInfo.didSetSelectOn();      
+      labeler = obj.labeler_ ;
+      lblTLObj = labeler.infoTimelineModel ;
       tb = obj.tbTLSelectMode;
       tb.Value = lblTLObj.selectOn;
     end

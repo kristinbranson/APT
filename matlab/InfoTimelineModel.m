@@ -16,7 +16,6 @@ classdef InfoTimelineModel < handle
   
   events
     didSetSelectOn % fired when selectOn changes
-    didPresetSelectOn % fired when selectOn changes to update UI
   end
   
   methods
@@ -39,7 +38,6 @@ classdef InfoTimelineModel < handle
         obj.selectOnStartFrm_ = [];
       end
       
-      notify(obj, 'didPresetSelectOn');
       notify(obj, 'didSetSelectOn');
     end
 

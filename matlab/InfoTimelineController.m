@@ -199,9 +199,7 @@ classdef InfoTimelineController < handle
       listeners{end+1,1} = ...
         addlistener(labeler, 'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated) ;
       listeners{end+1,1} = ...
-          addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;
-      listeners{end+1,1} = ...
-          addlistener(labeler.infoTimelineModel, 'didPresetSelectOn', @obj.cbkDidPresetSelectOn) ;      
+          addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
       obj.listeners = listeners;      
     
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
@@ -1105,8 +1103,8 @@ classdef InfoTimelineController < handle
       end
     end
 
-    function cbkDidPresetSelectOn(obj, src, evt)
-      % Handle didPresetSelectOn event from InfoTimelineModel
+    function didSetSelectOn(obj)
+      % Handle didSetSelectOn UI updates
       if ~obj.isinit
         selectOn = obj.lObj.infoTimelineModel.selectOn;
         if selectOn
