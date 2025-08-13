@@ -15,6 +15,9 @@ classdef InfoTimelineModel < handle
     props_tracker_ % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes_ % [nallprop]. ". Applicable when proptype is All Frames
     proptypes_ % property types, eg 'Labels' or 'Predictions'
+    curprop_ % row index into props, or props_tracker, depending on curproptype
+    curproptype_ % row index into proptypes
+    isdefault_ % whether this has been changed
   end
   
   properties (Dependent)
@@ -24,6 +27,9 @@ classdef InfoTimelineModel < handle
     props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes % [nallprop]. ". Applicable when proptype is All Frames
     proptypes % property types, eg 'Labels' or 'Predictions'
+    curprop % row index into props, or props_tracker, depending on curproptype
+    curproptype % row index into proptypes
+    isdefault % whether this has been changed
   end
 
   events
@@ -38,6 +44,9 @@ classdef InfoTimelineModel < handle
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
       obj.proptypes_ = InfoTimelineModel.TLPROPTYPES(:);
+      obj.curprop_ = 1;
+      obj.curproptype_ = 1;
+      obj.isdefault_ = true;
     end
     
     function v = get.selectOn(obj)
@@ -91,6 +100,30 @@ classdef InfoTimelineModel < handle
     function set.proptypes(obj, v)
       obj.proptypes_ = v;
       notify(obj, 'updateTimelinePropertyTypes');
+    end
+
+    function v = get.curprop(obj)
+      v = obj.curprop_;
+    end
+
+    function set.curprop(obj, v)
+      obj.curprop_ = v;
+    end
+
+    function v = get.curproptype(obj)
+      v = obj.curproptype_;
+    end
+
+    function set.curproptype(obj, v)
+      obj.curproptype_ = v;
+    end
+
+    function v = get.isdefault(obj)
+      v = obj.isdefault_;
+    end
+
+    function set.isdefault(obj, v)
+      obj.isdefault_ = v;
     end
 
     function selectInit(obj)

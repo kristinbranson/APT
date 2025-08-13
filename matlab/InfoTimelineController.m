@@ -34,11 +34,6 @@ classdef InfoTimelineController < handle
   end
 
 
-  properties
-    curprop % row index into props, or props_tracker, depending on curproptype.
-    curproptype % row index into proptypes
-    isdefault = true % whether this has been changed
-  end
 
   
   %% Select
@@ -156,9 +151,6 @@ classdef InfoTimelineController < handle
             
       obj.updateProps();
 
-      obj.curprop = 1;
-      obj.curproptype = 1;
-      obj.isdefault = true;
       
       obj.isinit = true;
       obj.hSelIm = [];
@@ -628,17 +620,17 @@ classdef InfoTimelineController < handle
       % and optionally calls setLabelsFull (only optional to avoid
       % redundant/dup calls near callsite).
 
-      ptype = obj.lObj.infoTimelineModel.proptypes{obj.curproptype};
+      ptype = obj.lObj.infoTimelineModel.proptypes{obj.lObj.infoTimelineModel.curproptype};
       switch ptype
         case 'Predictions'
-          tfOOB = obj.curprop > numel(obj.lObj.infoTimelineModel.props_tracker);
+          tfOOB = obj.lObj.infoTimelineModel.curprop > numel(obj.lObj.infoTimelineModel.props_tracker);
         otherwise
-          tfOOB = obj.curprop > numel(obj.lObj.infoTimelineModel.props);
+          tfOOB = obj.lObj.infoTimelineModel.curprop > numel(obj.lObj.infoTimelineModel.props);
       end
       
       if tfOOB
         NEWPROP = 1;
-        obj.curprop = NEWPROP;
+        obj.lObj.infoTimelineModel.curprop = NEWPROP;
         obj.parent_.pumInfo.Value = NEWPROP;
       end
       
@@ -649,7 +641,7 @@ classdef InfoTimelineController < handle
     function props = getPropsDisp(obj,ipropType)
       % Get available properties for given propType (idx)
       if nargin < 2,
-        ipropType = obj.curproptype;
+        ipropType = obj.lObj.infoTimelineModel.curproptype;
       end
       if strcmpi(obj.lObj.infoTimelineModel.proptypes{ipropType},'Predictions'),
         props = {obj.lObj.infoTimelineModel.props_tracker.name};
@@ -675,19 +667,19 @@ classdef InfoTimelineController < handle
           return;
         end
       else
-        obj.curprop = iprop;
+        obj.lObj.infoTimelineModel.curprop = iprop;
       end
       obj.setLabelsFull();
-      obj.isdefault = false;
+      obj.lObj.infoTimelineModel.isdefault = false;
     end
     function v = getCurProp(obj)
-      v = obj.curprop;
+      v = obj.lObj.infoTimelineModel.curprop;
     end
     function setCurPropType(obj,iproptype,iprop)
       % iproptype, iprop assumed to be consistent already.
-      obj.curproptype = iproptype;
-      if nargin >= 3 && iprop ~= obj.curprop,
-        obj.curprop = iprop;
+      obj.lObj.infoTimelineModel.curproptype = iproptype;
+      if nargin >= 3 && iprop ~= obj.lObj.infoTimelineModel.curprop,
+        obj.lObj.infoTimelineModel.curprop = iprop;
       end
       obj.setLabelsFull();
       obj.updateLandmarkColors();
@@ -712,37 +704,37 @@ classdef InfoTimelineController < handle
       newprop = struct('name',['Custom: ',f],'code','custom','file',file);
       obj.initializePropsAllFrames();
       obj.lObj.infoTimelineModel.props_allframes = [newprop,obj.lObj.infoTimelineModel.props_allframes];
-      obj.curprop = 1;
+      obj.lObj.infoTimelineModel.curprop = 1;
       tfSucc = true;      
     end
     function [ptype,prop] = getCurPropSmart(obj)
       % Get current proptype, and prop-specification-struct
       
-      ptype = obj.lObj.infoTimelineModel.proptypes{obj.curproptype};
+      ptype = obj.lObj.infoTimelineModel.proptypes{obj.lObj.infoTimelineModel.curproptype};
       switch ptype
         case 'Predictions'
-          prop = obj.lObj.infoTimelineModel.props_tracker(obj.curprop);
+          prop = obj.lObj.infoTimelineModel.props_tracker(obj.lObj.infoTimelineModel.curprop);
         otherwise
-          prop = obj.lObj.infoTimelineModel.props(obj.curprop);
+          prop = obj.lObj.infoTimelineModel.props(obj.lObj.infoTimelineModel.curprop);
       end
     end
     function tf = getCurPropTypeIsLabel(obj)
-      v = obj.curproptype;
+      v = obj.lObj.infoTimelineModel.curproptype;
       tf = strcmp(obj.lObj.infoTimelineModel.proptypes{v},'Labels');
     end
     function tf = getCurPropTypeIsAllFrames(obj)
-      v = obj.curproptype;
+      v = obj.lObj.infoTimelineModel.curproptype;
       tf = strcmpi(obj.lObj.infoTimelineModel.proptypes{v},'All Frames');
     end
     function setCurPropTypeDefault(obj)
       obj.setCurPropType(1,1);
-      obj.isdefault = true;
+      obj.lObj.infoTimelineModel.isdefault = true;
     end
     function updatePropsGUI(obj)
-      obj.parent_.pumInfo_labels.Value = obj.curproptype;
-      props = obj.getPropsDisp(obj.curproptype);
+      obj.parent_.pumInfo_labels.Value = obj.lObj.infoTimelineModel.curproptype;
+      props = obj.getPropsDisp(obj.lObj.infoTimelineModel.curproptype);
       obj.parent_.pumInfo.String = props;
-      obj.parent_.pumInfo.Value = obj.curprop;
+      obj.parent_.pumInfo.Value = obj.lObj.infoTimelineModel.curprop;
     end
   end
     
@@ -775,7 +767,7 @@ classdef InfoTimelineController < handle
 %     end
 
     function tf = isDefaultProp(obj)
-      tf = obj.isdefault;
+      tf = obj.lObj.infoTimelineModel.isdefault;
     end
     function tf = hasPredictionConfidence(obj)
       tf = ~isempty(obj.TLPROPS_TRACKER);
@@ -1003,8 +995,8 @@ classdef InfoTimelineController < handle
               data = nan(obj.npts,1);
             end
           case 'All Frames'
-            %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.curprop);
-            if strcmpi(obj.lObj.infoTimelineModel.props_allframes(obj.curprop).name,'Add custom...'),
+            %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.lObj.infoTimelineModel.curprop);
+            if strcmpi(obj.lObj.infoTimelineModel.props_allframes(obj.lObj.infoTimelineModel.curprop).name,'Add custom...'),
               data = nan(obj.npts,1);
             else
               data = obj.custom_data;
