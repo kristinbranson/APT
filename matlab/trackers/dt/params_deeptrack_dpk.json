@@ -3,20 +3,6 @@
   "DispName": "",
   "DeepPoseKit": {
     "Description": "DeepPoseKit (DPK) settings.",
-    "DispName": "",
-    "dpk_test": {
-      "AffectsTraining": true,
-      "DefaultValue": 0,
-      "Description": "desc",
-      "DispName": "test param",
-      "Level": "Important",
-      "ParamViz": "",
-      "Requirements": [
-        "dpk",
-        "isDeepTrack"
-      ],
-      "Type": "boolean",
-      "isEditable": true
-    }
+    "DispName": ""
   }
 }

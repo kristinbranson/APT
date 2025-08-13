@@ -2,7 +2,7 @@
   "Description": "DUMMY",
   "DispName": "",
   "GRONe": {
-    "Description": "Mixture Density Network (MDN) parameters",
+    "Description": "GRONe parameters",
     "DispName": "",
     "mdn_base_lr": {
       "AffectsTraining": true,
@@ -35,9 +35,9 @@
     "ignore_occluded": {
       "AffectsTraining": true,
       "DefaultValue": 0,
-      "Description": "Do not train on landmarks labeled as occluded.",
-      "DispName": "Ignore occluded landmarks",
-      "Level": "Advanced",
+      "Description": "Do not train on keypoints labeled as 'occluded'",
+      "DispName": "Ignore occluded keypoints during training",
+      "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
         "mdn_joint_fpn",
@@ -49,8 +49,8 @@
     "predict_occluded": {
       "AffectsTraining": true,
       "DefaultValue": 1,
-      "Description": "Predict whether landmarks are occluded or not.",
-      "DispName": "Predict occluded",
+      "Description": "Should we train the pose network to also predict whether keypoints are labeled as 'occluded' or not? Recall that you can label a point as 'occluded' or not. It may be helpful in your downstream task to know whether a keypoint is occluded, and this predicted category could be used for that. ",
+      "DispName": "Train 'occluded' classifier",
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
@@ -63,7 +63,7 @@
     "pretrain_freeze_bnorm": {
       "AffectsTraining": true,
       "DefaultValue": 1,
-      "Description": "Freeze batch norm weights of the backbone to the pretrained weights",
+      "Description": "Freeze batch-norm weights of the backbone to the pretrained weights",
       "DispName": "Freeze batch norm",
       "Level": "Developer",
       "ParamViz": "",
@@ -77,7 +77,7 @@
     "mdn_resnet_source": {
       "AffectsTraining": true,
       "DefaultValue": "official_tf",
-      "Description": "Resnet model to use for backbone. Choices are \"official_tf\" and \"slim\"",
+      "Description": "ResNet model to use for the backbone. Choices are \"official_tf\" and \"slim\"",
       "DispName": "Resnet source",
       "Level": "Developer",
       "ParamViz": "",
@@ -91,8 +91,8 @@
     "db_format": {
       "AffectsTraining": true,
       "DefaultValue": "coco",
-      "Description": "Db format",
-      "DispName": "Database Format",
+      "Description": "Format for the training database",
+      "DispName": "Database format",
       "Level": "Developer",
       "ParamViz": "",
       "Requirements": [

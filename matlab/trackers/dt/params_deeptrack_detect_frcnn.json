@@ -2,27 +2,13 @@
   "Description": "DUMMY",
   "DispName": "",
   "MMDetect_FRCNN": {
-    "Description": "Object detection parameters",
+    "Description": "Parameters related to Faster-RCNN object detection",
     "DispName": "",
     "db_format": {
       "AffectsTraining": true,
       "DefaultValue": "coco",
-      "Description": "Format for Training DB",
-      "DispName": "DB Format",
-      "Level": "Developer",
-      "ParamViz": "",
-      "Requirements": [
-        "detect_frcnn",
-        "isDeepTrack"
-      ],
-      "Type": "string",
-      "isEditable": true
-    },
-    "test": {
-      "AffectsTraining": true,
-      "DefaultValue": "test",
-      "Description": "Test",
-      "DispName": "Test prop",
+      "Description": "Format for training database",
+      "DispName": "Database format",
       "Level": "Developer",
       "ParamViz": "",
       "Requirements": [
@@ -35,7 +21,7 @@
     "mmdetect_net": {
       "AffectsTraining": true,
       "DefaultValue": "frcnn",
-      "Description": "Network to use",
+      "Description": "Name of network within mmdetect code",
       "DispName": "MMDetect network",
       "Level": "Developer",
       "ParamViz": "",

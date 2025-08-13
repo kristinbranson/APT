@@ -2,12 +2,12 @@
   "Description": "DUMMY",
   "DispName": "",
   "HourGlass": {
-    "Description": "hourglass settings.",
+    "Description": "Hourglass network settings",
     "DispName": "",
     "hg_dorefine": {
       "AffectsTraining": true,
       "DefaultValue": true,
-      "Description": "Whether to include deconvolutional layers to predict at input resolution.",
+      "Description": "Whether to include deconvolutional layers to predict at the input resolution.",
       "DispName": "Include refinement",
       "Level": "Advanced",
       "ParamViz": "",

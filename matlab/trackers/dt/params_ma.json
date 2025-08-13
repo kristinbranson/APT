@@ -44,7 +44,7 @@
       "isEditable": false
     },
     "multi_match_dist": {
-      "AffectsTraining": true,
+      "AffectsTraining": false,
       "DefaultValue": 20,
       "Description": "We use non-maximal suppression to prevent the same animal being detected multiple times. The distance between two poses is compared to their bounding box sizes. If the average distance between the keypoints is smaller than this percentage of bounding box edge size, then merge the two predictions. (Currently only use in multi-animal GRONe.)",
       "DispName": "Non-maximal suppression distance",
@@ -141,8 +141,8 @@
       }
     },
     "LossMask": {
-      "Description": "Parameters related to the network loss function when some animals are unlabeled. This is handled using masks which specify which pixels are considered labeled and not. ",
-      "DispName": "Loss Masking",
+      "Description": "Parameters related to the network loss function optimized during training when some animals are unlabeled. This is handled using masks that specify which pixels are considered labeled and not. ",
+      "DispName": "Training with unlabeled animals",
       "MinAspectRatio": {
         "AffectsTraining": true,
         "DefaultValue": 0.3,
@@ -200,7 +200,7 @@
       "Description": "Settings related to multi-animal tracking inference",
       "DispName": "Multi-animal tracking parameters",
       "min_n_animals": {
-        "AffectsTraining": true,
+        "AffectsTraining": false,
         "DefaultValue": 0,
         "Description": "APT will detect at least this many animals in each frame.",
         "DispName": "Minimum number of animals",
@@ -213,7 +213,7 @@
         "isEditable": true
       },
       "max_n_animals": {
-        "AffectsTraining": true,
+        "AffectsTraining": false,
         "DefaultValue": 30,
         "Description": "APT will detect at most this many animals in each frame.",
         "DispName": "Maximum number of animals",
@@ -229,7 +229,7 @@
         "Description": "Settings related to stitching poses detected on each frame into tracklets across many video frames.",
         "DispName": "Tracklet Stitching",
         "link_stage": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": "second",
           "Description": "Whether to stitch detections into tracklets at the first/detection stage, the second/pose stage, or not at all. If 'first', matching across frames will be based on distances between detections. If 'second', matching across frames will be based on distances between all keypoints. If 'none', stitching is not done.",
           "DispName": "Stitching stage",
@@ -246,7 +246,7 @@
           "isEditable": true
         },
         "link_id": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": false,
           "Description": "Whether to use individual-identity-recognition from the appearance of each animal to stitch tracklets into longer trajectories. This requires training an additional network to recognize individual animals in a manner similar to how facial recognition networks are trained to recognize individual people. It takes extra time, but does not require extra training data. ",
           "DispName": "Identity Linking",
@@ -259,7 +259,7 @@
           "isEditable": true
         },
         "link_maxcost_heuristic": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": "secondorder",
           "Description": "Method to estimate distance threshold used in linking detections into tracklets: detections are only matched if their distances are less than this threshold. We compute this threshold by looking at the distribution of distances between potential matches. 'secondorder' sets the threshold to where the curve of sorted match distances sharply increases (large second derivative). 'prctile' sets this threshold as a the 'Linking threshold percentile' of matched distances. ",
           "DispName": "Linking distance threshold estimation",
@@ -275,7 +275,7 @@
           "isEditable": true
         },
         "link_maxcost_mult": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 1,
           "Description": "How permissive should we be in linking detections into tracklets? Small values are conservative, and will potentially break true trajectories into multiple tracklets. Large values are permissive, and may merge detections belonging to different animals into a single tracklet. Computationally, this is a multiplier on the threshold computed using the 'Linking distance threshold estimation' method. If this is 1, it will directly use the estimated threshold. You can making linking more or less permissive by increasing/decreasing this multiplier.",
           "DispName": "Linking permissiveness",
@@ -288,7 +288,7 @@
           "isEditable": true
         },
         "link_maxcost_prctile": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 95,
           "Description": "When 'Linking distance threshold estimation' method is 'prctile', this is the percentile used to compute the match distance threshold.",
           "DispName": "Linking distance threshold percentile",
@@ -301,7 +301,7 @@
           "isEditable": true
         },
         "link_maxframes_delete": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 10,
           "Description": "Sometimes there will be spurious detections in short intervals of frames that do not persist. We can identify these if they only persist for a few frames. This is the threshold of the minimum length in frames of a trajectory to keep; we delete tracklets shorter than this. ",
           "DispName": "Minimum trajectory duration",
@@ -314,7 +314,7 @@
           "isEditable": true
         },
         "link_maxframes_missed": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 10,
           "Description": "Sometimes we will not detect an animal for short intervals of frames. We can identify these based on short gaps in a longer trajectory. This is the threshold of the maximum gap duration in frames that we will link across.",
           "DispName": "Maximum trajectory gap duration",
@@ -327,7 +327,7 @@
           "isEditable": true
         },
         "link_strict_match_thres": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 2,
           "Description": "To ensure that we do not swap identities, we can compare the distance to the closest match and the second-closest match. If these are too similar, we lack confidence in our match choice, and break our tracklets. We only match detections if their distance is smaller than the distance to the next closest match by this factor. Large values are more conservative, small values are more permissive. This number should be >= 1.",
           "DispName": "Matching distance uniqueness",
@@ -340,7 +340,7 @@
           "isEditable": true
         },
         "link_id_training_iters": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 100000,
           "Description": "Number of iterations to train the identity recognition network for.",
           "DispName": "Identity recognition training iterations",
@@ -353,7 +353,7 @@
           "isEditable": true
         },
         "link_id_tracklet_samples": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 25,
           "Description": "When linking tracklets into trajectories based on individual identity recognition, we sample frames from the tracklet, and pool information across these samples. How many frames should we sample from a tracklet when assigning identity?",
           "DispName": "Identity recogntiion tracklet samples",
@@ -366,7 +366,7 @@
           "isEditable": true
         },
         "link_id_rescale": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 1,
           "Description": "Factor to downsample snapshots of animals for the identity recognition network.",
           "DispName": "Identity recognition downsampling factor",
@@ -379,7 +379,7 @@
           "isEditable": true
         },
         "link_id_batch_size": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 16,
           "Description": "Batch size to use for training the identity recognition network.",
           "DispName": "Identity recognition batch size",
@@ -392,7 +392,7 @@
           "isEditable": true
         },
         "link_id_mining_steps": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": 10,
           "Description": "To improve the efficiency of training the identity recognition, we find and upweight hard examples at particular intervals. How many times during training should we mine for hard examples.",
           "DispName": "Identity recognition hard-example mining steps",
@@ -405,7 +405,7 @@
           "isEditable": true
         },
         "link_id_cropsz": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": -1,
           "Description": "Size of the square (in pixels) to crop around the animal for identity recognition. If less than 0, the automatically-computed crop size is used. Set this to a value > 0 to override with a fixed value. ",
           "DispName": "Square size to use for identity recognition",
@@ -418,7 +418,7 @@
           "isEditable": true
         },
         "link_id_motion_link": {
-          "AffectsTraining": true,
+          "AffectsTraining": false,
           "DefaultValue": false,
           "Description": "Whether to create trajectories by first linking detections into tracklets based on motion (True), or by clustering appearance (False)",
           "DispName": "Link based on motion first",

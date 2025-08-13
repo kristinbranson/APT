@@ -68,7 +68,7 @@
         "DefaultValue": 0,
         "Description": "Normalize image contrast using Contrast Limited Adaptive Histogram Equalization (CLAHE). Obsolete, a better approach is to include contrast and brightness in data augmentation.",
         "DispName": "Histogram equalization",
-        "Level": "Developer",
+        "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
           "isDeepTrack"
@@ -81,7 +81,7 @@
         "DefaultValue": 20,
         "Description": "CLAHE normalizes contrast in local neighborhoods -- squares with this side length, in pixels. Obsolete, a better approach is to include contrast and brightness in data augmentation.",
         "DispName": "Neighborhood size for histogram equalization",
-        "Level": "Developer",
+        "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
           "isDeepTrack"
@@ -94,7 +94,7 @@
         "DefaultValue": false,
         "Description": "Normalize images by subtracting the average pixel intensity in the image. Obsolete, a better approach is to include contrast and brightness in data augmentation.",
         "DispName": "Brightness normalization",
-        "Level": "Developer",
+        "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
           "isDeepTrack"
@@ -189,10 +189,10 @@
         "DefaultValue": 2,
         "Description": "OBSOLETE Number of times to restart training",
         "DispName": "OBSOLETE N. warm restarts",
-        "Level": "Developer",
+        "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "Obsolete"
+            "isDeepTrack"
         ],
         "Type": "unsigned",
         "isEditable": true
@@ -202,10 +202,10 @@
         "DefaultValue": 25000,
         "Description": "OBSOLETE The learning rate is decayed by gamma (below) after this many iterations of training. Does not apply to LEAP and DeepLabCut.",
         "DispName": "OBSOLETE Learning rate decay iterations",
-        "Level": "Developer",
+        "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "Obsolete"
+            "isDeepTrack"
         ],
         "Type": "float",
         "isEditable": true
@@ -215,10 +215,10 @@
         "DefaultValue": 0.1,
         "Description": "OBSOLETE Amount to decay the learning rate by after the number of decay iterations above. Does not apply to LEAP and DeepLabCut.",
         "DispName": "OBSOLETE Learning rate decay (gamma)",
-        "Level": "Developer",
+        "Level": "Obsolete",
         "ParamViz": "",
         "Requirements": [
-            "isDeepTrack", "Obsolete"
+            "isDeepTrack"
         ],
         "Type": "float",
         "isEditable": true

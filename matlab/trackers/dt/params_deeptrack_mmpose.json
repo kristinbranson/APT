@@ -2,17 +2,17 @@
   "Description": "DUMMY",
   "DispName": "",
   "MSPN": {
-    "Description": "Mixture Density Network (MDN) parameters",
+    "Description": "MMPose-based pose network parameters",
     "DispName": "",
     "ignore_occluded": {
       "AffectsTraining": true,
       "DefaultValue": 0,
-      "Description": "Do not train on landmarks labeled as occluded.",
-      "DispName": "Ignore occluded landmarks",
+      "Description": "Do not train on keypoints labeled as 'occluded'",
+      "DispName": "Ignore occluded keypoints during training",
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
-        "mmpose",
+        "hrformer",
         "isDeepTrack"
       ],
       "Type": "boolean",
@@ -21,12 +21,12 @@
     "predict_occluded": {
       "AffectsTraining": true,
       "DefaultValue": 0,
-      "Description": "Predict whether landmarks are occluded or not. This parameter only has an effect if occluded landmarks *are* ignored",
-      "DispName": "Predict occluded",
+      "Description": "Should we train the pose network to also predict whether keypoints are labeled as 'occluded' or not? Recall that you can label a point as 'occluded' or not. It may be helpful in your downstream task to know whether a keypoint is occluded, and this predicted category could be used for that. ",
+      "DispName": "Train 'occluded' classifier",
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
-        "mmpose",
+        "hrformer",
         "isDeepTrack"
       ],
       "Type": "boolean",
@@ -49,7 +49,7 @@
     "mmpose_use_apt_augmentation": {
       "AffectsTraining": true,
       "DefaultValue": 0,
-      "Description": "Use APTs augmentation routines for data augmention. Else use MMPoses native routines",
+      "Description": "Use APT's augmentation routines for data augmention. Else use MMPose's native routines",
       "DispName": "Use APT augmentation",
       "Level": "Developer",
       "ParamViz": "",
@@ -63,12 +63,12 @@
     "db_format": {
       "AffectsTraining": true,
       "DefaultValue": "coco",
-      "Description": "Db format",
-      "DispName": "Database Format",
+      "Description": "Format for the training database",
+      "DispName": "Database format",
       "Level": "Developer",
       "ParamViz": "",
       "Requirements": [
-        "mmpose",
+        "hrformer",
         "isDeepTrack"
       ],
       "Type": "string",
