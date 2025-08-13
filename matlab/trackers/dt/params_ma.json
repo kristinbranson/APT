@@ -2,17 +2,17 @@
   "Description": "DUMMY",
   "DispName": "",
   "MultiAnimal": {
-    "Description": "MultiAnimal settings.",
+    "Description": "Settings related to multi-animal trackers",
     "DispName": "",
     "multi_loss_mask": {
       "AffectsTraining": true,
       "DefaultValue": true,
-      "Description": "Set this to false only if all animals are labeled in every labeled frame.",
-      "DispName": "Unlabeled animals present",
+      "Description": "In frames that are labeled, are SOME or ALL animals labeled? If set to False, then you must label all animals (in each frame you label). If set to True, you may selectively label animals. In this case, you must pay attention to the boxes indicating which regions of the frame are considered labeled. ",
+      "DispName": "Unlabeled animals present?",
       "Level": "Important",
       "ParamViz": "",
       "Requirements": [
-        "ma"
+	    "ma"
       ],
       "Type": "boolean",
       "isEditable": true
@@ -20,12 +20,12 @@
     "multi_crop_ims": {
       "AffectsTraining": true,
       "DefaultValue": true,
-      "Description": "Set this to false to force training on the entire image/frame.",
-      "DispName": "Crop images during training",
+      "Description": "During training, should we zoom in on labeled regions of interest? Set this to True to zoom, False to force training on the entire image/frame. Setting this to True can speed up training and increase the resolution of the network.",
+      "DispName": "Zoom during training",
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
-        "~isObjDet"
+          "~isObjDet", "ma"
       ],
       "Type": "boolean",
       "isEditable": true
@@ -33,12 +33,12 @@
     "multi_crop_im_sz": {
       "AffectsTraining": true,
       "DefaultValue": 32,
-      "Description": "If images are cropped for training, then this is the size for cropping. This is auto computed. This is the size of the smallest square that covers the largest cluster of labeled animals that have overlapping masks.",
-      "DispName": "Cropped images size for training",
+      "Description": "If Zoom during training == True, this is the side length of the square we zoom in on. This value is auto-computed based on the size of the smallest square that covers the largest cluster of labeled animals.",
+      "DispName": "Zoom box size",
       "Level": "Beginner",
       "ParamViz": "",
       "Requirements": [
-        "~isObjDet"
+          "~isObjDet", "ma"
       ],
       "Type": "unsigned",
       "isEditable": false
@@ -46,8 +46,8 @@
     "multi_match_dist": {
       "AffectsTraining": true,
       "DefaultValue": 20,
-      "Description": "The distance between two poses is compared to the bounding box sizes of the poses. If the average distance between the landmarks is smaller than this fraction (in percentage) of bounding box edge size, then merge the two predictions. Mainly for MA-Grone.",
-      "DispName": "Non-max suppression distance",
+      "Description": "We use non-maximal suppression to prevent the same animal being detected multiple times. The distance between two poses is compared to their bounding box sizes. If the average distance between the keypoints is smaller than this percentage of bounding box edge size, then merge the two predictions. (Currently only use in multi-animal GRONe.)",
+      "DispName": "Non-maximal suppression distance",
       "Level": "Advanced",
       "ParamViz": "",
       "Requirements": [
@@ -57,16 +57,16 @@
       "isEditable": true
     },
     "Detect": {
-      "Description": "MultiAnimal settings.",
+      "Description": "Settings related to the first/detection stage of multi-animal pose recognition",
       "DispName": "Detection",
       "BBox": {
-        "Description": "Object detection bounding box definition",
-        "DispName": "Bounding Box Definition",
+        "Description": "Object-detection bounding box settings",
+        "DispName": "Bounding Box",
         "MinAspectRatio": {
           "AffectsTraining": true,
-          "DefaultValue": 0.3,
+           "DefaultValue": 0.3,
           "Description": "Minimum aspect ratio for bounding boxes.",
-          "DispName": "Minimum Aspect Ratio",
+          "DispName": "Minimum aspect ratio",
           "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [
@@ -77,18 +77,18 @@
         }
       },
       "DeepTrack": {
-        "Description": "Hyperparameters for training the first-stage detection network for multi-target pose recognition.",
+        "Description": "Settings related to training the first-stage/detection network for multi-animal pose recognition",
 	"DispName": "Detection Network"
       }
     },
     "TargetCrop": {
-      "Description": "APT crops out regions centered around each detected animal and runs part-tracking on these image crops. These parameters describe how image patches around individual animals are cropped out.",
-      "DispName": "Cropping around Detections",
+      "Description": "APT crops out regions centered around each animal detected in the first/detection stage, then runs the pose recognition network on these image crops. These parameters describe how image patches around individual animals are cropped out.",
+      "DispName": "Cropping around animals",
       "ManualRadius": {
         "AffectsTraining": true,
         "DefaultValue": 50,
-        "Description": "Radius (in pixels) of the square cropped around each target.",
-        "DispName": "Animal Box Size Radius",
+        "Description": "If 'Scale bounding box' is False, we crop a  Radius (in pixels) of the square cropped around each detection (the square side will be 2*radius pixels). This value should be bigger than the animal size.",
+        "DispName": "Animal box radius",
         "Level": "Important",
         "ParamViz": "ParameterVisualizationTgtCropRadius",
         "Requirements": [
@@ -101,8 +101,8 @@
       "AlignUsingTrxTheta": {
         "AffectsTraining": true,
         "DefaultValue": true,
-        "Description": "If true, align cropped images using head-tail orientation or using trx.theta if the project uses trx files.",
-        "DispName": "Align using head-tail or using trajectory theta",
+        "Description": "Boxes cropped around animals are either aligned based on the head and tail keypoints, or are aligned with the x- and y-axes of the image. If True, align cropped images using head-tail orientation (or trx.theta if the project uses trx files). If False, align with th image axes",
+        "DispName": "Align using tail->head body axis",
         "Level": "Beginner",
         "ParamViz": "",
         "Requirements": [
@@ -115,8 +115,8 @@
       "PadBkgd": {
         "AffectsTraining": true,
         "DefaultValue": 0,
-        "Description": "If the cropped regions need to be padded, this value indicates the image intensity to pad with.",
-        "DispName": "Pad background",
+        "Description": "If the cropped regions go outside the image, pad the image with this intensity.",
+        "DispName": "Pad intensity",
         "Level": "Advanced",
         "ParamViz": "",
         "Requirements": [
@@ -141,13 +141,13 @@
       }
     },
     "LossMask": {
-      "Description": "Parameters for masking loss to handle unlabeled targets",
+      "Description": "Parameters related to the network loss function when some animals are unlabeled. This is handled using masks which specify which pixels are considered labeled and not. ",
       "DispName": "Loss Masking",
       "MinAspectRatio": {
         "AffectsTraining": true,
         "DefaultValue": 0.3,
-        "Description": "Minimum aspect ratio for mask.",
-        "DispName": "Minimum Aspect Ratio",
+        "Description": "Minimum aspect ratio for mask boxes around labeled animals.",
+        "DispName": "Minimum mask aspect ratio",
         "Level": "Advanced",
         "ParamViz": "",
         "Requirements": [
@@ -159,8 +159,8 @@
       "PadFactor": {
         "AffectsTraining": true,
         "DefaultValue": 1.5,
-        "Description": "Dimensionless factor controlling width of padding around target. A value of 1 indicates a tight fit around the landmark convex hull.",
-        "DispName": "Padding factor",
+        "Description": "Dimensionless factor controlling padding of mask around each labeled animal. A value of 1 indicates a tight fit around the keypoints' convex hull.",
+        "DispName": "Mask padding factor",
         "Level": "Beginner",
         "ParamViz": "",
         "Requirements": [
@@ -172,7 +172,7 @@
       "PadFloor": {
         "AffectsTraining": true,
         "DefaultValue": 32,
-        "Description": "Minimum width of padding around target, in pixels.",
+        "Description": "Minimum width of padding of mask around each target, in pixels.",
         "DispName": "Minimum padding",
         "Level": "Beginner",
         "ParamViz": "",
@@ -185,8 +185,8 @@
       "AlignHeadTail": {
         "AffectsTraining": true,
         "DefaultValue": false,
-        "Description": "If true, align masks to animal using head/tail landmarks",
-        "DispName": "Align mask using head/tail landmark specifications",
+        "Description": "Whether the masks around each labeled animal are aligned based on the body axis (True) or the image axes (False). If True, you MUST set the head and tail keypoints in the keypoint parameters.",
+        "DispName": "Align mask using tail->head body axis",
         "Level": "Beginner",
         "ParamViz": "",
         "Requirements": [
@@ -197,7 +197,7 @@
       }
     },
     "Track": {
-      "Description": "Multi-animal tracking parameters",
+      "Description": "Settings related to multi-animal tracking inference",
       "DispName": "Multi-animal tracking parameters",
       "min_n_animals": {
         "AffectsTraining": true,
@@ -226,12 +226,12 @@
         "isEditable": true
       },
       "TrackletStitch": {
-        "Description": "Parameters for stitching tracked targets into tracklets",
+        "Description": "Settings related to stitching poses detected on each frame into tracklets across many video frames.",
         "DispName": "Tracklet Stitching",
         "link_stage": {
           "AffectsTraining": true,
           "DefaultValue": "second",
-          "Description": "Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.",
+          "Description": "Whether to stitch detections into tracklets at the first/detection stage, the second/pose stage, or not at all. If 'first', matching across frames will be based on distances between detections. If 'second', matching across frames will be based on distances between all keypoints. If 'none', stitching is not done.",
           "DispName": "Stitching stage",
           "Level": "Advanced",
           "ParamViz": "",
@@ -248,7 +248,7 @@
         "link_id": {
           "AffectsTraining": true,
           "DefaultValue": false,
-          "Description": "Whether to stitch detections using identity tracking.",
+          "Description": "Whether to use individual-identity-recognition from the appearance of each animal to stitch tracklets into longer trajectories. This requires training an additional network to recognize individual animals in a manner similar to how facial recognition networks are trained to recognize individual people. It takes extra time, but does not require extra training data. ",
           "DispName": "Identity Linking",
           "Level": "Important",
           "ParamViz": "",
@@ -261,8 +261,8 @@
         "link_maxcost_heuristic": {
           "AffectsTraining": true,
           "DefaultValue": "secondorder",
-          "Description": "Method to compute the cutoff for linking. Secondorder sets the cutoff where sorted match distances sharply increases. Prctile computes the cutoff as a percentile of matched distances",
-          "DispName": "Linking cutoff method",
+          "Description": "Method to estimate distance threshold used in linking detections into tracklets: detections are only matched if their distances are less than this threshold. We compute this threshold by looking at the distribution of distances between potential matches. 'secondorder' sets the threshold to where the curve of sorted match distances sharply increases (large second derivative). 'prctile' sets this threshold as a the 'Linking threshold percentile' of matched distances. ",
+          "DispName": "Linking distance threshold estimation",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
@@ -277,8 +277,8 @@
         "link_maxcost_mult": {
           "AffectsTraining": true,
           "DefaultValue": 1,
-          "Description": "This determines how aggresively tracklets are linked. Value of 1 will not link frames that have unusual large movements. For value less than 1 tracking will break even for usual large movements. Values greater than 1 (3-4) will link detections across large jumps.",
-          "DispName": "Linking Aggressiveness",
+          "Description": "How permissive should we be in linking detections into tracklets? Small values are conservative, and will potentially break true trajectories into multiple tracklets. Large values are permissive, and may merge detections belonging to different animals into a single tracklet. Computationally, this is a multiplier on the threshold computed using the 'Linking distance threshold estimation' method. If this is 1, it will directly use the estimated threshold. You can making linking more or less permissive by increasing/decreasing this multiplier.",
+          "DispName": "Linking permissiveness",
           "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [
@@ -290,8 +290,8 @@
         "link_maxcost_prctile": {
           "AffectsTraining": true,
           "DefaultValue": 95,
-          "Description": "When using prctile (percentile) method to compute the cutoff, the percentile to use to compute the cutoff.",
-          "DispName": "Cutoff Percentile",
+          "Description": "When 'Linking distance threshold estimation' method is 'prctile', this is the percentile used to compute the match distance threshold.",
+          "DispName": "Linking distance threshold percentile",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
@@ -303,8 +303,8 @@
         "link_maxframes_delete": {
           "AffectsTraining": true,
           "DefaultValue": 10,
-          "Description": "Delete trajectories of length shorter than this.",
-          "DispName": "Minimum Trajectory Length",
+          "Description": "Sometimes there will be spurious detections in short intervals of frames that do not persist. We can identify these if they only persist for a few frames. This is the threshold of the minimum length in frames of a trajectory to keep; we delete tracklets shorter than this. ",
+          "DispName": "Minimum trajectory duration",
           "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [
@@ -316,8 +316,8 @@
         "link_maxframes_missed": {
           "AffectsTraining": true,
           "DefaultValue": 10,
-          "Description": "Maximum gap length in trajectory across which to link trajectory.",
-          "DispName": "Max gap length to link",
+          "Description": "Sometimes we will not detect an animal for short intervals of frames. We can identify these based on short gaps in a longer trajectory. This is the threshold of the maximum gap duration in frames that we will link across.",
+          "DispName": "Maximum trajectory gap duration",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
@@ -329,8 +329,8 @@
         "link_strict_match_thres": {
           "AffectsTraining": true,
           "DefaultValue": 2,
-          "Description": "Match a prediction only if the distance to closest match is smaller than the distance to the next closest match by this factor.",
-          "DispName": "Matching Threshold",
+          "Description": "To ensure that we do not swap identities, we can compare the distance to the closest match and the second-closest match. If these are too similar, we lack confidence in our match choice, and break our tracklets. We only match detections if their distance is smaller than the distance to the next closest match by this factor. Large values are more conservative, small values are more permissive. This number should be >= 1.",
+          "DispName": "Matching distance uniqueness",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
@@ -342,8 +342,8 @@
         "link_id_training_iters": {
           "AffectsTraining": true,
           "DefaultValue": 100000,
-          "Description": "Number of steps to training the identity tracker for.",
-          "DispName": "Identity Tracker Training iterations",
+          "Description": "Number of iterations to train the identity recognition network for.",
+          "DispName": "Identity recognition training iterations",
           "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [
@@ -355,8 +355,8 @@
         "link_id_tracklet_samples": {
           "AffectsTraining": true,
           "DefaultValue": 25,
-          "Description": "Number of examples to sample from a tracklet when assigning identity.",
-          "DispName": "Tracklet Samples",
+          "Description": "When linking tracklets into trajectories based on individual identity recognition, we sample frames from the tracklet, and pool information across these samples. How many frames should we sample from a tracklet when assigning identity?",
+          "DispName": "Identity recogntiion tracklet samples",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
@@ -368,9 +368,9 @@
         "link_id_rescale": {
           "AffectsTraining": true,
           "DefaultValue": 1,
-          "Description": "Amount to downsample the cropped animal images for identity tracking.",
-          "DispName": "Identity tracker downsampling factor",
-          "Level": "Important",
+          "Description": "Factor to downsample snapshots of animals for the identity recognition network.",
+          "DispName": "Identity recognition downsampling factor",
+          "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [
             "ma"
@@ -381,8 +381,8 @@
         "link_id_batch_size": {
           "AffectsTraining": true,
           "DefaultValue": 16,
-          "Description": "Batch size to use for training identity network.",
-          "DispName": "Identity tracker batch size",
+          "Description": "Batch size to use for training the identity recognition network.",
+          "DispName": "Identity recognition batch size",
           "Level": "Beginner",
           "ParamViz": "",
           "Requirements": [
@@ -394,8 +394,8 @@
         "link_id_mining_steps": {
           "AffectsTraining": true,
           "DefaultValue": 10,
-          "Description": "Number of times to do hard triplet mining during identity tracking.",
-          "DispName": "Identity tracker mining steps",
+          "Description": "To improve the efficiency of training the identity recognition, we find and upweight hard examples at particular intervals. How many times during training should we mine for hard examples.",
+          "DispName": "Identity recognition hard-example mining steps",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
@@ -407,9 +407,9 @@
         "link_id_cropsz": {
           "AffectsTraining": true,
           "DefaultValue": -1,
-          "Description": "Crop size to use ID linking. If less than 0, the automatically computed crop size is used",
-          "DispName": "Crop size to use for ID Linking",
-          "Level": "Beginner",
+          "Description": "Size of the square (in pixels) to crop around the animal for identity recognition. If less than 0, the automatically-computed crop size is used. Set this to a value > 0 to override with a fixed value. ",
+          "DispName": "Square size to use for identity recognition",
+          "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [
             "ma"
@@ -420,8 +420,8 @@
         "link_id_motion_link": {
           "AffectsTraining": true,
           "DefaultValue": false,
-          "Description": "Crop size to use ID linking. If less than 0, the automatically computed crop size is used",
-          "DispName": "Use motion linking before grouping by identity",
+          "Description": "Whether to create trajectories by first linking detections into tracklets based on motion (True), or by clustering appearance (False)",
+          "DispName": "Link based on motion first",
           "Level": "Advanced",
           "ParamViz": "",
           "Requirements": [

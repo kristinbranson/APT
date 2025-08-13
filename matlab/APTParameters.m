@@ -978,7 +978,7 @@ classdef APTParameters
         for i = 1:numel(t2.Children),
           t1.Children(end+1,1) = t2.Children(i).copy();
         end
-        t1.traverse(@(node) node.Data.addRequirement('isTopDown'))
+        t1.traverse(@(node) node.Data.addRequirement('isTopDown'));
       end
       % reset full paths
       for i = 1:numel(field_names),

@@ -107,6 +107,11 @@ output = handles.output;
   function resetTreeVisible()
     APTParameters.setAllVisible(handles.tree);
     APTParameters.filterPropertiesByCondition(handles.tree,handles.labelerObj);
+    if handles.istrain,
+      % only show training parameters
+      APTParameters.filterPropertiesByAffectsTraining(handles.tree,true);
+    end
+
     % currently everything seems to affect training
     %APTParameters.filterPropertiesByAffectsTraining(handles.tree,handles.istrain);
   end
