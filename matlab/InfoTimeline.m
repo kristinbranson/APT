@@ -41,8 +41,11 @@ classdef InfoTimeline < handle
     props % [nprop]. struct array of timeline-viewable property specs. Applicable when proptype is not 'Predictions'
     props_tracker % [ntrkprop]. ". Applicable when proptype is 'Predictions'
     props_allframes % [nallprop]. ". Applicable when proptype is All Frames
-    curprop % row index into props, or props_tracker, depending on curproptype.
     proptypes % property types, eg 'Labels' or 'Predictions'.    
+  end
+
+  properties
+    curprop % row index into props, or props_tracker, depending on curproptype.
     curproptype % row index into proptypes
     isdefault = true % whether this has been changed
   end
