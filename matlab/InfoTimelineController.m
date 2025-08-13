@@ -199,7 +199,9 @@ classdef InfoTimelineController < handle
       listeners{end+1,1} = ...
         addlistener(labeler, 'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated) ;
       listeners{end+1,1} = ...
-          addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
+          addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;
+      listeners{end+1,1} = ...
+          addlistener(labeler.infoTimelineModel, 'didPresetSelectOn', @obj.cbkDidPresetSelectOn) ;      
       obj.listeners = listeners;      
     
       obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
@@ -1100,6 +1102,25 @@ classdef InfoTimelineController < handle
         tflbledDisp = tflbledDisp(:,1:ntgtDisp);
       else
         tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
+      end
+    end
+
+    function cbkDidPresetSelectOn(obj, src, evt)
+      % Handle didPresetSelectOn event from InfoTimelineModel
+      if ~obj.isinit
+        selectOn = obj.lObj.infoTimelineModel.selectOn;
+        if selectOn
+          obj.hCurrFrame.LineWidth = 3;
+          if obj.isL
+            obj.hCurrFrameL.LineWidth = 3;
+          end
+        else
+          obj.hCurrFrame.LineWidth = 0.5;
+          if obj.isL
+            obj.hCurrFrameL.LineWidth = 0.5;
+          end
+          obj.setLabelerSelectedFrames();
+        end
       end
     end
     

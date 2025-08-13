@@ -6,15 +6,17 @@ classdef InfoTimelineModel < handle
   
   properties (SetAccess=private)
     selectOn_ % scalar logical, if true, select "Pen" is down
-    selectOnStartFrm % frame where selection started
+    selectOnStartFrm_ % frame where selection started
   end
   
   properties (Dependent)
     selectOn % scalar logical, if true, select "Pen" is down
+    selectOnStartFrm % frame where selection started
   end
   
   events
     didSetSelectOn % fired when selectOn changes
+    didPresetSelectOn % fired when selectOn changes to update UI
   end
   
   methods
@@ -22,7 +24,7 @@ classdef InfoTimelineModel < handle
       % labeler: Labeler object that owns this model
       obj.lObj = labeler;
       obj.selectOn_ = false;
-      obj.selectOnStartFrm = [];
+      obj.selectOnStartFrm_ = [];
     end
     
     function v = get.selectOn(obj)
@@ -32,36 +34,22 @@ classdef InfoTimelineModel < handle
     function set.selectOn(obj, v)
       obj.selectOn_ = v;
       if v
-        obj.selectOnStartFrm = obj.lObj.currFrame;
+        obj.selectOnStartFrm_ = obj.lObj.currFrame;
       else
-        obj.selectOnStartFrm = [];
+        obj.selectOnStartFrm_ = [];
       end
       
-      % Update UI through controller if it exists
-      if ~isempty(obj.lObj.controller_) && ~isempty(obj.lObj.controller_.infoTLController)
-        tlController = obj.lObj.controller_.infoTLController;
-        if ~tlController.isinit
-          if v
-            tlController.hCurrFrame.LineWidth = 3;
-            if tlController.isL
-              tlController.hCurrFrameL.LineWidth = 3;
-            end
-          else
-            tlController.hCurrFrame.LineWidth = 0.5;
-            if tlController.isL
-              tlController.hCurrFrameL.LineWidth = 0.5;
-            end
-            tlController.setLabelerSelectedFrames();
-          end
-        end
-      end
-      
+      notify(obj, 'didPresetSelectOn');
       notify(obj, 'didSetSelectOn');
+    end
+
+    function v = get.selectOnStartFrm(obj)
+      v = obj.selectOnStartFrm_;
     end
 
     function selectInit(obj)
       obj.selectOn_ = false;
-      obj.selectOnStartFrm = [];
+      obj.selectOnStartFrm_ = [];
     end
   end
   
