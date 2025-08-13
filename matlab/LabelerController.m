@@ -11,7 +11,7 @@ classdef LabelerController < handle
     pxTxUnsavedChangesWidth_  
       % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
     isPlaying_ = false  % whether a video is currently playing or not
-    labelTLInfo  % an InfoTimeline object
+    labelTLInfo  % an InfoTimelineController object
     splashScreenFigureOrEmpty_  % GH to the splash screen figure, or empty
   end
 
@@ -320,10 +320,10 @@ classdef LabelerController < handle
       % Add some controls to the UI that we can set up before there is a project
       obj.initialize_menu_track_backend_config_() ;
       
-      % Create the InfoTimeline object to help manage the timeline axes, and
+      % Create the InfoTimelineController object to help manage the timeline axes, and
       % populate the two popup menus that determine what is shown in the timeline
       % axes.
-      obj.labelTLInfo = InfoTimeline(obj) ;
+      obj.labelTLInfo = InfoTimelineController(obj) ;
       set(obj.pumInfo,...
           'String',obj.labelTLInfo.getPropsDisp(),...
           'Value',obj.labelTLInfo.curprop);
@@ -2588,7 +2588,7 @@ classdef LabelerController < handle
       % Update the check marks in menu_track_backend_config menu
       obj.update_menu_track_backend_config();
 
-      % Update the InfoTimeline
+      % Update the InfoTimelineController
       obj.labelTLInfo.didChangeCurrentTracker();
     end  % function
     
@@ -6002,7 +6002,7 @@ classdef LabelerController < handle
 
     function pumInfo_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       ipropType = get(src,'Value');
-      % see also InfoTimeline/enforcePropConsistencyWithUI
+      % see also InfoTimelineController/enforcePropConsistencyWithUI
       iprop = get(obj.pumInfo,'Value');
       props = obj.labelTLInfo.getPropsDisp(ipropType);
       if iprop > numel(props),

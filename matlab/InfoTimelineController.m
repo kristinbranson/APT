@@ -1,4 +1,4 @@
-classdef InfoTimeline < handle
+classdef InfoTimelineController < handle
 
   properties (Constant)
     TLPROPFILESTR = 'landmark_features.yaml';
@@ -160,7 +160,7 @@ classdef InfoTimeline < handle
   
   methods
     
-    function obj = InfoTimeline(parent)
+    function obj = InfoTimelineController(parent)
       % parent a LabelerController
 
       axtm = parent.axes_timeline_manual ;
@@ -236,7 +236,7 @@ classdef InfoTimeline < handle
       obj.initializePropsAllFrames();
             
       obj.updateProps();
-      obj.proptypes = InfoTimeline.TLPROPTYPES(:);
+      obj.proptypes = InfoTimelineController.TLPROPTYPES(:);
 
       obj.curprop = 1;
       obj.curproptype = 1;
