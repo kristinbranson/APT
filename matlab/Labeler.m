@@ -11155,6 +11155,9 @@ classdef Labeler < handle
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);      
 
+      % Update the timeline
+      obj.infoTimelineModel.didChangeCurrentTracker() ;
+
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
       % obj.notify('update_menu_track_tracking_algorithm_quick') ;      
@@ -11220,6 +11223,9 @@ classdef Labeler < handle
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);
 
+      % Update the timeline
+      obj.infoTimelineModel.didChangeCurrentTracker() ;
+      
       % Send the notification
       obj.notify('didSetCurrTracker') ;      
       % obj.notify('update_menu_track_tracking_algorithm_quick') ;

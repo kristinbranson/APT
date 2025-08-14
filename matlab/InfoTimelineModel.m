@@ -19,8 +19,8 @@ classdef InfoTimelineModel < handle
     curprop_ % row index into props, or props_tracker, depending on curproptype
     curproptype_ % row index into proptypes
     isdefault_ % whether this has been changed
-    TLPROPS  % struct array, features we can compute. Initted from yaml at construction-time
-    TLPROPS_TRACKER  % struct array, features for current tracker. Initted at setTracker time
+    TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
+    TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
   end
   
   properties (Dependent)
@@ -51,7 +51,7 @@ classdef InfoTimelineModel < handle
       obj.curproptype_ = 1;
       obj.isdefault_ = true;
       obj.readTimelinePropsNew();
-      obj.TLPROPS_TRACKER = EmptyLandmarkFeatureArray();
+      obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc();
     end
     
@@ -141,7 +141,7 @@ classdef InfoTimelineModel < handle
       path = fullfile(APT.Root, 'matlab') ;
       tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
       assert(logical(exist(tlpropfile,'file')), 'File %s is missing', tlpropfile);      
-      obj.TLPROPS = ReadLandmarkFeatureFile(tlpropfile);      
+      obj.TLPROPS_ = ReadLandmarkFeatureFile(tlpropfile);      
     end
 
     function initializePropsAllFrames(obj)
@@ -150,22 +150,46 @@ classdef InfoTimelineModel < handle
         'file','');
     end
 
-    function initializePropsTracker(obj)
-      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER);      
+    function initializePropsTracker_(obj)
+      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
     end
 
     function initializePropsEtc(obj)
       % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
       
       % remove body features if no body tracking
-      props = obj.TLPROPS;
+      props = obj.TLPROPS_;
       if ~obj.lObj.hasTrx,
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
       obj.props = props;      
-      obj.initializePropsTracker();
+      obj.initializePropsTracker_();
       obj.initializePropsAllFrames();
     end
+
+    function didChangeCurrentTracker(obj)
+      % Handle tracker change - update proptypes and props_tracker
+      % Called by the parent Labeler.
+      tracker = obj.lObj.tracker;
+      
+      % Set .proptypes, .props_tracker
+      if isempty(tracker),
+        % AL: Probably obsolete codepath
+        obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
+        obj.props_tracker = [];
+      else
+        if ~ismember('Predictions',obj.proptypes),
+          obj.proptypes{end+1} = 'Predictions';
+        end
+        obj.TLPROPS_TRACKER_ = tracker.propList(); %#ok<*PROPLC>
+        obj.initializePropsTracker_();
+      end
+    end
+
+    function tf = hasPredictionConfidence(obj)
+      tf = ~isempty(obj.TLPROPS_TRACKER_);
+    end
+    
   end  % methods  
 end  % classdef
