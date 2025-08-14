@@ -4356,7 +4356,7 @@ classdef LabelerController < handle
       if ~labeler.doProjectAndMovieExist()
         return
       end
-      labeler.setTimelineSelectMode(false) ;
+      labeler.clearSelectedFrames() ;
     end
 
 
@@ -6277,8 +6277,8 @@ classdef LabelerController < handle
 
   methods
     function updateAfterCurrentFrameSet(obj)
-      labeler = obj.labeler_ ;      
-      obj.labelTLInfo.updateAfterCurrentFrameSet(labeler.currFrame);
+      labeler = obj.labeler_ ;
+      obj.labelTLInfo.updateAfterCurrentFrameSet();
       set(obj.edit_frame,'String',num2str(labeler.currFrame));
       sldval = (labeler.currFrame-1)/(labeler.nframes-1);
       if isnan(sldval)

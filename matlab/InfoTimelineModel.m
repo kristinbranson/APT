@@ -175,9 +175,7 @@ classdef InfoTimelineModel < handle
       if isinit || ~hasMovie || isnan(nframes)
         return
       end
-      obj.selectOn_ = false ;
-      obj.selectOnStartFrm_ = [] ;      
-      obj.isSelectedFromFrameIndex_ = false(1,nframes) ;
+      obj.clearSelection(nframes) ;
       obj.initializePropsEtc_(hasTrx) ;  % fires no events
     end    
 
@@ -221,5 +219,17 @@ classdef InfoTimelineModel < handle
       isSelectedFromFrameIndex(:,bout(1):bout(2)-1) = false ;
       obj.isSelectedFromFrameIndex_ = isSelectedFromFrameIndex ;
     end  % function
+
+    function clearSelection(obj, nframes)
+      % Clear the selected frames.
+      obj.selectOn_ = false ;
+      obj.selectOnStartFrm_ = [] ;
+      if isempty(nframes) || isnan(nframes) || nframes<0
+        obj.isSelectedFromFrameIndex_ = false(size(obj.isSelectedFromFrameIndex_)) ;
+      else
+        obj.isSelectedFromFrameIndex_ = false(1, nframes) ;
+      end
+    end  % function
+    
   end  % methods  
 end  % classdef

@@ -2,8 +2,8 @@ classdef InfoTimelineController < handle
   
   properties
     parent_  % scalar LabelerController handle
-    lObj % scalar Labeler handle
-    itm_  % scalar InfoTimelineModel
+    lObj  % scalar Labeler handle
+
     hAx % scalar handle to manual timeline axis
     hAxL % scalar handle to is-labeled timeline axis
     hCurrFrame % scalar line handle current frame
@@ -21,8 +21,6 @@ classdef InfoTimelineController < handle
     custom_data % [1 x nframes] custom data to plot
     
     listeners % [nlistener] col cell array of labeler prop listeners
-    
-    color = [1,1,1]  % color when there is only one statistic for all landmarks
   end
   
   %% Select
@@ -71,7 +69,6 @@ classdef InfoTimelineController < handle
       obj.parent_ = parent ;
       labeler = parent.labeler_ ;
       obj.lObj = labeler ;
-      obj.itm_ = labeler.infoTimelineModel ;
       axtm.Color = [0 0 0];
       axtm.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
       hold(axtm,'on');
@@ -248,7 +245,8 @@ classdef InfoTimelineController < handle
         end
       end
       
-      obj.hPtStat = plot(ax,nan,i,'.-','Color',obj.color,'hittest','off','LineWidth',2,'Tag','InfoTimeline_Stat');
+      clr = [1,1,1] ;  % color when there is only one statistic for all landmarks     
+      obj.hPtStat = plot(ax,nan,i,'.-','Color',clr,'hittest','off','LineWidth',2,'Tag','InfoTimeline_Stat');
       
       prefsTL = obj.prefs;
       ax.XColor = prefsTL.XColor;
@@ -288,7 +286,7 @@ classdef InfoTimelineController < handle
         'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');
 
-      % obj.itm_.setSelectMode(false) ;
+      % itm.setSelectMode(false) ;
       colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
       colormap(obj.hAx,[0 0 0;colorTBSelect]);
       
@@ -304,14 +302,14 @@ classdef InfoTimelineController < handle
         obj.setCurPropTypeDefault();
       end
       
-      % obj.itm_.initializePropsEtc(obj.lObj.hasTrx);
+      % itm.initializePropsEtc(obj.lObj.hasTrx);
         
       cbkGTSuggUpdated(obj,[],[]);
     end
     
         
     function didChangeCurrentTracker(obj)
-      %obj.itm_.didChangeCurrentTracker() ;  % now done directly in Labeler
+      %itm.didChangeCurrentTracker() ;  % now done directly in Labeler
       obj.enforcePropConsistencyWithUI(false);      
       obj.setLabelsFull();
     end
@@ -415,12 +413,20 @@ classdef InfoTimelineController < handle
 %       end
     end
     
-    function updateAfterCurrentFrameSet(obj, currFrame)
+    function updateAfterCurrentFrameSet(obj)
       % This gets called after the user changes the frame they're looking at, i.e.
-      % after labeler.currFrame is set.
-      
+      % after labeler.currFrame is set.      
+      if isnan(obj.npts), return; end      
+      obj.updateCurrentFrameLineXData_() ;      
+      itm = obj.lObj.infoTimelineModel ;
+      if itm.selectOn
+        obj.updateSelectionImageCData_() ;
+      end
+    end  % function
+
+    function updateCurrentFrameLineXData_(obj)
       if isnan(obj.npts), return; end
-            
+      currFrame = obj.lObj.currFrame ;
       nominal_xspan = 2*obj.prefs.FrameRadius;
       nominal_dxtick = obj.prefs.dXTick ;
       if nominal_xspan==0 || nominal_xspan > obj.nfrm
@@ -456,20 +462,13 @@ classdef InfoTimelineController < handle
         obj.hAxL.XLim = [x0 x1];
         set(obj.hCurrFrameL,'XData',[currFrame currFrame]);
       end
-      
-      if obj.itm_.selectOn
-        obj.hSelIm.CData = obj.itm_.isSelectedFromFrameIndex ;
-        % f0 = obj.itm_.selectOnStartFrm;
-        % f1 = frm;
-        % if f1>f0
-        %   idx = f0:f1;
-        % else
-        %   idx = f1:f0;
-        % end
-        % obj.hSelIm.CData(:,idx) = 1;
-      end
-    end
+    end  % function
     
+    function updateSelectionImageCData_(obj)
+      itm = obj.lObj.infoTimelineModel ;
+      obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
+    end  % function   
+
     function newTarget(obj)
       obj.setLabelsFull();
     end
@@ -537,17 +536,18 @@ classdef InfoTimelineController < handle
       % and optionally calls setLabelsFull (only optional to avoid
       % redundant/dup calls near callsite).
 
-      ptype = obj.itm_.proptypes{obj.itm_.curproptype};
+      itm = obj.lObj.infoTimelineModel ;
+      ptype = itm.proptypes{itm.curproptype};
       switch ptype
         case 'Predictions'
-          tfOOB = obj.itm_.curprop > numel(obj.itm_.props_tracker);
+          tfOOB = itm.curprop > numel(itm.props_tracker);
         otherwise
-          tfOOB = obj.itm_.curprop > numel(obj.itm_.props);
+          tfOOB = itm.curprop > numel(itm.props);
       end
       
       if tfOOB
         NEWPROP = 1;
-        obj.itm_.curprop = NEWPROP;
+        itm.curprop = NEWPROP;
         obj.parent_.pumInfo.Value = NEWPROP;
       end
       
@@ -562,28 +562,31 @@ classdef InfoTimelineController < handle
       %
       % Does not update UI
       tfSucc = true;
+      itm = obj.lObj.infoTimelineModel ;
       if obj.getCurPropTypeIsAllFrames() && ...
-          strcmpi(obj.itm_.props_allframes(iprop).name,'Add custom...'),
+          strcmpi(itm.props_allframes(iprop).name,'Add custom...'),
         [tfSucc] = obj.addCustomFeature_();
         if ~tfSucc,
           return;
         end
       else
-        obj.itm_.curprop = iprop;
+        itm.curprop = iprop;
       end
       obj.setLabelsFull();
-      obj.itm_.isdefault = false;
+      itm.isdefault = false;
     end
 
     function v = getCurProp(obj)
-      v = obj.itm_.curprop;
+      itm = obj.lObj.infoTimelineModel ;
+      v = itm.curprop;
     end
 
     function setCurPropType(obj,iproptype,iprop)
       % iproptype, iprop assumed to be consistent already.
-      obj.itm_.curproptype = iproptype;
-      if nargin >= 3 && iprop ~= obj.itm_.curprop,
-        obj.itm_.curprop = iprop;
+      itm = obj.lObj.infoTimelineModel ;
+      itm.curproptype = iproptype;
+      if nargin >= 3 && iprop ~= itm.curprop,
+        itm.curprop = iprop;
       end
       obj.setLabelsFull();
       obj.updateLandmarkColors();
@@ -614,35 +617,40 @@ classdef InfoTimelineController < handle
     function [ptype,prop] = getCurPropSmart(obj)
       % Get current proptype, and prop-specification-struct
       
-      ptype = obj.itm_.proptypes{obj.itm_.curproptype};
+      itm = obj.lObj.infoTimelineModel ;      
+      ptype = itm.proptypes{itm.curproptype};
       switch ptype
         case 'Predictions'
-          prop = obj.itm_.props_tracker(obj.itm_.curprop);
+          prop = itm.props_tracker(itm.curprop);
         otherwise
-          prop = obj.itm_.props(obj.itm_.curprop);
+          prop = itm.props(itm.curprop);
       end
     end
 
     function tf = getCurPropTypeIsLabel(obj)
-      v = obj.itm_.curproptype;
-      tf = strcmp(obj.itm_.proptypes{v},'Labels');
+      itm = obj.lObj.infoTimelineModel ;
+      v = itm.curproptype;
+      tf = strcmp(itm.proptypes{v},'Labels');
     end
 
     function tf = getCurPropTypeIsAllFrames(obj)
-      v = obj.itm_.curproptype;
-      tf = strcmpi(obj.itm_.proptypes{v},'All Frames');
+      itm = obj.lObj.infoTimelineModel ;
+      v = itm.curproptype;
+      tf = strcmpi(itm.proptypes{v},'All Frames');
     end
 
     function setCurPropTypeDefault(obj)
       obj.setCurPropType(1,1);
-      obj.itm_.isdefault = true;
+      itm = obj.lObj.infoTimelineModel ;
+      itm.isdefault = true;
     end
 
     function updatePropsGUI(obj)
-      obj.parent_.pumInfo_labels.Value = obj.itm_.curproptype;
-      props = obj.itm_.getPropsDisp(obj.itm_.curproptype);
+      itm = obj.lObj.infoTimelineModel ;
+      obj.parent_.pumInfo_labels.Value = itm.curproptype;
+      props = itm.getPropsDisp(itm.curproptype);
       obj.parent_.pumInfo.String = props;
-      obj.parent_.pumInfo.Value = obj.itm_.curprop;
+      obj.parent_.pumInfo.Value = itm.curprop;
     end
 
     function cbkBDF(obj,src,evt) 
@@ -673,22 +681,25 @@ classdef InfoTimelineController < handle
 %     end
 
     function tf = isDefaultProp(obj)
-      tf = obj.itm_.isdefault;
+      itm = obj.lObj.infoTimelineModel ;
+      tf = itm.isdefault;
     end
 
     function tf = hasPrediction(obj)
-      tf = ismember('Predictions',obj.itm_.proptypes) && isvalid(obj.lObj.tracker);
+      itm = obj.lObj.infoTimelineModel ;
+      tf = ismember('Predictions',itm.proptypes) && isvalid(obj.lObj.tracker);
       if tf,
-        pcode = obj.itm_.props_tracker(1);
+        pcode = itm.props_tracker(1);
         data = obj.lObj.tracker.getPropValues(pcode);
         tf = ~isempty(data) && any(~isnan(data(:)));
       end
     end
 
     function setCurPropTypePredictionDefault(obj)
-      proptypei =  find(strcmpi(obj.itm_.proptypes,'Predictions'),1);
-      if obj.itm_.hasPredictionConfidence(),
-        propi = numel(obj.itm_.props)+1;
+      itm = obj.lObj.infoTimelineModel ;
+      proptypei =  find(strcmpi(itm.proptypes,'Predictions'),1);
+      if itm.hasPredictionConfidence(),
+        propi = numel(itm.props)+1;
       else
         propi = 1;
       end
@@ -717,7 +728,7 @@ classdef InfoTimelineController < handle
         nframes = str2double(aswr{1});
         validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
         obj.lObj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);
-        obj.updateAfterCurrentFrameSet(obj.lObj.currFrame);
+        obj.updateAfterCurrentFrameSet();
       end
     end
 
@@ -727,7 +738,8 @@ classdef InfoTimelineController < handle
     end
 
     function cbkContextMenu(obj,src,evt)  %#ok<INUSD>
-      bouts = obj.itm_.selectGetSelection() ;
+      itm = obj.lObj.infoTimelineModel ;
+      bouts = itm.selectGetSelection() ;
       nBouts = size(bouts,1);
       src.UserData.bouts = bouts;
 
@@ -849,6 +861,7 @@ classdef InfoTimelineController < handle
       
       [ptype,pcode] = obj.getCurPropSmart();
       labeler = obj.lObj;
+      itm = labeler.infoTimelineModel ;
       iMov = labeler.currMovie;
       iTgt = labeler.currTarget;
       
@@ -907,7 +920,7 @@ classdef InfoTimelineController < handle
             end
           case 'All Frames'
             %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.itm.curprop);
-            if strcmpi(obj.itm_.props_allframes(obj.itm_.curprop).name,'Add custom...'),
+            if strcmpi(itm.props_allframes(itm.curprop).name,'Add custom...'),
               data = nan(obj.npts,1);
             else
               data = obj.custom_data;
@@ -955,9 +968,9 @@ classdef InfoTimelineController < handle
   end  % methods (Access=private)
 
   methods
-    function update(obj)
-      % Update controls to reflect the model state
-      selectOn = obj.itm_.selectOn;
+    function updateCurrentFrameLineWidths_(obj)
+      itm = obj.lObj.infoTimelineModel ;
+      selectOn = itm.selectOn;
       if selectOn
         obj.hCurrFrame.LineWidth = 3;
         if obj.isL
@@ -970,7 +983,13 @@ classdef InfoTimelineController < handle
         end
         % obj.setLabelerSelectedFrames_();
       end
-      obj.updateAfterCurrentFrameSet(obj.lObj.currFrame) ;  % Use this to update a few more things
+    end  % function
+
+    function update(obj)
+      % Update controls to reflect the model state
+      obj.updateCurrentFrameLineWidths_() ;
+      obj.updateCurrentFrameLineXData_() ;
+      obj.updateSelectionImageCData_() ;
     end  % function
     
   end  % methods

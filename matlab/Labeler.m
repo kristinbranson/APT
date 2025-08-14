@@ -701,11 +701,12 @@ classdef Labeler < handle
   end
   properties (Dependent)
     currMovIdx  % scalar MovieIndex
+    selectedFrames  % vector of frames currently selected frames; typically t0:t1
   end
   properties 
     currFrame = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
-    selectedFrames = []     % vector of frames currently selected frames; typically t0:t1
+    selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
     drag = false 
     drag_pt = [] 
     silent_ = false  % Don't open dialogs. Use defaults. For testing and debugging
@@ -4924,7 +4925,7 @@ classdef Labeler < handle
 
       end
 
-      obj.setSelectedFrames([]) ;
+      obj.selectedFrames_ = [] ;
       obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimeline');
 
@@ -5009,7 +5010,7 @@ classdef Labeler < handle
       obj.labels2TrkVizInit();
       obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
-      obj.setSelectedFrames([]) ;
+      obj.selectedFrames_ = [] ;
       obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimeline');
 
@@ -14073,18 +14074,23 @@ classdef Labeler < handle
       th = double(ctrx.theta(i));
     end
 
-    function setSelectedFrames(obj,frms)
-      if isempty(frms)
-        obj.selectedFrames = frms;        
+    function result = get.selectedFrames(obj)
+      result = obj.selectedFrames_ ;
+    end
+
+    function set.selectedFrames(obj, newValue)
+      if isempty(newValue)
+        obj.selectedFrames_ = [] ;        
       elseif ~obj.hasMovie
         error('Labeler:noMovie',...
-          'Cannot set selected frames when no movie is loaded.');
+              'Cannot set selected frames when no movie is loaded.');
       else
-        validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
-        obj.selectedFrames = frms;  
+        validateattributes(newValue,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes}) ;
+        obj.selectedFrames_ = newValue ;  
       end
+      obj.notify('updateTimeline');
     end
-         
+    
     function updateTrxTable(obj)
       if obj.hasTrx
         obj.updateTrxTable_Trx();
@@ -16353,8 +16359,8 @@ classdef Labeler < handle
       tlm.setSelectMode(newValue, obj.currFrame) ;
       newValue = tlm.selectOn ;
       if oldValue && ~newValue  % if .selectOn was true and is now false
-        selFrames = bouts2frames(tlm.selectGetSelection());
-        obj.setSelectedFrames(selFrames) ;  % fires no events
+        selectedFrames = bouts2frames(tlm.selectGetSelection());
+        obj.selectedFrames_ = selectedFrames ;
       end
       notify(obj, 'updateTimeline');
     end
@@ -16368,5 +16374,11 @@ classdef Labeler < handle
       obj.infoTimelineModel.clearBout(bout) ;
       obj.notify('updateTimeline') ;
     end    
+
+    function clearSelectedFrames(obj)
+      obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel.clearSelection(obj.nframes) ;
+      obj.notify('updateTimeline');      
+    end
   end  % methods
 end  % classdef
