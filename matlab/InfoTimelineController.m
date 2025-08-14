@@ -71,7 +71,7 @@ classdef InfoTimelineController < handle
       obj.hCurrFrame = ...
         line('Parent',axtm, ...
              'XData',[nan nan], ...
-             'YData',[0 1], ...
+             'YData',axtm.YLim, ...
              'LineStyle','-', ...
              'Color',[1 1 1],...
              'hittest','off', ...
@@ -247,8 +247,8 @@ classdef InfoTimelineController < handle
         end
       end
       
-      set(obj.hCurrFrame,'XData',[nan nan],'ZData',[1 1]);
-      set(obj.hCurrFrameL,'XData',[nan nan],'YData',[0,obj.lObj.nLabelPoints],'ZData',[1 1]);
+      set(obj.hCurrFrame,'XData',[nan nan],'YData',ax.YLim,'ZData',[1 1]);
+      set(obj.hCurrFrameL,'XData',[nan nan],'YData',axl.YLim,'ZData',[1 1]);
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
       linkaxes([obj.hAx,obj.hAxL],'x');
     end
@@ -448,10 +448,10 @@ classdef InfoTimelineController < handle
       end
       obj.hAx.XTick = 0 : dxtick : obj.nfrm ;
       obj.hAx.XLim = [x0 x1];
-      set(obj.hCurrFrame,'XData',[currFrame currFrame]);
+      set(obj.hCurrFrame,'XData',[currFrame currFrame],'YData',obj.hAx.YLim);
       if obj.isL,
         obj.hAxL.XLim = [x0 x1];
-        set(obj.hCurrFrameL,'XData',[currFrame currFrame]);
+        set(obj.hCurrFrameL,'XData',[currFrame currFrame],'YData',obj.hAxL.YLim);
       end
     end  % function
     
