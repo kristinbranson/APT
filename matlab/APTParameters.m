@@ -342,7 +342,7 @@ classdef APTParameters
       if tree.Data.Visible,
         tree.Data.Visible = false;
         for i = 1:numel(tree.Children),
-          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj,varargin{:});
+          APTParameters.filterPropertiesByCondition(tree.Children(i),labelerObj,'stage',stage,argsrest{:});
           tree.Data.Visible = tree.Data.Visible || tree.Children(i).Data.Visible;
         end
       end

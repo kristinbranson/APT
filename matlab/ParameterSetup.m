@@ -62,11 +62,11 @@ if handles.istrain,
 
   handles.tabgroup_params = uitabgroup('Parent',handles.gl_left,'Tag','tabgroup_params');
   handles.tab_autotune = uitab('Parent',handles.tabgroup_params,...
-    'Title','Auto-tune','Scrollable','on');
+    'Title','Auto-tune','Scrollable','on','ForegroundColor',[1,0,1]);
   handles.hauto = InitAutoTune();
 
   handles.tab_important = uitab('Parent',handles.tabgroup_params,...
-    'Title','Important','Scrollable','on');
+    'Title','Important','Scrollable','on','ForegroundColor',[1,0,0]);
   APTParameters.filterPropertiesByLevel(handles.tree,handles.important_level);
   handles.htree_important = InitTree(handles.tree,handles.tab_important,'important',0);
 
@@ -295,6 +295,7 @@ output = handles.output;
           error('Unknown parameter type %s',tprm.Data.Type);
       end
     end
+    leafhandles.value.Enable = onIff(tprm.Data.isEditable);
     if ~isempty(tprm.Data.ParamViz),
       leafhandles.tb_viz = uibutton("state",'Parent',leafhandles.gl2,...
         'Text','Viz >>','ValueChangedFcn',@cbkVizButton,...
