@@ -72,6 +72,7 @@ classdef InfoTimelineController < handle
       obj.parent_ = parent ;
       labeler = parent.labeler_ ;
       obj.lObj = labeler ;
+      obj.itm_ = labeler.infoTimelineModel ;
       axtm.Color = [0 0 0];
       axtm.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
       hold(axtm,'on');
@@ -152,7 +153,7 @@ classdef InfoTimelineController < handle
       obj.hCMenuClearAll = uimenu('Parent',hCMenu,...
         'Label','Clear selection (N bouts)',...
         'UserData',struct('LabelPat','Clear selection (%d bouts)'),...
-        'Callback',@(src,evt)obj.selectClearSelection(),...
+        'Callback',@(src,evt)(obj.lObj.setTimelineSelectMode(false)), ...
         'Tag','menu_InfoTimeline_selectClearSelection');
       obj.hCMenuClearBout = uimenu('Parent',hCMenu,...
         'Label','Clear bout (frame M--N)',...
@@ -281,7 +282,20 @@ classdef InfoTimelineController < handle
       prefsTL = obj.prefs;
       ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
 
-      obj.selectInit();
+      if obj.lObj.isinit || isnan(obj.nfrm)
+        return
+      end
+
+      deleteValidGraphicsHandles(obj.hSelIm);
+      obj.hSelIm = image(1:obj.nfrm,obj.hAx.YLim,uint8(zeros(1,obj.nfrm)),...
+        'parent',obj.hAx,'HitTest','off',...
+        'CDataMapping','direct');
+
+      obj.itm_.setSelectMode(false) ;
+      colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
+      colormap(obj.hAx,[0 0 0;colorTBSelect]);
+      
+      obj.setLabelerSelectedFrames();
       
       xlims = [1 obj.nfrm];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
@@ -293,7 +307,7 @@ classdef InfoTimelineController < handle
         obj.setCurPropTypeDefault();
       end
       
-      obj.itm_.initializePropsEtc();
+      obj.itm_.initializePropsEtc(obj.lObj.hasTrx);
         
       cbkGTSuggUpdated(obj,[],[]);
     end
@@ -480,21 +494,6 @@ classdef InfoTimelineController < handle
       end
     end
     
-    function selectInit(obj)
-      if obj.lObj.isinit || isnan(obj.nfrm), return; end
-
-      deleteValidGraphicsHandles(obj.hSelIm);
-      obj.hSelIm = image(1:obj.nfrm,obj.hAx.YLim,uint8(zeros(1,obj.nfrm)),...
-        'parent',obj.hAx,'HitTest','off',...
-        'CDataMapping','direct');
-
-      obj.itm_.selectInit();
-      colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
-      colormap(obj.hAx,[0 0 0;colorTBSelect]);
-      
-      obj.setLabelerSelectedFrames();
-    end
-
     function bouts = selectGetSelection(obj)
       % Get currently selected bouts (can be noncontiguous)
       %
@@ -503,10 +502,6 @@ classdef InfoTimelineController < handle
       cdata = obj.hSelIm.CData;
       [sp,ep] = get_interval_ends(cdata);
       bouts = [sp(:) ep(:)];
-    end
-    
-    function selectClearSelection(obj)
-      obj.selectInit();
     end
     
     function setStatThresh(obj,th)
@@ -561,24 +556,6 @@ classdef InfoTimelineController < handle
       if tfSetLabelsFull
         obj.setLabelsFull();
       end
-    end
-
-    function props = getPropsDisp(obj,ipropType)
-      % Get available properties for given propType (idx)
-      if nargin < 2,
-        ipropType = obj.itm_.curproptype;
-      end
-      if strcmpi(obj.itm_.proptypes{ipropType},'Predictions'),
-        props = {obj.itm_.props_tracker.name};
-      elseif strcmpi(obj.itm_.proptypes{ipropType},'All Frames'),
-        props = {obj.itm_.props_allframes.name};
-      else
-        props = {obj.itm_.props.name};
-      end
-    end
-
-    function proptypes = getPropTypesDisp(obj)
-      proptypes = obj.itm_.proptypes;
     end
 
     function tfSucc = setCurProp(obj,iprop)
@@ -667,7 +644,7 @@ classdef InfoTimelineController < handle
 
     function updatePropsGUI(obj)
       obj.parent_.pumInfo_labels.Value = obj.itm_.curproptype;
-      props = obj.getPropsDisp(obj.itm_.curproptype);
+      props = obj.itm_.getPropsDisp(obj.itm_.curproptype);
       obj.parent_.pumInfo.String = props;
       obj.parent_.pumInfo.Value = obj.itm_.curprop;
     end

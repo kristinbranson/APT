@@ -323,13 +323,14 @@ classdef LabelerController < handle
       % Create the InfoTimelineController object to help manage the timeline axes, and
       % populate the two popup menus that determine what is shown in the timeline
       % axes.
+      itm = labeler.infoTimelineModel ;
       obj.labelTLInfo = InfoTimelineController(obj) ;
       set(obj.pumInfo,...
-          'String',obj.labelTLInfo.getPropsDisp(),...
-          'Value',obj.labeler_.infoTimelineModel.curprop);
+          'String',itm.getPropsDisp(),...
+          'Value',itm.curprop);
       set(obj.pumInfo_labels,...
-          'String',obj.labelTLInfo.getPropTypesDisp(),...
-          'Value',obj.labeler_.infoTimelineModel.curproptype);
+          'String',itm.getPropTypesDisp(),...
+          'Value',itm.curproptype);
 
       % Misc labelmode/Setup menu
       LABELMODE_SETUPMENU_MAP = ...
@@ -3768,17 +3769,17 @@ classdef LabelerController < handle
 
     function cbklabelTLInfoPropsUpdated(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
-      % labeler = obj.labeler_ ;
-      labelTLInfo = obj.labelTLInfo ;
-      props = labelTLInfo.getPropsDisp();
+      labeler = obj.labeler_ ;
+      itm = labeler.infoTimelineModel ;
+      props = itm.getPropsDisp();
       set(obj.pumInfo,'String',props);
     end
 
     function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
-      % labeler = obj.labeler_ ;
-      labelTLInfo = obj.labelTLInfo ;
-      proptypes = labelTLInfo.getPropTypesDisp();
+      labeler = obj.labeler_ ;
+      itm = labeler.infoTimelineModel ;
+      proptypes = itm.getPropTypesDisp();
       set(obj.pumInfo_labels,'String',proptypes);
     end
     
@@ -4348,10 +4349,9 @@ classdef LabelerController < handle
     function pbClearSelection_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if ~labeler.doProjectAndMovieExist()
-        return;
+        return
       end
-      tl = obj.labelTLInfo;
-      tl.selectClearSelection();
+      labeler.setTimelineSelectMode(false) ;
     end
 
 
@@ -6001,7 +6001,9 @@ classdef LabelerController < handle
       ipropType = get(src,'Value');
       % see also InfoTimelineController/enforcePropConsistencyWithUI
       iprop = get(obj.pumInfo,'Value');
-      props = obj.labelTLInfo.getPropsDisp(ipropType);
+      labeler = obj.labeler_ ;
+      itm = labeler.infoTimelineModel ;
+      props = itm.getPropsDisp(ipropType);
       if iprop > numel(props),
         iprop = 1;
       end

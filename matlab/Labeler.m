@@ -736,7 +736,7 @@ classdef Labeler < handle
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
-      obj.infoTimelineModel = InfoTimelineModel(obj);
+      obj.infoTimelineModel = InfoTimelineModel(obj.hasTrx);
 %       obj.NEIGHBORING_FRAME_OFFSETS = ...
 %                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
       if ~isgui ,
@@ -11156,7 +11156,12 @@ classdef Labeler < handle
       obj.labelingInit('labelMode',obj.labelMode);      
 
       % Update the timeline
-      obj.infoTimelineModel.didChangeCurrentTracker() ;
+      if ~isempty(newCurrentTracker)
+        propListOrEmpty = newCurrentTracker.propList() ;
+      else
+        propListOrEmpty = [] ;
+      end      
+      obj.infoTimelineModel.didChangeCurrentTracker(propListOrEmpty) ;
 
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
@@ -11224,7 +11229,12 @@ classdef Labeler < handle
       obj.labelingInit('labelMode',obj.labelMode);
 
       % Update the timeline
-      obj.infoTimelineModel.didChangeCurrentTracker() ;
+      if ~isempty(newTracker)
+        propListOrEmpty = newTracker.propList() ;
+      else
+        propListOrEmpty = [] ;
+      end
+      obj.infoTimelineModel.didChangeCurrentTracker(propListOrEmpty) ;
       
       % Send the notification
       obj.notify('didSetCurrTracker') ;      

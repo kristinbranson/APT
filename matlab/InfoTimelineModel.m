@@ -5,10 +5,6 @@ classdef InfoTimelineModel < handle
     TLPROPTYPES = {'Labels','Predictions','Imported','All Frames'};
   end
 
-  properties
-    lObj  % Labeler object that created this model
-  end
-  
   properties  % Private by convention
     selectOn_  % scalar logical, if true, select "Pen" is down
     selectOnStartFrm_  % frame where selection started
@@ -41,9 +37,7 @@ classdef InfoTimelineModel < handle
   end
   
   methods
-    function obj = InfoTimelineModel(labeler)
-      % labeler: Labeler object that owns this model
-      obj.lObj = labeler;
+    function obj = InfoTimelineModel(hasTrx)
       obj.selectOn_ = false;
       obj.selectOnStartFrm_ = [];
       obj.proptypes_ = InfoTimelineModel.TLPROPTYPES(:);
@@ -52,7 +46,7 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = true;
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
-      obj.initializePropsEtc();
+      obj.initializePropsEtc(hasTrx);
     end
     
     function v = get.selectOn(obj)
@@ -132,11 +126,6 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = v;
     end
 
-    function selectInit(obj)
-      obj.selectOn_ = false;
-      obj.selectOnStartFrm_ = [];
-    end  % function
-
     function readTimelinePropsNew(obj)
       path = fullfile(APT.Root, 'matlab') ;
       tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
@@ -154,12 +143,13 @@ classdef InfoTimelineModel < handle
       obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
     end
 
-    function initializePropsEtc(obj)
+    function initializePropsEtc(obj, hasTrx)
       % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
       
       % remove body features if no body tracking
       props = obj.TLPROPS_;
-      if ~obj.lObj.hasTrx,
+      % if ~labeler.hasTrx,
+      if ~hasTrx,
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
@@ -168,13 +158,12 @@ classdef InfoTimelineModel < handle
       obj.initializePropsAllFrames();
     end
 
-    function didChangeCurrentTracker(obj)
+    function didChangeCurrentTracker(obj, propListOrEmpty)
       % Handle tracker change - update proptypes and props_tracker
       % Called by the parent Labeler.
-      tracker = obj.lObj.tracker;
       
       % Set .proptypes, .props_tracker
-      if isempty(tracker),
+      if isempty(propListOrEmpty),
         % AL: Probably obsolete codepath
         obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
         obj.props_tracker = [];
@@ -182,7 +171,8 @@ classdef InfoTimelineModel < handle
         if ~ismember('Predictions',obj.proptypes),
           obj.proptypes{end+1} = 'Predictions';
         end
-        obj.TLPROPS_TRACKER_ = tracker.propList(); %#ok<*PROPLC>
+        propList = propListOrEmpty ;
+        obj.TLPROPS_TRACKER_ = propList ; %#ok<*PROPLC>
         obj.initializePropsTracker_();
       end
     end
@@ -191,5 +181,23 @@ classdef InfoTimelineModel < handle
       tf = ~isempty(obj.TLPROPS_TRACKER_);
     end
     
+    function props = getPropsDisp(obj, ipropType)
+      % Get available properties for given propType (idx)
+      if nargin < 2,
+        ipropType = obj.curproptype;
+      end
+      if strcmpi(obj.proptypes{ipropType},'Predictions'),
+        props = {obj.props_tracker.name};
+      elseif strcmpi(obj.proptypes{ipropType},'All Frames'),
+        props = {obj.props_allframes.name};
+      else
+        props = {obj.props.name};
+      end
+    end
+    
+    function proptypes = getPropTypesDisp(obj)
+      proptypes = obj.proptypes ;
+    end  % function    
+
   end  % methods  
 end  % classdef
