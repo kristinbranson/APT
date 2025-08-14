@@ -24,6 +24,7 @@ classdef InfoTimelineModel < handle
     TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
     TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
+    custom_data_  % [1 x nframes] custom data to plot
   end
   
   properties (Dependent)
@@ -37,6 +38,7 @@ classdef InfoTimelineModel < handle
     curproptype % row index into proptypes
     isdefault % whether this has been changed
     isSelectedFromFrameIndex
+    custom_data % [1 x nframes] custom data to plot
   end
 
   methods
@@ -47,6 +49,7 @@ classdef InfoTimelineModel < handle
       obj.curprop_ = 1;
       obj.curproptype_ = 1;
       obj.isdefault_ = true;
+      obj.custom_data_ = [];
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc_(hasTrx);  % fires no events
@@ -111,6 +114,10 @@ classdef InfoTimelineModel < handle
 
     function result = get.isSelectedFromFrameIndex(obj)
       result = obj.isSelectedFromFrameIndex_ ;
+    end
+
+    function v = get.custom_data(obj)
+      v = obj.custom_data_;
     end
     
     function readTimelinePropsNew(obj)
@@ -252,6 +259,81 @@ classdef InfoTimelineModel < handle
           prop = obj.props_tracker(obj.curprop);
         otherwise
           prop = obj.props(obj.curprop);
+      end
+    end
+
+    function data = getDataCurrMovTgt(obj, labeler)
+      % Get timeline data for current movie/target
+      % labeler: Labeler object for accessing data sources
+      
+      [ptype,pcode] = obj.getCurPropSmart();
+      iMov = labeler.currMovie;
+      iTgt = labeler.currTarget;
+      
+      if isempty(iMov) || iMov==0 
+        data = nan(labeler.nLabelPoints,1);
+      else
+        switch ptype
+          case {'Labels','Imported'}
+            needtrx = labeler.hasTrx && strcmpi(pcode.coordsystem,'Body');
+            if needtrx,
+              trxFile = labeler.trxFilesAllFullGTaware{iMov,1};
+              bodytrx = labeler.getTrx(trxFile,labeler.movieInfoAllGTaware{iMov,1}.nframes);
+              bodytrx = bodytrx(iTgt);
+            else
+              bodytrx = [];
+            end
+            
+            nfrmtot = labeler.nframes;
+            if strcmp(ptype,'Labels'),
+              s = labeler.labelsGTaware{iMov};
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
+              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
+            else
+              s = labeler.labels2GTaware{iMov};
+              if labeler.maIsMA
+                % Use "current Tracklet" for imported data
+                if ~isempty(labeler.labeledpos2trkViz)
+                  iTgt = labeler.labeledpos2trkViz.currTrklet;
+                  if isnan(iTgt)
+                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
+                    iTgt = 1;
+                  end
+                else
+                  iTgt = 1;
+                end
+              end  
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
+            end
+            if tfhasdata
+              data = ComputeLandmarkFeatureFromPos(...
+                lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
+            else
+              data = nan(labeler.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
+            end
+          case 'Predictions'
+            % AL 20200511 hack, initialization ordering. If the timeline
+            % pum has 'Predictions' selected and a new project is loaded,
+            % the trackers are not updated (via
+            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
+            % call which leads here.
+            tracker = labeler.tracker ;
+            if ~isempty(tracker) && isvalid(tracker)
+              data = tracker.getPropValues(pcode);
+            else
+              data = nan(labeler.nLabelPoints,1);
+            end
+          case 'All Frames'
+            %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.curprop);
+            if strcmpi(obj.props_allframes(obj.curprop).name,'Add custom...'),
+              data = nan(labeler.nLabelPoints,1);
+            else
+              data = obj.custom_data;
+            end
+          otherwise
+            error('Unknown data type %s',ptype);
+        end
+        %szassert(data,[labeler.nLabelPoints obj.nfrm]);
       end
     end
     

@@ -16369,6 +16369,11 @@ classdef Labeler < handle
       notify(obj, 'updateTimeline');
     end
 
+    function data = getTimelineDataCurrMovTgt(obj)
+      % Get timeline data for current movie/target
+      data = obj.infoTimelineModel.getDataCurrMovTgt(obj);
+    end
+
     function addCustomTimelineFeature(obj, newprop)
       obj.infoTimelineModel_.addCustomFeature(newprop) ;
       obj.notify('updateTimeline') ;

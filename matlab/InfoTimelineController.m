@@ -282,7 +282,7 @@ classdef InfoTimelineController < handle
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
       initSegmentedLineBang(obj.hSegLineGTLbled,xlims,sPVLbled);
-      obj.custom_data = [];
+      obj.lObj.infoTimelineModel.custom_data_ = [];
       if obj.getCurPropTypeIsAllFrames(),
         obj.setCurPropTypeDefault();
       end
@@ -306,7 +306,7 @@ classdef InfoTimelineController < handle
         return
       end
       
-      dat = obj.getDataCurrMovTgt_(); % [nptsxnfrm]
+      dat = obj.lObj.getTimelineDataCurrMovTgt(); % [nptsxnfrm]
       dat(isinf(dat)) = nan;
       datnonnan = dat(~isnan(dat));
 
@@ -582,7 +582,7 @@ classdef InfoTimelineController < handle
       file = fullfile(p,f);
       try
         d = load(fullfile(p,f),'x');
-        obj.custom_data = d.x;
+        obj.lObj.infoTimelineModel.custom_data_ = d.x;
       catch,
         uiwait(errordlg('Custom feature mat file must have a variable x which is 1 x nframes','Error loading custom feature'));
         return;
@@ -815,82 +815,6 @@ classdef InfoTimelineController < handle
     %   obj.lObj.setSelectedFrames(selFrames);
     % end
 
-    function data = getDataCurrMovTgt_(obj)
-      % lpos: [nptsxnfrm]
-      
-      [ptype,pcode] = obj.lObj.infoTimelineModel.getCurPropSmart();
-      labeler = obj.lObj;
-      itm = labeler.infoTimelineModel ;
-      iMov = labeler.currMovie;
-      iTgt = labeler.currTarget;
-      
-      if isempty(iMov) || iMov==0 
-        data = nan(obj.lObj.nLabelPoints,1);
-      else
-        switch ptype
-          case {'Labels','Imported'}
-            needtrx = obj.lObj.hasTrx && strcmpi(pcode.coordsystem,'Body');
-            if needtrx,
-              trxFile = obj.lObj.trxFilesAllFullGTaware{iMov,1};
-              bodytrx = obj.lObj.getTrx(trxFile,obj.lObj.movieInfoAllGTaware{iMov,1}.nframes);
-              bodytrx = bodytrx(iTgt);
-            else
-              bodytrx = [];
-            end
-            
-            nfrmtot = labeler.nframes;
-            if strcmp(ptype,'Labels'),
-              s = labeler.labelsGTaware{iMov};
-              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
-              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
-            else
-              s = labeler.labels2GTaware{iMov};
-              if labeler.maIsMA
-                % Use "current Tracklet" for imported data
-                if ~isempty(labeler.labeledpos2trkViz)
-                  iTgt = labeler.labeledpos2trkViz.currTrklet;
-                  if isnan(iTgt)
-                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
-                    iTgt = 1;
-                  end
-                else
-                  iTgt = 1;
-                end
-              end  
-              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
-            end
-            if tfhasdata
-              data = ComputeLandmarkFeatureFromPos(...
-                lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
-            else
-              data = nan(obj.lObj.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
-            end
-          case 'Predictions'
-            % AL 20200511 hack, initialization ordering. If the timeline
-            % pum has 'Predictions' selected and a new project is loaded,
-            % the trackers are not updated (via
-            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
-            % call which leads here.
-            tracker = obj.lObj.tracker ;
-            if ~isempty(tracker) && isvalid(tracker)
-              data = tracker.getPropValues(pcode);
-            else
-              data = nan(obj.lObj.nLabelPoints,1);
-            end
-          case 'All Frames'
-            %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.itm.curprop);
-            if strcmpi(itm.props_allframes(itm.curprop).name,'Add custom...'),
-              data = nan(obj.lObj.nLabelPoints,1);
-            else
-              data = obj.custom_data;
-            end
-          otherwise
-            error('Unknown data type %s',ptype);
-        end
-        %szassert(data,[obj.lObj.nLabelPoints obj.nfrm]);
-      end
-    end
-    
     function data = getIsLabeledCurrMovTgt_(obj)
       % lpos: [nptsxnfrm]
       
