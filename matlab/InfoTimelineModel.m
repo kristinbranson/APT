@@ -242,6 +242,18 @@ classdef InfoTimelineModel < handle
         obj.isSelectedFromFrameIndex_ = false(1, nframes) ;
       end
     end  % function
+
+    function [ptype,prop] = getCurPropSmart(obj)
+      % Get current proptype, and prop-specification-struct
+      
+      ptype = obj.proptypes{obj.curproptype};
+      switch ptype
+        case 'Predictions'
+          prop = obj.props_tracker(obj.curprop);
+        otherwise
+          prop = obj.props(obj.curprop);
+      end
+    end
     
   end  % methods  
 end  % classdef

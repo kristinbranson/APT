@@ -593,19 +593,6 @@ classdef InfoTimelineController < handle
       tfSucc = true;      
     end
 
-    function [ptype,prop] = getCurPropSmart(obj)
-      % Get current proptype, and prop-specification-struct
-      
-      itm = obj.lObj.infoTimelineModel ;      
-      ptype = itm.proptypes{itm.curproptype};
-      switch ptype
-        case 'Predictions'
-          prop = itm.props_tracker(itm.curprop);
-        otherwise
-          prop = itm.props(itm.curprop);
-      end
-    end
-
     function tf = getCurPropTypeIsLabel(obj)
       itm = obj.lObj.infoTimelineModel ;
       v = itm.curproptype;
@@ -831,7 +818,7 @@ classdef InfoTimelineController < handle
     function data = getDataCurrMovTgt_(obj)
       % lpos: [nptsxnfrm]
       
-      [ptype,pcode] = obj.getCurPropSmart();
+      [ptype,pcode] = obj.lObj.infoTimelineModel.getCurPropSmart();
       labeler = obj.lObj;
       itm = labeler.infoTimelineModel ;
       iMov = labeler.currMovie;
