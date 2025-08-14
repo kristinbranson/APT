@@ -387,7 +387,7 @@ output = handles.output;
       nfields = nfields + 1;
     end
     for i = 1:numel(kk),
-      nprm = handles.tree.findnode(['ROOT.' kk{i}]);
+      nprm = handles.tree.findnode(kk{i});
       if nprm.Data.Visible,
         nfields = nfields + 1;
       end
@@ -431,7 +431,7 @@ output = handles.output;
 
     for i = 1:numel(kk),
       k = kk{i};
-      nprm = handles.tree.findnode(['ROOT.' k]);
+      nprm = handles.tree.findnode(k);
       if nprm.Data.Visible,
         hauto.auto{end+1} = InitLeaf(nprm,parent,'suggestedvalue',handles.autoparams(k));
       end

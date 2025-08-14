@@ -162,19 +162,20 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   end
   crop_radius = ceil(crop_radius/CROP_RADIUS_PRECISION)*CROP_RADIUS_PRECISION;
 
-  autoparams('MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
+  autoparams('ROOT.MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
 
 
   %% rotation range parameters
 
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
-    autoparams('MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
+    autoparams('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
   end
 
-  laststage_horzflip = prmtree.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip').Data.Value;
-  firststage_horzflip = prmtree.findnode('ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.horz_flip').Data.Value;
-  laststage_vertflip = prmtree.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip').Data.Value;
-  firststage_vertflip = prmtree.findnode('ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.vert_flip').Data.Value;
+  laststage_horzflip = prmtree.findnode([APTParameters.poseDataAugPath,'.horz_flip']).Data.Value;
+  laststage_vertflip = prmtree.findnode([APTParameters.poseDataAugPath,'.vert_flip']).Data.Value;
+
+  firststage_horzflip = prmtree.findnode([APTParameters.detectDataAugPath,'.horz_flip']).Data.Value;
+  firststage_vertflip = prmtree.findnode([APTParameters.detectDataAugPath,'.vert_flip']).Data.Value;
 
   % flip to best match template
   [all_labels_horzflipped,all_labels_vertflipped] = flip_labels(all_labels,lobj);
@@ -242,8 +243,8 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
 
     end
 
-    autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.rrange') = rrange_stage1;
-    autoparams('DeepTrack.DataAugmentation.rrange') = rrange_stage2;
+    autoparams([APTParameters.detectDataAugPath,'.rrange']) = rrange_stage1;
+    autoparams([APTParameters.poseDataAugPath,'.rrange']) = rrange_stage2;
   else
 
     if ~lobj.maIsMA && lobj.hasTrx && lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta,
@@ -264,7 +265,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
       vizdata.rrange.centroidKeypointAngle = l_thetas;
       vizdata.rrange.offset.centroidKeypointAngle = minthetao;
     end
-    autoparams('DeepTrack.DataAugmentation.rrange') = rrange;
+    autoparams([APTParameters.poseDataAugPath,'.rrange']) = rrange;
   end
 
   %% translation-related parameters
@@ -309,8 +310,8 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
     trange_stage1 = trange_frame;
     trange_stage2 = min([trange_crop,trange_frame,trange_pair]);
 
-    autoparams('MultiAnimal.Detect.DeepTrack.DataAugmentation.trange') = trange_stage1;
-    autoparams('DeepTrack.DataAugmentation.trange') = trange_stage2;
+    autoparams([APTParameters.detectDataAugPath,'.trange']) = trange_stage1;
+    autoparams([APTParameters.poseDataAugPath,'.trange']) = trange_stage2;
 
   else
     
@@ -320,7 +321,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
       trange = trange_frame;
     end
 
-    autoparams('DeepTrack.DataAugmentation.trange') = trange;
+    autoparams([APTParameters.poseDataAugPath,'.trange']) = trange;
 
   end
 

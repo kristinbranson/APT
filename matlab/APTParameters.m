@@ -6,6 +6,9 @@ classdef APTParameters
     % This property is private as these trees are handles and mutable.
     % Use getParamTrees to access copies of these trees.
     PARAM_FILES_TREES = APTParameters.paramFilesTrees() ;
+    maDetectPath = 'ROOT.MultiAnimal.Detect';
+    detectDataAugPath = [APTParameters.maDetectPath,'.DeepTrack.DataAugmentation'];
+    poseDataAugPath = 'ROOT.DeepTrack.DataAugmentation';
   end
   methods (Static)
     function trees = getParamTrees(subtree)
@@ -68,7 +71,7 @@ classdef APTParameters
           tPrmDeepNetsMADetect);
         tPrmDeepNetsMAChildren = cat(1,tPrmDeepNetsMADetect.Children);
         
-        tPrmMADetectDT = tPrmMA.findnode('ROOT.MultiAnimal.Detect.DeepTrack');
+        tPrmMADetectDT = tPrmMA.findnode([APTParameters.maDetectPath,'.DeepTrack']);
         tPrmMADetectDT.Children = ...
           [tPrmMADetectDT.Children; tPrmDeepNetsMAChildren];
       end
@@ -645,52 +648,39 @@ classdef APTParameters
     
     function sPrmAll = modernize(sPrmAll)
       % 20210720 param reorg MA
-      if ~isempty(sPrmAll)
-        if isfield(sPrmAll.ROOT,'MultiAnimalDetection')
-          sPrmAll.ROOT.MultiAnimal.Detect = sPrmAll.ROOT.MultiAnimalDetection;
-          sPrmAll.ROOT = rmfield(sPrmAll.ROOT,'MultiAnimalDetection');
-        end
-        if isfield(sPrmAll.ROOT,'ImageProcessing') && ... 
-          isfield(sPrmAll.ROOT.ImageProcessing,'MultiTarget') && ...
-           isfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop')
-          sPrmAll.ROOT.MultiAnimal.TargetCrop = sPrmAll.ROOT.ImageProcessing.MultiTarget.TargetCrop;
-          sPrmAll.ROOT.ImageProcessing.MultiTarget = ...
-            rmfield(sPrmAll.ROOT.ImageProcessing.MultiTarget,'TargetCrop');
-        end        
-        if isfield(sPrmAll.ROOT,'MultiAnimal')
-          if isfield(sPrmAll.ROOT.MultiAnimal,'TargetCrop') && ...
-            isfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius')
-            sPrmAll.ROOT.MultiAnimal.TargetCrop.ManualRadius = ...
-               sPrmAll.ROOT.MultiAnimal.TargetCrop.Radius;
-            sPrmAll.ROOT.MultiAnimal.TargetCrop = ...
-              rmfield(sPrmAll.ROOT.MultiAnimal.TargetCrop,'Radius');
-          end
-          if isfield(sPrmAll.ROOT.MultiAnimal,'Detect') && ...
-            isfield(sPrmAll.ROOT.MultiAnimal.Detect,'max_n_animals')
-            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.max_n_animals;
-            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.Detect.min_n_animals;
-            sPrmAll.ROOT.MultiAnimal.Detect = ...
-              rmfield(sPrmAll.ROOT.MultiAnimal.Detect,{'max_n_animals' 'min_n_animals'});
-          end
-          % KB 20220516: moving tracking related parameters around
-          if isfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals')
-            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals = sPrmAll.ROOT.MultiAnimal.max_n_animals;
-            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'max_n_animals');
-          end
-          if isfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals')
-            sPrmAll.ROOT.MultiAnimal.Track.min_n_animals = sPrmAll.ROOT.MultiAnimal.min_n_animals;
-            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'min_n_animals');
-          end
-          if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
-            sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
-            sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
-          end
-        end
-        
-        sPrmDflt = APTParameters.defaultParamsStructAll;
-        sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
-          'dontWarnUnrecog',true); % to allow removal of obsolete params
+      if isempty(sPrmAll),
+        return;
       end
+
+      % translation will happen in order
+      % oldfld,newfld
+      translateflds = {
+        'ROOT.MultiAnimalDetection',APTParameters.maDetectPath
+        'ROOT.ImageProcessing.MultiTarget.TargetCrop','ROOT.MultiAnimal.TargetCrop'
+        'ROOT.MultiAnimal.TargetCrop.Radius','ROOT.MultiAnimal.TargetCrop.ManualRadius'
+        'ROOT.MultiAnimal.Track.max_n_animals',[APTParameters.maDetectPath,'.max_n_animals']
+        'ROOT.MultiAnimal.Track.min_n_animals',[APTParameters.maDetectPath,'.min_n_animals']
+        'ROOT.MultiAnimal.TrackletStitch','ROOT.MultiAnimal.Track.TrackletStitch'
+        };
+      for i = 1:size(translateflds,1),
+        oldfld = translateflds{i,1};
+        newfld = translateflds{i,2};
+        if structisfield(sPrmAll,oldfld),
+          sPrmAll = structmvfield(sPrmAll,oldfld,newfld);
+        end
+      end
+
+      rmflds = {'ROOT.DeepTrack.DeepPoseKit.dpk_test'};
+      for i = 1:numel(rmflds),
+        oldfld = rmflds{i};
+        if structisfield(sPrmAll,oldfld),
+          sPrmAll = structrmfield(sPrmAll,oldfld);
+        end
+      end
+
+      sPrmDflt = APTParameters.defaultParamsStructAll;
+      sPrmAll = structoverlay(sPrmDflt,sPrmAll,...
+        'dontWarnUnrecog',true); % to allow removal of obsolete params
     end
     
     function [tPrm,canceled,do_update] = ...
@@ -763,7 +753,7 @@ classdef APTParameters
       default = true;
 
       for ndx = 1:numel(kk)
-        nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+        nd = tPrm.findnode(kk{ndx});
         prev_val = nd.Data.Value;
         cur_val = autoparams(kk{ndx});
         reldiff = (cur_val-prev_val)/(prev_val+0.001);
@@ -816,7 +806,7 @@ classdef APTParameters
       
       if strcmp(res,'Update')
         for ndx = 1:numel(kk)
-          nd = tPrm.findnode(['ROOT.' kk{ndx}]);
+          nd = tPrm.findnode(kk{ndx});
           nd.Data.Value = autoparams(kk{ndx});
         end
         do_update = true;

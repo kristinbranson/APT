@@ -177,6 +177,65 @@ classdef TreeNode < handle
       end
     end
 
+    function n = popnode(t,propFQN)
+      % find node with fully qualified name and remove it from its parent's
+      % children list
+      %
+      % t: root nodes(s)
+      % propFQN: "fully qualified name", 
+      %     eg 'ROOT.ImageProcessing.MultiTarget.TargetCrop.AlignUsingTrxTheta'
+      %
+      % n: scalar PropertiesGUIProp node, or [] if not found.
+      n = [];
+      items = strread(propFQN,'%s','delimiter','.');
+      if isempty(items),
+        return;
+      end
+      for i=1:numel(items)
+        it = items{i};
+        flds = arrayfun(@(x)x.Data.Field,t,'uni',0);
+        tf = strcmp(flds,it);
+        if nnz(tf)~=1
+          n = [];
+          return;
+        end
+        p = n;
+        n = t(tf);
+        t = n.Children;
+      end
+      if isempty(p) || isempty(n),
+        return;
+      end
+      popChild(p,n.Data.Field);
+    end
+
+    function child = popChild(n,fld)
+      flds = arrayfun(@(x)x.Data.Field,n.Children,'uni',0);
+      tf = strcmp(flds,fld);
+      if ~any(tf),
+        child = [];
+        return;
+      end
+      child = n.Children(tf);
+      n.Children(tf) = [];
+    end
+
+    function insertChild(n,c,varargin)
+      [beforefld,afterfld] = myparse(varargin,'beforefld','','afterfld','');
+      flds = arrayfun(@(x)x.Data.Field,n.Children,'uni',0);
+      if ~isempty(beforefld),
+        idx = find(strcmp(flds,beforefld),1);
+        assert(~isempty(idx),sprintf('Could not find child with field %s',beforefld));
+        n.Children = [n.Children(1:idx-1);c;n.Children(idx:end)];
+      elseif ~isempty(afterfld),
+        idx = find(strcmp(flds,afterfld),1);
+        assert(~isempty(idx),sprintf('Could not find child with field %s',afterfld));
+        n.Children = [n.Children(1:idx);c;n.Children(idx+1:end)];        
+      else
+        n.Children(end+1) = c;
+      end      
+    end
+
     function [n,p] = findfield(t,fn,leafonly)
       if nargin < 3,
         leafonly = false;
