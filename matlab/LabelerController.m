@@ -4351,6 +4351,7 @@ classdef LabelerController < handle
 
 
     function pbClearSelection_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Clear the current selection of frames as shown in the timeline axes.
       labeler = obj.labeler_ ;
       if ~labeler.doProjectAndMovieExist()
         return
