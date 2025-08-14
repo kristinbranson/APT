@@ -15912,6 +15912,7 @@ classdef Labeler < handle
 
     function set.currFrame(obj, newValue)
       obj.currFrame = newValue ;
+      obj.infoTimelineModel.didSetCurrFrame(newValue) ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
     end    
 
