@@ -466,7 +466,9 @@ classdef InfoTimelineController < handle
     
     function updateSelectionImageCData_(obj)
       itm = obj.lObj.infoTimelineModel ;
-      obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
+      if ~isempty(obj.hSelIm) && isvalid(obj.hSelIm) 
+        obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
+      end
     end  % function   
 
     function newTarget(obj)
