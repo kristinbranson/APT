@@ -16374,8 +16374,50 @@ classdef Labeler < handle
       data = obj.infoTimelineModel.getDataCurrMovTgt(obj);
     end
 
-    function addCustomTimelineFeature(obj, newprop)
-      obj.infoTimelineModel_.addCustomFeature(newprop) ;
+    function data = getIsLabeledCurrMovTgt(obj)
+      % Get is-labeled data for current movie/target
+      % Returns: [nptsxnfrm] logical array indicating which points are labeled
+      
+      iMov = obj.currMovie;
+      iTgt = obj.currTarget;
+      
+      if isempty(iMov) || iMov==0 || ~obj.hasMovie
+        data = nan(obj.nLabelPoints,1);
+      else
+        s = obj.labelsGTaware{iMov};       
+        [p,~] = Labels.getLabelsT_full(s,iTgt,obj.nframes);
+        xy = reshape(p,obj.nLabelPoints,2,obj.nframes);
+        data = reshape(all(~isnan(xy),2),obj.nLabelPoints,obj.nframes);
+      end
+    end
+
+    function tflbledDisp = getLabeledTgts(obj, maxTgts)
+      % Get labeled targets for current movie, limited to maxTgts
+      % maxTgts: maximum number of targets to display
+      % Returns: [nframes x maxTgts] logical array
+      
+      iMov = obj.currMovie;
+      if iMov==0
+        tflbledDisp = nan;
+        return;
+      end
+      tflbledDisp = obj.labelPosLabeledTgts(iMov);
+      ntgtsmax = size(tflbledDisp,2);
+      ntgtDisp = maxTgts;
+      if ntgtsmax>=ntgtDisp 
+        tflbledDisp = tflbledDisp(:,1:ntgtDisp);
+      else
+        tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
+      end
+    end
+
+    function addCustomTimelineFeatureGivenFileName(obj, fileName)
+      % Add custom timeline feature from a .mat file
+      % file: full path to .mat file containing variable 'x' with feature data
+      %
+      % Throws error if file cannot be loaded or doesn't contain required variable
+      
+      obj.infoTimelineModel.addCustomFeatureGivenFileName(fileName);
       obj.notify('updateTimeline') ;
     end
 

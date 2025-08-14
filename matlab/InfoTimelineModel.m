@@ -201,6 +201,24 @@ classdef InfoTimelineModel < handle
       obj.curprop = 1;
     end
 
+    function addCustomFeatureGivenFileName(obj, file)
+      % Add custom timeline feature from a .mat file
+      % file: full path to .mat file containing variable 'x' with feature data
+      %
+      % Throws error if file cannot be loaded or doesn't contain required variable
+      
+      try
+        d = load(file, 'x');
+        obj.custom_data_ = d.x;
+      catch ME
+        error('Custom feature mat file must have a variable x which is 1 x nframes: %s', ME.message);
+      end
+      
+      [~, f, ~] = fileparts(file);
+      newprop = struct('name', ['Custom: ', f], 'code', 'custom', 'file', file);
+      obj.addCustomFeature(newprop);
+    end
+
     function bouts = selectGetSelectionAsBouts(obj)
       % Get currently selected bouts (can be noncontiguous)
       %

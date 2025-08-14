@@ -26,7 +26,6 @@ classdef InfoTimelineController < handle
     hPtStat  % scalar line handle
     tldata  % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     hPtsL  % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)
-    custom_data  % [1 x nframes] custom data to plot
     
     listeners  % [nlistener] col cell array of labeler prop listeners
 
@@ -37,16 +36,11 @@ classdef InfoTimelineController < handle
   end
   
   properties (Dependent)
-    prefs  % projPrefs.InfoTimelines preferences substruct
-    nfrm
+    nfrm_
   end
   
   methods
-    function v = get.prefs(obj)
-      v = obj.lObj.projPrefs.InfoTimelines;
-    end
-
-    function v = get.nfrm(obj)
+    function v = get.nfrm_(obj)
       lblObj = obj.lObj;
       if lblObj.hasMovie
         v = lblObj.nframes;
@@ -256,18 +250,18 @@ classdef InfoTimelineController < handle
     function initNewMovie(obj)
       ax = obj.hAx;
       prefsTL = obj.lObj.projPrefs.InfoTimelines;
-      ax.XTick = 0:prefsTL.dXTick:obj.nfrm;
+      ax.XTick = 0:prefsTL.dXTick:obj.nfrm_;
 
-      if obj.lObj.isinit || isnan(obj.nfrm)
+      if obj.lObj.isinit || isnan(obj.nfrm_)
         return
       end
 
       deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = ...
         image('Parent', obj.hAx, ...
-              'XData', 1:obj.nfrm, ...
+              'XData', 1:obj.nfrm_, ...
               'YData', obj.hAx.YLim, ...
-              'CData', uint8(zeros(1,obj.nfrm)), ...
+              'CData', uint8(zeros(1,obj.nfrm_)), ...
               'HitTest', 'off',...
               'CDataMapping', 'direct') ;
 
@@ -277,7 +271,7 @@ classdef InfoTimelineController < handle
       
       % obj.setLabelerSelectedFrames_();
       
-      xlims = [1 obj.nfrm];
+      xlims = [1 obj.nfrm_];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
@@ -352,10 +346,10 @@ classdef InfoTimelineController < handle
       
       if obj.isL,
         if obj.lObj.maIsMA
-          tflbledDisp = obj.getlabeledTgts_();
+          tflbledDisp = obj.lObj.getLabeledTgts(obj.axLmaxntgt);
           set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
         else
-          islabeled = obj.getIsLabeledCurrMovTgt_(); % [nptsxnfrm]
+          islabeled = obj.lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
           for i = 1:obj.lObj.nLabelPoints,
             if any(islabeled(i,:)),
               [t0s,t1s] = get_interval_ends(islabeled(i,:));
@@ -412,9 +406,9 @@ classdef InfoTimelineController < handle
       currFrame = obj.lObj.currFrame ;
       nominal_xspan = 2*obj.lObj.projPrefs.InfoTimelines.FrameRadius;
       nominal_dxtick = obj.lObj.projPrefs.InfoTimelines.dXTick ;
-      if nominal_xspan==0 || nominal_xspan > obj.nfrm
+      if nominal_xspan==0 || nominal_xspan > obj.nfrm_
         x0 = 1;
-        x1 = obj.nfrm;
+        x1 = obj.nfrm_;
         xspan = x1-x0 ;
       else
         xspan = nominal_xspan ;
@@ -425,8 +419,8 @@ classdef InfoTimelineController < handle
         if x0_raw<1
           x0 = 1 ;
           x1 = 1 + 2*r ;
-        elseif x1_raw>obj.nfrm
-          x1 = obj.nfrm ;
+        elseif x1_raw>obj.nfrm_
+          x1 = obj.nfrm_ ;
           x0 = x1 - 2*r ;
         else
           x0 = x0_raw ;
@@ -438,7 +432,7 @@ classdef InfoTimelineController < handle
       else
         dxtick = nominal_dxtick ;
       end
-      obj.hAx.XTick = 0 : dxtick : obj.nfrm ;
+      obj.hAx.XTick = 0 : dxtick : obj.nfrm_ ;
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[currFrame currFrame],'YData',obj.hAx.YLim);
       if obj.isL,
@@ -580,15 +574,11 @@ classdef InfoTimelineController < handle
       end
       file = fullfile(p,f);
       try
-        d = load(fullfile(p,f),'x');
-        obj.lObj.infoTimelineModel.custom_data_ = d.x;
-      catch,
-        uiwait(errordlg('Custom feature mat file must have a variable x which is 1 x nframes','Error loading custom feature'));
+        obj.lObj.addCustomTimelineFeatureGivenFileName(file);
+      catch ME
+        uiwait(errordlg(ME.message, 'Error loading custom feature'));
         return;
       end
-      
-      newprop = struct('name',['Custom: ',f],'code','custom','file',file);
-      obj.lObj.addCustomTimelineFeature(newprop) ;
       tfSucc = true;      
     end
 
@@ -631,7 +621,7 @@ classdef InfoTimelineController < handle
           [sf,ef] = obj.lObj.trxGetFrameLimits();
         else
           sf = 1;
-          ef = obj.nfrm;
+          ef = obj.nfrm_;
         end
         frm = round(pos(1,1));
         frm = min(max(frm,sf),ef);
@@ -765,7 +755,7 @@ classdef InfoTimelineController < handle
       % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
       frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
       % obj.hSegLineGT.setOnAtOnly(frmsOn);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.nfrm, frmsOn) ;
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.nfrm_, frmsOn) ;
       
       % For hSegLineGTLbled, we turn on a given frame only if all
       % targets/rows for that frame are labeled.
@@ -774,7 +764,7 @@ classdef InfoTimelineController < handle
         'outputVariableNames',{'allTgtsLbled'});
       frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
       % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nfrm, frmsAllTgtsLbled) ;     
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nfrm_, frmsAllTgtsLbled) ;     
     end
 
     function cbkGTSuggMFTableLbledUpdated(obj,src,evt) %#ok<INUSD>
@@ -814,39 +804,6 @@ classdef InfoTimelineController < handle
     %   obj.lObj.setSelectedFrames(selFrames);
     % end
 
-    function data = getIsLabeledCurrMovTgt_(obj)
-      % lpos: [nptsxnfrm]
-      
-      labeler = obj.lObj;
-      iMov = labeler.currMovie;
-      iTgt = labeler.currTarget;
-      
-      if isempty(iMov) || iMov==0 || ~labeler.hasMovie
-        data = nan(obj.lObj.nLabelPoints,1);
-      else
-        s = labeler.labelsGTaware{iMov};       
-        [p,~] = Labels.getLabelsT_full(s,iTgt,obj.nfrm);
-        xy = reshape(p,obj.lObj.nLabelPoints,2,obj.nfrm);
-        data = reshape(all(~isnan(xy),2),obj.lObj.nLabelPoints,obj.nfrm);
-      end
-    end
-    
-    function tflbledDisp = getlabeledTgts_(obj)
-      labeler = obj.lObj;
-      iMov = labeler.currMovie;
-      if iMov==0
-        tflbledDisp = nan;
-        return;
-      end
-      tflbledDisp = labeler.labelPosLabeledTgts(iMov);
-      ntgtsmax = size(tflbledDisp,2);
-      ntgtDisp = obj.axLmaxntgt;
-      if ntgtsmax>=ntgtDisp 
-        tflbledDisp = tflbledDisp(:,1:ntgtDisp);
-      else
-        tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
-      end
-    end
   end  % methods (Access=private)
 
   methods
