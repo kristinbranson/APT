@@ -32,8 +32,7 @@ classdef InfoTimelineModel < handle
   end
 
   events
-    updateTimelineProperties % fired when props, props_tracker, or props_allframes changes
-    updateTimelinePropertyTypes % fired when proptypes changes
+    updateTimelineProperties  % fired when GUI needs to sync up
   end
   
   methods
@@ -46,7 +45,8 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = true;
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
-      obj.initializePropsEtc(hasTrx);
+      obj.initializePropsEtc_(hasTrx);  % fires no events
+      obj.notify('updateTimelineProperties') ;
     end
     
     function v = get.selectOn(obj)
@@ -70,36 +70,16 @@ classdef InfoTimelineModel < handle
       v = obj.props_;
     end
 
-    function set.props(obj, v)
-      obj.props_ = v;
-      notify(obj, 'updateTimelineProperties');
-    end
-
     function v = get.props_tracker(obj)
       v = obj.props_tracker_;
-    end
-
-    function set.props_tracker(obj, v)
-      obj.props_tracker_ = v;
-      notify(obj, 'updateTimelineProperties');
     end
 
     function v = get.props_allframes(obj)
       v = obj.props_allframes_;
     end
 
-    function set.props_allframes(obj, v)
-      obj.props_allframes_ = v;
-      notify(obj, 'updateTimelineProperties');
-    end
-
     function v = get.proptypes(obj)
       v = obj.proptypes_;
-    end
-
-    function set.proptypes(obj, v)
-      obj.proptypes_ = v;
-      notify(obj, 'updateTimelinePropertyTypes');
     end
 
     function v = get.curprop(obj)
@@ -133,29 +113,20 @@ classdef InfoTimelineModel < handle
       obj.TLPROPS_ = ReadLandmarkFeatureFile(tlpropfile);      
     end
 
-    function initializePropsAllFrames(obj)
-      obj.props_allframes = struct('name','Add custom...',...
-        'code','add_custom',...
-        'file','');
-    end
-
-    function initializePropsTracker_(obj)
-      obj.props_tracker = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
-    end
-
-    function initializePropsEtc(obj, hasTrx)
+    function initializePropsEtc_(obj, hasTrx)
       % Set .props, .props_tracker from .TLPROPS, .TLPROPS_TRACKER
       
       % remove body features if no body tracking
       props = obj.TLPROPS_;
-      % if ~labeler.hasTrx,
       if ~hasTrx,
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
-      obj.props = props;      
-      obj.initializePropsTracker_();
-      obj.initializePropsAllFrames();
+      obj.props_ = props;      
+      obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
+      obj.props_allframes_ = struct('name','Add custom...',...
+        'code','add_custom',...
+        'file','');      
     end
 
     function didChangeCurrentTracker(obj, propListOrEmpty)
@@ -166,15 +137,16 @@ classdef InfoTimelineModel < handle
       if isempty(propListOrEmpty),
         % AL: Probably obsolete codepath
         obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
-        obj.props_tracker = [];
+        obj.props_tracker_ = [];
       else
         if ~ismember('Predictions',obj.proptypes),
           obj.proptypes{end+1} = 'Predictions';
         end
         propList = propListOrEmpty ;
         obj.TLPROPS_TRACKER_ = propList ; %#ok<*PROPLC>
-        obj.initializePropsTracker_();
+        obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
       end
+      obj.notify('updateTimelineProperties') ;     
     end
 
     function tf = hasPredictionConfidence(obj)
@@ -198,6 +170,25 @@ classdef InfoTimelineModel < handle
     function proptypes = getPropTypesDisp(obj)
       proptypes = obj.proptypes ;
     end  % function    
+
+    function initNewMovie(obj, isinit, hasMovie, nframes, hasTrx)
+      if isinit || ~hasMovie || isnan(nframes)
+        return
+      end
+      obj.selectOn_ = false ;
+      obj.selectOnStartFrm_ = [] ;      
+      obj.initializePropsEtc_(hasTrx) ;  % fires no events
+      obj.notify('updateTimelineProperties') ;         
+    end    
+
+    function addCustomFeature(obj, newprop)
+      props_allframes = struct('name','Add custom...',...
+        'code','add_custom',...
+        'file','');
+      obj.props_allframes_ = [newprop, props_allframes] ;
+      obj.curprop = 1;
+      obj.notify('updateTimelineProperties') ;      
+    end
 
   end  % methods  
 end  % classdef

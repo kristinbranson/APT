@@ -291,11 +291,11 @@ classdef InfoTimelineController < handle
         'parent',obj.hAx,'HitTest','off',...
         'CDataMapping','direct');
 
-      obj.itm_.setSelectMode(false) ;
+      % obj.itm_.setSelectMode(false) ;
       colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
       colormap(obj.hAx,[0 0 0;colorTBSelect]);
       
-      obj.setLabelerSelectedFrames();
+      % obj.setLabelerSelectedFrames_();
       
       xlims = [1 obj.nfrm];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
@@ -307,7 +307,7 @@ classdef InfoTimelineController < handle
         obj.setCurPropTypeDefault();
       end
       
-      obj.itm_.initializePropsEtc(obj.lObj.hasTrx);
+      % obj.itm_.initializePropsEtc(obj.lObj.hasTrx);
         
       cbkGTSuggUpdated(obj,[],[]);
     end
@@ -609,9 +609,7 @@ classdef InfoTimelineController < handle
       end
       
       newprop = struct('name',['Custom: ',f],'code','custom','file',file);
-      obj.itm_.initializePropsAllFrames();
-      obj.itm_.props_allframes = [newprop,obj.itm_.props_allframes];
-      obj.itm_.curprop = 1;
+      obj.itm_.addCustomFeature(newprop) ;
       tfSucc = true;      
     end
 
@@ -763,7 +761,7 @@ classdef InfoTimelineController < handle
       boutsAll = src.Parent.UserData.bouts;
       bout = boutsAll(iBout,:);
       obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
-      obj.setLabelerSelectedFrames();
+      obj.setLabelerSelectedFrames_();
     end    
 
     function cbkGTIsGTModeUpdated(obj,src,evt) %#ok<INUSD>
@@ -840,7 +838,7 @@ classdef InfoTimelineController < handle
   end
 
   methods (Access=private)
-    function setLabelerSelectedFrames(obj)
+    function setLabelerSelectedFrames_(obj)
       % Labeler owns the property-of-record on what frames
       % are set
       selFrames = bouts2frames(obj.selectGetSelection);
@@ -972,7 +970,7 @@ classdef InfoTimelineController < handle
           if obj.isL
             obj.hCurrFrameL.LineWidth = 0.5;
           end
-          obj.setLabelerSelectedFrames();
+          obj.setLabelerSelectedFrames_();
         end
       end
     end  % function

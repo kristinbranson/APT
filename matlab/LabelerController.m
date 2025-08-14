@@ -503,8 +503,6 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_.infoTimelineModel,'updateTimelineProperties',@(s,e)(obj.cbklabelTLInfoPropsUpdated(s,e))) ;
-      obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_.infoTimelineModel,'updateTimelinePropertyTypes',@(s,e)(obj.cbklabelTLInfoPropTypesUpdated(s,e))) ;
 
       obj.listeners_(end+1) = ...
         addlistener(obj.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
@@ -3773,15 +3771,17 @@ classdef LabelerController < handle
       itm = labeler.infoTimelineModel ;
       props = itm.getPropsDisp();
       set(obj.pumInfo,'String',props);
-    end
-
-    function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
-      % Update the props dropdown menu and timeline.
-      labeler = obj.labeler_ ;
-      itm = labeler.infoTimelineModel ;
       proptypes = itm.getPropTypesDisp();
       set(obj.pumInfo_labels,'String',proptypes);
     end
+
+    % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
+    %   % Update the props dropdown menu and timeline.
+    %   labeler = obj.labeler_ ;
+    %   itm = labeler.infoTimelineModel ;
+    %   proptypes = itm.getPropTypesDisp();
+    %   set(obj.pumInfo_labels,'String',proptypes);
+    % end
     
     function menuSetupLabelModeCbkGeneric(obj, src, evt)  %#ok<INUSD>
       lblMode = obj.setupMenu2LabelMode.(src.Tag);

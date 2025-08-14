@@ -4928,6 +4928,9 @@ classdef Labeler < handle
 
       end
 
+      obj.setSelectedFrames([]) ;
+      obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+
       % AL20160615: omg this is the plague.
       % AL20160605: These three calls semi-obsolete. new projects will not
       % have empty .labeledpos, .labeledpostag, or .labeledpos2 elements;
@@ -5009,6 +5012,9 @@ classdef Labeler < handle
       obj.labels2TrkVizInit();
       obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
+      obj.setSelectedFrames([]) ;
+      obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+
       edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
