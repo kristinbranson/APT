@@ -1357,11 +1357,7 @@ classdef LabelerController < handle
       set(obj.uipanel_cropcontrols,'Visible',onIff(hasProject && isInCropMode)) ;
       set(obj.text_trackerinfo,'Visible',onIff(hasProject && ~isInCropMode)) ;
 
-      set(obj.pbClearSelection,'Enable',onIff(hasProject));
-      set(obj.pumInfo,'Enable',onIff(hasProject));
-      set(obj.pumInfo_labels,'Enable',onIff(hasProject));
-      set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
-      set(obj.pumTrack,'Enable',onIff(hasProject));
+      obj.updateTimeline() ;
 
       set(obj.pbClear,'Enable',onIff(hasProject));
       set(obj.tbAccept,'Enable',onIff(hasProject));
@@ -3769,14 +3765,23 @@ classdef LabelerController < handle
     function updateTimeline(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
       labeler = obj.labeler_ ;
+      hasProject = labeler.hasProject ;
+      hasMovie = labeler.hasMovie ;        
       itm = labeler.infoTimelineModel ;
       props = itm.getPropsDisp();
       set(obj.pumInfo,'String',props);
       proptypes = itm.getPropTypesDisp();
       set(obj.pumInfo_labels,'String',proptypes);
-      obj.labelTLInfo.update();      
+      if ~isempty(obj.labelTLInfo)
+        obj.labelTLInfo.update();
+      end
       tb = obj.tbTLSelectMode;  % the togglebutton
       tb.Value = itm.selectOn;      
+      set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
+      set(obj.pumInfo,'Enable',onIff(hasProject));
+      set(obj.pumInfo_labels,'Enable',onIff(hasProject));
+      set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
+      set(obj.pumTrack,'Enable',onIff(hasProject));
     end
 
     % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
@@ -6285,6 +6290,9 @@ classdef LabelerController < handle
         sldval = 0;
       end
       set(obj.slider_frame,'Value',sldval);
+      hasProject = labeler.hasProject ;
+      hasMovie = labeler.hasMovie ;        
+      set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;      
       obj.updateHighlightingOfAxes() ;      
     end  % function
 

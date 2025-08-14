@@ -204,6 +204,9 @@ classdef Labeler < handle
     projname              % init: PN
     projFSInfo            % filesystem info
     projTempDir           % temp dir name to save the raw label file
+    infoTimelineModel_     % InfoTimelineModel object for timeline selection state
+  end
+  properties (Dependent)
     infoTimelineModel     % InfoTimelineModel object for timeline selection state
   end
   properties
@@ -706,7 +709,7 @@ classdef Labeler < handle
   properties 
     currFrame = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
-    selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
+    % selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
     drag = false 
     drag_pt = [] 
     silent_ = false  % Don't open dialogs. Use defaults. For testing and debugging
@@ -734,7 +737,7 @@ classdef Labeler < handle
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
-      obj.infoTimelineModel = InfoTimelineModel(obj.hasTrx);
+      obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
       %obj.notify('updateTimeline');
       if ~isgui ,
         % If a GUI is attached, this is done by the controller, after it has
@@ -4925,8 +4928,8 @@ classdef Labeler < handle
 
       end
 
-      obj.selectedFrames_ = [] ;
-      obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      % obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimeline');
 
       % AL20160615: omg this is the plague.
@@ -5010,8 +5013,8 @@ classdef Labeler < handle
       obj.labels2TrkVizInit();
       obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
-      obj.selectedFrames_ = [] ;
-      obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      % obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimeline');
 
       edata = NewMovieEventData(false);
@@ -11166,7 +11169,7 @@ classdef Labeler < handle
       else
         propListOrEmpty = [] ;
       end      
-      obj.infoTimelineModel.didChangeCurrentTracker(propListOrEmpty) ;
+      obj.infoTimelineModel_.didChangeCurrentTracker(propListOrEmpty) ;
       obj.notify('updateTimeline');
 
       % Send the notifications
@@ -11240,7 +11243,7 @@ classdef Labeler < handle
       else
         propListOrEmpty = [] ;
       end
-      obj.infoTimelineModel.didChangeCurrentTracker(propListOrEmpty) ;
+      obj.infoTimelineModel_.didChangeCurrentTracker(propListOrEmpty) ;
       obj.notify('updateTimeline');
       
       % Send the notification
@@ -14075,21 +14078,21 @@ classdef Labeler < handle
     end
 
     function result = get.selectedFrames(obj)
-      result = obj.selectedFrames_ ;
+      result = find(obj.infoTimelineModel.isSelectedFromFrameIndex) ;
     end
 
-    function set.selectedFrames(obj, newValue)
-      if isempty(newValue)
-        obj.selectedFrames_ = [] ;        
-      elseif ~obj.hasMovie
-        error('Labeler:noMovie',...
-              'Cannot set selected frames when no movie is loaded.');
-      else
-        validateattributes(newValue,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes}) ;
-        obj.selectedFrames_ = newValue ;  
-      end
-      obj.notify('updateTimeline');
-    end
+    % function set.selectedFrames(obj, newValue)
+    %   if isempty(newValue)
+    %     obj.selectedFrames_ = [] ;        
+    %   elseif ~obj.hasMovie
+    %     error('Labeler:noMovie',...
+    %           'Cannot set selected frames when no movie is loaded.');
+    %   else
+    %     validateattributes(newValue,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes}) ;
+    %     obj.selectedFrames_ = newValue ;  
+    %   end
+    %   obj.notify('updateTimeline');
+    % end
     
     function updateTrxTable(obj)
       if obj.hasTrx
@@ -15918,7 +15921,7 @@ classdef Labeler < handle
 
     function set.currFrame(obj, newValue)
       obj.currFrame = newValue ;
-      obj.infoTimelineModel.didSetCurrFrame(newValue) ;
+      obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
     end    
 
@@ -16354,31 +16357,59 @@ classdef Labeler < handle
       if ~obj.doProjectAndMovieExist()
         return
       end
-      tlm = obj.infoTimelineModel ;
-      oldValue = tlm.selectOn ;
-      tlm.setSelectMode(newValue, obj.currFrame) ;
-      newValue = tlm.selectOn ;
-      if oldValue && ~newValue  % if .selectOn was true and is now false
-        selectedFrames = bouts2frames(tlm.selectGetSelection());
-        obj.selectedFrames_ = selectedFrames ;
-      end
+      itm = obj.infoTimelineModel_ ;
+      % oldValue = itm.selectOn ;
+      itm.setSelectMode(newValue, obj.currFrame) ;
+      % newValue = itm.selectOn ;
+      % if oldValue && ~newValue  % if .selectOn was true and is now false
+      %   % selectedFrames = bouts2frames(itm.selectGetSelectionAsBouts());
+      %   selectedFrames = find(itm.isSelectedFromFrameIndex) ;
+      %   obj.selectedFrames_ = selectedFrames ;
+      % end
       notify(obj, 'updateTimeline');
     end
 
     function addCustomTimelineFeature(obj, newprop)
-      obj.infoTimelineModel.addCustomFeature(newprop) ;
+      obj.infoTimelineModel_.addCustomFeature(newprop) ;
       obj.notify('updateTimeline') ;
     end
 
-    function clearBoutInTimeline(obj, bout)
-      obj.infoTimelineModel.clearBout(bout) ;
+    function clearBoutInTimeline(obj)
+      frameIndex = obj.currFrame ;
+      obj.infoTimelineModel_.clearBout(frameIndex) ;
       obj.notify('updateTimeline') ;
     end    
 
     function clearSelectedFrames(obj)
-      obj.selectedFrames_ = [] ;
-      obj.infoTimelineModel.clearSelection(obj.nframes) ;
+      % obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel_.clearSelection(obj.nframes) ;
       obj.notify('updateTimeline');      
     end
+
+    function result = get.infoTimelineModel(obj)
+      result = obj.infoTimelineModel_ ;
+    end
+
+    function result = isCurrentFrameSelected(obj)
+      currFrame = obj.currFrame ;
+      isSelectedFromFrameIndex = obj.infoTimelineModel_.isSelectedFromFrameIndex ;
+      if 1<=currFrame && currFrame<=numel(isSelectedFromFrameIndex)
+        result = isSelectedFromFrameIndex(currFrame) ;
+      else
+        result = false ;
+      end
+    end
+
+    function result = areAnyFramesSelected(obj)      
+      isSelectedFromFrameIndex = obj.infoTimelineModel_.isSelectedFromFrameIndex ;
+      result = any(isSelectedFromFrameIndex) ;
+    end
+
+    function setTimelineFrameRadius(obj, nframes)
+      validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
+      obj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);      
+      obj.notify('update') ;
+    end
+
   end  % methods
 end  % classdef

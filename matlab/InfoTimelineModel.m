@@ -1,4 +1,10 @@
 classdef InfoTimelineModel < handle
+  % A domain model to hold application state that just happens to correspond
+  % (roughly) to what is shown in the two APT timeline axes.  Normally the
+  % Labeler object holds a reference to one of these in the infoTimelineModel
+  % property.  Note that this class does not define any events, and any
+  % mutation of it should happen via a suitable Labeler class method so that any
+  % changes are reflected in the APT UI.
 
   properties (Constant)
     TLPROPFILESTR = 'landmark_features.yaml';
@@ -187,7 +193,7 @@ classdef InfoTimelineModel < handle
       obj.curprop = 1;
     end
 
-    function bouts = selectGetSelection(obj)
+    function bouts = selectGetSelectionAsBouts(obj)
       % Get currently selected bouts (can be noncontiguous)
       %
       % bouts: [nBout x 2]. col1 is startframe, col2 is one-past-endframe
@@ -214,14 +220,20 @@ classdef InfoTimelineModel < handle
     %   obj.isSelectedFromFrameIndex_ = newValue ;
     % end
 
-    function clearBout(obj, bout)
+    function clearBout(obj, currentFrameIndex)  
+      % Unselect the bout that currentFrameIndex is in.  If currentFrameIndex is not
+      % in a bout, do nothing.
       isSelectedFromFrameIndex = obj.isSelectedFromFrameIndex_ ;
-      isSelectedFromFrameIndex(:,bout(1):bout(2)-1) = false ;
+      bout = findBoutEdges(currentFrameIndex, isSelectedFromFrameIndex) ;
+      if isempty(bout)
+        return
+      end
+      isSelectedFromFrameIndex(:,bout(1):bout(2)) = false ;
       obj.isSelectedFromFrameIndex_ = isSelectedFromFrameIndex ;
     end  % function
 
     function clearSelection(obj, nframes)
-      % Clear the selected frames.
+      % Set the set of selected frames to the empty set.
       obj.selectOn_ = false ;
       obj.selectOnStartFrm_ = [] ;
       if isempty(nframes) || isnan(nframes) || nframes<0
