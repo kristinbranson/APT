@@ -180,9 +180,9 @@ classdef Labeler < handle
     % raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
-    updateStuffInHlpSetCurrPrevFrame
+    updateAfterCurrentFrameSet
     update
-    updateTimeline
+    updateTimeline  
   end
 
   events  % used to come from labeler.tracker
@@ -197,7 +197,6 @@ classdef Labeler < handle
 
     didSetTrackerHideViz
     didSetTrackerShowPredsCurrTargetOnly
-    didSetTimelineSelectMode % fired when timeline selection state changes
   end
   
   %% Project
@@ -724,9 +723,7 @@ classdef Labeler < handle
   % Primary lifecycle methods
   methods 
     function obj = Labeler(varargin)
-
       obj.rc = RC();
-
       [isgui, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
                         'isgui', false, ...
@@ -737,8 +734,7 @@ classdef Labeler < handle
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
       obj.infoTimelineModel = InfoTimelineModel(obj.hasTrx);
-%       obj.NEIGHBORING_FRAME_OFFSETS = ...
-%                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
+      %obj.notify('updateTimeline');
       if ~isgui ,
         % If a GUI is attached, this is done by the controller, after it has
         % registered itself with the Labeler.
@@ -1644,7 +1640,7 @@ classdef Labeler < handle
     function setMovieShiftArrowNavModeThresh(obj,v)
       assert(isscalar(v) && isnumeric(v));
       obj.movieShiftArrowNavModeThresh = v;
-      tl = obj.controller_.labelTLInfo;
+      tl = obj.controller_.labelTLInfo;  % TODO: This is not how models and controllers should interact...
       tl.setStatThresh(v);
     end
   end
@@ -4930,6 +4926,7 @@ classdef Labeler < handle
 
       obj.setSelectedFrames([]) ;
       obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      obj.notify('updateTimeline');
 
       % AL20160615: omg this is the plague.
       % AL20160605: These three calls semi-obsolete. new projects will not
@@ -5014,6 +5011,7 @@ classdef Labeler < handle
       obj.labelingInit('dosettemplate',false);
       obj.setSelectedFrames([]) ;
       obj.infoTimelineModel.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      obj.notify('updateTimeline');
 
       edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
@@ -11168,6 +11166,7 @@ classdef Labeler < handle
         propListOrEmpty = [] ;
       end      
       obj.infoTimelineModel.didChangeCurrentTracker(propListOrEmpty) ;
+      obj.notify('updateTimeline');
 
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
@@ -11241,6 +11240,7 @@ classdef Labeler < handle
         propListOrEmpty = [] ;
       end
       obj.infoTimelineModel.didChangeCurrentTracker(propListOrEmpty) ;
+      obj.notify('updateTimeline');
       
       % Send the notification
       obj.notify('didSetCurrTracker') ;      
@@ -14330,7 +14330,7 @@ classdef Labeler < handle
         end
         obj.currFrame = frm;
 
-        obj.notify('updateStuffInHlpSetCurrPrevFrame') ;
+        obj.notify('updateAfterCurrentFrameSet') ;
         
         if ~isempty(obj.tracker),
           obj.tracker.newLabelerFrame();
@@ -16348,8 +16348,24 @@ classdef Labeler < handle
         return
       end
       tlm = obj.infoTimelineModel ;
+      oldValue = tlm.selectOn ;
       tlm.setSelectMode(newValue, obj.currFrame) ;
-      notify(obj, 'didSetTimelineSelectMode');
+      newValue = tlm.selectOn ;
+      if oldValue && ~newValue  % if .selectOn was true and is now false
+        selFrames = bouts2frames(tlm.selectGetSelection());
+        obj.setSelectedFrames(selFrames) ;  % fires no events
+      end
+      notify(obj, 'updateTimeline');
     end
+
+    function addCustomTimelineFeature(obj, newprop)
+      obj.infoTimelineModel.addCustomFeature(newprop) ;
+      obj.notify('updateTimeline') ;
+    end
+
+    function clearBoutInTimeline(obj, bout)
+      obj.infoTimelineModel.clearBout(bout) ;
+      obj.notify('updateTimeline') ;
+    end    
   end  % methods
 end  % classdef

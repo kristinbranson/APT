@@ -499,10 +499,10 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.axes_curr,'YDir','PostSet',@(s,e)(obj.axescurrYDirChanged(s,e))) ;
 
+      % obj.listeners_(end+1) = ...
+      %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
-      obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_.infoTimelineModel,'updateTimelineProperties',@(s,e)(obj.cbklabelTLInfoPropsUpdated(s,e))) ;
+        addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline(s,e))) ;
 
       obj.listeners_(end+1) = ...
         addlistener(obj.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
@@ -518,7 +518,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateStuffInHlpSetCurrPrevFrame', @(s,e)(obj.updateStuffInHlpSetCurrPrevFrame())) ;
+        addlistener(labeler, 'updateAfterCurrentFrameSet', @(s,e)(obj.updateAfterCurrentFrameSet())) ;
 
 
       obj.fakeMenuTags = {
@@ -901,7 +901,7 @@ classdef LabelerController < handle
       plotParams = labeler.gtPlotParams;
       t = labeler.gtTblRes;
 
-      [fcnAggOverPts,aggLabel,lbli] = ...
+      [fcnAggOverPts,~,~] = ...
         myparse(varargin,...
                 'fcnAggOverPts',@(x)max(x,[],ndims(x)), ... % or eg @mean
                 'aggLabel','Max', ...
@@ -911,7 +911,8 @@ classdef LabelerController < handle
       l2err = t.L2err;  % For MA, nframes x nanimals x npts.  For SA, nframes x npts
       fp = t.FP;
       fn = t.FN;
-      aggOverPtsL2err = fcnAggOverPts(l2err);  
+      % aggOverPtsL2err = fcnAggOverPts(l2err);  
+      fcnAggOverPts(l2err);  
         % t.L2err, for a single-view MA project, seems to be 
         % ground-truth-frame-count x animal-count x keypoint-count, and
         % aggOverPtsL2err is ground-truth-frame-count x animal-count.
@@ -3757,15 +3758,15 @@ classdef LabelerController < handle
       end
     end
 
-    function cbklabelTLInfoSelectOn(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.didSetTimelineSelectMode();      
-      labeler = obj.labeler_ ;
-      lblTLObj = labeler.infoTimelineModel ;
-      tb = obj.tbTLSelectMode;
-      tb.Value = lblTLObj.selectOn;
-    end
+    % function cbklabelTLInfoSelectOn(obj, src, evt)  %#ok<INUSD>
+    %   obj.labelTLInfo.didSetTimelineSelectMode();      
+    %   labeler = obj.labeler_ ;
+    %   itm = labeler.infoTimelineModel ;
+    %   tb = obj.tbTLSelectMode;  % the togglebutton
+    %   tb.Value = itm.selectOn;
+    % end
 
-    function cbklabelTLInfoPropsUpdated(obj, src, evt)  %#ok<INUSD>
+    function updateTimeline(obj, src, evt)  %#ok<INUSD>
       % Update the props dropdown menu and timeline.
       labeler = obj.labeler_ ;
       itm = labeler.infoTimelineModel ;
@@ -3773,6 +3774,9 @@ classdef LabelerController < handle
       set(obj.pumInfo,'String',props);
       proptypes = itm.getPropTypesDisp();
       set(obj.pumInfo_labels,'String',proptypes);
+      obj.labelTLInfo.update();      
+      tb = obj.tbTLSelectMode;  % the togglebutton
+      tb.Value = itm.selectOn;      
     end
 
     % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
@@ -4375,7 +4379,8 @@ classdef LabelerController < handle
     function load(obj)
       labeler = obj.labeler_ ;
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
-        currMovInfo = labeler.projLoadGUI();
+        % currMovInfo = labeler.projLoadGUI();
+        labeler.projLoadGUI();
         % if ~isempty(currMovInfo)
         %   obj.movieManagerController_.setVisible(true);
         %   wstr = ...
@@ -6270,9 +6275,9 @@ classdef LabelerController < handle
   end  % methods (Static)
 
   methods
-    function updateStuffInHlpSetCurrPrevFrame(obj)
+    function updateAfterCurrentFrameSet(obj)
       labeler = obj.labeler_ ;      
-      obj.labelTLInfo.newFrame(labeler.currFrame);
+      obj.labelTLInfo.updateAfterCurrentFrameSet(labeler.currFrame);
       set(obj.edit_frame,'String',num2str(labeler.currFrame));
       sldval = (labeler.currFrame-1)/(labeler.nframes-1);
       if isnan(sldval)

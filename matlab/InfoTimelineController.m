@@ -28,7 +28,6 @@ classdef InfoTimelineController < handle
   %% Select
   properties (SetAccess=private)
     hSelIm % scalar image handle for selection
-    isinit
   end
   
   %% GT/highlighting
@@ -135,13 +134,11 @@ classdef InfoTimelineController < handle
           addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
       obj.listeners = listeners;      
     
-      obj.isinit = true;
       obj.hSelIm = [];
       % obj.hSegLineGT = SegmentedLine(axtm,'InfoTimeline_SegLineGT');
       obj.hSegLineGT = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGT');
       % obj.hSegLineGTLbled = SegmentedLine(axtm,'InfoTimeline_SegLineGTLbled');
       obj.hSegLineGTLbled = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGTLbled');
-      obj.isinit = false;
       
       hCMenu = uicontextmenu('parent',axtm.Parent,...
         'callback',@(src,evt)obj.cbkContextMenu(src,evt),...
@@ -418,9 +415,9 @@ classdef InfoTimelineController < handle
 %       end
     end
     
-    function newFrame(obj,frm)
-      % Respond to new .lObj.currFrame
-      % This gets called after the user changes the frame they're looking at.
+    function updateAfterCurrentFrameSet(obj, currFrame)
+      % This gets called after the user changes the frame they're looking at, i.e.
+      % after labeler.currFrame is set.
       
       if isnan(obj.npts), return; end
             
@@ -433,8 +430,8 @@ classdef InfoTimelineController < handle
       else
         xspan = nominal_xspan ;
         r = xspan/2 ;
-        x0_raw = frm-r;
-        x1_raw = frm+r; %min(frm+r,obj.nfrm);
+        x0_raw = currFrame-r;
+        x1_raw = currFrame+r; %min(frm+r,obj.nfrm);
         % Make sure the limits don't run off the end
         if x0_raw<1
           x0 = 1 ;
@@ -454,21 +451,22 @@ classdef InfoTimelineController < handle
       end
       obj.hAx.XTick = 0 : dxtick : obj.nfrm ;
       obj.hAx.XLim = [x0 x1];
-      set(obj.hCurrFrame,'XData',[frm frm]);
+      set(obj.hCurrFrame,'XData',[currFrame currFrame]);
       if obj.isL,
         obj.hAxL.XLim = [x0 x1];
-        set(obj.hCurrFrameL,'XData',[frm frm]);
+        set(obj.hCurrFrameL,'XData',[currFrame currFrame]);
       end
       
       if obj.itm_.selectOn
-        f0 = obj.itm_.selectOnStartFrm;
-        f1 = frm;
-        if f1>f0
-          idx = f0:f1;
-        else
-          idx = f1:f0;
-        end
-        obj.hSelIm.CData(:,idx) = 1;
+        obj.hSelIm.CData = obj.itm_.isSelectedFromFrameIndex ;
+        % f0 = obj.itm_.selectOnStartFrm;
+        % f1 = frm;
+        % if f1>f0
+        %   idx = f0:f1;
+        % else
+        %   idx = f1:f0;
+        % end
+        % obj.hSelIm.CData(:,idx) = 1;
       end
     end
     
@@ -494,15 +492,15 @@ classdef InfoTimelineController < handle
       end
     end
     
-    function bouts = selectGetSelection(obj)
-      % Get currently selected bouts (can be noncontiguous)
-      %
-      % bouts: [nBout x 2]. col1 is startframe, col2 is one-past-endframe
-
-      cdata = obj.hSelIm.CData;
-      [sp,ep] = get_interval_ends(cdata);
-      bouts = [sp(:) ep(:)];
-    end
+    % function bouts = selectGetSelection(obj)
+    %   % Get currently selected bouts (can be noncontiguous)
+    %   %
+    %   % bouts: [nBout x 2]. col1 is startframe, col2 is one-past-endframe
+    % 
+    %   cdata = obj.hSelIm.CData;
+    %   [sp,ep] = get_interval_ends(cdata);
+    %   bouts = [sp(:) ep(:)];
+    % end
     
     function setStatThresh(obj,th)
       obj.hStatThresh.YData = [th th];
@@ -566,7 +564,7 @@ classdef InfoTimelineController < handle
       tfSucc = true;
       if obj.getCurPropTypeIsAllFrames() && ...
           strcmpi(obj.itm_.props_allframes(iprop).name,'Add custom...'),
-        [tfSucc] = obj.addCustomFeature();
+        [tfSucc] = obj.addCustomFeature_();
         if ~tfSucc,
           return;
         end
@@ -591,7 +589,7 @@ classdef InfoTimelineController < handle
       obj.updateLandmarkColors();
     end
 
-    function tfSucc = addCustomFeature(obj)
+    function tfSucc = addCustomFeature_(obj)
       tfSucc = false;
       movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
       defaultpath = fileparts(movfile{1});
@@ -609,7 +607,7 @@ classdef InfoTimelineController < handle
       end
       
       newprop = struct('name',['Custom: ',f],'code','custom','file',file);
-      obj.itm_.addCustomFeature(newprop) ;
+      obj.lObj.addCustomTimelineFeature(newprop) ;
       tfSucc = true;      
     end
 
@@ -719,7 +717,7 @@ classdef InfoTimelineController < handle
         nframes = str2double(aswr{1});
         validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
         obj.lObj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);
-        obj.newFrame(obj.lObj.currFrame);
+        obj.updateAfterCurrentFrameSet(obj.lObj.currFrame);
       end
     end
 
@@ -729,7 +727,7 @@ classdef InfoTimelineController < handle
     end
 
     function cbkContextMenu(obj,src,evt)  %#ok<INUSD>
-      bouts = obj.selectGetSelection;
+      bouts = obj.itm_.selectGetSelection() ;
       nBouts = size(bouts,1);
       src.UserData.bouts = bouts;
 
@@ -755,13 +753,14 @@ classdef InfoTimelineController < handle
       end
     end
 
-    function cbkClearBout(obj,src,evt) %#ok<INUSD>
+    function cbkClearBout(obj,src,evt)  %#ok<INUSD>
       % Prob should have a select* method, for now just do everything here
       iBout = src.UserData.iBout;
       boutsAll = src.Parent.UserData.bouts;
       bout = boutsAll(iBout,:);
-      obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
-      obj.setLabelerSelectedFrames_();
+      % obj.hSelIm.CData(:,bout(1):bout(2)-1) = 0;
+      % obj.setLabelerSelectedFrames_();
+      obj.lObj.clearBoutInTimeline(bout) ;
     end    
 
     function cbkGTIsGTModeUpdated(obj,src,evt) %#ok<INUSD>
@@ -838,12 +837,12 @@ classdef InfoTimelineController < handle
   end
 
   methods (Access=private)
-    function setLabelerSelectedFrames_(obj)
-      % Labeler owns the property-of-record on what frames
-      % are set
-      selFrames = bouts2frames(obj.selectGetSelection);
-      obj.lObj.setSelectedFrames(selFrames);
-    end
+    % function setLabelerSelectedFrames_(obj)
+    %   % Labeler owns the property-of-record on what frames
+    %   % are set
+    %   selFrames = bouts2frames(obj.selectGetSelection());
+    %   obj.lObj.setSelectedFrames(selFrames);
+    % end
 
     function data = getDataCurrMovTgt(obj)
       % lpos: [nptsxnfrm]
@@ -956,23 +955,22 @@ classdef InfoTimelineController < handle
   end  % methods (Access=private)
 
   methods
-    function didSetTimelineSelectMode(obj)
-      % Handle didSetTimelineSelectMode UI updates
-      if ~obj.isinit
-        selectOn = obj.itm_.selectOn;
-        if selectOn
-          obj.hCurrFrame.LineWidth = 3;
-          if obj.isL
-            obj.hCurrFrameL.LineWidth = 3;
-          end
-        else
-          obj.hCurrFrame.LineWidth = 0.5;
-          if obj.isL
-            obj.hCurrFrameL.LineWidth = 0.5;
-          end
-          obj.setLabelerSelectedFrames_();
+    function update(obj)
+      % Update controls to reflect the model state
+      selectOn = obj.itm_.selectOn;
+      if selectOn
+        obj.hCurrFrame.LineWidth = 3;
+        if obj.isL
+          obj.hCurrFrameL.LineWidth = 3;
         end
+      else
+        obj.hCurrFrame.LineWidth = 0.5;
+        if obj.isL
+          obj.hCurrFrameL.LineWidth = 0.5;
+        end
+        % obj.setLabelerSelectedFrames_();
       end
+      obj.updateAfterCurrentFrameSet(obj.lObj.currFrame) ;  % Use this to update a few more things
     end  % function
     
   end  % methods

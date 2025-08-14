@@ -17,6 +17,7 @@ classdef InfoTimelineModel < handle
     isdefault_ % whether this has been changed
     TLPROPS_  % struct array, features we can compute. Initted from yaml at construction-time
     TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
+    isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
   end
   
   properties (Dependent)
@@ -29,12 +30,9 @@ classdef InfoTimelineModel < handle
     curprop % row index into props, or props_tracker, depending on curproptype
     curproptype % row index into proptypes
     isdefault % whether this has been changed
+    isSelectedFromFrameIndex
   end
 
-  events
-    updateTimelineProperties  % fired when GUI needs to sync up
-  end
-  
   methods
     function obj = InfoTimelineModel(hasTrx)
       obj.selectOn_ = false;
@@ -46,7 +44,6 @@ classdef InfoTimelineModel < handle
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc_(hasTrx);  % fires no events
-      obj.notify('updateTimelineProperties') ;
     end
     
     function v = get.selectOn(obj)
@@ -106,6 +103,10 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = v;
     end
 
+    function result = get.isSelectedFromFrameIndex(obj)
+      result = obj.isSelectedFromFrameIndex_ ;
+    end
+    
     function readTimelinePropsNew(obj)
       path = fullfile(APT.Root, 'matlab') ;
       tlpropfile = fullfile(path,InfoTimelineModel.TLPROPFILESTR);
@@ -118,7 +119,7 @@ classdef InfoTimelineModel < handle
       
       % remove body features if no body tracking
       props = obj.TLPROPS_;
-      if ~hasTrx,
+      if ~isempty(hasTrx) && ~hasTrx ,
         idxremove = strcmpi({props.coordsystem},'Body');
         props(idxremove) = [];
       end
@@ -146,7 +147,6 @@ classdef InfoTimelineModel < handle
         obj.TLPROPS_TRACKER_ = propList ; %#ok<*PROPLC>
         obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
       end
-      obj.notify('updateTimelineProperties') ;     
     end
 
     function tf = hasPredictionConfidence(obj)
@@ -177,8 +177,8 @@ classdef InfoTimelineModel < handle
       end
       obj.selectOn_ = false ;
       obj.selectOnStartFrm_ = [] ;      
+      obj.isSelectedFromFrameIndex_ = false(1,nframes) ;
       obj.initializePropsEtc_(hasTrx) ;  % fires no events
-      obj.notify('updateTimelineProperties') ;         
     end    
 
     function addCustomFeature(obj, newprop)
@@ -187,8 +187,39 @@ classdef InfoTimelineModel < handle
         'file','');
       obj.props_allframes_ = [newprop, props_allframes] ;
       obj.curprop = 1;
-      obj.notify('updateTimelineProperties') ;      
     end
 
+    function bouts = selectGetSelection(obj)
+      % Get currently selected bouts (can be noncontiguous)
+      %
+      % bouts: [nBout x 2]. col1 is startframe, col2 is one-past-endframe
+      isSelectedFromFrameIndex = obj.isSelectedFromFrameIndex_ ;  % 1 x nframes
+      [sp,ep] = get_interval_ends(isSelectedFromFrameIndex);
+      bouts = [sp(:) ep(:)];
+    end
+
+    function didSetCurrFrame(obj, currFrame)
+      % Called by the Labeler after currFrame is set.
+      if obj.selectOn_
+        f0 = obj.selectOnStartFrm_ ;
+        f1 = currFrame ;
+        if f1>f0
+          idx = f0:f1;
+        else
+          idx = f1:f0;
+        end
+        obj.isSelectedFromFrameIndex_(:,idx) = true ;
+      end
+    end
+
+    % function set.isSelectedFromFrameIndex(obj, newValue)
+    %   obj.isSelectedFromFrameIndex_ = newValue ;
+    % end
+
+    function clearBout(obj, bout)
+      isSelectedFromFrameIndex = obj.isSelectedFromFrameIndex_ ;
+      isSelectedFromFrameIndex(:,bout(1):bout(2)-1) = false ;
+      obj.isSelectedFromFrameIndex_ = isSelectedFromFrameIndex ;
+    end  % function
   end  % methods  
 end  % classdef
