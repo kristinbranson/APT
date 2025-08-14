@@ -299,14 +299,10 @@ classdef InfoTimelineController < handle
       obj.setLabelsFull();
     end
     
-    function setLabelsFull(obj,runinit)
+    function setLabelsFull(obj)
       % Get data and set .hPts, .hMarked
       
-      if nargin < 2,
-        runinit = false;
-      end
-      
-      if isempty(obj.lObj.nLabelPoints) || isnan(obj.lObj.nLabelPoints) || (~runinit && obj.lObj.isinit)
+      if isempty(obj.lObj.nLabelPoints) || isnan(obj.lObj.nLabelPoints)
         return
       end
       
@@ -316,13 +312,10 @@ classdef InfoTimelineController < handle
 
       obj.tldata = dat;
 
-      %for i=1:obj.lObj.nLabelPoints
-        set(obj.hPts,'XData',nan,'YData',nan);
-      %end
+      set(obj.hPts,'XData',nan,'YData',nan);
       set(obj.hPtStat,'XData',nan,'YData',nan);
       
       if ~isempty(datnonnan)
-%         set(obj.hMarked,'XData',nan,'YData',nan);
         
         y1 = min(datnonnan(:));
         y2 = max(datnonnan(:));
@@ -571,13 +564,9 @@ classdef InfoTimelineController < handle
       v = itm.curprop;
     end
 
-    function setCurPropType(obj,iproptype,iprop)
+    function setCurPropType(obj, iproptype, iprop)
       % iproptype, iprop assumed to be consistent already.
-      itm = obj.lObj.infoTimelineModel ;
-      itm.curproptype = iproptype;
-      if nargin >= 3 && iprop ~= itm.curprop,
-        itm.curprop = iprop;
-      end
+      obj.lObj.setTimelineCurrentPropertyType(iproptype, iprop) ;
       obj.setLabelsFull();
       obj.updateLandmarkColors();
     end

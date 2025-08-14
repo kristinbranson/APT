@@ -2215,7 +2215,7 @@ classdef LabelerController < handle
       
       % init info timeline
       obj.labelTLInfo.initNewProject();
-      obj.labelTLInfo.setLabelsFull(true);
+      obj.labelTLInfo.setLabelsFull();
       
       % clear tracking data
       cellfun(@(x)x.clearTracklet(),labeler.labels2);

@@ -16411,5 +16411,16 @@ classdef Labeler < handle
       obj.notify('update') ;
     end
 
+    function setTimelineCurrentPropertyType(obj, iproptype, iprop)
+      % iproptype, iprop assumed to be consistent already.
+      itm = obj.infoTimelineModel ;
+      itm.curproptype = iproptype;
+      if iprop ~= itm.curprop,
+        itm.curprop = iprop;
+      end
+      % obj.setLabelsFull();
+      % obj.updateLandmarkColors();
+    end
+    
   end  % methods
 end  % classdef
