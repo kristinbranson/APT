@@ -189,6 +189,7 @@ classdef InfoTimelineModel < handle
         return
       end
       obj.clearSelection(nframes) ;
+      obj.custom_data_ = [];
       obj.initializePropsEtc_(hasTrx) ;  % fires no events
     end    
 

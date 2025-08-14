@@ -282,7 +282,6 @@ classdef InfoTimelineController < handle
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
       initSegmentedLineBang(obj.hSegLineGTLbled,xlims,sPVLbled);
-      obj.lObj.infoTimelineModel.custom_data_ = [];
       if obj.getCurPropTypeIsAllFrames(),
         obj.setCurPropTypeDefault();
       end
