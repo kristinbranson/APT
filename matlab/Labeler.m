@@ -16397,6 +16397,20 @@ classdef Labeler < handle
       end
     end
 
+    function setCurPropTypePredictionDefault(obj)
+      % Set timeline to show prediction results if currently on default and predictions are available
+      if obj.infoTimelineModel.isdefault && obj.hasTimelinePrediction()
+        itm = obj.infoTimelineModel ;
+        proptypei = find(strcmpi(itm.proptypes,'Predictions'),1);
+        if itm.hasPredictionConfidence(),
+          propi = numel(itm.props)+1;
+        else
+          propi = 1;
+        end
+        obj.setTimelineCurrentPropertyType(proptypei,propi);
+      end
+    end
+
     function data = getIsLabeledCurrMovTgt(obj)
       % Get is-labeled data for current movie/target
       % Returns: [nptsxnfrm] logical array indicating which points are labeled
@@ -16501,6 +16515,7 @@ classdef Labeler < handle
       itm.setCurrentPropertyType(iproptype, iprop) ;
       obj.notify('updateTimelineLabels');
       obj.notify('updateTimelineLandmarkColors');
+      obj.notify('updateTimeline');
     end
     
   end  % methods

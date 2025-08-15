@@ -433,17 +433,13 @@ classdef InfoTimelineController < handle
       end
     end
 
-    % function setCurPropTypeDefault(obj)
-    %   obj.lObj.setTimelineCurrentPropertyTypeToDefault();
+    % function updatePropsGUI(obj)
+    %   itm = obj.lObj.infoTimelineModel ;
+    %   obj.parent_.pumInfo_labels.Value = itm.curproptype;
+    %   props = itm.getPropsDisp(itm.curproptype);
+    %   obj.parent_.pumInfo.String = props;
+    %   obj.parent_.pumInfo.Value = itm.curprop;
     % end
-
-    function updatePropsGUI(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      obj.parent_.pumInfo_labels.Value = itm.curproptype;
-      props = itm.getPropsDisp(itm.curproptype);
-      obj.parent_.pumInfo.String = props;
-      obj.parent_.pumInfo.Value = itm.curprop;
-    end
 
     function cbkBDF(obj,src,evt) 
       % fprintf('InfoTimeline.cbkBDF() called\n') ;
@@ -472,18 +468,6 @@ classdef InfoTimelineController < handle
 %       set(obj.hMarked,'Visible',onoff);
 %     end
 
-    function setCurPropTypePredictionDefault(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      proptypei =  find(strcmpi(itm.proptypes,'Predictions'),1);
-      if itm.hasPredictionConfidence(),
-        propi = numel(itm.props)+1;
-      else
-        propi = 1;
-      end
-      obj.lObj.setTimelineCurrentPropertyType(proptypei,propi);
-      obj.updatePropsGUI();
-    end
-    
     function cbkLabelUpdated(obj, ~, ~)
       if ~obj.lObj.isinit ,
         obj.updateLabels() ;
@@ -491,10 +475,7 @@ classdef InfoTimelineController < handle
     end
     
     function cbkNewTrackingResults(obj, ~, ~)
-      if obj.lObj.infoTimelineModel.isdefault && obj.lObj.hasTimelinePrediction() ,
-        obj.setCurPropTypePredictionDefault() ;
-      end
-      obj.cbkLabelUpdated() ;
+      obj.lObj.setCurPropTypePredictionDefault();
     end
     
     function cbkSetNumFramesShown(obj,src,evt) %#ok<INUSD>

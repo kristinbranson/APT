@@ -3774,18 +3774,16 @@ classdef LabelerController < handle
       hasProject = labeler.hasProject ;
       hasMovie = labeler.hasMovie ;        
       itm = labeler.infoTimelineModel ;
-      props = itm.getPropsDisp();
-      set(obj.pumInfo,'String',props);
+      props = itm.getPropsDisp(itm.curproptype);
       proptypes = itm.getPropTypesDisp();
-      set(obj.pumInfo_labels,'String',proptypes);
       if ~isempty(obj.labelTLInfo)
         obj.labelTLInfo.update();
       end
       tb = obj.tbTLSelectMode;  % the togglebutton
       tb.Value = itm.selectOn;      
       set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
-      set(obj.pumInfo,'Enable',onIff(hasProject));
-      set(obj.pumInfo_labels,'Enable',onIff(hasProject));
+      set(obj.pumInfo,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
+      set(obj.pumInfo_labels,'String',proptypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
       set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
       set(obj.pumTrack,'Enable',onIff(hasProject));
     end
