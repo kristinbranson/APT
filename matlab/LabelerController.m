@@ -6076,30 +6076,21 @@ classdef LabelerController < handle
       end
     end
     
-    function cbkGTSuggUpdated(obj, s, e)
+    function cbkGTSuggUpdated(obj, ~, ~)
       % i think there are listeners in the GTManager, not sure why we need
       % this too
-      if ~exist('s', 'var') ,
-        s = [] ;
-      end
-      if ~exist('e', 'var') ,
-        e = [] ;
-      end
-      if ~isempty(obj.labelTLInfo) ,
-        obj.labelTLInfo.cbkGTSuggUpdated(s, e) ;
-      end
+      obj.labelTLInfo.cbkGTSuggUpdated() ;
     end
 
     function cbkGTResUpdated(obj, s, e)
       % i think there are listeners in the GTManager, not sure why we need
       % this too
-      if ~exist('s', 'var') ,
-        s = [] ;
-      end
-      if ~exist('e', 'var') ,
-        e = [] ;
-      end
-      %obj.labelTLInfo.cbkGTResUpdated(s, e) ;
+      % if ~exist('s', 'var') ,
+      %   s = [] ;
+      % end
+      % if ~exist('e', 'var') ,
+      %   e = [] ;
+      % end
     end
 
     function gtGoToNextUnlabeled(obj)

@@ -183,25 +183,25 @@ classdef InfoTimelineController < handle
     function updateForNewMovie(obj, colorTBSelect)
       ax = obj.hAx;
       prefsTL = obj.lObj.projPrefs.InfoTimelines;
-      ax.XTick = 0:prefsTL.dXTick:obj.nframes_();
+      ax.XTick = 0:prefsTL.dXTick:obj.lObj.nframes;
 
-      if obj.lObj.isinit || isnan(obj.nframes_())
+      if obj.lObj.isinit || isnan(obj.lObj.nframes)
         return
       end
 
       deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = ...
         image('Parent', obj.hAx, ...
-              'XData', 1:obj.nframes_(), ...
+              'XData', 1:obj.lObj.nframes, ...
               'YData', obj.hAx.YLim, ...
-              'CData', uint8(zeros(1,obj.nframes_())), ...
+              'CData', uint8(zeros(1,obj.lObj.nframes)), ...
               'HitTest', 'off',...
               'CDataMapping', 'direct') ;
 
       % itm.setSelectMode(false) ;
       obj.hAx.Colormap = [ 0 0 0 ; colorTBSelect ] ;
       
-      xlims = [1 obj.nframes_()];
+      xlims = [1 obj.lObj.nframes];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
@@ -302,9 +302,9 @@ classdef InfoTimelineController < handle
       currFrame = obj.lObj.currFrame ;
       nominal_xspan = 2*obj.lObj.projPrefs.InfoTimelines.FrameRadius;
       nominal_dxtick = obj.lObj.projPrefs.InfoTimelines.dXTick ;
-      if nominal_xspan==0 || nominal_xspan > obj.nframes_()
+      if nominal_xspan==0 || nominal_xspan > obj.lObj.nframes
         x0 = 1;
-        x1 = obj.nframes_();
+        x1 = obj.lObj.nframes;
         xspan = x1-x0 ;
       else
         xspan = nominal_xspan ;
@@ -315,8 +315,8 @@ classdef InfoTimelineController < handle
         if x0_raw<1
           x0 = 1 ;
           x1 = 1 + 2*r ;
-        elseif x1_raw>obj.nframes_()
-          x1 = obj.nframes_() ;
+        elseif x1_raw>obj.lObj.nframes
+          x1 = obj.lObj.nframes ;
           x0 = x1 - 2*r ;
         else
           x0 = x0_raw ;
@@ -328,7 +328,7 @@ classdef InfoTimelineController < handle
       else
         dxtick = nominal_dxtick ;
       end
-      obj.hAx.XTick = 0 : dxtick : obj.nframes_() ;
+      obj.hAx.XTick = 0 : dxtick : obj.lObj.nframes ;
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[currFrame currFrame],'YData',obj.hAx.YLim);
       obj.hAxL.XLim = [x0 x1];
@@ -446,7 +446,7 @@ classdef InfoTimelineController < handle
       % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
       frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
       % obj.hSegLineGT.setOnAtOnly(frmsOn);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.nframes_(), frmsOn) ;
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.lObj.nframes, frmsOn) ;
       
       % For hSegLineGTLbled, we turn on a given frame only if all
       % targets/rows for that frame are labeled.
@@ -455,7 +455,7 @@ classdef InfoTimelineController < handle
         'outputVariableNames',{'allTgtsLbled'});
       frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
       % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nframes_(), frmsAllTgtsLbled) ;     
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.lObj.nframes, frmsAllTgtsLbled) ;     
     end
 
     function cbkGTSuggMFTableLbledUpdated(obj)
@@ -502,17 +502,6 @@ classdef InfoTimelineController < handle
       lObj = obj.lObj ;
       % Gray menu item if not in a bout
       set(obj.hCMenuClearBout,'Enable',onIff(lObj.isCurrentFrameSelected()));
-    end
-
-    function v = nframes_(obj)
-      % Reuturns the number of frames in the current movie, or one if there are no
-      % movies.  Gets this info from the Labeler.
-      lObj = obj.lObj;
-      if lObj.hasMovie
-        v = lObj.nframes;
-      else
-        v = 1;
-      end
     end  % function
   end  % methods  
 end  % classdef
