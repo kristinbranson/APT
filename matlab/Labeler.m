@@ -184,6 +184,8 @@ classdef Labeler < handle
     update
     updateTimeline
     updateTimelineStatThresh
+    updateTimelineLabels
+    updateTimelineLandmarkColors
   end
 
   events  % used to come from labeler.tracker
@@ -16471,8 +16473,8 @@ classdef Labeler < handle
       if iprop ~= itm.curprop,
         itm.curprop = iprop;
       end
-      % obj.setLabelsFull();
-      % obj.updateLandmarkColors();
+      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineLandmarkColors');
     end
     
   end  % methods

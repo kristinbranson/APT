@@ -505,6 +505,10 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelineStatThresh',@(s,e)(obj.updateTimelineStatThresh(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateTimelineLabels',@(s,e)(obj.updateTimelineLabels(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateTimelineLandmarkColors',@(s,e)(obj.updateTimelineLandmarkColors(s,e))) ;
 
       obj.listeners_(end+1) = ...
         addlistener(obj.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
@@ -3793,6 +3797,20 @@ classdef LabelerController < handle
       end
     end
 
+    function updateTimelineLabels(obj, src, evt)  %#ok<INUSD>
+      % Update the timeline labels display.
+      if ~isempty(obj.labelTLInfo)
+        obj.labelTLInfo.updateLabels();
+      end
+    end
+
+    function updateTimelineLandmarkColors(obj, src, evt)  %#ok<INUSD>
+      % Update the timeline landmark colors.
+      if ~isempty(obj.labelTLInfo)
+        obj.labelTLInfo.updateLandmarkColors();
+      end
+    end
+
     % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
     %   % Update the props dropdown menu and timeline.
     %   labeler = obj.labeler_ ;
@@ -5839,7 +5857,7 @@ classdef LabelerController < handle
     function pumInfo_actuated_(obj, src, evt)  %#ok<INUSD>
       cprop = get(src,'Value');
       obj.labelTLInfo.setCurProp(cprop);
-      cpropNew = obj.labelTLInfo.getCurProp();
+      cpropNew = obj.labeler_.infoTimelineModel.curprop;
       if cpropNew ~= cprop,
         set(src,'Value',cpropNew);
       end
@@ -6028,7 +6046,7 @@ classdef LabelerController < handle
         iprop = 1;
       end
       set(obj.pumInfo,'String',props,'Value',iprop);
-      obj.labelTLInfo.setCurPropType(ipropType,iprop);
+      obj.labeler_.setTimelineCurrentPropertyType(ipropType,iprop);
     end  % function
 
     function updateHighlightingOfAxes(obj)

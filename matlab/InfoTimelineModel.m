@@ -243,7 +243,11 @@ classdef InfoTimelineModel < handle
     
     function proptypes = getPropTypesDisp(obj)
       proptypes = obj.proptypes ;
-    end  % function    
+    end  % function
+
+    function tf = getCurPropTypeIsAllFrames(obj)
+      tf = strcmpi(obj.proptypes{obj.curproptype},'All Frames');
+    end
 
     function initNewMovie(obj, isinit, hasMovie, nframes, hasTrx)
       if isinit || ~hasMovie || isnan(nframes)

@@ -243,7 +243,7 @@ classdef InfoTimelineController < handle
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
       initSegmentedLineBang(obj.hSegLineGTLbled,xlims,sPVLbled);
-      if obj.getCurPropTypeIsAllFrames(),
+      if obj.lObj.infoTimelineModel.getCurPropTypeIsAllFrames(),
         obj.setCurPropTypeDefault();
       end
       
@@ -426,7 +426,7 @@ classdef InfoTimelineController < handle
       % Does not update UI
       tfSucc = true;
       itm = obj.lObj.infoTimelineModel ;
-      if obj.getCurPropTypeIsAllFrames() && ...
+      if itm.getCurPropTypeIsAllFrames() && ...
           strcmpi(itm.props_allframes(iprop).name,'Add custom...'),
         [tfSucc] = obj.addCustomFeature_();
         if ~tfSucc,
@@ -437,18 +437,6 @@ classdef InfoTimelineController < handle
       end
       obj.updateLabels();
       itm.isdefault = false;
-    end
-
-    function v = getCurProp(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      v = itm.curprop;
-    end
-
-    function setCurPropType(obj, iproptype, iprop)
-      % iproptype, iprop assumed to be consistent already.
-      obj.lObj.setTimelineCurrentPropertyType(iproptype, iprop) ;
-      obj.updateLabels();
-      obj.updateLandmarkColors();
     end
 
     function tfSucc = addCustomFeature_(obj)
@@ -475,14 +463,9 @@ classdef InfoTimelineController < handle
       tf = strcmp(itm.proptypes{v},'Labels');
     end
 
-    function tf = getCurPropTypeIsAllFrames(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      v = itm.curproptype;
-      tf = strcmpi(itm.proptypes{v},'All Frames');
-    end
 
     function setCurPropTypeDefault(obj)
-      obj.setCurPropType(1,1);
+      obj.lObj.setTimelineCurrentPropertyType(1,1);
       itm = obj.lObj.infoTimelineModel ;
       itm.isdefault = true;
     end
@@ -545,7 +528,7 @@ classdef InfoTimelineController < handle
       else
         propi = 1;
       end
-      obj.setCurPropType(proptypei,propi);
+      obj.lObj.setTimelineCurrentPropertyType(proptypei,propi);
       obj.updatePropsGUI();
     end
     
