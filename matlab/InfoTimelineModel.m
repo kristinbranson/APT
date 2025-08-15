@@ -27,6 +27,7 @@ classdef InfoTimelineModel < handle
     custom_data_  % [1 x nframes] custom data to plot
     tldata_  % [nptsxnfrm] most recent data set/shown. NOT y-normalized
     statThresh_  % scalar, threshold value for timeline statistics
+    isStatThreshVisible_  % scalar logical, whether to show threshold visualization
     tldata_ptype_  % the ptype used when tldata_ was last computed
     tldata_pcode_  % the pcode used when tldata_ was last computed
     tldata_iMov  % the iMov used when tldata_ was last computed
@@ -47,6 +48,7 @@ classdef InfoTimelineModel < handle
     custom_data % [1 x nframes] custom data to plot
     tldata % [nptsxnfrm] most recent data set/shown. NOT y-normalized
     statThresh % scalar, threshold value for timeline statistics
+    isStatThreshVisible % scalar logical, whether to show threshold visualization
   end
 
   methods
@@ -60,6 +62,7 @@ classdef InfoTimelineModel < handle
       obj.custom_data_ = [];
       obj.tldata_ = [];
       obj.statThresh_ = [];
+      obj.isStatThreshVisible_ = false;
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc_(hasTrx);  % fires no events
@@ -136,6 +139,15 @@ classdef InfoTimelineModel < handle
 
     function set.statThresh(obj, v)
       obj.statThresh_ = v;
+    end
+
+    function v = get.isStatThreshVisible(obj)
+      v = obj.isStatThreshVisible_;
+    end
+
+    function toggleIsStatThreshVisible(obj)
+      % Toggle threshold visualization state
+      obj.isStatThreshVisible_ = ~obj.isStatThreshVisible_;
     end
 
     function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler)

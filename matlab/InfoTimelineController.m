@@ -400,14 +400,15 @@ classdef InfoTimelineController < handle
     
     function updateStatThresh(obj)
       % Update the statistic threshold display from the model
-      thresh = obj.lObj.infoTimelineModel.statThresh;
+      itm = obj.lObj.infoTimelineModel;
+      thresh = itm.statThresh;
+      tfshow = itm.isStatThreshVisible;
+      
       if ~isempty(thresh)
         obj.hStatThresh.YData = [thresh thresh];
       end
-    end
-    
-    function setStatThreshViz(obj,tfshow)
-      % show stat threshold and y-axis labels/ticks
+      
+      % Update visibility and axis colors
       onoff = onIff(tfshow);
       obj.hStatThresh.Visible = onoff;
       if tfshow
@@ -416,6 +417,7 @@ classdef InfoTimelineController < handle
         obj.hAx.YColor = [0.15 0.15 0.15];
       end
     end
+    
     
     function tfSucc = setCurProp(obj,iprop)
       % updateLabels will essentially assert that iprop is in range for
@@ -571,8 +573,7 @@ classdef InfoTimelineController < handle
     end
 
     function cbkToggleThresholdViz(obj,src,evt)  %#ok<INUSD> 
-      tfviz = strcmp(obj.hStatThresh.Visible,'on');
-      obj.setStatThreshViz(~tfviz);
+      obj.lObj.toggleTimelineIsStatThreshVisible();
     end
 
     function cbkClearBout(obj,src,evt)  %#ok<INUSD>

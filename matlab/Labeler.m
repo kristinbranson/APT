@@ -1648,6 +1648,11 @@ classdef Labeler < handle
       obj.infoTimelineModel.statThresh = v;
       obj.notify('updateTimelineStatThresh');
     end
+    
+    function toggleTimelineIsStatThreshVisible(obj)
+      obj.infoTimelineModel.toggleIsStatThreshVisible();
+      obj.notify('updateTimelineStatThresh');
+    end
   end
   
   %% Configurations
