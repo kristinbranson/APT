@@ -25,6 +25,7 @@ classdef InfoTimelineModel < handle
     TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
     custom_data_  % [1 x nframes] custom data to plot
+    tldata_  % [nptsxnfrm] most recent data set/shown. NOT y-normalized
   end
   
   properties (Dependent)
@@ -39,6 +40,7 @@ classdef InfoTimelineModel < handle
     isdefault % whether this has been changed
     isSelectedFromFrameIndex
     custom_data % [1 x nframes] custom data to plot
+    tldata % [nptsxnfrm] most recent data set/shown. NOT y-normalized
   end
 
   methods
@@ -50,6 +52,7 @@ classdef InfoTimelineModel < handle
       obj.curproptype_ = 1;
       obj.isdefault_ = true;
       obj.custom_data_ = [];
+      obj.tldata_ = [];
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc_(hasTrx);  % fires no events
@@ -118,6 +121,10 @@ classdef InfoTimelineModel < handle
 
     function v = get.custom_data(obj)
       v = obj.custom_data_;
+    end
+
+    function v = get.tldata(obj)
+      v = obj.tldata_;
     end
     
     function readTimelinePropsNew(obj)
@@ -354,6 +361,12 @@ classdef InfoTimelineModel < handle
         end
         %szassert(data,[labeler.nLabelPoints obj.nfrm]);
       end
+      
+      % Store the computed data for external access (e.g., navigation)
+      % Make a copy and clean up inf values to preserve current functionality
+      tldata_copy = data;
+      tldata_copy(isinf(tldata_copy)) = nan;
+      obj.tldata_ = tldata_copy;
     end
     
   end  % methods  

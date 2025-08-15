@@ -24,7 +24,6 @@ classdef InfoTimelineController < handle
 
     hPts  % [npts] line handles
     hPtStat  % scalar line handle
-    tldata  % [nptsxnfrm] most recent data set/shown in setLabelsFull. this is NOT y-normalized
     hPtsL  % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)
     
     listeners  % [nlistener] col cell array of labeler prop listeners
@@ -302,8 +301,6 @@ classdef InfoTimelineController < handle
       dat = obj.lObj.getTimelineDataCurrMovTgt(); % [nptsxnfrm]
       dat(isinf(dat)) = nan;
       datnonnan = dat(~isnan(dat));
-
-      obj.tldata = dat;
 
       set(obj.hPts,'XData',nan,'YData',nan);
       set(obj.hPtStat,'XData',nan,'YData',nan);
