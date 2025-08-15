@@ -16386,6 +16386,17 @@ classdef Labeler < handle
       data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj) ;
     end
 
+    function tf = hasTimelinePrediction(obj)
+      % Check if timeline has prediction data available
+      itm = obj.infoTimelineModel ;
+      tf = ismember('Predictions',itm.proptypes) && isvalid(obj.tracker);
+      if tf,
+        pcode = itm.props_tracker(1);
+        data = obj.tracker.getPropValues(pcode);
+        tf = ~isempty(data) && any(~isnan(data(:)));
+      end
+    end
+
     function data = getIsLabeledCurrMovTgt(obj)
       % Get is-labeled data for current movie/target
       % Returns: [nptsxnfrm] logical array indicating which points are labeled

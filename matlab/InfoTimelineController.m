@@ -472,21 +472,6 @@ classdef InfoTimelineController < handle
 %       set(obj.hMarked,'Visible',onoff);
 %     end
 
-    function tf = isDefaultProp(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      tf = itm.isdefault;
-    end
-
-    function tf = hasPrediction(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      tf = ismember('Predictions',itm.proptypes) && isvalid(obj.lObj.tracker);
-      if tf,
-        pcode = itm.props_tracker(1);
-        data = obj.lObj.tracker.getPropValues(pcode);
-        tf = ~isempty(data) && any(~isnan(data(:)));
-      end
-    end
-
     function setCurPropTypePredictionDefault(obj)
       itm = obj.lObj.infoTimelineModel ;
       proptypei =  find(strcmpi(itm.proptypes,'Predictions'),1);
@@ -506,7 +491,7 @@ classdef InfoTimelineController < handle
     end
     
     function cbkNewTrackingResults(obj, ~, ~)
-      if obj.isDefaultProp() && obj.hasPrediction() ,
+      if obj.lObj.infoTimelineModel.isdefault && obj.lObj.hasTimelinePrediction() ,
         obj.setCurPropTypePredictionDefault() ;
       end
       obj.cbkLabelUpdated() ;
