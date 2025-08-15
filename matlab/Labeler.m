@@ -139,7 +139,7 @@ classdef Labeler < handle
     didSetShowMaRoi 
     didSetShowMaRoiAux
 
-    didSetLabels
+    % didSetLabels
     didSetLabelMode
     didSetLabels2Hide
 
@@ -1541,7 +1541,8 @@ classdef Labeler < handle
         obj.updateTrxTable();
         obj.updateFrameTableIncremental(); 
       end
-      obj.notify('didSetLabels') ;
+      %obj.notify('didSetLabels') ;
+      obj.notify('updateTimelineLabels') ;
     end
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
