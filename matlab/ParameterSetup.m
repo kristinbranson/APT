@@ -221,12 +221,11 @@ output = handles.output;
   function s = getDisplayName(data)
     s = data.DispNameUse;
     s = cleanDisplayName(s);
-    isMultiDeepTrack = startsWith(data.FullPath,'ROOT.MultiAnimal.Detect.DeepTrack');
-    isPoseDeepTrack = startsWith(data.FullPath,'ROOT.DeepTrack');
+    stage = APTParameters.getStage(data.FullPath);
     if handles.labelerObj.trackerIsTwoStage
-      if isMultiDeepTrack,
+      if strcmpi(stage,'first'),
         s = [s,' (detection stage)'];
-      elseif isPoseDeepTrack,
+      elseif strcmp(stage,'last'),
         s = [s,' (pose stage)'];
       end
     end    

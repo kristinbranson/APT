@@ -2269,24 +2269,20 @@ classdef DeepTracker < LabelTracker
         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
       end
       
+      stg1dtpath = [APTParameters.maDetectPath,'.DeepTrack'];
       if tfTD
         tdata = num2cell(tdata(:)');
         
         % stage 1 trackData; move Detect.DeepTrack to top-level
-        if isSubField(tdata{1}.sPrmAll,{'ROOT','MultiAnimal','Detect','DeepTrack'}),
-          tdata{1}.sPrmAll.ROOT.DeepTrack = ...
-            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack;
-          tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-            tdata{1}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
+        newfld = APTParameters.posePath;
+        if structisfield(tdata{1}.sPrmAll,stg1dtpath),
+          tdata{1}.sPrmAll = structmvfield(tdata{1}.sPrmAll,stg1dtpath,newfld);
         end
       else
        tdata = {[] tdata};
       end
       % remove detect/DeepTrack from stage2
-      if isSubField(tdata{2}.sPrmAll,{'ROOT','MultiAnimal','Detect'}),
-        tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect = rmfield(...
-          tdata{2}.sPrmAll.ROOT.MultiAnimal.Detect,'DeepTrack');
-      end
+      tdata{2}.sPrmAll = structrmfield(tdata{2}.sPrmAll,stg1dtpath);
     end
   end  % methods (Static)
 
@@ -3092,7 +3088,7 @@ classdef DeepTracker < LabelTracker
         return;
       end
       tv = obj.trkVizer;
-      if isempty(tv) || isempty(tv.ptrx)
+      if isempty(tv.ptrx)
         return;
       end
       curfr = obj.lObj.currFrame;

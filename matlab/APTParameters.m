@@ -7,8 +7,9 @@ classdef APTParameters
     % Use getParamTrees to access copies of these trees.
     PARAM_FILES_TREES = APTParameters.paramFilesTrees() ;
     maDetectPath = 'ROOT.MultiAnimal.Detect';
+    posePath = 'ROOT.DeepTrack';
     detectDataAugPath = [APTParameters.maDetectPath,'.DeepTrack.DataAugmentation'];
-    poseDataAugPath = 'ROOT.DeepTrack.DataAugmentation';
+    poseDataAugPath = [APTParameters.posePath,'.DataAugmentation'];
   end
   methods (Static)
     function trees = getParamTrees(subtree)
@@ -251,6 +252,17 @@ classdef APTParameters
       
     end
     
+    function stage = getStage(path)
+      if startsWith(path,APTParameters.posePath),
+        stage = 'last';
+      elseif startsWith(path,APTParameters.maDetectPath),
+        stage = 'first';
+      else
+        stage = 'unknown';
+      end
+        
+    end
+
     function tree = filterPropertiesByCondition(tree,labelerObj,varargin)
       % note on netsUsed
       % Currently, topdown trackers include 2 'netsUsed'
@@ -768,11 +780,8 @@ classdef APTParameters
 %         end
         extra_str = '';
         if ~isempty(strfind(kk{ndx},'DataAugmentation')) && lobj.maIsMA && lobj.trackerIsTwoStage
-          if strfind(kk{ndx},'MultiAnimal.Detect')
-            extra_str = ' (first stage)';
-          else
-            extra_str = ' (second stage)';
-          end
+          stage = APTParameters.getStage(kk{ndx});
+          extra_str = sprintf(' (%s stage)',stage);
         end
         dstr = sprintf('%s%s%s %d -> %d\n',dstr,nd.Data.DispName, extra_str,...
                     prev_val,cur_val);
@@ -960,8 +969,8 @@ classdef APTParameters
       end
       % under ma.detect, we have the same deeptrack structure
       if isfield(s,'ma') && isfield(s,'deeptrack'),
-        t1 = s.ma.tree.findnode('ROOT.MultiAnimal.Detect.DeepTrack');
-        t2 = s.deeptrack.tree.findnode('ROOT.DeepTrack');
+        t1 = s.ma.tree.findnode([APTParameters.maDetectPath,'.DeepTrack']);
+        t2 = s.deeptrack.tree.findnode(APTParameters.posePath);
         if isempty(t1.Children),
           t1.Children = TreeNode.empty(0,1);
         end      

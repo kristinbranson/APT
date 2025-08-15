@@ -116,7 +116,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   % variations observed in the labels
 
   if lobj.trackerIsTwoStage,
-    autoparams('MultiAnimal.TargetCrop.multi_scale_by_bbox') = auto_multi_bbox_scale;
+    autoparams('ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox') = auto_multi_bbox_scale;
   end
 
     %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));

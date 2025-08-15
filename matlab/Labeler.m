@@ -9370,7 +9370,7 @@ classdef Labeler < handle
     function crop_sz = get_ma_crop_sz(obj)
       % Get crop sz for MA
       sagg = TrnPack.aggregateLabelsAddRoi(obj,false,...
-        obj.trackParams.ROOT.MultiAnimal.Detect.BBox,...
+        structgetfield(obj.trackParams,[APTParameters.maDetectPath,'.BBox']),...
         obj.trackParams.ROOT.MultiAnimal.LossMask);
       min_crop = obj.trackParams.ROOT.MultiAnimal.LossMask.PadFloor;
       maxx = min_crop; maxy = min_crop;
@@ -11566,6 +11566,117 @@ classdef Labeler < handle
       end      
     end  % function
 
+    function [imsz,downsample,batchsize] = trackGetTrainImageSize(obj,varargin)
+      % [imsz,downsample,batchsize] = trackGetTrainImageSize(obj,varargin)
+      % Get information about the network input size during training
+      % imsz: The input image w x h for networks during training.
+      % imsz is nstages x 2, with imsz(i,:) being the size for stage i
+      % downsample: Downsample factor, nstages x 1
+      % batchsize: Batch size: nstages x 1
+      % Optional inputs:
+      % sPrm: struct version of parameters, if empty will be grabbed from
+      % obj.trackGetTrainingParams. This input is used in parameter
+      % visualization. Default: []
+      % stages: which stage(s) to compute imsz for. If empty, then computes
+      % for all stages. Default: []
+      [sPrm,stages] = myparse(varargin,'sPrm',[],'stages',[]);
+      if isempty(sPrm),
+        sPrm = obj.trackGetTrainingParams();
+      end
+      is_ma = obj.maIsMA;
+      is2stage = obj.trackerIsTwoStage;
+      if isempty(stages),
+        if is2stage,
+          stages = 1:2;
+        else
+          stages = 1;
+        end
+      end
+      imsz = nan(numel(stages),2);
+      downsample = nan(numel(stages),1);
+      batchsize = nan(numel(stages),1);
+      for stagei = 1:numel(stages),
+        stage = stages(stagei);
+        if obj.hasTrx || (is_ma && is2stage && (stage==2))
+          prmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
+          cropRad = maGetTgtCropRad(prmTgtCrop);
+          imsz(stagei,:) = cropRad*2+[1,1];
+        elseif is_ma,
+          if sPrm.ROOT.MultiAnimal.multi_crop_ims
+            i_sz = sPrm.ROOT.MultiAnimal.multi_crop_im_sz;
+          else
+            i_sz = obj.getMovieRoiMovIdx(MovieIndex(1));
+            i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
+          end
+          imsz(stagei,:) = [i_sz,i_sz];
+        else
+          nmov = lObj.nmoviesGTaware;
+          rois = nan(nmov,obj.nview,4);
+          for i = 1:nmov
+            rois(i,:,:) = obj.getMovieRoiMovIdx(MovieIndex(i));
+          end
+          if obj.isMultiView,
+            warningNoTrace('Memory analysis based on first view only.');
+          end
+          rois = reshape(rois(:,1,:),nmov,4);
+          hs = rois(:,4)-rois(:,3)+1;
+          ws = rois(:,2)-rois(:,1)+1;
+          if ~all(hs==hs(1)) || ~all(ws==ws(1)),
+            warningNoTrace('Memory analysis based on first movie size.');
+          end
+          imsz(stagei,:) = [hs(1),ws(1)];
+        end
+
+        if is_ma && is2stage,
+          if stage == 2,
+            downsample(stagei) = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+            batchsize(stagei) = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
+          elseif stage == 1
+            downsample(stagei) = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.ImageProcessing.scale;
+            batchsize(stagei) = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size;
+          end
+        else
+          downsample(stagei) = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
+          batchsize(stagei) = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
+        end
+      end
+    end
+
+    function nettype = trackGetNetType(obj,varargin)
+      % nettype = trackGetNetType(obj,varargin)
+      % Get the names of the networks for each stage.
+      % nettype is a cell of size nstages x 1, with nettype{i} a string
+      % indicating the network type for that stage
+      % Optional input:
+      % stages: which stage(s) to compute imsz for. If empty, then computes
+      % for all stages. Default: []
+
+      [stages] = myparse(varargin,'stages',[]);
+      is_ma = obj.maIsMA;
+      is2stage = obj.trackerIsTwoStage;
+      if isempty(stages),
+        if is2stage,
+          stages = 1:2;
+        else
+          stages = 1;
+        end
+      end
+      nettype = cell(numel(stages),1);
+      for stagei = 1:numel(stages),
+        stage = stages(stagei);
+        if is_ma && is2stage && stage == 2
+          nettype{stagei} = string(obj.tracker.trnNetType);
+        elseif is_ma && is2stage && stage == 1
+          nettype{stagei} = obj.tracker.stage1Tracker.algorithmName;
+        elseif is_ma
+          nettype{stagei} = string(obj.tracker.trnNetType);
+        else
+          nettype{stagei} = obj.tracker.algorithmName;
+        end
+      end
+      
+    end
+
     function dotrain = trackCheckGPUMemGUI(obj,varargin)
       % Check for a GPU, and check the GPU memory against an estimate of the
       % required GPU memory.
@@ -11573,14 +11684,17 @@ classdef Labeler < handle
       % Does UI stuff, should be moved into controller
       silent = myparse(varargin,'silent',false) || obj.silent ;
       dotrain = true;
-      sPrm = obj.trackGetTrainingParams();
-      [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(obj,'');
-      imsz = ParameterVisualizationMemory.getProjImsz(...
-        obj,sPrm,is_ma,is2stage,1);
-      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        obj,sPrm,is_ma,is2stage,1);
-      imsz = imsz/ds;
-      mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
+      is_ma = obj.maIsMA;
+      [imsz,downsample,batchsize] = obj.trackGetTrainImageSize();
+      imsz = max(1,round(imsz./downsample));
+      nettype = obj.trackGetNetType();
+      mem_need = 0;
+      for stage = 1:numel(downsample),
+        mem_need_curr = get_network_size(nettype{stage},imsz(stage,:),batchsize(stage),is_ma);
+        if ~isempty(mem_need_curr),
+          mem_need = max(mem_need_curr,mem_need);
+        end
+      end
       try
         [~, freemem] = obj.trackDLBackEnd.getFreeGPUs(1);
       catch
@@ -11618,35 +11732,6 @@ classdef Labeler < handle
         end
       end
       
-      if ~is2stage || ~dotrain, 
-        return
-      end
-      
-      % check for 2nd stage
-      imsz = ParameterVisualizationMemory.getProjImsz(...
-        obj,sPrm,is_ma,is2stage,2);
-      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
-        obj,sPrm,is_ma,is2stage,2);
-      imsz = imsz/ds;
-      mem_need = get_network_size(nettype,imsz,bsz,false);
-      if ~silent ,
-        if isempty(freemem) ,
-          % If we get here, we must have already told the user above that there are
-          % not GPUs available, and they must have said to proceed.  So no need to
-          % ask again.
-        elseif (mem_need>0.9*freemem) ,
-          qstr = ...
-            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
-                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
-                     'to prevent training from crashing. Do you still want to train?'], ...
-            freemem, ...
-            round(mem_need)) ;
-          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
-          if ~strcmpi(res,'Yes')
-            dotrain = false;
-          end
-        end
-      end
     end  % function
     
     function result = bgTrnIsRunningFromTrackerIndex(obj)
@@ -12199,11 +12284,11 @@ classdef Labeler < handle
         nedge = size(skel,1);
         skelstr = arrayfun(@(x)sprintf('%d %d',skel(x,1),skel(x,2)),1:nedge,'uni',0);
         skelstr = String.cellstr2CommaSepList(skelstr);
-        sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = skelstr;
-        sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.OpenPose.affinity_graph = skelstr;
+        sPrmAll = structsetfield(sPrmAll,[APTParameters.posePath,'.OpenPose.affinity_graph'],skelstr);
+        sPrmAll = structsetfield(sPrmAll,[APTParameters.maDetectPath,'.DeepTrack.OpenPose.affinity_graph'],skelstr);
       else
-        sPrmAll.ROOT.DeepTrack.OpenPose.affinity_graph = '';
-        sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.OpenPose.affinity_graph = '';
+        sPrmAll = structsetfield(sPrmAll,[APTParameters.posePath,'.OpenPose.affinity_graph'],'');
+        sPrmAll = structsetfield(sPrmAll,[APTParameters.maDetectPath,'.DeepTrack.OpenPose.affinity_graph'],'');
       end
             
       % add landmark matches
@@ -12211,8 +12296,8 @@ classdef Labeler < handle
       nedge = size(matches,1);
       matchstr = arrayfun(@(x)sprintf('%d %d',matches(x,1),matches(x,2)),1:nedge,'uni',0);
       matchstr = String.cellstr2CommaSepList(matchstr);
-      sPrmAll.ROOT.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
-      sPrmAll.ROOT.MultiAnimal.Detect.DeepTrack.DataAugmentation.flipLandmarkMatches = matchstr;
+      sPrmAll = structsetfield(sPrmAll,[APTParameters.poseDataAugPath,'.flipLandmarkMatches'],matchstr);
+      sPrmAll = structsetfield(sPrmAll,[APTParameters.detectDataAugPath,'.flipLandmarkMatches'],matchstr);
       
       % ma stuff
       prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop;
@@ -12227,7 +12312,7 @@ classdef Labeler < handle
           warningNoTrace('setting multi_crop_ims to False.');
           sPrmAll.ROOT.MultiAnimal.multi_crop_ims = false;
         end
-        sPrmAll.ROOT.MultiAnimal.Detect.multi_only_ht = netmode.multi_only_ht;
+        sPrmAll = structsetfield(sPrmAll,[APTParameters.maDetectPath,'.multi_only_ht'],netmode.multi_only_ht);
         sPrmAll.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta = ...
           netmode.isHeadTail || netmode==DLNetMode.multiAnimalTDPoseTrx;
       end
@@ -12242,7 +12327,7 @@ classdef Labeler < handle
       else
         iptTail = 0;
       end        
-      sPrmAll.ROOT.MultiAnimal.Detect.ht_pts = [iptHead iptTail];
+      sPrmAll = structsetfield(sPrmAll,[APTParameters.maDetectPath,'.ht_pts'],[iptHead iptTail]);
     end
     
     function sPrmAll = setExtraParams(obj,sPrmAll)

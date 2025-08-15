@@ -26,57 +26,15 @@ classdef ParameterVisualizationMemory < ParameterVisualization
   methods
 
     function setProjImsz(obj)
-      % sets .imsz
-      obj.imsz = [];
-      if obj.lObj.hasTrx || (obj.is_ma && obj.is2stage && (obj.stage==2))
-        prmTgtCrop = ParameterVisualizationMemory.getParamValue(obj.prm,'ROOT.MultiAnimal.TargetCrop');
-        cropRad = maGetTgtCropRad(prmTgtCrop);
-        obj.imsz = cropRad*2+[1,1];
-      elseif obj.is_ma,
-        if ParameterVisualizationMemory.getParamValue(obj.prm,'ROOT.MultiAnimal.multi_crop_ims'),
-          i_sz = ParameterVisualizationMemory.getParamValue(obj.prm,'ROOT.MultiAnimal.multi_crop_im_sz');
-        else
-          i_sz = obj.lObj.getMovieRoiMovIdx(MovieIndex(1));
-          i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
-        end
-        obj.imsz = [i_sz,i_sz];
-      else
-        nmov = obj.lObj.nmoviesGTaware;
-        rois = nan(nmov,obj.lObj.nview,4);
-        for i = 1:nmov
-          rois(i,:,:) = obj.lObj.getMovieRoiMovIdx(MovieIndex(i));
-        end
-        if isempty(rois),
-          ParameterVisualization.grayOutAxes('No movie loaded in.');
-          return;
-        end
-        
-        if obj.lObj.isMultiView
-          warningNoTrace('Memory analysis based on first view only.');
-        end
-        rois = reshape(rois(:,1,:),nmov,4);
-        
-        hs = rois(:,4)-rois(:,3)+1;
-        ws = rois(:,2)-rois(:,1)+1;
-        assert(all(hs==hs(1)) && all(ws==ws(1)));
-        obj.imsz = [hs(1),ws(1)];
-      end
+
+      [obj.imsz,obj.downsample,obj.batchsize] = obj.lObj.trackGetTrainImageSize('stages',obj.stage,'sPrm',obj.prm.structize());
+
     end
 
-    function setOtherProps(obj)
+    function setNetType(obj)
 
-      obj.downsample = ParameterVisualizationMemory.getParamValue(obj.prm,[obj.propPrefix,'.ImageProcessing.scale']);
-      obj.batchsize = ParameterVisualizationMemory.getParamValue(obj.prm,[obj.propPrefix,'.GradientDescent.batch_size']);
-
-      if obj.is_ma,
-        if obj.is2stage && obj.stage == 1,
-          obj.nettype = obj.lObj.tracker.stage1Tracker.algorithmName;
-        else
-          obj.nettype = string(obj.lObj.tracker.trnNetType);
-        end
-      else
-        obj.nettype = obj.lObj.tracker.algorithmName;
-      end      
+      obj.nettype = obj.lObj.trackGetNetType('stages',obj.stage);
+      obj.nettype = obj.nettype{1};
       
     end
 
@@ -111,6 +69,8 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         init@ParameterVisualization(obj,hTile,lObj,propFullName,prm);
       end
       obj.initSuccessful = false;
+      [xs,memuses,xcurr,memusecurr,xstr] = obj.getMemUse();        
+
       if isempty(obj.hAx),
         obj.hAx = nexttile(obj.hTile);
       end
@@ -120,28 +80,32 @@ classdef ParameterVisualizationMemory < ParameterVisualization
       obj.propPrefix = obj.propFullName(1:idx);
       obj.setStage();
       obj.setProjImsz();
-      obj.setOtherProps();
-
-      [xs,memuses,xcurr,memusecurr,xstr] = obj.getMemUse();
+      obj.setNetType();
 
       cla(obj.hAx);
       hold(obj.hAx,'off');
-      obj.hMem = plot(obj.hAx,xs,memuses/2^10);
-      set(obj.hMem,obj.hArgs{:});
-      hold(obj.hAx,'on');
-      obj.hMemCurr = plot(obj.hAx,xcurr,memusecurr/2^10,'ko','MarkerFaceColor','r');
-
-      xlabel(obj.hAx,xstr);
-      ylabel(obj.hAx,'Memory required (GB)');
-      
-      title(obj.hAx,sprintf('Memory required: %.1f GB',memusecurr/2^10));
-
-      if strcmp(xstr,'Downsample factor'),
-        obj.hAx.XScale = 'log';
+      if isempty(memuses),
+        obj.hMem = text(.5,.5,sprintf('No data on GPU memory for %s',obj.nettype),...
+          'HorizontalAlignment','center','VerticalAlignment','middle','Parent',obj.hAx,'Interpreter','none');
+        axis(obj.hAx,'off');
       else
-        obj.hAx.XScale = 'linear';
+        obj.hMem = plot(obj.hAx,xs,memuses/2^10);
+        set(obj.hMem,obj.hArgs{:});
+        hold(obj.hAx,'on');
+        obj.hMemCurr = plot(obj.hAx,xcurr,memusecurr/2^10,'ko','MarkerFaceColor','r');
+
+        xlabel(obj.hAx,xstr);
+        ylabel(obj.hAx,'Memory required (GB)');
+
+        title(obj.hAx,sprintf('Memory required: %.1f GB',memusecurr/2^10));
+
+        if strcmp(xstr,'Downsample factor'),
+          obj.hAx.XScale = 'log';
+        else
+          obj.hAx.XScale = 'linear';
+        end
+        axisalmosttight([],obj.hAx);
       end
-      axisalmosttight([],obj.hAx);
 
       obj.initSuccessful = true;
 
@@ -160,6 +124,9 @@ classdef ParameterVisualizationMemory < ParameterVisualization
         return;
       end
       [xs,memuses,xcurr,memusecurr,xstr] = obj.getMemUse();
+      if isempty(memuses),
+        return;
+      end
       set(obj.hMem,'XData',xs,'YData',memuses/2^10);
       set(obj.hMemCurr,'XData',xcurr,'YData',memusecurr/2^10);
       obj.hAx.XLabel.String = xstr;
