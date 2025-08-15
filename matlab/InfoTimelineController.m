@@ -87,9 +87,9 @@ classdef InfoTimelineController < handle
       % listeners{end+1,1} = ...
       %   addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
       listeners{end+1,1} = ...
-        addlistener(labeler, 'gtSuggMFTableLbledUpdated',@obj.cbkGTSuggMFTableLbledUpdated) ;
+        addlistener(labeler, 'gtSuggMFTableLbledUpdated',@(s,e)(obj.cbkGTSuggMFTableLbledUpdated())) ;
       listeners{end+1,1} = ...
-          addlistener(labeler, 'newTrackingResults', @obj.cbkNewTrackingResults) ;      
+          addlistener(labeler, 'newTrackingResults', @(s,e)(obj.cbkNewTrackingResults())) ;      
       obj.listeners = listeners;      
     
       obj.hSelIm = [];
@@ -471,7 +471,7 @@ classdef InfoTimelineController < handle
       end
     end
     
-    function cbkNewTrackingResults(obj, ~, ~)
+    function cbkNewTrackingResults(obj)
       obj.lObj.setCurPropTypePredictionDefault();
     end
     
@@ -537,24 +537,23 @@ classdef InfoTimelineController < handle
       setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nframes_(), frmsAllTgtsLbled) ;     
     end
 
-    function cbkGTSuggMFTableLbledUpdated(obj,src,evt) %#ok<INUSD>
+    function cbkGTSuggMFTableLbledUpdated(obj)
       % React to incremental update to labeler.gtSuggMFTableLbled
       
-      lblObj = obj.lObj;
-      if ~lblObj.gtIsGTMode
+      lObj = obj.lObj;
+      if ~lObj.gtIsGTMode
         % segLines are not visible,; more importantly, cannot set segLine
         % highlighting based on suggestions in current movie
         return;
       end
       
       % find rows for current movie/frm
-      tbl = lblObj.gtSuggMFTable;
-      currFrm = lblObj.currFrame;
-      tfCurrMovFrm = tbl.mov==lblObj.currMovIdx & tbl.frm==currFrm;
-      tfLbled = lblObj.gtSuggMFTableLbled;
+      tbl = lObj.gtSuggMFTable;
+      currFrm = lObj.currFrame;
+      tfCurrMovFrm = tbl.mov==lObj.currMovIdx & tbl.frm==currFrm;
+      tfLbled = lObj.gtSuggMFTableLbled;
       tfLbledCurrMovFrm = tfLbled(tfCurrMovFrm,:);
       tfHiliteOn = numel(tfLbledCurrMovFrm)>0 && all(tfLbledCurrMovFrm);
-      %obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
       setSegmentedLineOnOffAtBang(obj.hSegLineGTLbled, currFrm, tfHiliteOn) ;
     end    
 
