@@ -144,7 +144,7 @@ classdef InfoTimelineController < handle
       obj.hSegLineGTLbled = [];
     end
         
-    function initNewProject(obj)
+    function updateForNewProject(obj)
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtStat);
       deleteValidGraphicsHandles(obj.hPtsL);
@@ -216,7 +216,7 @@ classdef InfoTimelineController < handle
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
     end
     
-    function initNewMovie(obj)
+    function updateForNewMovie(obj)
       ax = obj.hAx;
       prefsTL = obj.lObj.projPrefs.InfoTimelines;
       ax.XTick = 0:prefsTL.dXTick:obj.nframes_();
@@ -398,16 +398,6 @@ classdef InfoTimelineController < handle
       end
     end
     
-    % function bouts = selectGetSelection(obj)
-    %   % Get currently selected bouts (can be noncontiguous)
-    %   %
-    %   % bouts: [nBout x 2]. col1 is startframe, col2 is one-past-endframe
-    % 
-    %   cdata = obj.hSelIm.CData;
-    %   [sp,ep] = get_interval_ends(cdata);
-    %   bouts = [sp(:) ep(:)];
-    % end
-    
     function setStatThresh(obj,th)
       obj.hStatThresh.YData = [th th];
     end
@@ -581,35 +571,6 @@ classdef InfoTimelineController < handle
       obj.setStatThreshViz(~tfviz);
     end
 
-    % function cbkContextMenu(obj,src,evt)  %#ok<INUSD>
-    %   itm = obj.lObj.infoTimelineModel ;
-    %   bouts = itm.selectGetSelectionAsBouts() ;
-    %   % nBouts = size(bouts,1);
-    %   src.UserData.bouts = bouts;
-    % 
-    %   % % Fill in bout number in "clear all" menu item
-    %   % hMnuClearAll = obj.hCMenuClearAll;
-    %   % set(hMnuClearAll,'Label',sprintf(hMnuClearAll.UserData.LabelPat,nBouts));
-    % 
-    %   % figure out if user clicked within a bout
-    %   pos = get(obj.hAx,'CurrentPoint');
-    %   frameClicked = pos(1);
-    %   bouts = itm.selectGetSelectionAsBouts() ;
-    %   tf = bouts(:,1)<=frameClicked & frameClicked<=bouts(:,2);
-    %   iBout = find(tf);
-    %   tfClickedInBout = ~isempty(iBout);
-    %   hMnuClearBout = obj.hCMenuClearBout;
-    %   set(hMnuClearBout,'Visible',onIff(tfClickedInBout));
-    %   if tfClickedInBout
-    %     assert(isscalar(iBout));
-    %     set(hMnuClearBout,'Label',sprintf(hMnuClearBout.UserData.LabelPat,...
-    %       bouts(iBout,1),bouts(iBout,2)-1));
-    %     for i = 1:numel(hMnuClearBout),
-    %       hMnuClearBout(i).UserData.iBout = iBout;  % store bout that user clicked in
-    %     end
-    %   end
-    % end
-
     function cbkClearBout(obj,src,evt)  %#ok<INUSD>
       obj.lObj.clearBoutInTimeline() ;
     end    
@@ -677,27 +638,8 @@ classdef InfoTimelineController < handle
       tfHiliteOn = numel(tfLbledCurrMovFrm)>0 && all(tfLbledCurrMovFrm);
       %obj.hSegLineGTLbled.setOnOffAt(currFrm,tfHiliteOn);
       setSegmentedLineOnOffAtBang(obj.hSegLineGTLbled, currFrm, tfHiliteOn) ;
-    end
-    
-    % function cbkPostZoom(obj,src,evt) %#ok<INUSD>
-    %   if ishandle(obj.hSelIm),
-    %     obj.hSelIm.YData = obj.hAx.YLim;
-    %   end
-    % end
-    
-  end
+    end    
 
-  methods (Access=private)
-    % function setLabelerSelectedFrames_(obj)
-    %   % Labeler owns the property-of-record on what frames
-    %   % are set
-    %   selFrames = bouts2frames(obj.selectGetSelection());
-    %   obj.lObj.setSelectedFrames(selFrames);
-    % end
-
-  end  % methods (Access=private)
-
-  methods
     function updateCurrentFrameLineWidths_(obj)
       itm = obj.lObj.infoTimelineModel ;
       selectOn = itm.selectOn;
@@ -733,7 +675,6 @@ classdef InfoTimelineController < handle
       else
         v = 1;
       end
-    end
-  end  % methods
-  
+    end  % function
+  end  % methods  
 end  % classdef

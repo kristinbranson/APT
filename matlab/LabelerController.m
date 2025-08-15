@@ -1796,7 +1796,7 @@ classdef LabelerController < handle
       
       obj.setShortcuts_() ;
       
-      obj.labelTLInfo.initNewProject();
+      obj.labelTLInfo.updateForNewProject();
       
       deleteValidGraphicsHandles(obj.movieManagerController_) ;
       obj.movieManagerController_ = [];
@@ -2214,7 +2214,7 @@ classdef LabelerController < handle
       end
       
       % init info timeline
-      obj.labelTLInfo.initNewProject();
+      obj.labelTLInfo.updateForNewProject();
       obj.labelTLInfo.updateLabels();
       
       % clear tracking data
@@ -3340,7 +3340,7 @@ classdef LabelerController < handle
         %   end
       end
 
-      obj.labelTLInfo.initNewMovie();
+      obj.labelTLInfo.updateForNewMovie();
       obj.labelTLInfo.updateLabels();
 
       nframes = labeler.nframes;
