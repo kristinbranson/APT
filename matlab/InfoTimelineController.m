@@ -243,10 +243,9 @@ classdef InfoTimelineController < handle
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
       initSegmentedLineBang(obj.hSegLineGTLbled,xlims,sPVLbled);
-      if obj.lObj.infoTimelineModel.getCurPropTypeIsAllFrames(),
-        obj.setCurPropTypeDefault();
-      end
-      
+      % if obj.lObj.infoTimelineModel.getCurPropTypeIsAllFrames(),
+      %   obj.lObj.setTimelineCurrentPropertyTypeToDefault();
+      % end      
       cbkGTSuggUpdated(obj,[],[]);
     end
             
@@ -381,7 +380,7 @@ classdef InfoTimelineController < handle
     end  % function   
 
     function updateLandmarkColors(obj)
-      tflbl = obj.getCurPropTypeIsLabel();
+      tflbl = obj.lObj.infoTimelineModel.getCurPropTypeIsLabel();
       lblcolors = obj.lObj.LabelPointColors();
       if tflbl
         ptclrs = lblcolors;
@@ -418,57 +417,25 @@ classdef InfoTimelineController < handle
       end
     end
     
-    
-    function tfSucc = setCurProp(obj,iprop)
-      % updateLabels will essentially assert that iprop is in range for
-      % current proptype.
-      %
-      % Does not update UI
-      tfSucc = true;
+    function setCurProp(obj, iprop)
       itm = obj.lObj.infoTimelineModel ;
-      if itm.getCurPropTypeIsAllFrames() && ...
-          strcmpi(itm.props_allframes(iprop).name,'Add custom...'),
-        [tfSucc] = obj.addCustomFeature_();
-        if ~tfSucc,
-          return;
+      if itm.getCurPropTypeIsAllFrames() && strcmpi(itm.props_allframes(iprop).name,'Add custom...')
+        movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
+        defaultpath = fileparts(movfile{1});
+        [f,p] = uigetfile('*.mat','Select .mat file with a feature value for each frame for current movie',defaultpath);
+        if ~ischar(f)
+          return
         end
+        file = fullfile(p,f);
+        obj.lObj.addCustomTimelineFeatureGivenFileName(file) ;
       else
-        itm.curprop = iprop;
+        obj.lObj.setTimelineCurrentPropertyType(obj, itm.iproptype, iprop) ;
       end
-      obj.updateLabels();
-      itm.isdefault = false;
     end
 
-    function tfSucc = addCustomFeature_(obj)
-      tfSucc = false;
-      movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
-      defaultpath = fileparts(movfile{1});
-      [f,p] = uigetfile('*.mat','Select .mat file with a feature value for each frame for current movie',defaultpath);
-      if ~ischar(f),
-        return;
-      end
-      file = fullfile(p,f);
-      try
-        obj.lObj.addCustomTimelineFeatureGivenFileName(file);
-      catch ME
-        uiwait(errordlg(ME.message, 'Error loading custom feature'));
-        return;
-      end
-      tfSucc = true;      
-    end
-
-    function tf = getCurPropTypeIsLabel(obj)
-      itm = obj.lObj.infoTimelineModel ;
-      v = itm.curproptype;
-      tf = strcmp(itm.proptypes{v},'Labels');
-    end
-
-
-    function setCurPropTypeDefault(obj)
-      obj.lObj.setTimelineCurrentPropertyType(1,1);
-      itm = obj.lObj.infoTimelineModel ;
-      itm.isdefault = true;
-    end
+    % function setCurPropTypeDefault(obj)
+    %   obj.lObj.setTimelineCurrentPropertyTypeToDefault();
+    % end
 
     function updatePropsGUI(obj)
       itm = obj.lObj.infoTimelineModel ;

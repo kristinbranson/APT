@@ -46,7 +46,6 @@ classdef InfoTimelineModel < handle
     isdefault % whether this has been changed
     isSelectedFromFrameIndex
     custom_data % [1 x nframes] custom data to plot
-    tldata % [nptsxnfrm] most recent data set/shown. NOT y-normalized
     statThresh % scalar, threshold value for timeline statistics
     isStatThreshVisible % scalar logical, whether to show threshold visualization
   end
@@ -105,24 +104,12 @@ classdef InfoTimelineModel < handle
       v = obj.curprop_;
     end
 
-    function set.curprop(obj, v)
-      obj.curprop_ = v;
-    end
-
     function v = get.curproptype(obj)
       v = obj.curproptype_;
     end
 
-    function set.curproptype(obj, v)
-      obj.curproptype_ = v;
-    end
-
     function v = get.isdefault(obj)
       v = obj.isdefault_;
-    end
-
-    function set.isdefault(obj, v)
-      obj.isdefault_ = v;
     end
 
     function result = get.isSelectedFromFrameIndex(obj)
@@ -219,7 +206,7 @@ classdef InfoTimelineModel < handle
           tfOOB = (obj.curprop > numel(obj.props)) ;
       end      
       if tfOOB
-        obj.curprop = 1;
+        obj.curprop_ = 1;
       end
     end  % function
 
@@ -249,6 +236,10 @@ classdef InfoTimelineModel < handle
       tf = strcmpi(obj.proptypes{obj.curproptype},'All Frames');
     end
 
+    function tf = getCurPropTypeIsLabel(obj)
+      tf = strcmp(obj.proptypes{obj.curproptype},'Labels');
+    end
+
     function initNewMovie(obj, isinit, hasMovie, nframes, hasTrx)
       if isinit || ~hasMovie || isnan(nframes)
         return
@@ -256,6 +247,11 @@ classdef InfoTimelineModel < handle
       obj.clearSelection(nframes) ;
       obj.custom_data_ = [];
       obj.initializePropsEtc_(hasTrx) ;  % fires no events
+      if obj.getCurPropTypeIsAllFrames()
+        obj.curproptype_ = 1 ;
+        obj.curprop_ = 1 ;
+        obj.isdefault = true ;
+      end      
     end    
 
     function addCustomFeature(obj, newprop)
@@ -263,7 +259,7 @@ classdef InfoTimelineModel < handle
         'code','add_custom',...
         'file','');
       obj.props_allframes_ = [newprop, props_allframes] ;
-      obj.curprop = 1;
+      obj.curprop_ = 1;
     end
 
     function addCustomFeatureGivenFileName(obj, file)
@@ -431,6 +427,13 @@ classdef InfoTimelineModel < handle
       obj.tldata_iMov = iMov ;
       obj.tldata_iTgt = iTgt ;
     end  % function
+    
+    function setCurrentPropertyType(obj, iproptype, iprop)
+      % iproptype, iprop assumed to be consistent already.
+      obj.curproptype_ = iproptype;
+      obj.curprop_ = iprop;
+      obj.isdefault_ = false ;
+    end
     
   end  % methods  
 end  % classdef

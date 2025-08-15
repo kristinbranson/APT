@@ -4938,6 +4938,8 @@ classdef Labeler < handle
 
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimeline');
 
       % AL20160615: omg this is the plague.
@@ -5023,6 +5025,8 @@ classdef Labeler < handle
       obj.labelingInit('dosettemplate',false);
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimeline');
 
       edata = NewMovieEventData(false);
@@ -16426,6 +16430,7 @@ classdef Labeler < handle
       % Throws error if file cannot be loaded or doesn't contain required variable
       
       obj.infoTimelineModel.addCustomFeatureGivenFileName(fileName);
+      obj.notify('updateTimelineLabels') ;
       obj.notify('updateTimeline') ;
     end
 
@@ -16466,13 +16471,23 @@ classdef Labeler < handle
       obj.notify('update') ;
     end
 
+    % function setTimelineCurrentPropertyTypeToDefault(obj)
+    %   iproptype = 1 ;
+    %   iprop = 1 ;
+    %   itm = obj.infoTimelineModel ;
+    %   itm.curproptype = iproptype;
+    %   if iprop ~= itm.curprop,
+    %     itm.curprop = iprop;
+    %   end
+    %   itm.isdefault = true ;
+    %   obj.notify('updateTimelineLabels');
+    %   obj.notify('updateTimelineLandmarkColors');
+    % end
+    
     function setTimelineCurrentPropertyType(obj, iproptype, iprop)
       % iproptype, iprop assumed to be consistent already.
       itm = obj.infoTimelineModel ;
-      itm.curproptype = iproptype;
-      if iprop ~= itm.curprop,
-        itm.curprop = iprop;
-      end
+      itm.setCurrentPropertyType(iproptype, iprop) ;
       obj.notify('updateTimelineLabels');
       obj.notify('updateTimelineLandmarkColors');
     end
