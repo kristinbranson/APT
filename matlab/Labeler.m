@@ -182,7 +182,8 @@ classdef Labeler < handle
     updateMainAxisHighlight
     updateAfterCurrentFrameSet
     update
-    updateTimeline  
+    updateTimeline
+    updateTimelineStatThresh
   end
 
   events  % used to come from labeler.tracker
@@ -1644,8 +1645,8 @@ classdef Labeler < handle
     function setMovieShiftArrowNavModeThresh(obj,v)
       assert(isscalar(v) && isnumeric(v));
       obj.movieShiftArrowNavModeThresh = v;
-      tl = obj.controller_.labelTLInfo;  % TODO: This is not how models and controllers should interact...
-      tl.setStatThresh(v);
+      obj.infoTimelineModel.statThresh = v;
+      obj.notify('updateTimelineStatThresh');
     end
   end
   

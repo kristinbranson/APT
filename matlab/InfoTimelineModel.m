@@ -26,6 +26,7 @@ classdef InfoTimelineModel < handle
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
     custom_data_  % [1 x nframes] custom data to plot
     tldata_  % [nptsxnfrm] most recent data set/shown. NOT y-normalized
+    statThresh_  % scalar, threshold value for timeline statistics
     tldata_ptype_  % the ptype used when tldata_ was last computed
     tldata_pcode_  % the pcode used when tldata_ was last computed
     tldata_iMov  % the iMov used when tldata_ was last computed
@@ -45,6 +46,7 @@ classdef InfoTimelineModel < handle
     isSelectedFromFrameIndex
     custom_data % [1 x nframes] custom data to plot
     tldata % [nptsxnfrm] most recent data set/shown. NOT y-normalized
+    statThresh % scalar, threshold value for timeline statistics
   end
 
   methods
@@ -57,6 +59,7 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = true;
       obj.custom_data_ = [];
       obj.tldata_ = [];
+      obj.statThresh_ = [];
       obj.readTimelinePropsNew();
       obj.TLPROPS_TRACKER_ = EmptyLandmarkFeatureArray();
       obj.initializePropsEtc_(hasTrx);  % fires no events
@@ -125,6 +128,14 @@ classdef InfoTimelineModel < handle
 
     function v = get.custom_data(obj)
       v = obj.custom_data_;
+    end
+
+    function v = get.statThresh(obj)
+      v = obj.statThresh_;
+    end
+
+    function set.statThresh(obj, v)
+      obj.statThresh_ = v;
     end
 
     function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler)

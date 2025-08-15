@@ -251,7 +251,7 @@ classdef InfoTimelineController < handle
     end
             
     function updateLabels(obj)
-      % Get data and set .hPts, .hMarked
+      % Get data and set .hPts, .hMarked, hPtStat
       
       if isempty(obj.lObj.nLabelPoints) || isnan(obj.lObj.nLabelPoints)
         return
@@ -398,8 +398,12 @@ classdef InfoTimelineController < handle
       end
     end
     
-    function setStatThresh(obj,th)
-      obj.hStatThresh.YData = [th th];
+    function updateStatThresh(obj)
+      % Update the statistic threshold display from the model
+      thresh = obj.lObj.infoTimelineModel.statThresh;
+      if ~isempty(thresh)
+        obj.hStatThresh.YData = [thresh thresh];
+      end
     end
     
     function setStatThreshViz(obj,tfshow)

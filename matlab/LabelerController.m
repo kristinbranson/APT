@@ -503,6 +503,8 @@ classdef LabelerController < handle
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateTimelineStatThresh',@(s,e)(obj.updateTimelineStatThresh(s,e))) ;
 
       obj.listeners_(end+1) = ...
         addlistener(obj.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
@@ -3782,6 +3784,13 @@ classdef LabelerController < handle
       set(obj.pumInfo_labels,'Enable',onIff(hasProject));
       set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
       set(obj.pumTrack,'Enable',onIff(hasProject));
+    end
+
+    function updateTimelineStatThresh(obj, src, evt)  %#ok<INUSD>
+      % Update the timeline statistic threshold display.
+      if ~isempty(obj.labelTLInfo)
+        obj.labelTLInfo.updateStatThresh();
+      end
     end
 
     % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
