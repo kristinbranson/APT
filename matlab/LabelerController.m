@@ -502,13 +502,13 @@ classdef LabelerController < handle
       % obj.listeners_(end+1) = ...
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline(s,e))) ;
+        addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimelineStatThresh',@(s,e)(obj.updateTimelineStatThresh(s,e))) ;
+        addlistener(obj.labeler_,'updateTimelineStatThresh',@(s,e)(obj.updateTimelineStatThresh())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimelineLabels',@(s,e)(obj.updateTimelineLabels(s,e))) ;
+        addlistener(obj.labeler_,'updateTimelineLabels',@(s,e)(obj.updateTimelineLabels())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimelineLandmarkColors',@(s,e)(obj.updateTimelineLandmarkColors(s,e))) ;
+        addlistener(obj.labeler_,'updateTimelineLandmarkColors',@(s,e)(obj.updateTimelineLandmarkColors())) ;
 
       obj.listeners_(end+1) = ...
         addlistener(obj.slider_frame,'ContinuousValueChange',@(s,e)(obj.controlActuated('slider_frame', s, e))) ;
@@ -3768,7 +3768,7 @@ classdef LabelerController < handle
     %   tb.Value = itm.selectOn;
     % end
 
-    function updateTimeline(obj, src, evt)  %#ok<INUSD>
+    function updateTimeline(obj)
       % Update the props dropdown menu and timeline.
       labeler = obj.labeler_ ;
       hasProject = labeler.hasProject ;
@@ -3788,21 +3788,21 @@ classdef LabelerController < handle
       set(obj.pumTrack,'Enable',onIff(hasProject));
     end
 
-    function updateTimelineStatThresh(obj, src, evt)  %#ok<INUSD>
+    function updateTimelineStatThresh(obj)
       % Update the timeline statistic threshold display.
       if ~isempty(obj.labelTLInfo)
         obj.labelTLInfo.updateStatThresh();
       end
     end
 
-    function updateTimelineLabels(obj, src, evt)  %#ok<INUSD>
+    function updateTimelineLabels(obj)
       % Update the timeline labels display.
       if ~isempty(obj.labelTLInfo)
         obj.labelTLInfo.updateLabels();
       end
     end
 
-    function updateTimelineLandmarkColors(obj, src, evt)  %#ok<INUSD>
+    function updateTimelineLandmarkColors(obj)
       % Update the timeline landmark colors.
       if ~isempty(obj.labelTLInfo)
         obj.labelTLInfo.updateLandmarkColors();

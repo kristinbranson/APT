@@ -429,7 +429,7 @@ classdef InfoTimelineController < handle
         file = fullfile(p,f);
         obj.lObj.addCustomTimelineFeatureGivenFileName(file) ;
       else
-        obj.lObj.setTimelineCurrentPropertyType(obj, itm.iproptype, iprop) ;
+        obj.lObj.setTimelineCurrentPropertyType(itm.curproptype, iprop) ;
       end
     end
 

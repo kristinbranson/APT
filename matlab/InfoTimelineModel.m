@@ -150,7 +150,7 @@ classdef InfoTimelineModel < handle
                       ~isequal(iTgt, obj.tldata_iTgt);
       end
       if doRecompute
-        obj.recomputeDataForCurrentMovieAndTarget_() ;
+        obj.recomputeDataForCurrentMovieAndTarget_(labeler) ;
       end
       result = obj.tldata_;
     end
