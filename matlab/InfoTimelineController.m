@@ -34,20 +34,7 @@ classdef InfoTimelineController < handle
     hSegLineGTLbled  % scalar line handle
   end
   
-  properties (Dependent)
-    nfrm_
-  end
-  
   methods
-    function v = get.nfrm_(obj)
-      lblObj = obj.lObj;
-      if lblObj.hasMovie
-        v = lblObj.nframes;
-      else
-        v = 1;
-      end
-    end
-
     function obj = InfoTimelineController(parent)
       % parent a LabelerController
 
@@ -79,25 +66,18 @@ classdef InfoTimelineController < handle
              'visible','off', ...
              'Tag','InfoTimeline_StatThresh');      
 
-      if ~isempty(axti) && ishandle(axti),
-        axti.Color = [0 0 0];
-        axti.ButtonDownFcn = @(src,evt)(obj.cbkBDF(src,evt));
-        %hold(axti,'on');
-      end
+      axti.Color = [0 0 0];
+      axti.ButtonDownFcn = @(src,evt)(obj.cbkBDF(src,evt));
       obj.hAxL = axti;
       
-      if obj.isL,
-        obj.hCurrFrameL = ...
-          line('Parent',axti, ...
-               'XData',[nan nan], ...
-               'YData',[0 1], ...
-               'LineStyle','-', ...
-               'Color',[1 1 1], ...
-               'hittest','off', ...
-               'Tag','InfoTimeline_CurrFrameLabel') ;
-      else
-        obj.hCurrFrameL = [];
-      end
+      obj.hCurrFrameL = ...
+        line('Parent',axti, ...
+             'XData',[nan nan], ...
+             'YData',[0 1], ...
+             'LineStyle','-', ...
+             'Color',[1 1 1], ...
+             'hittest','off', ...
+             'Tag','InfoTimeline_CurrFrameLabel') ;
 
       obj.hPts = [];
       obj.hPtStat = [];
@@ -135,6 +115,10 @@ classdef InfoTimelineController < handle
                'Callback',@(src,evt)obj.cbkToggleThresholdViz(src,evt),...
                'Tag','menu_InfoTimeline_ToggleThresholdViz');
       axtm.UIContextMenu = hCMenu;            
+
+      % Make sure the main timeline axes and the is-labeled axes always have the
+      % same XLim, even when user uses Matlab built-in zoom/pan features.
+      linkaxes([obj.hAx,obj.hAxL],'x');
     end  % function
     
     function delete(obj)
@@ -142,12 +126,6 @@ classdef InfoTimelineController < handle
       obj.hCurrFrame = [];
       obj.hCurrFrameL = [];
       obj.hStatThresh = [];
-      % if ~isempty(obj.hZoom)
-      %   delete(obj.hZoom);
-      % end
-      % if ~isempty(obj.hPan)
-      %   delete(obj.hPan);
-      % end
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtStat);
       obj.hPts = [];
@@ -192,20 +170,18 @@ classdef InfoTimelineController < handle
       else
         obj.hPtsL = gobjects(obj.lObj.nLabelPoints,1);        
       end
-      if obj.isL
-        if isMA
-          obj.hPtsL = image('Parent',axl,'CData',nan,'hittest','off','tag','InfoTimeline_Label_ma');
-        else
-          for i=1:obj.lObj.nLabelPoints
-            obj.hPtsL(i) = ...
-              patch('Parent',axl, ...
-                    'XData',nan(1,5), ...
-                    'YData',i-1+[0,1,1,0,0], ...
-                    'CData',colors(i,:),...
-                    'EdgeColor','none', ...
-                    'hittest','off', ...
-                    'Tag',sprintf('InfoTimeline_Label_%d',i)) ;
-          end
+      if isMA
+        obj.hPtsL = image('Parent',axl,'CData',nan,'hittest','off','tag','InfoTimeline_Label_ma');
+      else
+        for i=1:obj.lObj.nLabelPoints
+          obj.hPtsL(i) = ...
+            patch('Parent',axl, ...
+                  'XData',nan(1,5), ...
+                  'YData',i-1+[0,1,1,0,0], ...
+                  'CData',colors(i,:),...
+                  'EdgeColor','none', ...
+                  'hittest','off', ...
+                  'Tag',sprintf('InfoTimeline_Label_%d',i)) ;
         end
       end
       
@@ -226,41 +202,35 @@ classdef InfoTimelineController < handle
       if ishandle(obj.hSelIm)
         obj.hSelIm.YData = ax.YLim;
       end
-      if obj.isL
-        if isMA
-          axl.YLim = [0-dy obj.axLmaxntgt+dy];
-          axl.Colormap = [0 0 0 ; 0 0 1] ;
-          % colormap(axl,[0 0 0;0 0 1]);
-          % axis(axl,'ij');
-          axl.YDir = 'reverse' ;
-        else
-          axl.YLim = [0-dy obj.lObj.nLabelPoints+dy];
-          % axis(axl,'xy');
-          axl.YDir = 'normal' ;
-        end
+      if isMA
+        axl.YLim = [0-dy obj.axLmaxntgt+dy];
+        axl.Colormap = [0 0 0 ; 0 0 1] ;
+        axl.YDir = 'reverse' ;
+      else
+        axl.YLim = [0-dy obj.lObj.nLabelPoints+dy];
+        axl.YDir = 'normal' ;
       end
       
       set(obj.hCurrFrame,'XData',[nan nan],'YData',ax.YLim,'ZData',[1 1]);
       set(obj.hCurrFrameL,'XData',[nan nan],'YData',axl.YLim,'ZData',[1 1]);
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
-      linkaxes([obj.hAx,obj.hAxL],'x');
     end
     
     function initNewMovie(obj)
       ax = obj.hAx;
       prefsTL = obj.lObj.projPrefs.InfoTimelines;
-      ax.XTick = 0:prefsTL.dXTick:obj.nfrm_;
+      ax.XTick = 0:prefsTL.dXTick:obj.nframes_();
 
-      if obj.lObj.isinit || isnan(obj.nfrm_)
+      if obj.lObj.isinit || isnan(obj.nframes_())
         return
       end
 
       deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = ...
         image('Parent', obj.hAx, ...
-              'XData', 1:obj.nfrm_, ...
+              'XData', 1:obj.nframes_(), ...
               'YData', obj.hAx.YLim, ...
-              'CData', uint8(zeros(1,obj.nfrm_)), ...
+              'CData', uint8(zeros(1,obj.nframes_())), ...
               'HitTest', 'off',...
               'CDataMapping', 'direct') ;
 
@@ -268,9 +238,7 @@ classdef InfoTimelineController < handle
       colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
       obj.hAx.Colormap = [0 0 0;colorTBSelect] ;
       
-      % obj.setLabelerSelectedFrames_();
-      
-      xlims = [1 obj.nfrm_];
+      xlims = [1 obj.nframes_()];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
@@ -279,27 +247,17 @@ classdef InfoTimelineController < handle
         obj.setCurPropTypeDefault();
       end
       
-      % itm.initializePropsEtc(obj.lObj.hasTrx);
-        
       cbkGTSuggUpdated(obj,[],[]);
     end
-    
-        
-    function didChangeCurrentTracker(obj)
-      %itm.didChangeCurrentTracker() ;  % now done directly in Labeler
-      obj.enforcePropConsistencyWithUI(false);      
-      obj.setLabelsFull();
-    end
-    
-    function setLabelsFull(obj)
+            
+    function updateLabels(obj)
       % Get data and set .hPts, .hMarked
       
       if isempty(obj.lObj.nLabelPoints) || isnan(obj.lObj.nLabelPoints)
         return
       end
       
-      dat = obj.lObj.getTimelineDataCurrMovTgt(); % [nptsxnfrm]
-      dat(isinf(dat)) = nan;
+      dat = obj.lObj.getTimelineDataForCurrentMovieAndTarget(); % [nptsxnfrm]
       datnonnan = dat(~isnan(dat));
 
       set(obj.hPts,'XData',nan,'YData',nan);
@@ -341,47 +299,26 @@ classdef InfoTimelineController < handle
         set(obj.hStatThresh,'XData',x([1 end]));
       end
       
-      if obj.isL,
-        if obj.lObj.maIsMA
-          tflbledDisp = obj.lObj.getLabeledTgts(obj.axLmaxntgt);
-          set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
-        else
-          islabeled = obj.lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
-          for i = 1:obj.lObj.nLabelPoints,
-            if any(islabeled(i,:)),
-              [t0s,t1s] = get_interval_ends(islabeled(i,:));
-              nbouts = numel(t0s);
-              t0s = t0s(:)'-.5; t1s = t1s(:)'-.5;
-              xd = [t0s;t0s;t1s;t1s;t0s];
-              yd = i-1+repmat([0;1;1;0;0],[1,nbouts]);
-            else
-              xd = nan;
-              yd = nan;
-            end
-            set(obj.hPtsL(i),'XData',xd,'YData',yd);
+      if obj.lObj.maIsMA
+        tflbledDisp = obj.lObj.getLabeledTgts(obj.axLmaxntgt);
+        set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
+      else
+        islabeled = obj.lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
+        for i = 1:obj.lObj.nLabelPoints,
+          if any(islabeled(i,:)),
+            [t0s,t1s] = get_interval_ends(islabeled(i,:));
+            nbouts = numel(t0s);
+            t0s = t0s(:)'-.5; t1s = t1s(:)'-.5;
+            xd = [t0s;t0s;t1s;t1s;t0s];
+            yd = i-1+repmat([0;1;1;0;0],[1,nbouts]);
+          else
+            xd = nan;
+            yd = nan;
           end
+          set(obj.hPtsL(i),'XData',xd,'YData',yd);
         end
       end
     end  % function
-    
-    function setLabelsFrame(obj,frm) %#ok<INUSD>
-      % frm: [n] frame indices. Optional. If not supplied, defaults to
-      % labeler.currFrame
-      
-      % AL20170616: Originally, timeline was not intended to listen
-      % directly to Labeler.labeledpos etc; instead, notification of change
-      % in labels was done by piggy-backing on Labeler.updateFrameTable*
-      % (which explicitly calls this method). However, obj is now listening 
-      % directly to lObj.labeledpos so this method is obsolete. Leave stub 
-      % here in case need to go back to piggy-backing on
-      % .updateFrameTable* eg for performance reasons.
-            
-%       lpos = obj.getDataCurrMovTgt();
-%       for i=1:obj.lObj.nLabelPoints
-%         h = obj.hPts(i);
-%         set(h,'XData',1:size(lpos,2),'YData',lpos(i,:));
-%       end
-    end
     
     function updateAfterCurrentFrameSet(obj)
       % This gets called after the user changes the frame they're looking at, i.e.
@@ -403,9 +340,9 @@ classdef InfoTimelineController < handle
       currFrame = obj.lObj.currFrame ;
       nominal_xspan = 2*obj.lObj.projPrefs.InfoTimelines.FrameRadius;
       nominal_dxtick = obj.lObj.projPrefs.InfoTimelines.dXTick ;
-      if nominal_xspan==0 || nominal_xspan > obj.nfrm_
+      if nominal_xspan==0 || nominal_xspan > obj.nframes_()
         x0 = 1;
-        x1 = obj.nfrm_;
+        x1 = obj.nframes_();
         xspan = x1-x0 ;
       else
         xspan = nominal_xspan ;
@@ -416,8 +353,8 @@ classdef InfoTimelineController < handle
         if x0_raw<1
           x0 = 1 ;
           x1 = 1 + 2*r ;
-        elseif x1_raw>obj.nfrm_
-          x1 = obj.nfrm_ ;
+        elseif x1_raw>obj.nframes_()
+          x1 = obj.nframes_() ;
           x0 = x1 - 2*r ;
         else
           x0 = x0_raw ;
@@ -429,13 +366,11 @@ classdef InfoTimelineController < handle
       else
         dxtick = nominal_dxtick ;
       end
-      obj.hAx.XTick = 0 : dxtick : obj.nfrm_ ;
+      obj.hAx.XTick = 0 : dxtick : obj.nframes_() ;
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[currFrame currFrame],'YData',obj.hAx.YLim);
-      if obj.isL,
-        obj.hAxL.XLim = [x0 x1];
-        set(obj.hCurrFrameL,'XData',[currFrame currFrame],'YData',obj.hAxL.YLim);
-      end
+      obj.hAxL.XLim = [x0 x1];
+      set(obj.hCurrFrameL,'XData',[currFrame currFrame],'YData',obj.hAxL.YLim);
     end  % function
     
     function updateSelectionImageCData_(obj)
@@ -445,10 +380,6 @@ classdef InfoTimelineController < handle
       end
     end  % function   
 
-    function newTarget(obj)
-      obj.setLabelsFull();
-    end
-    
     function updateLandmarkColors(obj)
       tflbl = obj.getCurPropTypeIsLabel();
       lblcolors = obj.lObj.LabelPointColors();
@@ -460,7 +391,7 @@ classdef InfoTimelineController < handle
       for i=1:obj.lObj.nLabelPoints
         set(obj.hPts(i),'Color',ptclrs(i,:));
       end
-      if obj.isL && ~obj.lObj.maIsMA
+      if ~obj.lObj.maIsMA
         for i=1:obj.lObj.nLabelPoints
           set(obj.hPtsL(i),'FaceColor',lblcolors(i,:));
         end
@@ -492,45 +423,8 @@ classdef InfoTimelineController < handle
       end
     end
     
-    function v = isL(obj)
-      % Returns true if obj.hAxL (which hold the is-labeled timeline axes handle)
-      % points to a valid graphics object.
-      v = ~isempty(obj.hAxL) && ishandle(obj.hAxL);
-    end
-    
-    function enforcePropConsistencyWithUI(obj, tfSetLabelsFull)
-      % Checks that .curprop is in range for current .props,
-      % .props_tracker, .curproptype. 
-      %
-      % Theoretically this check is necessary whenever .curprop, .props,
-      % .props_tracker, .curproptype change.
-      %
-      % If it is not, it resets .curprop, resets obj.parent_.pumInfo.Value,
-      % and optionally calls setLabelsFull (only optional to avoid
-      % redundant/dup calls near callsite).
-
-      itm = obj.lObj.infoTimelineModel ;
-      ptype = itm.proptypes{itm.curproptype};
-      switch ptype
-        case 'Predictions'
-          tfOOB = itm.curprop > numel(itm.props_tracker);
-        otherwise
-          tfOOB = itm.curprop > numel(itm.props);
-      end
-      
-      if tfOOB
-        NEWPROP = 1;
-        itm.curprop = NEWPROP;
-        obj.parent_.pumInfo.Value = NEWPROP;
-      end
-      
-      if tfSetLabelsFull
-        obj.setLabelsFull();
-      end
-    end
-
     function tfSucc = setCurProp(obj,iprop)
-      % setLabelsFull will essentially assert that iprop is in range for
+      % updateLabels will essentially assert that iprop is in range for
       % current proptype.
       %
       % Does not update UI
@@ -545,7 +439,7 @@ classdef InfoTimelineController < handle
       else
         itm.curprop = iprop;
       end
-      obj.setLabelsFull();
+      obj.updateLabels();
       itm.isdefault = false;
     end
 
@@ -557,7 +451,7 @@ classdef InfoTimelineController < handle
     function setCurPropType(obj, iproptype, iprop)
       % iproptype, iprop assumed to be consistent already.
       obj.lObj.setTimelineCurrentPropertyType(iproptype, iprop) ;
-      obj.setLabelsFull();
+      obj.updateLabels();
       obj.updateLandmarkColors();
     end
 
@@ -618,7 +512,7 @@ classdef InfoTimelineController < handle
           [sf,ef] = obj.lObj.trxGetFrameLimits();
         else
           sf = 1;
-          ef = obj.nfrm_;
+          ef = obj.nframes_();
         end
         frm = round(pos(1,1));
         frm = min(max(frm,sf),ef);
@@ -661,7 +555,7 @@ classdef InfoTimelineController < handle
     
     function cbkLabelUpdated(obj, ~, ~)
       if ~obj.lObj.isinit ,
-        obj.setLabelsFull() ;
+        obj.updateLabels() ;
       end
     end
     
@@ -752,7 +646,7 @@ classdef InfoTimelineController < handle
       % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
       frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
       % obj.hSegLineGT.setOnAtOnly(frmsOn);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.nfrm_, frmsOn) ;
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.nframes_(), frmsOn) ;
       
       % For hSegLineGTLbled, we turn on a given frame only if all
       % targets/rows for that frame are labeled.
@@ -761,7 +655,7 @@ classdef InfoTimelineController < handle
         'outputVariableNames',{'allTgtsLbled'});
       frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
       % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nfrm_, frmsAllTgtsLbled) ;     
+      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.nframes_(), frmsAllTgtsLbled) ;     
     end
 
     function cbkGTSuggMFTableLbledUpdated(obj,src,evt) %#ok<INUSD>
@@ -809,15 +703,10 @@ classdef InfoTimelineController < handle
       selectOn = itm.selectOn;
       if selectOn
         obj.hCurrFrame.LineWidth = 3;
-        if obj.isL
-          obj.hCurrFrameL.LineWidth = 3;
-        end
+        obj.hCurrFrameL.LineWidth = 3;
       else
         obj.hCurrFrame.LineWidth = 0.5;
-        if obj.isL
-          obj.hCurrFrameL.LineWidth = 0.5;
-        end
-        % obj.setLabelerSelectedFrames_();
+        obj.hCurrFrameL.LineWidth = 0.5;
       end
     end  % function
 
@@ -834,7 +723,17 @@ classdef InfoTimelineController < handle
       % Gray menu item if not in a bout
       set(obj.hCMenuClearBout,'Enable',onIff(lObj.isCurrentFrameSelected()));
     end
-    
+
+    function v = nframes_(obj)
+      % Reuturns the number of frames in the current movie, or one if there are no
+      % movies.  Gets this info from the Labeler.
+      lObj = obj.lObj;
+      if lObj.hasMovie
+        v = lObj.nframes;
+      else
+        v = 1;
+      end
+    end
   end  % methods
   
 end  % classdef

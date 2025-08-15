@@ -1275,7 +1275,7 @@ classdef LabelerController < handle
           % LabelerController).  Someday we will move it, but right now it's referred to
           % by so many places in Labeler, and LabelCore, etc that I don't want to start
           % shaving that yak right now.  -- ALT, 2025-01-30
-        obj.labelTLInfo.newTarget();
+        obj.labelTLInfo.updateLabels();
         if lObj.gtIsGTMode
           tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
         else
@@ -2215,7 +2215,7 @@ classdef LabelerController < handle
       
       % init info timeline
       obj.labelTLInfo.initNewProject();
-      obj.labelTLInfo.setLabelsFull();
+      obj.labelTLInfo.updateLabels();
       
       % clear tracking data
       cellfun(@(x)x.clearTracklet(),labeler.labels2);
@@ -2585,7 +2585,7 @@ classdef LabelerController < handle
       obj.update_menu_track_backend_config();
 
       % Update the InfoTimelineController
-      obj.labelTLInfo.didChangeCurrentTracker();
+      obj.labelTLInfo.updateLabels();
     end  % function
     
     function updateTrainingMonitor(obj)
@@ -2969,7 +2969,7 @@ classdef LabelerController < handle
       if (labeler.hasTrx || labeler.maIsMA) && ~labeler.isinit ,
         iTgt = labeler.currTarget;
         labeler.currImHud.updateTarget(iTgt);
-        obj.labelTLInfo.newTarget();
+        obj.labelTLInfo.updateLabels();
         obj.updateHighlightingOfAxes();
       end
     end  % function
@@ -3341,7 +3341,7 @@ classdef LabelerController < handle
       end
 
       obj.labelTLInfo.initNewMovie();
-      obj.labelTLInfo.setLabelsFull();
+      obj.labelTLInfo.updateLabels();
 
       nframes = labeler.nframes;
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
@@ -3398,7 +3398,7 @@ classdef LabelerController < handle
     end  % function
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.newTarget(); % Using this as a "refresh" for now
+      obj.labelTLInfo.updateLabels();  % Using this as a "refresh" for now
     end  % function
 
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
@@ -6010,7 +6010,7 @@ classdef LabelerController < handle
 
     function pumInfo_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       ipropType = get(src,'Value');
-      % see also InfoTimelineController/enforcePropConsistencyWithUI
+      % see also InfoTimelineController
       iprop = get(obj.pumInfo,'Value');
       labeler = obj.labeler_ ;
       itm = labeler.infoTimelineModel ;

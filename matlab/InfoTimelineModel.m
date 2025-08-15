@@ -26,6 +26,10 @@ classdef InfoTimelineModel < handle
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
     custom_data_  % [1 x nframes] custom data to plot
     tldata_  % [nptsxnfrm] most recent data set/shown. NOT y-normalized
+    tldata_ptype_  % the ptype used when tldata_ was last computed
+    tldata_pcode_  % the pcode used when tldata_ was last computed
+    tldata_iMov  % the iMov used when tldata_ was last computed
+    tldata_iTgt  % the iTgt used when tldata_ was last computed
   end
   
   properties (Dependent)
@@ -123,8 +127,22 @@ classdef InfoTimelineModel < handle
       v = obj.custom_data_;
     end
 
-    function v = get.tldata(obj)
-      v = obj.tldata_;
+    function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler)
+      if isempty(obj.tldata_) 
+        doRecompute = true ;
+      else
+        [ptype,pcode] = obj.getCurPropSmart();
+        iMov = labeler.currMovie;
+        iTgt = labeler.currTarget;
+        doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
+                      ~isequal(pcode, obj.tldata_pcode_) || ...
+                      ~isequal(iMov, obj.tldata_iMov) || ...
+                      ~isequal(iTgt, obj.tldata_iTgt);
+      end
+      if doRecompute
+        obj.recomputeDataForCurrentMovieAndTarget_() ;
+      end
+      result = obj.tldata_;
     end
     
     function readTimelinePropsNew(obj)
@@ -167,7 +185,20 @@ classdef InfoTimelineModel < handle
         obj.TLPROPS_TRACKER_ = propList ; %#ok<*PROPLC>
         obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
       end
-    end
+
+      % Check that .curprop is in range for current .props,
+      % .props_tracker, .curproptype. 
+      ptype = obj.proptypes{obj.curproptype};
+      switch ptype
+        case 'Predictions'
+          tfOOB = (obj.curprop > numel(obj.props_tracker));
+        otherwise
+          tfOOB = (obj.curprop > numel(obj.props)) ;
+      end      
+      if tfOOB
+        obj.curprop = 1;
+      end
+    end  % function
 
     function tf = hasPredictionConfidence(obj)
       tf = ~isempty(obj.TLPROPS_TRACKER_);
@@ -288,7 +319,7 @@ classdef InfoTimelineModel < handle
       end
     end
 
-    function data = getDataCurrMovTgt(obj, labeler)
+    function result = getDataCurrMovTgt(obj, labeler)
       % Get timeline data for current movie/target
       % labeler: Labeler object for accessing data sources
       
@@ -297,7 +328,7 @@ classdef InfoTimelineModel < handle
       iTgt = labeler.currTarget;
       
       if isempty(iMov) || iMov==0 
-        data = nan(labeler.nLabelPoints,1);
+        result = nan(labeler.nLabelPoints,1);
       else
         switch ptype
           case {'Labels','Imported'}
@@ -332,10 +363,10 @@ classdef InfoTimelineModel < handle
               [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
             end
             if tfhasdata
-              data = ComputeLandmarkFeatureFromPos(...
+              result = ComputeLandmarkFeatureFromPos(...
                 lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
             else
-              data = nan(labeler.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
+              result = nan(labeler.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
             end
           case 'Predictions'
             % AL 20200511 hack, initialization ordering. If the timeline
@@ -345,29 +376,115 @@ classdef InfoTimelineModel < handle
             % call which leads here.
             tracker = labeler.tracker ;
             if ~isempty(tracker) && isvalid(tracker)
-              data = tracker.getPropValues(pcode);
+              result = tracker.getPropValues(pcode);
             else
-              data = nan(labeler.nLabelPoints,1);
+              result = nan(labeler.nLabelPoints,1);
             end
           case 'All Frames'
             %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.curprop);
             if strcmpi(obj.props_allframes(obj.curprop).name,'Add custom...'),
-              data = nan(labeler.nLabelPoints,1);
+              result = nan(labeler.nLabelPoints,1);
             else
-              data = obj.custom_data;
+              result = obj.custom_data;
             end
           otherwise
             error('Unknown data type %s',ptype);
         end
         %szassert(data,[labeler.nLabelPoints obj.nfrm]);
       end
-      
+
+      % Turn infs to nans
+      result(isinf(result)) = nan;
+
       % Store the computed data for external access (e.g., navigation)
-      % Make a copy and clean up inf values to preserve current functionality
-      tldata_copy = data;
-      tldata_copy(isinf(tldata_copy)) = nan;
-      obj.tldata_ = tldata_copy;
+      obj.tldata_ = result;
     end
+    
+    function recomputeDataForCurrentMovieAndTarget_(obj, labeler)
+      % Recompute the timeline data for current movie/target
+      % labeler: Labeler object for accessing data sources
+      
+      [ptype,pcode] = obj.getCurPropSmart();
+      iMov = labeler.currMovie;
+      iTgt = labeler.currTarget;
+      
+      if isempty(iMov) || iMov==0 
+        tldata = nan(labeler.nLabelPoints,1);
+      else
+        switch ptype
+          case {'Labels','Imported'}
+            needtrx = labeler.hasTrx && strcmpi(pcode.coordsystem,'Body');
+            if needtrx,
+              trxFile = labeler.trxFilesAllFullGTaware{iMov,1};
+              bodytrx = labeler.getTrx(trxFile,labeler.movieInfoAllGTaware{iMov,1}.nframes);
+              bodytrx = bodytrx(iTgt);
+            else
+              bodytrx = [];
+            end
+            
+            nfrmtot = labeler.nframes;
+            if strcmp(ptype,'Labels'),
+              s = labeler.labelsGTaware{iMov};
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
+              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
+            else
+              s = labeler.labels2GTaware{iMov};
+              if labeler.maIsMA
+                % Use "current Tracklet" for imported data
+                if ~isempty(labeler.labeledpos2trkViz)
+                  iTgt = labeler.labeledpos2trkViz.currTrklet;
+                  if isnan(iTgt)
+                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
+                    iTgt = 1;
+                  end
+                else
+                  iTgt = 1;
+                end
+              end  
+              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
+            end
+            if tfhasdata
+              tldata = ComputeLandmarkFeatureFromPos(...
+                lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);
+            else
+              tldata = nan(labeler.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
+            end
+          case 'Predictions'
+            % AL 20200511 hack, initialization ordering. If the timeline
+            % pum has 'Predictions' selected and a new project is loaded,
+            % the trackers are not updated (via
+            % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
+            % call which leads here.
+            tracker = labeler.tracker ;
+            if ~isempty(tracker) && isvalid(tracker)
+              tldata = tracker.getPropValues(pcode);
+            else
+              tldata = nan(labeler.nLabelPoints,1);
+            end
+          case 'All Frames'
+            %fprintf('getDataCurrMovTarg -> All Frames, %d\n',obj.curprop);
+            if strcmpi(obj.props_allframes(obj.curprop).name,'Add custom...'),
+              tldata = nan(labeler.nLabelPoints,1);
+            else
+              tldata = obj.custom_data;
+            end
+          otherwise
+            error('Unknown data type %s',ptype);
+        end
+        %szassert(data,[labeler.nLabelPoints obj.nfrm]);
+      end
+
+      % Turn infs to nans
+      tldata(isinf(tldata)) = nan;
+
+      % Store the computed data for external access (e.g., navigation)
+      % Also store data that allows us to know when .tldata_ needs to be recomputed
+      obj.tldata_ = tldata;
+      obj.tldata_ptype_ = ptype ;
+      obj.tldata_pcode_ = pcode ;
+      obj.tldata_iMov = iMov ;
+      obj.tldata_iTgt = iTgt ;
+    end  % function
     
   end  % methods  
 end  % classdef

@@ -16369,9 +16369,9 @@ classdef Labeler < handle
       notify(obj, 'updateTimeline');
     end
 
-    function data = getTimelineDataCurrMovTgt(obj)
+    function data = getTimelineDataForCurrentMovieAndTarget(obj)
       % Get timeline data for current movie/target
-      data = obj.infoTimelineModel.getDataCurrMovTgt(obj);
+      data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj) ;
     end
 
     function data = getIsLabeledCurrMovTgt(obj)
