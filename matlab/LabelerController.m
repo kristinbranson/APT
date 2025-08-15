@@ -5862,15 +5862,15 @@ classdef LabelerController < handle
       obj.hlpRemoveFocus_() ;
     end
 
-    function timelineSetNumFramesShown_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_InfoTimeline_SetNumFramesShown_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.labelTLInfo.cbkSetNumFramesShown(src, evt);
     end
 
-    function timelineClearBout_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_InfoTimeline_ClearBout_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.labelTLInfo.cbkClearBout(src, evt);
     end
 
-    function timelineToggleThresholdViz_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_InfoTimeline_ToggleThresholdViz_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.labelTLInfo.cbkToggleThresholdViz(src, evt);
     end
 

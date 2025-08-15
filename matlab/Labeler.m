@@ -16490,7 +16490,7 @@ classdef Labeler < handle
       result = any(isSelectedFromFrameIndex) ;
     end
 
-    function setTimelineFrameRadius(obj, nframes)
+    function setTimelineFramesInView(obj, nframes)
       validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
       obj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);      
       obj.notify('update') ;
