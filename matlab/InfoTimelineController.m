@@ -9,44 +9,26 @@ classdef InfoTimelineController < handle
   end
   
   properties
-    parent_  % scalar LabelerController handle
     lObj  % scalar Labeler handle
-
     hAx  % scalar handle to manual timeline axis
     hAxL  % scalar handle to is-labeled timeline axis
     hCurrFrame  % scalar line handle current frame
     hCurrFrameL  % scalar line handle current frame
     hStatThresh  % scalar line handle, threshold
-    % hCMenuClearAll  % scalar context menu
     hCMenuClearBout  % scalar context menu
     hCMenuSetNumFramesShown
     hCMenuToggleThresholdViz
-
     hPts  % [npts] line handles
     hPtStat  % scalar line handle
-    hPtsL  % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)
-    
-    listeners  % [nlistener] col cell array of labeler prop listeners
-
+    hPtsL  % [npts] patch handles (non-MA projs), or [1] image handle (MA projs)    
     hSelIm  % scalar image handle for selection
-
     hSegLineGT  % scalar line handle
     hSegLineGTLbled  % scalar line handle
   end
   
   methods
-    function obj = InfoTimelineController(parent)
-      % parent a LabelerController
-
-      axtm = parent.axes_timeline_manual ;
-      axti = parent.axes_timeline_islabeled ;
-
-      obj.parent_ = parent ;
-      labeler = parent.labeler_ ;
+    function obj = InfoTimelineController(labeler, axtm, axti)
       obj.lObj = labeler ;
-      axtm.Color = [0 0 0];
-      axtm.ButtonDownFcn = @(src,evt)obj.cbkBDF(src,evt);
-      %hold(axtm,'on');
       obj.hAx = axtm;
       obj.hCurrFrame = ...
         line('Parent',axtm, ...
@@ -66,8 +48,6 @@ classdef InfoTimelineController < handle
              'visible','off', ...
              'Tag','InfoTimeline_StatThresh');      
 
-      axti.Color = [0 0 0];
-      axti.ButtonDownFcn = @(src,evt)(obj.cbkBDF(src,evt));
       obj.hAxL = axti;
       
       obj.hCurrFrameL = ...
@@ -83,18 +63,9 @@ classdef InfoTimelineController < handle
       obj.hPtStat = [];
       obj.hPtsL = [];
             
-      listeners = cell(0,1);
-      % listeners{end+1,1} = ...
-      %   addlistener(labeler, 'didSetLabels', @obj.cbkLabelUpdated) ;
-      listeners{end+1,1} = ...
-        addlistener(labeler, 'gtSuggMFTableLbledUpdated',@(s,e)(obj.cbkGTSuggMFTableLbledUpdated())) ;
-      listeners{end+1,1} = ...
-          addlistener(labeler, 'newTrackingResults', @(s,e)(obj.cbkNewTrackingResults())) ;      
-      obj.listeners = listeners;      
-    
       obj.hSelIm = [];
-      obj.hSegLineGT = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGT');
-      obj.hSegLineGTLbled = line('XData',nan,'YData',nan,'Parent',axtm,'Tag','InfoTimeline_SegLineGTLbled');
+      obj.hSegLineGT = line('Parent',axtm,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGT');
+      obj.hSegLineGTLbled = line('Parent',axtm,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGTLbled');
       
       hCMenu = ...
         uicontextmenu('Parent',axtm.Parent,...
@@ -129,10 +100,6 @@ classdef InfoTimelineController < handle
       obj.hPtStat = [];
       deleteValidGraphicsHandles(obj.hPtsL);
       obj.hPtsL = [];
-      if ~isempty(obj.listeners),
-        cellfun(@delete,obj.listeners);
-      end
-      obj.listeners = [];
       deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = [];
       deleteValidGraphicsHandles(obj.hSegLineGT);
@@ -213,7 +180,7 @@ classdef InfoTimelineController < handle
       set(obj.hStatThresh,'XData',[nan nan],'ZData',[1 1]);
     end
     
-    function updateForNewMovie(obj)
+    function updateForNewMovie(obj, colorTBSelect)
       ax = obj.hAx;
       prefsTL = obj.lObj.projPrefs.InfoTimelines;
       ax.XTick = 0:prefsTL.dXTick:obj.nframes_();
@@ -232,8 +199,7 @@ classdef InfoTimelineController < handle
               'CDataMapping', 'direct') ;
 
       % itm.setSelectMode(false) ;
-      colorTBSelect = obj.parent_.tbTLSelectMode.BackgroundColor;
-      obj.hAx.Colormap = [0 0 0;colorTBSelect] ;
+      obj.hAx.Colormap = [ 0 0 0 ; colorTBSelect ] ;
       
       xlims = [1 obj.nframes_()];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
@@ -243,7 +209,7 @@ classdef InfoTimelineController < handle
       % if obj.lObj.infoTimelineModel.getCurPropTypeIsAllFrames(),
       %   obj.lObj.setTimelineCurrentPropertyTypeToDefault();
       % end      
-      cbkGTSuggUpdated(obj,[],[]);
+      cbkGTSuggUpdated(obj);
     end
             
     function updateLabels(obj)
@@ -430,74 +396,29 @@ classdef InfoTimelineController < handle
       end
     end
 
-    % function updatePropsGUI(obj)
-    %   itm = obj.lObj.infoTimelineModel ;
-    %   obj.parent_.pumInfo_labels.Value = itm.curproptype;
-    %   props = itm.getPropsDisp(itm.curproptype);
-    %   obj.parent_.pumInfo.String = props;
-    %   obj.parent_.pumInfo.Value = itm.curprop;
-    % end
-
-    function cbkBDF(obj,src,evt) 
-      % fprintf('InfoTimeline.cbkBDF() called\n') ;
-      if ~obj.lObj.isReady || ~(obj.lObj.hasProject && obj.lObj.hasMovie)
-        return
-      end
-
-      if evt.Button==1
-        % Navigate to clicked frame        
-        pos = get(src,'CurrentPoint');
-        if obj.lObj.hasTrx,
-          [sf,ef] = obj.lObj.trxGetFrameLimits();
-        else
-          sf = 1;
-          ef = obj.nframes_();
-        end
-        frm = round(pos(1,1));
-        frm = min(max(frm,sf),ef);
-        obj.lObj.setFrameGUI(frm);
-      end
-    end  % function
-
-%     function cbkLabelMode(obj,src,evt) %#ok<INUSD>
-% %       onoff = onIff(obj.lObj.labelMode==LabelMode.ERRORCORRECT);
-%       onoff = 'off';
-%       set(obj.hMarked,'Visible',onoff);
-%     end
-
-    function cbkLabelUpdated(obj, ~, ~)
-      if ~obj.lObj.isinit ,
-        obj.updateLabels() ;
-      end
-    end
-    
-    function cbkNewTrackingResults(obj)
-      obj.lObj.setCurPropTypePredictionDefault();
-    end
-    
-    function cbkSetNumFramesShown(obj,src,evt) %#ok<INUSD>
+    function setNumFramesShown(obj)
       frmRad = obj.lObj.projPrefs.InfoTimelines.FrameRadius;
-      aswr = inputdlg('Number of frames (0 to show full movie)',...
-                      'Timeline',1,{num2str(2*frmRad)});
-      if ~isempty(aswr)
-        nframes = str2double(aswr{1});
+      answer = inputdlg('Number of frames (0 to show full movie)',...
+                        'Timeline',1,{num2str(2*frmRad)});
+      if ~isempty(answer)
+        nframes = str2double(answer{1});
         obj.lObj.setTimelineFramesInView(nframes) ;
       end
     end
 
-    function cbkToggleThresholdViz(obj,src,evt)  %#ok<INUSD> 
+    function toggleThresholdViz(obj) 
       obj.lObj.toggleTimelineIsStatThreshVisible();
     end
 
-    function cbkClearBout(obj,src,evt)  %#ok<INUSD>
+    function clearBout(obj)
       obj.lObj.clearBoutInTimeline() ;
     end    
 
-    function cbkGTIsGTModeUpdated(obj,src,evt) %#ok<INUSD>
+    function cbkGTIsGTModeUpdated(obj)
       lblObj = obj.lObj;
       gt = lblObj.gtIsGTMode;
       if gt
-        obj.cbkGTSuggUpdated([],[]);
+        obj.cbkGTSuggUpdated();
       end
       onOff = onIff(gt);
       obj.hSegLineGT.Visible = onOff ;
@@ -505,14 +426,14 @@ classdef InfoTimelineController < handle
       set(obj.hPtsL,'Visible',onIff(~gt));
     end
 
-    function cbkGTSuggUpdated(obj,src,evt) %#ok<INUSD>
+    function cbkGTSuggUpdated(obj)
       % full update to any change to labeler.gtSuggMFTable*
       
       lblObj = obj.lObj;
       if lblObj.isinit || ~lblObj.hasMovie || ~lblObj.gtIsGTMode
         % segLines are not visible; more importantly, cannot set segLine
         % highlighting based on suggestions in current movie
-        return;
+        return
       end
       
       % find rows for current movie
@@ -544,7 +465,7 @@ classdef InfoTimelineController < handle
       if ~lObj.gtIsGTMode
         % segLines are not visible,; more importantly, cannot set segLine
         % highlighting based on suggestions in current movie
-        return;
+        return
       end
       
       % find rows for current movie/frm

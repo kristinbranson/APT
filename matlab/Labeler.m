@@ -191,7 +191,7 @@ classdef Labeler < handle
   events  % used to come from labeler.tracker
     % Thrown when new tracking results are loaded for the current lObj
     % movie
-    newTrackingResults 
+    % newTrackingResults 
     
     updateTrainingMonitor
     trainEnd

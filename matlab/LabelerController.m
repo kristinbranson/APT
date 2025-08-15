@@ -324,7 +324,7 @@ classdef LabelerController < handle
       % populate the two popup menus that determine what is shown in the timeline
       % axes.
       itm = labeler.infoTimelineModel ;
-      obj.labelTLInfo = InfoTimelineController(obj) ;
+      obj.labelTLInfo = InfoTimelineController(labeler, obj.axes_timeline_manual , obj.axes_timeline_islabeled) ;
       set(obj.pumInfo,...
           'String',itm.getPropsDisp(),...
           'Value',itm.curprop);
@@ -361,7 +361,9 @@ classdef LabelerController < handle
       hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
       hP = pan(mainFigure);  % hP is a "pan object"
       hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
-      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.quitRequested())) ;    
+      set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.quitRequested())) ;
+      obj.axes_timeline_manual.ButtonDownFcn = @(src,evt)obj.timelineButtonDown(src,evt);
+      obj.axes_timeline_islabeled.ButtonDownFcn = @(src,evt)obj.timelineButtonDown(src,evt);    
       
       % Set up the figure callbacks to call obj, using the tag to determine the
       % method name.
@@ -521,6 +523,8 @@ classdef LabelerController < handle
         addlistener(labeler,'update',@(s,e)(obj.update())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'gtSuggUpdated', @(s,e)(obj.cbkGTSuggUpdated(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'gtSuggMFTableLbledUpdated', @(s,e)(obj.cbkGTSuggMFTableLbledUpdated())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
@@ -3346,7 +3350,7 @@ classdef LabelerController < handle
         %   end
       end
 
-      obj.labelTLInfo.updateForNewMovie();
+      obj.labelTLInfo.updateForNewMovie(obj.tbTLSelectMode.BackgroundColor);
       obj.labelTLInfo.updateLabels();
 
       nframes = labeler.nframes;
@@ -5862,16 +5866,16 @@ classdef LabelerController < handle
       obj.hlpRemoveFocus_() ;
     end
 
-    function menu_InfoTimeline_SetNumFramesShown_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.cbkSetNumFramesShown(src, evt);
+    function menu_InfoTimeline_SetNumFramesShown_actuated_(obj, src, evt)
+      obj.labelTLInfo.setNumFramesShown();
     end
 
-    function menu_InfoTimeline_ClearBout_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.cbkClearBout(src, evt);
+    function menu_InfoTimeline_ClearBout_actuated_(obj, src, evt)
+      obj.labelTLInfo.clearBout();
     end
 
-    function menu_InfoTimeline_ToggleThresholdViz_actuated_(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.cbkToggleThresholdViz(src, evt);
+    function menu_InfoTimeline_ToggleThresholdViz_actuated_(obj, src, evt)
+      obj.labelTLInfo.toggleThresholdViz();
     end
 
     function pbPlaySeg_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6512,6 +6516,31 @@ classdef LabelerController < handle
         stg2ctorargs = [] ;
       end      
     end  % function
+
+    function cbkGTSuggMFTableLbledUpdated(obj)
+      obj.labelTLInfo.cbkGTSuggMFTableLbledUpdated();
+    end
+
+    function timelineButtonDown(obj, src, evt)
+      labeler = obj.labeler_;
+      if ~labeler.isReady || ~labeler.hasProject || ~labeler.hasMovie
+        return
+      end
+
+      if evt.Button==1
+        % Navigate to clicked frame        
+        pos = get(src,'CurrentPoint');
+        if labeler.hasTrx,
+          [sf,ef] = labeler.trxGetFrameLimits();
+        else
+          sf = 1;
+          ef = labeler.nframes ;
+        end
+        frm = round(pos(1,1));
+        frm = min(max(frm,sf),ef);
+        labeler.setFrameGUI(frm);
+      end
+    end
 
   end  % methods  
 end  % classdef
