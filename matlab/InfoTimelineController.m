@@ -2,7 +2,9 @@ classdef InfoTimelineController < handle
   % A sub-controller to manage the two timeline axes and their contents.
   % The things shown in here roughly reflect the model state represented in
   % labeler.infoTimelineModel, an InfoTimelineModel object.  But the
-  % correspondence is not exact.
+  % correspondence is not exact.  All changes to graphics handles held by this
+  % object are made by this object.  (Except for hAx and hAxL, since those two are
+  % not 'owned' by this object.  Some changes to it are made elsewhere.)
 
   properties (Constant)
     axLmaxntgt = 3  % applies to hAxL for MA projs; number of tgts to display
@@ -209,7 +211,7 @@ classdef InfoTimelineController < handle
       % if obj.lObj.infoTimelineModel.getCurPropTypeIsAllFrames(),
       %   obj.lObj.setTimelineCurrentPropertyTypeToDefault();
       % end      
-      cbkGTSuggUpdated(obj);
+      obj.updateGTModeRelatedControls();
     end
             
     function updateLabels(obj)
@@ -220,7 +222,7 @@ classdef InfoTimelineController < handle
         return
       end
       
-      dat = lObj.getTimelineDataForCurrentMovieAndTarget(); % [nptsxnfrm]
+      dat = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nptsxnfrm]
       datnonnan = dat(~isnan(dat));
 
       set(obj.hPts,'XData',nan,'YData',nan);
@@ -359,7 +361,7 @@ classdef InfoTimelineController < handle
           set(obj.hPtsL(i),'FaceColor',lblcolors(i,:));
         end
       end
-    end
+    end  % function   
     
     function updateStatThresh(obj)
       % Update the statistic threshold display from the model
@@ -379,87 +381,46 @@ classdef InfoTimelineController < handle
       else
         obj.hAx.YColor = [0.15 0.15 0.15];
       end
-    end
+    end  % function   
     
-    function setCurProp(obj, iprop)
-      itm = obj.lObj.infoTimelineModel ;
-      if itm.getCurPropTypeIsAllFrames() && strcmpi(itm.props_allframes(iprop).name,'Add custom...')
-        movfile = obj.lObj.getMovieFilesAllFullMovIdx(obj.lObj.currMovIdx);
-        defaultpath = fileparts(movfile{1});
-        [f,p] = uigetfile('*.mat','Select .mat file with a feature value for each frame for current movie',defaultpath);
-        if ~ischar(f)
-          return
-        end
-        file = fullfile(p,f);
-        obj.lObj.addCustomTimelineFeatureGivenFileName(file) ;
-      else
-        obj.lObj.setTimelineCurrentPropertyType(itm.curproptype, iprop) ;
-      end
-    end
-
-    function setNumFramesShown(obj)
-      frmRad = obj.lObj.projPrefs.InfoTimelines.FrameRadius;
-      answer = inputdlg('Number of frames (0 to show full movie)',...
-                        'Timeline',1,{num2str(2*frmRad)});
-      if ~isempty(answer)
-        nframes = str2double(answer{1});
-        obj.lObj.setTimelineFramesInView(nframes) ;
-      end
-    end
-
-    function toggleThresholdViz(obj) 
-      obj.lObj.toggleTimelineIsStatThreshVisible();
-    end
-
-    function clearBout(obj)
-      obj.lObj.clearBoutInTimeline() ;
-    end    
-
-    function cbkGTIsGTModeUpdated(obj)
-      lblObj = obj.lObj;
-      gt = lblObj.gtIsGTMode;
-      if gt
-        obj.cbkGTSuggUpdated();
-      end
+    function updateGTModeRelatedControls(obj)
+      lObj = obj.lObj;
+      gt = lObj.gtIsGTMode;
       onOff = onIff(gt);
       obj.hSegLineGT.Visible = onOff ;
       obj.hSegLineGTLbled.Visible = onOff ;   
       set(obj.hPtsL,'Visible',onIff(~gt));
-    end
-
-    function cbkGTSuggUpdated(obj)
-      % full update to any change to labeler.gtSuggMFTable*
-      
-      lblObj = obj.lObj;
-      if lblObj.isinit || ~lblObj.hasMovie || ~lblObj.gtIsGTMode
-        % segLines are not visible; more importantly, cannot set segLine
-        % highlighting based on suggestions in current movie
-        return
+      if gt
+        if lObj.isinit || ~lObj.hasMovie || ~lObj.gtIsGTMode
+          % segLines are not visible; more importantly, cannot set segLine
+          % highlighting based on suggestions in current movie
+          return
+        end
+        
+        % find rows for current movie
+        tblLbled = table(lObj.gtSuggMFTableLbled,'variableNames',{'hasLbl'});
+        tbl = [lObj.gtSuggMFTable tblLbled];
+        mIdx = lObj.currMovIdx;
+        tf = mIdx==tbl.mov;
+        tblCurrMov = tbl(tf,:); % current mov, various frm/tgts
+        
+        % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
+        frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
+        % obj.hSegLineGT.setOnAtOnly(frmsOn);
+        setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.lObj.nframes, frmsOn) ;
+        
+        % For hSegLineGTLbled, we turn on a given frame only if all
+        % targets/rows for that frame are labeled.
+        tblRes = rowfun(@(zzHasLbl)all(zzHasLbl),tblCurrMov,...
+                        'groupingVariables',{'frm'},'inputVariables','hasLbl',...
+                        'outputVariableNames',{'allTgtsLbled'});
+        frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
+        % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
+        setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.lObj.nframes, frmsAllTgtsLbled) ;     
       end
-      
-      % find rows for current movie
-      tblLbled = table(lblObj.gtSuggMFTableLbled,'variableNames',{'hasLbl'});
-      tbl = [lblObj.gtSuggMFTable tblLbled];
-      mIdx = lblObj.currMovIdx;
-      tf = mIdx==tbl.mov;
-      tblCurrMov = tbl(tf,:); % current mov, various frm/tgts
-      
-      % for hSegLineGT, we highlight any/all frames (regardless of, or across all, targets)
-      frmsOn = tblCurrMov.frm; % could contain repeat frames (across diff targets)
-      % obj.hSegLineGT.setOnAtOnly(frmsOn);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGT, obj.lObj.nframes, frmsOn) ;
-      
-      % For hSegLineGTLbled, we turn on a given frame only if all
-      % targets/rows for that frame are labeled.
-      tblRes = rowfun(@(zzHasLbl)all(zzHasLbl),tblCurrMov,...
-        'groupingVariables',{'frm'},'inputVariables','hasLbl',...
-        'outputVariableNames',{'allTgtsLbled'});
-      frmsAllTgtsLbled = tblRes.frm(tblRes.allTgtsLbled);
-      % obj.hSegLineGTLbled.setOnAtOnly(frmsAllTgtsLbled);
-      setSegmentedLineOnAtOnlyBang(obj.hSegLineGTLbled, obj.lObj.nframes, frmsAllTgtsLbled) ;     
     end
 
-    function cbkGTSuggMFTableLbledUpdated(obj)
+    function updateGTModeRelatedControlsLight(obj)
       % React to incremental update to labeler.gtSuggMFTableLbled
       
       lObj = obj.lObj;

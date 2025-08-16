@@ -525,8 +525,8 @@ classdef LabelerController < handle
         addlistener(labeler, 'gtSuggUpdated', @(s,e)(obj.cbkGTSuggUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'gtSuggMFTableLbledUpdated', @(s,e)(obj.cbkGTSuggMFTableLbledUpdated())) ;
-      obj.listeners_(end+1) = ...
-        addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateAfterCurrentFrameSet', @(s,e)(obj.updateAfterCurrentFrameSet())) ;
 
@@ -3223,7 +3223,7 @@ classdef LabelerController < handle
       %   obj.GTManagerFigure.Visible = onIffGT;
       % end
       obj.updateHighlightingOfAxes();
-      obj.labelTLInfo.cbkGTIsGTModeUpdated() ;
+      obj.labelTLInfo.updateGTModeRelatedControls() ;
       % mmc = obj.movieManagerController_ ;
       % if ~isempty(mmc) ,
       %   mmc.lblerLstnCbkGTMode() ;
@@ -3701,7 +3701,7 @@ classdef LabelerController < handle
       % - Figure out how to disable arrow-key nav in uitables. Looks like need to
       % drop into Java and not super simple.
       % - Don't use uitables, or use them in a separate figure window.
-      obj.mainFigure_.CurrentObject = obj.axes_curr;
+      obj.mainFigure_.CurrentObject = obj.axes_curr ;
       %uicontrol(obj.txStatus);
     end
 
@@ -5857,25 +5857,50 @@ classdef LabelerController < handle
 
 
     function pumInfo_actuated_(obj, src, evt)  %#ok<INUSD>
-      cprop = get(src,'Value');
-      obj.labelTLInfo.setCurProp(cprop);
-      cpropNew = obj.labeler_.infoTimelineModel.curprop;
-      if cpropNew ~= cprop,
-        set(src,'Value',cpropNew);
+      % Set the current property to the one with index get(get,'Value').  Handles
+      % the case where this is a custom feature: Pops up a dialog in this case.
+
+      % Get the value
+      iprop = get(src,'Value');
+
+      % Do the core stuff
+      labeler = obj.labeler_ ;
+      itm = labeler.infoTimelineModel ;
+      if itm.getCurPropTypeIsAllFrames() && strcmpi(itm.props_allframes(iprop).name,'Add custom...')
+        movfile = labeler.getMovieFilesAllFullMovIdx(labeler.currMovIdx);
+        defaultpath = fileparts(movfile{1});
+        [f,p] = uigetfile('*.mat','Select .mat file with a feature value for each frame for current movie',defaultpath);
+        if ~ischar(f)
+          return
+        end
+        file = fullfile(p,f);
+        labeler.addCustomTimelineFeatureGivenFileName(file) ;
+      else
+        labeler.setTimelineCurrentPropertyType(itm.curproptype, iprop) ;
       end
+
+      % This does something important
       obj.hlpRemoveFocus_() ;
     end
 
-    function menu_InfoTimeline_SetNumFramesShown_actuated_(obj, src, evt)
-      obj.labelTLInfo.setNumFramesShown();
+    function menu_InfoTimeline_SetNumFramesShown_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Pop up a dialog to ask user for the number of frames to be shown in the
+      % timeline, then call a Labeler method to make it so. 
+      frmRad = obj.labeler_.projPrefs.InfoTimelines.FrameRadius;
+      answer = inputdlg('Number of frames (0 to show full movie)',...
+                        'Timeline',1,{num2str(2*frmRad)});
+      if ~isempty(answer)
+        nframes = str2double(answer{1});
+        obj.labeler_.setTimelineFramesInView(nframes) ;
+      end
+    end  % function
+
+    function menu_InfoTimeline_ClearBout_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.labeler_.clearBoutInTimeline() ;
     end
 
-    function menu_InfoTimeline_ClearBout_actuated_(obj, src, evt)
-      obj.labelTLInfo.clearBout();
-    end
-
-    function menu_InfoTimeline_ToggleThresholdViz_actuated_(obj, src, evt)
-      obj.labelTLInfo.toggleThresholdViz();
+    function menu_InfoTimeline_ToggleThresholdViz_actuated_(obj, src, evt)  %#ok<INUSD>
+      obj.labeler_.toggleTimelineIsStatThreshVisible();
     end
 
     function pbPlaySeg_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6077,21 +6102,20 @@ classdef LabelerController < handle
     end
     
     function cbkGTSuggUpdated(obj, ~, ~)
-      % i think there are listeners in the GTManager, not sure why we need
-      % this too
-      obj.labelTLInfo.cbkGTSuggUpdated() ;
+      % Update the main window controls when the GT suggestions change.
+      obj.labelTLInfo.updateGTModeRelatedControls() ;
     end
 
-    function cbkGTResUpdated(obj, s, e)
-      % i think there are listeners in the GTManager, not sure why we need
-      % this too
-      % if ~exist('s', 'var') ,
-      %   s = [] ;
-      % end
-      % if ~exist('e', 'var') ,
-      %   e = [] ;
-      % end
-    end
+    % function cbkGTResUpdated(obj, s, e)
+    %   % i think there are listeners in the GTManager, not sure why we need
+    %   % this too
+    %   % if ~exist('s', 'var') ,
+    %   %   s = [] ;
+    %   % end
+    %   % if ~exist('e', 'var') ,
+    %   %   e = [] ;
+    %   % end
+    % end
 
     function gtGoToNextUnlabeled(obj)
       
@@ -6142,7 +6166,7 @@ classdef LabelerController < handle
       obj.updateStatusAndPointer() ;
       obj.updateBackgroundProcessingStatus_() ;
       obj.cbkGTSuggUpdated() ;
-      obj.cbkGTResUpdated() ;
+      % obj.cbkGTResUpdated() ;
       obj.cbkCurrTrackerChanged() ;
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.hlpLblerLstnCbkUpdateTable() ; % todo check if needed
@@ -6509,7 +6533,8 @@ classdef LabelerController < handle
     end  % function
 
     function cbkGTSuggMFTableLbledUpdated(obj)
-      obj.labelTLInfo.cbkGTSuggMFTableLbledUpdated();
+      % React to incremental update to labeler.gtSuggMFTableLbled
+      obj.labelTLInfo.updateGTModeRelatedControlsLight();
     end
 
     function timelineButtonDown(obj, src, evt)
