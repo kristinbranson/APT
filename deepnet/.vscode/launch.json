@@ -249,6 +249,33 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "python": "${command:python.interpreterPath}"
+        },
+        {
+            "name": "debug_train_stage1",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/groups/branson/home/bransonk/tracking/code/APT/deepnet/APT_interface.py",
+            "args": [
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/cache_train_frcnn/combinedSideViewMA/20250816T115533_20250816T115533.json",
+                "-name",
+                "20250816T115533",
+                "-json_trn_file",
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/cache_train_frcnn/combinedSideViewMA/loc.json",
+                "-stage",
+                "first",
+                "-conf_params",
+                "-type",
+                "detect_frcnn",
+                "-ignore_local",
+                "1",
+                "-cache",
+                "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/cache_train_frcnn",
+                "train",
+                "-use_cache"
+            ],            
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
         }
     ]
 }
