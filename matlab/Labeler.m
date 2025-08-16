@@ -2450,6 +2450,7 @@ classdef Labeler < handle
           s.(fn) = ss;
         end
       end
+      
       % Set this so all the prop-setting below doesn't create issues 
       % when the associated events fire.
       obj.isinit = true;

@@ -215,11 +215,15 @@ classdef InfoTimelineController < handle
     function updateLabels(obj)
       % Get data and set .hPts, .hMarked, hPtStat
       
-      if isempty(obj.lObj.nLabelPoints) || isnan(obj.lObj.nLabelPoints)
+      lObj = obj.lObj ;
+      if lObj.isinit
+        nop() ;
+      end
+      if lObj.isinit || isempty(lObj.nLabelPoints) || isnan(lObj.nLabelPoints)
         return
       end
       
-      dat = obj.lObj.getTimelineDataForCurrentMovieAndTarget(); % [nptsxnfrm]
+      dat = lObj.getTimelineDataForCurrentMovieAndTarget(); % [nptsxnfrm]
       datnonnan = dat(~isnan(dat));
 
       set(obj.hPts,'XData',nan,'YData',nan);
@@ -248,25 +252,25 @@ classdef InfoTimelineController < handle
         
         set(obj.hAx,'YLim',[y1,y2]);
         set(obj.hCurrFrame,'YData',[y1,y2]);
-        if size(dat,1) == obj.lObj.nLabelPoints,
-          for i=1:obj.lObj.nLabelPoints
+        if size(dat,1) == lObj.nLabelPoints,
+          for i=1:lObj.nLabelPoints
             set(obj.hPts(i),'XData',x,'YData',dat(i,:));
           end
         elseif size(dat,1) == 1,
           set(obj.hPtStat,'XData',x,'YData',dat(1,:));
         else
-          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(dat,1),obj.lObj.nLabelPoints));
+          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(dat,1),lObj.nLabelPoints));
         end
         
         set(obj.hStatThresh,'XData',x([1 end]));
       end
       
-      if obj.lObj.maIsMA
-        tflbledDisp = obj.lObj.getLabeledTgts(obj.axLmaxntgt);
+      if lObj.maIsMA
+        tflbledDisp = lObj.getLabeledTgts(obj.axLmaxntgt);
         set(obj.hPtsL,'CData',uint8(tflbledDisp'));          
       else
-        islabeled = obj.lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
-        for i = 1:obj.lObj.nLabelPoints,
+        islabeled = lObj.getIsLabeledCurrMovTgt(); % [nptsxnfrm]
+        for i = 1:lObj.nLabelPoints,
           if any(islabeled(i,:)),
             [t0s,t1s] = get_interval_ends(islabeled(i,:));
             nbouts = numel(t0s);
