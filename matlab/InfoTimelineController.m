@@ -216,9 +216,6 @@ classdef InfoTimelineController < handle
       % Get data and set .hPts, .hMarked, hPtStat
       
       lObj = obj.lObj ;
-      if lObj.isinit
-        nop() ;
-      end
       if lObj.isinit || isempty(lObj.nLabelPoints) || isnan(lObj.nLabelPoints)
         return
       end
