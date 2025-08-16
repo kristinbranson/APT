@@ -2282,7 +2282,9 @@ classdef DeepTracker < LabelTracker
        tdata = {[] tdata};
       end
       % remove detect/DeepTrack from stage2
-      tdata{2}.sPrmAll = structrmfield(tdata{2}.sPrmAll,stg1dtpath);
+      if structisfield(tdata{2}.sPrmAll,stg1dtpath)
+        tdata{2}.sPrmAll = structrmfield(tdata{2}.sPrmAll,stg1dtpath);
+      end
     end
   end  % methods (Static)
 

@@ -11570,9 +11570,9 @@ classdef Labeler < handle
       % [imsz,downsample,batchsize] = trackGetTrainImageSize(obj,varargin)
       % Get information about the network input size during training
       % imsz: The input image w x h for networks during training.
-      % imsz is nstages x 2, with imsz(i,:) being the size for stage i
-      % downsample: Downsample factor, nstages x 1
-      % batchsize: Batch size: nstages x 1
+      % imsz is 2 x nstages, with imsz(:,i) being the size for stage i
+      % downsample: Downsample factor, 1 x nstages
+      % batchsize: Batch size: 1 x nstages
       % Optional inputs:
       % sPrm: struct version of parameters, if empty will be grabbed from
       % obj.trackGetTrainingParams. This input is used in parameter
@@ -11592,15 +11592,15 @@ classdef Labeler < handle
           stages = 1;
         end
       end
-      imsz = nan(numel(stages),2);
-      downsample = nan(numel(stages),1);
-      batchsize = nan(numel(stages),1);
+      imsz = nan(2,numel(stages));
+      downsample = nan(1,numel(stages));
+      batchsize = nan(1,numel(stages));
       for stagei = 1:numel(stages),
         stage = stages(stagei);
         if obj.hasTrx || (is_ma && is2stage && (stage==2))
           prmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
           cropRad = maGetTgtCropRad(prmTgtCrop);
-          imsz(stagei,:) = cropRad*2+[1,1];
+          imsz(:,stagei) = cropRad*2+[1,1];
         elseif is_ma,
           if sPrm.ROOT.MultiAnimal.multi_crop_ims
             i_sz = sPrm.ROOT.MultiAnimal.multi_crop_im_sz;
@@ -11608,7 +11608,7 @@ classdef Labeler < handle
             i_sz = obj.getMovieRoiMovIdx(MovieIndex(1));
             i_sz = max(i_sz(2)-i_sz(1)+1,i_sz(4)-i_sz(3)+1);
           end
-          imsz(stagei,:) = [i_sz,i_sz];
+          imsz(:,stagei) = [i_sz,i_sz];
         else
           nmov = lObj.nmoviesGTaware;
           rois = nan(nmov,obj.nview,4);
@@ -11624,7 +11624,7 @@ classdef Labeler < handle
           if ~all(hs==hs(1)) || ~all(ws==ws(1)),
             warningNoTrace('Memory analysis based on first movie size.');
           end
-          imsz(stagei,:) = [hs(1),ws(1)];
+          imsz(:,stagei) = [hs(1),ws(1)];
         end
 
         if is_ma && is2stage,
@@ -11645,7 +11645,7 @@ classdef Labeler < handle
     function nettype = trackGetNetType(obj,varargin)
       % nettype = trackGetNetType(obj,varargin)
       % Get the names of the networks for each stage.
-      % nettype is a cell of size nstages x 1, with nettype{i} a string
+      % nettype is a cell of size 1 x nstages, with nettype{i} a string
       % indicating the network type for that stage
       % Optional input:
       % stages: which stage(s) to compute imsz for. If empty, then computes
@@ -11661,7 +11661,7 @@ classdef Labeler < handle
           stages = 1;
         end
       end
-      nettype = cell(numel(stages),1);
+      nettype = cell(1,numel(stages));
       for stagei = 1:numel(stages),
         stage = stages(stagei);
         if is_ma && is2stage && stage == 2
@@ -11690,7 +11690,7 @@ classdef Labeler < handle
       nettype = obj.trackGetNetType();
       mem_need = 0;
       for stage = 1:numel(downsample),
-        mem_need_curr = get_network_size(nettype{stage},imsz(stage,:),batchsize(stage),is_ma);
+        mem_need_curr = get_network_size(nettype{stage},imsz(:,stage),batchsize(stage),is_ma);
         if ~isempty(mem_need_curr),
           mem_need = max(mem_need_curr,mem_need);
         end
