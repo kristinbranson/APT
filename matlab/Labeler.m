@@ -13755,14 +13755,15 @@ classdef Labeler < handle
         starttime = setframetic;   
       end
       [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
-        updateTrajs,changeTgtsIfNec] = myparse(varargin,...
-        'tfforcereadmovie',false,...
-        'tfforcelabelupdate',false,...
-        'updateLabels',true,...
-        'updateTables',true,...
-        'updateTrajs',true,...
-        'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
-        );
+       updateTrajs,changeTgtsIfNec] = ...
+        myparse(varargin,...
+                'tfforcereadmovie',false,...
+                'tfforcelabelupdate',false,...
+                'updateLabels',true,...
+                'updateTables',true,...
+                'updateTrajs',true,...
+                'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
+                );
       
       if debugtiming,
         fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -13782,17 +13783,17 @@ classdef Labeler < handle
               itmp = argmin(iTgtsLiveDist);
               iTgtNew = iTgtsLive(itmp);
               warningNoTrace('Target %d is not live in frame %d. Changing to target %d.\n',...
-                iTgt,frm,iTgtNew);
+                             iTgt,frm,iTgtNew);
               obj.setFrameAndTargetGUI(frm,iTgtNew);
               return;
             end
           else
             error('Labeler:target','Target %d not live in frame %d.',...
-              iTgt,frm);
+                  iTgt,frm);
           end
         end
       elseif obj.maIsMA
-        
+        % do nothing
       end
       
       if debugtiming,
@@ -13815,7 +13816,6 @@ classdef Labeler < handle
       if debugtiming,
         fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
-
       
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
@@ -13841,7 +13841,7 @@ classdef Labeler < handle
         fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
       end
       
-    end  % function setFrame
+    end  % function setFrameGUI
     
 %     function setTargetID(obj,tgtID)
 %       % Set target ID, maintaining current movie/frame.
@@ -13927,7 +13927,7 @@ classdef Labeler < handle
         obj.updateTrxTable();
         obj.updateShowTrx();
       end
-    end    
+    end  % function setFrameAndTargetGUI    
     
     function tfSetOccurred = frameUpDFGUI(obj,df)
       f = min(obj.currFrame+df,obj.nframes);

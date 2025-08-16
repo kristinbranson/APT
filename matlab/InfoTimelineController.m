@@ -5,6 +5,17 @@ classdef InfoTimelineController < handle
   % correspondence is not exact.  All changes to graphics handles held by this
   % object are made by this object.  (Except for hAx and hAxL, since those two are
   % not 'owned' by this object.  Some changes to it are made elsewhere.)
+  %
+  % Note that objects of this class do not implement any listeners, and do not
+  % directly respond to any UI callbacks.
+  %
+  % As of Aug 16 2025, the update*() methods are still a hodge-podge of
+  % situationally-appropriate updates, which should likely be streamlined
+  % at some point.  Ideally the update() method would be the core update method,
+  % and would be a general-purpose method to update all the controls that are
+  % owned by this object, no matter the situation.  Additional less-general
+  % update*() methods would be for use in more specific settings when the
+  % performance of update() is inadequate.
 
   properties (Constant)
     axLmaxntgt = 3  % applies to hAxL for MA projs; number of tgts to display
@@ -111,15 +122,23 @@ classdef InfoTimelineController < handle
     end
         
     function updateForNewProject(obj)
+      % Update the controls in the wake of a new project being created/loaded.
+
+      % Get the core things we need from the labeler
+      lObj = obj.lObj ;
+      nLabelPoints = lObj.nLabelPoints ;
+      isMA = lObj.maIsMA ;
+      colors = lObj.LabelPointColors ;
+      prefsXColor = lObj.projPrefs.InfoTimelines.XColor ;
+
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtStat);
       deleteValidGraphicsHandles(obj.hPtsL);
-      obj.hPts = gobjects(obj.lObj.nLabelPoints,1);
+      obj.hPts = gobjects(nLabelPoints,1);
       obj.hPtStat = gobjects(1);
-      colors = obj.lObj.LabelPointColors;
       ax = obj.hAx;
       axl = obj.hAxL;
-      for i=1:obj.lObj.nLabelPoints
+      for i=1:nLabelPoints
         obj.hPts(i) = ...
           line('Parent',ax, ...
                'XData',nan, ...
@@ -130,16 +149,15 @@ classdef InfoTimelineController < handle
                'hittest','off', ...
                'Tag',sprintf('InfoTimeline_Pt%d',i)) ;
       end
-      isMA = obj.lObj.maIsMA;
       if isMA
         obj.hPtsL = gobjects(1,1);
       else
-        obj.hPtsL = gobjects(obj.lObj.nLabelPoints,1);        
+        obj.hPtsL = gobjects(nLabelPoints,1);        
       end
       if isMA
         obj.hPtsL = image('Parent',axl,'CData',nan,'hittest','off','tag','InfoTimeline_Label_ma');
       else
-        for i=1:obj.lObj.nLabelPoints
+        for i=1:nLabelPoints
           obj.hPtsL(i) = ...
             patch('Parent',axl, ...
                   'XData',nan(1,5), ...
@@ -161,8 +179,7 @@ classdef InfoTimelineController < handle
                          'LineWidth',2, ...
                          'Tag','InfoTimeline_Stat');
       
-      prefsTL = obj.lObj.projPrefs.InfoTimelines;
-      ax.XColor = prefsTL.XColor;
+      ax.XColor = prefsXColor;
       dy = .01;
       ax.YLim = [0-dy 1+dy];
       if ishandle(obj.hSelIm)
@@ -173,7 +190,7 @@ classdef InfoTimelineController < handle
         axl.Colormap = [0 0 0 ; 0 0 1] ;
         axl.YDir = 'reverse' ;
       else
-        axl.YLim = [0-dy obj.lObj.nLabelPoints+dy];
+        axl.YLim = [0-dy nLabelPoints+dy];
         axl.YDir = 'normal' ;
       end
       
@@ -183,39 +200,43 @@ classdef InfoTimelineController < handle
     end
     
     function updateForNewMovie(obj, colorTBSelect)
+      % Update the controls in the wake of a new movie being made current.
+
+      % Return early if labeler is being initialized
+      lObj = obj.lObj ;
+      if lObj.isinit, return; end
+
+      % Get the core things we need from the labeler
+      nframes = lObj.nframes ;
+      dXTick = lObj.projPrefs.InfoTimelines.dXTick ;
+
+      % Return early if nframes is nan (not sure when this might happen...)
+      if isnan(nframes), return; end
+
+      % Set control properties
       ax = obj.hAx;
-      prefsTL = obj.lObj.projPrefs.InfoTimelines;
-      ax.XTick = 0:prefsTL.dXTick:obj.lObj.nframes;
-
-      if obj.lObj.isinit || isnan(obj.lObj.nframes)
-        return
-      end
-
+      ax.XTick = 0:dXTick:nframes;
       deleteValidGraphicsHandles(obj.hSelIm);
       obj.hSelIm = ...
         image('Parent', obj.hAx, ...
-              'XData', 1:obj.lObj.nframes, ...
+              'XData', 1:nframes, ...
               'YData', obj.hAx.YLim, ...
-              'CData', uint8(zeros(1,obj.lObj.nframes)), ...
+              'CData', uint8(zeros(1,nframes)), ...
               'HitTest', 'off',...
               'CDataMapping', 'direct') ;
-
-      % itm.setSelectMode(false) ;
-      obj.hAx.Colormap = [ 0 0 0 ; colorTBSelect ] ;
-      
-      xlims = [1 obj.lObj.nframes];
+      obj.hAx.Colormap = [ 0 0 0 ; colorTBSelect ] ;      
+      xlims = [1 nframes];
       sPV = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE);
       sPVLbled = struct('LineWidth',5,'Color',AxesHighlightManager.ORANGE/2);
       initSegmentedLineBang(obj.hSegLineGT,xlims,sPV);
       initSegmentedLineBang(obj.hSegLineGTLbled,xlims,sPVLbled);
-      % if obj.lObj.infoTimelineModel.getCurPropTypeIsAllFrames(),
-      %   obj.lObj.setTimelineCurrentPropertyTypeToDefault();
-      % end      
+
+      % Call another update method to handle the GT-related controls
       obj.updateGTModeRelatedControls();
     end
             
     function updateLabels(obj)
-      % Get data and set .hPts, .hMarked, hPtStat
+      % Update .hPts, .hMarked, .hPtStat
       
       lObj = obj.lObj ;
       if lObj.isinit || isempty(lObj.nLabelPoints) || isnan(lObj.nLabelPoints)
