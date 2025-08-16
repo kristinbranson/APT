@@ -6074,7 +6074,6 @@ classdef LabelerController < handle
 
     function pumInfo_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       ipropType = get(src,'Value');
-      % see also InfoTimelineController
       iprop = get(obj.pumInfo,'Value');
       labeler = obj.labeler_ ;
       itm = labeler.infoTimelineModel ;
@@ -6082,7 +6081,8 @@ classdef LabelerController < handle
       if iprop > numel(props),
         iprop = 1;
       end
-      set(obj.pumInfo,'String',props,'Value',iprop);
+      set(obj.pumInfo,'String',props,'Value',iprop);  
+        % Will happen via update event, but this is faster, for immediate feedback (?)
       obj.labeler_.setTimelineCurrentPropertyType(ipropType,iprop);
     end  % function
 
