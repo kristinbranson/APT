@@ -4198,8 +4198,6 @@ def train_other_core(net_type, conf, args, restore, model_file):
         module_name = 'Pose_mmpose'
     elif net_type == 'multi_cid' or net_type == 'multi_dekr':
         module_name = 'Pose_multi_mmpose'
-    elif net_type.startswith('detect_'):
-        module_name = 'Pose_detect_mmdetect'
     else :
         module_name = 'Pose_{}'.format(net_type)                    
     logging.info(f'Importing pose module {module_name}')
