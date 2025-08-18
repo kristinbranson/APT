@@ -671,17 +671,18 @@ class Tracklet:
         p[...,idx,itgt] = self.data[itgt][...,fs[idx]-self.startframes[itgt]]
     return p
   
-  def gettarget(self,itgts,T=None):
+  def gettarget(self,itgts,T=None,T0=0):
     """
     gettarget(self,itgts)
     Returns data for the input targets and all frames.
     :param itgts: Scalar, list, or 1-d array of targets.
-    :param T: output size in frames. If None, this object's T parameter, max(endframes)+1, will be used.
+    :param T: output size in frames. If None, this object's T1+1-T0 = max(endframes)+1-T0, will be used.
+    :param T0: offset to apply to startframes and endframes. Default: 0. Might also want to use self.T0. 
     :return: p: nlandmarks x d x T x len(itgts) with data.
     """
     
     if T is None:
-      T = self.T
+      T = self.T1+1-T0
     itgts = np.atleast_1d(itgts)
 
     ntgts = len(itgts)
@@ -691,7 +692,7 @@ class Tracklet:
       itgt = itgts[i]
       if self.data[itgt] is None:
         continue
-      p[...,self.startframes[itgt]:self.endframes[itgt]+1,i] = self.data[itgt]
+      p[...,self.startframes[itgt]-T0:self.endframes[itgt]+1-T0,i] = self.data[itgt]
     return p
   
   def gettargetframe(self,targets,frames):
@@ -1026,6 +1027,14 @@ class Tracklet:
     return tidx,fidx
 
   def where_all(self,nids):
+    """ 
+    where_all(self,nids)
+    Get the indices of all targets and frames for which data is 0:nids
+    :param nids: Unique values to look for in the tracklet data.
+    :return: tidx, fidx: two lists of length nids,
+    where tidx[i] and fidx[i] are the target and frame indices for the i-th id.
+    If an id has no data, tidx[i] and fidx[i] are empty arrays.
+    """
     nt = self.ntargets
     fidx = [np.zeros(0,dtype=int) for n in range(nids)]
     tidx = [np.zeros(0,dtype=int) for n in range(nids)]
@@ -1091,25 +1100,25 @@ class Tracklet:
     newdata = [None,]*nids
     newstartframes = np.ones(nids,dtype=int)*-1
     newendframes = np.ones(nids,dtype=int)*-2
-    idx_all = ids.where_all(nids)
-    assert len(idx_all) == 2
+    tgtidx_all,frmidx_all = ids.where_all(nids)
     for id in range(nids):
       # idx = ids.where(id)
       # assert len(idx) == 2
-      idx = [idx_all[0][id],idx_all[1][id]]
-      if idx[1].size == 0:
+      tgtidx = tgtidx_all[id]
+      frmidx = frmidx_all[id]
+      if frmidx.size == 0:
         print('target %d has no data, cleaning not run (correctly)'%id)
         continue
-      t0 = np.min(idx[1])
-      t1 = np.max(idx[1])
+      t0 = np.min(frmidx)
+      t1 = np.max(frmidx)
       newdata[id] = np.zeros(self.size_rest+(t1-t0+1,),dtype=self.dtype)
       newdata[id][:] = self.defaultval
       newstartframes[id] = t0+T0
       newendframes[id] = t1+T0
-      aa,bb = np.unique(idx[0],return_inverse=True)
+      aa,bb = np.unique(tgtidx,return_inverse=True)
       for ndx,itgt in enumerate(aa):
         idx1 = bb==ndx
-        fs = idx[1][idx1]
+        fs = frmidx[idx1]
         newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
         
     self.data = newdata
@@ -1288,6 +1297,7 @@ class Trk:
     self.ntargets = p.ntargets
     self.pTrk = p
     self.issparse = True
+    self.T0 = p.T0
     for k in kwargs.keys():
       assert k in self.trkFields, f'Unknown tracking data type {k}'
       if kwargs[k] is not None:
@@ -1896,7 +1906,7 @@ class Trk:
     newpTrk = Tracklet(defaultval=self.defaultval)
     newpTrk.setdata_dense(self.pTrk,T0=self.T0)
     self.pTrk = newpTrk
-    self.T0 = newpTrk.T0
+    self.T0 = self.pTrk.T0
 
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
@@ -2133,10 +2143,10 @@ class Trk:
     
   def apply_ids_sparse(self,ids):
     assert self.issparse
-    self.pTrk.apply_ids(ids,self.T0)
+    self.pTrk.apply_ids(ids)
     for k in self.trkFields:
       if self.__dict__[k] is not None:
-        self.__dict__[k].apply_ids(ids,self.T0)
+        self.__dict__[k].apply_ids(ids)
       
     self.ntargets = self.pTrk.ntargets
     self.size = (self.nlandmarks,self.d,self.pTrk.T,self.ntargets)

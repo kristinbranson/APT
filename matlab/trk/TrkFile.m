@@ -1008,11 +1008,9 @@ classdef TrkFile < dynamicprops
       end
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         v = obj.(f);
-        nd = cellfun(@ndims,v);
-        %assert(all(nd==nd(1))); Single frame tracklets has the last
-        %dimension of size 1, which matlab interprets as no dimension
-        assert(all(nd<=max(nd)));
-        nd = max(nd);
+        nds = cellfun(@ndims,v);
+        nd = max(nds);
+        
         v = cellfun(@(x)permute(x,[nd 1:nd-1]),v,'uni',0); % put 'frame' dim first
         % convert to 2d arrays (in particular for pTrk)
         for i=1:numel(v)
@@ -1351,11 +1349,7 @@ classdef TrkFile < dynamicprops
 
           j = iTgt(i);
           ptgt = pcell{j};
-          if ischar(pcelltag) && strcmp(pcelltag,'__UNSET__')
-            ptag = zeros(size(ptgt,1),size(ptgt,3));
-          else
-            ptag = pcelltag{j};
-          end
+          ptag = pcelltag{j};
 
           idx = f(isinterval) + offs(j);
           xy(:,:,isinterval,i) = ptgt(:,:,idx);

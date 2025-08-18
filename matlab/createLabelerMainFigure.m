@@ -3617,6 +3617,11 @@ if ismac()  % Change color of buttons
   end
 end
 
+% Prompt a GUI update, otherwise during project loading when using the
+% 'projfile' argument to StartAPT() we see an ugly window with a gray
+% background for potentially a long while.
+drawnow('nocallbacks') ;
+
 % % Write the modified handles structure back to the figure guidata
 % guidata(main_figure, handles);
 

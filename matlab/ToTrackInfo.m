@@ -889,8 +889,9 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if ~obj.tblMFTIsSet,
         obj.setTblMFT(tblMFTadd);
       else
-        ism = ismember(tblMFTadd,obj.tblMFT);
-        obj.setTblMTF(cat(1,obj.tblMFT,tblMFTadd(~ism,:)));
+        tblMFTadd = tblMFTadd(:,obj.tblMFT.Properties.VariableNames);
+        ism = tblismember(tblMFTadd,obj.tblMFT,MFTable.FLDSID);
+        obj.setTblMFT(tblvertcatsafe(obj.tblMFT,tblMFTadd(~ism,:)));
       end
 
     end
