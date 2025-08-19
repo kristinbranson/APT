@@ -905,71 +905,71 @@ classdef AWSec2 < handle
       labeler.notify('updateBackendTestText');
 
       % test that ssh exists
-      obj.testText_{end+1} = sprintf('** Testing that ssh is available...'); 
+      obj.testText_{end+1,1} = sprintf('** Testing that ssh is available...'); 
       labeler.notify('updateBackendTestText');
-      obj.testText_{end+1} = ''; 
+      obj.testText_{end+1,1} = ''; 
       labeler.notify('updateBackendTestText');
       if ispc,
         isssh = exist(APT.WINSSHCMD,'file') && exist(APT.WINSCPCMD,'file');
         if isssh,
-          obj.testText_{end+1} = sprintf('Found ssh at %s',APT.WINSSHCMD); 
+          obj.testText_{end+1,1} = sprintf('Found ssh at %s',APT.WINSSHCMD); 
           labeler.notify('updateBackendTestText');
         else
-          obj.testText_{end+1} = sprintf('FAILURE. Did not find ssh in the expected location: %s.',APT.WINSSHCMD); 
+          obj.testText_{end+1,1} = sprintf('FAILURE. Did not find ssh in the expected location: %s.',APT.WINSSHCMD); 
           labeler.notify('updateBackendTestText');
           return;
         end
       else
         cmd = 'which ssh';
-        obj.testText_{end+1} = cmd; 
+        obj.testText_{end+1,1} = cmd; 
         labeler.notify('updateBackendTestText');
         [status,result] = apt.syscmd(cmd);
-        obj.testText_{end+1} = result; 
+        obj.testText_{end+1,1} = result; 
         labeler.notify('updateBackendTestText');
         if status ~= 0,
-          obj.testText_{end+1} = 'FAILURE. Did not find ssh.'; 
+          obj.testText_{end+1,1} = 'FAILURE. Did not find ssh.'; 
           labeler.notify('updateBackendTestText');
           return;
         end
       end
 
       if ispc(),
-        obj.testText_{end+1} = sprintf('\n** Testing that certUtil is installed...\n'); 
+        obj.testText_{end+1,1} = sprintf('\n** Testing that certUtil is installed...\n'); 
         labeler.notify('updateBackendTestText');
         cmd = 'where certUtil';
-        obj.testText_{end+1} = cmd; 
+        obj.testText_{end+1,1} = cmd; 
         labeler.notify('updateBackendTestText');
         [status,result] = apt.syscmd(cmd);
-        obj.testText_{end+1} = result; 
+        obj.testText_{end+1,1} = result; 
         labeler.notify('updateBackendTestText');
         if status ~= 0,
-          obj.testText_{end+1} = 'FAILURE. Did not find certUtil.'; 
+          obj.testText_{end+1,1} = 'FAILURE. Did not find certUtil.'; 
           labeler.notify('updateBackendTestText');
           return;
         end
       end
 
       % test that AWS CLI is installed
-      obj.testText_{end+1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
+      obj.testText_{end+1,1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
       labeler.notify('updateBackendTestText');
       cmd = 'aws ec2 describe-regions --output table';
-      obj.testText_{end+1} = cmd; 
+      obj.testText_{end+1,1} = cmd; 
       labeler.notify('updateBackendTestText');
       [status,result] = AWSec2.syscmd(cmd);
       tfsucc = (status==0);      
-      obj.testText_{end+1} = result; 
+      obj.testText_{end+1,1} = result; 
       labeler.notify('updateBackendTestText');
       if ~tfsucc % status ~= 0,
-        obj.testText_{end+1} = 'FAILURE. Error using the AWS CLI.'; 
+        obj.testText_{end+1,1} = 'FAILURE. Error using the AWS CLI.'; 
         labeler.notify('updateBackendTestText');
         return
       end
 
       % test that apt_dl security group has been created
-      obj.testText_{end+1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
+      obj.testText_{end+1,1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
       labeler.notify('updateBackendTestText');
       cmd = 'aws ec2 describe-security-groups';
-      obj.testText_{end+1} = cmd; 
+      obj.testText_{end+1,1} = cmd; 
       labeler.notify('updateBackendTestText');
       [status,result] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (status==0);
@@ -977,7 +977,7 @@ classdef AWSec2 < handle
         try
           result = jsondecode(result);
           if ismember('apt_dl',{result.SecurityGroups.GroupName}),
-            obj.testText_{end+1} = 'Found apt_dl security group.'; 
+            obj.testText_{end+1,1} = 'Found apt_dl security group.'; 
             labeler.notify('updateBackendTestText');
           else
             status = 1;
@@ -986,20 +986,20 @@ classdef AWSec2 < handle
           status = 1;
         end
         if status == 1,
-          obj.testText_{end+1} = 'FAILURE. Could not find the apt_dl security group.'; 
+          obj.testText_{end+1,1} = 'FAILURE. Could not find the apt_dl security group.'; 
           labeler.notify('updateBackendTestText');
         end
       else
-        obj.testText_{end+1} = result; 
+        obj.testText_{end+1,1} = result; 
         labeler.notify('updateBackendTestText');
-        obj.testText_{end+1} = 'FAILURE. Error checking for apt_dl security group.'; 
+        obj.testText_{end+1,1} = 'FAILURE. Error checking for apt_dl security group.'; 
         labeler.notify('updateBackendTestText');
         return
       end
 
-      obj.testText_{end+1} = 'SUCCESS!'; 
-      obj.testText_{end+1} = ''; 
-      obj.testText_{end+1} = 'All tests passed. AWS Backend should work for you.'; 
+      obj.testText_{end+1,1} = 'SUCCESS!'; 
+      obj.testText_{end+1,1} = ''; 
+      obj.testText_{end+1,1} = 'All tests passed. AWS Backend should work for you.'; 
       labeler.notify('updateBackendTestText');
     end  % function
   end  % methods
