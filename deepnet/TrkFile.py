@@ -1594,7 +1594,7 @@ class Trk:
       
       if consolidate:
         T0 = self.pTrk.T0
-      else:
+      else:.shape
         T0 = 0
       T1 = self.pTrk.T1
       trkData['pTrk'],_ = self.pTrk.getdense(tomatlab=True,T0=T0,T=T1-T0+1)
@@ -1906,7 +1906,6 @@ class Trk:
     newpTrk = Tracklet(defaultval=self.defaultval)
     newpTrk.setdata_dense(self.pTrk,T0=self.T0)
     self.pTrk = newpTrk
-    self.T0 = self.pTrk.T0
 
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
@@ -1914,6 +1913,9 @@ class Trk:
         newTS = Tracklet(defaultval=self.defaultval_dict[k],dtype=self.dtype_dict[k])
         newTS.setdata_dense(self.__dict__[k],startframes=self.pTrk.startframes,endframes=self.pTrk.endframes,T0=self.T0)
         self.__dict__[k] = newTS
+
+    self.T0 = self.pTrk.T0
+
       
     self.sparse_type='tracklet'
     # pTrk=[None]*self.ntargets
