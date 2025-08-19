@@ -11132,25 +11132,6 @@ classdef Labeler < handle
         return
       end
     
-      % % If the indicated tracker is a custom tracker, then we may have to replace
-      % % the existing tracker with a new one that has the same stage-types.
-      % if isa(trackers{iTrk},'DeepTrackerTopDownCustom')
-      %   previous_tracker = trackers{iTrk};
-      %   if do_use_previous_if_custom_top_down
-      %     % do nothing
-      %   else
-      %     ctorargs = previous_tracker.get_constructor_args_to_match_stage_types() ;
-      %     newTracker = DeepTrackerTopDownCustom(obj,ctorargs{1},ctorargs{2});
-      %     if newTracker.valid
-      %       newTracker.init();
-      %       trackers{iTrk} = newTracker;
-      %       obj.trackersAll = trackers;
-      %     else
-      %       return
-      %     end
-      %   end
-      % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
-      
       % Want to do some stuff before the set, apparently
       oldTracker = trackers{1} ;
       oldTracker.deactivate() ;
@@ -11179,11 +11160,11 @@ classdef Labeler < handle
 
       % Update the timeline
       if ~isempty(newCurrentTracker)
-        propListOrEmpty = newCurrentTracker.propList() ;
+        propList = newCurrentTracker.propList() ;
       else
-        propListOrEmpty = [] ;
+        propList = [] ;
       end      
-      obj.infoTimelineModel_.didChangeCurrentTracker(propListOrEmpty) ;
+      obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
       obj.notify('updateTimeline');
 
       % Send the notifications
@@ -11253,11 +11234,11 @@ classdef Labeler < handle
 
       % Update the timeline
       if ~isempty(newTracker)
-        propListOrEmpty = newTracker.propList() ;
+        propList = newTracker.propList() ;
       else
-        propListOrEmpty = [] ;
+        propList = [] ;
       end
-      obj.infoTimelineModel_.didChangeCurrentTracker(propListOrEmpty) ;
+      obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
       obj.notify('updateTimeline');
       
       % Send the notification

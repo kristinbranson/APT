@@ -178,32 +178,34 @@ classdef InfoTimelineModel < handle
         'file','');      
     end
 
-    function didChangeCurrentTracker(obj, propListOrEmpty)
+    function didChangeCurrentTracker(obj, newTrackerPropList)
       % Handle tracker change - update proptypes and props_tracker
       % Called by the parent Labeler.
       
-      % Set .proptypes, .props_tracker
-      if isempty(propListOrEmpty),
+      % Set .proptypes_, .props_tracker_
+      if isempty(newTrackerPropList),
         % AL: Probably obsolete codepath
-        obj.proptypes(strcmpi(obj.proptypes,'Predictions')) = [];
+        % Seems to be in-use in Aug 2025.  Sometimes the tracker property list is
+        % empty...
+        tfIsPredictions = strcmpi(obj.proptypes_,'Predictions') ;
+        obj.proptypes_(tfIsPredictions) = [];
         obj.props_tracker_ = [];
       else
-        if ~ismember('Predictions',obj.proptypes),
-          obj.proptypes{end+1} = 'Predictions';
+        if ~ismember('Predictions', obj.proptypes_),
+          obj.proptypes_{end+1} = 'Predictions';
         end
-        propList = propListOrEmpty ;
-        obj.TLPROPS_TRACKER_ = propList ; %#ok<*PROPLC>
+        obj.TLPROPS_TRACKER_ = newTrackerPropList ; %#ok<*PROPLC>
         obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
       end
 
       % Check that .curprop is in range for current .props,
       % .props_tracker, .curproptype. 
-      ptype = obj.proptypes{obj.curproptype};
+      ptype = obj.proptypes_{obj.curproptype_};
       switch ptype
         case 'Predictions'
-          tfOOB = (obj.curprop > numel(obj.props_tracker));
+          tfOOB = (obj.curprop_ > numel(obj.props_tracker_));
         otherwise
-          tfOOB = (obj.curprop > numel(obj.props)) ;
+          tfOOB = (obj.curprop_ > numel(obj.props_)) ;
       end      
       if tfOOB
         obj.curprop_ = 1;
