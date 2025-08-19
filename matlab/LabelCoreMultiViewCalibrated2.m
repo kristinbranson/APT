@@ -377,11 +377,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
         tfForceUpdate = false;
       end
       %#%CALOK
-      if (iFrm0 == iFrm1) && (iTgt0 == iTgt1),
+      if ~tfForceUpdate && (iFrm0 == iFrm1) && (iTgt0 == iTgt1),
         return;
       end
 
-      if iFrm1 == obj.currFrameAdjust,
+      if ~tfForceUpdate && iFrm1 == obj.currFrameAdjust,
         % call is originating from checkAdjust failure
         return;
       end

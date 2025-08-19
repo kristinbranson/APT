@@ -182,7 +182,7 @@ classdef LabelCoreSeqMA < LabelCore
       if nargin < 5
         tfForceUpdate = false;
       end
-      obj.newFrameTarget(iFrm1,iTgt);
+      obj.newFrameTarget(iFrm1,iTgt,tfForceUpdate);
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSL>
@@ -193,7 +193,7 @@ classdef LabelCoreSeqMA < LabelCore
       if nargin < 6
         tfForceUpdate = false;
       end
-      obj.newFrameTarget(iFrm1,iTgt1);
+      obj.newFrameTarget(iFrm1,iTgt1,tfForceUpdate);
     end
     
     function clearLabels(obj)
@@ -789,7 +789,8 @@ classdef LabelCoreSeqMA < LabelCore
 %       obj.beginAcceptedReset();
     end
     
-    function newFrameTarget(obj,iFrm,iTgt)
+    function newFrameTarget(obj,iFrm,iTgt,tfForceUpdate)
+
       % React to new frame or target which might be labeled or unlabeled.
       %
       % PostCond: Accepted/Browse state
