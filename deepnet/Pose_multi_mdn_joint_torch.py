@@ -421,6 +421,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         else:
             self.locs_noise = self.conf.get('mdn_joint_ref_noise', 0.1)
 
+        self.locs_noise_type = self.conf.get('mdn_joint_ref_noise_type', 'uniform')
+
         # self.k_j = 4 if self.fpn_joint_layer ==3 else 1
         self.k_j = self.conf.get('mdn_joint_k_j',1)
         self.k_r = 1
@@ -453,6 +455,8 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         pts = pts[...,:2]
         pts[occ<.5] = np.nan
         dd = np.linalg.norm(pts[:, None, ..., :2] - pts[:, :, None, ..., :2], axis=-1)/2
+        if dd.shape[1] <2:
+            return 0.05 # if there is only one animal, use a default value.
         aa = np.partition(dd, 1, axis=1)[:,1]
 
         span = np.nanmax(pts,axis=-2)-np.nanmin(pts,axis=-2)
@@ -760,7 +764,14 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             locs_joint_flat_dim = locs_joint_flat.repeat([1, n_max, 1, 1, 1])
             idx_pre = locs_joint_flat_dim[i1, i2, assign_ndx, :, :]*self.offset/self.ref_scale
 
-            label_noise = label_span * (torch.rand(idx_pre.shape, device=self.device) - 0.5) * 2
+            # Add noise to the joint predictions
+            if self.locs_noise_type == 'uniform':
+                label_noise = (torch.rand(idx_pre.shape, device=self.device) - 0.5) * 2 * label_span
+            elif self.locs_noise_type == 'gaussian':
+                label_noise = torch.randn(idx_pre.shape, device=self.device) * label_span
+            elif self.locs_noise_type == 'laplacian':
+                label_noise = torch.distributions.laplace.Laplace(0, 1).sample(idx_pre.shape).to(self.device) * label_span
+
             label_noise = label_noise/self.ref_scale
             idx = torch.round(idx_pre + label_noise).long()
 
@@ -1638,6 +1649,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     pred_conf = conf_ref
                     ret_dict['conf'].append(pred_conf[0])
                 else:
+                    # confidence is computed as the ratio of distance uncertainty to the bounding box size
                     cur_joint_conf = locs['conf_dist'][0]
                     ss = np.max(locs['ref'][0],axis=-2) - np.min(locs['ref'][0],axis=-2)
                     sz = np.sqrt(np.prod(ss,axis=-1))[...,None]
