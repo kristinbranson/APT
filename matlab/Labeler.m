@@ -8316,14 +8316,8 @@ classdef Labeler < handle
           tfile = trkfiles{i,iVw};
           scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
       	  if iVw == 1
-            pTrkOrCellArray = scell{1}.pTrk ;
-            if iscell(pTrkOrCellArray)
-              pTrk = pTrkOrCellArray{1} ;
-            else
-              pTrk = pTrkOrCellArray ;
-            end
-            nLabelPointsInFile = size(pTrk, 1) * size(pTrk, 2) ;
-            if nLabelPointsInFile ~= obj.nLabelPoints
+            nLabelPointsInFile = scell{iVw}.npts;
+            if nLabelPointsInFile ~= obj.nPhysPoints
               warning('Number of landmarks in the trk file does not match with the project')
             end
           end

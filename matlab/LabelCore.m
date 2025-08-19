@@ -292,7 +292,7 @@ classdef LabelCore < handle
       
     end
 
-    function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSD>
+    function newFrame(obj,iFrm0,iFrm1,iTgt,tfForceUpdate) %#ok<INUSD>
       % Frame has changed, Target is the same
       %
       % Called from Labeler.setFrame->Labeler.labelsUpdateNewFrame      
@@ -304,7 +304,7 @@ classdef LabelCore < handle
       % Called from Labeler.labelsUpdateNewTarget
     end
     
-    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1) %#ok<INUSD>
+    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1,tfForceUpdate) %#ok<INUSD>
       % Frame and Target have both changed
       %
     end

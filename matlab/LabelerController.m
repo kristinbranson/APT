@@ -5598,7 +5598,7 @@ classdef LabelerController < handle
         %lpos2xy = lpos2(:,:,frm);
         labeler.labelPosSet(lpos2xy);
 
-        labeler.lblCore.newFrame(frm,frm,1);
+        labeler.lblCore.newFrame(frm,frm,1,true);
 
       else
         iMov = labeler.currMovie;
