@@ -16317,5 +16317,8 @@ classdef Labeler < handle
       obj.popBusyStatus() ;
     end
 
+    function testBackendConfig(obj)
+      obj.backend.testBackendConfig(obj) ;
+    end    
   end  % methods
 end  % classdef

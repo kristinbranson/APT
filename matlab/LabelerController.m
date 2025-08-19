@@ -8,6 +8,7 @@ classdef LabelerController < handle
     trackingMonitorVisualizer_  % a subcontroller
     trainingMonitorVisualizer_  % a subcontroller
     movieManagerController_
+    backendTestController_
     pxTxUnsavedChangesWidth_  
       % We will record the width (in pixels) of txUnsavedChanges here, so we can keep it fixed when we resize
     isPlaying_ = false  % whether a video is currently playing or not
@@ -2516,12 +2517,27 @@ classdef LabelerController < handle
     end  % function
 
     function cbkTrackerBackendTest(obj)
-      lObj = obj.labeler_ ;
-      cacheDir = lObj.DLCacheDir;
-      assert(exist(cacheDir,'dir'),...
-             'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
-      backend = lObj.trackDLBackEnd;
-      testBackendConfigUI(backend, cacheDir);
+      % lObj = obj.labeler_ ;
+      % cacheDir = lObj.DLCacheDir;
+      % assert(exist(cacheDir,'dir'),...
+      %        'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
+      % backend = lObj.trackDLBackEnd;
+      obj.backendTestController_ = BackendTestController(obj, obj.labeler_) ;
+      obj.labeler_.testBackendConfig() ;
+      % % testBackendConfigUI(backend, cacheDir);
+      % switch backend.type,
+      %   case DLBackEnd.Bsub,
+      %     testBsubBackendConfig(backend, cacheDir);
+      %   case DLBackEnd.Docker
+      %     testDockerBackendConfig(backend);
+      %   case DLBackEnd.AWS
+      %     testAWSBackendConfig(backend);
+      %   case DLBackEnd.Conda
+      %     testCondaBackendConfig(backend);
+      %   otherwise
+      %     msgbox(sprintf('Tests for %s have not been implemented',backend.type),...
+      %            'Not implemented','modal');
+      % end      
     end  % function
       
     function cbkTrackerBackendSetJRCNSlots(obj)
