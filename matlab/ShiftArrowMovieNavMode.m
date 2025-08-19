@@ -21,10 +21,10 @@ classdef ShiftArrowMovieNavMode
       f0 = lObj.currFrame;
       switch obj
         case ShiftArrowMovieNavMode.NEXTTIMELINE
-          tldata = lObj.gdata.labelTLInfo.tldata;
+          tldata = lObj.getTimelineDataForCurrentMovieAndTarget();
           [tffound,f] = Labels.seekSmallLpos(tldata,f0,dir);
         case ShiftArrowMovieNavMode.NEXTTIMELINETHRESH
-          tldata = lObj.gdata.labelTLInfo.tldata;
+          tldata = lObj.getTimelineDataForCurrentMovieAndTarget();
           [tffound,f] = Labels.seekSmallLposThresh(tldata,f0,dir,thresh,cmp);
         case ShiftArrowMovieNavMode.NEXTLABELED
           %lpos = lObj.labeledposCurrMovie;
