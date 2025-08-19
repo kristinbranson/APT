@@ -1100,25 +1100,25 @@ class Tracklet:
     newdata = [None,]*nids
     newstartframes = np.ones(nids,dtype=int)*-1
     newendframes = np.ones(nids,dtype=int)*-2
-    idx_all = ids.where_all(nids)
-    assert len(idx_all) == 2
+    tgtidx_all,frmidx_all = ids.where_all(nids)
     for id in range(nids):
       # idx = ids.where(id)
       # assert len(idx) == 2
-      idx = [idx_all[0][id],idx_all[1][id]]
-      if idx[1].size == 0:
+      tgtidx = tgtidx_all[id]
+      frmidx = frmidx_all[id]
+      if frmidx.size == 0:
         print('target %d has no data, cleaning not run (correctly)'%id)
         continue
-      t0 = np.min(idx[1])
-      t1 = np.max(idx[1])
+      t0 = np.min(frmidx)
+      t1 = np.max(frmidx)
       newdata[id] = np.zeros(self.size_rest+(t1-t0+1,),dtype=self.dtype)
       newdata[id][:] = self.defaultval
       newstartframes[id] = t0+T0
       newendframes[id] = t1+T0
-      aa,bb = np.unique(idx[0],return_inverse=True)
+      aa,bb = np.unique(tgtidx,return_inverse=True)
       for ndx,itgt in enumerate(aa):
         idx1 = bb==ndx
-        fs = idx[1][idx1]
+        fs = frmidx[idx1]
         newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
         
     self.data = newdata
@@ -1594,7 +1594,7 @@ class Trk:
       
       if consolidate:
         T0 = self.pTrk.T0
-      else:
+      else:.shape
         T0 = 0
       T1 = self.pTrk.T1
       trkData['pTrk'],_ = self.pTrk.getdense(tomatlab=True,T0=T0,T=T1-T0+1)
@@ -1906,7 +1906,6 @@ class Trk:
     newpTrk = Tracklet(defaultval=self.defaultval)
     newpTrk.setdata_dense(self.pTrk,T0=self.T0)
     self.pTrk = newpTrk
-    self.T0 = self.pTrk.T0
 
     #self.pTrk,self.startframes,self.endframes,self.nframes,self.size = convertdense2tracklet(self.pTrk)
     for k in self.trkFields:
@@ -1914,6 +1913,9 @@ class Trk:
         newTS = Tracklet(defaultval=self.defaultval_dict[k],dtype=self.dtype_dict[k])
         newTS.setdata_dense(self.__dict__[k],startframes=self.pTrk.startframes,endframes=self.pTrk.endframes,T0=self.T0)
         self.__dict__[k] = newTS
+
+    self.T0 = self.pTrk.T0
+
       
     self.sparse_type='tracklet'
     # pTrk=[None]*self.ntargets

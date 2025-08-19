@@ -57,6 +57,9 @@ import poseConfig
 import PoseTools
 import logging
 
+import requests
+FRCNN_pretrained_url = 'https://download.openxlab.org.cn/models/mmdetection/FasterR-CNN/weight/faster-rcnn_r50_fpn_2x_coco'
+
 # @BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
 
@@ -986,7 +989,10 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
         # assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
         # cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
         # cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
-        cfg.load_from = 'https://cdn-model.openxlab.org.cn/models%2Fweight%2Fmmdetection%2FFaster+R-CNN%2Ffaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth?Expires=1749573038&OSSAccessKeyId=LTAI5tCdKkrGqdpR7PDyejq7&Signature=bizipUOx%2BXu3t0FZyX63yNC2oDw%3D&response-content-disposition=attachment%3B%20filename%3Dfaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
+        
+        response = requests.head(FRCNN_pretrained_url, allow_redirects=True)
+        cfg.load_from = response.url
+        # cfg.load_from = 'https://cdn-model.openxlab.org.cn/models%2Fweight%2Fmmdetection%2FFaster+R-CNN%2Ffaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth?Expires=1749573038&OSSAccessKeyId=LTAI5tCdKkrGqdpR7PDyejq7&Signature=bizipUOx%2BXu3t0FZyX63yNC2oDw%3D&response-content-disposition=attachment%3B%20filename%3Dfaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
 
     elif conf.mmdetect_net == 'detr':
 

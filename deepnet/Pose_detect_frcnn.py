@@ -1,0 +1,1 @@
+from Pose_detect_mmdetect import Pose_detect_mmdetect as Pose_detect_frcnn
