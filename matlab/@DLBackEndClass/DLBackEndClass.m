@@ -125,6 +125,10 @@ classdef DLBackEndClass < handle
     training_jobids_ = cell(0,1)
     tracking_jobids_ = cell(0,1)
 
+    % Hold the text shown in the backend test window.
+    % It is a cell array of strings.
+    testText_ = cell(0,1)
+
     % This is used to keep track of whether we need to release/delete resources on
     % delete()
     doesOwnResources_ = true  % is obj a copy, or the original
@@ -2150,6 +2154,15 @@ classdef DLBackEndClass < handle
         otherwise
           error('Tests for %s have not been implemented', obj.type) ;
       end      
+    end  % function
+
+    function text = testText(obj)
+      % Get test text based on backend type
+      if obj.type == DLBackEnd.AWS
+        text = obj.awsec2.testText();
+      else
+        text = obj.testText_;
+      end
     end  % function
   end  % methods
 end  % classdef

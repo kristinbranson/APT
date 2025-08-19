@@ -181,6 +181,7 @@ classdef Labeler < handle
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
     updateStuffInHlpSetCurrPrevFrame
+    updateBackendTestText
     update
   end
 
