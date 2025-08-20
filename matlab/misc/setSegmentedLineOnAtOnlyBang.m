@@ -1,9 +1,8 @@
 function setSegmentedLineOnAtOnlyBang(hLine,nfrm,x)
-  yLoc = 1 ;
   % obj.setOnOffAt(x,true);
-  setSegmentedLineOnOffAtBang(hLine,yLoc,x,true) ;
+  setSegmentedLineOnOffAtBang(hLine,x,true) ;
   xall = 1:nfrm ;
-  xcomp = setdiff(xall,x);
+  xcomplement = setdiff(xall,x);
   % obj.setOnOffAt(xcomp,false);
-  setSegmentedLineOnOffAtBang(hLine,yLoc,xcomp,false) ;
+  setSegmentedLineOnOffAtBang(hLine,xcomplement,false) ;
 end
