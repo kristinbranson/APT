@@ -70,7 +70,10 @@ classdef LabelCoreSeq < LabelCore
       obj.state = LabelState.ADJUST; 
     end
     
-    function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
+    function newFrame(obj,iFrm0,iFrm1,iTgt,tfForceUpdate) %#ok<INUSL>
+      if nargin < 5
+        tfForceUpdate = false;
+      end
       obj.newFrameTarget(iFrm1,iTgt);
     end
     
@@ -78,7 +81,10 @@ classdef LabelCoreSeq < LabelCore
       obj.newFrameTarget(iFrm,iTgt1);
     end
     
-    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1)
+    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1,tfForceUpdate)
+      if nargin < 6
+        tfForceUpdate = false;
+      end
       obj.newFrameTarget(iFrm1,iTgt1);
     end
     

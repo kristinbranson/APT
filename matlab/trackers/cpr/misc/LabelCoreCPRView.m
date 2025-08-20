@@ -62,10 +62,16 @@ classdef LabelCoreCPRView < LabelCore
       end
       uistack(obj.hPtsRepRed,'top');
     end
-    function newFrame(obj,iFrm0,iFrm1,iTgt)
-      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);
+    function newFrame(obj,iFrm0,iFrm1,iTgt,tfForceUpdate)
+      if nargin < 5
+        tfForceUpdate = false;
+      end
+      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt,tfForceUpdate);
     end
-    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
+    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1,tfForceUpdate)
+      if nargin < 6
+        tfForceUpdate = false;
+      end
       pp = squeeze(obj.pRep(iFrm1,:,:,:)); % [nptx2xnRep]
       hGT = obj.hPtsGT;
       hRR = obj.hPtsRepRed;

@@ -219,15 +219,21 @@ classdef LabelCoreTemplate < LabelCore
     % For LabelCoreTemplate, newFrameAndTarget() combines all the brains of
     % transitions for convenience reasons
     
-    function newFrame(obj,iFrm0,iFrm1,iTgt)
-      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt);
+    function newFrame(obj,iFrm0,iFrm1,iTgt,tfForceUpdate)
+      if nargin < 5
+        tfForceUpdate = false;
+      end
+      obj.newFrameAndTarget(iFrm0,iFrm1,iTgt,iTgt,tfForceUpdate);
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm)
       obj.newFrameAndTarget(iFrm,iFrm,iTgt0,iTgt1);
     end
     
-    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1)
+    function newFrameAndTarget(obj,iFrm0,iFrm1,iTgt0,iTgt1,tfForceUpdate)
+      if nargin < 6
+        tfForceUpdate = false;
+      end
       lObj = obj.labeler;
       
       [tflabeled,lpos,lpostag] = lObj.labelPosIsLabeled(iFrm1,iTgt1);
