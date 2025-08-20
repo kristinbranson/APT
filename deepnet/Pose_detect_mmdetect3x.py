@@ -922,15 +922,19 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
     # cfg.test_dataloader.dataset.pipeline = cfg.test_pipeline
     # cfg.val_dataloader.dataset.pipeline = cfg.test_pipeline
 
-    tr_file = os.path.join(data_bdir, f'{conf.trainfilename}.json')
-    A = PoseTools.json_load(tr_file)
-    cls = tuple([aa['name'] for aa in A['categories']])
+    training_file = os.path.join(data_bdir, f'{conf.trainfilename}.json')
+    # That file doesn't necessarily exist, so deal with that
+    if os.path.exists(training_file):
+        A = PoseTools.json_load(training_file)
+        cls = tuple([aa['name'] for aa in A['categories']])
+    else:
+        cls = ()  # should be ok for tracking
     for ttype in ['train', 'val', 'test']:
         name = ttype if ttype != 'test' else 'val'
         fname = conf.trainfilename if ttype == 'train' else conf.valfilename
         file = os.path.join(data_bdir, f'{fname}.json')
         if not os.path.exists(file):
-            file = tr_file
+            file = training_file
         cfg[ttype + '_dataloader'].dataset.ann_file = file
 
         cfg[ttype+ '_dataloader'].dataset.data_prefix = dict(img='')

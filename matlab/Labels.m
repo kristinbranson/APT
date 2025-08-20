@@ -993,11 +993,12 @@ classdef Labels
       %
       % lbls: cell array of Labels structs. 
       
-      [trxFilesAllFull,trxCache,wbObj,isma,maxanimals] = myparse(varargin,...
+      [trxFilesAllFull,trxCache,wbObj,isma,rois,maxanimals] = myparse(varargin,...
         'trxFilesAllFull',[],... % cellstr, indexed by tblMV.mov. if supplied, tblMF will contain .pTrx field
         'trxCache',[],... % must be supplied if trxFilesAllFull is supplied
         'wbObj',[],... % optional WaitBarWithCancel or ProgressMeter. If canceled, tblMF (output) indeterminate
         'isma',false, ...
+        'roi',[],...
         'maxanimals',1 ...
         );      
       tfWB = ~isempty(wbObj);
@@ -1005,6 +1006,7 @@ classdef Labels
       assert(istable(tblMF));
       tblfldscontainsassert(tblMF,MFTable.FLDSID);
       nMov = numel(lbls);
+
       
       tfTrx = ~isempty(trxFilesAllFull);
       if tfTrx
@@ -1043,10 +1045,12 @@ classdef Labels
         pAcc = nan(nrow,maxanimals,npts*2);
         pTSAcc = -inf(nrow,maxanimals,npts);
         tfoccAcc = false(nrow,maxanimals,npts);
+        roi = nan(nrow,maxanimals,4,2); % assume max number of rois is less than max number of animals
       else
         pAcc = nan(nrow,npts*2);
         pTSAcc = -inf(nrow,npts);
         tfoccAcc = false(nrow,npts);
+        % roi = nan(nrow,4,2);
       end
       pTrxAcc = nan(nrow,nView*2); % xv1 xv2 ... xvk yv1 yv2 ... yvk
       thetaTrxAcc = nan(nrow,nView);
@@ -1066,6 +1070,11 @@ classdef Labels
         rowsCurr = find(iMovsAll == iMov); % absolute row indices into tblMF
 
         s = lbls{iMov};
+        if isempty(rois)
+          r = LabelROI.new();
+        else
+          r = rois{iMov};
+        end
                
         if tfTrx && tfMovHasTrx(iMov)
           NFRMS = [];
@@ -1125,6 +1134,9 @@ classdef Labels
             pAcc(irow,1:nl,:) = p';
             pTSAcc(irow,1:nl,:) = ts';
             tfoccAcc(irow,1:nl,:) = occ'; 
+            roif = (r.f==frm);
+            nroi = nnz(roif);
+            roi(irow,1:nroi,:,:) = permute(r.verts(:,:,roif),[3,1,2]);
           else
             [~,p,occ,ts] = Labels.isLabeledFT(s,frm,iTgt);
             % p and occ have appropriate size/vals even if tf 
@@ -1165,9 +1177,13 @@ classdef Labels
         end
       end
       
-      
-      tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,...
-        'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx'});
+      if isma
+        tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,roi,...
+          'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx','roi'});
+      else
+        tLbl = table(pAcc,pTSAcc,tfoccAcc,pTrxAcc,thetaTrxAcc,aTrxAcc,bTrxAcc,...
+          'VariableNames',{'p' 'pTS' 'tfocc' 'pTrx' 'thetaTrx' 'aTrx' 'bTrx'});
+      end
       tblMF = [tblMF tLbl];
       
       if any(tfInvalid)

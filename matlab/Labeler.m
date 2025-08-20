@@ -1352,6 +1352,7 @@ classdef Labeler < handle
       else 
         v = obj.labels2{iMov};
       end
+      v = Labels.fromTrkfile(v);
     end
     function v = get.labeledposTSGTaware(obj)
       if obj.gtIsGTMode
@@ -4443,7 +4444,7 @@ classdef Labeler < handle
     %     if ~strcmp(currVal,str)
     %       qstr = sprintf('Project macro ''%s'' is currently defined as ''%s''. This value can be redefined later if desired.',...
     %         macro,currVal);
-    %       btn = questdlg(qstr,'Existing Macro definition','OK, Proceed','Cancel','Cancel');
+    %       btn = questiondlg(qstr,'Existing Macro definition','OK, Proceed','Cancel','Cancel');
     %       if isempty(btn)
     %         btn = 'Cancel';
     %       end
@@ -8314,10 +8315,19 @@ classdef Labeler < handle
         for iVw = 1:nView
           tfile = trkfiles{i,iVw};
           scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
-          if (iVw==1) && size(scell{iVw}.pTrk{1},1)~=obj.nLabelPoints
-            warning('Number of landmarks in the trk file does not match with the project')
+      	  if iVw == 1
+            pTrkOrCellArray = scell{1}.pTrk ;
+            if iscell(pTrkOrCellArray)
+              pTrk = pTrkOrCellArray{1} ;
+            else
+              pTrk = pTrkOrCellArray ;
+            end
+            nLabelPointsInFile = size(pTrk, 1) * size(pTrk, 2) ;
+            if nLabelPointsInFile ~= obj.nLabelPoints
+              warning('Number of landmarks in the trk file does not match with the project')
+            end
           end
-            %displaying when .trk file was last updated
+          % Display when .trk file was last updated
           tfileDir = dir(tfile);
           disp(['  trk file last modified: ',tfileDir.date]);
 
@@ -8562,7 +8572,7 @@ classdef Labeler < handle
       tfWB = ~isempty(wbObj);
       tfRestrict = ~isempty(tblMFTrestrict);
       
-      if useLabels2
+      if useLabels2 
         if isempty(useTrain)
           mfts = MFTSetEnum.AllMovAllLabeled2;
         elseif useTrain
@@ -8798,8 +8808,15 @@ classdef Labeler < handle
         max_animals = 1;
       end
 
+      if obj.gtIsGTMode
+        roi = obj.labelsRoiGT;
+      else
+        roi = obj.labelsRoi;
+      end
+
       tblMF = Labels.labelAddLabelsMFTableStc(tblMF,obj.(PROPS.LBL),...
-        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:},'isma',obj.maIsMA,'maxanimals',max_animals);
+        'trxFilesAllFull',tfaf,'trxCache',obj.trxCache,varargin{:},...
+        'isma',obj.maIsMA,'maxanimals',max_animals,'roi',roi);
     end
 
 %     function tblMF = labelAddLabelsMFTable_Old(obj,tblMF,varargin)
@@ -9462,7 +9479,7 @@ classdef Labeler < handle
     
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizesGUI(obj)
       % Check for consistency of movie sizes in current proj. Throw
-      % warning dial for each view where sizes differ.
+      % warning dialog for each view where sizes differ.
       %
       % This considers the raw movie sizes and ignores any cropping.
       % 
@@ -9858,21 +9875,34 @@ classdef Labeler < handle
       tf = ~isempty(idx);
     end
 
+    function nNewLbls = gtComputeNewLabelCount(obj)
+      % Determine the number of non-suggested labels.
+
+      tblMFTSugg = obj.gtSuggMFTable;
+      mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
+        FrameSetVariable.LabeledFrm,FrameDecimationFixed(1),...
+        TargetSetVariable.AllTgts);    
+      tblMFTLbld = mfts.getMFTable(obj);
+      
+      % [tfSuggAnyLbl,loc] = tblismember(tblMFTSugg,tblMFTLbld,MFTable.FLDSID);
+      mftflds = MFTable.FLDSID;
+      if obj.maIsMA  
+        % remove tgt field for multi-animal projects
+        mftflds(strcmp(mftflds,'iTgt')) = [];
+      end
+      tfLbldExtra = ~tblismember(tblMFTLbld,tblMFTSugg,mftflds);
+
+      nNewLbls = nnz(tfLbldExtra);
+    end  % function
+
     function tblMFT_SuggAndLbled = gtGetTblSuggAndLbled(obj,whichlabels)
       % Compile table of GT suggestions with their labels.
-      % 
-      % tblMFT_SuggAndLbled: Labeled GT table, in order of tblMFTSugg. To
-      % be included, a row must be i) labeled for at least one pt/coord and
-      % ii) in gtSuggMFTable
-      % checksuggest: whether to ask if non-suggested labeled frames should be
-      % included in computation, default = False
-
-      tblMFT_SuggAndLbled = [];
 
       if nargin < 2 || isempty(whichlabels),
-        whichlabels = 'suggestonly';
+        whichlabels = 'suggestonly' ;
       end
-      
+      assert(strcmp(whichlabels, 'all') || strcmp(whichlabels, 'suggestonly')) ;
+
       tblMFTSugg = obj.gtSuggMFTable;
       mfts = MFTSet(MovieIndexSetVariable.AllGTMov,...
         FrameSetVariable.LabeledFrm,FrameDecimationFixed(1),...
@@ -9888,29 +9918,11 @@ classdef Labeler < handle
       [tfSuggIsLbld,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
       tfLbldExtra = ~tblismember(tblMFTLbld,tblMFTSugg,mftflds);
 
-      nSuggAnyLbled = nnz(tfSuggIsLbld);
       nNewLbls = nnz(tfLbldExtra);
-      if strcmpi(whichlabels,'suggestonly') || (nNewLbls == 0),
-        res = 'No';
-      elseif strcmpi(whichlabels,'all'),
-        res = 'Yes';
-      else % whichlabels == 'ask' && nNewLbls > 0
-        res = questdlg(sprintf('%d labeled frames were not in the to-label list, include them in analysis?',nNewLbls),'Update to-label list?','Yes','No','Cancel','Yes');
-        if strcmpi(res,'Cancel'),
-          return;
-        end
-      end
-      if strcmpi(res,'Yes'),
+      if nNewLbls > 0 && strcmpi(whichlabels,'all')
         obj.gtSetUserSuggestions([]);
         tblMFTSugg = obj.gtSuggMFTable;
         [tfSuggIsLbld,loc] = tblismember(tblMFTSugg,tblMFTLbld,mftflds);
-        nSuggAnyLbled = nnz(tfSuggIsLbld);
-        nNewLbls = 0;
-      end
-      if ~strcmp(whichlabels,'suggestonly') && nNewLbls > 0,
-        warningNoTrace('Labeler:gt',...
-          '%d labeled GT frames were not in the to-label list. These labels will NOT be used in assessing GT performance. Using %d labels to assess.',...
-          nNewLbls,nSuggAnyLbled);
       end
       
       % tblMFTLbld includes rows where any pt/coord is labeled;
@@ -9931,22 +9943,20 @@ classdef Labeler < handle
         warningNoTrace('Labeler:gt',...
           '%d suggested GT frames have only been partially labeled.',nSuggPartiallyLbled);
       end
-      
-
 
       % Labeled GT table, in order of tblMFTSugg
       tblMFT_SuggAndLbled = tblMFTLbld(loc(tfSuggIsLbld),:);
       if obj.maIsMA
         tblMFT_SuggAndLbled = MFTable.unsetTgt(tblMFT_SuggAndLbled );
       end
-
-    end
+    end  % function
 
     function gtComputeGTPerformance(obj,varargin)
       % Front door entry point for computing gt performance
       
       % Deal with optional args
-      [whichlabels,argsrest] = myparse_nocheck(varargin,'whichlabels',false); % whether to use all labels ('all'), suggestonly ('suggestonly'), or ask ('ask')
+      [whichlabels,argsrest] = myparse_nocheck(varargin,'whichlabels','suggestonly'); % whether to use all labels ('all'), suggestonly ('suggestonly')
+      assert(strcmp(whichlabels, 'all') || strcmp(whichlabels, 'suggestonly')) ;
       [useLabels2] = myparse(argsrest,...
                              'useLabels2',false); % if true, use labels2 "imported preds" instead of tracking
 
@@ -10065,7 +10075,7 @@ classdef Labeler < handle
         gtResultTbl = obj.labelGetMFTableLabeled('wbObj',obj.progressMeter_,...          
                                                  'useLabels2',true,...  % in GT mode, so this compiles labels2GT
                                                  'tblMFTrestrict',tblLbl);
-        if wbObj.wasCanceled
+        if obj.progressMeter_.wasCanceled
           warningNoTrace('Labeler property .gtTblRes not set.');
           return
         end
@@ -16306,6 +16316,6 @@ classdef Labeler < handle
       % Called by children when they want to update the busy status
       obj.popBusyStatus() ;
     end
-    
+
   end  % methods
 end  % classdef
