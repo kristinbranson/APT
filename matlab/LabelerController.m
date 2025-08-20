@@ -2436,7 +2436,6 @@ classdef LabelerController < handle
       obj.menu_track_backend_config_test = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','Test backend configuration',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendTest()),...
         'Tag','menu_track_backend_config_test');
 
       % KB added menu item to get more info about how to set up
@@ -2496,28 +2495,11 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function cbkTrackerBackendTest(obj)
-      % lObj = obj.labeler_ ;
-      % cacheDir = lObj.DLCacheDir;
-      % assert(exist(cacheDir,'dir'),...
-      %        'Deep Learning cache directory ''%s'' does not exist.',cacheDir);
-      % backend = lObj.trackDLBackEnd;
+    function menu_track_backend_config_test_actuated_(obj, ~, ~)
+      obj.labeler_.pushBusyStatus('Testing backend...');
+      oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
       obj.backendTestController_ = BackendTestController(obj, obj.labeler_) ;
       obj.labeler_.testBackendConfig() ;
-      % % testBackendConfigUI(backend, cacheDir);
-      % switch backend.type,
-      %   case DLBackEnd.Bsub,
-      %     testBsubBackendConfig(backend, cacheDir);
-      %   case DLBackEnd.Docker
-      %     testDockerBackendConfig(backend);
-      %   case DLBackEnd.AWS
-      %     testAWSBackendConfig(backend);
-      %   case DLBackEnd.Conda
-      %     testCondaBackendConfig(backend);
-      %   otherwise
-      %     msgbox(sprintf('Tests for %s have not been implemented',backend.type),...
-      %            'Not implemented','modal');
-      % end      
     end  % function
       
     function cbkTrackerBackendSetJRCNSlots(obj)
@@ -6573,6 +6555,11 @@ classdef LabelerController < handle
         frm = min(max(frm,sf),ef);
         labeler.setFrameGUI(frm);
       end
+    end  % function
+
+    function backendTestFigureCloseRequested(obj)
+      delete(obj.backendTestController_) ;
+      obj.backendTestController_ = [] ;
     end
 
   end  % methods  
