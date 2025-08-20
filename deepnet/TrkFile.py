@@ -1594,7 +1594,7 @@ class Trk:
       
       if consolidate:
         T0 = self.pTrk.T0
-      else:.shape
+      else:
         T0 = 0
       T1 = self.pTrk.T1
       trkData['pTrk'],_ = self.pTrk.getdense(tomatlab=True,T0=T0,T=T1-T0+1)

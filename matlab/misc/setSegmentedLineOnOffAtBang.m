@@ -1,5 +1,5 @@
 function setSegmentedLineOnOffAtBang(hLine,x,tf)
-  % Set segmented line on/off at location(s) x
+  % Set segmented line on/off at location(s) x, depending on value of tf
   %
   % x: positive integer vector of coords/locs
   yLoc = 1 ;

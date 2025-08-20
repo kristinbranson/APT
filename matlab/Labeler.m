@@ -180,6 +180,7 @@ classdef Labeler < handle
     % raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
+    updateBackendTestText
     updateAfterCurrentFrameSet
     update
     updateTimeline
@@ -16348,6 +16349,10 @@ classdef Labeler < handle
       obj.popBusyStatus() ;
     end
 
+    function testBackendConfig(obj)
+      obj.backend.testBackendConfig(obj) ;
+    end    
+
     function setTimelineSelectMode(obj, newValue)
       if ~obj.doProjectAndMovieExist()
         return
@@ -16499,7 +16504,6 @@ classdef Labeler < handle
       obj.notify('updateTimelineLabels');
       obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimeline');
-    end
-    
+    end  % function    
   end  % methods
 end  % classdef
