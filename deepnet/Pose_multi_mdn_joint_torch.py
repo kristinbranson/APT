@@ -421,7 +421,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         else:
             self.locs_noise = self.conf.get('mdn_joint_ref_noise', 0.1)
 
-        self.locs_noise_type = self.conf.get('mdn_joint_ref_noise_type', 'uniform')
+        self.locs_noise_type = self.conf.get('mdn_joint_ref_noise_type', 'gaussian')
 
         # self.k_j = 4 if self.fpn_joint_layer ==3 else 1
         self.k_j = self.conf.get('mdn_joint_k_j',1)

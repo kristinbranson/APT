@@ -338,11 +338,13 @@ class config(object):
     def getexplist(self, L):
         return L['movieFilesAll'][self.view,:]
 
-    def get(self,name,default):
+    def get(self,name,default,silent=False):
         if hasattr(self,name):
-            logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
+            if not silent:
+                logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
-            logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
+            if not silent:
+                logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
             setattr(self,name,default)
         return getattr(self,name,default)
 
