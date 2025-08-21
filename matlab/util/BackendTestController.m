@@ -29,13 +29,14 @@ classdef BackendTestController < handle
                   'BackgroundColor',[.1 .1 .1],...
                   'ForegroundColor',[0 1 0]);
       obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.update())) ;      
-      pause(0.05) ;  % This should be needed, but seemingly is.  
+      pause(0.05) ;  % This should not be needed, but seemingly is.
       obj.figure_.CloseRequestFcn = @(s,e)(obj.parent_.backendTestFigureCloseRequested()) ;
     end  % function
 
     function update(obj)
       text = obj.labeler_.backend.testText() ;
       obj.edit_.String = text ;
+      drawnow();
     end
 
     function delete(obj)

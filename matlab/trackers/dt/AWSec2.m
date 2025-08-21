@@ -933,20 +933,19 @@ classdef AWSec2 < handle
         end
       end
 
-      if ispc(),
-        obj.testText_{end+1,1} = sprintf('\n** Testing that certUtil is installed...\n'); 
+      % Test that md5sum is installed
+      obj.testText_{end+1,1} = sprintf('\n** Testing that md5sum is installed...\n'); 
+      labeler.notify('updateBackendTestText');
+      cmd = 'which md5sum';
+      obj.testText_{end+1,1} = cmd; 
+      labeler.notify('updateBackendTestText');
+      [status,result] = apt.syscmd(cmd);
+      obj.testText_{end+1,1} = result; 
+      labeler.notify('updateBackendTestText');
+      if status ~= 0,
+        obj.testText_{end+1,1} = 'FAILURE. Did not find md5sum.'; 
         labeler.notify('updateBackendTestText');
-        cmd = 'where certUtil';
-        obj.testText_{end+1,1} = cmd; 
-        labeler.notify('updateBackendTestText');
-        [status,result] = apt.syscmd(cmd);
-        obj.testText_{end+1,1} = result; 
-        labeler.notify('updateBackendTestText');
-        if status ~= 0,
-          obj.testText_{end+1,1} = 'FAILURE. Did not find certUtil.'; 
-          labeler.notify('updateBackendTestText');
-          return;
-        end
+        return;
       end
 
       % test that AWS CLI is installed
