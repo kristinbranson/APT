@@ -147,9 +147,9 @@ classdef ParameterVisualizationAutoParams < ParameterVisualization
         paraminfo = {'-Radius','Median','+Radius'};
         rrangem = regexp(rrangefn,'^(?<stage>.*stage)?_?(?<name>.*)$','names','once');
         switch rrangem.name,
-          case 'firststage_headTailAngle'
+          case 'headTailAngle'
             xstr = 'Tail->Head angle (deg)';
-          case 'laststage_keypoints2HeadTailAngle',
+          case 'keypoints2HeadTailAngle',
             xstr = 'Centroid->Keypoint - Tail->Head angle (deg)';
             titles = cellfun(@(s) ['Keypoint ',s],obj.lObj.skelNames,'Uni',0);
           case 'centroidKeypointAngle',

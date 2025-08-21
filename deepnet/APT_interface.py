@@ -1122,6 +1122,12 @@ def modernize_params(dt_params):
             logging.warning('Modernizing parameters: moving MultiAnimal.TrackletStitch to MultiAnimal.Track.TrackletStitch')
             dt_params['MultiAnimal']['Track']['TrackletStitch'] = dt_params['MultiAnimal']['TrackletStitch']
             del dt_params['MultiAnimal']['TrackletStitch']
+            
+        # KB 20250820: moving MultiAnimal.Detect to MultiAnimalDetect
+        if 'Detect' in dt_params['MultiAnimal']:
+            logging.warning('Modernizing parameters: moving MultiAnimal.Detect to MultiAnimalDetect')
+            dt_params['MultiAnimalDetect'] = dt_params['MultiAnimal']['Detect']
+            del dt_params['MultiAnimal']['Detect']
 
 def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf_params=None, quiet=False, json_trn_file=None, first_stage=False, second_stage=False, config_file=None):
     """
@@ -1218,7 +1224,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         
     if second_stage:
         # Find out whether head-tail or bbox detector. For this we need to look at the information from the first stage
-        if A['TrackerData'][0]['sPrmAll']['ROOT']['MultiAnimal']['Detect']['multi_only_ht']:
+        if A['TrackerData'][0]['sPrmAll']['ROOT']['MultiAnimalDetect']['multi_only_ht']:
             conf.use_ht_trx = True
         else:
             conf.use_bbox_trx = True
@@ -1269,10 +1275,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
         if 'TrackletStitch' in dt_params['MultiAnimal']['Track']:
             set_all(conf, dt_params['MultiAnimal']['Track']['TrackletStitch'])            
     if 'Detect' in dt_params['MultiAnimal']:
-        set_all(conf, dt_params['MultiAnimal']['Detect'])
+        set_all(conf, dt_params['MultiAnimalDetect'])
     conf.rescale = float(conf.scale)
     delattr(conf,'scale')
-    conf.ht_pts = to_py(dt_params['MultiAnimal']['Detect']['ht_pts'])
+    conf.ht_pts = to_py(dt_params['MultiAnimalDetect']['ht_pts'])
 
     net_conf = dt_params['DeepTrack'][net_names_dict[net_type]]
     set_all(conf, net_conf)

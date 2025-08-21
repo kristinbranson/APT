@@ -2269,7 +2269,7 @@ classdef DeepTracker < LabelTracker
         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
       end
       
-      stg1dtpath = [APTParameters.maDetectPath,'.DeepTrack'];
+      stg1dtpath = APTParameters.maDetectNetworkPath;
       if tfTD
         tdata = num2cell(tdata(:)');
         

@@ -401,7 +401,7 @@ output = handles.output;
     if align_trx_theta_prm.Data.Visible,
       % Using head-tail for the first stage
       align_trx_theta = align_trx_theta_prm.Data.Value;    
-      hauto.auto{end+1} = InitLeaf(align_trx_theta_prm,'suggestedvalue',true,...
+      hauto.auto{end+1} = InitLeaf(align_trx_theta_prm,parent,'suggestedvalue',true,...
         'extradescr','Aligning animals using head-tail direction will lead to better performance.');  
     else
       align_trx_theta = false;

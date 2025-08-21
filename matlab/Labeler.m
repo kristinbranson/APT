@@ -11627,18 +11627,15 @@ classdef Labeler < handle
           imsz(:,stagei) = [hs(1),ws(1)];
         end
 
-        if is_ma && is2stage,
-          if stage == 2,
-            downsample(stagei) = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
-            batchsize(stagei) = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
-          elseif stage == 1
-            downsample(stagei) = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.ImageProcessing.scale;
-            batchsize(stagei) = sPrm.ROOT.MultiAnimal.Detect.DeepTrack.GradientDescent.batch_size;
-          end
+        if is_ma && is2stage && stage == 1,
+          prefix = APTParameters.maDetectNetworkPath;
         else
-          downsample(stagei) = sPrm.ROOT.DeepTrack.ImageProcessing.scale;
-          batchsize(stagei) = sPrm.ROOT.DeepTrack.GradientDescent.batch_size;
+          prefix = APTParameters.posePath;
         end
+        fld = [prefix,'.ImageProcessing.scale'];
+        downsample(stagei) = structgetfield(sPrm,fld);
+        fld = [prefix,'.GradientDescent.batch_size'];
+        batchsize(stagei) = structgetfield(sPrm,fld);
       end
     end
 

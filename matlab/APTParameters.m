@@ -6,7 +6,8 @@ classdef APTParameters
     % This property is private as these trees are handles and mutable.
     % Use getParamTrees to access copies of these trees.
     PARAM_FILES_TREES = APTParameters.paramFilesTrees() ;
-    maDetectPath = 'ROOT.MultiAnimal.Detect';
+    maDetectPath = 'ROOT.MultiAnimalDetect';
+    maDetectNetworkPath = [APTParameters.maDetectPath,'.DeepTrack'];
     posePath = 'ROOT.DeepTrack';
     detectDataAugPath = [APTParameters.maDetectPath,'.DeepTrack.DataAugmentation'];
     poseDataAugPath = [APTParameters.posePath,'.DataAugmentation'];
@@ -40,6 +41,7 @@ classdef APTParameters
       tPrmTrack = trees.track.tree;
       tPrmCpr = trees.cpr.tree;
       tPrmMA = trees.ma.tree;
+      tPrmDetect = trees.madetect.tree;
       tPrmDT = trees.deeptrack.tree;
       tPrmPostProc = trees.postprocess.tree;
       
@@ -72,14 +74,13 @@ classdef APTParameters
           tPrmDeepNetsMADetect);
         tPrmDeepNetsMAChildren = cat(1,tPrmDeepNetsMADetect.Children);
         
-        tPrmMADetectDT = tPrmMA.findnode([APTParameters.maDetectPath,'.DeepTrack']);
+        tPrmMADetectDT = tPrmDetect.findnode(APTParameters.maDetectNetworkPath);
         tPrmMADetectDT.Children = ...
           [tPrmMADetectDT.Children; tPrmDeepNetsMAChildren];
       end
       
       tPrm0 = tPrmPreprocess;
-      tPrm0.Children = [tPrm0.Children; tPrmTrack.Children;...
-        tPrmCpr.Children; tPrmMA.Children; tPrmDT.Children; tPrmPostProc.Children];
+      tPrm0.Children = [tPrm0.Children; tPrmCpr.Children; tPrmMA.Children; tPrmDetect.Children; tPrmDT.Children; tPrmPostProc.Children; tPrmTrack.Children];
       tPrm0 = APTParameters.propagateLevelFromLeaf(tPrm0);
       tPrm0 = APTParameters.propagateRequirementsFromLeaf(tPrm0);
     end
@@ -253,9 +254,9 @@ classdef APTParameters
     end
     
     function stage = getStage(path)
-      if startsWith(path,APTParameters.posePath),
+      if startsWith(path,[APTParameters.posePath,'.']),
         stage = 'last';
-      elseif startsWith(path,APTParameters.maDetectPath),
+      elseif startsWith(path,[APTParameters.maDetectNetworkPath,'.']),
         stage = 'first';
       else
         stage = 'unknown';
@@ -668,6 +669,7 @@ classdef APTParameters
       % oldfld,newfld
       translateflds = {
         'ROOT.MultiAnimalDetection',APTParameters.maDetectPath
+        'ROOT.MultiAnimal.Detect',APTParameters.maDetectPath
         'ROOT.ImageProcessing.MultiTarget.TargetCrop','ROOT.MultiAnimal.TargetCrop'
         'ROOT.MultiAnimal.TargetCrop.Radius','ROOT.MultiAnimal.TargetCrop.ManualRadius'
         'ROOT.MultiAnimal.Track.max_n_animals',[APTParameters.maDetectPath,'.max_n_animals']
@@ -933,6 +935,7 @@ classdef APTParameters
       s.cpr = fullfile('trackers','cpr','params_cpr.json');
       s.deeptrack = fullfile('trackers','dt','params_deeptrack.json');
       s.ma = fullfile('trackers','dt','params_ma.json');
+      s.madetect = fullfile('trackers','dt','params_detect.json');
       s.postprocess = 'params_postprocess.json';
       resourceFolderPath = fullfile(APT.Root, 'matlab') ;
       dd = dir(fullfile(resourceFolderPath,'trackers','dt','params_deeptrack_*.json'));
@@ -967,9 +970,9 @@ classdef APTParameters
         value = struct('json', {json_file_path}, 'tree', {param_tree}) ;
         s.(fn) = value ;
       end
-      % under ma.detect, we have the same deeptrack structure
-      if isfield(s,'ma') && isfield(s,'deeptrack'),
-        t1 = s.ma.tree.findnode([APTParameters.maDetectPath,'.DeepTrack']);
+      % copy structure from params_deeptrack under MultiAnimalDetect
+      if isfield(s,'madetect') && isfield(s,'deeptrack'),
+        t1 = s.madetect.tree.findnode(APTParameters.maDetectNetworkPath);
         t2 = s.deeptrack.tree.findnode(APTParameters.posePath);
         if isempty(t1.Children),
           t1.Children = TreeNode.empty(0,1);

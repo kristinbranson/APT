@@ -56,31 +56,6 @@
       "Type": "float",
       "isEditable": true
     },
-    "Detect": {
-      "Description": "Settings related to the first/detection stage of multi-animal pose recognition",
-      "DispName": "Detection",
-      "BBox": {
-        "Description": "Object-detection bounding box settings",
-        "DispName": "Bounding Box",
-        "MinAspectRatio": {
-          "AffectsTraining": true,
-           "DefaultValue": 0.3,
-          "Description": "Minimum aspect ratio for bounding boxes.",
-          "DispName": "Minimum aspect ratio",
-          "Level": "Beginner",
-          "ParamViz": "",
-          "Requirements": [
-            "isObjDet"
-          ],
-          "Type": "float",
-          "isEditable": true
-        }
-      },
-      "DeepTrack": {
-        "Description": "Settings related to training the first-stage/detection network for multi-animal pose recognition",
-	"DispName": "Detection Network"
-      }
-    },
     "TargetCrop": {
       "Description": "APT crops out regions centered around each animal detected in the first/detection stage, then runs the pose recognition network on these image crops. These parameters describe how image patches around individual animals are cropped out.",
       "DispName": "Cropping around animals",
