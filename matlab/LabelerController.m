@@ -642,6 +642,11 @@ classdef LabelerController < handle
         end
       end
 
+      % Call needed updates on the subcontrollers
+      if ~isempty(obj.backendTestController_)
+        obj.backendTestController_.updatePointer() ;
+      end
+
       % Make sure to update graphics now
       drawnow('nocallbacks') ;  
         % Please don't comment out the above drawnow() command!  We want the update of the

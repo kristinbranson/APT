@@ -30,13 +30,24 @@ classdef BackendTestController < handle
                   'ForegroundColor',[0 1 0]);
       obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.update())) ;      
       pause(0.05) ;  % This should not be needed, but seemingly is.
+      drawnow('nocallbacks');
       obj.figure_.CloseRequestFcn = @(s,e)(obj.parent_.backendTestFigureCloseRequested()) ;
     end  % function
 
     function update(obj)
-      text = obj.labeler_.backend.testText() ;
-      obj.edit_.String = text ;
-      drawnow();
+      isBusy = obj.labeler_.isStatusBusy;
+      pointer = fif(isBusy, 'watch', 'arrow');
+      set(obj.figure_,'Pointer',pointer);
+      text = obj.labeler_.backend.testText();
+      obj.edit_.String = text;
+      drawnow('nocallbacks');
+    end
+
+    function updatePointer(obj)
+      isBusy = obj.labeler_.isStatusBusy;
+      pointer = fif(isBusy, 'watch', 'arrow');
+      set(obj.figure_,'Pointer',pointer);
+      drawnow('nocallbacks');
     end
 
     function delete(obj)
