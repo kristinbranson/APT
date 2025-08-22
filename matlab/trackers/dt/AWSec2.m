@@ -901,7 +901,7 @@ classdef AWSec2 < handle
     function testBackendConfig(obj, labeler)
       % Test the AWS backend
       
-      obj.testText_ = {sprintf('%s: Testing AWS backend...',datestr(now))};
+      obj.testText_ = {sprintf('%s: Testing AWS backend...',datestr(now()))};  %#ok<TNOW1,DATST>
       labeler.notify('updateBackendTestText');
 
       % test that ssh exists

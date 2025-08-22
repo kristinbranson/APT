@@ -28,7 +28,7 @@ classdef BackendTestController < handle
                   'HorizontalAlignment','left',...
                   'BackgroundColor',[.1 .1 .1],...
                   'ForegroundColor',[0 1 0]);
-      obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.update())) ;      
+      obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.updateEditText())) ;      
       pause(0.05) ;  % This should not be needed, but seemingly is.
       drawnow('nocallbacks');
       obj.figure_.CloseRequestFcn = @(s,e)(obj.parent_.backendTestFigureCloseRequested()) ;
@@ -40,7 +40,7 @@ classdef BackendTestController < handle
       set(obj.figure_,'Pointer',pointer);
       text = obj.labeler_.backend.testText();
       obj.edit_.String = text;
-      drawnow('nocallbacks');
+      drawnow('nocallbacks','limitrate');
     end
 
     function updatePointer(obj)
@@ -48,6 +48,14 @@ classdef BackendTestController < handle
       pointer = fif(isBusy, 'watch', 'arrow');
       set(obj.figure_,'Pointer',pointer);
       drawnow('nocallbacks');
+    end
+
+    function updateEditText(obj)
+      text = obj.labeler_.backend.testText();
+      obj.edit_.String = text;
+      drawnow('nocallbacks', 'limitrate');  
+        % Ideally we would let callbacks fire and add code to let user cancel
+        % the test, but not today.
     end
 
     function delete(obj)
