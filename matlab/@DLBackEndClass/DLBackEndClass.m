@@ -2159,12 +2159,8 @@ classdef DLBackEndClass < handle
     end  % function
 
     function text = testText(obj)
-      % Get test text based on backend type
-      if obj.type == DLBackEnd.AWS
-        text = obj.awsec2.testText();
-      else
-        text = obj.testText_;
-      end
+      % Get test text
+      text = obj.testText_;
     end  % function
   end  % methods
 end  % classdef
