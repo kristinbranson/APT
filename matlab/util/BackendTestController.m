@@ -28,9 +28,10 @@ classdef BackendTestController < handle
                   'HorizontalAlignment','left',...
                   'BackgroundColor',[.1 .1 .1],...
                   'ForegroundColor',[0 1 0]);
-      obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.updateEditText())) ;      
+      obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.updateEditText())) ;            
+      obj.update() ;
       pause(0.05) ;  % This should not be needed, but seemingly is.
-      drawnow('nocallbacks');
+      drawnow();  % normal update is rate-limited
       obj.figure_.CloseRequestFcn = @(s,e)(obj.parent_.backendTestFigureCloseRequested()) ;
     end  % function
 

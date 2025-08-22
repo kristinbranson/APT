@@ -648,7 +648,7 @@ classdef LabelerController < handle
       end
 
       % Make sure to update graphics now
-      drawnow('nocallbacks') ;  
+      drawnow() ;  
         % Please don't comment out the above drawnow() command!  We want the update of the
         % pointer to happen ASAP when we update the busy status.  This helps indicate
         % to the user that APT is working on something, and they don't need to actuate
