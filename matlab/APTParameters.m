@@ -961,6 +961,7 @@ classdef APTParameters
         fn = field_names{i} ;
         spec = specs.(fn) ;
         json_file_path = fullfile(resourceFolderPath, spec) ;
+        assert(exist(json_file_path,'file'),sprintf('File %s does not exist',json_file_path));
         param_tree = parseConfigJson(json_file_path) ;
         if any(strcmp(fn,deepnets))
           % AL 20190711: automatically create requirements for all deep net
