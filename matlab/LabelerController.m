@@ -2503,7 +2503,9 @@ classdef LabelerController < handle
     function menu_track_backend_config_test_actuated_(obj, ~, ~)
       obj.labeler_.pushBusyStatus('Testing backend...');
       oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
-      obj.backendTestController_ = BackendTestController(obj, obj.labeler_) ;
+      if isempty(obj.backendTestController_)
+        obj.backendTestController_ = BackendTestController(obj, obj.labeler_) ;
+      end
       obj.labeler_.testBackendConfig() ;
     end  % function
       

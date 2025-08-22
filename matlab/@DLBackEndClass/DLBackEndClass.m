@@ -2142,13 +2142,15 @@ classdef DLBackEndClass < handle
     end
 
     function testBackendConfig(obj, labeler)
+      obj.testText_ = {''};
+      labeler.notify('updateBackendTestText') ;
       switch obj.type,
         case DLBackEnd.Bsub,
           obj.testBsubBackendConfig_(labeler) ;
         case DLBackEnd.Docker
           obj.testDockerBackendConfig_(labeler) ;
         case DLBackEnd.AWS
-          obj.awsec2.testBackendConfig(labeler) ;
+          obj.awsec2.testBackendConfig(obj, labeler) ;
         case DLBackEnd.Conda
           obj.testCondaBackendConfig_(labeler) ;
         otherwise
