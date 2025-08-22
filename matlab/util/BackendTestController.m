@@ -40,20 +40,20 @@ classdef BackendTestController < handle
       set(obj.figure_,'Pointer',pointer);
       text = obj.labeler_.backend.testText();
       obj.edit_.String = text;
-      drawnow('nocallbacks','limitrate');
+      drawnow('limitrate');
     end
 
     function updatePointer(obj)
       isBusy = obj.labeler_.isStatusBusy;
       pointer = fif(isBusy, 'watch', 'arrow');
       set(obj.figure_,'Pointer',pointer);
-      drawnow('nocallbacks');
+      drawnow();  % important that this happen ASAP
     end
 
     function updateEditText(obj)
       text = obj.labeler_.backend.testText();
       obj.edit_.String = text;
-      drawnow('nocallbacks', 'limitrate');  
+      drawnow('limitrate');  
         % Ideally we would let callbacks fire and add code to let user cancel
         % the test, but not today.
     end
