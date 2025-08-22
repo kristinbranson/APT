@@ -110,7 +110,9 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             % file, use them. Else, use the default for four views
             
             if isprop(obj, 'view_labels') && ~isempty(obj.view_labels)
-                cam_label = obj.view_labels{iView};
+                if ~isempty(obj.view_labels)
+                    cam_label = obj.view_labels{iView};
+                end
             else
                 switch iView
                     case 1
@@ -241,7 +243,32 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             [xEPL, yEPL] = obj.rayTracingComputeEpipolarLine(iView1, iViewEpi, xy1);
         end
 
-        function [X,xprp,rpe] = triangulate(obj,xp,withFmin)
+        function [X, recon_pixels, reprojection_error] = rayTracingTriangulate(obj, xp)
+            % A function that takes the views_labels and xp to triangulate
+            script_path = '/groups/branson/bransonlab/aniket/APT/raytracing_calib/programs/triangulate_for_APT.py';
+            [X, recon_pixels, reprojection_error] = runPythonScriptForTriangulation(obj.model_path, ...
+                script_path, ...
+                obj.dividing_col, ...
+                obj.image_width, ...
+                obj.view_labels, ...
+                xp);
+        end
+        
+        function [X, xprp, rpe] = triangulate(obj, xp, withFmin)
+            % This method uses ray tracing-based calibration to triangulate
+            % xp : array of size (2, num_points, num_views)
+            % X : Triangulated 3-D points of shape (3, num_points)
+            % xprp : Reprojected pixels of shape (2, num_poins, num_views)
+            % rpe : Reprojection error
+            [~, num_points, num_views] = size(xp);
+            assert(obj.ncams == num_views);
+            [X, xprp, rpe] = obj.rayTracingTriangulate(xp);
+
+        end
+
+        function [X,xprp,rpe] = triangulate_old(obj,xp,withFmin)
+            % This method does not use the ray tracing-based calibration
+            % for triangulation
             [~, num_points, num_views] = size(xp);
             assert(obj.ncams == num_views);
             if nargin < 3

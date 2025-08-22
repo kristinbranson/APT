@@ -5,7 +5,11 @@ import numpy as np
 def euclidean_distance(output, label):
     """
     Arrange data points along dim=0 and components along dim=1
-    """
+    """    
+    if not isinstance(output, torch.Tensor):
+        output = torch.tensor(output, dtype=torch.float64)
+    if not isinstance(label, torch.Tensor):
+        label = torch.tensor(label, dtype=torch.float64)
     distance = torch.norm(output - label, 
                         p=2, 
                         dim=0)
