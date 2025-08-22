@@ -189,6 +189,11 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
       % head and tail.
       headidx = lobj.skelHead;
       tailidx = lobj.skelTail;
+      if isempty(headidx),
+        warningNoTrace('Head and tail keypoint indices MUST be set if aligning with body axis.');
+        headidx = 1;
+        tailidx = 2;
+      end
 
       if firststage_horzflip,
         all_labels_use = all_labels_horzflipped;

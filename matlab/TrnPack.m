@@ -324,7 +324,7 @@ classdef TrnPack
       % be fine for top-down nets. trackerData{1} should match for these
       % params.
       sPrmMA = tdata2.sPrmAll.ROOT.MultiAnimal;
-      sPrmBBox = sPrmMA.Detect.BBox; 
+      sPrmBBox = structgetfield(tdata2.sPrmAll,[APTParameters.maDetectPath,'.BBox']);
       sPrmLossMask = sPrmMA.LossMask;
       tp = TrnPack.aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask);
       
