@@ -1046,6 +1046,14 @@ classdef LabelerController < handle
     end  % function
     
     function tfsucc = selectAwsInstanceGUI_(obj, varargin)
+      % Brings up the GUI to set the AWS configuration parameters and select
+      % an AWS instance.
+      %
+      % Optional argument 'canConfigure' should be 0, 1, or 2.  Zero means
+      % configuration is not offered, one means it will be offered if the
+      % backend is not already configured, and two means configuration will be
+      % offered whether the backend is configured or not.
+
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
                 'canlaunch',true,...
@@ -1065,8 +1073,11 @@ classdef LabelerController < handle
       awsec2 = backend.awsec2 ;
       if ~awsec2.areCredentialsSet || canConfigure >= 2,
         if canConfigure,
+          originalAwsKeyName = awsec2.keyName;
+          originalAwsPemWslPath = awsec2.pem;
+          originalAwsPemNativePath = originalAwsPemWslPath;
           [tfsucc,keyName,pemFile] = ...
-            promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
+            promptUserToSpecifyPEMFileName(originalAwsKeyName,originalAwsPemNativePath);
           if ~tfsucc,
             return;
           end

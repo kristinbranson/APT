@@ -43,7 +43,7 @@ classdef AWSec2 < handle
 
   properties
     keyName = ''  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
-    pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
+    pem = ''  % absolute *WSL* path of .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
   end
 
   properties (Transient, SetAccess=protected)

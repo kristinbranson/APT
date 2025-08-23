@@ -144,8 +144,8 @@ classdef DLBackEndClass < handle
     wslProjectCachePath
     remoteDMCRootDir
     awsInstanceID
-    awsKeyName
-    awsPEM
+    awsKeyName  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
+    awsPEM  % absolute *WSL* path of .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
     awsInstanceType
     condaEnv
     dockerimgroot
