@@ -1077,7 +1077,7 @@ classdef LabelerController < handle
           originalAwsPemWslPath = awsec2.pem;
           originalAwsPemNativePath = originalAwsPemWslPath;
           [tfsucc,keyName,pemFile] = ...
-            promptUserToSpecifyPEMFileName(originalAwsKeyName,originalAwsPemNativePath);
+            promptUserToSpecifyAwsCredentialInfo(originalAwsKeyName,originalAwsPemNativePath);
           if ~tfsucc,
             return;
           end
