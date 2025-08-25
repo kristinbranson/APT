@@ -110,7 +110,7 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             origin = emergent_ray.origin[:,0][:,None]
             
             direction = emergent_ray.direction[:,0][:,None]
-            s = torch.linspace(0, 8, num_epipolar_pts).to(torch.float64)
+            s = torch.linspace(0, 16, num_epipolar_pts).to(torch.float64)
             epipolar_line_3D = origin + s[None, :] * direction        
             
         if "real" in labelling_cam:
@@ -120,7 +120,7 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             cam_1_ray = labelling_cam_obj(undistorted_annotations)
             origin = cam_1_ray.origin[:,0][:,None]
             direction = cam_1_ray.direction[:,0][:,None]
-            s = torch.linspace(prism_distance + 5, prism_distance + 15, num_epipolar_pts).to(torch.float64)
+            s = torch.linspace(prism_distance + 1, prism_distance + 18, num_epipolar_pts).to(torch.float64)
             epipolar_line_3D = origin + s[None, :] * direction       
                 
         # Reproject the epipolar line in the projecting camera
@@ -295,7 +295,7 @@ def get_epipolar_line_in_virtual_cam(arena, user_annotation):
             origin = cam_1_ray.origin[:,0][:,None]
             direction = cam_1_ray.direction[:,0][:,None]
     
-    s = torch.linspace(prism_distance + 3, prism_distance + 18, num_epipolar_pts).to(dtype=torch.float64, device=device)
+    s = torch.linspace(prism_distance + 1, prism_distance + 18, num_epipolar_pts).to(dtype=torch.float64, device=device)
     r = origin + s[None, :] * direction     
     for pt_id in range(num_epipolar_pts):
         reprojection_pixel = pseudo_reprojection_to_virtual_view(
@@ -319,8 +319,8 @@ def pseudo_reprojection_to_virtual_view(arena, point, image_width, image_height=
     Returns the closest virtual pixel to the point in the virtual camera.
     """    
     
-    resolution_for_virtual_projection = 0.01 # pixel accuracy needed to get reprojection in the virtual camera
-    grid_factor = 14    
+    resolution_for_virtual_projection = 0.05 # pixel accuracy needed to get reprojection in the virtual camera
+    grid_factor = 4
     if cam_label_projection == 'primary':
         width = [image_width[0], image_width[0]] # Only to make the script compatible with the multiple camera case
         height = [image_height[0], image_height[0]] # Only to make the script compatible with the multiple camera case
