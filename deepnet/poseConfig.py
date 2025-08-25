@@ -231,7 +231,7 @@ class config(object):
         # actual frame size
         self.multi_frame_sz = []
         self.multi_animal_crop_sz = None
-        # multi_use_mask is whether to mask the image or not
+        # multi_use_mask is whether to mask the image or not. Shouldn't be used anymore
         self.multi_use_mask = False
         # whether to mask the loss or not
         self.multi_loss_mask = True
@@ -241,6 +241,8 @@ class config(object):
         self.multi_match_dist_factor = .2
         self.multi_scale_by_bbox = False
         self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
+        self.multi_background_coverage_ratio = 0.5 # ratio of the background to cover while training
+        self.multi_background_sample_ratio = 0.5 # ratio of the background samples to training samples
 
         # ============= TOP-DOWN =================
 

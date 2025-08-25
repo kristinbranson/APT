@@ -1751,11 +1751,23 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         all_data.append({'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
                          'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top, 'max_n':conf.max_n_animals})
 
+    if (n_clusters==0) or conf.multi_loss_mask or conf.multi_use_mask:
+        n_clusters = 100
+        # If there are no labels in this image or if masking is on, then sample a large number (50) of background crops
+
+    roi_count = 0
+    roi_sample_ratio = conf.multi_background_sample_ratio
+    roi_coverage_ratio = conf.multi_background_coverage_ratio
+
     if n_extra_roi > 0:
         # bkg_sel_rate = conf.background_mask_sel_rate
 
         done_eroi = np.zeros(n_extra_roi)
-        while np.any(done_eroi < 0.5):
+        while np.any(done_eroi < roi_coverage_ratio) and \
+            (roi_count < n_clusters*roi_sample_ratio):
+            # Add extra rois until we cover all rois atleast once, or we have added roi_sample_ratio times the number of clusters or we have covered at least half the area of extra rois
+
+            roi_count += 1
 
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
