@@ -25,7 +25,7 @@ classdef DLNetType < handle
     trkAuxFields % [naux]
     trkAuxLabels % [naux]          
     timelinePropList % [naux] struct array of tracker-specific properties 
-                     % in format used by InfoTimeline
+                     % in format used by InfoTimelineController
                      
     doesOccPred % in practice, if this is true, totally-occluded landmarks 
                 % will be included in the stripped lbl as p=nan and tfocc=true.

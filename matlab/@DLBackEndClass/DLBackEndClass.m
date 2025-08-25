@@ -28,6 +28,12 @@ classdef DLBackEndClass < handle
   %
   % Also note that when synthesizing command lines, WSL paths should normally be
   % used.  The AWSec2 object will convert these to remote paths when needed.
+  %
+  % And another thing: Note that objects of this class have to be copied (in a
+  % certain sense) to a parallel process to do polling of training/tracking.  So
+  % it is by design that this class does not have a .parent_ instance variable,
+  % b/c once you have one of those you generally have an object that is not
+  % copyable, at least not in an obvious and straightforward way.
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
@@ -118,6 +124,10 @@ classdef DLBackEndClass < handle
     % AWS, it's the Docker process ID.  For bsub, it's the LSF job number.
     training_jobids_ = cell(0,1)
     tracking_jobids_ = cell(0,1)
+
+    % Hold the text shown in the backend test window.
+    % It is a cell array of strings.
+    testText_ = cell(0,1)
 
     % This is used to keep track of whether we need to release/delete resources on
     % delete()
@@ -2131,5 +2141,28 @@ classdef DLBackEndClass < handle
       end
     end
 
+    function testBackendConfig(obj, labeler)
+      switch obj.type,
+        case DLBackEnd.Bsub,
+          obj.testBsubBackendConfig_(labeler) ;
+        case DLBackEnd.Docker
+          obj.testDockerBackendConfig_(labeler) ;
+        case DLBackEnd.AWS
+          obj.awsec2.testBackendConfig(labeler) ;
+        case DLBackEnd.Conda
+          obj.testCondaBackendConfig_(labeler) ;
+        otherwise
+          error('Tests for %s have not been implemented', obj.type) ;
+      end      
+    end  % function
+
+    function text = testText(obj)
+      % Get test text based on backend type
+      if obj.type == DLBackEnd.AWS
+        text = obj.awsec2.testText();
+      else
+        text = obj.testText_;
+      end
+    end  % function
   end  % methods
 end  % classdef

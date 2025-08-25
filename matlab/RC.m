@@ -95,9 +95,5 @@ classdef RC
 end
 
 function f = lclInitFile()
-if isdeployed
-  f = [];
-else
-  f = fullfile(APT.Root,'.apt.mat'); 
-end
+  f = fullfile(APT.getdotaptdirpath,'.apt.mat'); 
 end
