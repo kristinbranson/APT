@@ -1292,7 +1292,7 @@ class CompressedAvi:
         frame = num.frombuffer(im.data,num.uint8)
 
         if self.color_depth == 1:
-            frame.resize((self.height,self.width))
+            frame.resize((self.height,self.width, 1))
         else: # color_depth == 3
             frame.resize( (self.height, self.width, 3) )
             # Mayank 20190906 - opencv by default read the image into BGR format. Surprisingly this wasn't an issue before.
