@@ -35,7 +35,7 @@ function [tfsucc, keyName, pemFileWslPath] = ...
   tfsucc = ~isempty(response);      
   if tfsucc
     keyName = strtrim(response{1});
-    pemFileWslPath = absolutifyFileName(strtrim(response{2}));
+    pemFileWslPath = strtrim(response{2});
     if ~apt.localFileExistsAtWslPath(pemFileWslPath)
       error('Cannot find private key (.pem or id_rsa) file with WSL path %s.',pemFileWslPath);
     end
