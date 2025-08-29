@@ -110,7 +110,7 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             origin = emergent_ray.origin[:,0][:,None]
             
             direction = emergent_ray.direction[:,0][:,None]
-            s = torch.linspace(0, 8, num_epipolar_pts).to(torch.float64)
+            s = torch.linspace(0, 16, num_epipolar_pts).to(torch.float64)
             epipolar_line_3D = origin + s[None, :] * direction        
             
         if "real" in labelling_cam:
@@ -120,7 +120,7 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             cam_1_ray = labelling_cam_obj(undistorted_annotations)
             origin = cam_1_ray.origin[:,0][:,None]
             direction = cam_1_ray.direction[:,0][:,None]
-            s = torch.linspace(prism_distance + 5, prism_distance + 15, num_epipolar_pts).to(torch.float64)
+            s = torch.linspace(prism_distance + 1, prism_distance + 17, num_epipolar_pts).to(torch.float64)
             epipolar_line_3D = origin + s[None, :] * direction       
                 
         # Reproject the epipolar line in the projecting camera
@@ -128,9 +128,9 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             epipolar_line_projecting_cam = torch.zeros(2, num_epipolar_pts).to(dtype=torch.float64, device=device)            
             for pt_id in range(num_epipolar_pts):
                 if 'primary' in projecting_cam:
-                    reprojection_pixel = closest_virtual_pixel_to_point(arena, epipolar_line_3D[:, pt_id].unsqueeze(-1), image_width, image_height=[1200, 1200], cam_label_projection='primary')
+                    reprojection_pixel = pseudo_reprojection_to_virtual_view(arena, epipolar_line_3D[:, pt_id].unsqueeze(-1), image_width, image_height=[1200, 1200], cam_label_projection='primary')
                 elif 'secondary' in projecting_cam:
-                    reprojection_pixel = closest_virtual_pixel_to_point(arena, epipolar_line_3D[:, pt_id].unsqueeze(-1), image_width, image_height=[1200, 1200], cam_label_projection='secondary')
+                    reprojection_pixel = pseudo_reprojection_to_virtual_view(arena, epipolar_line_3D[:, pt_id].unsqueeze(-1), image_width, image_height=[1200, 1200], cam_label_projection='secondary')
                 epipolar_line_projecting_cam[:, pt_id] = reprojection_pixel[:2, 0]
             
 
@@ -295,10 +295,10 @@ def get_epipolar_line_in_virtual_cam(arena, user_annotation):
             origin = cam_1_ray.origin[:,0][:,None]
             direction = cam_1_ray.direction[:,0][:,None]
     
-    s = torch.linspace(prism_distance + 3, prism_distance + 18, num_epipolar_pts).to(dtype=torch.float64, device=device)
+    s = torch.linspace(prism_distance + 1, prism_distance + 18, num_epipolar_pts).to(dtype=torch.float64, device=device)
     r = origin + s[None, :] * direction     
     for pt_id in range(num_epipolar_pts):
-        reprojection_pixel = closest_virtual_pixel_to_point(
+        reprojection_pixel = pseudo_reprojection_to_virtual_view(
             arena, r[:, pt_id].unsqueeze(-1), image_width, image_height=[1200, 1200], cam_label_projection='both')
         annotations_curve_primary_camera[:, pt_id] = reprojection_pixel[:2, 0]
         annotations_curve_secondary_camera[:, pt_id] = reprojection_pixel[2:, 0]
@@ -312,13 +312,15 @@ def get_epipolar_line_in_virtual_cam(arena, user_annotation):
     return annotations_curve_unlabelled_camera, annotations_curve_labelled_camera
 
 
-def closest_virtual_pixel_to_point(arena, point, image_width, image_height=[1200, 1200], cam_label_projection='primary'):    
+def pseudo_reprojection_to_virtual_view(arena, point, image_width, image_height=[1200, 1200], cam_label_projection='primary'):    
     """
     cam_label (str): ["primary", "secondary", "both"]
+    point: 3D point in the world coordinates
+    Returns the closest virtual pixel to the point in the virtual camera.
     """    
     
-    resolution_for_virtual_projection = 0.01 # pixel accuracy needed to get reprojection in the virtual camera
-    grid_factor = 14    
+    resolution_for_virtual_projection = 0.05 # pixel accuracy needed to get reprojection in the virtual camera
+    grid_factor = 4
     if cam_label_projection == 'primary':
         width = [image_width[0], image_width[0]] # Only to make the script compatible with the multiple camera case
         height = [image_height[0], image_height[0]] # Only to make the script compatible with the multiple camera case
@@ -350,12 +352,13 @@ def closest_virtual_pixel_to_point(arena, point, image_width, image_height=[1200
         for _ in range(num_iterations):            
             virtual_pixels_grid = torch.vstack((xx * width[0] + center[0,0], yy * height[0] + center[1,0]))    
             for view in range(1, num_views):
-                virtual_pixels_grid = torch.vstack((virtual_pixels_grid, 
-                                                    torch.vstack((xx * width[view] + center[2*view,0], 
+                virtual_pixels_grid = torch.vstack(
+                                                    (virtual_pixels_grid, 
+                                                        torch.vstack((xx * width[view] + center[2*view,0], 
                                                                   yy * height[view] + center[2*view+1,0])
                                                                  )
-                                                     )
-                                                    ) 
+                                                            )
+                                                        ) 
             
             rays_dict = arena.pass_through_virtual_cam(virtual_pixels_grid, cam_label=cam_label_projection)
             if cam_label_projection == 'primary':
@@ -400,6 +403,41 @@ def get_secondary_camera(arena):
                                 r1=arena.stereocam_r1,
                                 radial_dist_coeffs=arena.radial_dist_coeffs_cam_1)
 
+def convert_to_APT_reference_frame(pt, cam_label, dividing_col, image_width, rot_mat):
+    """
+    Accounts for cropping and rotating that happens in APT's movie frames
+    pt: tensor of shape (2, 1) or (2, N) representing points in the image to be converted
+    cam_label: str, one of ["primary_virtual", "primary_real", "secondary_virtual", "secondary_real"]
+    dividing_col: float, the column where the virtual and real cameras are divided in the image
+    image_width: float, the width of the image in pixels
+    """
+    theta = torch.tensor(torch.pi / 2) # Angle by which frames were rotated in APT
+    R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
+    pt = R_theta_inv @ pt
+    if "virtual" in cam_label:
+        pt[0, :] = -pt[0, :] + dividing_col - 1
+        pt[1, :] = -pt[1, :]
+    if "real" in cam_label:
+        pt[0, :] = -pt[0, :] + image_width - 1
+        pt[1, :] = -pt[1, :]
+    return pt
+
+
+def convert_to_raw_reference_frame(pt, cam_label, dividing_col, image_width, rot_mat):
+    """
+    Reverses any changes introduced by cropping and rotation in APT's movie frames
+    """
+    theta = torch.tensor(torch.pi / 2) # Angle by which frames were rotated in APT
+    R_theta = torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]).to(torch.float64)
+    pt = R_theta @ pt
+    if "virtual" in cam_label:
+        pt[1, :] = -pt[1, :] + dividing_col - 1  # 1-based indexing for dividing_col
+        pt[0, :] *= -1  # Invert y-coordinates for virtual cameras
+    if "real" in cam_label:
+        pt[1, :] = -pt[1, :] + image_width - 1
+        pt[0, :] *= -1  # Invert y-coordinates for real cameras
+    return pt
+
 dividing_col_dict = {}
 dividing_col_dict['primary_real'] = dividing_col[0]
 dividing_col_dict['primary_virtual'] = dividing_col[0]
@@ -412,10 +450,10 @@ image_width_dict['primary_virtual'] = image_width[0]
 image_width_dict['secondary_real'] = image_width[1]
 image_width_dict['secondary_virtual'] = image_width[1]
 
-
 if not(type(user_annotation) == torch.Tensor):
     user_annotation = torch.tensor(user_annotation).to(torch.float64)[:, None]
 
+"""
 if rotmat:
     theta = torch.tensor(torch.pi / 2)
     R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
@@ -427,9 +465,11 @@ if rotmat:
     if "real" in cam_label:
         user_annotation[0, :] = -user_annotation[0, :] + image_width_dict[cam_label] - 1
         user_annotation[1, :] = -user_annotation[1, :]
-
-
+"""
+user_annotation = convert_to_APT_reference_frame(user_annotation, cam_label, dividing_col_dict[cam_label], image_width_dict[cam_label], rotmat)
 epipolar_line_projecting_cam = get_epipolar_line(arena, user_annotation, cam_label, cam_projecting)
+epipolar_line_projecting_cam = convert_to_raw_reference_frame(epipolar_line_projecting_cam, cam_projecting, dividing_col_dict[cam_projecting], image_width_dict[cam_projecting], rotmat).numpy()
+"""
 if "virtual" in cam_projecting:
     if rotmat:
         epipolar_line_projecting_cam = R_theta @ epipolar_line_projecting_cam
@@ -443,38 +483,4 @@ elif "real" in cam_projecting:
         epipolar_line_projecting_cam[1, :] = -epipolar_line_projecting_cam[1, :] + image_width_dict[cam_projecting] - 1
         epipolar_line_projecting_cam[0, :] *= -1
     epipolar_line_projecting_cam = epipolar_line_projecting_cam.numpy()
-
-    
-
-"""
-#Old epipolar line code that does not draw lines for individual camera pairs
-if "virtual" in cam_label:
-    epipolar_line_unlabelled, epipolar_line_labelled = get_epipolar_line_in_real_cam(arena, user_annotation, cam_label)
-    if rotmat:
-        user_annotation = R_theta @ user_annotation
-        epipolar_line_unlabelled = R_theta @ epipolar_line_unlabelled
-        epipolar_line_unlabelled[1, :] = -epipolar_line_unlabelled[1, :] + image_width_cam - 1
-        epipolar_line_unlabelled[0, :] *= -1
-        epipolar_line_labelled = R_theta @ epipolar_line_labelled
-        epipolar_line_labelled[1, :] = -epipolar_line_labelled[1, :] + image_width_cam - 1
-        epipolar_line_labelled[0, :] *= -1
-    epipolar_line_unlabelled = epipolar_line_unlabelled.numpy()
-    epipolar_line_labelled = epipolar_line_labelled.numpy()
-
-elif "real" in cam_label:
-    epipolar_line_unlabelled = get_epipolar_line_in_real_cam(arena, user_annotation, cam_label)
-    _, epipolar_line_labelled = get_epipolar_line_in_virtual_cam(arena, user_annotation)
-    if rotmat:
-        user_annotation = R_theta @ user_annotation
-        epipolar_line_unlabelled = R_theta @ epipolar_line_unlabelled
-        epipolar_line_unlabelled[1, :] = -epipolar_line_unlabelled[1, :] + image_width_cam - 1
-        epipolar_line_unlabelled[0, :] *= -1
-        epipolar_line_labelled = R_theta @ epipolar_line_labelled
-        epipolar_line_labelled[1, :] = -epipolar_line_labelled[1, :] + dividing_col_cam - 1
-        epipolar_line_labelled[0, :] *= -1
-
-    epipolar_line_unlabelled = epipolar_line_unlabelled.numpy()
-    epipolar_line_labelled = epipolar_line_labelled.numpy()    
-    #epipolar_line_labelled = np.array([])
-# %%
 """
