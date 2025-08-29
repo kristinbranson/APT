@@ -508,12 +508,15 @@ classdef DLBackEndClass < handle
                                       'bindpath',bindpath,...
                                       'detach',false);
           if verbose
-            fprintf(1,'%s\n',codestr);
+            fprintf('%s\n',codestr);
           end
           [st,res] = apt.syscmd(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s\n%s',res,codestr);
-            return;
+            if ispc() && contains(res, 'WSL')
+              fprintf('\nOn Windows, Docker Desktop has to be running for the Docker backend to work.\n\n')
+            end
+            return
           end
         case DLBackEnd.Conda
           scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;  % Conda backend is only on Linux, so this is both native and WSL path.
