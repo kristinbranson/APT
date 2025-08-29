@@ -27,15 +27,37 @@ classdef BackendTestController < handle
                   'Max',10,...
                   'HorizontalAlignment','left',...
                   'BackgroundColor',[.1 .1 .1],...
-                  'ForegroundColor',[0 1 0]);
-      obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.update())) ;      
-      pause(0.05) ;  % This should be needed, but seemingly is.  
+                  'ForegroundColor',[0 1 0], ...
+                  'String',{''});
+      obj.listener_ = addlistener(labeler, 'updateBackendTestText', @(s,e)(obj.updateEditText())) ;            
+      obj.update() ;
+      pause(0.05) ;  % This should not be needed, but seemingly is.
+      drawnow();  % normal update is rate-limited
       obj.figure_.CloseRequestFcn = @(s,e)(obj.parent_.backendTestFigureCloseRequested()) ;
     end  % function
 
     function update(obj)
-      text = obj.labeler_.backend.testText() ;
-      obj.edit_.String = text ;
+      isBusy = obj.labeler_.isStatusBusy;
+      pointer = fif(isBusy, 'watch', 'arrow');
+      set(obj.figure_,'Pointer',pointer);
+      text = obj.labeler_.backend.testText();
+      obj.edit_.String = text;
+      drawnow('limitrate');
+    end
+
+    function updatePointer(obj)
+      isBusy = obj.labeler_.isStatusBusy;
+      pointer = fif(isBusy, 'watch', 'arrow');
+      set(obj.figure_,'Pointer',pointer);
+      drawnow();  % important that this happen ASAP
+    end
+
+    function updateEditText(obj)
+      text = obj.labeler_.backend.testText();
+      obj.edit_.String = text;
+      drawnow('limitrate');  
+        % Ideally we would let callbacks fire and add code to let user cancel
+        % the test, but not today.
     end
 
     function delete(obj)

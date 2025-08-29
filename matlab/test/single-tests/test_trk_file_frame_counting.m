@@ -14,6 +14,9 @@ function test_trk_file_frame_counting()
   % Define a function the check the frame count for a single file
   function does_agree = check_frame_count(file_name, true_frame_count)
     file_path = fullfile(trk_folder_path, file_name) ;
+    if ~exist(file_path, 'file')
+      error('Test .trk file %s does not exist', file_path);
+    end
     frame_count = TrkFile.getNFramesTracked(file_path) ;
     does_agree = (frame_count == true_frame_count) ;
     if ~does_agree

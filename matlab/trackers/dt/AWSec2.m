@@ -9,7 +9,6 @@ classdef AWSec2 < handle
   % packParfevalSuitcase() and restoreAfterParfeval().
 
   properties (Constant)
-    AWS_SECURITY_GROUP = 'apt_dl';      % name of AWS security group
     % AMI = 'ami-0168f57fb900185e1';  TF 1.6
     % AMI = 'ami-094a08ff1202856d6'; TF 1.13
     % AMI = 'ami-06863f1dcc6923eb2'; % Tf 1.15 py3
@@ -43,8 +42,7 @@ classdef AWSec2 < handle
 
   properties
     keyName = ''  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
-    pem = ''  % path to .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
-    testText_ = cell(0,1)  % Cell array to store test output text
+    pem = ''  % absolute *WSL* path of .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
   end
 
   properties (Transient, SetAccess=protected)
@@ -893,83 +891,77 @@ classdef AWSec2 < handle
       end
     end  % function
 
-    function text = testText(obj)
-      % Getter method for testText_ property
-      text = obj.testText_;
-    end
-
-    function testBackendConfig(obj, labeler)
+    function testBackendConfig(obj, backend, labeler)  %#ok<INUSD>
       % Test the AWS backend
       
-      obj.testText_ = {sprintf('%s: Testing AWS backend...',datestr(now))};
+      backend.testText_ = {sprintf('%s: Testing AWS backend...',datestr(now()))};  %#ok<TNOW1,DATST>
       labeler.notify('updateBackendTestText');
 
       % test that ssh exists
-      obj.testText_{end+1,1} = sprintf('** Testing that ssh is available...'); 
+      backend.testText_{end+1,1} = sprintf('** Testing that ssh is available...'); 
       labeler.notify('updateBackendTestText');
-      obj.testText_{end+1,1} = ''; 
+      backend.testText_{end+1,1} = ''; 
       labeler.notify('updateBackendTestText');
       if ispc,
         isssh = exist(APT.WINSSHCMD,'file') && exist(APT.WINSCPCMD,'file');
         if isssh,
-          obj.testText_{end+1,1} = sprintf('Found ssh at %s',APT.WINSSHCMD); 
+          backend.testText_{end+1,1} = sprintf('Found ssh at %s',APT.WINSSHCMD); 
           labeler.notify('updateBackendTestText');
         else
-          obj.testText_{end+1,1} = sprintf('FAILURE. Did not find ssh in the expected location: %s.',APT.WINSSHCMD); 
+          backend.testText_{end+1,1} = sprintf('FAILURE. Did not find ssh in the expected location: %s.',APT.WINSSHCMD); 
           labeler.notify('updateBackendTestText');
           return;
         end
       else
         cmd = 'which ssh';
-        obj.testText_{end+1,1} = cmd; 
+        backend.testText_{end+1,1} = cmd; 
         labeler.notify('updateBackendTestText');
         [status,result] = apt.syscmd(cmd);
-        obj.testText_{end+1,1} = result; 
+        backend.testText_{end+1,1} = result; 
         labeler.notify('updateBackendTestText');
         if status ~= 0,
-          obj.testText_{end+1,1} = 'FAILURE. Did not find ssh.'; 
+          backend.testText_{end+1,1} = 'FAILURE. Did not find ssh.'; 
           labeler.notify('updateBackendTestText');
           return;
         end
       end
 
-      if ispc(),
-        obj.testText_{end+1,1} = sprintf('\n** Testing that certUtil is installed...\n'); 
+      % Test that md5sum is installed
+      backend.testText_{end+1,1} = sprintf('\n** Testing that md5sum is installed...\n'); 
+      labeler.notify('updateBackendTestText');
+      cmd = 'which md5sum';
+      backend.testText_{end+1,1} = cmd; 
+      labeler.notify('updateBackendTestText');
+      [status,result] = apt.syscmd(cmd);
+      backend.testText_{end+1,1} = result; 
+      labeler.notify('updateBackendTestText');
+      if status ~= 0,
+        backend.testText_{end+1,1} = 'FAILURE. Did not find md5sum.'; 
         labeler.notify('updateBackendTestText');
-        cmd = 'where certUtil';
-        obj.testText_{end+1,1} = cmd; 
-        labeler.notify('updateBackendTestText');
-        [status,result] = apt.syscmd(cmd);
-        obj.testText_{end+1,1} = result; 
-        labeler.notify('updateBackendTestText');
-        if status ~= 0,
-          obj.testText_{end+1,1} = 'FAILURE. Did not find certUtil.'; 
-          labeler.notify('updateBackendTestText');
-          return;
-        end
+        return;
       end
 
       % test that AWS CLI is installed
-      obj.testText_{end+1,1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
+      backend.testText_{end+1,1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
       labeler.notify('updateBackendTestText');
       cmd = 'aws ec2 describe-regions --output table';
-      obj.testText_{end+1,1} = cmd; 
+      backend.testText_{end+1,1} = cmd; 
       labeler.notify('updateBackendTestText');
       [status,result] = AWSec2.syscmd(cmd);
       tfsucc = (status==0);      
-      obj.testText_{end+1,1} = result; 
+      backend.testText_{end+1,1} = result; 
       labeler.notify('updateBackendTestText');
       if ~tfsucc % status ~= 0,
-        obj.testText_{end+1,1} = 'FAILURE. Error using the AWS CLI.'; 
+        backend.testText_{end+1,1} = 'FAILURE. Error using the AWS CLI.'; 
         labeler.notify('updateBackendTestText');
         return
       end
 
       % test that apt_dl security group has been created
-      obj.testText_{end+1,1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
+      backend.testText_{end+1,1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
       labeler.notify('updateBackendTestText');
       cmd = 'aws ec2 describe-security-groups';
-      obj.testText_{end+1,1} = cmd; 
+      backend.testText_{end+1,1} = cmd; 
       labeler.notify('updateBackendTestText');
       [status,result] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (status==0);
@@ -977,7 +969,7 @@ classdef AWSec2 < handle
         try
           result = jsondecode(result);
           if ismember('apt_dl',{result.SecurityGroups.GroupName}),
-            obj.testText_{end+1,1} = 'Found apt_dl security group.'; 
+            backend.testText_{end+1,1} = 'Found apt_dl security group.'; 
             labeler.notify('updateBackendTestText');
           else
             status = 1;
@@ -986,20 +978,20 @@ classdef AWSec2 < handle
           status = 1;
         end
         if status == 1,
-          obj.testText_{end+1,1} = 'FAILURE. Could not find the apt_dl security group.'; 
+          backend.testText_{end+1,1} = 'FAILURE. Could not find the apt_dl security group.'; 
           labeler.notify('updateBackendTestText');
         end
       else
-        obj.testText_{end+1,1} = result; 
+        backend.testText_{end+1,1} = result; 
         labeler.notify('updateBackendTestText');
-        obj.testText_{end+1,1} = 'FAILURE. Error checking for apt_dl security group.'; 
+        backend.testText_{end+1,1} = 'FAILURE. Error checking for apt_dl security group.'; 
         labeler.notify('updateBackendTestText');
         return
       end
 
-      obj.testText_{end+1,1} = 'SUCCESS!'; 
-      obj.testText_{end+1,1} = ''; 
-      obj.testText_{end+1,1} = 'All tests passed. AWS Backend should work for you.'; 
+      backend.testText_{end+1,1} = 'SUCCESS!'; 
+      backend.testText_{end+1,1} = ''; 
+      backend.testText_{end+1,1} = 'All tests passed. AWS Backend should work for you.'; 
       labeler.notify('updateBackendTestText');
     end  % function
   end  % methods
@@ -1007,10 +999,9 @@ classdef AWSec2 < handle
   methods (Static)
     
     function cmd = launchInstanceCmd(keyName, varargin)
-      [ami,instType,secGrp,dryrun] = myparse(varargin,...
+      [ami,instType,dryrun] = myparse(varargin,...
         'ami',AWSec2.AMI,...
         'instType',AWSec2.instanceType,...
-        'secGrp',AWSec2.AWS_SECURITY_GROUP,...
         'dryrun',false);
       date_and_time_string = char(datetime('now','TimeZone','local','Format','yyyy-MM-dd-HH-mm-ss')) ;
       name = sprintf('apt-to-the-porpoise-%s', date_and_time_string) ;
@@ -1031,15 +1022,14 @@ classdef AWSec2 < handle
     end  % function
     
     function cmd = listInstancesCmd(keyName,varargin)      
-      [ami,instType,secGrp] = ...
+      [ami,instType] = ...
         myparse(varargin,...
                 'ami',AWSec2.AMI,...
                 'instType','p3.2xlarge',...
-                'secGrp',AWSec2.AWS_SECURITY_GROUP,...
                 'dryrun',false);
       
-      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=instance.group-name,Values=%s" "Name=key-name,Values=%s"', ...
-                    ami,secGrp,keyName);
+      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=key-name,Values=%s"', ...
+                    ami,keyName);
       if ~isempty(instType)
         cmd = [cmd sprintf(' "Name=instance-type,Values=%s"',instType)];
       end
