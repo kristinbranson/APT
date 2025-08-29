@@ -33,7 +33,8 @@ addlblfiles = {
 old_data_dir = '/groups/branson/bransonlab/PTR_fly_annotations_3D/';
 
 % location of newly cropped videos
-newcroppedmoviedir = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views';
+newcroppedmoviedir = '/groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led';
+%newcroppedmoviedir = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views';
 
 % fixed size of the two cropped videos
 recropped_image_sizes = [1331, 1167]; % [virtual image, real image]
@@ -173,7 +174,7 @@ for i = 1:size(moviefiles_base,1),
     assert(numel(m)==2);
     oldcols = cellfun(@str2num,{m.col});
     [~,oldorder] = sort(oldcols);
-    searchstr = fullfile(newcroppedmoviedir,['exp_',m(1).exp],[m(1).mov,'*ufmf']);
+    searchstr = fullfile(newcroppedmoviedir,['exp_',m(1).exp],'fly_images','cropped_uniform_sizes',[m(1).mov,'*ufmf']);
     newmoviefiles = mydir(searchstr);
     assert(numel(newmoviefiles)==2,'Could not find new movies');
 
