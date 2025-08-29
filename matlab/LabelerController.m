@@ -565,6 +565,9 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
+      if ~isempty(obj.backendTestController_)
+        delete(obj.backendTestController_) ;
+      end
       try
         deleteValidGraphicsHandles(obj.movieManagerController_.hFig) ;
       catch % fail silently :)
