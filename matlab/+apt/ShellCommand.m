@@ -6,6 +6,10 @@ classdef ShellCommand
     % proper path translation when commands need to be executed on different
     % platforms (native, WSL, remote).
     %
+    % INVARIANT: All apt.MetaPath tokens must have the same locale as the
+    % ShellCommand's locale. This ensures consistency when converting between
+    % different execution contexts.
+    %
     % Example usage:
     %   movPath = apt.MetaPath({'data', 'movie.avi'}, 'native', 'movie');
     %   cmd = apt.ShellCommand({'python', 'script.py', '--input', movPath, '--output', 'results.txt'});
@@ -14,7 +18,7 @@ classdef ShellCommand
     
     properties
         tokens_     % Cell array of tokens (strings and apt.MetaPath objects)
-        platform_   % apt.PathLocale enumeration indicating the platform context
+        locale_     % apt.PathLocale enumeration indicating the path locale
     end
     
     properties (Dependent)
@@ -41,12 +45,24 @@ classdef ShellCommand
                 locale = apt.PathLocale.fromString(locale);
             end
             
+            % Validate that all apt.MetaPath tokens have matching locale
+            for i = 1:length(tokens)
+                token = tokens{i};
+                if isa(token, 'apt.MetaPath')
+                    if token.locale ~= locale
+                        error('apt:ShellCommand:LocaleMismatch', ...
+                              'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
+                              i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
+                    end
+                end
+            end
+            
             obj.tokens_ = tokens;
-            obj.platform_ = locale;
+            obj.locale_ = locale;
         end
         
         function result = get.platform(obj)
-            result = obj.platform_;
+            result = obj.locale_;
         end
         
         function result = as(obj, targetLocale)
@@ -116,17 +132,21 @@ classdef ShellCommand
             % Returns:
             %   apt.ShellCommand: New command with tokens appended
             
-            newTokens = obj.tokens_;
+            tokensToAdd = {};
             for i = 1:length(varargin)
                 token = varargin{i};
                 if iscell(token)
-                    newTokens = [newTokens, token];
+                    tokensToAdd = [tokensToAdd, token];
                 else
-                    newTokens{end+1} = token;
+                    tokensToAdd{end+1} = token;
                 end
             end
             
-            result = apt.ShellCommand(newTokens, obj.platform_);
+            % Validate new tokens before adding
+            obj.validateTokens_(tokensToAdd, 'append');
+            
+            newTokens = [obj.tokens_, tokensToAdd];
+            result = apt.ShellCommand(newTokens, obj.locale_);
         end
         
         function result = prepend(obj, varargin)
@@ -138,18 +158,21 @@ classdef ShellCommand
             % Returns:
             %   apt.ShellCommand: New command with tokens prepended
             
-            newTokens = {};
+            tokensToAdd = {};
             for i = 1:length(varargin)
                 token = varargin{i};
                 if iscell(token)
-                    newTokens = [newTokens, token];
+                    tokensToAdd = [tokensToAdd, token];
                 else
-                    newTokens{end+1} = token;
+                    tokensToAdd{end+1} = token;
                 end
             end
-            newTokens = [newTokens, obj.tokens_];
             
-            result = apt.ShellCommand(newTokens, obj.platform_);
+            % Validate new tokens before adding
+            obj.validateTokens_(tokensToAdd, 'prepend');
+            
+            newTokens = [tokensToAdd, obj.tokens_];
+            result = apt.ShellCommand(newTokens, obj.locale_);
         end
         
         function result = substitute(obj, oldToken, newToken)
@@ -162,6 +185,11 @@ classdef ShellCommand
             % Returns:
             %   apt.ShellCommand: New command with substitutions made
             
+            % Validate new token if it's an apt.MetaPath
+            if isa(newToken, 'apt.MetaPath')
+                obj.validateTokens_({newToken}, 'substitute');
+            end
+            
             newTokens = obj.tokens_;
             for i = 1:length(newTokens)
                 if obj.tokensEqual_(newTokens{i}, oldToken)
@@ -169,7 +197,7 @@ classdef ShellCommand
                 end
             end
             
-            result = apt.ShellCommand(newTokens, obj.platform_);
+            result = apt.ShellCommand(newTokens, obj.locale_);
         end
         
         function result = getPathTokens(obj)
@@ -239,7 +267,7 @@ classdef ShellCommand
                 return;
             end
             
-            if length(obj.tokens_) ~= length(other.tokens_) || obj.platform_ ~= other.platform_
+            if length(obj.tokens_) ~= length(other.tokens_) || obj.locale_ ~= other.locale_
                 result = false;
                 return;
             end
@@ -257,7 +285,7 @@ classdef ShellCommand
         function disp(obj)
             % Display the apt.ShellCommand object
             fprintf('apt.ShellCommand [%s] with %d tokens:\n', ...
-                    apt.PathLocale.toString(obj.platform_), length(obj.tokens_));
+                    apt.PathLocale.toString(obj.locale_), length(obj.tokens_));
             for i = 1:length(obj.tokens_)
                 token = obj.tokens_{i};
                 if isa(token, 'apt.MetaPath')
@@ -278,6 +306,25 @@ classdef ShellCommand
                 result = strcmp(token1, token2);
             else
                 result = false;
+            end
+        end
+        
+        function validateTokens_(obj, tokens, methodName)
+            % Validate that all apt.MetaPath tokens have matching locale
+            %
+            % Args:
+            %   tokens (cell): Cell array of tokens to validate
+            %   methodName (char): Name of calling method for error messages
+            
+            for i = 1:length(tokens)
+                token = tokens{i};
+                if isa(token, 'apt.MetaPath')
+                    if token.locale ~= obj.locale_
+                        error('apt:ShellCommand:LocaleMismatch', ...
+                              'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
+                              methodName, i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(obj.locale_));
+                    end
+                end
             end
         end
     end

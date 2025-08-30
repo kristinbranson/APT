@@ -27,7 +27,7 @@ classdef Path
       % Constructor for apt.Path
       %
       % Args:
-      %   listOrString (cell or char): Cell array of path components or path string
+      %   listOrString (cell or char, optional): Cell array of path components or path string
       %   platform (char or apt.Os, optional): 'linux', 'windows', 'macos', or enum
 
       % Deal with args
@@ -42,12 +42,16 @@ classdef Path
         platform = rawPlatform;
       end
 
+      % Handle empty path case (no arguments, '.', empty string, or empty array)
+      if ~exist('listOrString', 'var') || isempty(listOrString) || (ischar(listOrString) && strcmp(listOrString, '.'))
+        obj.list_ = cell(1,0);  % Empty row vector for empty path
+        obj.platform_ = platform;
+        obj.tfIsAbsolute_ = false;  % Empty paths are relative
+        return;
+      end
+
       if ischar(listOrString)
         str = listOrString ;
-        % Check for empty string input
-        if isempty(str)
-          error('apt:Path:EmptyPath', 'Cannot create path from empty string');
-        end
         % Convert string path to list
         obj.list_ = apt.Path.stringToList_(str, platform);
         
@@ -68,13 +72,14 @@ classdef Path
       % Determine if the path is absolute
       obj.tfIsAbsolute_ = apt.Path.isAbsoluteList_(obj.list_, platform);
 
-      % .list_ cannot be empty
-      if isempty(obj.list_)
-        error('apt:Path:InvalidList', 'The Path list cannot be empty') ;
+      % Remove '.' elements from the path list
+      if ~isempty(obj.list_)
+        isDotFromIndex = strcmp(obj.list_, '.');
+        obj.list_(isDotFromIndex) = [];
       end
 
       % For Linux absolute paths, first element must be empty string
-      if platform ~= apt.Os.windows
+      if platform ~= apt.Os.windows && ~isempty(obj.list_)
         if obj.tfIsAbsolute_
           if isempty(obj.list_{1})
             % all is well
@@ -99,7 +104,11 @@ classdef Path
 
     function result = toString(obj)
       % Get the path as a string
-      result = apt.Path.listToString_(obj.list_, obj.platform_);
+      if isempty(obj.list_)
+        result = '.';
+      else
+        result = apt.Path.listToString_(obj.list_, obj.platform_);
+      end
     end
 
     function result = cat2(obj, other)
@@ -116,6 +125,7 @@ classdef Path
       %   - The other path must be relative (not absolute)
       %   - The result will have the same platform as this path
       %   - The result will be absolute if this path is absolute
+      %   - If other is an empty path, returns this path unchanged
       
       % Convert string to apt.Path if needed
       if ischar(other)
@@ -130,6 +140,12 @@ classdef Path
       
       if obj.platform ~= other.platform
         error('apt:Path:PlatformMismatch', 'Cannot concatenate paths from different platforms');
+      end
+      
+      % If other is empty, return this path unchanged
+      if isempty(other.list_)
+        result = obj;
+        return;
       end
       
       % Concatenate the path components
@@ -172,6 +188,108 @@ classdef Path
       result = isequal(obj.list_, other.list_) && ...
                obj.platform_ == other.platform_ && ...
                obj.tfIsAbsolute_ == other.tfIsAbsolute_;
+    end
+
+    function [pathPart, filenamePart] = fileparts2(obj)
+      % Works like Matlab's builtin fileparts(), but combines name and ext
+      %
+      % Returns:
+      %   pathPart (apt.Path): Directory path portion 
+      %   filenamePart (apt.Path): Filename portion (name + extension combined)
+      %
+      % Example:
+      %   p = apt.Path('/home/user/data/movie.avi');
+      %   [dir, file] = p.fileparts2();
+      %   % dir will be apt.Path('/home/user/data')
+      %   % file will be apt.Path('movie.avi')
+      
+      if isempty(obj.list_)
+        error('apt:Path:EmptyPath', 'Cannot get fileparts of empty path');
+      end
+      
+      % Get the last component (filename)
+      filename = obj.list_{end};
+      
+      % Create the path part by removing the last component
+      if isscalar(obj.list_)
+        % Only one component - create appropriate empty path
+        if obj.tfIsAbsolute_
+          % For absolute paths with one component, path part should be root
+          if obj.platform_ == apt.Os.windows
+            % Windows: just the drive letter
+            pathPart = apt.Path({filename}, obj.platform_);
+          else
+            % Unix: root directory
+            pathPart = apt.Path({''}, obj.platform_);
+          end
+        else
+          % For relative paths with one component, path part should be empty relative path
+          pathPart = apt.Path('.', obj.platform_);
+        end
+      else
+        % Multiple components - take all but the last
+        pathList = obj.list_(1:end-1);
+        pathPart = apt.Path(pathList, obj.platform_);
+      end
+      
+      % Create the filename part as a relative path
+      filenamePart = apt.Path({filename}, obj.platform_);
+    end
+
+    function result = replacePrefix(obj, sourcePath, targetPath)
+      % Replace a source prefix with a target prefix
+      %
+      % Args:
+      %   sourcePath (apt.Path or char): The prefix to replace
+      %   targetPath (apt.Path or char): The replacement prefix
+      %
+      % Returns:
+      %   apt.Path: New path with prefix replaced, or original path if prefix doesn't match
+      %
+      % Example:
+      %   p = apt.Path('/old/base/file.txt');
+      %   newP = p.replacePrefix('/old/base', '/new/location');
+      %   % newP will be apt.Path('/new/location/file.txt')
+      
+      % Convert string arguments to apt.Path if needed
+      if ischar(sourcePath)
+        sourcePath = apt.Path(sourcePath, obj.platform_);
+      elseif ~isa(sourcePath, 'apt.Path')
+        error('apt:Path:InvalidArgument', 'sourcePath must be an apt.Path object or string');
+      end
+      
+      if ischar(targetPath)
+        targetPath = apt.Path(targetPath, obj.platform_);
+      elseif ~isa(targetPath, 'apt.Path')
+        error('apt:Path:InvalidArgument', 'targetPath must be an apt.Path object or string');
+      end
+      
+      % Check platform compatibility
+      if obj.platform_ ~= sourcePath.platform_ || obj.platform_ ~= targetPath.platform_
+        error('apt:Path:PlatformMismatch', 'All paths must have the same platform');
+      end
+      
+      % Check if this path starts with the source prefix
+      sourceList = sourcePath.list_;
+      if length(obj.list_) < length(sourceList)
+        % Path is shorter than source prefix, no match
+        result = obj;
+        return;
+      end
+      
+      % Check if the beginning of obj.list_ matches sourceList
+      if ~isequal(obj.list_(1:length(sourceList)), sourceList)
+        % Prefix doesn't match
+        result = obj;
+        return;
+      end
+      
+      % Replace the prefix
+      remainingList = obj.list_(length(sourceList)+1:end);
+      newList = [targetPath.list_, remainingList];
+      
+      % Create new path object
+      result = apt.Path(newList, obj.platform_);
     end
 
     function disp(obj)

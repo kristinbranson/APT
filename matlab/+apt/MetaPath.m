@@ -97,6 +97,49 @@ classdef MetaPath
                obj.role_ == other.role_;
     end
 
+    function result = replacePrefix(obj, rawSourcePath, rawTargetPath)
+      % Replace a source prefix with a target prefix in the underlying path
+      %
+      % Args:
+      %   rawSourcePath (apt.Path, apt.MetaPath, or char): The prefix to replace
+      %   rawTargetPath (apt.Path, apt.MetaPath, or char): The replacement prefix
+      %
+      % Returns:
+      %   apt.MetaPath: New MetaPath with prefix replaced, preserving locale and role
+      %
+      % Example:
+      %   mp = apt.MetaPath(apt.Path('/old/base/file.txt'), 'native', 'movie');
+      %   newMp = mp.replacePrefix('/old/base', '/new/location');
+      %   % newMp will have path '/new/location/file.txt' with same locale and role
+      
+      % Extract apt.Path objects from arguments
+      if isa(rawSourcePath, 'apt.MetaPath')
+        sourcePath = rawSourcePath.path_;
+      elseif isa(rawSourcePath, 'apt.Path')
+        sourcePath = rawSourcePath;
+      elseif ischar(rawSourcePath)
+        sourcePath = apt.Path(rawSourcePath, obj.path_.platform);
+      else
+        error('apt:MetaPath:InvalidArgument', 'rawSourcePath must be an apt.Path, apt.MetaPath, or string');
+      end
+      
+      if isa(rawTargetPath, 'apt.MetaPath')
+        targetPath = rawTargetPath.path_;
+      elseif isa(rawTargetPath, 'apt.Path')
+        targetPath = rawTargetPath;
+      elseif ischar(rawTargetPath)
+        targetPath = apt.Path(rawTargetPath, obj.path_.platform);
+      else
+        error('apt:MetaPath:InvalidArgument', 'rawTargetPath must be an apt.Path, apt.MetaPath, or string');
+      end
+      
+      % Use the underlying apt.Path replacePrefix method
+      newPath = obj.path_.replacePrefix(sourcePath, targetPath);
+      
+      % Create new MetaPath with the same locale and role
+      result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+    end
+
     function disp(obj)
       % Display the apt.MetaPath object
       pathStr = obj.toString();

@@ -20,14 +20,13 @@ for platform = enumeration('apt.Os')'
     error('Path list is wrong. Expected: %s, Got: %s', mat2str(correctNativePathAsList), mat2str(nativePath.list)) ;
   end
 
-  % Test that constructor errors on empty string
-  try
-    apt.Path('', platform);
-    error('Constructor should have errored on empty string but did not');
-  catch ME
-    if ~contains(ME.identifier, 'apt:Path:EmptyPath')
-      error('Constructor errored on empty string but with wrong error type: %s', ME.identifier);
-    end
+  % Test that constructor creates empty path for empty string
+  emptyStringPath = apt.Path('', platform);
+  if ~isempty(emptyStringPath.list)
+    error('Empty string should create empty path');
+  end
+  if ~strcmp(emptyStringPath.toString(), '.')
+    error('Empty string path should display as "."');
   end
 
   % Test root path behavior: should error on Windows, succeed with empty list on Unix
@@ -184,6 +183,156 @@ concatenated6 = basePath.cat('single/path');
 expectedPath6 = basePath.cat2('single/path');
 if ~concatenated6.eq(expectedPath6)
   error('Path concatenation with single argument should match cat2 result');
+end
+
+% Test empty path creation (with auto-detected platform)
+emptyPathAuto1 = apt.Path();
+emptyPathAuto2 = apt.Path('.');
+if ~emptyPathAuto1.eq(emptyPathAuto2)
+  error('Empty paths with auto-detected platform should be equal');
+end
+
+% Test empty path creation and cat2 behavior
+for platform = enumeration('apt.Os')'
+  % Test creating empty path with empty array
+  emptyPath1 = apt.Path([], platform);
+  if ~isempty(emptyPath1.list)
+    error('Empty path created with empty array should have empty list');
+  end
+  if emptyPath1.tfIsAbsolute
+    error('Empty path should be relative');
+  end
+  if ~strcmp(emptyPath1.toString(), '.')
+    error('Empty path should display as "." but got: %s', emptyPath1.toString());
+  end
+  
+  % Test creating empty path with '.'
+  emptyPath2 = apt.Path('.', platform);
+  if ~isempty(emptyPath2.list)
+    error('Empty path created with "." should have empty list');
+  end
+  if emptyPath2.tfIsAbsolute
+    error('Empty path created with "." should be relative');
+  end
+  if ~strcmp(emptyPath2.toString(), '.')
+    error('Empty path created with "." should display as "." but got: %s', emptyPath2.toString());
+  end
+  if emptyPath2.platform ~= platform
+    error('Empty path should preserve specified platform');
+  end
+  
+  % Test that empty paths are equal when created with same platform
+  if ~emptyPath1.eq(emptyPath2)
+    error('Empty paths should be equal when created with same platform');
+  end
+  
+  % Test cat2 with empty path as second argument
+  if platform == apt.Os.windows
+    testPath = apt.Path('C:\Users\test\docs', platform);
+  else
+    testPath = apt.Path('/home/user/docs', platform);
+  end
+  
+  result1 = testPath.cat2(emptyPath2);
+  if ~result1.eq(testPath)
+    error('Concatenating with empty path as second argument should return first path unchanged');
+  end
+  
+  % Test cat2 with empty path as first argument
+  result2 = emptyPath2.cat2('relative/file.txt');
+  expectedResult2 = apt.Path('relative/file.txt', platform);
+  if ~result2.eq(expectedResult2)
+    error('Concatenating empty path with relative path should return the relative path');
+  end
+  
+  % Test cat2 with both paths empty
+  emptyPath3 = apt.Path('.', platform);
+  result3 = emptyPath2.cat2(emptyPath3);
+  if ~result3.eq(emptyPath2)
+    error('Concatenating two empty paths should return an empty path');
+  end
+  
+  % Test fileparts2 with single component (should return empty path and filename)
+  singlePath = apt.Path('foo', platform);
+  [pathPart, filenamePart] = singlePath.fileparts2();
+  
+  % Path part should be empty path
+  expectedEmptyPath = apt.Path('.', platform);
+  if ~pathPart.eq(expectedEmptyPath)
+    error('fileparts2 of single component should return empty path for directory part');
+  end
+  
+  % Filename part should be the original component
+  expectedFilenamePart = apt.Path('foo', platform);
+  if ~filenamePart.eq(expectedFilenamePart)
+    error('fileparts2 of single component should return original component as filename part');
+  end
+  
+  % Test that '.' elements are removed from path lists
+  pathWithDots = apt.Path({'foo', '.', 'bar', '.', 'baz'}, platform);
+  expectedList = {'foo', 'bar', 'baz'};
+  if ~isequal(pathWithDots.list, expectedList)
+    error('Constructor should remove "." elements from path list');
+  end
+  
+  % Test that path consisting only of '.' becomes empty path
+  allDotsPath = apt.Path({'.'}, platform);
+  if ~isempty(allDotsPath.list)
+    error('Path consisting only of "." should become empty path');
+  end
+  if ~strcmp(allDotsPath.toString(), '.')
+    error('Path consisting only of "." should display as "."');
+  end
+  
+  % Test replacePrefix method
+  if platform == apt.Os.windows
+    originalPath = apt.Path('C:\old\base\file.txt', platform);
+    sourcePath = apt.Path('C:\old\base', platform);
+    targetPath = apt.Path('D:\new\location', platform);
+    expectedResult = apt.Path('D:\new\location\file.txt', platform);
+  else
+    originalPath = apt.Path('/old/base/file.txt', platform);
+    sourcePath = apt.Path('/old/base', platform);
+    targetPath = apt.Path('/new/location', platform);
+    expectedResult = apt.Path('/new/location/file.txt', platform);
+  end
+  
+  result = originalPath.replacePrefix(sourcePath, targetPath);
+  if ~result.eq(expectedResult)
+    error('replacePrefix should replace matching prefix correctly');
+  end
+  
+  % Test replacePrefix with non-matching prefix
+  if platform == apt.Os.windows
+    nonMatchingSource = apt.Path('C:\different\path', platform);
+  else
+    nonMatchingSource = apt.Path('/different/path', platform);
+  end
+  
+  resultNoMatch = originalPath.replacePrefix(nonMatchingSource, targetPath);
+  if ~resultNoMatch.eq(originalPath)
+    error('replacePrefix should return original path when prefix does not match');
+  end
+  
+  % Test replacePrefix with string arguments
+  resultWithStrings = originalPath.replacePrefix(sourcePath.toString(), targetPath.toString());
+  if ~resultWithStrings.eq(expectedResult)
+    error('replacePrefix should work with string arguments');
+  end
+  
+  % Test replacePrefix with empty paths
+  emptySource = apt.Path('.', platform);
+  emptyTarget = apt.Path('.', platform);
+  resultEmptyPrefix = originalPath.replacePrefix(emptySource, emptyTarget);
+  if ~resultEmptyPrefix.eq(originalPath)
+    error('replacePrefix with empty source should return original path');
+  end
+  
+  % Test replacePrefix where source equals the entire path
+  exactMatchResult = originalPath.replacePrefix(originalPath, targetPath);
+  if ~exactMatchResult.eq(targetPath)
+    error('replacePrefix should return target path when source equals entire original path');
+  end
 end
 
 end
