@@ -22,7 +22,7 @@ classdef ShellCommand
     end
     
     properties (Dependent)
-        platform    % Get the platform type
+        locale      % Get the locale type
     end
     
     methods
@@ -61,7 +61,7 @@ classdef ShellCommand
             obj.locale_ = locale;
         end
         
-        function result = get.platform(obj)
+        function result = get.locale(obj)
             result = obj.locale_;
         end
         
@@ -375,5 +375,9 @@ classdef ShellCommand
             
             result = apt.ShellCommand(tokens, locale);
         end
+        
+        result = cat(varargin)
+        % Concatenate any number of strings, apt.MetaPaths, and apt.ShellCommands
+        % into a single apt.ShellCommand (defined in cat.m)
     end
 end
