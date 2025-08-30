@@ -1,94 +1,89 @@
 classdef Path
-  % apt.Path - A value class to represent *absolute* paths with platform and file role
-  % awareness.  All represented paths are absolute paths.
+  % apt.Path - A value class to represent paths, with platform awareness.
   %
-  % This class encapsulates paths used in APT with knowledge of:
-  % 1. Platform: native, wsl, remote
-  % 2. File role: cache, or movie
+  % This class encapsulates paths with knowledge of platform type.
   %
   % Example usage:
-  %   p = apt.Path({'C:', 'data', 'movie.avi'}, 'native', 'movie');
-  %   wslPath = p.as('wsl');
-  %   remotePath = p.as('remote');
+  %   p = apt.Path({'C:', 'data', 'movie.avi'});
+  %   pathStr = p.toString();
 
   properties
     list_        % Cell array of path components
-    locale_      % apt.PathLocale enumeration.  Describes the 'locale' (native/wsl/remote) where the absolute path represented by list_ is 
-                 % appropriate.
-    fileRole_    % apt.FileRole enumeration.
     platform_    
       % apt.Os enumeration.  Represents the OS the fronted is currently running on,
       % usually.  Present so that we can test Path functionality on e.g. Windows on
       % e.g. Linux.
+    tfIsAbsolute_ % Logical scalar indicating whether the path is absolute
   end
 
   properties (Dependent)
-    locale       % Get the locale
-    fileRole     % Get the file role
-    list         % Get the path components list
-    platform     % Get the platform
+    list           % Get the path components list
+    platform       % Get the platform
+    tfIsAbsolute   % Get whether the path is absolute
   end
 
   methods
-    function obj = Path(listOrString, locale, fileRole, platform)
+    function obj = Path(listOrString, rawPlatform)
       % Constructor for apt.Path
       %
       % Args:
-      %   pathList (cell): Cell array of path components
-      %   locale (char or apt.PathLocale): 'native', 'wsl', 'remote', or enum
-      %   fileRole (char or apt.FileRole): 'cache', 'movie', or enum
+      %   listOrString (cell or char): Cell array of path components or path string
       %   platform (char or apt.Os, optional): 'linux', 'windows', 'macos', or enum
 
-      if ~exist('fileRole', 'var') || isempty(fileRole)
-        fileRole = apt.FileRole.cache;
-      end
-      if ~exist('locale', 'var') || isempty(locale)
-        locale = apt.PathLocale.native;
-      end
-      if ~exist('platform', 'var') || isempty(platform)
-        platform = apt.Os.current();
+      % Deal with args
+      if ~exist('rawPlatform', 'var') || isempty(rawPlatform)
+        rawPlatform = apt.Os.current();
       end
 
       % Convert string to enum if needed
-      if ischar(locale)
-        locale = apt.PathLocale.fromString(locale);
-      end
-      if ischar(fileRole)
-        fileRole = apt.FileRole.fromString(fileRole);
-      end
-      if ischar(platform)
-        platform = apt.Os.fromString(platform);
+      if ischar(rawPlatform)        
+        platform = apt.Os.fromString(rawPlatform);
+      else
+        platform = rawPlatform;
       end
 
       if ischar(listOrString)
+        str = listOrString ;
         % Check for empty string input
-        if isempty(listOrString)
+        if isempty(str)
           error('apt:Path:EmptyPath', 'Cannot create path from empty string');
         end
         % Convert string path to list
-        obj.list_ = apt.Path.stringToList_(listOrString, locale, platform);
+        obj.list_ = apt.Path.stringToList_(str, platform);
+        
         % Check for Windows root path case
-        if isempty(obj.list_) && locale == apt.PathLocale.native && platform == apt.Os.windows
-          error('apt:Path:EmptyPath', 'Cannot create Windows path from root path "/"');
+        if isempty(obj.list_) && platform == apt.Os.windows
+          error('apt:Path:EmptyPath', 'Cannot create Windows path from path "/"');
         end
       elseif iscell(listOrString)
-        obj.list_ = listOrString;
+        lst = listOrString ;
+        obj.list_ = lst;        
       else
         error('listOrString must be a string or a cell array of strings') ;
       end
 
-      obj.locale_ = locale;
-      obj.fileRole_ = fileRole;
+      % Set the platform
       obj.platform_ = platform;
-    end
+      
+      % Determine if the path is absolute
+      obj.tfIsAbsolute_ = apt.Path.isAbsoluteList_(obj.list_, platform);
 
-    function result = get.locale(obj)
-      result = obj.locale_;
-    end
+      % .list_ cannot be empty
+      if isempty(obj.list_)
+        error('apt:Path:InvalidList', 'The Path list cannot be empty') ;
+      end
 
-    function result = get.fileRole(obj)
-      result = obj.fileRole_;
-    end
+      % For Linux absolute paths, first element must be empty string
+      if platform ~= apt.Os.windows
+        if obj.tfIsAbsolute_
+          if isempty(obj.list_{1})
+            % all is well
+          else
+            error('apt:Path:InvalidAbsolutePath', 'Linux absolute paths must have empty string as first element');
+          end
+        end
+      end      
+    end  % function
 
     function result = get.list(obj)
       result = obj.list_;
@@ -98,9 +93,73 @@ classdef Path
       result = obj.platform_;
     end
 
+    function result = get.tfIsAbsolute(obj)
+      result = obj.tfIsAbsolute_;
+    end
+
     function result = toString(obj)
       % Get the path as a string
-      result = apt.Path.listToString_(obj.list_, obj.locale_, obj.platform_);
+      result = apt.Path.listToString_(obj.list_, obj.platform_);
+    end
+
+    function result = cat2(obj, other)
+      % Concatenate this path with another path or string
+      %
+      % Args:
+      %   other (apt.Path or char): The path to concatenate
+      %
+      % Returns:
+      %   apt.Path: New path object representing the concatenation
+      %
+      % Notes:
+      %   - If other is a string, it's converted to apt.Path with same platform
+      %   - The other path must be relative (not absolute)
+      %   - The result will have the same platform as this path
+      %   - The result will be absolute if this path is absolute
+      
+      % Convert string to apt.Path if needed
+      if ischar(other)
+        other = apt.Path(other, obj.platform);
+      elseif ~isa(other, 'apt.Path')
+        error('apt:Path:InvalidArgument', 'Argument must be an apt.Path object or string');
+      end
+      
+      if other.tfIsAbsolute
+        error('apt:Path:AbsolutePath', 'Cannot concatenate with an absolute path');
+      end
+      
+      if obj.platform ~= other.platform
+        error('apt:Path:PlatformMismatch', 'Cannot concatenate paths from different platforms');
+      end
+      
+      % Concatenate the path components
+      newList = [obj.list_, other.list_];
+      
+      % Create new path object
+      result = apt.Path(newList, obj.platform);
+    end
+
+    function result = cat(obj, varargin)
+      % Concatenate this path with multiple paths or strings
+      %
+      % Args:
+      %   varargin: Variable number of apt.Path objects or strings to concatenate
+      %
+      % Returns:
+      %   apt.Path: New path object representing the concatenation of all inputs
+      %
+      % Notes:
+      %   - Uses cat2() method as building block
+      %   - All paths must be relative (not absolute)
+      %   - If strings are provided, they're converted to apt.Path with same platform
+      %   - All paths must have compatible platforms
+      
+      result = obj;
+      
+      % Concatenate each argument in sequence
+      for i = 1:length(varargin)
+        result = result.cat2(varargin{i});
+      end
     end
 
     function result = eq(obj, other)
@@ -111,48 +170,96 @@ classdef Path
       end
 
       result = isequal(obj.list_, other.list_) && ...
-               obj.locale_ == other.locale_ && ...
-               obj.fileRole_ == other.fileRole_ && ...
-               obj.platform_ == other.platform_;
+               obj.platform_ == other.platform_ && ...
+               obj.tfIsAbsolute_ == other.tfIsAbsolute_;
     end
 
     function disp(obj)
       % Display the apt.Path object
       pathStr = obj.toString();
-      fprintf('apt.Path: %s [%s:%s:%s]\n', ...
+      if obj.tfIsAbsolute_
+        absoluteStr = 'abs';
+      else
+        absoluteStr = 'rel';
+      end
+      fprintf('apt.Path: %s [%s:%s]\n', ...
               pathStr, ...
-              apt.PathLocale.toString(obj.locale_), ...
-              apt.FileRole.toString(obj.fileRole_), ...
-              apt.Os.toString(obj.platform_));
-    end
+              apt.Os.toString(obj.platform_), ...
+              absoluteStr);
+    end  % function
   end  % methods
 
   methods (Static)
-    function result = stringToList_(pathAsString, locale, platform)
+    function result = stringToList_(pathAsString, platform)
       % Convert string path to list of components
-      if locale == apt.PathLocale.native && platform == apt.Os.windows
+      if platform == apt.Os.windows
         % Windows path - split on both / and \
         preResult = strsplit(pathAsString, {'\', '/'}, 'CollapseDelimiters', false);
+        % Remove empty components for Windows
+        isNonemptyFromIndex = ~cellfun(@isempty, preResult);
+        result = preResult(isNonemptyFromIndex);
       else
         % Unix-style path - split on /
         preResult = strsplit(pathAsString, '/', 'CollapseDelimiters', false);
+        % For Unix, keep the first empty component if it exists (indicates absolute path)        
+        if isempty(preResult)
+          error('apt:Path:badStringInput', 'After spliting, list of raw component paths is empty') ;
+        end
+        first = preResult{1} ;
+        if isempty(first)
+          % Absolute path - keep first empty element, remove other empty elements
+          preRest = preResult(2:end) ;
+          isNonemptyFromIndex = ~cellfun(@isempty, preRest);
+          rest = preRest(isNonemptyFromIndex);
+          result = [ {first} rest ];
+        else
+          % Relative path - remove all empty components
+          isNonemptyFromIndex = ~cellfun(@isempty, preResult);
+          result = preResult(isNonemptyFromIndex);
+        end
       end
-
-      % Remove empty components
-      isNonemptyFromIndex = ~cellfun(@isempty, preResult);
-      result = preResult(isNonemptyFromIndex);
     end
 
-    function result = listToString_(pathList, locale, platform)
+    function result = listToString_(pathList, platform)
       % Convert list of path components to string
-      if locale == apt.PathLocale.native && platform == apt.Os.windows
+      if platform == apt.Os.windows
         % Windows - use backslashes
         separator = '\';
         result = strjoin(pathList, separator);
       else
-        % Unix-style - use forward slashes and prepend / since we only represent absolute paths
+        % Unix-style - use forward slashes
         separator = '/';
-        result = ['/' strjoin(pathList, separator)];
+        % For absolute paths, first element should be empty, so strjoin will create leading /
+        % For relative paths, no empty first element, so no leading /
+        result = strjoin(pathList, separator);
+      end
+    end
+
+    function result = isAbsolutePath_(pathAsString, platform)
+      % Determine if a path string is absolute
+      if platform == apt.Os.windows
+        % Windows: absolute if starts with drive letter (e.g., "C:")
+        result = length(pathAsString) >= 2 && pathAsString(2) == ':';
+      else
+        % Unix-style: absolute if starts with "/"
+        result = ~isempty(pathAsString) && pathAsString(1) == '/';
+      end
+    end
+
+    function result = isAbsoluteList_(pathList, platform)
+      % Determine if a path component list represents an absolute path
+      if isempty(pathList)
+        result = false;
+        return;
+      end
+      
+      if platform == apt.Os.windows
+        % Windows: absolute if first component ends with ":"
+        firstComponent = pathList{1};
+        result = ~isempty(firstComponent) && firstComponent(end) == ':';
+      else
+        % Unix-style: absolute if first component is empty (from leading "/")
+        result = isempty(pathList{1});
       end
     end
 
