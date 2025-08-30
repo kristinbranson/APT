@@ -2,18 +2,18 @@ classdef ShellCommand
     % apt.ShellCommand - A value class to represent commands with mixed literals and paths
     %
     % This class represents a command as a list of tokens, where each token
-    % can be either a literal string or an apt.Path object. This allows for
+    % can be either a literal string or an apt.MetaPath object. This allows for
     % proper path translation when commands need to be executed on different
     % platforms (native, WSL, remote).
     %
     % Example usage:
-    %   movPath = apt.Path({'data', 'movie.avi'}, 'native', 'movie');
+    %   movPath = apt.MetaPath({'data', 'movie.avi'}, 'native', 'movie');
     %   cmd = apt.ShellCommand({'python', 'script.py', '--input', movPath, '--output', 'results.txt'});
     %   wslCmd = cmd.as('wsl');
     %   cmdStr = wslCmd.toString();
     
     properties
-        tokens_     % Cell array of tokens (strings and apt.Path objects)
+        tokens_     % Cell array of tokens (strings and apt.MetaPath objects)
         platform_   % apt.PathLocale enumeration indicating the platform context
     end
     
@@ -26,7 +26,7 @@ classdef ShellCommand
             % Constructor for apt.ShellCommand
             %
             % Args:
-            %   tokens (cell): Cell array of command tokens (strings and apt.Path objects)
+            %   tokens (cell): Cell array of command tokens (strings and apt.MetaPath objects)
             %   locale (char or apt.PathLocale): Platform context for the command
             
             if nargin < 1
@@ -66,7 +66,7 @@ classdef ShellCommand
             newTokens = cell(size(obj.tokens_));
             for i = 1:length(obj.tokens_)
                 token = obj.tokens_{i};
-                if isa(token, 'apt.Path')
+                if isa(token, 'apt.MetaPath')
                     newTokens{i} = token.as(targetLocale);
                 else
                     newTokens{i} = token;
@@ -92,7 +92,7 @@ classdef ShellCommand
             stringTokens = cell(size(obj.tokens_));
             for i = 1:length(obj.tokens_)
                 token = obj.tokens_{i};
-                if isa(token, 'apt.Path')
+                if isa(token, 'apt.MetaPath')
                     pathStr = token.toString();
                     if quotePaths && contains(pathStr, ' ')
                         stringTokens{i} = ['"' pathStr '"'];
@@ -111,7 +111,7 @@ classdef ShellCommand
             % Append additional tokens to the command
             %
             % Args:
-            %   varargin: Tokens to append (strings, apt.Path objects, or cell arrays)
+            %   varargin: Tokens to append (strings, apt.MetaPath objects, or cell arrays)
             %
             % Returns:
             %   apt.ShellCommand: New command with tokens appended
@@ -133,7 +133,7 @@ classdef ShellCommand
             % Prepend tokens to the beginning of the command
             %
             % Args:
-            %   varargin: Tokens to prepend (strings, apt.Path objects, or cell arrays)
+            %   varargin: Tokens to prepend (strings, apt.MetaPath objects, or cell arrays)
             %
             % Returns:
             %   apt.ShellCommand: New command with tokens prepended
@@ -156,8 +156,8 @@ classdef ShellCommand
             % Substitute all instances of oldToken with newToken
             %
             % Args:
-            %   oldToken: Token to replace (string or apt.Path)
-            %   newToken: Replacement token (string or apt.Path)
+            %   oldToken: Token to replace (string or apt.MetaPath)
+            %   newToken: Replacement token (string or apt.MetaPath)
             %
             % Returns:
             %   apt.ShellCommand: New command with substitutions made
@@ -173,10 +173,10 @@ classdef ShellCommand
         end
         
         function result = getPathTokens(obj)
-            % Get all apt.Path tokens from the command
+            % Get all apt.MetaPath tokens from the command
             %
             % Returns:
-            %   cell: Cell array of apt.Path objects in the command
+            %   cell: Cell array of apt.MetaPath objects in the command
             
             result = {};
             for i = 1:length(obj.tokens_)
@@ -193,7 +193,7 @@ classdef ShellCommand
             %   fileRole (char or apt.FileRole): File role to match (e.g., 'movie', 'cache')
             %
             % Returns:
-            %   cell: Cell array of apt.Path objects with matching role
+            %   cell: Cell array of apt.MetaPath objects with matching role
             
             % Convert string to enum if needed
             if ischar(fileRole)
@@ -260,7 +260,7 @@ classdef ShellCommand
                     apt.PathLocale.toString(obj.platform_), length(obj.tokens_));
             for i = 1:length(obj.tokens_)
                 token = obj.tokens_{i};
-                if isa(token, 'apt.Path')
+                if isa(token, 'apt.MetaPath')
                     fprintf('  [%d] Path: %s [%s:%s]\n', i, token.toString(), ...
                             apt.PathLocale.toString(token.locale), apt.FileRole.toString(token.fileRole));
                 else
@@ -272,7 +272,7 @@ classdef ShellCommand
         
         function result = tokensEqual_(~, token1, token2)
             % Check if two tokens are equal
-            if isa(token1, 'apt.Path') && isa(token2, 'apt.Path')
+            if isa(token1, 'apt.MetaPath') && isa(token2, 'apt.MetaPath')
                 result = token1.eq(token2);
             elseif ischar(token1) && ischar(token2)
                 result = strcmp(token1, token2);
@@ -322,7 +322,7 @@ classdef ShellCommand
                 end
                 
                 if idx <= length(tokens)
-                    tokens{idx} = apt.Path(tokens{idx}, hintLocale, fileRole);
+                    tokens{idx} = apt.MetaPath(tokens{idx}, hintLocale, fileRole);
                 end
             end
             

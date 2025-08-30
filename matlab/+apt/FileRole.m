@@ -4,7 +4,7 @@ classdef FileRole < uint8
     % This enumeration defines the different file role types used in APT
     % for path classification and handling.
     %
-    % Used by apt.Path and apt.ShellCommand classes to categorize files
+    % Used by apt.MetaPath and apt.ShellCommand classes to categorize files
     % and determine appropriate remote path mappings.
     
     enumeration

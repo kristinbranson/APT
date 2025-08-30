@@ -1,4 +1,4 @@
-function test_Path()
+function test_MetaPath()
 
 for platform = enumeration('apt.Os')'
   if platform == apt.Os.windows
@@ -8,7 +8,7 @@ for platform = enumeration('apt.Os')'
     nativePathAsString = '/foo/bar/baz';
     correctNativePathAsList = {'foo', 'bar', 'baz'} ;
   end
-  nativePath = apt.Path(nativePathAsString, apt.PathLocale.native, apt.FileRole.movie, platform) ;
+  nativePath = apt.MetaPath(nativePathAsString, apt.PathLocale.native, apt.FileRole.movie, platform) ;
   nativePathAsStringHopefully = nativePath.toString() ;
   if ~strcmp(nativePathAsString, nativePathAsStringHopefully)
     fprintf('original: ''%s''\n', nativePathAsString) ;
@@ -22,7 +22,7 @@ for platform = enumeration('apt.Os')'
 
   % Test that constructor errors on empty string
   try
-    apt.Path('', apt.PathLocale.native, apt.FileRole.movie, platform);
+    apt.MetaPath('', apt.PathLocale.native, apt.FileRole.movie, platform);
     error('Constructor should have errored on empty string but did not');
   catch ME
     if ~contains(ME.identifier, 'apt:Path:EmptyPath')
@@ -34,7 +34,7 @@ for platform = enumeration('apt.Os')'
   if platform == apt.Os.windows
     % On Windows, root path should error
     try
-      apt.Path('/', apt.PathLocale.native, apt.FileRole.movie, platform);
+      apt.MetaPath('/', apt.PathLocale.native, apt.FileRole.movie, platform);
       error('Constructor should have errored on root path "/" on Windows but did not');
     catch ME
       if ~contains(ME.identifier, 'apt:Path:EmptyPath')
@@ -43,14 +43,14 @@ for platform = enumeration('apt.Os')'
     end
   else
     % On Linux/Mac, root path should succeed and have empty list
-    rootPath = apt.Path('/', apt.PathLocale.native, apt.FileRole.movie, platform);
+    rootPath = apt.MetaPath('/', apt.PathLocale.native, apt.FileRole.movie, platform);
     if ~isempty(rootPath.list)
       error('Root path on Unix should have empty list but got: %s', mat2str(rootPath.list));
     end
   end
   
   % Test backslash separator behavior based on platform
-  backslashPath = apt.Path('C:\foo\bar\baz', apt.PathLocale.native, apt.FileRole.movie, platform);
+  backslashPath = apt.MetaPath('C:\foo\bar\baz', apt.PathLocale.native, apt.FileRole.movie, platform);
   if platform == apt.Os.windows
     % On Windows, backslash separators should work as separators (4 components)
     expectedList = {'C:', 'foo', 'bar', 'baz'};
@@ -67,13 +67,13 @@ for platform = enumeration('apt.Os')'
 end  % for platform = enumeration('apt.Os')'
 
 % Test platform property auto-detection
-pathWithAutoPlatform = apt.Path('/test/path', apt.PathLocale.native, apt.FileRole.movie);
+pathWithAutoPlatform = apt.MetaPath('/test/path', apt.PathLocale.native, apt.FileRole.movie);
 if ~isa(pathWithAutoPlatform.platform, 'apt.Os')
   error('Platform property should be an apt.Os enumeration');
 end
 
 % Test platform from string
-pathWithStringPlatform = apt.Path('/test/path', apt.PathLocale.native, apt.FileRole.movie, 'macos');
+pathWithStringPlatform = apt.MetaPath('/test/path', apt.PathLocale.native, apt.FileRole.movie, 'macos');
 if pathWithStringPlatform.platform ~= apt.Os.macos
   error('Platform from string specification failed');
 end
