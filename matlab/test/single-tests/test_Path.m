@@ -335,4 +335,50 @@ for platform = enumeration('apt.Os')'
   end
 end
 
+% Test root path toString()
+rootPath = apt.Path('/');
+rootPathStr = rootPath.toString();
+if ~strcmp(rootPathStr, '/')
+  error('apt.Path(''/'').toString() should return ''/'' but got: %s', rootPathStr);
+end
+
+% Test toPosix() method
+% Test Windows absolute path conversion
+winAbsPath = apt.Path('C:\Users\data\file.txt', apt.Os.windows);
+posixAbsPath = winAbsPath.toPosix();
+expectedPosixPath = apt.Path('/mnt/c/Users/data/file.txt', apt.Os.linux);
+if ~posixAbsPath.eq(expectedPosixPath)
+  error('Windows absolute path POSIX conversion failed');
+end
+
+% Test Windows drive-only path conversion
+winDrivePath = apt.Path('D:', apt.Os.windows);
+posixDrivePath = winDrivePath.toPosix();
+expectedPosixDrivePath = apt.Path('/mnt/d', apt.Os.linux);
+if ~posixDrivePath.eq(expectedPosixDrivePath)
+  error('Windows drive-only path POSIX conversion failed');
+end
+
+% Test Windows relative path conversion
+winRelPath = apt.Path('relative\path\file.txt', apt.Os.windows);
+posixRelPath = winRelPath.toPosix();
+expectedPosixRelPath = apt.Path({'relative', 'path', 'file.txt'}, apt.Os.linux);
+if ~posixRelPath.eq(expectedPosixRelPath)
+  error('Windows relative path POSIX conversion failed');
+end
+
+% Test Linux path identity (should return same object)
+linuxPath = apt.Path('/usr/bin/test', apt.Os.linux);
+posixLinuxPath = linuxPath.toPosix();
+if ~posixLinuxPath.eq(linuxPath)
+  error('Linux path POSIX conversion should return identical path');
+end
+
+% Test macOS path identity (should return same object like Linux)
+macPath = apt.Path('/Applications/Test.app', apt.Os.macos);
+posixMacPath = macPath.toPosix();
+if ~posixMacPath.eq(macPath)
+  error('macOS path POSIX conversion should return identical path');
+end
+
 end

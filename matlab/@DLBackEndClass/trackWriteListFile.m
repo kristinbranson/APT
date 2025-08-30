@@ -12,13 +12,23 @@ function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNa
 
   % Check arg types
   assert(iscell(movFileNativePath)) ;
-  assert(isempty(movFileNativePath) || isstringy(movFileNativePath{1})) ;
+  % Assert that movFileNativePath contains apt.MetaPath instances
+  for i = 1:numel(movFileNativePath)
+    if ~isempty(movFileNativePath{i})
+      assert(isa(movFileNativePath{i}, 'apt.MetaPath'), 'movFileNativePath{%d} must be an apt.MetaPath instance', i);
+    end
+  end
   assert(iscolumn(movidx)) ;
   assert(isnumeric(movidx)) ;
   assert(istable(tMFTConc)) ;
-  assert(isstringy(listFileNativePath)) ;
+  assert(isa(listFileNativePath, 'apt.MetaPath'), 'listFileNativePath must be an apt.MetaPath instance');
   assert(iscell(trxFilesLcl)) ;
-  assert(isempty(trxFilesLcl) || isstringy(trxFilesLcl{1})) ;
+  % Assert that trxFilesLcl contains apt.MetaPath instances  
+  for i = 1:numel(trxFilesLcl)
+    if ~isempty(trxFilesLcl{i})
+      assert(isa(trxFilesLcl{i}, 'apt.MetaPath'), 'trxFilesLcl{%d} must be an apt.MetaPath instance', i);
+    end
+  end
   assert(iscell(croprois)) ;
   assert(isempty(croprois) || (isnumeric(croprois{1}) && isequal(size(croprois{1}),[1 4])) ) ;
 

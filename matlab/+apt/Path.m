@@ -46,7 +46,7 @@ classdef Path
       if ~exist('listOrString', 'var') || isempty(listOrString) || (ischar(listOrString) && strcmp(listOrString, '.'))
         obj.list_ = cell(1,0);  % Empty row vector for empty path
         obj.platform_ = platform;
-        obj.tfIsAbsolute_ = false;  % Empty paths are relative
+        obj.tfIsAbsolute_ = false;  % The empty path is a relative path
         return;
       end
 
@@ -78,13 +78,31 @@ classdef Path
         obj.list_(isDotFromIndex) = [];
       end
 
+      % Make sure an empty path is relative, then exit early
+      if isempty(obj.list_)
+        obj.tfIsAbsolute_ = false;  % The empty path is a relative path
+        return
+      end
+
       % For Linux absolute paths, first element must be empty string
-      if platform ~= apt.Os.windows && ~isempty(obj.list_)
+      if platform ~= apt.Os.windows
         if obj.tfIsAbsolute_
           if isempty(obj.list_{1})
             % all is well
           else
-            error('apt:Path:InvalidAbsolutePath', 'Linux absolute paths must have empty string as first element');
+            error('apt:Path:InvalidAbsolutePath', 'Linux/Mac absolute paths must have empty string as first element');
+          end
+        end
+      end
+      
+      % INVARIANT: For Windows absolute paths, first element must be drive letter + colon
+      if platform == apt.Os.windows
+        if obj.tfIsAbsolute_
+          firstElement = obj.list_{1};
+          if length(firstElement) == 2 && isstrprop(firstElement(1), 'alpha') && firstElement(2) == ':'
+            % all is well
+          else
+            error('apt:Path:InvalidWindowsAbsolutePath', 'Windows absolute paths must have drive letter format (e.g., ''C:'') as first element');
           end
         end
       end      
@@ -292,6 +310,65 @@ classdef Path
       result = apt.Path(newList, obj.platform_);
     end
 
+    function result = toPosix(obj)
+      % Convert this path to a POSIX-compatible path
+      %
+      % Returns:
+      %   apt.Path: New path object compatible with POSIX systems
+      %
+      % Notes:
+      %   - For Windows paths: converts to WSL equivalent paths
+      %     - Windows absolute paths: converts drive letter (C: -> /mnt/c)
+      %     - Windows relative paths: returns Linux path with same components
+      %   - For Linux paths: returns obj unchanged (already POSIX-compatible)
+      %   - For macOS paths: returns obj unchanged (already POSIX-compatible)
+      %
+      % Example:
+      %   winPath = apt.Path('C:\Users\data', apt.Os.windows);
+      %   posixPath = winPath.toPosix();
+      %   % posixPath will be apt.Path('/mnt/c/Users/data', apt.Os.linux)
+      
+      if obj.platform_ == apt.Os.linux || obj.platform_ == apt.Os.macos
+        % Linux/Mac paths are already POSIX-compatible
+        result = obj;
+        return
+      end
+      
+      % Handle Windows paths
+      if ~obj.tfIsAbsolute_
+        % For Windows relative paths, just change platform to Linux
+        result = apt.Path(obj.list_, apt.Os.linux);
+        return;
+      end
+      
+      % For Windows absolute paths, convert drive letter
+      if isempty(obj.list_)
+        error('apt:Path:EmptyPath', 'Cannot convert empty absolute path');
+      end
+      
+      % Extract drive letter from first component (e.g., 'C:')
+      head = obj.list_{1};
+      if ~(length(head) == 2 && isstrprop(head(1), 'alpha') && head(2) == ':')
+        error('apt:Path:InvalidWindowsPath', 'Windows absolute path must start with drive letter (e.g., ''C:'')');
+      end
+      
+      % Convert drive letter: 'C:' -> {'', 'mnt', 'c'}
+      driveLetter = lower(head(1));
+      wslPrefix = {'', 'mnt', driveLetter};
+      
+      % Create new path list with WSL mount point
+      if length(obj.list_) == 1
+        % Just the drive letter, no additional path components
+        newPathList = wslPrefix;
+      else
+        % Drive letter plus additional components
+        newPathList = [wslPrefix, obj.list_(2:end)];
+      end
+      
+      % Create new Linux path object
+      result = apt.Path(newPathList, apt.Os.linux);
+    end
+
     function disp(obj)
       % Display the apt.Path object
       pathStr = obj.toString();
@@ -349,7 +426,12 @@ classdef Path
         separator = '/';
         % For absolute paths, first element should be empty, so strjoin will create leading /
         % For relative paths, no empty first element, so no leading /
-        result = strjoin(pathList, separator);
+        % Special case: root path with single empty element should return '/'
+        if length(pathList) == 1 && isempty(pathList{1})
+          result = '/';
+        else
+          result = strjoin(pathList, separator);
+        end
       end
     end
 

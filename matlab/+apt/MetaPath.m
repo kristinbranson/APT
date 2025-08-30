@@ -140,6 +140,44 @@ classdef MetaPath
       result = apt.MetaPath(newPath, obj.locale_, obj.role_);
     end
 
+    function result = as(obj, targetLocale)
+      % Convert MetaPath to a different locale
+      %
+      % Args:
+      %   targetLocale (char or apt.PathLocale): Target locale ('native', 'wsl', 'remote', or enum)
+      %
+      % Returns:
+      %   apt.MetaPath: New MetaPath with converted locale, same role
+      %
+      % Notes:
+      %   - If target locale equals source locale, returns obj unchanged
+      %   - Currently supports: native -> wsl conversion
+      %   - Other conversions throw unsupported error
+      
+      % Convert string to enum if needed
+      if ischar(targetLocale)
+        targetLocale = apt.PathLocale.fromString(targetLocale);
+      end
+      
+      % If target equals source, return unchanged
+      if targetLocale == obj.locale_
+        result = obj;
+        return;
+      end
+      
+      % Handle supported conversions
+      if obj.locale_ == apt.PathLocale.native && targetLocale == apt.PathLocale.wsl
+        % Convert native path to WSL path using static method
+        result = apt.MetaPath.toWslFromNative_(obj);
+      else
+        % Unsupported conversion
+        error('apt:MetaPath:UnsupportedConversion', ...
+              'Conversion from %s to %s is not yet supported', ...
+              apt.PathLocale.toString(obj.locale_), ...
+              apt.PathLocale.toString(targetLocale));
+      end
+    end
+
     function disp(obj)
       % Display the apt.MetaPath object
       pathStr = obj.toString();
@@ -150,5 +188,41 @@ classdef MetaPath
               apt.Os.toString(obj.path_.platform));
     end
   end  % methods
+
+  methods (Static)
+    function result = toWslFromNative_(inputMetaPath)
+      % Convert a native apt.MetaPath to WSL locale using path operations
+      %
+      % Args:
+      %   inputPath (apt.MetaPath): Native path to convert
+      %
+      % Returns:
+      %   apt.MetaPath: Converted WSL path with same role
+      %
+      % Notes:
+      %   - Input must be native locale and absolute
+      %   - On Windows: converts drive letters (C: -> /mnt/c) and backslashes
+      %   - On Linux: identity operation (native paths are already Unix-style)
+      %   - Uses path operations, never converts to raw strings
+      
+      % Validate input
+      assert(isa(inputMetaPath, 'apt.MetaPath'), 'inputPath must be an apt.MetaPath instance');
+      assert(inputMetaPath.locale == apt.PathLocale.native, 'inputPath must have native locale');
+      assert(inputMetaPath.path.tfIsAbsolute, 'inputPath must be an absolute path');
+      
+      % On non-Windows platforms, native paths are already WSL-compatible
+      inputPath = inputMetaPath.path ;
+      if inputPath.platform ~= apt.Os.windows
+        result = apt.MetaPath(inputPath, apt.PathLocale.wsl, inputMetaPath.role);
+        return
+      end
+      
+      % For a Windows path, need to convert drive letter
+      newPath = inputPath.toPosix() ;
+      
+      % Create new metapath with converted components
+      result = apt.MetaPath(newPath, apt.PathLocale.wsl, inputMetaPath.role);
+    end
+  end  % methods (Static)
 
 end  % classdef

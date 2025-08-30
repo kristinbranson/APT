@@ -8,6 +8,18 @@ function result = genContainerMountPathBsubDocker_(obj, tracker, cmdtype, jobinf
             'aptroot',[],...
             'extra',{});
   
+  % Assert path argument types
+  if ~isempty(aptroot)
+    assert(isa(aptroot, 'apt.MetaPath'), 'aptroot must be an apt.MetaPath instance');
+    assert(aptroot.locale == apt.PathLocale.native, 'aptroot must have native locale');
+  end
+  if ~isempty(extradirs)
+    assert(iscell(extradirs), 'extradirs must be a cell array');
+    for i = 1:numel(extradirs)
+      assert(isa(extradirs{i}, 'apt.MetaPath'), 'extradirs{%d} must be an apt.MetaPath instance', i);
+    end
+  end
+  
   assert(obj.type==DLBackEnd.Bsub || obj.type==DLBackEnd.Docker);
   
   if isempty(aptroot)
