@@ -2,3 +2,15 @@
 - Test functions are kept under matlab/test/single-tests.  A single test is a Matlab function that errors if the test fails and exits normally if the test passes.  APT supports four different 'backends' for doing deep learning: aws, bsub, conda, and docker.  An APT 'project' is stored in a .lbl file, and consists of paths to movies and ground-truth labeling data for some of the movies.  Projects using the conda and docker backend do deep network training and evaluation on the local machine.  Projects using the aws and bsub backends do training and evaluation on a remote machine.  Tests that use the (local) conda and docker backends go in matlab/test/single-tests, tests the use the (remote) aws and bsub backends go in matlab/test/single-tests/remote.
 - On Matlab launch, you can set up the path for running APT by doing `modpath();` at the Matlab command line.
 - To run the baseline test suite, you call the function `test_apt()` in Matlab.  This only exercises the local backends.
+- Indents should all be two spaces.  Top-level functions should not be indented.  Never use tabs.
+- Most identifiers should be lower camelcase.  Exceptions include: Class names, which should be upper camelcase.  The tags of UI controls should be snake case.  Methods of LabelerController that end in actuate_ should be snake case.
+- Don't use private properties or methods in classes.  If a property or method would logically be private, add an underscore ("_") to the end of its name.  This signals to developers it is private "in spirit", but doesn't put in place annoying arbitrary restrictions when debugging.
+- Public properties of classes should generally be Dependent.  If you're tempted to make a non-Dependent public-in-spirit property, make a private-in-spirit property that ends in an underscore, then make a Dependent property without the underscore.  Write get. and set. methods for the Dependent property as needed.
+- Boolean variables should start with "tf" and then some conjugation of "to be".  For instance: tfIsDone, tfDidExplode, tfAreYouSure.
+- Local variables in functions/methods should only be overwritten if necessary for performance.  Prefer to create new variables holding evolving versions of some value.
+- Prefer explicit variable names, even if they are long; and avoid abbreviations.  Use a shorter English word that means the same thing instead of an abbreviation.
+- Use spaces liberally in long expressions to add clarity.  E.g. add a space after each comma in the argument list for functions.
+- Don't add a space before the final semicolon in a line of code.
+- Make properties that are not persisted to disk Transient.
+- When checking for optional arguments, don't use nargin.  Use exist(<variable name>, 'var').  This is less likely to break when you add/remove arguments.
+
