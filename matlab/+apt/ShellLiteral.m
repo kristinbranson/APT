@@ -32,6 +32,11 @@ classdef ShellLiteral < apt.ShellToken
       result = true;
     end
     
+    function result = tfDoesMatchPlatform(obj, queryPlatform)  %#ok<INUSD>
+      % ShellLiterals are platform-agnostic and match any platform
+      result = true;
+    end
+    
     function result = eq(obj, other)
       % Check equality with another ShellLiteral
       if ~isa(other, 'apt.ShellLiteral')

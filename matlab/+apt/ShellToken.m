@@ -17,6 +17,13 @@ classdef (Abstract) ShellToken
     %   queryLocale (apt.PathLocale): The locale to check against
     % Returns:
     %   logical: True if token matches locale or is locale-agnostic
+    
+    result = tfDoesMatchPlatform(obj, queryPlatform)
+    % Check if this token matches the specified platform
+    % Args:
+    %   queryPlatform (apt.Platform): The platform to check against
+    % Returns:
+    %   logical: True if token matches platform or is platform-agnostic
   end
   
   methods

@@ -19,19 +19,26 @@ classdef ShellCommand < apt.ShellToken
   properties
     tokens_     % Cell array of tokens (strings and apt.MetaPath objects)
     locale_     % apt.PathLocale enumeration indicating the path locale
+    platform_   % apt.Platform enumeration indicating the target platform
   end
 
   properties (Dependent)
     locale      % Get the locale type
+    platform    % Get the platform type
   end
 
   methods
-    function obj = ShellCommand(tokens, locale)
+    function obj = ShellCommand(tokens, locale, platform)
       % Constructor for apt.ShellCommand
       %
       % Args:
       %   tokens (cell): Cell array of command tokens (strings and apt.ShellToken objects)
       %   locale (char or apt.PathLocale): Platform context for the command
+      %   platform (char or apt.Platform, optional): Target platform (default: auto-detect)
+      %
+      % INVARIANT: All MetaPath tokens within this ShellCommand must have the same
+      % platform as the ShellCommand's platform. This ensures consistency when
+      % executing commands and prevents mixing paths from different platforms.
 
       if nargin < 1
         tokens = {};
@@ -39,10 +46,16 @@ classdef ShellCommand < apt.ShellToken
       if nargin < 2
         locale = apt.PathLocale.native;
       end
+      if nargin < 3
+        platform = apt.Platform.current();
+      end
 
       % Convert string to enum if needed
       if ischar(locale)
         locale = apt.PathLocale.fromString(locale);
+      end
+      if ischar(platform)
+        platform = apt.Platform.fromString(platform);
       end
 
       % Convert tokens to ShellToken objects and validate
@@ -62,6 +75,20 @@ classdef ShellCommand < apt.ShellToken
                 i, apt.PathLocale.toString(locale));
             end
           end
+          
+          % Validate platform compatibility for all ShellToken objects (INVARIANT)
+          if ~token.tfDoesMatchPlatform(platform)
+            if isa(token, 'apt.MetaPath')
+              error('apt:ShellCommand:PlatformMismatch', ...
+                'MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
+                i, apt.Platform.toString(token.path.platform), apt.Platform.toString(platform));
+            else
+              error('apt:ShellCommand:PlatformMismatch', ...
+                'Token at index %d does not match ShellCommand platform %s', ...
+                i, apt.Platform.toString(platform));
+            end
+          end
+          
           shellTokens{i} = token;
         elseif ischar(token) || isstring(token)
           % Convert string to ShellLiteral
@@ -75,10 +102,15 @@ classdef ShellCommand < apt.ShellToken
 
       obj.tokens_ = shellTokens;
       obj.locale_ = locale;
+      obj.platform_ = platform;
     end
 
     function result = get.locale(obj)
       result = obj.locale_;
+    end
+    
+    function result = get.platform(obj)
+      result = obj.platform_;
     end
 
     function result = as(obj, targetLocale)
@@ -106,7 +138,7 @@ classdef ShellCommand < apt.ShellToken
         end
       end
 
-      result = apt.ShellCommand(newTokens, targetLocale);
+      result = apt.ShellCommand(newTokens, targetLocale, obj.platform_);
     end
 
     function result = toString(obj)
@@ -161,6 +193,23 @@ classdef ShellCommand < apt.ShellToken
       result = (obj.locale_ == queryLocale);
     end
 
+    function result = tfDoesMatchPlatform(obj, queryPlatform)
+      % Check if this ShellCommand matches the specified platform
+      %
+      % Args:
+      %   queryPlatform (char or apt.Platform): The platform to check against
+      %
+      % Returns:
+      %   logical: True if ShellCommand platform matches query platform
+
+      % Convert string to enum if needed
+      if ischar(queryPlatform)
+        queryPlatform = apt.Platform.fromString(queryPlatform);
+      end
+
+      result = (obj.platform_ == queryPlatform);
+    end
+
     function result = append(obj, varargin)
       % Append additional tokens to the command
       %
@@ -184,7 +233,7 @@ classdef ShellCommand < apt.ShellToken
       obj.validateTokens_(tokensToAdd, 'append');
 
       newTokens = [obj.tokens_, tokensToAdd];
-      result = apt.ShellCommand(newTokens, obj.locale_);
+      result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
     end
 
     function result = prepend(obj, varargin)
@@ -210,7 +259,7 @@ classdef ShellCommand < apt.ShellToken
       obj.validateTokens_(tokensToAdd, 'prepend');
 
       newTokens = [tokensToAdd, obj.tokens_];
-      result = apt.ShellCommand(newTokens, obj.locale_);
+      result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
     end
 
     function result = substitute(obj, oldToken, newToken)
@@ -235,7 +284,7 @@ classdef ShellCommand < apt.ShellToken
         end
       end
 
-      result = apt.ShellCommand(newTokens, obj.locale_);
+      result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
     end
 
     function result = getPathTokens(obj)
@@ -348,7 +397,7 @@ classdef ShellCommand < apt.ShellToken
     end
 
     function validateTokens_(obj, tokens, methodName)
-      % Validate that all ShellToken objects have compatible locale
+      % Validate that all ShellToken objects have compatible locale and platform
       %
       % Args:
       %   tokens (cell): Cell array of tokens to validate
@@ -366,6 +415,19 @@ classdef ShellCommand < apt.ShellToken
               error('apt:ShellCommand:LocaleMismatch', ...
                 'In %s: Token at index %d does not match ShellCommand locale %s', ...
                 methodName, i, apt.PathLocale.toString(obj.locale_));
+            end
+          end
+          
+          % Validate platform compatibility for all ShellToken objects (INVARIANT)
+          if ~token.tfDoesMatchPlatform(obj.platform_)
+            if isa(token, 'apt.MetaPath')
+              error('apt:ShellCommand:PlatformMismatch', ...
+                'In %s: MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
+                methodName, i, apt.Platform.toString(token.path.platform), apt.Platform.toString(obj.platform_));
+            else
+              error('apt:ShellCommand:PlatformMismatch', ...
+                'In %s: Token at index %d does not match ShellCommand platform %s', ...
+                methodName, i, apt.Platform.toString(obj.platform_));
             end
           end
         end

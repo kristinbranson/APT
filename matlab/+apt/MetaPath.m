@@ -102,6 +102,23 @@ classdef MetaPath < apt.ShellToken
       result = (obj.locale_ == queryLocale);
     end
 
+    function result = tfDoesMatchPlatform(obj, queryPlatform)
+      % Check if this MetaPath's platform matches the query platform
+      %
+      % Args:
+      %   queryPlatform (char or apt.Platform): The platform to check against
+      %
+      % Returns:
+      %   logical: True if platforms match
+      
+      % Convert string to enum if needed
+      if ischar(queryPlatform)
+        queryPlatform = apt.Platform.fromString(queryPlatform);
+      end
+      
+      result = (obj.path_.platform == queryPlatform);
+    end
+
     function result = eq(obj, other)
       % Check equality with another apt.MetaPath
       if ~isa(other, 'apt.MetaPath')
