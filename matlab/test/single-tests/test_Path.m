@@ -1,7 +1,7 @@
 function test_Path()
 
-for platform = enumeration('apt.Os')'
-  if platform == apt.Os.windows
+for platform = enumeration('apt.Platform')'
+  if platform == apt.Platform.windows
     nativePathAsString = 'C:\foo\bar\baz';
     correctNativePathAsList = {'C:', 'foo', 'bar', 'baz'} ;
   else
@@ -30,7 +30,7 @@ for platform = enumeration('apt.Os')'
   end
 
   % Test root path behavior: should error on Windows, succeed with empty list on Unix
-  if platform == apt.Os.windows
+  if platform == apt.Platform.windows
     % On Windows, root path should error
     try
       apt.Path('/', platform);
@@ -51,7 +51,7 @@ for platform = enumeration('apt.Os')'
   
   % Test backslash separator behavior based on platform
   backslashPath = apt.Path('C:\foo\bar\baz', platform);
-  if platform == apt.Os.windows
+  if platform == apt.Platform.windows
     % On Windows, backslash separators should work as separators (4 components)
     expectedList = {'C:', 'foo', 'bar', 'baz'};
     if ~isequal(backslashPath.list, expectedList)
@@ -64,78 +64,78 @@ for platform = enumeration('apt.Os')'
       error('Non-Windows backslash path parsing failed. Expected: %s, Got: %s', mat2str(expectedList), mat2str(backslashPath.list));
     end
   end
-end  % for platform = enumeration('apt.Os')'
+end  % for platform = enumeration('apt.Platform')'
 
 % Test platform property auto-detection
 pathWithAutoPlatform = apt.Path('/test/path');
-if ~isa(pathWithAutoPlatform.platform, 'apt.Os')
-  error('Platform property should be an apt.Os enumeration');
+if ~isa(pathWithAutoPlatform.platform, 'apt.Platform')
+  error('Platform property should be an apt.Platform enumeration');
 end
 
 % Test platform from string
-pathWithStringPlatform = apt.Path('/test/path', 'macos');
-if pathWithStringPlatform.platform ~= apt.Os.macos
+pathWithStringPlatform = apt.Path('/test/path', 'posix');
+if pathWithStringPlatform.platform ~= apt.Platform.posix
   error('Platform from string specification failed');
 end
 
 % Test tfIsAbsolute property
 % Test absolute paths
-absPath1 = apt.Path('/test/path', apt.Os.linux);
+absPath1 = apt.Path('/test/path', apt.Platform.posix);
 if ~absPath1.tfIsAbsolute
   error('Unix absolute path should have tfIsAbsolute = true');
 end
 
-absPath2 = apt.Path('C:\Windows\System32', apt.Os.windows);
+absPath2 = apt.Path('C:\Windows\System32', apt.Platform.windows);
 if ~absPath2.tfIsAbsolute
   error('Windows absolute path should have tfIsAbsolute = true');
 end
 
 % Test relative paths
-relPath1 = apt.Path('relative/path', apt.Os.linux);
+relPath1 = apt.Path('relative/path', apt.Platform.posix);
 if relPath1.tfIsAbsolute
   error('Unix relative path should have tfIsAbsolute = false');
 end
 
-relPath2 = apt.Path('relative\path', apt.Os.windows);
+relPath2 = apt.Path('relative\path', apt.Platform.windows);
 if relPath2.tfIsAbsolute
   error('Windows relative path should have tfIsAbsolute = false');
 end
 
 % Test with cell arrays
-absCellPath = apt.Path({'', 'usr', 'bin'}, apt.Os.linux);
+absCellPath = apt.Path({'', 'usr', 'bin'}, apt.Platform.posix);
 if ~absCellPath.tfIsAbsolute
   error('Unix absolute path from cell array should have tfIsAbsolute = true');
 end
 
-relCellPath = apt.Path({'usr', 'bin'}, apt.Os.linux);
+relCellPath = apt.Path({'usr', 'bin'}, apt.Platform.posix);
 if relCellPath.tfIsAbsolute
   error('Unix relative path from cell array should have tfIsAbsolute = false');
 end
 
-winAbsCellPath = apt.Path({'C:', 'Windows', 'System32'}, apt.Os.windows);
+winAbsCellPath = apt.Path({'C:', 'Windows', 'System32'}, apt.Platform.windows);
 if ~winAbsCellPath.tfIsAbsolute
   error('Windows absolute path from cell array should have tfIsAbsolute = true');
 end
 
 % Test cat2 method with apt.Path objects
-basePath = apt.Path('/home/user', apt.Os.linux);
-relativePath = apt.Path('docs/file.txt', apt.Os.linux);
+basePath = apt.Path('/home/user', apt.Platform.posix);
+relativePath = apt.Path('docs/file.txt', apt.Platform.posix);
 concatenated = basePath.cat2(relativePath);
-expectedPath = apt.Path('/home/user/docs/file.txt', apt.Os.linux);
+expectedPath = apt.Path('/home/user/docs/file.txt', apt.Platform.posix);
 if ~concatenated.eq(expectedPath)
   error('Path concatenation with apt.Path failed');
 end
 
 % Test cat2 method with string
 concatenated2 = basePath.cat2('pictures/photo.jpg');
-expectedPath2 = apt.Path('/home/user/pictures/photo.jpg', apt.Os.linux);
+expectedPath2 = apt.Path('/home/user/pictures/photo.jpg', apt.Platform.posix);
 if ~concatenated2.eq(expectedPath2)
   error('Path concatenation with string failed');
 end
 
 % Test cat2 error on absolute path
 try
-  absolutePath = apt.Path('/absolute/path', apt.Os.linux);
+  absolutePath = apt.Path('/absolute/path', apt.Platform.posix);
   basePath.cat2(absolutePath);
   error('cat2 should have errored on absolute path');
 catch ME
@@ -146,8 +146,8 @@ end
 
 % Test cat2 error on platform mismatch
 try
-  windowsBase = apt.Path('C:\Windows', apt.Os.windows);
-  linuxRelative = apt.Path('subdir/file', apt.Os.linux);
+  windowsBase = apt.Path('C:\Windows', apt.Platform.windows);
+  linuxRelative = apt.Path('subdir/file', apt.Platform.posix);
   windowsBase.cat2(linuxRelative);
   error('cat2 should have errored on platform mismatch');
 catch ME
@@ -157,17 +157,17 @@ catch ME
 end
 
 % Test cat method with multiple arguments
-basePath = apt.Path('/home/user', apt.Os.linux);
+basePath = apt.Path('/home/user', apt.Platform.posix);
 concatenated3 = basePath.cat('docs', 'projects', 'file.txt');
-expectedPath3 = apt.Path('/home/user/docs/projects/file.txt', apt.Os.linux);
+expectedPath3 = apt.Path('/home/user/docs/projects/file.txt', apt.Platform.posix);
 if ~concatenated3.eq(expectedPath3)
   error('Path concatenation with multiple strings failed');
 end
 
 % Test cat method with mixed apt.Path and string arguments
-relativePath1 = apt.Path('folder1', apt.Os.linux);
+relativePath1 = apt.Path('folder1', apt.Platform.posix);
 concatenated4 = basePath.cat(relativePath1, 'subfolder', 'data.csv');
-expectedPath4 = apt.Path('/home/user/folder1/subfolder/data.csv', apt.Os.linux);
+expectedPath4 = apt.Path('/home/user/folder1/subfolder/data.csv', apt.Platform.posix);
 if ~concatenated4.eq(expectedPath4)
   error('Path concatenation with mixed arguments failed');
 end
@@ -193,7 +193,7 @@ if ~emptyPathAuto1.eq(emptyPathAuto2)
 end
 
 % Test empty path creation and cat2 behavior
-for platform = enumeration('apt.Os')'
+for platform = enumeration('apt.Platform')'
   % Test creating empty path with empty array
   emptyPath1 = apt.Path([], platform);
   if ~isempty(emptyPath1.list)
@@ -227,7 +227,7 @@ for platform = enumeration('apt.Os')'
   end
   
   % Test cat2 with empty path as second argument
-  if platform == apt.Os.windows
+  if platform == apt.Platform.windows
     testPath = apt.Path('C:\Users\test\docs', platform);
   else
     testPath = apt.Path('/home/user/docs', platform);
@@ -285,7 +285,7 @@ for platform = enumeration('apt.Os')'
   end
   
   % Test replacePrefix method
-  if platform == apt.Os.windows
+  if platform == apt.Platform.windows
     originalPath = apt.Path('C:\old\base\file.txt', platform);
     sourcePath = apt.Path('C:\old\base', platform);
     targetPath = apt.Path('D:\new\location', platform);
@@ -303,7 +303,7 @@ for platform = enumeration('apt.Os')'
   end
   
   % Test replacePrefix with non-matching prefix
-  if platform == apt.Os.windows
+  if platform == apt.Platform.windows
     nonMatchingSource = apt.Path('C:\different\path', platform);
   else
     nonMatchingSource = apt.Path('/different/path', platform);
@@ -344,38 +344,38 @@ end
 
 % Test toPosix() method
 % Test Windows absolute path conversion
-winAbsPath = apt.Path('C:\Users\data\file.txt', apt.Os.windows);
+winAbsPath = apt.Path('C:\Users\data\file.txt', apt.Platform.windows);
 posixAbsPath = winAbsPath.toPosix();
-expectedPosixPath = apt.Path('/mnt/c/Users/data/file.txt', apt.Os.linux);
+expectedPosixPath = apt.Path('/mnt/c/Users/data/file.txt', apt.Platform.posix);
 if ~posixAbsPath.eq(expectedPosixPath)
   error('Windows absolute path POSIX conversion failed');
 end
 
 % Test Windows drive-only path conversion
-winDrivePath = apt.Path('D:', apt.Os.windows);
+winDrivePath = apt.Path('D:', apt.Platform.windows);
 posixDrivePath = winDrivePath.toPosix();
-expectedPosixDrivePath = apt.Path('/mnt/d', apt.Os.linux);
+expectedPosixDrivePath = apt.Path('/mnt/d', apt.Platform.posix);
 if ~posixDrivePath.eq(expectedPosixDrivePath)
   error('Windows drive-only path POSIX conversion failed');
 end
 
 % Test Windows relative path conversion
-winRelPath = apt.Path('relative\path\file.txt', apt.Os.windows);
+winRelPath = apt.Path('relative\path\file.txt', apt.Platform.windows);
 posixRelPath = winRelPath.toPosix();
-expectedPosixRelPath = apt.Path({'relative', 'path', 'file.txt'}, apt.Os.linux);
+expectedPosixRelPath = apt.Path({'relative', 'path', 'file.txt'}, apt.Platform.posix);
 if ~posixRelPath.eq(expectedPosixRelPath)
   error('Windows relative path POSIX conversion failed');
 end
 
 % Test Linux path identity (should return same object)
-linuxPath = apt.Path('/usr/bin/test', apt.Os.linux);
+linuxPath = apt.Path('/usr/bin/test', apt.Platform.posix);
 posixLinuxPath = linuxPath.toPosix();
 if ~posixLinuxPath.eq(linuxPath)
   error('Linux path POSIX conversion should return identical path');
 end
 
 % Test macOS path identity (should return same object like Linux)
-macPath = apt.Path('/Applications/Test.app', apt.Os.macos);
+macPath = apt.Path('/Applications/Test.app', apt.Platform.posix);
 posixMacPath = macPath.toPosix();
 if ~posixMacPath.eq(macPath)
   error('macOS path POSIX conversion should return identical path');

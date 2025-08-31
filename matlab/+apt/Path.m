@@ -10,9 +10,9 @@ classdef Path
   properties
     list_        % Cell array of path components
     platform_    
-      % apt.Os enumeration.  Represents the OS the fronted is currently running on,
+      % apt.Platform enumeration.  Represents the platform the frontend is currently running on,
       % usually.  Present so that we can test Path functionality on e.g. Windows on
-      % e.g. Linux.
+      % e.g. POSIX.
     tfIsAbsolute_ % Logical scalar indicating whether the path is absolute
   end
 
@@ -28,16 +28,16 @@ classdef Path
       %
       % Args:
       %   listOrString (cell or char, optional): Cell array of path components or path string
-      %   platform (char or apt.Os, optional): 'linux', 'windows', 'macos', or enum
+      %   platform (char or apt.Platform, optional): 'posix', 'windows', or enum
 
       % Deal with args
       if ~exist('rawPlatform', 'var') || isempty(rawPlatform)
-        rawPlatform = apt.Os.current();
+        rawPlatform = apt.Platform.current();
       end
 
       % Convert string to enum if needed
       if ischar(rawPlatform)        
-        platform = apt.Os.fromString(rawPlatform);
+        platform = apt.Platform.fromString(rawPlatform);
       else
         platform = rawPlatform;
       end
@@ -56,7 +56,7 @@ classdef Path
         obj.list_ = apt.Path.stringToList_(str, platform);
         
         % Check for Windows root path case
-        if isempty(obj.list_) && platform == apt.Os.windows
+        if isempty(obj.list_) && platform == apt.Platform.windows
           error('apt:Path:EmptyPath', 'Cannot create Windows path from path "/"');
         end
       elseif iscell(listOrString)
@@ -84,19 +84,19 @@ classdef Path
         return
       end
 
-      % For Linux absolute paths, first element must be empty string
-      if platform ~= apt.Os.windows
+      % For POSIX absolute paths, first element must be empty string
+      if platform ~= apt.Platform.windows
         if obj.tfIsAbsolute_
           if isempty(obj.list_{1})
             % all is well
           else
-            error('apt:Path:InvalidAbsolutePath', 'Linux/Mac absolute paths must have empty string as first element');
+            error('apt:Path:InvalidAbsolutePath', 'POSIX absolute paths must have empty string as first element');
           end
         end
       end
       
       % INVARIANT: For Windows absolute paths, first element must be drive letter + colon
-      if platform == apt.Os.windows
+      if platform == apt.Platform.windows
         if obj.tfIsAbsolute_
           firstElement = obj.list_{1};
           if length(firstElement) == 2 && isstrprop(firstElement(1), 'alpha') && firstElement(2) == ':'
@@ -375,7 +375,7 @@ classdef Path
       end
       fprintf('apt.Path: %s [%s:%s]\n', ...
               pathStr, ...
-              apt.Os.toString(obj.platform_), ...
+              apt.Platform.toString(obj.platform_), ...
               absoluteStr);
     end  % function
   end  % methods
@@ -383,7 +383,7 @@ classdef Path
   methods (Static)
     function result = stringToList_(pathAsString, platform)
       % Convert string path to list of components
-      if platform == apt.Os.windows
+      if platform == apt.Platform.windows
         % Windows path - split on both / and \
         preResult = strsplit(pathAsString, {'\', '/'}, 'CollapseDelimiters', false);
         % Remove empty components for Windows
@@ -416,7 +416,7 @@ classdef Path
       if isempty(pathList)
         result = '.';
       else
-        if platform == apt.Os.windows
+        if platform == apt.Platform.windows
           % Windows - use backslashes
           separator = '\';
           result = strjoin(pathList, separator);
@@ -437,7 +437,7 @@ classdef Path
 
     function result = isAbsolutePath_(pathAsString, platform)
       % Determine if a path string is absolute
-      if platform == apt.Os.windows
+      if platform == apt.Platform.windows
         % Windows: absolute if starts with drive letter (e.g., "C:")
         result = length(pathAsString) >= 2 && pathAsString(2) == ':';
       else
@@ -453,7 +453,7 @@ classdef Path
         return;
       end
       
-      if platform == apt.Os.windows
+      if platform == apt.Platform.windows
         % Windows: absolute if first component ends with ":"
         firstComponent = pathList{1};
         result = ~isempty(firstComponent) && firstComponent(end) == ':';

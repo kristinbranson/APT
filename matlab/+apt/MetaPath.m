@@ -202,7 +202,7 @@ classdef MetaPath < apt.ShellToken
               pathStr, ...
               apt.PathLocale.toString(obj.locale_), ...
               apt.FileRole.toString(obj.role_), ...
-              apt.Os.toString(obj.path_.platform));
+              apt.Platform.toString(obj.path_.platform));
     end
   end  % methods
 
@@ -229,7 +229,7 @@ classdef MetaPath < apt.ShellToken
       
       % On non-Windows platforms, native paths are already WSL-compatible
       inputPath = inputMetaPath.path ;
-      if inputPath.platform ~= apt.Os.windows
+      if inputPath.platform ~= apt.Platform.windows
         result = apt.MetaPath(inputPath, apt.PathLocale.wsl, inputMetaPath.role);
         return
       end
