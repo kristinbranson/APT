@@ -21,16 +21,31 @@ end
 
 
 
-function result = wsl_path_from_native_core(raw_input_path)
+function result = wsl_path_from_native_core(input_path)
 % Convert a native path, which might be a Windows-style path
 % (possibly with a leading drive letter), to a WSL path.  Does not
 % handle Windows UNC paths (like '\\server\folder\file') in input.
 
-if ischar(raw_input_path) 
-  input_path = apt.Path(raw_input_path) ;
+if ispc() ,
+  letter_drive_parent = '/mnt' ;
+  if length(input_path)>=2 && isstrprop(input_path(1),'alpha') && isequal(input_path(2),':') ,
+    drive_letter = input_path(1) ;
+    rest = input_path(3:end) ;
+    if isempty(rest) 
+      % Don't add trailing slash if nothing follows the drive letter
+      protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter)) ;
+    else      
+      protoresult_1 = horzcat(letter_drive_parent, '/', lower(drive_letter), '/', rest) ;
+    end
+  else
+    protoresult_1 = input_path ;
+  end
+  
+  protoresult_2 = regexprep(protoresult_1,'\','/');
+  
+  result = remove_repeated_slashes(protoresult_2) ;
 else
-  input_path = raw_input_path ;
+  result = input_path ;
 end
-result = input_path.toPosix() ;
-
+ 
 end

@@ -616,14 +616,6 @@ classdef DLBackEndClass < handle
       if ischar(cmdfiles),
         cmdfiles = {cmdfiles};
       end
-      % Assert that syscmds contains apt.ShellCommand instances
-      for i = 1:numel(syscmds)
-        assert(isa(syscmds{i}, 'apt.ShellCommand'), 'syscmds{%d} must be an apt.ShellCommand instance', i);
-      end
-      % Assert that cmdfiles contains apt.MetaPath instances (locale depends on backend)
-      for i = 1:numel(cmdfiles)
-        assert(isa(cmdfiles{i}, 'apt.MetaPath'), 'cmdfiles{%d} must be an apt.MetaPath instance', i);
-      end
       tfSucc = false(1,numel(syscmds));
       assert(numel(cmdfiles) == numel(syscmds));
       for i = 1:numel(syscmds),
@@ -727,8 +719,6 @@ classdef DLBackEndClass < handle
     function [didsucceed, msg] = mkdir(obj, native_dir_path)
       % Create the named directory, either locally or remotely, depending on the
       % backend type.  On Windows, dir_name can be a Windows-style path.
-      assert(isa(native_dir_path, 'apt.MetaPath'), 'native_dir_path must be an apt.MetaPath instance');
-      assert(native_dir_path.locale == apt.PathLocale.native, 'native_dir_path must have native locale');
       wsl_dir_path = wsl_path_from_native(native_dir_path) ;
       if obj.type == DLBackEnd.AWS ,
         [didsucceed, msg] = obj.awsec2.mkdir(wsl_dir_path) ;
@@ -743,8 +733,6 @@ classdef DLBackEndClass < handle
     function [didsucceed, msg] = deleteFile(obj, native_file_path)
       % Delete the named file, either locally or remotely, depending on the
       % backend type.
-      assert(isa(native_file_path, 'apt.MetaPath'), 'native_file_path must be an apt.MetaPath instance');
-      assert(native_file_path.locale == apt.PathLocale.native, 'native_file_path must have native locale');
       wsl_file_path = wsl_path_from_native(native_file_path) ;
       quoted_wsl_file_path = escape_string_for_bash(wsl_file_path) ;
       base_command = sprintf('rm -f %s', quoted_wsl_file_path) ;
@@ -775,9 +763,6 @@ classdef DLBackEndClass < handle
       % Write the given string to a file, overrwriting any previous contents.
       % localFileAbsPath should be a native absolute path.
       % Throws if unable to write string to file.
-      assert(isa(fileNativeAbsPath, 'apt.MetaPath'), 'fileNativeAbsPath must be an apt.MetaPath instance');
-      assert(fileNativeAbsPath.locale == apt.PathLocale.native, 'fileNativeAbsPath must have native locale');
-      assert(fileNativeAbsPath.tfIsAbsolute, 'fileNativeAbsPath must be an absolute path');
 
       if isequal(obj.type,DLBackEnd.AWS) ,
         fileWSLAbsPath = wsl_path_from_native(fileNativeAbsPath) ;
@@ -1314,8 +1299,6 @@ classdef DLBackEndClass < handle
       % Returns true iff the named file exists.
       % Should be consolidated with exist(), probably.  Note, though, that probably
       % need to be careful about checking for the file inside/outside the container.
-      assert(isa(native_file_path, 'apt.MetaPath'), 'native_file_path must be an apt.MetaPath instance');
-      assert(native_file_path.locale == apt.PathLocale.native, 'native_file_path must have native locale');
       if obj.type == DLBackEnd.AWS ,
         wsl_file_path = wsl_path_from_native(native_file_path) ;
         result = obj.awsec2.fileExists(wsl_file_path) ;
@@ -1326,8 +1309,6 @@ classdef DLBackEndClass < handle
 
     function result = fileExistsAndIsNonempty(obj, native_file_path)
       % Returns true iff the named file exists and is not zero-length.
-      assert(isa(native_file_path, 'apt.MetaPath'), 'native_file_path must be an apt.MetaPath instance');
-      assert(native_file_path.locale == apt.PathLocale.native, 'native_file_path must have native locale');
       if obj.type == DLBackEnd.AWS ,
         wsl_file_path = wsl_path_from_native(native_file_path) ;
         result = obj.awsec2.fileExistsAndIsNonempty(wsl_file_path) ;
@@ -1769,7 +1750,6 @@ classdef DLBackEndClass < handle
 
   methods
     function cmd = wrapCommandToBeSpawnedForBackend_(obj, basecmd, varargin)  % const method
-      assert(isa(basecmd, 'apt.ShellCommand'), 'basecmd must be an apt.ShellCommand instance');
       switch obj.type,
         case DLBackEnd.AWS
           cmd = wrapCommandToBeSpawnedForAWSBackend_(obj, basecmd, varargin{:});
