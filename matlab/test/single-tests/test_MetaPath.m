@@ -1,7 +1,7 @@
 function test_MetaPath()
 
 % Test basic MetaPath functionality with different platforms and locales
-pathObj = apt.Path('/test/path', apt.Os.linux);
+pathObj = apt.Path('/test/path', apt.Platform.posix);
 metaPath = apt.MetaPath(pathObj, apt.PathLocale.native, apt.FileRole.movie);
 
 % Test toString works
@@ -19,7 +19,7 @@ if metaPath.role ~= apt.FileRole.movie
   error('MetaPath role property failed');
 end
 
-if metaPath.platform ~= apt.Os.linux
+if metaPath.platform ~= apt.Platform.posix
   error('MetaPath platform property failed');
 end
 
@@ -48,7 +48,7 @@ end
 
 % Test constructor requires absolute path
 try
-  relativePath = apt.Path('relative/path', apt.Os.linux);
+  relativePath = apt.Path('relative/path', apt.Platform.posix);
   apt.MetaPath(relativePath, apt.PathLocale.native, apt.FileRole.movie);
   error('Constructor should have errored on relative path');
 catch ME
@@ -58,7 +58,7 @@ catch ME
 end
 
 % Test equality
-pathObj2 = apt.Path('/test/path', apt.Os.linux);
+pathObj2 = apt.Path('/test/path', apt.Platform.posix);
 metaPath3 = apt.MetaPath(pathObj2, apt.PathLocale.native, apt.FileRole.movie);
 if ~metaPath.eq(metaPath3)
   error('MetaPath equality test failed for identical paths');
@@ -77,7 +77,7 @@ if metaPath.eq(metaPath5)
 end
 
 % Test inequality - different path
-pathObj3 = apt.Path('/different/path', apt.Os.linux);
+pathObj3 = apt.Path('/different/path', apt.Platform.posix);
 metaPath6 = apt.MetaPath(pathObj3, apt.PathLocale.native, apt.FileRole.movie);
 if metaPath.eq(metaPath6)
   error('MetaPath equality test failed - should not be equal with different path');

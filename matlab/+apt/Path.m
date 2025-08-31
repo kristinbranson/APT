@@ -229,7 +229,7 @@ classdef Path
         % Only one component - create appropriate empty path
         if obj.tfIsAbsolute_
           % For absolute paths with one component, path part should be root
-          if obj.platform_ == apt.Os.windows
+          if obj.platform_ == apt.Platform.windows
             % Windows: just the drive letter
             pathPart = apt.Path({filename}, obj.platform_);
           else
@@ -320,11 +320,11 @@ classdef Path
       %   - For macOS paths: returns obj unchanged (already POSIX-compatible)
       %
       % Example:
-      %   winPath = apt.Path('C:\Users\data', apt.Os.windows);
+      %   winPath = apt.Path('C:\Users\data', apt.Platform.windows);
       %   posixPath = winPath.toPosix();
-      %   % posixPath will be apt.Path('/mnt/c/Users/data', apt.Os.linux)
+      %   % posixPath will be apt.Path('/mnt/c/Users/data', apt.Platform.posix)
       
-      if obj.platform_ == apt.Os.linux || obj.platform_ == apt.Os.macos
+      if obj.platform_ == apt.Platform.posix
         % Linux/Mac paths are already POSIX-compatible
         result = obj;
         return
@@ -333,7 +333,7 @@ classdef Path
       % Handle Windows paths
       if ~obj.tfIsAbsolute_
         % For Windows relative paths, just change platform to Linux
-        result = apt.Path(obj.list_, apt.Os.linux);
+        result = apt.Path(obj.list_, apt.Platform.posix);
         return;
       end
       
@@ -362,7 +362,7 @@ classdef Path
       end
       
       % Create new Linux path object
-      result = apt.Path(newPathList, apt.Os.linux);
+      result = apt.Path(newPathList, apt.Platform.posix);
     end
 
     function disp(obj)
