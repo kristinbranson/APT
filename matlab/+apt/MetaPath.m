@@ -85,6 +85,23 @@ classdef MetaPath < apt.ShellToken
       result = obj.path_.toString();
     end
 
+    function result = tfDoesMatchLocale(obj, queryLocale)
+      % Check if this MetaPath's locale matches the query locale
+      %
+      % Args:
+      %   queryLocale (char or apt.PathLocale): The locale to check against
+      %
+      % Returns:
+      %   logical: True if locales match
+      
+      % Convert string to enum if needed
+      if ischar(queryLocale)
+        queryLocale = apt.PathLocale.fromString(queryLocale);
+      end
+      
+      result = (obj.locale_ == queryLocale);
+    end
+
     function result = eq(obj, other)
       % Check equality with another apt.MetaPath
       if ~isa(other, 'apt.MetaPath')

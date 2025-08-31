@@ -9,6 +9,13 @@ classdef (Abstract) ShellToken
   methods (Abstract)
     result = toString(obj)
     % Convert token to string representation
+    
+    result = tfDoesMatchLocale(obj, queryLocale)
+    % Check if this token matches the specified locale
+    % Args:
+    %   queryLocale (apt.PathLocale): The locale to check against
+    % Returns:
+    %   logical: True if token matches locale or is locale-agnostic
   end
   
   methods

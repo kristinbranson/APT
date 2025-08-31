@@ -27,6 +27,11 @@ classdef ShellLiteral < apt.ShellToken
       result = obj.value_;
     end
     
+    function result = tfDoesMatchLocale(obj, queryLocale)
+      % ShellLiterals are locale-agnostic and match any locale
+      result = true;
+    end
+    
     function result = eq(obj, other)
       % Check equality with another ShellLiteral
       if ~isa(other, 'apt.ShellLiteral')

@@ -50,12 +50,16 @@ classdef ShellCommand
             for i = 1:length(tokens)
                 token = tokens{i};
                 if isa(token, 'apt.ShellToken')
-                    % Already a ShellToken - validate locale if it's a MetaPath
-                    if isa(token, 'apt.MetaPath')
-                        if token.locale ~= locale
+                    % Already a ShellToken - validate locale compatibility
+                    if ~token.tfDoesMatchLocale(locale)
+                        if isa(token, 'apt.MetaPath')
                             error('apt:ShellCommand:LocaleMismatch', ...
                                   'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
                                   i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
+                        else
+                            error('apt:ShellCommand:LocaleMismatch', ...
+                                  'Token at index %d does not match ShellCommand locale %s', ...
+                                  i, apt.PathLocale.toString(locale));
                         end
                     end
                     shellTokens{i} = token;
@@ -319,7 +323,7 @@ classdef ShellCommand
         end
         
         function validateTokens_(obj, tokens, methodName)
-            % Validate that all apt.MetaPath tokens have matching locale
+            % Validate that all ShellToken objects have compatible locale
             %
             % Args:
             %   tokens (cell): Cell array of tokens to validate
@@ -327,11 +331,17 @@ classdef ShellCommand
             
             for i = 1:length(tokens)
                 token = tokens{i};
-                if isa(token, 'apt.MetaPath')
-                    if token.locale ~= obj.locale_
-                        error('apt:ShellCommand:LocaleMismatch', ...
-                              'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                              methodName, i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(obj.locale_));
+                if isa(token, 'apt.ShellToken')
+                    if ~token.tfDoesMatchLocale(obj.locale_)
+                        if isa(token, 'apt.MetaPath')
+                            error('apt:ShellCommand:LocaleMismatch', ...
+                                  'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
+                                  methodName, i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(obj.locale_));
+                        else
+                            error('apt:ShellCommand:LocaleMismatch', ...
+                                  'In %s: Token at index %d does not match ShellCommand locale %s', ...
+                                  methodName, i, apt.PathLocale.toString(obj.locale_));
+                        end
                     end
                 end
             end

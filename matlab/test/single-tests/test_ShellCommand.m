@@ -101,4 +101,24 @@ if token3.isLiteral() || ~token3.isPath()
   error('MetaPath isLiteral/isPath methods failed');
 end
 
+% Test locale validation with tfDoesMatchLocale method
+try
+  nativePath = apt.MetaPath(apt.Path('/test'), 'native', 'cache');
+  apt.ShellCommand({'cmd', nativePath}, 'wsl');
+  error('Should have thrown locale mismatch error');
+catch ME
+  if contains(ME.identifier, 'LocaleMismatch')
+    % Expected behavior - locale validation working correctly
+  else
+    error('Wrong error type: %s', ME.identifier);
+  end
+end
+
+% Test that matching locales work fine
+nativePath2 = apt.MetaPath(apt.Path('/test2'), 'native', 'cache');
+cmd = apt.ShellCommand({'cmd', nativePath2}, 'native');
+if ~strcmp(cmd.toString(), 'cmd /test2')
+  error('Matching locale command creation failed');
+end
+
 end
