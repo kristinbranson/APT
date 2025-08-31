@@ -58,6 +58,13 @@ classdef ShellCommand < apt.ShellToken
         platform = apt.Platform.fromString(platform);
       end
 
+      % INVARIANT: WSL and remote locales require POSIX platform
+      if (locale == apt.PathLocale.wsl || locale == apt.PathLocale.remote) && platform ~= apt.Platform.posix
+        error('apt:ShellCommand:InvalidLocaleplatformCombination', ...
+          'Locale %s requires platform to be posix, but got platform %s', ...
+          apt.PathLocale.toString(locale), apt.Platform.toString(platform));
+      end
+
       % Convert tokens to ShellToken objects and validate
       shellTokens = cell(size(tokens));
       for i = 1:length(tokens)
