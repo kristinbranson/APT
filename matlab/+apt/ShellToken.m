@@ -5,6 +5,7 @@ classdef (Abstract) ShellToken
   % can appear in shell commands. Concrete subclasses include:
   % - apt.ShellLiteral: String literals
   % - apt.MetaPath: Path tokens with locale and role information
+  % - apt.ShellCommand: A nested shell command
   
   methods (Abstract)
     result = toString(obj)
@@ -28,5 +29,10 @@ classdef (Abstract) ShellToken
       % Check if this token is a path
       result = isa(obj, 'apt.MetaPath');
     end
+
+    function result = isCommand(obj)
+      % Check if this token is a path
+      result = isa(obj, 'apt.ShellCommand');
+    end    
   end
 end

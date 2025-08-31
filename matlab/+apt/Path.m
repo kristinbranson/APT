@@ -122,11 +122,7 @@ classdef Path
 
     function result = toString(obj)
       % Get the path as a string
-      if isempty(obj.list_)
-        result = '.';
-      else
-        result = apt.Path.listToString_(obj.list_, obj.platform_);
-      end
+      result = apt.Path.listToString_(obj.list_, obj.platform_);
     end
 
     function result = cat2(obj, other)
@@ -417,20 +413,24 @@ classdef Path
 
     function result = listToString_(pathList, platform)
       % Convert list of path components to string
-      if platform == apt.Os.windows
-        % Windows - use backslashes
-        separator = '\';
-        result = strjoin(pathList, separator);
+      if isempty(pathList)
+        result = '.';
       else
-        % Unix-style - use forward slashes
-        separator = '/';
-        % For absolute paths, first element should be empty, so strjoin will create leading /
-        % For relative paths, no empty first element, so no leading /
-        % Special case: root path with single empty element should return '/'
-        if length(pathList) == 1 && isempty(pathList{1})
-          result = '/';
-        else
+        if platform == apt.Os.windows
+          % Windows - use backslashes
+          separator = '\';
           result = strjoin(pathList, separator);
+        else
+          % Unix-style - use forward slashes
+          separator = '/';
+          % For absolute paths, first element should be empty, so strjoin will create leading /
+          % For relative paths, no empty first element, so no leading /
+          % Special case: root path with single empty element should return '/'
+          if length(pathList) == 1 && isempty(pathList{1})
+            result = '/';
+          else
+            result = strjoin(pathList, separator);
+          end
         end
       end
     end

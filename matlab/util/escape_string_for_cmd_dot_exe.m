@@ -74,7 +74,7 @@ function [yi, statei] = escape1(xi, statelast)
       bs_count = bs_count_last+1 ;
     else
       % Was not in a bs block before, therefore
-                                                                          % a new bs block has started.
+      % a new bs block has started.
       yi = '' ;
       bs_count = 1 ;
     end    

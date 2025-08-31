@@ -121,4 +121,48 @@ if ~strcmp(cmd.toString(), 'cmd /test2')
   error('Matching locale command creation failed');
 end
 
+% Test ShellCommand inheritance from ShellToken
+if ~isa(cmd, 'apt.ShellToken')
+  error('ShellCommand should inherit from ShellToken');
+end
+
+% Test nested ShellCommand functionality
+innerCmd = apt.ShellCommand({'echo', 'hello world'});
+outerCmd = apt.ShellCommand({'bash', '-c', innerCmd});
+expectedStr = 'bash -c /bin/bash -c ''echo hello world''';
+if ~strcmp(outerCmd.toString(), expectedStr)
+  error('Nested ShellCommand failed. Expected: %s, Got: %s', expectedStr, outerCmd.toString());
+end
+
+% Test ShellCommand tfDoesMatchLocale
+wslCmd = apt.ShellCommand({'ls'}, 'wsl');
+if ~wslCmd.tfDoesMatchLocale('wsl')
+  error('ShellCommand should match its own locale');
+end
+if wslCmd.tfDoesMatchLocale('native')
+  error('ShellCommand should not match different locale');
+end
+
+% Test singleton ShellCommand (single token that is itself a ShellCommand)
+baseCmd = apt.ShellCommand({'echo', 'test'});
+singletonCmd = apt.ShellCommand({baseCmd});
+expectedStr = '/bin/bash -c ''echo test''';
+if ~strcmp(singletonCmd.toString(), expectedStr)
+  error('Singleton ShellCommand failed. Expected: %s, Got: %s', expectedStr, singletonCmd.toString());
+end
+
+% Verify singleton has correct token count
+if singletonCmd.length() ~= 1
+  error('Singleton ShellCommand should have exactly 1 token, got %d', singletonCmd.length());
+end
+
+% Verify the token is the original ShellCommand
+token = singletonCmd.getToken(1);
+if ~isa(token, 'apt.ShellCommand')
+  error('Singleton token should be a ShellCommand');
+end
+if ~strcmp(token.toString(), 'echo test')
+  error('Singleton token content incorrect');
+end
+
 end

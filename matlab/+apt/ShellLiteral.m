@@ -27,7 +27,7 @@ classdef ShellLiteral < apt.ShellToken
       result = obj.value_;
     end
     
-    function result = tfDoesMatchLocale(obj, queryLocale)
+    function result = tfDoesMatchLocale(obj, queryLocale)  %#ok<INUSD>
       % ShellLiterals are locale-agnostic and match any locale
       result = true;
     end
