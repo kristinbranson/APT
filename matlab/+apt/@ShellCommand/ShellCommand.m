@@ -30,7 +30,7 @@ classdef ShellCommand
             % Constructor for apt.ShellCommand
             %
             % Args:
-            %   tokens (cell): Cell array of command tokens (strings and apt.MetaPath objects)
+            %   tokens (cell): Cell array of command tokens (strings and apt.ShellToken objects)
             %   locale (char or apt.PathLocale): Platform context for the command
             
             if nargin < 1
@@ -45,19 +45,31 @@ classdef ShellCommand
                 locale = apt.PathLocale.fromString(locale);
             end
             
-            % Validate that all apt.MetaPath tokens have matching locale
+            % Convert tokens to ShellToken objects and validate
+            shellTokens = cell(size(tokens));
             for i = 1:length(tokens)
                 token = tokens{i};
-                if isa(token, 'apt.MetaPath')
-                    if token.locale ~= locale
-                        error('apt:ShellCommand:LocaleMismatch', ...
-                              'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                              i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
+                if isa(token, 'apt.ShellToken')
+                    % Already a ShellToken - validate locale if it's a MetaPath
+                    if isa(token, 'apt.MetaPath')
+                        if token.locale ~= locale
+                            error('apt:ShellCommand:LocaleMismatch', ...
+                                  'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
+                                  i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
+                        end
                     end
+                    shellTokens{i} = token;
+                elseif ischar(token) || isstring(token)
+                    % Convert string to ShellLiteral
+                    shellTokens{i} = apt.ShellLiteral(char(token));
+                else
+                    error('apt:ShellCommand:InvalidToken', ...
+                          'Token at index %d must be a string or apt.ShellToken, got %s', ...
+                          i, class(token));
                 end
             end
             
-            obj.tokens_ = tokens;
+            obj.tokens_ = shellTokens;
             obj.locale_ = locale;
         end
         
@@ -85,6 +97,7 @@ classdef ShellCommand
                 if isa(token, 'apt.MetaPath')
                     newTokens{i} = token.as(targetLocale);
                 else
+                    % ShellLiteral tokens don't need locale conversion
                     newTokens{i} = token;
                 end
             end
@@ -108,15 +121,11 @@ classdef ShellCommand
             stringTokens = cell(size(obj.tokens_));
             for i = 1:length(obj.tokens_)
                 token = obj.tokens_{i};
-                if isa(token, 'apt.MetaPath')
-                    pathStr = token.toString();
-                    if quotePaths && contains(pathStr, ' ')
-                        stringTokens{i} = ['"' pathStr '"'];
-                    else
-                        stringTokens{i} = pathStr;
-                    end
+                tokenStr = token.toString();
+                if quotePaths && contains(tokenStr, ' ')
+                    stringTokens{i} = ['"' tokenStr '"'];
                 else
-                    stringTokens{i} = char(token);
+                    stringTokens{i} = tokenStr;
                 end
             end
             
@@ -127,7 +136,7 @@ classdef ShellCommand
             % Append additional tokens to the command
             %
             % Args:
-            %   varargin: Tokens to append (strings, apt.MetaPath objects, or cell arrays)
+            %   varargin: Tokens to append (strings, apt.ShellToken objects, or cell arrays)
             %
             % Returns:
             %   apt.ShellCommand: New command with tokens appended
@@ -153,7 +162,7 @@ classdef ShellCommand
             % Prepend tokens to the beginning of the command
             %
             % Args:
-            %   varargin: Tokens to prepend (strings, apt.MetaPath objects, or cell arrays)
+            %   varargin: Tokens to prepend (strings, apt.ShellToken objects, or cell arrays)
             %
             % Returns:
             %   apt.ShellCommand: New command with tokens prepended

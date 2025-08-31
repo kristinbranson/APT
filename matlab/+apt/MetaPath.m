@@ -1,4 +1,4 @@
-classdef MetaPath
+classdef MetaPath < apt.ShellToken
   % apt.MetaPath - A value class to represent paths with locale and file role
   % awareness.
   %

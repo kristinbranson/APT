@@ -62,4 +62,43 @@ catch ME
   end
 end
 
+% Test ShellToken hierarchy and automatic conversion
+path = apt.MetaPath(apt.Path('/data/file.txt'), 'native', 'movie');
+literal = apt.ShellLiteral('hello');
+cmd = apt.ShellCommand({literal, 'world', path});
+
+% Check that tokens are properly typed
+token1 = cmd.getToken(1);
+token2 = cmd.getToken(2);
+token3 = cmd.getToken(3);
+
+if ~isa(token1, 'apt.ShellLiteral')
+  error('First token should be ShellLiteral');
+end
+if ~isa(token2, 'apt.ShellLiteral')
+  error('Second token should be ShellLiteral (auto-converted from string)');
+end
+if ~isa(token3, 'apt.MetaPath')
+  error('Third token should be MetaPath');
+end
+
+% Check that all tokens are ShellTokens
+if ~isa(token1, 'apt.ShellToken') || ~isa(token2, 'apt.ShellToken') || ~isa(token3, 'apt.ShellToken')
+  error('All tokens should inherit from ShellToken');
+end
+
+% Test polymorphic toString()
+expectedStr = 'hello world /data/file.txt';
+if ~strcmp(cmd.toString(), expectedStr)
+  error('Polymorphic toString failed. Expected: %s, Got: %s', expectedStr, cmd.toString());
+end
+
+% Test isLiteral and isPath methods
+if ~token1.isLiteral() || token1.isPath()
+  error('ShellLiteral isLiteral/isPath methods failed');
+end
+if token3.isLiteral() || ~token3.isPath()
+  error('MetaPath isLiteral/isPath methods failed');
+end
+
 end
