@@ -25,11 +25,11 @@ function result = escape_string_for_cmd_dot_exe(str)
   % Those rules are taken from:
   %   https://learn.microsoft.com/en-us/cpp/cpp/main-function-command-line-args?view=msvc-170&redirectedfrom=MSDN#parsing-c-command-line-arguments
   %
-  % This function should be the inverse of parse_string_for_cmd_dot_exe().
+  % This function should be the inverse of lex_string_for_cmd_dot_exe().
   % That is,
   %
   %   isequal(str,
-  %           parse_string_for_cmd_dot_exe(escape_string_for_cmd_dot_exe(str)))
+  %           lex_string_for_cmd_dot_exe(escape_string_for_cmd_dot_exe(str)))
   %
   % should hold for all old-school strings str.
 

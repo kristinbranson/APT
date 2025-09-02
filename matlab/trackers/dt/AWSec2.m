@@ -1532,8 +1532,8 @@ classdef AWSec2 < handle
       end      
       fprintf('Done uploading %d movie files.\n', movieCount) ;
       obj.didUploadMovies_ = true ; 
-      obj.wslPathFromMovieIndex_ = wslPathFromMovieIndex ;
-      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
+      obj.wslPathFromMovieIndex_ = cellfun(@(str)(apt.MetaPath(str, 'wsl', 'movie')) ;
+      obj.remotePathFromMovieIndex_ = apt.MetaPath(remotePathFromMovieIndex, 'remote', 'movie') ;
     end  % function
     
     % function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)

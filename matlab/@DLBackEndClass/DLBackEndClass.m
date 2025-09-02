@@ -804,7 +804,6 @@ classdef DLBackEndClass < handle
 
     function result = remote_movie_path_from_wsl(obj, queryWslPath)
       if obj.type == DLBackEnd.AWS ,
-        % obj.awsec2.getRemoteMoviePathFromLocal(queryLocalPath) ;
         result = AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
       else
         result = queryWslPath ;
@@ -964,8 +963,9 @@ classdef DLBackEndClass < handle
       remoteaptroot = obj.aptSourceDirRoot() ;
 
       % totrackinfo has local paths, need to remotify them
-      remotetotrackinfo = totrackinfo.copy() ;
-      remotetotrackinfo.changePathsToRemoteFromWsl(obj.wslProjectCachePath, obj) ;
+      % remotetotrackinfo = totrackinfo.copy() ;
+      % remotetotrackinfo.changePathsToRemoteFromWsl(obj.wslProjectCachePath, obj) ;
+      remotetotrackinfo = obj.changeToTrackInfoPathsToRemoteFromWsl_(totrackinfo) ;
 
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
@@ -1930,5 +1930,45 @@ classdef DLBackEndClass < handle
       % Get test text
       text = obj.testText_;
     end  % function
+
+    function result = changeToTrackInfoPathsToRemoteFromWsl_(obj, totrackinfo)
+      % Convert all paths in result from WSL paths on the frontend's filesytem to
+      % their corresponding paths on the backend.  If backend is a local-filesystem
+      % backend, do nothing.  This method does not mutate obj or totrackinfo.
+
+      result = totrackinfo.copy() ;
+      % result.changePathsToRemoteFromWsl(obj.wslProjectCachePath, obj) ;
+      wslCacheRoot = obj.wslProjectCachePath ;
+
+      % If backend has local filesystem, do nothing
+      if obj.isFilesystemLocal() ,
+        return
+      end
+      
+      % Generate all the relocated paths
+      remoteCacheRoot = obj.remoteDMCRootDir ;
+      newmovfiles = cellfun(@(old_path)(obj.remote_movie_path_from_wsl(old_path)), ...
+                            result.movfiles, ...
+                            'UniformOutput', false) ;
+      newtrkfiles = linux_replace_prefix_path(result.trkfiles, wslCacheRoot, remoteCacheRoot) ;
+      newerrfile = linux_replace_prefix_path(result.errfile, wslCacheRoot, remoteCacheRoot) ;
+      newlogfile = linux_replace_prefix_path(result.logfile, wslCacheRoot, remoteCacheRoot) ;
+      newcmdfile = linux_replace_prefix_path(result.cmdfile, wslCacheRoot, remoteCacheRoot) ;
+      newkillfile = linux_replace_prefix_path(result.killfile, wslCacheRoot, remoteCacheRoot) ;
+      newtrackconfigfile = linux_replace_prefix_path(result.trackconfigfile, wslCacheRoot, remoteCacheRoot) ;
+      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+      % would need to be relocated, but so far hasn't been an issue 
+      % -- ALT, 2024-07-31
+
+      % Actually write all the new paths to the obj only after all the above things
+      % have finished, to make a borked state less likely.
+      result.movfiles = newmovfiles ;
+      result.trkfiles = newtrkfiles ;
+      result.errfile = newerrfile ;
+      result.logfile = newlogfile ;
+      result.cmdfile = newcmdfile ;
+      result.killfile = newkillfile ;
+      result.trackconfigfile = newtrackconfigfile ;
+    end  % function    
   end  % methods
 end  % classdef
