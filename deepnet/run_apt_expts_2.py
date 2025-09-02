@@ -29,6 +29,7 @@ import hdf5storage
 import easydict
 import sys
 import getpass
+import cv2
 
 if getpass.getuser() == 'leea30':
     import apt_dpk_exps as ade
@@ -282,6 +283,9 @@ def setup(data_type_in,gpu_device='0'):
         # op_af_graph = op_af_graph.replace('[','\(')
         # op_af_graph = op_af_graph.replace(']','\)')
         # op_af_graph = op_af_graph.replace(' ','')
+    elif data_type == 'mice_jump':
+        lbl_file = '/groups/branson/bransonlab/apt/experiments/data/mice_jump_stripped20250617.lbl'
+        cv_info_file = '/groups/branson/bransonlab/apt/experiments/data/MouseJumpCVInfo20250617.mat'
     else:
         lbl_file = ''
 
@@ -489,8 +493,8 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     nr = 1#int(np.ceil(n_types/float(nc)))
     nc = int(np.ceil(np.sqrt(n_types)))
     nr = int(np.ceil(n_types/float(nc)))
-    if cmap is None:
-        cmap = PoseTools.get_cmap(n_types,'hsv')
+    # if cmap is None:
+    cmap = PoseTools.get_cmap(n_types+1,'hsv')
     f, axx = plt.subplots(1, 1, figsize=(12, 12), squeeze=False)
     axx = axx.flat
     ax = axx[0]
@@ -520,23 +524,22 @@ def plot_hist1(in_exp,ps = [50, 75, 90, 95],cmap=None):
     plt.legend(all_str)
     plt.scatter(ex_loc[:, 0], ex_loc[:, 1], c='r', s=10, marker='+')
 
-    for idx,k in enumerate(data_in.keys()):
-        for pt in range(ex_loc.shape[0]):
-            jj = all_jj[idx]
-            for ix in range(ex_loc.shape[0]):
-                vv = ~np.all(np.isnan(o[1][..., 0]), axis=-1)
-                n_ex = np.count_nonzero(~np.isnan(o[1][vv][..., ix, 0]))
-                st = n_ex * 8 // 10
-                n_t = n_ex - st
-                th = np.arange(n_t) / n_t * np.pi * 2
-                xj = jj[st:n_ex, ix] * np.sin(th)
-                yj = jj[st:n_ex, ix] * np.cos(th)
-                plt.scatter(xj + ex_loc[ix, 0], yj + ex_loc[ix, 1], c=cmap[idx], marker='.', alpha=0.5, s=2)
-                min_jj = min([all_jj[nndx1][st, ix] for nndx1 in range(len(all_jj))])
-                aa = np.maximum(0.5 * min_jj / jj[st:n_ex, ix], 0.05)
-                aa[np.isnan(aa)] = 0
-                for qx, ixx in enumerate(range(st, n_ex - 1)):
-                    plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[idx], lw=2,alpha=aa[qx + 1])
+    for idx,k in enumerate(all_str):
+        jj = all_jj[idx]
+        for ix in range(ex_loc.shape[0]):
+            vv = ~np.all(np.isnan(o[1][..., 0]), axis=-1)
+            n_ex = np.count_nonzero(~np.isnan(o[1][vv][..., ix, 0]))
+            st = n_ex * 8 // 10
+            n_t = n_ex - st
+            th = np.arange(n_t) / n_t * np.pi * 2
+            xj = jj[st:n_ex, ix] * np.sin(th)
+            yj = jj[st:n_ex, ix] * np.cos(th)
+            plt.scatter(xj + ex_loc[ix, 0], yj + ex_loc[ix, 1], c=cmap[idx], marker='.', alpha=0.5, s=2)
+            min_jj = min([all_jj[nndx1][st, ix] for nndx1 in range(len(all_jj))])
+            aa = np.maximum(0.5 * min_jj / jj[st:n_ex, ix], 0.05)
+            aa[np.isnan(aa)] = 0
+            for qx, ixx in enumerate(range(st, n_ex - 1)):
+                plt.plot(xj[qx:qx + 2] + ex_loc[ix, 0], yj[qx:qx + 2] + ex_loc[ix, 1], color=cmap[idx], lw=2,alpha=aa[qx + 1])
 
 
     for ax in axx:
@@ -1110,7 +1113,7 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                       view_idxs=None,  # optional list of view indices to run (0-based)
                       queue='gpu_rtx8000',
                       **kwargs):
-    assert data_type in ['romain','larva','roian','carsen','brit0','brit1','brit2']
+    assert data_type in ['romain','larva','roian','carsen','brit0','brit1','brit2','mice_jump']
 
     data_info = h5py.File(cv_info_file, 'r')
     cv_info = apt.to_py(np.squeeze(data_info['cvi']).astype('int'))
@@ -2489,14 +2492,24 @@ def get_cv_results(num_splits=None,
                 if ex_im is None:
                     db_file = os.path.join(mdn_conf.cachedir, 'val_TF.tfrecords') if \
                         db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.tfrecords')
-                    H = multiResData.read_and_decode_without_session(db_file,mdn_conf)
-                    ex_ims = np.array(H[0][0])
-                    ex_locs = np.array(H[1][0])
+                    if os.path.exists(db_file):
+
+                        H = multiResData.read_and_decode_without_session(db_file,mdn_conf)
+                        ex_ims = np.array(H[0][0])
+                        ex_locs = np.array(H[1][0])
+                    else:
+                        db_file = os.path.join(mdn_conf.cachedir, 'val_TF.json') if \
+                            db_from_mdn_dir else os.path.join(conf.cachedir, 'val_TF.json')
+                        im,kpts = PoseTools.read_coco(db_file)
+                        n_vis = np.sum(kpts[:,0,:,2]>0,axis=-1)
+                        sel = np.argmax(n_vis)
+                        ex_ims = cv2.imread(im[sel])
+                        ex_locs = np.array(kpts[sel,0,:,0:2],dtype=np.float32)
             out_exp[train_type] = out_split
         all_view.append([out_exp,ex_ims,ex_locs])
 
     for ndx,out_exp in enumerate(all_view):
-        cmap = PoseTools.get_cmap(5,'cool')
+        cmap = PoseTools.get_cmap(5,'hsv')
         # cmap = np.array([[0.5200,         0,         0],
         #         [1.0000,    0.5200,         0],
         #         [0.4800,    1.0000,    0.5200],

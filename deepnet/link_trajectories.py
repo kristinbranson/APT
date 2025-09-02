@@ -1207,7 +1207,7 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   # return l_trk
 
-def link_trklets(trk_files, conf, movs, out_files):
+def link_trklets(trk_files, conf, movs, out_files,id_wts_file=None):
   """
   Links pure tracklets using id liking or motion based on conf.link_id
   :param trk_files: trk files with pure linked trajectories
@@ -1262,7 +1262,7 @@ def link_trklets(trk_files, conf, movs, out_files):
       link_method = 'motion'
     else:
       link_method = 'no_motion'
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link,link_method=link_method)
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link,id_wts=id_wts_file,link_method=link_method)
 
     out_trks= []
     count = 0
@@ -1405,7 +1405,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
     # train_data = get_id_train_images(trks, all_trx, mov_files, conf)
     wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
-    id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size)
+    id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size,save=conf.link_id_save_int_wts)
 
   # link using id model
   def_params = get_default_params(conf)
@@ -1640,6 +1640,8 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   trk_info_batches = split_parallel(trk_info,n_batches)
   args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
+  # with mp.dummy.Pool() as pool:
+    # remember to remove dummy after debugging
     data = pool.starmap(read_tracklet_ims,args,chunksize=1)
   data = merge_parallel(data)
   return data

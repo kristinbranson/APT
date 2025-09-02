@@ -312,7 +312,7 @@ class mdn_joint(nn.Module):
             self.locs_ref = pred_layers(n_ftrs,npts*2*k_r,dropout)
         self.wts_ref = pred_layers(n_ftrs,npts*k_r)
         if do_dist_pred:
-            self.dist_pred = pred_layers(n_ftrs,npts)
+            self.dist_pred = pred_layers(n_ftrs,npts*k_j)
         else:
             self.dist_pred = None
         self.pred_occluded = pred_occluded
@@ -411,9 +411,20 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
         self.offset = 4*(2**self.fpn_joint_layer)
         self.ref_scale = 4*(2**self.fpn_ref_layer)
-        self.locs_noise = self.conf.get('mdn_joint_ref_noise',0.1)
+        self.scaled_noise = self.conf.get('mdn_ref_scaled_noise',True)
+        if self.scaled_noise:
+            if not self.conf.is_multi:
+                self.locs_noise = 0.05
+            else:
+                self.locs_noise = self.get_ref_noise_multi()
+
+        else:
+            self.locs_noise = self.conf.get('mdn_joint_ref_noise', 0.1)
+
+        self.locs_noise_type = self.conf.get('mdn_joint_ref_noise_type', 'gaussian')
+
         # self.k_j = 4 if self.fpn_joint_layer ==3 else 1
-        self.k_j = 1
+        self.k_j = self.conf.get('mdn_joint_k_j',1)
         self.k_r = 1
         self.wt_offset = self.conf.get('mdn_joint_wt_offset',-5)
         self.mdn_joint_max_assign = conf.get('mdn_joint_max_assign',100)
@@ -430,6 +441,41 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         # version 1 has k_j = 4
         # version 2 has k_j = 1 and k_r = 3
         # version 3 has k_j = 1 and k_r = 1
+
+    def get_ref_noise_multi(self):
+        # Find the distance between the same landmarks for different animals. Find the lower end of that distance as the 1% percentile. The noise shouldn't be larger half of (split the distance between both the animals) this distance.
+
+        conf = self.conf
+        tfile = os.path.join(conf.cachedir, conf.trainfilename + '.json')
+        if not os.path.exists(tfile):
+            # during inference train file might not exist. Use default value because it doesn't matter.
+            return 0.05
+        ims, pts = PoseTools.read_coco(tfile)
+        occ = pts[...,2]
+        pts = pts[...,:2]
+        pts[occ<.5] = np.nan
+        dd = np.linalg.norm(pts[:, None, ..., :2] - pts[:, :, None, ..., :2], axis=-1)/2
+        if dd.shape[1] <2:
+            return 0.05 # if there is only one animal, use a default value.
+        aa = np.partition(dd, 1, axis=1)[:,1]
+
+        span = np.nanmax(pts,axis=-2)-np.nanmin(pts,axis=-2)
+        span = np.linalg.norm(span,axis=-1)
+        norm_dist = aa / span[:, :, None]
+
+        norm_dist = np.reshape(norm_dist, [-1, norm_dist.shape[-1]])
+        vv = np.nanmin(np.nanpercentile(norm_dist, 1, axis=0, method='lower'))
+        vv_min = np.nanmin(norm_dist.flatten()) # in case the percentile is nan or of there are few labels, use the min value.
+        vv = np.nanmax([vv, vv_min])
+
+        if np.isnan(vv):
+            # in case only 1 animal is present, use a default value.
+            vv = 0.05
+
+        vv = np.max([vv,0.02]) # min 2% noise
+
+        # select the min over all the landmarks. No per landmark adaptive noise.
+        return vv
 
     def create_model(self):
         backbone_type = self.conf.get('mdn_backbone','resnet50')
@@ -544,7 +590,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
         locs_joint_flat = locs_joint.reshape(
             [locs_joint.shape[0], 1, n_classes, 2, self.k_j * ls[-2] * ls[-1]]).permute([0, 1, 4, 2, 3])
         ll_joint_flat = ll_joint.reshape([ll_joint.shape[0], self.k_j * ls[-1] * ls[-2]])
-        dist_pred_flat = dist_pred.reshape([dist_pred.shape[0],n_classes,ls[-1]*ls[-2]]).permute([0,2,1])
+        dist_pred_flat = dist_pred.reshape([dist_pred.shape[0],n_classes,self.k_j*ls[-1]*ls[-2]]).permute([0,2,1])
 
         valid = torch.any(torch.all(labels > -1000, dim=3), dim=2)
         valid_lbl = labels[...,0] > -1000
@@ -669,22 +715,80 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
     def ref_loss(self,locs_ref,wts_ref,labels,locs_joint_flat,assign,valid_lbl,loss_wt):
         # Loss to ensure that the number of predictions match the number of labeled animals. This weight needs to be upweighted otherwise the training converges to degenerate case where  ll_joint is predicted as zero, which would make joint_loss 0.
 
-        locs_noise_mag = self.locs_noise
-        locs_noise_mag = torch.tensor(locs_noise_mag).to(self.device)
-        if locs_noise_mag > 0.001:
-            locs_noise = locs_joint_flat + (
-                        torch.rand(locs_joint_flat.shape, device=self.device) - 0.5) * 2 * locs_noise_mag
-        else:
-            locs_noise = locs_joint_flat
-        locs_noise = locs_noise * self.offset/self.ref_scale
-
         assign_ndx = torch.argmax(assign, axis=-1)
         bsz = labels.shape[0]
         n_max = labels.shape[1]
         npts = labels.shape[2]
-        locs_noise_dim = locs_noise.repeat([1, n_max, 1, 1, 1])
-        i1, i2 = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
-        idx = torch.round(locs_noise_dim[i1, i2, assign_ndx, :, :]).long()
+
+        # Add noise to the joint predictions so that refined predctions learn to predict well even if the joint predictions are not accurate.
+        if self.scaled_noise:
+            scaled_noise_mag = self.locs_noise
+
+            # FInd the x-span and y-span of each label
+            label_span = torch.zeros_like(labels[...,0,:],device=self.device)
+            dist_closest = torch.ones_like(labels[...,0],device=self.device)* 10000
+            for l1 in range(labels.shape[0]):
+                for l2 in range(labels.shape[1]):
+                    sel_pts = valid_lbl[l1,l2,:]
+                    if ~torch.any(sel_pts):
+                        continue
+                    label_span[l1,l2,:] = torch.max(labels[l1,l2,sel_pts,:],dim=0).values - torch.min(labels[l1,l2,sel_pts,:],dim=0).values
+                    for l3 in range(labels.shape[2]):
+                        if not sel_pts[l3]:
+                            continue
+                        other_labels = labels[l1,valid_lbl[l1,:,l3],l3,:]
+                        if other_labels.shape[0] == 1:
+                            continue
+                        dist_others = torch.norm(other_labels - labels[l1,l2,l3,:],dim=-1)
+                        dist_closest[l1,l2,l3] = torch.topk(dist_others,2,dim=0,largest=False).values[1]
+
+            dist_closest = dist_closest/2
+
+            # # use a fraction of it as noise to be added to the label
+            label_span = label_span[:,:,None].repeat([1,1,npts,1])* scaled_noise_mag
+
+            # # For each landmark (i) find the closest landmark (i) from all other animal.
+            # # The max noise that we add to the label should be half the distance to the closest landmark if it is larger than the span of the label.
+            # label_dist = torch.norm(labels[:,None]-labels[:,:,None,:],dim=-1)
+            # dist_closest = torch.topk(label_dist,2,dim=2,largest=False).values[:,:,1]/2
+
+
+            dist_closest = dist_closest[...,None].repeat([1,1,1,2])
+            dist_closest_span = dist_closest/torch.sqrt(torch.tensor(2))
+
+            # If the span is smaller than the distance to closest landmark, then use the span as the noise else cap it to the half the distance to the closest landmark
+            span_dist = torch.norm(label_span,dim=-1,keepdim=True).repeat([1,1,1,2])
+            label_span = torch.where(span_dist<dist_closest,label_span,dist_closest_span)
+
+            i1, i2 = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
+            locs_joint_flat_dim = locs_joint_flat.repeat([1, n_max, 1, 1, 1])
+            idx_pre = locs_joint_flat_dim[i1, i2, assign_ndx, :, :]*self.offset/self.ref_scale
+
+            # Add noise to the joint predictions
+            if self.locs_noise_type == 'uniform':
+                label_noise = (torch.rand(idx_pre.shape, device=self.device) - 0.5) * 2 * label_span
+            elif self.locs_noise_type == 'gaussian':
+                label_noise = torch.randn(idx_pre.shape, device=self.device) * label_span
+            elif self.locs_noise_type == 'laplacian':
+                label_noise = torch.distributions.laplace.Laplace(0, 1).sample(idx_pre.shape).to(self.device) * label_span
+
+            label_noise = label_noise/self.ref_scale
+            idx = torch.round(idx_pre + label_noise).long()
+
+        else:
+            locs_noise_mag = self.locs_noise
+            locs_noise_mag = torch.tensor(locs_noise_mag).to(self.device)
+            if locs_noise_mag > 0.001:
+                locs_noise = locs_joint_flat + (
+                            torch.rand(locs_joint_flat.shape, device=self.device) - 0.5) * 2 * locs_noise_mag
+            else:
+                locs_noise = locs_joint_flat
+
+            locs_noise = locs_noise * self.offset/self.ref_scale
+            locs_noise_dim = locs_noise.repeat([1, n_max, 1, 1, 1])
+            i1, i2 = torch.meshgrid(torch.arange(0, bsz, device=self.device), torch.arange(0, n_max, device=self.device))
+            idx = torch.round(locs_noise_dim[i1, i2, assign_ndx, :, :]).long()
+
         idx_y = torch.clamp(idx[..., 1], 0, locs_ref.shape[-2] - 1)
         idx_x = torch.clamp(idx[..., 0], 0, locs_ref.shape[-1] - 1)
 
@@ -956,7 +1060,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                 conf_ref[ndx,done_count,:] = cur_ref_conf
                 preds_joint[ndx,done_count,...] = locs_joint[ndx,...,idx[0],idx[1],idx[2]] * locs_offset
                 if dist_pred is not None:
-                    dist_joint[ndx,done_count,:] = dist_pred[ndx,...,idx[1],idx[2]]
+                    dist_joint[ndx,done_count,:] = dist_pred[ndx,...,idx[0],idx[1],idx[2]]
 
                 if self.conf.predict_occluded:
                     pred_occ[ndx,done_count,...] = occ_out[ndx,...,idx[0],idx[1],idx[2]]
@@ -1545,6 +1649,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
                     pred_conf = conf_ref
                     ret_dict['conf'].append(pred_conf[0])
                 else:
+                    # confidence is computed as the ratio of distance uncertainty to the bounding box size
                     cur_joint_conf = locs['conf_dist'][0]
                     ss = np.max(locs['ref'][0],axis=-2) - np.min(locs['ref'][0],axis=-2)
                     sz = np.sqrt(np.prod(ss,axis=-1))[...,None]

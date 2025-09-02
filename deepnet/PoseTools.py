@@ -631,6 +631,7 @@ def randomly_affine(img,locs, conf, group_sz=1, mask= None, interp_method=cv2.IN
                 ii = copy.deepcopy(orig_im[g,...])
                 ii = cv2.warpAffine(ii, rot_mat, (int(cols), int(rows)),flags=interp_method)
                 # Do not use inter_cubic. Leads to splotches.
+
                 if ii.ndim == 2:
                     ii = ii[..., np.newaxis]
                 out_ii[g,...] = ii
@@ -1136,9 +1137,9 @@ def show_stack(im_s,xx,yy,cmap='gray'):
     im_s = im_s.reshape([xx * isz1, yy * isz2])
     plt.figure(); plt.imshow(im_s,cmap=cmap)
     for x in range(1,yy):
-        plt.plot([x*isz2,x*isz2],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
+        plt.plot([x*isz2-0.5,x*isz2-0.5],[1,im_s.shape[0]-1],c=[0.3,0.3,0.3])
     for y in range(1,xx):
-        plt.plot([1,im_s.shape[1]-1],[y*isz1,y*isz1],c=[0.3,0.3,0.3])
+        plt.plot([1,im_s.shape[1]-1],[y*isz1-0.5,y*isz1-0.5],c=[0.3,0.3,0.3])
     plt.axis('off')
 
 def show_result(ims, ndx, locs, predlocs=None, hilitept=None, mft=None, perr=None, mrkrsz=10, fignum=11, hiliteptcolor=None):
@@ -1983,23 +1984,24 @@ def make_vid(mov_file,trk_file,out_file,skel,st,en,x,y,fps=10,cmap='tab20',fig_s
     out.release()
 
 
-def read_coco(json_file):
+def read_coco(json_file,n_pts=None):
     from collections import Counter
 
     A = json_load(json_file)
     ims = [aa['file_name'] for aa in A['images']]
-    n_pts = len(A['categories'][0]['keypoints'])
-    cc = [aa['image_id'] for aa in A['annotations'] if aa['iscrowd'] == 0]
+    im_ids = [aa['id'] for aa in A['images']]
+    n_pts = len(A['categories'][0]['keypoints']) if n_pts is None else n_pts
+    cc = [aa['image_id'] for aa in A['annotations'] if ('iscrowd' not in aa) or (aa['iscrowd'] == 0)]
     im_counts =Counter(cc)
     max_n = max(im_counts.values())
     count = np.zeros([len(ims)]).astype('int')
     kpts = np.ones([len(ims),max_n,n_pts,3])*np.nan
     for aa in A['annotations']:
-        if aa['iscrowd'] == 1:
+        if ('iscrowd' in aa) and (aa['iscrowd'] == 1):
             continue
-        im_id = aa['image_id']
-        kpts[im_id,count[im_id],:] = np.array(aa['keypoints']).reshape([-1,3])
-        count[im_id] += 1
+        im_ndx = im_ids.index(aa['image_id'])
+        kpts[im_ndx,count[im_ndx],:] = np.array(aa['keypoints']).reshape([-1,3])
+        count[im_ndx] += 1
 
     return ims,kpts
 
