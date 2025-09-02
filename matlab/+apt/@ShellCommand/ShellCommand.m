@@ -487,10 +487,12 @@ classdef ShellCommand < apt.ShellToken
       end
 
       result = apt.ShellCommand(tokens, locale);
-    end
+    end  % function
+  end  % methods
 
+  methods (Static)
     result = cat(varargin)
-    % Concatenate any number of strings, apt.MetaPaths, and apt.ShellCommands
-    % into a single apt.ShellCommand (defined in cat.m)
-  end
-end
+      % Concatenate any number of strings, apt.MetaPaths, and apt.ShellCommands
+      % into a single apt.ShellCommand (defined in cat.m)
+  end  % methods (Static)
+end  % classdef
