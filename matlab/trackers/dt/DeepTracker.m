@@ -2665,22 +2665,6 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setDefaultFiles();
 
         backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), track_type) ;
-%         basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
-%         % For AWS backend, need to modify the base command to run in background
-%         if backend.type == DLBackEnd.AWS ,    
-%           basecmd_escaped = escape_string_for_bash(basecmd) ;
-%           basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-%         end        
-%         backendArgs = obj.getBackEndArgs(backend, gpuids(ijob), totrackinfojob, aptroot, 'track') ;
-%         syscmds{ijob} = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
-%         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
-% 
-%         if backend.type == DLBackEnd.Docker,
-%           containerName = totrackinfojob.containerName;
-%           logfile = totrackinfojob.logfile;
-%           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
-%         end
-
         backend.prepareFilesForTracking(totrackinfojob);
         obj.trkCreateConfig(totrackinfojob.trackconfigfile);
 
@@ -2779,19 +2763,6 @@ classdef DeepTracker < LabelTracker
 
       backend.killAndClearRegisteredJobs('track') ;
       backend.registerTrackingJob(totrackinfo, obj, gpuids, 'track') ;      
-%       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
-%       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
-%       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
-%       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
-% 
-%       if backend.type == DLBackEnd.Docker
-%         containerName = totrackinfo.containerName;
-%         logfile = totrackinfo.logfile;
-%         logcmds = {backend.logCommand(containerName,logfile)}; 
-%       else
-%         logcmds = [];
-%       end
-
       backend.prepareFilesForTracking(totrackinfo);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
@@ -2812,12 +2783,7 @@ classdef DeepTracker < LabelTracker
       nframes = totrackinfo.getNFramesTrack();
     end
 
-
     function trkPrintTrkOutDir(obj)
-%       modelChainID = obj.trnName;
-%       if isempty(modelChainID) 
-%         error('Training is not complete or in progress.');
-%       end
       if ~obj.bgTrkIsRunning
         fprintf('Tracking is not in progress; log is for most recent tracking session.\n');
       end
@@ -3388,159 +3354,6 @@ classdef DeepTracker < LabelTracker
       c = cellfun(@(x)[quotechar x quotechar],c,'uni',0);
       str = String.cellstr2DelimList(c,' '); 
     end
-
-
-    % function codestr = trackCodeGenBaseListFile(trnID,cache,dlconfigfile,outfile,...
-    %     errfile,nettype,view,listfile,varargin)
-    %   % view: 1-based
-    % 
-    %   [deepnetroot,model_file,fs,filequote] = myparse_nocheck(varargin,...
-    %     'deepnetroot',APT.getpathdl,...
-    %     'model_file',[],... 
-    %     'filesep','/',...
-    %     'filequote','\"'... % quote char used to protect filenames/paths.
-    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-    %                     ... % is expected to wrap in enclosing regular double-quotes " !!
-    %     );
-    % 
-    %   tfmodel = ~isempty(model_file);      
-    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
-    % 
-    %   code = { ...
-    %     'python' [filequote aptintrf filequote] ...
-    %     '-name' trnID ...
-    %     '-view' num2str(view) ... % 1b 
-    %     '-cache' [filequote cache filequote] ...
-    %     '-err_file' [filequote errfile filequote] ...
-    %     };
-    %   if tfmodel
-    %     code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
-    %   end
-    %   code = [code ...
-    %     '-type' char(nettype) ...
-    %     [filequote dlconfigfile filequote] 'track' ...
-    %     '-out' [filequote outfile filequote] ...
-    %     '-list_file' [filequote listfile filequote] ];
-    % 
-    %   codestr = String.cellstr2DelimList(code,' ');
-    % end
-
-    % function codestr = trackCodeGenBaseGTClassify(trnID,cache,dlconfigfile,gtoutfile,...
-    %     errfile,nettype,varargin)
-    %   % CodeGen for gtclassify; single view with single gtoutfile
-    %   % 
-    %   % Looks a lot like trackCodeGenBaseListFile
-    % 
-    %   [view,deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-    %     'view',[],... % 1b
-    %     'deepnetroot',APT.getpathdl,...
-    %     'model_file',[],... 
-    %     'filesep','/',...
-    %     'filequote','\"'... % quote char used to protect filenames/paths.
-    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-    %                     ... % is expected to wrap in enclosing regular double-quotes " !!
-    %     );
-    % 
-    %   tfmodel = ~isempty(model_file);      
-    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
-    % 
-    %   code = { ...
-    %     'python' [filequote aptintrf filequote] ...
-    %     '-name' trnID ...
-    %     };
-    %   if ~isempty(view)
-    %     code(end+1:end+2) = {'-view' num2str(view)}; ... % 1b 
-    %   end
-    %   code = [code ...
-    %     { '-cache' [filequote cache filequote] ...
-    %     '-err_file' [filequote errfile filequote] ...
-    %     } ];
-    %   if tfmodel
-    %     code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
-    %   end
-    %   code = [code ...
-    %     '-type' char(nettype) ...
-    %     [filequote dlconfigfile filequote] 'gt_classify' ...
-    %     '-out' [filequote gtoutfile filequote] ];
-    % 
-    %   codestr = String.cellstr2DelimList(code,' ');
-    % end
-    
-%     function [codestr] = dataAugCodeGenDocker(backend,...
-%         ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
-%       
-%       [baseargs,dockerargs,mntPaths] = myparse(varargin,...
-%         'baseargs',{},'dockerargs',{},'mntPaths',{});
-%       
-%       filequote = backend.getFileQuoteDockerCodeGen;
-%       basecmd = DeepTracker.dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-%         netType,outfile,baseargs{:},'filequote',filequote);
-%       
-%       codestr = backend.wrapBaseCommandDocker_(basecmd,ID,...
-%         'bindpath',mntPaths,dockerargs{:});
-%     end    
-    
-    % function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-    %     nettype,outfile,varargin)
-    % 
-    %   [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-    %     'deepnetroot',APT.getpathdl,...
-    %     'model_file',[],... % can be [nview] cellstr
-    %     'filesep','/',...
-    %     'filequote','\"'... % quote char used to protect filenames/paths.
-    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-    %                     ... % is expected to wrap in enclosing regular double-quotes " !!        
-    %     ); 
-    % 
-    %   tfcache = ~isempty(cache);
-    %   tfmodel = ~isempty(model_file);
-    % 
-    %   if tfmodel
-    %     model_file = cellstr(model_file);
-    %   end
-    % 
-    %   aptintrf = [deepnetroot fs 'APT_interface.py'];      
-    % 
-    %   codestr = sprintf('python %s -name %s',...
-    %     [filequote aptintrf filequote],ID);
-    %   if tfcache
-    %     %cache = String.escapeSpaces(cache);
-    %     codestr = [codestr ' -cache ' [filequote cache filequote]];
-    %   end
-    %   %errfile = String.escapeSpaces(errfile);
-    %   codestr = [codestr ' -err_file ' [filequote errfile filequote]];
-    %   if tfmodel
-    %     %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
-    %     codestr = sprintf('%s -model_files %s',codestr,...
-    %       DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
-    %   end
-    %   codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
-    %     char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
-    % end    
-            
-%     function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
-%       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
-%         'baseargs',{},... % p-v cell for trackCodeGenBase
-%         'venvHost','10.103.20.155',... % host to run DL verman-ws1
-%         'venv','/groups/branson/bransonlab/mayank/venv',... 
-%         'cudaVisDevice',[],... % if supplied, export CUDA_VISIBLE_DEVICES to this
-%         'logFile','/dev/null'...
-%       ); 
-%       
-%       basecode = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-%       if ~isempty(cudaVisDevice)
-%         cudaDeviceStr = ...
-%           sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
-%           cudaVisDevice);
-%       else
-%         cudaDeviceStr = '';
-%       end
-%         
-%       codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
-%         cudaDeviceStr,basecode);
-%       codestr = wrapCommandSSH(codestrremote,...
-%         'host',venvHost,'logfile',logFile);
-%     end
     
     function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
       tfsuccess = false;

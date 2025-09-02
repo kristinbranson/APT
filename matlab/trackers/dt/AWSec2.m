@@ -835,7 +835,7 @@ classdef AWSec2 < handle
         myparse(varargin, ...
                 'dopathsubs', true) ;
       if dopathsubs
-        remote_command = obj.applyFilePathSubstitutions(input_command) ;
+        remote_command = obj.applyFilePathSubstitutions_(input_command) ;
       else
         remote_command = input_command ;
       end
@@ -1524,7 +1524,7 @@ classdef AWSec2 < handle
         if strcmp(fileExtension,'.mjpg') ,
           sidecarWslPath = FSPath.replaceExtension(wslPath, '.txt') ;
           if exist(sidecarWslPath, 'file') ,
-            sidecarRemotePath = obj.remote_path_from_wsl(sidecarWslPath) ;
+            sidecarRemotePath = obj.remote_path_from_wsl_(sidecarWslPath) ;
             % obj.uploadOrVerifySingleFile_(sidecarWslPath, sidecarRemotePath, sidecarDescription) ;  % throws
             obj.rsyncUploadFile(sidecarWslPath, sidecarRemotePath) ;  % throws
           end
@@ -1532,7 +1532,7 @@ classdef AWSec2 < handle
       end      
       fprintf('Done uploading %d movie files.\n', movieCount) ;
       obj.didUploadMovies_ = true ; 
-      obj.wslPathFromMovieIndex_ = cellfun(@(str)(apt.MetaPath(str, 'wsl', 'movie')) ;
+      obj.wslPathFromMovieIndex_ = cellfun(@(str)(apt.MetaPath(str, 'wsl', 'movie')), wslPathFromMovieIndex) ;
       obj.remotePathFromMovieIndex_ = apt.MetaPath(remotePathFromMovieIndex, 'remote', 'movie') ;
     end  % function
     
@@ -1646,7 +1646,7 @@ classdef AWSec2 < handle
       % Does the APT source root dir exist?
       native_apt_root = APT.Root ;  % native path
       wsl_apt_root = wsl_path_from_native(native_apt_root) ;
-      remote_apt_root = obj.remote_path_from_wsl(wsl_apt_root) ;  % remote path
+      remote_apt_root = obj.remote_path_from_wsl_(wsl_apt_root) ;  % remote path
       
       % Create folder if needed
       [didsucceed, msg] = obj.mkdir(wsl_apt_root) ;
@@ -1689,7 +1689,7 @@ classdef AWSec2 < handle
 
       %logger.log('partFileIsTextStatus: %d', double(partFileIsTextStatus)) ;
       remoteFilePath = ...
-         obj.remote_path_from_wsl(wslFilePath) ;
+         obj.remote_path_from_wsl_(wslFilePath) ;
       if ~obj.fileExists(wslFilePath) ,
         nframes = nan ;
         return
@@ -1723,7 +1723,7 @@ classdef AWSec2 < handle
       tfo.fprintf('%s', str) ;
       tfo.fclose() ;  % Close the file before uploading to the remote side
       wsl_temp_file_path = wsl_path_from_native(tfo.abs_file_path) ;
-      remoteFileAbsPath = obj.remote_path_from_wsl(fileWslPath) ;
+      remoteFileAbsPath = obj.remote_path_from_wsl_(fileWslPath) ;
       obj.rsyncUploadFile(wsl_temp_file_path, remoteFileAbsPath) ;
     end  % function
     
@@ -1743,7 +1743,7 @@ classdef AWSec2 < handle
   end
   
   methods
-    function result = remote_path_from_wsl(obj, wsl_path_or_paths)  % const method
+    function result = remote_path_from_wsl_(obj, wsl_path_or_paths)  % const method
       % Apply the applicable file name substitutions to path_or_paths.
       % path_or_paths can be a single path or a cellstring of paths, but all should
       % be WSL paths.
@@ -1752,14 +1752,14 @@ classdef AWSec2 < handle
       
       if iscell(wsl_path_or_paths) ,
         wsl_paths = wsl_path_or_paths ;
-        result = cellfun(@(wsl_path)(obj.applyFilePathSubstitutions(wsl_path)), wsl_paths) ;
+        result = cellfun(@(wsl_path)(obj.applyFilePathSubstitutions_(wsl_path)), wsl_paths) ;
       else
         wsl_path = wsl_path_or_paths ;
-        result = obj.applyFilePathSubstitutions(wsl_path) ;
+        result = obj.applyFilePathSubstitutions_(wsl_path) ;
       end
     end  % function
     
-    function result = applyFilePathSubstitutions(obj, command)  % const method
+    function result = applyFilePathSubstitutions_(obj, command)  % const method
       % Apply the applicable file name substitutions to command.
       % This just uses dumb string replacement, which will likely lead to tears
       % eventually.  But to do better we'd have to keep commands as unescaped lists
@@ -1769,16 +1769,16 @@ classdef AWSec2 < handle
       % This method does not mutate obj.
       
       result = ...
-          AWSec2.applyGenericFilePathSubstitutions(command, ...
-                                                   obj.wslProjectCachePath_, ...
-                                                   obj.wslPathFromMovieIndex_) ;
+          AWSec2.applyGenericFilePathSubstitutions_(command, ...
+                                                    obj.wslProjectCachePath_, ...
+                                                    obj.wslPathFromMovieIndex_) ;
     end  % function
   end  % methods
   
   methods (Static)
-    function result = applyGenericFilePathSubstitutions(command, ...
-                                                        wslProjectCachePath, ...
-                                                        wslPathFromMovieIndex)
+    function result = applyGenericFilePathSubstitutions_(command, ...
+                                                         wslProjectCachePath, ...
+                                                         wslPathFromMovieIndex)
       % Deal with optional args
       if ~exist('wslPathFromMovieIndex', 'var') || isempty(wslPathFromMovieIndex) ,
         wslPathFromMovieIndex = cell(1,0) ;

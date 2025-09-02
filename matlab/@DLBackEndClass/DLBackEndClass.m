@@ -586,7 +586,7 @@ classdef DLBackEndClass < handle
       obj.gpuids = gpuid;
     end
     
-    function r = aptSourceDirRoot(obj)
+    function r = aptSourceDirRoot_(obj)
       switch obj.type
         case DLBackEnd.Bsub
           % r = obj.bsubaptroot;
@@ -868,6 +868,9 @@ classdef DLBackEndClass < handle
           error('Not implemented: %s',backend_type);
       end
     end    
+
+    codestr = trainCodeGenBase(dmc,varargin)  % defined in own file
+    [codestr,code_as_list] = trackCodeGenBase(totrackinfo, varargin)  % defined in own file
   end  % methods (Static)
 
   methods
@@ -935,13 +938,13 @@ classdef DLBackEndClass < handle
       % spawnRegisteredJobs().
 
       % Get the root of the remote source tree
-      remoteaptroot = obj.aptSourceDirRoot() ;
+      remoteaptroot = obj.aptSourceDirRoot_() ;
       
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
-      basecmd = APTInterf.trainCodeGenBase(dmcjob,...
-                                           'ignore_local',ignore_local,...
-                                           'aptroot',remoteaptroot,...
-                                           'do_just_generate_db',do_just_generate_db);
+      basecmd = DLBackEndClass.trainCodeGenBase(dmcjob,...
+                                                'ignore_local',ignore_local,...
+                                                'aptroot',remoteaptroot,...
+                                                'do_just_generate_db',do_just_generate_db);
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
       cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
@@ -960,7 +963,7 @@ classdef DLBackEndClass < handle
       % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
-      remoteaptroot = obj.aptSourceDirRoot() ;
+      remoteaptroot = obj.aptSourceDirRoot_() ;
 
       % totrackinfo has local paths, need to remotify them
       % remotetotrackinfo = totrackinfo.copy() ;
@@ -968,10 +971,10 @@ classdef DLBackEndClass < handle
       remotetotrackinfo = obj.changeToTrackInfoPathsToRemoteFromWsl_(totrackinfo) ;
 
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
-      basecmd = APTInterf.trackCodeGenBase(totrackinfo,...
-                                           'ignore_local',ignore_local,...
-                                           'aptroot',remoteaptroot,...
-                                           'track_type',track_type);
+      basecmd = DLBackEndClass.trackCodeGenBase(totrackinfo,...
+                                                'ignore_local',ignore_local,...
+                                                'aptroot',remoteaptroot,...
+                                                'track_type',track_type);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
