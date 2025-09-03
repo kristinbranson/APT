@@ -381,4 +381,60 @@ if ~posixMacPath.eq(macPath)
   error('macOS path POSIX conversion should return identical path');
 end
 
+% Test toWindows() method
+% Test POSIX WSL mount path conversion
+posixWslPath = apt.Path('/mnt/c/Users/data/file.txt', apt.Platform.posix);
+winFromPosixPath = posixWslPath.toWindows();
+expectedWinPath = apt.Path('C:\Users\data\file.txt', apt.Platform.windows);
+if ~winFromPosixPath.eq(expectedWinPath)
+  error('POSIX WSL mount path Windows conversion failed');
+end
+
+% Test POSIX WSL drive-only path conversion
+posixWslDrivePath = apt.Path('/mnt/d', apt.Platform.posix);
+winFromDrivePath = posixWslDrivePath.toWindows();
+expectedWinDrivePath = apt.Path('D:', apt.Platform.windows);
+if ~winFromDrivePath.eq(expectedWinDrivePath)
+  error('POSIX WSL drive-only path Windows conversion failed');
+end
+
+% Test POSIX relative path conversion
+posixRelativePath = apt.Path('relative/path/file.txt', apt.Platform.posix);
+winFromRelativePath = posixRelativePath.toWindows();
+expectedWinRelativePath = apt.Path({'relative', 'path', 'file.txt'}, apt.Platform.windows);
+if ~winFromRelativePath.eq(expectedWinRelativePath)
+  error('POSIX relative path Windows conversion failed');
+end
+
+% Test POSIX non-WSL absolute path conversion (should just change platform)
+posixNonWslPath = apt.Path('/usr/local/bin/test', apt.Platform.posix);
+winFromNonWslPath = posixNonWslPath.toWindows();
+expectedWinNonWslPath = apt.Path({'', 'usr', 'local', 'bin', 'test'}, apt.Platform.windows);
+if ~winFromNonWslPath.eq(expectedWinNonWslPath)
+  error('POSIX non-WSL absolute path Windows conversion failed');
+end
+
+% Test Windows path identity (should return same object)
+winPath = apt.Path('C:\Windows\System32\test.exe', apt.Platform.windows);
+winFromWinPath = winPath.toWindows();
+if ~winFromWinPath.eq(winPath)
+  error('Windows path Windows conversion should return identical path');
+end
+
+% Test round-trip conversion (Windows -> POSIX -> Windows)
+originalWinPath = apt.Path('C:\Program Files\App\data.txt', apt.Platform.windows);
+posixVersion = originalWinPath.toPosix();
+backToWinPath = posixVersion.toWindows();
+if ~backToWinPath.eq(originalWinPath)
+  error('Round-trip Windows -> POSIX -> Windows conversion failed');
+end
+
+% Test round-trip conversion (POSIX WSL -> Windows -> POSIX)
+originalPosixWslPath = apt.Path('/mnt/c/temp/data.log', apt.Platform.posix);
+winVersion = originalPosixWslPath.toWindows();
+backToPosixPath = winVersion.toPosix();
+if ~backToPosixPath.eq(originalPosixWslPath)
+  error('Round-trip POSIX WSL -> Windows -> POSIX conversion failed');
+end
+
 end

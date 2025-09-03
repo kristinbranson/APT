@@ -24,7 +24,7 @@ function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo
       % not others. 
       aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
       extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
-      singimg = tracker.singularityImgPath();
+      singimg = obj.singularity_image_path;
   
       additionalBsubArgs = obj.jrcAdditionalBsubArgs ;
       result = {...

@@ -47,9 +47,9 @@ classdef DLBackEndClass < handle
     default_jrcnslots_track = 4
 
     default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
-    default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif' 
-    %legacy_default_singularity_image_path = '/groups/branson/bransonlab/apt/sif/prod.sif'
-    %legacy_default_singularity_image_path_for_detect = '/groups/branson/bransonlab/apt/sif/det.sif'
+    DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif', 'remote', 'universal')
+      % Since this path's filerole is universal, the locale doesn't really
+      % matter much.  We pick remote b/c this path is remote-first, in some sense.
   end
 
   properties
@@ -103,7 +103,7 @@ classdef DLBackEndClass < handle
     didOverrideDefaultCondaEnv_ = false    
     customCondaEnv_ = ''
     didOverrideDefaultSingularityImagePath_ = false
-    customSingularityImagePath_ = '' 
+    customSingularityImagePath_ = DLBackEndClass.DEFAULT_SINGULARITY_IMAGE_PATH  % Want this to have the right type (apt.MetaPath)
   end
 
   properties (Transient)
@@ -221,30 +221,25 @@ classdef DLBackEndClass < handle
       obj.dockerimgtag = tag ;
     end    
 
-    % function result = get.singularity_detection_image_path(obj)
-    %   if obj.does_have_special_singularity_detection_image_path_ ,
-    %     result = obj.singularity_detection_image_path_ ;
-    %   else
-    %     result = obj.singularity_image_path ;
-    %   end
-    % end
-
-    function set.singularity_image_path(obj, new_value)
-      if ischar(new_value) && exist(new_value, 'file') ,        
-        obj.customSingularityImagePath_ = new_value ;
-        % obj.does_have_special_singularity_detection_image_path_ = false ;
-        % obj.singularity_detection_image_path_ = '' ;
-        obj.didOverrideDefaultSingularityImagePath_ = true ;
+    function set.singularity_image_path(obj, new_raw_native_path)
+      if ischar(new_raw_native_path)
+        new_path = apt.MetaPath(new_raw_native_path, 'native', 'universal') ;
+      elseif isa(new_raw_native_path, 'apt.Path')
+        new_path = apt.MetaPath(new_raw_native_path, 'native', 'universal') ;        
+      elseif isa(new_raw_native_path, 'apt.MetaPath')
+        new_path = new_raw_native_path ;
       else
         error('APT:invalidValue', 'Invalid value for the Singularity image path');
-      end        
+      end
+      obj.customSingularityImagePath_ = new_path ;
+      obj.didOverrideDefaultSingularityImagePath_ = true ;
     end
 
     function result = get.singularity_image_path(obj)
       if obj.didOverrideDefaultSingularityImagePath_
         result = obj.customSingularityImagePath_ ;
       else
-        result = DLBackEndClass.default_singularity_image_path ;
+        result = DLBackEndClass.DEFAULT_SINGULARITY_IMAGE_PATH ;
       end
     end
 
@@ -586,17 +581,16 @@ classdef DLBackEndClass < handle
       obj.gpuids = gpuid;
     end
     
-    function r = aptSourceDirRoot_(obj)
+    function r = aptSourceDirRootRemote_(obj)
       switch obj.type
         case DLBackEnd.Bsub
-          % r = obj.bsubaptroot;
-          r = APT.Root;          
+          r = APT.Root;
         case DLBackEnd.AWS
           r = AWSec2.remoteAPTSourceRootDir ;
         case DLBackEnd.Docker
-          r = APT.Root;          
+          r = APT.Root;
         case DLBackEnd.Conda
-          r = APT.Root;          
+          r = APT.Root;
       end
     end
 
@@ -844,12 +838,6 @@ classdef DLBackEndClass < handle
       else
         error('Unable to deal with a larva of class %s', class(larva)) ;
       end       
-      % if strcmp(obj.singularity_image_path_, '<invalid>') ,
-      %   % This must come from an older .mat file, so we use the legacy values
-      %   obj.singularity_image_path_ = DLBackEndClass.legacy_default_singularity_image_path ;
-      %   %obj.does_have_special_singularity_detection_image_path_ = true ;
-      %   %obj.singularity_detection_image_path_ = DLBackEndClass.legacy_default_singularity_image_path_for_detect ;
-      % end  
     end
 
     function jobid = parseJobID(backend_type, response)
@@ -869,8 +857,8 @@ classdef DLBackEndClass < handle
       end
     end    
 
-    codestr = trainCodeGenBase(dmc,varargin)  % defined in own file
-    [codestr,code_as_list] = trackCodeGenBase(totrackinfo, varargin)  % defined in own file
+    command = trainCodeGenBase(dmc,varargin)  % defined in own file
+    command = trackCodeGenBase(totrackinfo, varargin)  % defined in own file
   end  % methods (Static)
 
   methods
@@ -938,7 +926,7 @@ classdef DLBackEndClass < handle
       % spawnRegisteredJobs().
 
       % Get the root of the remote source tree
-      remoteaptroot = obj.aptSourceDirRoot_() ;
+      remoteaptroot = obj.aptSourceDirRootRemote_() ;
       
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = DLBackEndClass.trainCodeGenBase(dmcjob,...
@@ -963,7 +951,7 @@ classdef DLBackEndClass < handle
       % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
-      remoteaptroot = obj.aptSourceDirRoot_() ;
+      remoteaptroot = obj.aptSourceDirRootRemote_() ;
 
       % totrackinfo has local paths, need to remotify them
       % remotetotrackinfo = totrackinfo.copy() ;
@@ -1799,12 +1787,12 @@ classdef DLBackEndClass < handle
       tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
       if tfOnCluster,
         % The Matlab environment vars cause problems with e.g. PyTorch
-        cmd = prepend_stuff_to_clear_matlab_environment(cmd2) ;
+        cmd = prependStuffToClearMatlabEnvironment(cmd2) ;
       else
         % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
         cmd = wrapCommandSSH(cmd2,'host',DLBackEndClass.jrchost,sshargs{:});
       end
-    end
+    end  % function
     
     function result = wrapCommandToBeSpawnedForCondaBackend_(obj, basecmd, varargin)  % const method
       % Take a base command and run it in a conda env

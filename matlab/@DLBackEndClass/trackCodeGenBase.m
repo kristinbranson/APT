@@ -1,4 +1,4 @@
-function [codestr,code_as_list] = trackCodeGenBase(totrackinfo, varargin)
+function command = trackCodeGenBase(totrackinfo, varargin)
 % Generate the case command for tracking.  Returned command uses WSL paths.  This is a static method of DLBackEndClass.
 
 % Serial mode: 
@@ -17,15 +17,14 @@ nviews = numel(views);
 % construct and concatenate multiple commands if tracking both
 % multiple views and multiple movies
 if nviews > 1 && totrackinfo.nmovies > 1 && ~totrackinfo.islistjob,
-  code_as_list = cell(totrackinfo.nmovies,1);
   for i = 1:totrackinfo.nmovies,
     tticurr = totrackinfo.selectSubset('movie',i);
     tticurr.setJobid(totrackinfo.getJobid);
-    [codestrcurr,code_as_list{i}] = APTInterf.trackCodeGenBase(tticurr,varargin{:});
+    commandForThisMovie = DLBackEndClass.trackCodeGenBase(tticurr,varargin{:});
     if i == 1,
-      codestr = codestrcurr;
+      command = commandForThisMovie;
     else
-      codestr = [codestr,' && ',codestrcurr]; %#ok<AGROW> 
+      command = apt.ShellCommmand.cat(command, '&&', commandForThisMovie);
     end
   end
   return;
@@ -43,23 +42,26 @@ dmc = totrackinfo.trainDMC ;
           );
 
 % aptintrf = APTInterf.aptInterfacePath(aptroot);
-aptintrfNative = fullfile(aptroot, 'deepnet/APT_interface.py') ;  % this is a native path
-aptintrf = wsl_path_from_native(aptintrfNative) ;  % The path to APT_interface.py, as a WSL path.
+aptInterfaceDotPyNativePath = apt.MetaPath(fullfile(aptroot, 'deepnet/APT_interface.py'), 'native', 'source') ;  % this is a native path, as a charray
+aptInterfaceDotPyWslPath = aptInterfaceDotPyNativePath.asWsl() ;  % The path to APT_interface.py, as a WSL path.
 
 
 modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
-nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
-trainConfig = wsl_path_from_native(nativeTrainConfig) ;
-nativeCacheRootDir = dmc.rootDir ;  % native path
-cacheRootDir = wsl_path_from_native(nativeCacheRootDir) ;      
+nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path, as charray
+trainConfigFileNativePath = apt.MetaPath(nativeTrainConfig, 'native', 'cache');
+trainConfigFileWslPath = trainConfigFileNativePath.asWsl();
+nativeCacheRootDir = dmc.rootDir ;  % native path, as charray
+cacheRootDirNativePath = apt.MetaPath(nativeCacheRootDir, 'native', 'cache');
+cacheRootDirWslPath = cacheRootDirNativePath.asWsl();      
 
 stage2models = cell(1,nstages);
 for istage = 1:nstages,
   stage = stages(istage);
   % cell of length nviews or empty
-  nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path
-  modelPath = wsl_path_from_native(nativeModelPath) ;
-  stage2models{istage} = modelPath ;
+  nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path, as charray
+  modelPathNative = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeModelPath, 'UniformOutput', false);
+  modelPathWsl = cellfun(@(x) x.asWsl(), modelPathNative, 'UniformOutput', false);
+  stage2models{istage} = modelPathWsl ;
   assert(numel(stage2models{istage}) == nviews);
 end
 
@@ -70,83 +72,75 @@ for istage = 1:nstages,
   stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
 end
 
-%netType = char(DeepModelChainOnDisk.getCheckSingle(fileinfo.netType)); % for 2-stage, this is the stage2 nettype
-%netMode = fileinfo.netMode; % " netmode
-% either char or [nviewx1] cellstr; or [nmov] in "serial mode" (see below)
-%movtrk = fileinfo.movtrk; 
-% save as movtrk, except for 2 stage, this will be [nviewx2] or [nmovx2]
-%outtrk = fileinfo.outtrk; 
-nativeConfigFile = totrackinfo.trackconfigfile;  % native path
-configfile = wsl_path_from_native(nativeConfigFile) ;
-
-% this should happen outside
-%       if updateWinPaths2LnxContainer
-%         fcnPathUpdate = @(x)DeepTracker.codeGenPathUpdateWin2LnxContainer(x,lnxContainerMntLoc);
-%         aptintrf = fcnPathUpdate(aptintrf);
-% 
-%         movies2track = cellfun(fcnPathUpdate,movies2track,'uni',0);
-%         outputtrkfiles = cellfun(fcnPathUpdate,outputtrkfiles,'uni',0);
-%         if tftrx
-%           trxtrk = cellfun(fcnPathUpdate,trxtrk,'uni',0);
-%         end
-%         if tfmodel
-%           model_file = cellfun(fcnPathUpdate,model_file,'uni',0);
-%         end
-%         if tflog
-%           log_file = fcnPathUpdate(log_file);
-%         end
-%         cacheRootDir = fcnPathUpdate(cacheRootDir);
-%         errfile = fcnPathUpdate(errfile);
-%         trainConfig = fcnPathUpdate(trainConfig);
-%         configfile = fcnPathUpdate(configfile);
-%       end      
+nativeConfigFile = totrackinfo.trackconfigfile;  % native path, as charray
+configFileNativePath = apt.MetaPath(nativeConfigFile, 'native', 'cache');
+configFileWslPath = configFileNativePath.asWsl();
 
 % Get prefix the sets torch home dir
-torchhome_native = APT.gettorchhomepath() ;
-wsl_torch_home = wsl_path_from_native(torchhome_native) ;      
-torchhomeprefix = sprintf('TORCH_HOME=%s', escape_string_for_bash(wsl_torch_home)) ;
+torchHomePathNativeRaw = APT.gettorchhomepath() ;
+torchHomePathNative = apt.MetaPath(torchHomePathNativeRaw, 'native', 'cache');
+torchHomePathWsl = torchHomePathNative.asWsl();      
+torchHomePrefix = apt.ShellVariableAssignment('TORCH_HOME', torchHomePathWsl);
 
-code_as_list = { ...
-  torchhomeprefix ...
-  'python' escape_string_for_bash(aptintrf) ...
-  escape_string_for_bash(trainConfig) ...
-  '-name' modelChainID ...
-  '-err_file' escape_string_for_bash(wsl_path_from_native(totrackinfo.errfile)) ...
-  '-log_file' escape_string_for_bash(wsl_path_from_native(totrackinfo.logfile)) ...
-  };
+errFileNativePath = apt.MetaPath(totrackinfo.errfile, 'native', 'cache');
+errFileWslPath = errFileNativePath.asWsl();
+logFileNativePath = apt.MetaPath(totrackinfo.logfile, 'native', 'cache');
+logFileWslPath = logFileNativePath.asWsl();
+
+command0 = apt.ShellCommand(...
+  { torchHomePrefix, ...
+    'python', ...
+    aptInterfaceDotPyWslPath, ...
+    trainConfigFileWslPath, ...
+    '-name', modelChainID, ...
+    '-err_file', errFileWslPath, ...
+    '-log_file', logFileWslPath, ...
+    }, ...
+  apt.PathLocale.wsl, ...
+  apt.Platform.posix);
 if dmc.isMultiStageTracker,
-  code_as_list = [code_as_list {'-stage' 'multi'}];
+  command1 = command0.append('-stage', 'multi');
+else
+  command1 = command0;
 end
+
 if dmc.isMultiViewTracker,
   if nviews == 1,
-    code_as_list = [code_as_list {'-view', num2str(views)}];
+    command2 = command1.append('-view', num2str(views));
+  else
+    command2 = command1;
   end
+else
+  command2 = command1;
 end
-code_as_list = [code_as_list {'-type', stage2netType{1}} ...
-  {'-model_files'}, escape_cellstring_for_bash(wsl_path_from_native(stage2models{1}))];
+command3 = command2.append('-type', stage2netType{1});
+command4 = apt.ShellCommand.cat(command3.append('-model_files'), stage2models{1});
 if nstages > 1,
   assert(nstages==2);
-  code_as_list = [code_as_list {'-type2', stage2netType{2}} ...
-    {'-model_files2'}, escape_cellstring_for_bash(wsl_path_from_native(stage2models{2})) ...
-    {'-name2'} totrackinfo.trainDMC.getModelChainID('stage',2)];
+  command5 = command4.append('-type2', stage2netType{2});
+  command6 = apt.ShellCommand.cat(command5.append('-model_files2'), stage2models{2});
+  command7 = command6.append('-name2', totrackinfo.trainDMC.getModelChainID('stage',2));
+else
+  command7 = command4;
 end
 
 if ~isempty(ignore_local),
-  code_as_list = [code_as_list, {'-ignore_local',num2str(ignore_local)}];
+  command8 = command7.append('-ignore_local', num2str(ignore_local));
+else
+  command8 = command7;
 end
-code_as_list = [code_as_list {'-cache' escape_string_for_bash(cacheRootDir)}];
 
-code_as_list = [code_as_list {'track'}];
-
-code_as_list = [code_as_list {'-config_file' escape_string_for_bash(configfile)}];
+command9 = command8.append('-cache', cacheRootDirWslPath);
+command10 = command9.append('track');
+command11 = command10.append('-config_file', configFileWslPath);
 
 switch track_type
   case 'link'
-    code_as_list = [code_as_list {'-track_type only_link'}]; 
+    command12 = command11.append('-track_type', 'only_link'); 
   case 'detect'
-    code_as_list = [code_as_list {'-track_type only_predict'}]; 
+    command12 = command11.append('-track_type', 'only_predict'); 
   case 'track'
-    % do nothing
+    command12 = command11;
   otherwise
     error('track_type must be either ''track'', ''link'', or ''detect''') ;
 end
@@ -158,38 +152,54 @@ trkfiles = totrackinfo.getTrkFiles('stage',stages(end));
 
 % convert to frms, trxids
 if ~isempty(totrackinfo.listfile)
-  code_as_list = [code_as_list {'-list_file' escape_string_for_bash(wsl_path_from_native(totrackinfo.listfile))}];
-  code_as_list = [code_as_list {'-out'} escape_cellstring_for_bash(wsl_path_from_native(totrackinfo.listoutfiles))];
+  listFileNativePath = apt.MetaPath(totrackinfo.listfile, 'native', 'cache');
+  listFileWslPath = listFileNativePath.asWsl();
+  listOutFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), totrackinfo.listoutfiles, 'UniformOutput', false);
+  listOutFilesWslPath = cellfun(@(x) x.asWsl(), listOutFilesNativePath, 'UniformOutput', false);
+  command13a = command12.append('-list_file', listFileWslPath);
+  command14a = apt.ShellCommand.cat(command13a.append('-out'), listOutFilesWslPath);
+  command17 = command14a;  % The other branch is longer, so we skip some numbers here
 else
-  tf = escape_cellstring_for_bash(wsl_path_from_native(trkfiles(movidx,:,:)));
-  code_as_list = [code_as_list {'-out'} tf(:)'];
+  trkFilesSelectedNative = trkfiles(movidx,:,:);
+  trkFilesSelectedNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), trkFilesSelectedNative(:), 'UniformOutput', false);
+  trkFilesSelectedWslPath = cellfun(@(x) x.asWsl(), trkFilesSelectedNativePath, 'UniformOutput', false);
+  command13b = apt.ShellCommand.cat(command12.append('-out'), trkFilesSelectedWslPath);
   if sum(nextra) > 0,
     warningNoTrace('Tracking %d already-tracked frames',sum(nextra));
   end
-  nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths
-  movFiles = wsl_path_from_native(nativeMovFiles) ;
-  code_as_list = [code_as_list {'-mov' space_out(escape_cellstring_for_bash(movFiles))}];
+  nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths, as charrays
+  movFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'movie'), nativeMovFiles, 'UniformOutput', false);
+  movFilesWslPath = cellfun(@(x) x.asWsl(), movFilesNativePath, 'UniformOutput', false);
+  command14b = apt.ShellCommand.cat(command13b.append('-mov'), movFilesWslPath);
   if ~all(frm0==1 & frm1==-1),
-    code_as_list = [code_as_list {'-start_frame' num2str(frm0(:)') '-end_frame' num2str(frm1(:)')}];
+    command15b = command14b.append('-start_frame', num2str(frm0(:)')).append('-end_frame', num2str(frm1(:)'));
+  else
+    command15b = command14b;
   end
   if totrackinfo.hasTrxfiles,
     nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
-    trxFiles = wsl_path_from_native(nativeTrxFiles) ;
-    code_as_list = [code_as_list {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
+    trxFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeTrxFiles, 'UniformOutput', false);
+    trxFilesWslPath = cellfun(@(x) x.asWsl(), trxFilesNativePath, 'UniformOutput', false);
+    command16b = apt.ShellCommand.cat(command15b.append('-trx'), trxFilesWslPath);
   elseif nstages > 1,
     nativeTrxFiles = totrackinfo.getTrkFiles('stage',1) ;
-    trxFiles = wsl_path_from_native(nativeTrxFiles) ;
-    code_as_list = [code_as_list {'-trx' space_out(escape_cellstring_for_bash(trxFiles))}];
+    trxFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeTrxFiles, 'UniformOutput', false);
+    trxFilesWslPath = cellfun(@(x) x.asWsl(), trxFilesNativePath, 'UniformOutput', false);
+    command16b = apt.ShellCommand.cat(command15b.append('-trx'), trxFilesWslPath);
+  else
+    command16b = command15b;
   end
-%         if totrackinfo.hasTrxids,
-%           for i = 1:numel(totrackinfo.getTrxids('movie',movidx)),
-%             code = [code {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
   if ~all(cellfun(@isempty,trxids))
-     for i = 1:numel(trxids)
-        code_as_list = [code_as_list {'-trx_ids' num2str(trxids{i}(:)')}]; %#ok<AGROW>
-     end
+    command17 = command16b;
+    for i = 1:numel(trxids)
+      command17 = command17.append('-trx_ids', num2str(trxids{i}(:)'));
+    end
+  else
+    command17 = command16b;
   end
-end
+end  % if
+% command17 should be the result of everything before here.
+
 if totrackinfo.hasCroprois && ~totrackinfo.islistjob,
   croproi = totrackinfo.getCroprois('movie',movidx);
   if iscell(croproi)
@@ -199,9 +209,15 @@ if totrackinfo.hasCroprois && ~totrackinfo.islistjob,
   if ~isempty(croproi) && ~all(any(isnan(croproi),2),1),
     croproirowvec = croproi';
     croproirowvec = croproirowvec(:)'; % [xlovw1 xhivw1 ylovw1 yhivw1 xlovw2 ...] OR [xlomov1 xhimov1 ylomov1 yhimov1 xlomov2 ...] in serialmode
-    code_as_list = [code_as_list {'-crop_loc' num2str(croproirowvec)}];
+    command18 = command17.append('-crop_loc', num2str(croproirowvec));
+  else
+    command18 = command17;
   end
+else
+  command18 = command17;
 end
 
-codestr = space_out(code_as_list);
+% At last, the command!
+command = command18;
+
 end  % function

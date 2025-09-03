@@ -26,7 +26,7 @@ classdef MetaPath < apt.ShellToken
   end
 
   methods
-    function obj = MetaPath(path, locale, role)
+    function obj = MetaPath(rawPath, locale, role)
       % Constructor for apt.MetaPath
       %
       % Args:
@@ -47,6 +47,17 @@ classdef MetaPath < apt.ShellToken
       end
       if ischar(role)
         role = apt.FileRole.fromString(role);
+      end
+
+      % If rawPath is a char array, convert to apt.Path
+      if ischar(rawPath) 
+        if (locale == apt.PathLocale.wsl || locale == apt.PathLocale.remote)
+          path = apt.Path(rawPath, apt.Platform.posix) ;  % wsl and remote are always posix
+        else
+          path = apt.Path(rawPath) ;  % use current platform
+        end
+      else
+        path = rawPath ;  % assume it's already an apt.Path object
       end
 
       % Validate that pathObj is an apt.Path object
@@ -203,6 +214,9 @@ classdef MetaPath < apt.ShellToken
       if obj.locale_ == apt.PathLocale.native && targetLocale == apt.PathLocale.wsl
         % Convert native path to WSL path using static method
         result = apt.MetaPath.toWslFromNative_(obj);
+      elseif obj.locale_ == apt.PathLocale.wsl && targetLocale == apt.PathLocale.native
+        % Convert native path to WSL path using static method
+        result = apt.MetaPath.toNativeFromWsl_(obj);
       else
         % Unsupported conversion
         error('apt:MetaPath:UnsupportedConversion', ...
@@ -210,6 +224,16 @@ classdef MetaPath < apt.ShellToken
               apt.PathLocale.toString(obj.locale_), ...
               apt.PathLocale.toString(targetLocale));
       end
+    end  % function
+
+    function result = asNative(obj)
+      % Convenience method
+      result = obj.as(apt.PathLocale.native) ;
+    end
+
+    function result = asWsl(obj)
+      % Convenience method
+      result = obj.as(apt.PathLocale.wsl) ;
     end
 
     function disp(obj)
@@ -244,19 +268,62 @@ classdef MetaPath < apt.ShellToken
       assert(inputMetaPath.locale == apt.PathLocale.native, 'inputPath must have native locale');
       assert(inputMetaPath.path.tfIsAbsolute, 'inputPath must be an absolute path');
       
-      % On non-Windows platforms, native paths are already WSL-compatible
+      % On POSIX platforms, native paths are already WSL-compatible
       inputPath = inputMetaPath.path ;
-      if inputPath.platform ~= apt.Platform.windows
+      if inputPath.platform == apt.Platform.posix
         result = apt.MetaPath(inputPath, apt.PathLocale.wsl, inputMetaPath.role);
         return
       end
       
-      % For a Windows path, need to convert drive letter
-      newPath = inputPath.toPosix() ;
+      % For a Windows path, need to convert
+      if inputPath.platform == apt.Platform.windows
+        newPath = inputPath.toPosix() ;      
+        result = apt.MetaPath(newPath, apt.PathLocale.wsl, inputMetaPath.role);
+        return
+      end
+
+      % If get here something has gone wrong
+      error('Internal error: toWslFromNative_() input has unknown platform type') ;
+    end
+
+    function result = toNativeFromWsl_(inputMetaPath)
+      % Convert a WSL apt.MetaPath to native locale using path operations
+      %
+      % Args:
+      %   inputMetaPath (apt.MetaPath): WSL path to convert
+      %
+      % Returns:
+      %   apt.MetaPath: Converted native path with same role
+      %
+      % Notes:
+      %   - Input must be WSL locale and absolute
+      %   - On Windows: converts WSL mount points (/mnt/c -> C:) and forward slashes
+      %   - On POSIX: identity operation (WSL paths are same as native POSIX paths)
+      %   - Uses path operations, never converts to raw strings
+      
+      % Validate input
+      assert(isa(inputMetaPath, 'apt.MetaPath'), 'inputMetaPath must be an apt.MetaPath instance');
+      assert(inputMetaPath.locale == apt.PathLocale.wsl, 'inputMetaPath must have WSL locale');
+      assert(inputMetaPath.path.tfIsAbsolute, 'inputMetaPath must be an absolute path');
+      
+      inputPath = inputMetaPath.path;
+      
+      % Get current platform to determine conversion behavior
+      currentPlatform = apt.Platform.current();
+      
+      if currentPlatform ~= apt.Platform.windows
+        % On POSIX platforms, WSL paths are already native-compatible
+        result = apt.MetaPath(inputPath, apt.PathLocale.native, inputMetaPath.role);
+        return
+      end
+      
+      % For Windows platform, convert WSL path to Windows path
+      newPath = inputPath.toWindows();
       
       % Create new metapath with converted components
-      result = apt.MetaPath(newPath, apt.PathLocale.wsl, inputMetaPath.role);
+      result = apt.MetaPath(newPath, apt.PathLocale.native, inputMetaPath.role);
     end
+
   end  % methods (Static)
 
 end  % classdef

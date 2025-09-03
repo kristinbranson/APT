@@ -365,6 +365,67 @@ classdef Path
       result = apt.Path(newPathList, apt.Platform.posix);
     end
 
+    function result = toWindows(obj)
+      % Convert this path to a Windows-compatible path
+      %
+      % Returns:
+      %   apt.Path: New path object compatible with Windows systems
+      %
+      % Notes:
+      %   - For POSIX paths: converts WSL equivalent paths to Windows paths
+      %     - POSIX absolute paths starting with /mnt/X: converts to Windows drive (X:)
+      %     - Other POSIX absolute paths: returns unchanged with Windows platform
+      %     - POSIX relative paths: returns Windows path with same components
+      %   - For Windows paths: returns obj unchanged (already Windows-compatible)
+      %
+      % Example:
+      %   posixPath = apt.Path('/mnt/c/Users/data', apt.Platform.posix);
+      %   winPath = posixPath.toWindows();
+      %   % winPath will be apt.Path('C:\Users\data', apt.Platform.windows)
+      
+      if obj.platform_ == apt.Platform.windows
+        % Windows paths are already Windows-compatible
+        result = obj;
+        return
+      end
+      
+      % Handle POSIX paths
+      if ~obj.tfIsAbsolute_
+        % For POSIX relative paths, just change platform to Windows
+        result = apt.Path(obj.list_, apt.Platform.windows);
+        return;
+      end
+      
+      % For POSIX absolute paths, check if it's a WSL mount point
+      if length(obj.list_) >= 3 && ...
+         isempty(obj.list_{1}) && ...
+         strcmp(obj.list_{2}, 'mnt') && ...
+         length(obj.list_{3}) == 1 && ...
+         isstrprop(obj.list_{3}, 'alpha')
+        
+        % This is a WSL mount point path like /mnt/c/...
+        % Extract drive letter and convert to Windows format
+        driveLetter = upper(obj.list_{3});
+        driveComponent = [driveLetter ':'];
+        
+        % Create new path list with Windows drive letter
+        if length(obj.list_) == 3
+          % Just /mnt/c, no additional path components
+          newPathList = {driveComponent};
+        else
+          % /mnt/c plus additional components
+          newPathList = [{driveComponent}, obj.list_(4:end)];
+        end
+        
+        % Create new Windows path object
+        result = apt.Path(newPathList, apt.Platform.windows);
+      else
+        % Not a WSL mount point, just change platform to Windows
+        % This handles cases like /usr/local/bin -> C:\usr\local\bin (hypothetically)
+        result = apt.Path(obj.list_, apt.Platform.windows);
+      end
+    end  % function
+
     function disp(obj)
       % Display the apt.Path object
       pathStr = obj.toString();

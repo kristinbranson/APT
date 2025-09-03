@@ -71,28 +71,33 @@ classdef ShellCommand < apt.ShellToken
         token = tokens{i};
         if isa(token, 'apt.ShellToken')
           % Already a ShellToken - validate locale compatibility
-          if ~token.tfDoesMatchLocale(locale)
-            if isa(token, 'apt.MetaPath')
-              error('apt:ShellCommand:LocaleMismatch', ...
-                'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
-            else
-              error('apt:ShellCommand:LocaleMismatch', ...
-                'Token at index %d does not match ShellCommand locale %s', ...
-                i, apt.PathLocale.toString(locale));
+          if ~isa(token, 'apt.ShellCommand') 
+            % Subcommands do not necessarily have to match the supercommand locale or
+            % platform, so that e.g. a ShellCommand can hold a wsl ssh command whose
+            % subcommand is a remote command.
+            if ~token.tfDoesMatchLocale(locale)
+              if isa(token, 'apt.MetaPath')
+                error('apt:ShellCommand:LocaleMismatch', ...
+                  'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
+                  i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
+              else
+                error('apt:ShellCommand:LocaleMismatch', ...
+                  'Token at index %d does not match ShellCommand locale %s', ...
+                  i, apt.PathLocale.toString(locale));
+              end
             end
-          end
-          
-          % Validate platform compatibility for all ShellToken objects (INVARIANT)
-          if ~token.tfDoesMatchPlatform(platform)
-            if isa(token, 'apt.MetaPath')
-              error('apt:ShellCommand:PlatformMismatch', ...
-                'MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
-                i, apt.Platform.toString(token.path.platform), apt.Platform.toString(platform));
-            else
-              error('apt:ShellCommand:PlatformMismatch', ...
-                'Token at index %d does not match ShellCommand platform %s', ...
-                i, apt.Platform.toString(platform));
+            
+            % Validate platform compatibility for all ShellToken objects (INVARIANT)
+            if ~token.tfDoesMatchPlatform(platform)
+              if isa(token, 'apt.MetaPath')
+                error('apt:ShellCommand:PlatformMismatch', ...
+                  'MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
+                  i, apt.Platform.toString(token.path.platform), apt.Platform.toString(platform));
+              else
+                error('apt:ShellCommand:PlatformMismatch', ...
+                  'Token at index %d does not match ShellCommand platform %s', ...
+                  i, apt.Platform.toString(platform));
+              end
             end
           end
           

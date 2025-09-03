@@ -1,4 +1,4 @@
-function codestr = trainCodeGenBase(dmc, varargin)
+function command = trainCodeGenBase(dmc, varargin)
 % Generate a base command for training.  Returned command uses WSL paths (see
 % DLBackEndClass documentation).  This is a static method of DLBackEndClass.
 [aptroot,confparamsextra,...
@@ -14,19 +14,23 @@ function codestr = trainCodeGenBase(dmc, varargin)
   'do_just_generate_db', false ...
   );
 %aptintrf = APTInterf.aptInterfacePath(aptroot);
-aptintrfNative = fullfile(aptroot, 'deepnet/APT_interface.py') ;  % this is a native path
-aptintrf = wsl_path_from_native(aptintrfNative) ;  % The path to APT_interface.py, as a WSL path.
-
+aptInterfaceDotPyNativePath = apt.MetaPath(fullfile(aptroot, 'deepnet/APT_interface.py'), 'native', 'source') ;  % this is a native path
+aptInterfaceDotPyWslPath = aptInterfaceDotPyNativePath.asWsl() ;  % The path to APT_interface.py, as a WSL path.
 
 modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
 nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());
-trainConfig = wsl_path_from_native(nativeTrainConfig) ;
-nativeCacheRootDir = dmc.rootDir ;
-cacheRootDir = wsl_path_from_native(nativeCacheRootDir) ;
+trainConfigFileNativePath = apt.MetaPath(nativeTrainConfig, 'native', 'cache');
+trainConfigFileWslPath = trainConfigFileNativePath.asWsl();
+nativeCacheRootDir = apt.MetaPath(dmc.rootDir, 'native', 'cache') ;
+% cacheRootDir = wsl_path_from_native(nativeCacheRootDir) ;
+cacheRootDir = nativeCacheRootDir.asWsl() ;
+
 nativeErrfile = DeepModelChainOnDisk.getCheckSingle(dmc.errfileLnx());
-errFile = wsl_path_from_native(nativeErrfile) ;
+errFilePathNative = apt.MetaPath(nativeErrfile, 'native', 'cache');
+errFilePathWsl = errFilePathNative.asWsl();
 nativeLogFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx());
-logFile = wsl_path_from_native(nativeLogFile) ;
+logFilePathNative = apt.MetaPath(nativeLogFile, 'native', 'cache');
+logFilePathWsl = logFilePathNative.asWsl();
 tfFollowsObjDet = dmc.getFollowsObjDet();
 stages = unique(dmc.getStages());
 views = unique(dmc.getViews());
@@ -39,7 +43,8 @@ for istage = 1:nstages,
   stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
 end
 nativeTrainLocFile = DeepModelChainOnDisk.getCheckSingle(dmc.trainLocLnx());
-trainLocFile = wsl_path_from_native(nativeTrainLocFile) ;
+trainLocFilePathNative = apt.MetaPath(nativeTrainLocFile, 'native', 'cache');
+trainLocFilePathWsl = trainLocFilePathNative.asWsl();
 stage2prevModels = cell(1,nstages);
 for istage = 1:nstages,
   stage = stages(istage);
@@ -60,20 +65,24 @@ confParams = confparamsextra;
 %filequote = '"';
 
 % Get prefix the sets torch home dir
-torchhome_native = APT.gettorchhomepath() ;
-wsl_torch_home = wsl_path_from_native(torchhome_native) ;      
-torchhomeprefix = sprintf('TORCH_HOME=%s', escape_string_for_bash(wsl_torch_home)) ;
+torchHomePathNativeRaw = APT.gettorchhomepath() ;
+torchHomePathNative = apt.MetaPath(torchHomePathNativeRaw, 'native', 'cache');
+torchHomePathWsl = torchHomePathNative.asWsl();      
+%torchHomePrefix = sprintf('TORCH_HOME=%s', escape_string_for_bash(torchHomePathWsl)) ;
+torchHomePrefix = apt.ShellVariableAssignment('TORCH_HOME', torchHomePathWsl) ;
 
-code_as_list = { ...
-  torchhomeprefix ...
-  'python' ...
-  escape_string_for_bash(aptintrf) ...
-  escape_string_for_bash(trainConfig) ...
-  '-name' modelChainID ...
-  '-err_file' escape_string_for_bash(errFile) ... 
-  '-log_file' escape_string_for_bash(logFile) ... 
-  '-json_trn_file' escape_string_for_bash(trainLocFile) ...
-  };
+command0 = apt.ShellCommand(...
+  { torchHomePrefix, ...
+    'python', ...
+    aptInterfaceDotPyWslPath, ...
+    trainConfigFileWslPath, ...
+    '-name', modelChainID, ...
+    '-err_file', errFilePathWsl, ...
+    '-log_file', logFilePathWsl, ...
+    '-json_trn_file', trainLocFilePathWsl, ...
+    }, ...
+  apt.PathLocale.wsl, ...
+  apt.Platform.posix);
 
 if dmc.isMultiStageTracker,
   if nstages > 1,
@@ -85,25 +94,33 @@ if dmc.isMultiStageTracker,
   else
     error('Stage must be 1 or 2');
   end
-  code_as_list = [code_as_list {'-stage', stageflag}];
+  command1 = command0.append('-stage', stageflag);
+else
+  command1 = command0;
 end
 
 if dmc.isMultiViewTracker,
   if nviews == 1,
-    code_as_list = [code_as_list {'-view', num2str(views+1)}];
+    command2 = command1.append('-view', num2str(views+1));
+  else
+    command2 = command1;
   end
+else
+  command2 = command1;
 end
 
 % conf params
-code_as_list = [code_as_list {'-conf_params'} confParams];
+command3 = command2.append('-conf_params', confParams);
 
 % only training stage 2 in this job
 if tfFollowsObjDet(1),
-  code_as_list = [code_as_list {'use_bbox_trx' 'True'}];
+  command4 = command3.append('use_bbox_trx', 'True');
+else
+  command4 = command3;
 end
 
 % type for the first stage trained in this job
-code_as_list = [code_as_list,{'-type',stage2netType{1}}];
+command5 = command4.append('-type', stage2netType{1});
 if ~isempty(stage2prevModels{1}{1})
   % MK 202300310. Stage2prevmodels is
   % repmat({repmat({''},[1,nviews]),[1,nstages]) for single animal
@@ -111,43 +128,59 @@ if ~isempty(stage2prevModels{1}{1})
   % stage2prevModels{1}, I'm checking stage2prevModels{1}{1}. Not
   % tested for multi-animal. If it errors fix accordingly. Check line
   % 869 in DeepModelChainOnDisk.m
-  code_as_list = [code_as_list {'-model_files'} escape_cellstring_for_bash(stage2prevModels{1})];
+  command6 = command5.append('-model_files', stage2prevModels{1});
+else
+  command6 = command5;
 end
 
 % conf params for the second stage trained in this job
 if nstages > 1,
   assert(nstages==2);
-  code_as_list = [code_as_list,{'-conf_params2'}];
+  command7 = command6.append('-conf_params2');
   if tfFollowsObjDet(2),
-    code_as_list = [code_as_list {'use_bbox_trx' 'True'}];
+    command8 = command7.append('use_bbox_trx', 'True');
+  else
+    command8 = command7;
   end
-  code_as_list = [code_as_list,{'-type2',stage2netType{2}}];
+  command9 = command8.append('-type2', stage2netType{2});
   if ~isempty(stage2prevModels{2}{1})
     % check the comment for model_files
-    code_as_list = [code_as_list {'-model_files2'} escape_cellstring_for_bash(stage2prevModels{2})];
+    command10 = apt.ShellCommmand.cat(command9.append('-model_files2'), stage2prevModels{2});
+  else
+    command10 = command9;
   end
+else
+  command10 = command6;
 end
 
 if ~isempty(ignore_local),
-  code_as_list = [code_as_list, {'-ignore_local',num2str(ignore_local)}];
+  command11 = command10.append('-ignore_local', num2str(ignore_local));
+else
+  command11 = command10;
 end
 
-code_as_list = [code_as_list {'-cache' escape_string_for_bash(cacheRootDir)}];
-code_as_list = [code_as_list {'train' '-use_cache'}];
+command12 = command11.append('-cache', cacheRootDir);
+command13 = command12.append('train', '-use_cache');
 
 if trainType == DLTrainType.Restart,
-  code_as_list = [code_as_list {'-continue -skip_db'}];
+  command14 = command13.append('-continue', '-skip_db');
+else
+  command14 = command13;
 end
 
 if do_just_generate_db ,
-  code_as_list = [code_as_list {'-only_db'}];
+  command15 = command14.append('-only_db');
+else
+  command15 = command14;
 end
 
 dosplit = ~isempty(val_split);
 if dosplit
-  code_as_list = [code_as_list {'-val_split' num2str(val_split)}];
+  command16 = command15.append('-val_split', num2str(val_split));
+else
+  command16 = command15;
 end      
 
-codestr = space_out(code_as_list);
+command = command16;
 
 end  % function
