@@ -2465,78 +2465,7 @@ classdef DeepTracker < LabelTracker
     
   end  % methods
 
-  methods (Static)
-    % function bgTrkWorkerObj = createBgTrkWorkerObj(nView, dmc, backend, track_type)
-    %   % dmc is not used in BgTrackWorkerObj subclasses!
-    %   switch backend.type
-    %     case DLBackEnd.Bsub
-    %       bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc, backend);
-    %     case DLBackEnd.Conda,
-    %       bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc, backend);
-    %     case DLBackEnd.Docker,
-    %       bgTrkWorkerObj = BgTrackWorkerObjDocker(nView, track_type, dmc, backend);
-    %     case DLBackEnd.AWS,
-    %        bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend);
-    %     otherwise
-    %       error('Not implemented back end %s',backend.type);
-    %   end
-    % end  % function
-
-    % function trnWrkObj = createBgTrnWorkerObj(dmc, backend)
-    %   switch backend.type
-    %     case DLBackEnd.Bsub
-    %       trainSplits = false ;
-    %       if trainSplits
-    %         trnWrkObj = BgTrainSplitWorkerObjBsub(dmc, backend);
-    %       else
-    %         trnWrkObj = BgTrainWorkerObjBsub(dmc, backend);
-    %       end
-    %     case DLBackEnd.Conda
-    %       trnWrkObj = BgTrainWorkerObjConda(dmc, backend);
-    %     case DLBackEnd.Docker
-    %       trnWrkObj = BgTrainWorkerObjDocker(dmc, backend);
-    %     case DLBackEnd.AWS
-    %       trnWrkObj = BgTrainWorkerObjAWS(dmc, backend);
-    %     otherwise
-    %       error('Not implemented back end %s',backend.type);
-    %   end
-    % end  % function
-
-    function sha = getSHA(file)
-      if ismac
-        file = strrep(file,' ','\ ');
-        shacmd = sprintf('MD5 %s',file);
-        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
-        res = strtrim(res);
-        toks = regexp(res,' ','split');
-        sha = toks{end};        
-        sha = regexprep(sha,' ','');          
-      elseif isunix
-        file = strrep(file,' ','\ ');
-        shacmd = sprintf('md5sum %s',file);
-        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
-        toks = regexp(res,' ','split');
-        sha = toks{1};        
-        sha = regexprep(sha,' ','');
-      else
-        shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
-        toks = regexp(res,'\n','split');
-        sha = toks{2};
-        sha = regexprep(sha,' ','');
-      end
-    end  % function
-  end  % methods
-
   methods
-    % function trkPrintLogs(obj)
-    %   btm = obj.bgTrkMonitor;
-    %   if isempty(btm)
-    %     error('Tracking is neither in progress nor complete.');
-    %   end
-    %   btm.bgWorkerObj.printLogfiles();
-    % end
-    
     function bgTrkReset_(obj)
       obj.trkSysInfo = [];
       if ~isempty(obj.bgTrkMonitor)
@@ -2549,20 +2478,6 @@ classdef DeepTracker < LabelTracker
       obj.bgTrackPoller = [];
     end
     
-    % function bgTrkStart(obj,bgTrkMonitorObj,bgTrkWorkerObj)
-    %   % fresh start new training monitor 
-    %   % trkMonitorObj: should be 'prepared'
-    % 
-    %   if ~isempty(obj.bgTrkMonitor)
-    %     error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
-    %   end
-    %   assert(isempty(obj.bgTrackPoller));
-    % 
-    %   obj.bgTrkMonitor = bgTrkMonitorObj;
-    %   obj.bgTrackPoller = bgTrkWorkerObj;
-    %   bgTrkMonitorObj.start();  % Moved this down from two lines up.  Seems wise and safe, but...  --ALT, 2024-07-31
-    % end
-
     function createTrkfilesFromListout(obj)
       njobs = obj.trkSysInfo.n;
       for i = 1:njobs
@@ -2976,34 +2891,6 @@ classdef DeepTracker < LabelTracker
         };
     end
 
-    % function downloadPretrainedExec(aptroot)
-    %   % kb investigate: This doesn't work well on the cluster due to tf 
-    %   % being a restricted site, plus /tmp acts weird
-    %   % This method is not called from anywhere.  Is it intended to be called
-    %   % interactively?  -- ALT, 2025-01-28
-    %   assert(isunix,'Only supported on *nix platforms.');
-    %   deepnetroot = [aptroot '/deepnet'];
-    %   cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-    %   apt.syscmd(cmd,'failbehavior','err');
-    % end      
-
-    function str = cellstr2SpaceDelimWithEscapedSpace(c)
-      % c: cellstr
-      %
-      % Use this to convert c to a space-delimited string for use as a
-      % command-line argument. It is assumed this argument will be used in 
-      % a *nix environment with eg python/argparse; individual elements of 
-      % c will have any naked whitespaces escaped so that any such elements 
-      % will not be (mis)interpretered as 2+ separate arguments.
-      c = cellfun(@String.escapeSpaces,c,'uni',0);
-      str = String.cellstr2DelimList(c,' ');
-    end
-
-    function str = cellstr2SpaceDelimWithQuote(c,quotechar)
-      c = cellfun(@(x)[quotechar x quotechar],c,'uni',0);
-      str = String.cellstr2DelimList(c,' '); 
-    end
-    
     function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
       tfsuccess = false;
       isold = false;

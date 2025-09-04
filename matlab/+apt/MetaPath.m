@@ -245,6 +245,13 @@ classdef MetaPath < apt.ShellToken
               apt.FileRole.toString(obj.role_), ...
               apt.Platform.toString(obj.path_.platform));
     end
+
+    function result = cat(obj, varargin)
+      % Call the apt.Path.cat() method on our .path_.  Leave rest alone.
+      oldPath = obj.path_ ;
+      newPath = oldPath.cat(varargin{:});
+      result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+    end
   end  % methods
 
   methods (Static)

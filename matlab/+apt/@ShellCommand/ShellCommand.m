@@ -165,13 +165,15 @@ classdef ShellCommand < apt.ShellToken
         % it and prepend with /bin/bash -c
         draftString = token.toString() ;
         if isa(token, 'apt.ShellCommand')
-          escapedDraftString = escape_string_for_bash(draftString) ;
-          result = sprintf('/bin/bash -c %s', escapedDraftString) ;
+          if obj.platform_ == apt.Platform.windows
+            result = escape_string_for_cmd_dot_exe(draftString) ;
+          else            
+            result = escape_string_for_bash(draftString) ;
+          end
         elseif isa(token, 'apt.ShellLiteral')
           result = draftString ;
         elseif isa(token, 'apt.MetaPath')
-          % TODO: Update once we add a platform prop to ShellCommand
-          if false
+          if obj.platform_ == apt.Platform.windows
             result = escape_string_for_cmd_dot_exe(draftString) ;
           else
             result = escape_string_for_bash(draftString) ;

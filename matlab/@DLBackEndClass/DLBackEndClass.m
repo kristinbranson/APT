@@ -268,7 +268,7 @@ classdef DLBackEndClass < handle
  
   methods
     function [return_code, stdouterr] = runBatchCommandOutsideContainer_(obj, basecmd, varargin)
-      % Run the basecmd using apt.syscmd(), after wrapping suitably for the type of
+      % Run the basecmd using ShellCommand.run(), after wrapping suitably for the type of
       % backend.  But as the name implies, commands are run outside the backend
       % container/environment.  For the AWS backend, this means commands are run
       % outside the Docker environment.  For the Bsub backend, commands are run
@@ -289,19 +289,19 @@ classdef DLBackEndClass < handle
           % For now, we assume Matlab frontend is running on a JRC cluster node,
           % which means the filesystem is local.
           command = basecmd ;
-          [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
+          [return_code, stdouterr] = command.run('failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         case DLBackEnd.Conda
           command = basecmd ;
-          [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
+          [return_code, stdouterr] = command.run('failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         case DLBackEnd.Docker
-          % If docker host is remote, we assume all files we need to access are on the
+          % Even if docker host is remote, we assume all files we need to access are on the
           % same path on the remote host.
           command = basecmd ;
-          [return_code, stdouterr] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, varargin{:}) ;
+          [return_code, stdouterr] = command.run('failbehavior', 'silent', 'verbose', false, varargin{:}) ;
         otherwise
           error('Not implemented: %s',obj.type);
       end
-        % Things passed in with varargin should overide things we set here
+      % Things passed in with varargin should overide things we set here
     end  % function
 
     % function result = remoteMoviePathFromLocal(obj, localPath)
@@ -490,34 +490,33 @@ classdef DLBackEndClass < handle
       gpuid = [];
       freemem = 0;
       gpuInfo = [];
-      aptdeepnetpath_native = APT.getpathdl() ; % native path
-      aptdeepnetpath = wsl_path_from_native(aptdeepnetpath_native) ;  % WSL path
+      aptDeepnetPathNative = apt.MetaPath(APT.getpathdl(), apt.PathLocale.native, apt.FileRole.source) ;  % native path
+      aptDeepnetPathWsl = aptDeepnetPathNative.asWsl() ;  % WSL path
       
       switch obj.type,
         case DLBackEnd.Docker
-          basecmd = 'echo START; python parse_nvidia_smi.py; echo END';
-          bindpath = {aptdeepnetpath}; % don't use guarded
-          codestr = wrapCommandDocker(basecmd,...
+          baseCommand = apt.ShellCommand({'echo', 'START', ';', 'python', 'parse_nvidia_smi.py', ';', 'echo', 'END'}, apt.PathLocale.wsl, apt.posix) ;
+          bindPath = {aptDeepnetPathWsl}; % don't use guarded
+          command = wrapCommandDocker(baseCommand,...
                                       'dockerimg',dockerimgfull,...
                                       'containername','aptTestContainer',...
-                                      'bindpath',bindpath,...
+                                      'bindpath',bindPath,...
                                       'detach',false);
-          if verbose
-            fprintf('%s\n',codestr);
-          end
-          [st,res] = apt.syscmd(codestr);
+          [st,res] = command.run('verbose', verbose);
           if st ~= 0,
-            warning('Error getting GPU info: %s\n%s',res,codestr);
+            warning('Error getting GPU info: %s\n%s',res,command);
             if ispc() && contains(res, 'WSL')
               fprintf('\nOn Windows, Docker Desktop has to be running for the Docker backend to work.\n\n')
             end
             return
           end
         case DLBackEnd.Conda
-          scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;  % Conda backend is only on Linux, so this is both native and WSL path.
-          basecmd = sprintf('echo START && python %s && echo END', scriptpath);
-          codestr = wrapCommandConda(basecmd, 'condaEnv', condaEnv) ;
-          [st,res] = apt.syscmd(codestr) ;  % wrapCommandConda 
+          scriptPath = aptDeepnetPathWsl.cat('parse_nvidia_smi.py') ;
+          baseCommand = apt.ShellCommand({'echo', 'START', '&&', 'python', scriptPath, '&&', 'echo', 'END'}, ...
+                                         apt.PathLocale.wsl, ...
+                                         apt.posix) ;
+          command = wrapCommandConda(baseCommand, 'condaEnv', condaEnv) ;
+          [st,res] = command.run() ;
           if st ~= 0,
             warning('Error getting GPU info: %s',res);
             return
@@ -600,11 +599,11 @@ classdef DLBackEndClass < handle
         
     function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)  % const method
       % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
-      % commands will be executed.
+      % commands will be executed. syscmds should be ShellCommand objects or cell array of ShellCommand objects.
       if nargin < 4,
         jobdesc = 'job';
       end
-      if ischar(syscmds),
+      if isa(syscmds, 'apt.ShellCommand'),
         syscmds = {syscmds};
       end
       if ischar(cmdfiles),
@@ -615,7 +614,7 @@ classdef DLBackEndClass < handle
       for i = 1:numel(syscmds),
         syscmd = syscmds{i} ;
         cmdfile = cmdfiles{i} ;
-        syscmdWithNewline = sprintf('%s\n', syscmd) ;
+        syscmdWithNewline = sprintf('%s\n', syscmd.toString()) ;
         try 
           obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
           didSucceed = true ;
@@ -653,16 +652,18 @@ classdef DLBackEndClass < handle
       
       dockercmd = apt.dockercmd();      
       fmtspec = '{{.Client.Version}}#{{.Client.DefaultAPIVersion}}';
-      cmd = sprintf('%s version --format "%s"',dockercmd,fmtspec);
+      command0 = apt.ShellCommand({dockercmd, 'version', '--format', fmtspec}, apt.PathLocale.wsl, apt.Platform.posix);
       if ~isempty(obj.dockerremotehost),
-        cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+        command = wrapCommandSSH(command0,'host',obj.dockerremotehost);
+      else
+        command = command0;
       end
       
       tfsucc = false;
       clientver = '';
       clientapiver = '';
         
-      [st,res] = apt.syscmd(cmd);
+      [st,res] = command.run();
       if st~=0
         return;
       end
@@ -1042,9 +1043,9 @@ classdef DLBackEndClass < handle
       jobidFromJobIndex = cell(0,1) ;  % We only add jobids to this once they have successfully been spawned.
       for jobIndex = 1:jobCount ,
         syscmd = syscmds{jobIndex} ;
-        fprintf('%s\n',syscmd);
+        fprintf('%s\n',syscmd.toString());
         if do_call_apt_interface_dot_py ,
-          [rc,stdouterr] = apt.syscmd(syscmd, 'failbehavior', 'silent');
+          [rc,stdouterr] = syscmd.run('failbehavior', 'silent');
           didSpawn = (rc == 0) ;          
           if didSpawn ,
             jobid = DLBackEndClass.parseJobID(backend_type, stdouterr);
@@ -1064,23 +1065,6 @@ classdef DLBackEndClass < handle
         jobidFromJobIndex{jobIndex,1} = jobid ;  % Add to end, keeping it a col vector
         assert(ischar(jobid)) ;
         fprintf('%s %d spawned, ID = %s\n\n',jobdesc,jobIndex,jobid);
-
-        % % Now give the command to create the log file.
-        % % (This only does anything interesting for a docker backend.)
-        % if numel(logcmds) >= jobIndex ,
-        %   logcmd = logcmds{jobIndex} ;
-        %   if ~isempty(logcmd) ,
-        %     fprintf('%s\n',logcmd);
-        %     [rc2,stdouterr2] = apt.syscmd(logcmd, 'failbehavior', 'silent');
-        %     didLogCommandSucceed = (rc2==0) ;
-        %     if ~didLogCommandSucceed ,
-        %       % Throw a warning here, but proceed anyway.
-        %       % I have never had occasion to look at one of these docker log files,
-        %       % But presumably they're useful sometimes.  -- ALT, 2025-01-23
-        %       warning('Failed to spawn logging for %s %d: %s.',jobdesc,jobIndex,stdouterr2);
-        %     end
-        %   end
-        % end  % if
       end  % for      
       didSpawnAllJobs = true ;  % if get here, all is well
       reason = '' ;
@@ -1178,10 +1162,9 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.
       runStatuses = {'PEND','RUN','PROV','WAIT'};
-      pollcmd0 = sprintf('bjobs -o stat -noheader %s',jobid);
+      pollcmd0 = apt.ShellCommand({'bjobs', '-o', 'stat', '-noheader', jobid}, apt.PathLocale.wsl, apt.Platform.posix);
       pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
-      %[st,res] = system(pollcmd);
-      [st,res] = apt.syscmd(pollcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      [st,res] = pollcmd.run('failbehavior', 'silent', 'verbose', false) ;
       if st==0
         s = sprintf('(%s)|',runStatuses{:});
         s = s(1:end-1);
@@ -1224,9 +1207,9 @@ classdef DLBackEndClass < handle
     function killJobBsub_(obj, jobid)  %#ok<INUSD> 
       % Kill the bsub job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
-      bkillcmd0 = sprintf('bkill %s',jobid);
+      bkillcmd0 = apt.ShellCommand({'bkill', jobid}, apt.PathLocale.wsl, apt.Platform.posix);
       bkillcmd = wrapCommandSSH(bkillcmd0,'host',DLBackEndClass.jrchost);
-      [st,res] = apt.syscmd(bkillcmd, 'failbehavior', 'silent', 'verbose', false) ;
+      [st,res] = bkillcmd.run('failbehavior', 'silent', 'verbose', false) ;
       if st~=0 ,
         error('Error occurred when trying to kill bsub job %s: %s', jobid, res) ;
       end
@@ -1704,12 +1687,12 @@ classdef DLBackEndClass < handle
     function result = detailedStatusStringBsub_(obj, jobid)
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.
-      cmd0 = sprintf('bjobs %s', jobid) ;
-      cmd1 = wrapCommandSSH(cmd0, 'host', DLBackEndClass.jrchost) ;
+      command0 = apt.ShellCommand({'bjobs', jobid}, apt.PathLocale.wsl, apt.Platform.posix) ;
+      command1 = wrapCommandSSH(command0, 'host', DLBackEndClass.jrchost) ;
         % For the bsub backend, obj.runBatchCommandOutsideContainer() still runs
         % things locally, since that's what you want for e.g. commands that check on
         % file status.
-      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd1) ;
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(command1) ;
       if rc==0 ,
         result = stdouterr ;
       else
@@ -1796,8 +1779,8 @@ classdef DLBackEndClass < handle
     
     function result = wrapCommandToBeSpawnedForCondaBackend_(obj, basecmd, varargin)  % const method
       % Take a base command and run it in a conda env
-      preresult = wrapCommandConda(basecmd, 'condaEnv', obj.condaEnv, 'logfile', '/dev/null', 'gpuid', obj.gpuids(1), varargin{:}) ;
-      result = sprintf('{ %s & } && echo $!', preresult) ;  % echo $! to get the PID
+      preresultCommand = wrapCommandConda(basecmd, 'condaEnv', obj.condaEnv, 'logfile', '/dev/null', 'gpuid', obj.gpuids(1), varargin{:}) ;
+      result = apt.ShellCommand.cat('{', preresultCommand, '&', '}', '&&', 'echo', '$!') ;  % echo $! to get the PID
     end
     
     function codestr = wrapCommandToBeSpawnedForDockerBackend_(obj, basecmd, varargin)  % const method

@@ -23,12 +23,12 @@ function testCondaBackendConfig_(obj, labeler)
   obj.testText_{end+1,1} = '** Checking for conda...'; 
   labeler.notify('updateBackendTestText');
   conda_executable_path = find_conda_executable();
-  cmd = sprintf('%s -V', conda_executable_path);
-  obj.testText_{end+1,1} = cmd; 
+  condaCommand = apt.ShellCommand({conda_executable_path, '-V'}, apt.PathLocale.wsl, apt.Platform.posix);
+  obj.testText_{end+1,1} = condaCommand.toString(); 
   labeler.notify('updateBackendTestText');
-  [st,~] = apt.syscmd(cmd);
+  [st,~] = condaCommand.run();
   if st~=0
-    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',cmd); 
+    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',condaCommand.toString()); 
     labeler.notify('updateBackendTestText');
     return;
   end
@@ -41,13 +41,13 @@ function testCondaBackendConfig_(obj, labeler)
   obj.testText_{end+1,1} = sprintf('** Testing conda run -n %s...', obj.condaEnv); 
   labeler.notify('updateBackendTestText');
 
-  raw_cmd = 'echo "Hello, world!"';
-  cmd = wrapCommandConda(raw_cmd, 'condaEnv', obj.condaEnv);
-  obj.testText_{end+1,1} = cmd; 
+  rawCmd = apt.ShellCommand({'echo', '"Hello, world!"'}, apt.PathLocale.wsl, apt.Platform.posix);
+  command = wrapCommandConda(rawCmd, 'condaEnv', obj.condaEnv);
+  obj.testText_{end+1,1} = command.toString(); 
   labeler.notify('updateBackendTestText');
-  [st,~] = apt.syscmd(cmd);
+  [st,~] = command.run();
   if st~=0
-    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment %s',cmd, obj.condaEnv); 
+    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment %s',command.toString(), obj.condaEnv); 
     labeler.notify('updateBackendTestText');
     return
   end

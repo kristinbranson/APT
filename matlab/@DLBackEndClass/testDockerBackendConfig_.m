@@ -11,16 +11,16 @@ function testDockerBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
 
   dockercmd = apt.dockercmd();
-  cmd = sprintf('%s run --rm hello-world',dockercmd);
+  command = apt.ShellCommand({dockercmd, 'run', '--rm', 'hello-world'}, apt.PathLocale.wsl, apt.Platform.posix);
 
   if ~isempty(obj.dockerremotehost),
-    cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+    command = wrapCommandSSH(command,'host',obj.dockerremotehost);
   end
 
-  fprintf(1,'%s\n',cmd);
-  obj.testText_{end+1,1} = cmd; 
+  fprintf(1,'%s\n',command.toString());
+  obj.testText_{end+1,1} = command.toString(); 
   labeler.notify('updateBackendTestText');
-  [st,res] = apt.syscmd(cmd);
+  [st,res] = command.run();
   reslines = splitlines(res);
   reslinesdisp = reslines(1:min(4,end));
   obj.testText_ = [obj.testText_; reslinesdisp(:)];
@@ -68,17 +68,17 @@ function testDockerBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
   deepnetroot = [APT.Root '/deepnet'];
   homedir = get_home_dir_name();
-  basecmd = 'python APT_interface.py lbl test hello';
-  cmd = wrapCommandDocker(basecmd,...
+  baseCmdCommand = apt.ShellCommand({'python', 'APT_interface.py', 'lbl', 'test', 'hello'}, apt.PathLocale.wsl, apt.Platform.posix);
+  command = wrapCommandDocker(baseCmdCommand,...
                           'dockerimg', obj.dockerimgfull, ...
                           'containername','containerTest',...
                           'detach',false,...
                           'bindpath',{wsl_path_from_native(deepnetroot),wsl_path_from_native(homedir)});
-  obj.testText_{end+1,1} = cmd;
+  obj.testText_{end+1,1} = command.toString();
   labeler.notify('updateBackendTestText');
   RUNAPTHELLO = 1;
   if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
-    [st,res] = apt.syscmd(cmd);
+    [st,res] = command.run();
     reslines = splitlines(res);
     reslinesdisp = reslines(1:min(4,end));
     obj.testText_ = [obj.testText_; reslinesdisp(:)];
