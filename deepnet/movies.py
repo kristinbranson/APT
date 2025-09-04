@@ -1,11 +1,9 @@
 # movies.py
 # KMB 11/06/2008
 
-import chunk
 import multiprocessing
 import os
 import struct
-import sys
 import traceback
 import importlib
 import glob

@@ -14,7 +14,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
     
     function propSelected(obj,hAx,lObj,propFullName,prm)
       if obj.initSuccessful
-        prmFtr = ParameterVisualizationFeature.getParamValue(prm,'ROOT.CPR.Feature');
+        prmFtr = ParameterVisualizationFeature.getParamValue(prm,APTParameters.CPRFeaturePath);
         assert(strcmp(prmFtr.Type,obj.initFeatureType));
       else
         obj.init(hAx,lObj,prm);
@@ -29,7 +29,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
     end
 
     function propUpdated(obj,hAx,lObj,propFullName,prm)
-      prmFtr = ParameterVisualizationFeature.getParamValue(prm,'ROOT.CPR.Feature');
+      prmFtr = ParameterVisualizationFeature.getParamValue(prm,APTParameters.CPRFeaturePath);
       if obj.initSuccessful && strcmp(prmFtr.Type,obj.initFeatureType)
         obj.update(hAx,lObj,prm);
       else
@@ -118,14 +118,13 @@ classdef ParameterVisualizationFeature < ParameterVisualization
         assert(nviews==1,'Unsupported for multiview projects with trx.');
         [xTrx,yTrx] = readtrx(lObj.trx,frm,iTgt);
         %cropRadius = sPrm.ROOT.MultiAnimal.TargetCrop.Radius;
-        prmsTgtCrop = ParameterVisualizationFeature.getParamValue.getParamValue(prm,'ROOT.MultiAnimal.TargetCrop');
-        cropRadius = maGetTgtCropRad(prmsTgtCrop);
+        cropRadius = APTParameters.maGetTgtCropRad(prm);
         [roixlo,roixhi,roiylo,roiyhi] = xyRad2roi(xTrx,yTrx,cropRadius);
         axis(hAx,[roixlo roixhi roiylo roiyhi]);
       end
       
       % Viz feature; set .hPlot
-      prmFtr = ParameterVisualizationFeature.getParamValue.getParamValue(prm,'ROOT.CPR.Feature');
+      prmFtr = ParameterVisualizationFeature.getParamValue.getParamValue(prm,APTParameters.CPRFeaturePath);
       % generate 'fake' model parameters
       prmModel = struct('nfids',nphyspts,'d',2,'nviews',1);
       fvIfo = struct();
@@ -168,7 +167,7 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       % Update visualization for unchanged featuretype (eg radius, abratio
       % changed)
       
-      prmFtr = ParameterVisualizationFeature.getParamValue.getParamValue(prm,'ROOT.CPR.Feature');
+      prmFtr = ParameterVisualizationFeature.getParamValue.getParamValue(prm,APTParameters.CPRFeaturePath);
       
       if obj.initSuccessful
         assert(strcmp(prmFtr.Type,obj.initFeatureType));

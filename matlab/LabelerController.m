@@ -4798,9 +4798,8 @@ classdef LabelerController < handle
           if labeler.maIsMA
             prms = labeler.trackParams;
             if ~isempty(prms)
-              if isfield(prms.ROOT.MultiAnimal.TargetCrop,'multi_scale_by_bbox')
-                tfScale = prms.ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox;
-              else
+              tfScale = APTParameters.getMultiScaleByBBox(prms);
+              if isempty(tfScale),
                 tfScale = false;
               end
             end

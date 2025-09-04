@@ -368,9 +368,10 @@ output = handles.output;
     % automatically set the parameters based on labels.
     [handles.autoparams,handles.vizdata.autoparams] = apt.compute_auto_params(handles.labelerObj);
     kk = handles.autoparams.keys();
-    align_trx_theta_prm = handles.tree.findnode('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta');
-    horz_flip_prm = handles.tree.findnode('ROOT.DeepTrack.DataAugmentation.horz_flip');
-    vert_flip_prm = handles.tree.findnode('ROOT.DeepTrack.DataAugmentation.vert_flip');
+
+    [horz_flip_prm,vert_flip_prm] = APTParameters.getDataAugmentationFlipParams(handles.tree,false);
+
+    align_trx_theta_prm = APTParameters.getAlignTrxTheta(handles.tree,false);
 
     nfields = 1;
     if align_trx_theta_prm.Data.Visible,

@@ -1,4 +1,6 @@
 function s = reorganizeDLParams(s)
+% s = reorganizeDLParameters
+% called by lblModernize
 
 if isfield(s,'trackParams'),
   return;
@@ -6,7 +8,7 @@ end
 
 % KB 20190212: reorganized DL parameters -- many specific parameters
 % were moved to common, and organized common parameters
-sPrm_common = APTParameters.defaultParamsStructDTCommon;
+sPrm_common = APTParameters.defaultParamsStructDeepTrack();
 fns1 = fieldnames(sPrm_common);
 fns0 = fieldnames(s.trackDLParams);
 tfCommonMatch = isempty(setxor(fns0,fns1));

@@ -19,7 +19,7 @@ nmovies = numel(toTrack);
 assert(all(isfield(toTrack,{'movie_files','output_files'})),'movie_files and output_files must be specified');
 
 needCalibration = lObj.isMultiView && ...
-  ~strcmpi(lObj.trackParams.ROOT.PostProcess.reconcile3dType,'none');
+  ~strcmpi(APTParameters.getPostProcessReconcile3dType(lObj.trackParams),'none');
 if needCalibration,
   assert(isfield(toTrack,'calibration_file'),'calibration_file must be specified');
 end

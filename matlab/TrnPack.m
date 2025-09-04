@@ -323,9 +323,8 @@ classdef TrnPack
       % Again, getting sPrmBBox and sPrmLossMask from trackerData{2} should
       % be fine for top-down nets. trackerData{1} should match for these
       % params.
-      sPrmMA = tdata2.sPrmAll.ROOT.MultiAnimal;
-      sPrmBBox = structgetfield(tdata2.sPrmAll,[APTParameters.maDetectPath,'.BBox']);
-      sPrmLossMask = sPrmMA.LossMask;
+      sPrmBBox = APTParameters.getMABBoxParam(tdata2.sPrmAll);
+      sPrmLossMask = APTParameters.getMALossMaskParam(tdata2.sPrmAll);
       tp = TrnPack.aggregateLabelsAddRoi(lObj,isObjDet,sPrmBBox,sPrmLossMask);
       
       % add splits to tp

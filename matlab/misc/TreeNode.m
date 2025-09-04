@@ -54,14 +54,21 @@ classdef TreeNode < handle
       end
     end
     
-    function s = structize(t)
+    function s = structize(t,visibleonly)
       % Convert a Tree (Data.Value fields only) to a struct
       
+      if nargin < 2,
+        visibleonly = true;
+      end
+
       assert(isscalar(t));
       s = nst(t,struct());
       function s = nst(t,s)
         fld = t.Data.Field;
         val = t.Data.Value;
+        if visibleonly && isequal(t.Data.Visible,'off'),
+          return;
+        end
         s.(fld) = val;
         cs = t.Children;
         for j=1:numel(cs)
@@ -69,7 +76,7 @@ classdef TreeNode < handle
         end
       end
     end
-    
+
     function s = jsonify(t)
       % Convert Tree to a struct for outputting to json file
       s = struct;
@@ -268,8 +275,11 @@ classdef TreeNode < handle
       end
     end
     
-    function nodelist = flatten(t)
+    function nodelist = flatten(t,leafonly)
       % return flat nodelist
+      if nargin < 2, 
+        leafonly = false;
+      end
       
       nodelist = cell(0,1);      
       t.traverse(@lclAccum);
@@ -277,10 +287,12 @@ classdef TreeNode < handle
       nodelist = cat(1,nodelist{:});
       
       function lclAccum(x)
-        nodelist{end+1,1} = x;
+        if ~leafonly || isempty(x.Children),
+          nodelist{end+1,1} = x;
+        end
       end
     end
-    
+
     function nrepeatNodes = countRepeatNodes(t)
       % nrepeatNodes: integer. if nodelist=t.flatten(), number of nodes
       % in nodelist that appear at least twice in nodelist.
@@ -312,7 +324,43 @@ classdef TreeNode < handle
       end
       v = node.Data.Value;
     end
-        
+
+    function print(t,visibleonly,path)
+      if nargin < 2,
+        visibleonly = true;
+      end
+      if nargin < 3,
+        path = '';
+      end
+      if visibleonly && isequal(t.Data.Visible,false),
+        return;
+      end
+      if isempty(path),
+        path = t.Data.Field;
+      else
+        path = [path,'.',t.Data.Field];
+      end
+      if isempty(t.Children),
+        fprintf('%s, leaf, Value = %s\n',path,mat2str(t.Data.Value));
+      else
+        if visibleonly,
+          nchildren = 0;
+          for i = 1:numel(t.Children),
+            if ~isequal(t.Children(i).Data.Visible,false),
+              nchildren = nchildren + 1;
+            end
+          end
+        else
+          nchildren = numel(t.Children);
+        end
+        fprintf('%s, %d children\n',path,nchildren);
+        for i = 1:numel(t.Children),
+          t.Children(i).print(visibleonly,path);
+        end
+      end
+    end
+
+
   end
   
 end

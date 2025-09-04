@@ -60,11 +60,7 @@ classdef ParameterVisualization < handle
 
     function setStage(obj)
 
-      [~,idx] = regexp(obj.propFullName,'\.DeepTrack','once');
-      if isempty(idx),
-        return;
-      end
-      propPrefix = obj.propFullName(1:idx);
+      stagestr = APTParameters.getStage(obj.propFullName);
 
       obj.is_ma = obj.lObj.maIsMA;
       obj.is2stage = obj.lObj.trackerIsTwoStage;
@@ -72,7 +68,7 @@ classdef ParameterVisualization < handle
       obj.stage = 1;
 
       if obj.is_ma,
-        if obj.is2stage && startsWith(propPrefix,'ROOT.DeepTrack'),
+        if obj.is2stage && strcmp(stagestr,'pose'),
           obj.stage = 2;
         else
           obj.is_ma_net = true;

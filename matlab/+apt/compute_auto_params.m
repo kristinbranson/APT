@@ -116,7 +116,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   % variations observed in the labels
 
   if lobj.trackerIsTwoStage,
-    autoparams('ROOT.MultiAnimal.TargetCrop.multi_scale_by_bbox') = auto_multi_bbox_scale;
+    autoparams(APTParameters.multiScaleByBBoxPath) = auto_multi_bbox_scale;
   end
 
     %l_min = reshape(min(all_labels,[],1),size(all_labels,[2,3]));
@@ -162,29 +162,31 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   end
   crop_radius = ceil(crop_radius/CROP_RADIUS_PRECISION)*CROP_RADIUS_PRECISION;
 
-  autoparams('ROOT.MultiAnimal.TargetCrop.ManualRadius') = crop_radius;
+  autoparams(APTParameters.maTgtCropRadPath) = crop_radius;
 
 
   %% rotation range parameters
 
   if ~lobj.trackerIsTwoStage && ~lobj.hasTrx
-    autoparams('ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta') = false;
+    autoparams(APTParameters.alignTrxThetaPath) = false;
   end
 
-  laststage_horzflip = prmtree.findnode([APTParameters.poseDataAugPath,'.horz_flip']).Data.Value;
-  laststage_vertflip = prmtree.findnode([APTParameters.poseDataAugPath,'.vert_flip']).Data.Value;
-
-  firststage_horzflip = prmtree.findnode([APTParameters.detectDataAugPath,'.horz_flip']).Data.Value;
-  firststage_vertflip = prmtree.findnode([APTParameters.detectDataAugPath,'.vert_flip']).Data.Value;
-
   % flip to best match template
+  [horzflip,vertflip] = APTParameters.getDataAugmentationFlipParams(prmtree);
   [all_labels_horzflipped,all_labels_vertflipped] = flip_labels(all_labels,lobj);
+  if horzflip,
+    all_labels_use = all_labels_horzflipped;
+  elseif vertflip,
+    all_labels_use = all_labels_vertflipped;
+  else
+    all_labels_use = all_labels;
+  end
 
   vizdata.rrange = struct;
 
   if lobj.maIsMA && lobj.trackerIsTwoStage,
 
-    if lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta,
+    if APTParameters.getAlignTrxTheta(lobj.trackParams),
       % compute span of angles head and tail keypoints around midpoint of
       % head and tail.
       headidx = lobj.skelHead;
@@ -194,15 +196,6 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
         headidx = 1;
         tailidx = 2;
       end
-
-      if firststage_horzflip,
-        all_labels_use = all_labels_horzflipped;
-      elseif firststage_vertflip,
-        all_labels_use = all_labels_vertflipped;
-      else
-        all_labels_use = all_labels;
-      end
-
       [rrange_stage1,l_thetas,minthetao] = rrange_headtail_around_centroid(all_labels_use,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
       vizdata.rrange.firststage_headTailAngle = l_thetas;
       vizdata.rrange.offset.firststage_headTailAngle = minthetao;
@@ -210,33 +203,17 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
       % we have already cropped a region around the animal and aligned
       % based on detected head/tail position. compute span of difference
       % between keypoint angles and head-tail angle
-      if laststage_horzflip,
-        all_labels_use = all_labels_horzflipped;
-      elseif laststage_vertflip,
-        all_labels_use = all_labels_vertflipped;
-      else
-        all_labels_use = all_labels;
-      end
       [rrange_stage2,l_thetas,minthetao] = rrange_keypoints_relative_headtail(all_labels_use,headidx,tailidx,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_ALIGN_THETA,ROTATION_RANGE_PRECISION);
       vizdata.rrange.laststage_keypoints2HeadTailAngle = l_thetas;
       vizdata.rrange.offset.laststage_keypoints2HeadTailAngle = minthetao;
     else
-
-      if firststage_horzflip,
-        all_labels_use = all_labels_horzflipped;
-      elseif firststage_vertflip,
-        all_labels_use = all_labels_vertflipped;
-      else
-        all_labels_use = all_labels;
-      end
-
       [rrange_stage1,l_thetas,minthetao] = rrange_keypoints_around_centroid(all_labels_use,ROTATION_PRCTILE_ANGLE_SPAN,ROTATION_RANGE_PRECISION);
       vizdata.rrange.firststage_centroidKeypointAngle = l_thetas;
       vizdata.rrange.offset.firststage_centroidKeypointAngle = minthetao;
 
-      if laststage_horzflip,
+      if horzflip,
         all_labels_use = all_labels_horzflipped;
-      elseif laststage_vertflip,
+      elseif vertflip,
         all_labels_use = all_labels_vertflipped;
       else
         all_labels_use = all_labels;
@@ -252,15 +229,15 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
     autoparams([APTParameters.poseDataAugPath,'.rrange']) = rrange_stage2;
   else
 
-    if ~lobj.maIsMA && lobj.hasTrx && lobj.trackParams.ROOT.MultiAnimal.TargetCrop.AlignUsingTrxTheta,
+    if ~lobj.maIsMA && lobj.hasTrx && APTParameters.getAlignTrxTheta(lobj.trackParams),
       % we have already cropped a region around the animal using hasTrx and
       % have aligned with trx angle. we don't have the trx info cached, so
       % let's just set this to a constant
       rrange = ROTATION_RANGE_ALIGN_THETA;
     else
-      if laststage_horzflip,
+      if horzflip,
         all_labels_use = all_labels_horzflipped;
-      elseif laststage_vertflip,
+      elseif vertflip,
         all_labels_use = all_labels_vertflipped;
       else
         all_labels_use = all_labels;
@@ -303,10 +280,10 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   fprintf('New: trange_frame: %.1f, trange_pair: %.1f, trange_crop: %.1f\n',...
     trange_frame,trange_pair,trange_crop);
 
-  if lobj.maIsMA && lobj.trackParams.ROOT.MultiAnimal.multi_crop_ims,
+  if lobj.maIsMA && APTParameters.getMAMultiCropIms(lobj.trackParams),
     % If we are cutting the images into pieces (i think this is only for
     % bottom up?), use this size instead of frame size
-    crop_sz = lobj.trackParams.ROOT.MultiAnimal.multi_crop_im_sz;
+    crop_sz = APTParameters.getMAMultCropImSz(lobj.trackParams);
     trange_frame = round_nearest(crop_sz/TRANSLATION_FRAC_SPAN,TRANSLATION_RANGE_PRECISION);
   end
 

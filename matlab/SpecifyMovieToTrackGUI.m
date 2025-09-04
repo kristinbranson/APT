@@ -46,7 +46,7 @@ classdef SpecifyMovieToTrackGUI < handle
       %obj.iscrop = obj.lObj.cropProjHasCrops; % to do: allow cropping when trained without cropping?
       if obj.nview > 1 
         prms = obj.lObj.trackParams ;
-        docalibrate = ~strcmpi(prms.ROOT.PostProcess.reconcile3dType, 'none') ;
+        docalibrate = ~strcmpi(APTParameters.getPostProcessReconcile3dType(prms), 'none') ;
       else
         docalibrate = false ;
       end

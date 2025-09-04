@@ -1,26 +1,25 @@
 function [isOk,msgs] = paramChecker(sPrm)
+% called by ParameterSetup
 
 isOk = init(sPrm,true);
 msgs = {};
 
 % if using background subtraction, bgreadfcn must be set
-if isSubField(sPrm,{'ROOT','ImageProcessing','BackSub','Use'}) && ...
-    sPrm.ROOT.ImageProcessing.BackSub.Use && ...
-    isSubField(sPrm,{'ROOT','ImageProcessing','BackSub','BgReadFcn'}) && ...
-    isempty(sPrm.ROOT.ImageProcessing.BackSub.BGReadFcn),
-  isOk.ROOT.ImageProcessing.BackSub.Use = false;
-  isOk.ROOT.ImageProcessing.BackSub.BGReadFcn = false;
+useBackSub = APTParameters.getUseBackSub(sPrm);
+bgReadFcn = APTParameters.getBgReadFcn(sPrm);
+useHistEq = APTParameters.getUseHistEq(sPrm);
+
+if isequal(useBackSub,true) && isempty(bgReadFcn),
+  isOk = APTParameters.setUseBackSub(isOk,false);
+  isOk = APTParameters.setBgReadFcn(isOk,false);
   msgs{end+1} = 'If background subtraction is enabled, Background Read Function must be set';
 end
 
 % can either use background subtraction of histogram equalization, but not
 % both
-if isSubField(sPrm,{'ROOT','ImageProcessing','BackSub','Use'}) && ...
-    sPrm.ROOT.ImageProcessing.BackSub.Use && ...
-    isSubField(sPrm,{'ROOT','ImageProcessing','HistEq','Use'}) && ...
-    sPrm.ROOT.ImageProcessing.HistEq.Use,
-  isOk.ROOT.ImageProcessing.BackSub.Use = false;
-  isOk.ROOT.ImageProcessing.HistEq.Use = false;
+if isequal(useBackSub,true) && isequal(useHistEq,true),
+  isOk = APTParameters.setUseBackSub(isOk,false);
+  isOk = APTParameters.setUseHistEq(isOk,false);
   msgs{end+1} = 'Background subtraction and histogram equalization cannot both be enabled.';
 end
 
@@ -29,9 +28,9 @@ end
 %   msgs{end+1} = 'Histogram equalization: Num frames sample must be at least 1.';
 % end
 
-if isSubField(sPrm,{'ROOT','MultiAnimal','TargetCrop','ManualRadius'}) && ...
-    sPrm.ROOT.MultiAnimal.TargetCrop.ManualRadius <= 0,
-  isOk.ROOT.MultiAnimal.TargetCrop.ManualRadius = false;
+
+if APTParameters.maGetTgtCropRad(sPrm) <= 0,
+  isOk = APTParameters.setMATargetCropRadius(false);
   msgs{end+1} = 'Multitarget crop radius must be at least 1.';
 end
 

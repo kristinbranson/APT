@@ -149,8 +149,8 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 
         % Let 'treatInfPosAsOcc' default to false here, should be fine as
         % this is for paramviz
-        sPrmTgtCrop = sPrm.ROOT.MultiAnimal.TargetCrop;
-        tblPTrn = lObj.preProcGetMFTableLbled('prmsTgtCrop',sPrmTgtCrop);
+        maTgtCropRad = APTParameters.maGetTgtCropRad(sPrm);
+        tblPTrn = lObj.preProcGetMFTableLbled('maTgtCropRad',maTgtCropRad);
         nlabeled = size(tblPTrn,1);
         if nlabeled == 0,
           return;
@@ -187,9 +187,6 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
       elseif (strcmpi(s{1},'DeepTrack') || strcmpi(s{1},'Deep Learning (pose)')) && (strcmpi(s{2},'DataAugmentation') || strcmpi(s{2},'Data Augmentation')),
         if ~isfield(obj.initVizInfo,'augd') || isempty(obj.initVizInfo.augd) || ...
             ~APTParameters.isEqualDeepTrackDataAugParams(obj.initVizInfo.sPrm,sPrm),
-          fprintf('DATAAUG:\n');
-          disp(sPrm.ROOT.DeepTrack.DataAugmentation);
-
           if isfield(obj.initVizInfo,'dataAugDir'),
             dataAugParams = {'dataAugDir',obj.initVizInfo.dataAugDir};
           else
@@ -204,9 +201,10 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
         nims = nims(1);
         ims = cell(nims,nview);
         locs = nan([nparts,2,nims,nview]);
+        imax = APTParameters.getImageProcessingIMax(sPrm);
         for i = 1:nview,
           for j = 1:nims,
-            ims{j,i} = obj.initVizInfo.augd.ims{i}(:,:,:,j)/sPrm.ROOT.DeepTrack.ImageProcessing.imax;
+            ims{j,i} = obj.initVizInfo.augd.ims{i}(:,:,:,j)/imax;
             locs(:,:,j,i) = permute(obj.initVizInfo.augd.locs{i}(j,:,:),[2,3,1]);
           end
         end

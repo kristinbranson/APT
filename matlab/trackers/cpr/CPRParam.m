@@ -61,21 +61,20 @@ classdef CPRParam
       
 %       trkType = TrackerType.(sNew.ROOT.Track.Type);
       if nargout >= 2,
-        trkNFrmsSm = sNew.ROOT.Track.NFramesSmall;
-        trkNFrmsLg = sNew.ROOT.Track.NFramesLarge;
-        trkNFrmsNear = sNew.ROOT.Track.NFramesNeighborhood;
+        trkNFrmsSm = APTParameters.getTrackNFramesSmall(sNew);
+        trkNFrmsLg = APTParameters.getTrackNFramesLarge(sNew);
+        trkNFrmsNear = APTParameters.getTrackNFramesNeighborhood(sNew);
       end
 
-      he = sNew.ROOT.ImageProcessing.HistEq;
-      sOld.PreProc.BackSub = sNew.ROOT.ImageProcessing.BackSub;
-      sOld.PreProc.histeq = he.Use;
+      sOld.PreProc.BackSub = APTParameters.getBackSubParams(sNew);
+      sOld.PreProc.histeq = APTParameters.getUseHistEq(sNew);
 %       sOld.PreProc.histeqH0NumFrames = he.NSampleH0;
-      sOld.PreProc.TargetCrop = sNew.ROOT.MultiAnimal.TargetCrop;
+      sOld.PreProc.TargetCrop = APTParameters.getMATargetCropParams(sNew);
       %sOld.PreProc.TargetCropMA = sNew.ROOT.ImageProcessing.MultiTarget.TargetCropMA;
 %       sOld.PreProc.NeighborMask = sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask;
       sOld.PreProc.channelsFcn = [];
       
-      cpr = sNew.ROOT.CPR;
+      cpr = APTParameters.getCPRParams(sNew);
       sOld.Reg.T = cpr.NumMajorIter;
       sOld.Reg.K = cpr.NumMinorIter;
       sOld.Reg.type = 1; 
@@ -125,7 +124,7 @@ classdef CPRParam
       sOld.TestInit.doboxjitter = cpr.Replicates.DoBBoxJitter;
       sOld.TestInit.augjitterfac = cpr.Replicates.AugJitterFac;
       sOld.TestInit.augUseFF = cpr.Replicates.AugUseFF;
-      sOld.TestInit.movChunkSize = sNew.ROOT.Track.ChunkSize;
+      sOld.TestInit.movChunkSize = APTParameters.getTrackChunkSize(sNew);
       
       sOld.Prune.method = cpr.Prune.Method;
       sOld.Prune.maxdensity_sigma = cpr.Prune.DensitySigma;
@@ -334,13 +333,10 @@ classdef CPRParam
       nviews = sOld.Model.nviews;      
       
       sNew = CPRParam.old2newPPOnly(sOld.PreProc);
-      sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
+      sNew = APTParameters.setCPRParams(sNew,sOld);
       if nargin > 1 && ~isempty(lObj),
-        sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
-        sNew.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
-        sNew.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
+        sNew = setNFramesTrackParams(sNew,lObj);
       end
-      sNew.ROOT.CPR = CPRParam.old2newCPROnly(sOld);
       
       sNew = APTParameters.enforceConsistency(sNew);
     end
@@ -349,10 +345,10 @@ classdef CPRParam
       
       sNew = struct();
 %       sNew.ROOT.Track.Type = char(lObj.trackerType);
-      sNew.ROOT.ImageProcessing.BackSub = sOld.BackSub;
-      sNew.ROOT.ImageProcessing.HistEq.Use = sOld.histeq;
+      sNew = APTParameters.setBackSubParams(sNew,sOld.BackSub);
+      sNew = APTParameters.setUseHistEq(sNew,sOld.histeq);
 %       sNew.ROOT.ImageProcessing.HistEq.NSampleH0 = sOld.histeqH0NumFrames;
-      sNew.ROOT.MultiAnimal.TargetCrop = sOld.TargetCrop;
+      sNew = APTParameters.setMATargetCropParams(sNew,sOld.TargetCrop);
       %sNew.ROOT.MultiAnimal.TargetCropMA = sOld.TargetCropMA;
       assert(isfield(sOld.TargetCrop,'AlignUsingTrxTheta'));
       %sNew.ROOT.ImageProcessing.MultiTarget.NeighborMask = sOld.NeighborMask;
