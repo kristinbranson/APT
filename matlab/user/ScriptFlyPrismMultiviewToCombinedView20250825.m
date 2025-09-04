@@ -3,7 +3,8 @@ bottom_views = [1,3];
 side_views = [2,4];
 
 % open input project
-lblfile_mv = '/groups/branson/bransonlab/aniket/APT/label_files/recroppedFourViews_trained.lbl';
+%lblfile_mv = '/groups/branson/bransonlab/aniket/APT/label_files/recroppedFourViews_trained.lbl';
+lblfile_mv = '/groups/branson/bransonlab/apt/unittest/flyprism_multiviewlabeled_20250829.lbl';
 lObj_mv = StartAPT;
 lObj_mv.projLoadGUI(lblfile_mv);
 
@@ -40,14 +41,18 @@ end
 
 % open the bottom view project
 lblfile_bottom = '/groups/branson/bransonlab/apt/unittest/flyprism/combinedBottomViewMA20250801.lbl';
-outlblfile_bottom = '/groups/branson/bransonlab/apt/unittest/flyprism/combinedBottomViewMA20250825.lbl';
+outlblfile_bottom = '/groups/branson/bransonlab/apt/unittest/flyprism/combinedBottomViewMA20250829.lbl';
 lObj_bottom = StartAPT;
-lObj_bottom.projLoadGUI(lblfile_bottom);
+lObj_bottom.projLoadGUI(lblfile_bottom,'nomovie',true);
 
-% add missing movies
-allmovs = tbl_bottom.mov;
-oldmovs = lObj_bottom.movieFilesAllFull;
-newmovs = setdiff(allmovs,oldmovs);
+% remove all movies
+for iMov = lObj_bottom.nmovies:-1:1,
+  tfSucc = lObj_bottom.movieRmGUI(iMov,'force',true);
+  assert(tfSucc);
+end
+
+% add new movies
+newmovs = unique(tbl_bottom.mov);
 
 for i = 1:numel(newmovs),
   lObj_bottom.movieAdd(newmovs{i},'','offerMacroization',false);
@@ -81,14 +86,18 @@ end
 
 % open the side view project
 lblfile_side = '/groups/branson/bransonlab/apt/unittest/flyprism/combinedSideViewMA20250801.lbl';
-outlblfile_side = '/groups/branson/bransonlab/apt/unittest/flyprism/combinedSideViewMA20250825.lbl';
+outlblfile_side = '/groups/branson/bransonlab/apt/unittest/flyprism/combinedSideViewMA20250829.lbl';
 lObj_side = StartAPT;
-lObj_side.projLoadGUI(lblfile_side);
+lObj_side.projLoadGUI(lblfile_side,'nomovie',true);
+
+% remove all movies
+for iMov = lObj_side.nmovies:-1:1,
+  tfSucc = lObj_side.movieRmGUI(iMov,'force',true);
+  assert(tfSucc);
+end
 
 % add missing movies
-allmovs = tbl_side.mov;
-oldmovs = lObj_side.movieFilesAllFull;
-newmovs = setdiff(allmovs,oldmovs);
+newmovs = unique(tbl_side.mov);
 
 for i = 1:numel(newmovs),
   lObj_side.movieAdd(newmovs{i},'','offerMacroization',false);

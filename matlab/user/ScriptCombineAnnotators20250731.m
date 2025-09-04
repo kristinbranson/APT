@@ -120,6 +120,23 @@ assert(isempty(newmoviefiles));
 % Lblfile 15, 68 overwritten labels, 14 new labels
 % Lblfile 16, 157 overwritten labels, 0 new labels
 
+% Lblfile 1, 17 overwritten labels, 45 new labels
+% Lblfile 2, 24 overwritten labels, 3 new labels
+% Lblfile 3, 56 overwritten labels, 0 new labels
+% Lblfile 4, 27 overwritten labels, 0 new labels
+% Lblfile 5, 59 overwritten labels, 6 new labels
+% Lblfile 6, 59 overwritten labels, 11 new labels
+% Lblfile 7, 66 overwritten labels, 10 new labels
+% Lblfile 8, 76 overwritten labels, 6 new labels
+% Lblfile 9, 59 overwritten labels, 16 new labels
+% Lblfile 10, 70 overwritten labels, 7 new labels
+% Lblfile 11, 77 overwritten labels, 7 new labels
+% Lblfile 12, 67 overwritten labels, 0 new labels
+% Lblfile 13, 75 overwritten labels, 10 new labels
+% Lblfile 14, 59 overwritten labels, 6 new labels
+% Lblfile 15, 68 overwritten labels, 14 new labels
+% Lblfile 16, 164 overwritten labels, 0 new labels
+
 %% remove all movies that don't have labels and bad movies
 
 [~,movidx] = unique(tbldata_combined.mov(:,1));
