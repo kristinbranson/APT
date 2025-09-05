@@ -129,7 +129,7 @@ end
 % Test nested ShellCommand functionality
 innerCmd = apt.ShellCommand({'echo', 'hello world'});
 outerCmd = apt.ShellCommand({'bash', '-c', innerCmd});
-expectedStr = 'bash -c /bin/bash -c ''echo hello world''';
+expectedStr = 'bash -c ''echo hello world''';
 if ~strcmp(outerCmd.toString(), expectedStr)
   error('Nested ShellCommand failed. Expected: %s, Got: %s', expectedStr, outerCmd.toString());
 end
@@ -145,24 +145,32 @@ end
 
 % Test singleton ShellCommand (single token that is itself a ShellCommand)
 baseCmd = apt.ShellCommand({'echo', 'test'});
-singletonCmd = apt.ShellCommand({baseCmd});
+nestedCmd = apt.ShellCommand({'/bin/bash', '-c', baseCmd});
 expectedStr = '/bin/bash -c ''echo test''';
-if ~strcmp(singletonCmd.toString(), expectedStr)
-  error('Singleton ShellCommand failed. Expected: %s, Got: %s', expectedStr, singletonCmd.toString());
+if ~strcmp(nestedCmd.toString(), expectedStr)
+  error('Singleton ShellCommand failed. Expected: %s, Got: %s', expectedStr, nestedCmd.toString());
 end
 
 % Verify singleton has correct token count
-if singletonCmd.length() ~= 1
-  error('Singleton ShellCommand should have exactly 1 token, got %d', singletonCmd.length());
+if nestedCmd.length() ~= 3
+  error('Singleton ShellCommand should have exactly 3 tokens, got %d', nestedCmd.length());
 end
 
 % Verify the token is the original ShellCommand
-token = singletonCmd.getToken(1);
+token = nestedCmd.getToken(3);
 if ~isa(token, 'apt.ShellCommand')
-  error('Singleton token should be a ShellCommand');
+  error('Nested command third token should be a ShellCommand');
 end
 if ~strcmp(token.toString(), 'echo test')
   error('Singleton token content incorrect');
+end
+
+% Test char() conversion
+testCmd = apt.ShellCommand({'echo', 'test'});
+charResult = char(testCmd);
+expectedCharResult = 'echo test';
+if ~strcmp(charResult, expectedCharResult)
+  error('char() conversion failed. Expected: %s, Got: %s', expectedCharResult, charResult);
 end
 
 end

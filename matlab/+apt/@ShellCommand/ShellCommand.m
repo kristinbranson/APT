@@ -162,6 +162,15 @@ classdef ShellCommand < apt.ShellToken
       result = strjoin(stringFromTokenIndex, ' ');
     end
 
+    function result = char(obj)
+      % Convert ShellCommand to char array (same as toString)
+      %
+      % Returns:
+      %   char: Character array representation of the command
+      
+      result = obj.toString();
+    end
+
     function result = tfDoesMatchLocale(obj, queryLocale)
       % Check if this ShellCommand matches the specified locale
       %
