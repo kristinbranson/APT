@@ -26,8 +26,8 @@ function result = wrapCommandDocker(baseCommand, varargin)
   end
   
   % Get path to the deepnet/ subdirectory in the APT source tree
-  aptDeepnetPathNativeCharray = APT.getpathdl() ;  % this is a native, local path, as charray
-  aptDeepnetPathNative = apt.MetaPath(aptDeepnetPathNativeCharray, 'native', 'source');
+  aptDeepnetPathNativeChar = APT.getpathdl() ;  % this is a native, local path, as char
+  aptDeepnetPathNative = apt.MetaPath(aptDeepnetPathNativeChar, 'native', 'source');
   aptDeepnetPathWsl = aptDeepnetPathNative.asWsl();
 
   % Set the paths to make visible in the container
@@ -66,8 +66,8 @@ function result = wrapCommandDocker(baseCommand, varargin)
     % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
   end
   
-  nativeHomeDirCharray = get_home_dir_name() ;      
-  nativeHomeDirPath = apt.MetaPath(nativeHomeDirCharray, 'native', 'universal');
+  nativeHomeDirChar = get_home_dir_name() ;      
+  nativeHomeDirPath = apt.MetaPath(nativeHomeDirChar, 'native', 'universal');
   homeDirWslPath = nativeHomeDirPath.asWsl();
   user = get_user_name() ;
   

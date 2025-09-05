@@ -6,13 +6,13 @@ function result = wrapCommandSing(inputCommand, varargin)
 assert(isa(inputCommand, 'apt.ShellCommand'), 'inputCommand must be an apt.ShellCommand object');
 assert(inputCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'inputCommand must have WSL locale');
 
-DEFAULT_BIND_PATHS_ASCHARRAY = {
+DEFAULT_BIND_PATHS_ASCHAR = {
   '/groups'
   '/nrs'
   '/scratch'};
 [bindpath,singimg] = ...
   myparse(varargin,...
-          'bindpath',DEFAULT_BIND_PATHS_ASCHARRAY,...
+          'bindpath',DEFAULT_BIND_PATHS_ASCHAR,...
           'singimg','');
 assert(~isempty(singimg)) ;
 

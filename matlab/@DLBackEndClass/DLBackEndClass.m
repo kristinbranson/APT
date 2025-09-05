@@ -946,8 +946,8 @@ classdef DLBackEndClass < handle
                                                 'do_just_generate_db',do_just_generate_db);
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
-      commandFilePathAsCharray = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      commandFilePath = apt.MetaPath(commandFilePathAsCharray, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+      commandFilePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
       % logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
@@ -977,8 +977,8 @@ classdef DLBackEndClass < handle
                                                 'track_type',track_type);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
-      cmdfileAsCharray = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      cmdfile = apt.MetaPath(cmdfileAsCharray, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      cmdfileAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
+      cmdfile = apt.MetaPath(cmdfileAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
       
       % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     

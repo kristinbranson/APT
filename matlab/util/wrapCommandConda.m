@@ -17,8 +17,8 @@ if isempty(condaEnv) ,
 end
 
 % Find the conda executable
-condaExecutablePathNativeCharray = find_conda_executable() ;
-condaExecutablePathNative = apt.MetaPath(condaExecutablePathNativeCharray, 'native', 'universal');
+condaExecutablePathNativeChar = find_conda_executable() ;
+condaExecutablePathNative = apt.MetaPath(condaExecutablePathNativeChar, 'native', 'universal');
 condaExecutablePathWsl = condaExecutablePathNative.asWsl();
 
 % Augment the command with a specification of the GPU id, if called for

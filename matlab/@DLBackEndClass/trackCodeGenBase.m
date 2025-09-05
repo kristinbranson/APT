@@ -42,15 +42,15 @@ dmc = totrackinfo.trainDMC ;
           );
 
 % aptintrf = APTInterf.aptInterfacePath(aptroot);
-aptInterfaceDotPyNativePath = apt.MetaPath(fullfile(aptroot, 'deepnet/APT_interface.py'), 'native', 'source') ;  % this is a native path, as a charray
+aptInterfaceDotPyNativePath = apt.MetaPath(fullfile(aptroot, 'deepnet/APT_interface.py'), 'native', 'source') ;  % this is a native path, as a char
 aptInterfaceDotPyWslPath = aptInterfaceDotPyNativePath.asWsl() ;  % The path to APT_interface.py, as a WSL path.
 
 
 modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
-nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path, as charray
+nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path, as char
 trainConfigFileNativePath = apt.MetaPath(nativeTrainConfig, 'native', 'cache');
 trainConfigFileWslPath = trainConfigFileNativePath.asWsl();
-nativeCacheRootDir = dmc.rootDir ;  % native path, as charray
+nativeCacheRootDir = dmc.rootDir ;  % native path, as char
 cacheRootDirNativePath = apt.MetaPath(nativeCacheRootDir, 'native', 'cache');
 cacheRootDirWslPath = cacheRootDirNativePath.asWsl();      
 
@@ -58,7 +58,7 @@ stage2models = cell(1,nstages);
 for istage = 1:nstages,
   stage = stages(istage);
   % cell of length nviews or empty
-  nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path, as charray
+  nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path, as char
   modelPathNative = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeModelPath, 'UniformOutput', false);
   modelPathWsl = cellfun(@(x) x.asWsl(), modelPathNative, 'UniformOutput', false);
   stage2models{istage} = modelPathWsl ;
@@ -72,7 +72,7 @@ for istage = 1:nstages,
   stage2netType{istage} = char(DeepModelChainOnDisk.getCheckSingle(dmc.getNetType('stage',stage)));
 end
 
-nativeConfigFile = totrackinfo.trackconfigfile;  % native path, as charray
+nativeConfigFile = totrackinfo.trackconfigfile;  % native path, as char
 configFileNativePath = apt.MetaPath(nativeConfigFile, 'native', 'cache');
 configFileWslPath = configFileNativePath.asWsl();
 
@@ -167,7 +167,7 @@ else
   if sum(nextra) > 0,
     warningNoTrace('Tracking %d already-tracked frames',sum(nextra));
   end
-  nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths, as charrays
+  nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths, as chars
   movFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'movie'), nativeMovFiles, 'UniformOutput', false);
   movFilesWslPath = cellfun(@(x) x.asWsl(), movFilesNativePath, 'UniformOutput', false);
   command14b = apt.ShellCommand.cat(command13b.append('-mov'), movFilesWslPath);

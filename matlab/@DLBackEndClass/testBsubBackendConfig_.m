@@ -45,8 +45,8 @@ function testBsubBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
   obj.testText_{end+1,1} = sprintf('** Testing that we can do passwordless ssh to %s...',host); 
   labeler.notify('updateBackendTestText');
-  touchPathAsCharray = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now(),'yyyymmddTHHMMSS.FFF')));
-  touchFilePath = apt.MetaPath(touchPathAsCharray, apt.PathLocale.remote, apt.FileRole.cache);
+  touchPathAsChar = fullfile(cacheDir,sprintf('testBsub_test_%s.txt',datestr(now(),'yyyymmddTHHMMSS.FFF')));
+  touchFilePath = apt.MetaPath(touchPathAsChar, apt.PathLocale.remote, apt.FileRole.cache);
 
   baseTouchCommand = ...
     apt.ShellCommand({'touch', touchFilePath, ';', 'if', '[', '-e', touchFilePath, '];', ...

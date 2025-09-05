@@ -1094,12 +1094,12 @@ classdef AWSec2 < handle
     %                        'identity', pem) ;      
     % end
     
-    % function cmd = scpUploadCmd(file,pem,ip,destAsCharray,varargin)
+    % function cmd = scpUploadCmd(file,pem,ip,destAsChar,varargin)
     %   [destRelative,scpcmd] = myparse(varargin,...
     %                                   'destRelative',true,...
     %                                   'scpcmd','/usr/bin/scp');
     %   if destRelative
-    %     destAsCharray = ['~/' destAsCharray];
+    %     destAsChar = ['~/' destAsChar];
     %   end
     %   if ispc() 
     %     [fileP,fileF,fileE] = fileparts(file);
@@ -1110,9 +1110,9 @@ classdef AWSec2 < handle
     %     fileP = regexprep(fileP,'/','\\');
     %     fileF = regexprep(fileF,'/','\\');
     %     cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
-    %       pem,['.\' fileF fileE],ip,destAsCharray); % fileP here can contain a space and pushd will do the right thing!
+    %       pem,['.\' fileF fileE],ip,destAsChar); % fileP here can contain a space and pushd will do the right thing!
     %   else
-    %     cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,destAsCharray);
+    %     cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,destAsChar);
     %   end
     % end
 
@@ -1147,11 +1147,11 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.char() ;
-      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
+      sshCommandAsChar = sshCommand.char() ;
+      escapedSshCommandAsChar = escape_string_for_bash(sshCommandAsChar) ;
 
       % Generate the final command
-      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), sprintf('ubuntu@%s:%s', ip, srcFileRemotePath), destFileWslPath} ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsChar), sprintf('ubuntu@%s:%s', ip, srcFileRemotePath), destFileWslPath} ;
       result = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
 
@@ -1179,11 +1179,11 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.char() ;
-      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
+      sshCommandAsChar = sshCommand.char() ;
+      escapedSshCommandAsChar = escape_string_for_bash(sshCommandAsChar) ;
 
       % Generate the final command
-      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), srcFileWslPath, sprintf('ubuntu@%s:%s', ip, destFileRemotePath)} ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsChar), srcFileWslPath, sprintf('ubuntu@%s:%s', ip, destFileRemotePath)} ;
       cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
 
@@ -1212,11 +1212,11 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.char() ;
-      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
+      sshCommandAsChar = sshCommand.char() ;
+      escapedSshCommandAsChar = escape_string_for_bash(sshCommandAsChar) ;
 
       % Generate the final command
-      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), [srcWslPath '/'], sprintf('ubuntu@%s:%s', ip, destRemotePath)} ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsChar), [srcWslPath '/'], sprintf('ubuntu@%s:%s', ip, destRemotePath)} ;
       cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
@@ -1245,11 +1245,11 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.char() ;
-      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
+      sshCommandAsChar = sshCommand.char() ;
+      escapedSshCommandAsChar = escape_string_for_bash(sshCommandAsChar) ;
 
       % Generate the final command
-      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), sprintf('ubuntu@%s:%s/', ip, srcRemotePath), [destWslPath '/']} ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsChar), sprintf('ubuntu@%s:%s/', ip, srcRemotePath), [destWslPath '/']} ;
       cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
@@ -1373,9 +1373,9 @@ classdef AWSec2 < handle
       assert(mod(fspollargsCount,2)==0) ;  % has to be even
       responseCount = fspollargsCount/2 ;
       
-      fspollScriptPathAsCharray = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
+      fspollScriptPathAsChar = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
 
-      fspollScriptMetaPath = apt.MetaPath(fspollScriptPathAsCharray, apt.PathLocale.remote, apt.FileRole.source);
+      fspollScriptMetaPath = apt.MetaPath(fspollScriptPathAsChar, apt.PathLocale.remote, apt.FileRole.source);
       protoCommand = apt.ShellCommand({fspollScriptMetaPath}, apt.PathLocale.remote, apt.Platform.posix);
       command = protoCommand.cat(wsl_fspollargs) ;
 
@@ -1402,8 +1402,8 @@ classdef AWSec2 < handle
           % In spite of the method name, the paths are *native*.
         fspollargs = {};
         for i = 1:numel(idx),
-          nativePathAsCharray = dirModelChainLnx{i} ;
-          nativeMetaPath = apt.MetaPath(nativePathAsCharray, apt.PathLocale.native, apt.FileRole.cache);
+          nativePathAsChar = dirModelChainLnx{i} ;
+          nativeMetaPath = apt.MetaPath(nativePathAsChar, apt.PathLocale.native, apt.FileRole.cache);
           wsl_path = nativeMetaPath.asWsl().char() ;
           fspollargs = horzcat(fspollargs, {'mostrecentmodel', wsl_path} ) ;  %#ok<AGROW>
         end
