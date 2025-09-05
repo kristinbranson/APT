@@ -17,8 +17,8 @@ function testDockerBackendConfig_(obj, labeler)
     command = wrapCommandSSH(command,'host',obj.dockerremotehost);
   end
 
-  fprintf(1,'%s\n',command.toString());
-  obj.testText_{end+1,1} = command.toString(); 
+  fprintf(1,'%s\n',command.char());
+  obj.testText_{end+1,1} = command.char(); 
   labeler.notify('updateBackendTestText');
   [st,res] = command.run();
   reslines = splitlines(res);
@@ -74,7 +74,7 @@ function testDockerBackendConfig_(obj, labeler)
                           'containername','containerTest',...
                           'detach',false,...
                           'bindpath',{wsl_path_from_native(deepnetroot),wsl_path_from_native(homedir)});
-  obj.testText_{end+1,1} = command.toString();
+  obj.testText_{end+1,1} = command.char();
   labeler.notify('updateBackendTestText');
   RUNAPTHELLO = 1;
   if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use

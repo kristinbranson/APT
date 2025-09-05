@@ -15,7 +15,7 @@ function testBsubBackendConfig_(obj, labeler)
   obj.testText_{end+1,1} = sprintf('** Testing that host %s can be reached...\n',host); 
   labeler.notify('updateBackendTestText')
   pingCommand = apt.ShellCommand({'ping', '-c', '1', '-W', '10', host}, apt.PathLocale.wsl, apt.Platform.posix);
-  obj.testText_{end+1,1} = pingCommand.toString(); 
+  obj.testText_{end+1,1} = pingCommand.char(); 
   labeler.notify('updateBackendTestText');
   [status,result] = pingCommand.run();
   obj.testText_{end+1,1} = result; 
@@ -54,7 +54,7 @@ function testBsubBackendConfig_(obj, labeler)
                      apt.PathLocale.remote, apt.Platform.posix);
   timeout = 20;
   touchCommand = wrapCommandSSH(baseTouchCommand,'host',host,'timeout',timeout);
-  obj.testText_{end+1,1} = touchCommand.toString(); 
+  obj.testText_{end+1,1} = touchCommand.char(); 
   labeler.notify('updateBackendTestText');
   [status,result] = touchCommand.run();
   obj.testText_{end+1,1} = result; 
@@ -85,7 +85,7 @@ function testBsubBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
   baseBjobsCommand = apt.ShellCommand({'bjobs'}, apt.PathLocale.remote, apt.Platform.posix);
   bjobsCommand = wrapCommandSSH(baseBjobsCommand,'host',host);
-  obj.testText_{end+1,1} = bjobsCommand.toString(); labeler.notify('updateBackendTestText');
+  obj.testText_{end+1,1} = bjobsCommand.char(); labeler.notify('updateBackendTestText');
   [status,result] = bjobsCommand.run();
   obj.testText_{end+1,1} = result; labeler.notify('updateBackendTestText');
   if status ~= 0,

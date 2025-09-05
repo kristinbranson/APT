@@ -9,11 +9,11 @@ for platform = enumeration('apt.Platform')'
     correctNativePathAsList = {'', 'foo', 'bar', 'baz'} ;
   end
   nativePath = apt.Path(nativePathAsString, platform) ;
-  nativePathAsStringHopefully = nativePath.toString() ;
+  nativePathAsStringHopefully = nativePath.char() ;
   if ~strcmp(nativePathAsString, nativePathAsStringHopefully)
     fprintf('original: ''%s''\n', nativePathAsString) ;
     fprintf('convert:  ''%s''\n', nativePathAsStringHopefully) ;
-    error('Creating an apt.Path from a string and then using .toString() did not produce the same path') ;
+    error('Creating an apt.Path from a string and then using .char() did not produce the same path') ;
   end
   
   if ~isequal(nativePath.list, correctNativePathAsList)
@@ -25,7 +25,7 @@ for platform = enumeration('apt.Platform')'
   if ~isempty(emptyStringPath.list)
     error('Empty string should create empty path');
   end
-  if ~strcmp(emptyStringPath.toString(), '.')
+  if ~strcmp(emptyStringPath.char(), '.')
     error('Empty string path should display as "."');
   end
 
@@ -202,8 +202,8 @@ for platform = enumeration('apt.Platform')'
   if emptyPath1.tfIsAbsolute
     error('Empty path should be relative');
   end
-  if ~strcmp(emptyPath1.toString(), '.')
-    error('Empty path should display as "." but got: %s', emptyPath1.toString());
+  if ~strcmp(emptyPath1.char(), '.')
+    error('Empty path should display as "." but got: %s', emptyPath1.char());
   end
   
   % Test creating empty path with '.'
@@ -214,8 +214,8 @@ for platform = enumeration('apt.Platform')'
   if emptyPath2.tfIsAbsolute
     error('Empty path created with "." should be relative');
   end
-  if ~strcmp(emptyPath2.toString(), '.')
-    error('Empty path created with "." should display as "." but got: %s', emptyPath2.toString());
+  if ~strcmp(emptyPath2.char(), '.')
+    error('Empty path created with "." should display as "." but got: %s', emptyPath2.char());
   end
   if emptyPath2.platform ~= platform
     error('Empty path should preserve specified platform');
@@ -280,7 +280,7 @@ for platform = enumeration('apt.Platform')'
   if ~isempty(allDotsPath.list)
     error('Path consisting only of "." should become empty path');
   end
-  if ~strcmp(allDotsPath.toString(), '.')
+  if ~strcmp(allDotsPath.char(), '.')
     error('Path consisting only of "." should display as "."');
   end
   
@@ -315,7 +315,7 @@ for platform = enumeration('apt.Platform')'
   end
   
   % Test replacePrefix with string arguments
-  resultWithStrings = originalPath.replacePrefix(sourcePath.toString(), targetPath.toString());
+  resultWithStrings = originalPath.replacePrefix(sourcePath.char(), targetPath.char());
   if ~resultWithStrings.eq(expectedResult)
     error('replacePrefix should work with string arguments');
   end
@@ -337,9 +337,9 @@ end
 
 % Test root path toString()
 rootPath = apt.Path('/');
-rootPathStr = rootPath.toString();
+rootPathStr = rootPath.char();
 if ~strcmp(rootPathStr, '/')
-  error('apt.Path(''/'').toString() should return ''/'' but got: %s', rootPathStr);
+  error('apt.Path(''/'').char() should return ''/'' but got: %s', rootPathStr);
 end
 
 % Test toPosix() method

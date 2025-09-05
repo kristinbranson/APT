@@ -36,7 +36,7 @@ else
 end
 
 % At long last, convert the ShellCommand to a string
-commandAsString = command.toString() ;
+commandAsString = command.char() ;
 
 % Echo the command line
 if verbose ,

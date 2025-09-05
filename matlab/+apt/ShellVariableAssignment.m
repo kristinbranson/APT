@@ -21,9 +21,9 @@ classdef ShellVariableAssignment < apt.ShellToken
       obj.value_ = char(value);
     end
     
-    function result = toString(obj)
+    function result = char(obj)
       % Convert to string representation (IDENTIFIER=value)
-      result = sprintf('%s=%s', obj.identifier_, obj.value_.toString());
+      result = sprintf('%s=%s', obj.identifier_, obj.value_.char());
     end
     
     function result = tfDoesMatchLocale(obj, queryLocale)  %#ok<INUSD>
@@ -49,7 +49,7 @@ classdef ShellVariableAssignment < apt.ShellToken
     
     function disp(obj)
       % Display the ShellVariableAssignment object
-      fprintf('apt.ShellVariableAssignment: "%s"\n', obj.toString());
+      fprintf('apt.ShellVariableAssignment: "%s"\n', obj.char());
     end
   end
 end

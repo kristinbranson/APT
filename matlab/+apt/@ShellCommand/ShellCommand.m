@@ -14,7 +14,7 @@ classdef ShellCommand < apt.ShellToken
   %   movPath = apt.MetaPath({'data', 'movie.avi'}, 'native', 'movie');
   %   cmd = apt.ShellCommand({'python', 'script.py', '--input', movPath, '--output', 'results.txt'});
   %   wslCmd = cmd.as('wsl');
-  %   cmdStr = wslCmd.toString();
+  %   cmdStr = wslCmd.char();
 
   properties
     tokens_     % Cell array of tokens (strings and apt.MetaPath objects)
@@ -125,17 +125,17 @@ classdef ShellCommand < apt.ShellToken
       result = obj.platform_;
     end
 
-    function result = toString(obj)
-      % Convert command to string representation
+    function result = char(obj)
+      % Convert ShellCommand to char array
       %
       % Returns:
-      %   char: String representation of the command
+      %   char: Character array representation of the command
 
       % Define helper function
-      function result = toStringAndEscapeIfSubcommand(token)
+      function result = charAndEscapeIfSubcommand(token)
         % Convert the token to a string.  If the token is an apt.ShellCommand, escape
         % it and prepend with /bin/bash -c
-        draftString = token.toString() ;
+        draftString = token.char() ;
         if isa(token, 'apt.ShellCommand')
           if obj.platform_ == apt.Platform.windows
             result = escape_string_for_cmd_dot_exe(draftString) ;
@@ -151,24 +151,15 @@ classdef ShellCommand < apt.ShellToken
             result = escape_string_for_bash(draftString) ;
           end
         else
-          error('Internal error: Unhandled token type in ShellCommand.toString()') ;
+          error('Internal error: Unhandled token type in ShellCommand.char()') ;
         end
       end
 
       % Use helper function to convert each token to a string
-      stringFromTokenIndex = cellfun(@toStringAndEscapeIfSubcommand, obj.tokens_, 'UniformOutput', false) ;
+      stringFromTokenIndex = cellfun(@charAndEscapeIfSubcommand, obj.tokens_, 'UniformOutput', false) ;
 
       % Join the strings together, separated by spaces
       result = strjoin(stringFromTokenIndex, ' ');
-    end
-
-    function result = char(obj)
-      % Convert ShellCommand to char array (same as toString)
-      %
-      % Returns:
-      %   char: Character array representation of the command
-      
-      result = obj.toString();
     end
 
     function result = tfDoesMatchLocale(obj, queryLocale)
@@ -371,13 +362,13 @@ classdef ShellCommand < apt.ShellToken
       for i = 1:length(obj.tokens_)
         token = obj.tokens_{i};
         if isa(token, 'apt.MetaPath')
-          fprintf('  [%d] Path: %s [%s:%s]\n', i, token.toString(), ...
+          fprintf('  [%d] Path: %s [%s:%s]\n', i, token.char(), ...
             apt.PathLocale.toString(token.locale), apt.FileRole.toString(token.fileRole));
         else
           fprintf('  [%d] Literal: %s\n', i, char(token));
         end
       end
-      fprintf('  String: %s\n', obj.toString());
+      fprintf('  String: %s\n', obj.char());
     end
 
     function result = tokensEqual_(~, token1, token2)

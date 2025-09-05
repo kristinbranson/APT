@@ -5,8 +5,8 @@ path1 = apt.MetaPath(apt.Path('/data/input.txt'), 'native', 'movie');
 path2 = apt.MetaPath(apt.Path('/results/output.txt'), 'native', 'cache');
 cmd = apt.ShellCommand.cat('python', 'script.py', '--input', path1, '--output', path2);
 expectedStr = 'python script.py --input /data/input.txt --output /results/output.txt';
-if ~strcmp(cmd.toString(), expectedStr)
-  error('Mixed string and MetaPath concatenation failed. Expected: %s, Got: %s', expectedStr, cmd.toString());
+if ~strcmp(cmd.char(), expectedStr)
+  error('Mixed string and MetaPath concatenation failed. Expected: %s, Got: %s', expectedStr, cmd.char());
 end
 
 % Test concatenating two ShellCommand objects
@@ -14,15 +14,15 @@ cmd1 = apt.ShellCommand({'ls', '-la'});
 cmd2 = apt.ShellCommand({'grep', 'test'});
 combined = apt.ShellCommand.cat(cmd1, '|', cmd2);
 expectedStr2 = 'ls -la | grep test';
-if ~strcmp(combined.toString(), expectedStr2)
-  error('ShellCommand concatenation failed. Expected: %s, Got: %s', expectedStr2, combined.toString());
+if ~strcmp(combined.char(), expectedStr2)
+  error('ShellCommand concatenation failed. Expected: %s, Got: %s', expectedStr2, combined.char());
 end
 
 % Test concatenating only strings (should default to native locale)
 stringCmd = apt.ShellCommand.cat('echo', 'hello', 'world');
 expectedStr3 = 'echo hello world';
-if ~strcmp(stringCmd.toString(), expectedStr3)
-  error('String-only concatenation failed. Expected: %s, Got: %s', expectedStr3, stringCmd.toString());
+if ~strcmp(stringCmd.char(), expectedStr3)
+  error('String-only concatenation failed. Expected: %s, Got: %s', expectedStr3, stringCmd.char());
 end
 
 % Test empty argument handling
@@ -48,8 +48,8 @@ nativeCmd = apt.ShellCommand({'python', 'script.py'}, 'native');
 nativePath = apt.MetaPath(apt.Path('/data/file.txt'), 'native', 'movie');
 mixedCmd = apt.ShellCommand.cat(nativeCmd, '--input', nativePath);
 expectedStr4 = 'python script.py --input /data/file.txt';
-if ~strcmp(mixedCmd.toString(), expectedStr4)
-  error('Mixed ShellCommand and MetaPath concatenation failed. Expected: %s, Got: %s', expectedStr4, mixedCmd.toString());
+if ~strcmp(mixedCmd.char(), expectedStr4)
+  error('Mixed ShellCommand and MetaPath concatenation failed. Expected: %s, Got: %s', expectedStr4, mixedCmd.char());
 end
 
 % Test invalid argument type error
@@ -87,10 +87,10 @@ if ~isa(token1, 'apt.ShellToken') || ~isa(token2, 'apt.ShellToken') || ~isa(toke
   error('All tokens should inherit from ShellToken');
 end
 
-% Test polymorphic toString()
+% Test polymorphic char()
 expectedStr = 'hello world /data/file.txt';
-if ~strcmp(cmd.toString(), expectedStr)
-  error('Polymorphic toString failed. Expected: %s, Got: %s', expectedStr, cmd.toString());
+if ~strcmp(cmd.char(), expectedStr)
+  error('Polymorphic char failed. Expected: %s, Got: %s', expectedStr, cmd.char());
 end
 
 % Test isLiteral and isPath methods
@@ -117,7 +117,7 @@ end
 % Test that matching locales work fine
 nativePath2 = apt.MetaPath(apt.Path('/test2'), 'native', 'cache');
 cmd = apt.ShellCommand({'cmd', nativePath2}, 'native');
-if ~strcmp(cmd.toString(), 'cmd /test2')
+if ~strcmp(cmd.char(), 'cmd /test2')
   error('Matching locale command creation failed');
 end
 
@@ -130,8 +130,8 @@ end
 innerCmd = apt.ShellCommand({'echo', 'hello world'});
 outerCmd = apt.ShellCommand({'bash', '-c', innerCmd});
 expectedStr = 'bash -c ''echo hello world''';
-if ~strcmp(outerCmd.toString(), expectedStr)
-  error('Nested ShellCommand failed. Expected: %s, Got: %s', expectedStr, outerCmd.toString());
+if ~strcmp(outerCmd.char(), expectedStr)
+  error('Nested ShellCommand failed. Expected: %s, Got: %s', expectedStr, outerCmd.char());
 end
 
 % Test ShellCommand tfDoesMatchLocale
@@ -147,8 +147,8 @@ end
 baseCmd = apt.ShellCommand({'echo', 'test'});
 nestedCmd = apt.ShellCommand({'/bin/bash', '-c', baseCmd});
 expectedStr = '/bin/bash -c ''echo test''';
-if ~strcmp(nestedCmd.toString(), expectedStr)
-  error('Singleton ShellCommand failed. Expected: %s, Got: %s', expectedStr, nestedCmd.toString());
+if ~strcmp(nestedCmd.char(), expectedStr)
+  error('Singleton ShellCommand failed. Expected: %s, Got: %s', expectedStr, nestedCmd.char());
 end
 
 % Verify singleton has correct token count
@@ -161,7 +161,7 @@ token = nestedCmd.getToken(3);
 if ~isa(token, 'apt.ShellCommand')
   error('Nested command third token should be a ShellCommand');
 end
-if ~strcmp(token.toString(), 'echo test')
+if ~strcmp(token.char(), 'echo test')
   error('Singleton token content incorrect');
 end
 

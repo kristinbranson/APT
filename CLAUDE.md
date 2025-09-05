@@ -16,6 +16,8 @@
 - The "end" keyword at the end of a function should be followed by the comment "% function".  Same for end of a methods block and a classdef block.
 - Individual lines should not be longer than 160 characters.
 - switch statements that check for multiple enumerated cases should enumerate all the handled cases explicitly, and throw an error in the "otherwise:" clause.  This makes it easier to find inappropriately-handled cases when testing.
+- Classes should implement a char() method for producing a char array ("string") version of the object.
+- Sometimes I use the the term "charray" to mean "char array".
 
 
 

@@ -28,9 +28,9 @@ classdef ShellBind < apt.ShellToken
       obj.destPath_ = destPath;
     end
     
-    function result = toString(obj)
+    function result = char(obj)
       % Convert to string representation (type=bind,src=...,dst=...)
-      result = sprintf('type=bind,src=%s,dst=%s', obj.sourcePath_.toString(), obj.destPath_.toString());
+      result = sprintf('type=bind,src=%s,dst=%s', obj.sourcePath_.char(), obj.destPath_.char());
     end
     
     function result = tfDoesMatchLocale(obj, queryLocale)
@@ -58,7 +58,7 @@ classdef ShellBind < apt.ShellToken
     
     function disp(obj)
       % Display the ShellBind object
-      fprintf('apt.ShellBind: "%s"\n', obj.toString());
+      fprintf('apt.ShellBind: "%s"\n', obj.char());
     end
   end
 end

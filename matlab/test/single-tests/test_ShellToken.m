@@ -2,18 +2,18 @@ function test_ShellToken()
 
 % Test ShellLiteral constructor and basic functionality
 lit1 = apt.ShellLiteral('hello');
-if ~strcmp(lit1.toString(), 'hello')
+if ~strcmp(lit1.char(), 'hello')
   error('ShellLiteral toString failed');
 end
 
 lit2 = apt.ShellLiteral("world");  % Test string input
-if ~strcmp(lit2.toString(), 'world')
+if ~strcmp(lit2.char(), 'world')
   error('ShellLiteral string input failed');
 end
 
 % Test empty constructor
 emptyLit = apt.ShellLiteral();
-if ~strcmp(emptyLit.toString(), '')
+if ~strcmp(emptyLit.char(), '')
   error('Empty ShellLiteral constructor failed');
 end
 

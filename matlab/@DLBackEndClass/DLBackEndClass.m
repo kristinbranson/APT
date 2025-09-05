@@ -616,7 +616,7 @@ classdef DLBackEndClass < handle
       for i = 1:numel(syscmds),
         syscmd = syscmds{i} ;
         cmdfile = cmdfiles{i} ;
-        syscmdWithNewline = sprintf('%s\n', syscmd.toString()) ;
+        syscmdWithNewline = sprintf('%s\n', syscmd.char()) ;
         try 
           obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
           didSucceed = true ;
@@ -774,7 +774,7 @@ classdef DLBackEndClass < handle
       else
         % Local filesystem - convert to native string
         nativeMetaPath = filePath.asNative();
-        fo = file_object(nativeMetaPath.toString(), 'w');
+        fo = file_object(nativeMetaPath.char(), 'w');
         fo.fprintf('%s', str);
       end
     end  % function
@@ -1056,7 +1056,7 @@ classdef DLBackEndClass < handle
       jobidFromJobIndex = cell(0,1) ;  % We only add jobids to this once they have successfully been spawned.
       for jobIndex = 1:jobCount ,
         syscmd = syscmds{jobIndex} ;
-        fprintf('%s\n',syscmd.toString());
+        fprintf('%s\n',syscmd.char());
         if do_call_apt_interface_dot_py ,
           [rc,stdouterr] = syscmd.run('failbehavior', 'silent');
           didSpawn = (rc == 0) ;          

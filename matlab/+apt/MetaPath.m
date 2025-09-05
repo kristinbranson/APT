@@ -91,9 +91,9 @@ classdef MetaPath < apt.ShellToken
       result = obj.path_.platform;
     end
 
-    function result = toString(obj)
+    function result = char(obj)
       % Get the path as a string
-      result = obj.path_.toString();
+      result = obj.path_.char();
     end
 
     function result = tfDoesMatchLocale(obj, queryLocale)
@@ -245,7 +245,7 @@ classdef MetaPath < apt.ShellToken
 
     function disp(obj)
       % Display the apt.MetaPath object
-      pathStr = obj.toString();
+      pathStr = obj.char();
       fprintf('apt.MetaPath: %s [%s:%s:%s]\n', ...
               pathStr, ...
               apt.PathLocale.toString(obj.locale_), ...

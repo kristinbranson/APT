@@ -8,7 +8,7 @@ classdef (Abstract) ShellToken
   % - apt.ShellCommand: A nested shell command
   
   methods (Abstract)
-    result = toString(obj)
+    result = char(obj)
     % Convert token to string representation
     
     result = tfDoesMatchLocale(obj, queryLocale)

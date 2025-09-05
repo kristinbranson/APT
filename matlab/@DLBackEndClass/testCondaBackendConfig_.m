@@ -24,11 +24,11 @@ function testCondaBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
   conda_executable_path = find_conda_executable();
   condaCommand = apt.ShellCommand({conda_executable_path, '-V'}, apt.PathLocale.wsl, apt.Platform.posix);
-  obj.testText_{end+1,1} = condaCommand.toString(); 
+  obj.testText_{end+1,1} = condaCommand.char(); 
   labeler.notify('updateBackendTestText');
   [st,~] = condaCommand.run();
   if st~=0
-    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',condaCommand.toString()); 
+    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have installed conda and added it to your PATH.',condaCommand.char()); 
     labeler.notify('updateBackendTestText');
     return;
   end
@@ -43,11 +43,11 @@ function testCondaBackendConfig_(obj, labeler)
 
   rawCmd = apt.ShellCommand({'echo', '"Hello, world!"'}, apt.PathLocale.wsl, apt.Platform.posix);
   command = wrapCommandConda(rawCmd, 'condaEnv', obj.condaEnv);
-  obj.testText_{end+1,1} = command.toString(); 
+  obj.testText_{end+1,1} = command.char(); 
   labeler.notify('updateBackendTestText');
   [st,~] = command.run();
   if st~=0
-    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment %s',command.toString(), obj.condaEnv); 
+    obj.testText_{end+1,1} = sprintf('FAILURE. Error with ''%s''. Make sure you have created the conda environment %s',command.char(), obj.condaEnv); 
     labeler.notify('updateBackendTestText');
     return
   end

@@ -5,7 +5,7 @@ classdef Path
   %
   % Example usage:
   %   p = apt.Path({'C:', 'data', 'movie.avi'});
-  %   pathStr = p.toString();
+  %   pathStr = p.char();
 
   properties
     list_        % Cell array of path components
@@ -120,7 +120,7 @@ classdef Path
       result = obj.tfIsAbsolute_;
     end
 
-    function result = toString(obj)
+    function result = char(obj)
       % Get the path as a string
       result = apt.Path.listToString_(obj.list_, obj.platform_);
     end
@@ -428,7 +428,7 @@ classdef Path
 
     function disp(obj)
       % Display the apt.Path object
-      pathStr = obj.toString();
+      pathStr = obj.char();
       if obj.tfIsAbsolute_
         absoluteStr = 'abs';
       else

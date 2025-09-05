@@ -4,10 +4,10 @@ function test_MetaPath()
 pathObj = apt.Path('/test/path', apt.Platform.posix);
 metaPath = apt.MetaPath(pathObj, apt.PathLocale.native, apt.FileRole.movie);
 
-% Test toString works
-pathStr = metaPath.toString();
+% Test char works
+pathStr = metaPath.char();
 if ~strcmp(pathStr, '/test/path')
-  error('MetaPath toString failed. Expected: /test/path, Got: %s', pathStr);
+  error('MetaPath char failed. Expected: /test/path, Got: %s', pathStr);
 end
 
 % Test property accessors

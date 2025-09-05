@@ -941,7 +941,7 @@ classdef AWSec2 < handle
         end
       else
         command0 = apt.ShellCommand({'which', 'ssh'}, apt.PathLocale.wsl, apt.Platform.posix);
-        backend.testText_{end+1,1} = command0.toString(); 
+        backend.testText_{end+1,1} = command0.char(); 
         labeler.notify('updateBackendTestText');
         [status,result] = command0.run();
         backend.testText_{end+1,1} = result; 
@@ -957,7 +957,7 @@ classdef AWSec2 < handle
       backend.testText_{end+1,1} = sprintf('\n** Testing that md5sum is installed...\n'); 
       labeler.notify('updateBackendTestText');
       command1 = apt.ShellCommand({'which', 'md5sum'}, apt.PathLocale.wsl, apt.Platform.posix);
-      backend.testText_{end+1,1} = command1.toString(); 
+      backend.testText_{end+1,1} = command1.char(); 
       labeler.notify('updateBackendTestText');
       [status,result] = command1.run();
       backend.testText_{end+1,1} = result; 
@@ -972,7 +972,7 @@ classdef AWSec2 < handle
       backend.testText_{end+1,1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
       labeler.notify('updateBackendTestText');
       command2 = apt.ShellCommand({'aws', 'ec2', 'describe-regions', '--output', 'table'}, apt.PathLocale.wsl, apt.Platform.posix);
-      backend.testText_{end+1,1} = command2.toString(); 
+      backend.testText_{end+1,1} = command2.char(); 
       labeler.notify('updateBackendTestText');
       [status,result] = command2.run();
       tfsucc = (status==0);      
@@ -988,7 +988,7 @@ classdef AWSec2 < handle
       backend.testText_{end+1,1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
       labeler.notify('updateBackendTestText');
       command3 = apt.ShellCommand({'aws', 'ec2', 'describe-security-groups'}, apt.PathLocale.wsl, apt.Platform.posix);
-      backend.testText_{end+1,1} = command3.toString(); 
+      backend.testText_{end+1,1} = command3.char(); 
       labeler.notify('updateBackendTestText');
       [status,result] = command3.run('isjsonout', true);
       tfsucc = (status==0);
@@ -1147,7 +1147,7 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.toString() ;
+      sshCommandAsCharray = sshCommand.char() ;
       escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
@@ -1179,7 +1179,7 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.toString() ;
+      sshCommandAsCharray = sshCommand.char() ;
       escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
@@ -1212,7 +1212,7 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.toString() ;
+      sshCommandAsCharray = sshCommand.char() ;
       escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
@@ -1245,7 +1245,7 @@ classdef AWSec2 < handle
       sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      sshCommandAsCharray = sshCommand.toString() ;
+      sshCommandAsCharray = sshCommand.char() ;
       escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
@@ -1344,9 +1344,9 @@ classdef AWSec2 < handle
         for ivw=1:numel(wslLocalTrackFileMetaPaths)
           remoteTrackFileMetaPath = remoteTrackFileMetaPaths{ivw};
           wslLocalTrackFileMetaPath = wslLocalTrackFileMetaPaths{ivw};
-          fprintf('Trying to download %s to %s...\n',remoteTrackFileMetaPath.toString(),wslLocalTrackFileMetaPath.toString());
+          fprintf('Trying to download %s to %s...\n',remoteTrackFileMetaPath.char(),wslLocalTrackFileMetaPath.char());
           obj.rsyncDownloadFile(remoteTrackFileMetaPath, wslLocalTrackFileMetaPath) ;
-          fprintf('Done downloading %s to %s.\n',remoteTrackFileMetaPath.toString(),wslLocalTrackFileMetaPath.toString());
+          fprintf('Done downloading %s to %s.\n',remoteTrackFileMetaPath.char(),wslLocalTrackFileMetaPath.char());
         end
       else
         error('Tracking complete, but one or move movies has been changed in current project.') ;
@@ -1404,7 +1404,7 @@ classdef AWSec2 < handle
         for i = 1:numel(idx),
           nativePathAsCharray = dirModelChainLnx{i} ;
           nativeMetaPath = apt.MetaPath(nativePathAsCharray, apt.PathLocale.native, apt.FileRole.cache);
-          wsl_path = nativeMetaPath.asWsl().toString() ;
+          wsl_path = nativeMetaPath.asWsl().char() ;
           fspollargs = horzcat(fspollargs, {'mostrecentmodel', wsl_path} ) ;  %#ok<AGROW>
         end
         [tfsucc, res] = obj.batchPoll(fspollargs) ;
@@ -1699,7 +1699,7 @@ classdef AWSec2 < handle
       % Does the APT source root dir exist?
       native_apt_root = APT.Root ;  % native path
       nativeAptRootMetaPath = apt.MetaPath(native_apt_root, apt.PathLocale.native, apt.FileRole.source);
-      wsl_apt_root = nativeAptRootMetaPath.asWsl().toString() ;
+      wsl_apt_root = nativeAptRootMetaPath.asWsl().char() ;
       remote_apt_root = obj.remotePathFromWsl_(wsl_apt_root) ;  % remote path
       
       % Create folder if needed
@@ -1939,7 +1939,7 @@ classdef AWSec2 < handle
               return;
             end
           end
-          error('Movie path %s not found in wslPathFromMovieIndex', inputWslMetaPath.toString());
+          error('Movie path %s not found in wslPathFromMovieIndex', inputWslMetaPath.char());
           
         case apt.FileRole.source
           nativeAptRoot = apt.MetaPath(APT.Root, apt.PathLocale.native, apt.FileRole.source);
@@ -1952,10 +1952,10 @@ classdef AWSec2 < handle
           result = inputWslMetaPath.replacePrefix(wslHomePath, AWSec2.remoteHomeDir);
           
         case apt.FileRole.immovable
-          error('Cannot convert immovable path %s from WSL to remote - immovable paths must stay in their original locale', inputWslMetaPath.toString());
+          error('Cannot convert immovable path %s from WSL to remote - immovable paths must stay in their original locale', inputWslMetaPath.char());
           
         case apt.FileRole.local
-          error('Cannot convert local path %s from WSL to remote - local paths exist only locally', inputWslMetaPath.toString());
+          error('Cannot convert local path %s from WSL to remote - local paths exist only locally', inputWslMetaPath.char());
           
         case apt.FileRole.universal
           result = apt.MetaPath(inputWslMetaPath.path, apt.PathLocale.remote, apt.FileRole.universal);

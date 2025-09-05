@@ -22,7 +22,7 @@ classdef ShellLiteral < apt.ShellToken
       obj.value_ = char(value);
     end
     
-    function result = toString(obj)
+    function result = char(obj)
       % Convert to string representation
       result = obj.value_;
     end
