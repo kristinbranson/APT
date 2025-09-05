@@ -24,8 +24,6 @@ classdef AWSec2 < handle
     remoteMovieCacheDir = linux_fullfile(AWSec2.remoteHomeDir, 'movies')
     remoteAPTSourceRootDir = linux_fullfile(AWSec2.remoteHomeDir, 'APT')
     remoteTorchHomeDir = linux_fullfile(AWSec2.remoteHomeDir, 'torch')
-    % scpCmd = AWSec2.computeScpCmd()
-    rsyncCmd = AWSec2.computeRsyncCmd()
     instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
   end
   
@@ -404,23 +402,23 @@ classdef AWSec2 < handle
       dimstr = sprintf('"Name=InstanceId,Value=%s"',instanceID);
       arnstr = sprintf('arn:aws:automate:%s:ec2:stop',regioncode);
       
-      code = {...
-        'aws' 'cloudwatch' 'put-metric-alarm' ...
-        '--alarm-name' namestr ...
-        '--alarm-description' descstr ...
-        '--metric-name' 'CPUUtilization' ...
-        '--namespace' 'AWS/EC2' ...
-        '--statistic' 'Average' ...
-        '--period' num2str(periodsec) ...
-        '--threshold' num2str(threshpct) ...
-        '--comparison-operator' 'LessThanThreshold' ...
-        '--dimensions' dimstr ...
-        '--evaluation-periods' num2str(evalperiods) ...
-        '--alarm-actions' arnstr ...
-        '--unit' 'Percent' ...
-        '--treat-missing-data' 'notBreaching' ...
+      tokens = {...
+        'aws', 'cloudwatch', 'put-metric-alarm', ...
+        '--alarm-name', namestr, ...
+        '--alarm-description', descstr, ...
+        '--metric-name', 'CPUUtilization', ...
+        '--namespace', 'AWS/EC2', ...
+        '--statistic', 'Average', ...
+        '--period', num2str(periodsec), ...
+        '--threshold', num2str(threshpct), ...
+        '--comparison-operator', 'LessThanThreshold', ...
+        '--dimensions', dimstr, ...
+        '--evaluation-periods', num2str(evalperiods), ...
+        '--alarm-actions', arnstr, ...
+        '--unit', 'Percent', ...
+        '--treat-missing-data', 'notBreaching' ...
         };
-      codestr = String.cellstr2DelimList(code,' ');      
+      codestr = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;      
     end
     
     function [tfsucc,isalarm,reason] = checkShutdownAlarm(obj)
@@ -835,7 +833,7 @@ classdef AWSec2 < handle
         myparse(varargin, ...
                 'dopathsubs', true) ;
       if dopathsubs
-        remote_command = obj.applyFilePathSubstitutions_(input_command) ;
+        remote_command = obj.applyFilePathSubstitutionsToCommand_(input_command) ;
       else
         remote_command = input_command ;
       end
@@ -846,9 +844,12 @@ classdef AWSec2 < handle
                               'identity', obj.pem) ;
     end  % function
 
-    function [st,res] = runBatchCommandOutsideContainer(obj, cmdremote, varargin)      
+    function [st,res] = runBatchCommandOutsideContainer(obj, baseCommand, varargin)      
       % Runs a single command-line command on the ec2 instance.
       % Performs WSL-> remote path substition.
+
+      % Validate input
+      assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand');
 
       % Determine whether obj.wrapCommandSSH should do WSL->remote path
       % substitutions
@@ -858,17 +859,18 @@ classdef AWSec2 < handle
                         'dopathsubs', true) ;
 
       % Wrap for ssh'ing into an AWS instance
-      cmd1 = obj.wrapCommandSSH(cmdremote, 'dopathsubs', dopathsubs) ;  % uses fields of obj to set parameters for ssh command
+      command1 = obj.wrapCommandSSH(baseCommand, 'dopathsubs', dopathsubs) ;  % uses fields of obj to set parameters for ssh command
     
       % Need to prepend a sleep to avoid problems
-      precommand = 'sleep 5 && export AWS_PAGER=' ;
+      precommandTokens = {'sleep', '5', '&&', 'export', apt.ShellVariableAssignment('AWS_PAGER', '')} ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
-      command = sprintf('%s && %s', precommand, cmd1) ;
+      precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.remote, apt.Platform.posix) ;
+      command2 = precommand.cat('&&', command1) ;
 
       % Issue the command, gather results
-      [st, res] = apt.syscmd(command, 'failbehavior', 'silent', 'verbose', false, restOfVarargin{:}) ;      
+      [st, res] = command2.run('failbehavior', 'silent', 'verbose', false, restOfVarargin{:}) ;      
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -891,7 +893,7 @@ classdef AWSec2 < handle
       end
     end  % function
 
-    function testBackendConfig(obj, backend, labeler)  %#ok<INUSD>
+    function tfsucc = testBackendConfig(obj, backend, labeler)  %#ok<INUSD>
       % Test the AWS backend
       
       backend.testText_ = {sprintf('%s: Testing AWS backend...',datestr(now()))};  %#ok<TNOW1,DATST>
@@ -913,10 +915,10 @@ classdef AWSec2 < handle
           return;
         end
       else
-        cmd = 'which ssh';
-        backend.testText_{end+1,1} = cmd; 
+        command0 = apt.ShellCommand({'which', 'ssh'}, apt.PathLocale.wsl, apt.Platform.posix);
+        backend.testText_{end+1,1} = command0.toString(); 
         labeler.notify('updateBackendTestText');
-        [status,result] = apt.syscmd(cmd);
+        [status,result] = command0.run();
         backend.testText_{end+1,1} = result; 
         labeler.notify('updateBackendTestText');
         if status ~= 0,
@@ -929,10 +931,10 @@ classdef AWSec2 < handle
       % Test that md5sum is installed
       backend.testText_{end+1,1} = sprintf('\n** Testing that md5sum is installed...\n'); 
       labeler.notify('updateBackendTestText');
-      cmd = 'which md5sum';
-      backend.testText_{end+1,1} = cmd; 
+      command1 = apt.ShellCommand({'which', 'md5sum'}, apt.PathLocale.wsl, apt.Platform.posix);
+      backend.testText_{end+1,1} = command1.toString(); 
       labeler.notify('updateBackendTestText');
-      [status,result] = apt.syscmd(cmd);
+      [status,result] = command1.run();
       backend.testText_{end+1,1} = result; 
       labeler.notify('updateBackendTestText');
       if status ~= 0,
@@ -944,10 +946,10 @@ classdef AWSec2 < handle
       % test that AWS CLI is installed
       backend.testText_{end+1,1} = sprintf('\n** Testing that AWS CLI is installed...\n'); 
       labeler.notify('updateBackendTestText');
-      cmd = 'aws ec2 describe-regions --output table';
-      backend.testText_{end+1,1} = cmd; 
+      command2 = apt.ShellCommand({'aws', 'ec2', 'describe-regions', '--output', 'table'}, apt.PathLocale.wsl, apt.Platform.posix);
+      backend.testText_{end+1,1} = command2.toString(); 
       labeler.notify('updateBackendTestText');
-      [status,result] = AWSec2.syscmd(cmd);
+      [status,result] = command2.run();
       tfsucc = (status==0);      
       backend.testText_{end+1,1} = result; 
       labeler.notify('updateBackendTestText');
@@ -960,10 +962,10 @@ classdef AWSec2 < handle
       % test that apt_dl security group has been created
       backend.testText_{end+1,1} = sprintf('\n** Testing that apt_dl security group has been created...\n'); 
       labeler.notify('updateBackendTestText');
-      cmd = 'aws ec2 describe-security-groups';
-      backend.testText_{end+1,1} = cmd; 
+      command3 = apt.ShellCommand({'aws', 'ec2', 'describe-security-groups'}, apt.PathLocale.wsl, apt.Platform.posix);
+      backend.testText_{end+1,1} = command3.toString(); 
       labeler.notify('updateBackendTestText');
-      [status,result] = AWSec2.syscmd(cmd,'isjsonout',true);
+      [status,result] = command3.run('isjsonout', true);
       tfsucc = (status==0);
       if status == 0,
         try
@@ -999,26 +1001,26 @@ classdef AWSec2 < handle
   methods (Static)
     
     function cmd = launchInstanceCmd(keyName, varargin)
-      [ami,instType,dryrun] = myparse(varargin,...
-        'ami',AWSec2.AMI,...
-        'instType',AWSec2.instanceType,...
-        'dryrun',false);
+      [ami,instType,dryrun] = ...
+        myparse(varargin,...
+                'ami',AWSec2.AMI,...
+                'instType',AWSec2.instanceType,...
+                'dryrun',false);
       date_and_time_string = char(datetime('now','TimeZone','local','Format','yyyy-MM-dd-HH-mm-ss')) ;
       name = sprintf('apt-to-the-porpoise-%s', date_and_time_string) ;
       tag_specifications = sprintf('ResourceType=instance,Tags=[{Key=Name,Value=%s}]', name) ;
-      escaped_tag_specifications = escape_string_for_bash(tag_specifications) ;
       block_device_mapping = '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":800,"DeleteOnTermination":true,"VolumeType":"gp3"}}]' ;
-      escaped_block_device_mapping = escape_string_for_bash(block_device_mapping) ;
-      cmd_template = ...
-        strcatg('aws ec2 run-instances --image-id %s --count 1 --instance-type %s --security-groups %s ', ...
-                '--tag-specifications %s --block-device-mappings %s') ;
-      cmd = sprintf(cmd_template, ami, instType, secGrp, escaped_tag_specifications, escaped_block_device_mapping) ;
-      if dryrun,
-        cmd = strcatg(cmd,' --dry-run') ;
+      
+      tokens = {'aws', 'ec2', 'run-instances', '--image-id', ami, '--count', '1', ...
+                '--instance-type', instType, '--security-groups', secGrp, ...
+                '--tag-specifications', tag_specifications, '--block-device-mappings', block_device_mapping} ;
+      if dryrun
+        tokens{end+1} = '--dry-run' ;
       end
-      if ~isempty(keyName),
-        cmd = strcatg(cmd, ' --key-name ', keyName) ;
+      if ~isempty(keyName)
+        tokens = [tokens, {'--key-name', keyName}] ;
       end
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end  % function
     
     function cmd = listInstancesCmd(keyName,varargin)      
@@ -1028,69 +1030,74 @@ classdef AWSec2 < handle
                 'instType','p3.2xlarge',...
                 'dryrun',false);
       
-      cmd = sprintf('aws ec2 describe-instances --filters "Name=image-id,Values=%s" "Name=key-name,Values=%s"', ...
-                    ami,keyName);
+      tokens = {'aws', 'ec2', 'describe-instances', '--filters', ...
+                sprintf('Name=image-id,Values=%s', ami), ...
+                sprintf('Name=key-name,Values=%s', keyName)} ;
       if ~isempty(instType)
-        cmd = [cmd sprintf(' "Name=instance-type,Values=%s"',instType)];
+        tokens{end+1} = sprintf('Name=instance-type,Values=%s', instType) ;
       end
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
     function cmd = describeInstancesCmd(ec2id)
-      cmd = sprintf('aws ec2 describe-instances --instance-ids %s',ec2id);
+      tokens = {'aws', 'ec2', 'describe-instances', '--instance-ids', ec2id} ;
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
     function cmd = stopInstanceCmd(ec2id)
-      cmd = sprintf('aws ec2 stop-instances --instance-ids %s',ec2id);
+      tokens = {'aws', 'ec2', 'stop-instances', '--instance-ids', ec2id} ;
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
 
     function cmd = startInstanceCmd(ec2id)
-      cmd = sprintf('aws ec2 start-instances --instance-ids %s',ec2id);
+      tokens = {'aws', 'ec2', 'start-instances', '--instance-ids', ec2id} ;
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
-    function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
-      destRelative = myparse(varargin,...
-                             'destRelative',true);
-      if destRelative
-        dest = linux_fullfile('~',dest);
-      end
-      parentdir = fileparts(dest);
-      cmdremote = sprintf('mkdir -p %s',parentdir);
-      cmd = wrapCommandSSH(cmdremote, ...
-                           'host', ip, ...
-                           'timeout',8, ...
-                           'username', 'ubuntu', ...
-                           'identity', pem) ;      
-    end
+    % function cmd = scpPrepareUploadCmd(pem,ip,dest,varargin)
+    %   destRelative = myparse(varargin,...
+    %                          'destRelative',true);
+    %   if destRelative
+    %     dest = linux_fullfile('~',dest);
+    %   end
+    %   parentdir = fileparts(dest);
+    %   remoteCommand = apt.ShellCommand({'mkdir', '-p', parentdir}, apt.PathLocale.remote, apt.Platform.posix) ;
+    %   cmd = wrapCommandSSH(remoteCommand, ...
+    %                        'host', ip, ...
+    %                        'timeout',8, ...
+    %                        'username', 'ubuntu', ...
+    %                        'identity', pem) ;      
+    % end
     
-    function cmd = scpUploadCmd(file,pem,ip,dest,varargin)
-      [destRelative,scpcmd] = myparse(varargin,...
-                                      'destRelative',true,...
-                                      'scpcmd','scp');
-      if destRelative
-        dest = ['~/' dest];
-      end
-      if ispc() 
-        [fileP,fileF,fileE] = fileparts(file);
-        % 20190501. scp on windows is dumb and treats colons ':' as a
-        % host specifier etc. there may not be a good way to escape; 
-        % googling says use pscp or other scp impls. 
-        
-        fileP = regexprep(fileP,'/','\\');
-        fileF = regexprep(fileF,'/','\\');
-        cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
-          pem,['.\' fileF fileE],ip,dest); % fileP here can contain a space and pushd will do the right thing!
-      else
-        cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,dest);
-      end
-    end
+    % function cmd = scpUploadCmd(file,pem,ip,destAsCharray,varargin)
+    %   [destRelative,scpcmd] = myparse(varargin,...
+    %                                   'destRelative',true,...
+    %                                   'scpcmd','/usr/bin/scp');
+    %   if destRelative
+    %     destAsCharray = ['~/' destAsCharray];
+    %   end
+    %   if ispc() 
+    %     [fileP,fileF,fileE] = fileparts(file);
+    %     % 20190501. scp on windows is dumb and treats colons ':' as a
+    %     % host specifier etc. there may not be a good way to escape; 
+    %     % googling says use pscp or other scp impls. 
+    % 
+    %     fileP = regexprep(fileP,'/','\\');
+    %     fileF = regexprep(fileF,'/','\\');
+    %     cmd = sprintf('pushd %s && %s -i %s %s ubuntu@%s:%s',fileP,scpcmd,...
+    %       pem,['.\' fileF fileE],ip,destAsCharray); % fileP here can contain a space and pushd will do the right thing!
+    %   else
+    %     cmd = sprintf('%s -i %s %s ubuntu@%s:%s',scpcmd,pem,file,ip,destAsCharray);
+    %   end
+    % end
 
-    function cmd = scpDownloadCmd(pem, ip, srcAbs, dstAbs, varargin)
-      scpcmd = myparse(varargin,...
-                       'scpcmd', 'scp') ;
-      cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
-    end
+    % function cmd = scpDownloadCmd(pem, ip, srcAbs, dstAbs, varargin)
+    %   scpcmd = myparse(varargin,...
+    %                    'scpcmd', 'scp') ;
+    %   cmd = sprintf('%s -i %s -r ubuntu@%s:"%s" "%s"',scpcmd,pem,ip,srcAbs,dstAbs);
+    % end
 
-    function cmd = rsyncDownloadFileCmd(pemFilePath, ip, srcFileRemotePath, destFileWslPath)
+    function result = rsyncDownloadFileCmd(pemFilePath, ip, srcFileRemotePath, destFileWslPath)
       % Generate the system() command to download a file via rsync.
 
       % It's important that neither src nor dest have a trailing slash
@@ -1111,13 +1118,16 @@ classdef AWSec2 < handle
 
       % Generate the --rsh argument
       %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
-      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+      sshCommandAsCharray = sshCommand.toString() ;
+      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s %s', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcFileRemotePath, destFileWslPath) ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), sprintf('ubuntu@%s:%s', ip, srcFileRemotePath), destFileWslPath} ;
+      result = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
 
     function cmd = rsyncUploadFileCmd(srcFileWslPath, pemFilePath, ip, destFileRemotePath)
@@ -1140,13 +1150,16 @@ classdef AWSec2 < handle
       end
 
       % Generate the --rsh argument
-      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+      sshCommandAsCharray = sshCommand.toString() ;
+      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s %s ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcFileWslPath, ip, destFileRemotePath) ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), srcFileWslPath, sprintf('ubuntu@%s:%s', ip, destFileRemotePath)} ;
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
 
     function cmd = rsyncUploadFolderCmd(srcWslPath, pemFilePath, ip, destRemotePath)
@@ -1170,13 +1183,16 @@ classdef AWSec2 < handle
 
       % Generate the --rsh argument
       %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
-      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+      sshCommandAsCharray = sshCommand.toString() ;
+      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s %s/ ubuntu@%s:%s', AWSec2.rsyncCmd, escaped_sshcmd, srcWslPath, ip, destRemotePath) ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), [srcWslPath '/'], sprintf('ubuntu@%s:%s', ip, destRemotePath)} ;
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
     function cmd = rsyncDownloadFolderCmd(srcRemotePath, pemFilePath, ip, destWslPath)
@@ -1200,13 +1216,16 @@ classdef AWSec2 < handle
 
       % Generate the --rsh argument
       %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
-      sshcmd = wrapCommandSSH('', 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
-      escaped_sshcmd = escape_string_for_bash(sshcmd) ;
+      sshCommandAsCharray = sshCommand.toString() ;
+      escapedSshCommandAsCharray = escape_string_for_bash(sshCommandAsCharray) ;
 
       % Generate the final command
-      cmd = sprintf('%s --rsh=%s ubuntu@%s:%s/ %s/', AWSec2.rsyncCmd, escaped_sshcmd, ip, srcRemotePath, destWslPath) ;
+      tokens = {'/usr/bin/rsync', '-az', sprintf('--rsh=%s', escapedSshCommandAsCharray), sprintf('ubuntu@%s:%s/', ip, srcRemotePath), [destWslPath '/']} ;
+      cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end
     
 %     function cmd = sshCmdGeneral(sshcmd, pem, ip, cmdremote, varargin)
@@ -1237,20 +1256,19 @@ classdef AWSec2 < handle
 %       end
 %     end
     
-    function result = computeRsyncCmd()
-      if ispc()  %#ok<IFBDUP>
-        result = 'rsync -az' ;
-      else
-        result = 'rsync -az' ;
-      end
-    end
-    
-    function [st,res,warningstr] = syscmd(cmd0, varargin)      
-      cmd = sprintf('sleep 5 && export AWS_PAGER= && %s', cmd0) ;
+    function [st,res,warningstr] = syscmd(command0, varargin)      
+      % Validate input
+      assert(isa(command0, 'apt.ShellCommand'), 'command0 must be an apt.ShellCommand');
+      
+      % Create precommand with sleep and AWS_PAGER setup
+      precommandTokens = {'sleep', '5', '&&', 'export', apt.ShellVariableAssignment('AWS_PAGER', '')} ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
-      [st,res,warningstr] = apt.syscmd(cmd, varargin{:}) ;
+      precommand = apt.ShellCommand(precommandTokens, command0.locale_, command0.platform_) ;
+      command1 = precommand.cat('&&', command0) ;
+      
+      [st,res,warningstr] = command1.run(varargin{:}) ;
     end  % function    
   end  % Static methods block
   
@@ -1752,83 +1770,183 @@ classdef AWSec2 < handle
       
       if iscell(wsl_path_or_paths) ,
         wsl_paths = wsl_path_or_paths ;
-        result = cellfun(@(wsl_path)(obj.applyFilePathSubstitutions_(wsl_path)), wsl_paths) ;
+        result = cellfun(@(wsl_path)(obj.applyFilePathSubstitutionsToMetaPath_(wsl_path)), wsl_paths) ;
       else
         wsl_path = wsl_path_or_paths ;
-        result = obj.applyFilePathSubstitutions_(wsl_path) ;
+        result = obj.applyFilePathSubstitutionsToMetaPath_(wsl_path) ;
       end
     end  % function
-    
-    function result = applyFilePathSubstitutions_(obj, command)  % const method
-      % Apply the applicable file name substitutions to command.
-      % This just uses dumb string replacement, which will likely lead to tears
-      % eventually.  But to do better we'd have to keep commands as unescaped lists
-      % until the last moment, and likely label which elements are paths.  This would be
-      % great, but a lot of work.  Will put that off for now.
+
+    function result = applyFilePathSubstitutionsToMetaPath_(obj, path)  % const method
+      % Apply the applicable file name substitutions to path.
       %
       % This method does not mutate obj.
       
       result = ...
-          AWSec2.applyGenericFilePathSubstitutions_(command, ...
-                                                    obj.wslProjectCachePath_, ...
-                                                    obj.wslPathFromMovieIndex_) ;
+          AWSec2.applyGenericFilePathSubstitutionsToMetaPath_(path, ...
+                                                              obj.wslProjectCachePath_, ...
+                                                              obj.wslPathFromMovieIndex_) ;
+    end  % function
+    
+    function result = applyFilePathSubstitutionsToCommand_(obj, command)  % const method
+      % Apply the applicable file name substitutions to command.
+      %
+      % This method does not mutate obj.
+      
+      result = ...
+          AWSec2.applyGenericFilePathSubstitutionsToShellCommand_(command, ...
+                                                                  obj.wslProjectCachePath_, ...
+                                                                  obj.wslPathFromMovieIndex_) ;
     end  % function
   end  % methods
   
   methods (Static)
-    function result = applyGenericFilePathSubstitutions_(command, ...
-                                                         wslProjectCachePath, ...
-                                                         wslPathFromMovieIndex)
-      % Deal with optional args
-      if ~exist('wslPathFromMovieIndex', 'var') || isempty(wslPathFromMovieIndex) ,
-        wslPathFromMovieIndex = cell(1,0) ;
+    % function result = applyGenericFilePathSubstitutions_(command, ...
+    %                                                      wslProjectCachePath, ...
+    %                                                      wslPathFromMovieIndex)
+    %   % Deal with optional args
+    %   if ~exist('wslPathFromMovieIndex', 'var') || isempty(wslPathFromMovieIndex) ,
+    %     wslPathFromMovieIndex = cell(1,0) ;
+    %   end
+    %   % Replace the local cache root with the remote one
+    %   if isempty(wslProjectCachePath)
+    %     result_1 = command ;
+    %   else
+    %     result_1 = strrep(command, wslProjectCachePath, AWSec2.remoteDLCacheDir) ;
+    %   end
+    %   % Replace the local torch home path with the remote one
+    %   result_1p5 = strrep(result_1, APT.gettorchhomepath(), AWSec2.remoteTorchHomeDir) ;      
+    %   % Replace local movie paths with the corresponding remote ones
+    %   if ~isempty(wslPathFromMovieIndex) ,
+    %     remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
+    %     result_2 = strrep_multiple(result_1p5, wslPathFromMovieIndex, remotePathFromMovieIndex) ;
+    %   else
+    %     result_2 = result_1p5 ;
+    %   end
+    %   % Replace the local APT source root with the remote one
+    %   remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
+    %   wsl_apt_root = wsl_path_from_native(APT.Root) ;
+    %   result_3 = strrep(result_2, wsl_apt_root, remote_apt_root) ;
+    %   % Replace the local home dir with the remote one
+    %   % Do this last b/c e.g. the local APT source root is likely in the local home
+    %   % dir.
+    %   wsl_home_path = wsl_path_from_native(get_home_dir_name()) ;
+    %   remote_home_path = AWSec2.remoteHomeDir ;
+    %   result_4 = strrep(result_3, wsl_home_path, remote_home_path) ;      
+    %   result = result_4 ;
+    % end  % function
+    
+    function result = applyGenericFilePathSubstitutionsToShellCommand_(inputCommand, wslProjectCachePath, wslPathFromMovieIndex)
+      % Convert command to remote locale by converting all path tokens
+      %
+      % Returns:
+      %   apt.ShellCommand: New command with paths converted to target platform
+
+      function result = processToken(token)
+        % Local function to convert each token to target locale
+        if isa(token, 'apt.MetaPath')
+          result = applyGenericFilePathSubstitutionsToMetaPath_(toekn, wslProjectCachePath, wslPathFromMovieIndex);
+        elseif isa(token, 'apt.ShellCommand')
+          result = AWSec2.applyGenericFilePathSubstitutionsToShellCommand_(token, wslProjectCachePath, wslPathFromMovieIndex);
+        else
+          % ShellLiteral tokens don't need locale conversion
+          result = token;
+        end
+      end  % local function
+
+      % Use cellfun to process all tokens
+      newTokens = cellfun(@processToken, inputCommand.tokens, 'UniformOutput', false);
+
+      result = apt.ShellCommand(newTokens, targetLocale, inputCommand.platform);
+    end
+
+    function result = applyGenericFilePathSubstitutionsToMetaPath_(inputWslMetaPath, wslProjectCachePath, wslPathFromMovieIndex)
+      % Convert WSL MetaPath to remote by replacing prefix based on file role
+      %
+      % Args:
+      %   wslMetaPath (apt.MetaPath): WSL path to convert
+      %   wslProjectCachePath (apt.MetaPath): WSL project cache path
+      %   wslPathFromMovieIndex (cell array of apt.MetaPath): WSL movie paths
+      %
+      % Returns:
+      %   apt.MetaPath: MetaPath with WSL prefix replaced by remote equivalent
+      
+      assert(isa(inputWslMetaPath, 'apt.MetaPath'), 'wslMetaPath must be an apt.MetaPath');
+      assert(inputWslMetaPath.locale == apt.PathLocale.wsl, 'wslMetaPath must have WSL locale');
+      assert(isa(wslProjectCachePath, 'apt.MetaPath'), 'wslProjectCachePath must be an apt.MetaPath');
+      assert(wslProjectCachePath.locale == apt.PathLocale.wsl, 'wslProjectCachePath must have WSL locale');
+      assert(iscell(wslPathFromMovieIndex), 'wslPathFromMovieIndex must be a cell array');
+      if ~isempty(wslPathFromMovieIndex)
+        assert(isa(wslPathFromMovieIndex{1}, 'apt.MetaPath'), 'Elements of wslPathFromMovieIndex must be apt.MetaPath objects');
+        assert(wslPathFromMovieIndex{1}.locale == apt.PathLocale.wsl, 'Elements of wslPathFromMovieIndex must have WSL locale');
       end
-      % Replace the local cache root with the remote one
-      if isempty(wslProjectCachePath)
-        result_1 = command ;
-      else
-        result_1 = strrep(command, wslProjectCachePath, AWSec2.remoteDLCacheDir) ;
+      
+      % Apply replacements based on file role
+      switch inputWslMetaPath.role
+        case apt.FileRole.cache
+          remoteDLCacheDir = apt.MetaPath(AWSec2.remoteDLCacheDir, apt.PathLocale.remote, apt.FileRole.cache);
+          result = inputWslMetaPath.replacePrefix(wslProjectCachePath, remoteDLCacheDir);
+          
+        case apt.FileRole.torch
+          nativeTorchHomePath = apt.MetaPath(APT.gettorchhomepath(), apt.PathLocale.native, apt.FileRole.torch);
+          wslTorchHomePath = nativeTorchHomePath.asWsl();
+          remoteTorchHomeDir = apt.MetaPath(AWSec2.remoteTorchHomeDir, apt.PathLocale.remote, apt.FileRole.torch);
+          result = inputWslMetaPath.replacePrefix(wslTorchHomePath, remoteTorchHomeDir);
+          
+        case apt.FileRole.movie
+          % Find matching movie path in wslPathFromMovieIndex
+          remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex);
+          for i = 1:numel(wslPathFromMovieIndex)
+            if inputWslMetaPath.eq(wslPathFromMovieIndex{i})
+              result = remotePathFromMovieIndex{i};
+              return;
+            end
+          end
+          error('Movie path %s not found in wslPathFromMovieIndex', inputWslMetaPath.toString());
+          
+        case apt.FileRole.source
+          nativeAptRoot = apt.MetaPath(APT.Root, apt.PathLocale.native, apt.FileRole.source);
+          wslAptRoot = nativeAptRoot.asWsl();
+          remoteAptRoot = apt.MetaPath(AWSec2.remoteAPTSourceRootDir, apt.PathLocale.remote, apt.FileRole.source);
+          result = inputWslMetaPath.replacePrefix(wslAptRoot, remoteAptRoot);
+          
+        case apt.FileRole.home
+          nativeHomePath = apt.MetaPath(get_home_dir_name(), apt.PathLocale.native, apt.FileRole.home);
+          wslHomePath = nativeHomePath.asWsl();
+          remoteHomeDirPath = apt.MetaPath(AWSec2.remoteHomeDir, apt.PathLocale.remote, apt.FileRole.home);
+          result = inputWslMetaPath.replacePrefix(wslHomePath, remoteHomeDirPath);
+          
+        case apt.FileRole.immovable
+          error('Cannot convert immovable path %s from WSL to remote - immovable paths must stay in their original locale', inputWslMetaPath.toString());
+          
+        case apt.FileRole.universal
+          result = apt.MetaPath(inputWslMetaPath.path, apt.PathLocale.remote, apt.FileRole.universal);
+          
+        otherwise
+          error('Unknown file role: %s', apt.FileRole.toString(inputWslMetaPath.role));
       end
-      % Replace the local torch home path with the remote one
-      result_1p5 = strrep(result_1, APT.gettorchhomepath(), AWSec2.remoteTorchHomeDir) ;      
-      % Replace local movie paths with the corresponding remote ones
-      if ~isempty(wslPathFromMovieIndex) ,
-        remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex) ;
-        result_2 = strrep_multiple(result_1p5, wslPathFromMovieIndex, remotePathFromMovieIndex) ;
-      else
-        result_2 = result_1p5 ;
-      end
-      % Replace the local APT source root with the remote one
-      remote_apt_root = AWSec2.remoteAPTSourceRootDir ;
-      wsl_apt_root = wsl_path_from_native(APT.Root) ;
-      result_3 = strrep(result_2, wsl_apt_root, remote_apt_root) ;
-      % Replace the local home dir with the remote one
-      % Do this last b/c e.g. the local APT source root is likely in the local home
-      % dir.
-      wsl_home_path = wsl_path_from_native(get_home_dir_name()) ;
-      remote_home_path = AWSec2.remoteHomeDir ;
-      result_4 = strrep(result_3, wsl_home_path, remote_home_path) ;      
-      result = result_4 ;
     end  % function
-
-    function result = remote_movie_path_from_wsl(wsl_path_or_paths)
+    
+    function result = remote_movie_path_from_wsl(wslMoviePathsOrPath)
       % Convert a cell array of WSL movie paths to their remote equivalents.
-      if iscell(wsl_path_or_paths)
-        wsl_paths = wsl_path_or_paths ;
-        result = cellfun(@(wsl_path)(AWSec2.single_remote_movie_path_from_wsl(wsl_path)), wsl_paths, 'UniformOutput', false) ;
+      if iscell(wslMoviePathsOrPath)
+        wslMoviePaths = wslMoviePathsOrPath ;
+        result = cellfun(@(wslPath)(wslPath.asRemote()), wslMoviePaths, 'UniformOutput', false) ;
       else
-        % Assume its an old-school string
-        wsl_path = wsl_path_or_paths ;
-        result = AWSec2.single_remote_movie_path_from_wsl(wsl_path) ;
+        wslMoviePath = wslMoviePathsOrPath ;
+        result = wslMoviePath.asRemote() ;
       end
     end
 
-    function result = single_remote_movie_path_from_wsl(wsl_path)
-      % Convert a single WSL movie path to the remote equivalent.
-      movieName = fileparts23(wsl_path) ;
-      rawRemotePath = linux_fullfile(AWSec2.remoteMovieCacheDir, movieName) ;
-      result = FSPath.standardPath(rawRemotePath);  % transform to standardized linux-style path
-    end
+    % function result = single_remote_movie_path_from_wsl(wslMoviePath)
+    %   % Convert a single WSL movie path to the remote equivalent.
+    %   assert(isa(wslMoviePath, 'apt.MetaPath'), 'wslMoviePath must be an apt.MetaPath') ;
+    %   assert(wslMoviePath.locale == apt.PathLocale.wsl, 'wslMoviePath must have WSL locale') ;
+    % 
+    %   [~,movieName] = wslMoviePath.fileparts2() ;
+    %   remoteMovieCacheDir = apt.MetaPath(AWSec2.remoteMovieCacheDir, apt.PathLocale.remote, apt.FileRole.movie) ;
+    %   result = remoteMovieCacheDir.cat(movieName) ;
+    % end
     
   end  % methods (Static)
 end  % classdef

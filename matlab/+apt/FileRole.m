@@ -17,6 +17,8 @@ classdef FileRole < uint8
                        % which isFilesystemLocal() is true.
         source (4)  % For source code files
         immovable (5)  % For file paths that need to stay in whatever locale they started in
+        torch (6)  % For PyTorch/torch cache files
+        home (7)  % For files in the home directory, but not in any of the directories for the roles above
     end
     
     methods (Static)
@@ -24,7 +26,7 @@ classdef FileRole < uint8
             % Create FileRole enum from string
             %
             % Args:
-            %   roleStr (char): 'cache', 'movie', 'universal', 'source', or 'immovable'
+            %   roleStr (char): 'cache', 'movie', 'universal', 'source', 'immovable', 'torch', or 'home'
             %
             % Returns:
             %   apt.FileRole: FileRole enumeration value
@@ -40,9 +42,13 @@ classdef FileRole < uint8
                     result = apt.FileRole.source;
                 case 'immovable'
                     result = apt.FileRole.immovable;
+                case 'torch'
+                    result = apt.FileRole.torch;
+                case 'home'
+                    result = apt.FileRole.home;
                 otherwise
                     error('apt:FileRole:InvalidString', ...
-                          'FileRole must be ''cache'', ''movie'', ''universal'', ''source'', or ''immovable'', got ''%s''', ...
+                          'FileRole must be ''cache'', ''movie'', ''universal'', ''source'', ''immovable'', ''torch'', or ''home'', got ''%s''', ...
                           roleStr);
             end
         end
@@ -67,6 +73,10 @@ classdef FileRole < uint8
                     result = 'source';
                 case apt.FileRole.immovable
                     result = 'immovable';
+                case apt.FileRole.torch
+                    result = 'torch';
+                case apt.FileRole.home
+                    result = 'home';
                 otherwise
                     error('apt:FileRole:InvalidEnum', 'Invalid file role enumeration');
             end

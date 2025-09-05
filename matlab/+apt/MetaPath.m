@@ -19,9 +19,9 @@ classdef MetaPath < apt.ShellToken
   end
 
   properties (Dependent)
+    path         % Get the underlying apt.Path object
     locale       % Get the locale
     role         % Get the file role
-    path         % Get the underlying apt.Path object
     platform     % Get the platform from the underlying path
   end
 
@@ -185,7 +185,7 @@ classdef MetaPath < apt.ShellToken
       result = apt.MetaPath(newPath, obj.locale_, obj.role_);
     end
 
-    function result = as(obj, targetLocale)
+    function result = as(obj, targetLocale, varargin)
       % Convert MetaPath to a different locale
       %
       % Args:
@@ -198,6 +198,8 @@ classdef MetaPath < apt.ShellToken
       %   - If target locale equals source locale, returns obj unchanged
       %   - Currently supports: native -> wsl conversion
       %   - Other conversions throw unsupported error
+      %   - Generally, how to convert to the remote locale is backend-specific, so is
+      %     not handled in this class.
       
       % Convert string to enum if needed
       if ischar(targetLocale)
@@ -215,7 +217,7 @@ classdef MetaPath < apt.ShellToken
         % Convert native path to WSL path using static method
         result = apt.MetaPath.toWslFromNative_(obj);
       elseif obj.locale_ == apt.PathLocale.wsl && targetLocale == apt.PathLocale.native
-        % Convert native path to WSL path using static method
+        % Convert WSL path to native path using static method
         result = apt.MetaPath.toNativeFromWsl_(obj);
       else
         % Unsupported conversion
@@ -236,6 +238,11 @@ classdef MetaPath < apt.ShellToken
       result = obj.as(apt.PathLocale.wsl) ;
     end
 
+    function result = asRemote(obj, varargin)
+      % Convenience method
+      result = obj.as(apt.PathLocale.remote, varargin{:}) ;
+    end
+
     function disp(obj)
       % Display the apt.MetaPath object
       pathStr = obj.toString();
@@ -251,6 +258,37 @@ classdef MetaPath < apt.ShellToken
       oldPath = obj.path_ ;
       newPath = oldPath.cat(varargin{:});
       result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+    end
+
+    function [pathPart, filenamePart] = fileparts2(obj)
+      % Call apt.Path.fileparts2() method and wrap results as MetaPaths
+      %
+      % Returns:
+      %   pathPart (apt.MetaPath): Directory path portion with same locale and role
+      %   filenamePart (apt.MetaPath): Filename portion (name + extension) with same locale and role
+      %
+      % Example:
+      %   mp = apt.MetaPath('/home/user/data/movie.avi', 'wsl', 'movie');
+      %   [dir, file] = mp.fileparts2();
+      %   % dir will be apt.MetaPath('/home/user/data', 'wsl', 'movie')
+      %   % file will be apt.MetaPath('movie.avi', 'wsl', 'movie')
+      
+      [pathPartAsPath, filenamePartAsPath] = obj.path_.fileparts2();
+      pathPart = apt.MetaPath(pathPartAsPath, obj.locale_, obj.role_);
+      filenamePart = apt.MetaPath(filenamePartAsPath, obj.locale_, obj.role_);
+    end
+
+    function result = forceRemote_(obj)
+      % Force this MetaPath to have remote locale and POSIX platform
+      %
+      % Returns:
+      %   apt.MetaPath: New MetaPath with remote locale and POSIX platform, same role
+      
+      assert(obj.locale_ == apt.PathLocale.wsl || obj.locale_ == apt.PathLocale.remote, ...
+             'forceRemote_() can only be used on WSL or remote paths (which are already POSIX)') ;
+      
+      % Create new MetaPath with remote locale and same role (path is already POSIX)
+      result = apt.MetaPath(obj.path_, apt.PathLocale.remote, obj.role_) ;
     end
   end  % methods
 
@@ -329,8 +367,6 @@ classdef MetaPath < apt.ShellToken
       
       % Create new metapath with converted components
       result = apt.MetaPath(newPath, apt.PathLocale.native, inputMetaPath.role);
-    end
-
+    end  % function
   end  % methods (Static)
-
 end  % classdef

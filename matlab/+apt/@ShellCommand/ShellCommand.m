@@ -125,34 +125,6 @@ classdef ShellCommand < apt.ShellToken
       result = obj.platform_;
     end
 
-    function result = as(obj, targetLocale)
-      % Convert command to target platform by converting all path tokens
-      %
-      % Args:
-      %   targetLocale (char or apt.PathLocale): 'native', 'wsl', 'remote', or enum
-      %
-      % Returns:
-      %   apt.ShellCommand: New command with paths converted to target platform
-
-      % Convert string to enum if needed
-      if ischar(targetLocale)
-        targetLocale = apt.PathLocale.fromString(targetLocale);
-      end
-
-      newTokens = cell(size(obj.tokens_));
-      for i = 1:length(obj.tokens_)
-        token = obj.tokens_{i};
-        if isa(token, 'apt.MetaPath')
-          newTokens{i} = token.as(targetLocale);
-        else
-          % ShellLiteral tokens don't need locale conversion
-          newTokens{i} = token;
-        end
-      end
-
-      result = apt.ShellCommand(newTokens, targetLocale, obj.platform_);
-    end
-
     function result = toString(obj)
       % Convert command to string representation
       %
@@ -446,8 +418,66 @@ classdef ShellCommand < apt.ShellToken
           end
         end
       end
-    end
-  end
+    end  % function
+
+    % function result = replacePrefixForFileRole_(obj, role, oldPrefix, newPrefix)
+    %   % Replace prefix for all MetaPaths with the given file role
+    %   %
+    %   % Args:
+    %   %   role (apt.FileRole): File role to match
+    %   %   oldPrefix (apt.MetaPath): Prefix to replace  
+    %   %   newPrefix (apt.MetaPath): Replacement prefix
+    %   %
+    %   % Returns:
+    %   %   apt.ShellCommand: New ShellCommand with prefixes replaced
+    % 
+    %   function result = processToken(token)
+    %     % Local function to process a single token for role-based prefix replacement
+    %     if isa(token, 'apt.MetaPath') && token.role == role
+    %       result = token.replacePrefix(oldPrefix, newPrefix) ;
+    %     elseif isa(token, 'apt.ShellCommand')
+    %       % Recurse into nested ShellCommands
+    %       result = token.replacePrefixForFileRole_(role, oldPrefix, newPrefix) ;
+    %     else
+    %       result = token ;
+    %     end
+    %   end  % local function
+    % 
+    %   % Use cellfun to process all tokens
+    %   newTokens = cellfun(@processToken, obj.tokens_, 'UniformOutput', false) ;
+    % 
+    %   % Create new ShellCommand with the updated tokens
+    %   result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_) ;
+    % end  % function
+    % 
+    % function result = forceRemote_(obj)
+    %   % Force all contained objects to have remote locale and POSIX platform
+    %   %
+    %   % Returns:
+    %   %   apt.ShellCommand: New ShellCommand with remote locale, POSIX platform
+    % 
+    %   assert(obj.locale_ == apt.PathLocale.wsl || obj.locale_ == apt.PathLocale.remote, ...
+    %          'forceRemote_() can only be used on WSL or remote ShellCommands (which are already POSIX)') ;
+    % 
+    %   function result = processToken(token)
+    %     % Local function to force each token to be remote
+    %     if isa(token, 'apt.MetaPath')
+    %       result = token.forceRemote_() ;
+    %     elseif isa(token, 'apt.ShellCommand')
+    %       % Recurse into nested ShellCommands
+    %       result = token.forceRemote_() ;
+    %     else
+    %       result = token ;
+    %     end
+    %   end  % local function
+    % 
+    %   % Use cellfun to process all tokens
+    %   newTokens = cellfun(@processToken, obj.tokens_, 'UniformOutput', false) ;
+    % 
+    %   % Create new ShellCommand with remote locale and POSIX platform
+    %   result = apt.ShellCommand(newTokens, apt.PathLocale.remote, apt.Platform.posix) ;
+    % end  % function
+  end  % methods
 
   methods (Static)
     function result = fromString(cmdStr, varargin)
