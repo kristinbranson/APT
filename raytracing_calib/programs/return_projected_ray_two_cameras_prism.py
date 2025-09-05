@@ -28,7 +28,7 @@ arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
             prism_angles=torch.zeros(3,).to(torch.float64), 
             prism_center=torch.zeros(3,1).to(torch.float64), 
             )
-arena.load_state_dict(checkpoint)
+arena.load_state_dict(checkpoint, strict=False)
 
 # %%
 def get_annotations_curve(arena, user_annotation, 
