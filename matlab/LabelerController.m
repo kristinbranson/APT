@@ -2581,10 +2581,11 @@ classdef LabelerController < handle
 
     function cbkTrackerBackendSetSingularityImage(obj)
       lObj = obj.labeler_ ;
-      original_value = lObj.get_backend_property('singularity_image_path') ;
+      original_value_wsl = lObj.get_backend_property('singularity_image_path') ;
+      original_value_as_native_charray = original_value_wsl.asNative().toString() ;
       filter_spec = {'*.sif','Singularity Images (*.sif)'; ...
                     '*',  'All Files (*)'} ;
-      [file_name, path_name] = uigetfile(filter_spec, 'Set Singularity Image...', original_value) ;
+      [file_name, path_name] = uigetfile(filter_spec, 'Set Singularity Image...', original_value_as_native_charray) ;
       if isnumeric(file_name)
         return
       end

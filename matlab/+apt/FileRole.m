@@ -19,6 +19,7 @@ classdef FileRole < uint8
         immovable (5)  % For file paths that need to stay in whatever locale they started in
         torch (6)  % For PyTorch/torch cache files
         home (7)  % For files in the home directory, but not in any of the directories for the roles above
+        local (8)  % For files that exist only locally and should not be converted to remote
     end
     
     methods (Static)
@@ -26,7 +27,7 @@ classdef FileRole < uint8
             % Create FileRole enum from string
             %
             % Args:
-            %   roleStr (char): 'cache', 'movie', 'universal', 'source', 'immovable', 'torch', or 'home'
+            %   roleStr (char): 'cache', 'movie', 'universal', 'source', 'immovable', 'torch', 'home', or 'local'
             %
             % Returns:
             %   apt.FileRole: FileRole enumeration value
@@ -46,9 +47,11 @@ classdef FileRole < uint8
                     result = apt.FileRole.torch;
                 case 'home'
                     result = apt.FileRole.home;
+                case 'local'
+                    result = apt.FileRole.local;
                 otherwise
                     error('apt:FileRole:InvalidString', ...
-                          'FileRole must be ''cache'', ''movie'', ''universal'', ''source'', ''immovable'', ''torch'', or ''home'', got ''%s''', ...
+                          'FileRole must be ''cache'', ''movie'', ''universal'', ''source'', ''immovable'', ''torch'', ''home'', or ''local'', got ''%s''', ...
                           roleStr);
             end
         end
@@ -77,6 +80,8 @@ classdef FileRole < uint8
                     result = 'torch';
                 case apt.FileRole.home
                     result = 'home';
+                case apt.FileRole.local
+                    result = 'local';
                 otherwise
                     error('apt:FileRole:InvalidEnum', 'Invalid file role enumeration');
             end

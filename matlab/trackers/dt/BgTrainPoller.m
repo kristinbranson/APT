@@ -81,22 +81,22 @@ classdef BgTrainPoller < BgPoller
       [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
       unique_job_count = numel(unique_jobs) ;
       % one error, log, and kill file per job
-      errFilePaths = result.errFile(idx1);  % cell array of paths
-      logFilePaths = result.logFile(idx1);  % cell array of paths
+      errFilePaths = result.errFile(idx1);  % cell array of native paths
+      logFilePaths = result.logFile(idx1);  % cell array of native paths
       %killFile = sRes.killFile(idx1);
       for i = 1:unique_job_count,
         % fspollargs = [fspollargs,{'existsNE',errFile{i},'existsNE',logFile{i},...
         %   'existsNEerr',logFile{i},'exists',killFile{i}}]; %#ok<AGROW> 
-        fspollargsForThisJob = {'existsNE',errFilePaths{i}, ...
-                                'existsNE',logFilePaths{i}} ;
+        fspollargsForThisJob = {'existsNE',apt.MetaPath(errFilePaths{i}, apt.PathLocale.native, apt.FileRole.cache), ...
+                                'existsNE',apt.MetaPath(logFilePaths{i}, apt.PathLocale.native, apt.FileRole.cache)} ;
         fspollargs = horzcat(fspollargs, fspollargsForThisJob) ;  %#ok<AGROW>
       end
       nlinesperjob = 2 ;  % needs to match the number of things done per job above
       nModels = obj.dmcs_.n ; 
       for i = 1:nModels,
-        fspollargsForThisModel = {'exists',result.jsonPath{i}, ...
-                                  'exists',result.trainFinalModel{i}, ...
-                                  'contents',result.jsonPath{i}} ;
+        fspollargsForThisModel = {'exists',apt.MetaPath(result.jsonPath{i}, apt.PathLocale.native, apt.FileRole.cache), ...
+                                  'exists',apt.MetaPath(result.trainFinalModel{i}, apt.PathLocale.native, apt.FileRole.cache), ...
+                                  'contents',apt.MetaPath(result.jsonPath{i}, apt.PathLocale.native, apt.FileRole.cache) } ;
         fspollargs = horzcat(fspollargs, fspollargsForThisModel) ; %#ok<AGROW> 
       end
       nlinespermodel = 3 ;  % needs to match the number of things done per model above

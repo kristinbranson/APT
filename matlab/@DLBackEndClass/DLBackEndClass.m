@@ -47,9 +47,9 @@ classdef DLBackEndClass < handle
     default_jrcnslots_track = 4
 
     default_conda_env = 'apt-20250626-tf215-pytorch21-hopper'
-    DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif', 'remote', 'universal')
+    DEFAULT_SINGULARITY_IMAGE_PATH = apt.MetaPath('/groups/branson/bransonlab/apt/sif/apt-20250626-tf215-pytorch21-hopper.sif', 'wsl', 'universal')
       % Since this path's filerole is universal, the locale doesn't really
-      % matter much.  We pick remote b/c this path is remote-first, in some sense.
+      % matter much.  We use wsl to maintain consistency with the internal storage invariant.
   end
 
   properties
@@ -224,10 +224,12 @@ classdef DLBackEndClass < handle
     function set.singularity_image_path(obj, new_raw_native_path)
       if ischar(new_raw_native_path)
         new_path = apt.MetaPath(new_raw_native_path, 'native', 'universal') ;
+        new_path = new_path.asWsl() ;
       elseif isa(new_raw_native_path, 'apt.Path')
-        new_path = apt.MetaPath(new_raw_native_path, 'native', 'universal') ;        
+        new_path = apt.MetaPath(new_raw_native_path, 'native', 'universal') ;
+        new_path = new_path.asWsl() ;
       elseif isa(new_raw_native_path, 'apt.MetaPath')
-        new_path = new_raw_native_path ;
+        new_path = new_raw_native_path.asWsl() ;
       else
         error('APT:invalidValue', 'Invalid value for the Singularity image path');
       end
@@ -603,10 +605,10 @@ classdef DLBackEndClass < handle
       if nargin < 4,
         jobdesc = 'job';
       end
-      if isa(syscmds, 'apt.ShellCommand'),
+      if isa(syscmds, 'apt.ShellCommand')
         syscmds = {syscmds};
       end
-      if ischar(cmdfiles),
+      if isa(cmdfiles, 'apt.ShellCommand')
         cmdfiles = {cmdfiles};
       end
       tfSucc = false(1,numel(syscmds));
@@ -718,8 +720,8 @@ classdef DLBackEndClass < handle
       if obj.type == DLBackEnd.AWS ,
         [didsucceed, msg] = obj.awsec2.mkdir(wsl_dir_path) ;
       else
-        quoted_wsl_dir_path = escape_string_for_bash(wsl_dir_path) ;
-        base_command = sprintf('mkdir -p %s', quoted_wsl_dir_path) ;
+        wslDirMetaPath = apt.MetaPath(wsl_dir_path, apt.PathLocale.wsl, apt.FileRole.cache);
+        base_command = apt.ShellCommand({'mkdir', '-p', wslDirMetaPath}, apt.PathLocale.wsl, apt.Platform.posix) ;
         [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
         didsucceed = (status==0) ;
       end
@@ -728,9 +730,10 @@ classdef DLBackEndClass < handle
     function [didsucceed, msg] = deleteFile(obj, native_file_path)
       % Delete the named file, either locally or remotely, depending on the
       % backend type.
-      wsl_file_path = wsl_path_from_native(native_file_path) ;
-      quoted_wsl_file_path = escape_string_for_bash(wsl_file_path) ;
-      base_command = sprintf('rm -f %s', quoted_wsl_file_path) ;
+      assert(isa(native_file_path, 'apt.MetaPath'), 'native_file_path must be an apt.MetaPath');
+      assert(native_file_path.locale == apt.PathLocale.native, 'native_file_path must have native locale');
+      wslFileMetaPath = native_file_path.asWsl() ;
+      base_command = apt.ShellCommand({'rm', '-f', wslFileMetaPath}, apt.PathLocale.wsl, apt.Platform.posix) ;
       [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
       didsucceed = (status==0) ;
     end
@@ -754,18 +757,25 @@ classdef DLBackEndClass < handle
     %   doesexist = (status==0) ;
     % end
 
-    function writeStringToFile(obj, fileNativeAbsPath, str)
+    function writeStringToFile(obj, filePath, str)
       % Write the given string to a file, overrwriting any previous contents.
-      % localFileAbsPath should be a native absolute path.
+      % filePath should be a native or wsl MetaPath.
       % Throws if unable to write string to file.
 
-      if isequal(obj.type,DLBackEnd.AWS) ,
-        fileWSLAbsPath = wsl_path_from_native(fileNativeAbsPath) ;
-        obj.awsec2.writeStringToFile(fileWSLAbsPath, str) ;
+      % Validate input
+      assert(isa(filePath, 'apt.MetaPath'), 'filePath must be an apt.MetaPath');
+      assert(filePath.locale == apt.PathLocale.native || filePath.locale == apt.PathLocale.wsl, ...
+             'filePath must have native or WSL locale');
+
+      if isequal(obj.type, DLBackEnd.AWS)
+        % AWS backend expects WSL MetaPath
+        wslMetaPath = filePath.asWsl();
+        obj.awsec2.writeStringToFile(wslMetaPath, str);
       else
-        % Filesystem is local
-        fo = file_object(fileNativeAbsPath, 'w') ;
-        fo.fprintf('%s', str) ;
+        % Local filesystem - convert to native string
+        nativeMetaPath = filePath.asNative();
+        fo = file_object(nativeMetaPath.toString(), 'w');
+        fo.fprintf('%s', str);
       end
     end  % function
 
@@ -936,13 +946,14 @@ classdef DLBackEndClass < handle
                                                 'do_just_generate_db',do_just_generate_db);
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+      commandFilePathAsCharray = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+      commandFilePath = apt.MetaPath(commandFilePathAsCharray, apt.PathLocale.wsl, apt.FileRole.cache) ;
       % logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
       obj.training_syscmds_{end+1,1} = syscmd ;
       % obj.training_logcmds_{end+1,1} = logcmd ;
-      obj.training_cmdfiles_{end+1,1} = cmdfile ;
+      obj.training_cmdfiles_{end+1,1} = commandFilePath ;
       obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
@@ -966,7 +977,9 @@ classdef DLBackEndClass < handle
                                                 'track_type',track_type);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
-      cmdfile = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
+      cmdfileAsCharray = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
+      cmdfile = apt.MetaPath(cmdfileAsCharray, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      
       % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
@@ -1147,7 +1160,7 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8);
-      cmd = sprintf('%s ps -q -f "id=%s"',apt.dockercmd(),jobidshort);      
+      cmd = apt.ShellCommand({apt.dockercmd(), 'ps', '-q', '-f', sprintf('id=%s', jobidshort)}, apt.PathLocale.wsl, apt.Platform.posix);      
       [st,res] = obj.runBatchCommandOutsideContainer_(cmd);
         % It uses the docker executable, but it still runs outside the docker
         % container.
@@ -1177,11 +1190,10 @@ classdef DLBackEndClass < handle
     function tf = isJobAliveConda_(obj, jobid)  %#ok<INUSD>
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
-      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = system(command_line) ;  %#ok<ASGLU>  % conda is Linux-only, so can just use system()
+      command = apt.ShellCommand({'/usr/bin/pgrep', '--pgroup', jobid}, apt.PathLocale.wsl, apt.Platform.posix) ;  % For conda backend, the jobid is a PGID
+      [return_code, stdouterr] = command.run() ;  %#ok<ASGLU>
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
-      % We capture stdouterr to prevent it getting spit out to the Matlab console.
       % We use a variable name instead of ~ in case we need to debug in here at some
       % point.
       tf = (return_code == 0) ;
@@ -1217,15 +1229,18 @@ classdef DLBackEndClass < handle
 
     function killJobConda_(obj, jobid)  %#ok<INUSD> 
       pgid = jobid ;  % conda backend uses PGID as the job id
-      command_line = sprintf('kill -- -%s', pgid) ;  % kill all processes in the process group
-      system_with_error_handling(command_line) ;  % conda is Linux-only, so can just use system()
+      command = apt.ShellCommand({'kill', '--', ['-' pgid]}, apt.PathLocale.wsl, apt.Platform.posix) ;  % kill all processes in the process group
+      [st, res] = command.run() ;
+      if st ~= 0
+        error('Failed to kill process group %s: %s', pgid, res);
+      end
     end  % function
 
     function killJobDockerOrAWS_(obj, jobid)
       % Kill the docker job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       % Errors if no such job exists.
-      cmd = sprintf('%s kill %s', apt.dockercmd(), jobid);        
+      cmd = apt.ShellCommand({apt.dockercmd(), 'kill', jobid}, apt.PathLocale.wsl, apt.Platform.posix);        
       [st,res] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
@@ -1234,11 +1249,10 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function downloadTrackingFilesIfNecessary(obj, res, nativeLocalCacheRoot, movfiles)
+    function downloadTrackingFilesIfNecessary(obj, res, movfiles)
       % Errors if something goes wrong.
       if obj.type == DLBackEnd.AWS ,
-        wslLocalCacheRoot = wsl_path_from_native(nativeLocalCacheRoot) ;
-        obj.awsec2.downloadTrackingFilesIfNecessary(res, wslLocalCacheRoot, movfiles) ;
+        obj.awsec2.downloadTrackingFilesIfNecessary(res, movfiles) ;
       elseif obj.type == DLBackEnd.Bsub ,
         % Hack: For now, just wait a bit, to let (hopefully) NFS sync up
         pause(10) ;
@@ -1319,22 +1333,22 @@ classdef DLBackEndClass < handle
       end
     end  % function
     
-    function lsdir(obj, native_dir_path)
-      % List the contents of directory dir.  Contents just go to stdout, nothing is
-      % returned.
-      if obj.type == DLBackEnd.AWS ,
-        wsl_dir_path = wsl_path_from_native(native_dir_path) ;
-        obj.awsec2.lsdir(wsl_dir_path) ;
-      else
-        if ispc()
-          lscmd = 'dir';
-        else
-          lscmd = 'ls -al';
-        end
-        cmd = sprintf('%s "%s"',lscmd,native_dir_path);
-        system(cmd);
-      end
-    end  % function
+    % function lsdir(obj, native_dir_path)
+    %   % List the contents of directory dir.  Contents just go to stdout, nothing is
+    %   % returned.
+    %   if obj.type == DLBackEnd.AWS ,
+    %     wsl_dir_path = wsl_path_from_native(native_dir_path) ;
+    %     obj.awsec2.lsdir(wsl_dir_path) ;
+    %   else
+    %     if ispc()
+    %       lscmd = 'dir';
+    %     else
+    %       lscmd = 'ls -al';
+    %     end
+    %     cmd = sprintf('%s "%s"',lscmd,native_dir_path);
+    %     system(cmd);
+    %   end
+    % end  % function
 
     function result = fileModTime(obj, native_file_path)
       % Return the file-modification time (mtime) of the given file.  For an AWS
@@ -1673,7 +1687,7 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       jobidshort = jobid(1:8) ;
-      cmd = sprintf('%s ps --filter "id=%s"', apt.dockercmd(), jobidshort) ;      
+      cmd = apt.ShellCommand({apt.dockercmd(), 'ps', '--filter', sprintf('id=%s', jobidshort)}, apt.PathLocale.wsl, apt.Platform.posix) ;      
       [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(cmd) ;
         % It uses the docker executable, but it still runs outside the docker
         % container.
@@ -1703,8 +1717,8 @@ classdef DLBackEndClass < handle
     function result = detailedStatusStringConda_(obj, jobid)  %#ok<INUSD>
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
-      command_line = sprintf('/usr/bin/pgrep --pgroup %s', jobid) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = system(command_line) ;  % conda is Linux-only, so can just use system()
+      command = apt.ShellCommand({'/usr/bin/pgrep', '--pgroup', jobid}, apt.PathLocale.wsl, apt.Platform.posix) ;  % For conda backend, the jobid is a PGID
+      [return_code, stdouterr] = command.run() ;
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
       % We capture stdouterr to prevent it getting spit out to the Matlab console.
