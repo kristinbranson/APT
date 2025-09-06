@@ -149,7 +149,7 @@ classdef ParameterVisualizationPreproc < ParameterVisualization
 
         % Let 'treatInfPosAsOcc' default to false here, should be fine as
         % this is for paramviz
-        maTgtCropRad = APTParameters.maGetTgtCropRad(sPrm);
+        maTgtCropRad = APTParameters.getMATargetCropRadiusManual(sPrm);
         tblPTrn = lObj.preProcGetMFTableLbled('maTgtCropRad',maTgtCropRad);
         nlabeled = size(tblPTrn,1);
         if nlabeled == 0,

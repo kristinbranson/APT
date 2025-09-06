@@ -10614,7 +10614,7 @@ classdef Labeler < handle
         if isempty(obj.trackParams)
           error('Please set tracking parameters.');
         else
-          roiRadius = APTParameters.maGetTgtCropRad(obj.trackParams);
+          roiRadius = APTParameters.getMATargetCropRadiusManual(obj.trackParams);
         end
       end
       
@@ -11265,6 +11265,33 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;      
     end  % function
 
+    function [tfsucc,msg] = trackImportTracker(obj,infile)
+      % WORKING HERE
+      tfsucc = false;
+      msg = '';
+      [p,n,ext] = fileparts(infile);
+      if strcmp(ext,'.json'),
+        injsonfile = infile;
+      else
+        % TODO
+        error('not implemented');
+      end
+      [fileinfo,trackerinfo,scfg] = TrnPack.loadTracker(injsonfile);
+      nottrained = isempty(trackerinfo.trnNetTypeString) || any(cellfun(@isempty,trackerinfo.trnNetTypeString)) || ...
+        any(any(cellfun(@isempty,fileinfo.netfiles)));
+      if nottrained,
+        msg = 'Networks not trained for at least one stage/view';
+        return;
+      end        
+      trackerinfo.nettypes = cellfun(@(key) DLNetType(key),trackerinfo.trnNetTypeString);
+      tfsucc1 = obj.trackMakeNewTrackerGivenNetTypes(trackerinfo.nettypes);
+      if ~tfsucc1,
+        msg = 'Failed to create new tracker';
+        return
+      end
+      obj.tracker.setAllParams(obj,sPrmAll)
+    end
+
     function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
       % t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
       % returns the trnNetTypes for the current tracker. trackercurr
@@ -11612,7 +11639,7 @@ classdef Labeler < handle
       for stagei = 1:numel(stages),
         stage = stages(stagei);
         if obj.hasTrx || (is_ma && is2stage && (stage==2))
-          cropRad = APTParameters.maGetTgtCropRad(sPrm);
+          cropRad = APTParameters.getMATargetCropRadiusManual(sPrm);
           imsz(:,stagei) = cropRad*2+[1,1];
         elseif is_ma,
           if APTParameters.getMAMultiCropIms(sPrm),
@@ -12109,7 +12136,7 @@ classdef Labeler < handle
           tblfldscontainsassert(tblPCache,MFTable.FLDSCORE);
         end
         
-        maTgtCropRad = APTParameters.maGetTgtCropRad(tObj.sPrmAll);
+        maTgtCropRad = APTParameters.getMATargetCropRadiusManual(tObj.sPrmAll);
 %         if tObj.trnNetMode.isTrnPack
 %           % Temp fix; prob should just skip adding imcache to stripped lbl
 %           prmsTgtCropTmp.AlignUsingTrxTheta = false;
@@ -12306,7 +12333,7 @@ classdef Labeler < handle
       
       % ma stuff
 
-      % this seems to be redundant, based on maGetTgtCropRad
+      % removing this, as maGetTgtCropRad just returns ManualRadius
       % prmsTgtCrop = sPrmAll.ROOT.MultiAnimal.TargetCrop; 
       % r = maGetTgtCropRad(prmsTgtCrop);
       % % actual radius that will be used by backend
@@ -12314,11 +12341,11 @@ classdef Labeler < handle
 
       tfBackEnd = exist('netmode','var');
       if tfBackEnd
-        APTParameters.setMAIsMulti(sPrmAll,netmode.is_multi);
+        sPrmAll = APTParameters.setMAIsMulti(sPrmAll,netmode.is_multi);
         can_multi_crop_ims = netmode.multi_crop_ims;
         if APTParameters.getMAMultiCropIms(sPrmAll) && ~can_multi_crop_ims
           warningNoTrace('setting multi_crop_ims to False.');
-          APTParameters.setMAMultiCropIms(sPrmAll,false);
+          sPrmAll = APTParameters.setMAMultiCropIms(sPrmAll,false);
         end
         sPrmAll = APTParameters.setMAMultiOnlyHT(sPrmAll,netmode.multi_only_ht);
         sPrmAll = APTParameters.setMAAlignUsingTrxTheta(sPrmAll,...

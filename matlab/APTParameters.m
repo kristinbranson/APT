@@ -708,10 +708,68 @@ classdef APTParameters
       end
     end
 
+    function prm = separateSharedDeepTrack(prm,stage)
+
+      tshared = APTParameters.PARAM_FILES_TREES.deeptrack_shared.tree.findnode(APTParameters.deepSharedPath);
+      prepath = APTParameters.DLStage2Path(stage);
+      tdt = APTParameters.defaultParamsTree.findnode(prepath);
+      relpaths = APTParameters.modernizeMoveSubTrees(tshared,tdt,'');
+      translateflds = [cellfun(@(relpath) [prepath,'.',relpath],relpaths,'Uni',0),...
+        cellfun(@(relpath) [APTParameters.deepSharedPath,'.',relpath],relpaths,'Uni',0)];
+      for i = 1:size(translateflds,1),
+        oldfld = translateflds{i,1};
+        newfld = translateflds{i,2};
+        if structisfield(prm,oldfld),
+          prm = structmvfield(prm,oldfld,newfld);
+        end
+      end
+
+    end
+
+    function prm = mergeMultiStageTrackerParams(prm_stage1,prm_stage2)
+      prm = [];
+      if ~isempty(prm_stage1),
+        prm = APTParameters.modernize(prm_stage1,'all');
+      end
+      if ~isempty(prm_stage2),
+        prm_stage2 = APTParameters.separateSharedDeepTrack(prm_stage2,'detect');
+        if isempty(prm),
+          prm = prm_stage2;
+        else
+          copyflds = {'ROOT.MultiAnimal','ROOT.MultiAnimalDetect'};
+          for i = 1:numel(copyflds),
+            fld = copyflds{i};
+            prm = APTParameters.setParam(prm,fld,APTParameters.getParam(prm_stage2,fld));
+          end
+        end
+      end
+      
+      
+    end
+
+    function prm = toDeepTrackerParams(prm,stage)
+      if strcmp(stage,'detect'),
+        % stage 1 trackData; move Detect.DeepTrack to top-level
+        if structisfield(prm,APTParameters.maDetectNetworkPath),
+          prm = structmvfield(prm,APTParameters.maDetectNetworkPath,APTParameters.posePath);
+        end
+      elseif strcmp(stage,'pose')
+        % remove detect/DeepTrack from stage2
+        if structisfield(prm,APTParameters.maDetectNetworkPath)
+          prm = structrmfield(prm,APTParameters.maDetectNetworkPath);
+        end
+      end
+      % move shared parameters to dt
+      prm = APTParameters.setParam(prm,APTParameters.posePath,APTParameters.getPoseDeepTrackParams(prm));
+      % remove shared parameters
+      prm = structrmfield(prm,APTParameters.deepSharedPath);
+    end
+
     function prm = duplicateSharedDeepTrackParams(prm)
       assert(isstruct(prm));
       prm = APTParameters.setParam(prm,APTParameters.maDetectNetworkPath,APTParameters.getDetectDeepTrackParams(prm));
       prm = APTParameters.setParam(prm,APTParameters.posePath,APTParameters.getPoseDeepTrackParams(prm));
+      prm = structrmfield(prm,APTParameters.deepSharedPath);
     end
 
     function prmDT = getPoseDeepTrackParams(prm)
@@ -765,8 +823,8 @@ classdef APTParameters
       end
       specflds = fieldnames(sspecific);
       sharedflds = fieldnames(sshared);
-      for fld = sharedflds(:)',
-        fld = fld{1};
+      for j = 1:numel(sharedflds),
+        fld = sharedflds{j};
         i = find(strcmp(specflds,fld),1);
         if isempty(i),
           sspecific.(fld) = sshared.(fld);
@@ -801,10 +859,14 @@ classdef APTParameters
       end
     end
 
-    function sPrmAll = modernize(sPrmAll)
+    function sPrmAll = modernize(sPrmAll,allowedUnrecogFlds)
       % 20210720 param reorg MA
       if isempty(sPrmAll),
         return;
+      end
+
+      if nargin < 2,
+        allowedUnrecogFlds = {};
       end
 
       % translation will happen in order
@@ -851,7 +913,7 @@ classdef APTParameters
       end
 
       sPrmDflt = APTParameters.defaultParamsStructAll;
-      sPrmAll = structoverlay(sPrmDflt,sPrmAll);%,...
+      sPrmAll = structoverlay(sPrmDflt,sPrmAll,'allowedUnrecogFlds',allowedUnrecogFlds);%,...
         %'dontWarnUnrecog',true); % to allow removal of obsolete params
     end
     
@@ -1237,17 +1299,17 @@ classdef APTParameters
       prm = structsetfield(prm,[APTParameters.deepSharedPath,'.DataAugmentation.flipLandmarkMatches'],matchstr);
     end
 
-    function s = maTgtCropRadPath()
+    function s = maTargetCropRadiusManualPath()
       s = 'ROOT.MultiAnimal.TargetCrop.ManualRadius';
     end
 
-    function v = maGetTgtCropRad(prm,varargin)
-      s = APTParameters.maTgtCropRadPath;
+    function v = getMATargetCropRadiusManual(prm,varargin)
+      s = APTParameters.maTargetCropRadiusManualPath;
       v = APTParameters.getParam(prm,s,varargin{:});
     end
 
-    function prm = setMATargetCropRadius(prm,v)
-      prm = APTparameters.setParam(prm,APTParameters.maTgtCropRadPath,v);
+    function prm = setMATargetCropRadiusManual(prm,v)
+      prm = APTparameters.setParam(prm,APTParameters.maTargetCropRadiusManualPath,v);
     end
 
     function v = getMATargetCropParams(prm,varargin)

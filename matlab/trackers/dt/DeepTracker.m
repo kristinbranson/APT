@@ -1394,7 +1394,7 @@ classdef DeepTracker < LabelTracker
       % FIX THIS - this looks like the trainID is parsed out of the
       % config file name...
       [tpdir,dllblf,~] = fileparts(dlConfigLcl); %#ok<ASGLU> 
-      pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
+      pat = '_(?<trainID>[0-9T]+)$';
       toks = regexp(dllblf,pat,'names');
       trainID = toks.trainID;
     end
@@ -1602,6 +1602,53 @@ classdef DeepTracker < LabelTracker
       % debuging sometimes.
       bgTrnMonitor.start();
     end  % trnSpawn_() function
+
+    function importTracker(obj,fileinfo,trackerinfo,scfg)
+      
+      netType = obj.getNetType(); % will have one value for each stage
+      netMode = obj.getNetMode();
+      %iterFinal = obj.getIterFinal();
+      %nmodel = numel(jobidx);
+
+      modelChainID = trackerinfo.timestamps{1};
+      nstages = size(fileinfo.trndirs,1);
+      nviews = size(fileinfo.trndirs,2);
+      nmodel = nviews*nstages;
+
+      jobidx = ones(1,nmodel);
+      [stage,view] = meshgrid(1:nstages,1:nviews);
+      gpuids = nan(1,nviews*nstages);
+
+      % determine trainID
+      trainID = obj.getTrainID('existingTrnPackSLbl',fileinfo.cfgjsonfile,...
+                               'tfGenNewConfigFile',false);
+
+      % Create DMC
+      cacheDir = obj.lObj.DLCacheDir ;  % native cache dir      
+      dmc = DeepModelChainOnDisk('rootDir',cacheDir,...
+                                 'projID',obj.lObj.projname,...
+                                 'netType',netType(stage),...
+                                 'netMode',netMode(stage),...
+                                 'jobidx',jobidx,...
+                                 'view',view-1,...
+                                 'stage',stage,...
+                                 'splitIdx',zeros(1,nmodel),...
+                                 'modelChainID',modelChainID,... % will get copied for all models
+                                 'trainID',trainID,... % will get copied for all models
+                                 'trainType',trnType,... % will get copied for all models
+                                 'iterFinal',iterFinal(stage),...
+                                 'prev_models',prev_models ) ;
+
+      % copy files into current cache directory
+      for modeli = 1:size(trackerinfo.trndirs,1),
+        for viewi = 1:size(trackerinfo.trndirs,2),
+        end
+      end
+      
+
+
+
+    end
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
       % trnImgMats: cellstr, or could be loaded mats
@@ -1866,7 +1913,7 @@ classdef DeepTracker < LabelTracker
 %       
 %       if isempty(obj.sPrmAll)
 %         error('No tracking parameters have been set.');
-%       end      
+%       end      Train
 %            
 %       % Currently, cacheDir must be visible on the JRC shared filesys.
 %       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
@@ -2270,22 +2317,15 @@ classdef DeepTracker < LabelTracker
         tdata(i).trnNetTypeString = char(tdata(i).trnNetType);
       end
       
-      stg1dtpath = APTParameters.maDetectNetworkPath;
       if tfTD
         tdata = num2cell(tdata(:)');
-        
         % stage 1 trackData; move Detect.DeepTrack to top-level
-        newfld = APTParameters.posePath;
-        if structisfield(tdata{1}.sPrmAll,stg1dtpath),
-          tdata{1}.sPrmAll = structmvfield(tdata{1}.sPrmAll,stg1dtpath,newfld);
-        end
+        tdata{1}.sPrmAll = APTParameters.toDeepTrackerParams(tdata{1}.sPrmAll,'detect');
       else
        tdata = {[] tdata};
       end
       % remove detect/DeepTrack from stage2
-      if structisfield(tdata{2}.sPrmAll,stg1dtpath)
-        tdata{2}.sPrmAll = structrmfield(tdata{2}.sPrmAll,stg1dtpath);
-      end
+      tdata{2}.sPrmAll = APTParameters.toDeepTrackerParams(tdata{2}.sPrmAll,'pose');
     end
   end  % methods (Static)
 

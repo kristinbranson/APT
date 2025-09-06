@@ -106,7 +106,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
     function rectPos = getRectPos(obj)
       % rectPos: [c x 2] col1 is [x1;x2;x3;x4;x5]; col2 is [y1;y2; etc].
       
-      rad = APTParameters.maGetTgtCropRad(obj.prm);
+      rad = APTParameters.getMATargetCropRadiusManual(obj.prm);
       if obj.isMA
         xyc = mean(obj.xyLbl,1,'omitmissing');
         xc = xyc(1);

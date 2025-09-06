@@ -9,6 +9,7 @@ classdef TrnPack
     function vizLoc(packdir,varargin)
       % Visualize 'loc' data structure (one row per labeled mov,frm,tgt) 
       % from training package.
+      % OBSOLETE
       %
       % packdir: package dir (contains images)
 
@@ -70,6 +71,7 @@ classdef TrnPack
     function vizLocg(packdir,varargin)
       % Visualize 'locg' data structure (one row per labeled mov,frm) 
       % from training package.
+      % OBSOLETE
       %
       % packdir: package dir (contains images)
 
@@ -134,6 +136,7 @@ classdef TrnPack
     function vizLocClus(packdir,varargin)
       % Visualize 'locg' data structure (one row per labeled mov,frm)
       % from training package.
+      % OBSOLETE
       %
       % packdir: package dir (contains images)
       
@@ -188,6 +191,7 @@ classdef TrnPack
 
     function [slbl,j,tp,locg] = loadPack(packdir,varargin)
       % Load training package into MATLAB data structures
+      % OBSOLETE
       %
       % slbl: 'stripped lbl' struct
       % j: cfg/json
@@ -253,6 +257,62 @@ classdef TrnPack
 %       end
     end
     
+    function [fileinfo,trackerinfo,scfg] = loadTracker(cfgjsonfile)
+      fileinfo = struct;
+      fileinfo.cfgjsonfile = cfgjsonfile;
+      trackerinfo = struct;
+      [fileinfo.packdir,timestampstr,ext] = fileparts(cfgjsonfile);
+      assert(strcmp(ext,'.json'),'Must input json file with name <timestamp1>_<timestamp2>.json');
+      scfg = TrnPack.hlpLoadJson(cfgjsonfile);
+      trackerinfo.trnNetMode = {scfg.TrackerData.trnNetMode};
+      trackerinfo.trnNetTypeString = {scfg.TrackerData.trnNetTypeString};
+      nviews = scfg.Config.NumViews;
+      trackerinfo.timestamps = regexp(timestampstr,'^(.*)_(.*)$','once','tokens');
+
+      % get the last checkpoint
+      fileinfo.netfiles = cell(numel(trackerinfo.trnNetTypeString),nviews);
+      fileinfo.trndirs = cell(numel(trackerinfo.trnNetTypeString),nviews);
+      for i = 1:numel(trackerinfo.trnNetTypeString),
+        netdir = fullfile(fileinfo.packdir,trackerinfo.trnNetTypeString{i});
+        if ~exist(netdir,'dir'),
+          continue;
+        end
+        for view = 1:nviews,
+          viewdir = fullfile(netdir,sprintf('view_%d',view-1));
+          if ~exist(viewdir,'dir'),
+            continue;
+          end
+          trndir = fullfile(viewdir,trackerinfo.timestamps{1});
+          if ~exist(trndir,'dir'),
+            continue;
+          end
+          fileinfo.trndirs{i,view} = trndir;
+          lastcheckpointfile = fullfile(trndir,'last_checkpoint');
+          if ~exist(lastcheckpointfile,'file'),
+            continue;
+          end
+          fid = fopen(lastcheckpointfile,'r');
+          netfile = '';
+          while true,
+            s = fgetl(fid);
+            if ~ischar(s),
+              break;
+            end
+            s = strtrim(s);
+            if ~isempty(s),
+              netfile = s;
+              break;
+            end
+          end
+          fclose(fid);
+          if isempty(netfile),
+            continue;
+          end
+          fileinfo.netfiles{i,view} = netfile;
+        end
+      end
+    end
+
     function hlpSaveJson(s,jsonoutf)
       j = jsonencode(s,'ConvertInfAndNaN',false,'PrettyPrint',true); % KB 20250524
       %jsonoutf = fullfile(packdir,jsonoutf);
@@ -1024,7 +1084,6 @@ classdef TrnPack
       end
       t = table(mov,frm,iTgt);
     end
-
 %     function writeimscc(sloccc,packdir)
 %       
 %       SUBDIRIM = 'imcc';

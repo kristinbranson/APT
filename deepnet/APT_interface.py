@@ -478,13 +478,12 @@ def convert_to_coco(coco_info, ann, data, conf,force=False):
                                    'keypoints': out_locs.flatten().tolist(), 'category_id': 1})
 
     if conf.multi_loss_mask and conf.is_multi:
-        if extra_roi is None:
-            extra_roi_use = roi # this is for mmpose masking
-        else:
-            if roi is not None:
-                extra_roi_use = np.concatenate([roi, extra_roi], 0)
-            else:
-                extra_roi_use = extra_roi
+        extra_roi_use = np.zeros((0,4,2))
+        if roi is not None:
+            extra_roi_use = np.concatenate([extra_roi_use, roi], 0)
+        if extra_roi is not None:
+            extra_roi_use = np.concatenate([extra_roi_use, extra_roi], 0)
+            
         # add the neg roi only if using masking. Otherwise mmpose can get touchy
         for cur_roi in extra_roi_use:
             annid = coco_info['ann_ndx']
@@ -843,12 +842,12 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
 
         if isModern:
             if 'TargetCrop' in dt_params['ImageProcessing']['MultiTarget']:
-                width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['Radius'])) * 2
+                width = int(read_entry(dt_params['ImageProcessing']['MultiTarget']['TargetCrop']['ManualRadius'])) * 2
             else:
-                width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2
+                width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['ManualRadius'])) * 2
         else:
             # KB 20190212: replaced with preprocessing
-            width = int(read_entry(lbl['preProcParams']['TargetCrop']['Radius'])) * 2
+            width = int(read_entry(lbl['preProcParams']['TargetCrop']['ManualRadius'])) * 2
         height = width
 
         if not isModern:
@@ -876,7 +875,7 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
     conf.sel_sz = min(conf.imsz)
 
     if 'MultiAnimal' in dt_params:
-        width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['Radius'])) * 2
+        width = int(read_entry(dt_params['MultiAnimal']['TargetCrop']['ManualRadius'])) * 2
         conf.multi_animal_crop_sz = width
 
     if isModern:
@@ -1233,7 +1232,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     # specified by the user. If the project doesnt have trx files
     # then we use the crop size specified by user else use the whole frame.
     if conf.has_trx_file or conf.use_ht_trx or conf.use_bbox_trx:
-        width = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
+        width = dt_params['MultiAnimal']['TargetCrop']['ManualRadius'] * 2
         conf.imsz = (width, width)
     elif has_crops:
         conf.has_crops = True
@@ -1253,7 +1252,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
 
     conf.labelfile = lbl_file
     conf.sel_sz = min(conf.imsz)
-    conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius'] * 2
+    conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['ManualRadius'] * 2
     conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
 
     def set_all(conf, cur_set, flatten=False):

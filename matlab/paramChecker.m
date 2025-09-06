@@ -29,8 +29,8 @@ end
 % end
 
 
-if APTParameters.maGetTgtCropRad(sPrm) <= 0,
-  isOk = APTParameters.setMATargetCropRadius(false);
+if APTParameters.getMATargetCropRadiusManual(sPrm) <= 0,
+  isOk = APTParameters.setMATargetCropRadiusManual(false);
   msgs{end+1} = 'Multitarget crop radius must be at least 1.';
 end
 

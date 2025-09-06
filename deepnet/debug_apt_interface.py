@@ -144,7 +144,7 @@ if second_stage:
 # specified by the user. If the project doesnt have trx files
 # then we use the crop size specified by user else use the whole frame.
 if conf.has_trx_file or conf.use_ht_trx or conf.use_bbox_trx:
-    width = dt_params['MultiAnimal']['TargetCrop']['Radius']*2
+    width = dt_params['MultiAnimal']['TargetCrop']['ManualRadius']*2
     conf.imsz = (width,width)
 elif has_crops:
     conf.imsz = (-1,-1)   # TODO
@@ -153,7 +153,7 @@ else:
 
 conf.labelfile = json_conf_file
 conf.sel_sz = min(conf.imsz)
-conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius']*2
+conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['ManualRadius']*2
 conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
 
 def set_all(conf, cur_set, flatten=False):

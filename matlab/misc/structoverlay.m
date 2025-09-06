@@ -29,7 +29,7 @@ baseused = strcat(path,'.',baseused(:));
 for f = fldsOver(:)',f=f{1}; %#ok<FXSET>
   newpath = [path '.' f];
   if ~isfield(sbase,f)
-    if any(strcmp(f,allowedUnrecogFlds))
+    if isequal(allowedUnrecogFlds,'all') || any(strcmp(f,allowedUnrecogFlds))
       sbase.(f) = sover.(f);
     else
       if ~dontWarnUnrecog

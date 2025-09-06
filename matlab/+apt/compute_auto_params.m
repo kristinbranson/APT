@@ -162,7 +162,7 @@ function [autoparams,vizdata] = compute_auto_params(lobj,varargin)
   end
   crop_radius = ceil(crop_radius/CROP_RADIUS_PRECISION)*CROP_RADIUS_PRECISION;
 
-  autoparams(APTParameters.maTgtCropRadPath) = crop_radius;
+  autoparams(APTParameters.maTargetCropRadiusManualPath) = crop_radius;
 
 
   %% rotation range parameters

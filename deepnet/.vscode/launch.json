@@ -205,7 +205,7 @@
             "name": "debug_track",
             "type": "debugpy",
             "request": "launch",
-            "program": "/groups/branson/home/bransonk/tracking/code/APT/deepnet/APT_interface.py",
+            "program": "APT_interface.py",
             "args": [
                 "/groups/branson/home/bransonk/tracking/code/APT/debug/tp5f4e590c_a590_4416_90ea_ccc6925d0617/BottomViewsMA/20250805T104900_20250805T104902.json", 
                 "-name", "20250805T104900", 
@@ -230,7 +230,7 @@
             "name": "debug_track_link",
             "type": "debugpy",
             "request": "launch",
-            "program": "/groups/branson/home/bransonk/tracking/code/APT/deepnet/APT_interface.py",
+            "program": "APT_interface.py",
             "args": [
                 "/groups/branson/home/bransonk/.apt/tpce1595b0_4aea_4050_80f6_7ae4595f5e13/combinedSideViewMA/20250806T193037_20250806T193039.json",
                 "-name", "20250806T193037",
@@ -254,7 +254,7 @@
             "name": "debug_train_stage1",
             "type": "debugpy",
             "request": "launch",
-            "program": "/groups/branson/home/bransonk/tracking/code/APT/deepnet/APT_interface.py",
+            "program": "APT_interface.py",
             "args": [
                 "/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_side/cache_train_frcnn/combinedSideViewMA/20250816T115533_20250816T115533.json",
                 "-name",
@@ -276,6 +276,59 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "justMyCode": false
+        },
+        {
+            "name": "debug_param_reorg_train_pose",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "APT_interface.py",
+            "args": [
+                "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb/DanionellaWild/20250906T175019_20250906T175022.json",
+                "-name",
+                "20250904T170223",
+                "-json_trn_file",
+                "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb/DanionellaWild/loc.json",
+                "-stage",
+                "second",
+                "-conf_params",
+                "use_bbox_trx",
+                "True",
+                "-type",
+                "hrnet",
+                "-ignore_local",
+                "1",
+                "-cache",
+                "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb",
+                "train",
+                "-use_cache"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {},
+            "stopOnEntry": false,
+            "justMyCode": false
+        },
+        {
+            "name": "debug_param_reorg_train_detect",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/groups/branson/home/bransonk/tracking/code/APT_develop/deepnet/APT_interface.py",
+            "args": [
+                "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb/DanionellaWild/20250906T175019_20250906T175022.json",
+                "-name", "20250906T175019",
+                "-json_trn_file", "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb/DanionellaWild/loc.json",
+                "-stage", "first",
+                "-conf_params",
+                "-type", "detect_frcnn",
+                "-ignore_local", "1",
+                "-cache", "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb",
+                "train",
+                "-use_cache"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false
         }
+
     ]
 }
