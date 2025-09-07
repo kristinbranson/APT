@@ -37,7 +37,7 @@ classdef ShellLiteral < apt.ShellToken
       result = true;
     end
     
-    function result = eq(obj, other)
+    function result = isequal(obj, other)
       % Check equality with another ShellLiteral
       if ~isa(other, 'apt.ShellLiteral')
         result = false;
@@ -52,4 +52,23 @@ classdef ShellLiteral < apt.ShellToken
       fprintf('apt.ShellLiteral: "%s"\n', obj.value_);
     end
   end
+  
+  methods
+    function result = encode_for_persistence_(obj, do_wrap_in_container)
+      encoding = struct('value_', {obj.value_}) ;
+      if do_wrap_in_container
+        result = encoding_container('apt.ShellLiteral', encoding) ;
+      else
+        result = encoding ;
+      end
+    end
+  end  % methods
+  
+  methods (Static)
+    function result = decode_encoding(encoding)
+      % Decode the encoded version of the object.  Used for loading from persistent
+      % storage.
+      result = apt.ShellLiteral(encoding.value_) ;
+    end
+  end  % methods (Static)
 end

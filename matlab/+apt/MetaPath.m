@@ -130,14 +130,14 @@ classdef MetaPath < apt.ShellToken
       result = (obj.path_.platform == queryPlatform);
     end
 
-    function result = eq(obj, other)
+    function result = isequal(obj, other)
       % Check equality with another apt.MetaPath
       if ~isa(other, 'apt.MetaPath')
         result = false;
         return;
       end
 
-      result = obj.path_.eq(other.path_) && ...
+      result = isequal(obj.path_, other.path_) && ...
                obj.locale_ == other.locale_ && ...
                obj.role_ == other.role_;
     end
@@ -290,6 +290,16 @@ classdef MetaPath < apt.ShellToken
       % Create new MetaPath with remote locale and same role (path is already POSIX)
       result = apt.MetaPath(obj.path_, apt.PathLocale.remote, obj.role_) ;
     end
+
+    function result = get_property_value_(obj, name)
+      % Get property value for persistence encoding
+      result = obj.(name) ;
+    end  % function
+    
+    function set_property_value_(obj, name, value)
+      % Set property value for persistence decoding
+      obj.(name) = value ;
+    end  % function
   end  % methods
 
   methods (Static)
@@ -369,4 +379,26 @@ classdef MetaPath < apt.ShellToken
       result = apt.MetaPath(newPath, apt.PathLocale.native, inputMetaPath.role);
     end  % function
   end  % methods (Static)
+
+  methods
+    function result = encode_for_persistence_(obj, do_wrap_in_container)
+      encoded_path = encode_for_persistence_(obj.path_, true) ;
+      encoding = struct('path_', {encoded_path}, 'locale_', {obj.locale_}, 'role_', {obj.role_}) ;
+      if do_wrap_in_container
+        result = encoding_container('apt.MetaPath', encoding) ;
+      else
+        result = encoding ;
+      end
+    end
+  end  % methods
+  
+  methods (Static)
+    function result = decode_encoding(encoding)
+      % Decode the encoded version of the object.  Used for loading from persistent
+      % storage.
+      path = decode_encoding_container(encoding.path_) ;
+      result = apt.MetaPath(path, encoding.locale_, encoding.role_) ;
+    end
+  end  % methods (Static)
+  
 end  % classdef

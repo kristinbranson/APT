@@ -1934,7 +1934,7 @@ classdef AWSec2 < handle
           % Find matching movie path in wslPathFromMovieIndex
           remotePathFromMovieIndex = AWSec2.remote_movie_path_from_wsl(wslPathFromMovieIndex);
           for i = 1:numel(wslPathFromMovieIndex)
-            if inputWslMetaPath.eq(wslPathFromMovieIndex{i})
+            if isequal(inputWslMetaPath, wslPathFromMovieIndex{i})
               result = remotePathFromMovieIndex{i};
               return;
             end

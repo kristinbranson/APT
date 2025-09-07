@@ -135,23 +135,15 @@ classdef ShellCommand < apt.ShellToken
       function result = charAndEscapeIfSubcommand(token)
         % Convert the token to a string.  If the token is an apt.ShellCommand, escape
         % it and prepend with /bin/bash -c
-        draftString = token.char() ;
         if isa(token, 'apt.ShellCommand')
+          draftString = token.char() ;
           if obj.platform_ == apt.Platform.windows
             result = escape_string_for_cmd_dot_exe(draftString) ;
           else            
             result = escape_string_for_bash(draftString) ;
           end
-        elseif isa(token, 'apt.ShellLiteral')
-          result = draftString ;
-        elseif isa(token, 'apt.MetaPath')
-          if obj.platform_ == apt.Platform.windows
-            result = escape_string_for_cmd_dot_exe(draftString) ;
-          else
-            result = escape_string_for_bash(draftString) ;
-          end
         else
-          error('Internal error: Unhandled token type in ShellCommand.char()') ;
+          result = token.char() ;
         end
       end
 
@@ -333,7 +325,7 @@ classdef ShellCommand < apt.ShellToken
       result = obj.tokens_{index};
     end
 
-    function result = eq(obj, other)
+    function result = isequal(obj, other)
       % Check equality with another apt.ShellCommand
       if ~isa(other, 'apt.ShellCommand')
         result = false;
@@ -346,7 +338,7 @@ classdef ShellCommand < apt.ShellToken
       end
 
       for i = 1:length(obj.tokens_)
-        if ~obj.tokensEqual_(obj.tokens_{i}, other.tokens_{i})
+        if ~isequal(obj.tokens_{i}, other.tokens_{i})
           result = false;
           return;
         end
@@ -369,17 +361,6 @@ classdef ShellCommand < apt.ShellToken
         end
       end
       fprintf('  String: %s\n', obj.char());
-    end
-
-    function result = tokensEqual_(~, token1, token2)
-      % Check if two tokens are equal
-      if isa(token1, 'apt.MetaPath') && isa(token2, 'apt.MetaPath')
-        result = token1.eq(token2);
-      elseif ischar(token1) && ischar(token2)
-        result = strcmp(token1, token2);
-      else
-        result = false;
-      end
     end
 
     function validateTokens_(obj, tokens, methodName)
@@ -477,6 +458,14 @@ classdef ShellCommand < apt.ShellToken
     %   % Create new ShellCommand with remote locale and POSIX platform
     %   result = apt.ShellCommand(newTokens, apt.PathLocale.remote, apt.Platform.posix) ;
     % end  % function
+
+    function result = isEmpty(obj)
+      % Check if the command has no tokens
+      %
+      % Returns:
+      %   logical: true if the command has no tokens, false otherwise
+      result = isempty(obj.tokens_);
+    end  % function
   end  % methods
 
   methods (Static)
@@ -527,7 +516,31 @@ classdef ShellCommand < apt.ShellToken
     end  % function
   end  % methods
 
+  methods
+    function result = encode_for_persistence_(obj, do_wrap_in_container)
+      % Encode the tokens array - all tokens are apt.ShellToken objects
+      encoded_tokens = cellfun(@(token) encode_for_persistence(token, true), obj.tokens_, 'UniformOutput', false);
+      
+      encoding = struct('tokens_', {encoded_tokens}, 'locale_', {obj.locale_}, 'platform_', {obj.platform_}) ;
+      if do_wrap_in_container
+        result = encoding_container('apt.ShellCommand', encoding) ;
+      else
+        result = encoding ;
+      end
+    end
+  end  % methods
+
   methods (Static)
+    function result = decode_encoding(encoding)
+      % Decode the encoded version of the object.  Used for loading from persistent
+      % storage.
+      
+      % Decode the tokens array - all encoded tokens are encoding containers
+      decoded_tokens = cellfun(@(token) decode_encoding_container(token), encoding.tokens_, 'UniformOutput', false);
+      
+      result = apt.ShellCommand(decoded_tokens, encoding.locale_, encoding.platform_) ;
+    end
+    
     result = cat(varargin)
       % Concatenate any number of strings, apt.MetaPaths, and apt.ShellCommands
       % into a single apt.ShellCommand (defined in cat.m)

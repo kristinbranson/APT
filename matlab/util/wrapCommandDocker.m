@@ -11,7 +11,7 @@ function result = wrapCommandDocker(baseCommand, varargin)
   [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,tty,shmsize,apiver] = ...
     myparse(varargin,...
             'containername','apt-docker-container',...
-            'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
+            'bindpath',{},... % cell array of MetaPath objects, containing paths on local filesystem that must be mounted/bound within container
             'dockerimg','',... 
             'isgpu',true,... % set to false for CPU-only
             'gpuid',0,... % used if isgpu
@@ -34,12 +34,14 @@ function result = wrapCommandDocker(baseCommand, varargin)
   % Add whatever the user passed in as paths to bind to the container
   % Convert bindpath to MetaPath objects and create ShellBind objects
   if ~isempty(bindpath)
-    bindPathNative = cellfun(@(x) apt.MetaPath(x, 'native', 'universal'), bindpath, 'UniformOutput', false);
-    bindPathWsl = cellfun(@(x) x.asWsl(), bindPathNative, 'UniformOutput', false);
-    mountArgsAsList = cellfun(@(src) apt.ShellBind(src, src), bindPathWsl, 'UniformOutput', false);
+    bindPathWsl = cellfun(@(path) path.asWsl(), bindpath, 'UniformOutput', false);
+    bindings = row(cellfun(@(src) apt.ShellBind(src, src), bindPathWsl, 'UniformOutput', false));
   else
-    mountArgsAsList = {};
+    bindings = cell(1,0);
   end
+  % Need the --mount in front of each binding
+  mountArgsAsNestedList = cellfun(@(binding)({'--mount', binding}), bindings, 'UniformOutput', false);
+  mountArgsAsList = flatten_row_cell_array(mountArgsAsNestedList) ;
   mountArgs = apt.ShellCommand(mountArgsAsList, apt.PathLocale.wsl, apt.Platform.posix);
 
   % Apparently we need to use the --user switch when running in real Linux

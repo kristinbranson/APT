@@ -497,7 +497,8 @@ classdef DLBackEndClass < handle
       
       switch obj.type,
         case DLBackEnd.Docker
-          baseCommand = apt.ShellCommand({'echo', 'START', ';', 'python', 'parse_nvidia_smi.py', ';', 'echo', 'END'}, apt.PathLocale.wsl, apt.posix) ;
+          baseCommand = apt.ShellCommand({'echo', 'START', ';', 'python', 'parse_nvidia_smi.py', ';', 'echo', 'END'}, ...
+                                         apt.PathLocale.wsl, apt.Platform.posix) ;
           bindPath = {aptDeepnetPathWsl}; % don't use guarded
           command = wrapCommandDocker(baseCommand,...
                                       'dockerimg',dockerimgfull,...
@@ -516,7 +517,7 @@ classdef DLBackEndClass < handle
           scriptPath = aptDeepnetPathWsl.cat('parse_nvidia_smi.py') ;
           baseCommand = apt.ShellCommand({'echo', 'START', '&&', 'python', scriptPath, '&&', 'echo', 'END'}, ...
                                          apt.PathLocale.wsl, ...
-                                         apt.posix) ;
+                                         apt.Platform.posix) ;
           command = wrapCommandConda(baseCommand, 'condaEnv', condaEnv) ;
           [st,res] = command.run() ;
           if st ~= 0,
@@ -1763,7 +1764,8 @@ classdef DLBackEndClass < handle
     
       % Wrap for docker
       dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
-      bindpath = {'/home'} ;  % This is a remote path
+      homePathRemote = apt.MetaPath('/home', 'remote', 'immovable') ;
+      bindpath = {homePathRemote} ;
       codestr = ...
         wrapCommandDocker(basecmd, ...
                           'dockerimg',dockerimg, ...

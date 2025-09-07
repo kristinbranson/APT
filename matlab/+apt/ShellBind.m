@@ -45,15 +45,15 @@ classdef ShellBind < apt.ShellToken
                obj.destPath_.tfDoesMatchPlatform(queryPlatform);
     end
     
-    function result = eq(obj, other)
+    function result = isequal(obj, other)
       % Check equality with another ShellBind
       if ~isa(other, 'apt.ShellBind')
         result = false;
         return;
       end
       
-      result = obj.sourcePath_.eq(other.sourcePath_) && ...
-               obj.destPath_.eq(other.destPath_);
+      result = isequal(obj.sourcePath_, other.sourcePath_) && ...
+               isequal(obj.destPath_, other.destPath_);
     end
     
     function disp(obj)
@@ -61,4 +61,32 @@ classdef ShellBind < apt.ShellToken
       fprintf('apt.ShellBind: "%s"\n', obj.char());
     end
   end
+  
+  methods
+    function result = encode_for_persistence_(obj, do_wrap_in_container)
+      % Encode both MetaPath properties
+      encoded_sourcePath = encode_for_persistence(obj.sourcePath_, true);
+      encoded_destPath = encode_for_persistence(obj.destPath_, true);
+      
+      encoding = struct('sourcePath_', {encoded_sourcePath}, 'destPath_', {encoded_destPath}) ;
+      if do_wrap_in_container
+        result = encoding_container('apt.ShellBind', encoding) ;
+      else
+        result = encoding ;
+      end
+    end
+  end  % methods
+  
+  methods (Static)
+    function result = decode_encoding(encoding)
+      % Decode the encoded version of the object.  Used for loading from persistent
+      % storage.
+      
+      % Decode both MetaPath objects
+      decoded_sourcePath = decode_encoding_container(encoding.sourcePath_);
+      decoded_destPath = decode_encoding_container(encoding.destPath_);
+      
+      result = apt.ShellBind(decoded_sourcePath, decoded_destPath) ;
+    end
+  end  % methods (Static)
 end

@@ -68,12 +68,14 @@ function testDockerBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
   deepnetroot = [APT.Root '/deepnet'];
   homedir = get_home_dir_name();
+  deepnetrootPath = apt.MetaPath(deepnetroot, 'native', 'source');
+  homedirPath = apt.MetaPath(homedir, 'native', 'home');
   baseCmdCommand = apt.ShellCommand({'python', 'APT_interface.py', 'lbl', 'test', 'hello'}, apt.PathLocale.wsl, apt.Platform.posix);
   command = wrapCommandDocker(baseCmdCommand,...
                           'dockerimg', obj.dockerimgfull, ...
                           'containername','containerTest',...
                           'detach',false,...
-                          'bindpath',{wsl_path_from_native(deepnetroot),wsl_path_from_native(homedir)});
+                          'bindpath',{deepnetrootPath, homedirPath});
   obj.testText_{end+1,1} = command.char();
   labeler.notify('updateBackendTestText');
   RUNAPTHELLO = 1;

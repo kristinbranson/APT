@@ -73,9 +73,9 @@ end
 if st ~= 0 , 
   switch failbehavior
     case 'err'
-      error('APT:syscmd','\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmdAsString,st,res);
+      error('APT:syscmd','\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',commandAsString,st,res);
     case 'warn'
-      warningNoTrace('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmdAsString,st,res);
+      warningNoTrace('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',commandAsString,st,res);
     case 'silent'
       % do nothing
     otherwise

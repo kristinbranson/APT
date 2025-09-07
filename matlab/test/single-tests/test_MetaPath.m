@@ -23,7 +23,7 @@ if metaPath.platform ~= apt.Platform.posix
   error('MetaPath platform property failed');
 end
 
-if ~metaPath.path.eq(pathObj)
+if ~isequal(metaPath.path, pathObj)
   error('MetaPath path property failed');
 end
 
@@ -60,26 +60,26 @@ end
 % Test equality
 pathObj2 = apt.Path('/test/path', apt.Platform.posix);
 metaPath3 = apt.MetaPath(pathObj2, apt.PathLocale.native, apt.FileRole.movie);
-if ~metaPath.eq(metaPath3)
+if ~isequal(metaPath, metaPath3)
   error('MetaPath equality test failed for identical paths');
 end
 
 % Test inequality - different locale
 metaPath4 = apt.MetaPath(pathObj2, apt.PathLocale.wsl, apt.FileRole.movie);
-if metaPath.eq(metaPath4)
+if isequal(metaPath, metaPath4)
   error('MetaPath equality test failed - should not be equal with different locale');
 end
 
 % Test inequality - different role
 metaPath5 = apt.MetaPath(pathObj2, apt.PathLocale.native, apt.FileRole.cache);
-if metaPath.eq(metaPath5)
+if isequal(metaPath, metaPath5)
   error('MetaPath equality test failed - should not be equal with different role');
 end
 
 % Test inequality - different path
 pathObj3 = apt.Path('/different/path', apt.Platform.posix);
 metaPath6 = apt.MetaPath(pathObj3, apt.PathLocale.native, apt.FileRole.movie);
-if metaPath.eq(metaPath6)
+if isequal(metaPath, metaPath6)
   error('MetaPath equality test failed - should not be equal with different path');
 end
 
@@ -91,14 +91,14 @@ nativeFromWsl = wslMetaPath.asNative();
 
 % Should have same path but native locale
 expectedNativeMetaPath = apt.MetaPath(wslPath, apt.PathLocale.native, apt.FileRole.movie);
-if ~nativeFromWsl.eq(expectedNativeMetaPath)
+if ~isequal(nativeFromWsl, expectedNativeMetaPath)
   error('asNative() failed for WSL to native conversion');
 end
 
 % Test native to native (should return same object)
 nativeMetaPath = apt.MetaPath(wslPath, apt.PathLocale.native, apt.FileRole.cache);
 nativeFromNative = nativeMetaPath.asNative();
-if ~nativeFromNative.eq(nativeMetaPath)
+if ~isequal(nativeFromNative, nativeMetaPath)
   error('asNative() failed for native to native conversion (should return same object)');
 end
 
@@ -120,8 +120,44 @@ originalNative = apt.MetaPath(wslPath, apt.PathLocale.native, apt.FileRole.movie
 wslVersion = originalNative.as(apt.PathLocale.wsl);
 backToNative = wslVersion.asNative();
 
-if ~backToNative.eq(originalNative)
+if ~isequal(backToNative, originalNative)
   error('Round-trip native -> WSL -> native using as() methods failed');
+end
+
+%
+% Test persistence encoding and decoding for apt.MetaPath objects
+%
+
+% Test with various MetaPath types, locales, and roles
+testMetaPaths = {
+  apt.MetaPath('/usr/local/bin/app', apt.PathLocale.native, apt.FileRole.cache), ...
+  apt.MetaPath('/home/user/movies/video.mp4', apt.PathLocale.wsl, apt.FileRole.movie), ...
+  apt.MetaPath('/mnt/c/Data/project.mat', apt.PathLocale.remote, apt.FileRole.cache), ...
+  apt.MetaPath(apt.Path('C:\Windows\System32', apt.Platform.windows), apt.PathLocale.native, apt.FileRole.movie), ...
+  apt.MetaPath('/groups/data/analysis', apt.PathLocale.wsl, apt.FileRole.cache), ...
+  apt.MetaPath('/', apt.PathLocale.native, apt.FileRole.movie), ...  % root path
+  apt.MetaPath(apt.Path('C:', apt.Platform.windows), apt.PathLocale.native, apt.FileRole.cache) ...  % drive-only path
+};
+
+for i = 1:numel(testMetaPaths)
+  originalMetaPath = testMetaPaths{i};
+  
+  % Encode the MetaPath object
+  encodedMetaPath = encode_for_persistence(originalMetaPath);
+  
+  % Test that the encoded result is an encoding container
+  if ~is_an_encoding_container(encodedMetaPath)
+    error('encode_for_persistence should return an encoding container for MetaPath: %s', originalMetaPath.char());
+  end
+  
+  % Decode the encoded MetaPath
+  decodedMetaPath = decode_encoding_container(encodedMetaPath);
+  
+  % Check that the decoded MetaPath equals the original using isequal
+  if ~isequal(originalMetaPath, decodedMetaPath)
+    error('Persistence round-trip failed for MetaPath: %s (locale: %s, role: %s)', ...
+          originalMetaPath.char(), char(originalMetaPath.locale), char(originalMetaPath.role));
+  end
 end
 
 end

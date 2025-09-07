@@ -19,11 +19,11 @@ end
 
 % Test equality
 lit3 = apt.ShellLiteral('hello');
-if ~lit1.eq(lit3)
+if ~isequal(lit1, lit3)
   error('ShellLiteral equality test failed');
 end
 
-if lit1.eq(lit2)
+if isequal(lit1, lit2)
   error('ShellLiteral inequality test failed');
 end
 

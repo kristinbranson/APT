@@ -13,6 +13,9 @@ classdef Path
       % apt.Platform enumeration.  Represents the platform the frontend is currently running on,
       % usually.  Present so that we can test Path functionality on e.g. Windows on
       % e.g. POSIX.
+  end
+
+  properties (Transient)
     tfIsAbsolute_ % Logical scalar indicating whether the path is absolute
   end
 
@@ -122,7 +125,8 @@ classdef Path
 
     function result = char(obj)
       % Get the path as a string
-      result = apt.Path.listToString_(obj.list_, obj.platform_);
+      preResult = apt.Path.listToString_(obj.list_, obj.platform_);
+      result = escape_string_for_bash(preResult) ;
     end
 
     function result = cat2(obj, other)
@@ -190,18 +194,6 @@ classdef Path
       for i = 1:length(varargin)
         result = result.cat2(varargin{i});
       end
-    end
-
-    function result = eq(obj, other)
-      % Check equality with another apt.Path
-      if ~isa(other, 'apt.Path')
-        result = false;
-        return;
-      end
-
-      result = isequal(obj.list_, other.list_) && ...
-               obj.platform_ == other.platform_ && ...
-               obj.tfIsAbsolute_ == other.tfIsAbsolute_;
     end
 
     function [pathPart, filenamePart] = fileparts2(obj)
@@ -439,6 +431,21 @@ classdef Path
               apt.Platform.toString(obj.platform_), ...
               absoluteStr);
     end  % function
+
+    function result = isequal(obj, other)
+      % Test for equality with another apt.Path object
+      %
+      % Args:
+      %   other: Another apt.Path object to compare with
+      %
+      % Returns:
+      %   logical: true if the paths are equal, false otherwise
+      
+      result = isa(other, 'apt.Path') && ...
+               obj.platform_ == other.platform_ && ...
+               obj.tfIsAbsolute_ == other.tfIsAbsolute_ && ...
+               isequal(obj.list_, other.list_);
+    end  % function
   end  % methods
 
   methods (Static)
@@ -523,6 +530,24 @@ classdef Path
         result = isempty(pathList{1});
       end
     end
+  end  % methods (Static)
 
+  methods
+    function result = encode_for_persistence_(obj, do_wrap_in_container)
+      encoding = struct('list_', {obj.list_}, 'platform_', {obj.platform_}, 'tfIsAbsolute_', {obj.tfIsAbsolute_}) ;
+      if do_wrap_in_container
+        result = encoding_container('apt.Path', encoding) ;
+      else
+        result = encoding ;
+      end
+    end
+  end  % methods
+  
+  methods (Static)
+    function result = decode_encoding(encoding)
+      % Decode the encoded version of the object.  Used for loading from persistent
+      % storage.
+      result = apt.Path(encoding.list_, encoding.platform_) ;
+    end
   end  % methods (Static)
 end  % classdef

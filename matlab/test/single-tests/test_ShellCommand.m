@@ -173,4 +173,103 @@ if ~strcmp(charResult, expectedCharResult)
   error('char() conversion failed. Expected: %s, Got: %s', expectedCharResult, charResult);
 end
 
+% Test ShellCommand with all possible token types
+% Create all different token types
+stringToken = 'hello';  % Will be converted to ShellLiteral
+literalToken = apt.ShellLiteral('world');
+pathToken = apt.MetaPath('/tmp/test.txt', 'native', 'cache');
+varToken = apt.ShellVariableAssignment('VAR', 'value');
+srcPath = apt.MetaPath('/src/path', 'native', 'source');
+dstPath = apt.MetaPath('/dst/path', 'native', 'cache');
+bindToken = apt.ShellBind(srcPath, dstPath);
+nestedCmdToken = apt.ShellCommand({'echo', 'nested'});
+
+% Build command with all token types
+allTokensCmd = apt.ShellCommand({stringToken, literalToken, pathToken, varToken, bindToken, nestedCmdToken});
+
+% Test that char() works for all token types
+try
+  result = allTokensCmd.char();
+  expectedResult = 'hello world /tmp/test.txt VAR=value type=bind,src=/src/path,dst=/dst/path ''echo nested''';
+  if ~strcmp(result, expectedResult)
+    error('All token types test failed. Expected: %s, Got: %s', expectedResult, result);
+  end
+catch ME
+  error('ShellCommand.char() failed with all token types: %s', ME.message);
+end
+
+% Verify individual token types
+token1 = allTokensCmd.getToken(1);
+token2 = allTokensCmd.getToken(2);
+token3 = allTokensCmd.getToken(3);
+token4 = allTokensCmd.getToken(4);
+token5 = allTokensCmd.getToken(5);
+token6 = allTokensCmd.getToken(6);
+
+if ~isa(token1, 'apt.ShellLiteral')
+  error('Token 1 should be ShellLiteral (converted from string)');
+end
+if ~isa(token2, 'apt.ShellLiteral')
+  error('Token 2 should be ShellLiteral');
+end
+if ~isa(token3, 'apt.MetaPath')
+  error('Token 3 should be MetaPath');
+end
+if ~isa(token4, 'apt.ShellVariableAssignment')
+  error('Token 4 should be ShellVariableAssignment');
+end
+if ~isa(token5, 'apt.ShellBind')
+  error('Token 5 should be ShellBind');
+end
+if ~isa(token6, 'apt.ShellCommand')
+  error('Token 6 should be ShellCommand');
+end
+
+% Test persistence encoding and decoding for apt.ShellCommand objects
+
+% Test with various ShellCommand configurations
+testShellCommands = {
+  % Simple command with literals only
+  apt.ShellCommand({'echo', 'hello', 'world'}), ...
+  
+  % Command with MetaPath
+  apt.ShellCommand({'python', 'script.py', '--input', apt.MetaPath('/data/file.txt', 'native', 'movie')}), ...
+  
+  % Command with mixed token types
+  apt.ShellCommand({'cmd', apt.MetaPath('/path', 'native', 'cache'), apt.ShellVariableAssignment('VAR', 'value')}), ...
+  
+  % Nested command
+  apt.ShellCommand({'bash', '-c', apt.ShellCommand({'ls', '-la'})}), ...
+  
+  % Empty command
+  apt.ShellCommand({}), ...
+  
+  % Command with different locales and platforms
+  apt.ShellCommand({'echo', 'test'}, apt.PathLocale.wsl, apt.Platform.posix), ...
+  
+  % Command with all possible token types (reuse from earlier in test)
+  allTokensCmd ...
+};
+
+for i = 1:numel(testShellCommands)
+  originalCmd = testShellCommands{i};
+  
+  % Encode the ShellCommand object
+  encodedCmd = encode_for_persistence(originalCmd);
+  
+  % Test that the encoded result is an encoding container
+  if ~is_an_encoding_container(encodedCmd)
+    error('encode_for_persistence should return an encoding container for ShellCommand: %s', originalCmd.char());
+  end
+  
+  % Decode the encoded ShellCommand
+  decodedCmd = decode_encoding_container(encodedCmd);
+  
+  % Check that the decoded ShellCommand equals the original using isequal
+  if ~isequal(originalCmd, decodedCmd)
+    error('Persistence round-trip failed for ShellCommand: %s (locale: %s, platform: %s)', ...
+          originalCmd.char(), char(originalCmd.locale), char(originalCmd.platform));
+  end
+end
+
 end

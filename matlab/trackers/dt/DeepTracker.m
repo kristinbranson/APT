@@ -2442,7 +2442,7 @@ classdef DeepTracker < LabelTracker
       bgObj.dispTrkOutDir();
     end
     
-    function trkCreateConfig(obj,configFilePathNative,varargin)
+    function trkCreateConfig(obj, configFilePathNativeAsChar, varargin)
       % trkCreateConfig(obj,'sPrmAll',[])
       % 
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
@@ -2460,7 +2460,8 @@ classdef DeepTracker < LabelTracker
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
       jsen = sprintf('%s\n', jse) ;
-      obj.backend.writeStringToFile(configFilePathNative, jsen) ;  % throws if unable to write file
+      configFilePath = apt.MetaPath(configFilePathNativeAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      obj.backend.writeStringToFile(configFilePath, jsen) ;  % throws if unable to write file
     end  % function
     
   end  % methods
