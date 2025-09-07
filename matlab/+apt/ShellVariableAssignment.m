@@ -50,10 +50,11 @@ classdef ShellVariableAssignment < apt.ShellToken
       % Convert to string representation (IDENTIFIER=value)
       if ischar(obj.value_)
         valueStr = obj.value_;
+        result = sprintf('%s=%s', obj.identifier_, escape_string_for_bash(valueStr)) ;
       else
-        valueStr = obj.value_.char();
+        valueStr = obj.value_.char();  % already escaped
+        result = sprintf('%s=%s', obj.identifier_, valueStr) ;
       end
-      result = sprintf('%s=%s', obj.identifier_, escape_string_for_bash(valueStr)) ;
     end
     
     function result = tfDoesMatchLocale(obj, queryLocale)  %#ok<INUSD>

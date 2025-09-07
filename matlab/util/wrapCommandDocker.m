@@ -68,8 +68,8 @@ function result = wrapCommandDocker(baseCommand, varargin)
     % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
   end
   
-  nativeHomeDirChar = get_home_dir_name() ;      
-  nativeHomeDirPath = apt.MetaPath(nativeHomeDirChar, 'native', 'universal');
+  nativeHomeDirPathAsChar = get_home_dir_name() ;      
+  nativeHomeDirPath = apt.MetaPath(nativeHomeDirPathAsChar, 'native', 'universal');
   homeDirWslPath = nativeHomeDirPath.asWsl();
   user = get_user_name() ;
   
