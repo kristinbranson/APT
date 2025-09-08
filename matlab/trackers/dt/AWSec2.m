@@ -1775,6 +1775,11 @@ classdef AWSec2 < handle
       % localFileAbsPath should be a WSL absolute path.
       % Throws if unable to write string to file.
 
+      % Validate input
+      assert(isa(fileWslPath, 'apt.MetaPath'), 'fileWslPath must be an apt.MetaPath');
+      assert(fileWslPath.locale == apt.PathLocale.wsl, ...
+             'fileWslPath must have native or WSL locale');
+      
       tfo = temp_file_object('w') ;  % local temp file, will be deleted when tfo goes out of scope
       tfo.fprintf('%s', str) ;
       tfo.fclose() ;  % Close the file before uploading to the remote side

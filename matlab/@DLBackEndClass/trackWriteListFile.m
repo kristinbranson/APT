@@ -1,4 +1,4 @@
-function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNativePath, varargin)
+function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNativePathAsChar, varargin)
   % Write the .json file that specifies the list of frames to track.
   % File paths in movFileNativePath and listFileNativePath should be absolute native paths.
   % Throws if unable to write complete file.
@@ -16,7 +16,7 @@ function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNa
   assert(iscolumn(movidx)) ;
   assert(isnumeric(movidx)) ;
   assert(istable(tMFTConc)) ;
-  assert(isstringy(listFileNativePath)) ;
+  assert(isstringy(listFileNativePathAsChar)) ;
   assert(iscell(trxFilesLcl)) ;
   assert(isempty(trxFilesLcl) || isstringy(trxFilesLcl{1})) ;
   assert(iscell(croprois)) ;
@@ -82,5 +82,6 @@ function trackWriteListFile(obj, movFileNativePath, movidx, tMFTConc, listFileNa
 
   % Encode listinfo struct to json and write to file
   listinfo_as_json_string = jsonencode(listinfo) ;
-  obj.writeStringToFile(listFileNativePath, listinfo_as_json_string) ;  % throws if unable to write file
+  listFileNativePath = apt.MetaPath(listFileNativePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+  obj.writeStringToFile_(listFileNativePath, listinfo_as_json_string) ;  % throws if unable to write file
 end  % function

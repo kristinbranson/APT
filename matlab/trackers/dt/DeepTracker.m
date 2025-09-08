@@ -2460,8 +2460,7 @@ classdef DeepTracker < LabelTracker
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
       jsen = sprintf('%s\n', jse) ;
-      configFilePath = apt.MetaPath(configFilePathNativeAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
-      obj.backend.writeStringToFile(configFilePath, jsen) ;  % throws if unable to write file
+      obj.backend.writeStringToCacheFile(configFilePathNativeAsChar, jsen) ;  % throws if unable to write file
     end  % function
     
   end  % methods

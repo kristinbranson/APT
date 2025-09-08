@@ -609,7 +609,7 @@ classdef DLBackEndClass < handle
       if isa(syscmds, 'apt.ShellCommand')
         syscmds = {syscmds};
       end
-      if isa(cmdfiles, 'apt.ShellCommand')
+      if isa(cmdfiles, 'apt.MetaPath') 
         cmdfiles = {cmdfiles};
       end
       tfSucc = false(1,numel(syscmds));
@@ -619,7 +619,7 @@ classdef DLBackEndClass < handle
         cmdfile = cmdfiles{i} ;
         syscmdWithNewline = sprintf('%s\n', syscmd.char()) ;
         try 
-          obj.writeStringToFile(cmdfile, syscmdWithNewline) ;
+          obj.writeStringToFile_(cmdfile, syscmdWithNewline) ;
           didSucceed = true ;
           errorMessage = '' ;
         catch me
@@ -758,7 +758,20 @@ classdef DLBackEndClass < handle
     %   doesexist = (status==0) ;
     % end
 
-    function writeStringToFile(obj, filePath, str)
+    function writeStringToCacheFile(obj, nativeFilePathAsChar, str)
+      % Write the given string to a file in the cache, overrwriting any previous contents.
+      % nativeFilePathAsChar should be a native path, represented as a charray.
+      % Throws if unable to write string to file.
+
+      % Validate input
+      assert(ischar(nativeFilePathAsChar) && (isempty(nativeFilePathAsChar) || isrow(nativeFilePathAsChar))) ;
+      assert(ischar(str) && (isempty(str) || isrow(str))) ;
+
+      nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      obj.writeStringToFile_(nativeFilePath, str) ;  % throws if unable to write file
+    end  % function
+    
+    function writeStringToFile_(obj, filePath, str)
       % Write the given string to a file, overrwriting any previous contents.
       % filePath should be a native or wsl MetaPath.
       % Throws if unable to write string to file.
