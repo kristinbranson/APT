@@ -8,6 +8,10 @@ classdef ShellLiteral < apt.ShellToken
     value_  % char array containing the literal string
   end
   
+  properties (Dependent)
+    value   % Get the literal string value
+  end
+  
   methods
     function obj = ShellLiteral(value)
       % Constructor for apt.ShellLiteral
@@ -20,6 +24,11 @@ classdef ShellLiteral < apt.ShellToken
       end
       
       obj.value_ = char(value);
+    end
+    
+    function result = get.value(obj)
+      % Get the literal string value
+      result = obj.value_;
     end
     
     function result = char(obj)

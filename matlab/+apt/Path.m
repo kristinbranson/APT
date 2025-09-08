@@ -129,71 +129,100 @@ classdef Path
       result = escape_string_for_bash(preResult) ;
     end
 
-    function result = cat2(obj, other)
-      % Concatenate this path with another path or string
-      %
-      % Args:
-      %   other (apt.Path or char): The path to concatenate
-      %
-      % Returns:
-      %   apt.Path: New path object representing the concatenation
-      %
-      % Notes:
-      %   - If other is a string, it's converted to apt.Path with same platform
-      %   - The other path must be relative (not absolute)
-      %   - The result will have the same platform as this path
-      %   - The result will be absolute if this path is absolute
-      %   - If other is an empty path, returns this path unchanged
-      
-      % Convert string to apt.Path if needed
-      if ischar(other)
-        other = apt.Path(other, obj.platform);
-      elseif ~isa(other, 'apt.Path')
-        error('apt:Path:InvalidArgument', 'Argument must be an apt.Path object or string');
-      end
-      
-      if other.tfIsAbsolute
-        error('apt:Path:AbsolutePath', 'Cannot concatenate with an absolute path');
-      end
-      
-      if obj.platform ~= other.platform
-        error('apt:Path:PlatformMismatch', 'Cannot concatenate paths from different platforms');
-      end
-      
-      % If other is empty, return this path unchanged
-      if isempty(other.list_)
-        result = obj;
-        return;
-      end
-      
-      % Concatenate the path components
-      newList = [obj.list_, other.list_];
-      
-      % Create new path object
-      result = apt.Path(newList, obj.platform);
-    end
 
     function result = cat(obj, varargin)
-      % Concatenate this path with multiple paths or strings
+      % Concatenate this path with multiple apt.Path objects or char arrays
       %
       % Args:
-      %   varargin: Variable number of apt.Path objects or strings to concatenate
+      %   varargin: Variable number of apt.Path objects or char arrays to concatenate
       %
       % Returns:
       %   apt.Path: New path object representing the concatenation of all inputs
       %
       % Notes:
-      %   - Uses cat2() method as building block
       %   - All paths must be relative (not absolute)
-      %   - If strings are provided, they're converted to apt.Path with same platform
       %   - All paths must have compatible platforms
+      %   - Char arrays are converted to apt.Path objects with the same platform
       
-      result = obj;
+      % Convert char arrays to apt.Path objects and validate
+      pathArgs = cell(size(varargin));
+      for i = 1:length(varargin)
+        if ischar(varargin{i})
+          % Convert char array to apt.Path with same platform
+          pathArgs{i} = apt.Path(varargin{i}, obj.platform);
+        elseif isa(varargin{i}, 'apt.Path')
+          pathArgs{i} = varargin{i};
+        else
+          error('apt:Path:InvalidArgument', 'Argument %d must be an apt.Path object or char array, got %s', i, class(varargin{i}));
+        end
+      end
+      
+      % Start with this path
+      newList = obj.list_;
       
       % Concatenate each argument in sequence
-      for i = 1:length(varargin)
-        result = result.cat2(varargin{i});
+      for i = 1:length(pathArgs)
+        otherPath = pathArgs{i};
+        
+        % Check that the path is relative
+        if otherPath.tfIsAbsolute
+          error('apt:Path:AbsolutePath', 'Cannot concatenate with an absolute path at argument %d', i);
+        end
+        
+        % Check platform compatibility
+        if obj.platform ~= otherPath.platform
+          error('apt:Path:PlatformMismatch', 'Cannot concatenate paths from different platforms (argument %d)', i);
+        end
+        
+        % Skip empty paths
+        if ~isempty(otherPath.list_)
+          newList = horzcat(newList, otherPath.list_);
+        end
       end
+      
+      % Create new path object
+      result = apt.Path(newList, obj.platform);
+    end
+
+    function result = append(obj, varargin)
+      % Append char array arguments to this path
+      %
+      % Args:
+      %   varargin: Variable number of char arrays to append as path components
+      %
+      % Returns:
+      %   apt.Path: New path object with the char arrays appended as components
+      %
+      % Notes:
+      %   - All arguments must be char arrays and row arrays
+      %   - Each char array is added as a separate component to the path
+      %   - The result will have the same platform as this path
+      %   - Empty arrays cause an error
+      
+      % Validate all arguments are char arrays and row arrays
+      for i = 1:length(varargin)
+        if ~ischar(varargin{i})
+          error('apt:Path:InvalidArgument', 'Argument %d must be a char array, got %s', i, class(varargin{i}));
+        end
+        if isempty(varargin{i})
+          error('apt:Path:EmptyArgument', 'Argument %d cannot be an empty array', i);
+        end
+        if ~isrow(varargin{i})
+          error('apt:Path:InvalidArgument', 'Argument %d must be a row array', i);
+        end
+      end
+      
+      % Start with this path's components
+      newList = obj.list_;
+      
+      % Append each char array as a new component
+      for i = 1:length(varargin)
+        component = varargin{i};
+        newList = horzcat(newList, {component});
+      end
+      
+      % Create new path object
+      result = apt.Path(newList, obj.platform);
     end
 
     function [pathPart, filenamePart] = fileparts2(obj)

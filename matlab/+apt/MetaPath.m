@@ -254,9 +254,60 @@ classdef MetaPath < apt.ShellToken
     end
 
     function result = cat(obj, varargin)
-      % Call the apt.Path.cat() method on our .path_.  Leave rest alone.
-      oldPath = obj.path_ ;
-      newPath = oldPath.cat(varargin{:});
+      % Concatenate this MetaPath with multiple apt.MetaPath objects or char arrays
+      %
+      % Args:
+      %   varargin: Variable number of apt.MetaPath objects or char arrays to concatenate
+      %
+      % Returns:
+      %   apt.MetaPath: New MetaPath with concatenated paths, same locale and role
+      %
+      % Notes:
+      %   - Char arrays are converted to apt.MetaPath objects with the same locale and role
+      %   - apt.MetaPath arguments must have compatible locales and platforms
+      
+      % Convert char arrays to apt.MetaPath objects and collect apt.Path objects for underlying cat
+      pathArgs = cell(size(varargin));
+      for i = 1:length(varargin)
+        if ischar(varargin{i})
+          % Convert char array to apt.MetaPath with same locale and role, then extract path
+          metaPath = apt.MetaPath(varargin{i}, obj.locale_, obj.role_);
+          pathArgs{i} = metaPath.path_;
+        elseif isa(varargin{i}, 'apt.MetaPath')
+          % Validate locale and role compatibility
+          if varargin{i}.locale_ ~= obj.locale_
+            error('apt:MetaPath:LocaleMismatch', ...
+              'MetaPath argument at position %d has locale %s, but this MetaPath has locale %s', ...
+              i, apt.PathLocale.toString(varargin{i}.locale_), apt.PathLocale.toString(obj.locale_));
+          end
+          if varargin{i}.role_ ~= obj.role_
+            error('apt:MetaPath:RoleMismatch', ...
+              'MetaPath argument at position %d has role %s, but this MetaPath has role %s', ...
+              i, apt.FileRole.toString(varargin{i}.role_), apt.FileRole.toString(obj.role_));
+          end
+          pathArgs{i} = varargin{i}.path_;
+        else
+          error('apt:MetaPath:InvalidArgument', 'Argument %d must be an apt.MetaPath object or char array, got %s', i, class(varargin{i}));
+        end
+      end
+      
+      % Call the apt.Path.cat() method on the underlying paths
+      oldPath = obj.path_;
+      newPath = oldPath.cat(pathArgs{:});
+      result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+    end
+
+    function result = append(obj, varargin)
+      % Call the apt.Path.append() method on our .path_. Leave rest alone.
+      %
+      % Args:
+      %   varargin: Variable number of char arrays to append as path components
+      %
+      % Returns:
+      %   apt.MetaPath: New MetaPath with the char arrays appended as components,
+      %                 same locale and role as this MetaPath
+      oldPath = obj.path_;
+      newPath = oldPath.append(varargin{:});
       result = apt.MetaPath(newPath, obj.locale_, obj.role_);
     end
 

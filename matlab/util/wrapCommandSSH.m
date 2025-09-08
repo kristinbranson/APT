@@ -26,7 +26,7 @@ else
   prefix1 = prefix0;
 end
 if ~isempty(extraprefix)
-  if prefix1.isEmpty()
+  if prefix1.isempty()
     prefix2 = apt.ShellCommand({extraprefix}, apt.PathLocale.remote, apt.Platform.posix);
   else
     prefix2 = apt.ShellCommand.cat(prefix1, ';', extraprefix);
@@ -36,7 +36,7 @@ else
 end
 
 % Append the prefixes, if present, to remoteCommand
-if prefix2.isEmpty()
+if prefix2.isempty()
   prefixedBaseCommand = apt.ShellCommand({baseCommand}, apt.PathLocale.remote, apt.Platform.posix);
 else
   prefixedBaseCommand = apt.ShellCommand.cat(prefix2, ';', baseCommand);

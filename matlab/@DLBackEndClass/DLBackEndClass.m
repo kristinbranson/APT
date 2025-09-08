@@ -514,7 +514,7 @@ classdef DLBackEndClass < handle
             return
           end
         case DLBackEnd.Conda
-          scriptPath = aptDeepnetPathWsl.cat('parse_nvidia_smi.py') ;
+          scriptPath = aptDeepnetPathWsl.append('parse_nvidia_smi.py') ;
           baseCommand = apt.ShellCommand({'echo', 'START', '&&', 'python', scriptPath, '&&', 'echo', 'END'}, ...
                                          apt.PathLocale.wsl, ...
                                          apt.Platform.posix) ;

@@ -892,7 +892,7 @@ classdef AWSec2 < handle
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
       precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.remote, apt.Platform.posix) ;
-      command2 = precommand.cat('&&', command1) ;
+      command2 = apt.ShellCommand.cat(precommand, '&&', command1) ;
 
       % Issue the command, gather results
       [st, res] = command2.run('failbehavior', 'silent', 'verbose', false, restOfVarargin{:}) ;      
@@ -974,7 +974,7 @@ classdef AWSec2 < handle
       command2 = apt.ShellCommand({'aws', 'ec2', 'describe-regions', '--output', 'table'}, apt.PathLocale.wsl, apt.Platform.posix);
       backend.testText_{end+1,1} = command2.char(); 
       labeler.notify('updateBackendTestText');
-      [status,result] = command2.run();
+      [status,result] = AWSec2.syscmd(command2);
       tfsucc = (status==0);      
       backend.testText_{end+1,1} = result; 
       labeler.notify('updateBackendTestText');
@@ -990,7 +990,7 @@ classdef AWSec2 < handle
       command3 = apt.ShellCommand({'aws', 'ec2', 'describe-security-groups'}, apt.PathLocale.wsl, apt.Platform.posix);
       backend.testText_{end+1,1} = command3.char(); 
       labeler.notify('updateBackendTestText');
-      [status,result] = command3.run('isjsonout', true);
+      [status,result] = AWSec2.syscmd(command3, 'isjsonout', true);
       tfsucc = (status==0);
       if status == 0,
         try
@@ -1291,7 +1291,7 @@ classdef AWSec2 < handle
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
       precommand = apt.ShellCommand(precommandTokens, command0.locale_, command0.platform_) ;
-      command1 = precommand.cat('&&', command0) ;
+      command1 = apt.ShellCommand.cat(precommand, '&&', command0) ;
       
       [st,res,warningstr] = command1.run(varargin{:}) ;
     end  % function    

@@ -68,9 +68,9 @@ literal = apt.ShellLiteral('hello');
 cmd = apt.ShellCommand({literal, 'world', path});
 
 % Check that tokens are properly typed
-token1 = cmd.getToken(1);
-token2 = cmd.getToken(2);
-token3 = cmd.getToken(3);
+token1 = cmd.tokens{1};
+token2 = cmd.tokens{2};
+token3 = cmd.tokens{3};
 
 if ~isa(token1, 'apt.ShellLiteral')
   error('First token should be ShellLiteral');
@@ -157,7 +157,7 @@ if nestedCmd.length() ~= 3
 end
 
 % Verify the token is the original ShellCommand
-token = nestedCmd.getToken(3);
+token = nestedCmd.tokens{3};
 if ~isa(token, 'apt.ShellCommand')
   error('Nested command third token should be a ShellCommand');
 end
@@ -199,12 +199,12 @@ catch ME
 end
 
 % Verify individual token types
-token1 = allTokensCmd.getToken(1);
-token2 = allTokensCmd.getToken(2);
-token3 = allTokensCmd.getToken(3);
-token4 = allTokensCmd.getToken(4);
-token5 = allTokensCmd.getToken(5);
-token6 = allTokensCmd.getToken(6);
+token1 = allTokensCmd.tokens{1};
+token2 = allTokensCmd.tokens{2};
+token3 = allTokensCmd.tokens{3};
+token4 = allTokensCmd.tokens{4};
+token5 = allTokensCmd.tokens{5};
+token6 = allTokensCmd.tokens{6};
 
 if ~isa(token1, 'apt.ShellLiteral')
   error('Token 1 should be ShellLiteral (converted from string)');
@@ -270,6 +270,15 @@ for i = 1:numel(testShellCommands)
     error('Persistence round-trip failed for ShellCommand: %s (locale: %s, platform: %s)', ...
           originalCmd.char(), char(originalCmd.locale), char(originalCmd.platform));
   end
+end
+
+% Test case that failed at some point
+precommandTokens = {'sleep', '5', '&&', 'export', apt.ShellVariableAssignment('AWS_PAGER', '')};
+precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.wsl, apt.Platform.posix);
+command0 = apt.ShellCommand({'echo', 'foo'}, apt.PathLocale.wsl, apt.Platform.posix);
+command1 = apt.ShellCommand.cat(precommand, '&&', command0);
+if ~isequal(command1.tokens{1}.value, 'sleep')
+  error('isequal(command1.token{1}.value, ''sleep'') should be true, but command1.tokens{1}.value is:\n%s', char(command1.tokens{1}.value));
 end
 
 end

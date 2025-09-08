@@ -23,6 +23,7 @@ classdef ShellCommand < apt.ShellToken
   end
 
   properties (Dependent)
+    tokens      % get the tokens
     locale      % Get the locale type
     platform    % Get the platform type
   end
@@ -117,6 +118,10 @@ classdef ShellCommand < apt.ShellToken
       obj.platform_ = platform;
     end
 
+    function result = get.tokens(obj)
+      result = obj.tokens_;
+    end
+    
     function result = get.locale(obj)
       result = obj.locale_;
     end
@@ -214,116 +219,116 @@ classdef ShellCommand < apt.ShellToken
       result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
     end
 
-    function result = prepend(obj, varargin)
-      % Prepend tokens to the beginning of the command
-      %
-      % Args:
-      %   varargin: Tokens to prepend (strings, apt.ShellToken objects, or cell arrays)
-      %
-      % Returns:
-      %   apt.ShellCommand: New command with tokens prepended
+    % function result = prepend(obj, varargin)
+    %   % Prepend tokens to the beginning of the command
+    %   %
+    %   % Args:
+    %   %   varargin: Tokens to prepend (strings, apt.ShellToken objects, or cell arrays)
+    %   %
+    %   % Returns:
+    %   %   apt.ShellCommand: New command with tokens prepended
+    % 
+    %   tokensToAdd = {};
+    %   for i = 1:length(varargin)
+    %     token = varargin{i};
+    %     if iscell(token)
+    %       tokensToAdd = [tokensToAdd, token];  %#ok<AGROW>
+    %     else
+    %       tokensToAdd{end+1} = token;  %#ok<AGROW>
+    %     end
+    %   end
+    % 
+    %   % Validate new tokens before adding
+    %   obj.validateTokens_(tokensToAdd, 'prepend');
+    % 
+    %   newTokens = [tokensToAdd, obj.tokens_];
+    %   result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
+    % end
 
-      tokensToAdd = {};
-      for i = 1:length(varargin)
-        token = varargin{i};
-        if iscell(token)
-          tokensToAdd = [tokensToAdd, token];  %#ok<AGROW>
-        else
-          tokensToAdd{end+1} = token;  %#ok<AGROW>
-        end
-      end
+    % function result = substitute(obj, oldToken, newToken)
+    %   % Substitute all instances of oldToken with newToken
+    %   %
+    %   % Args:
+    %   %   oldToken: Token to replace (string or apt.MetaPath)
+    %   %   newToken: Replacement token (string or apt.MetaPath)
+    %   %
+    %   % Returns:
+    %   %   apt.ShellCommand: New command with substitutions made
+    % 
+    %   % Validate new token if it's an apt.MetaPath
+    %   if isa(newToken, 'apt.MetaPath')
+    %     obj.validateTokens_({newToken}, 'substitute');
+    %   end
+    % 
+    %   newTokens = obj.tokens_;
+    %   for i = 1:length(newTokens)
+    %     if obj.tokensEqual_(newTokens{i}, oldToken)
+    %       newTokens{i} = newToken;
+    %     end
+    %   end
+    % 
+    %   result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
+    % end
 
-      % Validate new tokens before adding
-      obj.validateTokens_(tokensToAdd, 'prepend');
-
-      newTokens = [tokensToAdd, obj.tokens_];
-      result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
-    end
-
-    function result = substitute(obj, oldToken, newToken)
-      % Substitute all instances of oldToken with newToken
-      %
-      % Args:
-      %   oldToken: Token to replace (string or apt.MetaPath)
-      %   newToken: Replacement token (string or apt.MetaPath)
-      %
-      % Returns:
-      %   apt.ShellCommand: New command with substitutions made
-
-      % Validate new token if it's an apt.MetaPath
-      if isa(newToken, 'apt.MetaPath')
-        obj.validateTokens_({newToken}, 'substitute');
-      end
-
-      newTokens = obj.tokens_;
-      for i = 1:length(newTokens)
-        if obj.tokensEqual_(newTokens{i}, oldToken)
-          newTokens{i} = newToken;
-        end
-      end
-
-      result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
-    end
-
-    function result = getPathTokens(obj)
-      % Get all apt.MetaPath tokens from the command
-      %
-      % Returns:
-      %   cell: Cell array of apt.MetaPath objects in the command
-
-      result = {};
-      for i = 1:length(obj.tokens_)
-        if isa(obj.tokens_{i}, 'apt.Path')
-          result{end+1} = obj.tokens_{i};  %#ok<AGROW>
-        end
-      end
-    end
-
-    function result = getTokensByRole(obj, fileRole)
-      % Get all path tokens with specific file role
-      %
-      % Args:
-      %   fileRole (char or apt.FileRole): File role to match (e.g., 'movie', 'cache')
-      %
-      % Returns:
-      %   cell: Cell array of apt.MetaPath objects with matching role
-
-      % Convert string to enum if needed
-      if ischar(fileRole)
-        fileRole = apt.FileRole.fromString(fileRole);
-      end
-
-      result = {};
-      pathTokens = obj.getPathTokens();
-      for i = 1:length(pathTokens)
-        if pathTokens{i}.isRole(fileRole)
-          result{end+1} = pathTokens{i};  %#ok<AGROW>
-        end
-      end
-    end
+    % function result = getPathTokens(obj)
+    %   % Get all apt.MetaPath tokens from the command
+    %   %
+    %   % Returns:
+    %   %   cell: Cell array of apt.MetaPath objects in the command
+    % 
+    %   result = {};
+    %   for i = 1:length(obj.tokens_)
+    %     if isa(obj.tokens_{i}, 'apt.Path')
+    %       result{end+1} = obj.tokens_{i};  %#ok<AGROW>
+    %     end
+    %   end
+    % end
+    % 
+    % function result = getTokensByRole(obj, fileRole)
+    %   % Get all path tokens with specific file role
+    %   %
+    %   % Args:
+    %   %   fileRole (char or apt.FileRole): File role to match (e.g., 'movie', 'cache')
+    %   %
+    %   % Returns:
+    %   %   cell: Cell array of apt.MetaPath objects with matching role
+    % 
+    %   % Convert string to enum if needed
+    %   if ischar(fileRole)
+    %     fileRole = apt.FileRole.fromString(fileRole);
+    %   end
+    % 
+    %   result = {};
+    %   pathTokens = obj.getPathTokens();
+    %   for i = 1:length(pathTokens)
+    %     if pathTokens{i}.isRole(fileRole)
+    %       result{end+1} = pathTokens{i};  %#ok<AGROW>
+    %     end
+    %   end
+    % end
 
     function result = length(obj)
       % Get number of tokens in command
       result = length(obj.tokens_);
     end
 
-    function result = getToken(obj, index)
-      % Get token at specific index
-      %
-      % Args:
-      %   index (numeric): 1-based index
-      %
-      % Returns:
-      %   Token at the specified index
-
-      if index < 1 || index > length(obj.tokens_)
-        error('apt:ShellCommand:IndexOutOfBounds', ...
-          'Index %d is out of bounds for command with %d tokens', ...
-          index, length(obj.tokens_));
-      end
-
-      result = obj.tokens_{index};
-    end
+    % function result = getToken(obj, index)
+    %   % Get token at specific index
+    %   %
+    %   % Args:
+    %   %   index (numeric): 1-based index
+    %   %
+    %   % Returns:
+    %   %   Token at the specified index
+    % 
+    %   if index < 1 || index > length(obj.tokens_)
+    %     error('apt:ShellCommand:IndexOutOfBounds', ...
+    %       'Index %d is out of bounds for command with %d tokens', ...
+    %       index, length(obj.tokens_));
+    %   end
+    % 
+    %   result = obj.tokens_{index};
+    % end
 
     function result = isequal(obj, other)
       % Check equality with another apt.ShellCommand
@@ -355,9 +360,18 @@ classdef ShellCommand < apt.ShellToken
         token = obj.tokens_{i};
         if isa(token, 'apt.MetaPath')
           fprintf('  [%d] Path: %s [%s:%s]\n', i, token.char(), ...
-            apt.PathLocale.toString(token.locale), apt.FileRole.toString(token.fileRole));
+            apt.PathLocale.toString(token.locale), apt.FileRole.toString(token.role));
+        elseif isa(token, 'apt.ShellLiteral')
+          fprintf('  [%d] Literal: %s\n', i, token.char());
+        elseif isa(token, 'apt.ShellCommand')
+          fprintf('  [%d] Command: %s [%s]\n', i, token.char(), ...
+            apt.PathLocale.toString(token.locale));
+        elseif isa(token, 'apt.ShellVariableAssignment')
+          fprintf('  [%d] VariableAssignment: %s\n', i, token.char());
+        elseif isa(token, 'apt.ShellBind')
+          fprintf('  [%d] Bind: %s\n', i, token.char());
         else
-          fprintf('  [%d] Literal: %s\n', i, char(token));
+          fprintf('  [%d] Unknown token type (%s): %s\n', i, class(token), char(token));
         end
       end
       fprintf('  String: %s\n', obj.char());
@@ -459,7 +473,7 @@ classdef ShellCommand < apt.ShellToken
     %   result = apt.ShellCommand(newTokens, apt.PathLocale.remote, apt.Platform.posix) ;
     % end  % function
 
-    function result = isEmpty(obj)
+    function result = isempty(obj)
       % Check if the command has no tokens
       %
       % Returns:

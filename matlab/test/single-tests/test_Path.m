@@ -120,54 +120,54 @@ if ~winAbsCellPath.tfIsAbsolute
   error('Windows absolute path from cell array should have tfIsAbsolute = true');
 end
 
-% Test cat2 method with apt.Path objects
+% Test cat method with apt.Path objects
 basePath = apt.Path('/home/user', apt.Platform.posix);
 relativePath = apt.Path('docs/file.txt', apt.Platform.posix);
-concatenated = basePath.cat2(relativePath);
+concatenated = basePath.cat(relativePath);
 expectedPath = apt.Path('/home/user/docs/file.txt', apt.Platform.posix);
 if ~isequal(concatenated, expectedPath)
   error('Path concatenation with apt.Path failed');
 end
 
-% Test cat2 method with string
-concatenated2 = basePath.cat2('pictures/photo.jpg');
+% Test cat method with string (converted to apt.Path)
+concatenated2 = basePath.cat(apt.Path('pictures/photo.jpg', apt.Platform.posix));
 expectedPath2 = apt.Path('/home/user/pictures/photo.jpg', apt.Platform.posix);
 if ~isequal(concatenated2, expectedPath2)
   error('Path concatenation with string failed');
 end
 
-% Test cat2 error on absolute path
+% Test cat error on absolute path
 try
   absolutePath = apt.Path('/absolute/path', apt.Platform.posix);
-  basePath.cat2(absolutePath);
-  error('cat2 should have errored on absolute path');
+  basePath.cat(absolutePath);
+  error('cat should have errored on absolute path');
 catch ME
   if ~contains(ME.identifier, 'apt:Path:AbsolutePath')
-    error('cat2 errored but with wrong error type: %s', ME.identifier);
+    error('cat errored but with wrong error type: %s', ME.identifier);
   end
 end
 
-% Test cat2 error on platform mismatch
+% Test cat error on platform mismatch
 try
   windowsBase = apt.Path('C:\Windows', apt.Platform.windows);
   linuxRelative = apt.Path('subdir/file', apt.Platform.posix);
-  windowsBase.cat2(linuxRelative);
-  error('cat2 should have errored on platform mismatch');
+  windowsBase.cat(linuxRelative);
+  error('cat should have errored on platform mismatch');
 catch ME
   if ~contains(ME.identifier, 'apt:Path:PlatformMismatch')
-    error('cat2 errored but with wrong error type: %s', ME.identifier);
+    error('cat errored but with wrong error type: %s', ME.identifier);
   end
 end
 
-% Test cat method with multiple arguments
+% Test cat method with multiple arguments (char arrays)
 basePath = apt.Path('/home/user', apt.Platform.posix);
 concatenated3 = basePath.cat('docs', 'projects', 'file.txt');
 expectedPath3 = apt.Path('/home/user/docs/projects/file.txt', apt.Platform.posix);
 if ~isequal(concatenated3, expectedPath3)
-  error('Path concatenation with multiple strings failed');
+  error('Path concatenation with multiple char arrays failed');
 end
 
-% Test cat method with mixed apt.Path and string arguments
+% Test cat method with mixed apt.Path and char array arguments
 relativePath1 = apt.Path('folder1', apt.Platform.posix);
 concatenated4 = basePath.cat(relativePath1, 'subfolder', 'data.csv');
 expectedPath4 = apt.Path('/home/user/folder1/subfolder/data.csv', apt.Platform.posix);
@@ -181,11 +181,55 @@ if ~isequal(concatenated5, basePath)
   error('Path concatenation with no arguments should return same path');
 end
 
-% Test cat method with single argument (should be same as cat2)
+% Test cat method with single argument
 concatenated6 = basePath.cat('single/path');
-expectedPath6 = basePath.cat2('single/path');
+expectedPath6 = basePath.cat('single/path');
 if ~isequal(concatenated6, expectedPath6)
-  error('Path concatenation with single argument should match cat2 result');
+  error('Path concatenation with single argument failed');
+end
+
+% Test append method with single char array
+appendPath1 = basePath.append('documents');
+expectedAppendPath1 = apt.Path('/home/user/documents', apt.Platform.posix);
+if ~isequal(appendPath1, expectedAppendPath1)
+  error('Path append with single char array failed');
+end
+
+% Test append method with multiple char arrays
+appendPath2 = basePath.append('docs', 'projects', 'file.txt');
+expectedAppendPath2 = apt.Path('/home/user/docs/projects/file.txt', apt.Platform.posix);
+if ~isequal(appendPath2, expectedAppendPath2)
+  error('Path append with multiple char arrays failed');
+end
+
+% Test append method error on empty argument
+try
+  basePath.append('valid', '', 'another');
+  error('append should have errored on empty argument');
+catch ME
+  if ~contains(ME.identifier, 'apt:Path:EmptyArgument')
+    error('append errored but with wrong error type: %s', ME.identifier);
+  end
+end
+
+% Test append method error on non-char argument
+try
+  basePath.append('valid', 123, 'another');
+  error('append should have errored on non-char argument');
+catch ME
+  if ~contains(ME.identifier, 'apt:Path:InvalidArgument')
+    error('append errored but with wrong error type: %s', ME.identifier);
+  end
+end
+
+% Test append method error on column vector
+try
+  basePath.append('valid', ['a'; 'b'], 'another');
+  error('append should have errored on column vector argument');
+catch ME
+  if ~contains(ME.identifier, 'apt:Path:InvalidArgument')
+    error('append errored but with wrong error type: %s', ME.identifier);
+  end
 end
 
 % Test empty path creation (with auto-detected platform)
@@ -195,7 +239,7 @@ if ~isequal(emptyPathAuto1, emptyPathAuto2)
   error('Empty paths with auto-detected platform should be equal');
 end
 
-% Test empty path creation and cat2 behavior
+% Test empty path creation and cat behavior
 for platform = enumeration('apt.Platform')'
   % Test creating empty path with empty array
   emptyPath1 = apt.Path([], platform);
@@ -229,28 +273,28 @@ for platform = enumeration('apt.Platform')'
     error('Empty paths should be equal when created with same platform');
   end
   
-  % Test cat2 with empty path as second argument
+  % Test cat with empty path as second argument
   if platform == apt.Platform.windows
     testPath = apt.Path('C:\Users\test\docs', platform);
   else
     testPath = apt.Path('/home/user/docs', platform);
   end
   
-  result1 = testPath.cat2(emptyPath2);
+  result1 = testPath.cat(emptyPath2);
   if ~isequal(result1, testPath)
     error('Concatenating with empty path as second argument should return first path unchanged');
   end
   
-  % Test cat2 with empty path as first argument
-  result2 = emptyPath2.cat2('relative/file.txt');
+  % Test cat with empty path as first argument
+  result2 = emptyPath2.cat(apt.Path('relative/file.txt', platform));
   expectedResult2 = apt.Path('relative/file.txt', platform);
   if ~isequal(result2, expectedResult2)
     error('Concatenating empty path with relative path should return the relative path');
   end
   
-  % Test cat2 with both paths empty
+  % Test cat with both paths empty
   emptyPath3 = apt.Path('.', platform);
-  result3 = emptyPath2.cat2(emptyPath3);
+  result3 = emptyPath2.cat(emptyPath3);
   if ~isequal(result3, emptyPath2)
     error('Concatenating two empty paths should return an empty path');
   end

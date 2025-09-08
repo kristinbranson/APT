@@ -28,7 +28,7 @@ function result = cat(varargin)
     return;
   end
   
-  allTokens = {};
+  allTokens = cell(1,0);
   detectedLocale = [];
   
   for i = 1:nargin
@@ -39,7 +39,7 @@ function result = cat(varargin)
       continue;
     elseif ischar(arg) || isstring(arg)
       % String literal token
-      allTokens{end+1} = char(arg);
+      allTokens{1,end+1} = char(arg);  %#ok<AGROW>
     elseif isa(arg, 'apt.MetaPath')
       % MetaPath token
       if isempty(detectedLocale)
@@ -49,7 +49,7 @@ function result = cat(varargin)
               'MetaPath argument at position %d has locale %s, but previous paths have locale %s', ...
               i, apt.PathLocale.toString(arg.locale), apt.PathLocale.toString(detectedLocale));
       end
-      allTokens{end+1} = arg;
+      allTokens{1,end+1} = arg; %#ok<AGROW>
     elseif isa(arg, 'apt.ShellCommand')
       % ShellCommand to merge
       if isempty(detectedLocale)
@@ -60,7 +60,7 @@ function result = cat(varargin)
               i, apt.PathLocale.toString(arg.locale_), apt.PathLocale.toString(detectedLocale));
       end
       % Add all tokens from the ShellCommand
-      allTokens = [allTokens, arg.tokens_];
+      allTokens = horzcat(allTokens, arg.tokens_);  %#ok<AGROW>
     else
       error('apt:ShellCommand:InvalidArgument', ...
             'Argument at position %d must be a string, apt.MetaPath, or apt.ShellCommand, got %s', ...
