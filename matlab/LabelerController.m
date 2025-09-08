@@ -1636,17 +1636,22 @@ classdef LabelerController < handle
         elseif labeler.lastTrainEndCause == EndCause.abort
           question_string = sprintf('Training was aborted after %s iterations.  Save project now?',...
                                     n_out_of_d_string) ;
+        elseif labeler.lastTrainEndCause == EndCause.load,
+          question_string = '';
+          % nothing to do
         else
           error('Internal error.  Please save your work if possible, restart APT, and report to the APT developers.') ;
         end        
-        res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
-        if strcmpi(res,'Save'),
-          obj.save();
-        elseif strcmpi(res,'Save as...'),
-          obj.saveAs();
-        else
-          % do nothing
-        end  % if      
+        if ~isempty(question_string),
+          res = questdlg(question_string,'Save?','Save','Save as...','No','Save') ;  % modal
+          if strcmpi(res,'Save'),
+            obj.save();
+          elseif strcmpi(res,'Save as...'),
+            obj.saveAs();
+          else
+            % do nothing
+          end  % if
+        end
       else
         % all(isnan(iterCurr)) == true
         % This means there was an error or abort early in training.

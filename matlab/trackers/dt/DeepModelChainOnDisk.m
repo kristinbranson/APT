@@ -1140,11 +1140,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function readNLabels(obj)
       if strcmp(obj.configFileExt,'.json'),
         trainLocLnx = obj.trainLocLnx();
+        if ischar(trainLocLnx),
+          trainLocLnx = {trainLocLnx};
+        end
         [un,~,idx] = unique(trainLocLnx);
-        nLabels1 = nan(1,obj.n);
+        nLabels1 = nan(1,numel(un));
         for i = 1:numel(un),
           assert(exist(un{i},'file') > 0);
-          nLabels1(idx==i) = TrnPack.readNLabels(un{i});
+          nLabels1(idx==i) = sum(TrnPack.readNLabels(un{i}));
         end
         obj.setNLabels(nLabels1);
       else

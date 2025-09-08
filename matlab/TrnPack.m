@@ -186,7 +186,7 @@ classdef TrnPack
     
     function nlbls = readNLabels(tpjson)
        tp = TrnPack.hlpLoadJson(tpjson);
-       nlbls = arrayfun(@(x)size(x.p,2),tp);
+       nlbls = arrayfun(@(x)size(x.pabs,2),tp.locdata);
     end
 
     function [slbl,j,tp,locg] = loadPack(packdir,varargin)
@@ -268,6 +268,20 @@ classdef TrnPack
       trackerinfo.trnNetTypeString = {scfg.TrackerData.trnNetTypeString};
       nviews = scfg.Config.NumViews;
       trackerinfo.timestamps = regexp(timestampstr,'^(.*)_(.*)$','once','tokens');
+
+      fileinfo.labelfile = fullfile(fileinfo.packdir,'loc.json');
+      fileinfo.imdir = fullfile(fileinfo.packdir,TrnPack.SUBDIRIM);
+      fileinfo.extrafiles = {};
+      extraexts = {'.loc','.err','.cmd','aptsnapshot'};
+      extrafiles = dir(fullfile(fileinfo.packdir,sprintf('%s*%s*%s',trackerinfo.timestamps{:})));
+      extranames = {extrafiles.name};
+      for i = 1:numel(extranames),
+        [~,~,ext] = fileparts(extranames{i});
+        if ~ismember(ext,extraexts),
+          continue;
+        end
+        fileinfo.extrafiles{end+1} = fullfile(fileinfo.packdir,extranames{i});
+      end
 
       % get the last checkpoint
       fileinfo.netfiles = cell(numel(trackerinfo.trnNetTypeString),nviews);

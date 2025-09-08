@@ -726,25 +726,39 @@ classdef APTParameters
 
     end
 
-    function prm = mergeMultiStageTrackerParams(prm_stage1,prm_stage2)
-      prm = [];
-      if ~isempty(prm_stage1),
-        prm = APTParameters.modernize(prm_stage1,'all');
-      end
-      if ~isempty(prm_stage2),
-        prm_stage2 = APTParameters.separateSharedDeepTrack(prm_stage2,'detect');
-        if isempty(prm),
-          prm = prm_stage2;
-        else
-          copyflds = {'ROOT.MultiAnimal','ROOT.MultiAnimalDetect'};
-          for i = 1:numel(copyflds),
-            fld = copyflds{i};
-            prm = APTParameters.setParam(prm,fld,APTParameters.getParam(prm_stage2,fld));
-          end
+    function prm = fromDeepTrackerParams(prmsin)
+      assert(any(~cellfun(@isempty,prmsin)));
+      assert(numel(prmsin) <= 2);
+      for i = 1:numel(prmsin),
+        % modernize, as well as move shared parameters to its own branch
+        if ~isempty(prmsin{i}),
+          prmsin{i} = APTParameters.modernize(prmsin{i},'all');
         end
       end
-      
-      
+      sPrmDflt = APTParameters.defaultParamsStructAll;
+      if isempty(prmsin{1}),
+        % copy over prmsin{2} into prmsin{1}
+        prm = prmsin{2};
+      else
+        prm = prmsin{1};
+      end
+      if ~isempty(prmsin{2}),
+        % add prmsin{2}.(posePath) to prmsin{1}.(maDetectNetworkPath)
+        prm = APTParameters.setParam(prm,APTParameters.maDetectNetworkPath,...
+          APTParameters.getParam(prmsin{2},APTParameters.posePath));
+        % use stage 2 shared parameters if they are different
+        prm = APTParameters.setParam(prm,APTParameters.deepSharedPath,...
+          APTParameters.getParam(prmsin{2},APTParameters.deepSharedPath));        
+      else
+        % copy over defaults
+        prm = APTParameters.setParam(prm,APTParameters.maDetectNetworkPath,...
+          APTParameters.getParam(sPrmDflt,APTParameters.maDetectNetworkPath));
+      end
+
+      % overlay on defaults to make sure all parameters are there and
+      % remove extra added parameters
+      prm = structoverlay(sPrmDflt,prm,'dontWarnUnrecog',true);
+
     end
 
     function prm = toDeepTrackerParams(prm,stage)

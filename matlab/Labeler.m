@@ -11282,14 +11282,20 @@ classdef Labeler < handle
       if nottrained,
         msg = 'Networks not trained for at least one stage/view';
         return;
-      end        
+      end
       trackerinfo.nettypes = cellfun(@(key) DLNetType(key),trackerinfo.trnNetTypeString);
       tfsucc1 = obj.trackMakeNewTrackerGivenNetTypes(trackerinfo.nettypes);
       if ~tfsucc1,
         msg = 'Failed to create new tracker';
         return
       end
-      obj.tracker.setAllParams(obj,sPrmAll)
+      [tfsucc,msg,sPrmAll] = obj.tracker.importTracker(fileinfo,trackerinfo,scfg);
+
+      % set current parameters to those in sPrmAll
+      obj.trackSetTrainingParams(sPrmAll);
+      
+
+      obj.trainingEndedRetrograde(EndCause.load, '');
     end
 
     function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)

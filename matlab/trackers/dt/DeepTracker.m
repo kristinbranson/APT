@@ -1603,12 +1603,14 @@ classdef DeepTracker < LabelTracker
       bgTrnMonitor.start();
     end  % trnSpawn_() function
 
-    function importTracker(obj,fileinfo,trackerinfo,scfg)
+    function [tfsucc,msg,sPrmAll] = importTracker(obj,fileinfo,trackerinfo,scfg,varargin)
+      tfsucc = false;
+      msg = '';
       
       netType = obj.getNetType(); % will have one value for each stage
       netMode = obj.getNetMode();
-      %iterFinal = obj.getIterFinal();
-      %nmodel = numel(jobidx);
+
+      stages = [netMode.topDownStage];
 
       modelChainID = trackerinfo.timestamps{1};
       nstages = size(fileinfo.trndirs,1);
@@ -1616,12 +1618,38 @@ classdef DeepTracker < LabelTracker
       nmodel = nviews*nstages;
 
       jobidx = ones(1,nmodel);
-      [stage,view] = meshgrid(1:nstages,1:nviews);
-      gpuids = nan(1,nviews*nstages);
+      
+      [view,stage] = meshgrid(1:nviews,stages);
+
+      iterFinal = nan(1,numel(scfg.TrackerData));
+      for i = 1:numel(scfg.TrackerData),
+        % in TrackData, all deep learning parameters have been moved to
+        % pose DeepTracker parameters
+        iterFinal(i) = APTParameters.getGradientDescentSteps(scfg.TrackerData(i).sPrmAll,'pose');
+      end
 
       % determine trainID
       trainID = obj.getTrainID('existingTrnPackSLbl',fileinfo.cfgjsonfile,...
                                'tfGenNewConfigFile',false);
+
+      trnType = DLTrainType.New;
+      prev_models = [];
+
+      % parse current number of iterations
+      % this should maybe be a row instead of a column... 
+      iterCurr = nan(nviews,nstages);
+      for stagei = 1:nstages,
+        for viewi = 1:nviews,
+          [~,name] = fileparts(fileinfo.netfiles{stagei,viewi});
+          m = regexp(name,'-(\d*)$','tokens','once');
+          if isempty(m),
+            msg = sprintf('Could not parse number of iterations from %s',name);
+            return;
+          end
+          iterCurr(viewi,stagei) = str2double(m);
+        end
+      end
+      iterCurr = iterCurr(:)';
 
       % Create DMC
       cacheDir = obj.lObj.DLCacheDir ;  % native cache dir      
@@ -1637,17 +1665,50 @@ classdef DeepTracker < LabelTracker
                                  'trainID',trainID,... % will get copied for all models
                                  'trainType',trnType,... % will get copied for all models
                                  'iterFinal',iterFinal(stage),...
-                                 'prev_models',prev_models ) ;
+                                 'prev_models',prev_models,...
+                                 'iterCurr',iterCurr) ;
 
-      % copy files into current cache directory
-      for modeli = 1:size(trackerinfo.trndirs,1),
-        for viewi = 1:size(trackerinfo.trndirs,2),
+      obj.isTrainingSplits_ = false;
+
+      % combine parameters from all stages into sPrmAll
+      prmsin = cell(1,max(stages));
+      prmsin(stages) = {scfg.TrackerData.sPrmAll};
+      sPrmAll = APTParameters.fromDeepTrackerParams(prmsin);
+      obj.setAllParams(sPrmAll);
+
+      obj.dryRunOnly = false;
+
+      % order matters here -- setting sPrmAll clear trnLastDMC
+      obj.trnLastDMC = dmc;
+
+      % copy files from imported project dir 
+      tocopy = [{fileinfo.cfgjsonfile,fileinfo.labelfile},fileinfo.extrafiles];
+      for i = 1:numel(tocopy),
+        infile = tocopy{i};
+        [~,n,ext] = fileparts(infile);
+        outfile = fullfile(obj.trnLastDMC.dirProjLnx,[n,ext]);
+        [tfsucc1,msg] = copyfile(infile,outfile);
+        if ~tfsucc1,
+          msg = sprintf('Failed to copy %s to %s: %s',infile,outfile,msg);
+          return;
         end
       end
-      
 
-
-
+      for stagei = 1:nstages,
+        for viewi = 1:nviews,
+          indir = fileinfo.trndirs{stagei,viewi};
+          outdir = DeepModelChainOnDisk.getCheckSingle(dmc.dirModelChainLnx('stage',stagei,'view',viewi-1));
+          fprintf('Copying %s to %s...\n',indir,outdir);
+          [tfsucc1,msg] = copyfile(indir,outdir);
+          if ~tfsucc1,
+            msg = sprintf('Failed to copy %s to %s: %s',indir,outdir,msg);
+            return;
+          end
+        end
+      end
+      obj.trnLastDMC.readNLabels();
+      obj.lastTrainEndCause_ = EndCause.load;
+      tfsucc = true;
     end
     
     function hfigs = trainImageMontage(obj,trnImgMats,varargin)
