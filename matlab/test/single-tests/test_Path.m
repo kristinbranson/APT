@@ -379,7 +379,7 @@ for platform = enumeration('apt.Platform')'
   end
 end
 
-% Test root path toString()
+% Test root path char()
 rootPath = apt.Path('/');
 rootPathStr = rootPath.char();
 if ~strcmp(rootPathStr, '/')

@@ -63,7 +63,7 @@ classdef ShellCommand < apt.ShellToken
       if (locale == apt.PathLocale.wsl || locale == apt.PathLocale.remote) && platform ~= apt.Platform.posix
         error('apt:ShellCommand:InvalidLocaleplatformCombination', ...
           'Locale %s requires platform to be posix, but got platform %s', ...
-          apt.PathLocale.toString(locale), apt.Platform.toString(platform));
+          char(locale), char(platform));
       end
 
       % Convert tokens to ShellToken objects and validate
@@ -80,11 +80,11 @@ classdef ShellCommand < apt.ShellToken
               if isa(token, 'apt.MetaPath')
                 error('apt:ShellCommand:LocaleMismatch', ...
                   'MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                  i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(locale));
+                  i, char(token.locale), char(locale));
               else
                 error('apt:ShellCommand:LocaleMismatch', ...
                   'Token at index %d does not match ShellCommand locale %s', ...
-                  i, apt.PathLocale.toString(locale));
+                  i, char(locale));
               end
             end
             
@@ -93,11 +93,11 @@ classdef ShellCommand < apt.ShellToken
               if isa(token, 'apt.MetaPath')
                 error('apt:ShellCommand:PlatformMismatch', ...
                   'MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
-                  i, apt.Platform.toString(token.path.platform), apt.Platform.toString(platform));
+                  i, char(token.path.platform), char(platform));
               else
                 error('apt:ShellCommand:PlatformMismatch', ...
                   'Token at index %d does not match ShellCommand platform %s', ...
-                  i, apt.Platform.toString(platform));
+                  i, char(platform));
               end
             end
           end
@@ -363,18 +363,27 @@ classdef ShellCommand < apt.ShellToken
 
     function disp(obj)
       % Display the apt.ShellCommand object
-      fprintf('apt.ShellCommand [%s] with %d tokens:\n', ...
-        apt.PathLocale.toString(obj.locale_), length(obj.tokens_));
-      for i = 1:length(obj.tokens_)
+      tokenCount = length(obj.tokens_);
+      if tokenCount==0
+        fprintf('apt.ShellCommand [%s,%s] with 0 tokens.\n', ...
+                char(obj.locale_), ...
+                char(obj.platform_));
+        return
+      end
+      fprintf('apt.ShellCommand [%s,%s] with %d tokens:\n', ...
+              char(obj.locale_), ...
+              char(obj.platform_), ...
+              tokenCount);
+      for i = 1:tokenCount
         token = obj.tokens_{i};
         if isa(token, 'apt.MetaPath')
           fprintf('  [%d] Path: %s [%s:%s]\n', i, token.char(), ...
-            apt.PathLocale.toString(token.locale), apt.FileRole.toString(token.role));
+            char(token.locale), char(token.role));
         elseif isa(token, 'apt.ShellLiteral')
           fprintf('  [%d] Literal: %s\n', i, token.char());
         elseif isa(token, 'apt.ShellCommand')
           fprintf('  [%d] Command: %s [%s]\n', i, token.char(), ...
-            apt.PathLocale.toString(token.locale));
+            char(token.locale));
         elseif isa(token, 'apt.ShellVariableAssignment')
           fprintf('  [%d] VariableAssignment: %s\n', i, token.char());
         elseif isa(token, 'apt.ShellBind')
@@ -383,7 +392,7 @@ classdef ShellCommand < apt.ShellToken
           fprintf('  [%d] Unknown token type (%s): %s\n', i, class(token), char(token));
         end
       end
-      fprintf('  String: %s\n', obj.char());
+      % fprintf('  String: %s\n', obj.char());
     end
 
     function validateTokens_(obj, newTokens, methodName)
@@ -403,11 +412,11 @@ classdef ShellCommand < apt.ShellToken
               if isa(token, 'apt.MetaPath')
                 error('apt:ShellCommand:LocaleMismatch', ...
                   'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                  methodName, i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(obj.locale_));
+                  methodName, i, char(token.locale), char(obj.locale_));
               else
                 error('apt:ShellCommand:LocaleMismatch', ...
                   'In %s: Token at index %d does not match ShellCommand locale %s', ...
-                  methodName, i, apt.PathLocale.toString(obj.locale_));
+                  methodName, i, char(obj.locale_));
               end
             end
           end
@@ -418,11 +427,11 @@ classdef ShellCommand < apt.ShellToken
               if isa(token, 'apt.MetaPath')
                 error('apt:ShellCommand:PlatformMismatch', ...
                   'In %s: MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
-                  methodName, i, apt.Platform.toString(token.path.platform), apt.Platform.toString(obj.platform_));
+                  methodName, i, char(token.path.platform), char(obj.platform_));
               else
                 error('apt:ShellCommand:PlatformMismatch', ...
                   'In %s: Token at index %d does not match ShellCommand platform %s', ...
-                  methodName, i, apt.Platform.toString(obj.platform_));
+                  methodName, i, char(obj.platform_));
               end
             end
           end
@@ -536,7 +545,7 @@ classdef ShellCommand < apt.ShellToken
           if locale ~= arg.locale
             error('apt:ShellCommand:LocaleMismatch', ...
                   'MetaPath argument at position %d has locale %s, but this ShellCommand has locale %s', ...
-                  i, apt.PathLocale.toString(arg.locale), apt.PathLocale.toString(locale));
+                  i, char(arg.locale), char(locale));
           end
           allTokens{1,end+1} = arg;  %#ok<AGROW>
         elseif isa(arg, 'apt.ShellCommand')
@@ -544,7 +553,7 @@ classdef ShellCommand < apt.ShellToken
           if locale ~= arg.locale_
             error('apt:ShellCommand:LocaleMismatch', ...
                   'ShellCommand argument at position %d has locale %s, but this ShellCommand has locale %s', ...
-                  i, apt.PathLocale.toString(arg.locale_), apt.PathLocale.toString(locale));
+                  i, char(arg.locale_), char(locale));
           end
           % Add all tokens from the ShellCommand
           allTokens = horzcat(allTokens, arg.tokens_);  %#ok<AGROW>

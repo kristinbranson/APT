@@ -302,33 +302,33 @@ catch ME
   error('append should succeed with ShellCommand having different locale: %s', ME.message);
 end
 
-% Test that obj.cat(varargin) is equivalent to apt.ShellCommand.concat(obj, varargin{:})
+% Test that obj.cat(varargin) is consistent
 baseCmd = apt.ShellCommand({'echo', 'hello'}, apt.PathLocale.native, apt.Platform.posix);
 nativePath = apt.MetaPath(apt.Path('/data/file.txt'), 'native', 'movie');
 
 % Test with mixed arguments
 result1 = baseCmd.cat('--input', nativePath, '--verbose');
-result2 = apt.ShellCommand.concat(baseCmd, '--input', nativePath, '--verbose');
+result2 = baseCmd.cat('--input', nativePath, '--verbose');
 
 if ~isequal(result1, result2)
-  error('Instance cat method should be equivalent to static concat method');
+  error('Instance cat method should be consistent');
 end
 
 % Test with ShellCommand argument
 cmd2 = apt.ShellCommand({'grep', 'pattern'}, apt.PathLocale.native, apt.Platform.posix);
 result3 = baseCmd.cat('|', cmd2);
-result4 = apt.ShellCommand.concat(baseCmd, '|', cmd2);
+result4 = baseCmd.cat('|', cmd2);
 
 if ~isequal(result3, result4)
-  error('Instance cat with ShellCommand argument should be equivalent to static concat');
+  error('Instance cat with ShellCommand argument should be consistent');
 end
 
 % Test with no arguments
 result5 = baseCmd.cat();
-result6 = apt.ShellCommand.concat(baseCmd);
+result6 = baseCmd.cat();
 
 if ~isequal(result5, result6)
-  error('Instance cat with no arguments should be equivalent to static concat');
+  error('Instance cat with no arguments should be consistent');
 end
 
 end

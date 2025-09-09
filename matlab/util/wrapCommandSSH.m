@@ -19,27 +19,27 @@ assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'baseCommand must h
           'identity','');
 
 % Sort out the prefixes, merging them all into prefixCommand
-prefix0 = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
+nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
 if ~isempty(prefix)
-  prefix1 = prefix0.append(prefix);
+  prefix1 = nilCommand.append(prefix);
 else
-  prefix1 = prefix0;
+  prefix1 = nilCommand;
 end
 if ~isempty(extraprefix)
   if prefix1.isempty()
-    prefix2 = apt.ShellCommand({extraprefix}, apt.PathLocale.remote, apt.Platform.posix);
+    prefixes = apt.ShellCommand({extraprefix}, apt.PathLocale.remote, apt.Platform.posix);
   else
-    prefix2 = prefix1.cat(';', extraprefix);
+    prefixes = prefix1.cat(';', extraprefix);
   end
 else
-  prefix2 = prefix1;
+  prefixes = prefix1;
 end
 
 % Append the prefixes, if present, to remoteCommand
-if prefix2.isempty()
-  prefixedBaseCommand = apt.ShellCommand({baseCommand}, apt.PathLocale.remote, apt.Platform.posix);
+if prefixes.isempty()
+  prefixedBaseCommand = baseCommand;
 else
-  prefixedBaseCommand = prefix2.cat(';', baseCommand);
+  prefixedBaseCommand = prefixes.cat(';', baseCommand);
 end
 
 % Sort out the sshoptions and the addlsshoptions

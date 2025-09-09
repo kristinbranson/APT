@@ -1978,7 +1978,7 @@ classdef AWSec2 < handle
           result = apt.MetaPath(inputWslMetaPath.path, apt.PathLocale.remote, apt.FileRole.universal);
           
         otherwise
-          error('Unknown file role: %s', apt.FileRole.toString(inputWslMetaPath.role));
+          error('Unknown file role: %s', char(inputWslMetaPath.role));
       end
     end  % function
     

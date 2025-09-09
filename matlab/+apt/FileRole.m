@@ -55,8 +55,10 @@ classdef FileRole < uint8
                           roleStr);
             end
         end
-        
-        function result = toString(fileRole)
+    end
+
+    methods
+      function result = char(obj)
             % Convert FileRole enum to string
             %
             % Args:
@@ -65,7 +67,7 @@ classdef FileRole < uint8
             % Returns:
             %   char: String representation
             
-            switch fileRole
+            switch obj
                 case apt.FileRole.cache
                     result = 'cache';
                 case apt.FileRole.movie
