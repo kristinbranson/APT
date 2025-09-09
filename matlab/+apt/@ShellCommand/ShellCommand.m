@@ -502,7 +502,7 @@ classdef ShellCommand < apt.ShellToken
     %   result = apt.ShellCommand(newTokens, apt.PathLocale.remote, apt.Platform.posix) ;
     % end  % function
 
-    function result = isempty(obj)
+    function result = isNull(obj)
       % Check if the command has no tokens
       %
       % Returns:

@@ -44,14 +44,14 @@ if isenv('LD_LIBRARY_PATH')
   
   % Join all the sub-commands with &&
   command0 = unsetCommand.append('&&', 'export', ldLibraryPathVar);
-  if inputCommand.isempty()
+  if inputCommand.isNull()
     result = command0;
   else
     result = command0.cat('&&', inputCommand);
   end
 else
   % Join all the sub-commands with &&
-  if inputCommand.isempty()
+  if inputCommand.isNull()
     result = unsetCommand;
   else    
     result = unsetCommand.cat('&&', inputCommand);

@@ -1078,9 +1078,13 @@ classdef LabelerController < handle
         if canConfigure,
           originalAwsKeyName = awsec2.keyName;
           originalAwsPemWslPath = awsec2.pem;
-          originalAwsPemNativePath = originalAwsPemWslPath;
+          if isempty(originalAwsPemWslPath)
+            originalAwsPemMetaPathAsChar = '';
+          else
+            originalAwsPemMetaPathAsChar = originalAwsPemWslPath.char();
+          end
           [tfsucc,keyName,pemFile] = ...
-            promptUserToSpecifyAwsCredentialInfo(originalAwsKeyName,originalAwsPemNativePath);
+            promptUserToSpecifyAwsCredentialInfo(originalAwsKeyName,originalAwsPemMetaPathAsChar);
           if ~tfsucc,
             return;
           end

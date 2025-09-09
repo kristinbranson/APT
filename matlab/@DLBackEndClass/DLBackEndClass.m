@@ -328,8 +328,31 @@ classdef DLBackEndClass < handle
 
     function uploadMovies(obj, nativePathFromMovieIndex)
       % Upload movies to the backend, if necessary.
+      
+      % Validate input
+      assert(iscell(nativePathFromMovieIndex), 'nativePathFromMovieIndex must be a cell array');
+      
+      % Local function to convert char to MetaPath
+      function result = convertToMetaPath(path)
+        if ischar(path)
+          result = apt.MetaPath(path, apt.PathLocale.native, apt.FileRole.movie);
+        else
+          result = path;
+        end
+      end
+      
+      % Convert char elements to native MetaPaths
+      nativePathFromMovieIndex = cellfun(@convertToMetaPath, nativePathFromMovieIndex, 'UniformOutput', false);
+      
+      % Validate that all elements are native movie MetaPaths
+      cellfun(@(path) assert(isa(path, 'apt.MetaPath') && ...
+        path.locale == apt.PathLocale.native && ...
+        path.role == apt.FileRole.movie, ...
+        'All elements must be native movie MetaPaths'), nativePathFromMovieIndex);
+      
       if isequal(obj.type, DLBackEnd.AWS) ,
-        wslPathFromMovieIndex = wsl_path_from_native(nativePathFromMovieIndex) ;
+        % Convert to WSL MetaPaths
+        wslPathFromMovieIndex = cellfun(@(path) path.asWsl(), nativePathFromMovieIndex, 'UniformOutput', false);
         obj.awsec2.uploadMovies(wslPathFromMovieIndex) ;
       end
     end  % function
@@ -391,6 +414,9 @@ classdef DLBackEndClass < handle
       if isempty(obj.awsec2) ,
         obj.awsec2 = AWSec2() ;
       end
+      
+      % Modernize the AWSec2 object
+      obj.awsec2.modernize();
 
       % If these JRC-backend-related things are empty, warn that we're using default values
       if isempty(obj.jrcgpuqueue) || strcmp(obj.jrcgpuqueue,'gpu_any') || strcmp(obj.jrcgpuqueue,'gpu_tesla') || startsWith(obj.jrcgpuqueue,'gpu_rtx') ,
@@ -1436,8 +1462,9 @@ classdef DLBackEndClass < handle
 
       if obj.type == DLBackEnd.AWS ,
         % AWS backend
-        wslFilePath = wsl_path_from_native(nativeFilePath) ;
-        nframes = obj.awsec2.readTrkFileStatus(wslFilePath, isTextFile, logger) ;
+        nativeFileMetaPath = apt.MetaPath(nativeFilePath, apt.PathLocale.native, apt.FileRole.cache);
+        wslFileMetaPath = nativeFileMetaPath.asWsl();
+        nframes = obj.awsec2.readTrkFileStatus(wslFileMetaPath, isTextFile, logger) ;
       else
         % If non-AWS backend
         if ~exist(nativeFilePath,'file'),
@@ -1506,14 +1533,18 @@ classdef DLBackEndClass < handle
   methods
     function uploadProjectCacheIfNeeded(obj, nativeProjectCachePath)
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.uploadProjectCacheIfNeeded(nativeProjectCachePath) ;
+         nativeProjectCacheMetaPath = apt.MetaPath(nativeProjectCachePath, apt.PathLocale.native, apt.FileRole.cache);
+         wslProjectCacheMetaPath = nativeProjectCacheMetaPath.asWsl();
+         obj.awsec2.uploadProjectCacheIfNeeded(wslProjectCacheMetaPath) ;
       end
     end
 
     function downloadProjectCacheIfNeeded(obj, nativeCacheDirPath)
       % If the model chain is remote, download it
       if obj.type == DLBackEnd.AWS ,
-         obj.awsec2.downloadProjectCacheIfNeeded(nativeCacheDirPath) ;
+         nativeCacheDirMetaPath = apt.MetaPath(nativeCacheDirPath, apt.PathLocale.native, apt.FileRole.cache);
+         wslCacheDirMetaPath = nativeCacheDirMetaPath.asWsl();
+         obj.awsec2.downloadProjectCacheIfNeeded(wslCacheDirMetaPath) ;
       end
     end  % function
 

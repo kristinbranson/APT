@@ -7,7 +7,7 @@ assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCo
 assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'baseCommand must have remote locale');
 
 % Deal with keyword arguments
-[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,nativeIdentityFilePath] = ...
+[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,identityWslMetaPathOrEmpty] = ...
   myparse(varargin,...
           'host','',...
           'prefix','',...
@@ -16,7 +16,7 @@ assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'baseCommand must h
           'timeout',[],...
           'extraprefix','', ...
           'username','', ...
-          'identity','');
+          'identity',[]);
 
 % Sort out the prefixes, merging them all into prefixCommand
 nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
@@ -26,7 +26,7 @@ else
   prefix1 = nilCommand;
 end
 if ~isempty(extraprefix)
-  if prefix1.isempty()
+  if prefix1.isNull()
     prefixes = apt.ShellCommand({extraprefix}, apt.PathLocale.remote, apt.Platform.posix);
   else
     prefixes = prefix1.cat(';', extraprefix);
@@ -36,7 +36,7 @@ else
 end
 
 % Append the prefixes, if present, to remoteCommand
-if prefixes.isempty()
+if prefixes.isNull()
   prefixedBaseCommand = baseCommand;
 else
   prefixedBaseCommand = prefixes.cat(';', baseCommand);
@@ -75,12 +75,14 @@ else
 end
 
 % Append the identity file, if provided, to the ssh options
-if isempty(nativeIdentityFilePath)
+if isempty(identityWslMetaPathOrEmpty)
   sshOptionsCommand3 = sshOptionsCommand2 ;
 else
-  identityPathNative = apt.MetaPath(nativeIdentityFilePath, 'native', 'universal');
-  identityPathWsl = identityPathNative.asWsl();
-  dashEyeArg = apt.ShellCommand({'-i', identityPathWsl}, apt.PathLocale.wsl, apt.Platform.posix);
+  identityWslMetaPath = identityWslMetaPathOrEmpty;
+  assert(isa(identityWslMetaPath, 'apt.MetaPath'), 'identity must be an apt.MetaPath');
+  assert(identityWslMetaPath.locale == apt.PathLocale.wsl, 'identity MetaPath must have WSL locale');
+  assert(identityWslMetaPath.role == apt.FileRole.local, 'identity MetaPath must have local FileRole');
+  dashEyeArg = apt.ShellCommand({'-i', identityWslMetaPath}, apt.PathLocale.wsl, apt.Platform.posix);
   sshOptionsCommand3 = dashEyeArg.cat(sshOptionsCommand2);
 end
 

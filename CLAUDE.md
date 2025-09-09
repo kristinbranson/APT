@@ -18,6 +18,8 @@
 - switch statements that check for multiple enumerated cases should enumerate all the handled cases explicitly, and throw an error in the "otherwise:" clause.  This makes it easier to find inappropriately-handled cases when testing.
 - Classes should implement a char() method for producing a char array ("string") version of the object.
 - I sometimes use the term "charray" for "char array".  OK to use this in comments, but just use "char" in variable names.
+- When converting a custom class to a char array, write it as "char(thing)", not thing.char()
+
 
 
 
