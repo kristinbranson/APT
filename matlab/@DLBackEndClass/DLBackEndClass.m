@@ -1810,7 +1810,7 @@ classdef DLBackEndClass < handle
       % Take a base command and run it in a conda env
       condafiedCommand = wrapCommandConda(baseCommand, 'condaEnv', obj.condaEnv, 'logfile', '/dev/null', 'gpuid', obj.gpuids(1), varargin{:}) ;
       nilCommand = apt.ShellCommand({}, condafiedCommand.locale, condafiedCommand.platform) ;
-      result = nilCommand.cat('{', preresultCommand, '&', '}', '&&', 'echo', '$!') ;  % echo $! to get the PID
+      result = nilCommand.cat('{', condafiedCommand, '&', '}', '&&', 'echo', '$!') ;  % echo $! to get the PID
     end
     
     function codestr = wrapCommandToBeSpawnedForDockerBackend_(obj, basecmd, varargin)  % const method
