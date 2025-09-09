@@ -110,7 +110,7 @@ else
 end
 
 % conf params
-command3 = command2.append('-conf_params', confParams);
+command3 = command2.append('-conf_params', confParams{:});
 
 % only training stage 2 in this job
 if tfFollowsObjDet(1),
