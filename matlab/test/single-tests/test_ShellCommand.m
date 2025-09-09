@@ -3,7 +3,7 @@ function test_ShellCommand()
 % Test static cat method with mixed string and MetaPath arguments
 path1 = apt.MetaPath(apt.Path('/data/input.txt'), 'native', 'movie');
 path2 = apt.MetaPath(apt.Path('/results/output.txt'), 'native', 'cache');
-cmd = apt.ShellCommand.cat('python', 'script.py', '--input', path1, '--output', path2);
+cmd = apt.ShellCommand({'python', 'script.py'}).cat('--input', path1, '--output', path2);
 expectedStr = 'python script.py --input /data/input.txt --output /results/output.txt';
 if ~strcmp(cmd.char(), expectedStr)
   error('Mixed string and MetaPath concatenation failed. Expected: %s, Got: %s', expectedStr, cmd.char());
@@ -12,21 +12,21 @@ end
 % Test concatenating two ShellCommand objects
 cmd1 = apt.ShellCommand({'ls', '-la'});
 cmd2 = apt.ShellCommand({'grep', 'test'});
-combined = apt.ShellCommand.cat(cmd1, '|', cmd2);
+combined = cmd1.cat('|', cmd2);
 expectedStr2 = 'ls -la | grep test';
 if ~strcmp(combined.char(), expectedStr2)
   error('ShellCommand concatenation failed. Expected: %s, Got: %s', expectedStr2, combined.char());
 end
 
 % Test concatenating only strings (should default to native locale)
-stringCmd = apt.ShellCommand.cat('echo', 'hello', 'world');
+stringCmd = apt.ShellCommand({'echo'}).cat('hello', 'world');
 expectedStr3 = 'echo hello world';
 if ~strcmp(stringCmd.char(), expectedStr3)
   error('String-only concatenation failed. Expected: %s, Got: %s', expectedStr3, stringCmd.char());
 end
 
 % Test empty argument handling
-emptyCmd = apt.ShellCommand.cat();
+emptyCmd = apt.ShellCommand({});
 if emptyCmd.length() ~= 0
   error('Empty cat should create empty command');
 end
@@ -35,7 +35,7 @@ end
 try
   nativePath = apt.MetaPath(apt.Path('/native/path'), 'native', 'movie');
   wslPath = apt.MetaPath(apt.Path('/wsl/path'), 'wsl', 'cache');
-  apt.ShellCommand.cat('cmd', nativePath, wslPath);
+  apt.ShellCommand({'cmd'}).cat(nativePath, wslPath);
   error('Locale mismatch should have errored');
 catch ME
   if ~contains(ME.identifier, 'apt:ShellCommand:LocaleMismatch')
@@ -46,7 +46,7 @@ end
 % Test mixing ShellCommand and MetaPath with same locale
 nativeCmd = apt.ShellCommand({'python', 'script.py'}, 'native');
 nativePath = apt.MetaPath(apt.Path('/data/file.txt'), 'native', 'movie');
-mixedCmd = apt.ShellCommand.cat(nativeCmd, '--input', nativePath);
+mixedCmd = nativeCmd.cat('--input', nativePath);
 expectedStr4 = 'python script.py --input /data/file.txt';
 if ~strcmp(mixedCmd.char(), expectedStr4)
   error('Mixed ShellCommand and MetaPath concatenation failed. Expected: %s, Got: %s', expectedStr4, mixedCmd.char());
@@ -54,7 +54,7 @@ end
 
 % Test invalid argument type error
 try
-  apt.ShellCommand.cat('valid', 123);
+  apt.ShellCommand({'valid'}).cat(123);
   error('Invalid argument type should have errored');
 catch ME
   if ~contains(ME.identifier, 'apt:ShellCommand:InvalidArgument')
@@ -276,7 +276,7 @@ end
 precommandTokens = {'sleep', '5', '&&', 'export', apt.ShellVariableAssignment('AWS_PAGER', '')};
 precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.wsl, apt.Platform.posix);
 command0 = apt.ShellCommand({'echo', 'foo'}, apt.PathLocale.wsl, apt.Platform.posix);
-command1 = apt.ShellCommand.cat(precommand, '&&', command0);
+command1 = precommand.cat('&&', command0);
 if ~isequal(command1.tokens{1}.value, 'sleep')
   error('isequal(command1.token{1}.value, ''sleep'') should be true, but command1.tokens{1}.value is:\n%s', char(command1.tokens{1}.value));
 end
@@ -300,6 +300,35 @@ try
   % This should succeed - subcommands don't need to match parent locale
 catch ME
   error('append should succeed with ShellCommand having different locale: %s', ME.message);
+end
+
+% Test that obj.cat(varargin) is equivalent to apt.ShellCommand.concat(obj, varargin{:})
+baseCmd = apt.ShellCommand({'echo', 'hello'}, apt.PathLocale.native, apt.Platform.posix);
+nativePath = apt.MetaPath(apt.Path('/data/file.txt'), 'native', 'movie');
+
+% Test with mixed arguments
+result1 = baseCmd.cat('--input', nativePath, '--verbose');
+result2 = apt.ShellCommand.concat(baseCmd, '--input', nativePath, '--verbose');
+
+if ~isequal(result1, result2)
+  error('Instance cat method should be equivalent to static concat method');
+end
+
+% Test with ShellCommand argument
+cmd2 = apt.ShellCommand({'grep', 'pattern'}, apt.PathLocale.native, apt.Platform.posix);
+result3 = baseCmd.cat('|', cmd2);
+result4 = apt.ShellCommand.concat(baseCmd, '|', cmd2);
+
+if ~isequal(result3, result4)
+  error('Instance cat with ShellCommand argument should be equivalent to static concat');
+end
+
+% Test with no arguments
+result5 = baseCmd.cat();
+result6 = apt.ShellCommand.concat(baseCmd);
+
+if ~isequal(result5, result6)
+  error('Instance cat with no arguments should be equivalent to static concat');
 end
 
 end

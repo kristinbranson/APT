@@ -29,7 +29,7 @@ if ~isempty(extraprefix)
   if prefix1.isempty()
     prefix2 = apt.ShellCommand({extraprefix}, apt.PathLocale.remote, apt.Platform.posix);
   else
-    prefix2 = apt.ShellCommand.cat(prefix1, ';', extraprefix);
+    prefix2 = prefix1.cat(';', extraprefix);
   end
 else
   prefix2 = prefix1;
@@ -39,7 +39,7 @@ end
 if prefix2.isempty()
   prefixedBaseCommand = apt.ShellCommand({baseCommand}, apt.PathLocale.remote, apt.Platform.posix);
 else
-  prefixedBaseCommand = apt.ShellCommand.cat(prefix2, ';', baseCommand);
+  prefixedBaseCommand = prefix2.cat(';', baseCommand);
 end
 
 % Sort out the sshoptions and the addlsshoptions
@@ -52,7 +52,7 @@ if isempty(sshoptions)
     sshOptionsCommand1 = baseSshOptions ;
   else
     % sshoptions empty, addlsshoptions nonempty => add addlsshoptions to base options
-    sshOptionsCommand1 = apt.ShellCommand.cat(baseSshOptions, addlsshoptions) ;
+    sshOptionsCommand1 = baseSshOptions.cat(addlsshoptions) ;
   end
 else
   if isempty(addlsshoptions) 
@@ -93,7 +93,7 @@ end
 
 % Generate the final command line
 command0 = apt.ShellCommand({'ssh'}, apt.PathLocale.wsl, apt.Platform.posix);
-command1 = apt.ShellCommand.cat(command0, sshOptionsCommand3);
+command1 = command0.cat(sshOptionsCommand3);
 command2 = command1.append(userAtHostString);
 command3 = command2.append(prefixedBaseCommand);  % Important to append, not cat
 

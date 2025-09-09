@@ -28,7 +28,7 @@ else
   cudaDeviceOrderVar = apt.ShellVariableAssignment('CUDA_DEVICE_ORDER', 'PCI_BUS_ID');
   cudaVisibleDevicesVar = apt.ShellVariableAssignment('CUDA_VISIBLE_DEVICES', num2str(gpuid));
   cudaEnvCommand = apt.ShellCommand({'export', cudaDeviceOrderVar, '&&', 'export', cudaVisibleDevicesVar, '&&'}, apt.PathLocale.wsl, apt.Platform.posix);
-  partialCommand = apt.ShellCommand.cat(cudaEnvCommand, baseCommand);
+  partialCommand = cudaEnvCommand.cat(baseCommand);
 end
 
 % Add logging

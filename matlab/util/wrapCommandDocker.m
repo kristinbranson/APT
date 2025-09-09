@@ -95,16 +95,16 @@ function result = wrapCommandDocker(baseCommand, varargin)
     apt.ShellCommand({dockercmd, 'run', detachstr, sprintf('--name %s',containerName), '--rm', '--ipc=host', '--network host'}, ...
                      apt.PathLocale.wsl, ...
                      apt.Platform.posix);
-  command1 = apt.ShellCommand.cat(command0, mountArgs);
-  command2 = apt.ShellCommand.cat(command1, gpuArgs);
-  command3 = apt.ShellCommand.cat(command2, userArgs);
-  command4 = apt.ShellCommand.cat(command3, otherArgs);
+  command1 = command0.cat(mountArgs);
+  command2 = command1.cat(gpuArgs);
+  command3 = command2.cat(userArgs);
+  command4 = command3.cat(otherArgs);
   userVar = apt.ShellVariableAssignment('USER', user);
   command5 = command4.append('-w', aptDeepnetPathWsl, '-e', userVar, dockerimg);
   
   homeVar = apt.ShellVariableAssignment('HOME', homeDirWslPath);
   command6 = apt.ShellCommand({'export', homeVar, ';'}, apt.PathLocale.wsl, apt.Platform.posix);
-  subcommand = apt.ShellCommand.cat(command6, cudaEnv, 'cd', aptDeepnetPathWsl, ';', baseCommand);
+  subcommand = command6.cat(cudaEnv, 'cd', aptDeepnetPathWsl, ';', baseCommand);
   result = command5.append('bash', '-c', subcommand);
 end  % function
 

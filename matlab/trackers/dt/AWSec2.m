@@ -901,7 +901,7 @@ classdef AWSec2 < handle
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
       precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.wsl, apt.Platform.posix) ;
-      command2 = apt.ShellCommand.cat(precommand, '&&', sshCommand) ;
+      command2 = precommand.cat('&&', sshCommand) ;
 
       % Issue the command, gather results
       [st, res] = command2.run('failbehavior', 'silent', 'verbose', false, varargin{:}) ;      
@@ -1300,7 +1300,7 @@ classdef AWSec2 < handle
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
       precommand = apt.ShellCommand(precommandTokens, command0.locale_, command0.platform_) ;
-      command1 = apt.ShellCommand.cat(precommand, '&&', command0) ;
+      command1 = precommand.cat('&&', command0) ;
       
       [st,res,warningstr] = command1.run(varargin{:}) ;
     end  % function    

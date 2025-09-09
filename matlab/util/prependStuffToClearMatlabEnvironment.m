@@ -47,14 +47,14 @@ if isenv('LD_LIBRARY_PATH')
   if inputCommand.isempty()
     result = command0;
   else
-    result = apt.ShellCommand.cat(command0, '&&', inputCommand);
+    result = command0.cat('&&', inputCommand);
   end
 else
   % Join all the sub-commands with &&
   if inputCommand.isempty()
     result = unsetCommand;
   else    
-    result = apt.ShellCommand.cat(unsetCommand, '&&', inputCommand);
+    result = unsetCommand.cat('&&', inputCommand);
   end
 end
 

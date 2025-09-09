@@ -500,6 +500,63 @@ classdef ShellCommand < apt.ShellToken
       %   logical: true if the command has no tokens, false otherwise
       result = isempty(obj.tokens_);
     end  % function
+
+    function result = cat(obj, varargin)
+      % Instance method to concatenate this command with additional tokens
+      %
+      % Args:
+      %   varargin: Tokens to concatenate (strings, apt.ShellToken objects, or apt.ShellCommand objects)
+      %
+      % Returns:
+      %   apt.ShellCommand: New command with tokens concatenated
+      %
+      % Notes:
+      %   - Equivalent to apt.ShellCommand.concat(obj, varargin{:})
+      %   - Follows the same concatenation rules as the static concat method
+
+      % Manually implement the same logic as concat without calling it
+      allTokens = cell(1,0);
+      locale = obj.locale_;
+      
+      % Start with this object's tokens
+      allTokens = horzcat(allTokens, obj.tokens_);
+      
+      % Process additional arguments
+      for i = 1:length(varargin)
+        arg = varargin{i};
+        
+        if isempty(arg)
+          % Skip empty arguments
+          continue;
+        elseif ischar(arg) || isstring(arg)
+          % String literal token
+          allTokens{1,end+1} = char(arg);  %#ok<AGROW>
+        elseif isa(arg, 'apt.MetaPath')
+          % MetaPath token
+          if locale ~= arg.locale
+            error('apt:ShellCommand:LocaleMismatch', ...
+                  'MetaPath argument at position %d has locale %s, but this ShellCommand has locale %s', ...
+                  i, apt.PathLocale.toString(arg.locale), apt.PathLocale.toString(locale));
+          end
+          allTokens{1,end+1} = arg;  %#ok<AGROW>
+        elseif isa(arg, 'apt.ShellCommand')
+          % ShellCommand to merge
+          if locale ~= arg.locale_
+            error('apt:ShellCommand:LocaleMismatch', ...
+                  'ShellCommand argument at position %d has locale %s, but this ShellCommand has locale %s', ...
+                  i, apt.PathLocale.toString(arg.locale_), apt.PathLocale.toString(locale));
+          end
+          % Add all tokens from the ShellCommand
+          allTokens = horzcat(allTokens, arg.tokens_);  %#ok<AGROW>
+        else
+          error('apt:ShellCommand:InvalidArgument', ...
+                'Argument at position %d must be a string, apt.MetaPath, or apt.ShellCommand, got %s', ...
+                i, class(arg));
+        end
+      end
+      
+      result = apt.ShellCommand(allTokens, locale, obj.platform_);
+    end  % function
   end  % methods
 
   methods (Static)
@@ -575,8 +632,8 @@ classdef ShellCommand < apt.ShellToken
       result = apt.ShellCommand(decoded_tokens, encoding.locale_, encoding.platform_) ;
     end
     
-    result = cat(varargin)
+    result = concat(varargin)
       % Concatenate any number of strings, apt.MetaPaths, and apt.ShellCommands
-      % into a single apt.ShellCommand (defined in cat.m)
+      % into a single apt.ShellCommand (defined in concat.m)
   end  % methods (Static)
 end  % classdef

@@ -28,6 +28,6 @@ singImgPathRemote = apt.MetaPath(singimg, 'remote', 'universal');
 
 % Build the final singularity command using sequential ShellCommand objects
 command0 = apt.ShellCommand({'singularity', 'exec', '--nv'}, apt.PathLocale.wsl, apt.Platform.posix);
-command1 = apt.ShellCommand.cat(command0, bindArgs);
+command1 = command0.cat(bindArgs);
 command2 = command1.append(singImgPathRemote, 'bash', '-c');
 result = command2.append(inputCommand) ;

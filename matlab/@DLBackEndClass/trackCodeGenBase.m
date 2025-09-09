@@ -115,11 +115,11 @@ else
   command2 = command1;
 end
 command3 = command2.append('-type', stage2netType{1});
-command4 = apt.ShellCommand.cat(command3.append('-model_files'), stage2models{1}{:});
+command4 = command3.append('-model_files').cat(stage2models{1}{:});
 if nstages > 1,
   assert(nstages==2);
   command5 = command4.append('-type2', stage2netType{2});
-  command6 = apt.ShellCommand.cat(command5.append('-model_files2'), stage2models{2}{:});
+  command6 = command5.append('-model_files2').cat(stage2models{2}{:});
   command7 = command6.append('-name2', totrackinfo.trainDMC.getModelChainID('stage',2));
 else
   command7 = command4;
@@ -158,20 +158,20 @@ if ~isempty(totrackinfo.listfile)
   listOutFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), totrackinfo.listoutfiles, 'UniformOutput', false);
   listOutFilesWslPath = cellfun(@(x) x.asWsl(), listOutFilesNativePath, 'UniformOutput', false);
   command13a = command12.append('-list_file', listFileWslPath);
-  command14a = apt.ShellCommand.cat(command13a.append('-out'), listOutFilesWslPath{:});
+  command14a = command13a.append('-out').cat(listOutFilesWslPath{:});
   command17 = command14a;  % The other branch is longer, so we skip some numbers here
 else
   trkFilesSelectedNative = trkfiles(movidx,:,:);
   trkFilesSelectedNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), trkFilesSelectedNative(:), 'UniformOutput', false);
   trkFilesSelectedWslPath = cellfun(@(x) x.asWsl(), trkFilesSelectedNativePath, 'UniformOutput', false);
-  command13b = apt.ShellCommand.cat(command12.append('-out'), trkFilesSelectedWslPath{:});
+  command13b = command12.append('-out').cat(trkFilesSelectedWslPath{:});
   if sum(nextra) > 0,
     warningNoTrace('Tracking %d already-tracked frames',sum(nextra));
   end
   nativeMovFiles = totrackinfo.getMovfiles('movie',movidx) ;  % native file paths, as chars
   movFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'movie'), nativeMovFiles, 'UniformOutput', false);
   movFilesWslPath = cellfun(@(x) x.asWsl(), movFilesNativePath, 'UniformOutput', false);
-  command14b = apt.ShellCommand.cat(command13b.append('-mov'), movFilesWslPath{:});
+  command14b = command13b.append('-mov').cat(movFilesWslPath{:});
   if ~all(frm0==1 & frm1==-1),
     command15b = command14b.append('-start_frame', num2str(frm0(:)')).append('-end_frame', num2str(frm1(:)'));
   else
@@ -181,12 +181,12 @@ else
     nativeTrxFiles = totrackinfo.getTrxFiles('movie',movidx) ;
     trxFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeTrxFiles, 'UniformOutput', false);
     trxFilesWslPath = cellfun(@(x) x.asWsl(), trxFilesNativePath, 'UniformOutput', false);
-    command16b = apt.ShellCommand.cat(command15b.append('-trx'), trxFilesWslPath{:});
+    command16b = command15b.append('-trx').cat(trxFilesWslPath{:});
   elseif nstages > 1,
     nativeTrxFiles = totrackinfo.getTrkFiles('stage',1) ;
     trxFilesNativePath = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeTrxFiles, 'UniformOutput', false);
     trxFilesWslPath = cellfun(@(x) x.asWsl(), trxFilesNativePath, 'UniformOutput', false);
-    command16b = apt.ShellCommand.cat(command15b.append('-trx'), trxFilesWslPath{:});
+    command16b = command15b.append('-trx').cat(trxFilesWslPath{:});
   else
     command16b = command15b;
   end
