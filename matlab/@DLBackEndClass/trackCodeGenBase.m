@@ -65,6 +65,8 @@ for istage = 1:nstages,
   stage2models{istage} = modelPathWsl ;
   assert(numel(stage2models{istage}) == nviews);
 end
+% stage2models{stageIndex}{viewIndex} should be a wsl MetaPath, for each
+% stageIndex on [1,nstage], for each viewIndex on [1,nviews]
 
 % one net type per stage
 stage2netType = cell(1,nstages);
@@ -120,7 +122,14 @@ if nstages > 1,
   assert(nstages==2);
   command5 = command4.append('-type2', stage2netType{2});
   command6 = command5.append('-model_files2').cat(stage2models{2}{:});
-  command7 = command6.append('-name2', totrackinfo.trainDMC.getModelChainID('stage',2));
+  modelChainIdFromViewIndex = totrackinfo.trainDMC.getModelChainID('stage',2);
+    % I *think* this name is accurate.
+    % For a project with a single view, this is a 1x1 cell array, with the single
+    % element a charray like '20250731T143615'.
+    % Not 100% sure how this generalizes for multiview projects, but I'm guessing
+    % this is a row cell array with nviews elements.
+    % -- ALT, 2025-09-09
+  command7 = command6.append('-name2', modelChainIdFromViewIndex{:});
 else
   command7 = command4;
 end

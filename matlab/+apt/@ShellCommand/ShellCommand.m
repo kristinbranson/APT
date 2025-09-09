@@ -210,10 +210,10 @@ classdef ShellCommand < apt.ShellToken
       for i = 1:length(varargin)
         token = varargin{i};
         if isa(token, 'apt.ShellToken')
-          tokensToAdd{1,end+1} = token;
+          tokensToAdd{1,end+1} = token;  %#ok<AGROW>
         elseif ischar(token)
           % Convert char array to ShellLiteral
-          tokensToAdd{1,end+1} = apt.ShellLiteral(token);
+          tokensToAdd{1,end+1} = apt.ShellLiteral(token); %#ok<AGROW>
         else
           error('apt:ShellCommand:InvalidToken', ...
             'Argument %d must be an apt.ShellToken or char array, got %s', ...
