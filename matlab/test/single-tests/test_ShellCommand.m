@@ -281,4 +281,25 @@ if ~isequal(command1.tokens{1}.value, 'sleep')
   error('isequal(command1.token{1}.value, ''sleep'') should be true, but command1.tokens{1}.value is:\n%s', char(command1.tokens{1}.value));
 end
 
+% Test append with non-ShellToken should fail
+baseCmd = apt.ShellCommand({'echo', 'hello'}, apt.PathLocale.native, apt.Platform.posix);
+try
+  baseCmd.append(123);  % numeric value should fail
+  error('append should have failed with non-ShellToken argument');
+catch ME
+  if ~contains(ME.identifier, 'apt:ShellCommand:InvalidToken')
+    error('append failed but with wrong error type: %s', ME.identifier);
+  end
+end
+
+% Test append with ShellCommand having different locale should succeed
+wslCmd = apt.ShellCommand({'ssh', 'remote'}, apt.PathLocale.wsl, apt.Platform.posix);
+remoteSubCmd = apt.ShellCommand({'ls', '-la'}, apt.PathLocale.remote, apt.Platform.posix);
+try
+  combinedCmd = wslCmd.append(remoteSubCmd);
+  % This should succeed - subcommands don't need to match parent locale
+catch ME
+  error('append should succeed with ShellCommand having different locale: %s', ME.message);
+end
+
 end

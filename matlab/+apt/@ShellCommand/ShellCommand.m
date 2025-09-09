@@ -197,18 +197,27 @@ classdef ShellCommand < apt.ShellToken
       % Append additional tokens to the command
       %
       % Args:
-      %   varargin: Tokens to append (strings, apt.ShellToken objects, or cell arrays)
+      %   varargin: Tokens to append (apt.ShellToken objects or char arrays)
       %
       % Returns:
       %   apt.ShellCommand: New command with tokens appended
+      %
+      % Notes:
+      %   - Char arrays are converted to apt.ShellLiteral objects
+      %   - All other argument types cause an error
 
-      tokensToAdd = {};
+      tokensToAdd = cell(1,0);
       for i = 1:length(varargin)
         token = varargin{i};
-        if iscell(token)
-          tokensToAdd = [tokensToAdd, token];  %#ok<AGROW>
+        if isa(token, 'apt.ShellToken')
+          tokensToAdd{1,end+1} = token;
+        elseif ischar(token)
+          % Convert char array to ShellLiteral
+          tokensToAdd{1,end+1} = apt.ShellLiteral(token);
         else
-          tokensToAdd{end+1} = token;  %#ok<AGROW>
+          error('apt:ShellCommand:InvalidToken', ...
+            'Argument %d must be an apt.ShellToken or char array, got %s', ...
+            i, class(token));
         end
       end
 
@@ -377,40 +386,51 @@ classdef ShellCommand < apt.ShellToken
       fprintf('  String: %s\n', obj.char());
     end
 
-    function validateTokens_(obj, tokens, methodName)
-      % Validate that all ShellToken objects have compatible locale and platform
+    function validateTokens_(obj, newTokens, methodName)
+      % Validate that all ShellToken objects have compatible locale and platform.
+      % Used by .append().
       %
       % Args:
       %   tokens (cell): Cell array of tokens to validate
       %   methodName (char): Name of calling method for error messages
 
-      for i = 1:length(tokens)
-        token = tokens{i};
+      for i = 1:length(newTokens)
+        token = newTokens{i};
         if isa(token, 'apt.ShellToken')
-          if ~token.tfDoesMatchLocale(obj.locale_)
-            if isa(token, 'apt.MetaPath')
-              error('apt:ShellCommand:LocaleMismatch', ...
-                'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                methodName, i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(obj.locale_));
-            else
-              error('apt:ShellCommand:LocaleMismatch', ...
-                'In %s: Token at index %d does not match ShellCommand locale %s', ...
-                methodName, i, apt.PathLocale.toString(obj.locale_));
+          % Skip locale validation for ShellCommand tokens (subcommands can have different locales)
+          if ~isa(token, 'apt.ShellCommand') 
+            if ~token.tfDoesMatchLocale(obj.locale_)
+              if isa(token, 'apt.MetaPath')
+                error('apt:ShellCommand:LocaleMismatch', ...
+                  'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
+                  methodName, i, apt.PathLocale.toString(token.locale), apt.PathLocale.toString(obj.locale_));
+              else
+                error('apt:ShellCommand:LocaleMismatch', ...
+                  'In %s: Token at index %d does not match ShellCommand locale %s', ...
+                  methodName, i, apt.PathLocale.toString(obj.locale_));
+              end
             end
           end
           
-          % Validate platform compatibility for all ShellToken objects (INVARIANT)
-          if ~token.tfDoesMatchPlatform(obj.platform_)
-            if isa(token, 'apt.MetaPath')
-              error('apt:ShellCommand:PlatformMismatch', ...
-                'In %s: MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
-                methodName, i, apt.Platform.toString(token.path.platform), apt.Platform.toString(obj.platform_));
-            else
-              error('apt:ShellCommand:PlatformMismatch', ...
-                'In %s: Token at index %d does not match ShellCommand platform %s', ...
-                methodName, i, apt.Platform.toString(obj.platform_));
+          % Skip platform validation for ShellCommand tokens (subcommands can have different platforms)
+          if ~isa(token, 'apt.ShellCommand')
+            if ~token.tfDoesMatchPlatform(obj.platform_)
+              if isa(token, 'apt.MetaPath')
+                error('apt:ShellCommand:PlatformMismatch', ...
+                  'In %s: MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
+                  methodName, i, apt.Platform.toString(token.path.platform), apt.Platform.toString(obj.platform_));
+              else
+                error('apt:ShellCommand:PlatformMismatch', ...
+                  'In %s: Token at index %d does not match ShellCommand platform %s', ...
+                  methodName, i, apt.Platform.toString(obj.platform_));
+              end
             end
           end
+        else
+          % If a token is not a ShellToken, that's an error
+          error('apt:ShellCommand:InvalidToken', ...
+            'In %s: Token at index %d must be an apt.ShellToken, got %s', ...
+            methodName, i, class(token));
         end
       end
     end  % function

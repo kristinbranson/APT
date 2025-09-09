@@ -1,13 +1,13 @@
 function result = wrapCommandSSH(baseCommand, varargin)
 % Wrap a Linux/WSL-style command for execution on a remote host via
-% ssh.  baseCommand should be a ShellCommand with WSL locale.
+% ssh.  baseCommand should be a ShellCommand with remote locale.
 
 % Validate input baseCommand
 assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand object');
-assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'baseCommand must have WSL locale');
+assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'baseCommand must have remote locale');
 
 % Deal with keyword arguments
-[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,identity] = ...
+[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,nativeIdentityFilePath] = ...
   myparse(varargin,...
           'host','',...
           'prefix','',...
@@ -75,11 +75,13 @@ else
 end
 
 % Append the identity file, if provided, to the ssh options
-if isempty(identity)
+if isempty(nativeIdentityFilePath)
   sshOptionsCommand3 = sshOptionsCommand2 ;
 else
-  identityPath = apt.MetaPath(identity, 'native', 'universal');
-  sshOptionsCommand3 = apt.ShellCommand({'-i', identityPath}, apt.PathLocale.wsl, apt.Platform.posix).cat(sshOptionsCommand2) ;
+  identityPathNative = apt.MetaPath(nativeIdentityFilePath, 'native', 'universal');
+  identityPathWsl = identityPathNative.asWsl();
+  dashEyeArg = apt.ShellCommand({'-i', identityPathWsl}, apt.PathLocale.wsl, apt.Platform.posix);
+  sshOptionsCommand3 = dashEyeArg.cat(sshOptionsCommand2);
 end
 
 % Append the username, if provided, to the hostname
@@ -93,7 +95,7 @@ end
 command0 = apt.ShellCommand({'ssh'}, apt.PathLocale.wsl, apt.Platform.posix);
 command1 = apt.ShellCommand.cat(command0, sshOptionsCommand3);
 command2 = command1.append(userAtHostString);
-command3 = apt.ShellCommand.cat(command2, prefixedBaseCommand);
+command3 = command2.append(prefixedBaseCommand);  % Important to append, not cat
 
 result = command3 ;
 

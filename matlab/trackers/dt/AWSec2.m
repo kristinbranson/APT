@@ -509,8 +509,8 @@ classdef AWSec2 < handle
     function tfnopyproc = getNoPyProcRunning(obj)
       % Return true if there appears to be no python process running on
       % instance
-      command1 = apt.ShellCommand({'pgrep', '--uid', 'ubuntu', '--oldest', 'python'}, apt.PathLocale.wsl, apt.Platform.posix);
-      [st,res] = obj.runBatchCommandOutsideContainer(command1,...
+      command = apt.ShellCommand({'pgrep', '--uid', 'ubuntu', '--oldest', 'python'}, apt.PathLocale.wsl, apt.Platform.posix);
+      [st,res] = obj.runBatchCommandOutsideContainer(command,...
                                                      'failbehavior','silent');
       tfsucc = (st==0) ;
         
@@ -851,22 +851,35 @@ classdef AWSec2 < handle
       end      
     end  % function
     
-    function result = wrapCommandSSH(obj, input_command, varargin)
+    function result = wrapCommandSSH(obj, inputCommand)
       % Wrap input command to run on the remote host via ssh.  Performs WSL-> remote
-      % path substition unless optional dopathsubs argsument is false.
-      dopathsubs = ...
-        myparse(varargin, ...
-                'dopathsubs', true) ;
-      if dopathsubs
-        remote_command = obj.applyFilePathSubstitutionsToCommand_(input_command) ;
+      % path substition if the locale of inputCommand is wsl.
+
+      % Validate input
+      assert(isa(inputCommand, 'apt.ShellCommand'), 'inputCommand must be an apt.ShellCommand');
+      assert(inputCommand.locale == apt.PathLocale.wsl || inputCommand.locale == apt.PathLocale.remote, ...
+             'inputCommand must have locale == apt.PathLocale.wsl or .remote') ;
+      
+      if inputCommand.locale == apt.PathLocale.wsl
+        remoteCommand = obj.applyFilePathSubstitutionsToCommand_(inputCommand) ;
       else
-        remote_command = input_command ;
+        remoteCommand = inputCommand ;
       end
-      result = wrapCommandSSH(remote_command, ...
+
+      % Do a few asserts to make sure we're staying on track
+      assert(isa(remoteCommand, 'apt.ShellCommand'));
+      assert(remoteCommand.locale == apt.PathLocale.remote);
+
+      % Actually wrap the remote command
+      result = wrapCommandSSH(remoteCommand, ...
                               'host', obj.instanceIP, ...
                               'timeout',8, ...
                               'username', 'ubuntu', ...
                               'identity', obj.pem) ;
+
+      % Do a few asserts to make sure we're staying on track
+      assert(isa(result, 'apt.ShellCommand'));
+      assert(result.locale == apt.PathLocale.wsl);      
     end  % function
 
     function [st,res] = runBatchCommandOutsideContainer(obj, baseCommand, varargin)      
@@ -875,27 +888,23 @@ classdef AWSec2 < handle
 
       % Validate input
       assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand');
-
-      % Determine whether obj.wrapCommandSSH should do WSL->remote path
-      % substitutions
-      [dopathsubs, ...
-       restOfVarargin] = ...
-        myparse_nocheck(varargin, ...
-                        'dopathsubs', true) ;
+      assert(baseCommand.locale == apt.PathLocale.wsl || baseCommand.locale == apt.PathLocale.remote, ...
+             'baseCommand must have locale == apt.PathLocale.wsl or .remote') ;
 
       % Wrap for ssh'ing into an AWS instance
-      command1 = obj.wrapCommandSSH(baseCommand, 'dopathsubs', dopathsubs) ;  % uses fields of obj to set parameters for ssh command
+      sshCommand = obj.wrapCommandSSH(baseCommand) ;  % uses fields of obj to set parameters for ssh command
+      assert(sshCommand.locale == apt.PathLocale.wsl);
     
       % Need to prepend a sleep to avoid problems
       precommandTokens = {'sleep', '5', '&&', 'export', apt.ShellVariableAssignment('AWS_PAGER', '')} ;
         % Change the sleep value at your peril!  I changed it to 3 and everything
         % seemed fine for a while, until it became a very hard-to-find bug!  
         % --ALT, 2024-09-12
-      precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.remote, apt.Platform.posix) ;
-      command2 = apt.ShellCommand.cat(precommand, '&&', command1) ;
+      precommand = apt.ShellCommand(precommandTokens, apt.PathLocale.wsl, apt.Platform.posix) ;
+      command2 = apt.ShellCommand.cat(precommand, '&&', sshCommand) ;
 
       % Issue the command, gather results
-      [st, res] = command2.run('failbehavior', 'silent', 'verbose', false, restOfVarargin{:}) ;      
+      [st, res] = command2.run('failbehavior', 'silent', 'verbose', false, varargin{:}) ;      
     end
         
 %     function cmd = sshCmdGeneralLogged(obj, cmdremote, logfileremote)
@@ -1373,10 +1382,13 @@ classdef AWSec2 < handle
       assert(mod(fspollargsCount,2)==0) ;  % has to be even
       responseCount = fspollargsCount/2 ;
       
-      fspollScriptPathAsChar = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
+      % fspollScriptPathAsChar = '/home/ubuntu/APT/matlab/misc/fspoll.py' ;
+      % fspollScriptMetaPath = apt.MetaPath(fspollScriptPathAsChar, apt.PathLocale.remote, apt.FileRole.source);
 
-      fspollScriptMetaPath = apt.MetaPath(fspollScriptPathAsChar, apt.PathLocale.remote, apt.FileRole.source);
-      protoCommand = apt.ShellCommand({fspollScriptMetaPath}, apt.PathLocale.remote, apt.Platform.posix);
+      fspollScriptNativeMetaPath = apt.MetaPath(fullfile(APT.Root, 'matlab/misc/fspoll.py'), apt.PathLocale.native, apt.FileRole.source);
+      fspollScriptWslMetaPath = fspollScriptNativeMetaPath.asWsl() ;  
+        % This will get translated to the remote path in .runBatchCommandOutsideContainer()
+      protoCommand = apt.ShellCommand({fspollScriptWslMetaPath}, apt.PathLocale.wsl, apt.Platform.posix);
       command = protoCommand.cat(wsl_fspollargs) ;
 
       [st,res] = obj.runBatchCommandOutsideContainer(command);  % will translate WSL paths to remote paths
@@ -1889,7 +1901,7 @@ classdef AWSec2 < handle
       function result = processToken(token)
         % Local function to convert each token to target locale
         if isa(token, 'apt.MetaPath')
-          result = applyGenericFilePathSubstitutionsToMetaPath_(toekn, wslProjectCachePath, wslPathFromMovieIndex);
+          result = applyGenericFilePathSubstitutionsToMetaPath_(token, wslProjectCachePath, wslPathFromMovieIndex);
         elseif isa(token, 'apt.ShellCommand')
           result = AWSec2.applyGenericFilePathSubstitutionsToShellCommand_(token, wslProjectCachePath, wslPathFromMovieIndex);
         else
@@ -1901,7 +1913,7 @@ classdef AWSec2 < handle
       % Use cellfun to process all tokens
       newTokens = cellfun(@processToken, inputCommand.tokens, 'UniformOutput', false);
 
-      result = apt.ShellCommand(newTokens, targetLocale, inputCommand.platform);
+      result = apt.ShellCommand(newTokens, apt.PathLocale.remote, inputCommand.platform);
     end
 
     function result = applyGenericFilePathSubstitutionsToMetaPath_(inputWslMetaPath, wslProjectCachePath, wslPathFromMovieIndex)
