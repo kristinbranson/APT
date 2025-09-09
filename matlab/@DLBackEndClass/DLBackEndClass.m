@@ -1205,7 +1205,7 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       command = apt.ShellCommand({'/usr/bin/pgrep', '--pgroup', jobid}, apt.PathLocale.wsl, apt.Platform.posix) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = command.run() ;  %#ok<ASGLU>
+      [return_code, stdouterr] = command.run('failbehavior', 'silent') ;  %#ok<ASGLU>
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
       % We use a variable name instead of ~ in case we need to debug in here at some
@@ -1732,7 +1732,7 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running conda job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
       command = apt.ShellCommand({'/usr/bin/pgrep', '--pgroup', jobid}, apt.PathLocale.wsl, apt.Platform.posix) ;  % For conda backend, the jobid is a PGID
-      [return_code, stdouterr] = command.run() ;
+      [return_code, stdouterr] = command.run('failbehavior', 'silent') ;
       % pgrep exits with return_code == 1 if there is no such PGID.  Not great for
       % detecting when something *else* has gone wrong, but whaddayagonnado?
       % We capture stdouterr to prevent it getting spit out to the Matlab console.
