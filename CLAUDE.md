@@ -10,7 +10,7 @@
 - Local variables in functions/methods should only be overwritten if necessary for performance.  Prefer to create new variables holding evolving versions of some value.
 - Prefer explicit variable names, even if they are long; and avoid abbreviations.  Use a shorter English word that means the same thing instead of an abbreviation.
 - Use spaces liberally in long expressions to add clarity.  E.g. add a space after each comma in the argument list for functions.
-- Don't add a space before the final semicolon in a line of code.
+- Also add a space before the final semicolon in a line of code.
 - Make properties that are not persisted to disk Transient.
 - When checking for optional arguments, don't use nargin.  Use exist(<variable name>, 'var').  This is less likely to break when you add/remove arguments.
 - The "end" keyword at the end of a function should be followed by the comment "% function".  Same for end of a methods block and a classdef block.

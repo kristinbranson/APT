@@ -2953,7 +2953,7 @@ classdef Labeler < handle
       % Updates project DL state to point to new cache in .projTempDir      
 
       % Get the project cache dir path (e.g. '/home/janeuser/.apt/tpkjasdfkuhawe') ;
-      projectCacheDirPath = obj.projTempDir;
+      projectCacheDirPath = obj.projTempDir;  % native path, as char
    
       % It seems like this warning is thrown often even when nothing is wrong.
       % Disabling.  -- ALT, 2024-10-10
@@ -2969,7 +2969,7 @@ classdef Labeler < handle
       if obj.backend.isProjectCacheRemote ,
         warningNoTrace('Unexpected remote project cache detected');
       else
-        obj.backend.wslProjectCachePath = projectCacheDirPath ;
+        obj.backend.nativeProjectCachePath = projectCacheDirPath ;
         % Update/set all DMC.rootDirs to cacheDir
         trackers = obj.trackerHistory_ ;
         cellfun(@(t)(t.updateDLCache(projectCacheDirPath)), trackers) ;

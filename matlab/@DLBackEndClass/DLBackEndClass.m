@@ -141,7 +141,8 @@ classdef DLBackEndClass < handle
     isInAwsDebugMode
     isProjectCacheRemote
     isProjectCacheLocal
-    wslProjectCachePath
+    wslProjectCachePath  % a MetaPath with wsl locale
+    nativeProjectCachePath  % a MetaPath with native locale
     remoteDMCRootDir
     awsInstanceID
     awsKeyName  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
@@ -847,13 +848,13 @@ classdef DLBackEndClass < handle
     %   end
     % end  % function
 
-    function result = remote_movie_path_from_wsl(obj, queryWslPath)
-      if obj.type == DLBackEnd.AWS ,
-        result = AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
-      else
-        result = queryWslPath ;
-      end
-    end  % function
+    % function result = remote_movie_path_from_wsl(obj, queryWslPath)
+    %   if obj.type == DLBackEnd.AWS ,
+    %     result = AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
+    %   else
+    %     result = queryWslPath ;
+    %   end
+    % end  % function
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -1599,11 +1600,41 @@ classdef DLBackEndClass < handle
       result = obj.awsec2.wslProjectCachePath ;
     end  % function
 
+    function result = get.nativeProjectCachePath(obj)
+      % The local DMC root dir, as a WSL path.
+      wslPath = obj.awsec2.wslProjectCachePath ;
+      result = wslPath.asNative() ;
+    end  % function
+
     function set.wslProjectCachePath(obj, value) 
-      % Set the local DMC root dir.  Note that value is assumed to be a native path,
-      % but we convert to a WSL path before passing to obj.awsec2.
-      path = wsl_path_from_native(value) ;
-      obj.awsec2.wslProjectCachePath = path ;
+      % Set the WSL project cache path. Accepts either a char or a WSL MetaPath.
+      % Converts to WSL MetaPath before passing to obj.awsec2.
+      if ischar(value) || isstring(value)
+        wslMetaPath = apt.MetaPath(char(value), apt.PathLocale.wsl, apt.FileRole.cache);
+      elseif isa(value, 'apt.MetaPath')
+        assert(value.locale == apt.PathLocale.wsl, 'MetaPath must have WSL locale');
+        wslMetaPath = value;
+      else
+        error('wslProjectCachePath must be a char, string, or WSL apt.MetaPath');
+      end
+      
+      obj.awsec2.wslProjectCachePath = wslMetaPath;
+    end  % function
+
+    function set.nativeProjectCachePath(obj, value) 
+      % Set the local DMC root dir. Accepts either a char or a native MetaPath.
+      % Converts to WSL MetaPath before passing to obj.awsec2.
+      if ischar(value) || isstring(value)
+        nativeMetaPath = apt.MetaPath(char(value), apt.PathLocale.native, apt.FileRole.cache);
+      elseif isa(value, 'apt.MetaPath')
+        assert(value.locale == apt.PathLocale.native, 'MetaPath must have native locale');
+        nativeMetaPath = value;
+      else
+        error('nativeProjectCachePath must be a char, string, or native apt.MetaPath');
+      end
+      
+      wslMetaPath = nativeMetaPath.asWsl();
+      obj.awsec2.wslProjectCachePath = wslMetaPath;
     end  % function
 
     function result = get.remoteDMCRootDir(obj)  %#ok<MANU>
@@ -1971,39 +2002,14 @@ classdef DLBackEndClass < handle
       % their corresponding paths on the backend.  If backend is a local-filesystem
       % backend, do nothing.  This method does not mutate obj or totrackinfo.
 
-      result = totrackinfo.copy() ;
-      % result.changePathsToRemoteFromWsl(obj.wslProjectCachePath, obj) ;
-      wslCacheRoot = obj.wslProjectCachePath ;
-
-      % If backend has local filesystem, do nothing
-      if obj.isFilesystemLocal() ,
+      % If backend has local filesystem (i.e. is not AWS), this function is the identity function
+      if ~isequal(obj.type,DLBackEnd.AWS)
+        result = totrackinfo.copy() ;
         return
       end
       
       % Generate all the relocated paths
-      remoteCacheRoot = obj.remoteDMCRootDir ;
-      newmovfiles = cellfun(@(old_path)(obj.remote_movie_path_from_wsl(old_path)), ...
-                            result.movfiles, ...
-                            'UniformOutput', false) ;
-      newtrkfiles = linux_replace_prefix_path(result.trkfiles, wslCacheRoot, remoteCacheRoot) ;
-      newerrfile = linux_replace_prefix_path(result.errfile, wslCacheRoot, remoteCacheRoot) ;
-      newlogfile = linux_replace_prefix_path(result.logfile, wslCacheRoot, remoteCacheRoot) ;
-      newcmdfile = linux_replace_prefix_path(result.cmdfile, wslCacheRoot, remoteCacheRoot) ;
-      newkillfile = linux_replace_prefix_path(result.killfile, wslCacheRoot, remoteCacheRoot) ;
-      newtrackconfigfile = linux_replace_prefix_path(result.trackconfigfile, wslCacheRoot, remoteCacheRoot) ;
-      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
-      % would need to be relocated, but so far hasn't been an issue 
-      % -- ALT, 2024-07-31
-
-      % Actually write all the new paths to the obj only after all the above things
-      % have finished, to make a borked state less likely.
-      result.movfiles = newmovfiles ;
-      result.trkfiles = newtrkfiles ;
-      result.errfile = newerrfile ;
-      result.logfile = newlogfile ;
-      result.cmdfile = newcmdfile ;
-      result.killfile = newkillfile ;
-      result.trackconfigfile = newtrackconfigfile ;
+      result = obj.awsec2.changeToTrackInfoPathsToRemoteFromWsl(totrackinfo) ;
     end  % function    
   end  % methods
 end  % classdef

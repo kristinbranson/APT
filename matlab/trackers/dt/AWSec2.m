@@ -1238,8 +1238,8 @@ classdef AWSec2 < handle
       assert(destRemotePath.locale == apt.PathLocale.remote, 'destRemotePath must have remote locale');
 
       % Generate the --rsh argument
-      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
-      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath.char()) ;
+      emptyCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
       sshCommandAsChar = sshCommand.char() ;
@@ -1263,8 +1263,8 @@ classdef AWSec2 < handle
       assert(destWslPath.locale == apt.PathLocale.wsl, 'destWslPath must have WSL locale');
 
       % Generate the --rsh argument
-      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
-      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath.char()) ;
+      emptyCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
       sshCommandAsChar = sshCommand.char() ;
@@ -1463,15 +1463,20 @@ classdef AWSec2 < handle
       end
     end  % function
     
-    function [didsucceed, msg] = mkdir(obj, wslMetaPath)
+    function [didsucceed, msg] = mkdir(obj, metaPath)
       % Create the named directory on the remote AWS machine.
       
       % Validate input
-      assert(isa(wslMetaPath, 'apt.MetaPath'), 'wsl_dir_path must be an apt.MetaPath');
-      assert(wslMetaPath.locale == apt.PathLocale.wsl, 'wsl_dir_path must have WSL locale');
+      assert(isa(metaPath, 'apt.MetaPath'), 'metaPath must be an apt.MetaPath');
+      assert(metaPath.locale == apt.PathLocale.wsl || metaPath.locale == apt.PathLocale.remote, ...
+             'metaPath must have WSL or remote locale');
+
+      % Command locale should match the path
+      locale = metaPath.locale ;
+      platform = metaPath.platform ;
       
-      base_command = apt.ShellCommand({'mkdir', '-p', wslMetaPath}, apt.PathLocale.wsl, apt.Platform.posix) ;
-      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;  % Will translate to remote path
+      base_command = apt.ShellCommand({'mkdir', '-p', metaPath}, locale, platform) ;
+      [status, msg] = obj.runBatchCommandOutsideContainer(base_command) ;  % Will translate to remote path if needed
       didsucceed = (status==0) ;
     end
     
@@ -1485,7 +1490,7 @@ classdef AWSec2 < handle
       assert(remoteDirPath.locale == apt.PathLocale.remote, 'remote_dir_path must have remote locale');
       
       baseCommand = apt.ShellCommand({'mkdir', '-p', remoteDirPath}, apt.PathLocale.remote, apt.Platform.posix) ;
-      obj.runBatchCommandOutsideContainer(baseCommand, 'dopathsubs', false, 'failbehavior', 'err') ;
+      obj.runBatchCommandOutsideContainer(baseCommand, 'failbehavior', 'err') ;
     end
     
     function uploadProjectCacheIfNeeded(obj, wslProjectCachePath)
@@ -1754,8 +1759,7 @@ classdef AWSec2 < handle
       obj.errorIfInstanceNotRunning();  % errs if instance isn't running
 
       % Does the APT source root dir exist?
-      native_apt_root = APT.Root ;  % native path
-      nativeAptRootMetaPath = apt.MetaPath(native_apt_root, apt.PathLocale.native, apt.FileRole.source);
+      nativeAptRootMetaPath = apt.MetaPath(APT.Root, apt.PathLocale.native, apt.FileRole.source);
       wslAptRootMetaPath = nativeAptRootMetaPath.asWsl();
 
       % Create folder if needed
@@ -1766,18 +1770,18 @@ classdef AWSec2 < handle
       fprintf('APT source folder with WSL path %s exists on AWS instance.\n', char(wslAptRootMetaPath));
       
       % Rsync the local APT code to the remote end
-      wsl_apt_root_as_char = wslAptRootMetaPath.char();
+      %wsl_apt_root_as_char = wslAptRootMetaPath.char();
       remoteAptRootMetaPath = obj.remotePathFromWsl_(wslAptRootMetaPath) ;  % remote path
-      remote_apt_root_as_char = remoteAptRootMetaPath.char();
       obj.rsyncUploadFolder(wslAptRootMetaPath, remoteAptRootMetaPath) ;  % Will throw on error
-      fprintf('Successfully rsynced remote APT source code (in %s) from local version (in %s).\n', remote_apt_root_as_char, native_apt_root) ;
+      fprintf('Successfully rsynced remote APT source code (in %s) from local version (in %s).\n', ...
+              remoteAptRootMetaPath.char(), ...
+              nativeAptRootMetaPath.char()) ;
 
       % Run the remote Python script to download the pretrained model weights
       % This python script doesn't do anything fancy, apparently, so we use the
       % python interpreter provided by the plain EC2 instance, not the one inside
       % the Docker container on the instance.
-      download_script_path = linux_fullfile(remote_apt_root_as_char, 'deepnet', 'download_pretrained.py') ;
-      downloadScriptMetaPath = apt.MetaPath(download_script_path, apt.PathLocale.remote, apt.FileRole.source) ;
+      downloadScriptMetaPath = remoteAptRootMetaPath.append('deepnet', 'download_pretrained.py') ;
       command12 = apt.ShellCommand({downloadScriptMetaPath}, apt.PathLocale.remote, apt.Platform.posix) ;      
       [st_3,res_3] = obj.runBatchCommandOutsideContainer(command12) ;
       if st_3 ~= 0 ,
@@ -1869,18 +1873,18 @@ classdef AWSec2 < handle
   end
   
   methods
-    function result = remotePathFromWsl_(obj, wsl_path_or_paths)  % const method
+    function result = remotePathFromWsl_(obj, wslPathOrPaths)  % const method
       % Apply the applicable file name substitutions to path_or_paths.
       % path_or_paths can be a single path or a cellstring of paths, but all should
       % be WSL paths.
       %
       % This method does not mutate obj.
       
-      if iscell(wsl_path_or_paths) ,
-        wsl_paths = wsl_path_or_paths ;
+      if iscell(wslPathOrPaths) ,
+        wsl_paths = wslPathOrPaths ;
         result = cellfun(@(wsl_path)(obj.applyFilePathSubstitutionsToMetaPath_(wsl_path)), wsl_paths) ;
       else
-        wsl_path = wsl_path_or_paths ;
+        wsl_path = wslPathOrPaths ;
         result = obj.applyFilePathSubstitutionsToMetaPath_(wsl_path) ;
       end
     end  % function
@@ -1953,7 +1957,7 @@ classdef AWSec2 < handle
       function result = processToken(token)
         % Local function to convert each token to target locale
         if isa(token, 'apt.MetaPath')
-          result = applyGenericFilePathSubstitutionsToMetaPath_(token, wslProjectCachePath, wslPathFromMovieIndex);
+          result = AWSec2.applyGenericFilePathSubstitutionsToMetaPath_(token, wslProjectCachePath, wslPathFromMovieIndex);
         elseif isa(token, 'apt.ShellCommand')
           result = AWSec2.applyGenericFilePathSubstitutionsToShellCommand_(token, wslProjectCachePath, wslPathFromMovieIndex);
         else
@@ -2056,4 +2060,57 @@ classdef AWSec2 < handle
     % end
     
   end  % methods (Static)
+
+  methods
+    function result = changeToTrackInfoPathsToRemoteFromWsl(obj, totrackinfo)
+      % Convert all paths in result from WSL paths on the frontend's filesytem to
+      % their corresponding paths on the backend.  If backend is a local-filesystem
+      % backend, do nothing.  This method does not mutate obj or totrackinfo.
+
+      % Helper function to convert string path to remote MetaPath and back to char
+      function remotePathChar = convertPathToRemote(pathStr, fileRole)
+        if isempty(pathStr)
+          remotePathChar = '';
+        else
+          wslMetaPath = apt.MetaPath(pathStr, apt.PathLocale.wsl, fileRole);
+          remoteMetaPath = obj.remotePathFromWsl_(wslMetaPath);
+          remotePathChar = remoteMetaPath.char();
+        end
+      end
+
+      % Helper function to convert cell array of string paths  
+      function remotePathsCell = convertPathsToRemote(pathsCell, fileRole)
+        if isempty(pathsCell)
+          remotePathsCell = pathsCell;
+        else
+          wslMetaPaths = cellfun(@(pathStr) apt.MetaPath(pathStr, apt.PathLocale.wsl, fileRole), pathsCell, 'UniformOutput', false);
+          remoteMetaPaths = obj.remotePathFromWsl_(wslMetaPaths);
+          remotePathsCell = cellfun(@(mp) mp.char(), remoteMetaPaths, 'UniformOutput', false);
+        end
+      end
+
+      % Generate all the relocated paths
+      newmovfiles = convertPathsToRemote(totrackinfo.movfiles, apt.FileRole.movie);
+      newtrkfiles = convertPathsToRemote(totrackinfo.trkfiles, apt.FileRole.cache);
+      newerrfile = convertPathToRemote(totrackinfo.errfile, apt.FileRole.cache);
+      newlogfile = convertPathToRemote(totrackinfo.logfile, apt.FileRole.cache);
+      newcmdfile = convertPathToRemote(totrackinfo.cmdfile, apt.FileRole.cache);
+      newkillfile = convertPathToRemote(totrackinfo.killfile, apt.FileRole.cache);
+      newtrackconfigfile = convertPathToRemote(totrackinfo.trackconfigfile, apt.FileRole.cache);
+      % I was concerned that some or all of obj.calibrationfiles, obj.trxfiles, and/or obj.listoutfiles
+      % would need to be relocated, but so far hasn't been an issue 
+      % -- ALT, 2024-07-31
+
+      % Actually write all the new paths to the obj only after all the above things
+      % have finished, to make a borked state less likely.
+      result = totrackinfo.copy() ;
+      result.movfiles = newmovfiles ;
+      result.trkfiles = newtrkfiles ;
+      result.errfile = newerrfile ;
+      result.logfile = newlogfile ;
+      result.cmdfile = newcmdfile ;
+      result.killfile = newkillfile ;
+      result.trackconfigfile = newtrackconfigfile ;
+    end  % function        
+  end  % methods
 end  % classdef

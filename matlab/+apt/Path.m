@@ -271,12 +271,12 @@ classdef Path
       filenamePart = apt.Path({filename}, obj.platform_);
     end
 
-    function result = replacePrefix(obj, sourcePath, targetPath)
+    function result = replacePrefix(obj, rawSourcePrefixPath, rawTargetPrefixPath)
       % Replace a source prefix with a target prefix
       %
       % Args:
-      %   sourcePath (apt.Path or char): The prefix to replace
-      %   targetPath (apt.Path or char): The replacement prefix
+      %   rawSourcePrefixPath (apt.Path or char): The prefix to replace
+      %   rawTargetPrefixPath (apt.Path or char): The replacement prefix
       %
       % Returns:
       %   apt.Path: New path with prefix replaced, or original path if prefix doesn't match
@@ -287,44 +287,51 @@ classdef Path
       %   % newP will be apt.Path('/new/location/file.txt')
       
       % Convert string arguments to apt.Path if needed
-      if ischar(sourcePath)
-        sourcePath = apt.Path(sourcePath, obj.platform_);
-      elseif ~isa(sourcePath, 'apt.Path')
-        error('apt:Path:InvalidArgument', 'sourcePath must be an apt.Path object or string');
+      if ischar(rawSourcePrefixPath)
+        sourcePrefixPath = apt.Path(rawSourcePrefixPath, obj.platform_) ;
+      elseif isa(rawSourcePrefixPath, 'apt.Path')
+        sourcePrefixPath = rawSourcePrefixPath ;
+      else
+        error('apt:Path:InvalidArgument', 'rawSourcePrefixPath must be an apt.Path object or string') ;
       end
       
-      if ischar(targetPath)
-        targetPath = apt.Path(targetPath, obj.platform_);
-      elseif ~isa(targetPath, 'apt.Path')
-        error('apt:Path:InvalidArgument', 'targetPath must be an apt.Path object or string');
+      if ischar(rawTargetPrefixPath)
+        targetPrefixPath = apt.Path(rawTargetPrefixPath, obj.platform_);
+      elseif isa(rawTargetPrefixPath, 'apt.Path')
+        targetPrefixPath = rawTargetPrefixPath ;
+      else
+        error('apt:Path:InvalidArgument', 'rawTargetPrefixPath must be an apt.Path object or string');
       end
       
       % Check platform compatibility
-      if obj.platform_ ~= sourcePath.platform_ || obj.platform_ ~= targetPath.platform_
-        error('apt:Path:PlatformMismatch', 'All paths must have the same platform');
+      if obj.platform_ ~= sourcePrefixPath.platform_
+        error('apt:Path:PlatformMismatch', 'Source prefix path platform must match that of obj');
       end
       
       % Check if this path starts with the source prefix
-      sourceList = sourcePath.list_;
+      sourceList = sourcePrefixPath.list_;
       if length(obj.list_) < length(sourceList)
         % Path is shorter than source prefix, no match
         result = obj;
-        return;
+        return
       end
       
       % Check if the beginning of obj.list_ matches sourceList
       if ~isequal(obj.list_(1:length(sourceList)), sourceList)
         % Prefix doesn't match
         result = obj;
-        return;
+        return
       end
       
       % Replace the prefix
       remainingList = obj.list_(length(sourceList)+1:end);
-      newList = [targetPath.list_, remainingList];
+      newList = horzcat(targetPrefixPath.list_, remainingList) ;
       
       % Create new path object
-      result = apt.Path(newList, obj.platform_);
+      % Use the targetPrefix's platform, since that makes the most sense, and this
+      % allows one to convert e.g. a posix path to windows by replacing the posix
+      % prefix with a windows prefix.
+      result = apt.Path(newList, targetPrefixPath.platform_);
     end
 
     function result = toPosix(obj)

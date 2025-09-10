@@ -142,47 +142,39 @@ classdef MetaPath < apt.ShellToken
                obj.role_ == other.role_;
     end
 
-    function result = replacePrefix(obj, rawSourcePath, rawTargetPath)
+    function result = replacePrefix(obj, sourcePrefixMetaPath, targetPrefixMetaPath)
       % Replace a source prefix with a target prefix in the underlying path
       %
       % Args:
-      %   rawSourcePath (apt.Path, apt.MetaPath, or char): The prefix to replace
-      %   rawTargetPath (apt.Path, apt.MetaPath, or char): The replacement prefix
+      %   sourcePrefixMetaPath (apt.MetaPath): The MetaPath prefix to replace
+      %   targetPrefixMetaPath (apt.MetaPath): The replacement MetaPath prefix
       %
       % Returns:
-      %   apt.MetaPath: New MetaPath with prefix replaced, preserving locale and role
+      %   apt.MetaPath: New MetaPath with prefix replaced, using target's locale and platform
       %
       % Example:
-      %   mp = apt.MetaPath(apt.Path('/old/base/file.txt'), 'native', 'movie');
-      %   newMp = mp.replacePrefix('/old/base', '/new/location');
-      %   % newMp will have path '/new/location/file.txt' with same locale and role
+      %   mp = apt.MetaPath('/old/base/file.txt', 'native', 'movie');
+      %   sourcePrefix = apt.MetaPath('/old/base', 'native', 'movie');
+      %   targetPrefix = apt.MetaPath('/new/location', 'wsl', 'movie');
+      %   newMp = mp.replacePrefix(sourcePrefix, targetPrefix);
+      %   % newMp will have path '/new/location/file.txt' with WSL locale and movie role
       
-      % Extract apt.Path objects from arguments
-      if isa(rawSourcePath, 'apt.MetaPath')
-        sourcePath = rawSourcePath.path_;
-      elseif isa(rawSourcePath, 'apt.Path')
-        sourcePath = rawSourcePath;
-      elseif ischar(rawSourcePath)
-        sourcePath = apt.Path(rawSourcePath, obj.path_.platform);
-      else
-        error('apt:MetaPath:InvalidArgument', 'rawSourcePath must be an apt.Path, apt.MetaPath, or string');
-      end
+      % Validate arguments are MetaPaths
+      assert(isa(sourcePrefixMetaPath, 'apt.MetaPath'), 'sourcePrefixMetaPath must be an apt.MetaPath');
+      assert(isa(targetPrefixMetaPath, 'apt.MetaPath'), 'targetPrefixMetaPath must be an apt.MetaPath');
       
-      if isa(rawTargetPath, 'apt.MetaPath')
-        targetPath = rawTargetPath.path_;
-      elseif isa(rawTargetPath, 'apt.Path')
-        targetPath = rawTargetPath;
-      elseif ischar(rawTargetPath)
-        targetPath = apt.Path(rawTargetPath, obj.path_.platform);
-      else
-        error('apt:MetaPath:InvalidArgument', 'rawTargetPath must be an apt.Path, apt.MetaPath, or string');
-      end
+      % Validate that all roles match
+      assert(obj.role_ == sourcePrefixMetaPath.role_, 'Object and source prefix must have the same FileRole');
+      assert(obj.role_ == targetPrefixMetaPath.role_, 'Object and target prefix must have the same FileRole');
+      
+      % Validate that obj and source prefix have the same locale
+      assert(obj.locale_ == sourcePrefixMetaPath.locale_, 'Object and source prefix must have the same locale');
       
       % Use the underlying apt.Path replacePrefix method
-      newPath = obj.path_.replacePrefix(sourcePath, targetPath);
+      newPath = obj.path_.replacePrefix(sourcePrefixMetaPath.path_, targetPrefixMetaPath.path_);
       
-      % Create new MetaPath with the same locale and role
-      result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+      % Create new MetaPath using target's locale and the common role
+      result = apt.MetaPath(newPath, targetPrefixMetaPath.locale_, obj.role_);
     end
 
     function result = as(obj, targetLocale, varargin)
