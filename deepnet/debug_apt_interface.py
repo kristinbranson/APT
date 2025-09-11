@@ -30,6 +30,10 @@ cmd = ['/groups/branson/home/kabram/.apt/tp22265969_a29d_42ab_8c78_74f826decb3d/
 
 cmd = '/groups/branson/home/kabram/.apt/tpdb269bb0_d245_4b7c_a9e2_28a369d4a205/unmarkedMice/20250826T035317_20250826T035322.json -name 20250826T035317 -json_trn_file /groups/branson/home/kabram/.apt/tpdb269bb0_d245_4b7c_a9e2_28a369d4a205/unmarkedMice/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpdb269bb0_d245_4b7c_a9e2_28a369d4a205 train -use_cache'
 
+cmd = '/groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/20250905T022700_20250905T022705.json -name 20250905T022700 -json_trn_file /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828 train -use_cache -continue -skip_db'
+
+cmd = '/groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/20250905T022700_20250905T022705.json -name 20250905T022700 -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828 track -config_file /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250905T022700/trk/trkconfig_image_cam_0_date_2025_06_11_time_18_40_40_v001_crop_col1167to1919_rot90_c7a992_trn20250905T022700_view0_iter51000_20250905T061458.json -track_type only_predict -out /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250905T022700/trk/image_cam_0_date_2025_06_11_time_18_40_40_v001_crop_col1167to1919_rot90_c7a992_trn20250905T022700_view0_iter51000_20250905T061458.trk -mov /groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led/exp_41/fly_images/cropped_uniform_sizes/image_cam_0_date_2025_06_11_time_18_40_40_v001_crop_col1167to1919_rot90.ufmf -start_frame 21708 -end_frame 21791'
+
 if type(cmd)!=list:
     cmd = cmd.replace('\\','')
 #     cmd = cmd.replace('"','')

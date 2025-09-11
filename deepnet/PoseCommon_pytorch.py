@@ -725,7 +725,7 @@ class PoseCommon_pytorch(object):
                 start_at = 0
                 self.init_td()
             else:
-                start_at = self.restore(model_file, model, opt, sched)
+                _, start_at = self.restore(model_file, model, opt, sched)
         else:
             try:
                 if torch.cuda.device_count()==0:
