@@ -144,8 +144,8 @@ classdef DLBackEndClass < handle
     wslProjectCachePath
     remoteDMCRootDir
     awsInstanceID
-    awsKeyName
-    awsPEM
+    awsKeyName  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
+    awsPEM  % absolute *WSL* path of .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
     awsInstanceType
     condaEnv
     dockerimgroot
@@ -508,12 +508,15 @@ classdef DLBackEndClass < handle
                                       'bindpath',bindpath,...
                                       'detach',false);
           if verbose
-            fprintf(1,'%s\n',codestr);
+            fprintf('%s\n',codestr);
           end
           [st,res] = apt.syscmd(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s\n%s',res,codestr);
-            return;
+            if ispc() && contains(res, 'WSL')
+              fprintf('\nOn Windows, Docker Desktop has to be running for the Docker backend to work.\n\n')
+            end
+            return
           end
         case DLBackEnd.Conda
           scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;  % Conda backend is only on Linux, so this is both native and WSL path.
@@ -2142,13 +2145,15 @@ classdef DLBackEndClass < handle
     end
 
     function testBackendConfig(obj, labeler)
+      obj.testText_ = {''};
+      labeler.notify('updateBackendTestText') ;
       switch obj.type,
         case DLBackEnd.Bsub,
           obj.testBsubBackendConfig_(labeler) ;
         case DLBackEnd.Docker
           obj.testDockerBackendConfig_(labeler) ;
         case DLBackEnd.AWS
-          obj.awsec2.testBackendConfig(labeler) ;
+          obj.awsec2.testBackendConfig(obj, labeler) ;
         case DLBackEnd.Conda
           obj.testCondaBackendConfig_(labeler) ;
         otherwise
@@ -2157,12 +2162,8 @@ classdef DLBackEndClass < handle
     end  % function
 
     function text = testText(obj)
-      % Get test text based on backend type
-      if obj.type == DLBackEnd.AWS
-        text = obj.awsec2.testText();
-      else
-        text = obj.testText_;
-      end
+      % Get test text
+      text = obj.testText_;
     end  % function
   end  % methods
 end  % classdef

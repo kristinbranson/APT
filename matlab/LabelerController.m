@@ -565,6 +565,9 @@ classdef LabelerController < handle
       deleteValidGraphicsHandles(obj.waitbarFigure_) ;
       delete(obj.trackingMonitorVisualizer_) ;
       delete(obj.trainingMonitorVisualizer_) ;
+      if ~isempty(obj.backendTestController_)
+        delete(obj.backendTestController_) ;
+      end
       try
         deleteValidGraphicsHandles(obj.movieManagerController_.hFig) ;
       catch % fail silently :)
@@ -642,8 +645,13 @@ classdef LabelerController < handle
         end
       end
 
+      % Call needed updates on the subcontrollers
+      if ~isempty(obj.backendTestController_)
+        obj.backendTestController_.updatePointer() ;
+      end
+
       % Make sure to update graphics now
-      drawnow('nocallbacks') ;  
+      drawnow() ;  
         % Please don't comment out the above drawnow() command!  We want the update of the
         % pointer to happen ASAP when we update the busy status.  This helps indicate
         % to the user that APT is working on something, and they don't need to actuate
@@ -1041,6 +1049,14 @@ classdef LabelerController < handle
     end  % function
     
     function tfsucc = selectAwsInstanceGUI_(obj, varargin)
+      % Brings up the GUI to set the AWS configuration parameters and select
+      % an AWS instance.
+      %
+      % Optional argument 'canConfigure' should be 0, 1, or 2.  Zero means
+      % configuration is not offered, one means it will be offered if the
+      % backend is not already configured, and two means configuration will be
+      % offered whether the backend is configured or not.
+
       [canLaunch,canConfigure,forceSelect] = ...
         myparse(varargin, ...
                 'canlaunch',true,...
@@ -1060,8 +1076,11 @@ classdef LabelerController < handle
       awsec2 = backend.awsec2 ;
       if ~awsec2.areCredentialsSet || canConfigure >= 2,
         if canConfigure,
+          originalAwsKeyName = awsec2.keyName;
+          originalAwsPemWslPath = awsec2.pem;
+          originalAwsPemNativePath = originalAwsPemWslPath;
           [tfsucc,keyName,pemFile] = ...
-            promptUserToSpecifyPEMFileName(awsec2.keyName,awsec2.pem);
+            promptUserToSpecifyAwsCredentialInfo(originalAwsKeyName,originalAwsPemNativePath);
           if ~tfsucc,
             return;
           end
@@ -2407,13 +2426,11 @@ classdef LabelerController < handle
       obj.menu_track_backend_config_docker = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','Docker',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
         'Tag','menu_track_backend_config_docker',...
         'userdata',DLBackEnd.Docker);  
       obj.menu_track_backend_config_conda = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','Conda',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
         'Tag','menu_track_backend_config_conda',...
         'userdata',DLBackEnd.Conda,...
         'Visible',true,...
@@ -2421,22 +2438,20 @@ classdef LabelerController < handle
       obj.menu_track_backend_config_jrc = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','JRC Cluster',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
         'Tag','menu_track_backend_config_jrc',...
         'userdata',DLBackEnd.Bsub);
       obj.menu_track_backend_config_aws = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','AWS Cloud',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenu(s,e)),...
         'Tag','menu_track_backend_config_aws',...
         'userdata',DLBackEnd.AWS);
 
       obj.menu_track_backend_settings = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','Settings...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendSettings(s,e)),...
         'Tag','menu_track_backend_settings',...
         'Separator','on');
+        % 'Callback',@(s,e)(obj.cbkTrackerBackendSettings(s,e)),...
 
       obj.menu_track_backend_config_test = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
@@ -2447,7 +2462,6 @@ classdef LabelerController < handle
       obj.menu_track_backend_config_moreinfo = uimenu( ...
         'Parent',obj.menu_track_backend_config,...
         'Label','More information...',...
-        'Callback',@(s,e)(obj.cbkTrackerBackendMenuMoreInfo()),...
         'Tag','menu_track_backend_config_moreinfo');   
 
       % Set up the figure callbacks to call obj, using the tag to determine the
@@ -2455,13 +2469,29 @@ classdef LabelerController < handle
       visit_children(obj.menu_track_backend_config, @set_standard_callback_if_none_bang, obj) ;            
     end  % function
 
-    function cbkTrackerBackendMenu(obj, source, event)  %#ok<INUSD>
+    function menu_track_backend_config_aws_actuated_(obj, s, e)
+      obj.cbkTrackerBackendMenu_(s, e);
+    end
+
+    function menu_track_backend_config_jrc_actuated_(obj, s, e)
+      obj.cbkTrackerBackendMenu_(s, e);
+    end
+
+    function menu_track_backend_config_conda_actuated_(obj, s, e)
+      obj.cbkTrackerBackendMenu_(s, e);
+    end
+
+    function menu_track_backend_config_docker_actuated_(obj, s, e)
+      obj.cbkTrackerBackendMenu_(s, e);
+    end
+
+    function cbkTrackerBackendMenu_(obj, source, event)  %#ok<INUSD>
       lObj = obj.labeler_ ;
       beType = source.UserData;
       lObj.set_backend_property('type', beType) ;
     end  % function
 
-    function cbkTrackerBackendSettings(obj, varargin)
+    function menu_track_backend_settings_actuated_(obj, varargin)
       labeler = obj.labeler_;
       
       beType = labeler.trackDLBackEnd.type;
@@ -2490,7 +2520,7 @@ classdef LabelerController < handle
     end
 
 
-    function cbkTrackerBackendMenuMoreInfo(obj)
+    function menu_track_backend_config_moreinfo_actuated_(obj)
       lObj = obj.labeler_ ;
       res = web(lObj.DLCONFIGINFOURL,'-new');
       if res ~= 0,
@@ -2503,7 +2533,9 @@ classdef LabelerController < handle
     function menu_track_backend_config_test_actuated_(obj, ~, ~)
       obj.labeler_.pushBusyStatus('Testing backend...');
       oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
-      obj.backendTestController_ = BackendTestController(obj, obj.labeler_) ;
+      if isempty(obj.backendTestController_)
+        obj.backendTestController_ = BackendTestController(obj, obj.labeler_) ;
+      end
       obj.labeler_.testBackendConfig() ;
     end  % function
       
@@ -5685,6 +5717,7 @@ classdef LabelerController < handle
           labeler.setTargetMA(ntgts+1);
           labeler.labelPosSet(xy,occ);
           labeler.updateTrxTable();
+          labeler.setTarget(ntgts+1);
           iTgt = labeler.currTarget;
           labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
 

@@ -28,7 +28,7 @@ function test_backend_common(backend_type)
   
   % Test the backend configuration
   % This will create a BackendTestController and call the appropriate test method
-  controller.cbkTrackerBackendTest();
+  controller.controlActuated('menu_track_backend_config_test', [], []) ;
   
   % Test that there's something in the test text
   test_text = labeler.backend.testText() ;

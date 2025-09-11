@@ -33,7 +33,8 @@ addlblfiles = {
 old_data_dir = '/groups/branson/bransonlab/PTR_fly_annotations_3D/';
 
 % location of newly cropped videos
-newcroppedmoviedir = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views';
+newcroppedmoviedir = '/groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led';
+%newcroppedmoviedir = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views';
 
 % fixed size of the two cropped videos
 recropped_image_sizes = [1331, 1167]; % [virtual image, real image]
@@ -119,6 +120,23 @@ assert(isempty(newmoviefiles));
 % Lblfile 15, 68 overwritten labels, 14 new labels
 % Lblfile 16, 157 overwritten labels, 0 new labels
 
+% Lblfile 1, 17 overwritten labels, 45 new labels
+% Lblfile 2, 24 overwritten labels, 3 new labels
+% Lblfile 3, 56 overwritten labels, 0 new labels
+% Lblfile 4, 27 overwritten labels, 0 new labels
+% Lblfile 5, 59 overwritten labels, 6 new labels
+% Lblfile 6, 59 overwritten labels, 11 new labels
+% Lblfile 7, 66 overwritten labels, 10 new labels
+% Lblfile 8, 76 overwritten labels, 6 new labels
+% Lblfile 9, 59 overwritten labels, 16 new labels
+% Lblfile 10, 70 overwritten labels, 7 new labels
+% Lblfile 11, 77 overwritten labels, 7 new labels
+% Lblfile 12, 67 overwritten labels, 0 new labels
+% Lblfile 13, 75 overwritten labels, 10 new labels
+% Lblfile 14, 59 overwritten labels, 6 new labels
+% Lblfile 15, 68 overwritten labels, 14 new labels
+% Lblfile 16, 164 overwritten labels, 0 new labels
+
 %% remove all movies that don't have labels and bad movies
 
 [~,movidx] = unique(tbldata_combined.mov(:,1));
@@ -173,7 +191,7 @@ for i = 1:size(moviefiles_base,1),
     assert(numel(m)==2);
     oldcols = cellfun(@str2num,{m.col});
     [~,oldorder] = sort(oldcols);
-    searchstr = fullfile(newcroppedmoviedir,['exp_',m(1).exp],[m(1).mov,'*ufmf']);
+    searchstr = fullfile(newcroppedmoviedir,['exp_',m(1).exp],'fly_images','cropped_uniform_sizes',[m(1).mov,'*ufmf']);
     newmoviefiles = mydir(searchstr);
     assert(numel(newmoviefiles)==2,'Could not find new movies');
 
@@ -251,65 +269,3 @@ lObj.labelPosBulkImportTbl(tbldata_combined);
 %% save result
 
 lObj.projSave(outlblfile_combined);
-
-%% output images of all labels
-
-outimgdir = fullfile(outdir,'labeled_images');
-if ~exist(outimgdir,'dir'),
-  mkdir(outimgdir);
-end
-colors = lObj.labelPointsPlotInfo.Colors;
-hfig = figure(9);
-set(hfig,'Position',[270,1100,3000,800]);
-clf;
-htile = tiledlayout(1,nviews,'TileSpacing','none','Padding','none');
-hax = gobjects(1,nviews);
-tbldata_out = lObj.labelGetMFTableLabeled('useMovNames',true);
-for i = 1:nviews,
-  hax(i) = nexttile;
-end
-border = 40; % pixels
-set(hax,'XTick',[],'YTick',[]);
-for i = 1:size(lObj.movieFilesAllFull,1),
-  moviefilescurr = lObj.movieFilesAllFull(i,:);
-  idxcurr = find(strcmp(moviefilescurr{1},tbldata_out.mov(:,1)));
-  readframes = cell(1,nviews);
-  fids = cell(1,nviews);
-  for j = 1:nviews,
-    [readframes{j},~,fids{j}] = get_readframe_fcn(moviefilescurr{j});
-  end
-  for exi = idxcurr(:)',
-    fr = tbldata_out.frm(exi);
-    pcurr = tbldata_out.p(exi,:);
-    pcurr = reshape(pcurr,[nkpts,nviews,2]);
-    mincoord = permute(min(pcurr,[],1),[2,3,1]);
-    maxcoord = permute(max(pcurr,[],1),[2,3,1]);
-
-    for view = 1:nviews,
-      im = readframes{view}(fr);
-      cla(hax(view));
-      image(hax(view),im);
-      colormap(hax(view),'gray');
-      hold(hax(view),'on');
-      for kpt = 1:nkpts,
-        plot(hax(view),pcurr(kpt,view,1),pcurr(kpt,view,2),'.','Color',colors(kpt,:),'MarkerSize',12);
-      end
-      axis(hax(view),'image','off');
-      xlim = [mincoord(view,1),maxcoord(view,1)]+border*[-1,1];
-      ylim = [mincoord(view,2),maxcoord(view,2)]+border*[-1,1];
-      set(hax(view),'XLim',xlim,'YLim',ylim);
-    end
-    expnum = regexp(moviefilescurr{1},'exp_?(\d+)/','once','tokens');
-    ti = sprintf(' ex %d, movie set %d, exp %s, frame %d',exi,i,expnum{1},fr);
-    text(hax(1),mincoord(1,1)-border,mincoord(1,2)-border+5,ti,'HorizontalAlignment','left','VerticalAlignment','top','Color','m');
-    outfile = fullfile(outimgdir,sprintf('example%03d_movieset%02d_exp%s_fr%06d.png',exi,i,expnum{1},fr));
-    saveas(hfig,outfile,'png');
-  end
-  for j = 1:nviews,
-    if ~isempty(fids{j}) && fids{j} > 0,
-      fclose(fids{j});
-    end
-  end
-end
-fprintf('Done\n');
-
