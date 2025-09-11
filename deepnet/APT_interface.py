@@ -1948,7 +1948,6 @@ def db_from_trnpack_ht(conf, out_fns, nsamples=None, val_split=None):
 
     return splits, sel
 
-
 def db_from_trnpack(conf, out_fns, nsamples=None, val_split=None):
     # Creates db from new trnpack format instead of stripped label files.
     # outputs is a list of functions. The first element writes

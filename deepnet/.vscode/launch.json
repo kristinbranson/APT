@@ -312,7 +312,7 @@
             "name": "debug_param_reorg_train_detect",
             "type": "debugpy",
             "request": "launch",
-            "program": "/groups/branson/home/bransonk/tracking/code/APT_develop/deepnet/APT_interface.py",
+            "program": "APT_interface.py",
             "args": [
                 "/groups/branson/home/bransonk/.apt/tp5d30beaa_ec57_4ae5_82bb_206d0cbc1ffb/DanionellaWild/20250906T175019_20250906T175022.json",
                 "-name", "20250906T175019",
@@ -328,7 +328,29 @@
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "justMyCode": false
+        },
+
+        {
+            "name": "train_stage1",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "APT_interface.py",
+            "args": [
+                "cfgs/ma_multifly_topdown_20260908/cfg.json",
+                "-name", "20250908T175742",
+                "-json_trn_file", "cfgs/ma_multifly_topdown_20260908/loc.json",
+                "-stage", "first",
+                "-conf_params",
+                "-type", "detect_mmdetect",
+                "-ignore_local", "1",
+                "-cache", "cfgs/ma_multifly_topdown_20260908/cache",
+                "train",
+                "-use_cache"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
         }
+
 
     ]
 }
