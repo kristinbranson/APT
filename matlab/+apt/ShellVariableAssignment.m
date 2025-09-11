@@ -78,10 +78,10 @@ classdef ShellVariableAssignment < apt.ShellToken
                isequal(obj.value_, other.value_);
     end
     
-    function disp(obj)
-      % Display the ShellVariableAssignment object
-      fprintf('apt.ShellVariableAssignment: "%s"\n', obj.char());
-    end
+    % function disp(obj)
+    %   % Display the ShellVariableAssignment object
+    %   fprintf('apt.ShellVariableAssignment: "%s"\n', obj.char());
+    % end
   end
   
   methods

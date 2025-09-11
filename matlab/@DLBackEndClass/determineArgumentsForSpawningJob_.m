@@ -13,23 +13,23 @@ function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo
     case DLBackEnd.Bsub
       mntPaths = obj.genContainerMountPathBsubDocker_(tracker,train_or_track,jobinfo);
       if isequal(train_or_track,'train'),
-        native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+        nativeLogFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
         nslots = obj.jrcnslots;
       else % track
-        native_log_file_path = jobinfo.logfile;
+        nativeLogFilePathAsChar = jobinfo.logfile;
         nslots = obj.jrcnslotstrack;
       end
   
       % for printing git status? not sure why this is only in bsub and
       % not others. 
       aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
-      extraprefix = DeepTracker.repoSnapshotCmd(aptroot,aptrepo);
+      extraprefix = DLBackEndClass.repoSnapshotCmd(aptroot,aptrepo);
       singimg = obj.singularity_image_path;
   
       additionalBsubArgs = obj.jrcAdditionalBsubArgs ;
       result = {...
         'singargs',{'bindpath',mntPaths,'singimg',singimg},...
-        'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',native_log_file_path,'jobname',containerName, ...
+        'bsubargs',{'gpuqueue' obj.jrcgpuqueue 'nslots' nslots,'logfile',nativeLogFilePathAsChar,'jobname',containerName, ...
                     'additionalArgs', additionalBsubArgs},...
         'sshargs',{'extraprefix',extraprefix}...
         };
@@ -47,12 +47,12 @@ function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo
         };
     case DLBackEnd.Conda
       if isequal(train_or_track,'train'),
-        native_log_file_path = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
+        nativeLogFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainLogLnx);
       else % track
-        native_log_file_path = jobinfo.logfile;
+        nativeLogFilePathAsChar = jobinfo.logfile;
       end
       result = {...
-        'logfile', native_log_file_path };
+        'logfile', nativeLogFilePathAsChar };
       % backEndArgs = {...
       %   'condaEnv', obj.condaEnv, ...
       %   'gpuid', gpuid };

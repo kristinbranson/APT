@@ -9,6 +9,11 @@ classdef ShellBind < apt.ShellToken
     destPath_    % apt.MetaPath containing the destination path
   end
   
+  properties (Dependent)
+    sourcePath  % apt.MetaPath containing the source path
+    destPath    % apt.MetaPath containing the destination path
+  end
+  
   methods
     function obj = ShellBind(sourcePath, destPath)
       % Constructor for apt.ShellBind
@@ -24,8 +29,16 @@ classdef ShellBind < apt.ShellToken
         error('destPath must be an apt.MetaPath object');
       end
       
-      obj.sourcePath_ = sourcePath;
-      obj.destPath_ = destPath;
+      obj.sourcePath_ = sourcePath ;
+      obj.destPath_ = destPath ;
+    end
+    
+    function result = get.sourcePath(obj)
+      result = obj.sourcePath_ ;
+    end
+    
+    function result = get.destPath(obj)
+      result = obj.destPath_ ;
     end
     
     function result = char(obj)
@@ -56,10 +69,10 @@ classdef ShellBind < apt.ShellToken
                isequal(obj.destPath_, other.destPath_);
     end
     
-    function disp(obj)
-      % Display the ShellBind object
-      fprintf('apt.ShellBind: "%s"\n', obj.char());
-    end
+    % function disp(obj)
+    %   % Display the ShellBind object
+    %   fprintf('apt.ShellBind: "%s"\n', obj.char());
+    % end
   end
   
   methods

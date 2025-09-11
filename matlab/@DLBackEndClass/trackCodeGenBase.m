@@ -37,22 +37,22 @@ dmc = totrackinfo.trainDMC ;
  ignore_local] = ...
   myparse(varargin,...
           'track_type','track',...  % track_type should be one of {'track', 'link', 'detect'}
-          'aptroot',APT.Root,...
+          'nativeaptroot',APT.Root,...
           'ignore_local',[]... % whether to remove local python modules from the path
           );
 
 % aptintrf = APTInterf.aptInterfacePath(aptroot);
-aptInterfaceDotPyNativePath = ...
-  apt.MetaPath(fullfile(aptRootNativeAsChar, 'deepnet/APT_interface.py'), 'native', 'source') ;
+aptRootNative = apt.MetaPath(aptRootNativeAsChar, 'native', 'source') ;
+aptInterfaceDotPyNativePath = aptRootNative.cat('deepnet/APT_interface.py') ;
 aptInterfaceDotPyWslPath = aptInterfaceDotPyNativePath.asWsl() ;  % The path to APT_interface.py, as a WSL path.
 
 
 modelChainID = DeepModelChainOnDisk.getCheckSingle(dmc.getModelChainID());
-nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path, as char
-trainConfigFileNativePath = apt.MetaPath(nativeTrainConfig, 'native', 'cache');
+trainConfigFileNativePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path, as char
+trainConfigFileNativePath = apt.MetaPath(trainConfigFileNativePathAsChar, 'native', 'cache');
 trainConfigFileWslPath = trainConfigFileNativePath.asWsl();
-nativeCacheRootDir = dmc.rootDir ;  % native path, as char
-cacheRootDirNativePath = apt.MetaPath(nativeCacheRootDir, 'native', 'cache');
+cacheRootDirNativePathAsChar = dmc.rootDir ;  % native path, as char
+cacheRootDirNativePath = apt.MetaPath(cacheRootDirNativePathAsChar, 'native', 'cache');
 cacheRootDirWslPath = cacheRootDirNativePath.asWsl();      
 
 stage2models = cell(1,nstages);
@@ -60,8 +60,8 @@ for istage = 1:nstages,
   stage = stages(istage);
   % cell of length nviews or empty
   nativeModelPath = dmc.trainCurrModelSuffixlessLnx('stage',stage) ;  % native path, as char
-  modelPathNative = cellfun(@(x) apt.MetaPath(x, 'native', 'cache'), nativeModelPath, 'UniformOutput', false);
-  modelPathWsl = cellfun(@(x) x.asWsl(), modelPathNative, 'UniformOutput', false);
+  modelPathNative = cellfun(@(pathAsChar) apt.MetaPath(pathAsChar, 'native', 'cache'), nativeModelPath, 'UniformOutput', false);
+  modelPathWsl = cellfun(@(nativeMetaPath) nativeMetaPath.asWsl(), modelPathNative, 'UniformOutput', false);
   stage2models{istage} = modelPathWsl ;
   assert(numel(stage2models{istage}) == nviews);
 end

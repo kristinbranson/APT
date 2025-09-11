@@ -214,7 +214,7 @@ classdef MetaPath < apt.ShellToken
       else
         % Unsupported conversion
         error('apt:MetaPath:UnsupportedConversion', ...
-              'Conversion from %s to %s is not yet supported', ...
+              'Conversion from %s to %s is not supported by the MetaPath.as() method', ...
               char(obj.locale_), ...
               char(targetLocale));
       end
@@ -235,36 +235,39 @@ classdef MetaPath < apt.ShellToken
       result = obj.as(apt.PathLocale.remote, varargin{:}) ;
     end
 
-    function disp(obj)
-      % Display the apt.MetaPath object
-      pathStr = obj.char();
-      fprintf('apt.MetaPath: %s [%s:%s:%s]\n', ...
-              pathStr, ...
-              char(obj.locale_), ...
-              char(obj.role_), ...
-              char(obj.path_.platform));
-    end
+    % function disp(obj)
+    %   % Display the apt.MetaPath object
+    %   pathStr = obj.char();
+    %   fprintf('apt.MetaPath: %s [%s:%s:%s]\n', ...
+    %           pathStr, ...
+    %           char(obj.locale_), ...
+    %           char(obj.role_), ...
+    %           char(obj.path_.platform));
+    % end
 
     function result = cat(obj, varargin)
-      % Concatenate this MetaPath with multiple apt.MetaPath objects or char arrays
+      % Concatenate this MetaPath with multiple apt.MetaPath objects, apt.Path objects, or char arrays
       %
       % Args:
-      %   varargin: Variable number of apt.MetaPath objects or char arrays to concatenate
+      %   varargin: Variable number of apt.MetaPath objects, apt.Path objects, or char arrays to concatenate
       %
       % Returns:
       %   apt.MetaPath: New MetaPath with concatenated paths, same locale and role
       %
       % Notes:
-      %   - Char arrays are converted to apt.MetaPath objects with the same locale and role
+      %   - Char arrays are converted to apt.Path objects with the same platform
+      %   - apt.Path objects are used directly as path components
       %   - apt.MetaPath arguments must have compatible locales and platforms
       
-      % Convert char arrays to apt.MetaPath objects and collect apt.Path objects for underlying cat
+      % Convert char arrays to apt.Path objects and collect apt.Path objects for underlying cat
       pathArgs = cell(size(varargin));
       for i = 1:length(varargin)
         if ischar(varargin{i})
-          % Convert char array to apt.MetaPath with same locale and role, then extract path
-          metaPath = apt.MetaPath(varargin{i}, obj.locale_, obj.role_);
-          pathArgs{i} = metaPath.path_;
+          % Convert char array to apt.Path
+          pathArgs{i} = apt.Path(varargin{i}, obj.platform);
+        elseif isa(varargin{i}, 'apt.Path')
+          % Use apt.Path object directly as a path component
+          pathArgs{i} = varargin{i};
         elseif isa(varargin{i}, 'apt.MetaPath')
           % Validate locale and role compatibility
           if varargin{i}.locale_ ~= obj.locale_
@@ -279,7 +282,7 @@ classdef MetaPath < apt.ShellToken
           end
           pathArgs{i} = varargin{i}.path_;
         else
-          error('apt:MetaPath:InvalidArgument', 'Argument %d must be an apt.MetaPath object or char array, got %s', i, class(varargin{i}));
+          error('apt:MetaPath:InvalidArgument', 'Argument %d must be an apt.MetaPath object, apt.Path object, or char array, got %s', i, class(varargin{i}));
         end
       end
       
@@ -304,21 +307,22 @@ classdef MetaPath < apt.ShellToken
     end
 
     function [pathPart, filenamePart] = fileparts2(obj)
-      % Call apt.Path.fileparts2() method and wrap results as MetaPaths
+      % Call apt.Path.fileparts2() method and wrap results as a MetaPath and a Path
       %
       % Returns:
       %   pathPart (apt.MetaPath): Directory path portion with same locale and role
-      %   filenamePart (apt.MetaPath): Filename portion (name + extension) with same locale and role
+      %   filenamePart (apt.Path): Filename portion (name + extension) with same
+      %   platform (This is an apt.Path, not and apt.MetaPath, b/c a MetaPath must
+      %   be an absolute path.)
       %
       % Example:
       %   mp = apt.MetaPath('/home/user/data/movie.avi', 'wsl', 'movie');
       %   [dir, file] = mp.fileparts2();
       %   % dir will be apt.MetaPath('/home/user/data', 'wsl', 'movie')
-      %   % file will be apt.MetaPath('movie.avi', 'wsl', 'movie')
+      %   % file will be apt.Path('movie.avi', 'posix')
       
-      [pathPartAsPath, filenamePartAsPath] = obj.path_.fileparts2();
+      [pathPartAsPath, filenamePart] = obj.path_.fileparts2();
       pathPart = apt.MetaPath(pathPartAsPath, obj.locale_, obj.role_);
-      filenamePart = apt.MetaPath(filenamePartAsPath, obj.locale_, obj.role_);
     end
 
     function result = forceRemote_(obj)
@@ -444,4 +448,23 @@ classdef MetaPath < apt.ShellToken
     end
   end  % methods (Static)
   
+  methods
+    function result = leafName(obj)
+      % Return leaf name as char array.  The leaf name is the final element of the
+      % path.
+      path = obj.path_ ;
+      result = path.leafName() ;
+    end
+
+    function result = extension(obj)
+      % The file extension of the the path.  Uses same conventions as fileparts().
+      path = obj.path_ ;
+      result = path.extension() ;
+    end
+
+    function replaceExtension(obj, newExtension)
+      path = obj.path_ ;
+      result = path.replaceExtension(newExtension) ;
+    end
+  end  % methods
 end  % classdef

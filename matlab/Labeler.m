@@ -16294,7 +16294,7 @@ classdef Labeler < handle
         else
           errorFileIndex = errorFileIndexMaybe ;
           errFile = pollingResult.errFile{errorFileIndex} ;
-          doesErrorFileExist = obj.backend.fileExists(errFile) ;
+          doesErrorFileExist = obj.backend.tfDoesCacheFileExist(errFile) ;
           if doesErrorFileExist ,
             fprintf('\n### %s\n\n',errFile);
             errContents = obj.backend.fileContents(errFile) ;

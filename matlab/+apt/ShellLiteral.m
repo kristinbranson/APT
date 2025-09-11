@@ -56,10 +56,10 @@ classdef ShellLiteral < apt.ShellToken
       result = strcmp(obj.value_, other.value_);
     end
     
-    function disp(obj)
-      % Display the ShellLiteral object
-      fprintf('apt.ShellLiteral: "%s"\n', obj.value_);
-    end
+    % function disp(obj)
+    %   % Display the ShellLiteral object
+    %   fprintf('apt.ShellLiteral: "%s"\n', obj.value_);
+    % end
   end
   
   methods

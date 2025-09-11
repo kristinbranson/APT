@@ -129,7 +129,6 @@ classdef Path
       result = escape_string_for_bash(preResult) ;
     end
 
-
     function result = cat(obj, varargin)
       % Concatenate this path with multiple apt.Path objects or char arrays
       %
@@ -176,7 +175,7 @@ classdef Path
         
         % Skip empty paths
         if ~isempty(otherPath.list_)
-          newList = horzcat(newList, otherPath.list_);
+          newList = horzcat(newList, otherPath.list_);  %#ok<AGROW>
         end
       end
       
@@ -218,7 +217,7 @@ classdef Path
       % Append each char array as a new component
       for i = 1:length(varargin)
         component = varargin{i};
-        newList = horzcat(newList, {component});
+        newList = horzcat(newList, {component});  %#ok<AGROW>
       end
       
       % Create new path object
@@ -586,4 +585,30 @@ classdef Path
       result = apt.Path(encoding.list_, encoding.platform_) ;
     end
   end  % methods (Static)
+
+  methods
+    function result = leafName(obj)
+      % Return leaf name as char array.  The leaf name is the final element of the
+      % path.
+      list = obj.list ;
+      if isempty(list)
+        error('Path is null, so no leafName available') ;
+      end
+      result = list{end} ;
+    end
+
+    function result = extension(obj)
+      % The file extension of the the path.  Uses same conventions as fileparts().
+      fileName = obj.leafName() ;
+      [~,~,result] = fileparts(fileName) ;
+    end
+
+    function replaceExtension(obj, newExtension)
+      originalFileName = obj.leafName() ;
+      [~,baseName,~] = fileparts(originalFileName) ;
+      newFileName = sprintf('%s%s', baseName, newExtension) ;
+      obj.list_{end} = newFileName ;
+    end
+  end  % methods
+  
 end  % classdef

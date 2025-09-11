@@ -361,39 +361,39 @@ classdef ShellCommand < apt.ShellToken
       result = true;
     end
 
-    function disp(obj)
-      % Display the apt.ShellCommand object
-      tokenCount = length(obj.tokens_);
-      if tokenCount==0
-        fprintf('apt.ShellCommand [%s,%s] with 0 tokens.\n', ...
-                char(obj.locale_), ...
-                char(obj.platform_));
-        return
-      end
-      fprintf('apt.ShellCommand [%s,%s] with %d tokens:\n', ...
-              char(obj.locale_), ...
-              char(obj.platform_), ...
-              tokenCount);
-      for i = 1:tokenCount
-        token = obj.tokens_{i};
-        if isa(token, 'apt.MetaPath')
-          fprintf('  [%d] Path: %s [%s:%s]\n', i, token.char(), ...
-            char(token.locale), char(token.role));
-        elseif isa(token, 'apt.ShellLiteral')
-          fprintf('  [%d] Literal: %s\n', i, token.char());
-        elseif isa(token, 'apt.ShellCommand')
-          fprintf('  [%d] Command: %s [%s]\n', i, token.char(), ...
-            char(token.locale));
-        elseif isa(token, 'apt.ShellVariableAssignment')
-          fprintf('  [%d] VariableAssignment: %s\n', i, token.char());
-        elseif isa(token, 'apt.ShellBind')
-          fprintf('  [%d] Bind: %s\n', i, token.char());
-        else
-          fprintf('  [%d] Unknown token type (%s): %s\n', i, class(token), char(token));
-        end
-      end
-      % fprintf('  String: %s\n', obj.char());
-    end
+    % function disp(obj)
+    %   % Display the apt.ShellCommand object
+    %   tokenCount = length(obj.tokens_);
+    %   if tokenCount==0
+    %     fprintf('apt.ShellCommand [%s,%s] with 0 tokens.\n', ...
+    %             char(obj.locale_), ...
+    %             char(obj.platform_));
+    %     return
+    %   end
+    %   fprintf('apt.ShellCommand [%s,%s] with %d tokens:\n', ...
+    %           char(obj.locale_), ...
+    %           char(obj.platform_), ...
+    %           tokenCount);
+    %   for i = 1:tokenCount
+    %     token = obj.tokens_{i};
+    %     if isa(token, 'apt.MetaPath')
+    %       fprintf('  [%d] Path: %s [%s:%s]\n', i, token.char(), ...
+    %         char(token.locale), char(token.role));
+    %     elseif isa(token, 'apt.ShellLiteral')
+    %       fprintf('  [%d] Literal: %s\n', i, token.char());
+    %     elseif isa(token, 'apt.ShellCommand')
+    %       fprintf('  [%d] Command: %s [%s]\n', i, token.char(), ...
+    %         char(token.locale));
+    %     elseif isa(token, 'apt.ShellVariableAssignment')
+    %       fprintf('  [%d] VariableAssignment: %s\n', i, token.char());
+    %     elseif isa(token, 'apt.ShellBind')
+    %       fprintf('  [%d] Bind: %s\n', i, token.char());
+    %     else
+    %       fprintf('  [%d] Unknown token type (%s): %s\n', i, class(token), char(token));
+    %     end
+    %   end
+    %   % fprintf('  String: %s\n', obj.char());
+    % end
 
     function validateTokens_(obj, newTokens, methodName)
       % Validate that all ShellToken objects have compatible locale and platform.

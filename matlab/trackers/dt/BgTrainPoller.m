@@ -36,11 +36,11 @@ classdef BgTrainPoller < BgPoller
       % - Check for completion 
       result = obj.initialPollResults_() ;
       try
-        result.jsonPresent = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.jsonPath);
+        result.jsonPresent = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)), result.jsonPath);
         nModels = obj.dmcs_.n;
         doesOutputFileExist = false(1,nModels);
         for i=1:nModels,
-          doesOutputFileExist(i) = cellfun(@(fileName)(obj.backend_.fileExists(fileName)), result.trainCompletePath{i});
+          doesOutputFileExist(i) = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)), result.trainCompletePath{i});
         end
         [unique_jobs,idx1,jobidx] = unique(result.identifiers.jobidx);
         unique_job_count = numel(unique_jobs) ;

@@ -118,7 +118,7 @@ classdef BgTrackPoller < BgPoller
       trackedFrameCountSource = nan(size(parttrkfiles)); % nmovies x nviews x nstages      
       for i = 1:numel(parttrkfiles),
         parttrkfilecurr = parttrkfiles{i};
-        if obj.backend_.fileExists(parttrkfilecurr) ,
+        if obj.backend_.tfDoesCacheFileExist(parttrkfilecurr) ,
           partTrkFileTimestamps(i) = obj.backend_.fileModTime(parttrkfilecurr) ;
           parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(parttrkfilecurr) ;
           trackedFrameCountSource(i) = 0.5 ;  % got it from the partial file
@@ -126,7 +126,7 @@ classdef BgTrackPoller < BgPoller
         else
           % If the partial trk file does not exist, try to get info from the full trk file.
           trkfilecurr = trkfiles{i} ;
-          if obj.backend_.fileExists(trkfilecurr) ,
+          if obj.backend_.tfDoesCacheFileExist(trkfilecurr) ,
             partTrkFileTimestamps(i) = obj.backend_.fileModTime(trkfilecurr) ;
             parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(trkfilecurr) ;
             trackedFrameCountSource(i) = 1 ;  % got it from the final trk file
@@ -144,7 +144,7 @@ classdef BgTrackPoller < BgPoller
         isRunningFromTripleIndex = obj.replicateJobs_(isRunningFromJobIndex) ;
         % isRunning = obj.replicateJobs_(isRunningFromJobIndex);  % nMovies x nViews x nStages
         %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
-        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
+        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)),trkfiles); % nmovies x nviews x nstages
         tfComplete = doesOutputTrkFileExistFromTripleIndex & ~isRunningFromTripleIndex ;
         %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
         tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
@@ -210,7 +210,7 @@ classdef BgTrackPoller < BgPoller
       njobs = obj.njobs ;
       try
         isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
-        doesOutputTrkFileExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % njobs x 1
+        doesOutputTrkFileExistFromJobIndex = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)),outfiles); % njobs x 1
         tfCompleteFromJobIndex = doesOutputTrkFileExistFromJobIndex & ~isRunningFromJobIndex ; % njobs x 1
         tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
         logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1

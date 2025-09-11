@@ -2869,26 +2869,21 @@ classdef DeepTracker < LabelTracker
     
   end  % methods
 
-  methods (Static)  % train/track codegen
-    function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
-      repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
-      repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
-    end
-
-    function baseargs = trainTopDownBaseArgs(dmc)
-      stages = unique(dmc.getStages());
-      if numel(stages) > 1,
-        stagearg = 0;
-      else
-        stagearg = stages;
-      end
-      baseargs = {...
-        'maTopDown' true ... % missing: 'maTopDownStage'
-        'maTopDownStage1NetType' dmc.getNetType('stage',1) ...
-        'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
-        'maTopDownStage' stagearg ...
-        };
-    end
+  methods (Static)
+    % function baseargs = trainTopDownBaseArgs(dmc)
+    %   stages = unique(dmc.getStages());
+    %   if numel(stages) > 1,
+    %     stagearg = 0;
+    %   else
+    %     stagearg = stages;
+    %   end
+    %   baseargs = {...
+    %     'maTopDown' true ... % missing: 'maTopDownStage'
+    %     'maTopDownStage1NetType' dmc.getNetType('stage',1) ...
+    %     'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
+    %     'maTopDownStage' stagearg ...
+    %     };
+    % end
 
     function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
       tfsuccess = false;
@@ -3696,7 +3691,7 @@ classdef DeepTracker < LabelTracker
       for i=1:dmcs.n,
         f = dmcs.trainImagesNameLnx(i);
         f = f{1};
-        if obj.backend.fileExists(f) ,
+        if obj.backend.tfDoesCacheFileExist(f) ,
           infocurr = load(f,'-mat');  % ALTTODO: Make this work for AWS backend
           if ~all(isfield(infocurr,necfields)),
             warningNoTrace('Training image file ''%s'' exists, but not all fields (yet) saved in it.',f);

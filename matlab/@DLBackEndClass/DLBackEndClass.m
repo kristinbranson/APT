@@ -610,17 +610,19 @@ classdef DLBackEndClass < handle
       obj.gpuids = gpuid;
     end
     
-    function r = aptSourceDirRootRemote_(obj)
+    function r = aptSourceDirRootRemoteAsChar_(obj)
+      % Returns the full path to the remote copy of the APT source, as a char array.
       switch obj.type
         case DLBackEnd.Bsub
           r = APT.Root;
         case DLBackEnd.AWS
-          r = AWSec2.remoteAPTSourceRootDir ;
+          r = char(AWSec2.remoteAPTSourceRootDir) ;
         case DLBackEnd.Docker
           r = APT.Root;
         case DLBackEnd.Conda
           r = APT.Root;
       end
+      assert(ischar(r)) ;
     end
 
     % function r = getAPTDeepnetRoot(obj)
@@ -755,12 +757,12 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function [didsucceed, msg] = deleteFile(obj, native_file_path)
+    function [didsucceed, msg] = deleteFile(obj, nativeFilePath)
       % Delete the named file, either locally or remotely, depending on the
       % backend type.
-      assert(isa(native_file_path, 'apt.MetaPath'), 'native_file_path must be an apt.MetaPath');
-      assert(native_file_path.locale == apt.PathLocale.native, 'native_file_path must have native locale');
-      wslFileMetaPath = native_file_path.asWsl() ;
+      assert(isa(nativeFilePath, 'apt.MetaPath'), 'nativeFilePath must be an apt.MetaPath');
+      assert(nativeFilePath.locale == apt.PathLocale.native, 'nativeFilePath must have native locale');
+      wslFileMetaPath = nativeFilePath.asWsl() ;
       base_command = apt.ShellCommand({'rm', '-f', wslFileMetaPath}, apt.PathLocale.wsl, apt.Platform.posix) ;
       [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
       didsucceed = (status==0) ;
@@ -839,22 +841,6 @@ classdef DLBackEndClass < handle
           error('Unknown backend type') ;
       end
     end  % function    
-
-    % function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
-    %   if obj.type == DLBackEnd.AWS ,
-    %     result = obj.awsec2.getLocalMoviePathFromRemote(queryRemotePath) ;
-    %   else
-    %     result = queryRemotePath ;
-    %   end
-    % end  % function
-
-    % function result = remote_movie_path_from_wsl(obj, queryWslPath)
-    %   if obj.type == DLBackEnd.AWS ,
-    %     result = AWSec2.remote_movie_path_from_wsl(queryWslPath) ;
-    %   else
-    %     result = queryWslPath ;
-    %   end
-    % end  % function
   end  % methods
 
   % These next two methods allow access to private and protected variables,
@@ -978,14 +964,14 @@ classdef DLBackEndClass < handle
       % spawnRegisteredJobs().
 
       % Get the root of the remote source tree
-      remoteaptroot = obj.aptSourceDirRootRemote_() ;
+      remoteAptRootAsChar = obj.aptSourceDirRootRemoteAsChar_() ;
       
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = DLBackEndClass.trainCodeGenBase(dmcjob,...
                                                 'ignore_local',ignore_local,...
-                                                'aptroot',remoteaptroot,...
+                                                'nativeaptroot',APT.Root,...
                                                 'do_just_generate_db',do_just_generate_db);
-      args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteaptroot,'train');
+      args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteAptRootAsChar,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
       commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
       commandFilePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
@@ -1004,7 +990,7 @@ classdef DLBackEndClass < handle
       % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
-      remoteaptroot = obj.aptSourceDirRootRemote_() ;
+      remoteAptRootAsChar = obj.aptSourceDirRootRemoteAsChar_() ;
 
       % totrackinfo has local paths, need to remotify them
       % remotetotrackinfo = totrackinfo.copy() ;
@@ -1014,9 +1000,9 @@ classdef DLBackEndClass < handle
       ignore_local = (obj.type == DLBackEnd.Bsub) ;  % whether to pass the --ignore_local options to APTInterface.py
       basecmd = DLBackEndClass.trackCodeGenBase(totrackinfo,...
                                                 'ignore_local',ignore_local,...
-                                                'aptroot',remoteaptroot,...
+                                                'nativeaptroot',APT.Root,...
                                                 'track_type',track_type);
-      args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteaptroot, 'track') ;
+      args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteAptRootAsChar, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       cmdfileAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
       cmdfile = apt.MetaPath(cmdfileAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
@@ -1310,63 +1296,75 @@ classdef DLBackEndClass < handle
       end
     end  % function    
 
-    function [tfsucc,res] = batchPoll(obj, native_fspollargs)
+    function [tfsucc,res] = batchPoll(obj, nativeFsPollArgs)
       % fspollargs: [n] cellstr eg {'exists' '/my/file' 'existsNE' '/my/file2'}
       %
       % res: [n] cellstr of fspoll responses
 
       if obj.type == DLBackEnd.AWS ,
-        wsl_fspollargs = wsl_fspollargs_from_native(native_fspollargs) ;
+        wsl_fspollargs = wsl_fspollargs_from_native(nativeFsPollArgs) ;
         [tfsucc,res] = obj.awsec2.batchPoll(wsl_fspollargs) ;
       else
         error('Not implemented') ;        
         %fspoll_script_path = linux_fullfile(APT.Root, 'matlab/misc/fspoll.py') ;
       end
     end  % function
+
+    function result = tfDoesCacheFileExist(obj, nativeFilePathAsChar)
+      % Checks if the named cache file exists.
+      assert(ischar(nativeFilePathAsChar)) ;
+      nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      result = obj.fileExists_(nativeFilePath) ;
+    end
     
-    function result = fileExists(obj, native_file_path)
+    function result = fileExists_(obj, nativeFilePath)
       % Returns true iff the named file exists.
       % Should be consolidated with exist(), probably.  Note, though, that probably
       % need to be careful about checking for the file inside/outside the container.
+      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = wsl_path_from_native(native_file_path) ;
-        result = obj.awsec2.fileExists(wsl_file_path) ;
+        wslFilePath = nativeFilePath.asWsl() ;
+        result = obj.awsec2.fileExists(wslFilePath) ;
       else
-        result = logical(exist(native_file_path, 'file')) ;
+        result = logical(exist(nativeFilePath.char(), 'file')) ;
       end
     end  % function
 
-    function result = fileExistsAndIsNonempty(obj, native_file_path)
+    function result = fileExistsAndIsNonempty(obj, nativeFilePath)
       % Returns true iff the named file exists and is not zero-length.
+      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        wsl_file_path = nativeFilePath.asWsl() ;
         result = obj.awsec2.fileExistsAndIsNonempty(wsl_file_path) ;
       else
-        result = localFileExistsAndIsNonempty(native_file_path) ;
+        result = localFileExistsAndIsNonempty(nativeFilePath.char()) ;
       end
     end  % function
 
-    function result = fileExistsAndIsGivenSize(obj, native_file_path, sz)
+    function result = fileExistsAndIsGivenSize(obj, nativeFilePath, sz)
       % Returns true iff the named file exists and is the given size (in bytes).
+      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        wsl_file_path = nativeFilePath.asWsl() ;
         result = obj.awsec2.fileExistsAndIsGivenSize(wsl_file_path, sz) ;
       else
-        result = localFileExistsAndIsGivenSize(native_file_path, sz) ;
+        result = localFileExistsAndIsGivenSize(nativeFilePath.char(), sz) ;
       end
     end  % function
 
-    function result = fileContents(obj, native_file_path)
+    function result = fileContents(obj, nativeFilePath)
       % Return the contents of the named file, as an old-style string.
       % The behavior of this function when the file does not exist is kinda weird.
       % It is the way it is b/c it's designed for giving something helpful to
       % display in the monitor window.
+      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        wsl_file_path = nativeFilePath.asWsl() ;
         result = obj.awsec2.fileContents(wsl_file_path) ;
       else
-        if exist(native_file_path,'file') ,
-          lines = readtxtfile(native_file_path);
+        nativeFilePathAsChar = nativeFilePath.char() ;
+        if exist(nativeFilePathAsChar,'file') ,
+          lines = readtxtfile(nativeFilePathAsChar);
           result = sprintf('%s\n',lines{:});
         else
           result = '<file does not exist>';
@@ -1391,16 +1389,17 @@ classdef DLBackEndClass < handle
     %   end
     % end  % function
 
-    function result = fileModTime(obj, native_file_path)
+    function result = fileModTime(obj, nativeFilePath)
       % Return the file-modification time (mtime) of the given file.  For an AWS
       % backend, this is the file modification time in seconds since epoch.  For
       % other backends, it's a Matlab datenum of the mtime.  So these should not be
       % compared across backend types.
+      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = wsl_path_from_native(native_file_path) ;
+        wsl_file_path = nativeFilePath.asWsl() ;
         result = obj.awsec2.remoteFileModTime(wsl_file_path) ;
       else
-        dir_struct = dir(native_file_path) ;
+        dir_struct = dir(nativeFilePath.char()) ;
         result = dir_struct.datenum ;
       end
     end  % function
@@ -1448,7 +1447,7 @@ classdef DLBackEndClass < handle
     %   end        
     % end  % function
 
-    function nframes = readTrkFileStatus(obj, nativeFilePath, isTextFile, logger)
+    function nframes = readTrkFileStatus(obj, nativeFilePathAsChar, isTextFile, logger)
       % Read the number of frames remaining according to the remote file
       % corresponding to absolute local file path
       % localFilepath.  If partFileIsTextStatus is true, this file is assumed to be a
@@ -1463,23 +1462,23 @@ classdef DLBackEndClass < handle
 
       if obj.type == DLBackEnd.AWS ,
         % AWS backend
-        nativeFileMetaPath = apt.MetaPath(nativeFilePath, apt.PathLocale.native, apt.FileRole.cache);
+        nativeFileMetaPath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache);
         wslFileMetaPath = nativeFileMetaPath.asWsl();
         nframes = obj.awsec2.readTrkFileStatus(wslFileMetaPath, isTextFile, logger) ;
       else
         % If non-AWS backend
-        if ~exist(nativeFilePath,'file'),
+        if ~exist(nativeFilePathAsChar,'file'),
           nframes = nan ;
           return
         end
         if isTextFile ,
-          s = obj.fileContents(nativeFilePath) ;
+          s = obj.fileContents(nativeFilePathAsChar) ;
           nframes = TrkFile.getNFramesTrackedTextFile(s) ;
         else
           try
-            nframes = TrkFile.getNFramesTrackedMatFile(nativeFilePath) ;
+            nframes = TrkFile.getNFramesTrackedMatFile(nativeFilePathAsChar) ;
           catch
-            fprintf('Could not read tracking progress from %s\n',nativeFilePath);
+            fprintf('Could not read tracking progress from %s\n',nativeFilePathAsChar);
             nframes = nan ;
           end
         end        
@@ -1559,38 +1558,40 @@ classdef DLBackEndClass < handle
 
     function prepareFilesForTracking(backend, toTrackInfo)
       backend.ensureFoldersNeededForTrackingExist_(toTrackInfo) ;
-      backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
-      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
-      backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
+      backend.ensureCacheFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
+      backend.ensureCacheFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      %backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
     end  % function
 
     function ensureFoldersNeededForTrackingExist_(obj, toTrackInfo)
       % Paths in toTrackInfo are native paths
-      native_dir_paths = toTrackInfo.trkoutdir ;
+      nativeDirPathAsCharFromIndex = toTrackInfo.trkoutdir ;
       desc = 'trk cache dir' ;
-      for i = 1:numel(native_dir_paths) ,
-        native_dir_path = native_dir_paths{i} ;
-        if ~obj.fileExists(native_dir_path) ,
-          [succ, msg] = obj.mkdir(native_dir_path) ;
+      for i = 1:numel(nativeDirPathAsCharFromIndex) ,
+        nativeDirPathAsChar = nativeDirPathAsCharFromIndex{i} ;
+        nativeDirPath = apt.MetaPath(nativeDirPathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+        if ~obj.fileExists_(nativeDirPath) ,
+          [succ, msg] = obj.mkdir(nativeDirPath) ;
           if succ
-            fprintf('Created %s: %s\n', desc, native_dir_path) ;
+            fprintf('Created %s: %s\n', desc, nativeDirPathAsChar) ;
           else
-            error('Failed to create %s %s: %s', desc, native_dir_path, msg) ;
+            error('Failed to create %s %s: %s', desc, nativeDirPathAsChar, msg) ;
           end
         end
       end
     end  % function
 
-    function ensureFilesDoNotExist_(obj, native_file_paths, desc)
+    function ensureCacheFilesDoNotExist_(obj, nativeFilePathAsCharFromIndex, desc)
       % native_file_paths are, umm, native paths
-      for i = 1:numel(native_file_paths) ,
-        native_file_path = native_file_paths{i} ;
-        if obj.fileExists(native_file_path) ,
-          fprintf('Deleting %s %s', desc, native_file_path) ;
-          obj.deleteFile(native_file_path);
+      for i = 1:numel(nativeFilePathAsCharFromIndex) ,
+        nativeFilePathAsChar = nativeFilePathAsCharFromIndex{i} ;
+        nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+        if obj.fileExists_(nativeFilePath) ,
+          fprintf('Deleting %s %s', desc, nativeFilePathAsChar) ;
+          obj.deleteFile(nativeFilePath);
         end
-        if obj.fileExists(native_file_path),
-          error('Failed to delete %s: file still exists',native_file_path);
+        if obj.fileExists_(nativeFilePath),
+          error('Failed to delete %s: file still exists',nativeFilePathAsChar);
         end
       end
     end  % function
@@ -1839,8 +1840,8 @@ classdef DLBackEndClass < handle
     
       % Wrap for docker
       dockerimg = 'bransonlabapt/apt_docker:apt_20230427_tf211_pytorch113_ampere' ;
-      homePathRemote = apt.MetaPath('/home', 'remote', 'immovable') ;
-      bindpath = {homePathRemote} ;
+      homePathWsl = apt.MetaPath('/home', 'wsl', 'slashhome') ;
+      bindpath = {homePathWsl} ;
       codestr = ...
         wrapCommandDocker(basecmd, ...
                           'dockerimg',dockerimg, ...
@@ -1998,9 +1999,12 @@ classdef DLBackEndClass < handle
     end  % function
 
     function result = changeToTrackInfoPathsToRemoteFromWsl_(obj, totrackinfo)
-      % Convert all paths in result from WSL paths on the frontend's filesytem to
-      % their corresponding paths on the backend.  If backend is a local-filesystem
-      % backend, do nothing.  This method does not mutate obj or totrackinfo.
+      % Convert all paths in totrackinfo, which should be wsl paths encoded as char
+      % arrays, to their corresponding remote paths on the backend.  This method
+      % does not mutate obj or the input totrackinfo.  result is similar to
+      % totrckinfo but with wsl paths replaced with remote.  If backend is non-aws,
+      % this is essentially the identity function, but the returned (handle) object
+      % is a copy of the input.
 
       % If backend has local filesystem (i.e. is not AWS), this function is the identity function
       if ~isequal(obj.type,DLBackEnd.AWS)
@@ -2012,4 +2016,11 @@ classdef DLBackEndClass < handle
       result = obj.awsec2.changeToTrackInfoPathsToRemoteFromWsl(totrackinfo) ;
     end  % function    
   end  % methods
+
+  methods (Static)
+    function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
+      repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
+      repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
+    end
+  end
 end  % classdef
