@@ -17,6 +17,7 @@ classdef BgTrackPoller < BgPoller
     %nViews_ = 0
     trackType_ = 'movie'
     toTrackInfos_ = []
+    link_type
     
     % isexternal_ = false 
     %   % whether we are tracking movies that are part of the .lbl project
@@ -71,7 +72,8 @@ classdef BgTrackPoller < BgPoller
   end    
     
   methods
-    function obj = BgTrackPoller(trackType, dmc, backend, toTrackInfos)
+    function obj = BgTrackPoller(trackType, dmc, backend, toTrackInfos,varargin)
+      [link_type] = myparse(varargin,'link_type','detect'); % whether to detect or link
       assert(strcmp(trackType,'movie') || strcmp(trackType,'list')) ;
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;
       assert(isa(backend, 'DLBackEndClass') && isscalar(backend)) ;
@@ -81,6 +83,7 @@ classdef BgTrackPoller < BgPoller
       obj.dmcs_ = dmc ;
       obj.backend_ = backend ;
       obj.toTrackInfos_ = toTrackInfos ;
+      obj.link_type = link_type;
     end
 
     function result = poll(obj, logger)
@@ -90,7 +93,7 @@ classdef BgTrackPoller < BgPoller
         logger = FileLogger() ;
       end
       if strcmp(obj.trackType_,'movie')
-        result = obj.pollForMovie(logger) ;
+        result = obj.pollForMovie(logger,obj.link_type) ;
       elseif strcmp(obj.trackType_,'list')
         result = obj.pollForList(logger) ;
       else
@@ -99,7 +102,16 @@ classdef BgTrackPoller < BgPoller
       assert(isstruct(result) && isscalar(result)) ;
     end
 
-    function result = pollForMovie(obj, logger)
+    function result = pollForMovie(obj, logger,link_type)
+      if strcmp(link_type,'detect')
+        result = obj.pollForMovieTrack(logger);
+      elseif strcmp(link_type,'id_link')
+        result = obj.pollForMovieIDLink(logger);
+      end
+      
+    end
+
+    function result = pollForMovieTrack(obj,logger)
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
@@ -167,6 +179,7 @@ classdef BgTrackPoller < BgPoller
       % this way the monitor can track/viz the progress of each movie/view.
       
       result = struct(...
+        'result_type',{'movie'},....
         'pollsuccess',{pollsuccess}, ...
         'isPopulated',{obj.replicateJobs_(true(njobs,1))}, ...
         'tfComplete',{tfComplete},...
@@ -184,6 +197,94 @@ classdef BgTrackPoller < BgPoller
         'trackedFrameCountSource',{trackedFrameCountSource}) ;
       assert(isscalar(result)) ;
     end  % function
+
+    function result = pollForMovieIDLink(obj,logger)
+      if ~exist('logger', 'var') || isempty(logger) ,
+        logger = FileLogger() ;
+      end
+      
+      logger.log('in bg track poller for ID linking\n');
+      errfiles = obj.toTrackInfos_.getErrFiles(); % 1 x 1
+      logfiles = obj.toTrackInfos_.getLogFiles(); % 1x 1
+      %killfiles = obj.toTrackInfos_.getKillFiles(); % 1x 1
+      idmodelfile = obj.toTrackInfos_.getIDModelFile(); % 1 x 1
+      idjsonfile = obj.toTrackInfos_.getIDJsonFile(); % 1 x 1
+
+      trkfiles = obj.toTrackInfos_.getTrkFiles(); % nmovies x nviews x nstages, local file names
+      
+      try
+        % isRunningFromJobIndex = true([nJobs, 1]) ;  % TODO: Make this actually check if the spawned jobs are running  
+        isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
+        % isRunning = obj.replicateJobs_(isRunningFromJobIndex);  % nMovies x nViews x nStages
+        %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
+        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
+        tfComplete = doesOutputTrkFileExistFromTripleIndex & ~isRunningFromJobIndex ;
+        %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
+        tfErrFileErrFromJobIndex = obj.backend_.fileExistsAndIsNonempty(errfiles); % 1x 1
+        logFilesExistFromJobIndex = obj.backend_.fileExistsAndIsNonempty(logfiles); % 1 x 1
+        jsonFileExist = obj.backend_.fileExists(idjsonfile);
+        doesIDModelExist = obj.backend_.fileExists(idmodelfile);
+        if jsonFileExist
+          jsoncurr = obj.backend_.fileContents(idjsonfile);
+          [idloss,idstep,idlog,jsonFileExist] = obj.readIDLoss(jsoncurr);
+        end
+        pollsuccess = true ;
+      catch me
+        % Likely a filesystem error checking for the files
+        isRunningFromJobIndex = false;
+        tfComplete = false;
+        tfErrFileErrFromJobIndex = true;
+        logFilesExistFromJobIndex = true;
+        pollsuccess = false;
+        jsonFileExist = false;
+        idloss = [];
+        idstep = [];
+        idlog = [];
+        doesIDModelExist = false;
+      end
+      
+      % nMovies x nviews x nStages
+      % We return/report a results structure for every movie/trkfile, even
+      % if views/movs are tracked serially (nMovJobs>1 or nViewJobs>1). In
+      % this way the monitor can track/viz the progress of each movie/view.
+      
+      result = struct(...
+        'result_type',{'id_link'},....
+        'pollsuccess',{pollsuccess}, ...
+        'isPopulated',{true}, ...
+        'tfComplete',{tfComplete},...
+        'isRunning',isRunningFromJobIndex,...
+        'errFile',{errfiles},... % char, full path to DL err file
+        'errFileExists',{tfErrFileErrFromJobIndex},... % true if errFile exists and has size>0
+        'logFile',{logfiles},... % char, full path to Bsub logfile
+        'logFileExists',{logFilesExistFromJobIndex},...
+        'iview',{1:obj.nViews},...
+        'movfile',{obj.movfiles},...
+        'trkfile',{trkfiles},...
+        'jsonFileExist',{jsonFileExist},...
+        'idlog',{idlog},...
+        'idloss',{idloss},...
+        'idstep',{idstep},...
+        'idModelExist',{doesIDModelExist}) ;
+      assert(isscalar(result)) ;
+    end  % function
+
+    function [idloss,idstep,idlog,jsonPresent] = readIDLoss(json_data)
+      idloss = []; idstep = []; idlog = []; jsonPresent = true;
+      try
+        idlog = jsondecode(json_data);
+      catch ME
+        warning('Failed to read json file for training ID model progress update:\n%s',getReport(ME));
+        jsonPresent = false;
+        return
+      end
+      if numel(idlog.step)==0
+        return
+      end
+      idstep = trnLog.step;
+      idloss = trnLog.loss;
+
+    end
 
     function result = pollForList(obj, logger)
       if ~exist('logger', 'var') || isempty(logger) ,

@@ -14,6 +14,11 @@ pathFromMovieIndex = vertcat(pathFromRegularMovieIndex, pathFromGTMovieIndex) ;
 newDataRoot = '/groups/branson/bransonlab/apt/unittest/alice/data' ;
 system_with_error_handling(sprintf('mkdir -p ''%s''', newDataRoot)) ;
 
+cellfun(@(moviePath)(copyMovieDir(moviePath, newDataRoot)), pathFromMovieIndex) ;
+
+%labeler.projMacros.dataroot = newDataRoot ;
+labeler.projMacroSet('dataroot', newDataRoot)
+
 function copyMovieDir(moviePath, newDataRoot)
   sourceExpDirPath = fileparts2(moviePath) ;
   [~,sourceExpDirName] = fileparts2(sourceExpDirPath) ;
@@ -30,8 +35,3 @@ function copyMovieDir(moviePath, newDataRoot)
   command = sprintf('rsync --inplace ''%s'' ''%s''', sourceMoviePath, destMoviePath) ;  
   system_with_error_handling(command) ;  
 end
-
-cellfun(@(moviePath)(copyMovieDir(moviePath, newDataRoot)), pathFromMovieIndex) ;
-
-%labeler.projMacros.dataroot = newDataRoot ;
-labeler.projMacroSet('dataroot', newDataRoot)

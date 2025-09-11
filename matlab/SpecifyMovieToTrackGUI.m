@@ -21,9 +21,10 @@ classdef SpecifyMovieToTrackGUI < handle
     dostore = false;
     defaulttrkpat = [];
     defaulttrxpat = [];
-    defaultdetectpat = [];
-    track_type = 'track';
+%    defaultdetectpat = [];
+    % track_type = 'track';
     detailed_options = true;
+    link_type = 'simple';
   end
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
@@ -66,7 +67,7 @@ classdef SpecifyMovieToTrackGUI < handle
 
       obj.defaulttrkpat = defaulttrkpat;
       obj.defaulttrxpat = defaulttrxpat;
-      obj.defaultdetectpat = defaultdetectpat;
+%      obj.defaultdetectpat = defaultdetectpat;
       obj.initMovData(movdata);
 
       obj.createGUI();      
@@ -96,17 +97,17 @@ classdef SpecifyMovieToTrackGUI < handle
           end
         end
       end
-      if obj.isma && ~isfield(obj.movdata,'detectfiles') 
-        obj.movdata.detectfiles = repmat({''},[1,obj.nview]);
-      end
-      if ~isempty(obj.defaultdetectpat)
-        for ivw=1:obj.nview
-          movI = obj.movdata.movfiles{ivw};
-          if ~isempty(movI) && ~isempty(obj.movdata.detectfiles) && isempty(obj.movdata.detectfiles{ivw})
-            obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
-          end
-        end
-      end
+      % if obj.isma && ~isfield(obj.movdata,'detectfiles') 
+      %   obj.movdata.detectfiles = repmat({''},[1,obj.nview]);
+      % end
+      % if ~isempty(obj.defaultdetectpat)
+      %   for ivw=1:obj.nview
+      %     movI = obj.movdata.movfiles{ivw};
+      %     if ~isempty(movI) && ~isempty(obj.movdata.detectfiles) && isempty(obj.movdata.detectfiles{ivw})
+      %       obj.movdata.detectfiles{ivw} = obj.genTrkfile(movI,obj.defaultdetectpat);
+      %     end
+      %   end
+      % end
       if obj.hastrx && ~isfield(obj.movdata,'trxfiles'),
         obj.movdata.trxfiles = repmat({''},[1,obj.nview]);
       end
@@ -145,8 +146,8 @@ classdef SpecifyMovieToTrackGUI < handle
       if iscell(obj.movdata.f1s),
         obj.movdata.f1s = obj.movdata.f1s{1};
       end
-      if ~isfield(obj.movdata,'track_type'),
-        obj.movdata.track_type = 'track';
+      if ~isfield(obj.movdata,'link_type'),
+        obj.movdata.link_type = 'simple';
       end
       
       obj.rowinfo = struct;
@@ -164,12 +165,12 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.rowinfo.trk.type = 'outputfile';
       obj.rowinfo.trk.isvalperview = true;
       
-      obj.rowinfo.detect = struct;
-      obj.rowinfo.detect.prompt = 'Output detection file';
-      obj.rowinfo.detect.movdatafield = 'detectfiles';
-      obj.rowinfo.detect.ext = '*.trk';
-      obj.rowinfo.detect.type = 'outputfile';
-      obj.rowinfo.detect.isvalperview = true;
+      % obj.rowinfo.detect = struct;
+      % obj.rowinfo.detect.prompt = 'Output detection file';
+      % obj.rowinfo.detect.movdatafield = 'detectfiles';
+      % obj.rowinfo.detect.ext = '*.trk';
+      % obj.rowinfo.detect.type = 'outputfile';
+      % obj.rowinfo.detect.isvalperview = true;
       
       obj.rowinfo.trx = struct;
       obj.rowinfo.trx.prompt = 'Multitarget trx file';
@@ -258,7 +259,8 @@ classdef SpecifyMovieToTrackGUI < handle
         'Tag','figure_SpecifyMovieToTrack',...
         'color',obj.colorinfo.backgroundcolor,...
         'units','pixels',...
-        'position',obj.posinfo.figpos);
+        'position',obj.posinfo.figpos,...
+        'ResizeFcn',@(src,evt) obj.figureResizeCallback(src,evt));
         
       set(obj.gdata.fig,'Units','normalized');
       obj.posinfo.figpos = get(obj.gdata.fig,'Position');
@@ -299,13 +301,12 @@ classdef SpecifyMovieToTrackGUI < handle
           0,0,.8
           0,0,.8
           0,.7,.7];
-      else
-        controlbuttonstrs = {'Done','Cancel'};
-        controlbuttontags = {'done','cancel'};
-        controlbuttoncolors = ...
-          [0,0,.8
-          0,.7,.7];
       end
+      controlbuttonstrs = {'Done','Cancel'};
+      controlbuttontags = {'done','cancel'};
+      controlbuttoncolors = ...
+        [0,0,.8
+        0,.7,.7];
       ncontrolbuttons = numel(controlbuttonstrs);
       controlbuttonw = .15;
       allcontrolbuttonw = ncontrolbuttons*controlbuttonw + (ncontrolbuttons-1)*obj.posinfo.colborder;
@@ -333,21 +334,7 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.movfiles{i});
         rowi = rowi + 1;
       end
-      
-      if obj.isma
-        for i = 1:obj.nview,
-          tag = 'detect';
-          if obj.nview > 1,
-            str = sprintf('Output detect view %d:',i);
-          else
-            str = 'Output detect:';
-          end
-          obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
-          rowi = rowi + 1;
-        end
-      
-      end
-      
+            
       for i = 1:obj.nview,
         tag = 'trk';
         if obj.nview > 1,
@@ -434,6 +421,66 @@ classdef SpecifyMovieToTrackGUI < handle
       obj.addRow(obj.posinfo.rowys(rowi),key,i,str,val,...
         'End of frame interval to track',obj.rowinfo.targets.hasdetails);
       rowi = rowi + 1; %#ok<NASGU>
+
+      if obj.isma && obj.detailed_options
+
+        obj.gdata.linktext = ...
+        uicontrol('Style','text','String','Linking Method',...
+        'ForegroundColor','w','BackgroundColor',obj.colorinfo.backgroundcolor,'FontWeight','normal',...
+        'Units','normalized','Position',[obj.posinfo.textx,obj.posinfo.rowys(rowi),obj.posinfo.textw,obj.posinfo.rowh],...
+        'Tag','text_link',...
+        'HorizontalAlignment','right',...
+        'Parent',obj.gdata.fig);
+
+        % Create button group for radio buttons
+        obj.gdata.bg_linking = uibuttongroup(obj.gdata.fig,...
+          'BackgroundColor',obj.colorinfo.backgroundcolor,...
+          'BorderType','none',...
+          'Position',[obj.posinfo.editx obj.posinfo.rowys(rowi) obj.posinfo.editw obj.posinfo.rowh],...
+          'SelectionChangedFcn',@(src,evt) obj.linkingTypeChanged(src,evt));
+
+
+        set(obj.gdata.bg_linking,'Units','pixels');
+        pos = get(obj.gdata.bg_linking,'Position');
+        set(obj.gdata.bg_linking,'Units','normalized');
+        wd = pos(3)/3-20;
+
+        % Radio buttons - positions will be calculated dynamically
+        obj.gdata.rb_simple = uiradiobutton(obj.gdata.bg_linking,...
+          'Text','Simple linking',...
+          'FontColor','w',...
+          'Position',[10 5 wd 20],...
+          'Value',strcmp(obj.link_type,'simple'));
+
+        obj.gdata.rb_motion = uiradiobutton(obj.gdata.bg_linking,...
+          'Text','Motion Linking',...
+          'FontColor','w',...
+          'Position',[wd+20 5 wd 20],...
+          'Value',strcmp(obj.link_type,'motion'));
+
+        obj.gdata.rb_identity = uiradiobutton(obj.gdata.bg_linking,...
+          'Text','Identity linking',...
+          'FontColor','w',...
+          'Position',[2*(wd+20) 5 wd 20],...
+          'Value',strcmp(obj.link_type,'identity'));
+        
+        % Update radio button positions after creation
+        obj.updateLinkingButtonPositions();
+        
+        rowi = rowi + 1;
+
+        % for i = 1:obj.nview,
+      %     tag = 'detect';
+      %     if obj.nview > 1,
+      %       str = sprintf('Output detect view %d:',i);
+      %     else
+      %       str = 'Output detect:';
+      %     end
+      %     obj.addRow(obj.posinfo.rowys(rowi),tag,i,str,obj.movdata.detectfiles{i});
+        % end
+
+      end
+
 
       
     end
@@ -599,13 +646,13 @@ classdef SpecifyMovieToTrackGUI < handle
           obj.isgood.trk(i) = obj.checkRowValue('trk',i);
           set(obj.gdata.trk.rowedit(i),'String',trkI);
         end
-        if obj.isma && ~isempty(obj.defaultdetectpat)
-          movI = obj.movdata.movfiles{i};
-          trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
-          obj.movdata.detectfiles{i} = trkI;
-          obj.isgood.detect(i) = obj.checkRowValue('detect',i);
-          set(obj.gdata.detect.rowedit(i),'String',trkI);
-        end
+        % if obj.isma && ~isempty(obj.defaultdetectpat)
+        %   movI = obj.movdata.movfiles{i};
+        %   trkI = obj.genTrkfile(movI,obj.defaultdetectpat);
+        %   obj.movdata.detectfiles{i} = trkI;
+        %   obj.isgood.detect(i) = obj.checkRowValue('detect',i);
+        %   set(obj.gdata.detect.rowedit(i),'String',trkI);
+        % end
         if obj.hastrx && ~isempty(obj.defaulttrxpat)
           movI = obj.movdata.movfiles{i};
           trxI = obj.genTrkfile(movI,obj.defaulttrxpat,'enforceExt',false);
@@ -792,7 +839,7 @@ classdef SpecifyMovieToTrackGUI < handle
     
     function pb_control_Callback(obj,h,e,tag)
       
-      if ismember(lower(tag),{'done','apply','track','link','detect'}),
+      if ismember(lower(tag),{'done','apply'}),
         
         fns = fieldnames(obj.isgood);
         isgood = true;
@@ -806,13 +853,13 @@ classdef SpecifyMovieToTrackGUI < handle
         end
         obj.dostore = true;
       end
-      if obj.isma
-        if ismember(lower(tag),{'track','link','detect'})
-          obj.track_type = lower(tag);
-          obj.movdata.track_type = lower(tag);
-        end
-      end
-      if ismember(lower(tag),{'done','cancel','track','link','detect'}),
+      % if obj.isma
+      %   if ismember(lower(tag),{'track','link','detect'})
+      %     obj.link_type = lower(tag);
+      %     obj.movdata.link_type = lower(tag);
+      %   end
+      % end
+      if ismember(lower(tag),{'done','cancel'}),
         delete(obj.gdata.fig);
       end
       
@@ -857,13 +904,84 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.checkRowValue('crop',iview);
       end
     end
-    
+
+    function linkingTypeChanged(obj, src, evt)
+      % Callback for linking type radio button group
+      selectedButton = evt.NewValue;
+
+      % Determine which linking type was selected
+      if selectedButton == obj.gdata.rb_simple
+        obj.link_type = 'simple';
+      elseif selectedButton == obj.gdata.rb_motion
+        obj.link_type = 'motion';
+      elseif selectedButton == obj.gdata.rb_identity
+        obj.link_type = 'identity';
+      end
+
+      % Update toTrack data structure
+      obj.movdata.link_type = obj.link_type;
+    end
+
     function trk = genTrkfile(obj,movie,defaulttrk,varargin)
       if isempty(movie)
         trk = '';
       else
         trk = Labeler.genTrkFileName(defaulttrk,...
           obj.lObj.baseTrkFileMacros(),movie,varargin{:});
+      end
+    end
+    
+    function figureResizeCallback(obj, src, evt)
+      % Called when the figure is resized - update radio button positions
+      if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
+        obj.updateLinkingButtonPositions();
+      end
+    end
+    
+    function updateLinkingButtonPositions(obj)
+      % Calculate and update radio button positions based on button group size
+      if ~isfield(obj.gdata, 'bg_linking') || ~isvalid(obj.gdata.bg_linking)
+        return;
+      end
+      
+      try
+        % Update the "Linking Method" text position if it exists
+        if isfield(obj.gdata, 'linktext') && isvalid(obj.gdata.linktext)
+          % Get current button group position to align text with it
+          bgPos_norm = get(obj.gdata.bg_linking,'Position');
+          % Update text position to align with button group
+          set(obj.gdata.linktext, 'Position', [obj.posinfo.textx, bgPos_norm(2), obj.posinfo.textw, obj.posinfo.rowh]);
+        end
+        
+        % Get the button group position in pixels
+        set(obj.gdata.bg_linking,'Units','pixels');
+        bgPos = get(obj.gdata.bg_linking,'Position');
+        bgWidth = bgPos(3);
+        bgHeight = bgPos(4);
+        set(obj.gdata.bg_linking,'Units','normalized');
+        
+        % Calculate button dimensions with padding
+        padding = 10;  % pixels
+        buttonHeight = max(20, bgHeight - 2*padding);  % minimum 20px height
+        buttonWidth = (bgWidth - 4*padding) / 3;  % divide width by 3 with padding
+        
+        % Calculate positions for each button
+        y = (bgHeight - buttonHeight) / 2;  % center vertically
+        
+        % Update positions
+        if isfield(obj.gdata, 'rb_simple') && isvalid(obj.gdata.rb_simple)
+          obj.gdata.rb_simple.Position = [padding, y, buttonWidth, buttonHeight];
+        end
+        if isfield(obj.gdata, 'rb_motion') && isvalid(obj.gdata.rb_motion)
+          obj.gdata.rb_motion.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
+        end
+        if isfield(obj.gdata, 'rb_identity') && isvalid(obj.gdata.rb_identity)
+          obj.gdata.rb_identity.Position = [padding + 2*(buttonWidth + padding), y, buttonWidth, buttonHeight];
+        end
+        
+      catch ME
+        % Silently handle errors during resize
+        warning(ME.identifier,'Error updating linking button positions: %s', ME.message);
       end
     end
     

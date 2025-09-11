@@ -1038,7 +1038,10 @@ class TraindataHook(Hook):
         if not self.every_n_train_iters(runner,self.interval):
             return
         self.td_data['step'].append(batch_idx + 1)
-        self.td_data['train_loss'].append(outputs['loss'].detach().cpu().numpy().copy())
+        cur_loss = outputs['loss'].detach().cpu().numpy().copy()
+        self.td_data['train_loss'].append(cur_loss)
+        if np.isnan(cur_loss):
+            raise RuntimeError(f"Training loss is NaN at step {runner.iter + 1}. Please restart training")
         self.td_data['train_dist'].append(np.nan)
         self.td_data['val_dist'].append(np.nan)
         self.td_data['val_loss'].append(np.nan)

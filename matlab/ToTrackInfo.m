@@ -35,6 +35,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     jobid = ''; % for a particular job
     isma = false;
 
+    % linking options (for multi-animal projects)
+    link_type = 'simple'; % 'simple', 'motion', or 'identity'
+    id_maintain_identity = false;
+
     % outputs
     % this will correspond to one job if these are set
     errfile = ''; % char
@@ -42,6 +46,8 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     cmdfile = ''; % char
     killfile = ''; % char
     trackconfigfile = ''; % char
+    idmodelfile = ''; % char
+    idjsonfile = ''; %char
     trkfiles = {}; % nmovies x nviews x nstages
 
     listoutfiles = {}; % nviews . Output of list classifications
@@ -474,6 +480,12 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if reset || isempty(obj.trackconfigfile),
         obj.setDefaultTrackConfigFile();
       end
+      if reset || isempty(obj.idmodelfile),
+        obj.setDefaultIDModelFile();
+      end
+      if reset || isempty(obj.idjsonfile),
+        obj.setDefaultIDJsonFile();
+      end
 
       % rest of files require jobid to be set
       if isempty(obj.jobid),
@@ -542,6 +554,23 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       [p,n] = fileparts(obj.trkfiles{1});
       obj.trackconfigfile = fullfile(p,['trkconfig_',n,'.json']);
+    end
+
+    function setDefaultIDModelFile(obj)
+      if isempty(obj.trkfiles) || isempty(obj.trkfiles{1}),
+        warning('trkfiles must be set to set default track config file');
+      end
+      [p,n] = fileparts(obj.trkfiles{1});
+      obj.idmodelfile = fullfile(p,['id_wts_',n,'.p']);
+    end
+
+    function setDefaultIDJsonFile(obj)
+      % File containing the ID linking training data
+      if isempty(obj.trkfiles) || isempty(obj.trkfiles{1}),
+        warning('trkfiles must be set to set default track config file');
+      end
+      [p,n] = fileparts(obj.trkfiles{1});
+      obj.idjsonfile = fullfile(p,['id_wts_',n,'_train.json']);
     end
 
     function setDefaultTrkfiles(obj,reset)
@@ -1282,6 +1311,14 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     function [v,idx] = getPartTrkFiles(obj,varargin)
       [trkfs,idx] = obj.getTrkFiles(varargin{:});
       v = cellfun(@(x) [x,'.part'],trkfs,'Uni',0);
+    end
+
+    function v = getIDModelFile(obj)
+      v = obj.idmodelfile;
+    end
+
+    function v = getIDJsonFile(obj)
+      v = obj.idjsonfile;
     end
 
     function v = getListOutfiles(obj,varargin)

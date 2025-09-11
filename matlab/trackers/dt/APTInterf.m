@@ -305,14 +305,16 @@ classdef APTInterf
       code_as_list = [code_as_list {'-config_file' escape_string_for_bash(configfile)}];
       
       switch track_type
-        case 'link'
+        case 'link' % motion linking          
           code_as_list = [code_as_list {'-track_type only_link'}]; 
-        case 'detect'
+        case 'detect' % pure linking
           code_as_list = [code_as_list {'-track_type only_predict'}]; 
+        case 'id_link' % linking using ID recognition model
+          code_as_list = [code_as_list {'-track_type link_id'}  {'-id_wts_file' totrackinfo.id_model_file}]; 
         case 'track'
-          % do nothing
+          %do nothing
         otherwise
-          error('track_type must be either ''track'', ''link'', or ''detect''') ;
+          error('track_type must be either ''id_link'',''link'', or ''detect''') ;
       end
 
       [movidx,frm0,frm1,trxids,nextra] = totrackinfo.getIntervals();

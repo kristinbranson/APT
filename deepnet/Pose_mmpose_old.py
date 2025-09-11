@@ -550,9 +550,13 @@ class TraindataHook(Hook):
         self.td_data['step'].append(runner.iter + 1)
         runner.log_buffer.average(self.interval)
         if 'loss' in runner.log_buffer.output.keys():
-            self.td_data['train_loss'].append(runner.log_buffer.output['loss'].copy())
+            cur_loss = runner.log_buffer.output['loss'].copy()
         else:
-            self.td_data['train_loss'].append(runner.log_buffer.output['all_loss'].copy())
+            cur_loss = runner.log_buffer.output['all_loss'].copy()
+        self.td_data['train_loss'].append(cur_loss)
+        if np.isnan(cur_loss):
+            raise RuntimeError(f"Training loss is NaN at step {runner.iter + 1}. Please restart training")
+
         self.td_data['train_dist'].append(np.nan)
         self.td_data['val_dist'].append(np.nan)
         self.td_data['val_loss'].append(np.nan)

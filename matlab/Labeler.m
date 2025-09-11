@@ -15501,6 +15501,8 @@ classdef Labeler < handle
         'cropRois', {cell(nget,obj.nview)},...
         'calibrationfiles', {cell(nget,1)},... %        'calibrationdata',{cell(nget,1)},...
         'targets', {cell(nget,1)},...
+        'link_type', 'motion',...
+        'id_maintain_identity', false,...
         'f0s', {cell(nget,1)},...
         'f1s', {cell(nget,1)});
       toTrack.movfiles = obj.getMovieFilesAllFullMovIdx(mIdx);
@@ -15525,9 +15527,6 @@ classdef Labeler < handle
       [tfok,trkfiles] = obj.getTrkFileNamesForExportGUI(toTrack.movfiles,rawname,'noUI',true);
       if tfok,
         toTrack.trkfiles = trkfiles;
-        if obj.maIsMA
-          toTrack.detectfiles = strrep(trkfiles,'.trk','_tracklet.trk');
-        end
       end
     end  % function    
   end  % methods
@@ -16195,14 +16194,27 @@ classdef Labeler < handle
       end
       assert(iscell(calibrationfiles));
       
+      % Handle linking options for multi-animal projects
+      if isfield(toTrack,'link_type')
+        link_type = toTrack.link_type;
+      else
+        link_type = 'simple';
+      end
+      if isfield(toTrack,'id_maintain_identity')
+        id_maintain_identity = toTrack.id_maintain_identity;
+      else
+        id_maintain_identity = false;
+      end
+      
       totrackinfo = ToTrackInfo('movfiles',toTrack.movfiles,...
         'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
         'views',1:obj.nview,...
         'stages',1:obj.tracker.getNumStages(),'croprois',cropRois,...
         'calibrationfiles',calibrationfiles,...
         'frm0',f0s,'frm1',f1s,...
-        'trxids',toTrack.targets);
-      % to do: figure out how to handle linking option
+        'trxids',toTrack.targets,...
+        'link_type',link_type,...
+        'id_maintain_identity',id_maintain_identity);
       
       % call tracker.track to do the real tracking
       obj.tracker.track('totrackinfo',totrackinfo,'track_type',track_type,'isexternal',true,loargs{:});

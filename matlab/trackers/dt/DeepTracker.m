@@ -160,6 +160,8 @@ classdef DeepTracker < LabelTracker
     
     % trackres: tracking results DB is in filesys
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
+    needs_id_linking
+    totrackinfo %keep tracking information if needed for linking later
   end
   
   % properties (SetObservable)
@@ -1362,6 +1364,26 @@ classdef DeepTracker < LabelTracker
       end
     end
 
+    function [jobidx,gpuids] = SplitIdTrackIntoJobs(obj,backend)
+      % We only use a single job for training and linking with ID Tracking
+
+      nview = obj.nview; %#ok<PROPLC> 
+      assert(nview==1,'ID Linking works only for single view projects')
+      if backend.isGpuLocal(),
+        % how many gpus do we have available?
+        gpuids = backend.getFreeGPUs(nmodel);
+        if numel(gpuids)<1,
+          error('No GPUs with sufficient unused RAM available locally');
+        else
+          gpuids = gpuids(1);
+          jobidx = 1;
+        end
+      else
+        jobidx = 1;
+        gpuids = nan;
+      end
+    end
+
     function netType = getNetType(obj)
       netType = obj.trnNetType;
     end
@@ -2386,7 +2408,8 @@ classdef DeepTracker < LabelTracker
     end  % function
     
     function track(obj,varargin)
-      [totrackinfo,track_type,isexternal,backend,do_call_apt_interface_dot_py,projTempDir] = ...
+      [totrackinfo,track_type,isexternal,backend,do_call_apt_interface_dot_py,...
+        projTempDir] = ...
         myparse(varargin, ...
                 'totrackinfo',[], ...
                 'track_type','track', ...
@@ -2633,9 +2656,16 @@ classdef DeepTracker < LabelTracker
     
     function trkSpawn_(obj,totrackinfo,backend,varargin)
       % Spawn tracking job(s).  Throws if something goes wrong.
+      % split the tracking jobs if multiple GPUs are available
+
 
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true,'projTempDir',[]);
+
+      if strcmp(totrackinfo.link_type,'identity')
+        track_type = 'detect';
+        obj.needs_id_linking = true;
+      end
 
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
@@ -2653,6 +2683,7 @@ classdef DeepTracker < LabelTracker
       totrackinfo.setTrainDMC(obj.trnLastDMC);
       totrackinfo.setTrackid(nowstr);
       totrackinfo.setDefaultFiles();
+      obj.totrackinfo = totrackinfo;
 
       backend.killAndClearRegisteredJobs('track') ;
       for ijob = 1:numel(jobs),
@@ -2737,6 +2768,69 @@ classdef DeepTracker < LabelTracker
       bgTrkMonitorObj = ...
         BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
       %obj.bgTrkStart(bgTrkMonitorObj,bgTrkWorkerObj);
+      if ~isempty(obj.bgTrkMonitor)
+        error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
+      end
+      obj.bgTrkMonitor = bgTrkMonitorObj;
+      % bgTrkMonitorObj.start();
+
+      % spawn the jobs
+      backend.spawnRegisteredJobs('track', ...
+                                  'jobdesc','tracking job', ...
+                                  'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py);
+
+      % Actually start the background tracking monitor.  We start this *after*
+      % spawning the jobs so that when we need to debug the background process by
+      % running runPollingLoop() synchronously, the tracking job(s) will already
+      % have started.
+      bgTrkMonitorObj.start() ;
+    end  % function setupBGTrack()
+
+    function idlinkSpawn_(obj,backend,varargin)
+      % Spawn ID training/linking job(s).  Throws if something goes wrong.
+
+      [do_call_apt_interface_dot_py,projTempDir] = ...
+        myparse(varargin,'do_call_apt_interface_dot_py',true,'projTempDir',[]);
+
+      if backend.isGpuLocal(),
+        % how many gpus do we have available?
+        gpuid = backend.getFreeGPUs(1);
+      else
+        gpuid = nan;
+      end
+
+
+      totrackinfo = obj.totrackinfo;
+      nowstr = datestr(now(),'yyyymmddTHHMMSS');
+      totrackinfo.setTrainDMC(obj.trnLastDMC);
+      totrackinfo.setTrackid(['id_' nowstr]);
+      totrackinfo.setDefaultFiles(true);
+
+      backend.updateRepo() ;
+      backend.registerTrackingJob(totrackinfo, obj, gpuid, 'id_link') ;
+
+      backend.prepareFilesForTracking(totrackinfo);
+
+      % redo this in case only linking is called. MK 20250809
+      obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+
+      if obj.dryRunOnly
+        fprintf('Dry run, not linking.\n');
+        %fprintf('%s\n',syscmds{:});
+        return
+      end
+
+      obj.trkSysInfo = ToTrackInfoSet;
+      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo) ;
+
+      % Create the TrackMonitorViz, and the BgMonitor, and set them up for
+      % monitoring.
+      obj.bgTrackPoller = poller;
+      %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
+
+      bgTrkMonitorObj = ...
+        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir,'link_type','id_link') ;
+
       if ~isempty(obj.bgTrkMonitor)
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
       end
@@ -2971,6 +3065,14 @@ classdef DeepTracker < LabelTracker
     function didCompleteTrainingOrTrackingRetrograde(obj, train_or_track, pollingResult)
       % Called by the child BgMonitor when the latest poll result indicates that
       % training/tracking is complete.
+
+      if obj.needs_id_linking && strcmp(train_or_track,'track')
+        obj.partialCleanupBeforeIDLinking()
+        obj.idlinkSpawn_(obj.lObj.trackDLBackEnd,'track_type','id_link');
+        obj.needs_id_linking = false;
+        return
+      end
+
       obj.lObj.pushBusyStatusRetrograde(sprintf('Wrapping up seemingly-successful %sing bout...', train_or_track)) ;
       oc = onCleanup(@()(obj.lObj.popBusyStatusRetrograde())) ;
       if strcmp(train_or_track, 'track') ,
@@ -3082,6 +3184,17 @@ classdef DeepTracker < LabelTracker
       obj.killJobsAndPerformPostTrackingCleanup_(EndCause.complete) ;
       obj.lObj.trackingEndedRetrograde(EndCause.complete, pollingResult) ;      
     end  % function
+
+    function partialCleanupBeforeIDLinking(obj)
+
+      obj.bgTrkMonitor.stop() ;  % stop monitoring
+      obj.waitForJobsToExit('track') ;
+
+      % Make sure all the spawned jobs are unalive
+      backend = obj.backend ;
+      backend.killAndClearRegisteredJobs('track') ;
+
+    end
 
     function jumpToNearestTracking(obj)
       % Jump to the startframe of the first tracklet and select it. This enables the

@@ -4,7 +4,7 @@ function writeToTrackJSON(toTrack,jsonfile)
 dict = struct;
 dict.movfiles = 'movie_files';
 dict.trkfiles = 'output_files';
-dict.detectfiles = 'detect_files';
+%dict.detectfiles = 'detect_files';
 dict.trxfiles = 'trx_files';
 dict.cropRois = 'crop_rois';
 dict.calibrationfiles = 'calibration_file';

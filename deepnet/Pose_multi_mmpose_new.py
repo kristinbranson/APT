@@ -30,6 +30,7 @@ from mmpose.codecs import SPR
 import multiprocessing as mp
 
 
+# With mmpose 2, dekr doesn't support masking anymore. So should be disabled in the front end
 # # TODO: DEKR drops heatmap masks. Adding heatmap masks to the output
 # @KEYPOINT_CODECS.register_module(force=True)
 # class SPR_mask(SPR):
