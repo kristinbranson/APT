@@ -4643,7 +4643,7 @@ classdef Labeler < handle
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
-          if isdeployed() || ~obj.isgui,
+          if ~obj.isgui, %isdeployed() ||
             error(qstr);
           end
           
