@@ -453,19 +453,19 @@ classdef Path
       end
     end  % function
 
-    function disp(obj)
-      % Display the apt.Path object
-      pathStr = obj.char();
-      if obj.tfIsAbsolute_
-        absoluteStr = 'abs';
-      else
-        absoluteStr = 'rel';
-      end
-      fprintf('apt.Path: %s [%s:%s]\n', ...
-              pathStr, ...
-              char(obj.platform_), ...
-              absoluteStr);
-    end  % function
+    % function disp(obj)
+    %   % Display the apt.Path object
+    %   pathStr = obj.char();
+    %   if obj.tfIsAbsolute_
+    %     absoluteStr = 'abs';
+    %   else
+    %     absoluteStr = 'rel';
+    %   end
+    %   fprintf('apt.Path: %s [%s:%s]\n', ...
+    %           pathStr, ...
+    %           char(obj.platform_), ...
+    %           absoluteStr);
+    % end  % function
 
     function result = isequal(obj, other)
       % Test for equality with another apt.Path object
@@ -608,6 +608,19 @@ classdef Path
       [~,baseName,~] = fileparts(originalFileName) ;
       newFileName = sprintf('%s%s', baseName, newExtension) ;
       obj.list_{end} = newFileName ;
+    end
+
+    function [rest, leaf] = split(obj)
+      % Return leaf name as char array, and the rest of the path as an apt.Path.  The leaf name is the final element of the
+      % path.  Errors if obj is null.  If obj holds a single-element path, rest will
+      % be the null path, leaf will be a the single element as a char arrray.
+      list = obj.list ;
+      if isempty(list)        
+        error('Path is null, so can''t split') ;
+      end
+      leaf = list{end} ;
+      restList = list(1:end-1) ;
+      rest = apt.Path(restList, obj.platform_) ;
     end
   end  % methods
   

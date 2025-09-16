@@ -81,7 +81,7 @@ configFileWslPath = configFileNativePath.asWsl();
 
 % Get prefix the sets torch home dir
 torchHomePathNativeRaw = APT.gettorchhomepath() ;
-torchHomePathNative = apt.MetaPath(torchHomePathNativeRaw, 'native', 'cache');
+torchHomePathNative = apt.MetaPath(torchHomePathNativeRaw, 'native', 'torch');
 torchHomePathWsl = torchHomePathNative.asWsl();      
 torchHomePrefix = apt.ShellVariableAssignment('TORCH_HOME', torchHomePathWsl);
 

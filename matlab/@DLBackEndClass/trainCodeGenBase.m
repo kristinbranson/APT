@@ -66,7 +66,7 @@ confParams = confparamsextra;
 
 % Get prefix the sets torch home dir
 torchHomePathNativeRaw = APT.gettorchhomepath() ;
-torchHomePathNative = apt.MetaPath(torchHomePathNativeRaw, 'native', 'cache');
+torchHomePathNative = apt.MetaPath(torchHomePathNativeRaw, 'native', 'torch');
 torchHomePathWsl = torchHomePathNative.asWsl();      
 %torchHomePrefix = sprintf('TORCH_HOME=%s', escape_string_for_bash(torchHomePathWsl)) ;
 torchHomePrefix = apt.ShellVariableAssignment('TORCH_HOME', torchHomePathWsl) ;

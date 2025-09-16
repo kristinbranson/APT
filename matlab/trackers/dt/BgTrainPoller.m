@@ -48,8 +48,8 @@ classdef BgTrainPoller < BgPoller
         errFilePaths = result.errFile(idx1);  % cell array of paths
         logFilePaths = result.logFile(idx1);  % cell array of paths
         for ijob = 1:unique_job_count ,
-          result.errFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(errFilePaths{ijob});
-          result.logFileExists(jobidx==ijob) = obj.backend_.fileExistsAndIsNonempty(logFilePaths{ijob}); % ahem good meth name
+          result.errFileExists(jobidx==ijob) = obj.backend_.tfCacheFileExistsAndIsNonempty(errFilePaths{ijob});
+          result.logFileExists(jobidx==ijob) = obj.backend_.tfCacheFileExistsAndIsNonempty(logFilePaths{ijob}); % ahem good meth name
         end
           
         result.isRunning = row(obj.backend_.isAliveFromRegisteredJobIndex('train')) ;
@@ -58,7 +58,7 @@ classdef BgTrainPoller < BgPoller
         % loop through all models trained in this job
         for i = 1:nModels,
           if result.jsonPresent(i),
-            jsoncurr = obj.backend_.fileContents(result.jsonPath{i});
+            jsoncurr = obj.backend_.cacheFileContents(result.jsonPath{i});
             result = obj.readTrainLoss_(result,i,jsoncurr);
           end
         end

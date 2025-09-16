@@ -10,24 +10,21 @@ DEFAULT_BIND_PATHS_ASCHAR = {
   '/groups'
   '/nrs'
   '/scratch'};
-[bindpath,singimg] = ...
+[bindpath,singularityImagePath] = ...
   myparse(varargin,...
           'bindpath',DEFAULT_BIND_PATHS_ASCHAR,...
           'singimg','');
-assert(~isempty(singimg)) ;
+assert(~isempty(singularityImagePath)) ;
 
 % Convert bind paths to MetaPath objects and create bind arguments
-bindPathsRemote = cellfun(@(x) apt.MetaPath(x, 'remote', 'immovable'), bindpath, 'UniformOutput', false);
+bindPathsRemote = cellfun(@(x) apt.MetaPath(x.path, 'wsl', 'universal'), bindpath, 'UniformOutput', false);
 bindArgs = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix);
 for i = 1:numel(bindPathsRemote)
   bindArgs = bindArgs.append('-B', bindPathsRemote{i});
 end
 
-% Convert singularity image path to MetaPath object
-singImgPathRemote = apt.MetaPath(singimg, 'remote', 'universal');
-
 % Build the final singularity command using sequential ShellCommand objects
 command0 = apt.ShellCommand({'singularity', 'exec', '--nv'}, apt.PathLocale.wsl, apt.Platform.posix);
 command1 = command0.cat(bindArgs);
-command2 = command1.append(singImgPathRemote, 'bash', '-c');
+command2 = command1.append(singularityImagePath, 'bash', '-c');
 result = command2.append(inputCommand) ;

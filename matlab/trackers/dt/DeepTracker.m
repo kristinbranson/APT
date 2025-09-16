@@ -3651,14 +3651,14 @@ classdef DeepTracker < LabelTracker
       % all the running jobs.
       logFiles = obj.trkSysInfo.getLogFiles() ;
       backend = obj.backend ;
-      logFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
+      logFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
       result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
     end  % function
     
     function result = getTrackingErrorFilesSummary(obj)  % const method
       errFiles = obj.trkSysInfo.getErrFiles();
       backend = obj.backend ;
-      errFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),errFiles,'uni',0);
+      errFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),errFiles,'uni',0);
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
     end  % function
     
@@ -3672,14 +3672,14 @@ classdef DeepTracker < LabelTracker
       % all the running jobs.
       logFiles = unique(obj.trnLastDMC.trainLogLnx)' ;
       backend = obj.backend ;
-      logFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
+      logFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
       result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
     end  % function
     
     function result = getTrainingErrorFilesSummary(obj)  % const method
       errFiles = unique(obj.trnLastDMC.errfileLnx)' ;
       backend = obj.backend ;
-      errFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),errFiles,'uni',0);
+      errFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),errFiles,'uni',0);
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
     end  % function
     

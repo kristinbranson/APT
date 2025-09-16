@@ -464,7 +464,17 @@ classdef MetaPath < apt.ShellToken
 
     function replaceExtension(obj, newExtension)
       path = obj.path_ ;
-      result = path.replaceExtension(newExtension) ;
+      path.replaceExtension(newExtension) ;
     end
+
+    function [rest, leaf] = split(obj)
+      % Return leaf name as char array, and the rest of the path as an apt.MetaPath.
+      % The leaf name is the final element of the path.  Errors if obj is null.  If
+      % obj holds a single-element path, rest will be the null MetaPath, leaf will be a
+      % the single element as a char arrray.
+      path = obj.path_ ;
+      [restPath, leaf] = path.split() ;
+      rest = apt.MetaPath(restPath, obj.locale, obj.role) ;
+    end    
   end  % methods
 end  % classdef

@@ -2953,26 +2953,26 @@ classdef Labeler < handle
       % Updates project DL state to point to new cache in .projTempDir      
 
       % Get the project cache dir path (e.g. '/home/janeuser/.apt/tpkjasdfkuhawe') ;
-      projectCacheDirPath = obj.projTempDir;  % native path, as char
+      projectCacheDirPathAsChar = obj.projTempDir;  % native path, as char
    
       % It seems like this warning is thrown often even when nothing is wrong.
       % Disabling.  -- ALT, 2024-10-10
       % Check for exploded cache in tempdir      
-      tCacheDir = fullfile(projectCacheDirPath,obj.projname);
-      if ~exist(tCacheDir,'dir')
-        % warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
-        %                obj.projname,cacheDir);
-        return
-      end
+      % tCacheDir = fullfile(projectCacheDirPathAsChar,obj.projname);
+      % if ~exist(tCacheDir,'dir')
+      %   % warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
+      %   %                obj.projname,cacheDir);
+      %   return
+      % end
       
       % Update the project cache path in the backend and trackers
       if obj.backend.isProjectCacheRemote ,
         warningNoTrace('Unexpected remote project cache detected');
       else
-        obj.backend.nativeProjectCachePath = projectCacheDirPath ;
+        obj.backend.nativeProjectCachePath = projectCacheDirPathAsChar ;
         % Update/set all DMC.rootDirs to cacheDir
         trackers = obj.trackerHistory_ ;
-        cellfun(@(t)(t.updateDLCache(projectCacheDirPath)), trackers) ;
+        cellfun(@(t)(t.updateDLCache(projectCacheDirPathAsChar)), trackers) ;
       end
     end  % function
     
@@ -16297,7 +16297,7 @@ classdef Labeler < handle
           doesErrorFileExist = obj.backend.tfDoesCacheFileExist(errFile) ;
           if doesErrorFileExist ,
             fprintf('\n### %s\n\n',errFile);
-            errContents = obj.backend.fileContents(errFile) ;
+            errContents = obj.backend.cacheFileContents(errFile) ;
             disp(errContents);
           else
             fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;

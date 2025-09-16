@@ -743,16 +743,16 @@ classdef DLBackEndClass < handle
   end  % public methods block
 
   methods
-    function [didsucceed, msg] = mkdir(obj, native_dir_path)
+    function [didsucceed, message] = mkdir_(obj, nativeFolderPath)
       % Create the named directory, either locally or remotely, depending on the
-      % backend type.  On Windows, dir_name can be a Windows-style path.
-      wsl_dir_path = wsl_path_from_native(native_dir_path) ;
+      % backend type.
+
+      wslFolderPath = nativeFolderPath.asWsl() ;
       if obj.type == DLBackEnd.AWS ,
-        [didsucceed, msg] = obj.awsec2.mkdir(wsl_dir_path) ;
+        [didsucceed, message] = obj.awsec2.mkdir(wslFolderPath) ;
       else
-        wslDirMetaPath = apt.MetaPath(wsl_dir_path, apt.PathLocale.wsl, apt.FileRole.cache);
-        base_command = apt.ShellCommand({'mkdir', '-p', wslDirMetaPath}, apt.PathLocale.wsl, apt.Platform.posix) ;
-        [status, msg] = obj.runBatchCommandOutsideContainer_(base_command) ;
+        baseCommand = apt.ShellCommand({'mkdir', '-p', wslFolderPath}, apt.PathLocale.wsl, apt.Platform.posix) ;
+        [status, message] = obj.runBatchCommandOutsideContainer_(baseCommand) ;
         didsucceed = (status==0) ;
       end
     end  % function
@@ -1330,39 +1330,40 @@ classdef DLBackEndClass < handle
       end
     end  % function
 
-    function result = fileExistsAndIsNonempty(obj, nativeFilePath)
+    function result = tfCacheFileExistsAndIsNonempty(obj, nativeFilePathAsChar)
       % Returns true iff the named file exists and is not zero-length.
-      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
+      assert(ischar(nativeFilePathAsChar)) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = nativeFilePath.asWsl() ;
-        result = obj.awsec2.fileExistsAndIsNonempty(wsl_file_path) ;
+        nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+        wslFilePath = nativeFilePath.asWsl() ;
+        result = obj.awsec2.fileExistsAndIsNonempty(wslFilePath) ;
       else
-        result = localFileExistsAndIsNonempty(nativeFilePath.char()) ;
+        result = localFileExistsAndIsNonempty(nativeFilePathAsChar) ;
       end
     end  % function
 
-    function result = fileExistsAndIsGivenSize(obj, nativeFilePath, sz)
-      % Returns true iff the named file exists and is the given size (in bytes).
-      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
-      if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = nativeFilePath.asWsl() ;
-        result = obj.awsec2.fileExistsAndIsGivenSize(wsl_file_path, sz) ;
-      else
-        result = localFileExistsAndIsGivenSize(nativeFilePath.char(), sz) ;
-      end
-    end  % function
+    % function result = fileExistsAndIsGivenSize(obj, nativeFilePath, sz)
+    %   % Returns true iff the named file exists and is the given size (in bytes).
+    %   assert(isa(nativeFilePath, 'apt.MetaPath')) ;
+    %   if obj.type == DLBackEnd.AWS ,
+    %     wslFilePath = nativeFilePath.asWsl() ;
+    %     result = obj.awsec2.fileExistsAndIsGivenSize(wslFilePath, sz) ;
+    %   else
+    %     result = localFileExistsAndIsGivenSize(nativeFilePath.char(), sz) ;
+    %   end
+    % end  % function
 
-    function result = fileContents(obj, nativeFilePath)
+    function result = cacheFileContents(obj, nativeFilePathAsChar)
       % Return the contents of the named file, as an old-style string.
       % The behavior of this function when the file does not exist is kinda weird.
       % It is the way it is b/c it's designed for giving something helpful to
-      % display in the monitor window.
-      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
+      % display in the monitor window.      
+      assert(isa(nativeFilePathAsChar, 'char')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = nativeFilePath.asWsl() ;
-        result = obj.awsec2.fileContents(wsl_file_path) ;
+        nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+        wslFilePath = nativeFilePath.asWsl() ;
+        result = obj.awsec2.fileContents(wslFilePath) ;
       else
-        nativeFilePathAsChar = nativeFilePath.char() ;
         if exist(nativeFilePathAsChar,'file') ,
           lines = readtxtfile(nativeFilePathAsChar);
           result = sprintf('%s\n',lines{:});
@@ -1389,17 +1390,18 @@ classdef DLBackEndClass < handle
     %   end
     % end  % function
 
-    function result = fileModTime(obj, nativeFilePath)
+    function result = cacheFileModTime(obj, nativeFilePathAsChar)
       % Return the file-modification time (mtime) of the given file.  For an AWS
       % backend, this is the file modification time in seconds since epoch.  For
       % other backends, it's a Matlab datenum of the mtime.  So these should not be
       % compared across backend types.
-      assert(isa(nativeFilePath, 'apt.MetaPath')) ;
+      assert(isa(nativeFilePathAsChar, 'char')) ;
       if obj.type == DLBackEnd.AWS ,
-        wsl_file_path = nativeFilePath.asWsl() ;
-        result = obj.awsec2.remoteFileModTime(wsl_file_path) ;
+        nativeFilePath = apt.MetaPath(nativeFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;        
+        wslFilePath = nativeFilePath.asWsl() ;
+        result = obj.awsec2.remoteFileModTime(wslFilePath) ;
       else
-        dir_struct = dir(nativeFilePath.char()) ;
+        dir_struct = dir(nativeFilePathAsChar) ;
         result = dir_struct.datenum ;
       end
     end  % function
@@ -1472,7 +1474,7 @@ classdef DLBackEndClass < handle
           return
         end
         if isTextFile ,
-          s = obj.fileContents(nativeFilePathAsChar) ;
+          s = obj.cacheFileContents(nativeFilePathAsChar) ;
           nframes = TrkFile.getNFramesTrackedTextFile(s) ;
         else
           try
@@ -1571,7 +1573,7 @@ classdef DLBackEndClass < handle
         nativeDirPathAsChar = nativeDirPathAsCharFromIndex{i} ;
         nativeDirPath = apt.MetaPath(nativeDirPathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
         if ~obj.fileExists_(nativeDirPath) ,
-          [succ, msg] = obj.mkdir(nativeDirPath) ;
+          [succ, msg] = obj.mkdir_(nativeDirPath) ;
           if succ
             fprintf('Created %s: %s\n', desc, nativeDirPathAsChar) ;
           else
@@ -1853,19 +1855,25 @@ classdef DLBackEndClass < handle
       result = obj.awsec2.wrapCommandSSH(codestr, sshargs{:}) ;
     end
     
-    function cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, basecmd, varargin)  %#ok<INUSD>  % const method
+    function cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, baseCommand, varargin)  %#ok<INUSD>  % const method
+      assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand object');
+      assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'baseCommand must have wsl locale');
+
+      % Parse optional args
       [singargs,bsubargs,sshargs] = myparse(varargin,'singargs',{},'bsubargs',{},'sshargs',{});
-      cmd1 = wrapCommandSing(basecmd,singargs{:});
-      cmd2 = wrapCommandBsub(cmd1,bsubargs{:});
+
+      % Wrap, wrap, wrap
+      apptainerCommand = wrapCommandSing(baseCommand,singargs{:});
+      bsubCommand = wrapCommandBsub(apptainerCommand,bsubargs{:});
     
       % already on cluster?
       tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
       if tfOnCluster,
         % The Matlab environment vars cause problems with e.g. PyTorch
-        cmd = prependStuffToClearMatlabEnvironment(cmd2) ;
+        cmd = prependStuffToClearMatlabEnvironment(bsubCommand) ;
       else
         % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
-        cmd = wrapCommandSSH(cmd2,'host',DLBackEndClass.jrchost,sshargs{:});
+        cmd = wrapCommandSSH(bsubCommand,'host',DLBackEndClass.jrchost,sshargs{:});
       end
     end  % function
     

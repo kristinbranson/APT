@@ -1,10 +1,10 @@
-function result = wrapCommandBsub(inputCommand,varargin)
+function result = wrapCommandBsub(inputCommand, varargin)
 % Wrap a command for bsub job submission.  inputCommand should be a
 % ShellCommand with remote locale.
 
 % Validate input inputCommand
 assert(isa(inputCommand, 'apt.ShellCommand'), 'inputCommand must be an apt.ShellCommand object');
-assert(inputCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'inputCommand must have remote locale');
+assert(inputCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'inputCommand must have wsl locale');
 
 [nslots,gpuqueue,logfile,jobname,additionalArgs] = ...
   myparse(varargin,...
@@ -14,12 +14,12 @@ assert(inputCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'inputCommand must
           'jobname','', ...
           'additionalArgs','');
 % Convert log file path to MetaPath object
-logFilePathRemote = apt.MetaPath(logfile, 'remote', 'cache');
+logFilePathRemote = apt.MetaPath(logfile, 'wsl', 'cache');
 
 % Build the bsub command using sequential ShellCommand objects
 command0 = ...
   apt.ShellCommand({'bsub', '-n', num2str(nslots), '-gpu', 'num=1', '-q', gpuqueue, '-o', logFilePathRemote, '-R', 'affinity[core(1)]'}, ...
-                   apt.PathLocale.remote, ...
+                   apt.PathLocale.wsl, ...
                    apt.Platform.posix);
 
 if ~isempty(jobname)

@@ -674,7 +674,7 @@ classdef AWSec2 < handle
       assert(destWslPath.locale == apt.PathLocale.wsl, 'destWslPath must have WSL locale');
 
       % Create the parent dir for the destination file
-      destParentFolderWslPath = linux_fileparts2(destWslPath) ;
+      destParentFolderWslPath = destWslPath.split() ;      
       ensureWslFolderExists(destParentFolderWslPath) ;
 
       % Do the rsync command
@@ -694,7 +694,7 @@ classdef AWSec2 < handle
       assert(destWslPath.locale == apt.PathLocale.wsl, 'destWslPath must have WSL locale');
 
       % Create the parent dir for the destination file
-      destParentFolderWslPath = linux_fileparts2(destWslPath) ;
+      destParentFolderWslPath = destWslPath.split() ;      
       ensureWslFolderExists(destParentFolderWslPath) ;
 
       % Do the rsync command
@@ -771,18 +771,18 @@ classdef AWSec2 < handle
       tf = strcmp(strtrim(res),'0') ;      
     end
     
-    function tf = fileExistsAndIsGivenSize(obj, wslFilePath, query_byte_count)
-      % Validate input
-      assert(isa(wslFilePath, 'apt.MetaPath'), 'wslFilePath must be an apt.MetaPath');
-      
-      script_path = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
-      command5 = apt.ShellCommand({script_path, wslFilePath, num2str(query_byte_count)}, apt.PathLocale.wsl, apt.Platform.posix) ;
-      %cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;  
-        % stat return code is nonzero if file is missing---annoying
-      [~, res] = obj.runBatchCommandOutsideContainer(command5,'failbehavior','err');
-      actual_byte_count = str2double(res) ;
-      tf = (actual_byte_count == query_byte_count) ;
-    end
+    % function tf = fileExistsAndIsGivenSize(obj, wslFilePath, query_byte_count)
+    %   % Validate input
+    %   assert(isa(wslFilePath, 'apt.MetaPath'), 'wslFilePath must be an apt.MetaPath');
+    % 
+    %   script_path = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
+    %   command5 = apt.ShellCommand({script_path, wslFilePath, num2str(query_byte_count)}, apt.PathLocale.wsl, apt.Platform.posix) ;
+    %   %cmdremote = sprintf('/usr/bin/stat --printf="%%s\\n" %s',f) ;  
+    %     % stat return code is nonzero if file is missing---annoying
+    %   [~, res] = obj.runBatchCommandOutsideContainer(command5,'failbehavior','err');
+    %   actual_byte_count = str2double(res) ;
+    %   tf = (actual_byte_count == query_byte_count) ;
+    % end
     
     function s = fileContents(obj, wslFilePath, varargin)
       % Validate input
@@ -1190,8 +1190,8 @@ classdef AWSec2 < handle
 
       % Generate the --rsh argument
       %sshcmd = sprintf('%s -o ConnectTimeout=8 -i %s', AWSec2.sshCmd, pemFilePath) ;
-      emptyCommand = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix) ;
-      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(nilCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
       sshCommandAsChar = sshCommand.char() ;
@@ -1214,8 +1214,8 @@ classdef AWSec2 < handle
       assert(destFileRemotePath.locale == apt.PathLocale.remote, 'destFileRemotePath must have remote locale');
 
       % Generate the --rsh argument
-      emptyCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
-      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(nilCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
       sshCommandAsChar = sshCommand.char() ;
@@ -1238,8 +1238,8 @@ classdef AWSec2 < handle
       assert(destRemotePath.locale == apt.PathLocale.remote, 'destRemotePath must have remote locale');
 
       % Generate the --rsh argument
-      emptyCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
-      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(nilCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
       sshCommandAsChar = sshCommand.char() ;
@@ -1263,8 +1263,8 @@ classdef AWSec2 < handle
       assert(destWslPath.locale == apt.PathLocale.wsl, 'destWslPath must have WSL locale');
 
       % Generate the --rsh argument
-      emptyCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
-      sshCommand = wrapCommandSSH(emptyCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
+      nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(nilCommand, 'host', '', 'timeout', 8, 'identity', pemFilePath) ;
         % We use an empty command, and an empty host, to get a string with the default
         % options plus the two options we want to specify.
       sshCommandAsChar = sshCommand.char() ;
@@ -1818,7 +1818,7 @@ classdef AWSec2 < handle
         return
       end
       if isTextFile,
-        str = obj.fileContents(wslFilePath) ;
+        str = obj.cacheFileContents(wslFilePath) ;
         nframes = TrkFile.getNFramesTrackedString(str) ;
       else
         nativeCopyFilePath = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
@@ -1971,6 +1971,10 @@ classdef AWSec2 < handle
       %   assert(wslPathFromMovieIndex{1}.locale == apt.PathLocale.wsl, 'Elements of wslPathFromMovieIndex must have WSL locale');
       % end
       
+      % if contains(inputWslMetaPath.char(), '.apt/torch', 'IgnoreCase', true)
+      %   nop() ;
+      % end
+
       % Apply replacements based on file role
       switch inputWslMetaPath.role
         case apt.FileRole.cache
