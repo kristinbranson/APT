@@ -876,7 +876,7 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload the movies to the backend
-      nativePathFromMovieIndex = obj.lObj.movieFilesAll ;      
+      nativePathFromMovieIndex = obj.lObj.movieFilesAllFull ;  % has to be *Full to get substitutions made      
       backend.uploadMovies(nativePathFromMovieIndex) ;
     end
     
