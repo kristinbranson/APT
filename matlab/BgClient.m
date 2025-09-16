@@ -27,7 +27,7 @@ classdef BgClient < handle
   
   methods 
     function v = get.isRunning(obj)
-      v = ~isempty(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
+      v = isvalid(obj)&&~isempty(obj.fevalFuture) && isvalid(obj.fevalFuture) && strcmp(obj.fevalFuture.State,'running');
       %fprintf('In BgClient::get.isRunning(), isRunning is %d\n', v) ;
     end
   end
@@ -84,8 +84,8 @@ classdef BgClient < handle
       % We pack a suitcase so we can restore Transient properties on the other side.
       poller = obj.poller ;
       parfevalSuitcase = poller.packParfevalSuitcase() ;
-
-      % Start production code
+       
+      % % Start production code
       obj.fevalFuture = ...
         parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
       % End production code

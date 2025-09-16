@@ -37,7 +37,7 @@ classdef TrackBatchGUI < handle
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
       obj.hParent = obj.lObj.gdata.mainFigure_;      
-      toTrack = myparse(varargin,'toTrack',struct);
+      [toTrack,debug] = myparse(varargin,'toTrack',struct,'debug',false);
       
       obj.defaulttrkpat = lObj.defaultExportTrkRawname();
       obj.defaultdetectpat = [obj.defaulttrkpat '.tracklet'];
@@ -604,8 +604,8 @@ classdef TrackBatchGUI < handle
       
       % Update original data storage for this movie
       if length(obj.originalMovieFiles) < moviei
-        obj.originalMovieFiles{moviei} = [];
-        obj.originalTrkFiles{moviei} = [];
+        obj.originalMovieFiles{moviei,:} = [];
+        obj.originalTrkFiles{moviei,:} = [];
         % if obj.isma
         %   obj.originalDetectFiles{moviei} = [];
         % end
@@ -683,8 +683,7 @@ classdef TrackBatchGUI < handle
     function pb_add_Callback(obj,h,e,movdat) %#ok<*INUSD>
       if obj.isma
         movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
-        movdat,'defaulttrkpat',obj.defaulttrkpat,...
-        'defaultdetectpat',obj.defaultdetectpat);
+        movdat,'defaulttrkpat',obj.defaulttrkpat);
       else
       movdetailsobj = SpecifyMovieToTrackGUI(obj.lObj,obj.gdata.fig,...
         movdat,'defaulttrkpat',obj.defaulttrkpat,...

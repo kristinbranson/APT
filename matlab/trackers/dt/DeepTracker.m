@@ -162,6 +162,7 @@ classdef DeepTracker < LabelTracker
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
     needs_id_linking
     totrackinfo %keep tracking information if needed for linking later
+    trkfiles % Store the final trk files for id linking
   end
   
   % properties (SetObservable)
@@ -2662,11 +2663,24 @@ classdef DeepTracker < LabelTracker
       [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true,'projTempDir',[]);
 
-      if strcmp(totrackinfo.link_type,'identity')
-        track_type = 'detect';
-        obj.needs_id_linking = true;
+      if isprop(totrackinfo,'link_type') || isfield(totrackinfo,'link_type')
+        if strcmp(totrackinfo.link_type,'identity')
+          track_type = 'detect';
+          obj.needs_id_linking = true;
+          obj.trkfiles = totrackinfo.trkfiles;
+          totrackinfo.trkfiles = {};
+          totrackinfo.setDefaultTrkfiles(true);
+        elseif strcmp(totrackinfo.link_type,'simple')
+          track_type = 'detect';
+          obj.needs_id_linking = false;
+        else
+          track_type = 'track';
+          obj.needs_id_linking = false;
+        end
+      else
+        obj.needs_id_linking = false;
       end
-
+      
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
       njobs = numel(jobs);
@@ -2789,8 +2803,9 @@ classdef DeepTracker < LabelTracker
     function idlinkSpawn_(obj,backend,varargin)
       % Spawn ID training/linking job(s).  Throws if something goes wrong.
 
-      [do_call_apt_interface_dot_py,projTempDir] = ...
-        myparse(varargin,'do_call_apt_interface_dot_py',true,'projTempDir',[]);
+      [do_call_apt_interface_dot_py,projTempDir,detect_trks,out_trks] = ...
+        myparse(varargin,'do_call_apt_interface_dot_py',true,'projTempDir',[],...
+        'detect_trks',{},'out_trks',{});
 
       if backend.isGpuLocal(),
         % how many gpus do we have available?
@@ -2801,10 +2816,17 @@ classdef DeepTracker < LabelTracker
 
 
       totrackinfo = obj.totrackinfo;
+      if ~isempty(out_trks)
+        totrackinfo.trkfiles = out_trks;
+      end
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
       totrackinfo.setTrainDMC(obj.trnLastDMC);
       totrackinfo.setTrackid(['id_' nowstr]);
+      totrackinfo.setJobid(1);
       totrackinfo.setDefaultFiles(true);
+      if ~isempty(detect_trks)
+        totrackinfo.setDetectTrk(detect_trks);
+      end
 
       backend.updateRepo() ;
       backend.registerTrackingJob(totrackinfo, obj, gpuid, 'id_link') ;
@@ -2812,7 +2834,7 @@ classdef DeepTracker < LabelTracker
       backend.prepareFilesForTracking(totrackinfo);
 
       % redo this in case only linking is called. MK 20250809
-      obj.trkCreateConfig(totrackinfojob.trackconfigfile);
+      obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
       if obj.dryRunOnly
         fprintf('Dry run, not linking.\n');
@@ -2829,7 +2851,7 @@ classdef DeepTracker < LabelTracker
       %trkVizObj = TrackMonitorViz(totrackinfo.nviews, obj, bgTrkWorkerObj, backend.type, nFramesTrack) ;
 
       bgTrkMonitorObj = ...
-        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir,'link_type','id_link') ;
+        BgMonitor(obj, 'track', poller, 'projTempDir', projTempDir) ;
 
       if ~isempty(obj.bgTrkMonitor)
         error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
@@ -3066,9 +3088,12 @@ classdef DeepTracker < LabelTracker
       % Called by the child BgMonitor when the latest poll result indicates that
       % training/tracking is complete.
 
-      if obj.needs_id_linking && strcmp(train_or_track,'track')
+      if strcmp(train_or_track,'track') && obj.needs_id_linking
         obj.partialCleanupBeforeIDLinking()
-        obj.idlinkSpawn_(obj.lObj.trackDLBackEnd,'track_type','id_link');
+        prev_trk_files = obj.totrackinfo.trkfiles;
+        out_trks = obj.trkfiles;
+        obj.trkfiles = [];
+        obj.idlinkSpawn_(obj.lObj.trackDLBackEnd,'detect_trks',prev_trk_files,'out_trks',out_trks);
         obj.needs_id_linking = false;
         return
       end
@@ -3193,6 +3218,7 @@ classdef DeepTracker < LabelTracker
       % Make sure all the spawned jobs are unalive
       backend = obj.backend ;
       backend.killAndClearRegisteredJobs('track') ;
+      obj.bgTrkMonitor = [];
 
     end
 

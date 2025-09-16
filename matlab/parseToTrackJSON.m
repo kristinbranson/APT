@@ -28,9 +28,9 @@ if needTrx,
   assert(isfield(toTrack,'trx_files'),'trx_files must be specified');
 end
 hasCrop = isfield(toTrack,'crop_rois');
-if isma
-  assert(isfield(toTrack,'detect_files'),'Detect files must be specified');
-end
+% if isma
+%   assert(isfield(toTrack,'detect_files'),'Detect files must be specified');
+% end
 
 % 
 % movfiles:  nmovies x nviews
@@ -94,9 +94,9 @@ for i = 1:nmovies,
     f1s{i} = toTrack(i).frame1;
   end
 
-  if isma
-    detectfiles(i,:) = parseViews(toTrack(i).detect_files,nviews,true);
-  end
+  % if isma
+  %   detectfiles(i,:) = parseViews(toTrack(i).detect_files,nviews,true);
+  % end
   
   % AL: looks like should be moved outside loop
   toTrackOut = struct;
@@ -108,7 +108,7 @@ for i = 1:nmovies,
   toTrackOut.targets = targets;
   toTrackOut.f0s = f0s;
   toTrackOut.f1s = f1s;
-  toTrackOut.detectfiles = detectfiles;
+  % toTrackOut.detectfiles = detectfiles;
   
 end
 

@@ -49,6 +49,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
     idmodelfile = ''; % char
     idjsonfile = ''; %char
     trkfiles = {}; % nmovies x nviews x nstages
+    detecttrks = {}; % nmovies x nviews
 
     listoutfiles = {}; % nviews . Output of list classifications
     islistjob = false; % whether we are tracking list or not
@@ -272,6 +273,13 @@ classdef ToTrackInfo < matlab.mixin.Copyable
         obj.calibrationdata = obj.calibrationdata(:);
         szassert(obj.calibrationdata,[obj.nmovies,1]);
       end
+      sz = [obj.nmovies,nviews];
+      if isempty(obj.detecttrks),
+        obj.detecttrks = repmat({''},sz);
+      else
+        szassert(obj.trkfiles,sz);
+      end
+
       if obj.tblMFTIsSet,
         obj.tblMFT = MFTable.sortCanonical(obj.tblMFT);
       end
@@ -897,6 +905,47 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       end
       obj.calibrationdata(idx) = v;
     end
+    function v = getLinktype(obj)
+      v = obj.link_type;
+    end
+    function setLinktype(obj,link_type)
+      obj.link_type = link_type;
+    end
+    function v = getIDMaintainIdentity(obj)
+      v = obj.id_maintain_identity;
+    end
+    function setIDMaintainIdentity(obj,maintain_identity)
+      obj.id_maintain_identity = maintain_identity;
+    end
+    function setDetectTrk(obj,v,varargin)
+      if isempty(varargin),
+        obj.detecttrks= v;
+        return;
+      end
+      if isempty(obj.detect_trk),
+        obj.detecttrks = repmat({''},[obj.nmovies,obj.nviews]);
+      end
+      idx = obj.select('detecttrks',varargin{:});
+      if isempty(v),
+        return;
+      end
+
+      n = nnz(idx);
+      if ~iscell(v),
+        v = repmat({v},[n,1]);
+      end
+      obj.detecttrks(idx) = v;
+      
+    end
+    function v = getDetectTrk(obj,varargin)
+      if isempty(obj.detecttrks) || isempty(varargin),
+        v = obj.detecttrks;
+        return;
+      end
+      idx = obj.select('detecttrks',varargin{:});
+      v = obj.detecttrks(idx);
+
+    end
     function addTblMFT(obj,tblMFTadd,movfilesnew,movidxnew)
 
       nmoviesnew = ToTrackInfo.getNMoviesTblMFT(tblMFTadd);
@@ -1167,7 +1216,10 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       tti.setCroprois(obj.getCroprois(getargs{:}),setargs{:});
       tti.setCalibrationfiles(obj.getCalibrationfiles(getargs{:}),setargs{:});
       tti.setCalibrationdata(obj.getCalibrationdata(getargs{:}),setargs{:});
+      tti.setLinktype(obj.getLinktype());
+      tti.setIDMaintainIdentity(obj.getIDMaintainIdentity());
       tti.setTrackid(obj.getTrackid());
+
       if obj.tblMFTIsSet(),
         [ism,idx] = ismember(obj.tblMFT.mov,movieidx1);
         newtbl = obj.tblMFT(ism,:);
