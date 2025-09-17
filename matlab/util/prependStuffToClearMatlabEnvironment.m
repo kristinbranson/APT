@@ -22,7 +22,7 @@ envarNamesToClear = ...
     'MKL_NUM_THREADS', 'OSG_LD_LIBRARY_PATH', 'PRE_LD_PRELOAD', 'TOOLBOX', 'XFILESEARCHPATH' } ;
 
 % Create unset commands as a ShellCommand
-unsetCommand = apt.ShellCommand({}, inputCommand.locale_, inputCommand.platform_);
+unsetCommand = apt.ShellCommand({}, inputCommand.locale, inputCommand.platform);
 for i = 1:numel(envarNamesToClear)
   if i == 1
     unsetCommand = unsetCommand.append('unset', envarNamesToClear{i});

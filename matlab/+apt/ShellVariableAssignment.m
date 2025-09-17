@@ -11,13 +11,8 @@ classdef ShellVariableAssignment < apt.ShellToken
   % ensure proper shell parsing.
   
   properties
-    identifier_  % char array containing the variable identifier
-    value_       % apt.ShellToken containing the variable value
-  end
-  
-  properties (Dependent)
-    identifier   % Get the variable identifier
-    value        % Get the variable value
+    identifier  % char array containing the variable identifier
+    value       % apt.ShellToken containing the variable value
   end
   
   methods
@@ -40,26 +35,19 @@ classdef ShellVariableAssignment < apt.ShellToken
                'value must be either empty or a row char array');
       end
       
-      obj.identifier_ = identifier;
-      obj.value_ = value;
+      obj.identifier = identifier;
+      obj.value = value;
     end
     
-    function result = get.identifier(obj)
-      result = obj.identifier_;
-    end
-    
-    function result = get.value(obj)
-      result = obj.value_;
-    end
     
     function result = char(obj)
       % Convert to string representation (IDENTIFIER=value)
-      if ischar(obj.value_)
-        valueStr = obj.value_;
-        result = sprintf('%s=%s', obj.identifier_, escape_string_for_bash(valueStr)) ;
+      if ischar(obj.value)
+        valueStr = obj.value;
+        result = sprintf('%s=%s', obj.identifier, escape_string_for_bash(valueStr)) ;
       else
-        valueStr = obj.value_.char();  % already escaped
-        result = sprintf('%s=%s', obj.identifier_, valueStr) ;
+        valueStr = obj.value.char();  % already escaped
+        result = sprintf('%s=%s', obj.identifier, valueStr) ;
       end
     end
     
@@ -80,8 +68,8 @@ classdef ShellVariableAssignment < apt.ShellToken
         return;
       end
       
-      result = strcmp(obj.identifier_, other.identifier_) && ...
-               isequal(obj.value_, other.value_);
+      result = strcmp(obj.identifier, other.identifier) && ...
+               isequal(obj.value, other.value);
     end
     
     % function disp(obj)
@@ -93,14 +81,14 @@ classdef ShellVariableAssignment < apt.ShellToken
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
       % Encode the value_ property - it could be char or apt.MetaPath
-      if ischar(obj.value_)
-        encoded_value = obj.value_;
+      if ischar(obj.value)
+        encoded_value = obj.value;
       else
         % It's an apt.MetaPath, encode it
-        encoded_value = encode_for_persistence(obj.value_, true);
+        encoded_value = encode_for_persistence(obj.value, true);
       end
       
-      encoding = struct('identifier_', {obj.identifier_}, 'value_', {encoded_value}) ;
+      encoding = struct('identifier', {obj.identifier}, 'value', {encoded_value}) ;
       if do_wrap_in_container
         result = encoding_container('apt.ShellVariableAssignment', encoding) ;
       else
@@ -115,14 +103,14 @@ classdef ShellVariableAssignment < apt.ShellToken
       % storage.
       
       % Decode the value - it could be a char or an encoding container for MetaPath
-      if ischar(encoding.value_)
-        decoded_value = encoding.value_;
+      if ischar(encoding.value)
+        decoded_value = encoding.value;
       else
         % It should be an encoding container for a MetaPath
-        decoded_value = decode_encoding_container(encoding.value_);
+        decoded_value = decode_encoding_container(encoding.value);
       end
       
-      result = apt.ShellVariableAssignment(encoding.identifier_, decoded_value) ;
+      result = apt.ShellVariableAssignment(encoding.identifier, decoded_value) ;
     end
   end  % methods (Static)
 end

@@ -22,7 +22,7 @@ function [st,res,warningstr] = run(obj, varargin)
 % fancier at some point.
 doprecommand = isunix() || usewslonwindows ;
 if doprecommand ,
-  precommand = apt.ShellCommand({'export', 'LD_LIBRARY_PATH='}, obj.locale_, obj.platform_) ;
+  precommand = apt.ShellCommand({'export', 'LD_LIBRARY_PATH='}, obj.locale, obj.platform) ;
   command1 = precommand.cat('&&', obj) ;
 else
   command1 = obj ;

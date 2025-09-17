@@ -10,11 +10,6 @@ classdef ShellBind < apt.ShellToken
   % "type=bind,src=<source_path>,dst=<destination_path>"
   
   properties
-    sourcePath_  % apt.MetaPath containing the source path
-    destPath_    % apt.MetaPath containing the destination path
-  end
-  
-  properties (Dependent)
     sourcePath  % apt.MetaPath containing the source path
     destPath    % apt.MetaPath containing the destination path
   end
@@ -34,33 +29,26 @@ classdef ShellBind < apt.ShellToken
         error('destPath must be an apt.MetaPath object');
       end
       
-      obj.sourcePath_ = sourcePath ;
-      obj.destPath_ = destPath ;
+      obj.sourcePath = sourcePath ;
+      obj.destPath = destPath ;
     end
     
-    function result = get.sourcePath(obj)
-      result = obj.sourcePath_ ;
-    end
-    
-    function result = get.destPath(obj)
-      result = obj.destPath_ ;
-    end
     
     function result = char(obj)
       % Convert to string representation (type=bind,src=...,dst=...)
-      result = sprintf('type=bind,src=%s,dst=%s', obj.sourcePath_.char(), obj.destPath_.char());
+      result = sprintf('type=bind,src=%s,dst=%s', obj.sourcePath.char(), obj.destPath.char());
     end
     
     function result = tfDoesMatchLocale(obj, queryLocale)
       % ShellBinds match locale if both paths match the query locale
-      result = obj.sourcePath_.tfDoesMatchLocale(queryLocale) && ...
-               obj.destPath_.tfDoesMatchLocale(queryLocale);
+      result = obj.sourcePath.tfDoesMatchLocale(queryLocale) && ...
+               obj.destPath.tfDoesMatchLocale(queryLocale);
     end
     
     function result = tfDoesMatchPlatform(obj, queryPlatform)
       % ShellBinds match platform if both paths match the query platform
-      result = obj.sourcePath_.tfDoesMatchPlatform(queryPlatform) && ...
-               obj.destPath_.tfDoesMatchPlatform(queryPlatform);
+      result = obj.sourcePath.tfDoesMatchPlatform(queryPlatform) && ...
+               obj.destPath.tfDoesMatchPlatform(queryPlatform);
     end
     
     function result = isequal(obj, other)
@@ -70,8 +58,8 @@ classdef ShellBind < apt.ShellToken
         return;
       end
       
-      result = isequal(obj.sourcePath_, other.sourcePath_) && ...
-               isequal(obj.destPath_, other.destPath_);
+      result = isequal(obj.sourcePath, other.sourcePath) && ...
+               isequal(obj.destPath, other.destPath);
     end
     
     % function disp(obj)
@@ -83,10 +71,10 @@ classdef ShellBind < apt.ShellToken
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
       % Encode both MetaPath properties
-      encoded_sourcePath = encode_for_persistence(obj.sourcePath_, true);
-      encoded_destPath = encode_for_persistence(obj.destPath_, true);
+      encoded_sourcePath = encode_for_persistence(obj.sourcePath, true);
+      encoded_destPath = encode_for_persistence(obj.destPath, true);
       
-      encoding = struct('sourcePath_', {encoded_sourcePath}, 'destPath_', {encoded_destPath}) ;
+      encoding = struct('sourcePath', {encoded_sourcePath}, 'destPath', {encoded_destPath}) ;
       if do_wrap_in_container
         result = encoding_container('apt.ShellBind', encoding) ;
       else
@@ -101,8 +89,8 @@ classdef ShellBind < apt.ShellToken
       % storage.
       
       % Decode both MetaPath objects
-      decoded_sourcePath = decode_encoding_container(encoding.sourcePath_);
-      decoded_destPath = decode_encoding_container(encoding.destPath_);
+      decoded_sourcePath = decode_encoding_container(encoding.sourcePath);
+      decoded_destPath = decode_encoding_container(encoding.destPath);
       
       result = apt.ShellBind(decoded_sourcePath, decoded_destPath) ;
     end

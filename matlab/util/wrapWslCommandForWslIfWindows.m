@@ -1,7 +1,7 @@
 function result = wrapWslCommandForWslIfWindows(baseCommand)
 
 assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be a ShellCommand') ;
-assert(baseCommand.locale_ == apt.PathLocale.wsl, 'baseCommand must have WSL locale') ;
+assert(baseCommand.locale == apt.PathLocale.wsl, 'baseCommand must have WSL locale') ;
 
 if ispc() ,
   result = apt.ShellCommand({'wsl', '--exec', 'bash', '-c', baseCommand}, apt.PathLocale.native, apt.Platform.windows) ;

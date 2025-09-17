@@ -23,17 +23,14 @@ classdef MetaPath < apt.ShellToken
   %   remotePath = moviePath.as('remote'); % Convert to remote backend context
 
   properties
-    path_        % apt.Path object containing the actual path
-    locale_      % apt.PathLocale enumeration.  Describes the 'locale' (native/wsl/remote) where the path is 
-                 % appropriate.
-    role_        % apt.FileRole enumeration.
+    path        % apt.Path object containing the actual path
+    locale      % apt.PathLocale enumeration.  Describes the 'locale' (native/wsl/remote) where the path is 
+                % appropriate.
+    role        % apt.FileRole enumeration.
   end
 
   properties (Dependent)
-    path         % Get the underlying apt.Path object
-    locale       % Get the locale
-    role         % Get the file role
-    platform     % Get the platform from the underlying path
+    platform    % Get the platform from the underlying path (derived from path.platform)
   end
 
   methods
@@ -81,30 +78,18 @@ classdef MetaPath < apt.ShellToken
         error('apt:MetaPath:RelativePath', 'MetaPath requires an absolute path');
       end
 
-      obj.path_ = path;
-      obj.locale_ = locale;
-      obj.role_ = role;
-    end
-
-    function result = get.locale(obj)
-      result = obj.locale_;
-    end
-
-    function result = get.role(obj)
-      result = obj.role_;
-    end
-
-    function result = get.path(obj)
-      result = obj.path_;
+      obj.path = path;
+      obj.locale = locale;
+      obj.role = role;
     end
 
     function result = get.platform(obj)
-      result = obj.path_.platform;
+      result = obj.path.platform;
     end
 
     function result = char(obj)
       % Get the path as a string
-      result = obj.path_.char();
+      result = obj.path.char();
     end
 
     function result = tfDoesMatchLocale(obj, queryLocale)
@@ -121,7 +106,7 @@ classdef MetaPath < apt.ShellToken
         queryLocale = apt.PathLocale.fromString(queryLocale);
       end
       
-      result = (obj.locale_ == queryLocale);
+      result = (obj.locale == queryLocale);
     end
 
     function result = tfDoesMatchPlatform(obj, queryPlatform)
@@ -138,7 +123,7 @@ classdef MetaPath < apt.ShellToken
         queryPlatform = apt.Platform.fromString(queryPlatform);
       end
       
-      result = (obj.path_.platform == queryPlatform);
+      result = (obj.path.platform == queryPlatform);
     end
 
     function result = isequal(obj, other)
@@ -148,9 +133,9 @@ classdef MetaPath < apt.ShellToken
         return;
       end
 
-      result = isequal(obj.path_, other.path_) && ...
-               obj.locale_ == other.locale_ && ...
-               obj.role_ == other.role_;
+      result = isequal(obj.path, other.path) && ...
+               obj.locale == other.locale && ...
+               obj.role == other.role;
     end
 
     function result = replacePrefix(obj, sourcePrefixMetaPath, targetPrefixMetaPath)
@@ -175,17 +160,17 @@ classdef MetaPath < apt.ShellToken
       assert(isa(targetPrefixMetaPath, 'apt.MetaPath'), 'targetPrefixMetaPath must be an apt.MetaPath');
       
       % Validate that all roles match
-      assert(obj.role_ == sourcePrefixMetaPath.role_, 'Object and source prefix must have the same FileRole');
-      assert(obj.role_ == targetPrefixMetaPath.role_, 'Object and target prefix must have the same FileRole');
+      assert(obj.role == sourcePrefixMetaPath.role, 'Object and source prefix must have the same FileRole');
+      assert(obj.role == targetPrefixMetaPath.role, 'Object and target prefix must have the same FileRole');
       
       % Validate that obj and source prefix have the same locale
-      assert(obj.locale_ == sourcePrefixMetaPath.locale_, 'Object and source prefix must have the same locale');
+      assert(obj.locale == sourcePrefixMetaPath.locale, 'Object and source prefix must have the same locale');
       
       % Use the underlying apt.Path replacePrefix method
-      newPath = obj.path_.replacePrefix(sourcePrefixMetaPath.path_, targetPrefixMetaPath.path_);
+      newPath = obj.path.replacePrefix(sourcePrefixMetaPath.path, targetPrefixMetaPath.path);
       
       % Create new MetaPath using target's locale and the common role
-      result = apt.MetaPath(newPath, targetPrefixMetaPath.locale_, obj.role_);
+      result = apt.MetaPath(newPath, targetPrefixMetaPath.locale, obj.role);
     end
 
     function result = as(obj, targetLocale, varargin)
@@ -210,23 +195,23 @@ classdef MetaPath < apt.ShellToken
       end
       
       % If target equals source, return unchanged
-      if targetLocale == obj.locale_
+      if targetLocale == obj.locale
         result = obj;
         return;
       end
       
       % Handle supported conversions
-      if obj.locale_ == apt.PathLocale.native && targetLocale == apt.PathLocale.wsl
+      if obj.locale == apt.PathLocale.native && targetLocale == apt.PathLocale.wsl
         % Convert native path to WSL path using static method
         result = apt.MetaPath.toWslFromNative_(obj);
-      elseif obj.locale_ == apt.PathLocale.wsl && targetLocale == apt.PathLocale.native
+      elseif obj.locale == apt.PathLocale.wsl && targetLocale == apt.PathLocale.native
         % Convert WSL path to native path using static method
         result = apt.MetaPath.toNativeFromWsl_(obj);
       else
         % Unsupported conversion
         error('apt:MetaPath:UnsupportedConversion', ...
               'Conversion from %s to %s is not supported by the MetaPath.as() method', ...
-              char(obj.locale_), ...
+              char(obj.locale), ...
               char(targetLocale));
       end
     end  % function
@@ -251,9 +236,9 @@ classdef MetaPath < apt.ShellToken
     %   pathStr = obj.char();
     %   fprintf('apt.MetaPath: %s [%s:%s:%s]\n', ...
     %           pathStr, ...
-    %           char(obj.locale_), ...
-    %           char(obj.role_), ...
-    %           char(obj.path_.platform));
+    %           char(obj.locale), ...
+    %           char(obj.role), ...
+    %           char(obj.path.platform));
     % end
 
     function result = cat(obj, varargin)
@@ -281,26 +266,26 @@ classdef MetaPath < apt.ShellToken
           pathArgs{i} = varargin{i};
         elseif isa(varargin{i}, 'apt.MetaPath')
           % Validate locale and role compatibility
-          if varargin{i}.locale_ ~= obj.locale_
+          if varargin{i}.locale ~= obj.locale
             error('apt:MetaPath:LocaleMismatch', ...
               'MetaPath argument at position %d has locale %s, but this MetaPath has locale %s', ...
-              i, char(varargin{i}.locale_), char(obj.locale_));
+              i, char(varargin{i}.locale), char(obj.locale));
           end
-          if varargin{i}.role_ ~= obj.role_
+          if varargin{i}.role ~= obj.role
             error('apt:MetaPath:RoleMismatch', ...
               'MetaPath argument at position %d has role %s, but this MetaPath has role %s', ...
-              i, char(varargin{i}.role_), char(obj.role_));
+              i, char(varargin{i}.role), char(obj.role));
           end
-          pathArgs{i} = varargin{i}.path_;
+          pathArgs{i} = varargin{i}.path;
         else
           error('apt:MetaPath:InvalidArgument', 'Argument %d must be an apt.MetaPath object, apt.Path object, or char array, got %s', i, class(varargin{i}));
         end
       end
       
       % Call the apt.Path.cat() method on the underlying paths
-      oldPath = obj.path_;
+      oldPath = obj.path;
       newPath = oldPath.cat(pathArgs{:});
-      result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+      result = apt.MetaPath(newPath, obj.locale, obj.role);
     end
 
     function result = append(obj, varargin)
@@ -312,9 +297,9 @@ classdef MetaPath < apt.ShellToken
       % Returns:
       %   apt.MetaPath: New MetaPath with the char arrays appended as components,
       %                 same locale and role as this MetaPath
-      oldPath = obj.path_;
+      oldPath = obj.path;
       newPath = oldPath.append(varargin{:});
-      result = apt.MetaPath(newPath, obj.locale_, obj.role_);
+      result = apt.MetaPath(newPath, obj.locale, obj.role);
     end
 
     function [pathPart, filenamePart] = fileparts2(obj)
@@ -332,8 +317,8 @@ classdef MetaPath < apt.ShellToken
       %   % dir will be apt.MetaPath('/home/user/data', 'wsl', 'movie')
       %   % file will be apt.Path('movie.avi', 'posix')
       
-      [pathPartAsPath, filenamePart] = obj.path_.fileparts2();
-      pathPart = apt.MetaPath(pathPartAsPath, obj.locale_, obj.role_);
+      [pathPartAsPath, filenamePart] = obj.path.fileparts2();
+      pathPart = apt.MetaPath(pathPartAsPath, obj.locale, obj.role);
     end
 
     function result = forceRemote_(obj)
@@ -342,11 +327,11 @@ classdef MetaPath < apt.ShellToken
       % Returns:
       %   apt.MetaPath: New MetaPath with remote locale and POSIX platform, same role
       
-      assert(obj.locale_ == apt.PathLocale.wsl || obj.locale_ == apt.PathLocale.remote, ...
+      assert(obj.locale == apt.PathLocale.wsl || obj.locale == apt.PathLocale.remote, ...
              'forceRemote_() can only be used on WSL or remote paths (which are already POSIX)') ;
       
       % Create new MetaPath with remote locale and same role (path is already POSIX)
-      result = apt.MetaPath(obj.path_, apt.PathLocale.remote, obj.role_) ;
+      result = apt.MetaPath(obj.path, apt.PathLocale.remote, obj.role) ;
     end
 
     function result = get_property_value_(obj, name)
@@ -440,8 +425,8 @@ classdef MetaPath < apt.ShellToken
 
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
-      encoded_path = encode_for_persistence_(obj.path_, true) ;
-      encoding = struct('path_', {encoded_path}, 'locale_', {obj.locale_}, 'role_', {obj.role_}) ;
+      encoded_path = encode_for_persistence_(obj.path, true) ;
+      encoding = struct('path', {encoded_path}, 'locale', {obj.locale}, 'role', {obj.role}) ;
       if do_wrap_in_container
         result = encoding_container('apt.MetaPath', encoding) ;
       else
@@ -454,8 +439,8 @@ classdef MetaPath < apt.ShellToken
     function result = decode_encoding(encoding)
       % Decode the encoded version of the object.  Used for loading from persistent
       % storage.
-      path = decode_encoding_container(encoding.path_) ;
-      result = apt.MetaPath(path, encoding.locale_, encoding.role_) ;
+      path = decode_encoding_container(encoding.path) ;
+      result = apt.MetaPath(path, encoding.locale, encoding.role) ;
     end
   end  % methods (Static)
   
@@ -463,18 +448,18 @@ classdef MetaPath < apt.ShellToken
     function result = leafName(obj)
       % Return leaf name as char array.  The leaf name is the final element of the
       % path.
-      path = obj.path_ ;
+      path = obj.path ;
       result = path.leafName() ;
     end
 
     function result = extension(obj)
       % The file extension of the the path.  Uses same conventions as fileparts().
-      path = obj.path_ ;
+      path = obj.path ;
       result = path.extension() ;
     end
 
     function replaceExtension(obj, newExtension)
-      path = obj.path_ ;
+      path = obj.path ;
       path.replaceExtension(newExtension) ;
     end
 
@@ -483,7 +468,7 @@ classdef MetaPath < apt.ShellToken
       % The leaf name is the final element of the path.  Errors if obj is null.  If
       % obj holds a single-element path, rest will be the null MetaPath, leaf will be a
       % the single element as a char arrray.
-      path = obj.path_ ;
+      path = obj.path ;
       [restPath, leaf] = path.split() ;
       rest = apt.MetaPath(restPath, obj.locale, obj.role) ;
     end    

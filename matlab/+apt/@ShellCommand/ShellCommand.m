@@ -28,15 +28,9 @@ classdef ShellCommand < apt.ShellToken
   %   cmdStr = cmd.char();  % Returns properly formatted command string
 
   properties
-    tokens_     % Cell array of tokens (strings and apt.MetaPath objects)
-    locale_     % apt.PathLocale enumeration indicating the path locale
-    platform_   % apt.Platform enumeration indicating the target platform
-  end
-
-  properties (Dependent)
-    tokens      % get the tokens
-    locale      % Get the locale type
-    platform    % Get the platform type
+    tokens      % Cell array of tokens (strings and apt.MetaPath objects)
+    locale      % apt.PathLocale enumeration indicating the path locale
+    platform    % apt.Platform enumeration indicating the target platform
   end
 
   methods
@@ -124,22 +118,11 @@ classdef ShellCommand < apt.ShellToken
         end
       end
 
-      obj.tokens_ = shellTokens;
-      obj.locale_ = locale;
-      obj.platform_ = platform;
+      obj.tokens = shellTokens;
+      obj.locale = locale;
+      obj.platform = platform;
     end
 
-    function result = get.tokens(obj)
-      result = obj.tokens_;
-    end
-    
-    function result = get.locale(obj)
-      result = obj.locale_;
-    end
-    
-    function result = get.platform(obj)
-      result = obj.platform_;
-    end
 
     function result = char(obj)
       % Convert ShellCommand to char array
@@ -153,7 +136,7 @@ classdef ShellCommand < apt.ShellToken
         % it and prepend with /bin/bash -c
         if isa(token, 'apt.ShellCommand')
           draftString = token.char() ;
-          if obj.platform_ == apt.Platform.windows
+          if obj.platform == apt.Platform.windows
             result = escape_string_for_cmd_dot_exe(draftString) ;
           else            
             result = escape_string_for_bash(draftString) ;
@@ -164,7 +147,7 @@ classdef ShellCommand < apt.ShellToken
       end
 
       % Use helper function to convert each token to a string
-      stringFromTokenIndex = cellfun(@charAndEscapeIfSubcommand, obj.tokens_, 'UniformOutput', false) ;
+      stringFromTokenIndex = cellfun(@charAndEscapeIfSubcommand, obj.tokens, 'UniformOutput', false) ;
 
       % Join the strings together, separated by spaces
       result = strjoin(stringFromTokenIndex, ' ');
@@ -184,7 +167,7 @@ classdef ShellCommand < apt.ShellToken
         queryLocale = apt.PathLocale.fromString(queryLocale);
       end
 
-      result = (obj.locale_ == queryLocale);
+      result = (obj.locale == queryLocale);
     end
 
     function result = tfDoesMatchPlatform(obj, queryPlatform)
@@ -201,7 +184,7 @@ classdef ShellCommand < apt.ShellToken
         queryPlatform = apt.Platform.fromString(queryPlatform);
       end
 
-      result = (obj.platform_ == queryPlatform);
+      result = (obj.platform == queryPlatform);
     end
 
     function result = append(obj, varargin)
@@ -235,8 +218,8 @@ classdef ShellCommand < apt.ShellToken
       % Validate new tokens before adding
       obj.validateTokens_(tokensToAdd, 'append');
 
-      newTokens = [obj.tokens_, tokensToAdd];
-      result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
+      newTokens = [obj.tokens, tokensToAdd];
+      result = apt.ShellCommand(newTokens, obj.locale, obj.platform);
     end
 
     % function result = prepend(obj, varargin)
@@ -261,8 +244,8 @@ classdef ShellCommand < apt.ShellToken
     %   % Validate new tokens before adding
     %   obj.validateTokens_(tokensToAdd, 'prepend');
     % 
-    %   newTokens = [tokensToAdd, obj.tokens_];
-    %   result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
+    %   newTokens = [tokensToAdd, obj.tokens];
+    %   result = apt.ShellCommand(newTokens, obj.locale, obj.platform);
     % end
 
     % function result = substitute(obj, oldToken, newToken)
@@ -280,14 +263,14 @@ classdef ShellCommand < apt.ShellToken
     %     obj.validateTokens_({newToken}, 'substitute');
     %   end
     % 
-    %   newTokens = obj.tokens_;
+    %   newTokens = obj.tokens;
     %   for i = 1:length(newTokens)
     %     if obj.tokensEqual_(newTokens{i}, oldToken)
     %       newTokens{i} = newToken;
     %     end
     %   end
     % 
-    %   result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_);
+    %   result = apt.ShellCommand(newTokens, obj.locale, obj.platform);
     % end
 
     % function result = getPathTokens(obj)
@@ -297,9 +280,9 @@ classdef ShellCommand < apt.ShellToken
     %   %   cell: Cell array of apt.MetaPath objects in the command
     % 
     %   result = {};
-    %   for i = 1:length(obj.tokens_)
-    %     if isa(obj.tokens_{i}, 'apt.Path')
-    %       result{end+1} = obj.tokens_{i};  %#ok<AGROW>
+    %   for i = 1:length(obj.tokens)
+    %     if isa(obj.tokens{i}, 'apt.Path')
+    %       result{end+1} = obj.tokens{i};  %#ok<AGROW>
     %     end
     %   end
     % end
@@ -329,7 +312,7 @@ classdef ShellCommand < apt.ShellToken
 
     function result = length(obj)
       % Get number of tokens in command
-      result = length(obj.tokens_);
+      result = length(obj.tokens);
     end
 
     % function result = getToken(obj, index)
@@ -341,13 +324,13 @@ classdef ShellCommand < apt.ShellToken
     %   % Returns:
     %   %   Token at the specified index
     % 
-    %   if index < 1 || index > length(obj.tokens_)
+    %   if index < 1 || index > length(obj.tokens)
     %     error('apt:ShellCommand:IndexOutOfBounds', ...
     %       'Index %d is out of bounds for command with %d tokens', ...
-    %       index, length(obj.tokens_));
+    %       index, length(obj.tokens));
     %   end
     % 
-    %   result = obj.tokens_{index};
+    %   result = obj.tokens{index};
     % end
 
     function result = isequal(obj, other)
@@ -357,13 +340,13 @@ classdef ShellCommand < apt.ShellToken
         return;
       end
 
-      if length(obj.tokens_) ~= length(other.tokens_) || obj.locale_ ~= other.locale_
+      if length(obj.tokens) ~= length(other.tokens) || obj.locale ~= other.locale
         result = false;
         return;
       end
 
-      for i = 1:length(obj.tokens_)
-        if ~isequal(obj.tokens_{i}, other.tokens_{i})
+      for i = 1:length(obj.tokens)
+        if ~isequal(obj.tokens{i}, other.tokens{i})
           result = false;
           return;
         end
@@ -379,13 +362,13 @@ classdef ShellCommand < apt.ShellToken
     function prettyPrintHelper(obj, indentDepth)
       % Pretty-print the apt.ShellCommand object
       indent = repmat(' ', [1 indentDepth]) ;
-      tokenCount = length(obj.tokens_);
+      tokenCount = length(obj.tokens);
       if tokenCount==0
         fprintf('%s<ShellCommand with 0 tokens.>\n', indent);
         return
       end
       for i = 1:tokenCount
-        token = obj.tokens_{i};
+        token = obj.tokens{i};
         if isa(token, 'apt.MetaPath')
           fprintf('%s%s\n', indent, token.char());
         elseif isa(token, 'apt.ShellLiteral')
@@ -415,30 +398,30 @@ classdef ShellCommand < apt.ShellToken
         if isa(token, 'apt.ShellToken')
           % Skip locale validation for ShellCommand tokens (subcommands can have different locales)
           if ~isa(token, 'apt.ShellCommand') 
-            if ~token.tfDoesMatchLocale(obj.locale_)
+            if ~token.tfDoesMatchLocale(obj.locale)
               if isa(token, 'apt.MetaPath')
                 error('apt:ShellCommand:LocaleMismatch', ...
                   'In %s: MetaPath token at index %d has locale %s, but ShellCommand has locale %s', ...
-                  methodName, i, char(token.locale), char(obj.locale_));
+                  methodName, i, char(token.locale), char(obj.locale));
               else
                 error('apt:ShellCommand:LocaleMismatch', ...
                   'In %s: Token at index %d does not match ShellCommand locale %s', ...
-                  methodName, i, char(obj.locale_));
+                  methodName, i, char(obj.locale));
               end
             end
           end
           
           % Skip platform validation for ShellCommand tokens (subcommands can have different platforms)
           if ~isa(token, 'apt.ShellCommand')
-            if ~token.tfDoesMatchPlatform(obj.platform_)
+            if ~token.tfDoesMatchPlatform(obj.platform)
               if isa(token, 'apt.MetaPath')
                 error('apt:ShellCommand:PlatformMismatch', ...
                   'In %s: MetaPath token at index %d has platform %s, but ShellCommand has platform %s', ...
-                  methodName, i, char(token.path.platform), char(obj.platform_));
+                  methodName, i, char(token.path.platform), char(obj.platform));
               else
                 error('apt:ShellCommand:PlatformMismatch', ...
                   'In %s: Token at index %d does not match ShellCommand platform %s', ...
-                  methodName, i, char(obj.platform_));
+                  methodName, i, char(obj.platform));
               end
             end
           end
@@ -475,10 +458,10 @@ classdef ShellCommand < apt.ShellToken
     %   end  % local function
     % 
     %   % Use cellfun to process all tokens
-    %   newTokens = cellfun(@processToken, obj.tokens_, 'UniformOutput', false) ;
+    %   newTokens = cellfun(@processToken, obj.tokens, 'UniformOutput', false) ;
     % 
     %   % Create new ShellCommand with the updated tokens
-    %   result = apt.ShellCommand(newTokens, obj.locale_, obj.platform_) ;
+    %   result = apt.ShellCommand(newTokens, obj.locale, obj.platform) ;
     % end  % function
     % 
     % function result = forceRemote_(obj)
@@ -487,7 +470,7 @@ classdef ShellCommand < apt.ShellToken
     %   % Returns:
     %   %   apt.ShellCommand: New ShellCommand with remote locale, POSIX platform
     % 
-    %   assert(obj.locale_ == apt.PathLocale.wsl || obj.locale_ == apt.PathLocale.remote, ...
+    %   assert(obj.locale == apt.PathLocale.wsl || obj.locale == apt.PathLocale.remote, ...
     %          'forceRemote_() can only be used on WSL or remote ShellCommands (which are already POSIX)') ;
     % 
     %   function result = processToken(token)
@@ -503,7 +486,7 @@ classdef ShellCommand < apt.ShellToken
     %   end  % local function
     % 
     %   % Use cellfun to process all tokens
-    %   newTokens = cellfun(@processToken, obj.tokens_, 'UniformOutput', false) ;
+    %   newTokens = cellfun(@processToken, obj.tokens, 'UniformOutput', false) ;
     % 
     %   % Create new ShellCommand with remote locale and POSIX platform
     %   result = apt.ShellCommand(newTokens, apt.PathLocale.remote, apt.Platform.posix) ;
@@ -514,7 +497,7 @@ classdef ShellCommand < apt.ShellToken
       %
       % Returns:
       %   logical: true if the command has no tokens, false otherwise
-      result = isempty(obj.tokens_);
+      result = isempty(obj.tokens);
     end  % function
 
     function result = cat(obj, varargin)
@@ -532,10 +515,10 @@ classdef ShellCommand < apt.ShellToken
 
       % Manually implement the same logic as concat without calling it
       allTokens = cell(1,0);
-      locale = obj.locale_;
+      locale = obj.locale;
       
       % Start with this object's tokens
-      allTokens = horzcat(allTokens, obj.tokens_);
+      allTokens = horzcat(allTokens, obj.tokens);
       
       % Process additional arguments
       for i = 1:length(varargin)
@@ -557,13 +540,13 @@ classdef ShellCommand < apt.ShellToken
           allTokens{1,end+1} = arg;  %#ok<AGROW>
         elseif isa(arg, 'apt.ShellCommand')
           % ShellCommand to merge
-          if locale ~= arg.locale_
+          if locale ~= arg.locale
             error('apt:ShellCommand:LocaleMismatch', ...
                   'ShellCommand argument at position %d has locale %s, but this ShellCommand has locale %s', ...
-                  i, char(arg.locale_), char(locale));
+                  i, char(arg.locale), char(locale));
           end
           % Add all tokens from the ShellCommand
-          allTokens = horzcat(allTokens, arg.tokens_);  %#ok<AGROW>
+          allTokens = horzcat(allTokens, arg.tokens);  %#ok<AGROW>
         else
           error('apt:ShellCommand:InvalidArgument', ...
                 'Argument at position %d must be a string, apt.MetaPath, or apt.ShellCommand, got %s', ...
@@ -571,7 +554,7 @@ classdef ShellCommand < apt.ShellToken
         end
       end
       
-      result = apt.ShellCommand(allTokens, locale, obj.platform_);
+      result = apt.ShellCommand(allTokens, locale, obj.platform);
     end  % function
   end  % methods
 
@@ -626,9 +609,9 @@ classdef ShellCommand < apt.ShellToken
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
       % Encode the tokens array - all tokens are apt.ShellToken objects
-      encoded_tokens = cellfun(@(token) encode_for_persistence(token, true), obj.tokens_, 'UniformOutput', false);
+      encoded_tokens = cellfun(@(token) encode_for_persistence(token, true), obj.tokens, 'UniformOutput', false);
       
-      encoding = struct('tokens_', {encoded_tokens}, 'locale_', {obj.locale_}, 'platform_', {obj.platform_}) ;
+      encoding = struct('tokens', {encoded_tokens}, 'locale', {obj.locale}, 'platform', {obj.platform}) ;
       if do_wrap_in_container
         result = encoding_container('apt.ShellCommand', encoding) ;
       else
@@ -643,9 +626,9 @@ classdef ShellCommand < apt.ShellToken
       % storage.
       
       % Decode the tokens array - all encoded tokens are encoding containers
-      decoded_tokens = cellfun(@(token) decode_encoding_container(token), encoding.tokens_, 'UniformOutput', false);
+      decoded_tokens = cellfun(@(token) decode_encoding_container(token), encoding.tokens, 'UniformOutput', false);
       
-      result = apt.ShellCommand(decoded_tokens, encoding.locale_, encoding.platform_) ;
+      result = apt.ShellCommand(decoded_tokens, encoding.locale, encoding.platform) ;
     end
     
     result = concat(varargin)

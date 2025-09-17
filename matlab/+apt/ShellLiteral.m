@@ -5,11 +5,7 @@ classdef ShellLiteral < apt.ShellToken
   % require path translation or locale conversion.
   
   properties
-    value_  % char array containing the literal string
-  end
-  
-  properties (Dependent)
-    value   % Get the literal string value
+    value  % char array containing the literal string
   end
   
   methods
@@ -23,17 +19,13 @@ classdef ShellLiteral < apt.ShellToken
         value = '';
       end
       
-      obj.value_ = char(value);
+      obj.value = char(value);
     end
     
-    function result = get.value(obj)
-      % Get the literal string value
-      result = obj.value_;
-    end
     
     function result = char(obj)
       % Convert to string representation
-      result = obj.value_ ;
+      result = obj.value ;
     end
     
     function result = tfDoesMatchLocale(obj, queryLocale)  %#ok<INUSD>
@@ -53,18 +45,18 @@ classdef ShellLiteral < apt.ShellToken
         return;
       end
       
-      result = strcmp(obj.value_, other.value_);
+      result = strcmp(obj.value, other.value);
     end
     
     % function disp(obj)
     %   % Display the ShellLiteral object
-    %   fprintf('apt.ShellLiteral: "%s"\n', obj.value_);
+    %   fprintf('apt.ShellLiteral: "%s"\n', obj.value);
     % end
   end
   
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
-      encoding = struct('value_', {obj.value_}) ;
+      encoding = struct('value', {obj.value}) ;
       if do_wrap_in_container
         result = encoding_container('apt.ShellLiteral', encoding) ;
       else
@@ -77,7 +69,7 @@ classdef ShellLiteral < apt.ShellToken
     function result = decode_encoding(encoding)
       % Decode the encoded version of the object.  Used for loading from persistent
       % storage.
-      result = apt.ShellLiteral(encoding.value_) ;
+      result = apt.ShellLiteral(encoding.value) ;
     end
   end  % methods (Static)
 end

@@ -25,16 +25,10 @@ classdef Path
   % pth.list{1} will be the empty string.
   
   properties
-    list_        % Cell array of path components
-    platform_    
-      % apt.Platform enumeration.  Represents the platform the frontend is currently running on,
-      % usually.  Present so that we can test Path functionality on e.g. Windows on
-      % e.g. POSIX.
-  end
-
-  properties (Dependent)
-    list           % Get the path components list
-    platform       % Get the platform
+    list        % Cell array of path components
+    platform    % apt.Platform enumeration.  Represents the platform the frontend is currently running on,
+                % usually.  Present so that we can test Path functionality on e.g. Windows on
+                % e.g. POSIX.
   end
 
   methods
@@ -59,52 +53,45 @@ classdef Path
 
       % Handle empty path case (no arguments, '.', empty string, or empty array)
       if ~exist('listOrString', 'var') || isempty(listOrString) || (ischar(listOrString) && strcmp(listOrString, '.'))
-        obj.list_ = cell(1,0);  % Empty row vector for empty path
-        obj.platform_ = platform;
+        obj.list = cell(1,0);  % Empty row vector for empty path
+        obj.platform = platform;
         return
       end
 
       if ischar(listOrString)
         str = listOrString ;
         % Convert string path to list
-        obj.list_ = apt.Path.stringToList_(str, platform);
+        obj.list = apt.Path.stringToList_(str, platform);
         
         % Check for Windows root path case
-        if isempty(obj.list_) && platform == apt.Platform.windows
+        if isempty(obj.list) && platform == apt.Platform.windows
           error('apt:Path:EmptyPath', 'Cannot create Windows path from path "/"');
         end
       elseif iscell(listOrString)
         lst = listOrString ;
-        obj.list_ = lst;        
+        obj.list = lst;        
       else
         error('listOrString must be a string or a cell array of strings') ;
       end
 
       % Set the platform
-      obj.platform_ = platform;
+      obj.platform = platform;
       
       % Remove '.' elements from the path list
-      if ~isempty(obj.list_)
-        isDotFromIndex = strcmp(obj.list_, '.');
-        obj.list_(isDotFromIndex) = [];
+      if ~isempty(obj.list)
+        isDotFromIndex = strcmp(obj.list, '.');
+        obj.list(isDotFromIndex) = [];
       end
     end  % function
 
-    function result = get.list(obj)
-      result = obj.list_;
-    end
-
-    function result = get.platform(obj)
-      result = obj.platform_;
-    end
 
     function result = tfIsAbsolute(obj)
-      result = apt.Path.isAbsoluteList_(obj.list_, obj.platform_) ;
+      result = apt.Path.isAbsoluteList_(obj.list, obj.platform) ;
     end
 
     function result = char(obj)
       % Get the path as a string
-      preResult = apt.Path.listToString_(obj.list_, obj.platform_);
+      preResult = apt.Path.listToString_(obj.list, obj.platform);
       result = escape_string_for_bash(preResult) ;
     end
 
@@ -136,7 +123,7 @@ classdef Path
       end
       
       % Start with this path
-      newList = obj.list_;
+      newList = obj.list;
       
       % Concatenate each argument in sequence
       for i = 1:length(pathArgs)
@@ -153,8 +140,8 @@ classdef Path
         end
         
         % Skip empty paths
-        if ~isempty(otherPath.list_)
-          newList = horzcat(newList, otherPath.list_);  %#ok<AGROW>
+        if ~isempty(otherPath.list)
+          newList = horzcat(newList, otherPath.list);  %#ok<AGROW>
         end
       end
       
@@ -191,7 +178,7 @@ classdef Path
       end
       
       % Start with this path's components
-      newList = obj.list_;
+      newList = obj.list;
       
       % Append each char array as a new component
       for i = 1:length(varargin)
@@ -216,37 +203,37 @@ classdef Path
       %   % dir will be apt.Path('/home/user/data')
       %   % file will be apt.Path('movie.avi')
       
-      if isempty(obj.list_)
+      if isempty(obj.list)
         error('apt:Path:EmptyPath', 'Cannot get fileparts of empty path');
       end
       
       % Get the last component (filename)
-      filename = obj.list_{end};
+      filename = obj.list{end};
       
       % Create the path part by removing the last component
-      if isscalar(obj.list_)
+      if isscalar(obj.list)
         % Only one component - create appropriate empty path
         if obj.tfIsAbsolute()
           % For absolute paths with one component, path part should be root
-          if obj.platform_ == apt.Platform.windows
+          if obj.platform == apt.Platform.windows
             % Windows: just the drive letter
-            pathPart = apt.Path({filename}, obj.platform_);
+            pathPart = apt.Path({filename}, obj.platform);
           else
             % Unix: root directory
-            pathPart = apt.Path({''}, obj.platform_);
+            pathPart = apt.Path({''}, obj.platform);
           end
         else
           % For relative paths with one component, path part should be empty relative path
-          pathPart = apt.Path('.', obj.platform_);
+          pathPart = apt.Path('.', obj.platform);
         end
       else
         % Multiple components - take all but the last
-        pathList = obj.list_(1:end-1);
-        pathPart = apt.Path(pathList, obj.platform_);
+        pathList = obj.list(1:end-1);
+        pathPart = apt.Path(pathList, obj.platform);
       end
       
       % Create the filename part as a relative path
-      filenamePart = apt.Path({filename}, obj.platform_);
+      filenamePart = apt.Path({filename}, obj.platform);
     end
 
     function result = replacePrefix(obj, rawSourcePrefixPath, rawTargetPrefixPath)
@@ -266,7 +253,7 @@ classdef Path
       
       % Convert string arguments to apt.Path if needed
       if ischar(rawSourcePrefixPath)
-        sourcePrefixPath = apt.Path(rawSourcePrefixPath, obj.platform_) ;
+        sourcePrefixPath = apt.Path(rawSourcePrefixPath, obj.platform) ;
       elseif isa(rawSourcePrefixPath, 'apt.Path')
         sourcePrefixPath = rawSourcePrefixPath ;
       else
@@ -274,7 +261,7 @@ classdef Path
       end
       
       if ischar(rawTargetPrefixPath)
-        targetPrefixPath = apt.Path(rawTargetPrefixPath, obj.platform_);
+        targetPrefixPath = apt.Path(rawTargetPrefixPath, obj.platform);
       elseif isa(rawTargetPrefixPath, 'apt.Path')
         targetPrefixPath = rawTargetPrefixPath ;
       else
@@ -282,34 +269,34 @@ classdef Path
       end
       
       % Check platform compatibility
-      if obj.platform_ ~= sourcePrefixPath.platform_
+      if obj.platform ~= sourcePrefixPath.platform
         error('apt:Path:PlatformMismatch', 'Source prefix path platform must match that of obj');
       end
       
       % Check if this path starts with the source prefix
-      sourceList = sourcePrefixPath.list_;
-      if length(obj.list_) < length(sourceList)
+      sourceList = sourcePrefixPath.list;
+      if length(obj.list) < length(sourceList)
         % Path is shorter than source prefix, no match
         result = obj;
         return
       end
       
-      % Check if the beginning of obj.list_ matches sourceList
-      if ~isequal(obj.list_(1:length(sourceList)), sourceList)
+      % Check if the beginning of obj.list matches sourceList
+      if ~isequal(obj.list(1:length(sourceList)), sourceList)
         % Prefix doesn't match
         result = obj;
         return
       end
       
       % Replace the prefix
-      remainingList = obj.list_(length(sourceList)+1:end);
-      newList = horzcat(targetPrefixPath.list_, remainingList) ;
+      remainingList = obj.list(length(sourceList)+1:end);
+      newList = horzcat(targetPrefixPath.list, remainingList) ;
       
       % Create new path object
       % Use the targetPrefix's platform, since that makes the most sense, and this
       % allows one to convert e.g. a posix path to windows by replacing the posix
       % prefix with a windows prefix.
-      result = apt.Path(newList, targetPrefixPath.platform_);
+      result = apt.Path(newList, targetPrefixPath.platform);
     end
 
     function result = toPosix(obj)
@@ -330,7 +317,7 @@ classdef Path
       %   posixPath = winPath.toPosix();
       %   % posixPath will be apt.Path('/mnt/c/Users/data', apt.Platform.posix)
       
-      if obj.platform_ == apt.Platform.posix
+      if obj.platform == apt.Platform.posix
         % Linux/Mac paths are already POSIX-compatible
         result = obj;
         return
@@ -339,17 +326,17 @@ classdef Path
       % Handle Windows paths
       if ~obj.tfIsAbsolute()
         % For Windows relative paths, just change platform to Linux
-        result = apt.Path(obj.list_, apt.Platform.posix);
+        result = apt.Path(obj.list, apt.Platform.posix);
         return;
       end
       
       % For Windows absolute paths, convert drive letter
-      if isempty(obj.list_)
+      if isempty(obj.list)
         error('apt:Path:EmptyPath', 'Cannot convert empty absolute path');
       end
       
       % Extract drive letter from first component (e.g., 'C:')
-      head = obj.list_{1};
+      head = obj.list{1};
       if ~(length(head) == 2 && isstrprop(head(1), 'alpha') && head(2) == ':')
         error('apt:Path:InvalidWindowsPath', 'Windows absolute path must start with drive letter (e.g., ''C:'')');
       end
@@ -359,12 +346,12 @@ classdef Path
       wslPrefix = {'', 'mnt', driveLetter};
       
       % Create new path list with WSL mount point
-      if length(obj.list_) == 1
+      if length(obj.list) == 1
         % Just the drive letter, no additional path components
         newPathList = wslPrefix;
       else
         % Drive letter plus additional components
-        newPathList = [wslPrefix, obj.list_(2:end)];
+        newPathList = [wslPrefix, obj.list(2:end)];
       end
       
       % Create new Linux path object
@@ -389,7 +376,7 @@ classdef Path
       %   winPath = posixPath.toWindows();
       %   % winPath will be apt.Path('C:\Users\data', apt.Platform.windows)
       
-      if obj.platform_ == apt.Platform.windows
+      if obj.platform == apt.Platform.windows
         % Windows paths are already Windows-compatible
         result = obj;
         return
@@ -398,29 +385,29 @@ classdef Path
       % Handle POSIX paths
       if ~obj.tfIsAbsolute()
         % For POSIX relative paths, just change platform to Windows
-        result = apt.Path(obj.list_, apt.Platform.windows);
+        result = apt.Path(obj.list, apt.Platform.windows);
         return;
       end
       
       % For POSIX absolute paths, check if it's a WSL mount point
-      if length(obj.list_) >= 3 && ...
-         isempty(obj.list_{1}) && ...
-         strcmp(obj.list_{2}, 'mnt') && ...
-         length(obj.list_{3}) == 1 && ...
-         isstrprop(obj.list_{3}, 'alpha')
+      if length(obj.list) >= 3 && ...
+         isempty(obj.list{1}) && ...
+         strcmp(obj.list{2}, 'mnt') && ...
+         length(obj.list{3}) == 1 && ...
+         isstrprop(obj.list{3}, 'alpha')
         
         % This is a WSL mount point path like /mnt/c/...
         % Extract drive letter and convert to Windows format
-        driveLetter = upper(obj.list_{3});
+        driveLetter = upper(obj.list{3});
         driveComponent = [driveLetter ':'];
         
         % Create new path list with Windows drive letter
-        if length(obj.list_) == 3
+        if length(obj.list) == 3
           % Just /mnt/c, no additional path components
           newPathList = {driveComponent};
         else
           % /mnt/c plus additional components
-          newPathList = [{driveComponent}, obj.list_(4:end)];
+          newPathList = [{driveComponent}, obj.list(4:end)];
         end
         
         % Create new Windows path object
@@ -428,7 +415,7 @@ classdef Path
       else
         % Not a WSL mount point, just change platform to Windows
         % This handles cases like /usr/local/bin -> C:\usr\local\bin (hypothetically)
-        result = apt.Path(obj.list_, apt.Platform.windows);
+        result = apt.Path(obj.list, apt.Platform.windows);
       end
     end  % function
 
@@ -442,7 +429,7 @@ classdef Path
     %   end
     %   fprintf('apt.Path: %s [%s:%s]\n', ...
     %           pathStr, ...
-    %           char(obj.platform_), ...
+    %           char(obj.platform), ...
     %           absoluteStr);
     % end  % function
 
@@ -456,8 +443,8 @@ classdef Path
       %   logical: true if the paths are equal, false otherwise
       
       result = isa(other, 'apt.Path') && ...
-               obj.platform_ == other.platform_ && ...
-               isequal(obj.list_, other.list_);
+               obj.platform == other.platform && ...
+               isequal(obj.list, other.list);
     end  % function
   end  % methods
 
@@ -546,7 +533,7 @@ classdef Path
 
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
-      encoding = struct('list_', {obj.list_}, 'platform_', {obj.platform_}) ;
+      encoding = struct('list', {obj.list}, 'platform', {obj.platform}) ;
       if do_wrap_in_container
         result = encoding_container('apt.Path', encoding) ;
       else
@@ -559,7 +546,7 @@ classdef Path
     function result = decode_encoding(encoding)
       % Decode the encoded version of the object.  Used for loading from persistent
       % storage.
-      result = apt.Path(encoding.list_, encoding.platform_) ;
+      result = apt.Path(encoding.list, encoding.platform) ;
     end
   end  % methods (Static)
 
@@ -584,7 +571,7 @@ classdef Path
       originalFileName = obj.leafName() ;
       [~,baseName,~] = fileparts(originalFileName) ;
       newFileName = sprintf('%s%s', baseName, newExtension) ;
-      obj.list_{end} = newFileName ;
+      obj.list{end} = newFileName ;
     end
 
     function [rest, leaf] = split(obj)
@@ -597,7 +584,7 @@ classdef Path
       end
       leaf = list{end} ;
       restList = list(1:end-1) ;
-      rest = apt.Path(restList, obj.platform_) ;
+      rest = apt.Path(restList, obj.platform) ;
     end
   end  % methods
   
