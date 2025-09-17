@@ -907,7 +907,7 @@ classdef AWSec2 < handle
              'inputCommand must have locale == apt.PathLocale.wsl or .remote') ;
       
       if inputCommand.locale == apt.PathLocale.wsl
-        remoteCommand = obj.convertWslShellCommandToRemote_(inputCommand) ;
+        remoteCommand = obj.convertWslShellCommandToRemote(inputCommand) ;
       else
         remoteCommand = inputCommand ;
       end
@@ -1818,7 +1818,7 @@ classdef AWSec2 < handle
         return
       end
       if isTextFile,
-        str = obj.cacheFileContents(wslFilePath) ;
+        str = obj.fileContents(wslFilePath) ;
         nframes = TrkFile.getNFramesTrackedString(str) ;
       else
         nativeCopyFilePath = strcat(tempname(), '.mat') ;  % Has to have an extension or matfile() will add '.mat' to the filename
@@ -1899,7 +1899,7 @@ classdef AWSec2 < handle
                                                    obj.wslProjectCachePath_) ;
     end  % function
     
-    function result = convertWslShellCommandToRemote_(obj, command)  % const method
+    function result = convertWslShellCommandToRemote(obj, command)  % const method
       % Apply the applicable file name substitutions to command.
       %
       % This method does not mutate obj.

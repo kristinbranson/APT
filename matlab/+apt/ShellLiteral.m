@@ -33,7 +33,7 @@ classdef ShellLiteral < apt.ShellToken
     
     function result = char(obj)
       % Convert to string representation
-      result = obj.value_;
+      result = obj.value_ ;
     end
     
     function result = tfDoesMatchLocale(obj, queryLocale)  %#ok<INUSD>

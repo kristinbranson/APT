@@ -1855,7 +1855,7 @@ classdef DLBackEndClass < handle
       result = obj.awsec2.wrapCommandSSH(codestr, sshargs{:}) ;
     end
     
-    function cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, baseCommand, varargin)  %#ok<INUSD>  % const method
+    function cmd = wrapCommandToBeSpawnedForBsubBackend_(obj, baseCommand, varargin)  % const method
       assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand object');
       assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'baseCommand must have wsl locale');
 
@@ -1864,16 +1864,17 @@ classdef DLBackEndClass < handle
 
       % Wrap, wrap, wrap
       apptainerCommand = wrapCommandSing(baseCommand,singargs{:});
-      bsubCommand = wrapCommandBsub(apptainerCommand,bsubargs{:});
+      bsubWslCommand = wrapCommandBsub(apptainerCommand,bsubargs{:});
     
       % already on cluster?
       tfOnCluster = ~isempty(getenv('LSB_DJOB_NUMPROC'));
       if tfOnCluster,
         % The Matlab environment vars cause problems with e.g. PyTorch
-        cmd = prependStuffToClearMatlabEnvironment(bsubCommand) ;
+        cmd = prependStuffToClearMatlabEnvironment(bsubWslCommand) ;
       else
         % Doing ssh does not pass Matlab envars, so they don't cause problems in this case.  
-        cmd = wrapCommandSSH(bsubCommand,'host',DLBackEndClass.jrchost,sshargs{:});
+        bsubRemoteCommand = obj.convertWslShellCommandToRemote(bsubWslCommand) ;
+        cmd = wrapCommandSSH(bsubRemoteCommand,'host',DLBackEndClass.jrchost,sshargs{:});
       end
     end  % function
     
@@ -2023,6 +2024,14 @@ classdef DLBackEndClass < handle
       % Generate all the relocated paths
       result = obj.awsec2.changeToTrackInfoPathsToRemoteFromWsl(totrackinfo) ;
     end  % function    
+
+    function result = convertWslShellCommandToRemote(obj, inputCommand)
+      if isequal(obj.type, DLBackEnd.AWS)
+        result = obj.awsec2.convertWslShellCommandToRemote(inputCommand) ;
+      else
+        result = DLBackEndClass.convertWslShellCommandToRemoteForNonAwsStatic_(inputCommand) ;
+      end
+    end  % end function
   end  % methods
 
   methods (Static)
@@ -2030,5 +2039,67 @@ classdef DLBackEndClass < handle
       repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
       repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
     end
-  end
+  end  % methods (Static)
+
+  methods (Static)
+    function result = convertWslShellCommandToRemoteForNonAwsStatic_(inputCommand)
+      % Convert command to remote locale by converting all path tokens, for non-AWS
+      % backends.
+      %
+      % Returns:
+      %   apt.ShellCommand: New command with paths converted to remote locale.
+
+      function result = processToken(token)
+        % Local function to convert each token to target locale
+        if isa(token, 'apt.MetaPath')
+          result = DLBackEndClass.convertWslMetaPathToRemoteForNonAwsStatic_(token);
+        elseif isa(token, 'apt.ShellCommand')
+          result = DLBackEndClass.convertWslShellCommandToRemoteForNonAwsStatic_(token);
+        elseif isa(token, 'apt.ShellBind')
+          originalSourcePath = token.sourcePath ;
+          originalDestPath = token.destPath ;
+          newSourcePath =  DLBackEndClass.convertWslMetaPathToRemoteForNonAwsStatic_(originalSourcePath) ;
+          newDestPath =  DLBackEndClass.convertWslMetaPathToRemoteForNonAwsStatic_(originalDestPath) ;
+          result = apt.ShellBind(newSourcePath, newDestPath) ;
+        elseif isa(token, 'apt.ShellVariableAssignment')
+          originalValue = token.value ;
+          if isa(originalValue, 'apt.MetaPath')
+            newValue = DLBackEndClass.convertWslMetaPathToRemoteForNonAwsStatic_(originalValue) ;
+            result = apt.ShellVariableAssignment(token.identifier, newValue) ;            
+          else
+            result = token ;
+          end
+        elseif isa(token, 'apt.ShellLiteral')
+          result = token;
+        else
+          error('Internal error: Unhandled ShellToken subclass in DLBackEndClass.convertWslShellCommandToRemoteForNonAwsStatic_()') ;
+        end
+      end  % local function
+
+      % Use cellfun to process all tokens
+      newTokens = cellfun(@processToken, inputCommand.tokens, 'UniformOutput', false);
+
+      result = apt.ShellCommand(newTokens, apt.PathLocale.remote, inputCommand.platform);
+    end
+
+    function result = convertWslMetaPathToRemoteForNonAwsStatic_(inputWslMetaPath)
+      % Convert WSL MetaPath to remote by replacing prefix based on file role
+      %
+      % Args:
+      %   inputWslMetaPath (apt.MetaPath): WSL path to convert
+      %
+      % Returns:
+      %   apt.MetaPath: MetaPath with WSL prefix replaced by remote equivalent.
+      %   (Which for non-AWS backends is just the same.)
+      
+      assert(isa(inputWslMetaPath, 'apt.MetaPath'), 'wslMetaPath must be an apt.MetaPath');
+      assert(inputWslMetaPath.locale == apt.PathLocale.wsl, 'wslMetaPath must have WSL locale');
+
+      % Just return a MetaPath with the locale set to remote
+      path = inputWslMetaPath.path ;
+      role = inputWslMetaPath.role ;
+      result = apt.MetaPath(path, apt.PathLocale.remote, role) ;
+    end  % function
+  end  % methods (Static)  
 end  % classdef
+
