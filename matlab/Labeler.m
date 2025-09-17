@@ -3092,11 +3092,10 @@ classdef Labeler < handle
       end
       wslProjTempDir = wsl_path_from_native(nativeProjTempDir) ;
       escapedWslProjTempDir = escape_string_for_bash(wslProjTempDir) ;
-      command = sprintf('nohup rm -rf %s &>/dev/null &', escapedWslProjTempDir) ;
+      command = sprintf('nohup rm -rf %s &> /dev/null &', escapedWslProjTempDir) ;
       apt.syscmd(command, 'failbehavior', 'err') ;
       fprintf('Clearing temp directory %s in a background process...\n',obj.projTempDir);
     end
-        
     
     function projBundleTempDir(obj, tfile)
       obj.pushBusyStatus('Bundling the temp directory...') ;
@@ -3120,9 +3119,8 @@ classdef Labeler < handle
       s = rng(obj.projRngSeed);
       v = randfcn();
       rng(s);
-    end
-    
-  end
+    end  % function    
+  end  % methods
   
   methods % projMacros
     
