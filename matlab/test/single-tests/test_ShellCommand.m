@@ -93,14 +93,6 @@ if ~strcmp(cmd.char(), expectedStr)
   error('Polymorphic char failed. Expected: %s, Got: %s', expectedStr, cmd.char());
 end
 
-% Test isLiteral and isPath methods
-if ~token1.isLiteral() || token1.isPath()
-  error('ShellLiteral isLiteral/isPath methods failed');
-end
-if token3.isLiteral() || ~token3.isPath()
-  error('MetaPath isLiteral/isPath methods failed');
-end
-
 % Test locale validation with tfDoesMatchLocale method
 try
   nativePath = apt.MetaPath(apt.Path('/test'), 'native', 'cache');

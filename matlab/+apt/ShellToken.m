@@ -27,21 +27,4 @@ classdef (Abstract) ShellToken
     % Returns:
     %   logical: True if token matches platform or is platform-agnostic
   end
-  
-  methods
-    function result = isLiteral(obj)
-      % Check if this token is a literal string
-      result = isa(obj, 'apt.ShellLiteral');
-    end
-    
-    function result = isPath(obj)
-      % Check if this token is a path
-      result = isa(obj, 'apt.MetaPath');
-    end
-
-    function result = isCommand(obj)
-      % Check if this token is a path
-      result = isa(obj, 'apt.ShellCommand');
-    end    
-  end
 end

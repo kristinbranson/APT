@@ -32,15 +32,6 @@ if ~isa(lit1, 'apt.ShellToken')
   error('ShellLiteral should inherit from ShellToken');
 end
 
-% Test isLiteral and isPath methods
-if ~lit1.isLiteral()
-  error('ShellLiteral isLiteral should return true');
-end
-
-if lit1.isPath()
-  error('ShellLiteral isPath should return false');
-end
-
 % Test tfDoesMatchLocale method - should always return true for literals
 if ~lit1.tfDoesMatchLocale(apt.PathLocale.native)
   error('ShellLiteral should match native locale');
