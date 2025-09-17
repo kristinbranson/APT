@@ -84,39 +84,39 @@ end
 % Test tfIsAbsolute property
 % Test absolute paths
 absPath1 = apt.Path('/test/path', apt.Platform.posix);
-if ~absPath1.tfIsAbsolute
+if ~absPath1.tfIsAbsolute()
   error('Unix absolute path should have tfIsAbsolute = true');
 end
 
 absPath2 = apt.Path('C:\Windows\System32', apt.Platform.windows);
-if ~absPath2.tfIsAbsolute
+if ~absPath2.tfIsAbsolute()
   error('Windows absolute path should have tfIsAbsolute = true');
 end
 
 % Test relative paths
 relPath1 = apt.Path('relative/path', apt.Platform.posix);
-if relPath1.tfIsAbsolute
+if relPath1.tfIsAbsolute()
   error('Unix relative path should have tfIsAbsolute = false');
 end
 
 relPath2 = apt.Path('relative\path', apt.Platform.windows);
-if relPath2.tfIsAbsolute
+if relPath2.tfIsAbsolute()
   error('Windows relative path should have tfIsAbsolute = false');
 end
 
 % Test with cell arrays
 absCellPath = apt.Path({'', 'usr', 'bin'}, apt.Platform.posix);
-if ~absCellPath.tfIsAbsolute
+if ~absCellPath.tfIsAbsolute()
   error('Unix absolute path from cell array should have tfIsAbsolute = true');
 end
 
 relCellPath = apt.Path({'usr', 'bin'}, apt.Platform.posix);
-if relCellPath.tfIsAbsolute
+if relCellPath.tfIsAbsolute()
   error('Unix relative path from cell array should have tfIsAbsolute = false');
 end
 
 winAbsCellPath = apt.Path({'C:', 'Windows', 'System32'}, apt.Platform.windows);
-if ~winAbsCellPath.tfIsAbsolute
+if ~winAbsCellPath.tfIsAbsolute()
   error('Windows absolute path from cell array should have tfIsAbsolute = true');
 end
 
@@ -246,7 +246,7 @@ for platform = enumeration('apt.Platform')'
   if ~isempty(emptyPath1.list)
     error('Empty path created with empty array should have empty list');
   end
-  if emptyPath1.tfIsAbsolute
+  if emptyPath1.tfIsAbsolute()
     error('Empty path should be relative');
   end
   if ~strcmp(emptyPath1.char(), '.')
@@ -258,7 +258,7 @@ for platform = enumeration('apt.Platform')'
   if ~isempty(emptyPath2.list)
     error('Empty path created with "." should have empty list');
   end
-  if emptyPath2.tfIsAbsolute
+  if emptyPath2.tfIsAbsolute()
     error('Empty path created with "." should be relative');
   end
   if ~strcmp(emptyPath2.char(), '.')

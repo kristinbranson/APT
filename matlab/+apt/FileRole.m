@@ -1,11 +1,17 @@
 classdef FileRole < uint8
-  % apt.FileRole - Enumeration for file role types
+  % apt.FileRole - Enumeration for file role classification in APT
   %
-  % This enumeration defines the different file role types used in APT
-  % for path classification and handling.
+  % This enumeration categorizes files based on their purpose and storage
+  % location patterns, enabling appropriate path translation when moving
+  % between different execution contexts (native, WSL, remote backends).
   %
-  % Used by apt.MetaPath and apt.ShellCommand classes to categorize files
-  % and determine appropriate remote path mappings.
+  % File roles determine how paths are mapped when APT switches between
+  % execution environments. For example, movie files are consolidated
+  % into a special remote directory, while cache files follow APT's
+  % standard cache directory structure.
+  %
+  % Used by apt.MetaPath and apt.ShellCommand classes to enable intelligent
+  % path translation for different backend types.
 
   enumeration
     cache (1)  % For files that are in the APT cache dir

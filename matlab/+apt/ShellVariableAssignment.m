@@ -1,8 +1,14 @@
 classdef ShellVariableAssignment < apt.ShellToken
-  % apt.ShellVariableAssignment - Variable assignment token for shell commands
+  % apt.ShellVariableAssignment - Environment/shell variable assignment token
+  % for shell commands
   %
-  % Represents a shell variable assignment token that holds both an identifier
-  % and a value (e.g., "VARIABLE=value").
+  % Represents a shell environment variable assignment in the form "VARIABLE=value".
+  % The value can be either a plain string or an apt.MetaPath that will be properly
+  % translated based on the execution context.  Variable assignments are typically
+  % used to set environment variables before command execution.
+  %
+  % The value is automatically escaped when converting to string representation to
+  % ensure proper shell parsing.
   
   properties
     identifier_  % char array containing the variable identifier

@@ -1,8 +1,13 @@
 classdef ShellBind < apt.ShellToken
-  % apt.ShellBind - Bind mount token for shell commands
+  % apt.ShellBind - Docker-style bind mount specification token
   %
-  % Represents a shell bind mount that holds both a source path
-  % and a destination path (e.g., for Docker bind mounts).
+  % Represents a bind mount specification that maps a source path to a destination
+  % path within a container or similar execution environment. Both paths are
+  % apt.MetaPath objects that can be properly translated between different
+  % execution contexts (native, WSL, remote).
+  %
+  % The string representation follows Docker's bind mount format:
+  % "type=bind,src=<source_path>,dst=<destination_path>"
   
   properties
     sourcePath_  % apt.MetaPath containing the source path

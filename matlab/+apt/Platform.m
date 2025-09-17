@@ -1,8 +1,13 @@
 classdef Platform < uint8
-  % apt.Platform - Enumeration for platform types
+  % apt.Platform - Enumeration for operating system platform types
   %
-  % This enumeration defines the different platform types used in APT
-  % for platform-specific functionality.
+  % This enumeration distinguishes between different operating system families
+  % to enable platform-specific path handling, command formatting, and file
+  % system operations within APT.
+  %
+  % Enumeration values:
+  %   posix   - Unix-like systems (Linux, macOS) using POSIX conventions
+  %   windows - Microsoft Windows systems with drive letters and backslashes
 
   enumeration
     posix (1)    % Unix-like systems (Linux, macOS, etc.)

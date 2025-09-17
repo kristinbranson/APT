@@ -3,9 +3,11 @@ classdef (Abstract) ShellToken
   %
   % This abstract class defines the interface for all types of tokens that
   % can appear in shell commands. Concrete subclasses include:
-  % - apt.ShellLiteral: String literals
-  % - apt.MetaPath: Path tokens with locale and role information
-  % - apt.ShellCommand: A nested shell command
+  % - apt.ShellLiteral: Plain string literals that need no translation
+  % - apt.MetaPath: Path tokens with locale and role-based translation
+  % - apt.ShellCommand: Nested subcommands with their own token lists
+  % - apt.ShellVariableAssignment: Environment variable assignments  
+  % - apt.ShellBind: Docker-style bind mount specifications
   
   methods (Abstract)
     result = char(obj)

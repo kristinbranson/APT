@@ -1,12 +1,29 @@
 classdef Path
-  % apt.Path - A value class to represent paths, with platform awareness.
+  % apt.Path - Platform-aware path representation and manipulation
   %
-  % This class encapsulates paths with knowledge of platform type.
+  % This value class represents file system paths as lists of components with
+  % platform-specific formatting and conversion capabilities. It handles the
+  % differences between Windows (drive letters, backslashes) and POSIX
+  % (forward slashes, root directory) path conventions.
+  %
+  % Key features:
+  % - Platform-specific path parsing and formatting
+  % - Conversion between Windows and POSIX path formats
+  % - Path concatenation and manipulation operations
+  % - Absolute/relative path handling
   %
   % Example usage:
-  %   p = apt.Path({'C:', 'data', 'movie.avi'});
-  %   pathStr = p.char();
-
+  %   p = apt.Path({'C:', 'data', 'movie.avi'}, apt.Platform.windows);
+  %   pathStr = p.char();  % Returns properly escaped path string
+  %   posixPath = p.toPosix();  % Convert to POSIX format (/mnt/c/data/movie.avi)
+  %
+  % Note: To create a posix-style absolute path from a cell array of strings,
+  % the first element of the cell array must be the empty string.  E.g.
+  % apt.Path({'foo', 'bar'}, apt.Platform.posix) corresponds to foo/bar, whereas
+  % apt.Path({'', 'foo', 'bar'}, apt.Platform.posix) corresponds to /foo/bar. By
+  % the same token, if pth is a posix path representing an absolute path, then
+  % pth.list{1} will be the empty string.
+  
   properties
     list_        % Cell array of path components
     platform_    
@@ -15,14 +32,9 @@ classdef Path
       % e.g. POSIX.
   end
 
-  properties (Transient)
-    tfIsAbsolute_ % Logical scalar indicating whether the path is absolute
-  end
-
   properties (Dependent)
     list           % Get the path components list
     platform       % Get the platform
-    tfIsAbsolute   % Get whether the path is absolute
   end
 
   methods
@@ -49,8 +61,7 @@ classdef Path
       if ~exist('listOrString', 'var') || isempty(listOrString) || (ischar(listOrString) && strcmp(listOrString, '.'))
         obj.list_ = cell(1,0);  % Empty row vector for empty path
         obj.platform_ = platform;
-        obj.tfIsAbsolute_ = false;  % The empty path is a relative path
-        return;
+        return
       end
 
       if ischar(listOrString)
@@ -72,43 +83,11 @@ classdef Path
       % Set the platform
       obj.platform_ = platform;
       
-      % Determine if the path is absolute
-      obj.tfIsAbsolute_ = apt.Path.isAbsoluteList_(obj.list_, platform);
-
       % Remove '.' elements from the path list
       if ~isempty(obj.list_)
         isDotFromIndex = strcmp(obj.list_, '.');
         obj.list_(isDotFromIndex) = [];
       end
-
-      % Make sure an empty path is relative, then exit early
-      if isempty(obj.list_)
-        obj.tfIsAbsolute_ = false;  % The empty path is a relative path
-        return
-      end
-
-      % For POSIX absolute paths, first element must be empty string
-      if platform ~= apt.Platform.windows
-        if obj.tfIsAbsolute_
-          if isempty(obj.list_{1})
-            % all is well
-          else
-            error('apt:Path:InvalidAbsolutePath', 'POSIX absolute paths must have empty string as first element');
-          end
-        end
-      end
-      
-      % INVARIANT: For Windows absolute paths, first element must be drive letter + colon
-      if platform == apt.Platform.windows
-        if obj.tfIsAbsolute_
-          firstElement = obj.list_{1};
-          if length(firstElement) == 2 && isstrprop(firstElement(1), 'alpha') && firstElement(2) == ':'
-            % all is well
-          else
-            error('apt:Path:InvalidWindowsAbsolutePath', 'Windows absolute paths must have drive letter format (e.g., ''C:'') as first element');
-          end
-        end
-      end      
     end  % function
 
     function result = get.list(obj)
@@ -119,8 +98,8 @@ classdef Path
       result = obj.platform_;
     end
 
-    function result = get.tfIsAbsolute(obj)
-      result = obj.tfIsAbsolute_;
+    function result = tfIsAbsolute(obj)
+      result = apt.Path.isAbsoluteList_(obj.list_, obj.platform_) ;
     end
 
     function result = char(obj)
@@ -164,7 +143,7 @@ classdef Path
         otherPath = pathArgs{i};
         
         % Check that the path is relative
-        if otherPath.tfIsAbsolute
+        if otherPath.tfIsAbsolute()
           error('apt:Path:AbsolutePath', 'Cannot concatenate with an absolute path at argument %d', i);
         end
         
@@ -247,7 +226,7 @@ classdef Path
       % Create the path part by removing the last component
       if isscalar(obj.list_)
         % Only one component - create appropriate empty path
-        if obj.tfIsAbsolute_
+        if obj.tfIsAbsolute()
           % For absolute paths with one component, path part should be root
           if obj.platform_ == apt.Platform.windows
             % Windows: just the drive letter
@@ -358,7 +337,7 @@ classdef Path
       end
       
       % Handle Windows paths
-      if ~obj.tfIsAbsolute_
+      if ~obj.tfIsAbsolute()
         % For Windows relative paths, just change platform to Linux
         result = apt.Path(obj.list_, apt.Platform.posix);
         return;
@@ -417,7 +396,7 @@ classdef Path
       end
       
       % Handle POSIX paths
-      if ~obj.tfIsAbsolute_
+      if ~obj.tfIsAbsolute()
         % For POSIX relative paths, just change platform to Windows
         result = apt.Path(obj.list_, apt.Platform.windows);
         return;
@@ -456,7 +435,7 @@ classdef Path
     % function disp(obj)
     %   % Display the apt.Path object
     %   pathStr = obj.char();
-    %   if obj.tfIsAbsolute_
+    %   if obj.tfIsAbsolute
     %     absoluteStr = 'abs';
     %   else
     %     absoluteStr = 'rel';
@@ -478,7 +457,6 @@ classdef Path
       
       result = isa(other, 'apt.Path') && ...
                obj.platform_ == other.platform_ && ...
-               obj.tfIsAbsolute_ == other.tfIsAbsolute_ && ...
                isequal(obj.list_, other.list_);
     end  % function
   end  % methods
@@ -542,7 +520,7 @@ classdef Path
       % Determine if a path string is absolute
       if platform == apt.Platform.windows
         % Windows: absolute if starts with drive letter (e.g., "C:")
-        result = length(pathAsString) >= 2 && pathAsString(2) == ':';
+        result = length(pathAsString) >= 2 && isstrprop(pathAsString(1), 'alpha') && pathAsString(2) == ':';
       else
         % Unix-style: absolute if starts with "/"
         result = ~isempty(pathAsString) && pathAsString(1) == '/';
@@ -553,15 +531,14 @@ classdef Path
       % Determine if a path component list represents an absolute path
       if isempty(pathList)
         result = false;
-        return;
-      end
-      
+        return
+      end      
       if platform == apt.Platform.windows
-        % Windows: absolute if first component ends with ":"
-        firstComponent = pathList{1};
-        result = ~isempty(firstComponent) && firstComponent(end) == ':';
+        % Windows: absolute if first component is a drive letter then a ':'
+        firstElement = pathList{1};
+        result = (length(firstElement) == 2) && isstrprop(firstElement(1), 'alpha') && firstElement(2) == ':' ;
       else
-        % Unix-style: absolute if first component is empty (from leading "/")
+        % Unix-style: absolute if first component is empty
         result = isempty(pathList{1});
       end
     end
@@ -569,7 +546,7 @@ classdef Path
 
   methods
     function result = encode_for_persistence_(obj, do_wrap_in_container)
-      encoding = struct('list_', {obj.list_}, 'platform_', {obj.platform_}, 'tfIsAbsolute_', {obj.tfIsAbsolute_}) ;
+      encoding = struct('list_', {obj.list_}, 'platform_', {obj.platform_}) ;
       if do_wrap_in_container
         result = encoding_container('apt.Path', encoding) ;
       else

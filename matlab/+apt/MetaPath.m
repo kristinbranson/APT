@@ -1,15 +1,26 @@
 classdef MetaPath < apt.ShellToken
-  % apt.MetaPath - A value class to represent paths with locale and file role
-  % awareness.
+  % apt.MetaPath - Locale and role-aware path representation for multi-context execution
   %
-  % This class encapsulates paths used in APT with knowledge of:
-  % 1. Locale: native, wsl, remote
-  % 2. File role: cache, or movie
+  % This class extends apt.Path with additional metadata required for APT's
+  % multi-backend execution environment. It tracks both the execution locale
+  % (where the path will be used) and the file role (what type of file it
+  % represents) to enable intelligent path translation between different
+  % execution contexts.
+  %
+  % IMPORTANT: MetaPath objects always contain absolute paths, never relative
+  % paths. This restriction ensures consistent path resolution across different
+  % execution contexts and prevents ambiguity when translating between locales.
+  %
+  % Key capabilities:
+  % - Automatic path translation between native, WSL, and remote contexts
+  % - Role-based path mapping for different file types
+  % - Validation of locale and platform compatibility within shell commands
+  % - Support for prefix replacement during backend transitions
   %
   % Example usage:
-  %   p = apt.MetaPath(apt.Path('/data/movie.avi'), 'native', 'movie');
-  %   wslPath = p.as('wsl');
-  %   remotePath = p.as('remote');
+  %   moviePath = apt.MetaPath('/data/movie.avi', 'native', 'movie');
+  %   wslPath = moviePath.as('wsl');      % Convert to WSL context
+  %   remotePath = moviePath.as('remote'); % Convert to remote backend context
 
   properties
     path_        % apt.Path object containing the actual path
@@ -66,7 +77,7 @@ classdef MetaPath < apt.ShellToken
       end
 
       % Validate that the path is absolute
-      if ~path.tfIsAbsolute
+      if ~path.tfIsAbsolute()
         error('apt:MetaPath:RelativePath', 'MetaPath requires an absolute path');
       end
 
@@ -368,7 +379,7 @@ classdef MetaPath < apt.ShellToken
       % Validate input
       assert(isa(inputMetaPath, 'apt.MetaPath'), 'inputPath must be an apt.MetaPath instance');
       assert(inputMetaPath.locale == apt.PathLocale.native, 'inputPath must have native locale');
-      assert(inputMetaPath.path.tfIsAbsolute, 'inputPath must be an absolute path');
+      assert(inputMetaPath.path.tfIsAbsolute(), 'inputPath must be an absolute path');
       
       % On POSIX platforms, native paths are already WSL-compatible
       inputPath = inputMetaPath.path ;
@@ -406,7 +417,7 @@ classdef MetaPath < apt.ShellToken
       % Validate input
       assert(isa(inputMetaPath, 'apt.MetaPath'), 'inputMetaPath must be an apt.MetaPath instance');
       assert(inputMetaPath.locale == apt.PathLocale.wsl, 'inputMetaPath must have WSL locale');
-      assert(inputMetaPath.path.tfIsAbsolute, 'inputMetaPath must be an absolute path');
+      assert(inputMetaPath.path.tfIsAbsolute(), 'inputMetaPath must be an absolute path');
       
       inputPath = inputMetaPath.path;
       

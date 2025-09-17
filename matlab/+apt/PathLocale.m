@@ -1,8 +1,15 @@
 classdef PathLocale < uint8
-  % apt.PathLocale - Enumeration for platform types
+  % apt.PathLocale - Enumeration for path locale contexts within APT
   %
-  % This enumeration defines the different platform types used in APT
-  % for path and command representation.
+  % This enumeration defines where paths are intended to be used.
+  %
+  % Enumeration values:
+  %   native - Paths for the native/host machine where APT frontend runs
+  %   wsl    - Paths for Windows Subsystem for Linux context (On Linux/Mac, this
+  %            is eqauivalent to native)
+  %   remote - Paths for remote execution backends (e.g. AWS, bsub cluster).  For
+  %            backends that run locally (e.g. conda), this is equivalent to
+  %            wsl.
 
   enumeration
     native (1)

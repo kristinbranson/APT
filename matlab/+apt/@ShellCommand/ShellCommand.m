@@ -1,20 +1,31 @@
 classdef ShellCommand < apt.ShellToken
-  % apt.ShellCommand - A value class to represent commands with mixed literals and paths
+  % apt.ShellCommand - Type-safe shell command composition with automatic path translation
   %
-  % This class represents a command as a list of tokens, where each token
-  % can be either a literal string or an apt.MetaPath object. This allows for
-  % proper path translation when commands need to be executed on different
-  % platforms (native, WSL, remote).
+  % This class represents shell commands as structured lists of tokens rather than
+  % plain strings, enabling automatic translation of paths and arguments when
+  % commands need to execute in different contexts (native, WSL, remote backends).
+  %
+  % Each command consists of a sequence of tokens that can be:
+  % - apt.ShellLiteral: Plain text that requires no translation
+  % - apt.MetaPath: Paths that are automatically translated between contexts
+  % - apt.ShellVariableAssignment: Environment variable assignments
+  % - apt.ShellBind: Docker-style bind mount specifications
+  % - apt.ShellCommand: Nested subcommands (for complex shell operations)
+  %
+  % Key benefits over string-based commands:
+  % - Automatic path translation prevents invalid cross-platform paths
+  % - Type safety prevents common command construction errors
+  % - Structured representation enables programmatic command manipulation
+  % - Locale and platform validation ensures command consistency
   %
   % INVARIANT: All apt.MetaPath tokens must have the same locale as the
   % ShellCommand's locale. This ensures consistency when converting between
   % different execution contexts.
   %
   % Example usage:
-  %   movPath = apt.MetaPath({'data', 'movie.avi'}, 'native', 'movie');
-  %   cmd = apt.ShellCommand({'python', 'script.py', '--input', movPath, '--output', 'results.txt'});
-  %   wslCmd = cmd.as('wsl');
-  %   cmdStr = wslCmd.char();
+  %   moviePath = apt.MetaPath('/data/movie.avi', 'native', 'movie');
+  %   cmd = apt.ShellCommand({'python', 'script.py', '--input', moviePath, '--output', 'results.txt'});
+  %   cmdStr = cmd.char();  % Returns properly formatted command string
 
   properties
     tokens_     % Cell array of tokens (strings and apt.MetaPath objects)
