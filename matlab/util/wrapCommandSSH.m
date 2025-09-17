@@ -7,39 +7,34 @@ assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCo
 assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'baseCommand must have remote locale');
 
 % Deal with keyword arguments
+nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
 [host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,identityWslMetaPathOrEmpty] = ...
   myparse(varargin,...
           'host','',...
-          'prefix','',...
+          'prefix',nilCommand,...
           'sshoptions','',...
           'addlsshoptions','',...
           'timeout',[],...
-          'extraprefix','', ...
+          'extraprefix',nilCommand, ...
           'username','', ...
           'identity',[]);
 
 % Sort out the prefixes, merging them all into prefixCommand
-nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
-if ~isempty(prefix)
-  prefix1 = nilCommand.append(prefix);
-else
-  prefix1 = nilCommand;
-end
-if ~isempty(extraprefix)
-  if prefix1.isNull()
-    prefixes = apt.ShellCommand({extraprefix}, apt.PathLocale.remote, apt.Platform.posix);
+if ~extraprefix.isNull()
+  if prefix.isNull()
+    fullPrefix = extraprefix ;
   else
-    prefixes = prefix1.cat(';', extraprefix);
+    fullPrefix = prefix.cat(';', extraprefix);
   end
 else
-  prefixes = prefix1;
+  fullPrefix = prefix;
 end
 
-% Append the prefixes, if present, to remoteCommand
-if prefixes.isNull()
-  prefixedBaseCommand = baseCommand;
+% Append the fullPrefix, if present, to remoteCommand
+if fullPrefix.isNull()
+  prefixedBaseCommand = baseCommand ;
 else
-  prefixedBaseCommand = prefixes.cat(';', baseCommand);
+  prefixedBaseCommand = fullPrefix.cat(';', baseCommand) ;
 end
 
 % Sort out the sshoptions and the addlsshoptions

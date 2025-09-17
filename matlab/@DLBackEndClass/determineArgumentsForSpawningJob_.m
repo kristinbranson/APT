@@ -1,4 +1,4 @@
-function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo, aptroot, train_or_track)
+function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo, aptRootRemoteAsChar, train_or_track)
   % Get arguments for a particular (spawning) job to be registered.
   
   if isequal(train_or_track,'train'),
@@ -22,8 +22,10 @@ function result = determineArgumentsForSpawningJob_(obj, tracker, gpuid, jobinfo
   
       % for printing git status? not sure why this is only in bsub and
       % not others. 
-      aptrepo = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
-      extraprefix = DLBackEndClass.repoSnapshotCmd(aptroot,aptrepo);
+      aptRootRemote = apt.MetaPath(aptRootRemoteAsChar, apt.PathLocale.remote, apt.FileRole.source) ;
+      dotAptSnapshotRemotePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmc.aptRepoSnapshotLnx());
+      dotAptSnapshotRemotePath = apt.MetaPath(dotAptSnapshotRemotePathAsChar, apt.PathLocale.remote, apt.FileRole.cache) ;
+      extraprefix = DLBackEndClass.repoSnapshotCmd(aptRootRemote, dotAptSnapshotRemotePath) ;
       singimg = obj.singularity_image_path;
   
       additionalBsubArgs = obj.jrcAdditionalBsubArgs ;

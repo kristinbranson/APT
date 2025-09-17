@@ -1202,9 +1202,9 @@ classdef DLBackEndClass < handle
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.
       runStatuses = {'PEND','RUN','PROV','WAIT'};
-      pollcmd0 = apt.ShellCommand({'bjobs', '-o', 'stat', '-noheader', jobid}, apt.PathLocale.wsl, apt.Platform.posix);
-      pollcmd = wrapCommandSSH(pollcmd0,'host',DLBackEndClass.jrchost);
-      [st,res] = pollcmd.run('failbehavior', 'silent', 'verbose', false) ;
+      bjobsCommand = apt.ShellCommand({'bjobs', '-o', 'stat', '-noheader', jobid}, apt.PathLocale.remote, apt.Platform.posix);
+      sshCommand = wrapCommandSSH(bjobsCommand,'host',DLBackEndClass.jrchost);
+      [st,res] = sshCommand.run('failbehavior', 'silent', 'verbose', false) ;
       if st==0
         s = sprintf('(%s)|',runStatuses{:});
         s = s(1:end-1);
@@ -1780,12 +1780,12 @@ classdef DLBackEndClass < handle
     function result = detailedStatusStringBsub_(obj, jobid)
       % Returns true if there is a running job with ID jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.
-      command0 = apt.ShellCommand({'bjobs', jobid}, apt.PathLocale.wsl, apt.Platform.posix) ;
-      command1 = wrapCommandSSH(command0, 'host', DLBackEndClass.jrchost) ;
+      bjobsCommand = apt.ShellCommand({'bjobs', jobid}, apt.PathLocale.remote, apt.Platform.posix) ;
+      sshCommand = wrapCommandSSH(bjobsCommand, 'host', DLBackEndClass.jrchost) ;
         % For the bsub backend, obj.runBatchCommandOutsideContainer() still runs
         % things locally, since that's what you want for e.g. commands that check on
         % file status.
-      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(command1) ;
+      [rc, stdouterr] = obj.runBatchCommandOutsideContainer_(sshCommand) ;
       if rc==0 ,
         result = stdouterr ;
       else
@@ -2035,9 +2035,11 @@ classdef DLBackEndClass < handle
   end  % methods
 
   methods (Static)
-    function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
-      repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
-      repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
+    function result = repoSnapshotCmd(aptRootRemotePath, dotAptSnapshotRemotePath)
+      repoSnapshotScriptRemotePath = aptRootRemotePath.cat('matlab', 'repo_snapshot.sh') ;
+      result = apt.ShellCommand({repoSnapshotScriptRemotePath, aptRootRemotePath, '>', dotAptSnapshotRemotePath}, ...
+                                apt.PathLocale.remote, ...
+                                apt.Platform.posix) ;
     end
   end  % methods (Static)
 
