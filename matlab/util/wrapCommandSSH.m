@@ -20,8 +20,8 @@ nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
           'identity',[]);
 
 % Sort out the prefixes, merging them all into prefixCommand
-if ~extraprefix.isNull()
-  if prefix.isNull()
+if ~extraprefix.tfIsNull()
+  if prefix.tfIsNull()
     fullPrefix = extraprefix ;
   else
     fullPrefix = prefix.cat(';', extraprefix);
@@ -31,7 +31,7 @@ else
 end
 
 % Append the fullPrefix, if present, to remoteCommand
-if fullPrefix.isNull()
+if fullPrefix.tfIsNull()
   prefixedBaseCommand = baseCommand ;
 else
   prefixedBaseCommand = fullPrefix.cat(';', baseCommand) ;

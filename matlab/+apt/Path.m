@@ -86,7 +86,15 @@ classdef Path
 
 
     function result = tfIsAbsolute(obj)
-      result = apt.Path.isAbsoluteList_(obj.list, obj.platform) ;
+      result = apt.Path.tfIsAbsoluteList_(obj.list, obj.platform) ;
+    end
+
+    function result = tfIsNull(obj)
+      % Check if the path has no components (empty path)
+      %
+      % Returns:
+      %   logical: true if the path list is empty, false otherwise
+      result = isempty(obj.list);
     end
 
     function result = char(obj)
@@ -503,7 +511,7 @@ classdef Path
       end
     end
 
-    function result = isAbsolutePath_(pathAsString, platform)
+    function result = tfIsAbsolutePath_(pathAsString, platform)
       % Determine if a path string is absolute
       if platform == apt.Platform.windows
         % Windows: absolute if starts with drive letter (e.g., "C:")
@@ -514,7 +522,7 @@ classdef Path
       end
     end
 
-    function result = isAbsoluteList_(pathList, platform)
+    function result = tfIsAbsoluteList_(pathList, platform)
       % Determine if a path component list represents an absolute path
       if isempty(pathList)
         result = false;
