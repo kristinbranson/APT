@@ -1,6 +1,23 @@
 classdef AWSec2 < handle
   % Object to handle specific aspects of the AWS backend.
   % 
+  % All paths stored in the AWSec2 object will be apt.MetaPath objects with
+  % remote locale, except where noted.  All paths passed from the DLBackendClass
+  % object to the AWSec2 object should be WSL apt.MetaPath objects with WSL
+  % locale.
+  %
+  % Also note that when synthesizing command lines in this class, these should
+  % normally be represented as apt.ShellCommand objects.  These objects are
+  % translated into actual command line strings at the last possible moment, in
+  % the apt.CommandShell.run() method.
+  %
+  % The logic for converting a wsl-locale apt.ShellCommand to a remote-locale
+  % apt.ShellCommand is in this class.  The main entry point is the
+  % convertWslShellCommandToRemote() instance method.  (Native-locale
+  % apt.ShellCommand's and apt.MetaPath's can be converted between native and
+  % wsl locales using logic contained within the apt.ShellCommand and
+  % apt.MetaPath classes, since this logic is not backend-specific.)
+  %  
   % This is copyable with the default copyElement() methods.  the only arguably
   % sensitive thing is the instanceIP, which is only valid for a single run of
   % the instance.  That property is Copyable but Transient.  Since Transient

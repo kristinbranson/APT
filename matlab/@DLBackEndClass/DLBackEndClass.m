@@ -4,12 +4,12 @@ classdef DLBackEndClass < handle
   % another, so that calling code doesn't need to worry about such grubby
   % details.
   %
-  % Note that filesystem paths stored in a DLBackEndClass object should be WSL
-  % paths.  All of the paths that APT deals with are either a) native, b) WSL,
-  % or c) remote.  A native path points to a file in the native filesystem of
-  % the frontend (either Linux or Windows).  E.g. /home/joeuser/data or
-  % C:\Users\joeuser\Documents\data.  (On Windows a native path have slashes or
-  % backslashes or both as path separators.)  A WSL path is a valid path inside
+  % Note that filesystem paths stored in a DLBackEndClass object should be
+  % apt.MetaPath values with wsl locale (see the docs for that class).  All
+  % apt.MetaPath objects have locale of either a) native, b) WSL, or c) remote.
+  % A native metapath points to a file in the native filesystem of the frontend
+  % (either Linux or Windows).  E.g. /home/joeuser/data or
+  % C:\Users\joeuser\Documents\data.  A WSL metapath represents a valid path inside
   % the local Linux environment.  On Windows, that's WSL2. On Linux, that's just
   % Linux, so on Linux the WSL path is just the native path. So on Windows the
   % native path 'C:\Users\joeuser\Documents\data' would become the WSL path
@@ -20,20 +20,27 @@ classdef DLBackEndClass < handle
   % '/home/ubuntu'.
   %
   % For the Labeler and the DeepTracker, all paths stored in them should be
-  % native paths, and all paths they pass to DLBackendClass methods should be
-  % native paths.  All filesystem paths stored in the DLBackEndClass proper
-  % should be WSL paths.  All paths stored in the AWSec2 object will be remote
-  % paths, except where noted.  All paths passed from the DLBackendClass object
-  % to the AWSec2 object should be WSL paths.
+  % native paths (sometimes as char arrays, although hopefully that usage will
+  % decrease going forward), and all paths they pass to DLBackendClass methods
+  % should be native paths, however represented.  All filesystem paths stored in
+  % the DLBackEndClass proper should be apt.MetaPath objects with WSL locale.
+  % All paths stored in the AWSec2 object will be apt.MetaPath objects with
+  % remote locale, except where noted.  All paths passed from the DLBackendClass
+  % object to the AWSec2 object should be WSL apt.MetaPath objects with WSL
+  % locale.
   %
-  % Also note that when synthesizing command lines, WSL paths should normally be
-  % used.  The AWSec2 object will convert these to remote paths when needed.
+  % Also note that when synthesizing command lines, these should normally be
+  % represented as apt.ShellCommand objects with WSL locale.  The AWSec2 object
+  % will convert these to remote apt.ShellCommand objects when needed.  These
+  % objects are translated into actual command line strings at the last possible
+  % moment, in the apt.CommandShell.run() method.
   %
-  % And another thing: Note that objects of this class have to be copied (in a
-  % certain sense) to a parallel process to do polling of training/tracking.  So
-  % it is by design that this class does not have a .parent_ instance variable,
-  % b/c once you have one of those you generally have an object that is not
-  % copyable, at least not in an obvious and straightforward way.
+  % And another thing: Note that objects of this class (DLBackEndClass) have to
+  % be copied (in a certain sense) to a parallel process to do polling of
+  % training/tracking.  So it is by design that this class does not have a
+  % .parent_ instance variable, b/c once you have one of those you generally
+  % have an object that is not copyable, at least not in an obvious and
+  % straightforward way.
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
