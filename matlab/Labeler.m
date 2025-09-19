@@ -2697,7 +2697,7 @@ classdef Labeler < handle
         cellfun(@(path)(fprintf('%s\n', path)), ...
                 missingGTMovieFilePaths) ;
       end
-      if doAllRegularMoviesExist && doAllGTMoviesExist
+      if nomovie || (doAllRegularMoviesExist && doAllGTMoviesExist)
         % All is well, do nothing.
       else
         error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use Movie Manager to fix.') ;
@@ -4641,7 +4641,7 @@ classdef Labeler < handle
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
-          if isdeployed() || ~obj.isgui,
+          if ~obj.isgui, %isdeployed() ||
             error(qstr);
           end
           
@@ -16497,5 +16497,91 @@ classdef Labeler < handle
       obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimeline');
     end  % function    
+
+    function plotAllLabels(obj,outimgdir,varargin)
+      [hfig,movieabbr_fun] = myparse(varargin,'hfig',[],'movieabbr_fun','');
+      if ~exist(outimgdir,'dir'),
+        mkdir(outimgdir);
+      end
+      nviews = obj.nview;
+      colors = obj.labelPointsPlotInfo.Colors;
+      if isempty(hfig) || ~ishandle(hfig),
+        hfig = figure;
+        set(hfig,'Position',[10,10,800*nviews,800]);
+      else
+        figure(hfig);
+      end
+      nkpts = obj.nPhysPoints;
+      d = 2;
+      htile = tiledlayout(1,nviews,'TileSpacing','none','Padding','none');
+      hax = gobjects(1,nviews);
+      tbldata = obj.labelGetMFTableLabeled('useMovNames',true);
+      for i = 1:nviews,
+        hax(i) = nexttile;
+      end
+      border = 40; % pixels
+      set(hax,'XTick',[],'YTick',[]);
+      for i = 1:size(obj.movieFilesAllFull,1),
+        moviefilescurr = obj.movieFilesAllFull(i,:);
+        idxcurr = find(strcmp(moviefilescurr{1},tbldata.mov(:,1)));
+        if ~isempty(movieabbr_fun),
+          movieabbr = movieabbr_fun(moviefilescurr{1});
+        else
+          movieabbr = '';
+        end
+
+        readframes = cell(1,nviews);
+        fids = cell(1,nviews);
+        for j = 1:nviews,
+          [readframes{j},~,fids{j}] = get_readframe_fcn(moviefilescurr{j});
+        end
+        for exi = idxcurr(:)',
+          fr = tbldata.frm(exi);
+          p = tbldata.p(exi,:);
+          p = reshape(p,[],nkpts,nviews,2);
+          for tgt = 1:size(p,1),
+            pcurr = permute(p(tgt,:,:,:),[2,3,4,1]);
+            if all(isnan(pcurr)),
+              continue;
+            end
+            mincoord = permute(min(pcurr,[],1),[2,3,1]);
+            maxcoord = permute(max(pcurr,[],1),[2,3,1]);
+
+            for view = 1:nviews,
+              im = readframes{view}(fr);
+              cla(hax(view));
+              image(hax(view),im);
+              colormap(hax(view),'gray');
+              hold(hax(view),'on');
+              for kpt = 1:nkpts,
+                plot(hax(view),pcurr(kpt,view,1),pcurr(kpt,view,2),'.','Color',colors(kpt,:),'MarkerSize',12);
+              end
+              axis(hax(view),'image','off');
+              xlim = [mincoord(view,1),maxcoord(view,1)]+border*[-1,1];
+              ylim = [mincoord(view,2),maxcoord(view,2)]+border*[-1,1];
+              set(hax(view),'XLim',xlim,'YLim',ylim);
+            end
+              
+            ti = sprintf(' ex %d, movie set %d, frame %d, tgt %d',exi,i,fr,tgt);
+            if ~isempty(movieabbr),
+              ti = [ti,', ',movieabbr];
+            end
+            text(hax(1),mincoord(1,1)-border,mincoord(1,2)-border+5,ti,'HorizontalAlignment','left','VerticalAlignment','top','Color','m');
+            outfile = fullfile(outimgdir,sprintf('example%03d_movieset%02d_fr%06d_tgt%02d',exi,i,fr,tgt));
+            if ~isempty(movieabbr),
+              outfile = [outfile,'_',movieabbr];
+            end
+            outfile = [outfile,'.png'];
+            saveas(hfig,outfile,'png');
+          end
+        end
+        for j = 1:nviews,
+          if ~isempty(fids{j}) && fids{j} > 0,
+            fclose(fids{j});
+          end
+        end
+      end
+      fprintf('Done\n');
+    end
   end  % methods
 end  % classdef

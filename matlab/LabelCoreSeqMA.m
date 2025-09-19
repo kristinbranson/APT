@@ -409,6 +409,10 @@ classdef LabelCoreSeqMA < LabelCore
         obj.toggleSelectPoint(obj.iPtMove);
         obj.iPtMove = nan;
         obj.storeLabels();
+        [xy,tfeo] = obj.getLabelCoords();
+        iTgt = obj.labeler.currTarget;
+        obj.tv.updateTrackResI(xy,tfeo,iTgt);
+
       end
     end
     

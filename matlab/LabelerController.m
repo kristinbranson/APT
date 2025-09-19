@@ -5724,6 +5724,7 @@ classdef LabelerController < handle
           labeler.setTargetMA(ntgts+1);
           labeler.labelPosSet(xy,occ);
           labeler.updateTrxTable();
+          labeler.setTarget(ntgts+1);
           iTgt = labeler.currTarget;
           labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
 
