@@ -25,11 +25,11 @@ function result = escape_string_for_cmd_dot_exe(str)
   % Those rules are taken from:
   %   https://learn.microsoft.com/en-us/cpp/cpp/main-function-command-line-args?view=msvc-170&redirectedfrom=MSDN#parsing-c-command-line-arguments
   %
-  % This function should be the inverse of parse_string_for_cmd_dot_exe().
+  % This function should be the inverse of lex_string_for_cmd_dot_exe().
   % That is,
   %
   %   isequal(str,
-  %           parse_string_for_cmd_dot_exe(escape_string_for_cmd_dot_exe(str)))
+  %           lex_string_for_cmd_dot_exe(escape_string_for_cmd_dot_exe(str)))
   %
   % should hold for all old-school strings str.
 
@@ -74,7 +74,7 @@ function [yi, statei] = escape1(xi, statelast)
       bs_count = bs_count_last+1 ;
     else
       % Was not in a bs block before, therefore
-                                                                          % a new bs block has started.
+      % a new bs block has started.
       yi = '' ;
       bs_count = 1 ;
     end    

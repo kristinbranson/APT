@@ -23,7 +23,8 @@ classdef APT
     
     function root = getRoot_()
       % root: the folder containing APT.m. When deployed, it is
-      % assumed the tree under root matches the dev repo
+      % assumed the tree under root matches the dev repo.
+      % This is a native path.
       if isdeployed()
         root = fullfile(ctfroot(), 'APT_deployed') ;
       else

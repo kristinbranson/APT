@@ -876,7 +876,7 @@ classdef DeepTracker < LabelTracker
       backend.updateRepo() ;
 
       % Upload the movies to the backend
-      nativePathFromMovieIndex = obj.lObj.movieFilesAll ;      
+      nativePathFromMovieIndex = obj.lObj.movieFilesAllFull ;  % has to be *Full to get substitutions made      
       backend.uploadMovies(nativePathFromMovieIndex) ;
     end
     
@@ -1792,32 +1792,6 @@ classdef DeepTracker < LabelTracker
       if isempty(ppdata),
         obj.trnTblP = tblPTrn;
       end
-      
-%       ITRKER_SLBL = 2;
-%       assert(s.trackerData{ITRKER_SLBL}.trnNetType==obj.trnNetType);
-      
-      % for images, deepnet will use preProcData; trx files however need
-      % to be uploaded
-            
-%       if awsRemote 
-%         % 1. The moviefiles in s should be not be used; deepnet should be
-%         % reading images directly from .preProcData_I. Fill s.movieFilesAll
-%         % with jibber as an assert.
-%         % 2. The trxfiles in s refer to local files; for AWS training we
-%         % will need them to refer to remote locs.
-%         %   a. For each trxfile that appears in the training data, we
-%         %      upload it and replace all appropriate rows of s.trxFilesAll.
-%         %   b. For all other rows of s.trxFilesAll, we replace with jibber
-%         %      as an assert.
-% 
-%         % Originally we uploaded trxfiles but this is no longer nec since
-%         % training relies on the cache which is now pre-rotated etc etc
-%         
-%         s.movieFilesAll(:) = {'__UNUSED__'};
-%         if obj.lObj.hasTrx
-%           s.trxFilesAll(:) = {'__UNUSED__'};
-%         end
-%       end
     end  % function
     
   end  % methods
@@ -1847,332 +1821,8 @@ classdef DeepTracker < LabelTracker
       % perfectly partition tLbl.
 
       error('TODO: fix trainsplit code');
-
-%       [wbObj] = myparse(varargin,...
-%         'wbObj',[] ...
-%         );
-%                  
-%       lblObj = obj.lObj;
-%       assert(obj.lObj.nview==1,'Currently only supported for single-view.');
-% 
-%       if obj.lObj.gtIsGTMode
-%         error('Unsupported in GT mode.');
-%       end
-% 
-%       obj.preretrain();
-%       
-%       obj.setAllParams(lblObj.trackGetTrainingParams());
-%       
-%       if isempty(obj.sPrmAll)
-%         error('No tracking parameters have been set.');
-%       end      
-%            
-%       % Currently, cacheDir must be visible on the JRC shared filesys.
-%       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
-%       
-%       trnType = DLTrainType.New;
-%       netObj = obj.trnNetType;
-%       netMode = obj.trnNetMode;
-%       
-%       % TODO: prev models
-%       cacheDir = lblObj.DLCacheDir;
-%       projname = lblObj.projname;
-%       trnBackEnd = lblObj.trackDLBackEnd;
-% 
-%       % Base DMC, to be further copied/specified per-split
-%       dmc = DeepModelChainOnDisk(...
-%         'rootDir',cacheDir,...
-%         'projID',projname,...
-%         'netType',char(netObj),...
-%         'netMode',netMode,...
-%         'view',0,...  % 0b
-%         'modelChainID','',... % to be filled in
-%         'trainID','',... % to be filled in
-%         'trainType',trnType,...
-%         'iterFinal',obj.sPrmAll.ROOT.DeepTrack.GradientDescent.dl_steps,...
-%         'isMultiView',false,...
-%         'filesep',obj.filesep,...
-%         'doSplit',true ...
-%         );
-% 
-%       nowstr = datestr(now,'yyyymmddTHHMMSS');
-%       dmc.modelChainID = DeepModelChainOnDisk.modelChainIDForSplit(nowstr,1);
-%       dmc.trainID = nowstr;      
-%       
-%       dlConfigLclDir = dmc.dirProjLnx;
-%       if exist(dlConfigLclDir,'dir')==0
-%         fprintf('Creating dir: %s\n',dlConfigLclDir);
-%         [succ,msg] = mkdir(dlConfigLclDir);
-%         if ~succ
-%           error('Failed to create dir %s: %s',dlConfigLclDir,msg);
-%         end
-%       end
-%       
-%       % write slbl/trnpack
-%       tfRequiresTrnPack = netObj.requiresTrnPack(netMode);
-%       assert(tfRequiresTrnPack); % 202111
-% 
-%       [slbl,tp,locg,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc,...
-%         'tblsplit',tblSplit ...
-%         );
-%       % TODO: SA tblSplit will have tgts
-%       dmc.nLabels = ntgtstot;
-%       
-%       
-%       %         tLbl = []; % XXX TODO
-%       %         % get labeled rows
-%       %         treatInfPosAsOcc = obj.trnNetType.doesOccPred;
-%       %         tLbl = obj.lObj.preProcGetMFTableLbled( ...
-%       %           'treatInfPosAsOcc',treatInfPosAsOcc ...
-%       %           );
-%       %         tLbl = tLbl(:,1:3);
-%       
-% % %       else
-% % %         slbl = obj.trnCreateStrippedLbl('wbObj',wbObj);
-% % %         % store nLabels in dmc
-% % %         dmc.nLabels = s.nLabels;
-% % % 
-% % %         % Write stripped lblfile to local cache
-% % % 
-% % %         save(dlLblFileLcl,'-mat','-v7.3','-struct','slbl');
-% % %         fprintf('Saved stripped lbl file: %s\n',dlLblFileLcl);
-% % %         
-% % %         tLbl = table(slbl.preProcData_MD_mov,slbl.preProcData_MD_frm,...
-% % %               slbl.preProcData_MD_iTgt,'VariableNames',{'mov' 'frm' 'iTgt'});
-% % %       end
-% 
-%       
-%       obj.bgTrnReset();      
-% 
-%       % see trnSpawn
-%       
-%       nvw = obj.lObj.nview;
-%       isMultiViewTrain = false;
-%       nTrainJobs = nvw;
-% %       if backEnd.type == DLBackEnd.Docker || backEnd.type == DLBackEnd.Conda,
-% %         % how many gpus do we have available?
-% %         gpuids = obj.getFreeGPUs(nvw);
-% %         if numel(gpuids) < nvw,
-% %           if nvw == 1 || numel(gpuids)<1,
-% %               error('No GPUs with sufficient RAM available locally');
-% %           else
-% %             gpuids = gpuids(1);
-% %             isMultiViewTrain = true;
-% %             nTrainJobs = 1;
-% %           end
-% %         end
-% %       end
-% 
-%       switch trnBackEnd.type
-%         case DLBackEnd.Bsub
-%           aptroot = trnBackEnd.bsubSetRootUpdateRepo(cacheDir);
-%         case {DLBackEnd.Conda,DLBackEnd.Docker},
-%           %assert(false);
-%           aptroot = APT.Root;
-%           %obj.downloadPretrainedWeights('aptroot',aptroot); 
-%       end
-%             
-%       trnCmdType = trnType;
-%  
-%       % LOOP STUFF
-% 
-%       %dmc.nLabels = slbl.nLabels;
-%             
-%       % At this point
-%       % We have (modelChainID,trainID). stripped lbl is on disk. 
-% 
-%       syscmds = cell(nvw,1);
-%       %switch trnBackEnd.type
-%       %  case DLBackEnd.Bsub
-%           
-%       %  case DLBackEnd.Docker 
-%       %    fprintf(2,'UNCMT JRC\n');
-%           %assert(false);
-%           %mntPaths = obj.genContainerMountPath();          
-%       %end
-%       
-%       switch trnBackEnd.type
-%         case {DLBackEnd.Bsub DLBackEnd.Docker}
-%           mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
-%           singArgs = {'bindpath',mntPaths};
-%           % splits verified in TrnPack.genWriteTrnPack
-%           nsplits = max(tblSplit.split);
-%           for isplit=1:nsplits
-%             if isplit>1
-%               dmc(isplit) = dmc(1).copy();
-%               dmc(isplit).modelChainID = ...
-%                 DeepModelChainOnDisk.modelChainIDForSplit(nowstr,isplit); 
-%               dmc(isplit).trnConfigNameOverride = dmc(1).trnConfigName;
-%             end
-%             dmcI = dmc(isplit);
-%             dmcI.splitIdx = isplit;
-%             dmcI.nLabels = nnz(tblSplit.split~=isplit);
-%             
-%             % "Inner"/cmdfile codegen
-%             xvcode = dmcI.cmdfileLnx;
-%             xvres = dmcI.valresultsBaseLnx;
-% %             CONFPARAMSEXTRA = {'dl_steps' '500'};
-% %             fprintf(2,'Extra confparams\n');
-%             APTInterf.splitTrainValCodeGenCmdfile(xvcode,xvres,...
-%               dmcI.modelChainID,...
-%               dmcI.trnConfigLnx,dmcI.rootDir,dmcI.errfileLnx,...
-%               DLNetType.(dmcI.netType),dmcI.netMode,isplit,...
-%               ... %'confparamsextra',CONFPARAMSEXTRA,...
-%               'view',1,'trainType',DLTrainType.New,...
-%               'deepnetroot',[aptroot '/deepnet']);
-%             fprintf(1,'Split %d: wrote cmdfile %s.\n',isplit,xvcode);
-%             [succ,msg,id] = fileattrib(xvcode,'+x','a');
-%             if ~succ
-%               warningNoTrace('Failed to change file attributes for cmdfile %s: %s',...
-%                 xvcode,msg);
-%             end
-% 
-%             % "Outer" codegen
-%             mntPaths = obj.genContainerMountPathBsubDocker(trnBackEnd);
-%             singimg = pick_singularity_image(trnBackEnd, netMode) ;
-%             singargs = {'bindpath',mntPaths, 'singimg', singimg};
-%             bsubargs = {'gpuqueue' obj.jrcgpuqueue 'nslots' obj.jrcnslots ...
-%               'outfile' dmcI.trainLogLnx, 'additionalargs', trnBackend.jrcAdditionalBsubArgs};
-%             sshargs = {};
-%             codeOuter = dmcI.cmdfileLnx;
-%             codeOuter = codeGenSingGeneral(codeOuter,singargs{:});
-%             codeOuter = DeepTracker.codeGenBsubGeneral(codeOuter,bsubargs{:});
-%             codeOuter = wrapCommandSSH(codeOuter,sshargs{:})
-%             syscmds{isplit} = codeOuter;            
-%           end
-% %         case DLBackEnd.Docker
-% %           containerNames = cell(nTrainJobs,1);
-% %           logcmds = cell(nTrainJobs,1);
-% %           syscmds = cell(nTrainJobs,1);
-% %           for ivw=1:nvw,
-% %             if ivw>1
-% %               dmc(ivw) = dmc(1).copy();
-% %             end
-% %             dmc(ivw).view = ivw-1; % 0-based
-% %             if ivw <= nTrainJobs,
-% %             gpuid = gpuids(ivw);
-% %             [syscmds{ivw},containerNames{ivw}] = ...
-% %                 DeepTracker.trainCodeGenDockerDMC(dmc(ivw),backEnd,mntPaths,gpuid,...
-% %                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType);
-% %             logcmds{ivw} = sprintf('%s logs -f %s &> "%s" &',...
-% %               obj.dockercmd,containerNames{ivw},dmc(ivw).trainLogLnx);
-% %             end
-% %           end
-% %         case DLBackEnd.Conda
-% %           condaargs = {'condaEnv',obj.condaEnv};
-% %           for ivw=1:nvw,
-% %             if ivw>1
-% %               dmc(ivw) = dmc(1).copy();
-% %             end
-% %             dmc(ivw).view = ivw-1; % 0-based
-% %             if ivw <= nTrainJobs,
-% %               gpuid = gpuids(ivw);
-% %               syscmds{ivw} = ...
-% %                 DeepTracker.trainCodeGenCondaDMC(dmc(ivw),gpuid,...
-% %                 'isMultiView',isMultiViewTrain,'trnCmdType',trnCmdType,...
-% %                 'condaargs',condaargs);
-% %             end
-% %           end
-%         otherwise
-%           assert(false);
-%       end
-%       
-%       %be = obj.lObj.trackDLBackEnd;
-%       
-%       if obj.dryRunOnly
-%         cellfun(@(x)fprintf(1,'Dry run, not training: %s\n',x),syscmds);
-%       else
-%         obj.bgTrnStart(trnBackEnd,dmc,'trainSplits',true);
-%         
-%         bgTrnWorkerObj = obj.bgTrainPoller;
-%         
-%         % spawn training
-%         if trnBackEnd.type==DLBackEnd.Docker
-%           bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
-%           for iview=1:nTrainJobs
-%             fprintf(1,'%s\n',syscmds{iview});
-%             [st,res] = system(syscmds{iview});
-%             if st==0
-%               bgTrnWorkerObj.parseJobID(res,iview);
-%               
-%               fprintf(1,'%s\n',logcmds{iview});
-%               [st2,res2] = system(logcmds{iview});
-%               if st2==0
-%               else
-%                 fprintf(2,'Failed to spawn logging job for view %d: %s.\n\n',...
-%                   iview,res2);
-%               end
-%             else
-%               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
-%                 iview,res);
-%             end            
-%           end
-%         elseif trnBackEnd.type==DLBackEnd.Conda
-%           bgTrnWorkerObj.jobID = cell(1,nTrainJobs);
-%           for iview=1:nTrainJobs
-%             fprintf(1,'%s\n',syscmds{iview});
-%             [job,st,res] = parfevalsystem(syscmds{iview});
-%             if ~st,
-%               bgTrnWorkerObj.parseJobID(job,iview);
-%             else
-%               fprintf(2,'Failed to spawn training job for view %d: %s.\n\n',...
-%                 iview,res);
-%             end            
-%           end
-%         else
-%           nTrainJobs = numel(dmc);
-%           bgTrnWorkerObj.jobID = nan(1,nTrainJobs);
-%           assert(nTrainJobs==numel(dmc));
-%           for iview=1:nTrainJobs
-%             syscmdrun = syscmds{iview};
-%             fprintf(1,'%s\n',syscmdrun);
-%             
-% %             cmdfile = dmc(iview).cmdfileLnx;
-% %             %assert(exist(cmdfile,'file')==0,'Command file ''%s'' exists.',cmdfile);
-% %             [fh,msg] = fopen(cmdfile,'w');
-% %             if isequal(fh,-1)
-% %               warningNoTrace('Could not open command file ''%s'': %s',cmdfile,msg);
-% %             else
-% %               fprintf(fh,'%s\n',syscmdrun);
-% %               fclose(fh);
-% %               fprintf(1,'Wrote command to cmdfile %s.\n',cmdfile);
-% %             end
-%             
-%             if exist(dmc(iview).dirTrkOutLnx,'dir')==0
-%               [succ,msg] = mkdir(dmc(iview).dirTrkOutLnx);
-%               if succ
-%                 fprintf(1,'Made dir ''%s''.\n',dmc(iview).dirTrkOutLnx);
-%               else
-%                 error('Failed to create dir ''%s'': %s',dmc(iview).dirTrkOutLnx,...
-%                   msg);
-%               end
-%             end                
-%             
-%             [st,res] = system(syscmdrun);
-%             if st==0
-%               PAT = 'Job <(?<jobid>[0-9]+)>';
-%               stoks = regexp(res,PAT,'names');
-%               if ~isempty(stoks)
-%                 jobid = str2double(stoks.jobid);
-%               else
-%                 jobid = nan;
-%                 warningNoTrace('Failed to ascertain jobID.');
-%               end
-%               fprintf('Training job (view %d) spawned, jobid=%d.\n\n',...
-%                 iview,jobid);
-%               % assigning to 'local' workerobj, not the one copied to workers
-%               bgTrnWorkerObj.jobID(iview) = jobid;
-%             else
-%               fprintf('Failed to spawn training job for view %d: %s.\n\n',...
-%                 iview,res);
-%             end
-%           end
-%         end        
-%         obj.trnSplitLastDMC = dmc;
-%       end
-%       
-%       % Nothing should occur here as failed trnSpawn* will early return
-%       
+      % If you want to see this code as it used to be, go back to commits on main from Aug
+      % 2025 or earlier.
     end  % function trainsplit
   end  % methods
   
@@ -2665,22 +2315,6 @@ classdef DeepTracker < LabelTracker
         totrackinfojob.setDefaultFiles();
 
         backend.registerTrackingJob(totrackinfojob, obj, gpuids(ijob), track_type) ;
-%         basecmd = APTInterf.trackCodeGenBase(totrackinfojob,'ignore_local',backend.ignore_local,'aptroot',aptroot,'track_type',track_type);
-%         % For AWS backend, need to modify the base command to run in background
-%         if backend.type == DLBackEnd.AWS ,    
-%           basecmd_escaped = escape_string_for_bash(basecmd) ;
-%           basecmd = sprintf('nohup bash -c %s &> /dev/null & echo $!', basecmd_escaped) ;
-%         end        
-%         backendArgs = obj.getBackEndArgs(backend, gpuids(ijob), totrackinfojob, aptroot, 'track') ;
-%         syscmds{ijob} = backend.wrapBaseCommand(basecmd, backendArgs{:}) ;
-%         cmdfiles{ijob} = DeepModelChainOnDisk.getCheckSingle(totrackinfojob.cmdfile) ;
-% 
-%         if backend.type == DLBackEnd.Docker,
-%           containerName = totrackinfojob.containerName;
-%           logfile = totrackinfojob.logfile;
-%           logcmds{ijob} = backend.logCommand(containerName,logfile); %#ok<AGROW> 
-%         end
-
         backend.prepareFilesForTracking(totrackinfojob);
         obj.trkCreateConfig(totrackinfojob.trackconfigfile);
 
@@ -2779,19 +2413,6 @@ classdef DeepTracker < LabelTracker
 
       backend.killAndClearRegisteredJobs('track') ;
       backend.registerTrackingJob(totrackinfo, obj, gpuids, 'track') ;      
-%       basecmd = APTInterf.trackCodeGenBase(totrackinfo,'ignore_local',backend.ignore_local,'aptroot',aptroot);
-%       backendArgs = obj.getBackEndArgs(backend,gpuid,totrackinfo,aptroot,'track');
-%       syscmd = backend.wrapBaseCommand(basecmd,backendArgs{:});
-%       cmdfile = DeepModelChainOnDisk.getCheckSingle(totrackinfo.cmdfile);
-% 
-%       if backend.type == DLBackEnd.Docker
-%         containerName = totrackinfo.containerName;
-%         logfile = totrackinfo.logfile;
-%         logcmds = {backend.logCommand(containerName,logfile)}; 
-%       else
-%         logcmds = [];
-%       end
-
       backend.prepareFilesForTracking(totrackinfo);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
@@ -2812,12 +2433,7 @@ classdef DeepTracker < LabelTracker
       nframes = totrackinfo.getNFramesTrack();
     end
 
-
     function trkPrintTrkOutDir(obj)
-%       modelChainID = obj.trnName;
-%       if isempty(modelChainID) 
-%         error('Training is not complete or in progress.');
-%       end
       if ~obj.bgTrkIsRunning
         fprintf('Tracking is not in progress; log is for most recent tracking session.\n');
       end
@@ -2826,7 +2442,7 @@ classdef DeepTracker < LabelTracker
       bgObj.dispTrkOutDir();
     end
     
-    function trkCreateConfig(obj,configfile,varargin)
+    function trkCreateConfig(obj, configFilePathNativeAsChar, varargin)
       % trkCreateConfig(obj,'sPrmAll',[])
       % 
       [sPrmAll] = myparse(varargin,'sPrmAll',[]);
@@ -2843,85 +2459,13 @@ classdef DeepTracker < LabelTracker
                                        'fortracking',true);
       slbl = Lbl.compressStrippedLbl(s);
       [jse] = Lbl.jsonifyStrippedLbl(slbl);
-      jsonoutf = configfile;  % native file path
       jsen = sprintf('%s\n', jse) ;
-      obj.backend.writeStringToFile(jsonoutf, jsen) ;  % throws if unable to write file
+      obj.backend.writeStringToCacheFile(configFilePathNativeAsChar, jsen) ;  % throws if unable to write file
     end  % function
     
-  end  % methods
-
-  methods (Static)
-    % function bgTrkWorkerObj = createBgTrkWorkerObj(nView, dmc, backend, track_type)
-    %   % dmc is not used in BgTrackWorkerObj subclasses!
-    %   switch backend.type
-    %     case DLBackEnd.Bsub
-    %       bgTrkWorkerObj = BgTrackWorkerObjBsub(nView, track_type, dmc, backend);
-    %     case DLBackEnd.Conda,
-    %       bgTrkWorkerObj = BgTrackWorkerObjConda(nView, track_type, dmc, backend);
-    %     case DLBackEnd.Docker,
-    %       bgTrkWorkerObj = BgTrackWorkerObjDocker(nView, track_type, dmc, backend);
-    %     case DLBackEnd.AWS,
-    %        bgTrkWorkerObj = BgTrackWorkerObjAWS(nView, track_type, dmc, backend);
-    %     otherwise
-    %       error('Not implemented back end %s',backend.type);
-    %   end
-    % end  % function
-
-    % function trnWrkObj = createBgTrnWorkerObj(dmc, backend)
-    %   switch backend.type
-    %     case DLBackEnd.Bsub
-    %       trainSplits = false ;
-    %       if trainSplits
-    %         trnWrkObj = BgTrainSplitWorkerObjBsub(dmc, backend);
-    %       else
-    %         trnWrkObj = BgTrainWorkerObjBsub(dmc, backend);
-    %       end
-    %     case DLBackEnd.Conda
-    %       trnWrkObj = BgTrainWorkerObjConda(dmc, backend);
-    %     case DLBackEnd.Docker
-    %       trnWrkObj = BgTrainWorkerObjDocker(dmc, backend);
-    %     case DLBackEnd.AWS
-    %       trnWrkObj = BgTrainWorkerObjAWS(dmc, backend);
-    %     otherwise
-    %       error('Not implemented back end %s',backend.type);
-    %   end
-    % end  % function
-
-    function sha = getSHA(file)
-      if ismac
-        file = strrep(file,' ','\ ');
-        shacmd = sprintf('MD5 %s',file);
-        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
-        res = strtrim(res);
-        toks = regexp(res,' ','split');
-        sha = toks{end};        
-        sha = regexprep(sha,' ','');          
-      elseif isunix
-        file = strrep(file,' ','\ ');
-        shacmd = sprintf('md5sum %s',file);
-        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
-        toks = regexp(res,' ','split');
-        sha = toks{1};        
-        sha = regexprep(sha,' ','');
-      else
-        shacmd = sprintf('certUtil -hashFile "%s" MD5',file);
-        [~,res] = apt.syscmd(shacmd,'failbehavior','err');
-        toks = regexp(res,'\n','split');
-        sha = toks{2};
-        sha = regexprep(sha,' ','');
-      end
-    end  % function
   end  % methods
 
   methods
-    % function trkPrintLogs(obj)
-    %   btm = obj.bgTrkMonitor;
-    %   if isempty(btm)
-    %     error('Tracking is neither in progress nor complete.');
-    %   end
-    %   btm.bgWorkerObj.printLogfiles();
-    % end
-    
     function bgTrkReset_(obj)
       obj.trkSysInfo = [];
       if ~isempty(obj.bgTrkMonitor)
@@ -2934,20 +2478,6 @@ classdef DeepTracker < LabelTracker
       obj.bgTrackPoller = [];
     end
     
-    % function bgTrkStart(obj,bgTrkMonitorObj,bgTrkWorkerObj)
-    %   % fresh start new training monitor 
-    %   % trkMonitorObj: should be 'prepared'
-    % 
-    %   if ~isempty(obj.bgTrkMonitor)
-    %     error('Tracking monitor exists. Call .bgTrkReset first to stop/remove existing monitor.');
-    %   end
-    %   assert(isempty(obj.bgTrackPoller));
-    % 
-    %   obj.bgTrkMonitor = bgTrkMonitorObj;
-    %   obj.bgTrackPoller = bgTrkWorkerObj;
-    %   bgTrkMonitorObj.start();  % Moved this down from two lines up.  Seems wise and safe, but...  --ALT, 2024-07-31
-    % end
-
     function createTrkfilesFromListout(obj)
       njobs = obj.trkSysInfo.n;
       for i = 1:njobs
@@ -3002,11 +2532,10 @@ classdef DeepTracker < LabelTracker
       try
         % Put things into some local vars
         backend  = obj.backend ;
-        nativeProjectCachePath = obj.lObj.DLCacheDir ;  % native path
 
         % Ask the backend to do the heavy lifting
         movfiles = obj.trkSysInfo.getMovfiles() ;        
-        backend.downloadTrackingFilesIfNecessary(pollingResult, nativeProjectCachePath, movfiles) ;
+        backend.downloadTrackingFilesIfNecessary(pollingResult, movfiles) ;
 
         % Don't need this anymore since the paths in obj.trkSysInfo are kept local in
         % all cases now.
@@ -3257,7 +2786,7 @@ classdef DeepTracker < LabelTracker
       obj.newLabelerFrame();
     end  % function
 
-    function args = trnType2ConstructorArgs(obj,trntypes,loc)
+    function args = trnType2ConstructorArgs(obj,trntypes,loc)  %#ok<INUSD>
       % args = trnType2ConstructorArgs(obj,trntypes,loc)
       % Returns extra arguments necessary for instantiating this network based on trntypes. 
       % For DeepTracker, this is an empty cell. 
@@ -3340,208 +2869,22 @@ classdef DeepTracker < LabelTracker
     
   end  % methods
 
-  methods (Static)  % train/track codegen
-    function repoSScmd = repoSnapshotCmd(aptroot,aptrepo)
-      repoSSscriptLnx = [aptroot '/matlab/repo_snapshot.sh'];
-      repoSScmd = sprintf('"%s" "%s" > "%s"',repoSSscriptLnx,aptroot,aptrepo);
-    end
-
-    function baseargs = trainTopDownBaseArgs(dmc)
-      stages = unique(dmc.getStages());
-      if numel(stages) > 1,
-        stagearg = 0;
-      else
-        stagearg = stages;
-      end
-      baseargs = {...
-        'maTopDown' true ... % missing: 'maTopDownStage'
-        'maTopDownStage1NetType' dmc.getNetType('stage',1) ...
-        'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
-        'maTopDownStage' stagearg ...
-        };
-    end
-
-    % function downloadPretrainedExec(aptroot)
-    %   % kb investigate: This doesn't work well on the cluster due to tf 
-    %   % being a restricted site, plus /tmp acts weird
-    %   % This method is not called from anywhere.  Is it intended to be called
-    %   % interactively?  -- ALT, 2025-01-28
-    %   assert(isunix,'Only supported on *nix platforms.');
-    %   deepnetroot = [aptroot '/deepnet'];
-    %   cmd = sprintf(DeepTracker.pretrained_download_script_py,deepnetroot);
-    %   apt.syscmd(cmd,'failbehavior','err');
-    % end      
-
-    function str = cellstr2SpaceDelimWithEscapedSpace(c)
-      % c: cellstr
-      %
-      % Use this to convert c to a space-delimited string for use as a
-      % command-line argument. It is assumed this argument will be used in 
-      % a *nix environment with eg python/argparse; individual elements of 
-      % c will have any naked whitespaces escaped so that any such elements 
-      % will not be (mis)interpretered as 2+ separate arguments.
-      c = cellfun(@String.escapeSpaces,c,'uni',0);
-      str = String.cellstr2DelimList(c,' ');
-    end
-
-    function str = cellstr2SpaceDelimWithQuote(c,quotechar)
-      c = cellfun(@(x)[quotechar x quotechar],c,'uni',0);
-      str = String.cellstr2DelimList(c,' '); 
-    end
-
-
-    % function codestr = trackCodeGenBaseListFile(trnID,cache,dlconfigfile,outfile,...
-    %     errfile,nettype,view,listfile,varargin)
-    %   % view: 1-based
-    % 
-    %   [deepnetroot,model_file,fs,filequote] = myparse_nocheck(varargin,...
-    %     'deepnetroot',APT.getpathdl,...
-    %     'model_file',[],... 
-    %     'filesep','/',...
-    %     'filequote','\"'... % quote char used to protect filenames/paths.
-    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-    %                     ... % is expected to wrap in enclosing regular double-quotes " !!
-    %     );
-    % 
-    %   tfmodel = ~isempty(model_file);      
-    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
-    % 
-    %   code = { ...
-    %     'python' [filequote aptintrf filequote] ...
-    %     '-name' trnID ...
-    %     '-view' num2str(view) ... % 1b 
-    %     '-cache' [filequote cache filequote] ...
-    %     '-err_file' [filequote errfile filequote] ...
-    %     };
-    %   if tfmodel
-    %     code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
+  methods (Static)
+    % function baseargs = trainTopDownBaseArgs(dmc)
+    %   stages = unique(dmc.getStages());
+    %   if numel(stages) > 1,
+    %     stagearg = 0;
+    %   else
+    %     stagearg = stages;
     %   end
-    %   code = [code ...
-    %     '-type' char(nettype) ...
-    %     [filequote dlconfigfile filequote] 'track' ...
-    %     '-out' [filequote outfile filequote] ...
-    %     '-list_file' [filequote listfile filequote] ];
-    % 
-    %   codestr = String.cellstr2DelimList(code,' ');
+    %   baseargs = {...
+    %     'maTopDown' true ... % missing: 'maTopDownStage'
+    %     'maTopDownStage1NetType' dmc.getNetType('stage',1) ...
+    %     'maTopDownStage1NetMode' dmc.getNetMode('stage',1) ...
+    %     'maTopDownStage' stagearg ...
+    %     };
     % end
 
-    % function codestr = trackCodeGenBaseGTClassify(trnID,cache,dlconfigfile,gtoutfile,...
-    %     errfile,nettype,varargin)
-    %   % CodeGen for gtclassify; single view with single gtoutfile
-    %   % 
-    %   % Looks a lot like trackCodeGenBaseListFile
-    % 
-    %   [view,deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-    %     'view',[],... % 1b
-    %     'deepnetroot',APT.getpathdl,...
-    %     'model_file',[],... 
-    %     'filesep','/',...
-    %     'filequote','\"'... % quote char used to protect filenames/paths.
-    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-    %                     ... % is expected to wrap in enclosing regular double-quotes " !!
-    %     );
-    % 
-    %   tfmodel = ~isempty(model_file);      
-    %   aptintrf = [deepnetroot fs 'APT_interface.py'];
-    % 
-    %   code = { ...
-    %     'python' [filequote aptintrf filequote] ...
-    %     '-name' trnID ...
-    %     };
-    %   if ~isempty(view)
-    %     code(end+1:end+2) = {'-view' num2str(view)}; ... % 1b 
-    %   end
-    %   code = [code ...
-    %     { '-cache' [filequote cache filequote] ...
-    %     '-err_file' [filequote errfile filequote] ...
-    %     } ];
-    %   if tfmodel
-    %     code(end+1:end+2) = {'-model_files' [filequote model_file filequote]};
-    %   end
-    %   code = [code ...
-    %     '-type' char(nettype) ...
-    %     [filequote dlconfigfile filequote] 'gt_classify' ...
-    %     '-out' [filequote gtoutfile filequote] ];
-    % 
-    %   codestr = String.cellstr2DelimList(code,' ');
-    % end
-    
-%     function [codestr] = dataAugCodeGenDocker(backend,...
-%         ID,dlconfigfile,cache,errfile,netType,outfile,varargin)
-%       
-%       [baseargs,dockerargs,mntPaths] = myparse(varargin,...
-%         'baseargs',{},'dockerargs',{},'mntPaths',{});
-%       
-%       filequote = backend.getFileQuoteDockerCodeGen;
-%       basecmd = DeepTracker.dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-%         netType,outfile,baseargs{:},'filequote',filequote);
-%       
-%       codestr = backend.wrapBaseCommandDocker_(basecmd,ID,...
-%         'bindpath',mntPaths,dockerargs{:});
-%     end    
-    
-    % function codestr = dataAugCodeGenBase(ID,dlconfigfile,cache,errfile,...
-    %     nettype,outfile,varargin)
-    % 
-    %   [deepnetroot,model_file,fs,filequote] = myparse(varargin,...
-    %     'deepnetroot',APT.getpathdl,...
-    %     'model_file',[],... % can be [nview] cellstr
-    %     'filesep','/',...
-    %     'filequote','\"'... % quote char used to protect filenames/paths.
-    %                     ... % *IMPORTANT*: Default is escaped double-quote \" => caller
-    %                     ... % is expected to wrap in enclosing regular double-quotes " !!        
-    %     ); 
-    % 
-    %   tfcache = ~isempty(cache);
-    %   tfmodel = ~isempty(model_file);
-    % 
-    %   if tfmodel
-    %     model_file = cellstr(model_file);
-    %   end
-    % 
-    %   aptintrf = [deepnetroot fs 'APT_interface.py'];      
-    % 
-    %   codestr = sprintf('python %s -name %s',...
-    %     [filequote aptintrf filequote],ID);
-    %   if tfcache
-    %     %cache = String.escapeSpaces(cache);
-    %     codestr = [codestr ' -cache ' [filequote cache filequote]];
-    %   end
-    %   %errfile = String.escapeSpaces(errfile);
-    %   codestr = [codestr ' -err_file ' [filequote errfile filequote]];
-    %   if tfmodel
-    %     %modelfilestr = DeepTracker.cellstr2SpaceDelimWithEscapedSpace(model_file);
-    %     codestr = sprintf('%s -model_files %s',codestr,...
-    %       DeepTracker.cellstr2SpaceDelimWithQuote(model_file,filequote));
-    %   end
-    %   codestr = [codestr sprintf(' -type %s %s data_aug -out %s',...
-    %     char(nettype),[filequote dlconfigfile filequote],[filequote outfile filequote])];
-    % end    
-            
-%     function codestr = trackCodeGenVenv(fileinfo,frm0,frm1,varargin)
-%       [baseargs,venvHost,venv,cudaVisDevice,logFile] = myparse(varargin,...
-%         'baseargs',{},... % p-v cell for trackCodeGenBase
-%         'venvHost','10.103.20.155',... % host to run DL verman-ws1
-%         'venv','/groups/branson/bransonlab/mayank/venv',... 
-%         'cudaVisDevice',[],... % if supplied, export CUDA_VISIBLE_DEVICES to this
-%         'logFile','/dev/null'...
-%       ); 
-%       
-%       basecode = APTInterf.trackCodeGenBase(fileinfo,frm0,frm1,baseargs{:});
-%       if ~isempty(cudaVisDevice)
-%         cudaDeviceStr = ...
-%           sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d; ',...
-%           cudaVisDevice);
-%       else
-%         cudaDeviceStr = '';
-%       end
-%         
-%       codestrremote = sprintf('cd %s; source bin/activate; %s%s',venv,...
-%         cudaDeviceStr,basecode);
-%       codestr = wrapCommandSSH(codestrremote,...
-%         'host',venvHost,'logfile',logFile);
-%     end
-    
     function [m,tfsuccess,isold] = parseTrkFileName(trkfile)
       tfsuccess = false;
       isold = false;
@@ -4250,11 +3593,6 @@ classdef DeepTracker < LabelTracker
       end
     end
 
-    function result = singularityImgPath(obj)
-      backend = obj.backend ;  %#ok<PROP> 
-      result = backend.singularity_image_path ;  %#ok<PROP> 
-    end  % function
-
     function modelFilesDst = copyModelFiles(obj,newRootDir,debug)
       % Copy the DeepModelChainOnDisk files to newRootDir.  Part of DeepTracker b/c
       % it's the backend that knows how to get the maxIters for all the models, and
@@ -4313,14 +3651,14 @@ classdef DeepTracker < LabelTracker
       % all the running jobs.
       logFiles = obj.trkSysInfo.getLogFiles() ;
       backend = obj.backend ;
-      logFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
+      logFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
       result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
     end  % function
     
     function result = getTrackingErrorFilesSummary(obj)  % const method
       errFiles = obj.trkSysInfo.getErrFiles();
       backend = obj.backend ;
-      errFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),errFiles,'uni',0);
+      errFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),errFiles,'uni',0);
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
     end  % function
     
@@ -4334,14 +3672,14 @@ classdef DeepTracker < LabelTracker
       % all the running jobs.
       logFiles = unique(obj.trnLastDMC.trainLogLnx)' ;
       backend = obj.backend ;
-      logFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
+      logFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),logFiles,'uni',0) ;  % cell array of strings
       result = apt.summarizePerViewFiles(logFiles, logFileContents) ;
     end  % function
     
     function result = getTrainingErrorFilesSummary(obj)  % const method
       errFiles = unique(obj.trnLastDMC.errfileLnx)' ;
       backend = obj.backend ;
-      errFileContents = cellfun(@(fileName)(backend.fileContents(fileName)),errFiles,'uni',0);
+      errFileContents = cellfun(@(fileName)(backend.cacheFileContents(fileName)),errFiles,'uni',0);
       result = apt.summarizePerViewFiles(errFiles, errFileContents) ;
     end  % function
     
@@ -4353,7 +3691,7 @@ classdef DeepTracker < LabelTracker
       for i=1:dmcs.n,
         f = dmcs.trainImagesNameLnx(i);
         f = f{1};
-        if obj.backend.fileExists(f) ,
+        if obj.backend.tfDoesCacheFileExist(f) ,
           infocurr = load(f,'-mat');  % ALTTODO: Make this work for AWS backend
           if ~all(isfield(infocurr,necfields)),
             warningNoTrace('Training image file ''%s'' exists, but not all fields (yet) saved in it.',f);
