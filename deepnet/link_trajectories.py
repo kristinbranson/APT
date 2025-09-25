@@ -7,6 +7,7 @@ import logging
 import os
 import scipy
 import pickle
+import json
 
 # for now I'm just using loadmat and savemat here
 # when/if the format of trk files changes, then this will need to get fancier
@@ -1216,7 +1217,7 @@ def link_pure(trk, conf, do_delete_short=False, do_motion_link=True):
 
   # return l_trk
 
-def link_trklets(trk_files, conf, movs, out_files):
+def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
   """
   Links pure tracklets using id liking or motion based on conf.link_id
   :param trk_files: trk files with pure linked trajectories
@@ -1271,7 +1272,7 @@ def link_trklets(trk_files, conf, movs, out_files):
       link_method = 'motion'
     else:
       link_method = 'no_motion'
-    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link,link_method=link_method)
+    linked_trks = link_id(trks2link_id, trk_files2link, movs2link, conf1, out_files2link, id_wts=id_wts, link_method=link_method)
 
     out_trks= []
     count = 0
@@ -1412,7 +1413,10 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   # generate the training images
     train_data_args = [trks, all_trx, mov_files, conf]
     # train_data = get_id_train_images(trks, all_trx, mov_files, conf)
-    wt_out_file = out_files[0].replace('.trk','_idwts.p')
+    if id_wts is not None:
+      wt_out_file = id_wts
+    else:
+      wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
     id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size)
 
@@ -1442,7 +1446,13 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
   :return:
   :rtype:
   '''
-  all_data = []
+
+  MAX_MEM_USE = 10*1024*1024*1024  # 10 GB
+  est_mem_per_trk = conf.imsz[0]*conf.imsz[1]*3*4*conf.link_id_tracklet_samples
+  max_sel_trk = max(100, int(MAX_MEM_USE/est_mem_per_trk))
+
+  n_sel = 0
+  all_sel_trk = []
   for trk, trx, mov_file in zip(linked_trks,all_trx,mov_files):
     ss, ee = trk.get_startendframes()
 
@@ -1455,10 +1465,47 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
 
     sel_trk = np.where((ee - ss+1) > min_trx_len)[0]
     sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
+    all_sel_trk.append(sel_trk_info)
+    n_sel += len(sel_trk)
+
+
+  # If too many tracklets, then randomly sub-sample by finding tracklets that are alive at a random frame
+  if n_sel >  max_sel_trk:
+    logging.info(f'Too many tracklets ({n_sel}). Sub sampling {max_sel_trk} tracklets randomly for generating training data')
+    n_sel = 0
+    all_sel_trk = [[] for _ in range(len(linked_trks))]
+    while n_sel < max_sel_trk:
+      cur_trk_ndx = np.random.randint(len(linked_trks))
+      trk = linked_trks[cur_trk_ndx]
+      ss, ee = trk.get_startendframes()
+
+      # ignore small tracklets
+      min_trx_len = conf.link_id_min_train_track_len
+      # incase all traj are small
+      if np.count_nonzero((ee - ss + 1) > min_trx_len) < conf.max_n_animals:
+        min_trx_len = min(1, np.percentile((ee - ss + 1), 20) - 1)
+
+      rand_fr = np.random.randint(trk.T0, trk.T1 + 1) # select a random frame and find tracklets that are alive at that frame
+      trk_fr = np.where((ss <= rand_fr) & (ee >= rand_fr))[0]
+      sel_trk = np.where( ((ee - ss+1)>min_trx_len)&trk_fr)[0]
+      if len(sel_trk)>0:
+        prev_trks = all_sel_trk[cur_trk_ndx]
+        new_trks = list(set(sel_trk) - set(prev_trks))
+        if len(new_trks)>0:
+          sel_trk_info = list(zip(sel_trk, ss[sel_trk], ee[sel_trk]))
+          all_sel_trk[cur_trk_ndx].extend(sel_trk_info)
+          n_sel += len(new_trks)
+
+  all_data = []
+  for ndx in range(len(all_sel_trk)):
+    trx = all_trx[ndx]
+    mov_file = mov_files[ndx]
+    sel_trk_info = all_sel_trk[ndx]
 
     data = read_ims_par(trx, sel_trk_info, mov_file, conf)
     # data = read_data_files(data_files)
     all_data.append(data)
+
   return all_data
 
 def get_overlap(ss_t,ee_t,ss,ee, curidx):
@@ -1648,6 +1695,10 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
   trk_info_batches = split_parallel(trk_info,n_batches)
   args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
+
+  # for debugging
+  # read_tracklet_ims(*args[0])
+
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
     data = pool.starmap(read_tracklet_ims,args,chunksize=1)
   data = merge_parallel(data)
@@ -1970,6 +2021,18 @@ def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, 
 
   loss_history = []
 
+  # Initialize training info for JSON logging (same format as PoseCommon_pytorch.py)
+  train_info = {
+    'train_loss': [],
+    'step': []
+  }
+
+  # Create JSON filename from id weights file
+  if save_file is not None:
+    json_file = os.path.splitext(save_file)[0] + '.json'
+  else:
+    json_file = None
+
   net = get_id_net()
   criterion = ContrastiveLoss()
   optimizer = optim.Adam(net.parameters(), lr=0.0001)
@@ -2077,6 +2140,19 @@ def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, 
       torch.save({'model_state_params': net.state_dict(),'loss_history':loss_history}, wt_out_file)
 
     loss_history.append(loss_contrastive.item())
+
+    # Update training info and save JSON every display_steps
+    if epoch % conf.display_step == 0 and epoch > 0 and json_file is not None:
+      train_info['train_loss'].append(loss_contrastive.item())
+      train_info['step'].append(epoch)
+
+      # Save JSON file with same format as PoseCommon_pytorch.py
+      json_data = {}
+      for x in train_info.keys():
+        json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
+
+      with open(json_file, 'w') as f:
+        json.dump(json_data, f)
 
   wt_out_file = f'{save_file}'
   torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)

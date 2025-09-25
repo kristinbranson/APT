@@ -79,4 +79,13 @@ end
 if size(toTrack.movfiles,1) == 1,
   res.toTrack = res.toTrack{1};
 end
+
+% Add linking configuration fields (global settings)
+if isfield(toTrack, 'link_type')
+  res.link_type = toTrack.link_type;
+end
+if isfield(toTrack, 'id_maintain_identity')
+  res.id_maintain_identity = toTrack.id_maintain_identity;
+end
+
 saveJSONfile(res,jsonfile);

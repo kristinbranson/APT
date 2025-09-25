@@ -73,7 +73,7 @@ ROOT:
         - TrackletStitch:
           - ['Tracklet Stitching','',false,Parameters for stitching tracked targets into tracklets,'','']
           - link_stage: ['Stitching stage',['first','second','none'],true,'Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.','second','','Advanced',['ma'],true]
-          - link_id: ['Identity Linking',boolean, true,'Whether to stitch detections using identity tracking.',false,'','Important',['ma'],true]
+#          - link_id: ['Identity Linking',boolean, true,'Whether to stitch detections using identity tracking.',false,'','Important',['ma'],true]
           - link_maxcost_heuristic: ['Linking cutoff method',['secondorder','prctile'],true,'Method to compute the cutoff for linking. Secondorder sets the cutoff where sorted match distances sharply increases. Prctile computes the cutoff as a percentile of matched distances','secondorder','','Advanced',['ma'],true]
           - link_maxcost_mult: ['Linking Aggressiveness',float,true,'This determines how aggresively tracklets are linked. Value of 1 will not link frames that have unusual large movements. For value less than 1 tracking will break even for usual large movements. Values greater than 1 (3-4) will link detections across large jumps.',1.0,'','Beginner',['ma'],true]
           - link_maxcost_prctile: ['Cutoff Percentile',float,true,'When using prctile (percentile) method to compute the cutoff, the percentile to use to compute the cutoff.',95,'','Advanced',['ma'],true]

@@ -3559,7 +3559,7 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
         tag = np.transpose(pred_occ, [2, 0, 1])
     elif 'conf' in extra_dict:
         # histogram pred_occ
-        pred_occ = extra_dict['conf'] < .5
+        pred_occ = extra_dict['conf'] < .2
         tag = np.transpose(pred_occ, [2, 0, 1])
 
     trk = TrkFile.Trk(p=locs_lnk, pTrkTS=ts, pTrkTag=tag, pTrkConf=locs_conf,T0=start)
@@ -3605,6 +3605,78 @@ def write_trk(out_file, pred_locs_in, extra_dict, start, info, conf=None):
     # else:
     #     logging.exception("Did not successfully write output to %s" % out_file_tmp)
 
+def read_trk(part_file, pred_locs, extra_dict, start_frame, end_frame, n_trx,max_n_frames):
+    import TrkFile
+    logging.info(f'Continue tracking enabled. Loading existing data from {part_file}')
+
+    conv_dict = {'pTrkTag':'occ','pTrkConf':'conf'}
+
+    # Load existing tracking data from .part file
+    trk_data = TrkFile.Trk(part_file)
+
+    # Get the maximum endframe to determine where to resume
+    max_tracked_frame = trk_data.get_max_endframe()
+
+    resume_from_frame = start_frame  # Default to start_frame if no existing data
+    if max_tracked_frame > 0:
+        # Resume from the next frame after the last tracked frame
+        resume_from_frame = max_tracked_frame + 1
+        logging.info(
+            f'Found existing tracking data up to frame {max_tracked_frame}. Resuming from frame {resume_from_frame}')
+
+        # Get list of frames that overlap with our tracking range
+        frames_to_load = np.arange(max(trk_data.T0, start_frame), min(max_tracked_frame + 1, end_frame))
+
+        if frames_to_load.size>0:
+            trk_data.delink()
+            # Load existing predictions using getframe with return_extra for all frames at once
+            frame_data, frame_extra = trk_data.getframe(frames_to_load, extra=True)
+
+            if not (frame_data.shape[3] <= pred_locs.shape[1] and frame_data.shape[0] == pred_locs.shape[2]):
+                raise ValueError(
+                    f'Existing tracking data in {part_file} has {frame_data.shape[3]} targets and {frame_data.shape[0]} body parts, but expected {pred_locs.shape[1]} targets and {pred_locs.shape[2]} body parts based on current configuration. Please check your .trk file and configuration.')
+
+            if frame_extra:
+                for key, value in frame_extra.items():
+                    if value is None:
+                        continue
+                    if key not in extra_dict:
+                        assert hasattr(value, 'shape')
+                        # Initialize array-like extra data
+                        if key in conv_dict:
+                            ekey = conv_dict[key]
+                        else:
+                            continue
+                        extra_shape = [max_n_frames, n_trx] + list(value.shape[:-2])
+                        extra_dict[ekey] = np.zeros(extra_shape, dtype=trk_data.dtype_dict[key])
+                        extra_dict[ekey][:] = trk_data.defaultval_dict[key]
+
+            if frame_data is not None and frame_data.size > 0:
+                # frame_data shape: [n_landmarks, 2, n_frames, n_targets]
+                # pred_locs shape: [max_n_frames, n_trx, conf.n_classes, 2]
+
+                idx1 = frames_to_load-start_frame
+                idx2 = np.arange(frame_data.shape[2])
+                sel = (idx1>=0) & (idx1<pred_locs.shape[0]) & (idx2>=0) & (idx2<frame_data.shape[2])
+                idx1 = idx1[sel]
+                idx2 = idx2[sel]
+                pred_locs[idx1, :frame_data.shape[3], :, :] = \
+                    frame_data[:, :, idx2, :].transpose(2, 3,0, 1)
+
+                    # Update extra_dict with extra data
+                for key, value in frame_extra.items():
+                    if key not in conv_dict or value is None:
+                        continue
+                    ekey = conv_dict[key]
+                    transpose_ndx = (1, 2, 0) if value.ndim == 3 else (2, 3, 0, 1)
+                    extra_dict[ekey][idx1, :frame_data.shape[3], :, ...] = value[:, ..., idx2, :].transpose(transpose_ndx)
+            logging.info(
+                f'Loaded existing predictions for {len(frames_to_load)} frames ({frames_to_load[0]} to {frames_to_load[-1]})')
+    else:
+        logging.info(f'Part file exists but no valid tracking data found. Starting from beginning.')
+
+    return pred_locs, extra_dict, resume_from_frame
+
 
 def classify_movie(conf, pred_fn, model_type,
                    mov_file='',
@@ -3619,7 +3691,8 @@ def classify_movie(conf, pred_fn, model_type,
                    nskip_partfile=500,
                    save_hmaps=False,
                    predict_trk_file=None,
-                   crop_loc=[None]):
+                   crop_loc=[None],
+                   continue_tracking=False):
     ''' Classifies frames in a movie. All animals in a frame are classified before moving to the next frame.'''
 
     if type(crop_loc) == list and crop_loc[0] is None:
@@ -3678,8 +3751,26 @@ def classify_movie(conf, pred_fn, model_type,
     if (not os.path.exists(hmap_out_dir)) and save_hmaps:
         os.mkdir(hmap_out_dir)
 
+    # Handle continue tracking logic
+    resume_from_frame = start_frame
+    if continue_tracking:
+        # First check if final output file already exists
+        if os.path.exists(out_file):
+            logging.info(f'Continue tracking enabled: Final output file {out_file} already exists. Skipping tracking.')
+            return None
+
+        # Check for partial tracking file
+        if os.path.exists(part_file):
+            try:
+                pred_locs,extra_dict, resume_from_frame = read_trk(part_file, pred_locs,extra_dict,start_frame,end_frame,n_trx,max_n_frames)
+            except Exception as e:
+                logging.warning(f'Failed to load existing tracking data from {part_file}: {e}. Starting from beginning.')
+                resume_from_frame = start_frame
+        else:
+            logging.info(f'Continue tracking enabled but no part file found at {part_file}. Starting from beginning.')
+
     to_do_list = []
-    for cur_f in range(start_frame, end_frame,skip_rate):
+    for cur_f in range(resume_from_frame, end_frame,skip_rate):
         for t in range(n_trx):
             if not np.any(trx_ids == t) and len(trx_ids)>0:
                 continue
@@ -3721,6 +3812,10 @@ def classify_movie(conf, pred_fn, model_type,
 
             # if save_hmaps:
             #    write_hmaps(hmaps[cur_t, ...], hmap_out_dir, trx_ndx, cur_f)
+
+            for k in extra_dict.keys():
+                if k not in ret_dict:
+                    _ = extra_dict.pop(k) # in case occ got in when loading part file but not in current model
 
             # for everything else that is returned..
             for k in ret_dict.keys():
@@ -3793,6 +3888,11 @@ def link(args, view, view_ndx):
     first_stage = args.stage=='first'
     second_stage = args.stage == 'multi' or args.stage=='second'
     conf = create_conf(args.lbl_file, view, args.name, net_type=args.type, cache_dir=args.cache, conf_params=args.conf_params,first_stage=first_stage,second_stage=second_stage,config_file=args.trk_config_file)
+
+    # Handle link_id track_type by setting conf.link_id = True
+    if args.track_type == 'link_id':
+        conf.link_id = True
+
     if not do_link(conf): return
 
     # return
@@ -3804,7 +3904,7 @@ def link(args, view, view_ndx):
     raw_files = []
     for mov_ndx in range(nmov):
         raw_files.append(raw_predict_file(in_trk_files[mov_ndx], out_files[mov_ndx]))
-    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files)
+    trk_linked = lnk.link_trklets(raw_files, conf, movs, out_files, id_wts=args.id_wts_file)
     [trk_linked[mov_ndx].save(out_files[mov_ndx], saveformat='tracklet') for mov_ndx in range(nmov)]
 
 
@@ -4503,13 +4603,15 @@ def parse_args(argv):
     parser_classify.add_argument('-out', dest='out_files', help='file to save tracking results to. For multi-animal: If track_type is only_predict this will have the raw unlinked predictions. If track_type is predict_link and no predict_trk_files is specified, then the raw unliked predictions will be saved to [out]_raw.trk.', required=True, nargs='+')
     parser_classify.add_argument('-trx_ids', dest='trx_ids', help='only track these animals. For single animal project with trajectories', nargs='*', type=int, default=[], action='append')
     # parser_classify.add_argument('-hmaps', dest='hmaps', help='generate heatmpas', action='store_true')
-    parser_classify.add_argument('-track_type',choices=['predict_link','only_predict','only_link'], default='predict_link', help='for multi-animal. Whether to link the predictions or not or only link. predict_link both predicts and links, only_predict only predicts but does not link, only_link only links existing predictions. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
+    parser_classify.add_argument('-track_type',choices=['predict_link','only_predict','only_link','link_id'], default='predict_link', help='for multi-animal. Whether to link the predictions or not or only link. predict_link both predicts and links, only_predict only predicts but does not link, only_link only links existing predictions, link_id enables identity-based linking. For only_link, trk files with raw unlinked predictions must be supplied using -predict_trk_files option.')
     parser_classify.add_argument('-predict_trk_files', help='for multi-animal. When track_type is prdict_link, file to save raw unlinked predictions to. when track_type is only_link, the trk file containing raw unlinked predictions to be used as input for linking', nargs='+', default=None)
     parser_classify.add_argument('-crop_loc', dest='crop_loc', help='crop location given as x_left x_right y_top (low) y_bottom (high) in matlabs 1-index format', nargs='*', type=int, default=None)
     parser_classify.add_argument('-list_file', dest='list_file', help='JSON file with list of movies, targets and frames to track', default=None)
     parser_classify.add_argument('-use_cache', dest='use_cache', action='store_true', help='Use cached images in the label file to generate the database for list file.')
     parser_classify.add_argument('-config_file', dest='trk_config_file', help='JSON file with parameters related to tracking.', default=None)
     parser_classify.add_argument('-no_except', dest='no_except', action='store_true', help='Call main function without wrapping in try-except.  Useful for debugging.')
+    parser_classify.add_argument('-id_wts_file', dest='id_wts_file', help='File path for ID tracking model weights. If file exists, weights are loaded for ID detection. If file does not exist, trained weights are saved to this location.', default=None)
+    parser_classify.add_argument('-continue', dest='continue_tracking', action='store_true', help='Continue tracking from existing .part file. Checks for out_file.part and resumes from the last tracked frame.')
     #parser_classify.add_argument('-debug_link_trkfiles',dest='debug_link_trkfiles', help='Debug the linking of trk files. If specified, this trk file will be loaded and linking will be done on this.', default=None, nargs='*')
 
     parser_gt = subparsers.add_parser('gt_classify', help='Classify GT labeled frames')
@@ -4648,7 +4750,8 @@ def track_view_mov(lbl_file, view_ndx, view, mov_ndx, name, args, first_stage=Fa
                            model_file=args.model_file[view_ndx],
                            train_name=args.train_name,
                            predict_trk_file=args.predict_trk_files[view_ndx][mov_ndx],
-                           no_except=args.no_except
+                           no_except=args.no_except,
+                           continue_tracking=args.continue_tracking
                            )
     else:
         trk = None
@@ -4928,11 +5031,24 @@ def run(args):
         nmov = len(args.mov[0])
 
         for view_ndx, view in enumerate(views):
-            if not args.track_type == 'only_link':
+            # For link_id, check file existence for each movie and run predictions if needed
+            if args.track_type == 'link_id':
+                for mov_ndx in range(nmov):
+                    if args.predict_trk_files and args.predict_trk_files[view_ndx] and len(args.predict_trk_files[view_ndx]) > mov_ndx:
+                        predict_file = args.predict_trk_files[view_ndx][mov_ndx]
+                        raw_file = raw_predict_file(predict_file, args.out_files[view_ndx][mov_ndx])
+                        if not os.path.exists(raw_file):
+                            logging.info(f'link_id selected but predict file {raw_file} does not exist. Running prediction for movie {mov_ndx}.')
+                            track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
+                    else:
+                        logging.info(f'link_id selected but no predict_trk_file specified for movie {mov_ndx}. Running prediction.')
+                        track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
+            elif not args.track_type == 'only_link':
                 for mov_ndx in range(nmov):
                     track_multi_stage(args,view_ndx=view_ndx,view=view,mov_ndx=mov_ndx,conf_raw=conf_raw)
 
-            if not args.track_type == 'only_predict':
+            # Link all movies together for this view
+            if args.track_type == 'link_id' or not args.track_type == 'only_predict':
                 link(args, view=view, view_ndx=view_ndx)
             else:
                 #move the _tracklet.trk files to .trk files

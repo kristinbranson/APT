@@ -207,8 +207,8 @@ classdef BgTrackPoller < BgPoller
       errfiles = obj.toTrackInfos_.getErrFiles(); % 1 x 1
       logfiles = obj.toTrackInfos_.getLogFiles(); % 1x 1
       %killfiles = obj.toTrackInfos_.getKillFiles(); % 1x 1
-      idmodelfile = obj.toTrackInfos_.getIDModelFile(); % 1 x 1
-      idjsonfile = obj.toTrackInfos_.getIDJsonFile(); % 1 x 1
+      idmodelfiles = obj.toTrackInfos_.getIDModelFiles(); % 1 x 1
+      idjsonfiles = obj.toTrackInfos_.getIDJsonFiles(); % 1 x 1
 
       trkfiles = obj.toTrackInfos_.getTrkFiles(); % nmovies x nviews x nstages, local file names
       
@@ -220,13 +220,18 @@ classdef BgTrackPoller < BgPoller
         doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
         tfComplete = doesOutputTrkFileExistFromTripleIndex & ~isRunningFromJobIndex ;
         %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-        tfErrFileErrFromJobIndex = obj.backend_.fileExistsAndIsNonempty(errfiles); % 1x 1
-        logFilesExistFromJobIndex = obj.backend_.fileExistsAndIsNonempty(logfiles); % 1 x 1
-        jsonFileExist = obj.backend_.fileExists(idjsonfile);
-        doesIDModelExist = obj.backend_.fileExists(idmodelfile);
+        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+        jsonFileExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),idjsonfiles); % njobs x 1
+        doesIDModelExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),idmodelfiles); % njobs x 1
+
         if jsonFileExist
-          jsoncurr = obj.backend_.fileContents(idjsonfile);
+          jsoncurr = obj.backend_.fileContents(idjsonfiles{1});
           [idloss,idstep,idlog,jsonFileExist] = obj.readIDLoss(jsoncurr);
+        else
+          idloss = [];
+          idstep = [];
+          idlog = [];          
         end
         pollsuccess = true ;
       catch me
@@ -269,7 +274,7 @@ classdef BgTrackPoller < BgPoller
       assert(isscalar(result)) ;
     end  % function
 
-    function [idloss,idstep,idlog,jsonPresent] = readIDLoss(json_data)
+    function [idloss,idstep,idlog,jsonPresent] = readIDLoss(obj,json_data)
       idloss = []; idstep = []; idlog = []; jsonPresent = true;
       try
         idlog = jsondecode(json_data);
@@ -278,11 +283,15 @@ classdef BgTrackPoller < BgPoller
         jsonPresent = false;
         return
       end
-      if numel(idlog.step)==0
+      if ~isfield(idlog, 'step') || numel(idlog.step)==0
         return
       end
-      idstep = trnLog.step;
-      idloss = trnLog.loss;
+      idstep = idlog.step;
+      if isfield(idlog, 'train_loss')
+        idloss = idlog.train_loss;
+      else
+        idloss = [];
+      end
 
     end
 

@@ -1,8 +1,9 @@
 function toTrackOut = parseToTrackJSON(jsonfile,lObj)
 
-res = jsondecode(fileread(jsonfile));
-assert(isfield(res,'toTrack'));
-res = res.toTrack;
+jsonData = jsondecode(fileread(jsonfile));
+assert(isfield(jsonData,'toTrack'));
+
+res = jsonData.toTrack;
 if iscell(res),
   toTrack = res{1};
   for i = 2:numel(res),
@@ -109,6 +110,14 @@ for i = 1:nmovies,
   toTrackOut.f0s = f0s;
   toTrackOut.f1s = f1s;
   % toTrackOut.detectfiles = detectfiles;
+
+  % Add linking configuration fields only if they were present in JSON
+  if isfield(jsonData, 'link_type')
+    toTrackOut.link_type = jsonData.link_type;
+  end
+  if isfield(jsonData, 'id_maintain_identity')
+    toTrackOut.id_maintain_identity = jsonData.id_maintain_identity;
+  end
   
 end
 

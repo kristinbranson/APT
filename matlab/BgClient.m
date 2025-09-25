@@ -85,20 +85,23 @@ classdef BgClient < handle
       poller = obj.poller ;
       parfevalSuitcase = poller.packParfevalSuitcase() ;
        
+      if isprop(poller,'link_type')&& ~strcmp(poller.link_type,'track') %'id_link')
       % % Start production code
-      obj.fevalFuture = ...
-        parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
+        obj.fevalFuture = ...
+          parfeval(@runPollingLoop, 0, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;
       % End production code
-
-      % % Start debug code
-      % tempfilename = tempname() ;
-      % saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
-      % cleaner = onCleanup(@()(delete(tempfilename))) ;
-      % poller = loadAnonymous(tempfilename) ;
-      % feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
-      % %   The feval() (not parfeval) line above is sometimes useful when debugging.
-      % % End debug code
-
+      else
+      % Start debug code. Note the Stop button won't be active when using
+      % this for debugging
+        tempfilename = tempname() ;
+        saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
+        cleaner = onCleanup(@()(delete(tempfilename))) ;
+        poller = loadAnonymous(tempfilename) ;
+        feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
+      %   The feval() (not parfeval) line above is sometimes useful when debugging.
+      % End debug code
+      end
+      
       obj.idPool = uint32(1);
       obj.idTics = uint64(0);
       obj.idTocs = nan;

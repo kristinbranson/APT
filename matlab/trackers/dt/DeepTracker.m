@@ -2668,8 +2668,7 @@ classdef DeepTracker < LabelTracker
           track_type = 'detect';
           obj.needs_id_linking = true;
           obj.trkfiles = totrackinfo.trkfiles;
-          totrackinfo.trkfiles = {};
-          totrackinfo.setDefaultTrkfiles(true);
+          totrackinfo.setTrkFilesWithDetectSuffix();
         elseif strcmp(totrackinfo.link_type,'simple')
           track_type = 'detect';
           obj.needs_id_linking = false;
@@ -2816,14 +2815,15 @@ classdef DeepTracker < LabelTracker
 
 
       totrackinfo = obj.totrackinfo;
-      if ~isempty(out_trks)
-        totrackinfo.trkfiles = out_trks;
-      end
       nowstr = datestr(now(),'yyyymmddTHHMMSS');
       totrackinfo.setTrainDMC(obj.trnLastDMC);
       totrackinfo.setTrackid(['id_' nowstr]);
-      totrackinfo.setJobid(1);
+      totrackinfo.setJobid(['id_' nowstr]);
       totrackinfo.setDefaultFiles(true);
+      if ~isempty(out_trks)
+        totrackinfo.trkfiles = out_trks;
+      end
+      totrackinfo.setDoContinue(false);
       if ~isempty(detect_trks)
         totrackinfo.setDetectTrk(detect_trks);
       end
@@ -2842,8 +2842,8 @@ classdef DeepTracker < LabelTracker
         return
       end
 
-      obj.trkSysInfo = ToTrackInfoSet;
-      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo) ;
+      obj.trkSysInfo = ToTrackInfoSet(totrackinfo);
+      poller = BgTrackPoller('movie', obj.trnLastDMC, backend, obj.trkSysInfo,'link_type','id_link') ;
 
       % Create the TrackMonitorViz, and the BgMonitor, and set them up for
       % monitoring.
@@ -3093,7 +3093,7 @@ classdef DeepTracker < LabelTracker
         prev_trk_files = obj.totrackinfo.trkfiles;
         out_trks = obj.trkfiles;
         obj.trkfiles = [];
-        obj.idlinkSpawn_(obj.lObj.trackDLBackEnd,'detect_trks',prev_trk_files,'out_trks',out_trks);
+        obj.idlinkSpawn_(obj.lObj.trackDLBackEnd,'detect_trks',prev_trk_files,'out_trks',out_trks,'projTempDir',obj.lObj.projTempDir);
         obj.needs_id_linking = false;
         return
       end

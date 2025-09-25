@@ -1513,7 +1513,9 @@ classdef DLBackEndClass < handle
     function prepareFilesForTracking(backend, toTrackInfo)
       backend.ensureFoldersNeededForTrackingExist_(toTrackInfo) ;
       backend.ensureFilesDoNotExist_({toTrackInfo.getErrfile()}, 'error file') ;
-      backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      if ~toTrackInfo.getDoContinue
+        backend.ensureFilesDoNotExist_(toTrackInfo.getPartTrkFiles(), 'partial tracking result') ;
+      end
       backend.ensureFilesDoNotExist_({toTrackInfo.getKillfile()}, 'kill files') ;
     end  % function
 

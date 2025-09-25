@@ -144,6 +144,22 @@ classdef ToTrackInfoSet < matlab.mixin.Copyable
       end
 
     end
+    function idmodelfiles = getIDModelFiles(obj)
+      idmodelfiles = {};
+      for i = 1:numel(obj.ttis)        
+        j = obj.ttis(i).getIDModelFile();
+        idmodelfiles = [idmodelfiles j];  %#ok<AGROW>
+      end
+
+    end
+    function idjsonfile = getIDJsonFiles(obj)
+      idjsonfile = {};
+      for i = 1:numel(obj.ttis)        
+        j = obj.ttis(i).getIDJsonFile();
+        idjsonfile = [idjsonfile j];  %#ok<AGROW>
+      end
+
+    end
 
     function v = views(obj)
       if numel(obj.ttis) == 0,

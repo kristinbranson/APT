@@ -2,6 +2,7 @@ classdef TrackMonitorViz < handle
   properties
     hfig % scalar fig
     haxs % [1] axis handle, viz wait time
+    haxsIDTraining % scalar axis handle for ID training loss (created when needed)
     %hannlastupdated % [1] textbox/annotation handle
     
     % Three modes. Here nmov=nMovSet*nView
@@ -284,7 +285,12 @@ classdef TrackMonitorViz < handle
         TrackMonitorViz.debugfprintf('N. frames tracked: ');
       end
       TrackMonitorViz.debugfprintf('tfcomplete: %s\n',formattedDisplayText(pollingResult.tfComplete));
-      nJobs = numel(pollingResult.tfComplete); 
+      nJobs = numel(pollingResult.tfComplete);
+
+      % Check if this is an ID linking job and handle ID training axis
+      if isfield(pollingResult, 'result_type') && strcmp(pollingResult.result_type, 'id_link')
+        obj.handleIDTrainingUpdate(pollingResult);
+      end 
 
       % It is assumed that there is a correspondence between res and .hline
       if nJobs~=numel(obj.hline)
@@ -424,6 +430,12 @@ classdef TrackMonitorViz < handle
       elseif isErr,
         status = 'Error while tracking.';
         tfSucc = false;
+      elseif isfield(pollingResult,'result_type')&& strcmp(pollingResult.result_type,'id_link') 
+        if isLogFile && pollingResult.jsonFileExist && numel(pollingResult.idstep)>0
+            status = sprintf('ID Training in progress. % iterations completed',pollingResult.idstep(end));
+        else
+          status = 'Initializing Training for ID Linking. ';            
+        end
       elseif isLogFile,
         if obj.bulkAxsIsBulkMode
           status = sprintf('Tracking in progress. %d/%d movies tracked.',...
@@ -748,6 +760,110 @@ classdef TrackMonitorViz < handle
       pointer = fif(is_busy, 'watch', 'arrow') ;
       set(obj.hfig, 'Pointer', pointer) ;
     end  % function
-    
-  end  % methods    
+
+    function handleIDTrainingUpdate(obj, pollingResult)
+      % Handle ID training progress updates by creating/updating ID training axis
+      if ~isfield(pollingResult, 'idloss') || ~isfield(pollingResult, 'idstep')
+        return;
+      end
+
+      idloss = pollingResult.idloss;
+      idstep = pollingResult.idstep;
+
+      if isempty(idloss) || isempty(idstep)
+        return;
+      end
+
+      % Create ID training axis if it doesn't exist
+      if isempty(obj.haxsIDTraining) || ~ishandle(obj.haxsIDTraining)
+        obj.createIDTrainingAxis();
+      end
+
+      % Update the plot
+      if ishandle(obj.haxsIDTraining)
+        %axes(obj.haxsIDTraining);
+        plot(obj.haxsIDTraining,idstep, idloss, 'g-', 'LineWidth', 1.5);
+        xlabel(obj.haxsIDTraining,'Training Step');
+        ylabel(obj.haxsIDTraining,'Training Loss');
+        title(obj.haxsIDTraining,'ID Model Training Progress','Color',[1,1,1]);
+        set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
+        grid on;
+        drawnow('limitrate', 'nocallbacks');
+      end
+    end  % function
+
+    function createIDTrainingAxis(obj)
+      % Create a new axis for ID training loss display
+      handles = guidata(obj.hfig);
+
+      % Get current figure and axes_wait positions
+      figPos = get(obj.hfig, 'Position');
+      pos_wait = get(handles.axes_wait, 'Position');
+
+      % ID axis needs minimum space - use reclaimed space + additional 200px
+      minIDAxisHeightPx = 100; % Minimum 200 pixels
+      oldFigHeight = figPos(4);
+      minIDAxisHeightNorm = max(0.25,minIDAxisHeightPx / (oldFigHeight+minIDAxisHeightPx )); % Convert to normalized units
+      idAxisHeight = minIDAxisHeightNorm;
+
+      % Calculate total additional space needed beyond reclaimed space
+      additionalSpaceNeeded = idAxisHeight;
+      spacing = 0.03;
+      totalSpaceNeeded = additionalSpaceNeeded + 2*spacing;
+
+      % Resize figure height to accommodate the additional space
+      if totalSpaceNeeded > 0
+        newFigHeight = oldFigHeight + (totalSpaceNeeded * oldFigHeight);
+        figPos(4) = newFigHeight;
+        set(obj.hfig, 'Position', figPos);
+
+        % Calculate scaling factor for normalized coordinates
+        heightScalingFactor = oldFigHeight / newFigHeight;
+      end
+
+      % Move all components below axes_wait down and scale their sizes
+      componentsToMoveBefore = {'edit_trackerinfo', 'axes_wait'};
+      componentsToMoveAfter = {'text_trackerinfo', 'text_clusterinfo', ...
+                         'pushbutton_startstop', 'popupmenu_actions',...
+                         'text_clusterstatus','pushbutton_action'};
+
+      for i = 1:length(componentsToMoveBefore)
+        if isfield(handles, componentsToMoveBefore{i}) && ishandle(handles.(componentsToMoveBefore{i}))
+          pos = get(handles.(componentsToMoveBefore{i}), 'Position');
+          % Scale the position and size to maintain proportions in new coordinate system
+          pos(2) = pos(2) * heightScalingFactor + idAxisHeight; % Move down by ID axis height + spacing
+          pos(4) = pos(4) * heightScalingFactor; % Scale height to maintain visual proportion
+          set(handles.(componentsToMoveBefore{i}), 'Position', pos);
+        end
+      end
+
+      for i = 1:length(componentsToMoveAfter)
+        if isfield(handles, componentsToMoveAfter{i}) && ishandle(handles.(componentsToMoveAfter{i}))
+          pos = get(handles.(componentsToMoveAfter{i}), 'Position');
+          % Scale the position and size to maintain proportions in new coordinate system
+          pos(2) = pos(2) * heightScalingFactor; % Move down by ID axis height + spacing
+          pos(4) = pos(4) * heightScalingFactor; % Scale height to maintain visual proportion
+          set(handles.(componentsToMoveAfter{i}), 'Position', pos);
+        end
+      end
+
+      % Create ID training axis using the calculated space
+      pos_wait_scaled = get(handles.axes_wait,'Position');
+      pos_new = pos_wait_scaled;
+      pos_new(1) = pos_new(1) + 0.04;
+      pos_new(3) = pos_new(3) - 0.04;
+      pos_new(2) = pos_wait_scaled(2) - idAxisHeight  + 1.5*spacing;  % Position below scaled axes_wait
+      pos_new(4) = idAxisHeight-2.5*spacing;  % spacing for axis label and title
+
+      obj.haxsIDTraining = axes('Parent', obj.hfig, ...
+                                'Position', pos_new, ...
+                                'Box', 'on');
+      xlabel(obj.haxsIDTraining, 'ID Training Step');
+      ylabel(obj.haxsIDTraining, 'ID Training Loss');
+      title(obj.haxsIDTraining, 'ID Model Training Progress');
+      grid(obj.haxsIDTraining, 'on');
+      set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
+    end  % function
+
+  end  % methods
 end  % classdef

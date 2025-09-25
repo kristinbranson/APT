@@ -375,6 +375,9 @@ classdef APTInterf
           code_as_list = [code_as_list {'-crop_loc' num2str(croproirowvec)}];
         end
       end
+      if totrackinfo.getDoContinue
+        code_as_list = [code_as_list '-continue'];
+      end
       
       codestr = space_out(code_as_list);
     end

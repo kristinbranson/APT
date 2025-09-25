@@ -395,9 +395,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def __init__(self,conf,**kwargs):
         super(Pose_multi_mdn_joint_torch, self).__init__(conf, **kwargs)
-        if not conf.get('mdn_use_hrnet',False): # resnet50
+        if conf.get('mdn_backbone','resnet50').startswith('resnet'): #not conf.get('mdn_use_hrnet',False): # resnet50
             self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num',3)
             self.fpn_ref_layer  = self.conf.get('mdn_joint_ref_layer_num',0)
+            conf.mdn_use_hrnet = False
         else: #mmpose networks
             if conf.get('mdn_backbone', 'resnet50') == 'vit':
                 self.fpn_joint_layer = self.conf.get('mdn_joint_layer_num', 2)
@@ -408,6 +409,7 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
             else: #hrnet
                 self.fpn_joint_layer = 0
                 self.fpn_ref_layer = 0
+            conf.mdn_use_hrnet = True
 
         self.offset = 4*(2**self.fpn_joint_layer)
         self.ref_scale = 4*(2**self.fpn_ref_layer)
@@ -433,7 +435,10 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
     def create_model(self):
         backbone_type = self.conf.get('mdn_backbone','resnet50')
-        use_hrnet = self.conf.get('mdn_use_hrnet',False)
+        if not backbone_type.startswith('resnet'):
+            use_hrnet = True
+        else:
+            use_hrnet = self.conf.get('mdn_use_hrnet',False)
         dropout = self.conf.get('mdn_dropout',0.0)
         return mdn_joint(self.conf.n_classes, self.device,pretrain_freeze_bnorm=self.conf.pretrain_freeze_bnorm, k_j=self.k_j, k_r=self.k_r, wt_offset=self.wt_offset,fpn_joint_layer=self.fpn_joint_layer,fpn_ref_layer=self.fpn_ref_layer,pred_occluded=self.conf.predict_occluded,backbone_type=backbone_type,use_hrnet=use_hrnet,dropout=dropout,do_dist_pred=self.do_dist_pred,hmap_loss=self.hmap_loss,im_sz=self.conf.imsz)
 
@@ -1487,6 +1492,9 @@ class Pose_multi_mdn_joint_torch(PoseCommon_pytorch.PoseCommon_pytorch):
 
             for ndx, ims in enumerate(ims_in):
                 # do prediction on half grid cell size offset images. o is for offset
+                pad1 = np.ceil(ims.shape[0]/32)*32 - ims.shape[0]
+                pad2 = np.ceil(ims.shape[1]/32)*32 - ims.shape[1]
+                ims = np.pad(ims,[[0,int(pad1)],[0,int(pad2)],[0,0]],mode='constant',constant_values=0)
                 ims = torch.tensor(ims[None]).to(self.device).permute([0,3,1,2])/255.
                 # oims = torch.nn.functional.pad(ims, [0, hsz,0, hsz])[:,:, hsz:, hsz:]
                 with torch.no_grad():
