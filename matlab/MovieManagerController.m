@@ -14,8 +14,8 @@ classdef MovieManagerController < handle
     originalTrxNames
     originalMovsHaveLbls
     
-    % User preference for path truncation
-    showTruncatedPaths = false
+    % User preference for path truncation (true = show ends, false = show starts)
+    showPathEnds = true
   end
   properties (Constant)
     JTABLEPROPS_NOTRX = {'ColumnName',{'Movie' 'Num Labels'},...
@@ -70,9 +70,41 @@ classdef MovieManagerController < handle
 
       handles.gl_buttons = uigridlayout(handles.gl,[1,5],'Padding',[0,0,0,0],'tag','gl_buttons');
 
-      handles.pbTogglePaths = uibutton(handles.gl_buttons,'Text','Path Ends','tag','pbTogglePaths',...
-        'ButtonPushedFcn',@(src,evt) obj.togglePathDisplayMode(src,evt),...
-        'Tooltip','Click to show truncated file paths');
+      % Create button group for path display toggle buttons
+      handles.bg_path = uibuttongroup(handles.gl_buttons,...
+        'BackgroundColor',[0.94 0.94 0.94],...
+        'BorderType','none',...
+        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
+
+      % Load icon images
+      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
+      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
+      if ndims(leftAlignIcon)==2
+        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      end
+      if ndims(rightAlignIcon)==2
+        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
+      end
+
+      % "Starts" toggle button (left side)
+      handles.tb_path_starts = uitogglebutton(handles.bg_path,...
+        'Text','',...
+        'Icon',leftAlignIcon,...
+        'Tooltip','Show path starts',...
+        'FontColor','k','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',~obj.showPathEnds,...
+        'Tag','togglebutton_path_starts');
+
+      % "Ends" toggle button (right side)
+      handles.tb_path_ends = uitogglebutton(handles.bg_path,...
+        'Text','',...
+        'Icon',rightAlignIcon,...
+        'Tooltip','Show path ends',...
+        'FontColor','k','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',obj.showPathEnds,...
+        'Tag','togglebutton_path_ends');
 
       if lObj.gtIsGTMode,
         handles.pbSwitch = uibutton(handles.gl_buttons,'Text','GT Frames','tag','pbGTFrames',...
@@ -127,6 +159,11 @@ classdef MovieManagerController < handle
       obj.hFig.DeleteFcn = @obj.lclDeleteFig;
       
       centerfig(obj.hFig,obj.labeler.gdata.mainFigure_);
+      getframe(obj.hFig);
+
+      % Initialize button positions and update data
+      obj.updateToggleButtonPositions();
+      obj.figureResizeCallback(obj.hFig,[]);
     end
 
     function lclDeleteFig(obj,src,evt)
@@ -476,12 +513,40 @@ classdef MovieManagerController < handle
     end
     
     function figureResizeCallback(obj, src, evt)
-      % Called when the figure is resized - re-truncate table data
+      % Called when the figure is resized - re-truncate table data and update button positions
       if ~isempty(obj.originalMovNames)
         obj.updateTruncatedTableData();
       end
+
+      % Update toggle button positions within the button group
+      obj.updateToggleButtonPositions();
     end
-    
+
+    function updateToggleButtonPositions(obj)
+      % Update the positions of toggle buttons within the button group
+      try
+        handles = guidata(obj.hFig);
+
+        % Get button group position
+        bgPos = handles.bg_path.Position;
+        buttonWidth = (bgPos(3) - 4) / 2; % Two buttons with 2px spacing each
+        buttonHeight = bgPos(4) - 4; % Leave 2px padding top/bottom
+
+        % Position "Starts" button (left side)
+        if isfield(handles, 'tb_path_starts') && isvalid(handles.tb_path_starts)
+          handles.tb_path_starts.Position = [2, 2, buttonWidth, buttonHeight];
+        end
+
+        % Position "Ends" button (right side)
+        if isfield(handles, 'tb_path_ends') && isvalid(handles.tb_path_ends)
+          handles.tb_path_ends.Position = [buttonWidth + 4, 2, buttonWidth, buttonHeight];
+        end
+
+      catch
+        % Silently handle any positioning errors
+      end
+    end
+
     function columnWidth = calculateMovieColumnWidth(obj)
       % Calculate the actual pixel width of the movie name column
       try
@@ -497,18 +562,18 @@ classdef MovieManagerController < handle
           % For TRX table: Movie=2x, Trx=1x, NumLabels=100px
           % Total flexible units = 2x + 1x = 3x
           % Available width = tableWidth - 100px (for NumLabels)
-          availableWidth = tableWidthPixels - 100;
+          availableWidth = tableWidthPixels - 100-20;
           flexibleUnitWidth = availableWidth / 3;
           columnWidth = 2 * flexibleUnitWidth; % Movie column gets 2x
         else
           % For NOTRX table: Movie=1x, NumLabels=100px
           % Available width = tableWidth - 100px (for NumLabels)
-          availableWidth = tableWidthPixels - 100;
+          availableWidth = tableWidthPixels - 100-20;
           columnWidth = availableWidth; % Movie column gets all remaining space
         end
         
         % Ensure minimum width
-        columnWidth = max(columnWidth, 100);
+        %columnWidth = max(columnWidth, 100);
         
       catch
         % Fallback to default if calculation fails
@@ -525,7 +590,7 @@ classdef MovieManagerController < handle
       lObj = obj.labeler;
       tfTrx = lObj.hasTrx && any(cellfun(@(x)~isempty(x), obj.originalTrxNames(:)));
       
-      if obj.showTruncatedPaths
+      if obj.showPathEnds
         % Calculate current column width and truncate
         columnWidthPixels = obj.calculateMovieColumnWidth();
         
@@ -563,19 +628,14 @@ classdef MovieManagerController < handle
       % Right-align the movie column(s)
     end
     
-    function togglePathDisplayMode(obj, src, evt)
-      % Toggle between truncated and full path display
-      obj.showTruncatedPaths = ~obj.showTruncatedPaths;
-      
-      % Update button text to reflect current mode
-      if obj.showTruncatedPaths
-        src.Text = 'Path Starts';
-        src.Tooltip = 'Click to show beginings of file paths';
+    function pathToggleChanged(obj, src, evt)
+      % Handle toggle button group selection change for path display
+      if strcmp(evt.NewValue.Tag, 'togglebutton_path_ends')
+        obj.showPathEnds = true;
       else
-        src.Text = 'Path Ends';
-        src.Tooltip = 'Click to show ends of file paths';
+        obj.showPathEnds = false;
       end
-      
+
       % Update the table display
       obj.updateTruncatedTableData();
     end

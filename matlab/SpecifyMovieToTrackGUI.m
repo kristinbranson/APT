@@ -25,6 +25,7 @@ classdef SpecifyMovieToTrackGUI < handle
     % track_type = 'track';
     detailed_options = true;
     link_type = 'simple';
+    showPathEnds = true;  % Path display mode: true = show path ends, false = show path starts
   end
   methods
     function obj = SpecifyMovieToTrackGUI(lObj,hParent,movdata,varargin)
@@ -321,6 +322,52 @@ classdef SpecifyMovieToTrackGUI < handle
           'Tag',sprintf('controlbutton_%s',controlbuttontags{i}),...
           'Callback',@(h,e) obj.pb_control_Callback(h,e,controlbuttontags{i}));
       end
+
+      % Add path display toggle buttons to the right
+      pathToggleW = 0.08;
+      pathToggleSpacing = 0.005;
+      pathToggleX1 = 1 - obj.posinfo.border - 2*pathToggleW - pathToggleSpacing;
+
+      % Load icon images
+      leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
+      rightAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_right.png'));
+      if ndims(leftAlignIcon)==2
+        leftAlignIcon = repmat(leftAlignIcon,[1 1 3]);
+      end
+      if ndims(rightAlignIcon)==2
+        rightAlignIcon = repmat(rightAlignIcon,[1 1 3]);
+      end
+
+      % Create button group for path toggle buttons
+      obj.gdata.bg_path = uibuttongroup(obj.gdata.fig,...
+        'BackgroundColor',obj.colorinfo.backgroundcolor,...
+        'BorderType','none',...
+        'Units','normalized',...
+        'Position',[pathToggleX1 controlbuttony 2*pathToggleW+pathToggleSpacing obj.posinfo.rowh],...
+        'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
+
+      % "Starts" toggle button (left side)
+      obj.gdata.tb_path_starts = uitogglebutton(obj.gdata.bg_path,...
+        'Text','',...
+        'Icon',leftAlignIcon,...
+        'Tooltip','Show path starts',...
+        'FontColor','w','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',~obj.showPathEnds,...
+        'Tag','togglebutton_path_starts');
+
+      % "Ends" toggle button (right side)
+      obj.gdata.tb_path_ends = uitogglebutton(obj.gdata.bg_path,...
+        'Text','',...
+        'Icon',rightAlignIcon,...
+        'Tooltip','Show path ends',...
+        'FontColor','w','BackgroundColor',[1,1,1],...
+        'FontWeight','bold',...
+        'Value',obj.showPathEnds,...
+        'Tag','togglebutton_path_ends');
+
+      % Position the toggle buttons
+      obj.updatePathTogglePositions();
       
       rowi = 1;
       for i = 1:obj.nview,
@@ -480,6 +527,7 @@ classdef SpecifyMovieToTrackGUI < handle
 
       end
 
+      obj.updatePathDisplay();
 
       
     end
@@ -935,6 +983,12 @@ classdef SpecifyMovieToTrackGUI < handle
       if obj.lObj.maIsMA && isfield(obj.gdata, 'bg_linking') && isvalid(obj.gdata.bg_linking)
         obj.updateLinkingButtonPositions();
       end
+      % Update path toggle button positions on resize
+      if isfield(obj.gdata, 'bg_path') && isvalid(obj.gdata.bg_path)
+        obj.updatePathTogglePositions();
+      end
+      % Update path display after resize to adjust truncation to new component sizes
+      obj.updatePathDisplay();
     end
     
     function updateLinkingButtonPositions(obj)
@@ -983,6 +1037,123 @@ classdef SpecifyMovieToTrackGUI < handle
         warning(ME.identifier,'Error updating linking button positions: %s', ME.message);
       end
     end
-    
+
+    function pathToggleChanged(obj, src, evt)
+      % Callback for path display toggle button group
+      selectedButton = evt.NewValue;
+
+      % Determine which toggle was selected and update showPathEnds accordingly
+      if selectedButton == obj.gdata.tb_path_starts
+        obj.showPathEnds = false;  % Show path starts
+      elseif selectedButton == obj.gdata.tb_path_ends
+        obj.showPathEnds = true;   % Show path ends
+      end
+
+      % Update all displayed file paths
+      obj.updatePathDisplay();
+    end
+
+    function updatePathTogglePositions(obj)
+      % Update positions of the path toggle buttons
+      if ~isfield(obj.gdata, 'bg_path') || ~isvalid(obj.gdata.bg_path)
+        return;
+      end
+
+      try
+        % Get the button group position in pixels
+        set(obj.gdata.bg_path,'Units','pixels');
+        bgPos = get(obj.gdata.bg_path,'Position');
+        bgWidth = bgPos(3);
+        bgHeight = bgPos(4);
+        set(obj.gdata.bg_path,'Units','normalized');
+
+        % Calculate button dimensions - split the width in half
+        buttonWidth = bgWidth / 2;
+        buttonHeight = max(20, bgHeight - 4);  % Leave small padding
+
+        % Position buttons side by side
+        if isfield(obj.gdata, 'tb_path_starts') && isvalid(obj.gdata.tb_path_starts)
+          obj.gdata.tb_path_starts.Position = [2, 2, buttonWidth-4, buttonHeight];
+        end
+        if isfield(obj.gdata, 'tb_path_ends') && isvalid(obj.gdata.tb_path_ends)
+          obj.gdata.tb_path_ends.Position = [buttonWidth+2, 2, buttonWidth-4, buttonHeight];
+        end
+
+      catch ME
+        % Silently handle errors during positioning
+        warning(ME.identifier,'Error updating path toggle positions: %s', ME.message);
+      end
+    end
+
+    function updatePathDisplay(obj)
+      % Update the display of file paths based on current mode (starts vs ends)
+
+      % Update movie file paths
+      if isfield(obj.gdata, 'movie') && isfield(obj.gdata.movie, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.gdata.movie.rowedit) && isvalid(obj.gdata.movie.rowedit(i))
+            originalPath = obj.movdata.movfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.gdata.movie.rowedit(i));
+              set(obj.gdata.movie.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update trk file paths
+      if isfield(obj.gdata, 'trk') && isfield(obj.gdata.trk, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.gdata.trk.rowedit) && isvalid(obj.gdata.trk.rowedit(i))
+            originalPath = obj.movdata.trkfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.gdata.trk.rowedit(i));
+              set(obj.gdata.trk.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update trx file paths (if project has trx)
+      if obj.hastrx && isfield(obj.gdata, 'trx') && isfield(obj.gdata.trx, 'rowedit')
+        for i = 1:obj.nview
+          if i <= length(obj.gdata.trx.rowedit) && isvalid(obj.gdata.trx.rowedit(i))
+            originalPath = obj.movdata.trxfiles{i};
+            if ~isempty(originalPath)
+              displayPath = obj.getDisplayPath(originalPath, obj.gdata.trx.rowedit(i));
+              set(obj.gdata.trx.rowedit(i), 'String', displayPath);
+            end
+          end
+        end
+      end
+
+      % Update calibration file path (if single path for all views)
+      if isfield(obj.gdata, 'cal') && isfield(obj.gdata.cal, 'rowedit') && ...
+         length(obj.gdata.cal.rowedit) >= 1 && isvalid(obj.gdata.cal.rowedit(1))
+        originalPath = obj.movdata.calibrationfiles;
+        if ~isempty(originalPath)
+          displayPath = obj.getDisplayPath(originalPath, obj.gdata.cal.rowedit(1));
+          set(obj.gdata.cal.rowedit(1), 'String', displayPath);
+        end
+      end
+    end
+
+    function displayPath = getDisplayPath(obj, originalPath, editComponent)
+      % Get the appropriate display path based on current toggle setting
+      if isempty(originalPath)
+        displayPath = '';
+        return;
+      end
+
+      if obj.showPathEnds
+        % Show truncated path ends
+        displayPath = PathTruncationUtils.truncateFilePath(...
+          originalPath, 'component', editComponent, 'startFraction', 0);
+      else
+        % Show whole path when showing path starts
+        displayPath = originalPath;
+      end
+    end
+
   end
 end

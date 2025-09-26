@@ -22,7 +22,9 @@ classdef TrackBatchGUI < handle
     % Store original (untruncated) data for dynamic resizing
     originalMovieFiles = {};
     originalTrkFiles = {};
+    originalTrxFiles = {};
     originalDetectFiles = {};
+    hasTrx = false;
     
     % Path display mode: true = show path ends, false = show path starts
     showPathEnds = true;
@@ -118,13 +120,7 @@ classdef TrackBatchGUI < handle
       addbuttoncolor = [.7,0,.7];
       
       colw = ((1-2*border) - (filebuttonw+colborder)*2);
-      % if obj.isma
-      %   colw = colw/3;
-      %   ncol = 3;
-      % else
       colw = colw/2;
-      ncol = 2;
-      % end
       
       allmovieh = 1 - 3*border - rowh*4 - 4*rowborder - border;
       obj.nmovies_per_page = floor(allmovieh/(rowh+rowborder))-3;
@@ -144,8 +140,12 @@ classdef TrackBatchGUI < handle
  
       macroedity = rowys(end) - 1.5*(rowh+rowborder);
       hasTrx = obj.lObj.hasTrx;
+      obj.hasTrx = hasTrx;
       if hasTrx
         macroedity(2) = macroedity - (rowh+rowborder);
+        ncol = 3;
+      else
+        ncol = 2;
       end
       
       pagetextw = .1;
@@ -180,9 +180,13 @@ classdef TrackBatchGUI < handle
       
       defaultmovfiles = cell(1,obj.nmovies_per_page);
       defaulttrkfiles = cell(1,obj.nmovies_per_page);
+      defaulttrxfiles = cell(1,obj.nmovies_per_page);
       for i = 1:obj.nmovies_per_page
         defaultmovfiles{i} = sprintf('pathtomovie%disveryveryvery/long/movieloc%d.avi',i,i);
         defaulttrkfiles{i} = sprintf('pathtotrk%disveryveryvery/long/outputtrkloc%d.trk',i,i);
+        if hasTrx
+          defaulttrxfiles{i} = sprintf('pathtotrx%disveryveryvery/long/trxloc%d.mat',i,i);
+        end
       end
       obj.gdata = struct;
       
@@ -228,12 +232,24 @@ classdef TrackBatchGUI < handle
         'Tag','Movie title');
       obj.gdata.txt_movietitle.Layout.Row=1;
       obj.gdata.txt_movietitle.Layout.Column=1;
+      if hasTrx
+        obj.gdata.txt_trxtitle = uilabel(edit_grid,'Text','Trx File',...
+          'FontColor','w','BackgroundColor','k','FontWeight','bold',...
+          'FontSize',FONTSIZE,'HorizontalAlignment','center',...
+          'Tag','Trx title');
+        obj.gdata.txt_trxtitle.Layout.Row=1;
+        obj.gdata.txt_trxtitle.Layout.Column=2;
+        nextcol = 3;
+      else
+        nextcol = 2;
+      end
+
       obj.gdata.txt_trktitle = uilabel(edit_grid,'Text','Output trk',...
         'FontColor','w','BackgroundColor','k','FontWeight','bold',...
         'FontSize',FONTSIZE,'HorizontalAlignment','center',...
         'Tag','Trk title');
       obj.gdata.txt_trktitle.Layout.Row=1;
-      obj.gdata.txt_trktitle.Layout.Column=2;
+      obj.gdata.txt_trktitle.Layout.Column=nextcol;
       % if obj.isma
       %   obj.gdata.txt_detecttitle = uilabel(edit_grid,'Text','Output Detect trk',...
       %   'FontColor','w','BackgroundColor','k','FontWeight','bold',...
@@ -249,7 +265,7 @@ classdef TrackBatchGUI < handle
         'BorderType','none',...
         'SelectionChangedFcn',@(src,evt) obj.pathToggleChanged(src,evt));
       obj.gdata.bg_path.Layout.Row = 1;
-      obj.gdata.bg_path.Layout.Column = [3 4];
+      obj.gdata.bg_path.Layout.Column = nextcol + [1 2];
 
       % Load icon images
       leftAlignIcon = imread(fullfile(fileparts(mfilename('fullpath')), 'util', 'align_left.png'));
@@ -309,10 +325,10 @@ classdef TrackBatchGUI < handle
           'Tooltip', macrotooltip);
       obj.gdata.edit_macro.Layout.Row = 2;
       obj.gdata.edit_macro.Layout.Column = 2;
-      if hasTrx
+      if obj.hasTrx
         obj.gdata.txt_trx = uilabel(grid,'Text','Default trx location',...
           'FontColor','w','BackgroundColor','k','FontWeight','bold',...
-          'FontSize',FONTSIZESML,'HorizontalAlignment','left',...
+          'FontSize',FONTSIZESML,'HorizontalAlignment','right',...
           'Tag','txt_macro_trx',...
           'Tooltip', macrotooltip);
         obj.gdata.txt_trx.Layout.Row = 3;
@@ -331,7 +347,7 @@ classdef TrackBatchGUI < handle
       
       % Add identity linking checkboxes for multi-animal projects
       if obj.lObj.maIsMA
-        if hasTrx
+        if obj.hasTrx
           nextRow = 4;
         else
           nextRow = 3;
@@ -402,6 +418,21 @@ classdef TrackBatchGUI < handle
           'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'movie'));
         obj.gdata.edit_movie(i).Layout.Row = i+1;
         obj.gdata.edit_movie(i).Layout.Column = 1;
+
+        if hasTrx
+          trxfilecurr = defaulttrxfiles{i};
+          obj.gdata.edit_trx(i) = uieditfield(edit_grid,...
+            'Value',trxfilecurr,...
+            'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
+            'Enable','on',...
+            'Tag',sprintf('edit_trx%d',i),...
+            'HorizontalAlignment','right','Visible',visible,...
+            'ValueChangedFcn',@(h,e) obj.edit_trx_Callback(h,e,i),...
+            'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'trx'));
+          obj.gdata.edit_trx(i).Layout.Row = i+1;
+          obj.gdata.edit_trx(i).Layout.Column = 2;
+        end
+
         obj.gdata.edit_trk(i) = uieditfield(edit_grid,...
           'Value',trkfilecurr,...
           'FontColor','w','BackgroundColor',editfilecolor,'FontWeight','normal',...
@@ -411,7 +442,7 @@ classdef TrackBatchGUI < handle
           'ValueChangedFcn',@(h,e) obj.edit_trk_Callback(h,e,i),...
           'ValueChangingFcn',@(h,e) obj.expandEditFieldOnChange(h,e,i,'trk'));
         obj.gdata.edit_trk(i).Layout.Row = i+1;
-        obj.gdata.edit_trk(i).Layout.Column = 2;
+        obj.gdata.edit_trk(i).Layout.Column = 2+hasTrx;
         % if obj.isma
         %   obj.gdata.edit_detect(i) = uieditfield(obj.gdata.fig,'text',...
         %   'Value',detectfilecurr,...
@@ -429,7 +460,7 @@ classdef TrackBatchGUI < handle
           'Visible',visible,...
           'ButtonPushedFcn',@(h,e) obj.pb_details_Callback(h,e,i));
         obj.gdata.button_details(i).Layout.Row = i+1;
-        obj.gdata.button_details(i).Layout.Column = 3;
+        obj.gdata.button_details(i).Layout.Column = 3+hasTrx;
         obj.gdata.button_delete(i) = uibutton(edit_grid,'Text','-',...
           'FontColor','w','BackgroundColor',deletebuttoncolor,'FontWeight','bold',...
           'Enable','on',...
@@ -438,7 +469,7 @@ classdef TrackBatchGUI < handle
           'Visible',visible,...
           'ButtonPushedFcn',@(h,e) obj.pb_delete_Callback(h,e,i));
         obj.gdata.button_delete(i).Layout.Row = i+1;
-        obj.gdata.button_delete(i).Layout.Column = 4;
+        obj.gdata.button_delete(i).Layout.Column = 4+hasTrx;
       end
       
       page_cols = repmat({50},[1 npagebuttons]);
@@ -526,6 +557,9 @@ classdef TrackBatchGUI < handle
       % Store original data for dynamic truncation on resize
       obj.originalMovieFiles = cell(obj.nmovies, 1);
       obj.originalTrkFiles = cell(obj.nmovies, 1);
+      if obj.hasTrx
+        obj.originalTrxFiles = cell(obj.nmovies,1);
+      end
       % if obj.isma
       %   obj.originalDetectFiles = cell(obj.nmovies, 1);
       % end
@@ -533,9 +567,9 @@ classdef TrackBatchGUI < handle
       for imov = 1:obj.nmovies
         obj.originalMovieFiles{imov} = obj.toTrack.movfiles{imov,1};
         obj.originalTrkFiles{imov} = obj.toTrack.trkfiles{imov,1};
-        % if obj.isma
-        %   obj.originalDetectFiles{imov} = obj.toTrack.detectfiles{imov,1};
-        % end
+        if obj.hasTrx
+          obj.originalTrxFiles{imov} = obj.toTrack.trxfiles{imov,1};
+        end
       end
 
       for i = 1:obj.nmovies_per_page,
@@ -543,10 +577,16 @@ classdef TrackBatchGUI < handle
         if moviei <= obj.nmovies,
           movfilecurr = obj.toTrack.movfiles{moviei,1};
           trkfilecurr = obj.toTrack.trkfiles{moviei,1};
+          if obj.hasTrx
+            trxfilecurr = obj.toTrack.trxfiles{moviei,1};
+          end
           visible = 'on';
         else
           movfilecurr = '';
           trkfilecurr = '';
+          if obj.hasTrx
+            trxfilecurr = '';
+          end
           visible = 'off';
         end
         if obj.page == 1 && i == 1,
@@ -554,9 +594,16 @@ classdef TrackBatchGUI < handle
         end
         set(obj.gdata.edit_movie(i),'Value',movfilecurr);
         set(obj.gdata.edit_trk(i),'Value',trkfilecurr);
+        if obj.hasTrx
+          set(obj.gdata.edit_trx(i),'Value',trxfilecurr);
+        end
         obj.setRowVisible(i,visible);
         set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
           obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
+        if obj.hasTrx
+          set(obj.gdata.edit_trx(i),'Value',trxfilecurr,'Visible',visible);
+        end
+        
       end
         
       set(obj.gdata.text_page,'Text',sprintf('Page %d/%d',obj.page,obj.npages));
@@ -568,6 +615,9 @@ classdef TrackBatchGUI < handle
     function setRowVisible(obj,i,visible)
       set([obj.gdata.edit_movie(i),obj.gdata.edit_trk(i),...
         obj.gdata.button_details(i),obj.gdata.button_delete(i)],'Visible',visible);
+      if obj.hasTrx
+        set(obj.gdata.edit_trx(i),'Visible',visible);
+      end
     end
     
     function moviei = item2MovieIdx(obj,itemi)
@@ -647,15 +697,15 @@ classdef TrackBatchGUI < handle
       if length(obj.originalMovieFiles) < moviei
         obj.originalMovieFiles{moviei,:} = [];
         obj.originalTrkFiles{moviei,:} = [];
-        % if obj.isma
-        %   obj.originalDetectFiles{moviei} = [];
-        % end
+        if obj.hasTrx
+          obj.originalTrxFiles{moviei,:} = [];
+        end
       end
       obj.originalMovieFiles{moviei,:} = obj.toTrack.movfiles{moviei,:};
       obj.originalTrkFiles{moviei,:} = obj.toTrack.trkfiles{moviei,:};
-      % if obj.isma
-      %   obj.originalDetectFiles{moviei} = obj.toTrack.detectfiles{moviei,1};
-      % end
+      if obj.hasTrx
+        obj.originalTrxFiles{moviei,:} = obj.toTrack.trxfiles{moviei,1};
+      end
       
       itemi = obj.movie2ItemIdx(moviei);
       if isempty(itemi),
@@ -663,9 +713,9 @@ classdef TrackBatchGUI < handle
       end
       set(obj.gdata.edit_movie(itemi),'Value',obj.toTrack.movfiles{moviei,1});
       set(obj.gdata.edit_trk(itemi),'Value',obj.toTrack.trkfiles{moviei,1});
-      % if obj.isma
-      %   set(obj.gdata.edit_detect(itemi),'Value',obj.toTrack.detectfiles{moviei,1});
-      % end
+      if obj.hasTrx
+        set(obj.gdata.edit_trx(itemi),'Value',obj.toTrack.trxfiles{moviei,1});
+      end
       obj.setRowVisible(itemi,'on');
       
       % Apply current truncation mode to this row
@@ -813,11 +863,11 @@ classdef TrackBatchGUI < handle
 
         % Show summary
         if addedCount > 0
-          msgStr = sprintf('Successfully added %d movies.',addedCount);
-          if ~isempty(errorLines)
-            msgStr = [msgStr sprintf('\n\nErrors encountered:\n%s',strjoin(errorLines,'\n'))];
-          end
-          msgbox(msgStr,'Add List Results');
+          % msgStr = sprintf('Successfully added %d movies.',addedCount);
+          % if ~isempty(errorLines)
+          %   msgStr = [msgStr sprintf('\n\nErrors encountered:\n%s',strjoin(errorLines,'\n'))];
+          % end
+          % msgbox(msgStr,'Add List Results');
         else
           errordlg('No movies were added. Please check the file format.');
         end
@@ -884,16 +934,7 @@ classdef TrackBatchGUI < handle
           movdataout.trxfiles = trxFiles;
           partIndex = partIndex + nviews;
         else
-          % Generate default trx files if pattern exists
-          if ~isempty(obj.defaulttrxpat)
-            defaultTrxFiles = cell(1,nviews);
-            for i = 1:nviews
-              defaultTrxFiles{i} = obj.genTrkfile(movieFiles{i},obj.defaulttrxpat);
-            end
-            movdataout.trxfiles = defaultTrxFiles;
-          else
-            movdataout.trxfiles = repmat({''},[1,nviews]);
-          end
+          error('Trx file not specified');
         end
       end
 
@@ -1150,6 +1191,24 @@ classdef TrackBatchGUI < handle
       end
       
     end
+    function edit_trx_Callback(obj,h,e,itemi)
+      moviei = obj.item2MovieIdx(itemi);
+      if moviei>obj.nmovies
+        obj.pb_add_Callback([],[],[]);
+        return;
+      end
+      trx = h.Value;
+      obj.toTrack.trxfiles{moviei,1} = trx;
+      
+      % Update original data
+      if moviei <= length(obj.originalTrxFiles)
+        obj.originalTrxFiles{moviei} = trx;
+      end
+      
+      % mutating .toTrack outside setMovData
+      obj.needsSave = true;
+    end
+
     function edit_trk_Callback(obj,h,e,itemi)
       moviei = obj.item2MovieIdx(itemi);
       if moviei>obj.nmovies
@@ -1345,6 +1404,10 @@ classdef TrackBatchGUI < handle
             if moviei <= length(obj.originalMovieFiles)
               originalPath = obj.originalMovieFiles{moviei};
             end
+          case 'trx'
+            if moviei <= length(obj.originalTrxFiles)
+              originalPath = obj.originalTrxFiles{moviei};
+            end
           case 'trk'
             if moviei <= length(obj.originalTrkFiles)
               originalPath = obj.originalTrkFiles{moviei};
@@ -1377,6 +1440,10 @@ classdef TrackBatchGUI < handle
           case 'movie'
             if moviei <= length(obj.originalMovieFiles)
               originalPath = obj.originalMovieFiles{moviei};
+            end
+          case 'trx'
+            if moviei <= length(obj.originalTrxFiles)
+              originalPath = obj.originalTrxFiles{moviei};
             end
           case 'trk'
             if moviei <= length(obj.originalTrkFiles)
@@ -1492,6 +1559,17 @@ classdef TrackBatchGUI < handle
               displayTrkFile = obj.originalTrkFiles{moviei};
             end
             set(obj.gdata.edit_trk(i), 'Value', displayTrkFile);
+          end
+          if obj.hasTrx && moviei <= size(obj.originalTrxFiles, 1) && ~isempty(obj.originalTrxFiles{moviei})
+            if obj.showPathEnds
+              % Show truncated path ends
+              displayTrxFile = PathTruncationUtils.truncateFilePath(...
+                obj.originalTrxFiles{moviei}, 'component', obj.gdata.edit_trk(i), 'startFraction', 0);
+            else
+              % Show whole path when showing path starts
+              displayTrxFile = obj.originalTrxFiles{moviei};
+            end
+            set(obj.gdata.edit_trx(i), 'Value', displayTrxFile);
           end
         end
       end
