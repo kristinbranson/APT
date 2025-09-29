@@ -87,6 +87,20 @@
       ],
       "Type": "boolean",
       "isEditable": true
+    },
+    "db_format": {
+      "AffectsTraining": true,
+      "DefaultValue": "coco",
+      "Description": "Format for Training DB",
+      "DispName": "DB Format",
+      "Level": "Developer",
+      "ParamViz": "",
+      "Requirements": [
+        "multi_openpose",
+        "isDeepTrack"
+      ],
+      "Type": "string",
+      "isEditable": true
     }
   }
 }

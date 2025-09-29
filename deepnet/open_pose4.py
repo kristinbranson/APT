@@ -363,7 +363,7 @@ def configure_losses(model, dc_on=True, dcNum=None, dc_blur_rad_ratio=None, dc_w
         # Not sure how to get from output Tensor to its layer. Using
         # output Tensor name doesn't work with model.compile
         
-        layers_matching_output = [layer for layer in layers if layer.output == output]
+        layers_matching_output = [layer for layer in layers if layer.output is output]
         assert len(layers_matching_output) == 1, "Found multiple layers for output."
         layer_matching_output = layers_matching_output[0]
         output_layer_name = layer_matching_output.name
@@ -670,7 +670,7 @@ def training(conf, name='deepnet',restore=False, model_file=None):
 
     # prepare generators
     PREPROCFN = 'ims_locs_preprocess_openpose'
-    trntfr = os.path.join(conf.cachedir, conf.trainfilename) + '.tfrecords'
+    trntfr = os.path.join(conf.cachedir, conf.trainfilename) + PoseTools.dbformat_to_extension(conf.db_format)
     train_di = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN)
     train_di2 = tfdatagen.make_data_generator(trntfr, conf, True, True, PREPROCFN)
     val_di = tfdatagen.make_data_generator(trntfr, conf, False, False, PREPROCFN)

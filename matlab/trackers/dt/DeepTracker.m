@@ -1563,7 +1563,7 @@ classdef DeepTracker < LabelTracker
 
       % If a dry run, exit early
       if obj.dryRunOnly
-        fprintf('Dry run, not spawning training jobs') ;
+        fprintf('Dry run, not spawning training jobs\n') ;
         return
       end
 

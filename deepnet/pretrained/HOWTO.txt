@@ -1,0 +1,2 @@
+scp * research.int.janelia.org:/opt/www/httpd/htdocs/bransonlab/APT/pretrained/.
+

@@ -362,6 +362,7 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
         else:
             cfg[dname].dataset.ann_file = ann_file
         cfg[dname].dataset.data_prefix.img = ''
+        cfg[dname].dataset.data_root = ''
         if ttype != 'train':
             cfg[dname].dataset.bbox_file = None
 
@@ -502,8 +503,15 @@ def create_mmpose_cfg(conf, mmpose_config_file, run_name):
 
     cfg.optim_wrapper.optimizer.lr = cfg.optim_wrapper.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size / default_samples_per_gpu
 
-
     t_steps = 0
+
+    # if the number of iterations is less than the warmup steps, then don't do the warmup
+    if any([s.type == 'MultiStepLR' for s in cfg.param_scheduler]):
+        total_warmup_steps = np.sum([s.end for s in cfg.param_scheduler if s.type != 'MultiStepLR'])
+        if total_warmup_steps > conf.dl_steps:
+            cfg.param_scheduler = [s for s in cfg.param_scheduler if s.type == 'MultiStepLR']
+            logging.warning('Total warmup steps is greater than the total training steps.  Warmup is disabled.')
+
     for sched in cfg.param_scheduler:
         if not sched.type == 'MultiStepLR':
             t_steps += sched.end

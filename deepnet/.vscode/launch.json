@@ -349,6 +349,33 @@
             ],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "profile_collect",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "profile_network_size_kb.py",
+            "args": ["collect"],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "profile_memory",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "profile_network_size_kb.py",
+            "args": ["profile", "--restart", "--cfgi0", "5", "--cfgi1", "6", "--mintimestamp", "20250925T170800"],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "profile_single",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "profile_network_size_kb.py",
+            "args": ["profilesingle", "5", "256", "1"],
+            "console": "integratedTerminal",
+            "justMyCode": false
         }
 
 

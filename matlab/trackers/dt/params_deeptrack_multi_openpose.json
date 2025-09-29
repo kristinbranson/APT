@@ -76,7 +76,7 @@
     },
     "db_format": {
       "AffectsTraining": true,
-      "DefaultValue": "tfrecord",
+      "DefaultValue": "coco",
       "Description": "Format for Training DB",
       "DispName": "DB Format",
       "Level": "Developer",

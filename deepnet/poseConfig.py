@@ -80,7 +80,7 @@ class config(object):
         self.holdoutratio = 0.8
         self.flipud = False
         self.json_trn_file = None
-        self.db_format = 'tfrecord' # other option is coco
+        self.db_format = 'coco' # other option is tfrecord
         #self.db_format = 'coco' # other option is coco
 
         if self.db_format == 'tfrecord':

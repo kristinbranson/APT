@@ -1400,7 +1400,7 @@ classdef APTParameters
     end
 
     function v = getMAMultiLossMask(prm,varargin)
-      v = APTParmaeters.getParam(prm,'ROOT.MultiAnimal.multi_loss_mask',varargin{:});
+      v = APTParameters.getParam(prm,'ROOT.MultiAnimal.multi_loss_mask',varargin{:});
     end
 
     function v = getTrackNFramesSmall(prm,varargin)
@@ -1503,6 +1503,9 @@ classdef APTParameters
     end
 
     function prm = setGradientDescentSteps(prm,val,stage)
+      if nargin < 3,
+        stage = 'pose';
+      end
       prepath = APTParameters.DLStage2Path(stage);
       prm = APTParameters.setParam(prm,[prepath,'.GradientDescent.dl_steps'],val);
     end

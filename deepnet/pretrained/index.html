@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-trained Models - MMPose and MMDetect</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        .model-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #3498db;
+        }
+        .model-section:last-child {
+            margin-bottom: 0;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 0;
+            font-size: 1.3em;
+        }
+        .file-link {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin: 10px 10px 10px 0;
+            transition: background 0.3s;
+        }
+        .file-link:hover {
+            background: #2980b9;
+        }
+        .source-link {
+            color: #16a085;
+            word-break: break-all;
+        }
+        .source-link:hover {
+            color: #138d75;
+        }
+        .label {
+            font-weight: bold;
+            color: #555;
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pre-trained Models from MMPose and MMDetect</h1>
+        <div id="models-container"></div>
+    </div>
+
+    <script>
+        // Add your models here - just edit this array!
+        const models = [
+            {
+                name: "Faster R-CNN Model, R-50 FPN backbone, 3x learning rate",
+                files: [
+                    {
+                        filename: "faster-rcnn_r50_fpn_ms-3x_coco.py",
+                        type: "config"
+                    },
+                    {
+                        filename: "faster_rcnn_r50_fpn_mstrain_3x_coco_20210524_110822-e10bd31c.pth",
+                        type: "weights"
+                    }
+                ],
+                sources: {
+                    config: "https://github.com/open-mmlab/mmdetection/blob/main/configs/faster_rcnn/faster-rcnn_r50_fpn_ms-3x_coco.py",
+                    weights: "https://download.openxlab.org.cn/models/mmdetection/FasterR-CNN/weight/faster-rcnn_r50-caffe_fpn_ms-3x_coco"
+                }
+            },
+            {
+                name: "Faster R-CNN Model, R-50 FPN backbone, 2x learning rate",
+                files: [
+                    {
+                        filename: "faster-rcnn_r50_fpn_2x_coco.py",
+                        type: "config"
+                    },
+                    {
+                        filename: "faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth",
+                        type: "weights"
+                    }
+                ],
+                sources: {
+                    config: "https://github.com/open-mmlab/mmdetection/blob/main/configs/faster_rcnn/faster-rcnn_r50_fpn_2x_coco.py",
+                    weights: "https://download.openxlab.org.cn/models/mmdetection/FasterR-CNN/weight/faster-rcnn_r50_fpn_2x_coco"
+                }
+            },
+            {
+                name: "DETR Model",
+                files: [
+                    {
+                        filename: "detr_r50_8xb2-150e_coco.py",
+                        type: "config"
+                    },
+                    {
+                        filename: "detr_r50_8xb2-150e_coco_20221023_153551-436d03e8.pth",
+                        type: "weights"
+                    }
+                ],
+                sources: {
+                    config: "https://github.com/open-mmlab/mmdetection/blob/main/configs/detr/detr_r50_8xb2-150e_coco.py",
+                    weights: "https://download.openmmlab.com/mmdetection/v3.0/detr/detr_r50_8xb2-150e_coco/detr_r50_8xb2-150e_coco_20221023_153551-436d03e8.pth"
+                }
+            }
+        ];
+
+        // Generate the HTML from the models array
+        function renderModels() {
+            const container = document.getElementById('models-container');
+            
+            models.forEach(model => {
+                const section = document.createElement('div');
+                section.className = 'model-section';
+                
+                const title = document.createElement('h2');
+                title.textContent = model.name;
+                section.appendChild(title);
+                
+                // Add file links
+                model.files.forEach(file => {
+                    const link = document.createElement('a');
+                    link.href = file.filename;
+                    link.className = 'file-link';
+                    link.textContent = file.filename;
+                    section.appendChild(link);
+                });
+                
+                // Add source links
+                if (model.sources.config) {
+                    const configLabel = document.createElement('span');
+                    configLabel.className = 'label';
+                    configLabel.textContent = 'Config Original Source:';
+                    section.appendChild(configLabel);
+                    
+                    const configLink = document.createElement('a');
+                    configLink.href = model.sources.config;
+                    configLink.className = 'source-link';
+                    configLink.target = '_blank';
+                    configLink.textContent = model.sources.config;
+                    section.appendChild(configLink);
+                }
+                
+                if (model.sources.weights) {
+                    const weightsLabel = document.createElement('span');
+                    weightsLabel.className = 'label';
+                    weightsLabel.textContent = 'Weights Original Source:';
+                    section.appendChild(weightsLabel);
+                    
+                    const weightsLink = document.createElement('a');
+                    weightsLink.href = model.sources.weights;
+                    weightsLink.className = 'source-link';
+                    weightsLink.target = '_blank';
+                    weightsLink.textContent = model.sources.weights;
+                    section.appendChild(weightsLink);
+                }
+                
+                container.appendChild(section);
+            });
+        }
+
+        // Render when page loads
+        renderModels();
+    </script>
+</body>
+</html>
