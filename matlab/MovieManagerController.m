@@ -194,7 +194,9 @@ classdef MovieManagerController < handle
           gdata.labelSet.Text = '';
           return;
         end
-        obj.tblMovieSet.Data = obj.labeler.movieFilesAllGTaware(rows,:)';
+        % Get movie set data and apply path truncation
+        movieSetData = obj.labeler.movieFilesAllGTaware(rows,:)';
+        obj.tblMovieSet.Data = obj.truncateMovieSetPaths(movieSetData);
         gdata.labelSet.Text = sprintf('Selected set %d',rows);
       end      
       obj.notify('tableClicked');
@@ -520,6 +522,9 @@ classdef MovieManagerController < handle
 
       % Update toggle button positions within the button group
       obj.updateToggleButtonPositions();
+
+      % Update movieset table if it has data
+      obj.updateMovieSetTable();
     end
 
     function updateToggleButtonPositions(obj)
@@ -544,6 +549,43 @@ classdef MovieManagerController < handle
 
       catch
         % Silently handle any positioning errors
+      end
+    end
+
+    function truncatedData = truncateMovieSetPaths(obj, movieSetData)
+      % Apply path truncation to movie set table data based on showPathEnds setting
+      if isempty(movieSetData)
+        truncatedData = movieSetData;
+        return;
+      end
+
+      try
+        % Calculate appropriate column width for movieset table
+        tablePos = obj.tblMovieSet.Position;
+        tableWidthPixels = tablePos(3) - 20; % Account for margins
+
+        % Get font size from the table component
+        try
+          origFontUnits = get(obj.tblMovieSet, 'FontUnits');
+          set(obj.tblMovieSet, 'FontUnits', 'pixels');
+          fontSize = get(obj.tblMovieSet, 'FontSize');
+          set(obj.tblMovieSet, 'FontUnits', origFontUnits);
+        catch
+          fontSize = 14; % Default if getting font size fails
+        end
+
+        if obj.showPathEnds
+          % Truncate showing path ends
+          truncatedData = cellfun(@(x) PathTruncationUtils.truncateFilePath(x, ...
+            'maxLength', PathTruncationUtils.calculateMaxCharsForFieldWidth(tableWidthPixels, fontSize), 'startFraction', 0), ...
+            movieSetData, 'UniformOutput', false);
+        else
+          % Show full paths when showing starts
+          truncatedData = movieSetData;
+        end
+      catch
+        % If truncation fails, return original data
+        truncatedData = movieSetData;
       end
     end
 
@@ -636,10 +678,26 @@ classdef MovieManagerController < handle
         obj.showPathEnds = false;
       end
 
-      % Update the table display
+      % Update the main table display
       obj.updateTruncatedTableData();
+
+      % Update movieset table if it has data
+      obj.updateMovieSetTable();
     end
-    
+
+    function updateMovieSetTable(obj)
+      % Update movieset table with current path truncation setting
+      if obj.labeler.nview > 1 && ~isempty(obj.tblMovieSet) && ~isempty(obj.tblMovieSet.Data)
+        % Get currently selected row from main table
+        selectedRows = obj.getSelectedMovies();
+        if ~isempty(selectedRows)
+          rows = selectedRows(1);
+          movieSetData = obj.labeler.movieFilesAllGTaware(rows,:)';
+          obj.tblMovieSet.Data = obj.truncateMovieSetPaths(movieSetData);
+        end
+      end
+    end
+
   end  % methods (Hidden)
   
 end  % classdef
