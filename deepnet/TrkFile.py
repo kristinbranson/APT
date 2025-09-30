@@ -677,7 +677,7 @@ class Tracklet:
     Returns data for the input targets and all frames.
     :param itgts: Scalar, list, or 1-d array of targets.
     :param T: output size in frames. If None, this object's T1+1-T0 = max(endframes)+1-T0, will be used.
-    :param T0: offset to apply to startframes and endframes. Default: 0. Might also want to use self.T0. 
+    :param T0: offset to apply to startframes and endframes. Default: 0. Might also want to use self.T0.
     :return: p: nlandmarks x d x T x len(itgts) with data.
     """
     
@@ -1027,7 +1027,7 @@ class Tracklet:
     return tidx,fidx
 
   def where_all(self,nids):
-    """ 
+    """
     where_all(self,nids)
     Get the indices of all targets and frames for which data is 0:nids
     :param nids: Unique values to look for in the tracklet data.
@@ -1175,6 +1175,45 @@ class Tracklet:
     self.startframes = self.startframes[[itgt for itgt in range(self.ntargets) if itgt not in itgts]]
     self.endframes = self.endframes[[itgt for itgt in range(self.ntargets) if itgt not in itgts]]
     self.ntargets = len(self.data)
+
+  def truncate(self,T0=None,T1=None,reset=False):
+    """
+    truncate(self,T0=None,T1=None)
+    Truncate this tracklet to the input time interval.
+    :param T0: first frame to keep, inclusive. Default: None (keep all).
+    :param T1: last frame to keep, inclusive. Default: None (keep all).
+    :return:
+    """
+
+    if T0 is None:
+      T0 = self.T0
+    if T1 is None:
+      T1 = self.T1
+
+    if T0<self.T0:
+        print('Warning: T0 (%d) is smaller than T0 of tracklet (%d), truncating to T0=%d'%(T0,self.T0,self.T0))
+        T0 = self.T0
+    if T1>self.T1:
+        print('Warning: T1 (%d) is larger than T1 of tracklet (%d), truncating to T1=%d'%(T1,self.T1,self.T1))
+        T1 = self.T1
+
+    if reset:
+      offset = T0
+    else:
+      offset = 0
+    tgts_rem = []
+    for itgt in range(self.ntargets):
+      if self.data[itgt] is None:
+        continue
+      idx = np.logical_and(np.arange(self.startframes[itgt],self.endframes[itgt]+1) >= T0,
+                           np.arange(self.startframes[itgt],self.endframes[itgt]+1) <= T1)
+      self.data[itgt] = self.data[itgt][...,idx]
+      self.startframes[itgt] = max(T0,self.startframes[itgt])-offset
+      self.endframes[itgt] = min(T1,self.endframes[itgt])-offset
+      if ~np.any(idx):
+        tgts_rem.append(itgt)
+
+    self.remove_tgts(tgts_rem)
 
   def delink(self):
     """
@@ -2316,6 +2355,34 @@ class Trk:
       if self.__dict__[k] is not None:
         self.__dict__[k].del_short(min_len)
     self.ntargets = self.pTrk.ntargets
+
+  def truncate(self,T0=None,T1=None,reset=False):
+    """
+    Truncate the pTrk data to the input T0 and T1.
+    :param T0: First frame to keep, inclusive. Default = None, which means keep all frames.
+    :param T1: Last frame to keep, inclusive. Default = None, which means keep all frames.
+    """
+
+    if self.issparse:
+      self.pTrk.truncate(T0=T0,T1=T1,reset=reset)
+      for k in self.trkFields:
+        if self.__dict__[k] is not None:
+          self.__dict__[k].truncate(T0=T0,T1=T1)
+      self.ntargets = self.pTrk.ntargets
+      self.size = (self.nlandmarks, self.d, self.pTrk.T, self.ntargets)
+      self.pTrkiTgt = np.arange(self.ntargets, dtype=int)
+
+      return
+
+    if T0 is None:
+      T0 = 0
+    if T1 is None:
+      T1 = self.pTrk.shape[2]-1
+
+    self.pTrk = self.pTrk[:,:,T0:T1+1,:]
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k] = self.__dict__[k][:,:,T0:T1+1,:]
 
   def delink(self):
     """

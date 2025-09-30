@@ -13,13 +13,10 @@ cmd = '/groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/c
 
 cmd = '/groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/20250905T022700_20250905T022705.json -name 20250905T022700 -json_trn_file /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828 train -use_cache -continue -skip_db'
 
-cmd = '/groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/20241227T043349_20241227T043354.json -name 20241227T043349 -err_file /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/track_id_20250918T065832_id_20250918T065832.err -log_file /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/track_id_20250918T065832_id_20250918T065832.log -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/deepnet-40000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323 track -config_file /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/trkconfig_alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_id_20250918T065832.json -track_type link_id -id_wts_file /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/id_wts_alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_id_20250918T065832.p -out /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_id_20250918T065832.trk /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_2_f3c026_trn20241227T043349_view0_iter40000_id_20250918T065832.trk -mov /groups/branson/home/kabram/temp/alice_crop_1.avi /groups/branson/home/kabram/temp/alice_crop_2.avi -predict_trk_files /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_20250918T065736.trk /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_2_f3c026_trn20241227T043349_view0_iter40000_20250918T065736.trk'
+cmd = ['/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/20250612T153510_20250612T153510.json', '-name', '20250612T153510', '-json_trn_file', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/loc.json', '-stage', 'first', '-model_files', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/detect_mmdetect/view_0/20250612T153510/deepnet-40000', '-conf_params', '-type', 'detect_mmdetect', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd', 'train', '-use_cache','-skip_db']
 
+# cmd = '/groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/20250510T113930_20250510T113932.json -name 20250510T113930 -stage multi -type detect_mmdetect -model_files /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/deepnet-40000 -type2 mdn_joint_fpn -model_files2 /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/mdn_joint_fpn/view_0/20250510T113930/deepnet-20000 -name2 20250510T113930 -ignore_local 1 -cache /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474 track -config_file /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/trk/trkconfig_VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280_4f02c3_trn20250510T113930_view0_iter40000_20250510T180048.json -track_type only_predict -out /groups/branson/home/kabram/temp/a.trk -mov /groups/branson/bransonlab/projects/DanionellaFieldTrip/VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280.avi -start_frame 1378 -end_frame 1578 -trx /groups/branson/home/kabram/temp/b.trk'
 
-cmd = '/groups/branson/home/kabram/.apt/tpe39a5263_eb4d_4a14_92a4_91361844d169/DanionellaWild/20250922T052701_20250922T052709.json -name 20250922T052701 -err_file /groups/branson/home/kabram/.apt/tpe39a5263_eb4d_4a14_92a4_91361844d169/DanionellaWild/20250922T052701view0_20250922T052709_bu.err -log_file /groups/branson/home/kabram/.apt/tpe39a5263_eb4d_4a14_92a4_91361844d169/DanionellaWild/20250922T052701view0_20250922T052709_bu_new.log -json_trn_file /groups/branson/home/kabram/.apt/tpe39a5263_eb4d_4a14_92a4_91361844d169/DanionellaWild/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpe39a5263_eb4d_4a14_92a4_91361844d169 train -use_cache'
-
-
-cmd = '/groups/branson/home/kabram/.apt/tpaa530bad_4d3c_464d_9505_85d9411546c6/alice_ma/20241227T043349_20241227T043354.json -name 20241227T043349 -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tpaa530bad_4d3c_464d_9505_85d9411546c6/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/deepnet-40000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpaa530bad_4d3c_464d_9505_85d9411546c6 track -config_file /groups/branson/home/kabram/temp/trkconfig_t3_detect.json -track_type only_predict -out /groups/branson/home/kabram/temp/t3_detect.trk -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_JHS_K_85321_CsChr_RigD_20150909T163219/movie.ufmf -continue'
 
 if type(cmd)!=list:
     cmd = cmd.replace('\\','')
@@ -37,6 +34,39 @@ if __name__ == '__main__':
         # cmd = cmd.replace('\\', '')
         apt.main(cmd.split())
 
+
+
+
+##
+## convert ufmf to h.264
+
+import movies
+import cv2
+from reuse import *
+in_mov = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531//movie.ufmf'
+out_mov = '/groups/branson/home/kabram/temp/nochr_TrpA65F12_Unknown_RigA_20201212T163531.mp4'
+cap = movies.Movie(in_mov)
+
+fps = 30
+fourcc = cv2.VideoWriter_fourcc(*'X264')
+out = cv2.VideoWriter(out_mov, fourcc, fps, (1024,1024))
+
+for ndx in range(cap.get_n_frames()):
+    img = cap.get_frame(ndx)[0]
+    if img.ndim == 2:
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    else:
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+    out.write(img)
+
+out.release()
+
+##
+# 3244
+# /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00168_CsChr_RigD_20150909T111218/movie.ufmf
+# frame: 24687
+
+# [    7, 23048,     0]
 
 ##
 cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'

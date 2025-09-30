@@ -15,13 +15,13 @@ def get_gpu_memory():
     """Get memory info for all GPUs, h/t claude"""
     success = False
     try:
-        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'], 
+        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.total', '--format=csv,noheader,nounits'],
                                 capture_output=True, text=True, check=True)
         success = True
         return (success,[int(x.strip()) for x in result.stdout.strip().split('\n')])
     except (subprocess.CalledProcessError, FileNotFoundError):
         return (success,[])
-    
+
 def filter_gpus_by_memory(min_memory_mb=4096):
     """Return GPU indices with at least min_memory_mb MB, h/t claude"""
     if 'CUDA_VISIBLE_DEVICES' in os.environ:
@@ -86,7 +86,7 @@ if ISSB:
     import sb1 as sb
     
 KBDEBUG = False
-    
+
 from deeplabcut.pose_estimation_tensorflow.train import train as deepcut_train
 import deeplabcut.pose_estimation_tensorflow.train
 import ast
@@ -523,8 +523,18 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
         train_filename = os.path.join(conf.cachedir, conf.trainfilename)
         val_filename = os.path.join(conf.cachedir, conf.valfilename)
 
-    skeleton = [[i, i + 1] for i in range(conf.n_classes - 1)]
-    names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
+    skeleton = [c for c in conf.op_affinity_graph]
+
+    T = PoseTools.json_load(conf.json_trn_file)
+    if 'info' in T.keys():
+        names = T['kpt_info']['keypoint_names']
+    else:
+        names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
+
+    if conf.use_ht_trx or conf.use_bbox_trx:
+        names = [names[i] for i in conf.ht_pts]
+        skeleton = [[0,1],]
+
     categories = [{'id': 1, 'skeleton': skeleton, 'keypoints': names, 'super_category': 'fly', 'name': 'fly'}, {'id': 2, 'super_category': 'neg_box', 'name': 'neg_box'}]
 
     train_ann = {'images': [], 'info': [], 'annotations': [], 'categories': categories}
@@ -1035,6 +1045,8 @@ def create_conf(lbl_file, view, name, cache_dir=None, net_type='mdn_joint_fpn', 
             else:
                 try:
                     setattr(conf, k, read_entry(dt_params_flat[k]))
+                    if k in ['mdn_joint_layer_num',]:
+                        conf.mdn_joint_layer_num = int(conf.mdn_joint_layer_num)
                 except TypeError:
                     logging.info('Could not parse parameter %s, ignoring' % k)
 
@@ -1335,6 +1347,7 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.normalize_img_mean = conf.normalize
     delattr(conf,'normalize')
     conf.save_td_step = conf.display_step
+    conf.max_n_animals = int(np.ceil(conf.max_n_animals_user*1.25))
 
     assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
 
@@ -1776,11 +1789,23 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         all_data.append({'im': curp, 'locs': curl, 'info': [info[0], info[1], cndx], 'occ': cur_occ, 'roi': cur_roi,
                          'extra_roi': cur_eroi, 'x_left': x_left, 'y_top': y_top, 'max_n':conf.max_n_animals})
 
+    if (n_clusters==0) or conf.multi_loss_mask or conf.multi_use_mask:
+        n_clusters = 100
+        # If there are no labels in this image or if masking is on, then sample a large number (50) of background crops
+
+    roi_count = 0
+    roi_sample_ratio = conf.multi_background_sample_ratio
+    roi_coverage_ratio = conf.multi_background_coverage_ratio
+
     if n_extra_roi > 0:
         # bkg_sel_rate = conf.background_mask_sel_rate
 
         done_eroi = np.zeros(n_extra_roi)
-        while np.any(done_eroi < 0.5):
+        while np.any(done_eroi < roi_coverage_ratio) and \
+            (roi_count < n_clusters*roi_sample_ratio):
+            # Add extra rois until we cover all rois atleast once, or we have added roi_sample_ratio times the number of clusters or we have covered at least half the area of extra rois
+
+            roi_count += 1
 
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
@@ -4953,7 +4978,7 @@ def run(args):
         views = [view]
     nviews = len(views)
     check_args(args,nviews)
-        
+
     print_torch_cuda_info()
 
     if cmd == 'train':
@@ -5117,7 +5142,7 @@ def set_up_logging(args):
         err_file = args.err_file
         print('Logging errors to file: {}'.format(err_file))
         errh = logging.FileHandler(err_file, 'w')
-    
+
     errh.setLevel(logging.ERROR)
     errh.setFormatter(err_log_formatter)
     errh.name = "err"

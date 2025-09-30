@@ -1418,7 +1418,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
     else:
       wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
-    id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size)
+    id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size,save=conf.link_id_save_int_wts)
 
   # link using id model
   def_params = get_default_params(conf)
@@ -1700,6 +1700,8 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   # read_tracklet_ims(*args[0])
 
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
+  # with mp.dummy.Pool() as pool:
+    # remember to remove dummy after debugging
     data = pool.starmap(read_tracklet_ims,args,chunksize=1)
   data = merge_parallel(data)
   return data
