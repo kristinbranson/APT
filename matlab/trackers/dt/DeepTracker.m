@@ -4205,7 +4205,8 @@ classdef DeepTracker < LabelTracker
         obj.trackCurrResInit();
         obj.vizInit();
       end
-      obj.lObj.doNotify('newTrackingResults');
+      %obj.lObj.doNotify('newTrackingResults');
+      obj.lObj.setCurPropTypePredictionDefault();
     end
     
     function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)

@@ -28,6 +28,12 @@ classdef DLBackEndClass < handle
   %
   % Also note that when synthesizing command lines, WSL paths should normally be
   % used.  The AWSec2 object will convert these to remote paths when needed.
+  %
+  % And another thing: Note that objects of this class have to be copied (in a
+  % certain sense) to a parallel process to do polling of training/tracking.  So
+  % it is by design that this class does not have a .parent_ instance variable,
+  % b/c once you have one of those you generally have an object that is not
+  % copyable, at least not in an obvious and straightforward way.
 
   properties (Constant)
     minFreeMem = 9000  % in MiB
@@ -119,6 +125,10 @@ classdef DLBackEndClass < handle
     training_jobids_ = cell(0,1)
     tracking_jobids_ = cell(0,1)
 
+    % Hold the text shown in the backend test window.
+    % It is a cell array of strings.
+    testText_ = cell(0,1)
+
     % This is used to keep track of whether we need to release/delete resources on
     % delete()
     doesOwnResources_ = true  % is obj a copy, or the original
@@ -134,8 +144,8 @@ classdef DLBackEndClass < handle
     wslProjectCachePath
     remoteDMCRootDir
     awsInstanceID
-    awsKeyName
-    awsPEM
+    awsKeyName  % key(pair) name used to authenticate to AWS EC2, e.g. 'alt_taylora-ws4'
+    awsPEM  % absolute *WSL* path of .pem file that holds an RSA private key used to ssh into the AWS EC2 instance
     awsInstanceType
     condaEnv
     dockerimgroot
@@ -498,12 +508,15 @@ classdef DLBackEndClass < handle
                                       'bindpath',bindpath,...
                                       'detach',false);
           if verbose
-            fprintf(1,'%s\n',codestr);
+            fprintf('%s\n',codestr);
           end
           [st,res] = apt.syscmd(codestr);
           if st ~= 0,
             warning('Error getting GPU info: %s\n%s',res,codestr);
-            return;
+            if ispc() && contains(res, 'WSL')
+              fprintf('\nOn Windows, Docker Desktop has to be running for the Docker backend to work.\n\n')
+            end
+            return
           end
         case DLBackEnd.Conda
           scriptpath = fullfile(aptdeepnetpath, 'parse_nvidia_smi.py') ;  % Conda backend is only on Linux, so this is both native and WSL path.
@@ -2133,5 +2146,26 @@ classdef DLBackEndClass < handle
       end
     end
 
+    function testBackendConfig(obj, labeler)
+      obj.testText_ = {''};
+      labeler.notify('updateBackendTestText') ;
+      switch obj.type,
+        case DLBackEnd.Bsub,
+          obj.testBsubBackendConfig_(labeler) ;
+        case DLBackEnd.Docker
+          obj.testDockerBackendConfig_(labeler) ;
+        case DLBackEnd.AWS
+          obj.awsec2.testBackendConfig(obj, labeler) ;
+        case DLBackEnd.Conda
+          obj.testCondaBackendConfig_(labeler) ;
+        otherwise
+          error('Tests for %s have not been implemented', obj.type) ;
+      end      
+    end  % function
+
+    function text = testText(obj)
+      % Get test text
+      text = obj.testText_;
+    end  % function
   end  % methods
 end  % classdef

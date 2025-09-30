@@ -14,6 +14,7 @@ pathFromMovieIndex = vertcat(pathFromRegularMovieIndex, pathFromGTMovieIndex) ;
 newDataRoot = '/groups/branson/bransonlab/apt/unittest/alice/data' ;
 system_with_error_handling(sprintf('mkdir -p ''%s''', newDataRoot)) ;
 
+% Need to reorder for compiler to work MK 20250822
 % cellfun(@(moviePath)(copyMovieDir(moviePath, newDataRoot)), pathFromMovieIndex) ;
 for i = 1 : numel(pathFromMovieIndex) ,
   sourceMoviePath = pathFromMovieIndex{i} ;

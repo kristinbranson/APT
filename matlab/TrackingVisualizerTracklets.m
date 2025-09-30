@@ -177,7 +177,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         obj.currTrklet = iTrklet;
         % obj.tvtrx.updatePrimary() already called
         obj.tvmt.updatePrimary(iTrxViz);
-        obj.lObj.gdata.labelTLInfo.newTarget();
+        obj.lObj.gdata.labelTLInfo.updateLabels();
       end
     end
     function trxSelectedTrxID(obj,iTrklet,tfforce)
@@ -192,7 +192,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         nTrkletTot = numel(obj.ptrx);
         obj.hud.updateTrklet(trkletID,nTrkletTot);        
         obj.currTrklet = iTrklet;
-        obj.lObj.gdata.labelTLInfo.newTarget();
+        obj.lObj.gdata.labelTLInfo.updateLabels();
         iviz = find(obj.iTrxViz2iTrx==iTrklet);
         if isempty(iviz)
           warning('This should not happen. Not setting primary trx');

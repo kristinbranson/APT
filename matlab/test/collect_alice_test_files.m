@@ -16,6 +16,8 @@ system_with_error_handling(sprintf('mkdir -p ''%s''', newDataRoot)) ;
 
 cellfun(@(moviePath)(copyMovieDir(moviePath, newDataRoot)), pathFromMovieIndex) ;
 
+% Need to reorder for compiler to work MK 20250822. Functions should be the
+% at the end
 %labeler.projMacros.dataroot = newDataRoot ;
 labeler.projMacroSet('dataroot', newDataRoot)
 
@@ -35,3 +37,4 @@ function copyMovieDir(moviePath, newDataRoot)
   command = sprintf('rsync --inplace ''%s'' ''%s''', sourceMoviePath, destMoviePath) ;  
   system_with_error_handling(command) ;  
 end
+

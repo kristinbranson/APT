@@ -3,7 +3,7 @@ function result = get_home_dir_name()
 if ispc() ,
   home = getenv('HOME') ;
   if ~isempty(home)
-    result = getenv('HOME') ;
+    result = home ;
   else
     result = getenv('USERPROFILE') ;  
       % Works better in practice, partly b/c Janelia managed PCs have

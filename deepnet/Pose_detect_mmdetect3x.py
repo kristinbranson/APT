@@ -57,6 +57,9 @@ import poseConfig
 import PoseTools
 import logging
 
+import requests
+FRCNN_pretrained_url = 'https://download.openxlab.org.cn/models/mmdetection/FasterR-CNN/weight/faster-rcnn_r50_fpn_2x_coco'
+
 # @BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
 
@@ -838,13 +841,16 @@ class APTMaxIoUAssigner(MaxIoUAssigner):
             neg = neg_gt_ignore & ( (assign_result.gt_inds<0) & (assign_result.max_overlaps<self.neg_iou_thr[0]))
             # The last condition is so that bboxes that have high overlap with gt_bboxes (>neg_iou_thr[1]) that should be ignored should not get added as negative again.
             assign_result.gt_inds[neg] = 0
+            # setting assign_result.gt_inds to 0 means that these bboxes are negative samples.
 
         # Add bboxes that completely contain gt_bboxes as neg.
-        overlaps_f = bbox_overlaps(gt_bboxes, priors, mode='iof')
-        overlaps_f, _ = overlaps_f.max(dim=0)
-        big_boxes = (overlaps_f>0.95) & (assign_result.max_overlaps<0.5)
-        # Big boxes should have boxes that contain most of the gt_bboxes but are at least 1/0.5 = 2x in size.
-        assign_result.gt_inds[big_boxes] = 0
+        if gt_bboxes.numel() > 0 and priors.numel() > 0:
+            overlaps_f = bbox_overlaps(gt_bboxes, priors, mode='iof')
+            overlaps_f, _ = overlaps_f.max(dim=0)
+            big_boxes = (overlaps_f>0.95) & (assign_result.max_overlaps<0.5)
+            # Big boxes should have boxes that contain most of the gt_bboxes but are at least 1/0.5 = 2x in size.
+            assign_result.gt_inds[big_boxes] = 0
+            # setting assign_result.gt_inds to 0 means that these bboxes are negative samples.
 
         if False: # For debugging
             plt.plot(priors[assign_result.gt_inds == 0, :][:, [0, 2]].cpu().numpy().T, priors[assign_result.gt_inds == 0, :][:, [1, 3]].cpu().numpy().T, color='r')
@@ -950,21 +956,17 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
 
     if conf.mmdetect_net == 'frcnn': # TODO!!
 
-        assert conf.get('mmdetect_use_default_sz',
-                        True), 'Not supported. IN current version very hard to overrride the default size'
+        for ttype in ['train', 'val', 'test']:
+            name = ttype if ttype != 'val' else 'test'
+            if not conf.get('mmdetect_use_default_sz', True):
+                pname = name + '_pipeline'
+                for k in cfg[pname]:
+                    if k.type == 'Resize':
+                        k.scale = im_sz
 
-        # for ttype in ['train', 'val', 'test']:
-        #     name = ttype if ttype != 'test' else 'val'
-        #     fname = conf.trainfilename if ttype == 'train' else conf.valfilename
-        #     cfg[ttype+ '_dataloader'].ann_file = os.path.join(data_bdir, f'{fname}.json')
-        #     file = os.path.join(data_bdir, f'{fname}.json')
-        #     cfg[ttype+ '_dataloader'].img_prefix = os.path.join(data_bdir, name)
-        #     cfg[ttype+ '_dataloader'].classes = cfg.classes
-        #     if not conf.get('mmdetect_use_default_sz', True):
-        #         if ttype == 'train':
-        #             cfg.data[ttype].pipeline[2].img_scale = im_sz
-        #         else:
-        #             cfg.data[ttype].pipeline[1].img_scale = im_sz
+                dname = ttype + '_dataloader'
+                if cfg[dname] is not None:
+                    cfg[dname].dataset.pipeline = cfg[pname]
 
         cfg.model.roi_head.bbox_head.num_classes = 1
         if conf.get('mmdetection_oversample',False):
@@ -986,7 +988,10 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
         # assert (cfg.train_pipeline[2].type == 'Resize'), 'Unsupported train pipeline'
         # cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
         # cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
-        cfg.load_from = 'https://cdn-model.openxlab.org.cn/models%2Fweight%2Fmmdetection%2FFaster+R-CNN%2Ffaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth?Expires=1749573038&OSSAccessKeyId=LTAI5tCdKkrGqdpR7PDyejq7&Signature=bizipUOx%2BXu3t0FZyX63yNC2oDw%3D&response-content-disposition=attachment%3B%20filename%3Dfaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
+        
+        response = requests.head(FRCNN_pretrained_url, allow_redirects=True)
+        cfg.load_from = response.url
+        # cfg.load_from = 'https://cdn-model.openxlab.org.cn/models%2Fweight%2Fmmdetection%2FFaster+R-CNN%2Ffaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth?Expires=1749573038&OSSAccessKeyId=LTAI5tCdKkrGqdpR7PDyejq7&Signature=bizipUOx%2BXu3t0FZyX63yNC2oDw%3D&response-content-disposition=attachment%3B%20filename%3Dfaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
 
     elif conf.mmdetect_net == 'detr':
 

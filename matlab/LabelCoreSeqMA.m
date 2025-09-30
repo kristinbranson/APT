@@ -178,16 +178,22 @@ classdef LabelCoreSeqMA < LabelCore
 %       end
     end
     
-    function newFrame(obj,iFrm0,iFrm1,iTgt) %#ok<INUSL>
-      obj.newFrameTarget(iFrm1,iTgt);
+    function newFrame(obj,iFrm0,iFrm1,iTgt,tfForceUpdate) %#ok<INUSL>
+      if nargin < 5
+        tfForceUpdate = false;
+      end
+      obj.newFrameTarget(iFrm1,iTgt,tfForceUpdate);
     end
     
     function newTarget(obj,iTgt0,iTgt1,iFrm) %#ok<INUSL>
       obj.newFrameTarget(iFrm,iTgt1);
     end
     
-    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1)
-      obj.newFrameTarget(iFrm1,iTgt1);
+    function newFrameAndTarget(obj,~,iFrm1,~,iTgt1,tfForceUpdate)
+      if nargin < 6
+        tfForceUpdate = false;
+      end
+      obj.newFrameTarget(iFrm1,iTgt1,tfForceUpdate);
     end
     
     function clearLabels(obj)
@@ -403,6 +409,10 @@ classdef LabelCoreSeqMA < LabelCore
         obj.toggleSelectPoint(obj.iPtMove);
         obj.iPtMove = nan;
         obj.storeLabels();
+        [xy,tfeo] = obj.getLabelCoords();
+        iTgt = obj.labeler.currTarget;
+        obj.tv.updateTrackResI(xy,tfeo,iTgt);
+
       end
     end
     
@@ -783,7 +793,8 @@ classdef LabelCoreSeqMA < LabelCore
 %       obj.beginAcceptedReset();
     end
     
-    function newFrameTarget(obj,iFrm,iTgt)
+    function newFrameTarget(obj,iFrm,iTgt,tfForceUpdate)
+
       % React to new frame or target which might be labeled or unlabeled.
       %
       % PostCond: Accepted/Browse state

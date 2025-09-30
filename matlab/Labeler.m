@@ -139,7 +139,7 @@ classdef Labeler < handle
     didSetShowMaRoi 
     didSetShowMaRoiAux
 
-    didSetLabels
+    % didSetLabels
     didSetLabelMode
     didSetLabels2Hide
 
@@ -180,14 +180,19 @@ classdef Labeler < handle
     % raiseTrainingStoppedDialog
     updateTargetCentrationAndZoom
     updateMainAxisHighlight
-    updateStuffInHlpSetCurrPrevFrame
+    updateBackendTestText
+    updateAfterCurrentFrameSet
     update
+    updateTimeline
+    updateTimelineStatThresh
+    updateTimelineLabels
+    updateTimelineLandmarkColors
   end
 
   events  % used to come from labeler.tracker
     % Thrown when new tracking results are loaded for the current lObj
     % movie
-    newTrackingResults 
+    % newTrackingResults 
     
     updateTrainingMonitor
     trainEnd
@@ -203,6 +208,10 @@ classdef Labeler < handle
     projname              % init: PN
     projFSInfo            % filesystem info
     projTempDir           % temp dir name to save the raw label file
+    infoTimelineModel_     % InfoTimelineModel object for timeline selection state
+  end
+  properties (Dependent)
+    infoTimelineModel     % InfoTimelineModel object for timeline selection state
   end
   properties
     projTempDirDontClearOnDestructor = false  % transient. set to true for eg CI testing
@@ -699,11 +708,12 @@ classdef Labeler < handle
   end
   properties (Dependent)
     currMovIdx  % scalar MovieIndex
+    selectedFrames  % vector of frames currently selected frames; typically t0:t1
   end
   properties 
     currFrame = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
-    selectedFrames = []     % vector of frames currently selected frames; typically t0:t1
+    % selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
     drag = false 
     drag_pt = [] 
     silent_ = false  % Don't open dialogs. Use defaults. For testing and debugging
@@ -721,9 +731,7 @@ classdef Labeler < handle
   % Primary lifecycle methods
   methods 
     function obj = Labeler(varargin)
-
       obj.rc = RC();
-
       [isgui, isInDebugMode, isInAwsDebugMode] = ...
         myparse_nocheck(varargin, ...
                         'isgui', false, ...
@@ -733,8 +741,8 @@ classdef Labeler < handle
       obj.isInDebugMode = isInDebugMode ;
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
-%       obj.NEIGHBORING_FRAME_OFFSETS = ...
-%                   neighborIndices(Labeler.NEIGHBORING_FRAME_MAXRADIUS);
+      obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
+      %obj.notify('updateTimeline');
       if ~isgui ,
         % If a GUI is attached, this is done by the controller, after it has
         % registered itself with the Labeler.
@@ -1534,7 +1542,8 @@ classdef Labeler < handle
         obj.updateTrxTable();
         obj.updateFrameTableIncremental(); 
       end
-      obj.notify('didSetLabels') ;
+      %obj.notify('didSetLabels') ;
+      obj.notify('updateTimelineLabels') ;
     end
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
@@ -1640,8 +1649,13 @@ classdef Labeler < handle
     function setMovieShiftArrowNavModeThresh(obj,v)
       assert(isscalar(v) && isnumeric(v));
       obj.movieShiftArrowNavModeThresh = v;
-      tl = obj.controller_.labelTLInfo;
-      tl.setStatThresh(v);
+      obj.infoTimelineModel.statThresh = v;
+      obj.notify('updateTimelineStatThresh');
+    end
+    
+    function toggleTimelineIsStatThreshVisible(obj)
+      obj.infoTimelineModel.toggleIsStatThreshVisible();
+      obj.notify('updateTimelineStatThresh');
     end
   end
   
@@ -2443,6 +2457,7 @@ classdef Labeler < handle
           s.(fn) = ss;
         end
       end
+
       % Set this so all the prop-setting below doesn't create issues 
       % when the associated events fire.
       obj.isinit = true;
@@ -2688,7 +2703,7 @@ classdef Labeler < handle
         cellfun(@(path)(fprintf('%s\n', path)), ...
                 missingGTMovieFilePaths) ;
       end
-      if doAllRegularMoviesExist && doAllGTMoviesExist
+      if nomovie || (doAllRegularMoviesExist && doAllGTMoviesExist)
         % All is well, do nothing.
       else
         error('Labeler:movie_missing', 'At least one movie is missing (see console for list).  Use Movie Manager to fix.') ;
@@ -4631,7 +4646,7 @@ classdef Labeler < handle
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
-          if isdeployed() || ~obj.isgui,
+          if ~obj.isgui, %isdeployed() ||
             error(qstr);
           end
           
@@ -4927,6 +4942,12 @@ classdef Labeler < handle
 
       end
 
+      % obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineLandmarkColors');
+      obj.notify('updateTimeline');
+
       % AL20160615: omg this is the plague.
       % AL20160605: These three calls semi-obsolete. new projects will not
       % have empty .labeledpos, .labeledpostag, or .labeledpos2 elements;
@@ -5008,6 +5029,12 @@ classdef Labeler < handle
       obj.labels2TrkVizInit();
       obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
+      % obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
+      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineLandmarkColors');
+      obj.notify('updateTimeline');
+
       edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
@@ -8319,14 +8346,8 @@ classdef Labeler < handle
           tfile = trkfiles{i,iVw};
           scell{iVw} = TrkFile.load(tfile,'movnframes',movnframes);
       	  if iVw == 1
-            pTrkOrCellArray = scell{1}.pTrk ;
-            if iscell(pTrkOrCellArray)
-              pTrk = pTrkOrCellArray{1} ;
-            else
-              pTrk = pTrkOrCellArray ;
-            end
-            nLabelPointsInFile = size(pTrk, 1) * size(pTrk, 2) ;
-            if nLabelPointsInFile ~= obj.nLabelPoints
+            nLabelPointsInFile = scell{iVw}.npts;
+            if nLabelPointsInFile ~= obj.nPhysPoints
               warning('Number of landmarks in the trk file does not match with the project')
             end
           end
@@ -11109,25 +11130,6 @@ classdef Labeler < handle
         return
       end
     
-      % % If the indicated tracker is a custom tracker, then we may have to replace
-      % % the existing tracker with a new one that has the same stage-types.
-      % if isa(trackers{iTrk},'DeepTrackerTopDownCustom')
-      %   previous_tracker = trackers{iTrk};
-      %   if do_use_previous_if_custom_top_down
-      %     % do nothing
-      %   else
-      %     ctorargs = previous_tracker.get_constructor_args_to_match_stage_types() ;
-      %     newTracker = DeepTrackerTopDownCustom(obj,ctorargs{1},ctorargs{2});
-      %     if newTracker.valid
-      %       newTracker.init();
-      %       trackers{iTrk} = newTracker;
-      %       obj.trackersAll = trackers;
-      %     else
-      %       return
-      %     end
-      %   end
-      % end  % if isa(tAll{iTrk},'DeepTrackerTopDownCustom')
-      
       % Want to do some stuff before the set, apparently
       oldTracker = trackers{1} ;
       oldTracker.deactivate() ;
@@ -11153,6 +11155,15 @@ classdef Labeler < handle
 
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);      
+
+      % Update the timeline
+      if ~isempty(newCurrentTracker)
+        propList = newCurrentTracker.propList() ;
+      else
+        propList = [] ;
+      end      
+      obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
+      obj.notify('updateTimeline');
 
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
@@ -11219,6 +11230,15 @@ classdef Labeler < handle
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);
 
+      % Update the timeline
+      if ~isempty(newTracker)
+        propList = newTracker.propList() ;
+      else
+        propList = [] ;
+      end
+      obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
+      obj.notify('updateTimeline');
+      
       % Send the notification
       obj.notify('didSetCurrTracker') ;      
       % obj.notify('update_menu_track_tracking_algorithm_quick') ;
@@ -13714,14 +13734,15 @@ classdef Labeler < handle
         starttime = setframetic;   
       end
       [tfforcereadmovie,tfforcelabelupdate,updateLabels,updateTables,...
-        updateTrajs,changeTgtsIfNec] = myparse(varargin,...
-        'tfforcereadmovie',false,...
-        'tfforcelabelupdate',false,...
-        'updateLabels',true,...
-        'updateTables',true,...
-        'updateTrajs',true,...
-        'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
-        );
+       updateTrajs,changeTgtsIfNec] = ...
+        myparse(varargin,...
+                'tfforcereadmovie',false,...
+                'tfforcelabelupdate',false,...
+                'updateLabels',true,...
+                'updateTables',true,...
+                'updateTrajs',true,...
+                'changeTgtsIfNec',false... % if true, will alter the current target if it is not live in frm
+                );
       
       if debugtiming,
         fprintf('setFrame %d, parse inputs took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
@@ -13741,17 +13762,17 @@ classdef Labeler < handle
               itmp = argmin(iTgtsLiveDist);
               iTgtNew = iTgtsLive(itmp);
               warningNoTrace('Target %d is not live in frame %d. Changing to target %d.\n',...
-                iTgt,frm,iTgtNew);
+                             iTgt,frm,iTgtNew);
               obj.setFrameAndTargetGUI(frm,iTgtNew);
               return;
             end
           else
             error('Labeler:target','Target %d not live in frame %d.',...
-              iTgt,frm);
+                  iTgt,frm);
           end
         end
       elseif obj.maIsMA
-        
+        % do nothing
       end
       
       if debugtiming,
@@ -13774,7 +13795,6 @@ classdef Labeler < handle
       if debugtiming,
         fprintf('setFrame %d, center and rotate took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
-
       
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
@@ -13800,7 +13820,7 @@ classdef Labeler < handle
         fprintf('setFrame to %d took %f seconds\n',frm,toc(starttime));
       end
       
-    end  % function setFrame
+    end  % function setFrameGUI
     
 %     function setTargetID(obj,tgtID)
 %       % Set target ID, maintaining current movie/frame.
@@ -13886,7 +13906,7 @@ classdef Labeler < handle
         obj.updateTrxTable();
         obj.updateShowTrx();
       end
-    end    
+    end  % function setFrameAndTargetGUI    
     
     function tfSetOccurred = frameUpDFGUI(obj,df)
       f = min(obj.currFrame+df,obj.nframes);
@@ -14050,18 +14070,23 @@ classdef Labeler < handle
       th = double(ctrx.theta(i));
     end
 
-    function setSelectedFrames(obj,frms)
-      if isempty(frms)
-        obj.selectedFrames = frms;        
-      elseif ~obj.hasMovie
-        error('Labeler:noMovie',...
-          'Cannot set selected frames when no movie is loaded.');
-      else
-        validateattributes(frms,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes});
-        obj.selectedFrames = frms;  
-      end
+    function result = get.selectedFrames(obj)
+      result = find(obj.infoTimelineModel.isSelectedFromFrameIndex) ;
     end
-         
+
+    % function set.selectedFrames(obj, newValue)
+    %   if isempty(newValue)
+    %     obj.selectedFrames_ = [] ;        
+    %   elseif ~obj.hasMovie
+    %     error('Labeler:noMovie',...
+    %           'Cannot set selected frames when no movie is loaded.');
+    %   else
+    %     validateattributes(newValue,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes}) ;
+    %     obj.selectedFrames_ = newValue ;  
+    %   end
+    %   obj.notify('updateTimeline');
+    % end
+    
     function updateTrxTable(obj)
       if obj.hasTrx
         obj.updateTrxTable_Trx();
@@ -14307,7 +14332,7 @@ classdef Labeler < handle
         end
         obj.currFrame = frm;
 
-        obj.notify('updateStuffInHlpSetCurrPrevFrame') ;
+        obj.notify('updateAfterCurrentFrameSet') ;
         
         if ~isempty(obj.tracker),
           obj.tracker.newLabelerFrame();
@@ -15888,6 +15913,7 @@ classdef Labeler < handle
 
     function set.currFrame(obj, newValue)
       obj.currFrame = newValue ;
+      obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
     end    
 
@@ -16333,5 +16359,247 @@ classdef Labeler < handle
       obj.popBusyStatus() ;
     end
 
+    function testBackendConfig(obj)
+      obj.backend.testBackendConfig(obj) ;
+    end    
+
+    function setTimelineSelectMode(obj, newValue)
+      if ~obj.doProjectAndMovieExist()
+        return
+      end
+      itm = obj.infoTimelineModel_ ;
+      % oldValue = itm.selectOn ;
+      itm.setSelectMode(newValue, obj.currFrame) ;
+      % newValue = itm.selectOn ;
+      % if oldValue && ~newValue  % if .selectOn was true and is now false
+      %   % selectedFrames = bouts2frames(itm.selectGetSelectionAsBouts());
+      %   selectedFrames = find(itm.isSelectedFromFrameIndex) ;
+      %   obj.selectedFrames_ = selectedFrames ;
+      % end
+      notify(obj, 'updateTimeline');
+    end
+
+    function data = getTimelineDataForCurrentMovieAndTarget(obj)
+      % Get timeline data for current movie/target
+      data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj) ;
+    end
+
+    function tf = hasTimelinePrediction(obj)
+      % Check if timeline has prediction data available
+      itm = obj.infoTimelineModel ;
+      tf = ismember('Predictions',itm.proptypes) && isvalid(obj.tracker);
+      if tf,
+        pcode = itm.props_tracker(1);
+        data = obj.tracker.getPropValues(pcode);
+        tf = ~isempty(data) && any(~isnan(data(:)));
+      end
+    end
+
+    function setCurPropTypePredictionDefault(obj)
+      % Set timeline to show prediction results if currently on default and predictions are available
+      if obj.infoTimelineModel.isdefault && obj.hasTimelinePrediction()
+        itm = obj.infoTimelineModel ;
+        proptypei = find(strcmpi(itm.proptypes,'Predictions'),1);
+        if itm.hasPredictionConfidence(),
+          propi = numel(itm.props)+1;
+        else
+          propi = 1;
+        end
+        obj.setTimelineCurrentPropertyType(proptypei,propi);
+      end
+    end
+
+    function data = getIsLabeledCurrMovTgt(obj)
+      % Get is-labeled data for current movie/target
+      % Returns: [nptsxnfrm] logical array indicating which points are labeled
+      
+      iMov = obj.currMovie;
+      iTgt = obj.currTarget;
+      
+      if isempty(iMov) || iMov==0 || ~obj.hasMovie
+        data = nan(obj.nLabelPoints,1);
+      else
+        s = obj.labelsGTaware{iMov};       
+        [p,~] = Labels.getLabelsT_full(s,iTgt,obj.nframes);
+        xy = reshape(p,obj.nLabelPoints,2,obj.nframes);
+        data = reshape(all(~isnan(xy),2),obj.nLabelPoints,obj.nframes);
+      end
+    end
+
+    function tflbledDisp = getLabeledTgts(obj, maxTgts)
+      % Get labeled targets for current movie, limited to maxTgts
+      % maxTgts: maximum number of targets to display
+      % Returns: [nframes x maxTgts] logical array
+      
+      iMov = obj.currMovie;
+      if iMov==0
+        tflbledDisp = nan;
+        return;
+      end
+      tflbledDisp = obj.labelPosLabeledTgts(iMov);
+      ntgtsmax = size(tflbledDisp,2);
+      ntgtDisp = maxTgts;
+      if ntgtsmax>=ntgtDisp 
+        tflbledDisp = tflbledDisp(:,1:ntgtDisp);
+      else
+        tflbledDisp(:,ntgtsmax+1:ntgtDisp) = false;
+      end
+    end
+
+    function addCustomTimelineFeatureGivenFileName(obj, fileName)
+      % Add custom timeline feature from a .mat file
+      % file: full path to .mat file containing variable 'x' with feature data
+      %
+      % Throws error if file cannot be loaded or doesn't contain required variable
+      
+      obj.infoTimelineModel.addCustomFeatureGivenFileName(fileName);
+      obj.notify('updateTimelineLabels') ;
+      obj.notify('updateTimeline') ;
+    end
+
+    function clearBoutInTimeline(obj)
+      frameIndex = obj.currFrame ;
+      obj.infoTimelineModel_.clearBout(frameIndex) ;
+      obj.notify('updateTimeline') ;
+    end    
+
+    function clearSelectedFrames(obj)
+      % obj.selectedFrames_ = [] ;
+      obj.infoTimelineModel_.clearSelection(obj.nframes) ;
+      obj.notify('updateTimeline');      
+    end
+
+    function result = get.infoTimelineModel(obj)
+      result = obj.infoTimelineModel_ ;
+    end
+
+    function result = isCurrentFrameSelected(obj)
+      currFrame = obj.currFrame ;
+      isSelectedFromFrameIndex = obj.infoTimelineModel_.isSelectedFromFrameIndex ;
+      if 1<=currFrame && currFrame<=numel(isSelectedFromFrameIndex)
+        result = isSelectedFromFrameIndex(currFrame) ;
+      else
+        result = false ;
+      end
+    end
+
+    function result = areAnyFramesSelected(obj)      
+      isSelectedFromFrameIndex = obj.infoTimelineModel_.isSelectedFromFrameIndex ;
+      result = any(isSelectedFromFrameIndex) ;
+    end
+
+    function setTimelineFramesInView(obj, nframes)
+      validateattributes(nframes,{'numeric'},{'nonnegative' 'integer'});
+      obj.projPrefs.InfoTimelines.FrameRadius = round(nframes/2);      
+      obj.notify('update') ;
+    end
+
+    % function setTimelineCurrentPropertyTypeToDefault(obj)
+    %   iproptype = 1 ;
+    %   iprop = 1 ;
+    %   itm = obj.infoTimelineModel ;
+    %   itm.curproptype = iproptype;
+    %   if iprop ~= itm.curprop,
+    %     itm.curprop = iprop;
+    %   end
+    %   itm.isdefault = true ;
+    %   obj.notify('updateTimelineLabels');
+    %   obj.notify('updateTimelineLandmarkColors');
+    % end
+    
+    function setTimelineCurrentPropertyType(obj, iproptype, iprop)
+      % iproptype, iprop assumed to be consistent already.
+      itm = obj.infoTimelineModel ;
+      itm.setCurrentPropertyType(iproptype, iprop) ;
+      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineLandmarkColors');
+      obj.notify('updateTimeline');
+    end  % function    
+
+    function plotAllLabels(obj,outimgdir,varargin)
+      [hfig,movieabbr_fun] = myparse(varargin,'hfig',[],'movieabbr_fun','');
+      if ~exist(outimgdir,'dir'),
+        mkdir(outimgdir);
+      end
+      nviews = obj.nview;
+      colors = obj.labelPointsPlotInfo.Colors;
+      if isempty(hfig) || ~ishandle(hfig),
+        hfig = figure;
+        set(hfig,'Position',[10,10,800*nviews,800]);
+      else
+        figure(hfig);
+      end
+      nkpts = obj.nPhysPoints;
+      d = 2;
+      htile = tiledlayout(1,nviews,'TileSpacing','none','Padding','none');
+      hax = gobjects(1,nviews);
+      tbldata = obj.labelGetMFTableLabeled('useMovNames',true);
+      for i = 1:nviews,
+        hax(i) = nexttile;
+      end
+      border = 40; % pixels
+      set(hax,'XTick',[],'YTick',[]);
+      for i = 1:size(obj.movieFilesAllFull,1),
+        moviefilescurr = obj.movieFilesAllFull(i,:);
+        idxcurr = find(strcmp(moviefilescurr{1},tbldata.mov(:,1)));
+        if ~isempty(movieabbr_fun),
+          movieabbr = movieabbr_fun(moviefilescurr{1});
+        else
+          movieabbr = '';
+        end
+
+        readframes = cell(1,nviews);
+        fids = cell(1,nviews);
+        for j = 1:nviews,
+          [readframes{j},~,fids{j}] = get_readframe_fcn(moviefilescurr{j});
+        end
+        for exi = idxcurr(:)',
+          fr = tbldata.frm(exi);
+          p = tbldata.p(exi,:);
+          p = reshape(p,[],nkpts,nviews,2);
+          for tgt = 1:size(p,1),
+            pcurr = permute(p(tgt,:,:,:),[2,3,4,1]);
+            if all(isnan(pcurr)),
+              continue;
+            end
+            mincoord = permute(min(pcurr,[],1),[2,3,1]);
+            maxcoord = permute(max(pcurr,[],1),[2,3,1]);
+
+            for view = 1:nviews,
+              im = readframes{view}(fr);
+              cla(hax(view));
+              image(hax(view),im);
+              colormap(hax(view),'gray');
+              hold(hax(view),'on');
+              for kpt = 1:nkpts,
+                plot(hax(view),pcurr(kpt,view,1),pcurr(kpt,view,2),'.','Color',colors(kpt,:),'MarkerSize',12);
+              end
+              axis(hax(view),'image','off');
+              xlim = [mincoord(view,1),maxcoord(view,1)]+border*[-1,1];
+              ylim = [mincoord(view,2),maxcoord(view,2)]+border*[-1,1];
+              set(hax(view),'XLim',xlim,'YLim',ylim);
+            end
+              
+            ti = sprintf(' ex %d, movie set %d, frame %d, tgt %d',exi,i,fr,tgt);
+            if ~isempty(movieabbr),
+              ti = [ti,', ',movieabbr];
+            end
+            text(hax(1),mincoord(1,1)-border,mincoord(1,2)-border+5,ti,'HorizontalAlignment','left','VerticalAlignment','top','Color','m');
+            outfile = fullfile(outimgdir,sprintf('example%03d_movieset%02d_fr%06d_tgt%02d',exi,i,fr,tgt));
+            if ~isempty(movieabbr),
+              outfile = [outfile,'_',movieabbr];
+            end
+            outfile = [outfile,'.png'];
+            saveas(hfig,outfile,'png');
+          end
+        end
+        for j = 1:nviews,
+          if ~isempty(fids{j}) && fids{j} > 0,
+            fclose(fids{j});
+          end
+        end
+      end
+      fprintf('Done\n');
+    end
   end  % methods
 end  % classdef
