@@ -333,7 +333,7 @@ def check_inbounds(ll,rows,cols,check_bounds_distort,valid=None,badvalue=SMALLVA
     """
     if valid is None:
         valid = np.invert(np.isnan(ll[...,0])) | (ll[...,0] > SMALLVALUETHRESH)
-    inbounds = valid | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
+    inbounds = ~valid | ((ll[...,0] >= 0) & (ll[..., 1] >= 0) & (ll[...,0] < cols) & (ll[..., 1] < rows))
     ll[~inbounds] = badvalue
     sane = (not np.any(valid)) or np.all(inbounds) or (not check_bounds_distort and np.any(inbounds[valid]))
     return sane
