@@ -59,6 +59,15 @@ import logging
 
 import requests
 FRCNN_pretrained_url = 'https://download.openxlab.org.cn/models/mmdetection/FasterR-CNN/weight/faster-rcnn_r50_fpn_2x_coco'
+BACKUP_URL_ROOT = 'https://research.janelia.org/bransonlab/APT/pretrained/'
+BACKUP_PTH_FILES = {
+    'faster_rcnn': 'faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth',
+    'detr': 'detr_r50_8x2_150e_coco_20201216_213000-3ffecf3b.pth',
+}
+BACKUP_CONFIG_FILES = {
+    'faster_rcnn': 'faster-rcnn_r50_fpn_2x_coco.py',
+    'detr': 'detr_r50_8xb2-150e_coco.py'
+}
 
 # @BBOX_ASSIGNERS.register_module()
 class APTHungarianAssigner(HungarianAssigner):
@@ -989,9 +998,13 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
         # cfg.model.test_cfg.rcnn.max_per_img = conf.max_n_animals
         # cfg.optimizer.lr = cfg.optimizer.lr * conf.learning_rate_multiplier * conf.batch_size/default_samples_per_gpu/8
         
-        response = requests.head(FRCNN_pretrained_url, allow_redirects=True)
-        cfg.load_from = response.url
-        # cfg.load_from = 'https://cdn-model.openxlab.org.cn/models%2Fweight%2Fmmdetection%2FFaster+R-CNN%2Ffaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth?Expires=1749573038&OSSAccessKeyId=LTAI5tCdKkrGqdpR7PDyejq7&Signature=bizipUOx%2BXu3t0FZyX63yNC2oDw%3D&response-content-disposition=attachment%3B%20filename%3Dfaster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'
+        try:
+            response = requests.head(FRCNN_pretrained_url, allow_redirects=True)
+            cfg.load_from = response.url
+        except Exception as e:
+            logging.warning(f'Could not access pretrained weights from {FRCNN_pretrained_url}. Error {e}. Trying direct link')
+            backup_url = BACKUP_URL_ROOT + BACKUP_PTH_FILES['faster_rcnn']
+            cfg.load_from = backup_url
 
     elif conf.mmdetect_net == 'detr':
 
@@ -1018,7 +1031,13 @@ def create_mmdetect_cfg(conf,mmdet_config_file,run_name):
         #         os.makedirs(wt_dir)
         #     urllib.urlretrieve(url,wt_file)
 
-        cfg.load_from = url
+        try:
+            response = requests.head(url, allow_redirects=True)
+            cfg.load_from = response.url
+        except Exception as e:
+            logging.warning(f'Could not access pretrained weights from {url}. Error {e}. Trying direct link')
+            backup_url = BACKUP_URL_ROOT + BACKUP_PTH_FILES['detr']
+            cfg.load_from = backup_url
 
 
     # cfg.train_pipeline[-1]['keys'].append('gt_bboxes_ignore')
