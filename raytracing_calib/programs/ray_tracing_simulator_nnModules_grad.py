@@ -13,11 +13,71 @@ import os
 import scipy.io as sio
 import torch.nn as nn
 from utils import euclidean_distance
+from pytorch3d.transforms import (
+    rotation_6d_to_matrix,
+    matrix_to_rotation_6d,
+    euler_angles_to_matrix,
+    matrix_to_euler_angles
+)
 #mpl.use('TkAgg') # Use this if working on the PC
 #mpl.use('QtAgg') # Use this if working remotely with NoMachine
 plt.ion()
 
 pi = torch.tensor(np.pi).to(torch.float64)
+
+class Rotation6D(nn.Module):
+    """
+    Drop-in replacement for Euler angle rotations using 6D representation.
+    
+    Usage:
+        # OLD: 
+        self.alpha = nn.Parameter(torch.tensor(0.1))
+        self.beta = nn.Parameter(torch.tensor(0.2))
+        self.gamma = nn.Parameter(torch.tensor(0.3))
+        R = torch.mm(torch.mm(rotz(self.gamma), roty(self.beta)), rotx(self.alpha))
+        
+        # NEW:
+        self.rotation = Rotation6D(init_alpha=0.1, init_beta=0.2, init_gamma=0.3)
+        R = self.rotation.matrix()
+    """
+
+    def __init__(self, init_alpha=0.0, init_beta=0.0, init_gamma=0.0, init_6d=None):
+        super().__init__()
+
+        if init_6d is not None:
+            # Initialize directly from 6D parameters
+            self.rotation_6d = nn.Parameter(init_6d.clone())
+        else:
+            # Initialize from Euler angles
+            euler_tensor = torch.tensor([init_alpha, init_beta, init_gamma], dtype=torch.float64)
+            rotation_matrix = euler_angles_to_matrix(euler_tensor.unsqueeze(0), "ZYX")
+            init_6d = matrix_to_rotation_6d(rotation_matrix).squeeze(0)
+            self.rotation_6d = nn.Parameter(init_6d)
+
+    def matrix(self):
+        """Get the rotation matrix - direct replacement for your torch.mm(...) call"""
+        return rotation_6d_to_matrix(self.rotation_6d.unsqueeze(0)).squeeze(0)
+
+    def forward(self, points):
+        """Apply rotation to points"""
+        R = self.matrix()
+        if points.dim() == 2:  # [N, 3] points
+            return torch.mm(points, R.T)
+        else:  # [batch, N, 3] points  
+            return torch.matmul(points, R.T)
+
+    def to_euler(self):
+        """Get approximate Euler angles (for debugging/visualization)"""
+        R = self.matrix()
+        euler = matrix_to_euler_angles(R.unsqueeze(0), "ZYX").squeeze(0)
+        return euler[2], euler[1], euler[0]  # gamma, beta, alpha (because alpha is defined for X, beta for Y, gamma for Z)
+
+    @classmethod
+    def from_matrix(cls, rotation_matrix):
+        """Create from existing rotation matrix"""
+        rotation_6d = matrix_to_rotation_6d(rotation_matrix.unsqueeze(0)).squeeze(0)
+        return cls(init_6d=rotation_6d)
+
 
 def rotx(angle):
     """
@@ -1151,11 +1211,12 @@ def visualize_camera_configuration(camera=None, prism=None, pixels=None, ax=None
 
 
 # %% Prism class
-class Prism(nn.Module):
+class PrismMirror(nn.Module):
 
     def __init__(self, 
                 prism_size=[1.,1.,1.], 
                 prism_angles=[0.,0.,0.], 
+                prism_rotation_6d=None,
                 prism_center=[0.,0.,0.], 
                 refractive_index_glass=1.5, 
                 refractive_index_air=1.):
@@ -1165,7 +1226,7 @@ class Prism(nn.Module):
         - prism_angles (list): A list of angles alpha (X-axis), beta (Y-axis), gamma (Z-axis)
         - prism_center (list): Center of the first surface of the prism. (surface facing the camera)
         """
-        super(Prism, self).__init__()
+        super(PrismMirror, self).__init__()
         if not isinstance(prism_center, torch.Tensor):
             prism_center = torch.tensor(prism_center, 
                                         dtype=torch.float64)
@@ -1184,16 +1245,17 @@ class Prism(nn.Module):
         if not isinstance(prism_size, torch.Tensor):         
             prism_size = torch.tensor(prism_size, 
                                         dtype=torch.float64)
-
         self.prism_size = prism_size
         self.prism_angles = prism_angles
         self.prism_center = prism_center
         self.refractive_index_glass = refractive_index_glass
         self.refractive_index_air = refractive_index_air
+        self.prism_rotation_6d = prism_rotation_6d
 
-    def get_planes(self, prism_center, prism_angles):       
-        prism_alpha, prism_beta, prism_gamma = prism_angles
-        rot_mat = get_rot_mat(prism_alpha, prism_beta, prism_gamma)
+    def get_planes(self, prism_center, prism_rotation_6d):       
+        #prism_alpha, prism_beta, prism_gamma = prism_angles
+        rot_mat = prism_rotation_6d.matrix()
+        #rot_mat = get_rot_mat(prism_alpha, prism_beta, prism_gamma)
         axes1 = torch.mm(rot_mat, 
                             torch.tensor([[1.,0.,0.], [0.,1.,0.], [0.,0.,1.]], dtype=torch.float64).t()
                             )        
@@ -1277,7 +1339,8 @@ class Prism(nn.Module):
 
 
     def forward(self, incident_ray):
-        plane1, plane2, plane3 = self.get_planes(self.prism_center, self.prism_angles)
+        plane1, plane2, plane3 = self.get_planes(self.prism_center, self.prism_rotation_6d)
+        #plane1, plane2, plane3 = self.get_planes(self.prism_center, self.prism_angles)
         ray1, intersection_penalty_1 = plane1(incident_ray)
         ray2, intersection_penalty_2 = plane2(ray1)
         ray3, intersection_penalty_3 = plane3(ray2)
@@ -1290,7 +1353,9 @@ class Prism(nn.Module):
         if ax is None:
             ax = fig.add_subplot(111, projection='3d')
         plane1, plane2, plane3 = self.get_planes(self.prism_center,
-                                                 self.prism_angles)
+                                                 self.prism_rotation_6d)
+        #plane1, plane2, plane3 = self.get_planes(self.prism_center,
+        #                                         self.prism_angles)
         fig, ax = plane1.visualize(fig, ax)
         fig, ax = plane2.visualize(fig, ax, color=[[0.5, 0.5, 0.5]])
         fig, ax = plane3.visualize(fig, ax, color=[0.5, 0.5, 0.5])
@@ -1307,7 +1372,9 @@ class Prism(nn.Module):
         if ax is None:
             ax = fig.add_subplot(111, projection='3d')
         plane1, plane2, plane3 = self.get_planes(self.prism_center,
-                                                self.prism_angles)
+                                                self.prism_rotation_6d)
+        #plane1, plane2, plane3 = self.get_planes(self.prism_center,
+        #                                        self.prism_angles)
         ray2, _ = plane1(incident_ray)
         ray3, _ = plane2(ray2)
         ray4, _ = plane3(ray3)
