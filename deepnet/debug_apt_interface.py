@@ -17,7 +17,7 @@ cmd = ['/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/
 
 cmd = '/groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/20250930T055312_20250930T055317.json -name 20250930T055312 -err_file /groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250930T055312/trk/track_20251001T014542_mov1_vw1.err -log_file /groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250930T055312/trk/track_20251001T014542_mov1_vw1.log -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250930T055312/deepnet-200000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880 track -config_file /groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250930T055312/trk/trkconfig_image_cam_0_date_2025_04_08_time_18_35_18_v001_crop_col1167to1919_rot90_3cc838_trn20250930T055312_view0_iter200000_20251001T014542.json -track_type only_predict -out /groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250930T055312/trk/image_cam_0_date_2025_04_08_time_18_35_18_v001_crop_col1167to1919_rot90_3cc838_trn20250930T055312_view0_iter200000_20251001T014542.trk -mov /groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led/exp_32/fly_images/cropped_uniform_sizes/image_cam_0_date_2025_04_08_time_18_35_18_v001_crop_col1167to1919_rot90.ufmf -start_frame 107 -end_frame 270'
 
-cmd = ['/groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/20251001T030821_20251001T030824.json', '-name', '20251001T030821', '-json_trn_file', '/groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880/combinedSideViewMA/loc.json', '-conf_params', 'maxckpt','20','dl_steps','13000','save_step','500','-type', 'multi_mdn_joint_torch', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tp5314232a_cd75_468f_bb50_39cad4848880', 'train', '-use_cache','-skip_db']
+cmd = ['/groups/branson/home/kabram/.apt/tp2f16fcfd_b4b7_4638_80a7_31cbb8280296/RatCityFullSizeRT/20251002T033239_20251002T033245.json', '-name', '20251002T033239','-model_files','/groups/branson/home/kabram/.apt/tp2f16fcfd_b4b7_4638_80a7_31cbb8280296/RatCityFullSizeRT/multi_mdn_joint_torch/view_0/20251002T033239/deepnet-9000','-json_trn_file', '/groups/branson/home/kabram/.apt/tp2f16fcfd_b4b7_4638_80a7_31cbb8280296/RatCityFullSizeRT/loc.json', '-conf_params', '-type', 'multi_mdn_joint_torch', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tp2f16fcfd_b4b7_4638_80a7_31cbb8280296', 'train', '-use_cache','-skip_db']
 
 if type(cmd)!=list:
     cmd = cmd.replace('\\','')
@@ -255,9 +255,9 @@ pred_animal_conf = None
 
 ## Training with neg APT
 from importlib import reload
-import Pose_detect_mmdetect as mmdetect_file
+import Pose_detect_mmdetect2x as mmdetect_file
 reload(mmdetect_file)
-from Pose_detect_mmdetect import Pose_detect_mmdetect
+from Pose_detect_mmdetect2x import Pose_detect_mmdetect
 from poseConfig import conf
 conf.mmpose_use_epoch_runner = True
 conf.mmdetect_net = 'test'

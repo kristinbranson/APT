@@ -16,17 +16,19 @@
 
 # %%
 import numpy as np
+import sys
+sys.path.append('/groups/branson/bransonlab/aniket/APT/deepnet')
 import TrkFile
 import os
 import sys
 import re
 import matplotlib.pyplot as plt
-
+import pdb
 
 # %%
 # data locations
-rootdatadir = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views'
-rootoutdir = '/groups/branson/home/bransonk/tracking/code/APT/debug/flyprism_merged_trks'
+rootdatadir = '/groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led'
+rootoutdir = '/groups/branson/bransonlab/anket/flw_walk_imaging/prism_new_led/flyprism_merged_trks'
 
 if not os.path.exists(rootoutdir):
     os.makedirs(rootoutdir)
@@ -35,12 +37,15 @@ if not os.path.exists(rootoutdir):
 viewtypes = ['Bottom','Side']
 nviewspertype = 2
 nviews = len(viewtypes) * nviewspertype
-nettype = 'magrone'
+nettype = {}
+nettype['Bottom'] = 'magrone'
+nettype['Side'] = 'ma_top_down_custom_bbox_tddobj_tdpobj'
 minconf = 0.5
 
 # %%
 # get full paths to subdirectories in rootdatadir named exp*
 expdirs = [os.path.join(rootdatadir, d) for d in os.listdir(rootdatadir) if d.startswith('exp') and os.path.isdir(os.path.join(rootdatadir, d))]
+#expdirs = ['/groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led/exp_62']
 print(f"Found {len(expdirs)} experiment directories: {expdirs}")
 nexps = len(expdirs)
 
@@ -48,19 +53,27 @@ trkfiles = {}
 found_trkfile = np.zeros((nexps,len(viewtypes),nviewspertype), dtype=bool)
 
 for expdir in expdirs:
+    trkfiles_dir = os.path.join(
+            expdir,
+            'fly_images',
+            'cropped_uniform_sizes',
+            'tracks',
+            )
     trkfiles[expdir] = {}
     for viewtype in viewtypes:
         for viewi in range(nviewspertype):
             # find trk file: trk file name will be {expdir}/image_cam_{view}*combined{viewtype}View*_{nettype}*.trk, and does not contain tracklet, use regex to match
-            files = [f for f in os.listdir(expdir) if re.match(rf'image_cam_{viewi}.*combined{viewtype}View.*_{nettype}.*\.trk', f) and not 'tracklet' in f]
+            
+            files = [f for f in os.listdir(trkfiles_dir) if re.match(rf'image_cam_{viewi}.*combined{viewtype}View.*_{nettype[viewtype]}.*\.trk', f) and not 'tracklet' in f and not 'stg1' in f]
             if len(files) == 0:
-                print(f"No trkfiles found for {expdir}, viewtype {viewtype}, viewi {viewi}")
+                #if os.path.basename(expdir) == 'exp_32':
+                print(f"No trkfiles found for {trkfiles_dir}, viewtype {viewtype}, viewi {viewi}")
                 continue
             elif len(files) > 1:
-                print(f"Multiple trkfiles found for {expdir}, viewtype {viewtype}, viewi {viewi}: {files}")
+                print(f"Multiple trkfiles found for {trkfiles_dir}, viewtype {viewtype}, viewi {viewi}: {files}")
                 continue
             else:
-                trkfile = os.path.join(expdir, files[0])
+                trkfile = os.path.join(trkfiles_dir, files[0])
                 trkfiles[expdir][(viewtype, viewi)] = trkfile
                 found_trkfile[expdirs.index(expdir), viewtypes.index(viewtype), viewi] = True
 
@@ -152,7 +165,9 @@ for expi in range(nexps):
     trkouts = merge_tracklets(trkfilescurr, minconf=minconf)
     for viewtype in viewtypes:
         for viewi in range(nviewspertype):
-            trkoutfile = os.path.join(rootoutdir, f"{os.path.basename(expdir)}_combined{viewtype}View_cam{viewi}.trk")
+            trkoutdir = os.path.join(rootoutdir, expdir, 'fly_images', 'cropped_uniform_sizes', 'merged_tracks')
+            os.makedirs(trkoutdir, exist_ok=True)
+            trkoutfile = os.path.join(trkoutdir, f"{os.path.basename(expdir)}_combined{viewtype}View_cam{viewi}.trk")
             print(f"Saving merged tracklets to {trkoutfile}")
             trkout = trkouts[(viewtype, viewi)]
             trkout.save(trkoutfile)
@@ -172,7 +187,8 @@ kpi = 0
 
 for viewtype in viewtypes:
     for viewi in range(nviewspertype):
-        outtrkfile = os.path.join(rootoutdir, f"{os.path.basename(expdirs[expi])}_combined{viewtype}View_cam{viewi}.trk")
+        trkoutdir = os.path.join(rootoutdir, expdir, 'fly_images', 'cropped_uniform_sizes', 'merged_tracks')
+        outtrkfile = os.path.join(trkoutdir, f"{os.path.basename(expdirs[expi])}_combined{viewtype}View_cam{viewi}.trk")
         trkout = TrkFile.Trk(trkfile=outtrkfile)
         
         p,rest = trkout.gettarget(0, extra=True)

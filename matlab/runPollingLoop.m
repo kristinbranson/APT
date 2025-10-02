@@ -62,7 +62,11 @@ while true
 
   % Wait a bit to not poll too much
   logger.log('Pausing...\n');  % want an extra newline here
-  pause(pollInterval);
+  if iterations_completed < 50
+    pause(pollInterval);
+  else
+    pause(pollInterval*3);
+  end
   logger.log('Done pausing...');
 
   % Log the number of iterations completed
