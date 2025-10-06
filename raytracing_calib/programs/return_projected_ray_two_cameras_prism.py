@@ -9,7 +9,9 @@ import math
 
 raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
 sys.path.append(raytracing_lib_path)
+#from prism_arenas_6d_rotations import Arena_reprojection_loss_two_cameras_prism_grid_distances
 from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
+#from ray_tracing_simulator_nnModules_grad_6d_rotations import get_rot_mat
 from ray_tracing_simulator_nnModules_grad import get_rot_mat
 rotmat = 1
 if torch.cuda.is_available():
@@ -46,11 +48,13 @@ def get_annotations_curve(arena, user_annotation,
 
         R1 = torch.eye(3, 3).to(torch.float64)
         T1 = torch.zeros(3, 1).to(torch.float64)
+        R_stereo_cam = arena.stereo_camera_rotation_6d.matrix()
+        """
         R_stereo_cam = get_rot_mat(
             arena.stereo_camera_angles[0],
             arena.stereo_camera_angles[1],
             arena.stereo_camera_angles[2],
-            )
+            )"""
         
         annotations_curve_real = camera_real.reproject(r, R1, T1)
         annotations_curve_virtual = camera_virtual.reproject(r, R_stereo_cam, arena.T_stereo_cam)
@@ -93,11 +97,14 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
         elif "secondary" in projecting_cam:
             projecting_cam_obj = get_secondary_camera(arena)
             projecting_cam_dist_coeff = arena.radial_dist_coeffs_cam_1
+            R_projecting = arena.stereo_camera_rotation_6d.matrix()
+            """
             R_projecting = get_rot_mat(
                 arena.stereo_camera_angles[0],
                 arena.stereo_camera_angles[1],
                 arena.stereo_camera_angles[2],
                 )
+            """
             T_projecting = arena.T_stereo_cam
             
 
@@ -391,11 +398,14 @@ def get_secondary_camera(arena):
     """
     Returns secondary camera given the arena model parameters
     """
+    R_stereo_cam = arena.stereo_camera_rotation_6d.matrix()
+    """
     R_stereo_cam = get_rot_mat(
             arena.stereo_camera_angles[0],
             arena.stereo_camera_angles[1],
             arena.stereo_camera_angles[2],
-            )
+            )"""
+    
     return arena.get_stereo_camera(arena.principal_point_pixel_cam_1,
                                 arena.focal_length_cam_1,
                                 R_stereo_cam,

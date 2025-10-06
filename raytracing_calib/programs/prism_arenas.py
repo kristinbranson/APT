@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from ray_tracing_simulator_nnModules_grad import Prism, Ray, Plane, ReflectingPlane, RefractingPlane, EfficientCamera, visualize_camera_configuration, closest_point, rotx, get_rot_mat
+from ray_tracing_simulator_nnModules_grad import PrismMirror, Ray, Plane, ReflectingPlane, RefractingPlane, EfficientCamera, visualize_camera_configuration, closest_point, rotx, get_rot_mat, Rotation6D
 from utils import euclidean_distance, rotation_matrix_to_quaternion
 pi = torch.tensor(np.pi, dtype=torch.float64)
 
@@ -473,7 +473,14 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
                                                              device=R_stereo_cam.device),
                                                 requires_grad=True
                                                 )
-
+        self.prism_rotation_6d = Rotation6D(prism_angles[2],
+                                            prism_angles[1],
+                                            prism_angles[0])
+        self.stereo_camera_rotation_6d = Rotation6D(
+                stereo_gamma,
+                stereo_beta,
+                stereo_alpha
+                )
         # Prism initialization
         self.prism_angles = nn.Parameter(prism_angles, requires_grad=True)
         refractive_index_glass = torch.tensor(1.51, dtype=torch.float64)
@@ -484,9 +491,9 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         
         self.prism_center = nn.Parameter(prism_center, requires_grad=True)
         self.prism_size = nn.Parameter(torch.tensor([20.,20.,20.],dtype=torch.float64), requires_grad=True)
-        self.prism = Prism(prism_size=self.prism_size, 
+        self.prism = PrismMirror(prism_size=self.prism_size, 
                         prism_center=self.prism_center, 
-                        prism_angles=self.prism_angles,
+                        prism_rotation_6d=self.prism_rotation_6d,
                         refractive_index_glass=self.refractive_index_glass,
                         )
 
@@ -515,23 +522,30 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
 
 
     def forward(self, pixels_virtual_two_cams, pixels_real_two_cams):
-        self.prism = Prism(prism_size=self.prism_size, 
+        """self.prism = Prism(prism_size=self.prism_size, 
                         prism_center=self.prism_center, 
                         prism_angles=self.prism_angles,
                         refractive_index_glass=self.refractive_index_glass,
+                        )"""
+        
+        self.prism = PrismMirror(prism_size=self.prism_size,
+                        prism_center=self.prism_center,
+                        prism_rotation_6d=self.prism_rotation_6d,
+                        refractive_index_glass=self.refractive_index_glass,
                         )
-        R_stereo_cam = get_rot_mat(
+        R2 = self.stereo_camera_rotation_6d.matrix()
+        """R_stereo_cam = get_rot_mat(
             self.stereo_camera_angles[0],
             self.stereo_camera_angles[1],
             self.stereo_camera_angles[2],
-            )
+            )"""
+
         R1 = torch.eye(3, 3).to(device=pixels_virtual_two_cams.device, dtype=torch.float64)
         T1 = torch.zeros(3, 1).to(device=pixels_virtual_two_cams.device, dtype=torch.float64)
-        R2 = R_stereo_cam
         T2 = self.T_stereo_cam
         camera2 = self.get_stereo_camera(self.principal_point_pixel_cam_1,
                                     self.focal_length_cam_1,
-                                    R_stereo_cam,
+                                    R2,
                                     self.T_stereo_cam,
                                     r1=self.stereocam_r1,
                                     radial_dist_coeffs=self.radial_dist_coeffs_cam_1)
@@ -622,12 +636,16 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
 
     def pass_through_virtual_cam(self, pixels_virtual_two_cams, cam_label='both'):
         # Input pixels aren't provided in pairs
-        self.prism = Prism(prism_size=self.prism_size,
+        """self.prism = Prism(prism_size=self.prism_size,
                         prism_center=self.prism_center,
                         prism_angles=self.prism_angles,
                         refractive_index_glass=self.refractive_index_glass,
+                        )"""
+        self.prism = PrismMirror(prism_size=self.prism_size,
+                        prism_center=self.prism_center,
+                        prism_rotation_6d=self.prism_rotation_6d,
+                        refractive_index_glass=self.refractive_index_glass,
                         )
-
         
         if cam_label == 'primary':
             distorted_virtual_pixels_cam_0 = pixels_virtual_two_cams
@@ -649,11 +667,12 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
             output['cam_1_ray_virtual'] = cam_1_ray_virtual
             
         if cam_label == 'secondary' or cam_label == 'both':
-            R_stereo_cam = get_rot_mat(
+            """R_stereo_cam = get_rot_mat(
             self.stereo_camera_angles[0],
             self.stereo_camera_angles[1],
             self.stereo_camera_angles[2],
-            )
+            )"""
+            R_stereo_cam = self.stereo_camera_rotation_6d.matrix()
             camera2 = self.get_stereo_camera(self.principal_point_pixel_cam_1,
                                     self.focal_length_cam_1,
                                     R_stereo_cam,
@@ -692,11 +711,12 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         fig, ax = self.prism.visualize_prism(fig, ax)
         emergent_ray1.t *= 25
         fig, ax = emergent_ray1.visualize(fig, ax, color_labels)
-        R_stereo_cam = get_rot_mat(
+        R_stereo_cam = self.stereo_camera_rotation_6d.matrix()
+        """R_stereo_cam = get_rot_mat(
             self.stereo_camera_angles[0],
             self.stereo_camera_angles[1],
             self.stereo_camera_angles[2],
-        )
+        )"""
         camera2 = self.get_stereo_camera(self.principal_point_pixel_cam_1,
                                 self.focal_length_cam_1,
                                 R_stereo_cam,
