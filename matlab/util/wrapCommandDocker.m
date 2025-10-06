@@ -1,14 +1,17 @@
-function codestr = wrapCommandDocker(basecmd, varargin)
-  % Take a linux/WSL shell command string, wrap it for running in a docker
-  % container.  Returned string is also a linux/WSL shell command.  Any paths
-  % handed to this function should be WSL paths.  This function does not handle
-  % the case of running docker remotely via ssh.
+function result = wrapCommandDocker(baseCommand, varargin)
+  % Take a linux/WSL shell command, wrap it for running in a docker
+  % container.  baseCommand should be a ShellCommand with WSL locale.
+  % This function does not handle the case of running docker remotely via ssh.
+
+  % Validate input baseCommand
+  assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand object');
+  assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'baseCommand must have WSL locale');
 
   % Parse keyword args
   [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,tty,shmsize,apiver] = ...
     myparse(varargin,...
             'containername','apt-docker-container',...
-            'bindpath',{},... % paths on local filesystem that must be mounted/bound within container
+            'bindpath',{},... % cell array of MetaPath objects, containing paths on local filesystem that must be mounted/bound within container
             'dockerimg','',... 
             'isgpu',true,... % set to false for CPU-only
             'gpuid',0,... % used if isgpu
@@ -23,45 +26,51 @@ function codestr = wrapCommandDocker(basecmd, varargin)
   end
   
   % Get path to the deepnet/ subdirectory in the APT source tree
-  aptdeepnet = APT.getpathdl() ;  % this is a native, local path
-  deepnetrootContainer = wsl_path_from_native(aptdeepnet) ;
+  aptDeepnetPathNativeChar = APT.getpathdl() ;  % this is a native, local path, as char
+  aptDeepnetPathNative = apt.MetaPath(aptDeepnetPathNativeChar, 'native', 'source');
+  aptDeepnetPathWsl = aptDeepnetPathNative.asWsl();
 
   % Set the paths to make visible in the container
   % Add whatever the user passed in as paths to bind to the container
-  mountArgs = cellfun(@mount_option_string,bindpath,bindpath,'uni',0);
-  % if ispc() 
-  %   % For running in WSL, want to add /mnt to the container, since user's files
-  %   % are presumably in there.
-  %   srcbindpath = {'/mnt'};
-  %   dstbindpath = {'/mnt'};
-  %   mountArgs = cellfun(@mount_option_string,srcbindpath,dstbindpath,'uni',0);
-  % else    
-  %   % Add whatever the user passed in as paths to bind to the container
-  %   mountArgs = cellfun(@mount_option_string,bindpath,bindpath,'uni',0);
-  % end
+  % Convert bindpath to MetaPath objects and create ShellBind objects
+  if ~isempty(bindpath)
+    bindPathWsl = cellfun(@(path) path.asWsl(), bindpath, 'UniformOutput', false);
+    bindings = row(cellfun(@(src) apt.ShellBind(src, src), bindPathWsl, 'UniformOutput', false));
+  else
+    bindings = cell(1,0);
+  end
+  % Need the --mount in front of each binding
+  mountArgsAsNestedList = cellfun(@(binding)({'--mount', binding}), bindings, 'UniformOutput', false);
+  mountArgsAsList = flatten_row_cell_array(mountArgsAsNestedList) ;
+  mountArgs = apt.ShellCommand(mountArgsAsList, apt.PathLocale.wsl, apt.Platform.posix);
 
   % Apparently we need to use the --user switch when running in real Linux
   % Actually think we want to use it regardless.  Otherwise on AWS files written
   % by things running in docker are owned by root, not by user "ubuntu".  This
   % makes it awkward to delete/overwrite them later.
-  userArgs = {'--user' '$(id -u):$(id -g)'};
+  userArgs = apt.ShellCommand({'--user', '$(id -u):$(id -g)'}, apt.PathLocale.wsl, apt.Platform.posix);
   % if ispc() 
-  %   userArgs = {};
+  %   userArgs = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix);
   % else
-  %   userArgs = {'--user' '$(id -u):$(id -g)'};
+  %   userArgs = apt.ShellCommand({'--user', '$(id -u):$(id -g)'}, apt.PathLocale.wsl, apt.Platform.posix);
   % end    
 
   if isgpu
     %nvidiaArgs = {'--runtime nvidia'};
-    gpuArgs = {'--gpus' 'all'};
-    cudaEnv = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID; export CUDA_VISIBLE_DEVICES=%d;',gpuid);
+    gpuArgs = apt.ShellCommand({'--gpus', 'all'}, apt.PathLocale.wsl, apt.Platform.posix);
+    cudaDeviceOrderVar = apt.ShellVariableAssignment('CUDA_DEVICE_ORDER', 'PCI_BUS_ID');
+    cudaVisibleDevicesVar = apt.ShellVariableAssignment('CUDA_VISIBLE_DEVICES', num2str(gpuid));
+    cudaEnv = apt.ShellCommand({'export', cudaDeviceOrderVar, ';', 'export', cudaVisibleDevicesVar, ';'}, apt.PathLocale.wsl, apt.Platform.posix);
   else
-    gpuArgs = cell(1,0);
-    cudaEnv = 'export CUDA_VISIBLE_DEVICES=;'; 
+    gpuArgs = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix);
+    cudaVisibleDevicesVar = apt.ShellVariableAssignment('CUDA_VISIBLE_DEVICES', '');
+    cudaEnv = apt.ShellCommand({'export', cudaVisibleDevicesVar, ';'}, apt.PathLocale.wsl, apt.Platform.posix);
     % MK 20220411 We need to explicitly set devices for pytorch when not using GPUS
   end
   
-  native_home_dir = get_home_dir_name() ;      
+  nativeHomeDirPathAsChar = get_home_dir_name() ;      
+  nativeHomeDirPath = apt.MetaPath(nativeHomeDirPathAsChar, 'native', 'universal');
+  homeDirWslPath = nativeHomeDirPath.asWsl();
   user = get_user_name() ;
   
   dockercmd = dockercmd_from_apiver(apiver) ;
@@ -76,50 +85,33 @@ function codestr = wrapCommandDocker(basecmd, varargin)
     end        
   end
   
-  otherargs = cell(0,1);
   if ~isempty(shmsize)
-    otherargs{end+1,1} = sprintf('--shm-size=%dG',shmsize);
+    otherArgs = apt.ShellCommand({sprintf('--shm-size=%dG',shmsize)}, apt.PathLocale.wsl, apt.Platform.posix);
+  else
+    otherArgs = apt.ShellCommand({}, apt.PathLocale.wsl, apt.Platform.posix);
   end
 
-  code_as_list = [
-    {
-    dockercmd
-    'run'
-    detachstr
-    sprintf('--name %s',containerName);
-    '--rm'
-    '--ipc=host'
-    '--network host'
-    };
-    mountArgs(:);
-    gpuArgs(:);
-    userArgs(:);
-    otherargs(:);
-    {
-    '-w'
-    escape_string_for_bash(deepnetrootContainer)
-    '-e'
-    ['USER=' user]
-    dockerimg
-    }
-    ];
-  linux_home_dir = wsl_path_from_native(native_home_dir) ;
-  bashcmd = ...
-    sprintf('export HOME=%s ; %s cd %s ; %s',...
-            escape_string_for_bash(linux_home_dir), ...
-            cudaEnv, ...
-            escape_string_for_bash(deepnetrootContainer), ...
-            basecmd) ;
-  escbashcmd = ['bash -c ' escape_string_for_bash(bashcmd)] ;
-  code_as_list{end+1} = escbashcmd;      
-  codestr = sprintf('%s ',code_as_list{:});
-  codestr = codestr(1:end-1);
+  command0 = ...
+    apt.ShellCommand({dockercmd, 'run', detachstr, sprintf('--name %s',containerName), '--rm', '--ipc=host', '--network host'}, ...
+                     apt.PathLocale.wsl, ...
+                     apt.Platform.posix);
+  command1 = command0.cat(mountArgs);
+  command2 = command1.cat(gpuArgs);
+  command3 = command2.cat(userArgs);
+  command4 = command3.cat(otherArgs);
+  userVar = apt.ShellVariableAssignment('USER', user);
+  command5 = command4.append('-w', aptDeepnetPathWsl, '-e', userVar, dockerimg);
+  
+  homeVar = apt.ShellVariableAssignment('HOME', homeDirWslPath);
+  command6 = apt.ShellCommand({'export', homeVar, ';'}, apt.PathLocale.wsl, apt.Platform.posix);
+  subcommand = command6.cat(cudaEnv, 'cd', aptDeepnetPathWsl, ';', baseCommand);
+  result = command5.append('bash', '-c', subcommand);
 end  % function
 
 
 
-function result = mount_option_string(src, dst)
-  quoted_src = escape_string_for_bash(src) ;
-  quoted_dst = escape_string_for_bash(dst) ;
-  result = sprintf('--mount type=bind,src=%s,dst=%s',quoted_src,quoted_dst) ;
-end
+% function result = mount_option_string(src, dst)
+%   quoted_src = escape_string_for_bash(src) ;
+%   quoted_dst = escape_string_for_bash(dst) ;
+%   result = sprintf('--mount type=bind,src=%s,dst=%s',quoted_src,quoted_dst) ;
+% end

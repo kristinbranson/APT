@@ -6,12 +6,12 @@ function downloadPretrainedWeights(varargin)
   
   urlsAll = DeepTracker.pretrained_weights_urls;
   weightfilerelpaths = DeepTracker.pretrained_weights_files_relative_path;
-  deepnetrootnative = fullfile(aptroot, 'deepnet');  % native path
-  pretrainednative = fullfile(deepnetrootnative, 'pretrained') ;
+  deepnetRootPathNativeAsChar = fullfile(aptroot, 'deepnet');  % native path
+  pretrainedPathNativeAsChar = fullfile(deepnetRootPathNativeAsChar, 'pretrained') ;
   for i = 1:numel(urlsAll)
     url = urlsAll{i};
     weightfilerelpath = weightfilerelpaths{i};
-    weightfilepath = fullfile(deepnetrootnative, weightfilerelpath) ;  % native path
+    weightfilepath = fullfile(deepnetRootPathNativeAsChar, weightfilerelpath) ;  % native path
 
     if exist(weightfilepath,'file')
       fprintf('Tensorflow resnet pretrained weights %s already downloaded.\n',url);
@@ -20,7 +20,7 @@ function downloadPretrainedWeights(varargin)
       
     % hmm what happens when the weightfilenames change?
     fprintf('Downloading tensorflow resnet pretrained weights %s (APT)...\n',url);
-    outfiles = untar(url,pretrainednative);
+    outfiles = untar(url,pretrainedPathNativeAsChar);
     sprintf('Downloaded and extracted the following files/directories:\n');
     fprintf('%s\n',outfiles{:});
   end      

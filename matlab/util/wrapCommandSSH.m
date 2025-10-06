@@ -1,90 +1,99 @@
-function cmdout = wrapCommandSSH(remotecmd,varargin)
-% Wrap a Linux/WSL-style command string for execution on a remote host via
-% ssh.  Output is a Linux/WSL-style string, regardless of ispc() return value.
+function result = wrapCommandSSH(baseCommand, varargin)
+% Wrap a Linux/WSL-style command for execution on a remote host via
+% ssh.  baseCommand should be a ShellCommand with remote locale.
+
+% Validate input baseCommand
+assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand object');
+assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.remote), 'baseCommand must have remote locale');
 
 % Deal with keyword arguments
-[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,identity] = ...
+nilCommand = apt.ShellCommand({}, apt.PathLocale.remote, apt.Platform.posix);
+[host,prefix,sshoptions,addlsshoptions,timeout,extraprefix,username,identityWslMetaPathOrEmpty] = ...
   myparse(varargin,...
           'host','',...
-          'prefix','',...
+          'prefix',nilCommand,...
           'sshoptions','',...
           'addlsshoptions','',...
           'timeout',[],...
-          'extraprefix','', ...
+          'extraprefix',nilCommand, ...
           'username','', ...
-          'identity','');
+          'identity',[]);
 
-% Sort out the prefixes, merging them all into prefixes
-if isempty(extraprefix),
-  if isempty(prefix) ,
-    prefixes = '' ;
+% Sort out the prefixes, merging them all into prefixCommand
+if ~extraprefix.tfIsNull()
+  if prefix.tfIsNull()
+    fullPrefix = extraprefix ;
   else
-    prefixes = prefix ;
+    fullPrefix = prefix.cat(';', extraprefix);
   end
 else
-  if isempty(prefix) ,
-    prefixes = extraprefix ;
-  else
-    prefixes = sprintf('%s ; %s', prefix, extraprefix) ;
-  end
+  fullPrefix = prefix;
 end
 
-% Append the prefixes, if present, to remotecmd
-if isempty(prefixes),
-  prefixed_remotecmd = remotecmd ;
+% Append the fullPrefix, if present, to remoteCommand
+if fullPrefix.tfIsNull()
+  prefixedBaseCommand = baseCommand ;
 else
-  prefixed_remotecmd = sprintf('%s ; %s', prefixes, remotecmd) ;  
+  prefixedBaseCommand = fullPrefix.cat(';', baseCommand) ;
 end
-
-% quote the prefixes command
-quoted_prefixed_remotecmd = escape_string_for_bash(prefixed_remotecmd);
 
 % Sort out the sshoptions and the addlsshoptions
-if isempty(sshoptions) ,
-  base_sshoptions = '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -t' ;
-  if isempty(addlsshoptions) ,
+baseSshOptions = apt.ShellCommand({'-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null', '-o', 'LogLevel=ERROR', '-t'}, ...
+                                  apt.PathLocale.wsl, ...
+                                  apt.Platform.posix);
+if isempty(sshoptions) 
+  if isempty(addlsshoptions) 
     % Both empty, use the base options
-    sshoptions2 = base_sshoptions ;
+    sshOptionsCommand1 = baseSshOptions ;
   else
-    % sshoptions empty, addlsshoptions nonempty => add addlsshoptions to base
-    % options
-    sshoptions2 = sprintf('%s %s', base_sshoptions, addlsshoptions) ;
+    % sshoptions empty, addlsshoptions nonempty => add addlsshoptions to base options
+    sshOptionsCommand1 = baseSshOptions.cat(addlsshoptions) ;
   end
 else
-  if isempty(addlsshoptions) ,
-    % sshoptions nonempty, addlsshoptions empty => use sshoptions, overriding
-    % base_sshoptions
-    sshoptions2 = sshoptions ;
+  if isempty(addlsshoptions) 
+    % sshoptions nonempty, addlsshoptions empty => use sshoptions, overriding base_sshoptions
+    sshOptionsCommand1 = apt.ShellCommand({sshoptions}, apt.PathLocale.wsl, apt.Platform.posix) ;
   else
     % sshoptions nonempty, addlsshoptions nonempty => use sshoptions, overriding
     % base_sshoptions, thus ignoring addlsshoptions.  But give a warning about
     % this unusual (and probably unintentional) usage.
     warning('sshoptions and addlsshoptions both provided: ignoring addlsshoptions') ;  
-    sshoptions2 = sshoptions ;
+    sshOptionsCommand1 = apt.ShellCommand({sshoptions}, apt.PathLocale.wsl, apt.Platform.posix) ;
   end
 end  
 
 % Append the timeout duration, if provided, to the ssh options
-if isempty(timeout),
-  sshoptions3 = sshoptions2 ;
+if isempty(timeout)
+  sshOptionsCommand2 = sshOptionsCommand1 ;
 else
-  sshoptions3 = sprintf('%s -o ConnectTimeout=%d', sshoptions2, round(timeout)) ;
+  sshOptionsCommand2 = sshOptionsCommand1.append('-o', sprintf('ConnectTimeout=%d', round(timeout))) ;
 end
 
-% Append the idenitity file, if provided, to the ssh options
-if isempty(identity),
-  sshoptions4 = sshoptions3 ;
+% Append the identity file, if provided, to the ssh options
+if isempty(identityWslMetaPathOrEmpty)
+  sshOptionsCommand3 = sshOptionsCommand2 ;
 else
-  quoted_identity = escape_string_for_bash(identity) ;
-  sshoptions4 = sprintf('-i %s %s', quoted_identity, sshoptions3) ;
+  identityWslMetaPath = identityWslMetaPathOrEmpty;
+  assert(isa(identityWslMetaPath, 'apt.MetaPath'), 'identity must be an apt.MetaPath');
+  assert(identityWslMetaPath.locale == apt.PathLocale.wsl, 'identity MetaPath must have WSL locale');
+  assert(identityWslMetaPath.role == apt.FileRole.local, 'identity MetaPath must have local FileRole');
+  dashEyeArg = apt.ShellCommand({'-i', identityWslMetaPath}, apt.PathLocale.wsl, apt.Platform.posix);
+  sshOptionsCommand3 = dashEyeArg.cat(sshOptionsCommand2);
 end
 
 % Append the username, if provided, to the hostname
-if ~isempty(username) ,
-  user_at_host_string = sprintf('%s@%s', username, host) ;  
+if ~isempty(username) 
+  userAtHostString = sprintf('%s@%s', username, host) ;  
 else
-  user_at_host_string = host ;
+  userAtHostString = host ;
 end
 
 % Generate the final command line
-cmdout = sprintf('ssh %s %s %s', sshoptions4, user_at_host_string, quoted_prefixed_remotecmd) ;
+command0 = apt.ShellCommand({'ssh'}, apt.PathLocale.wsl, apt.Platform.posix);
+command1 = command0.cat(sshOptionsCommand3);
+command2 = command1.append(userAtHostString);
+command3 = command2.append(prefixedBaseCommand);  % Important to append, not cat
+
+result = command3 ;
+
+end  % function

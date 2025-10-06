@@ -27,6 +27,8 @@ fns = {'jrcnslots','jrcnslotstrack','jrcAdditionalBsubArgs','jrcgpuqueue','singu
 for i = 1:numel(fns),
   res.(fns{i})= lObj.get_backend_property(fns{i});
 end
+% Convert singularity_image_path from WSL MetaPath to native string for UI display
+res.singularity_image_path = res.singularity_image_path.asNative().char();
 
 hs = struct;
 

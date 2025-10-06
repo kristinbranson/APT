@@ -1,5 +1,10 @@
-function result = wrapCommandConda(cmd, varargin)
-% Take a base command and run it in a conda env
+function result = wrapCommandConda(baseCommand, varargin)
+% Take a base command and run it in a conda env.  baseCommand should be a
+% ShellCommand in the wsl locale.
+
+% Validate input baseCommand
+assert(isa(baseCommand, 'apt.ShellCommand'), 'baseCommand must be an apt.ShellCommand object');
+assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'baseCommand must have WSL locale');
 
 % Process keyword arguments
 [condaEnv,gpuid,logfile] = ...
@@ -12,32 +17,33 @@ if isempty(condaEnv) ,
 end
 
 % Find the conda executable
-conda_exectuable_path = find_conda_executable() ;
+condaExecutablePathNativeChar = find_conda_executable() ;
+condaExecutablePathNative = apt.MetaPath(condaExecutablePathNativeChar, 'native', 'universal');
+condaExecutablePathWsl = condaExecutablePathNative.asWsl();
 
 % Augment the command with a specification of the GPU id, if called for
-if isempty(gpuid) || isnan(gpuid) ,
-  partial_command = cmd ;
+if isempty(gpuid) || isnan(gpuid) 
+  partialCommand = baseCommand ;
 else
-  partial_command = sprintf('export CUDA_DEVICE_ORDER=PCI_BUS_ID && export CUDA_VISIBLE_DEVICES=%d && %s', gpuid, cmd) ;
+  cudaDeviceOrderVar = apt.ShellVariableAssignment('CUDA_DEVICE_ORDER', 'PCI_BUS_ID');
+  cudaVisibleDevicesVar = apt.ShellVariableAssignment('CUDA_VISIBLE_DEVICES', num2str(gpuid));
+  cudaEnvCommand = apt.ShellCommand({'export', cudaDeviceOrderVar, '&&', 'export', cudaVisibleDevicesVar, '&&'}, apt.PathLocale.wsl, apt.Platform.posix);
+  partialCommand = cudaEnvCommand.cat(baseCommand);
 end
 
 % Add logging
-if isempty(logfile) ,
-  full_command = partial_command ;
+if isempty(logfile) 
+  fullCommand = partialCommand ;
 else
-  quoted_log_file_name = escape_string_for_bash(logfile) ;
-  full_command = sprintf('%s &> %s', partial_command, quoted_log_file_name) ;
+  logFilePathNative = apt.MetaPath(logfile, 'native', 'cache');
+  logFilePathWsl = logFilePathNative.asWsl();
+  fullCommand = partialCommand.append('&>', logFilePathWsl) ;
 end
 
-% Quote the command for bash
-quoted_full_command = escape_string_for_bash(full_command) ;
-
 % The command will use the conda "run" subcommand, and use bash explicitly to
-% interpret the command line
-preresult = sprintf('%s run -n %s /bin/bash -c %s', ...
-                    conda_exectuable_path, ...
-                    condaEnv, ...
-                    quoted_full_command) ;
+% interpret the command line using sequential ShellCommand objects
+command0 = apt.ShellCommand({condaExecutablePathWsl, 'run', '-n', condaEnv, '/bin/bash', '-c'}, apt.PathLocale.wsl, apt.Platform.posix);
+command1 = command0.append(fullCommand);
 
 % Clear annoying Matlab envars
-result = prepend_stuff_to_clear_matlab_environment(preresult) ;
+result = prependStuffToClearMatlabEnvironment(command1);

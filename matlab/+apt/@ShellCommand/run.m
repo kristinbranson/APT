@@ -1,6 +1,8 @@
-function [st,res,warningstr] = syscmd(cmd0, varargin)
+function [st,res,warningstr] = run(obj, varargin)
 % Run a command using Matlab built-in system() command, but with some handy
-% additional capabilities.
+% additional capabilities.  (This is a replacement for the apt.syscmd()
+% function, which dealt in raw strings.)
+%
 % Optional args allow caller to specify what to do if the command fails.  (Can
 % error, warn, or silently ignore.)  Also has option to lightly process a JSON
 % response.
@@ -20,31 +22,36 @@ function [st,res,warningstr] = syscmd(cmd0, varargin)
 % fancier at some point.
 doprecommand = isunix() || usewslonwindows ;
 if doprecommand ,
-  precommand = 'export LD_LIBRARY_PATH=' ;
-  cmd1 = sprintf('%s && %s', precommand, cmd0) ;
+  precommand = apt.ShellCommand({'export', 'LD_LIBRARY_PATH='}, obj.locale, obj.platform) ;
+  command1 = precommand.cat('&&', obj) ;
 else
-  cmd1 = cmd0 ;
+  command1 = obj ;
 end
 
 % Wrap command for running in WSL, if needed and asked for
 if usewslonwindows ,
-  cmd = wrap_linux_command_line_for_wsl_if_windows(cmd1) ;
+  command = wrapWslCommandForWslIfWindows(command1) ;
 else
-  cmd = cmd1 ;  
+  command = command1 ;  
 end
 
-% Echo, & run
+% At long last, convert the ShellCommand to a string
+commandAsString = command.char() ;
+
+% Echo the command line
 if verbose ,
-  fprintf('apt.syscmd(): %s\n',cmd);
+  fprintf('apt.ShellCommand.run(): %s\n', commandAsString);
 end
-[st,res] = system(cmd);
+
+% Issue the command to system()
+[st,res] = system(commandAsString);
 
 % Echo result, if called for
 if verbose ,
   if st ~= 0,
-    fprintf('apt.syscmd(): st = %d, res = "%s"\n',st,res);
+    fprintf('apt.ShellCommand.run(): st = %d, res = "%s"\n',st,res);
   else
-    fprintf('apt.syscmd(): success.\n');
+    fprintf('apt.ShellCommand.run(): success.\n');
   end
 end
 
@@ -66,9 +73,9 @@ end
 if st ~= 0 , 
   switch failbehavior
     case 'err'
-      error('APT:syscmd','\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
+      error('APT:syscmd','\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',commandAsString,st,res);
     case 'warn'
-      warningNoTrace('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',cmd,st,res);
+      warningNoTrace('\nThe command:\n%s\nYielded a nonzero status code (%d):\n%s\n\n',commandAsString,st,res);
     case 'silent'
       % do nothing
     otherwise

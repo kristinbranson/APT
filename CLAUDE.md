@@ -50,3 +50,22 @@ test_apt('test_function_name') % Run single test for debugging
 - `modpath.m`: Path setup utility
 - `deepnet/APT_interface.py`: Primary Python interface for deep learning
 - `matlab/test/test_apt.m`: Main test runner
+
+## Matlab coding conventions
+- Indents should all be two spaces.  Top-level functions should not be indented.  Never use tabs.
+- Most identifiers should be lower camelcase.  Exceptions include: Class names, which should be upper camelcase.  The tags of UI controls should be snake case.  Methods of LabelerController that end in actuate_ should be snake case.
+- Don't use private properties or methods in classes.  If a property or method would logically be private, add an underscore ("_") to the end of its name.  This signals to developers it is private "in spirit", but doesn't put in place annoying arbitrary restrictions when debugging.
+- Public properties of classes should generally be Dependent.  If you're tempted to make a non-Dependent public-in-spirit property, make a private-in-spirit property that ends in an underscore, then make a Dependent property without the underscore.  Write get. and set. methods for the Dependent property as needed.
+- Boolean variables should start with "tf" and then some conjugation of "to be".  For instance: tfIsDone, tfDidExplode, tfAreYouSure.
+- Local variables in functions/methods should only be overwritten if necessary for performance.  Prefer to create new variables holding evolving versions of some value.
+- Prefer explicit variable names, even if they are long; and avoid abbreviations.  Use a shorter English word that means the same thing instead of an abbreviation.
+- Use spaces liberally in long expressions to add clarity.  E.g. add a space after each comma in the argument list for functions.
+- But don't insert a space before the final semicolon in a line of code.
+- Make properties that are not persisted to disk Transient.
+- When checking for optional arguments, don't use nargin.  Use exist(<variable name>, 'var').  This is less likely to break when you add/remove arguments.
+- The "end" keyword at the end of a function should be followed by the comment "% function".  Same for end of a methods block and a classdef block.
+- Individual lines should not be longer than 160 characters.
+- switch statements that check for multiple enumerated cases should enumerate all the handled cases explicitly, and throw an error in the "otherwise:" clause.  This makes it easier to find inappropriately-handled cases when testing.
+- Classes should implement a char() method for producing a char array ("string") version of the object.
+- I sometimes use the term "charray" for "char array".  OK to use this in comments, but just use "char" in variable names.
+- When converting a custom class to a char array, write it as "char(thing)", not thing.char()
