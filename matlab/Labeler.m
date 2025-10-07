@@ -210,15 +210,19 @@ classdef Labeler < handle
     projTempDir           % temp dir name to save the raw label file
     infoTimelineModel_     % InfoTimelineModel object for timeline selection state
   end
+
   properties (Dependent)
     infoTimelineModel     % InfoTimelineModel object for timeline selection state
   end
+
   properties
     projTempDirDontClearOnDestructor = false  % transient. set to true for eg CI testing
   end
+
   properties (SetAccess=private)
     projMacros = struct()  % scalar struct, filesys macros. init: PN
   end
+
   properties
     % TODO: rename this to "initialConfig" or similar. This is now a
     % "configuration" not "preferences". For the most part this does not 
@@ -269,6 +273,7 @@ classdef Labeler < handle
     saveVersionInfo  % info about versions of stuff when proj last saved
     currentTrackerIndexInTrackersAll_
   end
+
   properties (Dependent)
     hasProject             % scalar logical
     projectfile            % Full path to current project 
@@ -320,15 +325,18 @@ classdef Labeler < handle
     movieDontAskRmMovieWithLabels = false  % If true, won't warn about removing-movies-with-labels    
     projectHasTrx = false  % whether there are trx files for any movie
   end
+
   properties (Dependent)
     movieInfoAllGTaware  
     viewCalibrationDataGTaware  % Either viewCalData or viewCalDataGT
     viewCalibrationDataCurrent  % view calibration data applicable to current movie (gt aware)
   end
+
   properties
     movieFilesAll = {}  % [nmovset x nview] column cellstr, full paths to movies; can include macros 
     movieFilesAllGT = {}  % same as .movieFilesAll but for GT mode
   end
+
   properties
     % Using cells here so movies do not have to all have the same bitDepth
     % See HistEq.genHistEqLUT for notes on how to apply LUTs
@@ -340,6 +348,7 @@ classdef Labeler < handle
     cmax_auto = nan(0,1) 
     clim_manual = zeros(0,2) 
   end
+
   properties
     movieFilesAllHaveLbls = zeros(0,1)  % [nmovsetx1] double; actually, "numLbledTgts"
         % How MFAHL is maintained
@@ -354,24 +363,29 @@ classdef Labeler < handle
         % labels.
     movieFilesAllGTHaveLbls = false(0,1)  % etc
   end
+
   properties
     moviename  % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false  % scalar logical.
     movieRotateTargetUp = false
   end
+
   properties (Transient)
     % I don't see where either of these are ever changed -- ALT, 2023-05-14
     movieCenterOnTargetLandmark = false  % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []  % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
   end
+
   properties
     movieForceGrayscale = false  % scalar logical. In future could make [1xnview].
     movieFrameStepBig  % scalar positive int
     movieShiftArrowNavMode  % scalar ShiftArrowMovieNavMode
   end
+
   properties (SetAccess=private)
     movieShiftArrowNavModeThresh  % scalar double. This is separate prop from the ShiftArrowMode so it persists even if the ShiftArrowMode changes.
   end
+
   properties
     movieShiftArrowNavModeThreshCmp  % char, eg '<' or '>='
     moviePlaySegRadius  % scalar int
@@ -382,9 +396,11 @@ classdef Labeler < handle
       % change your .movieInvert, then your crops will likely be wrong.
       % A warning is thrown but nothing else
   end
+
   properties (Transient, SetAccess = protected)
     movieViewBGsubbed = false
   end
+
   properties (Dependent)
     isMultiView 
     movieFilesAllGTaware 
@@ -414,6 +430,7 @@ classdef Labeler < handle
     movieFilesAllGTCropInfo  % [nmovsetGT x 1] "
     cropIsCropMode  % scalar logical
   end
+
   properties (Dependent)
     movieFilesAllCropInfoGTaware
     cropProjHasCrops  % scalar logical. If true, all elements of movieFilesAll*CropInfo are populated. If false, all elements of " are []
@@ -426,15 +443,18 @@ classdef Labeler < handle
     trxFilesAllGT = {}  % etc. Same size as movieFilesAllGT.
     trxInfoAllGT = {}
   end
+
   properties (SetAccess=private)
     trxCache = []             % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
     trx = []                  % trx object
     frm2trx = []              % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
     tblTrxData = []           % last-used data in tblTrx
   end
+
   properties (Dependent)
     targetZoomRadiusDefault
   end
+
   properties (Dependent)
     trxFilesAllFull  % like .movieFilesAllFull, but for .trxFilesAll
     trxFilesAllGTFull  % etc
@@ -485,12 +505,14 @@ classdef Labeler < handle
                  % used to be labeledposSetNames
     flipLandmarkMatches = zeros(0,2)  % nPairs x 2 matrix containing indices of vertex landmarks    
   end
+
   properties  
     labelPointsPlotInfo   % struct containing cosmetic info for labelPoints. init: C
     predPointsPlotInfo   % " predicted points. init: C
     impPointsPlotInfo 
     isTwoClickAlign = true  % KB 20220506 store the state of whether two-click alignment is selected
   end
+
   properties (SetAccess=private)
     nLabelPoints          % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
     labelTemplate 
@@ -501,20 +523,25 @@ classdef Labeler < handle
     labeledposIPt2View    % [npts] vector of indices into 1:obj.nview. Convenience prop, derived from .labeledposIPtSetMap. init: C
     labeledposIPt2Set     % [npts] vector of set indices for each point. Convenience prop. init: C
   end
+
   properties
     labeledposNeedsSave   % scalar logical, .labeledpos has been touched since last save. Currently does NOT account for labeledpostag
     lastLabelChangeTS     % last time training labels were changed
   end
+
   properties (Dependent)
     hFig  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
           % It is no longer used internally by the Labeler methods.
   end
+
   properties (Transient)  % private by convention
     controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
   end
+
   properties (Transient)  % private by convention
     doesNeedSave_ = false
   end
+
   properties (Transient)  % private by convention
     howBusy_ = 0  % increases with calls to pushBusyStatus(), decreases with calls to popBusyStatus()
     %isStatusBusy_ = false
@@ -525,6 +552,7 @@ classdef Labeler < handle
     progressMeter_
     backgroundProcessingStatusString_ = '' 
   end
+
   properties (Dependent)
     isStatusBusy
     rawStatusString
@@ -533,6 +561,7 @@ classdef Labeler < handle
     progressMeter
     backgroundProcessingStatusString
   end
+
   properties (Dependent, Hidden)
     labeledpos            % column cell vec with .nmovies elements. labeledpos{iMov} is npts x 2 x nFrm(iMov) x nTrx(iMov) double array; 
                           % labeledpos{1}(:,1,:,:) is X-coord, labeledpos{1}(:,2,:,:) is Y-coord. init: PN
@@ -562,9 +591,11 @@ classdef Labeler < handle
     
     nPhysPoints  % number of physical/3D points
   end
+
   properties
     lblCore  % init: L
   end
+
   properties
     labeledpos2trkViz  % scalar TrackingVisualizer*, or [] if no imported results for currMovie
   end
@@ -582,6 +613,7 @@ classdef Labeler < handle
   properties (SetAccess=private)
     gtIsGTMode = false; % scalar logical
   end
+
   properties
     gtSuggMFTable  % [nGTSugg x ncol] MFTable for suggested frames to label. .mov values are MovieIndexes
     gtSuggMFTableLbled  % [nGTSuggx1] logical flags indicating whether rows of .gtSuggMFTable were gt-labeled
@@ -593,6 +625,7 @@ classdef Labeler < handle
     gtPlotParams = struct('prc_vals',[50,75,90,95,98],...
       'nbins',50); % parameters for ShowGTResults
   end
+
   properties (Dependent)
     gtNumSugg  % height(gtSuggMFTable)
   end
@@ -607,6 +640,7 @@ classdef Labeler < handle
       % See .suspScore for required size/dims of suspScore and contents.
       % diagstr is arbitrary diagnostic info (assumed char for now).     
   end
+
   properties (SetAccess=private, Transient)
     suspDiag  % Transient "userdata", diagnostic output from suspComputeFcn    
   end
@@ -620,6 +654,7 @@ classdef Labeler < handle
     copyPreProcData = false  % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData    
     ppdb  % PreProcDB for DL
   end
+
   properties (Dependent)    
     preProcParams  % struct - KB 20190214 -- made this a dependent property, derived from trackParams
   end  
@@ -639,6 +674,7 @@ classdef Labeler < handle
       % trained trackers, with age increasing with index.  trackerHistory_{1} is the
       % current tracker.
   end
+
   properties (Dependent)
     tracker  % The current tracker, or []
     trackerAlgo  % The current tracker algorithm, or ''
@@ -650,6 +686,7 @@ classdef Labeler < handle
     trackDLParams  % scalar struct, common DL params
     DLCacheDir  % string, location of DL cache dir
   end
+
   properties
     trackModeIdx  % index into MFTSetEnum.TrackingMenu* for current trackmode. 
      %Note MFTSetEnum.TrackingMenuNoTrx==MFTSetEnum.TrackingMenuTrx(1:K).
@@ -664,6 +701,7 @@ classdef Labeler < handle
     trackParams  % all tracking parameters. init: C
     trackAutoSetParams = true
   end
+
   properties
     trkResIDs  % [nTR x 1] cellstr unique IDs
     trkRes  % [nMov x nview x nTR] cell. cell array of TrkFile objs
@@ -671,6 +709,7 @@ classdef Labeler < handle
     trkResViz  % [nTR x 1] cell. TrackingVisualizer vector
     track_id = false
   end
+
   properties (Dependent)
     trkResGTaware
   end
@@ -702,13 +741,16 @@ classdef Labeler < handle
 %   properties
 %     keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
 %   end
+
   properties
     currMovie  % idx into .movieFilesAll (row index, when obj.multiView is true), or .movieFilesAllGT when .gtIsGTmode is on
   end
+
   properties (Dependent)
     currMovIdx  % scalar MovieIndex
     selectedFrames  % vector of frames currently selected frames; typically t0:t1
   end
+
   properties 
     currFrame = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
@@ -717,9 +759,11 @@ classdef Labeler < handle
     drag_pt = [] 
     silent_ = false  % Don't open dialogs. Use defaults. For testing and debugging
   end
+
   properties (SetAccess=private)
     isinit = false          % scalar logical; true during initialization, when some invariants not respected
   end
+
   properties (Dependent)
     gdata  % handles structure for LabelerGUI.  This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
            % It is no longer used by the Labeler internally.
@@ -792,6 +836,7 @@ classdef Labeler < handle
     function v = get.viewCalibrationDataGTaware(obj)
       v = obj.getViewCalibrationDataGTawareArg(obj.gtIsGTMode);
     end
+
     function v = getViewCalibrationDataGTawareArg(obj,gt)
       if gt
         v = obj.viewCalibrationDataGT;
@@ -799,6 +844,7 @@ classdef Labeler < handle
         v = obj.viewCalibrationData;
       end
     end
+
     function v = get.viewCalibrationDataCurrent(obj)
       % Nearly a forward to getViewCalibrationDataMovIdx except edge cases
       vcdPW = obj.viewCalProjWide;
@@ -819,6 +865,7 @@ classdef Labeler < handle
         end
       end
     end
+
     function v = getViewCalibrationDataMovIdx(obj,mIdx)
       vcdPW = obj.viewCalProjWide;
       if isempty(vcdPW)
@@ -835,9 +882,11 @@ classdef Labeler < handle
         v = vcd{iMov};
       end
     end
+
     function v = get.isMultiView(obj)
       v = obj.nview>1;
     end
+
     function v = get.movieFilesAllGTaware(obj)
       if obj.gtIsGTMode
         v = obj.movieFilesAllGT;
@@ -845,17 +894,20 @@ classdef Labeler < handle
         v = obj.movieFilesAll;
       end
     end
+
     function v = get.movieFilesAllFull(obj)
       % See also .projLocalizePath()
       sMacro = obj.projMacrosGetWithAuto();
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAll,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
+
     function v = get.movieFilesAllGTFull(obj)
       sMacro = obj.projMacrosGetWithAuto();
       v = FSPath.fullyLocalizeStandardize(obj.movieFilesAllGT,sMacro);
       FSPath.warnUnreplacedMacros(v);
     end
+
     function v = get.movieFilesAllFullGTaware(obj)
       if obj.gtIsGTMode
         v = obj.movieFilesAllGTFull;
@@ -898,9 +950,11 @@ classdef Labeler < handle
       mIdx(iMov1) = iMov2; % mIdx is all 0s, or positive movie indices
       mIdx = MovieIndex(mIdx,gt);
     end
+
     function v = get.movieFilesAllHaveLblsGTaware(obj)
       v = obj.getMovieFilesAllHaveLblsArg(obj.gtIsGTMode);
     end
+
     function v = getMovieFilesAllHaveLblsArg(obj,gt)
       if gt
         v = obj.movieFilesAllGTHaveLbls;
@@ -908,6 +962,7 @@ classdef Labeler < handle
         v = obj.movieFilesAllHaveLbls;
       end      
     end
+
     function v = get.movieFilesAllCropInfoGTaware(obj)
       if obj.gtIsGTMode
         v = obj.movieFilesAllGTCropInfo;
@@ -915,6 +970,7 @@ classdef Labeler < handle
         v = obj.movieFilesAllCropInfo;
       end
     end
+
     function v = getMovieFilesAllHistEqLUTGTawareStc(obj,gt)
       if gt
         v = obj.movieFilesAllGTHistEqLUT;
@@ -922,6 +978,7 @@ classdef Labeler < handle
         v = obj.movieFilesAllHistEqLUT;
       end
     end
+
     function v = getMovieFilesAllHistEqLUTMovIdx(obj,mIdx)
       % v: [1xnview] row of .movieFilesAll*HistEqLUT
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
@@ -932,6 +989,7 @@ classdef Labeler < handle
         v = obj.movieFilesAllHistEqLUT(imov,:);
       end
     end
+
     function v = get.cropProjHasCrops(obj)
       % Returns true if proj has at least one movie and has crops
       v = obj.nmovies>0 && ~isempty(obj.movieFilesAllCropInfo{1});
@@ -941,6 +999,7 @@ classdef Labeler < handle
 %       v = all(tf);
 %       assert(v || ~any(tf));
     end
+
     function v = getMovieFilesAllCropInfoGTAware(obj)
       if obj.gtIsGTMode,
         v = obj.movieFilesAllGTCropInfo;
@@ -948,6 +1007,7 @@ classdef Labeler < handle
         v = obj.movieFilesAllCropInfo;
       end
     end
+
     function v = getMovieFilesAllCropInfoMovIdx(obj,mIdx)
       % mIdx: scalar MovieIndex 
       % v: empty, or [nview] CropInfo array 
@@ -961,16 +1021,19 @@ classdef Labeler < handle
         v = obj.movieFilesAllCropInfo{iMov};
       end
     end
+
     function v = get.trxFilesAllFull(obj)
       % Warning: Expensive to call. Call me once and then index rather than
       % using a compound indexing-expr.
       v = Labeler.trxFilesLocalize(obj.trxFilesAll,obj.movieFilesAllFull);
     end    
+
     function v = get.trxFilesAllGTFull(obj)
       % Warning: Expensive to call. Call me once and then index rather than
       % using a compound indexing-expr.
       v = Labeler.trxFilesLocalize(obj.trxFilesAllGT,obj.movieFilesAllGTFull);
     end
+
     function v = get.trxFilesAllFullGTaware(obj)
       % Warning: Expensive to call. Call me once and then index rather than
       % using a compound indexing-expr.
@@ -980,6 +1043,7 @@ classdef Labeler < handle
         v = obj.trxFilesAllFull;
       end
     end
+
     function v = get.trxInfoAllGTaware(obj)
       if obj.gtIsGTMode
         v = obj.trxInfoAllGT;
@@ -987,6 +1051,7 @@ classdef Labeler < handle
         v = obj.trxInfoAll;
       end
     end
+
     function v = getTrxFilesAllFullMovIdx(obj,mIdx)
       % Warning: Expensive to call. Call me once and then index rather than
       % using a compound indexing-expr.      
@@ -1036,6 +1101,7 @@ classdef Labeler < handle
         v = mr.filename;
       end
     end
+
     function v = get.movierawnr(obj)
       mr = obj.movieReader;
       if mr(1).isOpen
@@ -1044,6 +1110,7 @@ classdef Labeler < handle
         v = nan(obj.nview,1);
       end
     end
+
     function v = get.movierawnc(obj)
       mr = obj.movieReader;
       if mr(1).isOpen
@@ -1052,14 +1119,17 @@ classdef Labeler < handle
         v = nan(obj.nview,1);
       end
     end    
+
     function v = get.movienr(obj)
       v = obj.movieroi;
       v = v(:,4)-v(:,3)+1;
     end
+
     function v = get.movienc(obj)
       v = obj.movieroi;
       v = v(:,2)-v(:,1)+1;
     end    
+
     function v = get.movieroi(obj)
       mr = obj.movieReader;
       if mr(1).isOpen
@@ -1068,10 +1138,12 @@ classdef Labeler < handle
         v = nan(obj.nview,4);
       end
     end
+
     function v = get.movieroictr(obj)
       rois = obj.movieroi;
       v = [rois(:,1)+rois(:,2),rois(:,3)+rois(:,4)]/2;
     end
+
     function rois = getMovieRoiMovIdx(obj,mIdx)
       % v: [nview x 4] roi
       
@@ -1088,6 +1160,7 @@ classdef Labeler < handle
       end
       szassert(rois,[obj.nview 4]);
     end
+
     function v = get.nframes(obj)
       if isempty(obj.currMovie) || obj.currMovie==0
         v = nan;
@@ -1098,6 +1171,7 @@ classdef Labeler < handle
         v = ifo.nframes;
       end
     end
+
     function [ncmin,nrmin] = getMinMovieWidthHeight(obj)
       movInfos = [obj.movieInfoAll; obj.movieInfoAllGT];
       nrall = cellfun(@(x)x.info.nr,movInfos); % [(nmov+nmovGT) x nview]
@@ -1105,6 +1179,7 @@ classdef Labeler < handle
       nrmin = min(nrall,[],1); % [1xnview]
       ncmin = min(ncall,[],1); % [1xnview]      
     end
+
     function v = getNFramesMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
@@ -1115,6 +1190,7 @@ classdef Labeler < handle
       end
       v = movInfo.nframes;
     end
+
     function v = getNFramesMovFile(obj,movFile)
       
       movfilefull = obj.projLocalizePath(movFile);
@@ -1224,19 +1300,23 @@ classdef Labeler < handle
         v = 1;
       end
     end
+
     function v = getNTargets(obj,gt,imov)
       PROPS = obj.gtGetSharedPropsStc(gt);
       v = obj.(PROPS.TIA){imov,1}.ntgts;        
     end
+
     function v = get.targetZoomRadiusDefault(obj)
       v = obj.projPrefs.Trx.ZoomFactorDefault;
     end
+
     function v = get.hasProject(obj)
       % AL 20160710: debateable utility/correctness, but if you try to do
       % some things (eg open MovieManager) right on bootup from an empty
       % Labeler you get weird errors.
       v = size(obj.movieFilesAll,2)>0; % AL 201806: want first dim instead?
     end
+
     function v = get.projectfile(obj)
       info = obj.projFSInfo;
       if ~isempty(info)
@@ -1245,22 +1325,27 @@ classdef Labeler < handle
         v = [];
       end
     end
+
     function v = get.projectroot(obj)
       v = obj.projectfile;
       if ~isempty(v)
         v = fileparts(v);
       end
     end
+
     function v = get.nmovies(obj)
       % for multiview labeling, this is really 'nmoviesets'
       v = size(obj.movieFilesAll,1);
     end
+
     function v = get.nmoviesGT(obj)
       v = size(obj.movieFilesAllGT,1);
     end
+
     function v = get.nmoviesGTaware(obj)
       v = obj.getnmoviesGTawareArg(obj.gtIsGTMode);
     end
+
     function v = getnmoviesGTawareArg(obj,gt)
       if ~gt
         v = size(obj.movieFilesAll,1);
@@ -1268,6 +1353,7 @@ classdef Labeler < handle
         v = size(obj.movieFilesAllGT,1);
       end
     end
+
     function v = get.movieInfoAllGTaware(obj)
       if obj.gtIsGTMode
         v = obj.movieInfoAllGT;
@@ -1275,6 +1361,7 @@ classdef Labeler < handle
         v = obj.movieInfoAll;
       end
     end
+
     function v = getMovieInfoAllGTawareArg(obj,gt)
       if gt
         v = obj.movieInfoAllGT;
@@ -1282,33 +1369,43 @@ classdef Labeler < handle
         v = obj.movieInfoAll;
       end
     end
+
     function v = get.labeledpos(obj)
       v = Labels.lObjGetLabeledPos(obj,'labels',false);
     end
+
     function v = get.labeledposTS(obj)
       [~,v] = Labels.lObjGetLabeledPos(obj,'labels',false);
     end    
+
     function v = get.labeledpostag(obj)
       [~,~,v] = Labels.lObjGetLabeledPos(obj,'labels',false);
     end    
+
     function v = get.labeledposGT(obj)
       v = Labels.lObjGetLabeledPos(obj,'labelsGT',true);
     end
+
     function v = get.labeledposTSGT(obj)
       [~,v] = Labels.lObjGetLabeledPos(obj,'labelsGT',true);
     end
+
     function v = get.labeledpostagGT(obj)
       [~,~,v] = Labels.lObjGetLabeledPos(obj,'labelsGT',true);
     end
+
     function v = get.labeledpos2GT(obj)
       v = Labels.lObjGetLabeledPos(obj,'labels2GT',true);
     end    
+
     function v = get.labeledpos2(obj)
       v = Labels.lObjGetLabeledPos(obj,'labels2',false);
     end
+
     function v = get.labeledposGTaware(obj)
       v = obj.getlabeledposGTawareArg(obj.gtIsGTMode);
     end
+
     function v = getlabeledposGTawareArg(obj,gt)      
       if gt
         v = obj.labeledposGT;
@@ -1316,9 +1413,11 @@ classdef Labeler < handle
         v = obj.labeledpos;
       end      
     end
+
     function v = get.labelsGTaware(obj)
       v = obj.getlabelsGTawareArg(obj.gtIsGTMode);
     end
+
     function v = getlabelsGTawareArg(obj,gt)
       if gt
         v = obj.labelsGT;
@@ -1326,6 +1425,7 @@ classdef Labeler < handle
         v = obj.labels;
       end
     end    
+
     function v = getLabeledPosMovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
@@ -1335,6 +1435,7 @@ classdef Labeler < handle
         v = obj.labeledpos{iMov};
       end
     end
+
     function v = getLabelsMovIdx(obj,mIdx)
       [iMov,gt] = mIdx.get();
       if gt
@@ -1343,6 +1444,7 @@ classdef Labeler < handle
         v = obj.labels{iMov};
       end
     end
+
     function v = getLabeledPos2MovIdx(obj,mIdx)
       assert(isscalar(mIdx) && isa(mIdx,'MovieIndex'));
       [iMov,gt] = mIdx.get();
@@ -1352,6 +1454,7 @@ classdef Labeler < handle
         v = obj.labeledpos2{iMov};
       end
     end
+
     function v = getLabels2MovIdx(obj,mIdx)
       [iMov,gt] = mIdx.get();
       if gt
@@ -1361,6 +1464,7 @@ classdef Labeler < handle
       end
       v = Labels.fromTrkfile(v);
     end
+
     function v = get.labeledposTSGTaware(obj)
       if obj.gtIsGTMode
         v = obj.labeledposTSGT;
@@ -1368,6 +1472,7 @@ classdef Labeler < handle
         v = obj.labeledposTS;
       end
     end
+
     function v = get.labeledpostagGTaware(obj)
       if obj.gtIsGTMode
         v = obj.labeledpostagGT;
@@ -1375,6 +1480,7 @@ classdef Labeler < handle
         v = obj.labeledpostag;
       end
     end
+
     function v = get.labeledpos2GTaware(obj)
       if obj.gtIsGTMode
         v = obj.labeledpos2GT;
@@ -1382,6 +1488,7 @@ classdef Labeler < handle
         v = obj.labeledpos2;
       end
     end
+
     function v = get.labels2GTaware(obj)
       if obj.gtIsGTMode
         v = obj.labels2GT;
@@ -1389,6 +1496,7 @@ classdef Labeler < handle
         v = obj.labels2;
       end
     end    
+
     function v = get.labeledposCurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -1398,6 +1506,7 @@ classdef Labeler < handle
         v = obj.labeledpos{obj.currMovie};
       end
     end
+
     function v = get.labelsCurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -1407,6 +1516,7 @@ classdef Labeler < handle
         v = obj.labels{obj.currMovie};
       end
     end
+
     function v = get.labeledpos2CurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -1416,6 +1526,7 @@ classdef Labeler < handle
         v = obj.labeledpos2{obj.currMovie};
       end
     end
+
     function v = get.labels2CurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -1425,6 +1536,7 @@ classdef Labeler < handle
         v = obj.labels2{obj.currMovie};
       end
     end
+
     function v = get.labeledpostagCurrMovie(obj)
       if obj.currMovie==0
         v = [];
@@ -1434,9 +1546,11 @@ classdef Labeler < handle
         v = obj.labeledpostag{obj.currMovie};
       end
     end
+
     function v = getIsLabeled(obj,tbl)
       v = Labels.lObjGetIsLabeled(obj,'labels',tbl,false);
     end
+
     function v = getIsLabeledGT(obj,tbl,varargin)
       v = Labels.lObjGetIsLabeled(obj,'labelsGT',tbl,true,varargin{:});
     end
@@ -1446,18 +1560,23 @@ classdef Labeler < handle
     function v = get.nPhysPoints(obj)
       v = size(obj.labeledposIPtSetMap,1);
     end
+
     function v = get.currMovIdx(obj)
       v = MovieIndex(obj.currMovie,obj.gtIsGTMode);
     end
+
     function v = get.gdata(obj)
       v = obj.controller_ ;
     end
+
     function v = get.hFig(obj)
       v = obj.controller_.mainFigure_ ;
     end
+
     function v = get.gtNumSugg(obj)
       v = height(obj.gtSuggMFTable);
     end
+
     function v = get.tracker(obj)
       if isempty(obj.trackerHistory_),
         v = [];
@@ -1465,6 +1584,7 @@ classdef Labeler < handle
         v = obj.trackerHistory_{1};
       end
     end
+
     function v = get.trackerAlgo(obj)
       v = obj.tracker;
       if isempty(v)
@@ -1473,6 +1593,7 @@ classdef Labeler < handle
         v = v.algorithmName;
       end
     end
+
     function v = get.trackerNetsUsed(obj)
       v = obj.tracker;
       if isempty(v)
@@ -1481,6 +1602,7 @@ classdef Labeler < handle
         v = v.getNetsUsed();
       end
     end    
+
     function v = get.trackerIsDL(obj)
       v = obj.tracker;
       if isempty(v)
@@ -1489,15 +1611,18 @@ classdef Labeler < handle
         v = isa(v,'DeepTracker');
       end
     end 
+
     function v = get.trackerIsTwoStage(obj)
       % here we actually mean MA-TD
       v = obj.tracker;
       v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isTwoStage;
     end
+
     function v = get.trackerIsObjDet(obj)
       v = obj.tracker;
       v = ~isempty(v) && isa(v,'DeepTracker') && v.trnNetMode.isObjDet;
     end
+
     function v = get.trackerIsBotUp(obj)
       v = obj.tracker;
       v = ~isempty(v) && isa(v,'DeepTracker') && ...
@@ -1544,6 +1669,7 @@ classdef Labeler < handle
       %obj.notify('didSetLabels') ;
       obj.notify('updateTimelineLabels') ;
     end
+
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
       if ~obj.isinit %#ok<MCSUP> 
@@ -1552,18 +1678,21 @@ classdef Labeler < handle
         obj.gtUpdateSuggMFTableLbledIncremental();
       end
     end
+
     function set.labelsRoi(obj,v)      
       obj.labelsRoi = v;
       if ~obj.isinit %#ok<MCSUP> 
         obj.updateFrameTableIncremental(); 
       end
     end
+
     function set.labelsRoiGT(obj,v)      
       obj.labelsRoiGT = v;
       if ~obj.isinit %#ok<MCSUP> 
         obj.updateFrameTableIncremental(); 
       end
     end
+
     function set.movieForceGrayscale(obj,v)
       if isscalar(v) && islogical(v) ,
         [obj.movieReader.forceGrayscale] = deal(v); %#ok<MCSUP>
@@ -1991,6 +2120,7 @@ classdef Labeler < handle
         cfg.Track = rmfield(cfg.Track,'PredictPointsShowTextLbl');
       end
     end    
+
     function cfg = cfgModernize(cfg)
       % Bring a cfg up-to-date with latest by adding in any new fields from
       % config.default.yaml.
@@ -2110,6 +2240,7 @@ classdef Labeler < handle
     function rcSaveProp(obj,name,v)
       obj.rc.set(name,v);
     end
+
     function v = rcGetProp(obj,name)
       v = obj.rc.get(name);
     end
@@ -6049,10 +6180,12 @@ classdef Labeler < handle
         f2t(frm0:frm1,iTgt) = true;
       end
     end
+
     function sMacro = trxFilesMacros(movFileFull)
       sMacro = struct();
       sMacro.movdir = fileparts(movFileFull);
     end
+
     function trxFilesFull = trxFilesLocalize(trxFiles,movFilesFull)
       % Localize trxFiles based on macros+movFiles
       %
@@ -6173,6 +6306,7 @@ classdef Labeler < handle
         lc.tv.setShowPches(tf); % lc should be a lblCoreSeqMA      
       end
     end
+
     function setShowMaRoiAux(obj,tf)
       obj.showMaRoiAux = logical(tf);
       if obj.labelMode==LabelMode.MULTIANIMAL
@@ -6180,15 +6314,19 @@ classdef Labeler < handle
         lc.roiSetShow(tf); % lc should be a lblCoreSeqMA      
       end
     end
+
     function setFlipLandmarkMatches(obj,matches)
       obj.flipLandmarkMatches = matches;
     end
+
     function setSkelHead(obj,head)
       obj.skelHead = head;
     end
+
     function setSkelTail(obj,tail)
       obj.skelTail = tail;
     end    
+
     function setSkelNames(obj,names)
       obj.skelNames = names;
     end
@@ -6362,6 +6500,7 @@ classdef Labeler < handle
 %         obj.lastLabelChangeTS = ts;
 %       end
 %     end
+
     function labelPosClear(obj)
       % Clear all labels AND TAGS for current movie/frame/target
       
@@ -6477,6 +6616,7 @@ classdef Labeler < handle
 %         obj.lastLabelChangeTS = ts;
 %       end
 %     end
+
     function labelPosClearI(obj,iPt)
       % Clear labels and tags for current movie/frame/target, point iPt
       
@@ -6569,12 +6709,14 @@ classdef Labeler < handle
 %       
 %       tf = arrayfun(@(x)nnz(lposnnan(:,:,x,:))>0,(1:nf)');
 %     end
+
     function tf = labelPosIsLabeledMov(obj,iMov)
       ifo = obj.movieInfoAll{iMov,1};
       nf = ifo.nframes;      
       s = obj.labels{iMov};
       tf = Labels.labeledFrames(s,nf);
     end
+
     function tflbled = labelPosLabeledTgts(obj,iMov)
       zz = obj.getMovieInfoAllGTawareArg(obj.gtIsGTMode);
       ifo = zz{iMov,1};
@@ -6613,6 +6755,7 @@ classdef Labeler < handle
 %       lpos = obj.(PROPS.LPOS){iMov}(:,:,iFrm,iTrx);
 %       tf = isinf(lpos(:,1));
 %     end
+
     function tf = labelPosIsOccluded(obj,iFrm,iTrx)
       iMov = obj.currMovie;
       if exist('iFrm','var')==0
@@ -6657,6 +6800,7 @@ classdef Labeler < handle
 %       end
 %       obj.labeledposNeedsSave = true;
 %     end
+
     function labelPosSet(obj,xy,tfeo)
       if nargin<3
         tfeo = [];
@@ -6712,6 +6856,7 @@ classdef Labeler < handle
 %       end
 %       obj.labeledposNeedsSave = true;
 %     end
+
     function labelPosSetI(obj,xy,iPt)
       % Set labelpos for current movie/frame/target, point iPt
       
@@ -6730,6 +6875,7 @@ classdef Labeler < handle
       end
       obj.labeledposNeedsSave = true;
     end 
+
     function labelPosSetIFullyOcc(obj,iPt)
       xy = repmat(Labels.getFullyOccValue,[1,2]); % KB is this the right dimensionality??
       obj.labelPosSetI(xy,iPt);
@@ -7266,6 +7412,7 @@ classdef Labeler < handle
 %       obj.(PROPS.LPOSTS){iMov}(iPt,iFrm,iTgt) = now();
 %       obj.(PROPS.LPOSTAG){iMov}(iPt,iFrm,iTgt) = true;
 %     end
+
     function labelPosTagSetI(obj,iPt)
       % Set a single tag onto points
       %
@@ -7306,6 +7453,7 @@ classdef Labeler < handle
 %         obj.labeledpostag{iMov}(iPt,iFrm,iTgt) = false;
 %       end
 %     end
+
     function labelPosTagClearI(obj,iPt)
       % iPt: can be vector
       
@@ -7387,6 +7535,7 @@ classdef Labeler < handle
 %       iFrm0 = nan;
 %       lpos0 = [];      
 %     end
+
     function [tfneighbor,iFrm0,lpos0] = ...
                           labelPosLabeledNeighbor(obj,iFrm,iTrx) % obj const
       % tfneighbor: if true, a labeled neighboring frame was found
@@ -7467,6 +7616,7 @@ classdef Labeler < handle
 %       xyLbl = [];
 %       return;
 %     end
+
     function [tffound,mIdx,frm,iTgt,xyLbl] = labelFindOneLabeledFrame(obj)
       % Find one labeled frame, any labeled frame.
       %
@@ -7631,6 +7781,7 @@ classdef Labeler < handle
 %       end
 %       tf = any(~isnan(lpos(:)));
 %     end
+
     function tf = labelPosMovieHasLabels(obj,iMov,varargin)
       gt = myparse(varargin,'gt',obj.gtIsGTMode);
       if ~gt
@@ -7652,6 +7803,7 @@ classdef Labeler < handle
 %       end
 %       assert(islabeled0==islabeled1);
 %     end
+
     function islabeled = currFrameIsLabeled(obj)
       % "is fully labeled"
       lpos = obj.labelsGTaware;
@@ -8132,6 +8284,7 @@ classdef Labeler < handle
       fname = linux_fullfile(fdir,'*.json');
 
     end        
+
     function [tfok,trkfiles] = getTrkFileNamesForExportGUI(obj,movfiles,...
         rawname,varargin)
       % Concretize a raw trkfilename, then check for conflicts etc.
@@ -9287,6 +9440,7 @@ classdef Labeler < handle
       yhi = xymu(2)+rad;
       roi = [xlo ylo; xlo yhi; xhi yhi; xhi ylo];      
     end
+
     function roi = maRoiXY2RoiScaled(xy,scalefac,fixedmargin)
       % scaled roi, centered on center of bbox; equivalent to 'expanding'
       %  bbox by scalefac*bbox
@@ -9300,6 +9454,7 @@ classdef Labeler < handle
       xyhi = xymid+xyrad;
       roi = [xylo; xylo(1) xyhi(2); xyhi; xyhi(1) xylo(2)];
     end
+
     function roi = maComputeBboxGeneral(kps,minaa,dopad,padfac,padfloor)
       % Axis-aligned keypoint-derived bounding box 
       %
@@ -9345,6 +9500,7 @@ classdef Labeler < handle
       roi = roi(idxs);
       %bb = [xymin (xymax-xymin)];
     end
+
     function roi = bbox2roi(bb)
       xylohi = bb;
       xylohi(3:4) = xylohi(1:2)+xylohi(3:4); % now xlo ylo xhi yhi
@@ -10266,11 +10422,13 @@ classdef Labeler < handle
       [iMov,iMovGT] = Labeler.identifyCommonMovSets(...
         obj.movieFilesAllFull,obj.movieFilesAllGTFull);
     end
+
     function fname = getDefaultFilenameExportGTResults(obj)
       gtstr = 'gtresults';
       rawname = getDefaultFilenameExport(obj,gtstr,'.mat');
       fname = FSPath.macroReplace(rawname,sMacro);
     end
+
     function tbl = gtLabeledFrameSummary(obj)
       % return/print summary of gt movies with number of labels
       
@@ -13311,6 +13469,7 @@ classdef Labeler < handle
       obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged');
     end
+
     function cropInitCropsGen(obj,widthHeight,fldMIA,fldMFACI,varargin)
       % Init crops for certain movies
       % 
@@ -13486,6 +13645,7 @@ classdef Labeler < handle
       obj.preProcNonstandardParamChanged();
       obj.notify('cropCropsChanged'); 
     end
+
     function cropSetSizeAllCropsHlp(obj,iview,widthHeight,fldMIA,fldMFACI)
       movInfoAll = obj.(fldMIA);
       cropInfos = obj.(fldMFACI);
