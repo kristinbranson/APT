@@ -27,7 +27,7 @@ classdef Labeler < handle
       'labelTemplate' ...
       'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
-      'trackParams' 'preProcH0' 'preProcSaveData' ...
+      'trackParams' 'preProcSaveData' ...
       'trackAutoSetParams' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
@@ -613,18 +613,17 @@ classdef Labeler < handle
   
   %% PreProc
   properties
-    preProcH0  % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
+    % preProcH0  % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
     preProcData  % scalar CPRData, preproc Data cache for CPR
     preProcDataTS  % scalar timestamp  
     preProcSaveData  % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
-    copyPreProcData = false  % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData
-    
+    copyPreProcData = false  % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData    
     ppdb  % PreProcDB for DL
   end
-
   properties (Dependent)    
     preProcParams  % struct - KB 20190214 -- made this a dependent property, derived from trackParams
   end  
+
   %% Tracking
   properties
     trackersAll_ = cell(1,0)
@@ -10477,7 +10476,7 @@ classdef Labeler < handle
     
     function preProcInit(obj)
       %obj.preProcParams = [];
-      obj.preProcH0 = [];
+      % obj.preProcH0 = [];
       obj.preProcInitData();
       obj.ppdbInit();
       obj.preProcSaveData = false;
@@ -10755,16 +10754,16 @@ classdef Labeler < handle
     % .preProcH0.
     % track: same as inctrain.
     
-    function preProcUpdateH0IfNec(obj)
-      % Update obj.preProcH0
-      % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT 
-
-      % AL20180910: currently using frame-by-frame CLAHE
-      USECLAHE = true;
-      if USECLAHE
-        obj.preProcH0 = [];
-        return
-      end      
+    % function preProcUpdateH0IfNec(obj)
+    %   % Update obj.preProcH0
+    %   % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT 
+    % 
+    %   % AL20180910: currently using frame-by-frame CLAHE
+    %   USECLAHE = true;
+    %   if USECLAHE
+    %     obj.preProcH0 = [];
+    %     return
+    %   end      
       
 %       ppPrms = obj.preProcParams;
 %       if ppPrms.histeq
@@ -11532,10 +11531,10 @@ classdef Labeler < handle
         trainArgs = [trainArgs(:)' {'tblPTrn' tblMFTp}];
       end           
       
-      % This is vestigial, can be removed.  -- ALT, 2025-01-24
-      if ~dontUpdateH0
-        obj.preProcUpdateH0IfNec();
-      end
+      % % This is vestigial, can be removed.  -- ALT, 2025-01-24
+      % if ~dontUpdateH0
+      %   obj.preProcUpdateH0IfNec();
+      % end
 
       % Spin up the backend in preparation for training
       backend = obj.trackDLBackEnd ;

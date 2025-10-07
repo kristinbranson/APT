@@ -798,8 +798,7 @@ classdef LabelerController < handle
       obj.train_core_(source, event, 'do_just_generate_db', true) ;
     end
 
-    function pbTrain_actuated_(obj, source, event)
-      
+    function pbTrain_actuated_(obj, source, event)      
       obj.train_core_(source, event) ;
     end
 
