@@ -25,7 +25,7 @@ handles.figure = uifigure('Name','Tracking algorithm',...
   'Tag','figure_TrackingAlgorithm') ;
 centerOnParentFigure(handles.figure,hPar);
 
-[handles.maposenets,handles.mabboxnets,handles.saposenets] = lObj.getAllTrackerTypes();
+[handles.maposenets,handles.mabboxnets,handles.saposenets] = Labeler.getAllTrackerTypes();
 
 handles.trackercurr_types = lObj.trackGetCurrTrackerStageNetTypes();
 

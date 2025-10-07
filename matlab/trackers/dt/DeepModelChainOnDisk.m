@@ -7,7 +7,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
   % different but they live underneath the cache/modelchaindir at runtime.
 
   % As far as I can tell, all the fields of DMCOD contain only value objects in
-  % normal usage.  Thus obj.copy() makes an entirely indepdent copy of obj, with
+  % normal usage.  Thus obj.copy() makes an entirely independent copy of obj, with
   % no need to implement a custom copyElement() method.  -- ALT, 2024-12-20
   
   % Note that this is copyable, and we want it to stay that way.  So think
@@ -87,9 +87,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     netMode = {};
     modelChainID = {}; % unique ID for a training model for (projname,view). 
                        % A model can be trained once, but also train-augmented.
-    trainID = {}; % a single modelID may be trained multiple times due to 
+    trainID = {}; % a single modelChainID may be trained multiple times due to 
                   % train-augmentation, so a single modelID may have multiple
-                  % trainID associated with it. Each (modelChainID,trainID) pair
+                  % trainIDs associated with it. Each (modelChainID,trainID) pair
                   % has a unique associated stripped lbl.            
     restartTS = {}; % Training for each (modelChainID,trainID) can be killed and
                     % restarted arbitrarily many times. This timestamp uniquely
@@ -127,7 +127,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     nviews
     njobs
     nstages
-    rootDir  % The (native) root dir of the DMCoD
+    rootDir  % The (native) root dir of the DMCoD, as a char array
     %localRootDir
     %remoteRootDir
   end
@@ -136,49 +136,63 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function n = get.n(obj)
       n = numel(obj.view);
     end
+
     function v = get.nviews(obj)
       v = numel(unique(obj.view));
     end
+
     function v = get.nstages(obj)
       v = numel(unique(obj.stage));
     end
+
     function v = get.njobs(obj)
       v = numel(unique(obj.jobidx));
     end
+
     function v = get.rootDir(obj)
       v = obj.localRootDir_ ;
     end
+
     function set.rootDir(obj,v)
       obj.localRootDir_ = v ;
     end    
+
     % function v = get.remoteRootDir(obj)
     %   v = obj.remoteRootDir_ ;
     % end
+
     % function v = get.localRootDir(obj)
     %   v = obj.localRootDir_ ;
     % end
+
     function [v,idx] = getJobs(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.jobidx(idx);
     end
+
     function [v,idx] = getStages(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.stage(idx);
     end
+
     function [v,idx] = getViews(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.view(idx);
     end
+
     function [v,idx] = getSplits(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.splitIdx(idx);
     end
+
     % function v = isRemote(obj)
     %   v = obj.isRemote_ ;
     % end
+
     function idx = select(obj,varargin)
       idx = DeepModelChainOnDisk.selectHelper(obj,varargin{:});
     end
+
     function result = getIdentifiers(obj)
       result = struct();
       result.jobidx = obj.jobidx;
@@ -186,12 +200,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       result.stage = obj.stage;
       result.splitIdx = obj.splitIdx;
     end
+
     function [ijob,ivw,istage,isplit] = ind2sub(obj,idx)
       ijob = obj.jobidx(idx);
       ivw = obj.view(idx);
       istage = obj.stage(idx);
       isplit = obj.splitIdx(idx);
     end
+
     function v = isSplit(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.splitIdx(idx) > 0;
@@ -206,74 +222,91 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       idx = obj.select(varargin{:});
       v = obj.modelChainID(idx);
     end
+
     function [v,idx] = getTrainID(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.trainID(idx);
     end
+
     function [v,idx] = getView(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.view(idx);
     end
+
     function [v,idx] = getNetType(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.netType(idx);
     end
+
     function [v,idx] = getNetMode(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.netMode(idx);
     end
+
     function [v,idx] = getTrainType(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.trainType(idx);
     end
+
     function setTrainType(obj,v,varargin)
       idx = obj.select(varargin{:});
       ncurr = numel(idx);
       obj.trainType(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
     end
+
     function [v,idx] = getTrkTaskKeyword(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.trkTaskKeyword(idx);
     end
+
     function v = getTrkTSstr(obj)
       v = obj.trkTSstr;
     end
+
     function setTrkTaskKeyword(obj,v,varargin)
       idx = obj.select(varargin{:});
       ncurr = numel(idx);
       obj.trkTaskKeyword(idx) = DeepModelChainOnDisk.toCellArray(v,ncurr);
     end
+
     function setTrkTSstr(obj,v),
       assert(ischar(v));
       obj.trkTSstr = v;
     end
+
     function [v,idx] = getIterCurr(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.iterCurr(idx);
     end
+
     function [v,idx] = getIterFinal(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.iterFinal(idx);
     end
+
     function [v,idx] = getNLabels(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.nLabels(idx);
     end
+
     function [v,idx] = getFollowsObjDet(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.tfFollowsObjDet(idx);
     end
+
     % function v = getRootDir(obj)
     %   v = obj.rootDir ;
     % end
     % function setRootDir(obj,v)
     %   obj.rootDir = v ;
     % end
+
     function setPrevModels(obj,prev_models,varargin)
       idx = obj.select(varargin{:});
       assert(numel(prev_models) == numel(idx));
       obj.prev_models(idx) = prev_models;
     end
+    
     function v = job2view(obj,ijob)
       v = unique(obj.view(obj.jobidx==ijob));
     end
@@ -636,34 +669,34 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = sprintf('gtcls_vw%d_%s.mat',obj.view(icurr),obj.trkTSstr);
       end
     end
-    function [v,idx] = killTokenLnx(obj,varargin)
-      [killTokenName,idx] = obj.killTokenName(varargin{:});
-      isMultiViewJob = obj.isMultiViewJob(idx);
-      if ~all(isMultiViewJob),
-        dirModelChainLnx = obj.dirModelChainLnx(varargin{:});
-      end
-      v = cell(1,numel(idx));
-      for i = 1:numel(idx),
-        if isMultiViewJob(i),
-          v{i} = [obj.dirProjLnx '/' killTokenName{i}];
-        else
-          v{i} = [dirModelChainLnx{i} '/' killTokenName{i}];
-        end
-      end
-    end    
-    function [v,idx] = killTokenName(obj,varargin)
-      idx = obj.select(varargin{:});
-      v = cell(1,numel(idx));
-      for ii = 1:numel(idx),
-        icurr = idx(ii);
-        if isequal(obj.trainType{icurr},DLTrainType.Restart),
-          restartstr = obj.restartTS{icurr};
-        else
-          restartstr = '';
-        end
-        v{icurr} = sprintf('%s_%s%s.KILLED',obj.trainID{icurr},lower(char(obj.trainType{icurr})),restartstr);
-      end
-    end  
+    % function [v,idx] = killTokenLnx(obj,varargin)
+    %   [killTokenName,idx] = obj.killTokenName(varargin{:});
+    %   isMultiViewJob = obj.isMultiViewJob(idx);
+    %   if ~all(isMultiViewJob),
+    %     dirModelChainLnx = obj.dirModelChainLnx(varargin{:});
+    %   end
+    %   v = cell(1,numel(idx));
+    %   for i = 1:numel(idx),
+    %     if isMultiViewJob(i),
+    %       v{i} = [obj.dirProjLnx '/' killTokenName{i}];
+    %     else
+    %       v{i} = [dirModelChainLnx{i} '/' killTokenName{i}];
+    %     end
+    %   end
+    % end    
+    % function [v,idx] = killTokenName(obj,varargin)
+    %   idx = obj.select(varargin{:});
+    %   v = cell(1,numel(idx));
+    %   for ii = 1:numel(idx),
+    %     icurr = idx(ii);
+    %     if isequal(obj.trainType{icurr},DLTrainType.Restart),
+    %       restartstr = obj.restartTS{icurr};
+    %     else
+    %       restartstr = '';
+    %     end
+    %     v{icurr} = sprintf('%s_%s%s.KILLED',obj.trainID{icurr},lower(char(obj.trainType{icurr})),restartstr);
+    %   end
+    % end  
     function [v,idx] = trainDataLnx(obj,varargin)
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(idx));

@@ -632,7 +632,7 @@ classdef Labeler < handle
       % Calling .hasBeenTrained() on any of these should return false, always.
     trackersAllCreateInfo_ = cell(1,0)
       % cell row vector of "tracker-create-info" structs, with same number of
-      % elements are trackersAll, and with a one-to-one correspondence between them.
+      % elements as trackersAll, and with a one-to-one correspondence between them.
       % Exists to ease creation of new working trackers.
     trackerHistory_ = cell(1,0)
       % Cell row vector of concrete LabelTracker objects.  Contains a history of all
@@ -4721,8 +4721,8 @@ classdef Labeler < handle
                 e_ndx = find(matching_path==0,1,'last');
                 old_str = old_s(1:end-mlen+e_ndx);
                 new_str = new_s(1:end-mlen+e_ndx);
-                movies_done{end+1} = oldmovfileFull;
-                movies_done_new{end+1} = movfileFull;
+                movies_done{end+1} = oldmovfileFull;  %#ok<AGROW>
+                movies_done_new{end+1} = movfileFull;  %#ok<AGROW>
                 not_done = setdiff(movies_all,movies_done);
                 
                 if ~strcmp(old_str,old_s) && numel(not_done)>0
@@ -4734,8 +4734,8 @@ classdef Labeler < handle
                     for jj = sel(:)'
                       cur_mov = strrep(not_done{jj},'\',filesep);
                       cur_mov = strrep(cur_mov,'/',filesep);
-                      movies_done_new{end+1} = strrep(cur_mov,old_str,new_str);
-                      movies_done{end+1} = not_done{jj};
+                      movies_done_new{end+1} = strrep(cur_mov,old_str,new_str);  %#ok<AGROW>
+                      movies_done{end+1} = not_done{jj};  %#ok<AGROW>
                     end
                   end
                 end
@@ -8899,7 +8899,7 @@ classdef Labeler < handle
       [ims,p] = obj.hlpOverlayMontageGenerateImP(tMFT,nphyspts,...
                                                  ctrMeth,rotAlignMeth,roiRadius,roiPadVal,'scale',scale);
       n = size(p,1);
-      if ndims(p) == 2
+      if ismatrix(p)
         % p is [n x nphyspts*nvw*2]
         p = reshape(p',[nphyspts nvw 2 n]);
       else
@@ -8967,7 +8967,7 @@ classdef Labeler < handle
               rotStr = 'Centered, trx/theta aligned';
           end
           if scale
-            rotStr = [rotStr ', scaled'];
+            rotStr = [rotStr ', scaled'];  %#ok<AGROW>
           end
         else
           rotStr = '';
@@ -10268,7 +10268,7 @@ classdef Labeler < handle
     end
     function fname = getDefaultFilenameExportGTResults(obj)
       gtstr = 'gtresults';
-      fname = getDefaultFilenameExport(obj,gtstr,'.mat');
+      rawname = getDefaultFilenameExport(obj,gtstr,'.mat');
       fname = FSPath.macroReplace(rawname,sMacro);
     end
     function tbl = gtLabeledFrameSummary(obj)
@@ -10754,56 +10754,56 @@ classdef Labeler < handle
     % .preProcH0.
     % track: same as inctrain.
     
-    % function preProcUpdateH0IfNec(obj)
-    %   % Update obj.preProcH0
-    %   % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT 
-    % 
-    %   % AL20180910: currently using frame-by-frame CLAHE
-    %   USECLAHE = true;
-    %   if USECLAHE
-    %     obj.preProcH0 = [];
-    %     return
-    %   end      
-      
-%       ppPrms = obj.preProcParams;
-%       if ppPrms.histeq
-%         nFrmSampH0 = ppPrms.histeqH0NumFrames;
-%         s = struct();
-%         [s.hgram,s.hgraminfo] = obj.movieEstimateImHist(...
-%           'nFrmPerMov',nFrmSampH0,'debugViz',false);
-%         
-%         data = obj.preProcData;
-%         if data.N>0 && ~isempty(obj.preProcH0) && ~isequal(data.H0,obj.preProcH0.hgram)
-%           assert(false,'.preProcData.H0 differs from .preProcH0');
-%         end
-%         if ~isequal(data.H0,s.hgram)
-%           obj.preProcInitData();
-%           % Note, currently we do not clear trained tracker/tracking
-%           % results, see above. This is caller's responsibility. Atm all
-%           % callers do a retrain or equivalent
-%         end
-%         obj.preProcH0 = s;
-%         
-%         wbObj = WaitBarWithCancel('Computing Histogram Matching LUTs',...
-%           'cancelDisabled',true);
-%         oc = onCleanup(@()delete(wbObj));
-%         obj.movieEstimateHistEqLUTs('nFrmPerMov',nFrmSampH0,...
-%           'wbObj',wbObj,'docheck',true);
-%       else
-%         assert(isempty(obj.preProcData.H0));
-%         
-%         % For now we don't force .preProcH0, .movieFilesAll*HistEq* to be
-%         % empty. User can compute them, then turn off HistEq, and the state
-%         % remains
-%         if false
-%           assert(isempty(obj.preProcH0));
-%           tf = cellfun(@isempty,obj.movieFilesAllHistEqLUT);
-%           tfGT = cellfun(@isempty,obj.movieFilesAllGTHistEqLUT);
-%           assert(all(tf(:)));
-%           assert(all(tfGT(:)));
-%         end
-%       end
-    end  % function
+%     function preProcUpdateH0IfNec(obj)
+%       % Update obj.preProcH0
+%       % Update .movieFilesAllHistEqLUT, .movieFilesAllGTHistEqLUT 
+% 
+%       % AL20180910: currently using frame-by-frame CLAHE
+%       USECLAHE = true;
+%       if USECLAHE
+%         obj.preProcH0 = [];
+%         return
+%       end      
+% 
+% %       ppPrms = obj.preProcParams;
+% %       if ppPrms.histeq
+% %         nFrmSampH0 = ppPrms.histeqH0NumFrames;
+% %         s = struct();
+% %         [s.hgram,s.hgraminfo] = obj.movieEstimateImHist(...
+% %           'nFrmPerMov',nFrmSampH0,'debugViz',false);
+% %         
+% %         data = obj.preProcData;
+% %         if data.N>0 && ~isempty(obj.preProcH0) && ~isequal(data.H0,obj.preProcH0.hgram)
+% %           assert(false,'.preProcData.H0 differs from .preProcH0');
+% %         end
+% %         if ~isequal(data.H0,s.hgram)
+% %           obj.preProcInitData();
+% %           % Note, currently we do not clear trained tracker/tracking
+% %           % results, see above. This is caller's responsibility. Atm all
+% %           % callers do a retrain or equivalent
+% %         end
+% %         obj.preProcH0 = s;
+% %         
+% %         wbObj = WaitBarWithCancel('Computing Histogram Matching LUTs',...
+% %           'cancelDisabled',true);
+% %         oc = onCleanup(@()delete(wbObj));
+% %         obj.movieEstimateHistEqLUTs('nFrmPerMov',nFrmSampH0,...
+% %           'wbObj',wbObj,'docheck',true);
+% %       else
+% %         assert(isempty(obj.preProcData.H0));
+% %         
+% %         % For now we don't force .preProcH0, .movieFilesAll*HistEq* to be
+% %         % empty. User can compute them, then turn off HistEq, and the state
+% %         % remains
+% %         if false
+% %           assert(isempty(obj.preProcH0));
+% %           tf = cellfun(@isempty,obj.movieFilesAllHistEqLUT);
+% %           tfGT = cellfun(@isempty,obj.movieFilesAllGTHistEqLUT);
+% %           assert(all(tf(:)));
+% %           assert(all(tfGT(:)));
+% %         end
+% %       end
+%     end  % function
     
 %     function [data,dataIdx,tblP,tblPReadFailed,tfReadFailed] = ...
 %         preProcDataFetch(obj,tblP,varargin)
@@ -11169,7 +11169,7 @@ classdef Labeler < handle
     function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
       % Make a new tracker, and make it current.  tciIndex should be a valid index
       % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
-      % constain the stage 1 and stage 2 constructor args if and only if tciIndex
+      % contain the stage 1 and stage 2 constructor args if and only if tciIndex
       % indicates a custom two-stage tracker.
 
       % Validate the new value      
@@ -11233,7 +11233,7 @@ classdef Labeler < handle
       obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
       obj.notify('updateTimeline');
       
-      % Send the notification
+      % Send the needed notifications
       obj.notify('didSetCurrTracker') ;      
       % obj.notify('update_menu_track_tracking_algorithm_quick') ;
       obj.notify('update_menu_track_tracker_history') ;      
@@ -11495,11 +11495,10 @@ classdef Labeler < handle
     end
         
     function train(obj,varargin)
-      [tblMFTtrn, trainArgs, dontUpdateH0, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
+      [tblMFTtrn, trainArgs, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
         varargin,...
         'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
         'trainArgs',{},... % (opt) args to pass to tracker.retrain()
-        'dontUpdateH0',false,...
         'do_just_generate_db', false, ...
         'do_call_apt_interface_dot_py', true ...
         );
@@ -11513,12 +11512,13 @@ classdef Labeler < handle
         error('Labeler:train','No movie.');
       end
 
-      % When we exit from this method, update the views
-      oc2 = onCleanup(@()(obj.notify('update'))) ;
+      % If the current tracker has been trained at all, make a duplicate of it so
+      % that we can go back.
+      
 
       % Update the status
       obj.pushBusyStatus('Spawning training job...') ;
-      oc = onCleanup(@()(obj.popBusyStatus()));
+      oc = onCleanup(@()(obj.popBusyStatusAndSendUpdateNotification_()));
 
       % Update the 'status' on the console
       fprintf('Training started at %s...\n',datestr(now()));
@@ -14147,7 +14147,7 @@ classdef Labeler < handle
     end
 
     function updateTrxTable_MA(obj)
-      tblTrx = obj.controller_.tblTrx;
+      % tblTrx = obj.controller_.tblTrx;
       if ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
         ischange = ~isempty(obj.tblTrxData);
         if ischange,
@@ -16017,8 +16017,10 @@ classdef Labeler < handle
     function result = get.trackerHistory(obj)
       result = obj.trackerHistory_ ;
     end
+  end  % methods
 
-    function [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
+  methods (Static)
+    function [maposenets,mabboxnets,saposenets] = getAllTrackerTypes()
       % [maposenets,mabboxnets,saposenets] = getAllTrackerTypes(obj)
       % returns all deep learning nettypes. 
       % All trackers are found with enumeration('DLNetType'), and they are
@@ -16047,9 +16049,10 @@ classdef Labeler < handle
 
       dokeep = cellfun(@isempty,regexp({saposenets.displayString},'Deprecated','once'));
       saposenets = saposenets(dokeep);
-
     end
+  end  % methods (Static)
 
+  methods
     function result = doesCurrentTrackerMatchFromTrackersAllIndex(obj)
       % Returns a logical row array specifying whether the current tracker matches
       % each of the trackers in obj.trackersAll
@@ -16496,5 +16499,12 @@ classdef Labeler < handle
       obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimeline');
     end  % function    
+
+    function popBusyStatusAndSendUpdateNotification_(obj)
+      % Utility method, often called via onCleanup() in another method,
+      % to clear the busy status and notify the controller it needs to update.
+      obj.popBusyStatus() ;
+      obj.notify('update') ;
+    end  % function        
   end  % methods
 end  % classdef
