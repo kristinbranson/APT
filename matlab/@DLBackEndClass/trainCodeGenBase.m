@@ -49,7 +49,11 @@ stage2prevModels = cell(1,nstages);
 for istage = 1:nstages,
   stage = stages(istage);
   % cell of length nviews or empty
-  stage2prevModels{istage} = dmc.getPrevModels('stage',stage); 
+  prevModelsAsChar = dmc.getPrevModels('stage',stage);  % cell array of length nviews, each element a native path as a char array, or []
+  prevModels = cellfun(@convertNativePathAsCharOrEmptyToWslMetapathOrEmpty, ...
+                       prevModelsAsChar, ...
+                       'UniformOutput', false) ;
+  stage2prevModels{istage} = prevModels; 
   assert(isempty(stage2prevModels{istage}) || numel(stage2prevModels{istage}) == nviews);
 end
 % trainType has to be unique - only one parameter to APT_interface to
@@ -121,14 +125,15 @@ end
 
 % type for the first stage trained in this job
 command5 = command4.append('-type', stage2netType{1});
-if ~isempty(stage2prevModels{1}{1})
+firstStagePreviousModels = stage2prevModels{1} ;
+if ~isempty(firstStagePreviousModels{1})
   % MK 202300310. Stage2prevmodels is
   % repmat({repmat({''},[1,nviews]),[1,nstages]) for single animal
   % projects when no model is present. So  instead of checking
   % stage2prevModels{1}, I'm checking stage2prevModels{1}{1}. Not
   % tested for multi-animal. If it errors fix accordingly. Check line
   % 869 in DeepModelChainOnDisk.m
-  command6 = command5.append('-model_files', stage2prevModels{1});
+  command6 = command5.append('-model_files', firstStagePreviousModels{:});
 else
   command6 = command5;
 end
@@ -143,9 +148,10 @@ if nstages > 1,
     command8 = command7;
   end
   command9 = command8.append('-type2', stage2netType{2});
-  if ~isempty(stage2prevModels{2}{1})
+  secondStagePreviousModels = stage2prevModels{2} ;
+  if ~isempty(secondStagePreviousModels{1})
     % check the comment for model_files
-    command10 = apt.ShellCommmand.cat(command9.append('-model_files2'), stage2prevModels{2});
+    command10 = command9.append('-model_files2', secondStagePreviousModels{:});
   else
     command10 = command9;
   end
@@ -183,4 +189,15 @@ end
 
 command = command16;
 
+end  % function
+
+
+
+function result = convertNativePathAsCharOrEmptyToWslMetapathOrEmpty(pathAsCharOrEmpty)
+if isempty(pathAsCharOrEmpty)
+    result = pathAsCharOrEmpty;
+else
+    nativeMetapath = apt.MetaPath(pathAsCharOrEmpty, apt.PathLocale.native, apt.FileRole.cache);
+    result = nativeMetapath.asWsl();
+end
 end  % function
