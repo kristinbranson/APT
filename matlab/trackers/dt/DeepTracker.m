@@ -1643,91 +1643,91 @@ classdef DeepTracker < LabelTracker
       end
     end
     
-    function trainPackMontage(obj,varargin)
-      
-      [maxnpages,plotnr,plotnc,tpdir] = myparse(varargin,...
-        'maxnpages',6,...
-        'plotnr',3,...
-        'plotnc',4, ...
-        'tpdir',[] ...
-        );
-      
-      if ~isempty(tpdir)
-        tfTrnPackExists = exist(tpdir,'dir')>0;
-      else
-        [tfTrnPackExists,tpdir] = obj.trainPackExists();     
-      end
-      
-      tfsucc = false;
-      if tfTrnPackExists
-        try
-          [~,~,~,locg] = TrnPack.loadPack(tpdir);
-          tfsucc = true; 
-        catch ME
-          emsg = 'Could not load training package.';
-        end                
-      else
-        emsg = 'Training package does not exist.';
-      end
-      
-      if ~tfsucc
-        errordlg(emsg,'Training package missing');
-        return;
-      end
-      
-      nplotpage = plotnr*plotnc;
-      nplotmax = maxnpages*nplotpage;      
-      ldata = locg.locdata;
-      if numel(ldata)>nplotmax
-        warningNoTrace('Only showing %d/%d frames available in training package.',...
-          nplotmax,numel(ldata));
-        ldata = ldata(1:nplotmax);
-      end
-      
-      I = arrayfun(@(x)imread(fullfile(tpdir,x.img{1})),ldata,'uni',0);
-      I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
-      N = numel(ldata);
-      D = size(ldata(1).pabs,1);
-      ntgtmax = max([ldata.ntgt]);
-      p = nan(N,D,ntgtmax);
-      rois = cell(N,1);
-      for i=1:N
-        ntgt = ldata(i).ntgt;
-        p(i,:,1:ntgt) = ldata(i).pabs;
-        roi = ldata(i).extra_roi.'; % nroi x 8
-        if ~isempty(roi)
-          roi = roi(:,[2 3 5 6]); % xlo xhi ylo yhi
-          rois{i} = roi;
-        else
-          rois{i} = nan(0,4);
-        end
-      end
-      lbls = arrayfun(@(x)sprintf('%d.%d',x.imov,x.frm),ldata,'uni',0);
-      if mean(I{1}(:))>0.5
-        lblscolor = [0 0 0];
-      else
-        lblscolor = [1 1 1];
-      end
-      
-      pppi = obj.lObj.labelPointsPlotInfo;
-      mrkrProps = struct2paramscell(pppi.MarkerProps);
-      margs0 = { ... %'framelblscolor',[1 1 0],...
-        'pplotargs',mrkrProps,...
-        'colors',pppi.Colors};
-      roiRectArgs = {'EdgeColor' [0 0 1] 'LineWidth' 2};
-    
-      tstr = sprintf('Training Data (%d images)',N);
-      args = {...
-        'rois',rois,'titlestr',tstr,...
-        'framelbls',lbls, ...
-        'framelblscolor',lblscolor, ...
-        'framelblsbgcolor','none',...
-        'framelblsIsFullSize',true,...
-        'roisRectangleArgs',roiRectArgs};
-      args = [args margs0];
-      h = Shape.montageTabbed(I,p,plotnr,plotnc,args{:});
-      set(h,'Name',tstr);      
-    end       
+    % function trainPackMontage(obj,varargin)
+    % 
+    %   [maxnpages,plotnr,plotnc,tpdir] = myparse(varargin,...
+    %     'maxnpages',6,...
+    %     'plotnr',3,...
+    %     'plotnc',4, ...
+    %     'tpdir',[] ...
+    %     );
+    % 
+    %   if ~isempty(tpdir)
+    %     tfTrnPackExists = exist(tpdir,'dir')>0;
+    %   else
+    %     [tfTrnPackExists,tpdir] = obj.trainPackExists();     
+    %   end
+    % 
+    %   tfsucc = false;
+    %   if tfTrnPackExists
+    %     try
+    %       [~,~,~,locg] = TrnPack.loadPack(tpdir);
+    %       tfsucc = true; 
+    %     catch ME
+    %       emsg = 'Could not load training package.';
+    %     end                
+    %   else
+    %     emsg = 'Training package does not exist.';
+    %   end
+    % 
+    %   if ~tfsucc
+    %     errordlg(emsg,'Training package missing');
+    %     return;
+    %   end
+    % 
+    %   nplotpage = plotnr*plotnc;
+    %   nplotmax = maxnpages*nplotpage;      
+    %   ldata = locg.locdata;
+    %   if numel(ldata)>nplotmax
+    %     warningNoTrace('Only showing %d/%d frames available in training package.',...
+    %       nplotmax,numel(ldata));
+    %     ldata = ldata(1:nplotmax);
+    %   end
+    % 
+    %   I = arrayfun(@(x)imread(fullfile(tpdir,x.img{1})),ldata,'uni',0);
+    %   I = cellfun(@DataAugMontage.convertIm2Double,I,'uni',0);
+    %   N = numel(ldata);
+    %   D = size(ldata(1).pabs,1);
+    %   ntgtmax = max([ldata.ntgt]);
+    %   p = nan(N,D,ntgtmax);
+    %   rois = cell(N,1);
+    %   for i=1:N
+    %     ntgt = ldata(i).ntgt;
+    %     p(i,:,1:ntgt) = ldata(i).pabs;
+    %     roi = ldata(i).extra_roi.'; % nroi x 8
+    %     if ~isempty(roi)
+    %       roi = roi(:,[2 3 5 6]); % xlo xhi ylo yhi
+    %       rois{i} = roi;
+    %     else
+    %       rois{i} = nan(0,4);
+    %     end
+    %   end
+    %   lbls = arrayfun(@(x)sprintf('%d.%d',x.imov,x.frm),ldata,'uni',0);
+    %   if mean(I{1}(:))>0.5
+    %     lblscolor = [0 0 0];
+    %   else
+    %     lblscolor = [1 1 1];
+    %   end
+    % 
+    %   pppi = obj.lObj.labelPointsPlotInfo;
+    %   mrkrProps = struct2paramscell(pppi.MarkerProps);
+    %   margs0 = { ... %'framelblscolor',[1 1 0],...
+    %     'pplotargs',mrkrProps,...
+    %     'colors',pppi.Colors};
+    %   roiRectArgs = {'EdgeColor' [0 0 1] 'LineWidth' 2};
+    % 
+    %   tstr = sprintf('Training Data (%d images)',N);
+    %   args = {...
+    %     'rois',rois,'titlestr',tstr,...
+    %     'framelbls',lbls, ...
+    %     'framelblscolor',lblscolor, ...
+    %     'framelblsbgcolor','none',...
+    %     'framelblsIsFullSize',true,...
+    %     'roisRectangleArgs',roiRectArgs};
+    %   args = [args margs0];
+    %   h = Shape.montageTabbed(I,p,plotnr,plotnc,args{:});
+    %   set(h,'Name',tstr);      
+    % end       
   end  % methods block
 
   methods (Static)

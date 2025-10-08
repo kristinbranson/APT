@@ -451,14 +451,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       end
     end
 
-    function [v,idx] = lblStrippedLnx(obj,varargin)
-      warning('OBSOLETE: Reference to stripped lbl file. We are trying to remove these. Let Kristin know how you got here!');
-      [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
-      v = cell(1,numel(idx));
-      for icurr = 1:numel(idx),
-        v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.lbl'];
-      end
-    end
+    % function [v,idx] = lblStrippedLnx(obj,varargin)
+    %   warning('OBSOLETE: Reference to stripped lbl file. We are trying to remove these. Let Kristin know how you got here!');
+    %   [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
+    %   v = cell(1,numel(idx));
+    %   for icurr = 1:numel(idx),
+    %     v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.lbl'];
+    %   end
+    % end
 
     % full path to json config for this train session
     function [v,idx] = trainJsonLnx(obj,varargin)
@@ -1257,29 +1257,29 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       tf = (obj.iterCurr > 0) ;
     end
     
-    % read nLabels from config file
-    function readNLabels(obj)
-      if strcmp(obj.configFileExt,'.json'),
-        trainLocLnx = obj.trainLocLnx();
-        [un,~,idx] = unique(trainLocLnx);
-        nLabels1 = nan(1,obj.n);
-        for i = 1:numel(un),
-          assert(exist(un{i},'file') > 0);
-          nLabels1(idx==i) = TrnPack.readNLabels(un{i});
-        end
-        obj.setNLabels(nLabels1);
-      else
-        lblStrippedLnx = obj.lblStrippedLnx();
-        [un,~,idx] = unique(lblStrippedLnx);
-        nLabels1 = nan(1,obj.n);
-        for i = 1:numel(un),
-          assert(exist(un{i},'file') > 0);
-          s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
-          nLabels1(idx==i) = size(s.preProcData_MD_frm,1);
-        end
-        obj.setNLabels(nLabels1);
-      end
-    end
+    % % read nLabels from config file
+    % function readNLabels(obj)
+    %   if strcmp(obj.configFileExt,'.json'),
+    %     trainLocLnx = obj.trainLocLnx();
+    %     [un,~,idx] = unique(trainLocLnx);
+    %     nLabels1 = nan(1,obj.n);
+    %     for i = 1:numel(un),
+    %       assert(exist(un{i},'file') > 0);
+    %       nLabels1(idx==i) = TrnPack.readNLabels(un{i});
+    %     end
+    %     obj.setNLabels(nLabels1);
+    %   else
+    %     lblStrippedLnx = obj.lblStrippedLnx();
+    %     [un,~,idx] = unique(lblStrippedLnx);
+    %     nLabels1 = nan(1,obj.n);
+    %     for i = 1:numel(un),
+    %       assert(exist(un{i},'file') > 0);
+    %       s = load(obj.lblStrippedLnx,'preProcData_MD_frm','-mat');
+    %       nLabels1(idx==i) = size(s.preProcData_MD_frm,1);
+    %     end
+    %     obj.setNLabels(nLabels1);
+    %   end
+    % end
 
     function setNLabels(obj,nLabels,varargin)
       idx = obj.select(varargin{:});
