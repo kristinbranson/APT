@@ -1404,15 +1404,12 @@ classdef DeepTracker < LabelTracker
     end
 
     function trainID = getTrainID(obj, varargin)
-      [existingTrnPackSLbl, tfGenNewConfigFile] = ...
+      tfGenNewConfigFile = ...
         myparse(varargin, ...
-                'existingTrnPackSLbl', [], ...
                 'tfGenNewConfigFile', true);
 
-      if ~isempty(existingTrnPackSLbl)
-        trainID = obj.configFile2TrainID(existingTrnPackSLbl);
-      elseif tfGenNewConfigFile,
-        trainID = datestr(now,'yyyymmddTHHMMSS');
+      if tfGenNewConfigFile,
+        trainID = datestr(now(),'yyyymmddTHHMMSS');
       else
         trainID = obj.trnNameLbl;
       end
@@ -1484,13 +1481,11 @@ classdef DeepTracker < LabelTracker
       %
       % Throws error if something goes wrong.
 
-      [existingTrnPackSLbl, ...
-       prev_models, ...
+      [prev_models, ...
        do_just_generate_db, ...
        do_call_apt_interface_dot_py, ...
        projTempDir] = ...
         myparse(varargin,...
-                'existingTrnPackSLbl',[], ...  % for eg topdown tracking where a trnpack/slbl is pre-generated (and applies to both stages)
                 'prev_models',[], ...
                 'do_just_generate_db',false, ...
                 'do_call_apt_interface_dot_py', true, ...
@@ -1506,8 +1501,7 @@ classdef DeepTracker < LabelTracker
       nmodel = numel(jobidx);
 
       % determine trainID
-      trainID = obj.getTrainID('existingTrnPackSLbl',existingTrnPackSLbl,...
-                               'tfGenNewConfigFile',tfGenNewConfigFile);
+      trainID = obj.getTrainID('tfGenNewConfigFile',tfGenNewConfigFile);
 
       % Create DMC
       cacheDir = obj.lObj.DLCacheDir ;  % native cache dir      
@@ -1532,10 +1526,7 @@ classdef DeepTracker < LabelTracker
       % In the future, we may need i) "localWSCache" and ii) "jrcCache".
       backend.updateRepo();
             
-      if ~isempty(existingTrnPackSLbl),
-        assert(strcmp(dmc.trainConfigLnx,existingTrnPackSLbl));
-        dmc.readNLabels();
-      elseif tfGenNewConfigFile
+      if tfGenNewConfigFile
         ntgtstot = obj.genTrnPack(dmc);
         dmc.setNLabels(ntgtstot);
       else % Restart
