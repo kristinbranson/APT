@@ -55,10 +55,12 @@ classdef DeepTrackerTopDown < DeepTracker
     trnDoneStage1 % logical
     trnDoneStage2 % logical
   end
+
   properties (Dependent)
     isHeadTail
     topDownTypeStr
   end
+
   methods
     function v = getAlgorithmNameHook(obj)
       short_type_string = fif(strcmp(obj.topDownTypeStr, 'head/tail'), 'ht', 'bbox') ;
@@ -66,43 +68,36 @@ classdef DeepTrackerTopDown < DeepTracker
                   short_type_string,...
                   obj.stage1Tracker.trnNetMode.shortCode,...
                   obj.trnNetMode.shortCode);
-    end
+    end  % function
+
     function v = getAlgorithmNamePrettyHook(obj)
       v = sprintf('Top Down (%s): %s + %s',...
                   obj.topDownTypeStr,...
                   obj.stage1Tracker.trnNetType.displayString,...
                   obj.trnNetType.displayString);
-    end
+    end  % function
+
     function v = getNetsUsed(obj)
       v = cellstr([obj.stage1Tracker.trnNetType; obj.trnNetType]);
-    end
+    end  % function
+
     function v = getNumStages(obj)  %#ok<MANU>
       v = 2;
-    end
+    end  % function
+
     function v = get.isHeadTail(obj)
       v = obj.trnNetMode.isHeadTail;
-    end
+    end  % function
+
     function v = get.topDownTypeStr(obj)
       if obj.isHeadTail
         v = 'head/tail';
       else
         v = 'bbox';
       end
-    end
-%     function setJrcgpuqueue(obj,v)
-%       obj.jrcgpuqueue = v;
-%       obj.stage1Tracker.jrcgpuqueue = v;      
-%     end
-%     function setJrcnslots(obj,v)
-%       obj.jrcnslots = v;
-%       obj.stage1Tracker.jrcnslots = v;      
-%     end
-%     function setJrcnslotstrack(obj,v)
-%       obj.jrcnslotstrack = v;
-%       obj.stage1Tracker.jrcnslotstrack = v;      
-%     end
-
-  end
+    end  % function
+    
+  end  % methods
     
   methods 
 
@@ -151,124 +146,6 @@ classdef DeepTrackerTopDown < DeepTracker
       tfCanTrain = true;
       reason = '';
     end
-      
-%       obj1 = obj2.stage1Tracker;
-%       objs = {obj1 obj2};
-%       for stg=1:2
-%         if objs{stg}.bgTrnIsRunning
-%           error('Stage %d training is already in progress.',stg);
-%         end
-%         if objs{stg}.bgTrkIsRunning
-%           error('Stage %d tracking is in progress.',stg);
-%         end
-%       end
-%             
-%       lblObj = obj2.lObj;
-%       projname = lblObj.projname;
-%       if isempty(projname)
-%         error('Please give your project a name. The project name will be used to identify your trained models on disk.');
-%       end
-%       
-%       trnBackEnd = lblObj.trackDLBackEnd;
-%       fprintf('Top-down multianimal tracking\n');
-%       fprintf('Your stage 1 (detection) deep net type is: %s\n',char(obj1.trnNetType));
-%       fprintf('Your stage 2 (pose tracking) deep net type is: %s\n',char(obj2.trnNetType));
-%       fprintf('Your training backend is: %s\n',char(trnBackEnd.type));
-%       %fprintf('Your training vizualizer is: %s\n',obj2.bgTrnMonitorVizClass);
-%       fprintf(1,'\n');
-      
-%       for stg=1:2
-%         o = objs{stg};
-%         if o.isTrkFiles(),
-%           if isempty(o.skip_dlgs) || ~o.skip_dlgs
-%             qstr = sprintf('Stage %d: Tracking results exist for previous deep trackers. When training stops, these will be deleted. Continue training?',stg);
-%             res = questdlg(qstr,'Continue training?','Yes','No','Cancel','Yes');
-%             if ~strcmpi(res,'Yes'),
-%               return;
-%             end
-%           end
-%         end
-% 
-%         o.setAllParams(lblObj.trackGetTrainingParams());
-% 
-%         if isempty(o.sPrmAll)
-%           error('No tracking parameters have been set.');
-%         end
-% 
-%         o.bgTrnReset();
-% %         if ~isempty(oldVizObj),
-% %           delete(oldVizObj);
-% %         end
-%       end
-      
-%       modelChain0 = obj2.trnName;
-%       dlTrnType = DLTrainType.New;
-%       switch dlTrnType
-%         case DLTrainType.New
-%           modelChain = datestr(now,'yyyymmddTHHMMSS');
-%           if ~isempty(modelChain0)
-%             assert(~strcmp(modelChain,modelChain0));
-%             fprintf('Training new model %s.\n',modelChain);
-%           end
-% %         case {DLTrainType.Restart DLTrainType.RestartAug}
-% %           if isempty(modelChain0)
-% %             error('Model has not been trained.');
-% %           end
-% %           modelChain = modelChain0;
-% %           fprintf('Restarting train on model %s.\n',modelChain);
-%         otherwise
-%           assert(false);
-%       end
-%             
-%       trainID = modelChain;
-%       dmcDummy = DeepModelChainOnDisk(...
-%         'rootDir',obj2.lObj.DLCacheDir,...
-%         'projID',obj2.lObj.projname,...
-%         'modelChainID',modelChain,...
-%         'trainID',trainID ...
-%         );
-%       dlLblFileLcl = dmcDummy.lblStrippedLnx;
-%       obj2.genStrippedLblTrnPack(dlLblFileLcl);
-%       switch trnBackEnd.type        
-%         case {DLBackEnd.Bsub DLBackEnd.Conda DLBackEnd.Docker}          
-%           
-%           obj2.trnDoneStage1 = false;
-%           obj2.trnDoneStage2 = false;
-%           
-%           trainStartCbk1 = @(s,e)0; % "do nothing"
-%           % trainStartCbk2 = []; % No need to supply, use default
-%           trainCompleteCbk1 = @(s,e)obj2.trainCompleteCbkStg1(s,e);
-%           trainCompleteCbk2 = @(s,e)obj2.trainCompleteCbkStg2(s,e);                    
-%           args = {'wbObj' wbObj 'existingTrnPackSLbl',dlLblFileLcl};
-%           obj1.trnSpawn(trnBackEnd,dlTrnType,modelChain,...
-%             'trnStartCbk',trainStartCbk1,...
-%             'trnCompleteCbk',trainCompleteCbk1,...
-%             args{:});
-%           obj2.trnSpawn(trnBackEnd,dlTrnType,modelChain,...
-%             'trnCompleteCbk',trainCompleteCbk2,...
-%             args{:});
-%         case DLBackEnd.AWS
-%           obj2.trnSpawnAWS(trnBackEnd,dlTrnType,modelChain,'wbObj',wbObj);
-%         otherwise
-%           assert(false);
-%       end
-%       
-%       % Nothing should occur here as failed trnSpawn* will early return
-    
-    
-    % function trainCompleteCbkStg1(obj,src,evt)
-    %   obj.trnDoneStage1 = true;
-    %   if obj.trnDoneStage2
-    %     obj.trainStoppedCbk();
-    %   end
-    % end
-    % 
-    % function trainCompleteCbkStg2(obj,src,evt)
-    %   obj.trnDoneStage2 = true;
-    %   if obj.trnDoneStage1
-    %     obj.trainStoppedCbk();
-    %   end
-    % end
     
     function tc = getTrackerClassAugmented(obj2)
       obj1 = obj2.stage1Tracker;
@@ -306,9 +183,8 @@ classdef DeepTrackerTopDown < DeepTracker
     function setTrackParams(obj,sPrmTrack)
       setTrackParams@DeepTracker(obj,sPrmTrack);
       setTrackParams@DeepTracker(obj.stage1Tracker,sPrmTrack);
-    end
+    end  % function
 
-    
   end  % mehtods
   
   methods (Static)

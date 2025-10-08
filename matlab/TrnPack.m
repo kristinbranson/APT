@@ -4,6 +4,7 @@ classdef TrnPack
   properties (Constant)
     SUBDIRIM = 'im';
   end
+
   methods (Static)
     
     function vizLoc(packdir,varargin)
@@ -261,6 +262,7 @@ classdef TrnPack
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
     end
+    
     function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
