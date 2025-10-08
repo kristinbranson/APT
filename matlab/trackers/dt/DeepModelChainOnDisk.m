@@ -32,10 +32,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     % We will keep track of which job, stage, and view the
     % training/tracking corresponds to, and allow indexing by these.
     % We will always return cells/arrays. 
-    jobidx = [];
-    stage = [];
-    view = [];
-    splitIdx = [];
+    % The obj recommends a set of n models that span all views, jobs, and stages.
+    % obj.n returns the total number of models.
+    jobidx = zeros(1,0)  % 1xn, n the number of models, indicating the job index for each model
+    stage = zeros(1,0)  % 1xn, n the number of models, indicating the stage (1 or 2, meaning first or second) for each model
+    view = zeros(1,0)  % 1xn, n the number of models, indicating the view index for each model.  View indices are zero-based.
+    splitIdx = zeros(1,0)  % 1xn, n the number of models, no idea.  A natural number for each model.
 
     % root/parent "Models" dir
     % All files will be within a directory specified with the argument 
@@ -83,18 +85,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     % This will be the same for all stages/views.
     projID = '';
 
-    netType = {}; % cell of DLNetTypes
-    netMode = {};
-    modelChainID = {}; % unique ID for a training model for (projname,view). 
-                       % A model can be trained once, but also train-augmented.
-    trainID = {}; % a single modelChainID may be trained multiple times due to 
-                  % train-augmentation, so a single modelID may have multiple
-                  % trainIDs associated with it. Each (modelChainID,trainID) pair
-                  % has a unique associated stripped lbl.            
-    restartTS = {}; % Training for each (modelChainID,trainID) can be killed and
-                    % restarted arbitrarily many times. This timestamp uniquely
-                    % identifies a restart
-    trainType = {}; % cell of DLTrainType
+    netType = cell(1,0)  % 1xn cell array of DLNetTypes, n the number of models.
+    netMode = cell(1,0)  % 1xn cell array of DLNetModes, n the number of models.
+    modelChainID = cell(1,0)  % 1xn cell array of char arrays, n the number of models.
+                              % unique ID for a training model for (projname,view). 
+                              % A model can be trained once, but also train-augmented.
+    trainID = cell(1,0)  % 1xn cell array of char arrays, n the number of models.
+                         % a single modelChainID may be trained multiple times due to 
+                         % train-augmentation, so a single modelID may have multiple
+                         % trainIDs associated with it. Each (modelChainID,trainID) pair
+                         % has a unique associated stripped lbl.
+    restartTS = cell(1,0)  % 1xn cell array of char arrays, n the number of models.
+                           % Training for each (modelChainID,trainID) can be killed and
+                           % restarted arbitrarily many times. This timestamp uniquely
+                           % identifies a restart for each model.
+                           % Don't think this is ever used. -- ALT, 2025-10-08
+    trainType = cell(1,0)  % 1xn cell array of DLTrainType, n the number of models.
     
     isMultiViewTracker = []; % whether this tracker is part of a multi-view tracker
     isMultiStageTracker = []; % whether this tracker is part of a multi-stage tracker
@@ -103,27 +109,22 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     % wherein a single stripped lbl is used in multiple runs
     trainConfigNameOverride = {}; 
     
-    iterFinal = []; % final expected iteration    
-    iterCurr = []; % last completed iteration, corresponds to actual model file used
-      % iterCurr is 0x0 (if there are zero models) or 1 x nModels.  Elements can
-      % be nan, which means no training has been done on that model.
-    nLabels = []; % number of labels used to train
+    iterFinal = zeros(1,0)  % 1xn, n the number of models, final expected iteration from model index
+    iterCurr = zeros(1,0)  % 1xn, n the number of models, last completed iteration from model index, corresponds to actual model file used
+                           % Elements can be nan, which means no training has been done on that model.
+    nLabels = zeros(1,0)  % number of labels used to train from model index
     
-    %reader % scalar DeepModelChainReader. used to update the itercurr; 
-      % knows how to read the (possibly remote) filesys etc
-      
-    %filesep ='/'; % file separator
-
-    trkTaskKeyword = {}; % arbitrary tracking task keyword; used for tracking output files
-    trkTSstr = '';% timestamp for tracking
-    prev_models = []; % prev model to start training from
-    % isRemote_ = false  
-    %   % True iff the "current" version of the model is on a remote AWS filesystem.  
-    %   % Underscore means "protected by convention"
-  end
+    trkTaskKeyword = {};  % arbitrary tracking task keyword; used for tracking output files
+    trkTSstr = '';  % timestamp for tracking
+    prev_models = cell(1,0)  
+      % 1xn cell array of char arrays, n the number of models, prev model to start
+      % training from, for each model.  Each element is either empty (if no previous model) or the native
+      % absolute path to a weight file, e.g.
+      % '/home/janedoe/.apt/tp41ba1cbe_24f0_4c6a_a364_5ce8831256a5/multiflyMA/hrnet/view_0/20251007T181147/deepnet-1000'
+  end  % properties
 
   properties (Dependent)
-    n  % The number of models.  Most properties of obj should be 1 x n
+    n  % The total number of models, across all stages, views, and jobs.  Most properties of obj should be 1 x n
     nviews
     njobs
     nstages
@@ -189,9 +190,40 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     %   v = obj.isRemote_ ;
     % end
 
-    function idx = select(obj,varargin)
-      idx = DeepModelChainOnDisk.selectHelper(obj,varargin{:});
-    end
+    function idx = select(obj, varargin)
+      % Returns a numeric array suitable for indexing into dmc.view, dmc.stage, etc.
+      % The returned array is generally a numeric array of indices.
+      % Example: dmc.select(dmc, 'view', 1) => (indices of all models in dmc with view==1)
+      % Example: dmc.select(dmc, 'stage', 2) => (indices of all models in dmc with stage==1)
+      if numel(varargin) == 1,
+        idx = varargin{:};
+        return;
+      end
+      if isempty(varargin),
+        idx = 1:numel(obj.view);
+        return;
+      end
+      [jobidx1,view1,stage1,splitidx1] = ...
+        myparse(varargin, ...
+                'jobidx','all', ...
+                'view','all', ...
+                'stage','all', ...
+                'splitidx','all'); 
+      tfDoReturnFromIdx = true(1,numel(obj.view));
+      if ~isequal(jobidx1,'all'), 
+        tfDoReturnFromIdx = tfDoReturnFromIdx & jobidx1 == obj.jobidx; 
+      end
+      if ~isequal(view1,'all'), 
+        tfDoReturnFromIdx = tfDoReturnFromIdx & view1 == obj.view; 
+      end
+      if ~isequal(stage1,'all'), 
+        tfDoReturnFromIdx = tfDoReturnFromIdx & stage1 == obj.stage; 
+      end
+      if ~isequal(splitidx1,'all'), 
+        tfDoReturnFromIdx = tfDoReturnFromIdx & splitidx1 == obj.splitIdx;
+      end
+      idx = find(tfDoReturnFromIdx);
+    end  % function
 
     function result = getIdentifiers(obj)
       result = struct();
@@ -310,19 +342,24 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     function v = job2view(obj,ijob)
       v = unique(obj.view(obj.jobidx==ijob));
     end
+
     function v = job2stage(obj,ijob)
       v = unique(obj.stage(obj.jobidx==ijob));
     end
+
     function resetIsMultiViewTracker(obj)
       obj.isMultiViewTracker = numel(unique(obj.view))>1;
     end
+
     function resetIsMultiStageTracker(obj)
       obj.isMultiStageTracker = numel(unique(obj.stage))>1;
     end
+
     function idx = setFollowsObjDet(obj,isObjDet,varargin)
       idx = obj.select(varargin{:});
       obj.tfFollowsObjDet(idx) = isObjDet;
     end
+
     function resetFollowsObjDet(obj)
       stages = obj.getStages();
       ustages = unique(stages);
@@ -353,6 +390,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = [obj.rootDir '/' obj.projID '/' char(obj.netType{icurr})];
       end
     end
+
     function [v,idx] = getNetDescriptor(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -361,6 +399,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = sprintf('%s_view%d',char(obj.netType{icurr}),obj.view(icurr));
       end
     end
+
     function [v,idx] = dirViewLnx(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -369,6 +408,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = [obj.rootDir '/' obj.projID '/' char(obj.netType{icurr}) '/' sprintf('view_%d',obj.view(icurr))];
       end
     end
+
     function [v,idx] = dirModelChainLnx(obj,varargin)
       [dirViewLnxs,idx] = obj.dirViewLnx(varargin{:});
       v = cell(1,numel(idx));
@@ -377,6 +417,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = [dirViewLnxs{ii} '/' obj.modelChainID{icurr}];
       end
     end
+
     function [v,idx] = dirTrkOutLnx(obj,varargin)
       [dirModelChainLnxs,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(dirModelChainLnxs));
@@ -384,9 +425,11 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirModelChainLnxs{icurr} '/' 'trk'];
       end
     end 
+
     function v = dirAptRootLnx(obj)
       v = [obj.rootDir '/' 'APT'];
     end
+
     function [v,idx] = trainConfigLnx(obj,varargin)
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
       v = cell(1,numel(idx));
@@ -394,6 +437,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} obj.configFileExt];
       end
     end
+
     function [v,idx] = trainConfigName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -406,6 +450,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         end
       end
     end
+
     function [v,idx] = lblStrippedLnx(obj,varargin)
       warning('OBSOLETE: Reference to stripped lbl file. We are trying to remove these. Let Kristin know how you got here!');
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
@@ -458,12 +503,14 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         end
       end
     end
+
     function [v,idx] = splitfileLnx(obj,varargin)
       [v,idx] = obj.splitfileName(varargin{:});
       for icurr = 1:numel(v),
         v{icurr} = [obj.dirProjLnx '/' v{icurr}];
       end
     end
+
     function [v,idx] = splitfileName(obj,varargin)
       idx = obj.select(varargin{:});
       % not sure how multiview works yet
@@ -477,6 +524,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v = repmat({'__NOSPLIT__'},[1,numel(idx)]);
       end
     end
+
     function [v,idx] = valresultsLnx(obj,varargin)
       [valresultsName,idx] = obj.valresultsName(varargin{:});
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
@@ -494,6 +542,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirTrkOutLnx{icurr} '/' valresultsNameBase{icurr}];
       end
     end    
+
     function [v,idx] = valresultsName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -502,10 +551,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = sprintf('%s_%d.mat',obj.trainID{icurr},obj.view(icurr));
       end
     end
+
     function [v,idx] = valresultsNameBase(obj,varargin)
       idx = obj.select(varargin{:});
       v = obj.trainID(idx);
     end 
+
     function [v,idx] = errfileLnx(obj,varargin)
       [errfileName,idx] = obj.errfileName(varargin{:});
       v = cell(1,numel(idx));
@@ -513,6 +564,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [obj.dirProjLnx '/' errfileName{icurr}];
       end
     end
+
     function [v,idx] = errfileName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -528,6 +580,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = sprintf('%s%s_%s_%s.err',obj.modelChainID{icurr},viewstr,obj.trainID{icurr},netModeName{1});
       end
     end
+
     function v = isMultiStageJob(obj,varargin)
       idx = obj.select(varargin{:});
       v = false(1,obj.n);
@@ -537,6 +590,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       end
       v = v(idx);
     end
+
     function v = isMultiViewJob(obj,varargin)
       idx = obj.select(varargin{:});
       v = false(1,obj.n);
@@ -559,6 +613,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         end
       end
     end
+
     function [v,idx] = trainLogLnx(obj,varargin)
       [trainLogName,idx] = obj.trainLogName(varargin{:});
       v = cell(1,numel(trainLogName));
@@ -566,6 +621,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [obj.dirProjLnx '/' trainLogName{icurr}];
       end
     end
+
     function [v,idx] = trainLogName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -577,16 +633,21 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         else
           viewstr = sprintf('view%d',obj.view(icurr));
         end
-        if isequal(obj.trainType{icurr},DLTrainType.Restart),
+        if isequal(obj.trainType{icurr}, DLTrainType.Restart),
           restartstr = obj.restartTS{icurr};
         else
           restartstr = '';
         end
-        v{ii} = sprintf('%s%s_%s_%s_%s%s.log',obj.modelChainID{icurr},viewstr,...
-          obj.trainID{icurr},DeepModelChainOnDisk.getCheckSingle(obj.netModeName(icurr)),...
-          lower(char(obj.trainType{icurr})),restartstr);
+        v{ii} = sprintf('%s%s_%s_%s_%s%s.log', ...
+                        obj.modelChainID{icurr}, ...
+                        viewstr, ...
+                        obj.trainID{icurr}, ...
+                        DeepModelChainOnDisk.getCheckSingle(obj.netModeName(icurr)), ...
+                        lower(char(obj.trainType{icurr})), ...
+                        restartstr);
       end
     end
+
     function [v,idx] = trkName(obj,varargin)
       [idx] = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -604,34 +665,42 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirTrkOutLnx{icurr} '/' v{icurr}];
       end
     end
+
     function [v,idx] = trkExtName(obj,ext,varargin)
       [v,idx] = obj.trkName(varargin{:});
       v = cellfun(@(x) [x,ext],v,'Uni',0);
 %       v = sprintf('%s_%s_vw%d_%s.log',obj.trkTaskKeyword,obj.modelChainID, ...
 %         obj.view,obj.trkTSstr);
     end
+
     function [v,idx] = trkLogLnx(obj,varargin)
       [v,idx] = obj.trkExtLnx('.log',varargin{:});
     end
+
     function [v,idx] = trkLogName(obj,varargin)
       [v,idx] = obj.trkExtName('.log',varargin{:});
 %       v = sprintf('%s_%s_vw%d_%s.log',obj.trkTaskKeyword,obj.modelChainID, ...
 %         obj.view,obj.trkTSstr);
     end
+
     function [v,idx] = trkErrfileLnx(obj,varargin)
       [v,idx] = obj.trkExtLnx('.err',varargin{:});
     end
+
     function [v,idx] = trkErrName(obj,varargin)
       [v,idx] = obj.trkExtName('.err',varargin{:});
 %       v = sprintf('%s_%s_vw%d_%s.err',obj.trkTaskKeyword,obj.modelChainID, ...
 %         obj.view,obj.trkTSstr);
     end
+
     function [v,idx] = trkCmdfileLnx(obj,varargin)
       [v,idx] = obj.trkExtLnx('.cmd',varargin{:});
     end
+
     function [v,idx] = trkCmdfileName(obj,varargin)
       [v,idx] = obj.trkExtName('.cmd',varargin{:});
     end  
+
     function [v,idx] = trkSnapshotLnx(obj,varargin)
       [trkSnapshotName,idx] = obj.trkSnapshotName(varargin{:});
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
@@ -640,6 +709,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirTrkOutLnx{icurr} '/' trkSnapshotName{icurr}];
       end
     end
+
     function [v,idx] = trkSnapshotName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -649,10 +719,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
           obj.view{icurr},obj.trkTSstr);
       end
     end
+
     function [v,idx] = gtOutfilePartLnx(obj,varargin)
       [v,idx] = obj.gtOutfileLnx(varargin{:});
       v = cellfun(@(x) [x,'.part'],v,'Uni',0);
     end
+
     function [v,idx] = gtOutfileLnx(obj,varargin)
       [gtOutfileName,idx] = obj.gtOutfileName(varargin{:});
       [dirTrkOutLnx] = obj.dirTrkOutLnx(idx);
@@ -661,6 +733,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirTrkOutLnx{icurr} '/' gtOutfileName{icurr}];
       end
     end
+
     function [v,idx] = gtOutfileName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -697,6 +770,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     %     v{icurr} = sprintf('%s_%s%s.KILLED',obj.trainID{icurr},lower(char(obj.trainType{icurr})),restartstr);
     %   end
     % end  
+
     function [v,idx] = trainDataLnx(obj,varargin)
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(idx));
@@ -704,6 +778,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirModelChainLnx{icurr} '/' 'traindata.json'];
       end
     end
+
     function v = trainContainerName(obj,varargin)
       idx = obj.select(varargin{:});
       DeepModelChainOnDisk.getCheckSingle(obj.getJobs(idx));
@@ -719,6 +794,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       netModeName1 = DeepModelChainOnDisk.getCheckSingle(obj.netModeName(idx));
       v = ['train_' modelChainID1 '_' trainID1 '_' netModeName1 viewstr];
     end
+
     function [v,idx] = trainFinalModelLnx(obj,varargin)
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       [trainFinalModelName] = obj.trainFinalModelName(idx);
@@ -727,6 +803,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirModelChainLnx{icurr} '/' trainFinalModelName{icurr}];
       end
     end
+
     function [v,idx] = trainCompleteArtifacts(obj,varargin)
       [trainFinalModelLnx,idx] = obj.trainFinalModelLnx(varargin{:});
       v = cell(1,numel(idx));
@@ -734,6 +811,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = {trainFinalModelLnx{icurr}}; %#ok<CCAT1> 
       end
     end
+
     function [v,idx] = trainCurrModelLnx(obj,varargin)
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       [trainCurrModelName] = obj.trainCurrModelName(idx);
@@ -742,10 +820,12 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirModelChainLnx{icurr} '/' trainCurrModelName{icurr}];
       end
     end
+
     function [v,idx] = trainCurrModelSuffixlessLnx(obj,varargin)
       [v,idx] = obj.trainCurrModelLnx(varargin{:});
       v = regexprep(v,'\.index$','');
     end
+
     function [v,idx] = trainFinalModelName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -755,6 +835,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = sprintf(pat,obj.iterFinal(icurr));
       end
     end    
+
     function [v,idx] = trainCurrModelName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -764,6 +845,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = sprintf(pat,obj.iterCurr(icurr));
       end
     end
+
     function [v,idx] = trainImagesNameLnx(obj,varargin)
       [dirModelChainLnx,idx] = obj.dirModelChainLnx(varargin{:});
       v = cell(1,numel(idx));
@@ -771,6 +853,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [dirModelChainLnx{icurr} '/' obj.trainingImagesName];
       end
     end
+
     function [v,idx] = trainModelGlob(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -779,6 +862,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{ii} = obj.netType{icurr}.mdlGlobPat;
       end
     end
+
     function [v,idx] = aptRepoSnapshotLnx(obj,varargin)
       [aptRepoSnapshotName,idx] = obj.aptRepoSnapshotName(varargin{:});
       v = cell(1,numel(idx));
@@ -786,6 +870,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [obj.dirProjLnx '/' aptRepoSnapshotName{icurr}];
       end
     end
+
     function [v,idx] = aptRepoSnapshotName(obj,varargin)
       idx = obj.select(varargin{:});
       v = cell(1,numel(idx));
@@ -827,7 +912,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       end
 
       obj.autoFix_(nmodels);
-    end
+    end  % function
     
     function autoFix_(obj,nmodels)
       if nargin < 2 || isempty(nmodels),
@@ -932,13 +1017,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
 
     function tf = isPostRefactor202208(obj)
       nmodels = max([numel(obj.view),numel(obj.jobidx),numel(obj.stage),numel(obj.splitIdx)]);
-      tf = nmodels==numel(obj.jobidx) && nmodels==numel(obj.stage) && ...
-          nmodels==numel(obj.view) && nmodels==numel(obj.splitIdx) && ...
-          nmodels==numel(obj.modelChainID) && ...
-          nmodels==numel(obj.trainID) && ...
-          nmodels==numel(obj.projID) && ...
-          nmodels==numel(obj.netType) && ...
-          nmodels==numel(obj.netMode);
+      tf = ( nmodels==numel(obj.jobidx) && nmodels==numel(obj.stage) && ...
+             nmodels==numel(obj.view) && nmodels==numel(obj.splitIdx) && ...
+             nmodels==numel(obj.modelChainID) && ...
+             nmodels==numel(obj.trainID) && ...
+             nmodels==numel(obj.projID) && ...
+             nmodels==numel(obj.netType) && ...
+             nmodels==numel(obj.netMode) );
       %tf = tf && isequal(numel(unique(obj.view)) > 1,obj.isMultiView);
       %tf = tf && isequal(numel(unique(obj.stage)) > 1,obj.isMultiStage);
     end
@@ -1052,53 +1137,53 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
 %       end
 %     end
 
-    function [fileinfo,idx] = trainFileInfo(obj,varargin) 
-      % This method is only called by trainFileInfoSingle() and trackFileInfo(),
-      % neither of which ever gets called by anyone. --ALT, 2024-10-01
-      idx = obj.select(varargin{:});
-      fileinfo = struct() ;
-      fileinfo.modelChainID = obj.modelChainID(idx);
-      fileinfo.trainID = obj.trainID(idx);
-      fileinfo.dlconfig = obj.trainConfigLnx;
-      fileinfo.trainlocfile = obj.trainLocLnx;
-      fileinfo.cache = obj.rootDir;
-      fileinfo.errfile = obj.errfileLnx(idx);
-      fileinfo.netType = obj.netType(idx);
-      fileinfo.netMode = obj.netMode(idx);
-      fileinfo.netModeName = obj.netModeName(idx);
-      fileinfo.view = obj.view(idx);
-      fileinfo.jobidx = obj.jobidx(idx);
-      fileinfo.stage = obj.stage(idx);
-      fileinfo.splitidx = obj.splitIdx(idx);
-      fileinfo.selectfun = @(idx1) DeepModelChainOnDisk.selectHelper(fileinfo,idx);
-    end
-
-    function [fileinfo,idx] = trainFileInfoSingle(obj,varargin)
-      % This method does not seem to ever get called by anyone. --ALT, 2024-10-01
-      [fileinfo,idx] = obj.trainFileInfo(varargin{:});
-      fileinfo.modelChainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
-      fileinfo.trainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.trainID);
-      fileinfo.dlconfig = DeepModelChainOnDisk.getCheckSingle(fileinfo.dlconfig);
-      % fileinfo.trainlocfile is already a char
-      % fileinfo.cache is already a char
-      fileinfo.errfile = DeepModelChainOnDisk.getCheckSingle(fileinfo.errfile);
-      % fileinfo.netType is a cell still
-      % fileinfo.netMode is a cell still
-      fileinfo.netModeName = DeepModelChainOnDisk.getCheckSingle(fileinfo.netModeName);
-      % fileinfo.view may be a vector
-      fileinfo.jobidx = DeepModelChainOnDisk.getCheckSingle(fileinfo.jobidx);
-      % fileinfo.stage may be a vector
-      % fileinfo.splitidx may be a vector
-    end
-
-    function [fileinfo,idx] = trackFileInfo(obj,varargin)
-      % This method does not seem to ever get called by anyone. --ALT, 2024-10-01
-      % TODO update and test
-      [fileinfo,idx] = obj.trainFileInfo(varargin{:});
-      fileinfo.errfile = obj.trkErrfileLnx(idx);
-      fileinfo.logfile = obj.trkLogfileLnx(idx);
-      fileinfo.configfile = obj.trkConfigLnx(idx);
-    end
+    % function [fileinfo,idx] = trainFileInfo(obj,varargin) 
+    %   % This method is only called by trainFileInfoSingle() and trackFileInfo(),
+    %   % neither of which ever gets called by anyone. --ALT, 2024-10-01
+    %   idx = obj.select(varargin{:});
+    %   fileinfo = struct() ;
+    %   fileinfo.modelChainID = obj.modelChainID(idx);
+    %   fileinfo.trainID = obj.trainID(idx);
+    %   fileinfo.dlconfig = obj.trainConfigLnx;
+    %   fileinfo.trainlocfile = obj.trainLocLnx;
+    %   fileinfo.cache = obj.rootDir;
+    %   fileinfo.errfile = obj.errfileLnx(idx);
+    %   fileinfo.netType = obj.netType(idx);
+    %   fileinfo.netMode = obj.netMode(idx);
+    %   fileinfo.netModeName = obj.netModeName(idx);
+    %   fileinfo.view = obj.view(idx);
+    %   fileinfo.jobidx = obj.jobidx(idx);
+    %   fileinfo.stage = obj.stage(idx);
+    %   fileinfo.splitidx = obj.splitIdx(idx);
+    %   fileinfo.selectfun = @(idx1) DeepModelChainOnDisk.selectHelper(fileinfo,idx);
+    % end
+    % 
+    % function [fileinfo,idx] = trainFileInfoSingle(obj,varargin)
+    %   % This method does not seem to ever get called by anyone. --ALT, 2024-10-01
+    %   [fileinfo,idx] = obj.trainFileInfo(varargin{:});
+    %   fileinfo.modelChainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.modelChainID);
+    %   fileinfo.trainID = DeepModelChainOnDisk.getCheckSingle(fileinfo.trainID);
+    %   fileinfo.dlconfig = DeepModelChainOnDisk.getCheckSingle(fileinfo.dlconfig);
+    %   % fileinfo.trainlocfile is already a char
+    %   % fileinfo.cache is already a char
+    %   fileinfo.errfile = DeepModelChainOnDisk.getCheckSingle(fileinfo.errfile);
+    %   % fileinfo.netType is a cell still
+    %   % fileinfo.netMode is a cell still
+    %   fileinfo.netModeName = DeepModelChainOnDisk.getCheckSingle(fileinfo.netModeName);
+    %   % fileinfo.view may be a vector
+    %   fileinfo.jobidx = DeepModelChainOnDisk.getCheckSingle(fileinfo.jobidx);
+    %   % fileinfo.stage may be a vector
+    %   % fileinfo.splitidx may be a vector
+    % end
+    % 
+    % function [fileinfo,idx] = trackFileInfo(obj,varargin)
+    %   % This method does not seem to ever get called by anyone. --ALT, 2024-10-01
+    %   % TODO update and test
+    %   [fileinfo,idx] = obj.trainFileInfo(varargin{:});
+    %   fileinfo.errfile = obj.trkErrfileLnx(idx);
+    %   fileinfo.logfile = obj.trkLogfileLnx(idx);
+    %   fileinfo.configfile = obj.trkConfigLnx(idx);
+    % end
 
 %     function lsProjDir(obj,varargin)
 %       idx = obj.select(varargin{:});
@@ -1198,16 +1283,17 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       obj.nLabels(idx) = nLabels;
     end
 
-     function setRestartTS(obj,restartTS)
-      if ischar(restartTS),
-        obj.restartTS = repmat({restartTS},[1,obj.n]);
-      elseif numel(restartTS) == 1,
-        obj.restartTS = repmat(restartTS,[1,obj.n]);
-      else
-        assert(numel(restartTS)==obj.n);
-        obj.restartTS = restartTS;
-      end
-    end
+    % function setRestartTS(obj, restartTS)
+    %   % Set the restart timestamps.  Seemingly never called.  -- ALT, 2025-10-08
+    %   if ischar(restartTS),
+    %     obj.restartTS = repmat({restartTS},[1,obj.n]);
+    %   elseif numel(restartTS) == 1,
+    %     obj.restartTS = repmat(restartTS,[1,obj.n]);
+    %   else
+    %     assert(numel(restartTS)==obj.n);
+    %     obj.restartTS = restartTS;
+    %   end
+    % end
 
     % whether training has actually started
     function tf = isPartiallyTrained(obj)      
@@ -1220,73 +1306,30 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       tpdir = obj.dirProjLnx;
       tf = logical(exist(tpdir,'dir')) && logical(exist(trainLocLnx,'file')) ;
     end
-
-    % function result = getTorchHome(obj)
-    %   if obj.isRemote_ ,
-    %     result = linux_fullfile(obj.remoteRootDir_, 'torch') ;
-    %   else
-    %     result = fullfile(APT.getdotaptdirpath(), 'torch') ;
-    %   end
-    % end
-
   end  % methods
   
-  
-  methods (Static)
-    
-    function iter = getModelFileIter(filename)
-      
+  methods (Static)    
+    function iter = getModelFileIter(filename)      
       iter = regexp(filename,'deepnet-(\d+)','once','tokens');
       if isempty(iter),
         iter = [];
         return;
       end
-      iter = str2double(iter{1});
-      
+      iter = str2double(iter{1});      
     end
-    function view = getModelFileView(filename)
 
+    function view = getModelFileView(filename)
       view = regexp(filename,'view_(\d+)','once','tokens');
       if isempty(view),
         view = 0;
         return;
       end
       view = str2double(view{1});
-
     end
+
     function mcId = modelChainIDForSplit(mcIdBase,isplit)
       mcId = sprintf('%s_splt_%03d',mcIdBase,isplit);
     end
-
-    function idx = selectHelper(info,varargin)
-      % Returns a numeric array suitable for indexing into dmc.view, dmc.stage, etc.
-      % The returned array is generally a numeric array of indices.
-      % Example: selectHelper(dmc, 'view', 1) => (indices of all models in dmc with view==1)
-      % Example: selectHelper(dmc, 'stage', 2) => (indices of all models in dmc with stage==1)
-      if numel(varargin) == 1,
-        idx = varargin{:};
-        return;
-      end
-      if isempty(varargin),
-        idx = 1:numel(info.view);
-        return;
-      end
-      [jobidx1,view1,stage1,splitidx1] = myparse(varargin,'jobidx','all','view','all','stage','all','splitidx','all'); 
-      idx = true(1,numel(info.view));
-      if ~isequal(jobidx1,'all'), 
-        idx = idx & jobidx1 == info.jobidx; 
-      end
-      if ~isequal(view1,'all'), 
-        idx = idx & view1 == info.view; 
-      end
-      if ~isequal(stage1,'all'), 
-        idx = idx & stage1 == info.stage; 
-      end
-      if ~isequal(splitidx1,'all'), 
-        idx = idx & splitidx1 == info.splitIdx;
-      end
-      idx = find(idx);
-    end  % function
 
     function result = modernize(dmcs,varargin)
       % Return a DeepModelChainOnDisk handle array, similar to dmcs, but patched
@@ -1496,11 +1539,9 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     end  % function
 
     function v = toCellArray(v,ncurr,ischarcellarray)
-
       if nargin < 3,
         ischarcellarray = false;
-      end
-      
+      end      
       % sometimes there are cells of cells for some reason?
       while iscell(v) && numel(v) == 1,
         v = v{1};
@@ -1527,8 +1568,6 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
       else
         error('Could not convert to cell array of length %d',ncurr);
       end
-
     end  % function
-
   end  % methods (Static)
 end  % classdef

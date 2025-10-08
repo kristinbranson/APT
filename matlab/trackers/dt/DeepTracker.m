@@ -880,7 +880,7 @@ classdef DeepTracker < LabelTracker
       backend.uploadMovies(nativePathFromMovieIndex) ;
     end
     
-    function train(obj,varargin)
+    function train(obj, varargin)
       % Main training function
       % Called by Labeler.train
       % Checks whether tracking results already exist, and what to do about
@@ -899,7 +899,12 @@ classdef DeepTracker < LabelTracker
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true, ...
                 'projTempDir', '') ;
-     
+      % When augOnly is true, intent (I think) is to just enough of training so that
+      % the augmented images are generated and can then be viewed in the training
+      % visualizer using the "Show sample training images" popup menu.  But
+      % currently it seems to actually start training, which is not great.  -- ALT,
+      % 2025-10-07
+
       obj.pretrain_();
       backend = obj.backend ;
       
@@ -959,14 +964,14 @@ classdef DeepTracker < LabelTracker
               return
             end
           end
-        case {DLTrainType.Restart DLTrainType.RestartAug}
+        case DLTrainType.Restart
           if isempty(modelChain0)
             error('Model has not been trained.');
           end
           modelChain = modelChain0;
           fprintf('Restarting train on model %s.\n',modelChain);
         otherwise
-          assert(false);
+          assert(false, 'Internal error');
       end
 
       % Spawn the training job
@@ -1398,10 +1403,11 @@ classdef DeepTracker < LabelTracker
       trainID = toks.trainID;
     end
 
-    function trainID = getTrainID(obj,varargin)
-      [existingTrnPackSLbl,tfGenNewConfigFile] = ...
-        myparse(varargin,'existingTrnPackSLbl',[],...
-        'tfGenNewConfigFile',true);
+    function trainID = getTrainID(obj, varargin)
+      [existingTrnPackSLbl, tfGenNewConfigFile] = ...
+        myparse(varargin, ...
+                'existingTrnPackSLbl', [], ...
+                'tfGenNewConfigFile', true);
 
       if ~isempty(existingTrnPackSLbl)
         trainID = obj.configFile2TrainID(existingTrnPackSLbl);
@@ -1491,8 +1497,7 @@ classdef DeepTracker < LabelTracker
                 'projTempDir', '') ;
       
       % create/ensure config file; set trainID
-      tfGenNewConfigFile = trnType==DLTrainType.New || ...
-                            trnType==DLTrainType.RestartAug;
+      tfGenNewConfigFile = ( trnType==DLTrainType.New );
 
       [jobidx,view,stage,gpuids] = obj.SplitTrainIntoJobs(backend);
       netType = obj.getNetType(); % will have one value for each stage

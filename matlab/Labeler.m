@@ -11652,11 +11652,11 @@ classdef Labeler < handle
       tObj.trainIncremental();
     end
         
-    function train(obj,varargin)
+    function train(obj, varargin)
       [tblMFTtrn, trainArgs, do_just_generate_db, do_call_apt_interface_dot_py] = myparse(...
         varargin,...
-        'tblMFTtrn',[],... % (opt) table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
-        'trainArgs',{},... % (opt) args to pass to tracker.retrain()
+        'tblMFTtrn',[],... % table on which to train (cols MFTable.FLDSID only). defaults to all of obj.preProcGetMFTableLbled
+        'trainArgs',{},... % args to pass to tracker.train()
         'do_just_generate_db', false, ...
         'do_call_apt_interface_dot_py', true ...
         );
@@ -13348,12 +13348,10 @@ classdef Labeler < handle
     function trackResSetTextCosmetics(obj,id,varargin)
       obj.hlpTrackResSetViz('setTextCosmetics',id,varargin);
     end
-
-  end
+  end  % methods
    
   %% Video
-  methods
-    
+  methods    
     function [tfsucc,xy] = videoCenterOnCurrTargetPointHelp(obj)
       % get (x,y) for current movieCenterOnTargetIPt
       
@@ -13401,13 +13399,11 @@ classdef Labeler < handle
     function unsetdrag(obj)
       obj.drag = false;
       obj.drag_pt = [];
-    end
-    
-  end
+    end    
+  end  % methods
   
   %% Crop
-  methods
-    
+  methods    
     function cropSetCropMode(obj, tf)
       if ~obj.hasMovie ,
         error('Can''t do that without a movie') ;
@@ -13425,8 +13421,7 @@ classdef Labeler < handle
       obj.notify('cropIsCropModeChanged');
     end
     
-    function syncCropInfoToCurrMov(obj)
-      
+    function syncCropInfoToCurrMov(obj)      
       iMov = obj.currMovie;
       if obj.gtIsGTMode,
         cropInfo = obj.movieFilesAllGTCropInfo{iMov};
@@ -13621,11 +13616,9 @@ classdef Labeler < handle
       obj.notify('cropCropsChanged'); 
     end
     
-    function reportLabelChange(obj)
-      
+    function reportLabelChange(obj)      
       obj.labeledposNeedsSave = true;
       obj.lastLabelChangeTS = now;
-
     end
     
     function tfOKSz = cropCheckValidCropSize(obj,iview,widthHeight)

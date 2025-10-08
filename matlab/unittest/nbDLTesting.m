@@ -23,8 +23,8 @@ lObj.trackSetDLBackend(be);
 % instance)
 
 %% Train
-wbObj = WaitBarWithCancel('Training');
-lObj.train('trainArgs',{'wbObj',wbObj});
+%wbObj = WaitBarWithCancel('Training');
+lObj.train();
 
 %% State of Train
 t.trnPrintLogs
