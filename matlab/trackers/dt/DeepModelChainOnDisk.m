@@ -459,6 +459,7 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.lbl'];
       end
     end
+
     % full path to json config for this train session
     function [v,idx] = trainJsonLnx(obj,varargin)
       [trainConfigNames,idx] = obj.trainConfigName(varargin{:});
@@ -467,11 +468,13 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
         v{icurr} = [obj.dirProjLnx '/' trainConfigNames{icurr} '.json'];
       end
     end
-     % full path to training annotations - unused
+
+    % full path to training annotations - unused
     function v = trainPackLnx(obj)
       v = [obj.dirProjLnx '/' obj.trainPackName];      
     end
-     % full path to training annotations - used - unique
+
+    % full path to training annotations - used - unique
     function v = trainLocLnx(obj)
       v = [obj.dirProjLnx '/' obj.trainLocName];
     end
