@@ -267,7 +267,7 @@ classdef TrnPack
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx,trainConfigName,slblname,verbosejson,tblsplit,view,...
+      [writeims,writeimsidx,~,~,verbosejson,tblsplit,~,...
         cocoformat,jsonfilename] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
@@ -847,7 +847,7 @@ classdef TrnPack
           r0 = min(rcc);
           r1 = max(rcc);
           
-          roicrop = [c0 c1 r0 r1];
+          % roicrop = [c0 c1 r0 r1];
           roi = [c0 c0 c1 c1 r0 r1 r1 r0]';
           xyfcrop = xyf;
           xyfcrop(:,1,:) = xyfcrop(:,1,:)-c0+1;
@@ -896,7 +896,7 @@ classdef TrnPack
         c1 = size(slbl.preProcData_I{v},2);
         r1 = size(slbl.preProcData_I{v},1);
         cur_roi = [1 1 c1 c1 1 r1 r1 1]';
-        roi = [roi; cur_roi];
+        roi = [roi; cur_roi];  %#ok<AGROW>
       end
       has_split = ~isempty(tblsplit);
       default_split = 1;
@@ -920,7 +920,7 @@ classdef TrnPack
         for v=1:slbl.cfg.NumViews
           basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%d',imov,f,itgt,v);
           img = sprintf(imgpat,basefS);
-          imgs{v} = img;
+          imgs{v} = img;  %#ok<AGROW>
         end
         sloctmp = struct(...
           'id',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
