@@ -34,7 +34,7 @@ classdef DeepTracker < LabelTracker
   properties
     dryRunOnly % transient, scalar logical. If true, config files, cmds 
       % are generated for DL, but actual DL train/track are not spawned
-    skip_dlgs % MK: Skip save/delete dialogs for testing.
+    skip_dlgs = false  % MK: Skip save/delete dialogs for testing.  Logical scalar.
     isTrainingSplits_  
       % transient, scalar logical.  true iff the ongoing training is training splits.
       % Underscore indicates it is private by convention.
@@ -137,7 +137,7 @@ classdef DeepTracker < LabelTracker
     
     trnSplitLastDMC % [nsplit] Last DMCs, one per split; transient/unmanaged
     
-    bgTrnMonitor % BgMonitor obj
+    bgTrnMonitor = []  % BgMonitor obj
     bgTrainPoller % BgTrainPoller for last/current train
         
     %% track
@@ -155,7 +155,7 @@ classdef DeepTracker < LabelTracker
                % for current or most recent tracking codegen/system call. currently 
                % only used for debugging, printing logfiles etc.
     
-    bgTrkMonitor % BgMonitor obj
+    bgTrkMonitor = [] % BgMonitor obj
     bgTrackPoller % bgTrackWorkerObj for last/current track
     
     % trackres: tracking results DB is in filesys
@@ -220,7 +220,7 @@ classdef DeepTracker < LabelTracker
   end
   
   properties
-    trkVizer % scalar TrackingVisualizer
+    trkVizer % scalar TrackingVisualizer, or 0x0 double matrix
     
     % *Tracking results and viz*
     % For optimization, trkVizer is not created until/when there are
@@ -271,6 +271,7 @@ classdef DeepTracker < LabelTracker
     %   v = DeepModelChainOnDisk.configFileExt;
     % end
     function v = get.trnName(obj)
+      % Returns the common model chain ID for the existing models.
       dmc = obj.trnLastDMC;
       if isempty(dmc)
         v = '';
@@ -320,7 +321,7 @@ classdef DeepTracker < LabelTracker
   end
   
   methods
-    function obj = DeepTracker(lObj,varargin)
+    function obj = DeepTracker(lObj, varargin)
       obj@LabelTracker(lObj);
       %obj.setJrcgpuqueue(DeepTracker.default_jrcgpuqueue);
       
@@ -335,40 +336,34 @@ classdef DeepTracker < LabelTracker
         % Has to be SA
         obj.trnNetMode = DLNetMode.multiAnimalTDPoseTrx;
       end        
-              
-      obj.bgTrnMonitor = [];
-      %obj.bgTrnMonitorVizClass = 'TrainMonitorViz';
-      obj.bgTrkMonitor = [];
-      %obj.bgTrkMonitorVizClass = 'TrackMonitorViz';
+    end  % function
 
-      obj.trkVizer = []; 
-      obj.skip_dlgs = false;
-    end
     function delete(obj)
       obj.trnResInit();
       obj.bgTrkReset_();
       delete(obj.trkVizer);
       obj.trkVizer = [];
-    end
+    end  % function
+
     function initHook(obj)
       obj.trnResInit();
       obj.bgTrkReset_();
       obj.trackResInit();
       obj.trackCurrResInit();
       obj.vizInit();
-      % obj.syncInfoFromDMC_();
-    end
+    end  % function
+
     function deactivate(obj)
       deactivate@LabelTracker(obj);
       delete(obj.trkVizer);
       obj.trkVizer = [];
-    end
+    end  % function
+
     function activate(obj)
       activate@LabelTracker(obj);
       obj.vizInit(false);
-      % obj.syncInfoFromDMC_();
-    end
-  end
+    end  % function
+  end  % methods
   
   %% Params
   methods (Static)
@@ -890,11 +885,10 @@ classdef DeepTracker < LabelTracker
       % calls trnSpawn to actually do anything.
       % also can call trnSpawnAWS but this is obsolete
       
-      [~, dlTrnType, oldVizObj, augOnly, do_just_generate_db, do_call_apt_interface_dot_py,projTempDir] = ...
+      [~, dlTrnType, augOnly, do_just_generate_db, do_call_apt_interface_dot_py,projTempDir] = ...
         myparse(varargin,...
                 'wbObj',[],...
                 'dlTrnType',DLTrainType.New, ...
-                'oldVizObj',[], ...
                 'augOnly',false, ...
                 'do_just_generate_db', false, ...
                 'do_call_apt_interface_dot_py', true, ...
@@ -905,11 +899,15 @@ classdef DeepTracker < LabelTracker
       % currently it seems to actually start training, which is not great.  -- ALT,
       % 2025-10-07
 
+      % Do all the stuff needed before the main part of training.
+      % This includes things like uploading files to a remote filesystem, if called
+      % for.
       obj.pretrain_();
-      backend = obj.backend ;
       
+      % Check if user is ok with their tracking results being deleted, if there are
+      % any.
       if obj.isTrkFiles() ,
-        if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+        if ~obj.skip_dlgs
           res = questdlg(['Tracking results exist for previous deep trackers. ' ...
                           'When training stops, these will be deleted. Continue training?'], ...
                          'Continue training?', ...
@@ -921,6 +919,7 @@ classdef DeepTracker < LabelTracker
         end        
       end
       
+      % Do some simple sanity-checking on the training parameters
       labeler = obj.lObj;
       allParamsRaw=labeler.trackGetTrainingParams();
       obj.setAllParams(allParamsRaw);
@@ -933,51 +932,24 @@ classdef DeepTracker < LabelTracker
                'If all animals are labelled in each frame with any labels, set the tracking parameter "Unlabeled animals present" to false.']) ;
       end
 
+      % Clear out any old training monitors, etc.
       obj.bgTrnReset_();
-      if ~isempty(oldVizObj),
-        delete(oldVizObj);
-      end
       
-      modelChain0 = obj.trnName;
-      prev_models = [];
-      switch dlTrnType
-        case DLTrainType.New
-          modelChain = datestr(now(),'yyyymmddTHHMMSS');
-          if ~isempty(modelChain0) && ~augOnly
-            assert(~strcmp(modelChain,modelChain0));
-            fprintf('Training new model %s.\n',modelChain);
-            defaultans = 'Yes';
-            if isempty(obj.skip_dlgs) || ~obj.skip_dlgs,
-              res = questdlg(['Previously trained models exist for current tracking algorithm. ' ...
-                              'Do you want to use the previous model for initialization?'], ...
-                             'Training Initialization', ...
-                             'Yes','No','Cancel', ...
-                             defaultans);
-            else
-              res = defaultans;
-            end
-            if strcmp(res,'No')
-              prev_models = [];
-            elseif strcmp(res,'Yes')
-              prev_models = obj.trnLastDMC.trainFinalModelLnx;
-            else
-              return
-            end
-          end
-        case DLTrainType.Restart
-          if isempty(modelChain0)
-            error('Model has not been trained.');
-          end
-          modelChain = modelChain0;
-          fprintf('Restarting train on model %s.\n',modelChain);
-        otherwise
-          assert(false, 'Internal error');
-      end
+      % Determine whether we'll be training from scratch or starting with the
+      % existing model.  This determines whether we use an existing modelChainID or
+      % create a new one.
+      [modelChainID, prev_models] = ...
+        determineModelChainIDAndPreviousModelsGUI(obj.trnName, ...
+                                                  obj.trnLastDMC.trainFinalModelLnx, ...
+                                                  dlTrnType, ...
+                                                  augOnly, ...
+                                                  obj.skip_dlgs) ;
 
       % Spawn the training job
+      backend = obj.backend ;      
       obj.trnSpawn_(backend, ...
                     dlTrnType, ...
-                    modelChain, ...
+                    modelChainID, ...
                     'prev_models',prev_models, ...
                     'do_just_generate_db',do_just_generate_db, ...
                     'do_call_apt_interface_dot_py', do_call_apt_interface_dot_py, ...
@@ -1276,12 +1248,10 @@ classdef DeepTracker < LabelTracker
     %   % Overloadable meth
     % 
     %   dmcs = obj.trnLastDMC;
-    % end
-    
-  end
-  methods
-    %% BSub Trainer
-      
+    % end    
+  end  % methods
+
+  methods      
     function ntgtstot = genTrnPack(obj,dmc,varargin)
       % Generate/write a trnpack; can be used for both stages.
       %
@@ -1295,10 +1265,9 @@ classdef DeepTracker < LabelTracker
         end
       end
       [~,~,~,ntgtstot] = TrnPack.genWriteTrnPack(obj.lObj,dmc,varargin{:});
-    end
+    end  % function
 
-    function [jobs,gpuids] = SplitTrackIntoJobs(obj,backend,totrackinfo) %#ok<INUSL> 
-
+    function [jobs,gpuids] = SplitTrackIntoJobs(obj,backend,totrackinfo)  %#ok<INUSD>
       [movidx] = totrackinfo.getIntervals();
 
       nmovies = numel(movidx);
@@ -1337,9 +1306,7 @@ classdef DeepTracker < LabelTracker
           gpuids = reshape(gpuids,[ngpus,1]);
         end
       end
-
-
-    end
+    end  % function
 
     function [jobidx,view,stage,gpuids] = SplitTrainIntoJobs(obj,backend)
       nview = obj.nview; %#ok<PROPLC> 
@@ -1393,15 +1360,15 @@ classdef DeepTracker < LabelTracker
       end
     end  % function
 
-    function trainID = configFile2TrainID(obj,dlConfigLcl) %#ok<INUSL> 
-      % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
-      % FIX THIS - this looks like the trainID is parsed out of the
-      % config file name...
-      [tpdir,dllblf,~] = fileparts(dlConfigLcl); %#ok<ASGLU> 
-      pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
-      toks = regexp(dllblf,pat,'names');
-      trainID = toks.trainID;
-    end
+    % function trainID = configFile2TrainID(obj,dlConfigLcl) %#ok<INUSL> 
+    %   % dlConfigLcl should look like <modelChainID>_<trainID>.<configExt>
+    %   % FIX THIS - this looks like the trainID is parsed out of the
+    %   % config file name...
+    %   [tpdir,dllblf,~] = fileparts(dlConfigLcl); %#ok<ASGLU> 
+    %   pat = sprintf('%s_(?<trainID>[0-9T]+)$',modelChainID);
+    %   toks = regexp(dllblf,pat,'names');
+    %   trainID = toks.trainID;
+    % end
 
     function trainID = getTrainID(obj, varargin)
       tfGenNewConfigFile = ...
@@ -1411,6 +1378,7 @@ classdef DeepTracker < LabelTracker
       if tfGenNewConfigFile,
         trainID = datestr(now(),'yyyymmddTHHMMSS');
       else
+        % Don't think this branch is ever run.  -- ALT, 2025-10-08
         trainID = obj.trnNameLbl;
       end
     end
@@ -2050,7 +2018,7 @@ classdef DeepTracker < LabelTracker
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
       isCurr = obj.checkTrackingResultsCurrent_();
       if willLoad && ~isCurr,
-        if isempty(obj.skip_dlgs) || ~obj.skip_dlgs
+        if ~obj.skip_dlgs
           res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
                          'Previous tracking results exist', ...
                          'Delete','Retrack','Cancel','Delete');
@@ -3223,7 +3191,6 @@ classdef DeepTracker < LabelTracker
     end
     
     function tf = isTrkFiles(obj)
-    
       tf = false;
       for i = 1:obj.lObj.nmovies,
         mIdx = MovieIndex(i);
@@ -3233,10 +3200,9 @@ classdef DeepTracker < LabelTracker
           return;
         end
       end
-      
-    end
-    
-  end
+    end  % function    
+  end  % methods
+
   methods (Static)
     
     function [trkfileObj,tfsuccload] = hlpLoadTrk(tfile,varargin)
@@ -3778,6 +3744,42 @@ classdef DeepTracker < LabelTracker
       % Called by children to generate a notification
       obj.lObj.updateTrackingMonitorRetrograde() ;
     end  % function
+
+    % function other = twin(obj)
+    %   % Make a near-copy of obj, but with the the near-copy having the same parent
+    %   % as obj.
+    % 
+    %   % Type-check the arguments
+    %   assert(isscalar(obj)) ;
+    % 
+    %   % DeepTracker has a zero-arg constructor, so use that.
+    % 
+    % 
+    %   % Define a helper function
+    %   className = 'DeepTracker' ;
+    %   should_property_be_copied = @(x)(strcmp(x.DefiningClass.Name, className) && ~x.Dependent && ~x.Constant) ;
+    % 
+    %   % Actually get the prop names that satisfy the predicate
+    %   raw_property_names = property_names_satisfying_predicate(obj, should_property_be_copied) ;
+    %   %excluded_property_names = {'lObj', 'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+    %   excluded_property_names = {'lObj'}' ;
+    %   property_names = setdiff(raw_property_names, excluded_property_names) ;
+    % 
+    %   % Set each property in turn
+    %   for i = 1:length(property_names)
+    %     property_name=property_names{i} ;
+    %     raw_property_value = obj.(property_name) ;
+    %     if ~isempty(raw_property_value) && isa(raw_property_value, 'handle')
+    %       nop() ;
+    %     end
+    %     if isa(raw_property_value, 'matlab.mixin.Copyable')
+    %       property_value = raw_property_value.copy() ;
+    %     else
+    %       property_value = raw_property_value ;
+    %     end
+    %     obj.(property_name) = property_value ;
+    %   end
+    % end  % function
+    
   end  % methods
-  
 end  % classdef

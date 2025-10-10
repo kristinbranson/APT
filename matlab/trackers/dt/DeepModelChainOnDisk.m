@@ -15,7 +15,8 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
 
   properties (Constant)
     configFileExt = '.json'; % switching this to output json file in train/track commands
-    gen_strippedlblfile = false; % try disabling the stripped lbl file generation!!
+    % gen_strippedlblfile = false; % try disabling the stripped lbl file generation!!
+    % stripped lbl file generation code is now gone. -- ALT, 2025-10-08
     trainPackName = 'trnpack.json';
     trainLocName = 'loc.json';
     trainingImagesName = 'deepnet_training_samples.mat';
@@ -88,13 +89,21 @@ classdef DeepModelChainOnDisk < matlab.mixin.Copyable  % matlab.mixin.Copyable i
     netType = cell(1,0)  % 1xn cell array of DLNetTypes, n the number of models.
     netMode = cell(1,0)  % 1xn cell array of DLNetModes, n the number of models.
     modelChainID = cell(1,0)  % 1xn cell array of char arrays, n the number of models.
-                              % unique ID for a training model for (projname,view). 
-                              % A model can be trained once, but also train-augmented.
+                              % Unique ID for a model chain for (projname,view).  Also a timestamp, of the
+                              % form '20251006T233457'.
+                              % This was presumably true once: "A model can be trained once, but also
+                              % train-augmented."
+                              % But train-augmentation (not the same as data augmentation) is no longer a
+                              % thing.
     trainID = cell(1,0)  % 1xn cell array of char arrays, n the number of models.
-                         % a single modelChainID may be trained multiple times due to 
+                         % This was once true, presumably:
+                         % "A single modelChainID may be trained multiple times due to 
                          % train-augmentation, so a single modelID may have multiple
                          % trainIDs associated with it. Each (modelChainID,trainID) pair
-                         % has a unique associated stripped lbl.
+                         % has a unique associated stripped lbl."
+                         % But now the trainID seems largely vestigial, since train-augmentation is no
+                         % longer a thing.  It's a timestamp, of the form '20251006T233501', often a
+                         % bit later than the modelChainID.
     restartTS = cell(1,0)  % 1xn cell array of char arrays, n the number of models.
                            % Training for each (modelChainID,trainID) can be killed and
                            % restarted arbitrarily many times. This timestamp uniquely

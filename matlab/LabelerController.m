@@ -5261,39 +5261,25 @@ classdef LabelerController < handle
 
 
     function menu_view_showhide_preds_all_targets_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       tracker = labeler.tracker;
       if ~isempty(tracker)
         tracker.setHideViz(false); % show tracking
         tracker.setShowPredsCurrTargetOnly(false); % not only current target
       end
-
       obj.updateShowPredMenus();
-
     end
 
 
 
     function menu_view_showhide_preds_curr_target_only_actuated_(obj, src, evt) %#ok<INUSD>
-
-      
-
       labeler = obj.labeler_ ;
-
-
       tracker = labeler.tracker;
       if ~isempty(tracker)
         tracker.setHideViz(false); % show tracking
         tracker.setShowPredsCurrTargetOnly(true);
         obj.updateShowPredMenus();
       end
-
-
     end
 
     function menu_view_showhide_preds_none_actuated_(obj, src, evt) %#ok<INUSD>

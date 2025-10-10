@@ -1,4 +1,4 @@
-classdef LabelTracker < handle
+classdef (Abstract) LabelTracker < handle
   % Tracker base class
 
   % LabelTracker has two responsibilities:
@@ -109,7 +109,8 @@ classdef LabelTracker < handle
   methods
     
     function initHook(obj) %#ok<*MANU>
-      % Called when a new project is created/loaded, etc
+      % Called from init() when a new project is created/loaded, etc
+      % Designed to be overloaded by subclasses.
     end
         
     function sPrm = getParams(obj)
@@ -435,16 +436,13 @@ classdef LabelTracker < handle
       prm = yaml.ReadYaml(prmFile);
     end
             
-  end
+  end  % methods
   
   methods (Static)
     
-    function tObj = create(lObj,trkClsAug,trkData)
+    function tObj = create(lObj, trkClsAug, saveToken)
       % Factory method
       
-      if nargin<3 ,
-        trkData = [] ;
-      end
       trackerClassName = trkClsAug{1};
       trackerClassConstructorArgs = trkClsAug(2:end);
       
@@ -454,8 +452,8 @@ classdef LabelTracker < handle
       end
       tObj = feval(trackerClassName,lObj,trackerClassConstructorArgs{:});
       tObj.init();
-      if ~isempty(trkData)
-        tObj.loadSaveToken(trkData);
+      if exist('saveToken', 'var')
+        tObj.loadSaveToken(saveToken);
       end
     end
     
@@ -533,6 +531,46 @@ classdef LabelTracker < handle
       obj.showPredsCurrTargetOnly = value ;
       obj.lObj.doNotify('didSetTrackerShowPredsCurrTargetOnly') ;
     end    
+    
+    % function copyProperties_(obj, other)
+    %   % Make the independent properties defined in the the LabelerTracker class like
+    %   % those of other.  Both obj and other should be scalar LabelTracker objects.
+    %   % The underscore suffix indicates this class is intended only to be used by
+    %   % LabelTracker and friends, not by external client code.
+    % 
+    %   % Added this when added the twin() method to LabelTracker subclasses.  Could
+    %   % have rewritten the LabelTracker constructor to take property-value pairs,
+    %   % but didn't want to get into that.
+    % 
+    %   % Type-check the arguments
+    %   assert(isscalar(obj)) ;
+    %   assert(isscalar(other)) ;
+    % 
+    %   % Define a helper function
+    %   className = 'LabelTracker' ;
+    %   should_property_be_copied = @(x)(strcmp(x.DefiningClass.Name, className) && ~x.Dependent && ~x.Constant) ;
+    % 
+    %   % Actually get the prop names that satisfy the predicate
+    %   raw_property_names = property_names_satisfying_predicate(obj, should_property_be_copied) ;
+    %   %excluded_property_names = {'lObj', 'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+    %   excluded_property_names = {'lObj'}' ;
+    %   property_names = setdiff(raw_property_names, excluded_property_names) ;
+    % 
+    %   % Set each property in turn
+    %   for i = 1:length(property_names)
+    %     property_name=property_names{i} ;
+    %     raw_property_value = obj.(property_name) ;
+    %     if ~isempty(raw_property_value) && isa(raw_property_value, 'handle')
+    %       nop() ;
+    %     end
+    %     if isa(raw_property_value, 'matlab.mixin.Copyable')
+    %       property_value = raw_property_value.copy() ;
+    %     else
+    %       property_value = raw_property_value ;
+    %     end
+    %     obj.(property_name) = property_value ;
+    %   end
+    % end  % function
     
   end  % methods
 end  % classdef

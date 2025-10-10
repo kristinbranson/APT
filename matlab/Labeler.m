@@ -11277,7 +11277,7 @@ classdef Labeler < handle
         error('APT:invalidPropertyValue', 'Invalid tracker index') ;
       end
       
-      % If iTrk==1, do nothing
+      % If iTrk==1, do nothing, that's already the current tracker
       if iTrk==1
         return
       end
@@ -11287,7 +11287,7 @@ classdef Labeler < handle
       oldTracker.deactivate() ;
       oldTracker.setHideViz(true);
    
-      % Shuffle trackersAll to bring iTrk to the front
+      % Shuffle trackerHistory_ to bring iTrk to the front
       % Also delete any untrained trackers.
       trackersNewFirst = trackers(iTrk) ;  % singleton cell array
       trackersNewRestDraft = delete_elements(trackers, iTrk) ;
@@ -11300,11 +11300,9 @@ classdef Labeler < handle
       newCurrentTracker = trackersNew{1} ;
       if ~isempty(newCurrentTracker),
         newCurrentTracker.activate() ;
+        newCurrentTracker.setHideViz(false);
       end
       
-      % Turn the visualization back on for the new current tracker
-      newCurrentTracker.setHideViz(false);
-
       % What is this doing, exactly?  -- ALT, 2025-02-05
       obj.labelingInit('labelMode',obj.labelMode);      
 
@@ -11324,6 +11322,37 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;
     end  % function
 
+    function trackMakeBackupOfCurrentTrackerIfHasBeenTrained(obj)
+      return % do this while twin() still doesn't work
+
+      % Validate the new value
+      trackers = obj.trackerHistory_ ;
+      tracker_count = numel(trackers) ;
+      
+      % If tracker_count == 0, do nothing, although not clear how that would happen
+      if tracker_count == 0
+        return
+      end
+    
+      % Get the tracker we're backing up
+      originalTracker = trackers{1} ;
+      if ~originalTracker.hasBeenTrained()
+        % If untrained, exit now
+        return
+      end
+
+      % Make the backup, which is like a copy but with the same obj.lObj
+      backupTracker = originalTracker.twin() ;
+
+      % Insert the backup into the list of trackers
+      trackersRest = trackers(2:end) ;
+      trackersNew = horzcat({orignalTracker}, {backupTracker}, trackersRest) ;
+      obj.trackerHistory_ = trackersNew ;
+      
+      % Send the notification
+      obj.notify('update_menu_track_tracker_history') ;
+    end  % function
+    
     function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
       % Make a new tracker, and make it current.  tciIndex should be a valid index
       % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
@@ -11672,7 +11701,7 @@ classdef Labeler < handle
 
       % If the current tracker has been trained at all, make a duplicate of it so
       % that we can go back.
-      
+      obj.trackMakeBackupOfCurrentTrackerIfHasBeenTrained() ;
 
       % Update the status
       obj.pushBusyStatus('Spawning training job...') ;
