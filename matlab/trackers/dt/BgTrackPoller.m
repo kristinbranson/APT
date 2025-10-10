@@ -118,16 +118,16 @@ classdef BgTrackPoller < BgPoller
       trackedFrameCountSource = nan(size(parttrkfiles)); % nmovies x nviews x nstages      
       for i = 1:numel(parttrkfiles),
         parttrkfilecurr = parttrkfiles{i};
-        if obj.backend_.fileExists(parttrkfilecurr) ,
-          partTrkFileTimestamps(i) = obj.backend_.fileModTime(parttrkfilecurr) ;
+        if obj.backend_.tfDoesCacheFileExist(parttrkfilecurr) ,
+          partTrkFileTimestamps(i) = obj.backend_.cacheFileModTime(parttrkfilecurr) ;
           parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(parttrkfilecurr) ;
           trackedFrameCountSource(i) = 0.5 ;  % got it from the partial file
           logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),parttrkfilecurr);
         else
           % If the partial trk file does not exist, try to get info from the full trk file.
           trkfilecurr = trkfiles{i} ;
-          if obj.backend_.fileExists(trkfilecurr) ,
-            partTrkFileTimestamps(i) = obj.backend_.fileModTime(trkfilecurr) ;
+          if obj.backend_.tfDoesCacheFileExist(trkfilecurr) ,
+            partTrkFileTimestamps(i) = obj.backend_.cacheFileModTime(trkfilecurr) ;
             parttrkfileNfrmtracked(i) = obj.backend_.readTrkFileStatus(trkfilecurr) ;
             trackedFrameCountSource(i) = 1 ;  % got it from the final trk file
             logger.log('Read %d frames tracked from %s\n',parttrkfileNfrmtracked(i),trkfilecurr);
@@ -144,11 +144,11 @@ classdef BgTrackPoller < BgPoller
         isRunningFromTripleIndex = obj.replicateJobs_(isRunningFromJobIndex) ;
         % isRunning = obj.replicateJobs_(isRunningFromJobIndex);  % nMovies x nViews x nStages
         %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
-        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
+        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)),trkfiles); % nmovies x nviews x nstages
         tfComplete = doesOutputTrkFileExistFromTripleIndex & ~isRunningFromTripleIndex ;
         %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
-        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
         pollsuccess = true ;
       catch me
         % Likely a filesystem error checking for the files
@@ -210,10 +210,10 @@ classdef BgTrackPoller < BgPoller
       njobs = obj.njobs ;
       try
         isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
-        doesOutputTrkFileExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),outfiles); % njobs x 1
+        doesOutputTrkFileExistFromJobIndex = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)),outfiles); % njobs x 1
         tfCompleteFromJobIndex = doesOutputTrkFileExistFromJobIndex & ~isRunningFromJobIndex ; % njobs x 1
-        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
-        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
         pollsuccess = true ;
       catch me
         % Likely a filesystem error checking for the files

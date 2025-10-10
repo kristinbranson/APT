@@ -2953,26 +2953,26 @@ classdef Labeler < handle
       % Updates project DL state to point to new cache in .projTempDir      
 
       % Get the project cache dir path (e.g. '/home/janeuser/.apt/tpkjasdfkuhawe') ;
-      projectCacheDirPath = obj.projTempDir;
+      projectCacheDirPathAsChar = obj.projTempDir;  % native path, as char
    
       % It seems like this warning is thrown often even when nothing is wrong.
       % Disabling.  -- ALT, 2024-10-10
       % Check for exploded cache in tempdir      
-      tCacheDir = fullfile(projectCacheDirPath,obj.projname);
-      if ~exist(tCacheDir,'dir')
-        % warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
-        %                obj.projname,cacheDir);
-        return
-      end
+      % tCacheDir = fullfile(projectCacheDirPathAsChar,obj.projname);
+      % if ~exist(tCacheDir,'dir')
+      %   % warningNoTrace('Could not find model data for %s in temp directory %s. Deep Learning trackers not restored.',...
+      %   %                obj.projname,cacheDir);
+      %   return
+      % end
       
       % Update the project cache path in the backend and trackers
       if obj.backend.isProjectCacheRemote ,
         warningNoTrace('Unexpected remote project cache detected');
       else
-        obj.backend.wslProjectCachePath = projectCacheDirPath ;
+        obj.backend.nativeProjectCachePath = projectCacheDirPathAsChar ;
         % Update/set all DMC.rootDirs to cacheDir
         trackers = obj.trackerHistory_ ;
-        cellfun(@(t)(t.updateDLCache(projectCacheDirPath)), trackers) ;
+        cellfun(@(t)(t.updateDLCache(projectCacheDirPathAsChar)), trackers) ;
       end
     end  % function
     
@@ -3092,11 +3092,10 @@ classdef Labeler < handle
       end
       wslProjTempDir = wsl_path_from_native(nativeProjTempDir) ;
       escapedWslProjTempDir = escape_string_for_bash(wslProjTempDir) ;
-      command = sprintf('nohup rm -rf %s &>/dev/null &', escapedWslProjTempDir) ;
+      command = sprintf('nohup rm -rf %s &> /dev/null &', escapedWslProjTempDir) ;
       apt.syscmd(command, 'failbehavior', 'err') ;
       fprintf('Clearing temp directory %s in a background process...\n',obj.projTempDir);
     end
-        
     
     function projBundleTempDir(obj, tfile)
       obj.pushBusyStatus('Bundling the temp directory...') ;
@@ -3120,9 +3119,8 @@ classdef Labeler < handle
       s = rng(obj.projRngSeed);
       v = randfcn();
       rng(s);
-    end
-    
-  end
+    end  % function    
+  end  % methods
   
   methods % projMacros
     
@@ -16294,10 +16292,10 @@ classdef Labeler < handle
         else
           errorFileIndex = errorFileIndexMaybe ;
           errFile = pollingResult.errFile{errorFileIndex} ;
-          doesErrorFileExist = obj.backend.fileExists(errFile) ;
+          doesErrorFileExist = obj.backend.tfDoesCacheFileExist(errFile) ;
           if doesErrorFileExist ,
             fprintf('\n### %s\n\n',errFile);
-            errContents = obj.backend.fileContents(errFile) ;
+            errContents = obj.backend.cacheFileContents(errFile) ;
             disp(errContents);
           else
             fprintf('One of the background jobs exited, for unknown reasons.  An error file allegedly existed, but was not found.\n') ;
@@ -16499,91 +16497,5 @@ classdef Labeler < handle
       obj.notify('updateTimelineLandmarkColors');
       obj.notify('updateTimeline');
     end  % function    
-
-    function plotAllLabels(obj,outimgdir,varargin)
-      [hfig,movieabbr_fun] = myparse(varargin,'hfig',[],'movieabbr_fun','');
-      if ~exist(outimgdir,'dir'),
-        mkdir(outimgdir);
-      end
-      nviews = obj.nview;
-      colors = obj.labelPointsPlotInfo.Colors;
-      if isempty(hfig) || ~ishandle(hfig),
-        hfig = figure;
-        set(hfig,'Position',[10,10,800*nviews,800]);
-      else
-        figure(hfig);
-      end
-      nkpts = obj.nPhysPoints;
-      d = 2;
-      htile = tiledlayout(1,nviews,'TileSpacing','none','Padding','none');
-      hax = gobjects(1,nviews);
-      tbldata = obj.labelGetMFTableLabeled('useMovNames',true);
-      for i = 1:nviews,
-        hax(i) = nexttile;
-      end
-      border = 40; % pixels
-      set(hax,'XTick',[],'YTick',[]);
-      for i = 1:size(obj.movieFilesAllFull,1),
-        moviefilescurr = obj.movieFilesAllFull(i,:);
-        idxcurr = find(strcmp(moviefilescurr{1},tbldata.mov(:,1)));
-        if ~isempty(movieabbr_fun),
-          movieabbr = movieabbr_fun(moviefilescurr{1});
-        else
-          movieabbr = '';
-        end
-
-        readframes = cell(1,nviews);
-        fids = cell(1,nviews);
-        for j = 1:nviews,
-          [readframes{j},~,fids{j}] = get_readframe_fcn(moviefilescurr{j});
-        end
-        for exi = idxcurr(:)',
-          fr = tbldata.frm(exi);
-          p = tbldata.p(exi,:);
-          p = reshape(p,[],nkpts,nviews,2);
-          for tgt = 1:size(p,1),
-            pcurr = permute(p(tgt,:,:,:),[2,3,4,1]);
-            if all(isnan(pcurr)),
-              continue;
-            end
-            mincoord = permute(min(pcurr,[],1),[2,3,1]);
-            maxcoord = permute(max(pcurr,[],1),[2,3,1]);
-
-            for view = 1:nviews,
-              im = readframes{view}(fr);
-              cla(hax(view));
-              image(hax(view),im);
-              colormap(hax(view),'gray');
-              hold(hax(view),'on');
-              for kpt = 1:nkpts,
-                plot(hax(view),pcurr(kpt,view,1),pcurr(kpt,view,2),'.','Color',colors(kpt,:),'MarkerSize',12);
-              end
-              axis(hax(view),'image','off');
-              xlim = [mincoord(view,1),maxcoord(view,1)]+border*[-1,1];
-              ylim = [mincoord(view,2),maxcoord(view,2)]+border*[-1,1];
-              set(hax(view),'XLim',xlim,'YLim',ylim);
-            end
-              
-            ti = sprintf(' ex %d, movie set %d, frame %d, tgt %d',exi,i,fr,tgt);
-            if ~isempty(movieabbr),
-              ti = [ti,', ',movieabbr];
-            end
-            text(hax(1),mincoord(1,1)-border,mincoord(1,2)-border+5,ti,'HorizontalAlignment','left','VerticalAlignment','top','Color','m');
-            outfile = fullfile(outimgdir,sprintf('example%03d_movieset%02d_fr%06d_tgt%02d',exi,i,fr,tgt));
-            if ~isempty(movieabbr),
-              outfile = [outfile,'_',movieabbr];
-            end
-            outfile = [outfile,'.png'];
-            saveas(hfig,outfile,'png');
-          end
-        end
-        for j = 1:nviews,
-          if ~isempty(fids{j}) && fids{j} > 0,
-            fclose(fids{j});
-          end
-        end
-      end
-      fprintf('Done\n');
-    end
   end  % methods
 end  % classdef
