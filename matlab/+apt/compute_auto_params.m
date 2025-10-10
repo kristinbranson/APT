@@ -81,7 +81,7 @@ function autoparams = compute_auto_params(lobj)
   % Check and flag outliers..
   if any( (l_span_max./l_span_pc)>2)
     outliers = zeros(0,3);
-    for jj = find( (l_span_max./l_span_pc)>2)
+    for jj = find( (l_span_max./l_span_pc)>2)'
       ix = find(l_span(jj,:)>l_span_pc(jj)*2);
       for xx = ix(:)'
         mov = all_mov(xx);
