@@ -190,16 +190,16 @@ disp(handles);
     end
   end
 
-  function cbkDropdownParadigm(src,evt)
+  function cbkDropdownParadigm(src,evt)  %#ok<INUSD>
     update();
   end
 
-  function cbkListboxStage(stage,src,evt)
+  function cbkListboxStage(stage,src,evt)  %#ok<INUSD>
     handles.last_algorithm_idx(stage) = evt.ValueIndex;
     updateStagePanels();
   end
 
-  function cbkPbOK(src,evt)
+  function cbkPbOK(src,evt)  %#ok<INUSD>
 
     nettypes = handles.nets{1}(handles.last_algorithm_idx(1));
     for s = 2:handles.nstages,
@@ -212,7 +212,7 @@ disp(handles);
     end
     delete(handles.figure);
   end
-  function cbkPbCancel(src,evt)
+  function cbkPbCancel(src,evt)  %#ok<INUSD>
     delete(handles.figure);
   end
 

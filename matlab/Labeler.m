@@ -11322,7 +11322,7 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;
     end  % function
 
-    function trackMakeBackupOfCurrentTrackerIfHasBeenTrained(obj)
+    function trackMakeBackupOfCurrentTrackerIfHasBeenTrained(obj)  %#ok<MANU>
       return % do this while twin() still doesn't work
 
       % Validate the new value
@@ -11383,13 +11383,7 @@ classdef Labeler < handle
       
       % Create the new tracker
       rawTCI = tcis{tciIndex} ;
-      if strcmp(rawTCI{1}, 'DeepTrackerTopDownCustom') ,
-        % Need to take steps to determine type of each stage
-        tci = apt.fillInCustomStages(rawTCI, varargin{:}) ;
-      else
-        % Typical case, not a custom top-down tracker
-        tci = rawTCI ;
-      end
+      tci = apt.fillInCustomStagesIfNeeded(rawTCI, varargin{:}) ;
       newTracker = LabelTracker.create(obj, tci) ;     
       
       % Filter untrained trackers out of trackers
@@ -11451,6 +11445,8 @@ classdef Labeler < handle
       % This finds the tracker in trackersAll that matches the input
       % nettypes and then calls obj.trackMakeNewTrackerGivenIndex to 
       % create this. 
+
+      assert(isa(nettypes, 'DLNetType') && isrow(nettypes) && 1<=numel(nettypes) && numel(nettypes)<=2) ;
 
       tfSucc = true;
       nstages = numel(nettypes);

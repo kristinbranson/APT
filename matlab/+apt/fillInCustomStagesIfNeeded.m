@@ -1,4 +1,4 @@
-function tci = fillInCustomStages(rawTCI, varargin)
+function tci = fillInCustomStagesIfNeeded(rawTCI, varargin)
   % Used to fill in the types of the two stages in a custom two-stage tracker.
   % varargin{1} specifies stage 1, varargin{2} specifies stage 2.  Either can be
   % missing or [] if caller wishes to use defaults.
@@ -16,6 +16,12 @@ function tci = fillInCustomStages(rawTCI, varargin)
     stage2Spec = [] ;
   end
 
+  if ~strcmp(rawTCI{1}, 'DeepTrackerTopDownCustom') ,
+    % Typical case, not a custom top-down tracker
+    tci = rawTCI ;
+    return
+  end
+  
   % First element of result always same
   tci1 = 'DeepTrackerTopDownCustom' ;
 
