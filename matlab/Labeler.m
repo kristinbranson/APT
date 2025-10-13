@@ -280,8 +280,8 @@ classdef Labeler < handle
     projectroot            % Parent dir of projectfile, if it exists
     bgTrnIsRunning         % True iff background training is running
     bgTrkIsRunning         % True iff background tracking is running
-    trackersAll            % All the 'template' trackers
-    trackersAllCreateInfo  % The creation info for each tracker in trackersAll
+    % trackersAll            % All the 'template' trackers
+    % trackersAllCreateInfo  % The creation info for each tracker in trackersAll
     trackerHistory        
     lastTrainEndCause 
       % Did the last bout of training complete or error or was it aborted by user.
@@ -661,14 +661,14 @@ classdef Labeler < handle
 
   %% Tracking
   properties
-    trackersAll_ = cell(1,0)
-      % cell row vector of concrete LabelTracker objects. init: PNPL
-      % Since the introduction of trackerHistory_, these are used only as templates.
-      % Calling .hasBeenTrained() on any of these should return false, always.
-    trackersAllCreateInfo_ = cell(1,0)
-      % cell row vector of "tracker-create-info" structs, with same number of
-      % elements as trackersAll, and with a one-to-one correspondence between them.
-      % Exists to ease creation of new working trackers.
+    % trackersAll_ = cell(1,0)
+    %   % cell row vector of concrete LabelTracker objects. init: PNPL
+    %   % Since the introduction of trackerHistory_, these are used only as templates.
+    %   % Calling .hasBeenTrained() on any of these should return false, always.
+    % trackersAllCreateInfo_ = cell(1,0)
+    %   % cell row vector of "tracker-create-info" structs, with same number of
+    %   % elements as trackersAll, and with a one-to-one correspondence between them.
+    %   % Exists to ease creation of new working trackers.
     trackerHistory_ = cell(1,0)
       % Cell row vector of concrete LabelTracker objects.  Contains a history of all
       % trained trackers, with age increasing with index.  trackerHistory_{1} is the
@@ -1954,12 +1954,9 @@ classdef Labeler < handle
       
       obj.preProcInit();
       
-      % Reset .trackersAll
-      cellfun(@delete, obj.trackersAll_) ;
-      obj.trackersAll_ = cell(1,0);
-      % Trackers created/initted in projLoadGUI() and projNew(); eg when loading,
-      % the loaded .lbl knows what trackers to create.
-      %obj.currTracker = 0;
+      % % Reset .trackersAll
+      % cellfun(@delete, obj.trackersAll_) ;
+      % obj.trackersAll_ = cell(1,0);
 
       % Also clear tracker history
       cellfun(@delete, obj.trackerHistory_) ;
@@ -2306,12 +2303,12 @@ classdef Labeler < handle
 
       trkPrefs = obj.projPrefs.Track ;
       if trkPrefs.Enable
-        % Create default trackers (now only used as templates)
-        assert(isempty(obj.trackersAll_));
-        obj.initializeTrackersAllAndFriends_() ;
+        % % Create default trackers (now only used as templates)
+        % assert(isempty(obj.trackersAll_));
+        % obj.initializeTrackersAllAndFriends_() ;
 
         % Also create a working tracker
-        tracker = LabelTracker.create(obj, obj.trackersAllCreateInfo_{1}) ;
+        tracker = LabelTracker.create(obj) ;
         obj.trackerHistory_ = { tracker } ;
         
         tPrm = APTParameters.defaultParamsTree() ;
@@ -2656,16 +2653,18 @@ classdef Labeler < handle
 %       obj.movieFilesAllGTHaveLbls = cellfun(@Labels.hasLbls,obj.labelsGT);      
       obj.gtUpdateSuggMFTableLbledComplete();      
 
-      % Populate obj.trackersAll_
-      obj.initializeTrackersAllAndFriends_() ;  % do I need this here?
+      % % Populate obj.trackersAll_
+      % obj.initializeTrackersAllAndFriends_() ;  % do I need this here?
 
       % Populate obj.trackerHistory_
       nTracker = numel(s.trackerData);
       assert(nTracker==numel(s.trackerClass));
       assert(isempty(obj.trackerHistory_));
+      trackerCreateInfos = cellfun(@(tciAsCellArray)(TrackerCreateInfo.fromTCICellArray(tciAsCellArray, s.maIsMA)), ...
+                                   s.trackerClass(:)') ;
       rawTrackerHistory = ...
         cellfun(@(tc,td)(LabelTracker.create(obj, tc, td)), ...
-                s.trackerClass(:)', s.trackerData(:)', ...
+                num2cell(trackerCreateInfos), s.trackerData(:)', ...
                 'UniformOutput', false) ;
       isFilePreTrackerHistory = isfield(s, 'currTracker') ;
         % indicates whether the file predates the introduction of tracker history
@@ -3486,10 +3485,8 @@ classdef Labeler < handle
         s.maIsMA = false;
       end
       
-      defaultTrackersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
-      % nDfltTrkers = numel(defaultTrackersInfo);
+      % defaultTrackersInfo = LabelTracker.getAllTrackersCreateInfo(s.maIsMA);
       assert(iscell(s.trackerClass));
-      %nExistingTrkers = numel(s.trackerClass);
 
       % s.trackerClass and s.trackerData are eventually used to restore
       % labeler.trackersHistory
@@ -3505,35 +3502,50 @@ classdef Labeler < handle
       end
 
       % Determine which elements of s.trackerClass match some default tracker kind
-      tf = LabelTracker.trackersCreateInfoIsMember(s.trackerClass,...
-                                                   defaultTrackersInfo);
-
-      %assert(all(tf));
-      % AL: removing CPR for now until if/when updated 
-      % AL 20210923: Net removal
-      % When an entry is removed from DLNetType, affected trackerDatas will
-      % have their .trnNetTypes loaded as structs. Eliminate these
-      % trackers.
-      for iTrker=1:numel(s.trackerData)
-        if ~isempty(s.trackerData{iTrker}) && isfield(s.trackerData{iTrker},'trnNetType')
-          nt = s.trackerData{iTrker}.trnNetType;
-          if isstruct(nt)
-            try
-              warningNoTrace('Removing obsolete tracker: %s',nt.ValueNames{1});
-            catch
-              warningNoTrace('Removing obsolete tracker: %d',iTrker);
-            end
-            tf(iTrker) = false;
-          end
-        else
-          % TODO: two-stage trackers
+      % tf = LabelTracker.trackersCreateInfoIsMember(s.trackerClass,...
+      %                                              defaultTrackersInfo);
+      fakeTrackPrefs = struct('PredictInterpolate', {false}) ;
+      fakeProjPrefs = struct('Track', fakeTrackPrefs) ;
+      fakeLabeler = struct('maIsMA', {s.maIsMA}, 'projectHasTrx', {s.projectHasTrx}, 'projPrefs', {fakeProjPrefs}) ;
+      tfDoKeep = true(size(s.trackerClass)) ;
+      for i = 1 : numel(s.trackerClass)
+        trackerCreateInfoAsCellArray = s.trackerClass{i} ;
+        tci = TrackerCreateInfo.fromTCICellArray(trackerCreateInfoAsCellArray, s.maIsMA) ;
+        try
+          LabelTracker.create(fakeLabeler, tci) ;  % Just throw away the actual tracker
+        catch me
+          % If fails, we don't keep this one
+          warningNoTrace('Removing obsolete tracker: %d', i);
+          tfDoKeep(i) = false ;
         end
       end
+
+      % %assert(all(tf));
+      % % AL: removing CPR for now until if/when updated 
+      % % AL 20210923: Net removal
+      % % When an entry is removed from DLNetType, affected trackerDatas will
+      % % have their .trnNetTypes loaded as structs. Eliminate these
+      % % trackers.
+      % for iTrker=1:numel(s.trackerData)
+      %   if ~isempty(s.trackerData{iTrker}) && isfield(s.trackerData{iTrker},'trnNetType')
+      %     nt = s.trackerData{iTrker}.trnNetType;
+      %     if isstruct(nt)
+      %       try
+      %         warningNoTrace('Removing obsolete tracker: %s',nt.ValueNames{1});
+      %       catch
+      %         warningNoTrace('Removing obsolete tracker: %d',iTrker);
+      %       end
+      %       tf(iTrker) = false;
+      %     end
+      %   else
+      %     % TODO: two-stage trackers
+      %   end
+      % end
       
       % Delete elements of s.trackerClass, s.trackerData that do not match a default
       % kind of tracker.
-      s.trackerClass(~tf) = [];
-      s.trackerData(~tf) = [];
+      s.trackerClass(~tfDoKeep) = [];
+      s.trackerData(~tfDoKeep) = [];
 
       % % Bring loc into register with s.trackerClass, s.trackerData
       % loc(~tf) = [];      
@@ -11353,20 +11365,112 @@ classdef Labeler < handle
       obj.notify('update_menu_track_tracker_history') ;
     end  % function
     
-    function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
-      % Make a new tracker, and make it current.  tciIndex should be a valid index
-      % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
-      % contain the stage 1 and stage 2 constructor args if and only if tciIndex
-      % indicates a custom two-stage tracker.
+    % function trackMakeNewTrackerGivenIndex(obj, tciIndex, varargin)
+    %   % Make a new tracker, and make it current.  tciIndex should be a valid index
+    %   % into obj.trackersAll and/or obj.trackersAllCreateInfo_.  The varargin should
+    %   % contain the stage 1 and stage 2 constructor args if and only if tciIndex
+    %   % indicates a custom two-stage tracker.
+    % 
+    %   % Validate the new value      
+    %   tcis = obj.trackersAllCreateInfo_ ;
+    %   template_count = numel(tcis) ;
+    %   if is_index_in_range(tciIndex, template_count)
+    %     % all is well
+    %   else
+    %     error('APT:invalidPropertyValue', 'Invalid tracker template index') ;
+    %   end
+    % 
+    %   % Want to do some stuff before the set, apparently
+    %   trackers = obj.trackerHistory_ ;
+    %   if ~isempty(trackers) ,
+    %     oldCurrentTracker = trackers{1} ;
+    %     oldCurrentTracker.deactivate() ;
+    %     oldCurrentTracker.setHideViz(true);
+    %     if ~oldCurrentTracker.hasBeenTrained() ,
+    %       % If the current model is untrained, don't keep it in the history
+    %       delete(oldCurrentTracker) ;          
+    %       trackers = trackers(2:end) ;
+    %     end
+    %   end
+    % 
+    %   % Create the new tracker
+    %   rawTCI = tcis{tciIndex} ;
+    %   tci = apt.fillInCustomStagesIfNeeded(rawTCI, varargin{:}) ;
+    %   newTracker = LabelTracker.create(obj, tci) ;     
+    % 
+    %   % Filter untrained trackers out of trackers
+    %   isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackers) ;
+    %   trainedTrackers = trackers(isTrained) ;
+    % 
+    %   % Put the new tracker at the front of the history
+    %   trackersNew = horzcat({newTracker}, trainedTrackers) ;
+    %   obj.trackerHistory_ = trackersNew ;
+    % 
+    %   % Activate the new tracker
+    %   if ~isempty(newTracker),
+    %     newTracker.activate() ;
+    %   end
+    % 
+    %   % Turn the visualization back on for the new current tracker
+    %   newTracker.setHideViz(false);
+    % 
+    %   % What is this doing, exactly?  -- ALT, 2025-02-05
+    %   obj.labelingInit('labelMode',obj.labelMode);
+    % 
+    %   % Update the timeline
+    %   if ~isempty(newTracker)
+    %     propList = newTracker.propList() ;
+    %   else
+    %     propList = [] ;
+    %   end
+    %   obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
+    %   obj.notify('updateTimeline');
+    % 
+    %   % Send the needed notifications
+    %   obj.notify('didSetCurrTracker') ;      
+    %   % obj.notify('update_menu_track_tracking_algorithm_quick') ;
+    %   obj.notify('update_menu_track_tracker_history') ;      
+    %   obj.notify('update_text_trackerinfo') ;      
+    % end  % function
 
-      % Validate the new value      
-      tcis = obj.trackersAllCreateInfo_ ;
-      template_count = numel(tcis) ;
-      if is_index_in_range(tciIndex, template_count)
-        % all is well
-      else
-        error('APT:invalidPropertyValue', 'Invalid tracker template index') ;
+    function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+      % t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
+      % returns the trnNetTypes for the current tracker. trackercurr
+      % can be given as an optional input, otherwise obj.tracker is used.
+
+      if nargin < 2,
+        trackercurr = obj.tracker;
       end
+      if isa(trackercurr,'DeepTrackerTopDown') || isa(trackercurr,'DeepTrackerTopDownCuston'),
+        t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
+      elseif isa(trackercurr,'DeepTrackerBottomUp') || isa(trackercurr,'DeepTracker'),
+        t = trackercurr.trnNetType;
+      else
+        t = [];
+      end
+
+    end
+
+    function trackMakeNewTrackerGivenNetTypes(obj, netTypes)
+      % trackMakeNewTrackerGivenNetTypes(obj, nettypes)
+      % Create a new tracker based on the input nettypes. 
+      assert(isShortDLNetTypesRowArray(netTypes));
+      tci = TrackerCreateInfo.fromNetTypes(netTypes, obj.maIsMA);
+      newTracker = LabelTracker.create(obj, tci) ;
+      obj.trackInsertNewTracker_(newTracker);
+    end  % function
+
+    function trackInsertNewTracker_(obj, newTracker)
+      % Insert a new tracker.  Not meant to be called by external clients.
+
+      % % Validate the new value      
+      % tcis = obj.trackersAllCreateInfo_ ;
+      % template_count = numel(tcis) ;
+      % if is_index_in_range(tciIndex, template_count)
+      %   % all is well
+      % else
+      %   error('APT:invalidPropertyValue', 'Invalid tracker template index') ;
+      % end
       
       % Want to do some stuff before the set, apparently
       trackers = obj.trackerHistory_ ;
@@ -11381,10 +11485,10 @@ classdef Labeler < handle
         end
       end
       
-      % Create the new tracker
-      rawTCI = tcis{tciIndex} ;
-      tci = apt.fillInCustomStagesIfNeeded(rawTCI, varargin{:}) ;
-      newTracker = LabelTracker.create(obj, tci) ;     
+      % % Create the new tracker
+      % rawTCI = tcis{tciIndex} ;
+      % tci = apt.fillInCustomStagesIfNeeded(rawTCI, varargin{:}) ;
+      % newTracker = LabelTracker.create(obj, tci) ;     
       
       % Filter untrained trackers out of trackers
       isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackers) ;
@@ -11421,87 +11525,22 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;      
     end  % function
 
-    function t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
-      % t = trackGetCurrTrackerStageNetTypes(obj,trackercurr)
-      % returns the trnNetTypes for the current tracker. trackercurr
-      % can be given as an optional input, otherwise obj.tracker is used.
-
-      if nargin < 2,
-        trackercurr = obj.tracker;
-      end
-      if isa(trackercurr,'DeepTrackerTopDown') || isa(trackercurr,'DeepTrackerTopDownCuston'),
-        t = [trackercurr.stage1Tracker.trnNetType,trackercurr.trnNetType];
-      elseif isa(trackercurr,'DeepTrackerBottomUp') || isa(trackercurr,'DeepTracker'),
-        t = trackercurr.trnNetType;
-      else
-        t = [];
-      end
-
-    end
-
-    function tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
-      % tfSucc = trackMakeNewTrackerGivenNetTypes(obj,nettypes)
-      % Create a new tracker based on the input nettypes. 
-      % This finds the tracker in trackersAll that matches the input
-      % nettypes and then calls obj.trackMakeNewTrackerGivenIndex to 
-      % create this. 
-
-      assert(isa(nettypes, 'DLNetType') && isrow(nettypes) && 1<=numel(nettypes) && numel(nettypes)<=2) ;
-
-      tfSucc = true;
-      nstages = numel(nettypes);
-      % look for a match in instantiated nettypes
-      for idx = 1:numel(obj.trackersAll),
-        t = obj.trackGetCurrTrackerStageNetTypes(obj.trackersAll{idx});
-        if numel(t) ~= nstages,
-          continue;
-        end
-        for s = 1:nstages,
-          tfmatch = strcmp(t(s).shortString,nettypes(s).shortString);
-          if ~tfmatch,
-            break;
-          end
-        end
-        if tfmatch,
-          % add extra arguments
-          extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes);
-          obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
-          return;
-        end
-      end
-      % look for a match in possible nettypes
-      if obj.maIsMA,
-        for idx = 1:numel(obj.trackersAll),
-          [tfmatch,loc] = obj.trackersAll{idx}.isMemberTrnTypes(nettypes);
-          if tfmatch,
-            extraargs = obj.trackersAll{idx}.trnType2ConstructorArgs(nettypes,loc);
-            obj.trackMakeNewTrackerGivenIndex(idx,extraargs{:});
-            return;
-          end
-        end
-      end
-
-      tfSucc = false;
-
-    end  % function
-
-
-    function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
-      algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
-                                          obj.trackersAll_, ...
-                                          'UniformOutput', false) ;
-      matchingIndices = find(strcmp(algoName, algorithmNameFromTciIndex)) ;
-      if isempty(matchingIndices) ,
-        error('No algorithm named %s among the available trackers', algoName) ;
-      elseif isscalar(matchingIndices) ,
-        % all is well
-        tciIndex = matchingIndices ;
-      else
-        tciIndex = matchingIndices(1) ;
-        warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, tciIndex) ;
-      end
-      obj.trackMakeNewTrackerGivenIndex(tciIndex, varargin{:}) ;
-    end  % function
+    % function trackMakeNewTrackerGivenAlgoName(obj, algoName, varargin)
+    %   algorithmNameFromTciIndex = cellfun(@(tracker)(tracker.algorithmName), ...
+    %                                       obj.trackersAll_, ...
+    %                                       'UniformOutput', false) ;
+    %   matchingIndices = find(strcmp(algoName, algorithmNameFromTciIndex)) ;
+    %   if isempty(matchingIndices) ,
+    %     error('No algorithm named %s among the available trackers', algoName) ;
+    %   elseif isscalar(matchingIndices) ,
+    %     % all is well
+    %     tciIndex = matchingIndices ;
+    %   else
+    %     tciIndex = matchingIndices(1) ;
+    %     warningNoTrace('More than one algorithm named %s among the available trackers, using first one, at index %d', algoName, tciIndex) ;
+    %   end
+    %   obj.trackMakeNewTrackerGivenIndex(tciIndex, varargin{:}) ;
+    % end  % function
 
     function trackMakeExistingTrackerCurrentGivenAlgoName(obj, algoName)
       algorithmNameFromHistoryIndex = cellfun(@(tracker)(tracker.algorithmName), ...
@@ -15936,13 +15975,13 @@ classdef Labeler < handle
       obj.notify('didSetLblCore') ;
     end
 
-    function result = get.trackersAll(obj)
-      result = obj.trackersAll_ ;
-    end
-
-    function result = get.trackersAllCreateInfo(obj)
-      result = obj.trackersAllCreateInfo_ ;
-    end
+    % function result = get.trackersAll(obj)
+    %   result = obj.trackersAll_ ;
+    % end
+    % 
+    % function result = get.trackersAllCreateInfo(obj)
+    %   result = obj.trackersAllCreateInfo_ ;
+    % end
 
     % function set.currTracker(obj, newValue)
     %   % Want to do some stuff before the set, apparently
@@ -16175,22 +16214,22 @@ classdef Labeler < handle
       obj.notify(eventName) ;
     end
 
-    function initializeTrackersAllAndFriends_(obj)
-      % Create initial values for a few Labeler props, including trackersAll.
-
-      % Forcibly clear out any old stuff
-      cellfun(@delete, obj.trackersAll_) ;
-
-      % Create new templates, trackers
-      trackersCreateInfo = ...
-        LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % 1 x number-of-trackers
-      tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
-                     trackersCreateInfo, ...
-                     'UniformOutput', false) ;  % 1 x number-of-trackers
-      obj.trackersAllCreateInfo_ = trackersCreateInfo ;
-      obj.trackersAll_ = tAll ;
-      %obj.notify('update_menu_track_tracking_algorithm') ;
-    end
+    % function initializeTrackersAllAndFriends_(obj)
+    %   % Create initial values for a few Labeler props, including trackersAll.
+    % 
+    %   % Forcibly clear out any old stuff
+    %   cellfun(@delete, obj.trackersAll_) ;
+    % 
+    %   % Create new templates, trackers
+    %   trackersCreateInfo = ...
+    %     LabelTracker.getAllTrackersCreateInfo(obj.maIsMA) ;  % 1 x number-of-trackers
+    %   tAll = cellfun(@(createInfo)(LabelTracker.create(obj, createInfo)), ...
+    %                  trackersCreateInfo, ...
+    %                  'UniformOutput', false) ;  % 1 x number-of-trackers
+    %   obj.trackersAllCreateInfo_ = trackersCreateInfo ;
+    %   obj.trackersAll_ = tAll ;
+    %   %obj.notify('update_menu_track_tracking_algorithm') ;
+    % end
 
     function result = get.trackerHistory(obj)
       result = obj.trackerHistory_ ;
@@ -16231,14 +16270,14 @@ classdef Labeler < handle
   end  % methods (Static)
 
   methods
-    function result = doesCurrentTrackerMatchFromTrackersAllIndex(obj)
-      % Returns a logical row array specifying whether the current tracker matches
-      % each of the trackers in obj.trackersAll
-      currentTrackerAlgoName = obj.tracker.algorithmName ;
-      trackersAll = obj.trackersAll_ ;
-      algoNameFromTrackersAllIndex = cellfun(@(t)(t.algorithmName), trackersAll, 'UniformOutput', false) ;
-      result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
-    end
+    % function result = doesCurrentTrackerMatchFromTrackersAllIndex(obj)
+    %   % Returns a logical row array specifying whether the current tracker matches
+    %   % each of the trackers in obj.trackersAll
+    %   currentTrackerAlgoName = obj.tracker.algorithmName ;
+    %   trackersAll = obj.trackersAll_ ;
+    %   algoNameFromTrackersAllIndex = cellfun(@(t)(t.algorithmName), trackersAll, 'UniformOutput', false) ;
+    %   result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
+    % end
     
     function hlpApplyCosmetics(obj,colorSpecs,mrkrSpecs,skelSpecs)
       obj.updateLandmarkColors(colorSpecs);
