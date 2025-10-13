@@ -1544,6 +1544,7 @@ classdef Labeler < handle
       end
       %obj.notify('didSetLabels') ;
       obj.notify('updateTimelineLabels') ;
+      obj.notify('updateTimelineLandmarkColors');
     end
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
@@ -16295,6 +16296,8 @@ classdef Labeler < handle
         obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
       obj.notify('trackEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
+      obj.notify('updateTimelineLabels');
+
     end
     
     function printErrorInfo_(obj, train_or_track, pollingResultOrEmpty)
@@ -16379,9 +16382,9 @@ classdef Labeler < handle
       notify(obj, 'updateTimeline');
     end
 
-    function data = getTimelineDataForCurrentMovieAndTarget(obj)
+    function data = getTimelineDataForCurrentMovieAndTarget(obj,varargin)
       % Get timeline data for current movie/target
-      data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj) ;
+      data = obj.infoTimelineModel.getTimelineDataForCurrentMovieAndTarget(obj,varargin{:}) ;
     end
 
     function tf = hasTimelinePrediction(obj)

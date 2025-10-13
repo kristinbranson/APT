@@ -81,7 +81,7 @@ classdef TrackBatchGUI < handle
         obj.toTrack.f1s = {};
       end
       if ~isfield(obj.toTrack,'link_type'),
-        obj.toTrack.link_type = 'simple';
+        obj.toTrack.link_type = 'motion';
       end
       if ~isfield(obj.toTrack,'id_maintain_identity'),
         obj.toTrack.id_maintain_identity = false;
@@ -369,12 +369,6 @@ classdef TrackBatchGUI < handle
         obj.gdata.bg_linking.Layout.Column = 1;
         
         % Radio buttons - positions will be calculated dynamically
-        obj.gdata.rb_simple = uiradiobutton(obj.gdata.bg_linking,...
-          'Text','Simple linking',...
-          'FontSize',FONTSIZE,'FontColor','w',...
-          'Position',[5 5 200 20],...
-          'Value',strcmp(obj.toTrack.link_type,'simple'));
-
         obj.gdata.rb_motion = uiradiobutton(obj.gdata.bg_linking,...
           'Text','Motion Linking',...
           'FontSize',FONTSIZE,'FontColor','w',...
@@ -511,13 +505,6 @@ classdef TrackBatchGUI < handle
         'ButtonPushedFcn',@(h,e) obj.pb_add_Callback(h,e,[]));
       obj.gdata.button_add.Layout.Column = 3;
 
-      obj.gdata.button_add_list = uibutton(button_grid,'Text','Add List',...
-        'FontColor','w','BackgroundColor',addbuttoncolor,...
-        'FontWeight','bold','FontSize',FONTSIZE,...
-        'Enable','on',...
-        'Tag','pushbutton_add_list',...
-        'ButtonPushedFcn',@(h,e) obj.pb_add_list_Callback(h,e));
-      obj.gdata.button_add_list.Layout.Column = 4;
 
       for i = 1:npagebuttons,
         obj.gdata.button_page(i) = uibutton(button_grid,'Text',pagebuttonstrs{i},...
@@ -795,24 +782,8 @@ classdef TrackBatchGUI < handle
       end
     end
 
-    function pb_add_list_Callback(obj,h,e) %#ok<*INUSD>
-      % Callback for "Add List" button - loads a list of movies from a text file
-
-      persistent lastpath;
-      if isempty(lastpath)
-        lastpath = '';
-      end
-
-      % Get file from user
-      [filename,pathname] = uigetfile({'*.txt;*.list','Text files (*.txt, *.list)';...
-                                       '*.*','All Files (*.*)'},...
-                                       'Select movie list file',lastpath);
-      if ~ischar(filename)
-        return;
-      end
-
-      listfile = fullfile(pathname,filename);
-      lastpath = pathname;
+    function loadMovieListFromTextFile(obj, listfile)
+      % Load a list of movies from a text file and add them to the current project
 
       % Read and parse the file
       try
@@ -1036,6 +1007,12 @@ classdef TrackBatchGUI < handle
               % Continue with normal tracking
           end
 
+          % Check for existing output trk files and ask user if they want to overwrite
+          overwriteChoice = obj.checkAndPromptForOutputFiles();
+          if strcmp(overwriteChoice, 'cancel')
+            return; % User cancelled
+          end
+
           obj.lObj.trackBatch('toTrack',obj.toTrack,'track_type',tag);
           delete(obj.gdata.fig);
         otherwise
@@ -1050,7 +1027,7 @@ classdef TrackBatchGUI < handle
       end
       success = false;
       if strcmpi(tag,'load'),
-        [filename,pathname] = uigetfile('*.json','Load list of movies to track from file',lastpath);
+        [filename,pathname] = uigetfile('*.*','Load list of movies to track from file',lastpath);
       else
         [filename,pathname] = uiputfile('*.json','Save list of movies to track from file',lastpath);
       end
@@ -1060,12 +1037,21 @@ classdef TrackBatchGUI < handle
       jsonfile = fullfile(pathname,filename);
       lastpath = jsonfile;
       if strcmpi(tag,'load'),
-        try
-          toTrack = parseToTrackJSON(jsonfile,obj.lObj); %#ok<*PROPLC>
-        catch ME,
-          warning('Error loading from jsonfile %s:\n%s',jsonfile,getReport(ME));
-          uiwait(errordlg(sprintf('Could not load from jsonfile:\n%s',...
-            getReport(ME,'basic','hyperlinks','off'))));
+        % Detect file type and handle accordingly
+        [~,~,ext] = fileparts(jsonfile);
+        if strcmpi(ext,'.json')
+          % Handle JSON file (original load logic)
+          try
+            toTrack = parseToTrackJSON(jsonfile,obj.lObj); %#ok<*PROPLC>
+          catch ME,
+            warning('Error loading from jsonfile %s:\n%s',jsonfile,getReport(ME));
+            uiwait(errordlg(sprintf('Could not load from jsonfile:\n%s',...
+              getReport(ME,'basic','hyperlinks','off'))));
+            return;
+          end
+        else
+          % Handle text file (Add List logic)
+          obj.loadMovieListFromTextFile(jsonfile);
           return;
         end
         % cropRois is read in as a nview x 4 matrix
@@ -1088,7 +1074,7 @@ classdef TrackBatchGUI < handle
 
         % Set defaults if not present in loaded JSON
         if ~isfield(obj.toTrack, 'link_type')
-          obj.toTrack.link_type = 'simple';
+          obj.toTrack.link_type = 'motion';
         end
         if ~isfield(obj.toTrack, 'id_maintain_identity')
           obj.toTrack.id_maintain_identity = false;
@@ -1320,15 +1306,14 @@ classdef TrackBatchGUI < handle
         % Calculate button dimensions with padding
         padding = 10;  % pixels
         buttonHeight = max(20, bgHeight - 2*padding);  % minimum 20px height
-        buttonWidth = (bgWidth - 4*padding) / 3;  % divide width by 3 with padding
+        buttonWidth = (bgWidth - 3*padding) / 2;  % divide width by 2 with padding
         
         % Calculate positions for each button
         y = (bgHeight - buttonHeight) / 2;  % center vertically
         
-        % Update positions
-        obj.gdata.rb_simple.Position = [padding, y, buttonWidth, buttonHeight];
-        obj.gdata.rb_motion.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
-        obj.gdata.rb_identity.Position = [padding + 2*(buttonWidth + padding), y, buttonWidth, buttonHeight];
+        % Update positions (now only motion and identity)
+        obj.gdata.rb_motion.Position = [padding, y, buttonWidth, buttonHeight];
+        obj.gdata.rb_identity.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
         
       catch ME
         % Silently handle errors during resize
@@ -1580,9 +1565,7 @@ classdef TrackBatchGUI < handle
       selectedButton = evt.NewValue;
 
       % Determine which linking type was selected
-      if selectedButton == obj.gdata.rb_simple
-        obj.toTrack.link_type = 'simple';
-      elseif selectedButton == obj.gdata.rb_motion
+      if selectedButton == obj.gdata.rb_motion
         obj.toTrack.link_type = 'motion';
       elseif selectedButton == obj.gdata.rb_identity
         obj.toTrack.link_type = 'identity';
@@ -1611,12 +1594,11 @@ classdef TrackBatchGUI < handle
 
     function updateLinkingControls(obj)
       % Update radio buttons and checkbox to reflect loaded data
-      if ~isfield(obj.gdata, 'rb_simple') || ~isvalid(obj.gdata.rb_simple)
+      if ~isfield(obj.gdata, 'rb_motion') || ~isvalid(obj.gdata.rb_motion)
         return; % GUI not created yet
       end
 
       % Update radio button values
-      obj.gdata.rb_simple.Value = strcmp(obj.toTrack.link_type, 'simple');
       obj.gdata.rb_motion.Value = strcmp(obj.toTrack.link_type, 'motion');
       obj.gdata.rb_identity.Value = strcmp(obj.toTrack.link_type, 'identity');
 
@@ -1750,6 +1732,66 @@ classdef TrackBatchGUI < handle
         if isvalid(d)
           delete(d);
         end
+      end
+    end
+
+    function userChoice = checkAndPromptForOutputFiles(obj)
+      % Check for existing output trk files and prompt user if they want to overwrite them
+      % Returns user choice: 'cancel', 'overwrite', or 'no_output_files'
+
+      % Get all trk files that will be created as output
+      trkfiles = obj.toTrack.trkfiles;
+      if isempty(trkfiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      existingOutputFiles = {};
+      outputTimestamps = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Check if output trk file already exists
+        if exist(trkfiles{i}, 'file')
+          existingOutputFiles{end+1} = trkfiles{i}; %#ok<AGROW>
+
+          % Get file timestamp
+          fileInfo = dir(trkfiles{i});
+          if ~isempty(fileInfo)
+            outputTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            outputTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingOutputFiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing output tracking file(s):\n\n', numel(existingOutputFiles));
+      for i = 1:numel(existingOutputFiles)
+        [~, fname, fext] = fileparts(existingOutputFiles{i});
+        promptMsg = sprintf('%s%s%s - %s\n', promptMsg, fname, fext, outputTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to overwrite these existing tracking files?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Output Files Found', ...
+        'Overwrite', 'Cancel', 'Overwrite');
+
+      switch choice
+        case 'Overwrite'
+          userChoice = 'overwrite';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
       end
     end
 

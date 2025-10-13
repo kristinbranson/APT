@@ -432,7 +432,7 @@ classdef TrackMonitorViz < handle
         tfSucc = false;
       elseif isfield(pollingResult,'result_type')&& strcmp(pollingResult.result_type,'id_link') 
         if isLogFile && pollingResult.jsonFileExist && numel(pollingResult.idstep)>0
-            status = sprintf('ID Training in progress. % iterations completed',pollingResult.idstep(end));
+            status = sprintf('ID Training in progress. %d iterations completed',pollingResult.idstep(end));
         else
           status = 'Initializing Training for ID Linking. ';            
         end
@@ -786,7 +786,8 @@ classdef TrackMonitorViz < handle
         xlabel(obj.haxsIDTraining,'Training Step');
         ylabel(obj.haxsIDTraining,'Training Loss');
         title(obj.haxsIDTraining,'ID Model Training Progress','Color',[1,1,1]);
-        set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
+        set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1]);
+        yscale(obj.haxsIDTraining,'log');
         grid on;
         drawnow('limitrate', 'nocallbacks');
       end
@@ -863,6 +864,7 @@ classdef TrackMonitorViz < handle
       title(obj.haxsIDTraining, 'ID Model Training Progress');
       grid(obj.haxsIDTraining, 'on');
       set(obj.haxsIDTraining,'Color',[0,0,0],'XColor',[1 1 1],'YColor',[1,1,1])
+      yscale(obj.haxsIDTraining,'log');
     end  % function
 
   end  % methods

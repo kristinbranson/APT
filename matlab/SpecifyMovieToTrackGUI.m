@@ -24,7 +24,7 @@ classdef SpecifyMovieToTrackGUI < handle
 %    defaultdetectpat = [];
     % track_type = 'track';
     detailed_options = true;
-    link_type = 'simple';
+    link_type = 'motion';
     showPathEnds = true;  % Path display mode: true = show path ends, false = show path starts
   end
   methods
@@ -147,7 +147,7 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.movdata.f1s = obj.movdata.f1s{1};
       end
       if ~isfield(obj.movdata,'link_type'),
-        obj.movdata.link_type = 'simple';
+        obj.movdata.link_type = 'motion';
       end
       
       obj.rowinfo = struct;
@@ -489,25 +489,19 @@ classdef SpecifyMovieToTrackGUI < handle
         set(obj.gdata.bg_linking,'Units','pixels');
         pos = get(obj.gdata.bg_linking,'Position');
         set(obj.gdata.bg_linking,'Units','normalized');
-        wd = pos(3)/3-20;
+        wd = pos(3)/2-20;  % Now divide by 2 instead of 3
 
         % Radio buttons - positions will be calculated dynamically
-        obj.gdata.rb_simple = uiradiobutton(obj.gdata.bg_linking,...
-          'Text','Simple linking',...
-          'FontColor','w',...
-          'Position',[10 5 wd 20],...
-          'Value',strcmp(obj.link_type,'simple'));
-
         obj.gdata.rb_motion = uiradiobutton(obj.gdata.bg_linking,...
           'Text','Motion Linking',...
           'FontColor','w',...
-          'Position',[wd+20 5 wd 20],...
+          'Position',[10 5 wd 20],...
           'Value',strcmp(obj.link_type,'motion'));
 
         obj.gdata.rb_identity = uiradiobutton(obj.gdata.bg_linking,...
           'Text','Identity linking',...
           'FontColor','w',...
-          'Position',[2*(wd+20) 5 wd 20],...
+          'Position',[wd+20 5 wd 20],...
           'Value',strcmp(obj.link_type,'identity'));
         
         % Update radio button positions after creation
@@ -885,19 +879,39 @@ classdef SpecifyMovieToTrackGUI < handle
     end
     
     function pb_control_Callback(obj,h,e,tag)
-      
+
       if ismember(lower(tag),{'done','apply'}),
-        
+
         fns = fieldnames(obj.isgood);
         isgood = true;
         for i = 1:numel(fns)
           isgood = isgood && all(obj.isgood.(fns{i}));
         end
-        
+
         if ~isgood,
           uiwait(errordlg('Fields marked in red have missing or incorrect values. Correct them or press the Cancel button'));
           return;
         end
+
+        % Check for existing detect files and prompt user
+        userChoice = obj.checkAndPromptForDetectFiles();
+        switch userChoice
+          case 'cancel'
+            return; % User cancelled, don't close dialog
+          case 'use_detect'
+            obj.movdata.docontinue = true;
+          case 'new_tracking'
+            obj.movdata.docontinue = false;
+          case 'no_detect_files'
+            obj.movdata.docontinue = false;
+        end
+
+        % Check for existing output trk files and ask user if they want to overwrite
+        overwriteChoice = obj.checkAndPromptForOutputFiles();
+        if strcmp(overwriteChoice, 'cancel')
+          return; % User cancelled, don't close dialog
+        end
+
         obj.dostore = true;
       end
       % if obj.isma
@@ -909,7 +923,7 @@ classdef SpecifyMovieToTrackGUI < handle
       if ismember(lower(tag),{'done','cancel'}),
         delete(obj.gdata.fig);
       end
-      
+
     end
     
     function pb_crop_Callback(obj,h,e,iview,dosave)
@@ -957,9 +971,7 @@ classdef SpecifyMovieToTrackGUI < handle
       selectedButton = evt.NewValue;
 
       % Determine which linking type was selected
-      if selectedButton == obj.gdata.rb_simple
-        obj.link_type = 'simple';
-      elseif selectedButton == obj.gdata.rb_motion
+      if selectedButton == obj.gdata.rb_motion
         obj.link_type = 'motion';
       elseif selectedButton == obj.gdata.rb_identity
         obj.link_type = 'identity';
@@ -1016,20 +1028,17 @@ classdef SpecifyMovieToTrackGUI < handle
         % Calculate button dimensions with padding
         padding = 10;  % pixels
         buttonHeight = max(20, bgHeight - 2*padding);  % minimum 20px height
-        buttonWidth = (bgWidth - 4*padding) / 3;  % divide width by 3 with padding
-        
+        buttonWidth = (bgWidth - 3*padding) / 2;  % divide width by 2 with padding
+
         % Calculate positions for each button
         y = (bgHeight - buttonHeight) / 2;  % center vertically
-        
-        % Update positions
-        if isfield(obj.gdata, 'rb_simple') && isvalid(obj.gdata.rb_simple)
-          obj.gdata.rb_simple.Position = [padding, y, buttonWidth, buttonHeight];
-        end
+
+        % Update positions (now only motion and identity)
         if isfield(obj.gdata, 'rb_motion') && isvalid(obj.gdata.rb_motion)
-          obj.gdata.rb_motion.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
+          obj.gdata.rb_motion.Position = [padding, y, buttonWidth, buttonHeight];
         end
         if isfield(obj.gdata, 'rb_identity') && isvalid(obj.gdata.rb_identity)
-          obj.gdata.rb_identity.Position = [padding + 2*(buttonWidth + padding), y, buttonWidth, buttonHeight];
+          obj.gdata.rb_identity.Position = [padding + buttonWidth + padding, y, buttonWidth, buttonHeight];
         end
         
       catch ME
@@ -1152,6 +1161,160 @@ classdef SpecifyMovieToTrackGUI < handle
       else
         % Show whole path when showing path starts
         displayPath = originalPath;
+      end
+    end
+
+    function userChoice = checkAndPromptForDetectFiles(obj)
+      % Check for existing _detect files and prompt user if they want to continue with them
+      % Returns user choice: 'cancel', 'use_detect', 'new_tracking', or 'no_detect_files'
+
+      % Get all trk files from the current movie data
+      trkfiles = {};
+      if isfield(obj.movdata, 'trkfiles') && ~isempty(obj.movdata.trkfiles)
+        trkfiles = obj.movdata.trkfiles;
+      elseif isfield(obj.movdata, 'trkfile') && ~isempty(obj.movdata.trkfile)
+        trkfiles = {obj.movdata.trkfile};
+      end
+
+      if isempty(trkfiles)
+        userChoice = 'no_detect_files';
+        return;
+      end
+
+      existingDetectFiles = {};
+      detectTimestamps = {};
+      predictionStatus = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Generate corresponding _detect filename and part filename
+        [pathpart, namepart, ext] = fileparts(trkfiles{i});
+        detectFile = fullfile(pathpart, [namepart '_detect' ext]);
+        detectPartFile = fullfile(pathpart, [namepart '_detect' ext '.part']);
+
+        % Check if _detect file or _detect.part file exists
+        detectExists = exist(detectFile, 'file');
+        detectPartExists = exist(detectPartFile, 'file');
+
+        if detectExists || detectPartExists
+          % Use detect file if it exists, otherwise use part file
+          if detectExists
+            fileToUse = detectFile;
+            status = 'Full';
+            fileInfo = dir(detectFile);
+          else
+            fileToUse = detectPartFile;
+            status = 'Partial';
+            fileInfo = dir(detectPartFile);
+          end
+
+          existingDetectFiles{end+1} = fileToUse; %#ok<AGROW>
+          predictionStatus{end+1} = status; %#ok<AGROW>
+
+          % Get file timestamp
+          if ~isempty(fileInfo)
+            detectTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            detectTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingDetectFiles)
+        userChoice = 'no_detect_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing detection file(s):\n\n', numel(existingDetectFiles));
+      for i = 1:numel(existingDetectFiles)
+        [~, fname, fext] = fileparts(existingDetectFiles{i});
+        promptMsg = sprintf('%s%s%s (%s) - %s\n', promptMsg, fname, fext, predictionStatus{i}, detectTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to use these existing detection files or start new tracking?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Detection Files Found', ...
+        'Use Existing', 'New Tracking', 'Cancel', 'Use Existing');
+
+      switch choice
+        case 'Use Existing'
+          userChoice = 'use_detect';
+        case 'New Tracking'
+          userChoice = 'new_tracking';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
+      end
+    end
+
+    function userChoice = checkAndPromptForOutputFiles(obj)
+      % Check for existing output trk files and prompt user if they want to overwrite them
+      % Returns user choice: 'cancel', 'overwrite', or 'no_output_files'
+
+      % Get all trk files that will be created as output
+      trkfiles = {};
+      if isfield(obj.movdata, 'trkfiles') && ~isempty(obj.movdata.trkfiles)
+        trkfiles = obj.movdata.trkfiles;
+      elseif isfield(obj.movdata, 'trkfile') && ~isempty(obj.movdata.trkfile)
+        trkfiles = {obj.movdata.trkfile};
+      end
+
+      if isempty(trkfiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      existingOutputFiles = {};
+      outputTimestamps = {};
+
+      for i = 1:numel(trkfiles)
+        if isempty(trkfiles{i})
+          continue;
+        end
+
+        % Check if output trk file already exists
+        if exist(trkfiles{i}, 'file')
+          existingOutputFiles{end+1} = trkfiles{i}; %#ok<AGROW>
+
+          % Get file timestamp
+          fileInfo = dir(trkfiles{i});
+          if ~isempty(fileInfo)
+            outputTimestamps{end+1} = datestr(fileInfo.datenum, 'yyyy-mm-dd HH:MM:SS'); %#ok<AGROW>
+          else
+            outputTimestamps{end+1} = 'Unknown'; %#ok<AGROW>
+          end
+        end
+      end
+
+      if isempty(existingOutputFiles)
+        userChoice = 'no_output_files';
+        return;
+      end
+
+      % Create prompt message
+      promptMsg = sprintf('Found %d existing output tracking file(s):\n\n', numel(existingOutputFiles));
+      for i = 1:numel(existingOutputFiles)
+        [~, fname, fext] = fileparts(existingOutputFiles{i});
+        promptMsg = sprintf('%s%s%s - %s\n', promptMsg, fname, fext, outputTimestamps{i});
+      end
+      promptMsg = sprintf('%s\nDo you want to overwrite these existing tracking files?', promptMsg);
+
+      % Show dialog
+      choice = questdlg(promptMsg, 'Existing Output Files Found', ...
+        'Overwrite', 'Cancel', 'Overwrite');
+
+      switch choice
+        case 'Overwrite'
+          userChoice = 'overwrite';
+        case 'Cancel'
+          userChoice = 'cancel';
+        otherwise
+          userChoice = 'cancel';
       end
     end
 

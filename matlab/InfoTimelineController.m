@@ -235,7 +235,7 @@ classdef InfoTimelineController < handle
       obj.updateGTModeRelatedControls();
     end
             
-    function updateLabels(obj)
+    function updateLabels(obj,varargin)
       % Update .hPts, .hMarked, .hPtStat
       
       lObj = obj.lObj ;
@@ -243,7 +243,7 @@ classdef InfoTimelineController < handle
         return
       end
       
-      dat = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nptsxnfrm]
+      dat = lObj.getTimelineDataForCurrentMovieAndTarget(varargin{:});  % [nptsxnfrm]
       datnonnan = dat(~isnan(dat));
 
       set(obj.hPts,'XData',nan,'YData',nan);

@@ -46,8 +46,9 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
   
   methods
     function obj = TrackingVisualizerTracklets(lObj,ptsPlotInfoFld,handleTagPfix)
-      obj.tvmt = TrackingVisualizerMT(lObj,ptsPlotInfoFld,handleTagPfix,'skel_linestyle','-');
-      obj.tvtrx = TrackingVisualizerTrxMA(lObj);
+      obj.tvmt = TrackingVisualizerMTFast(lObj,ptsPlotInfoFld,handleTagPfix,...
+        'skel_linestyle','-','plot_type','pred');
+      obj.tvtrx = TrackingVisualizerTrxMAFast(lObj);
       %obj.ptrx = ptrxs;
       obj.npts = lObj.nLabelPoints;
       obj.ntrxmax = 0;
@@ -59,7 +60,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     end
     function vizInit(obj,varargin)
       ntgtmax = myparse(varargin,...
-        'ntgtmax',20 ...
+        'ntgtmax',100 ...
         );
       
       obj.ntrxmax = ntgtmax*2;
@@ -98,24 +99,25 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       iTrx = obj.frm2trx(frm);
       
       nTrx = numel(iTrx);
-      if nTrx>obj.ntrxmax
-        isalive = false(1,nTrx);
-        for n=1:nTrx
-          trxn = iTrx(n);
-          isalive(n) = ~isnan(ptrx(trxn).x(frm+ptrx(trxn).off));
-        end
-        isalive = find(isalive);
-        if numel(isalive)>nTrx
-          warningNoTrace('Number of targets to display (%d) is much more than max number of animals (%d). Showing first %d targets.',...
-            nTrx,obj.ntrxmax,obj.ntrxmax);
-
-          nTrx = obj.ntrxmax;
-          iTrx = iTrx(isalive(1:nTrx));
-        else
-          iTrx = iTrx(isalive);
-          nTrx = numel(isalive);
-        end
-      end
+      % This shouldn't be required with fast visualizers
+      % if nTrx>obj.ntrxmax
+      %   isalive = false(1,nTrx);
+      %   for n=1:nTrx
+      %     trxn = iTrx(n);
+      %     isalive(n) = ~isnan(ptrx(trxn).x(frm+ptrx(trxn).off));
+      %   end
+      %   isalive = find(isalive);
+      %   if numel(isalive)>nTrx
+      %     warningNoTrace('Number of targets to display (%d) is much more than max number of animals (%d). Showing first %d targets.',...
+      %       nTrx,obj.ntrxmax,obj.ntrxmax);
+      % 
+      %     nTrx = obj.ntrxmax;
+      %     iTrx = iTrx(isalive(1:nTrx));
+      %   else
+      %     iTrx = iTrx(isalive);
+      %     nTrx = numel(isalive);
+      %   end
+      % end
       npts = obj.npts;
       
       % get landmarks
@@ -175,9 +177,9 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         nTrkletTot = numel(obj.ptrx);
         obj.hud.updateTrklet(trkletID,nTrkletTot);        
         obj.currTrklet = iTrklet;
-        % obj.tvtrx.updatePrimary() already called
+        obj.tvtrx.updateLiveTrx(obj.ptrx,obj.lObj.currFrame,true) %already called
         obj.tvmt.updatePrimary(iTrxViz);
-        obj.lObj.gdata.labelTLInfo.updateLabels();
+        obj.lObj.gdata.labelTLInfo.updateLabels('doRecompute',true);
       end
     end
     function trxSelectedTrxID(obj,iTrklet,tfforce)

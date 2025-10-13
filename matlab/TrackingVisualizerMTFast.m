@@ -47,12 +47,14 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
                % frame. hPred(ipt) shows landmark ipt across all 
                % targets, primary or otherwise (so these cannot have 
                % different cosmetics)
+    hPredOcc;
     hPredTxt; % [nPts] handle vec, text labels for hPred
               % currently showing only for primary
     
     % Could have hSkelPrimary and hSkelOther
     hSkel   % [1xnview] skeleton line handle (all edges/tgts)
             % format of .XData, .YData: see setSkelCoords
+    skelLinestyle = '-';
     
     %hPch  % [ntgt] handle vec
     
@@ -78,6 +80,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
     %iTgtHide % [nhide] tgt indices for hidden targets. 
                 
     %skelEdgeColor = [.7,.7,.7];
+    pltType = 'label'; % plotting for labels or predictions
   end
 %   properties (Constant)
 %     SAVEPROPS = {'ipt2vw' 'ptClrs' 'txtOffPx' 'tfHideViz' 'tfHideTxt' ...
@@ -104,11 +107,13 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
   end  
   
   methods
-    function obj = TrackingVisualizerMTFast(lObj,ptsPlotInfoField,handleTagPfix)
+    function obj = TrackingVisualizerMTFast(lObj,ptsPlotInfoField,handleTagPfix,varargin)
 
       if nargin==0
         return;
       end
+      [skel_linestyle,plot_type] = myparse(varargin,'skel_linestyle','-','plot_type','label');
+ 
       
       obj.lObj = lObj;
       gd = lObj.gdata;
@@ -125,13 +130,20 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       obj.tfShowPch = false;
       obj.tfShowSkel = false;
 
-      obj.handleTagPfix = handleTagPfix;    
+      obj.handleTagPfix = handleTagPfix;  
+      obj.skelLinestyle = skel_linestyle;
+      obj.pltType = plot_type;
+
     end
     
     function deleteGfxHandles(obj)
       if ~isstruct(obj.hPred) % guard against serialized TVs which have PV structs in .hPred
         deleteValidGraphicsHandles(obj.hPred);
         obj.hPred = [];
+      end
+      if ~isstruct(obj.hPredOcc) % guard against serialized TVs which have PV structs in .hPred
+        deleteValidGraphicsHandles(obj.hPredOcc);
+        obj.hPredOcc = [];
       end
       deleteValidGraphicsHandles(obj.hPredTxt);
       obj.hPredTxt = [];
@@ -170,7 +182,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       szassert(ptclrs,[npts 3]);      
 
       % init .xyVizPlotArgs*
-      [markerPVs,textPVs,pchTextPVs,skelPVs] = obj.convertLabelerCosmeticPVs(pppi);
+      [markerPVs,textPVs,pchTextPVs,skelPVs] = obj.convertLabelerCosmeticPVs(pppi,obj.pltType);
       markerPVscell = struct2paramscell(markerPVs);
       textPVscell = struct2paramscell(textPVs);
       skelPVs = struct2paramscell(skelPVs);
@@ -180,6 +192,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       ipt2View = obj.ipt2vw;
       ipt2set = obj.lObj.labeledposIPt2Set;
       hTmp = gobjects(npts,1);
+      hTmpOcc = gobjects(npts,1);
       hTxt = gobjects(npts,1);
       pfix = obj.handleTagPfix;
       for ipt = 1:npts
@@ -190,16 +203,24 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
           'Color',clr,...
           'LineStyle','none',...
           'Tag',sprintf('%s_pred_%d',pfix,ipt));
+        hTmpOcc(ipt) = plot(ax(ivw),nan,nan,markerPVscell{:},...
+          'Color',clr,...
+          'LineStyle','none',...
+          'Tag',sprintf('%s_pred_%d',pfix,ipt));
         hTxt(ipt) = text(nan,nan,num2str(ptset),...
           'Parent',ax(ivw),...
           'Color',clr,textPVscell{:},...
           'Tag',sprintf('%s_PrdRedTxt_%d',pfix,ipt));
       end
       obj.hPred = hTmp;
+      set(obj.hPred,'marker',obj.mrkrReg);
+      obj.hPredOcc = hTmpOcc;
+      set(obj.hPredOcc,'marker',obj.mrkrOcc);
       obj.hPredTxt = hTxt;
 
       nvw = obj.lObj.nview;
       obj.hSkel = gobjects(1,nvw);
+      obj.tfShowSkel = obj.lObj.showSkeleton;
       
       %skelClr = obj.skelEdgeColor;
       for ivw=1:nvw
@@ -262,7 +283,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
       
       TrackingVisualizerMTFast.updateSkelStc(...
-                          obj.hSkel,obj.skelEdges,obj.nPts,xy);
+                          obj.hSkel,obj.skelEdges,obj.nPts,xy,'linestyle',obj.skelLinestyle);
     end
   end
   methods (Static)
@@ -277,6 +298,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % It is assumed that skelEdges is wrt view 1, and that those edges 
       % apply to all views. Recall currently pts in all views correspond to 
       % the same physical pts.
+      
+      if isempty(xy)
+        return;
+      end
       
       [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','','alpha',0.5, 'linewidth',0.5);
 
@@ -371,7 +396,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       
       if ~isempty(obj.hPred) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
         onoffViz = onIff(~obj.tfHideViz);
-        set(obj.hPred,'Visible',onoffViz);        
+        set(obj.hPred,'Visible',onoffViz);   
+        set(obj.hPredOcc,'Visible',onoffViz);   
         onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
         set(obj.hPredTxt,'Visible',onoffTxt);
         obj.updatePreds();
@@ -407,6 +433,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
       
       h = obj.hPred;
+      h_occ = obj.hPredOcc;
+      tfeo = obj.occCurr;
       
       if isempty(xy)
         % no data; hide x/y for all pts
@@ -414,9 +442,20 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       else
         npt = obj.nPts;
         for ipt=1:npt
-          xdata = xy(ipt,1,:); % [1 1 ntgtshow]
-          ydata = xy(ipt,2,:);
-          set(h(ipt),'XData',xdata(:),'YData',ydata(:));
+          if ~isempty(tfeo)
+            occpts = tfeo(ipt,:);
+            regpts = ~tfeo(ipt,:);
+          else
+            occpts = [];
+            regpts = 1:ipt;
+          end
+          xdata_reg = xy(ipt,1,regpts); % [1 1 ntgtshow]
+          ydata_reg = xy(ipt,2,regpts);          
+          set(h(ipt),'XData',xdata_reg(:),'YData',ydata_reg(:));%,'marker',obj.mrkrReg);
+          xdata_occ = xy(ipt,1,occpts); % [1 1 ntgtshow]
+          ydata_occ = xy(ipt,2,occpts);          
+          set(h_occ(ipt),'XData',xdata_occ(:),'YData',ydata_occ(:));%,'marker',obj.mrkrOcc);
+
         end
       end
     end
@@ -467,7 +506,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % xyITgts: [nTgts] indices/labels
       %
 
-      if nargin < 3
+      if nargin < 4
         [npts,~,ntgts] = size(xy);
         tfeo = false(npts,ntgts);
         xyITgts = (1:ntgts)';
@@ -514,6 +553,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       for iPt=1:npts
         clr = ptsClrs(iPt,:);
         set(obj.hPred(iPt),'Color',clr);
+        set(obj.hPredOcc(iPt),'Color',clr);
         set(obj.hPredTxt(iPt),'Color',clr);
       end
       %obj.ptClrs = ptsClrs;
@@ -522,7 +562,8 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       if isstruct(pvargs)
         pvargs = obj.convertLabelerMarkerPVs(pvargs);
         arrayfun(@(x)set(x,pvargs),obj.hPred);
-        obj.mrkrReg = pvargs.Marker;
+        arrayfun(@(x)set(x,pvargs),obj.hPredOcc);
+        obj.mrkrReg = pvargs.Marker;        
       else
         assert(false);
         %arrayfun(@(x)set(x,pvargs{:}),obj.hPred);
@@ -546,6 +587,27 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       ppi = obj.lObj.(ppiFld);
       set(obj.hSkel,ppi.SkeletonProps);
     end
+    function set_hittest(obj,onoff)
+      if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
+        [obj.hPred.HitTest] = deal(onoff);
+        [obj.hPredOcc.HitTest] = deal(onoff);
+        [obj.hPredTxt.HitTest] = deal(onoff);
+      end
+      
+      % skel, pch: not affected by hide
+      if ~isempty(obj.hSkel)
+        set(obj.hSkel,'HitTest',onoff);
+        % because updateSkel() early returns if visible is off
+        obj.updateSkel(); 
+      end      
+    end
+    function hittest_off_all(obj)
+      obj.set_hittest('off');
+    end
+    function hittest_on_all(obj)
+      obj.set_hittest('on');
+    end
+
 %     function cbkPchTextBDF(obj,s,e)
 %       iTgt = s.UserData;
 %       % lObj was supposed to be used as minimally as possible to access
@@ -556,22 +618,26 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
   
   methods (Static)
     function [markerPVs,textPVs,pchTextPVs,skelPVs] = ...
-                                      convertLabelerCosmeticPVs(pppi)
+                                      convertLabelerCosmeticPVs(pppi,pltType)
       % convert .ptsPlotInfo from labeler to that used by this obj
 
-      markerPVs = TrackingVisualizerMTFast.convertLabelerMarkerPVs(pppi.MarkerProps);
-      textPVs = TrackingVisualizerMTFast.convertLabelerTextPVs(pppi.TextProps);
+      markerPVs = TrackingVisualizerMTFast.convertLabelerMarkerPVs(pppi.MarkerProps,pltType);
+      textPVs = TrackingVisualizerMTFast.convertLabelerTextPVs(pppi.TextProps,pltType);
       pchTextPVs = struct('FontSize',round(textPVs.FontSize*2.0));
       skelPVs = pppi.SkeletonProps;
     end
-    function markerPVs = convertLabelerMarkerPVs(markerPVs)
-      %sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
-      %markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
+    function markerPVs = convertLabelerMarkerPVs(markerPVs,pltType)
+      if strcmp(pltType,'pred')
+        sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
+        markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
+      end
       markerPVs.PickableParts = 'none';
     end      
-    function textPVs = convertLabelerTextPVs(textPVs)
-      %sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
-      %textPVs.FontSize = round(textPVs.FontSize*sizefac);
+    function textPVs = convertLabelerTextPVs(textPVs,pltType)
+      if strcmp(pltType,'pred')
+        sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
+        textPVs.FontSize = round(textPVs.FontSize*sizefac);
+      end
       textPVs.PickableParts = 'none'; 
     end
   end
