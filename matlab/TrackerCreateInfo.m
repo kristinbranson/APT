@@ -82,9 +82,7 @@ classdef TrackerCreateInfo
           % Must be top-down
           % Most possible cases are handles by DeepTrackTopDownCustom, but a few are
           % handled by DeepTrackerTopDown
-          className = fif(DeepTrackerTopDown.isMemberTrnTypes(netTypes), ...
-                          'DeepTrackerTopDown', ...
-                          'DeepTrackerTopDownCustom');
+          className = 'DeepTrackerTopDown' ;
           % Determine whether bbox-style or head/tail-style object detection is being
           % used by looking at the first (detection) stage.
           if startsWith(char(netTypes(1)), 'detect')
@@ -117,6 +115,8 @@ classdef TrackerCreateInfo
           netType = ca{3} ;
           result = TrackerCreateInfo('DeepTracker', netType, DLNetMode.multiAnimalBU) ;          
         elseif strcmp(className, 'DeepTrackerTopDown') || strcmp(className, 'DeepTrackerTopDownCustom')
+          % The class DeepTrackerTopDownCustom doesn't exist anymore, now handled by
+          % DeepTrackerTopDown.  But check for it to handle legacy projects.
           stage1NetTypeAndNetMode = ca{2} ;
           stage2NetTypeAndNetMode = ca{3} ;        
           stage1NetType = stage1NetTypeAndNetMode{2} ;
@@ -125,7 +125,7 @@ classdef TrackerCreateInfo
           stage2NetMode = stage2NetTypeAndNetMode{4} ;
           netTypes = [ stage1NetType stage2NetType ] ;
           netModes = [ stage1NetMode stage2NetMode ] ;          
-          result = TrackerCreateInfo(className, netTypes, netModes) ;
+          result = TrackerCreateInfo('DeepTrackerTopDown', netTypes, netModes) ;
         else
           error('Unknown class name ''%s''', className) ;
         end

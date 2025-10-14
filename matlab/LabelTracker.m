@@ -469,75 +469,75 @@ classdef (Abstract) LabelTracker < handle
       end
     end
     
-    function result = getAllTrackersCreateInfo(isMA)
-      % Get information about all of the kinds of trackers that the user can choose
-      % from.
-      %
-      % This will need updating. DLNetType will include all types of nets
-      % such as objdetect which will not qualify as eg regular/SA trackers.
-      if isMA
-        info = horzcat(DeepTrackerBottomUp.getTrackerInfos(), ...
-                       DeepTrackerTopDown.getTrackerInfos(), ...
-                       DeepTrackerTopDownCustom.getTrackerInfos() ) ;
-        % For custom 2-stage trackers add the DeepTrackerTopDown again.
-      else        
-        netTypes = enumeration('DLNetType');
-        netTypes = netTypes(~[netTypes.isMultiAnimal]);
-        % info = arrayfun(@(x){'DeepTracker' 'trnNetType' x}, dlnets, 'UniformOutput', false) ;
-        info = arrayfun(@(netType)(TrackerCreateInfo('DeepTracker', netType, DLNetMode.singleAnimal)), ...
-                        netTypes, ...
-                        'UniformOutput', true) ;
-      end
-      result = info(:)' ;  % want row vector
-      assert(isa(result, 'TrackerCreateInfo') && isrow(result)) ;
-    end
+    % function result = getAllTrackersCreateInfo(isMA)
+    %   % Get information about all of the kinds of trackers that the user can choose
+    %   % from.
+    %   %
+    %   % This will need updating. DLNetType will include all types of nets
+    %   % such as objdetect which will not qualify as eg regular/SA trackers.
+    %   if isMA
+    %     info = horzcat(DeepTrackerBottomUp.getTrackerInfos(), ...
+    %                    DeepTrackerTopDown.getTrackerInfos(), ...
+    %                    DeepTrackerTopDownCustom.getTrackerInfos() ) ;
+    %     % For custom 2-stage trackers add the DeepTrackerTopDown again.
+    %   else        
+    %     netTypes = enumeration('DLNetType');
+    %     netTypes = netTypes(~[netTypes.isMultiAnimal]);
+    %     % info = arrayfun(@(x){'DeepTracker' 'trnNetType' x}, dlnets, 'UniformOutput', false) ;
+    %     info = arrayfun(@(netType)(TrackerCreateInfo('DeepTracker', netType, DLNetMode.singleAnimal)), ...
+    %                     netTypes, ...
+    %                     'UniformOutput', true) ;
+    %   end
+    %   result = info(:)' ;  % want row vector
+    %   assert(isa(result, 'TrackerCreateInfo') && isrow(result)) ;
+    % end
     
-    function [tf,loc] = trackersCreateInfoIsMember(tcis1, tcis2)
-      % Need to re-do this.  During loading, the first arg won't be a
-      % TrackerClassInfo, it will be builtin object of some kind.
-
-      % For each element of tcis1, determine whether some element of tcis2
-      % matches it, and if so, at what index into tcis2 the matching element is
-      % found at.  If tcis1 has n elements, on return tf is an n x 1 logical
-      % array, and loc is an n x 1 double array of indices into tcis2.  Used to
-      % match up trackers in a being-loaded .lbl file to the list of available
-      % trackers according to LabelTracker.getAllTrackersCreateInfo().  tcis1
-      % should come from the read-in .lbl file, and tcis2 from a call to
-      % LablerTracker.getAllTrackersCreateInfo().
-      assert(isa(tcis1, 'TrackerCreateInfo') && isrow(tcis1)) ;
-      assert(isa(tcis2, 'TrackerCreateInfo') && isrow(tcis2)) ;
-      n1 = numel(tcis1);
-      n2 = numel(tcis2);
-      tf = false(1,n1);
-      loc = zeros(1,n1);
-      for i=1:n1
-        tci1 = tcis1(i) ;  % "tci" for Tracker Create Info
-        for j=1:n2
-          tci2 = tcis2(j) ;
-          if isequal(tci1,tci2)
-            tf(i) = true;
-            loc(i) = j;
-            break
-          end
-          tci1_class_name = tci1.className ;
-          tci2_class_name = tci2.className ;
-          if strcmp(tci1_class_name,'DeepTrackerTopDownCustom') && ...
-             strcmp(tci2_class_name,'DeepTrackerTopDownCustom')
-            % since custom don't have trnNetType defined. MK 20240228
-            tci1_stage_1_trnNetMode = tci1.netMode(1) ;
-            tci1_stage_2_trnNetMode = tci1.netMode(2) ;
-            tci2_stage_1_trnNetMode = tci2.netMode(1) ;
-            tci2_stage_2_trnNetMode = tci2.netMode(2) ;           
-            if isequal(tci1_stage_1_trnNetMode,tci2_stage_1_trnNetMode) && ...
-               isequal(tci1_stage_2_trnNetMode,tci2_stage_2_trnNetMode)
-              tf(i) = true;
-              loc(i) = j;  
-              break
-            end
-          end
-        end  % for j
-      end  % for i
-    end  % function
+    % function [tf,loc] = trackersCreateInfoIsMember(tcis1, tcis2)
+    %   % Need to re-do this.  During loading, the first arg won't be a
+    %   % TrackerClassInfo, it will be builtin object of some kind.
+    % 
+    %   % For each element of tcis1, determine whether some element of tcis2
+    %   % matches it, and if so, at what index into tcis2 the matching element is
+    %   % found at.  If tcis1 has n elements, on return tf is an n x 1 logical
+    %   % array, and loc is an n x 1 double array of indices into tcis2.  Used to
+    %   % match up trackers in a being-loaded .lbl file to the list of available
+    %   % trackers according to LabelTracker.getAllTrackersCreateInfo().  tcis1
+    %   % should come from the read-in .lbl file, and tcis2 from a call to
+    %   % LablerTracker.getAllTrackersCreateInfo().
+    %   assert(isa(tcis1, 'TrackerCreateInfo') && isrow(tcis1)) ;
+    %   assert(isa(tcis2, 'TrackerCreateInfo') && isrow(tcis2)) ;
+    %   n1 = numel(tcis1);
+    %   n2 = numel(tcis2);
+    %   tf = false(1,n1);
+    %   loc = zeros(1,n1);
+    %   for i=1:n1
+    %     tci1 = tcis1(i) ;  % "tci" for Tracker Create Info
+    %     for j=1:n2
+    %       tci2 = tcis2(j) ;
+    %       if isequal(tci1,tci2)
+    %         tf(i) = true;
+    %         loc(i) = j;
+    %         break
+    %       end
+    %       tci1_class_name = tci1.className ;
+    %       tci2_class_name = tci2.className ;
+    %       if strcmp(tci1_class_name,'DeepTrackerTopDownCustom') && ...
+    %          strcmp(tci2_class_name,'DeepTrackerTopDownCustom')
+    %         % since custom don't have trnNetType defined. MK 20240228
+    %         tci1_stage_1_trnNetMode = tci1.netMode(1) ;
+    %         tci1_stage_2_trnNetMode = tci1.netMode(2) ;
+    %         tci2_stage_1_trnNetMode = tci2.netMode(1) ;
+    %         tci2_stage_2_trnNetMode = tci2.netMode(2) ;           
+    %         if isequal(tci1_stage_1_trnNetMode,tci2_stage_1_trnNetMode) && ...
+    %            isequal(tci1_stage_2_trnNetMode,tci2_stage_2_trnNetMode)
+    %           tf(i) = true;
+    %           loc(i) = j;  
+    %           break
+    %         end
+    %       end
+    %     end  % for j
+    %   end  % for i
+    % end  % function
     
   end  % methods (Static)
   
