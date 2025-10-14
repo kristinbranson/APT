@@ -10,54 +10,51 @@ classdef TrackerCreateInfo
     className  % old-school string
     netType  % 1 x stageCount
     netMode  % 1 x stageCount
-    moreConstructorArgs  % row cell array of old-school strings
+    % moreConstructorArgs  % row cell array of old-school strings
   end
 
   methods
-    function obj = TrackerCreateInfo(className, netTypes, netModes, moreConstructorArgs)
+    function obj = TrackerCreateInfo(className, netTypes, netModes)
       % Constructor
 
-      % Deal with optional args
-      if ~exist('moreConstructorArgs', 'var') || isempty(moreConstructorArgs)
-        moreConstructorArgs = cell(1,0) ;
-      end
       % Type-check args
       assert(isOldSchoolString(className)) ;
-      assert(isa(netTypes, 'DLNetType') && 1<=numel(netTypes)  && numel(netTypes)<=2) ;
-      assert(isa(netModes, 'DLNetMode') && 1<=numel(netModes)  && numel(netModes)<=2) ;            
-      assert(iscell(moreConstructorArgs) && isrow(moreConstructorArgs)) ;
+      assert(isa(netTypes, 'DLNetType') && isrow(netTypes)) ;
+      assert(isa(netModes, 'DLNetMode') && isrow(netModes)) ;            
+      netTypeCount = numel(netTypes) ;
+      netModeCount = numel(netModes) ;
+      assert(netTypeCount==netModeCount && (1<=netTypeCount) && (netTypeCount<=2)) ;
+      
       % Assign things
       obj.className = className ;
       obj.netType = netTypes ;
       obj.netMode = netModes ;
-      obj.moreConstructorArgs = moreConstructorArgs ;
     end
 
     function result = constructorArgs(obj)
       % Synthesize the full list of constructor arguments
-      if ~obj.valid()
-        error('Can''t synthesize constructor args for an invalid TrackerCreateInfo') ;
-      end
+      % if ~obj.valid()
+      %   error('Can''t synthesize constructor args for an invalid TrackerCreateInfo') ;
+      % end
       stageCount = numel(obj.netMode);
       if stageCount == 1
-          result = horzcat({'trnNetType', obj.netType, 'trnNetMode', obj.netMode}, obj.moreConstructorArgs) ;
+          result = {'trnNetType', obj.netType, 'trnNetMode', obj.netMode} ;
       else
         result = cell(1,0);
         for i = 1 : stageCount 
           result = horzcat(result, {{'trnNetType', obj.netType(i), 'trnNetMode', obj.netMode(i)}}) ; %#ok<AGROW>
         end
-        result = horzcat(result, obj.moreConstructorArgs) ;
       end
     end  % function
 
-    function result = valid(obj)
-      % DeepTrackerTopDownCustom TCIs have an empty .netTypes to start, and are thus
-      % invalid.  This checks that the number ot .netTypes equals the number of
-      % .netModes, and that they are either 1 or 2.
-      netTypeCount = numel(obj.netType) ;
-      netModeCount = numel(obj.netMode) ;
-      result = (netTypeCount==netModeCount) && (1<=netTypeCount) && (netTypeCount<=2) ;
-    end  % function    
+    % function result = valid(obj)
+    %   % DeepTrackerTopDownCustom TCIs have an empty .netTypes to start, and are thus
+    %   % invalid.  This checks that the number ot .netTypes equals the number of
+    %   % .netModes, and that they are either 1 or 2.
+    %   netTypeCount = numel(obj.netType) ;
+    %   netModeCount = numel(obj.netMode) ;
+    %   result = (netTypeCount==netModeCount) && (1<=netTypeCount) && (netTypeCount<=2) ;
+    % end  % function    
   end  % methods
 
   methods (Static)
