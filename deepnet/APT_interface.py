@@ -4741,7 +4741,7 @@ def check_args(args,nviews):
 def get_raw_config_filetype(H):
     if type(H) == dict and 'ConfFileType' in H:
         return H['ConfFileType']
-    elif type(H) == h5py._hl.files.File:
+    elif type(H) == h5py._hl.files.File or isinstance(H,dict):
         return 'lbl'
     else:
         raise ValueError('Could not determine config file type')
@@ -4753,6 +4753,7 @@ def get_raw_config_filename(H):
         return H.file.filename
     else:
         raise ValueError('Could not determine config file name')
+    
 def load_config_file(lbl_file,no_json=False):
     """
     H = load_config_file(lbl_file,no_json=False)
