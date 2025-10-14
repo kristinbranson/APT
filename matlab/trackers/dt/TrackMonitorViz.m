@@ -395,12 +395,12 @@ classdef TrackMonitorViz < handle
       isLogFile = false;
       if ~isempty(pollingResult),
         isTrackComplete = all([pollingResult.tfComplete]);
-        isErr = any([pollingResult.errFileExists]) ;
-        isLogFile = any([pollingResult.logFileExists]);
+        isErr = any([pollingResult.errFileExists(:)]) ;
+        isLogFile = any([pollingResult.logFileExists(:)]);
       end
       
       if ~isempty(pollingResult) && isfield(pollingResult,'isRunning')
-        isRunning = any([pollingResult.isRunning]);
+        isRunning = any([pollingResult.isRunning(:)]);
       else
         isRunning = true ;
       end
