@@ -1,5 +1,11 @@
 classdef TrackerCreateInfo
-  % Represents the information needed to create a 'fresh' tracker
+  % Represents the information needed to create a 'fresh' tracker.
+  % This is meant to replace the "augmented class" cell array data structure
+  % that used to be used for such info.  Having it be a proper class allowed
+  % better type checking and leads to more readable code.  However, we still use
+  % the cell-array-style structure when saving a LabelTracker, to avoid
+  % saving instances of custom classes.
+
   properties (SetAccess=immutable)
     className  % old-school string
     netType  % 1 x stageCount

@@ -150,7 +150,7 @@ end
 update();
 handles.figure.Visible = 'on';
 uiwait(handles.figure);
-disp(handles);
+% disp(handles);
 
   function update()
 
@@ -183,10 +183,10 @@ disp(handles);
   end
 
   function updateStagePanels()
-
     for s = 1:handles.nstages,
       handles.listbox_stages(s).ValueIndex = min(numel(handles.algorithms{s}),handles.last_algorithm_idx(s));
-      handles.label_desc_stages(s).Text = handles.nets{s}(handles.listbox_stages(s).ValueIndex).description;
+      description = char(handles.nets{s}(handles.listbox_stages(s).ValueIndex).description);  % char() handles []
+      handles.label_desc_stages(s).Text = description ;
     end
   end
 
@@ -206,12 +206,10 @@ disp(handles);
       nettypes(s) = handles.nets{s}(handles.last_algorithm_idx(s));
     end
     
-    tfsucc = lObj.trackMakeNewTrackerGivenNetTypes(nettypes);
-    if ~tfsucc,
-      error('Something went wrong -- did not find a match for selected network');
-    end
+    lObj.trackMakeNewTrackerGivenNetTypes(nettypes);
     delete(handles.figure);
   end
+
   function cbkPbCancel(src,evt)  %#ok<INUSD>
     delete(handles.figure);
   end

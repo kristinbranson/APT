@@ -2449,7 +2449,7 @@ classdef Labeler < handle
       end
 
       trackerHistory = obj.trackerHistory_ ;
-      s.trackerClass = cellfun(@getTrackerClassAugmented,trackerHistory,'uni',0);
+      s.trackerClass = cellfun(@getTCICellArray,trackerHistory,'uni',0);
       s.trackerData = cellfun(@getSaveToken,trackerHistory,'uni',0);
       
       if ~forceExcDataCache && ( obj.preProcSaveData || forceIncDataCache )

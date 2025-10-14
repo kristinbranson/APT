@@ -147,7 +147,7 @@ classdef DeepTrackerTopDown < DeepTracker
       reason = '';
     end
     
-    function tc = getTrackerClassAugmented(obj2)
+    function tc = getTCICellArray(obj2)
       obj1 = obj2.stage1Tracker;
       tc = {class(obj2) ...
         {'trnNetType' obj1.trnNetType 'trnNetMode' obj1.trnNetMode} ...

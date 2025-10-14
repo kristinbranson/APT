@@ -8,7 +8,7 @@ classdef DeepTrackerBottomUp < DeepTracker
     function v = getAlgorithmNamePrettyHook(obj)      
       v = sprintf('Bottom Up: %s',obj.trnNetType.displayString);
     end
-    function tc = getTrackerClassAugmented(obj)
+    function tc = getTCICellArray(obj)
       tc = {class(obj) 'trnNetType' obj.trnNetType 'trnNetMode' obj.trnNetMode};
     end
   end
