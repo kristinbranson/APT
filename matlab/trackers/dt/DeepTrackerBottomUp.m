@@ -11,9 +11,9 @@ classdef DeepTrackerBottomUp < DeepTracker
       v = sprintf('Bottom Up: %s',obj.trnNetType.displayString);
     end
 
-    function tc = getTCICellArray(obj)
-      tc = {class(obj) 'trnNetType' obj.trnNetType 'trnNetMode' obj.trnNetMode};
-    end
+    function result = trackerCreateInfo(obj)
+      result = TrackerCreateInfo('DeepTrackerBottomUp', obj.trnNetType, obj.trnNetMode) ;
+    end   
   end  % methods
       
   methods (Static)

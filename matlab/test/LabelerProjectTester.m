@@ -1,5 +1,7 @@
 classdef LabelerProjectTester < handle
   % For testing APT in the context of an already-existing .lbl file.
+  % This class handles loading of the project and cleanup.
+  % Main methods test training and tracking within the loaded project.
 
   properties
     labeler  % a Labeler object, or empty

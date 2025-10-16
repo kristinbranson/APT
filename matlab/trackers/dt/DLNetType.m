@@ -1,4 +1,4 @@
-classdef DLNetType < handle
+classdef DLNetType < handle 
   % Deep Learning Network
   %
   % A DLNetType represents a particular deep net. It has a particular

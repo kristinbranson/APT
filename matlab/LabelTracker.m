@@ -54,6 +54,7 @@ classdef (Abstract) LabelTracker < handle
   methods (Abstract)
     % return cellstr, (deep) nets used by this tracker
     v = getNetsUsed(obj)
+    tci = trackerCreateInfo(obj)
   end
   
   methods
@@ -456,7 +457,7 @@ classdef (Abstract) LabelTracker < handle
       assert(isa(tci, 'TrackerCreateInfo') && isscalar(tci));
 
       trackerClassName = tci.className ;
-      trackerClassConstructorArgs = tci.constructorArgs() ;
+      trackerClassConstructorArgs = tci.asCellArray() ;
       
       if ~exist(trackerClassName,'class') ,
         error('Labeler:projLoad',...
@@ -592,5 +593,124 @@ classdef (Abstract) LabelTracker < handle
     %   end
     % end  % function
     
+    function result = getTCICellArray(obj)
+      tci = obj.trackerCreateInfo() ;
+      result = tci.asCellArray() ;
+    end  % function
+
+    function other = twin(obj)
+      % Make a near-copy of obj, but with the the near-copy having the same parent
+      % as obj.
+
+      % Type-check the arguments
+      assert(isscalar(obj)) ;
+
+      % DeepTracker has a zero-arg constructor, so use that.
+      tci = obj.trackerCreateInfo() ;
+      other = LabelTracker.create(obj.lObj, tci) ;
+
+      % Define a helper function
+      shouldPropertyBeCopied = @(x)(~x.Dependent && ~x.Constant) ;
+
+      % Actually get the prop names that satisfy the predicate
+      rawPropertyNames = property_names_satisfying_predicate(obj, shouldPropertyBeCopied) ;
+      excludedPropertyNames = {'lObj', 'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+      propertyNames = setdiff(rawPropertyNames, excludedPropertyNames) ;
+
+      % Set each property in turn
+      for i = 1:length(propertyNames)
+        propertyName=propertyNames{i} ;
+        rawPropertyValue = obj.(propertyName) ;
+        if strcmp(propertyName, 'stage1Tracker')
+          propertyValue = rawPropertyValue.twin() ;
+        elseif isa(rawPropertyValue, 'matlab.mixin.Copyable')
+          propertyValue = rawPropertyValue.copy() ;
+        % elseif ~isempty(rawPropertyValue) && isa(rawPropertyValue, 'handle')
+        %   nop() ;
+        else
+          propertyValue = rawPropertyValue ;
+        end
+        % Finally, do the actual setting
+        other.(propertyName) = propertyValue ;
+      end
+    end  % function
+
+    function result = tfIsTwin(obj, other)
+      % Check that other is a twin of obj. This means that all value properties are
+      % equal (treating nans etc as equal), and .lObj for the two objects are
+      % identical.  There are some other subtleties.  Key idea is that they are
+      % independent but equal objects, except they have the same parent (lObj).
+
+      % Type-check the arguments
+      assert(isscalar(obj)) ;
+      assert(isa(other, 'LabelTracker')) ;
+      assert(isscalar(other)) ;
+
+      % Define a helper function
+      shouldPropertyBeChecked = @(x)(~x.Dependent && ~x.Constant) ;
+
+      % Actually get the prop names that satisfy the predicate
+      propertyNames = property_names_satisfying_predicate(obj, shouldPropertyBeChecked) ;
+      shouldBeIdenticalPropertyNames = {'lObj'} ;
+      shouldNotBeIdenticalPropertyNames = {'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+      shouldBeEqualButNotIdenticalPropertyNames = {'trnLastDMC'} ;
+      shouldBeTwinsPropertyNames = { 'stage1Tracker' } ;
+
+      % Set each property in turn
+      for i = 1:length(propertyNames)
+        propertyName=propertyNames{i} ;
+        propertyValue = obj.(propertyName) ;
+        otherPropertyValue = other.(propertyName) ;
+        if ismember(propertyName, shouldBeIdenticalPropertyNames)
+          if propertyValue==otherPropertyValue
+            % all is well
+          else
+            result = false ;
+            return
+          end
+        elseif ismember(propertyName, shouldBeEqualButNotIdenticalPropertyNames)
+          if propertyValue == otherPropertyValue
+            % These should *not* be identical.  Each twin should have its own independent
+            % handle.
+            result = false ;
+            return
+          else
+            if isequaln(propertyValue, otherPropertyValue)  % is equal, teating nans as equal
+              % all is well
+            else
+              result = false ;
+              return
+            end
+          end
+        elseif ismember(propertyName, shouldNotBeIdenticalPropertyNames)
+          if isempty(propertyValue) || isempty(otherPropertyValue)
+            % this is fine, proceed
+          else
+            if propertyValue==otherPropertyValue
+              % These should *not* be identical.  Each twin should have its own independent
+              % handle.
+              result = false ;
+              return
+            end
+          end
+        elseif ismember(propertyName, shouldBeTwinsPropertyNames)
+          if propertyValue.tfIsTwin(otherPropertyValue)
+            % this is fine, proceed
+          else
+            result = false ;
+            return
+          end
+        else
+          if isequaln(propertyValue, otherPropertyValue)  % is equal, teating nans as equal
+            % all is well
+          else
+            result = false ;
+            return
+          end
+        end
+      end  % for
+      % If get here, all is well
+      result = true ;
+    end  % function    
   end  % methods
 end  % classdef

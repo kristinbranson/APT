@@ -11334,9 +11334,7 @@ classdef Labeler < handle
       obj.notify('update_text_trackerinfo') ;
     end  % function
 
-    function trackMakeBackupOfCurrentTrackerIfHasBeenTrained(obj)  %#ok<MANU>
-      return % do this while twin() still doesn't work
-
+    function trackMakeBackupOfCurrentTrackerIfHasBeenTrained(obj)
       % Validate the new value
       trackers = obj.trackerHistory_ ;
       tracker_count = numel(trackers) ;
@@ -11356,9 +11354,19 @@ classdef Labeler < handle
       % Make the backup, which is like a copy but with the same obj.lObj
       backupTracker = originalTracker.twin() ;
 
-      % Insert the backup into the list of trackers
+      % If in debug mode, run some checks
+      if obj.isInDebugMode
+        if ~originalTracker.tfIsTwin(backupTracker) 
+          error('Internal error: The backup tracker is not the twin of the original') ;
+        end
+        if ~backupTracker.tfIsTwin(originalTracker) 
+          error('Internal error: The original tracker is not the twin of the backup') ;
+        end
+      end
+
+      % Insert the backup into the list of trackers, just behind the original
       trackersRest = trackers(2:end) ;
-      trackersNew = horzcat({orignalTracker}, {backupTracker}, trackersRest) ;
+      trackersNew = horzcat({originalTracker}, {backupTracker}, trackersRest) ;
       obj.trackerHistory_ = trackersNew ;
       
       % Send the notification
@@ -11484,12 +11492,7 @@ classdef Labeler < handle
           trackers = trackers(2:end) ;
         end
       end
-      
-      % % Create the new tracker
-      % rawTCI = tcis{tciIndex} ;
-      % tci = apt.fillInCustomStagesIfNeeded(rawTCI, varargin{:}) ;
-      % newTracker = LabelTracker.create(obj, tci) ;     
-      
+
       % Filter untrained trackers out of trackers
       isTrained = cellfun(@(tracker)(tracker.hasBeenTrained), trackers) ;
       trainedTrackers = trackers(isTrained) ;
@@ -16113,10 +16116,10 @@ classdef Labeler < handle
     
     function set.silent(obj, newValue)        
       obj.silent_ = newValue ;
-      tracker = obj.tracker;
-      if ~isempty(tracker) ,        
-        tracker.skip_dlgs = newValue ;
-      end      
+      % tracker = obj.tracker;
+      % if ~isempty(tracker) ,        
+      %   tracker.skip_dlgs = newValue ;
+      % end      
     end  % function
     
     function result = get.progressMeter(obj) 

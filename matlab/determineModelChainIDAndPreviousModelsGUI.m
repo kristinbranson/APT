@@ -1,4 +1,4 @@
-function [modelChainID, prev_models] = determineModelChainIDAndPreviousModelsGUI(modelChainID0, prev_models0, dlTrnType, augOnly, skip_dlgs)
+function [tfDoProceed, modelChainID, prev_models] = determineModelChainIDAndPreviousModelsGUI(modelChainID0, prev_models0, dlTrnType, augOnly, skip_dlgs)
 % Determines the modelChainID for the about-to-be-trained model, and the
 % previous models to use as a starting point, if any.
 
@@ -12,6 +12,7 @@ assert(islogical(augOnly) && isscalar(augOnly)) ;
 assert(islogical(skip_dlgs) && isscalar(skip_dlgs)) ;
 
 % Do the work
+tfDoProceed = true ;
 prev_models = cell(1,0) ;
 switch dlTrnType
   case DLTrainType.New
@@ -21,8 +22,8 @@ switch dlTrnType
       fprintf('Training new model %s.\n',modelChainID);
       defaultans = 'Yes';
       if ~skip_dlgs,
-        res = questdlg(['Previously trained models exist for current tracking algorithm. ' ...
-                        'Do you want to use the previous model for initialization?'], ...
+        res = questdlg(['Current tracker has been trained already. ' ...
+                        'Use trained parameters as a starting point for this training bout?'], ...
                        'Training Initialization', ...
                        'Yes','No','Cancel', ...
                        defaultans);
@@ -34,6 +35,7 @@ switch dlTrnType
       elseif strcmp(res,'Yes')
         prev_models = prev_models0;
       else
+        tfDoProceed = false ;
         return
       end
     else

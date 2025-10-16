@@ -31,11 +31,10 @@ classdef TrackerCreateInfo
       obj.netMode = netModes ;
     end
 
-    function result = constructorArgs(obj)
-      % Synthesize the full list of constructor arguments
-      % if ~obj.valid()
-      %   error('Can''t synthesize constructor args for an invalid TrackerCreateInfo') ;
-      % end
+    function result = asCellArray(obj)
+      % Extract the cell array representation of the TCI.
+      % These can be used as constructor arguments when calling the LabelTracker
+      % constuctor.
       stageCount = numel(obj.netMode);
       if stageCount == 1
           result = {'trnNetType', obj.netType, 'trnNetMode', obj.netMode} ;
@@ -110,7 +109,8 @@ classdef TrackerCreateInfo
       if isMA
         if strcmp(className, 'DeepTrackerBottomUp')
           netType = ca{3} ;
-          result = TrackerCreateInfo('DeepTracker', netType, DLNetMode.multiAnimalBU) ;          
+          netMode = DLNetMode.multiAnimalBU ;
+          result = TrackerCreateInfo('DeepTracker', netType, netMode) ;          
         elseif strcmp(className, 'DeepTrackerTopDown') || strcmp(className, 'DeepTrackerTopDownCustom')
           % The class DeepTrackerTopDownCustom doesn't exist anymore, now handled by
           % DeepTrackerTopDown.  But check for it to handle legacy projects.
@@ -129,7 +129,8 @@ classdef TrackerCreateInfo
       else
         % Single-animal project
         netType = ca{3} ;
-        result = TrackerCreateInfo('DeepTracker', netType, DLNetMode.singleAnimal) ;
+        netMode = DLNetMode.singleAnimal ;
+        result = TrackerCreateInfo('DeepTracker', netType, netMode) ;
       end
     end  % function
     

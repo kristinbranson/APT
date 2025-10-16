@@ -98,7 +98,7 @@ classdef DeepTrackerTopDown < DeepTracker
     
   methods 
 
-    function obj = DeepTrackerTopDown(lObj,stg1ctorargs,stg2ctorargs)
+    function obj = DeepTrackerTopDown(lObj, stg1ctorargs, stg2ctorargs)
       obj@DeepTracker(lObj,stg2ctorargs{:});
       dt = DeepTracker(lObj,stg1ctorargs{:});
       obj.stage1Tracker = dt;      
@@ -144,18 +144,19 @@ classdef DeepTrackerTopDown < DeepTracker
       reason = '';
     end
     
-    function tc = getTCICellArray(obj2)
-      obj1 = obj2.stage1Tracker;
-      tc = {class(obj2) ...
-        {'trnNetType' obj1.trnNetType 'trnNetMode' obj1.trnNetMode} ...
-        {'trnNetType' obj2.trnNetType 'trnNetMode' obj2.trnNetMode} ...
-        };
-    end
+    function result = trackerCreateInfo(obj)
+      stage1Tracker = obj.stage1Tracker;      
+      stage2Tracker = obj ;
+      result = TrackerCreateInfo('DeepTrackerTopDown', ...
+                                 [stage1Tracker.trnNetType stage2Tracker.trnNetType], ...
+                                 [stage1Tracker.trnNetMode stage2Tracker.trnNetMode]) ;
+    end   
     
     function s = getSaveToken(obj)
       s.stg1 = obj.stage1Tracker.getSaveToken();
       s.stg2 = getSaveToken@DeepTracker(obj);
     end
+    
     function s = getTrackSaveToken(obj)
       s = obj.getSaveToken();
       s.stg1.sPrmAll = APTParameters.all2TrackParams(s.stg1.sPrmAll,false);
