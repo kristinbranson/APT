@@ -1109,8 +1109,13 @@ def cv_train_from_mat(skip_db=True, run_type='status', create_splits=False,
                       split_idxs=None,  # optional list of split indices to run (0-based)
                       view_idxs=None,  # optional list of view indices to run (0-based)
                       queue='gpu_rtx8000',
+                      override_setup={},
                       **kwargs):
-    assert data_type in ['romain','larva','roian','carsen','brit0','brit1','brit2']
+    if len(override_setup)==0:
+        assert data_type in ['romain','larva','roian','carsen','brit0','brit1','brit2']
+    else:
+        for k,v in override_setup.items():
+            globals()[k] = v
 
     data_info = h5py.File(cv_info_file, 'r')
     cv_info = apt.to_py(np.squeeze(data_info['cvi']).astype('int'))

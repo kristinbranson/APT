@@ -1303,7 +1303,18 @@ classdef Labeler < handle
 
     function v = getNTargets(obj,gt,imov)
       PROPS = obj.gtGetSharedPropsStc(gt);
-      v = obj.(PROPS.TIA){imov,1}.ntgts;        
+      if obj.hasTrx,
+        v = obj.(PROPS.TIA){imov,1}.ntgts;
+      elseif obj.maIsMA,
+        labelscurr = obj.(PROPS.LBL){imov,1};
+        if isstruct(labelscurr) && isfield(labelscurr,'tgt') && ~isempty(labelscurr.tgt),
+          v = max(labelscurr.tgt);
+        else
+          v = 1;
+        end
+      else
+        v = 1;
+      end
     end
 
     function v = get.targetZoomRadiusDefault(obj)

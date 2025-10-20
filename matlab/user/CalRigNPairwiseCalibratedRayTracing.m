@@ -426,8 +426,13 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
           tfSuccess = false;
           msg = sprintf('Conda environment %s no found: %s', CalRigNPairwiseCalibratedRayTracing.conda_env,strtrim(cmdout));
         end        
-
         python_env_path = strtrim(cmdout); % Remove the end-of-line character
+        command = sprintf('conda run -n %s printenv CONDA_PREFIX', CalRigNPairwiseCalibratedRayTracing.conda_env);
+        [res, cmdout] = system(command);
+        assert(res==0);
+        conda_path = strtrim(cmdout);
+        conda_lib_path = fullfile(conda_path,'lib');
+
         try
             supported_MATLAB_releases = {'2023b','2024a','2024b','2025a'}; % Newer versions are most likely supported but not tested yet
             current_release = version('-release');
@@ -439,7 +444,21 @@ classdef CalRigNPairwiseCalibratedRayTracing < CalRig & matlab.mixin.Copyable
             error('MATLAB release check failed: %s', ME.message);
         end
         try
+
+          % make sure conda_path is on the LD_LIBRARY_PATH
+          ldpath = getenv('LD_LIBRARY_PATH');
+          ldpaths = strsplit(ldpath,':');
+          if ~ismember(fullfile(conda_lib_path,'lib'),ldpaths),
+            setenv('LD_LIBRARY_PATH',[conda_lib_path,':',ldpath]);
+          end
+          % not finding libstdc++
+          libc = fullfile(conda_lib_path,'libstdc++.so.6');
+          if exist(libc,'file'),
+            setenv('LD_PRELOAD', libc);
+          end
+
           pyenv('Version', python_env_path,'ExecutionMode','OutOfProcess'); % Initialize python environment
+
           isset = true;
           % ExecutionMode=OutOfProcess is important to avoid clashes between incompatible MKL libraries between PyTorch and MATLAB
         catch ME

@@ -23,9 +23,11 @@ import os
 from matplotlib.widgets import Cursor
 import sys
 import math
-APT_path = '/groups/branson/bransonlab/aniket/APT/'
-raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
-print(raytracing_lib_path)
+raytracing_lib_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+APT_path = os.path.dirname(os.path.dirname(raytracing_lib_path))
+# Aniket's APT path /groups/branson/bransonlab/aniket/APT/
+print(f"raytracing_lib_path: {raytracing_lib_path}")
+print(f"APT_path: {APT_path}")
 sys.path.append(raytracing_lib_path)
 import importlib
 import scipy.io as sio
@@ -48,7 +50,7 @@ def triangulate(xp,
                 image_height=[1200, 1200], 
                 dividing_col=[1331, 1331], 
                 view_labels=["primary_virtual"], 
-                APT_path='/groups/branson/bransonlab/aniket/APT/', 
+                APT_path=APT_path, 
                 PATH='/groups/branson/bransonlab/PTR_fly_annotations_3D/exp46/best_model_weights_only.pth', 
                 num_cams=2):
     """
