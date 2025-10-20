@@ -457,7 +457,7 @@ classdef (Abstract) LabelTracker < handle
       assert(isa(tci, 'TrackerCreateInfo') && isscalar(tci));
 
       trackerClassName = tci.className ;
-      trackerClassConstructorArgs = tci.asCellArray() ;
+      trackerClassConstructorArgs = tci.constructorArgs() ;
       
       if ~exist(trackerClassName,'class') ,
         error('Labeler:projLoad',...

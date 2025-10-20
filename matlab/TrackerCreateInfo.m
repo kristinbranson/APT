@@ -33,7 +33,12 @@ classdef TrackerCreateInfo
 
     function result = asCellArray(obj)
       % Extract the cell array representation of the TCI.
-      % These can be used as constructor arguments when calling the LabelTracker
+      % This is what we save to to the project file.
+      result = horzcat( { obj.className }, obj.constructorArgs) ;
+    end  % function
+
+    function result = constructorArgs(obj)
+      % Extract the constructor arguments to be used when calling the LabelTracker
       % constuctor.
       stageCount = numel(obj.netMode);
       if stageCount == 1
@@ -110,7 +115,7 @@ classdef TrackerCreateInfo
         if strcmp(className, 'DeepTrackerBottomUp')
           netType = ca{3} ;
           netMode = DLNetMode.multiAnimalBU ;
-          result = TrackerCreateInfo('DeepTracker', netType, netMode) ;          
+          result = TrackerCreateInfo('DeepTrackerBottomUp', netType, netMode) ;          
         elseif strcmp(className, 'DeepTrackerTopDown') || strcmp(className, 'DeepTrackerTopDownCustom')
           % The class DeepTrackerTopDownCustom doesn't exist anymore, now handled by
           % DeepTrackerTopDown.  But check for it to handle legacy projects.
