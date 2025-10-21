@@ -198,6 +198,7 @@ classdef ShellCommand < apt.ShellToken
       %
       % Notes:
       %   - Char arrays are converted to apt.ShellLiteral objects
+      %   - apt.ShellTokens are appended as-is
       %   - All other argument types cause an error
 
       tokensToAdd = cell(1,0);

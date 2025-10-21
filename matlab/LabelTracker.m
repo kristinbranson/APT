@@ -1,4 +1,4 @@
-classdef LabelTracker < handle
+classdef (Abstract) LabelTracker < handle
   % Tracker base class
 
   % LabelTracker has two responsibilities:
@@ -54,6 +54,7 @@ classdef LabelTracker < handle
   methods (Abstract)
     % return cellstr, (deep) nets used by this tracker
     v = getNetsUsed(obj)
+    tci = trackerCreateInfo(obj)
   end
   
   methods
@@ -109,7 +110,8 @@ classdef LabelTracker < handle
   methods
     
     function initHook(obj) %#ok<*MANU>
-      % Called when a new project is created/loaded, etc
+      % Called from init() when a new project is created/loaded, etc
+      % Designed to be overloaded by subclasses.
     end
         
     function sPrm = getParams(obj)
@@ -435,91 +437,108 @@ classdef LabelTracker < handle
       prm = yaml.ReadYaml(prmFile);
     end
             
-  end
+  end  % methods
   
   methods (Static)
     
-    function tObj = create(lObj,trkClsAug,trkData)
+    function trackerObj = create(lObj, tci, saveToken)
       % Factory method
-      
-      if nargin<3 ,
-        trkData = [] ;
+
+      % Handle missing tci arg
+      if ~exist('tci', 'var') || isempty(tci)
+        % Use default network types
+        if lObj.maIsMA
+          tci = TrackerCreateInfo('DeepTracker', DLNetType.multi_mdn_joint_torch, DLNetMode.multiAnimalBU);
+        else
+          tci = TrackerCreateInfo('DeepTracker', DLNetType.mdn_joint_fpn, DLNetMode.singleAnimal);
+        end
       end
-      trackerClassName = trkClsAug{1};
-      trackerClassConstructorArgs = trkClsAug(2:end);
+      % Type-check args
+      assert(isa(tci, 'TrackerCreateInfo') && isscalar(tci));
+
+      trackerClassName = tci.className ;
+      trackerClassConstructorArgs = tci.constructorArgs() ;
       
       if ~exist(trackerClassName,'class') ,
         error('Labeler:projLoad',...
               'Project tracker class ''%s'' cannot be found.',trackerClassName);
       end
-      tObj = feval(trackerClassName,lObj,trackerClassConstructorArgs{:});
-      tObj.init();
-      if ~isempty(trkData)
-        tObj.loadSaveToken(trkData);
+      trackerObj = feval(trackerClassName, lObj, trackerClassConstructorArgs{:});
+      trackerObj.init();
+      if exist('saveToken', 'var')
+        trackerObj.loadSaveToken(saveToken);
       end
     end
     
-    function result = getAllTrackersCreateInfo(isMA)
-      % Get information about all of the kinds of trackers that the user can choose
-      % from.
-      %
-      % This will need updating. DLNetType will include all types of nets
-      % such as objdetect which will not qualify as eg regular/SA trackers.
-      if isMA
-        info = cat(1, ...
-                   DeepTrackerBottomUp.getTrackerInfos(), ...
-                   DeepTrackerTopDown.getTrackerInfos(), ...
-                   DeepTrackerTopDownCustom.getTrackerInfos() ) ;
-        % For custom 2-stage trackers add the DeepTrackerTopDown again.
-      else        
-        dlnets = enumeration('DLNetType');
-        dlnets = dlnets(~[dlnets.isMultiAnimal]);
-        info = arrayfun(@(x){'DeepTracker' 'trnNetType' x}, dlnets, 'UniformOutput', false) ;
-      end
-      result = info(:)' ;  % want row vector
-    end
+    % function result = getAllTrackersCreateInfo(isMA)
+    %   % Get information about all of the kinds of trackers that the user can choose
+    %   % from.
+    %   %
+    %   % This will need updating. DLNetType will include all types of nets
+    %   % such as objdetect which will not qualify as eg regular/SA trackers.
+    %   if isMA
+    %     info = horzcat(DeepTrackerBottomUp.getTrackerInfos(), ...
+    %                    DeepTrackerTopDown.getTrackerInfos(), ...
+    %                    DeepTrackerTopDownCustom.getTrackerInfos() ) ;
+    %     % For custom 2-stage trackers add the DeepTrackerTopDown again.
+    %   else        
+    %     netTypes = enumeration('DLNetType');
+    %     netTypes = netTypes(~[netTypes.isMultiAnimal]);
+    %     % info = arrayfun(@(x){'DeepTracker' 'trnNetType' x}, dlnets, 'UniformOutput', false) ;
+    %     info = arrayfun(@(netType)(TrackerCreateInfo('DeepTracker', netType, DLNetMode.singleAnimal)), ...
+    %                     netTypes, ...
+    %                     'UniformOutput', true) ;
+    %   end
+    %   result = info(:)' ;  % want row vector
+    %   assert(isa(result, 'TrackerCreateInfo') && isrow(result)) ;
+    % end
     
-    function [tf,loc] = trackersCreateInfoIsMember(infocell1,infocell2)
-      % For each element of infocell1, determine whether some element of infocell2
-      % matches it, and if so, at what index into infocell2 the matching element is
-      % found at.  If infocell1 has n elements, on return tf is an n x 1 logical
-      % array, and loc is an n x 1 double array of indices into infocell2.  Used to
-      % match up trackers in a being-loaded .lbl file to the list of available
-      % trackers according to LabelTracker.getAllTrackersCreateInfo().  infocell1
-      % should come from the read-in .lbl file, and infocell2 from a call to
-      % LablerTracker.getAllTrackersCreateInfo().
-      n1 = numel(infocell1);
-      n2 = numel(infocell2);
-      tf = false(1,n1);
-      loc = zeros(1,n1);
-      for i=1:n1
-        tci1 = infocell1{i} ;  % "tci" for Tracker Create Info
-        for j=1:n2
-          tci2 = infocell2{j} ;
-          if isequal(tci1,tci2)
-            tf(i) = true;
-            loc(i) = j;
-            break
-          end
-          tci1_class_name = tci1{1} ;
-          tci2_class_name = tci2{1} ;
-          if strcmp(tci1_class_name,'DeepTrackerTopDownCustom') && ...
-             strcmp(tci2_class_name,'DeepTrackerTopDownCustom')
-            % since custom don't have trnNetType defined. MK 20240228
-            tci1_stage_1_trnNetMode = tci1{2}(3:end) ;
-            tci1_stage_2_trnNetMode = tci1{3}(3:end) ;                       
-            tci2_stage_1_trnNetMode = tci2{2} ;
-            tci2_stage_2_trnNetMode = tci2{3} ;           
-            if isequal(tci1_stage_1_trnNetMode,tci2_stage_1_trnNetMode) && ...
-               isequal(tci1_stage_2_trnNetMode,tci2_stage_2_trnNetMode)
-              tf(i) = true;
-              loc(i) = j;  
-              break
-            end
-          end
-        end  % for j
-      end  % for i
-    end  % function
+    % function [tf,loc] = trackersCreateInfoIsMember(tcis1, tcis2)
+    %   % Need to re-do this.  During loading, the first arg won't be a
+    %   % TrackerClassInfo, it will be builtin object of some kind.
+    % 
+    %   % For each element of tcis1, determine whether some element of tcis2
+    %   % matches it, and if so, at what index into tcis2 the matching element is
+    %   % found at.  If tcis1 has n elements, on return tf is an n x 1 logical
+    %   % array, and loc is an n x 1 double array of indices into tcis2.  Used to
+    %   % match up trackers in a being-loaded .lbl file to the list of available
+    %   % trackers according to LabelTracker.getAllTrackersCreateInfo().  tcis1
+    %   % should come from the read-in .lbl file, and tcis2 from a call to
+    %   % LablerTracker.getAllTrackersCreateInfo().
+    %   assert(isa(tcis1, 'TrackerCreateInfo') && isrow(tcis1)) ;
+    %   assert(isa(tcis2, 'TrackerCreateInfo') && isrow(tcis2)) ;
+    %   n1 = numel(tcis1);
+    %   n2 = numel(tcis2);
+    %   tf = false(1,n1);
+    %   loc = zeros(1,n1);
+    %   for i=1:n1
+    %     tci1 = tcis1(i) ;  % "tci" for Tracker Create Info
+    %     for j=1:n2
+    %       tci2 = tcis2(j) ;
+    %       if isequal(tci1,tci2)
+    %         tf(i) = true;
+    %         loc(i) = j;
+    %         break
+    %       end
+    %       tci1_class_name = tci1.className ;
+    %       tci2_class_name = tci2.className ;
+    %       if strcmp(tci1_class_name,'DeepTrackerTopDownCustom') && ...
+    %          strcmp(tci2_class_name,'DeepTrackerTopDownCustom')
+    %         % since custom don't have trnNetType defined. MK 20240228
+    %         tci1_stage_1_trnNetMode = tci1.netMode(1) ;
+    %         tci1_stage_2_trnNetMode = tci1.netMode(2) ;
+    %         tci2_stage_1_trnNetMode = tci2.netMode(1) ;
+    %         tci2_stage_2_trnNetMode = tci2.netMode(2) ;           
+    %         if isequal(tci1_stage_1_trnNetMode,tci2_stage_1_trnNetMode) && ...
+    %            isequal(tci1_stage_2_trnNetMode,tci2_stage_2_trnNetMode)
+    %           tf(i) = true;
+    %           loc(i) = j;  
+    %           break
+    %         end
+    %       end
+    %     end  % for j
+    %   end  % for i
+    % end  % function
     
   end  % methods (Static)
   
@@ -534,5 +553,164 @@ classdef LabelTracker < handle
       obj.lObj.doNotify('didSetTrackerShowPredsCurrTargetOnly') ;
     end    
     
+    % function copyProperties_(obj, other)
+    %   % Make the independent properties defined in the the LabelerTracker class like
+    %   % those of other.  Both obj and other should be scalar LabelTracker objects.
+    %   % The underscore suffix indicates this class is intended only to be used by
+    %   % LabelTracker and friends, not by external client code.
+    % 
+    %   % Added this when added the twin() method to LabelTracker subclasses.  Could
+    %   % have rewritten the LabelTracker constructor to take property-value pairs,
+    %   % but didn't want to get into that.
+    % 
+    %   % Type-check the arguments
+    %   assert(isscalar(obj)) ;
+    %   assert(isscalar(other)) ;
+    % 
+    %   % Define a helper function
+    %   className = 'LabelTracker' ;
+    %   should_property_be_copied = @(x)(strcmp(x.DefiningClass.Name, className) && ~x.Dependent && ~x.Constant) ;
+    % 
+    %   % Actually get the prop names that satisfy the predicate
+    %   raw_property_names = property_names_satisfying_predicate(obj, should_property_be_copied) ;
+    %   %excluded_property_names = {'lObj', 'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+    %   excluded_property_names = {'lObj'}' ;
+    %   property_names = setdiff(raw_property_names, excluded_property_names) ;
+    % 
+    %   % Set each property in turn
+    %   for i = 1:length(property_names)
+    %     property_name=property_names{i} ;
+    %     raw_property_value = obj.(property_name) ;
+    %     if ~isempty(raw_property_value) && isa(raw_property_value, 'handle')
+    %       nop() ;
+    %     end
+    %     if isa(raw_property_value, 'matlab.mixin.Copyable')
+    %       property_value = raw_property_value.copy() ;
+    %     else
+    %       property_value = raw_property_value ;
+    %     end
+    %     obj.(property_name) = property_value ;
+    %   end
+    % end  % function
+    
+    function result = getTCICellArray(obj)
+      tci = obj.trackerCreateInfo() ;
+      result = tci.asCellArray() ;
+    end  % function
+
+    function other = twin(obj)
+      % Make a near-copy of obj, but with the the near-copy having the same parent
+      % as obj.
+
+      % Type-check the arguments
+      assert(isscalar(obj)) ;
+
+      % DeepTracker has a zero-arg constructor, so use that.
+      tci = obj.trackerCreateInfo() ;
+      other = LabelTracker.create(obj.lObj, tci) ;
+
+      % Define a helper function
+      shouldPropertyBeCopied = @(x)(~x.Dependent && ~x.Constant) ;
+
+      % Actually get the prop names that satisfy the predicate
+      rawPropertyNames = property_names_satisfying_predicate(obj, shouldPropertyBeCopied) ;
+      excludedPropertyNames = {'lObj', 'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+      propertyNames = setdiff(rawPropertyNames, excludedPropertyNames) ;
+
+      % Set each property in turn
+      for i = 1:length(propertyNames)
+        propertyName=propertyNames{i} ;
+        rawPropertyValue = obj.(propertyName) ;
+        if strcmp(propertyName, 'stage1Tracker')
+          propertyValue = rawPropertyValue.twin() ;
+        elseif isa(rawPropertyValue, 'matlab.mixin.Copyable')
+          propertyValue = rawPropertyValue.copy() ;
+        % elseif ~isempty(rawPropertyValue) && isa(rawPropertyValue, 'handle')
+        %   nop() ;
+        else
+          propertyValue = rawPropertyValue ;
+        end
+        % Finally, do the actual setting
+        other.(propertyName) = propertyValue ;
+      end
+    end  % function
+
+    function result = tfIsTwin(obj, other)
+      % Check that other is a twin of obj. This means that all value properties are
+      % equal (treating nans etc as equal), and .lObj for the two objects are
+      % identical.  There are some other subtleties.  Key idea is that they are
+      % independent but equal objects, except they have the same parent (lObj).
+
+      % Type-check the arguments
+      assert(isscalar(obj)) ;
+      assert(isa(other, 'LabelTracker')) ;
+      assert(isscalar(other)) ;
+
+      % Define a helper function
+      shouldPropertyBeChecked = @(x)(~x.Dependent && ~x.Constant) ;
+
+      % Actually get the prop names that satisfy the predicate
+      propertyNames = property_names_satisfying_predicate(obj, shouldPropertyBeChecked) ;
+      shouldBeIdenticalPropertyNames = {'lObj'} ;
+      shouldNotBeIdenticalPropertyNames = {'bgTrackPoller', 'bgTrainPoller', 'bgTrkMonitor', 'bgTrnMonitor', 'trkVizer'}' ;
+      shouldBeEqualButNotIdenticalPropertyNames = {'trnLastDMC'} ;
+      shouldBeTwinsPropertyNames = { 'stage1Tracker' } ;
+
+      % Set each property in turn
+      for i = 1:length(propertyNames)
+        propertyName=propertyNames{i} ;
+        propertyValue = obj.(propertyName) ;
+        otherPropertyValue = other.(propertyName) ;
+        if ismember(propertyName, shouldBeIdenticalPropertyNames)
+          if propertyValue==otherPropertyValue
+            % all is well
+          else
+            result = false ;
+            return
+          end
+        elseif ismember(propertyName, shouldBeEqualButNotIdenticalPropertyNames)
+          if propertyValue == otherPropertyValue
+            % These should *not* be identical.  Each twin should have its own independent
+            % handle.
+            result = false ;
+            return
+          else
+            if isequaln(propertyValue, otherPropertyValue)  % is equal, teating nans as equal
+              % all is well
+            else
+              result = false ;
+              return
+            end
+          end
+        elseif ismember(propertyName, shouldNotBeIdenticalPropertyNames)
+          if isempty(propertyValue) || isempty(otherPropertyValue)
+            % this is fine, proceed
+          else
+            if propertyValue==otherPropertyValue
+              % These should *not* be identical.  Each twin should have its own independent
+              % handle.
+              result = false ;
+              return
+            end
+          end
+        elseif ismember(propertyName, shouldBeTwinsPropertyNames)
+          if propertyValue.tfIsTwin(otherPropertyValue)
+            % this is fine, proceed
+          else
+            result = false ;
+            return
+          end
+        else
+          if isequaln(propertyValue, otherPropertyValue)  % is equal, teating nans as equal
+            % all is well
+          else
+            result = false ;
+            return
+          end
+        end
+      end  % for
+      % If get here, all is well
+      result = true ;
+    end  % function    
   end  % methods
 end  % classdef
