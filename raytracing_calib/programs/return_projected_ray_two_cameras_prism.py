@@ -10,10 +10,10 @@ import traceback
 
 raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
 sys.path.append(raytracing_lib_path)
-#from prism_arenas_6d_rotations import Arena_reprojection_loss_two_cameras_prism_grid_distances
-from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
-#from ray_tracing_simulator_nnModules_grad_6d_rotations import get_rot_mat
-from ray_tracing_simulator_nnModules_grad import get_rot_mat
+from prism_arenas_6d_rotations import Arena_reprojection_loss_two_cameras_prism_grid_distances
+#from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
+from ray_tracing_simulator_nnModules_grad_6d_rotations import get_rot_mat
+#from ray_tracing_simulator_nnModules_grad import get_rot_mat
 rotmat = 1
 #if torch.cuda.is_available():
 #    device = 'cuda'
