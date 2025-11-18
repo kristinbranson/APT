@@ -1,5 +1,7 @@
 classdef LabelerProjectTester < handle
   % For testing APT in the context of an already-existing .lbl file.
+  % This class handles loading of the project and cleanup.
+  % Main methods test training and tracking within the loaded project.
 
   properties
     labeler  % a Labeler object, or empty
@@ -45,12 +47,13 @@ classdef LabelerProjectTester < handle
       
       % Set things up for training
       if ~isempty(algo_spec) ,
-        if ischar(algo_spec) ,
-          desired_algo_name = algo_spec ;
-          labeler.trackMakeNewTrackerGivenAlgoName(desired_algo_name) ;          
-        else
-          labeler.trackMakeNewTrackerGivenAlgoName(algo_spec{:}) ;
-        end
+        labeler.trackMakeNewTrackerGivenNetTypes(algo_spec) ;
+        % if ischar(algo_spec) ,
+        %   desired_algo_name = algo_spec ;
+        %   labeler.trackMakeNewTrackerGivenAlgoName(desired_algo_name) ;          
+        % else
+        %   labeler.trackMakeNewTrackerGivenAlgoName(algo_spec{:}) ;
+        % end
       end
       algo_name = labeler.tracker.algorithmName ;
       % % HACK START

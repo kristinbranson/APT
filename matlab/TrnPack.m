@@ -4,174 +4,175 @@ classdef TrnPack
   properties (Constant)
     SUBDIRIM = 'im';
   end
+
   methods (Static)
     
-    function vizLoc(packdir,varargin)
-      % Visualize 'loc' data structure (one row per labeled mov,frm,tgt) 
-      % from training package.
-      %
-      % packdir: package dir (contains images)
-
-      [scargs,ttlargs,loc] = myparse(varargin,...
-        'scargs',{16}, ...
-        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
-        'loc',[] ... % (opt), specific loc struct array to show
-        );
-      
-      [~,~,~,loc] = TrnPack.loadPack(packdir);      
-      loc = loc.locdata;
-      
-      nvw = numel(loc(1).img);
-      hfig = figure(11);      
-      axs = createsubplots(1,nvw);
-      
-      idmfun = unique({loc.idmovfrm}');
-      nmfun = numel(idmfun);
-      for iidmf=1:nmfun
-        idmf = idmfun{iidmf};
-        is = find(strcmp({loc.idmovfrm}',idmf));
-        
-        for ivw=1:nvw
-          imfS = loc(is(1)).img{ivw};
-          imf = fullfile(packdir,imfS);
-          if exist(imf,'file')==0
-            warningNoTrace('Skipping, image not found: %s',imf);
-            continue;
-          end
-
-          im = imread(imf);
-
-          axes(axs(ivw));
-          cla;          
-          imagesc(im);
-          colormap gray;
-          hold on;
-          axis square;
-
-          for j = is(:)'
-            s = loc(j);
-            xy = reshape(s.pabs,[],2);
-            npts = size(xy,1)/nvw;
-            iptsvw = (ivw-1)*npts + (1:npts)';            
-            scatter(xy(iptsvw,1),xy(iptsvw,2),scargs{:});        
-            plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
-          end
-
-          if ivw==1
-            tstr = sprintf('%s: %d tgts',idmf,numel(is));
-            title(tstr,ttlargs{:});
-          end
-        end
-        
-        input(idmf);
-      end        
-    end
+    % function vizLoc(packdir,varargin)
+    %   % Visualize 'loc' data structure (one row per labeled mov,frm,tgt) 
+    %   % from training package.
+    %   %
+    %   % packdir: package dir (contains images)
+    % 
+    %   [scargs,ttlargs,loc] = myparse(varargin,...
+    %     'scargs',{16}, ...
+    %     'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
+    %     'loc',[] ... % (opt), specific loc struct array to show
+    %     );
+    % 
+    %   [~,~,~,loc] = TrnPack.loadPack(packdir);      
+    %   loc = loc.locdata;
+    % 
+    %   nvw = numel(loc(1).img);
+    %   hfig = figure(11);      
+    %   axs = createsubplots(1,nvw);
+    % 
+    %   idmfun = unique({loc.idmovfrm}');
+    %   nmfun = numel(idmfun);
+    %   for iidmf=1:nmfun
+    %     idmf = idmfun{iidmf};
+    %     is = find(strcmp({loc.idmovfrm}',idmf));
+    % 
+    %     for ivw=1:nvw
+    %       imfS = loc(is(1)).img{ivw};
+    %       imf = fullfile(packdir,imfS);
+    %       if exist(imf,'file')==0
+    %         warningNoTrace('Skipping, image not found: %s',imf);
+    %         continue;
+    %       end
+    % 
+    %       im = imread(imf);
+    % 
+    %       axes(axs(ivw));
+    %       cla;          
+    %       imagesc(im);
+    %       colormap gray;
+    %       hold on;
+    %       axis square;
+    % 
+    %       for j = is(:)'
+    %         s = loc(j);
+    %         xy = reshape(s.pabs,[],2);
+    %         npts = size(xy,1)/nvw;
+    %         iptsvw = (ivw-1)*npts + (1:npts)';            
+    %         scatter(xy(iptsvw,1),xy(iptsvw,2),scargs{:});        
+    %         plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
+    %       end
+    % 
+    %       if ivw==1
+    %         tstr = sprintf('%s: %d tgts',idmf,numel(is));
+    %         title(tstr,ttlargs{:});
+    %       end
+    %     end
+    % 
+    %     input(idmf);
+    %   end        
+    % end
     
-    function vizLocg(packdir,varargin)
-      % Visualize 'locg' data structure (one row per labeled mov,frm) 
-      % from training package.
-      %
-      % packdir: package dir (contains images)
-
-      [scargs,ttlargs,frms,locg] = myparse(varargin,...
-        'scargs',{16}, ...
-        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
-        'frms', [], ... % opt; frames (indices into locg.locdata) to viz
-        'locg', [] ... %  opt; preloaded locg/json
-        );
-      
-      if isempty(locg)
-        [~,~,~,locg] = TrnPack.loadPack(packdir);
-      end
-
-      hfig = figure(11);
-      
-      if isempty(frms)
-        nfrm = numel(locg.locdata);      
-        frms = 1:nfrm;
-      end
-      for ifrm=frms(:)'
-        if iscell(locg.locdata)
-          s = locg.locdata{ifrm};
-        else
-          s = locg.locdata(ifrm);
-        end
-        imf = fullfile(packdir,s.img);
-        if iscell(imf)
-          assert(isscalar(imf));
-          imf = imf{1};
-        end
-        im = imread(imf);
-        
-        clf;
-        ax = axes;
-        imagesc(im);
-        colormap gray;
-        hold on;
-        axis square;
-        
-        for itgt=1:s.ntgt
-          if isfield(s,'pabs')
-            xy = reshape(s.pabs(:,itgt),[],2);
-            scatter(xy(:,1),xy(:,2),scargs{:});
-          end
-          plot(s.roi([1:4 1],itgt),s.roi([5:8 5],itgt),'r-','linewidth',2);
-        end
-        
-        if isfield(s,'extra_roi')
-          nroi = size(s.extra_roi,2);
-          for j=1:nroi
-            plot(s.extra_roi([1:4 1],j),s.extra_roi([5:8 5],j),'b-','linewidth',2);
-          end
-        end        
-        
-        tstr = sprintf('%s: %d tgts',s.id,s.ntgt);
-        title(tstr,ttlargs{:});
-        input(tstr);
-      end        
-    end
+    % function vizLocg(packdir,varargin)
+    %   % Visualize 'locg' data structure (one row per labeled mov,frm) 
+    %   % from training package.
+    %   %
+    %   % packdir: package dir (contains images)
+    % 
+    %   [scargs,ttlargs,frms,locg] = myparse(varargin,...
+    %     'scargs',{16}, ...
+    %     'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'}, ...
+    %     'frms', [], ... % opt; frames (indices into locg.locdata) to viz
+    %     'locg', [] ... %  opt; preloaded locg/json
+    %     );
+    % 
+    %   if isempty(locg)
+    %     [~,~,~,locg] = TrnPack.loadPack(packdir);
+    %   end
+    % 
+    %   hfig = figure(11);
+    % 
+    %   if isempty(frms)
+    %     nfrm = numel(locg.locdata);      
+    %     frms = 1:nfrm;
+    %   end
+    %   for ifrm=frms(:)'
+    %     if iscell(locg.locdata)
+    %       s = locg.locdata{ifrm};
+    %     else
+    %       s = locg.locdata(ifrm);
+    %     end
+    %     imf = fullfile(packdir,s.img);
+    %     if iscell(imf)
+    %       assert(isscalar(imf));
+    %       imf = imf{1};
+    %     end
+    %     im = imread(imf);
+    % 
+    %     clf;
+    %     ax = axes;
+    %     imagesc(im);
+    %     colormap gray;
+    %     hold on;
+    %     axis square;
+    % 
+    %     for itgt=1:s.ntgt
+    %       if isfield(s,'pabs')
+    %         xy = reshape(s.pabs(:,itgt),[],2);
+    %         scatter(xy(:,1),xy(:,2),scargs{:});
+    %       end
+    %       plot(s.roi([1:4 1],itgt),s.roi([5:8 5],itgt),'r-','linewidth',2);
+    %     end
+    % 
+    %     if isfield(s,'extra_roi')
+    %       nroi = size(s.extra_roi,2);
+    %       for j=1:nroi
+    %         plot(s.extra_roi([1:4 1],j),s.extra_roi([5:8 5],j),'b-','linewidth',2);
+    %       end
+    %     end        
+    % 
+    %     tstr = sprintf('%s: %d tgts',s.id,s.ntgt);
+    %     title(tstr,ttlargs{:});
+    %     input(tstr);
+    %   end        
+    % end  % function
     
-    function vizLocClus(packdir,varargin)
-      % Visualize 'locg' data structure (one row per labeled mov,frm)
-      % from training package.
-      %
-      % packdir: package dir (contains images)
-      
-      [scargs,ttlargs] = myparse(varargin,...
-        'scargs',{16}, ...
-        'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
-        );
-      
-      [~,~,~,~,~,loccc] = TrnPack.loadPack(packdir); % xxx api now broken
-
-      hfig = figure(11);
-      
-      ncluster = numel(loccc);
-      for iclus=1:ncluster
-        s = loccc(iclus);
-        assert(isscalar(s.img));
-        imf = fullfile(packdir,s.img{1});
-        im = imread(imf);
-        
-        clf;
-        ax = axes;
-        imagesc(im);
-        colormap gray;
-        hold on;
-        axis square;
-        
-        for itgt=1:s.ntgt
-          xy = reshape(s.pabs(:,itgt),[],2);
-          scatter(xy(:,1),xy(:,2),scargs{:});
-        end
-        szassert(s.roi,[8 1]);
-        plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
-        
-        tstr = sprintf('%s: %d tgts',s.idclus,s.ntgt);
-        title(tstr,ttlargs{:});
-        input(tstr);
-      end
-    end
+    % function vizLocClus(packdir,varargin)
+    %   % Visualize 'locg' data structure (one row per labeled mov,frm)
+    %   % from training package.
+    %   %
+    %   % packdir: package dir (contains images)
+    % 
+    %   [scargs,ttlargs] = myparse(varargin,...
+    %     'scargs',{16}, ...
+    %     'ttlargs',{'fontsize',16,'fontweight','bold','interpreter','none'} ...
+    %     );
+    % 
+    %   [~,~,~,~,~,loccc] = TrnPack.loadPack(packdir); % xxx api now broken
+    % 
+    %   hfig = figure(11);
+    % 
+    %   ncluster = numel(loccc);
+    %   for iclus=1:ncluster
+    %     s = loccc(iclus);
+    %     assert(isscalar(s.img));
+    %     imf = fullfile(packdir,s.img{1});
+    %     im = imread(imf);
+    % 
+    %     clf;
+    %     ax = axes;
+    %     imagesc(im);
+    %     colormap gray;
+    %     hold on;
+    %     axis square;
+    % 
+    %     for itgt=1:s.ntgt
+    %       xy = reshape(s.pabs(:,itgt),[],2);
+    %       scatter(xy(:,1),xy(:,2),scargs{:});
+    %     end
+    %     szassert(s.roi,[8 1]);
+    %     plot(s.roi([1:4 1]),s.roi([5:8 5]),'r-','linewidth',2);
+    % 
+    %     tstr = sprintf('%s: %d tgts',s.idclus,s.ntgt);
+    %     title(tstr,ttlargs{:});
+    %     input(tstr);
+    %   end
+    % end
       
     function s = hlpLoadJson(jsonfile)
       jse = readtxtfile(jsonfile);
@@ -186,72 +187,72 @@ classdef TrnPack
        nlbls = arrayfun(@(x)size(x.p,2),tp);
     end
 
-    function [slbl,j,tp,locg] = loadPack(packdir,varargin)
-      % Load training package into MATLAB data structures
-      %
-      % slbl: 'stripped lbl' struct
-      % j: cfg/json
-      % tp: one-row-per-movie struct. Maybe a useful format for metadata 
-      %   or bookkeeping purposes.
-      % loc: one-row-per-labeled-(mov,frm,tgt) struct. Intended to be
-      %   primary MA keypt data structure.
-      % loccc: one-row-per-labeled-cluster. Experimental, may not be
-      %   useful for DL/py backend.
-      %
-      % Note tp, loc, loccc contain equivalent info just in different
-      % formats.
-      
-      if ~DeepModelChainOnDisk.gen_strippedlblfile,
-        error('This code will not run without the stripped lbl file. Tell Kristin how you got here.');
-      end
-
-      incTrnPack = myparse(varargin,...
-        'incTrnPack',false ...
-        );
-       
-      dd = dir(fullfile(packdir,'*.lbl'));
-      if ~isscalar(dd)
-        lbln = {dd.name}';
-        lbln = sort(lbln);
-        warningNoTrace('%d .lbl files found. Using: %s',numel(lbln),lbln{end});
-        lblsf = lbln{end};
-      else
-        lblsf = dd.name;
-        fprintf(1,'Using lbl: %s\n',lblsf);
-      end
-        
-      lblsf = fullfile(packdir,lblsf);
-      slbl = load(lblsf,'-mat');
-      fprintf(1,'loaded %s\n',lblsf);
-      
-      [~,f,~] = fileparts(lblsf);
-      jf = fullfile(packdir,[f '.json']);
-      fprintf(1,'loaded %s\n',jf);
-      jf = readtxtfile(jf);
-      j = jsondecode(jf{1});
-
-      if incTrnPack
-        tpf = fullfile(packdir,'trnpack.json');
-        tp = TrnPack.hlpLoadJson(tpf);
-      else
-        tp = [];
-      end
-
-%       locf = fullfile(packdir,'loc0.json');
-%       loc = TrnPack.hlpLoadJson(locf);
-
-      locf = fullfile(packdir,'loc.json');
-      locg = TrnPack.hlpLoadJson(locf);
-
-%       locf = fullfile(packdir,'locclus.json');
-%       if exist(locf,'file')>0
-%         locjse = readtxtfile(locf);
-%         loccc = jsondecode(locjse{1});
-%         fprintf(1,'loaded %s\n',locf);
-%       else
-%         loccc = [];
+%     function [slbl,j,tp,locg] = loadPack(packdir,varargin)
+%       % Load training package into MATLAB data structures
+%       %
+%       % slbl: 'stripped lbl' struct
+%       % j: cfg/json
+%       % tp: one-row-per-movie struct. Maybe a useful format for metadata 
+%       %   or bookkeeping purposes.
+%       % loc: one-row-per-labeled-(mov,frm,tgt) struct. Intended to be
+%       %   primary MA keypt data structure.
+%       % loccc: one-row-per-labeled-cluster. Experimental, may not be
+%       %   useful for DL/py backend.
+%       %
+%       % Note tp, loc, loccc contain equivalent info just in different
+%       % formats.
+% 
+%       if ~DeepModelChainOnDisk.gen_strippedlblfile,
+%         error('This code will not run without the stripped lbl file. Tell Kristin how you got here.');
 %       end
-    end
+% 
+%       incTrnPack = myparse(varargin,...
+%         'incTrnPack',false ...
+%         );
+% 
+%       dd = dir(fullfile(packdir,'*.lbl'));
+%       if ~isscalar(dd)
+%         lbln = {dd.name}';
+%         lbln = sort(lbln);
+%         warningNoTrace('%d .lbl files found. Using: %s',numel(lbln),lbln{end});
+%         lblsf = lbln{end};
+%       else
+%         lblsf = dd.name;
+%         fprintf(1,'Using lbl: %s\n',lblsf);
+%       end
+% 
+%       lblsf = fullfile(packdir,lblsf);
+%       slbl = load(lblsf,'-mat');
+%       fprintf(1,'loaded %s\n',lblsf);
+% 
+%       [~,f,~] = fileparts(lblsf);
+%       jf = fullfile(packdir,[f '.json']);
+%       fprintf(1,'loaded %s\n',jf);
+%       jf = readtxtfile(jf);
+%       j = jsondecode(jf{1});
+% 
+%       if incTrnPack
+%         tpf = fullfile(packdir,'trnpack.json');
+%         tp = TrnPack.hlpLoadJson(tpf);
+%       else
+%         tp = [];
+%       end
+% 
+% %       locf = fullfile(packdir,'loc0.json');
+% %       loc = TrnPack.hlpLoadJson(locf);
+% 
+%       locf = fullfile(packdir,'loc.json');
+%       locg = TrnPack.hlpLoadJson(locf);
+% 
+% %       locf = fullfile(packdir,'locclus.json');
+% %       if exist(locf,'file')>0
+% %         locjse = readtxtfile(locf);
+% %         loccc = jsondecode(locjse{1});
+% %         fprintf(1,'loaded %s\n',locf);
+% %       else
+% %         loccc = [];
+% %       end
+%     end
     
     function hlpSaveJson(s,jsonoutf)
       j = jsonencode(s,'ConvertInfAndNaN',false,'PrettyPrint',true); % KB 20250524
@@ -261,11 +262,12 @@ classdef TrnPack
       fclose(fh);
       fprintf(1,'Wrote %s.\n',jsonoutf);
     end
+    
     function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
       % Generate training package. Write contents (raw images and keypt 
       % jsons) to packdir.
       
-      [writeims,writeimsidx,trainConfigName,slblname,verbosejson,tblsplit,view,...
+      [writeims,writeimsidx,~,~,verbosejson,tblsplit,~,...
         cocoformat,jsonfilename] = myparse(varargin,...
         'writeims',true, ...
         'writeimsidx',[], ... % (opt) DEBUG ONLY
@@ -299,13 +301,13 @@ classdef TrnPack
       slbl = Lbl.compressStrippedLbl(slbl_orig,'ma',true);
       [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
 
-      if (~cocoformat) && (strcmp(DeepModelChainOnDisk.configFileExt,'.lbl') || DeepModelChainOnDisk.gen_strippedlblfile),
-        sfname = dmc.lblStrippedLnx;
-%         assert(~isempty(slblname));
-%         sfname = fullfile(packdir,slblname);
-        save(sfname,'-mat','-v7.3','-struct','slbl');
-        fprintf(1,'Saved %s\n',sfname);
-      end
+      % Commenting this out b/c the the predicate is always false.  
+      % -- ALT, 2025-10-08
+      % if (~cocoformat) && (strcmp(DeepModelChainOnDisk.configFileExt,'.lbl') || DeepModelChainOnDisk.gen_strippedlblfile),
+      %   sfname = dmc.lblStrippedLnx;
+      %   save(sfname,'-mat','-v7.3','-struct','slbl');
+      %   fprintf(1,'Saved %s\n',sfname);
+      % end
       
       if (~cocoformat) && (strcmp(DeepModelChainOnDisk.configFileExt,'.json')),
         % KB 20250527 -- does the json file get saved twice? 
@@ -845,7 +847,7 @@ classdef TrnPack
           r0 = min(rcc);
           r1 = max(rcc);
           
-          roicrop = [c0 c1 r0 r1];
+          % roicrop = [c0 c1 r0 r1];
           roi = [c0 c0 c1 c1 r0 r1 r1 r0]';
           xyfcrop = xyf;
           xyfcrop(:,1,:) = xyfcrop(:,1,:)-c0+1;
@@ -894,7 +896,7 @@ classdef TrnPack
         c1 = size(slbl.preProcData_I{v},2);
         r1 = size(slbl.preProcData_I{v},1);
         cur_roi = [1 1 c1 c1 1 r1 r1 1]';
-        roi = [roi; cur_roi];
+        roi = [roi; cur_roi];  %#ok<AGROW>
       end
       has_split = ~isempty(tblsplit);
       default_split = 1;
@@ -918,7 +920,7 @@ classdef TrnPack
         for v=1:slbl.cfg.NumViews
           basefS = sprintf('mov%04d_frm%08d_tgt%05d_view%d',imov,f,itgt,v);
           img = sprintf(imgpat,basefS);
-          imgs{v} = img;
+          imgs{v} = img;  %#ok<AGROW>
         end
         sloctmp = struct(...
           'id',sprintf('mov%04d_frm%08d_tgt%05d',imov,f,itgt),...
