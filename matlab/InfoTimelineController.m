@@ -324,31 +324,19 @@ classdef InfoTimelineController < handle
         return
       end
       currFrame = obj.lObj.currFrame ;
-      nominal_xspan = 2*obj.lObj.projPrefs.InfoTimelines.FrameRadius;
+      nominal_r = obj.lObj.projPrefs.InfoTimelines.FrameRadius;
       nominal_dxtick = obj.lObj.projPrefs.InfoTimelines.dXTick ;
-      if nominal_xspan==0 || nominal_xspan > obj.lObj.nframes
-        x0 = 1;
-        x1 = obj.lObj.nframes;
-        xspan = x1-x0 ;
+      % MK says he wants the current frame in the center,
+      % even it means the limits run off the end.
+      if nominal_r==0 || 2*nominal_r > obj.lObj.nframes
+        r = floor(obj.lObj.nframes/2) ;
       else
-        xspan = nominal_xspan ;
-        r = xspan/2 ;
-        x0_raw = currFrame-r;
-        x1_raw = currFrame+r; %min(frm+r,obj.nfrm);
-        % Make sure the limits don't run off the end
-        if x0_raw<1
-          x0 = 1 ;
-          x1 = 1 + 2*r ;
-        elseif x1_raw>obj.lObj.nframes
-          x1 = obj.lObj.nframes ;
-          x0 = x1 - 2*r ;
-        else
-          x0 = x0_raw ;
-          x1 = x1_raw ;
-        end
+        r = nominal_r ;
       end
-      if xspan/nominal_dxtick > 20 ,
-        dxtick = apt.heuristic_dxtick_from_xspan(xspan) ;
+      x0 = currFrame-r ;
+      x1 = currFrame+r ;
+      if r/nominal_dxtick > 10 ,
+        dxtick = apt.heuristic_dxtick_from_xspan(2*r) ;
       else
         dxtick = nominal_dxtick ;
       end
