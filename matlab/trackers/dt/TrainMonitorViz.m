@@ -430,17 +430,17 @@ classdef TrainMonitorViz < handle
       TrainMonitorViz.updateStartStopButton(handles,false,false);
     end
     
-    function startTraining(obj)
-      % Placeholder meth AL 20190108
-      % - Always do a regular restart for now; if project is updated might
-      % want RestartAug.
-      % - If the training has reached final iter, training will immediately 
-      % end
-      
-      % Kills and creates new TrainMonitorViz, maybe that's fine
-      
-      obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
-    end
+    % function startTraining(obj)
+    %   % Placeholder meth AL 20190108
+    %   % - Always do a regular restart for now; if project is updated might
+    %   % want RestartAug.
+    %   % - If the training has reached final iter, training will immediately 
+    %   % end
+    % 
+    %   % Kills and creates new TrainMonitorViz, maybe that's fine
+    % 
+    %   obj.dtObj.retrain('dlTrnType',DLTrainType.Restart);
+    % end
     
     function updateClusterInfo(obj)      
       handles = guidata(obj.hfig);

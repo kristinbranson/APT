@@ -25,7 +25,7 @@ handles.figure = uifigure('Name','Tracking algorithm',...
   'Tag','figure_TrackingAlgorithm') ;
 centerOnParentFigure(handles.figure,hPar);
 
-[handles.maposenets,handles.mabboxnets,handles.saposenets] = lObj.getAllTrackerTypes();
+[handles.maposenets,handles.mabboxnets,handles.saposenets] = Labeler.getAllTrackerTypes();
 
 handles.trackercurr_types = lObj.trackGetCurrTrackerStageNetTypes();
 
@@ -150,7 +150,7 @@ end
 update();
 handles.figure.Visible = 'on';
 uiwait(handles.figure);
-disp(handles);
+% disp(handles);
 
   function update()
 
@@ -183,36 +183,34 @@ disp(handles);
   end
 
   function updateStagePanels()
-
     for s = 1:handles.nstages,
       handles.listbox_stages(s).ValueIndex = min(numel(handles.algorithms{s}),handles.last_algorithm_idx(s));
-      handles.label_desc_stages(s).Text = handles.nets{s}(handles.listbox_stages(s).ValueIndex).description;
+      description = char(handles.nets{s}(handles.listbox_stages(s).ValueIndex).description);  % char() handles []
+      handles.label_desc_stages(s).Text = description ;
     end
   end
 
-  function cbkDropdownParadigm(src,evt)
+  function cbkDropdownParadigm(src,evt)  %#ok<INUSD>
     update();
   end
 
-  function cbkListboxStage(stage,src,evt)
+  function cbkListboxStage(stage,src,evt)  %#ok<INUSD>
     handles.last_algorithm_idx(stage) = evt.ValueIndex;
     updateStagePanels();
   end
 
-  function cbkPbOK(src,evt)
+  function cbkPbOK(src,evt)  %#ok<INUSD>
 
     nettypes = handles.nets{1}(handles.last_algorithm_idx(1));
     for s = 2:handles.nstages,
       nettypes(s) = handles.nets{s}(handles.last_algorithm_idx(s));
     end
     
-    tfsucc = lObj.trackMakeNewTrackerGivenNetTypes(nettypes);
-    if ~tfsucc,
-      error('Something went wrong -- did not find a match for selected network');
-    end
+    lObj.trackMakeNewTrackerGivenNetTypes(nettypes);
     delete(handles.figure);
   end
-  function cbkPbCancel(src,evt)
+
+  function cbkPbCancel(src,evt)  %#ok<INUSD>
     delete(handles.figure);
   end
 

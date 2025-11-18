@@ -6,7 +6,7 @@ lObj = StartAPT;
 lObj.projLoadGUI(LBL);
 
 %% Set tracker
-lObj.trackersAll % all tracker objects
+%lObj.trackersAll % all tracker objects
 lObj.trackSetCurrentTracker(2); % MDN
 t = lObj.tracker; % DeepTracker/MDN tracking object
 
@@ -23,8 +23,8 @@ lObj.trackSetDLBackend(be);
 % instance)
 
 %% Train
-wbObj = WaitBarWithCancel('Training');
-lObj.train('trainArgs',{'wbObj',wbObj});
+%wbObj = WaitBarWithCancel('Training');
+lObj.train();
 
 %% State of Train
 t.trnPrintLogs

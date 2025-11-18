@@ -1,4 +1,4 @@
-classdef DLNetMode < handle   
+classdef DLNetMode < handle
   % While DLNetType captures a network type, the DLNetType by itself does
   % not tell the entire story as a given network may be used in various 
   % ways for pose tracking.
