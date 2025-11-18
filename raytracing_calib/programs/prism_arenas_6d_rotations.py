@@ -6,6 +6,7 @@ from utils import euclidean_distance, rotation_matrix_to_quaternion
 from pytorch3d.transforms import matrix_to_euler_angles
 pi = torch.tensor(np.pi, dtype=torch.float64)
 import math
+import pdb
 
 # 3-D reconstruction loss
 class Arena_3D_loss(nn.Module):
@@ -547,46 +548,38 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         If a point needs fallback (< 1 non-NaN values after outlier removal),
         keep all values for that point (don't remove any outliers) except for the extreme outliers defined by upper bound threshold.
         If a point needs fall back after this and all values are outliers, keep all original values.
-        
         Returns:
             tuple: (cleaned_tensors, mask)
                 - cleaned_tensors: List of tensors with outliers marked as NaN
                 - mask: Tensor of shape (6, num_points) indicating which values are used (True = used, False = NaN)
         """
-
-        threshold_upper_bound = threshold * 5 # Define an upper bound to always remove extreme outliers
-        num_tensors, num_points = stacked.shape
-        # Remove the extreme outliers first
-        extreme_outlier_mask = torch.abs(stacked) > threshold_upper_bound
-        stacked_extreme_outliers_filter = stacked.clone()
-        stacked_extreme_outliers_filter[extreme_outlier_mask] = float('nan')
-
-
-        # Mark outliers
-        result = stacked.clone()
-        outlier_mask = torch.abs(stacked) > threshold
-        result[outlier_mask] = float('nan')
+        num_tensors, num_points = stacked.shape    
         
-        # Count non-NaN values per point after outlier removal
-        non_nan_count = (~torch.isnan(result)).sum(dim=0)
-        needs_fallback = non_nan_count < 1
+        # Initialize per-point thresholds
+        point_thresholds = torch.full((num_points,), threshold, device=stacked.device)
         
-        if needs_fallback.any():
-            # For points needing fallback, restore all original values
-            # (keep all values, don't remove any outliers for these points)
-            fallback_mask = needs_fallback.unsqueeze(0).expand(num_tensors, -1)
-            result[fallback_mask] = stacked_extreme_outliers_filter[fallback_mask]
+        keep_searching_outliers = True
         
-        non_nan_count_after_fallback = (~torch.isnan(result)).sum(dim=0)
-        still_needs_fallback = (non_nan_count_after_fallback < 1)
-        if still_needs_fallback.any():
-            # For points still needing fallback, restore all original values
-            still_fallback_mask = still_needs_fallback.unsqueeze(0).expand(num_tensors, -1)
-            result[still_fallback_mask] = stacked[still_fallback_mask]
+        while keep_searching_outliers:
+            # Apply per-point thresholds
+            result = stacked.clone()
+            
+            # Create outlier mask using per-point thresholds
+            outlier_mask = torch.abs(stacked) > point_thresholds.unsqueeze(0)  # Broadcast to (num_tensors, num_points)
+            result[outlier_mask] = float('nan')
+            
+            # Count non-NaN values per point after outlier removal
+            non_nan_count = (~torch.isnan(result)).sum(dim=0)
+            needs_fallback = non_nan_count < 1  # no stereo pair with non nan value
+            
+            if not needs_fallback.any():
+                keep_searching_outliers = False
+            else:
+                # Only increase threshold for points that need fallback
+                point_thresholds[needs_fallback] *= 2
         
         # Create usage mask: True where values are not NaN
         usage_mask = ~torch.isnan(result)
-        
         return [result[i] for i in range(num_tensors)], usage_mask
     
     
@@ -603,6 +596,71 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
         recon_pixels_1_virtual = self.camera1.distort_pixels_classical(recon_pixels_1_undistorted_virtual, self.radial_dist_coeffs_cam_0)
         recon_pixels_2_virtual = camera2.distort_pixels_classical(recon_pixels_2_undistorted_real, self.radial_dist_coeffs_cam_1)
         return recon_pixels_1_virtual, recon_pixels_1_real, recon_pixels_2_virtual, recon_pixels_2_real
+
+    def vote_best_views(
+            self,
+            v1_stacked_error, 
+            r1_stacked_error, 
+            v2_stacked_error, 
+            r2_stacked_error, 
+            recon_3D_virtual,
+            recon_3D_real,
+            recon_3D_1,
+            recon_3D_2,
+            recon_3D_12,
+            recon_3D_21,
+            threshold):
+        n_keypoints = v1_stacked_error.shape[1]
+        keypoint_thresholds = torch.full((n_keypoints,), threshold, device=v1_stacked_error.device)
+        relax_threshold = True
+        fly_body_length = 75 #pixels
+        
+        while relax_threshold:
+            num_agreeing_views_needed = 2
+            # So that the while loop does not continue infinitely. This is for cases where only 2 views have keypoint predictions available
+            if (keypoint_thresholds > fly_body_length).any():
+                num_agreeing_views_needed = 1 
+            if (keypoint_thresholds > 1000).any(): # 1000 is of the order of the image dimension. Just walk out if this criteria is not met
+                num_agreeing_views_needed = 0
+            votes_1v = v1_stacked_error < keypoint_thresholds.unsqueeze(0)  # (6, N_keypoints) boolean mask
+            votes_1r = r1_stacked_error < keypoint_thresholds.unsqueeze(0)
+            votes_2v = v2_stacked_error < keypoint_thresholds.unsqueeze(0)
+            votes_2r = r2_stacked_error < keypoint_thresholds.unsqueeze(0)
+            # Count votes per keypoint per camera
+            vote_counts_1v = votes_1v.sum(dim=0)  # (N_keypoints,)
+            vote_counts_2v = votes_2v.sum(dim=0)
+            vote_counts_1r = votes_1r.sum(dim=0)
+            vote_counts_2r = votes_2r.sum(dim=0)
+
+            virtual_mask = (vote_counts_1v >= num_agreeing_views_needed) & (vote_counts_2v >= num_agreeing_views_needed)
+            real_mask = (vote_counts_1r >= num_agreeing_views_needed) & (vote_counts_2r >= num_agreeing_views_needed)
+            cam1_mask = (vote_counts_1v >= num_agreeing_views_needed) & (vote_counts_1r >= num_agreeing_views_needed)
+            cam2_mask = (vote_counts_2v >= num_agreeing_views_needed) & (vote_counts_2r >= num_agreeing_views_needed)
+            virtual1_real2_mask = (vote_counts_1v >= num_agreeing_views_needed) & (vote_counts_2r >= num_agreeing_views_needed)
+            virtual2_real1_mask = (vote_counts_2v >= num_agreeing_views_needed) & (vote_counts_1r >= num_agreeing_views_needed)
+
+            stacked_masks = torch.vstack((
+                virtual_mask,
+                real_mask,
+                cam1_mask,
+                cam2_mask,
+                virtual1_real2_mask,
+                virtual2_real1_mask,
+            ))
+            # Ensure each keypoints is assigned to some category
+            valid_keypoints = stacked_masks.any(dim=0) 
+            invalid_keypoints = ~valid_keypoints
+            if valid_keypoints.all():
+                relax_threshold = False
+            else:
+                keypoint_thresholds[invalid_keypoints] *= 2
+
+        final_recon_3D = (
+            recon_3D_virtual * virtual_mask.unsqueeze(0) + recon_3D_real * real_mask.unsqueeze(0) + recon_3D_1 * cam1_mask.unsqueeze(0) + recon_3D_2 * cam2_mask.unsqueeze(0) + recon_3D_12 * virtual1_real2_mask.unsqueeze(0) + recon_3D_21 * virtual2_real1_mask.unsqueeze(0)
+        ) / (virtual_mask.float().unsqueeze(0) + real_mask.float().unsqueeze(0) + cam1_mask.float().unsqueeze(0) + cam2_mask.float().unsqueeze(0) + virtual1_real2_mask.float().unsqueeze(0) + virtual2_real1_mask.float().unsqueeze(0) + 1e-6)
+
+        return final_recon_3D
+
 
     def triangulate(self, pixels, image_width, image_height, discard_outliers=True):
         """
@@ -670,32 +728,63 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
             #combined_tensors, usage_mask = self.detect_outliers_vectorized(combined_tensors, self.outlier_threshold)
             #closest_distance_real, closest_distance_virtual, closest_distance_1, closest_distance_2, closest_distance_12, closest_distance_21 = combined_tensors
             # Find outliers based on reprojection error                    
-            _, repr_pixels_1_real,_, repr_pixels_2_real = self.return_reprojected_pixels(recon_3D_real, R1, T1, R2, T2, camera2, image_width, image_height)
-            repr_pixels_1_virtual, _, repr_pixels_2_virtual, _ = self.return_reprojected_pixels(recon_3D_virtual, R1, T1, R2, T2, camera2, image_width, image_height)
-            repr_pixels_1_virtual_1, repr_pixels_1_real_1, _, _ = self.return_reprojected_pixels(recon_3D_1, R1, T1, R2, T2, camera2, image_width, image_height)
-            _, _, repr_pixels_2_virtual_2, repr_pixels_2_real_2 = self.return_reprojected_pixels(recon_3D_2, R1, T1, R2, T2, camera2, image_width, image_height)
-            repr_pixels_1_virtual_12, _, _, repr_pixels_2_real_12 = self.return_reprojected_pixels(recon_3D_12, R1, T1, R2, T2, camera2, image_width, image_height)
-            _, repr_pixels_1_real_21, repr_pixels_2_virtual_21, _ = self.return_reprojected_pixels(recon_3D_21, R1, T1, R2, T2, camera2, image_width, image_height)
-            repr_error_1_real = torch.norm(repr_pixels_1_real - distorted_real_pixels_cam_0, dim=0)
-            repr_error_2_real = torch.norm(repr_pixels_2_real - distorted_real_pixels_cam_1, dim=0)
-            repr_error_real = torch.maximum(repr_error_1_real, repr_error_2_real)
-            repr_error_1_virtual = torch.norm(repr_pixels_1_virtual - distorted_virtual_pixels_cam_0, dim=0)
-            repr_error_2_virtual = torch.norm(repr_pixels_2_virtual - distorted_virtual_pixels_cam_1, dim=0)
-            repr_error_virtual = torch.maximum(repr_error_1_virtual, repr_error_2_virtual)
-            repr_error_1_virtual_1 = torch.norm(repr_pixels_1_virtual_1 - distorted_virtual_pixels_cam_0, dim=0)
-            repr_error_1_real_1 = torch.norm(repr_pixels_1_real_1 - distorted_real_pixels_cam_0, dim=0)
-            repr_error_1 = torch.maximum(repr_error_1_virtual_1, repr_error_1_real_1)
-            repr_error_2_virtual_2 = torch.norm(repr_pixels_2_virtual_2 - distorted_virtual_pixels_cam_1, dim=0)
-            repr_error_2_real_2 = torch.norm(repr_pixels_2_real_2 - distorted_real_pixels_cam_1, dim=0)
-            repr_error_2 = torch.maximum(repr_error_2_virtual_2, repr_error_2_real_2)
-            repr_error_1_virtual_12 = torch.norm(repr_pixels_1_virtual_12 - distorted_virtual_pixels_cam_0, dim=0)
-            repr_error_2_real_12 = torch.norm(repr_pixels_2_real_12 - distorted_real_pixels_cam_1, dim=0)
-            repr_error_12 = torch.maximum(repr_error_1_virtual_12, repr_error_2_real_12)
-            repr_error_2_virtual_21 = torch.norm(repr_pixels_2_virtual_21 - distorted_virtual_pixels_cam_1, dim=0)
-            repr_errors_1_real_21 = torch.norm(repr_pixels_1_real_21 - distorted_real_pixels_cam_0, dim=0)
-            repr_error_21 = torch.maximum(repr_error_2_virtual_21, repr_errors_1_real_21)
-            repr_errors_stacked = torch.stack([
-                repr_error_real,
+            # Get reprojections from all pairs in all views
+            rep_1v_real, rep_1r_real, rep_2v_real, rep_2r_real = self.return_reprojected_pixels(recon_3D_real, R1, T1, R2, T2, camera2, image_width, image_height)
+            rep_1v_virtual, rep_1r_virtual, rep_2v_virtual, rep_2r_virtual = self.return_reprojected_pixels(recon_3D_virtual, R1, T1, R2, T2, camera2, image_width, image_height)
+            rep_1v_1, rep_1r_1, rep_2v_1, rep_2r_1 = self.return_reprojected_pixels(recon_3D_1, R1, T1, R2, T2, camera2, image_width, image_height)
+            rep_1v_2, rep_1r_2, rep_2v_2, rep_2r_2 = self.return_reprojected_pixels(recon_3D_2, R1, T1, R2, T2, camera2, image_width, image_height)
+            rep_1v_12, rep_1r_12, rep_2v_12, rep_2r_12 = self.return_reprojected_pixels(recon_3D_12, R1, T1, R2, T2, camera2, image_width, image_height)
+            rep_1v_21, rep_1r_21, rep_2v_21, rep_2r_21 = self.return_reprojected_pixels(recon_3D_21, R1, T1, R2, T2, camera2, image_width, image_height)
+            # Calculate reprojection errors for each of the above views
+            repr_error_1r_real = torch.norm(rep_1r_real - distorted_real_pixels_cam_0, dim=0)
+            repr_error_1v_real = torch.norm(rep_1v_real - distorted_virtual_pixels_cam_0, dim=0)
+            repr_error_2r_real = torch.norm(rep_2r_real - distorted_real_pixels_cam_1, dim=0)
+            repr_error_2v_real = torch.norm(rep_2v_real - distorted_virtual_pixels_cam_1, dim=0)
+            repr_error_r_real = torch.maximum(repr_error_1r_real, repr_error_2r_real)
+            repr_error_1v_virtual = torch.norm(rep_1v_virtual - distorted_virtual_pixels_cam_0, dim=0)
+            repr_error_1r_virtual = torch.norm(rep_1r_virtual - distorted_real_pixels_cam_0, dim=0)
+            repr_error_2v_virtual = torch.norm(rep_2v_virtual - distorted_virtual_pixels_cam_1, dim=0)
+            repr_error_2r_virtual = torch.norm(rep_2r_virtual - distorted_real_pixels_cam_1, dim=0)
+            repr_error_virtual = torch.maximum(repr_error_1v_virtual, repr_error_2v_virtual)
+            repr_error_1v_1 = torch.norm(rep_1v_1 - distorted_virtual_pixels_cam_0, dim=0)            
+            repr_error_1r_1 = torch.norm(rep_1r_1 - distorted_real_pixels_cam_0, dim=0)
+            repr_error_2v_1 = torch.norm(rep_2v_1 - distorted_virtual_pixels_cam_1, dim=0)
+            repr_error_2r_1 = torch.norm(rep_2r_1 - distorted_real_pixels_cam_1, dim=0)
+            repr_error_1 = torch.maximum(repr_error_1v_1, repr_error_1r_1)
+            repr_error_1v_2 = torch.norm(rep_1v_2 - distorted_virtual_pixels_cam_0, dim=0)
+            repr_error_1r_2 = torch.norm(rep_1r_2 - distorted_real_pixels_cam_0, dim=0)
+            repr_error_2v_2 = torch.norm(rep_2v_2 - distorted_virtual_pixels_cam_1, dim=0)            
+            repr_error_2r_2 = torch.norm(rep_2r_2 - distorted_real_pixels_cam_1, dim=0)
+            repr_error_2 = torch.maximum(repr_error_2v_2, repr_error_2r_2)
+            repr_error_1v_12 = torch.norm(rep_1v_12 - distorted_virtual_pixels_cam_0, dim=0)
+            repr_error_1r_12 = torch.norm(rep_1r_12 - distorted_real_pixels_cam_0, dim=0)
+            repr_error_2v_12 = torch.norm(rep_2v_12 - distorted_virtual_pixels_cam_1, dim=0)
+            repr_error_2r_12 = torch.norm(rep_2r_12 - distorted_real_pixels_cam_1, dim=0)
+            repr_error_12 = torch.maximum(repr_error_1v_12, repr_error_2r_12)
+            repr_error_1v_21 = torch.norm(rep_1v_21 - distorted_virtual_pixels_cam_0, dim=0)
+            repr_errors_1r_21 = torch.norm(rep_1r_21 - distorted_real_pixels_cam_0, dim=0)
+            repr_error_2v_21 = torch.norm(rep_2v_21 - distorted_virtual_pixels_cam_1, dim=0)            
+            repr_error_2r_21 = torch.norm(rep_2r_21 - distorted_real_pixels_cam_1, dim=0)
+            repr_error_21 = torch.maximum(repr_error_2v_21, repr_errors_1r_21)
+            v1_stacked_error = torch.vstack([repr_error_1v_virtual, repr_error_1v_real, repr_error_1v_1, repr_error_1v_2, repr_error_1v_12, repr_error_1v_21])
+            r1_stacked_error = torch.vstack([repr_error_1r_virtual, repr_error_1r_real, repr_error_1r_1, repr_error_1r_2, repr_error_1r_12, repr_errors_1r_21])
+            v2_stacked_error = torch.vstack([repr_error_2v_virtual, repr_error_2v_real, repr_error_2v_1, repr_error_2v_2, repr_error_2v_12, repr_error_2v_21])
+            r2_stacked_error = torch.vstack([repr_error_2r_virtual, repr_error_2r_real, repr_error_2r_1, repr_error_2r_2, repr_error_2r_12, repr_error_2r_21])
+            recon_3D = self.vote_best_views(
+            v1_stacked_error, 
+            r1_stacked_error, 
+            v2_stacked_error, 
+            r2_stacked_error, 
+            recon_3D_virtual,
+            recon_3D_real,
+            recon_3D_1,
+            recon_3D_2,
+            recon_3D_12,
+            recon_3D_21,
+            self.outlier_threshold)
+
+            """repr_errors_stacked = torch.stack([
+                repr_error_r_real,
                 repr_error_virtual,
                 repr_error_1,
                 repr_error_2,
@@ -712,8 +801,13 @@ class Arena_reprojection_loss_two_cameras_prism_grid_distances(nn.Module):
             torch.stack([recon_3D_real, recon_3D_virtual, recon_3D_1, recon_3D_2, recon_3D_12, recon_3D_21],
                         dim=0),
                     dim=0,
+                )"""
+        else:
+            recon_3D = torch.nanmean(
+            torch.stack([recon_3D_real, recon_3D_virtual, recon_3D_1, recon_3D_2, recon_3D_12, recon_3D_21],
+                        dim=0),
+                    dim=0,
                 )
-
         closest_distance = torch.nanmean(
             torch.stack([closest_distance_real, closest_distance_virtual, closest_distance_1, closest_distance_2, closest_distance_12, closest_distance_21],
                         dim=0),
