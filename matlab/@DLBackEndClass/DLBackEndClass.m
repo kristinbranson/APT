@@ -1074,7 +1074,7 @@ classdef DLBackEndClass < handle
             obj.ensureJobIsNotAlive(jobid) ;
           end
         end
-        % Not that stray jobs were killed, throw error
+        % Now that stray jobs were killed, throw error
         error(reason) ;
       end  % if        
     end  % function
@@ -1253,7 +1253,7 @@ classdef DLBackEndClass < handle
     function killJobBsub_(obj, jobid)  %#ok<INUSD> 
       % Kill the bsub job with job id jobid.
       % jobid is assumed to be a single job id, represented as an old-style string.      
-      bkillcmd0 = apt.ShellCommand({'bkill', jobid}, apt.PathLocale.wsl, apt.Platform.posix);
+      bkillcmd0 = apt.ShellCommand({'bkill', jobid}, apt.PathLocale.remote, apt.Platform.posix);
       bkillcmd = wrapCommandSSH(bkillcmd0,'host',DLBackEndClass.jrchost);
       [st,res] = bkillcmd.run('failbehavior', 'silent', 'verbose', false) ;
       if st~=0 ,
