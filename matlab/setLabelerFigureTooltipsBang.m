@@ -52,12 +52,12 @@ end
 if isfield(handles,'menu_file_managemovies'),
   SetTooltip(handles.menu_file_managemovies,'Open movie manager dialog to switch to a different movie or add or remove movies from the project',jobjs,jobjnames);
 end
-if isfield(handles,'menu_file_import_labels_trk_curr_mov'),
-  SetTooltip(handles.menu_file_import_labels_trk_curr_mov,'Import predictions from .trk file as LABELS for current movie',jobjs,jobjnames);
-end
-if isfield(handles,'menu_file_import_labels2_trk_curr_mov'),
-  SetTooltip(handles.menu_file_import_labels2_trk_curr_mov,'Import predictions from .trk file for current movie',jobjs,jobjnames);
-end
+% if isfield(handles,'menu_file_import_labels_trk_curr_mov'),
+%   SetTooltip(handles.menu_file_import_labels_trk_curr_mov,'Import predictions from .trk file as LABELS for current movie',jobjs,jobjnames);
+% end
+% if isfield(handles,'menu_file_import_labels2_trk_curr_mov'),
+%   SetTooltip(handles.menu_file_import_labels2_trk_curr_mov,'Import predictions from .trk file for current movie',jobjs,jobjnames);
+% end
 if isfield(handles,'menu_file_export_labels2_trk_curr_mov'),
   SetTooltip(handles.menu_file_export_labels2_trk_curr_mov,'Export predictions to .trk file for current movie',jobjs,jobjnames);
 end

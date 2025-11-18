@@ -8612,50 +8612,50 @@ classdef Labeler < handle
     % which is called by LabelerGUI for single-movieset situs (including
     % multiview)
     
-    function labelImportTrkPromptGenericSimple(obj,iMov,importFcn,varargin)
-      % Prompt user for trkfiles to import and import them with given 
-      % importFcn. User can cancel to abort
-      %
-      % iMov: scalar positive index into .movieFilesAll. GT mode not
-      %   allowed.
-      
-      if ~obj.hasMovie
-        error('Labeler:noMovie','No movie is loaded.');
-      end
-      
-      obj.pushBusyStatus('Importing tracking results...');
-      oc = onCleanup(@()(obj.popBusyStatus())) ;
-      
-      gtok = myparse(varargin,...
-        'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
-                  ...% refers per GT state. importFcn needs to support GT
-                  ...% state
-                  );
-      
-      assert(isscalar(iMov));      
-      if ~gtok
-        assert(~obj.gtIsGTMode);
-      end
-      
-      movs = obj.movieFilesAllFullGTaware(iMov,:);
-      movdirs = cellfun(@fileparts,movs,'uni',0);
-      nvw = obj.nview;
-      trkfiles = cell(1,nvw);
-      for ivw=1:nvw
-        if nvw>1
-          promptstr = sprintf('Import trkfile for view %d',ivw);
-        else
-          promptstr = 'Import trkfile';
-        end
-        [fname,pth] = uigetfile('*.trk',promptstr,movdirs{ivw});
-        if isequal(fname,0)
-          return;
-        end
-        trkfiles{ivw} = fullfile(pth,fname);
-      end
-      
-      feval(importFcn,obj,iMov,trkfiles);
-    end
+    % function labelImportTrkPromptGenericSimple(obj,iMov,importFcn,varargin)
+    %   % Prompt user for trkfiles to import and import them with given 
+    %   % importFcn. User can cancel to abort
+    %   %
+    %   % iMov: scalar positive index into .movieFilesAll. GT mode not
+    %   %   allowed.
+    % 
+    %   if ~obj.hasMovie
+    %     error('Labeler:noMovie','No movie is loaded.');
+    %   end
+    % 
+    %   obj.pushBusyStatus('Importing tracking results...');
+    %   oc = onCleanup(@()(obj.popBusyStatus())) ;
+    % 
+    %   gtok = myparse(varargin,...
+    %     'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
+    %               ...% refers per GT state. importFcn needs to support GT
+    %               ...% state
+    %               );
+    % 
+    %   assert(isscalar(iMov));      
+    %   if ~gtok
+    %     assert(~obj.gtIsGTMode);
+    %   end
+    % 
+    %   movs = obj.movieFilesAllFullGTaware(iMov,:);
+    %   movdirs = cellfun(@fileparts,movs,'uni',0);
+    %   nvw = obj.nview;
+    %   trkfiles = cell(1,nvw);
+    %   for ivw=1:nvw
+    %     if nvw>1
+    %       promptstr = sprintf('Import trkfile for view %d',ivw);
+    %     else
+    %       promptstr = 'Import trkfile';
+    %     end
+    %     [fname,pth] = uigetfile('*.trk',promptstr,movdirs{ivw});
+    %     if isequal(fname,0)
+    %       return;
+    %     end
+    %     trkfiles{ivw} = fullfile(pth,fname);
+    %   end
+    % 
+    %   feval(importFcn,obj,iMov,trkfiles);
+    % end
     
     % function labelImportTrkPromptAuto(obj,iMovs)
     %   % Import label data from trk files, prompting if necessary to specify
@@ -15258,32 +15258,32 @@ classdef Labeler < handle
 %       obj.(PROPS.LPOS2){iMov} = lpos;
 %     end
     
-    function labels2Clear(obj)
-      % Operates based on current reg/GT mode
-      PROPS = obj.gtGetSharedProps();
-
-      % resetting rather than clearing
-      nlblpts = obj.nLabelPoints;
-      for i = 1:obj.nmoviesGTaware,
-        trxinfo = obj.(PROPS.TIA){i};
-        nfrms = obj.(PROPS.MIA){i}.nframes;
-        if obj.maIsMA
-          tfo = TrkFile(nlblpts,zeros(0,1));
-          tfo.initFrm2Tlt(nfrms);
-          obj.(PROPS.LBL2){i,1} = tfo;
-        else
-          tfo = TrkFile(nlblpts,1:trxinfo.ntgts);
-          tfo.initFrm2Tlt(nfrms);
-          obj.(PROPS.LBL2){i,1} = tfo;
-        end
-      end
-
-      % lbl2 = obj.(PROPLBL2);
-      % cellfun(@(x)x.clearTracklet(),lbl2);
-      obj.labels2TrkVizInit();
-      obj.labels2VizUpdate();
-      obj.notify('dataImported');
-    end
+    % function labels2Clear(obj)
+    %   % Operates based on current reg/GT mode
+    %   PROPS = obj.gtGetSharedProps();
+    % 
+    %   % resetting rather than clearing
+    %   nlblpts = obj.nLabelPoints;
+    %   for i = 1:obj.nmoviesGTaware,
+    %     trxinfo = obj.(PROPS.TIA){i};
+    %     nfrms = obj.(PROPS.MIA){i}.nframes;
+    %     if obj.maIsMA
+    %       tfo = TrkFile(nlblpts,zeros(0,1));
+    %       tfo.initFrm2Tlt(nfrms);
+    %       obj.(PROPS.LBL2){i,1} = tfo;
+    %     else
+    %       tfo = TrkFile(nlblpts,1:trxinfo.ntgts);
+    %       tfo.initFrm2Tlt(nfrms);
+    %       obj.(PROPS.LBL2){i,1} = tfo;
+    %     end
+    %   end
+    % 
+    %   % lbl2 = obj.(PROPLBL2);
+    %   % cellfun(@(x)x.clearTracklet(),lbl2);
+    %   obj.labels2TrkVizInit();
+    %   obj.labels2VizUpdate();
+    %   obj.notify('dataImported');
+    % end
     
     function labels2ImportTrk(obj,iMovs,trkfiles)
       % Works per current GT mode

@@ -67,7 +67,7 @@ classdef LabelerController < handle
     menu_file
     menu_file_bundle_tempdir
     menu_file_clean_tempdir
-    menu_file_clear_imported
+    % menu_file_clear_imported
     menu_file_crop_mode
     menu_file_export_all_movies
     menu_file_export_labels2_trk_curr_mov
@@ -76,9 +76,9 @@ classdef LabelerController < handle
     menu_file_import_labels_cocojson
     menu_file_export_labels_trks
     menu_file_import_export_advanced
-    menu_file_import_labels2_trk_curr_mov
+    % menu_file_import_labels2_trk_curr_mov
     menu_file_import_labels_table
-    menu_file_import_labels_trk_curr_mov
+    % menu_file_import_labels_trk_curr_mov
     menu_file_import
     menu_file_export
     menu_file_load
@@ -143,11 +143,11 @@ classdef LabelerController < handle
     menu_view_flip_flipud
     menu_view_flip_flipud_movie_only
     menu_view_gammacorrect
-    menu_view_showhide_imported_predictions
-    menu_view_showhide_imported_preds_all
-    menu_view_showhide_imported_preds_curr_target_only
-    menu_view_showhide_imported_preds_none
-    menu_view_hide_imported_predictions
+    % menu_view_showhide_imported_predictions
+    % menu_view_showhide_imported_preds_all
+    % menu_view_showhide_imported_preds_curr_target_only
+    % menu_view_showhide_imported_preds_none
+    % menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_showhide_predictions
     menu_view_showhide_trajectories
@@ -189,8 +189,8 @@ classdef LabelerController < handle
     pbTrain
     pnlStatus
     popupmenu_prevmode
-    pumInfo
-    pumInfo_labels
+    pumInfo_labels  % the one on the left, below the timeline, with e.g. 'Labels', 'Predictions'
+    pumInfo  % the one on the right, below the timeline, with e.g. 'x', 'y', etc.
     pumTrack
     pushbutton_exitcropmode
     pushbutton_freezetemplate
@@ -449,10 +449,10 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetCurrTarget',@(s,e)(obj.cbkCurrTargetChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetLabelMode',@(s,e)(obj.cbkLabelModeChanged()));
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetLabels2Hide',@(s,e)(obj.cbkLabels2HideChanged(s,e)));
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetLabels2ShowCurrTargetOnly',@(s,e)(obj.cbkLabels2ShowCurrTargetOnlyChanged(s,e)));
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'didSetLabels2Hide',@(s,e)(obj.cbkLabels2HideChanged(s,e)));
+      % obj.listeners_(end+1) = ...
+      %   addlistener(labeler,'didSetLabels2ShowCurrTargetOnly',@(s,e)(obj.cbkLabels2ShowCurrTargetOnlyChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowTrx',@(s,e)(obj.cbkShowTrxChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -538,7 +538,6 @@ classdef LabelerController < handle
         'menu_view_pan_toggle'
         'menu_view_hide_trajectories'
         'menu_view_hide_predictions'
-        'menu_view_hide_imported_predictions'
         };
 
       % % Stash the guidata
@@ -2667,35 +2666,32 @@ classdef LabelerController < handle
       obj.menu_view_showhide_preds_none.Checked = onIff(tracker.hideViz) ;
     end
 
-    function updateShowImportedPredMenus(obj,src,evt) %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      if nargin < 2,
-        src = nan;
-      end
-      % during initiatialization, these have not been set to bools yet
-      if isempty(labeler.labels2ShowCurrTargetOnly),
-        showcurrent = false;
-      else
-        showcurrent = labeler.labels2ShowCurrTargetOnly;
-      end
-      if isempty(labeler.labels2Hide),
-        hide = false;
-      else
-        hide = labeler.labels2Hide;
-      end
-      if src ~= obj.menu_view_showhide_imported_preds_all,
-        obj.menu_view_showhide_imported_preds_all.Checked = onIff(~hide && ~showcurrent) ;
-      end
-      if src ~= obj.menu_view_showhide_imported_preds_curr_target_only,
-        obj.menu_view_showhide_imported_preds_curr_target_only.Checked = onIff(~hide && showcurrent);
-      end
-      if src ~= obj.menu_view_showhide_imported_preds_none
-        obj.menu_view_showhide_imported_preds_none.Checked = onIff(hide) ;
-      end
-      
-    end
-
-
+    % function updateShowImportedPredMenus(obj,src,evt) %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   if nargin < 2,
+    %     src = nan;
+    %   end
+    %   % during initiatialization, these have not been set to bools yet
+    %   if isempty(labeler.labels2ShowCurrTargetOnly),
+    %     showcurrent = false;
+    %   else
+    %     showcurrent = labeler.labels2ShowCurrTargetOnly;
+    %   end
+    %   if isempty(labeler.labels2Hide),
+    %     hide = false;
+    %   else
+    %     hide = labeler.labels2Hide;
+    %   end
+    %   % if src ~= obj.menu_view_showhide_imported_preds_all,
+    %   %   obj.menu_view_showhide_imported_preds_all.Checked = onIff(~hide && ~showcurrent) ;
+    %   % end
+    %   % if src ~= obj.menu_view_showhide_imported_preds_curr_target_only,
+    %   %   obj.menu_view_showhide_imported_preds_curr_target_only.Checked = onIff(~hide && showcurrent);
+    %   % end
+    %   % if src ~= obj.menu_view_showhide_imported_preds_none
+    %   %   obj.menu_view_showhide_imported_preds_none.Checked = onIff(hide) ;
+    %   % end      
+    % end  % method
 
     function cbkTrackerHideVizChanged(obj)
       % lObj = obj.labeler_ ;
@@ -3105,15 +3101,15 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function cbkLabels2HideChanged(obj, varargin)  
-      % labeler = obj.labeler_ ;
-      obj.updateShowImportedPredMenus(varargin{:});
-    end  % function
+    % function cbkLabels2HideChanged(obj, varargin)  
+    %   % labeler = obj.labeler_ ;
+    %   % obj.updateShowImportedPredMenus(varargin{:});
+    % end  % function
 
-    function cbkLabels2ShowCurrTargetOnlyChanged(obj, varargin)  
-      % labeler = obj.labeler_ ;       
-      obj.updateShowImportedPredMenus(varargin{:});
-    end  % function
+    % function cbkLabels2ShowCurrTargetOnlyChanged(obj, varargin)  
+    %   % labeler = obj.labeler_ ;       
+    %   % obj.updateShowImportedPredMenus(varargin{:});
+    % end  % function
 
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
       if nargin < 2,
@@ -4487,40 +4483,40 @@ classdef LabelerController < handle
 
     end
 
-    function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+    % function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+    % 
+    %   labeler = obj.labeler_ ;
+    %   if ~labeler.hasMovie
+    %     error('LabelerGUI:noMovie','No movie is loaded.');
+    %   end
+    %   labeler.gtThrowErrIfInGTMode();
+    %   iMov = labeler.currMovie;
+    %   haslbls1 = labeler.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
+    %   haslbls2 = labeler.movieFilesAllHaveLbls(iMov)>0;
+    %   assert(haslbls1==haslbls2);
+    %   if haslbls1
+    %     resp = questdlg('Current movie has labels that will be overwritten. OK?',...
+    %       'Import Labels','OK, Proceed','Cancel','Cancel');
+    %     if isempty(resp)
+    %       resp = 'Cancel';
+    %     end
+    %     switch resp
+    %       case 'OK, Proceed'
+    %         % none
+    %       case 'Cancel'
+    %         return;
+    %       otherwise
+    %         assert(false);
+    %     end
+    %   end
+    %   labeler.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
+    % end
 
-      labeler = obj.labeler_ ;
-      if ~labeler.hasMovie
-        error('LabelerGUI:noMovie','No movie is loaded.');
-      end
-      labeler.gtThrowErrIfInGTMode();
-      iMov = labeler.currMovie;
-      haslbls1 = labeler.labelPosMovieHasLabels(iMov); % TODO: method should be unnec
-      haslbls2 = labeler.movieFilesAllHaveLbls(iMov)>0;
-      assert(haslbls1==haslbls2);
-      if haslbls1
-        resp = questdlg('Current movie has labels that will be overwritten. OK?',...
-          'Import Labels','OK, Proceed','Cancel','Cancel');
-        if isempty(resp)
-          resp = 'Cancel';
-        end
-        switch resp
-          case 'OK, Proceed'
-            % none
-          case 'Cancel'
-            return;
-          otherwise
-            assert(false);
-        end
-      end
-      labeler.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
-    end
-
-    function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      iMov = labeler.currMovie; % gt-aware
-      labeler.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
-    end
+    % function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   iMov = labeler.currMovie; % gt-aware
+    %   labeler.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
+    % end
 
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
@@ -5307,51 +5303,37 @@ classdef LabelerController < handle
     end  % function
 
 
-    function menu_view_showhide_imported_preds_all_actuated_(obj, src, evt)  %#ok<INUSD>
+    % function menu_view_showhide_imported_preds_all_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   labeler.labels2VizShow();
+    %   labeler.labels2VizSetShowCurrTargetOnly(false);
+    %   obj.updateShowImportedPredMenus(src);
+    % end
+    % 
+    % 
+    % 
+    % function menu_view_showhide_imported_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   labeler.labels2VizShow();
+    %   labeler.labels2VizSetShowCurrTargetOnly(true);
+    %   obj.updateShowImportedPredMenus(src);
+    % end
+    % 
+    % 
+    % 
+    % function menu_view_showhide_imported_preds_none_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   labeler.labels2VizHide();
+    %   obj.updateShowImportedPredMenus(src);
+    % end
 
 
 
-      labeler = obj.labeler_ ;
-      labeler.labels2VizShow();
-      labeler.labels2VizSetShowCurrTargetOnly(false);
-      obj.updateShowImportedPredMenus(src);
-
-
-    end
-
-
-
-    function menu_view_showhide_imported_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizShow();
-      labeler.labels2VizSetShowCurrTargetOnly(true);
-      obj.updateShowImportedPredMenus(src);
-
-
-    end
-
-
-    function menu_view_showhide_imported_preds_none_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizHide();
-      obj.updateShowImportedPredMenus(src);
-
-
-    end
-
-    function menu_view_hide_imported_predictions_actuated_(obj,src,evt)  %#ok<INUSD>
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizToggle();
-      obj.updateShowImportedPredMenus(src);      
-
-    end
+    % function menu_view_hide_imported_predictions_actuated_(obj,src,evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   labeler.labels2VizToggle();
+    %   obj.updateShowImportedPredMenus(src);      
+    % end
 
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
@@ -5563,10 +5545,10 @@ classdef LabelerController < handle
 
 
 
-    function menu_file_clear_imported_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.labels2Clear();
-    end
+    % function menu_file_clear_imported_actuated_(obj, src, evt)  %#ok<INUSD>
+    %   labeler = obj.labeler_ ;
+    %   labeler.labels2Clear();
+    % end
 
 
 
@@ -6179,7 +6161,7 @@ classdef LabelerController < handle
         obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
       obj.updateShowPredMenus();
-      obj.updateShowImportedPredMenus();
+      % obj.updateShowImportedPredMenus();
       obj.updateFlipMenus();
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
