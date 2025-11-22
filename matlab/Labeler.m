@@ -183,9 +183,10 @@ classdef Labeler < handle
     updateBackendTestText
     updateAfterCurrentFrameSet
     update
-    updateTimeline
+    updateTimelineSelection
+    updateTimelineProps
     updateTimelineStatThresh
-    updateTimelineLabels
+    updateTimelineTraces
     updateTimelineLandmarkColors
   end
 
@@ -785,7 +786,6 @@ classdef Labeler < handle
       obj.isInAwsDebugMode = isInAwsDebugMode ;
       obj.progressMeter_ = ProgressMeter() ;
       obj.infoTimelineModel_ = InfoTimelineModel(obj.hasTrx);
-      %obj.notify('updateTimeline');
       if ~isgui ,
         % If a GUI is attached, this is done by the controller, after it has
         % registered itself with the Labeler.
@@ -1678,7 +1678,7 @@ classdef Labeler < handle
         obj.updateFrameTableIncremental(); 
       end
       %obj.notify('didSetLabels') ;
-      obj.notify('updateTimelineLabels') ;
+      obj.notify('updateTimelineTraces') ;
     end
 
     function set.labelsGT(obj,v)
@@ -5092,9 +5092,10 @@ classdef Labeler < handle
 
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
-      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimeline');
+      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelineSelection');
 
       % AL20160615: omg this is the plague.
       % AL20160605: These three calls semi-obsolete. new projects will not
@@ -5179,9 +5180,10 @@ classdef Labeler < handle
       obj.labelingInit('dosettemplate',false);
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
-      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimeline');
+      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelineSelection');
 
       edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
@@ -11336,7 +11338,8 @@ classdef Labeler < handle
         propList = [] ;
       end      
       obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
-      obj.notify('updateTimeline');
+      obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelineSelection');
 
       % Send the notifications
       obj.notify('didSetCurrTracker') ;
@@ -11443,7 +11446,7 @@ classdef Labeler < handle
     %     propList = [] ;
     %   end
     %   obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
-    %   obj.notify('updateTimeline');
+    %   obj.notify('updateTimelineAndFriends');
     % 
     %   % Send the needed notifications
     %   obj.notify('didSetCurrTracker') ;      
@@ -11467,8 +11470,7 @@ classdef Labeler < handle
       else
         t = [];
       end
-
-    end
+    end  % function
 
     function trackMakeNewTrackerGivenNetTypes(obj, netTypes)
       % trackMakeNewTrackerGivenNetTypes(obj, nettypes)
@@ -11530,7 +11532,8 @@ classdef Labeler < handle
         propList = [] ;
       end
       obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
-      obj.notify('updateTimeline');
+      obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelineSelection');
       
       % Send the needed notifications
       obj.notify('didSetCurrTracker') ;      
@@ -12010,7 +12013,7 @@ classdef Labeler < handle
     end
     
     function track(obj, varargin)
-      % When this method exists, update the views
+      % When this method exits, update the views
       oc = onCleanup(@()(obj.notify('update'))) ;
 
       tm = obj.getTrackModeMFTSet() ;
@@ -14309,7 +14312,7 @@ classdef Labeler < handle
     %     validateattributes(newValue,{'numeric'},{'integer' 'vector' '>=' 1 '<=' obj.nframes}) ;
     %     obj.selectedFrames_ = newValue ;  
     %   end
-    %   obj.notify('updateTimeline');
+    %   obj.notify('updateTimelineAndFriends');
     % end
     
     function updateTrxTable(obj)
@@ -14320,7 +14323,7 @@ classdef Labeler < handle
       else
         % none
       end
-    end
+    end  % function
 
     function updateTrxTable_Trx(obj)
       % based on .frm2trxm, .currFrame, .labeledpos
@@ -16504,7 +16507,8 @@ classdef Labeler < handle
     function trackingEndedRetrograde(obj, endCause, pollingResultOrEmpty)
       % Normally called from children of Labeler to inform it that tracking has
       % just ended.
-      if endCause == EndCause.complete 
+      if endCause == EndCause.complete
+        obj.infoTimelineModel_.invalidateTraceCache() ;
         obj.setDoesNeedSave(true, 'New frames tracked') ;
       elseif endCause == EndCause.error
         obj.printErrorInfo_('track', pollingResultOrEmpty)
@@ -16591,7 +16595,8 @@ classdef Labeler < handle
       %   selectedFrames = find(itm.isSelectedFromFrameIndex) ;
       %   obj.selectedFrames_ = selectedFrames ;
       % end
-      notify(obj, 'updateTimeline');
+      % obj.notify('updateTimelineProps');
+      obj.notify('updateTimelineSelection');
     end
 
     function data = getTimelineDataForCurrentMovieAndTarget(obj)
@@ -16668,20 +16673,23 @@ classdef Labeler < handle
       % Throws error if file cannot be loaded or doesn't contain required variable
       
       obj.infoTimelineModel.addCustomFeatureGivenFileName(fileName);
-      obj.notify('updateTimelineLabels') ;
-      obj.notify('updateTimeline') ;
+      obj.notify('updateTimelineTraces') ;
+      obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelineSelection');
     end
 
     function clearBoutInTimeline(obj)
       frameIndex = obj.currFrame ;
       obj.infoTimelineModel_.clearBout(frameIndex) ;
-      obj.notify('updateTimeline') ;
+      % obj.notify('updateTimelineProps');
+      obj.notify('updateTimelineSelection');
     end    
 
     function clearSelectedFrames(obj)
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.clearSelection(obj.nframes) ;
-      obj.notify('updateTimeline');      
+      % obj.notify('updateTimelineProps');
+      obj.notify('updateTimelineSelection');
     end
 
     function result = get.infoTimelineModel(obj)
@@ -16718,7 +16726,7 @@ classdef Labeler < handle
     %     itm.curprop = iprop;
     %   end
     %   itm.isdefault = true ;
-    %   obj.notify('updateTimelineLabels');
+    %   obj.notify('updateTimelineTraces');
     %   obj.notify('updateTimelineLandmarkColors');
     % end
     
@@ -16726,9 +16734,10 @@ classdef Labeler < handle
       % iproptype, iprop assumed to be consistent already.
       itm = obj.infoTimelineModel ;
       itm.setCurrentPropertyType(iproptype, iprop) ;
-      obj.notify('updateTimelineLabels');
+      obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimeline');
+      obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelineSelection');
     end  % function    
 
     function popBusyStatusAndSendUpdateNotification_(obj)

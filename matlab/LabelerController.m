@@ -189,8 +189,8 @@ classdef LabelerController < handle
     pbTrain
     pnlStatus
     popupmenu_prevmode
-    pumInfo
-    pumInfo_labels
+    pumTimelineProp
+    pumTimelinePropType
     pumTrack
     pushbutton_exitcropmode
     pushbutton_freezetemplate
@@ -304,21 +304,6 @@ classdef LabelerController < handle
       mainFigure.SizeChangedFcn = @(src,evt)(obj.resize()) ;
       obj.resize() ;
 
-      % Update the controls enablement  
-      obj.updateEnablementOfManyControls() ;
-      
-      % Update the status
-      obj.updateStatusAndPointer() ;
-
-      % % Populate the callbacks of the controls in the main figure---someday
-      % apt.populate_callbacks_bang(mainFigure, obj) ;
-
-      % Create the waitbar on demand
-      % obj.waitbarFigure_ = waitbar(0, '', ...
-      %                              'Visible', 'off', ...
-      %                              'CreateCancelBtn', @(source,event)(obj.didCancelWaitbar())) ;
-      % obj.waitbarFigure_.CloseRequestFcn = @(source,event)(nop()) ;
-        
       % Add some controls to the UI that we can set up before there is a project
       obj.initialize_menu_track_backend_config_() ;
       
@@ -327,12 +312,18 @@ classdef LabelerController < handle
       % axes.
       itm = labeler.infoTimelineModel ;
       obj.labelTLInfo = InfoTimelineController(labeler, obj.axes_timeline_manual , obj.axes_timeline_islabeled) ;
-      set(obj.pumInfo,...
+      set(obj.pumTimelineProp,...
           'String',itm.getPropsDisp(),...
           'Value',itm.curprop);
-      set(obj.pumInfo_labels,...
+      set(obj.pumTimelinePropType,...
           'String',itm.getPropTypesDisp(),...
           'Value',itm.curproptype);
+
+      % Update the controls enablement  
+      obj.updateEnablementOfManyControls() ;
+      
+      % Update the status
+      obj.updateStatusAndPointer() ;
 
       % Misc labelmode/Setup menu
       LABELMODE_SETUPMENU_MAP = ...
@@ -506,11 +497,13 @@ classdef LabelerController < handle
       % obj.listeners_(end+1) = ...
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimeline',@(s,e)(obj.updateTimeline())) ;
+        addlistener(obj.labeler_,'updateTimelineProps',@(s,e)(obj.updateTimelineProps())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateTimelineSelection',@(s,e)(obj.updateTimelineSelection())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelineStatThresh',@(s,e)(obj.updateTimelineStatThresh())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimelineLabels',@(s,e)(obj.updateTimelineLabels())) ;
+        addlistener(obj.labeler_,'updateTimelineTraces',@(s,e)(obj.updateTimelineTraces())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelineLandmarkColors',@(s,e)(obj.updateTimelineLandmarkColors())) ;
 
@@ -1308,7 +1301,7 @@ classdef LabelerController < handle
           % LabelerController).  Someday we will move it, but right now it's referred to
           % by so many places in Labeler, and LabelCore, etc that I don't want to start
           % shaving that yak right now.  -- ALT, 2025-01-30
-        obj.labelTLInfo.updateLabels();
+        obj.labelTLInfo.updateTraces();
         if lObj.gtIsGTMode
           tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
         else
@@ -1390,7 +1383,8 @@ classdef LabelerController < handle
       set(obj.uipanel_cropcontrols,'Visible',onIff(hasProject && isInCropMode)) ;
       set(obj.text_trackerinfo,'Visible',onIff(hasProject && ~isInCropMode)) ;
 
-      obj.updateTimeline() ;
+      obj.updateTimelineProps() ;
+      obj.updateTimelineSelection() ;
 
       set(obj.pbClear,'Enable',onIff(hasProject));
       set(obj.tbAccept,'Enable',onIff(hasProject));
@@ -1410,6 +1404,7 @@ classdef LabelerController < handle
       obj.menu_track.Enable = onIff(hasTracker);
       obj.pbTrain.Enable = onIff(hasTracker);
       obj.pbTrack.Enable = onIff(hasTracker);
+      obj.pumTrack.Enable = onIff(hasTracker) ;
       obj.menu_view_showhide_predictions.Enable = onIff(hasTracker);
       set(obj.menu_track_auto_params_update, 'Checked', hasProject && labeler.trackAutoSetParams) ;
       
@@ -2248,7 +2243,7 @@ classdef LabelerController < handle
       
       % init info timeline
       obj.labelTLInfo.updateForNewProject();
-      obj.labelTLInfo.updateLabels();
+      obj.labelTLInfo.updateTraces();
       
       % clear tracking data
       cellfun(@(x)x.clearTracklet(),labeler.labels2);
@@ -2629,7 +2624,7 @@ classdef LabelerController < handle
       obj.update_menu_track_backend_config();
 
       % Update the InfoTimelineController
-      obj.labelTLInfo.updateLabels();
+      obj.labelTLInfo.updateTraces();
     end  % function
     
     function updateTrainingMonitor(obj)
@@ -3013,7 +3008,7 @@ classdef LabelerController < handle
       if (labeler.hasTrx || labeler.maIsMA) && ~labeler.isinit ,
         iTgt = labeler.currTarget;
         labeler.currImHud.updateTarget(iTgt);
-        obj.labelTLInfo.updateLabels();
+        obj.labelTLInfo.updateTraces();
         obj.updateHighlightingOfAxes();
       end
     end  % function
@@ -3385,7 +3380,7 @@ classdef LabelerController < handle
       end
 
       obj.labelTLInfo.updateForNewMovie(obj.tbTLSelectMode.BackgroundColor);
-      obj.labelTLInfo.updateLabels();
+      obj.labelTLInfo.updateTraces();
 
       nframes = labeler.nframes;
       sliderstep = [1/(nframes-1),min(1,100/(nframes-1))];
@@ -3442,7 +3437,7 @@ classdef LabelerController < handle
     end  % function
 
     function cbkDataImported(obj, src, evt)  %#ok<INUSD>
-      obj.labelTLInfo.updateLabels();  % Using this as a "refresh" for now
+      obj.labelTLInfo.updateTraces();  % Using this as a "refresh" for now
     end  % function
 
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
@@ -3806,45 +3801,55 @@ classdef LabelerController < handle
     %   tb.Value = itm.selectOn;
     % end
 
-    function updateTimeline(obj)
+    function updateTimelineSelection(obj)
       % Update the props dropdown menu and timeline.
       labeler = obj.labeler_ ;
       hasProject = labeler.hasProject ;
       hasMovie = labeler.hasMovie ;        
       itm = labeler.infoTimelineModel ;
-      props = itm.getPropsDisp(itm.curproptype);
-      proptypes = itm.getPropTypesDisp();
-      if ~isempty(obj.labelTLInfo)
-        obj.labelTLInfo.update();
-      end
-      tb = obj.tbTLSelectMode;  % the togglebutton
-      tb.Value = itm.selectOn;      
+      %props = itm.getPropsDisp(itm.curproptype);
+      %propTypes = itm.getPropTypesDisp();
+      obj.labelTLInfo.updateCurrentFrameLineWidths() ;
+      obj.labelTLInfo.updateCurrentFrameLineXData() ;
+      obj.labelTLInfo.updateSelectionImageCData() ;
+      obj.labelTLInfo.updateContextMenu() ;
+      set(obj.tbTLSelectMode, 'Value', itm.selectOn, 'Enable',onIff(hasProject)) ;  % a togglebutton
       set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
-      set(obj.pumInfo,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
-      set(obj.pumInfo_labels,'String',proptypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
-      set(obj.tbTLSelectMode,'Enable',onIff(hasProject));
-      set(obj.pumTrack,'Enable',onIff(hasProject));
+      %set(obj.pumTimelinePropType,'String',propTypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
+      %set(obj.pumTimelineProp,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
+    end
+
+    function updateTimelineProps(obj)
+      % Update the props dropdown menu and timeline.
+      labeler = obj.labeler_ ;
+      hasProject = labeler.hasProject ;
+      %hasMovie = labeler.hasMovie ;        
+      itm = labeler.infoTimelineModel ;
+      props = itm.getPropsDisp(itm.curproptype);
+      propTypes = itm.getPropTypesDisp();
+      %obj.labelTLInfo.updateCurrentFrameLineWidths() ;
+      %obj.labelTLInfo.updateCurrentFrameLineXData() ;
+      %obj.labelTLInfo.updateSelectionImageCData() ;
+      %obj.labelTLInfo.updateContextMenu() ;
+      %set(obj.tbTLSelectMode, 'Value', itm.selectOn, 'Enable',onIff(hasProject)) ;  % a togglebutton
+      %set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
+      set(obj.pumTimelinePropType,'String',propTypes,'Value',itm.curproptype,'Enable',onIff(hasProject));
+      set(obj.pumTimelineProp,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
     end
 
     function updateTimelineStatThresh(obj)
       % Update the timeline statistic threshold display.
-      if ~isempty(obj.labelTLInfo)
-        obj.labelTLInfo.updateStatThresh();
-      end
+      obj.labelTLInfo.updateStatThresh();
     end
 
-    function updateTimelineLabels(obj)
-      % Update the timeline labels display.
-      if ~isempty(obj.labelTLInfo)
-        obj.labelTLInfo.updateLabels();
-      end
+    function updateTimelineTraces(obj)
+      % Update the labels/prediction traces shown in the timeline.
+      obj.labelTLInfo.updateTraces();
     end
 
     function updateTimelineLandmarkColors(obj)
       % Update the timeline landmark colors.
-      if ~isempty(obj.labelTLInfo)
-        obj.labelTLInfo.updateLandmarkColors();
-      end
+      obj.labelTLInfo.updateLandmarkColors();
     end
 
     % function cbklabelTLInfoPropTypesUpdated(obj, src, evt)  %#ok<INUSD>
@@ -3852,7 +3857,7 @@ classdef LabelerController < handle
     %   labeler = obj.labeler_ ;
     %   itm = labeler.infoTimelineModel ;
     %   proptypes = itm.getPropTypesDisp();
-    %   set(obj.pumInfo_labels,'String',proptypes);
+    %   set(obj.pumTimelinePropType,'String',proptypes);
     % end
     
     function menuSetupLabelModeCbkGeneric(obj, src, evt)  %#ok<INUSD>
@@ -5877,7 +5882,7 @@ classdef LabelerController < handle
 
 
 
-    function pumInfo_actuated_(obj, src, evt)  %#ok<INUSD>
+    function pumTimelineProp_actuated_(obj, src, evt)  %#ok<INUSD>
       % Set the current property to the one with index get(get,'Value').  Handles
       % the case where this is a custom feature: Pops up a dialog in this case.
 
@@ -6093,16 +6098,16 @@ classdef LabelerController < handle
       end
     end
 
-    function pumInfo_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+    function pumTimelinePropType_actuated_(obj, src, evt)  %#ok<INUSD>
       ipropType = get(src,'Value');
-      iprop = get(obj.pumInfo,'Value');
+      iprop = get(obj.pumTimelineProp,'Value');
       labeler = obj.labeler_ ;
       itm = labeler.infoTimelineModel ;
       props = itm.getPropsDisp(ipropType);
       if iprop > numel(props),
         iprop = 1;
       end
-      set(obj.pumInfo,'String',props,'Value',iprop);  
+      set(obj.pumTimelineProp,'String',props,'Value',iprop);  
         % Will happen via update event, but this is faster, for immediate feedback (?)
       obj.labeler_.setTimelineCurrentPropertyType(ipropType,iprop);
     end  % function

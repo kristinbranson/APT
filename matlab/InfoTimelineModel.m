@@ -8,7 +8,7 @@ classdef InfoTimelineModel < handle
 
   properties (Constant)
     TLPROPFILESTR = 'landmark_features.yaml';
-    TLPROPTYPES = {'Labels','Predictions','Imported','All Frames'};
+    TLPROPTYPES = {'Labels', 'Predictions', 'Imported', 'All Frames'} ;
   end
 
   properties  % Private by convention
@@ -25,13 +25,13 @@ classdef InfoTimelineModel < handle
     TLPROPS_TRACKER_  % struct array, features for current tracker. Initted at setTracker time
     isSelectedFromFrameIndex_ = false(1,0)  % Internal record of what frames are shown as selected on the timeline
     custom_data_  % [1 x nframes] custom data to plot
-    tldata_  % [nptsxnfrm] most recent data set/shown. NOT y-normalized
+    tldata_  % [npts x nfrm] most recent data set/shown. NOT y-normalized
     statThresh_  % scalar, threshold value for timeline statistics
     isStatThreshVisible_  % scalar logical, whether to show threshold visualization
     tldata_ptype_  % the ptype used when tldata_ was last computed
     tldata_pcode_  % the pcode used when tldata_ was last computed
-    tldata_iMov  % the iMov used when tldata_ was last computed
-    tldata_iTgt  % the iTgt used when tldata_ was last computed
+    tldata_iMov_  % the iMov used when tldata_ was last computed
+    tldata_iTgt_  % the iTgt used when tldata_ was last computed
   end
   
   properties (Dependent)
@@ -146,8 +146,8 @@ classdef InfoTimelineModel < handle
         iTgt = labeler.currTarget;
         doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
                       ~isequal(pcode, obj.tldata_pcode_) || ...
-                      ~isequal(iMov, obj.tldata_iMov) || ...
-                      ~isequal(iTgt, obj.tldata_iTgt);
+                      ~isequal(iMov, obj.tldata_iMov_) || ...
+                      ~isequal(iTgt, obj.tldata_iTgt_);
       end
       if doRecompute
         obj.recomputeDataForCurrentMovieAndTarget_(labeler) ;
@@ -173,9 +173,10 @@ classdef InfoTimelineModel < handle
       end
       obj.props_ = props;      
       obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);      
-      obj.props_allframes_ = struct('name','Add custom...',...
-        'code','add_custom',...
-        'file','');      
+      obj.props_allframes_ = ...
+        struct('name','Add custom...',...
+               'code','add_custom',...
+               'file','');
     end
 
     function didChangeCurrentTracker(obj, newTrackerPropList)
@@ -194,11 +195,11 @@ classdef InfoTimelineModel < handle
         if ~ismember('Predictions', obj.proptypes_),
           obj.proptypes_{end+1} = 'Predictions';
         end
-        obj.TLPROPS_TRACKER_ = newTrackerPropList ; %#ok<*PROPLC>
+        obj.TLPROPS_TRACKER_ = newTrackerPropList ;  %#ok<*PROPLC>
         obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
       end
 
-      % Check that .curprop is in range for current .props,
+      % Check that .curprop is in-range for current .props,
       % .props_tracker, .curproptype. 
       ptype = obj.proptypes_{obj.curproptype_};
       switch ptype
@@ -292,7 +293,9 @@ classdef InfoTimelineModel < handle
     end
 
     function didSetCurrFrame(obj, currFrame)
-      % Called by the Labeler after currFrame is set.
+      % Called by the Labeler after currFrame is set.  
+      % Currently, updates the set of selected frames if the timeline is in selection
+      % mode.
       if obj.selectOn_
         f0 = obj.selectOnStartFrm_ ;
         f1 = currFrame ;
@@ -310,8 +313,8 @@ classdef InfoTimelineModel < handle
     % end
 
     function clearBout(obj, currentFrameIndex)  
-      % Unselect the bout that currentFrameIndex is in.  If currentFrameIndex is not
-      % in a bout, do nothing.
+      % Unselect the bout of selected frames that currentFrameIndex is in.  If
+      % currentFrameIndex is not in a bout, do nothing.
       isSelectedFromFrameIndex = obj.isSelectedFromFrameIndex_ ;
       bout = findBoutEdges(currentFrameIndex, isSelectedFromFrameIndex) ;
       if isempty(bout)
@@ -426,8 +429,8 @@ classdef InfoTimelineModel < handle
       obj.tldata_ = tldata;
       obj.tldata_ptype_ = ptype ;
       obj.tldata_pcode_ = pcode ;
-      obj.tldata_iMov = iMov ;
-      obj.tldata_iTgt = iTgt ;
+      obj.tldata_iMov_ = iMov ;
+      obj.tldata_iTgt_ = iTgt ;
     end  % function
     
     function setCurrentPropertyType(obj, iproptype, iprop)
@@ -435,7 +438,10 @@ classdef InfoTimelineModel < handle
       obj.curproptype_ = iproptype;
       obj.curprop_ = iprop;
       obj.isdefault_ = false ;
-    end
+    end  % function
     
+    function invalidateTraceCache(obj)
+      obj.tldata_ = [] ;
+    end  % function
   end  % methods  
 end  % classdef

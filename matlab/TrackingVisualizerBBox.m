@@ -200,7 +200,7 @@ classdef TrackingVisualizerBBox < TrackingVisualizerBase
         nTrkletTot = numel(obj.ptrx);
         obj.hud.updateTrklet(trkletID,nTrkletTot);        
         obj.currTrklet = iTrklet;
-        obj.lObj.gdata.labelTLInfo.updateLabels();
+        obj.lObj.gdata.labelTLInfo.updateTraces();
       end
     end
     function updatePrimary(obj,iTgtPrimary)

@@ -40,19 +40,19 @@ classdef InfoTimelineController < handle
   end
   
   methods
-    function obj = InfoTimelineController(labeler, axtm, axti)
+    function obj = InfoTimelineController(labeler, mainTimelineAxes, isLabeledTimelineAxes)
       obj.lObj = labeler ;
-      obj.hAx = axtm;
+      obj.hAx = mainTimelineAxes;
       obj.hCurrFrame = ...
-        line('Parent',axtm, ...
+        line('Parent',mainTimelineAxes, ...
              'XData',[nan nan], ...
-             'YData',axtm.YLim, ...
+             'YData',mainTimelineAxes.YLim, ...
              'LineStyle','-', ...
              'Color',[1 1 1],...
              'hittest','off', ...
              'Tag','InfoTimeline_CurrFrame');
       obj.hStatThresh = ...
-        line('Parent',axtm, ...
+        line('Parent',mainTimelineAxes, ...
              'XData',[nan nan], ...
              'YData',[0 0], ...
              'LineStyle','-', ...
@@ -61,10 +61,10 @@ classdef InfoTimelineController < handle
              'visible','off', ...
              'Tag','InfoTimeline_StatThresh');      
 
-      obj.hAxL = axti;
+      obj.hAxL = isLabeledTimelineAxes;
       
       obj.hCurrFrameL = ...
-        line('Parent',axti, ...
+        line('Parent',isLabeledTimelineAxes, ...
              'XData',[nan nan], ...
              'YData',[0 1], ...
              'LineStyle','-', ...
@@ -77,11 +77,12 @@ classdef InfoTimelineController < handle
       obj.hPtsL = [];
             
       obj.hSelIm = [];
-      obj.hSegLineGT = line('Parent',axtm,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGT');
-      obj.hSegLineGTLbled = line('Parent',axtm,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGTLbled');
+      obj.hSegLineGT = line('Parent',mainTimelineAxes,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGT');
+      obj.hSegLineGTLbled = line('Parent',mainTimelineAxes,'XData',nan,'YData',nan,'Tag','InfoTimeline_SegLineGTLbled');
       
+      % Build the context menu for the main timeline axes
       hCMenu = ...
-        uicontextmenu('Parent',axtm.Parent,...
+        uicontextmenu('Parent',mainTimelineAxes.Parent,...
                       'Tag','InfoTimeline_ContextMenu');
       obj.hCMenuSetNumFramesShown = ...
         uimenu('Parent',hCMenu, ...
@@ -95,7 +96,7 @@ classdef InfoTimelineController < handle
         uimenu('Parent',hCMenu, ...
                'Label','Toggle statistic threshold visibility',...
                'Tag','menu_InfoTimeline_ToggleThresholdViz');
-      axtm.UIContextMenu = hCMenu;            
+      mainTimelineAxes.UIContextMenu = hCMenu;            
 
       % Make sure the main timeline axes and the is-labeled axes always have the
       % same XLim, even when user uses Matlab built-in zoom/pan features.
@@ -235,7 +236,7 @@ classdef InfoTimelineController < handle
       obj.updateGTModeRelatedControls();
     end
             
-    function updateLabels(obj)
+    function updateTraces(obj)
       % Update .hPts, .hMarked, .hPtStat
       
       lObj = obj.lObj ;
@@ -243,16 +244,16 @@ classdef InfoTimelineController < handle
         return
       end
       
-      dat = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nptsxnfrm]
-      datnonnan = dat(~isnan(dat));
+      rawTraceData = lObj.getTimelineDataForCurrentMovieAndTarget();  % [nptsxnfrm]
+      traceData = rawTraceData(~isnan(rawTraceData));
 
       set(obj.hPts,'XData',nan,'YData',nan);
       set(obj.hPtStat,'XData',nan,'YData',nan);
       
-      if ~isempty(datnonnan)
+      if ~isempty(traceData)
         
-        y1 = min(datnonnan(:));
-        y2 = max(datnonnan(:));
+        y1 = min(traceData(:));
+        y2 = max(traceData(:));
         if y1 == y2,
           if y1==0
             y1 = -eps;
@@ -265,21 +266,21 @@ classdef InfoTimelineController < handle
         end
         %dy = max(y2-y1,eps);
         %lposNorm = (dat-y1)/dy; % Either nan, or in [0,1]
-        x = 1:size(dat,2);
+        x = 1:size(rawTraceData,2);
         if ishandle(obj.hSelIm),
           set(obj.hSelIm,'YData',[y1,y2]);
         end
         
         set(obj.hAx,'YLim',[y1,y2]);
         set(obj.hCurrFrame,'YData',[y1,y2]);
-        if size(dat,1) == lObj.nLabelPoints,
+        if size(rawTraceData,1) == lObj.nLabelPoints,
           for i=1:lObj.nLabelPoints
-            set(obj.hPts(i),'XData',x,'YData',dat(i,:));
+            set(obj.hPts(i),'XData',x,'YData',rawTraceData(i,:));
           end
-        elseif size(dat,1) == 1,
-          set(obj.hPtStat,'XData',x,'YData',dat(1,:));
+        elseif size(rawTraceData,1) == 1,
+          set(obj.hPtStat,'XData',x,'YData',rawTraceData(1,:));
         else
-          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(dat,1),lObj.nLabelPoints));
+          warningNoTrace(sprintf('InfoTimeline: Number of rows in statistics was %d, expected either %d or 1',size(rawTraceData,1),lObj.nLabelPoints));
         end
         
         set(obj.hStatThresh,'XData',x([1 end]));
@@ -310,15 +311,15 @@ classdef InfoTimelineController < handle
       % This gets called after the user changes the frame they're looking at, i.e.
       % after labeler.currFrame is set.      
       if isnan(obj.lObj.nLabelPoints), return; end      
-      obj.updateCurrentFrameLineXData_() ;      
+      obj.updateCurrentFrameLineXData() ;      
       itm = obj.lObj.infoTimelineModel ;
       if itm.selectOn
-        obj.updateSelectionImageCData_() ;
+        obj.updateSelectionImageCData() ;
       end
-      obj.updateContextMenu_() ;
+      obj.updateContextMenu() ;
     end  % function
 
-    function updateCurrentFrameLineXData_(obj)
+    function updateCurrentFrameLineXData(obj)
       if isnan(obj.lObj.nLabelPoints), return; end
       if isempty(obj.lObj.projPrefs)
         return
@@ -347,7 +348,7 @@ classdef InfoTimelineController < handle
       set(obj.hCurrFrameL,'XData',[currFrame currFrame],'YData',obj.hAxL.YLim);
     end  % function
     
-    function updateSelectionImageCData_(obj)
+    function updateSelectionImageCData(obj)
       itm = obj.lObj.infoTimelineModel ;
       if ~isempty(obj.hSelIm) && isvalid(obj.hSelIm) 
         obj.hSelIm.CData = itm.isSelectedFromFrameIndex ;
@@ -449,7 +450,7 @@ classdef InfoTimelineController < handle
       setSegmentedLineOnOffAtBang(obj.hSegLineGTLbled, currFrm, tfHiliteOn) ;
     end    
 
-    function updateCurrentFrameLineWidths_(obj)
+    function updateCurrentFrameLineWidths(obj)
       itm = obj.lObj.infoTimelineModel ;
       selectOn = itm.selectOn;
       if selectOn
@@ -461,15 +462,7 @@ classdef InfoTimelineController < handle
       end
     end  % function
 
-    function update(obj)
-      % Update controls to reflect the model state
-      obj.updateCurrentFrameLineWidths_() ;
-      obj.updateCurrentFrameLineXData_() ;
-      obj.updateSelectionImageCData_() ;
-      obj.updateContextMenu_() ;
-    end  % function
-
-    function updateContextMenu_(obj)
+    function updateContextMenu(obj)
       lObj = obj.lObj ;
       % Gray menu item if not in a bout
       set(obj.hCMenuClearBout,'Enable',onIff(lObj.isCurrentFrameSelected()));
