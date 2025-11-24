@@ -980,14 +980,15 @@ classdef DLBackEndClass < handle
                                                 'do_just_generate_db',do_just_generate_db);
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteAptRootAsChar,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
-      commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      commandFilePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      commandFileNativePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+      commandFileNativePath = apt.MetaPath(commandFileNativePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      commandFileWslPath = commandFileNativePath.asWsl() ;
       % logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
       obj.training_syscmds_{end+1,1} = syscmd ;
       % obj.training_logcmds_{end+1,1} = logcmd ;
-      obj.training_cmdfiles_{end+1,1} = commandFilePath ;
+      obj.training_cmdfiles_{end+1,1} = commandFileWslPath ;
       obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
