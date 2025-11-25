@@ -296,11 +296,12 @@ class PoseCommon_pytorch(object):
         self.debug = debug
         # conf.is_multi = is_multi
 
-        if usegpu and torch.cuda.is_available() and not conf.get('use_openvino',False):
+        use_openvino = conf.get('use_openvino',False)
+        if usegpu and torch.cuda.is_available() and not use_openvino:
             self.device = "cuda"
         else:
             self.device = "cpu"
-            if usegpu and not conf.get('use_openvino',False):
+            if usegpu and not use_openvino:
                 logging.warning("CUDA Device not available. Using CPU!")
 
         if conf.db_format == 'coco':
@@ -706,7 +707,7 @@ class PoseCommon_pytorch(object):
         logging.info("Optimization Finished!")
         self.save(n_steps, model, opt, lr_sched)
 
-    def train_wrapper(self, restore=False, model_file=None,debug=False):
+    def train_wrapper(self, restore=False, model_file=None, debug=False):
         model = self.create_model()
         training_iters = self.conf.dl_steps        
         learning_rate = self.conf.get('learning_rate_multiplier',1.)*self.conf.get('mdn_base_lr',0.0001)
@@ -715,7 +716,18 @@ class PoseCommon_pytorch(object):
         opt = self.create_optimizer(model,learning_rate)
         sched = self.create_lr_sched(opt,training_iters,learning_rate,step_lr,lr_drop_step_frac)
 
-        logging.info('Using {} GPUS!'.format(torch.cuda.device_count()))
+        if self.device=="cpu":
+            logging.info('Using CPU.')
+        elif self.device == "cuda":
+            cuda_device_count = torch.cuda.device_count()
+            if cuda_device_count==1:
+                logging.info('Using {} GPU!'.format(torch.cuda.device_count()))
+                device = torch.cuda.current_device()
+                logging.info(f"Current_device: {device}, device name: {torch.cuda.get_device_name()}")
+            else:
+                logging.info('Using {} GPUs!'.format(torch.cuda.device_count()))
+        else:
+            raise RuntimeError('Internal error: self.device is "%s", which is not an expected value' % self.device)
         model = torch.nn.DataParallel(model)
 
         if model_file is None:
@@ -728,8 +740,8 @@ class PoseCommon_pytorch(object):
                 start_at = self.restore(model_file, model, opt, sched)
         else:
             try:
-                if torch.cuda.device_count()==0:
-                    ckpt =torch.load(model_file,map_location=torch.device('cpu'))
+                if self.device=="cpu":
+                    ckpt = torch.load(model_file,map_location=torch.device('cpu'))
                 else:
                     ckpt = torch.load(model_file)
                 if 'state_dict' in ckpt.keys():
