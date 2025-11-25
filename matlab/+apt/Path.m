@@ -98,9 +98,14 @@ classdef Path
     end
 
     function result = char(obj)
-      % Get the path as a string
-      preResult = apt.Path.listToString_(obj.list, obj.platform);
+      % Get the path as a string, *escaped for bash*
+      preResult = obj.charUnescaped() ;
       result = escape_string_for_bash(preResult) ;
+    end
+
+    function result = charUnescaped(obj)
+      % Get the path as a string
+      result = apt.Path.listToString_(obj.list, obj.platform);
     end
 
     function result = cat(obj, varargin)

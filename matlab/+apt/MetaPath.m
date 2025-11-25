@@ -88,8 +88,13 @@ classdef MetaPath < apt.ShellToken
     end
 
     function result = char(obj)
-      % Get the path as a string
+      % Get the path as a string, *escaped for bash*
       result = obj.path.char();
+    end
+
+    function result = charUnescaped(obj)
+      % Get the path as a string, *not escaped for bash*
+      result = obj.path.charUnescaped();
     end
 
     function result = tfDoesMatchLocale(obj, queryLocale)

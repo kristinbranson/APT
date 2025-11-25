@@ -4817,7 +4817,7 @@ def print_torch_cuda_info():
     logging.info(f"Current_device: {device}, device name: {torch.cuda.get_device_name()}")
 
     total_memory = torch.cuda.get_device_properties(device).total_memory
-    print(f"Total GPU memory: {total_memory / 1024**3:.2f} GB, allocated: {torch.cuda.memory_allocated(device) / 1024**3:.2f} GB, reserved: {torch.cuda.memory_reserved(device) / 1024**3:.2f} GB, available: {(total_memory - torch.cuda.memory_reserved(device)) / 1024**3:.2f} GB")
+    logging.info(f"Total GPU memory: {total_memory / 1024**3:.2f} GB, allocated: {torch.cuda.memory_allocated(device) / 1024**3:.2f} GB, reserved: {torch.cuda.memory_reserved(device) / 1024**3:.2f} GB, available: {(total_memory - torch.cuda.memory_reserved(device)) / 1024**3:.2f} GB")
 
 def run(args):
     """
