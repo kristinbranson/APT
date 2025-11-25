@@ -638,7 +638,9 @@ classdef DLBackEndClass < handle
         
     function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)  % const method
       % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
-      % commands will be executed. syscmds should be ShellCommand objects or cell array of ShellCommand objects.
+      % commands will be executed. syscmds should be a scalar ShellCommand object
+      % or a cell array of ShellCommand objects.  cmdfiles should be a MetaPath
+      % object or a cell array of MetaPath objects, all with locale wsl.
       if nargin < 4,
         jobdesc = 'job';
       end
@@ -824,7 +826,8 @@ classdef DLBackEndClass < handle
       else
         % Local filesystem - convert to native string
         nativeMetaPath = filePath.asNative();
-        fo = file_object(nativeMetaPath.char(), 'w');
+        nativeMetaPathAsChar = nativeMetaPath.charUnescaped() ;
+        fo = file_object(nativeMetaPathAsChar, 'w');
         fo.fprintf('%s', str);
       end
     end  % function
@@ -1334,7 +1337,8 @@ classdef DLBackEndClass < handle
         wslFilePath = nativeFilePath.asWsl() ;
         result = obj.awsec2.fileExists(wslFilePath) ;
       else
-        result = logical(exist(nativeFilePath.char(), 'file')) ;
+        nativeFilePathAsChar = nativeFilePath.charUnescaped() ;
+        result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end
     end  % function
 
