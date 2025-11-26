@@ -1015,15 +1015,16 @@ classdef DLBackEndClass < handle
                                                 'track_type',track_type);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteAptRootAsChar, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
-      cmdfileAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      cmdfile = apt.MetaPath(cmdfileAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
+      commandFileNativePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      commandFileWslPath = commandFileNativePath.asWsl() ;
       
       % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
       obj.tracking_syscmds_{end+1,1} = syscmd ;
       % obj.tracking_logcmds_{end+1,1} = logcmd ;
-      obj.tracking_cmdfiles_{end+1,1} = cmdfile ;
+      obj.tracking_cmdfiles_{end+1,1} = commandFileWslPath ;
       obj.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
