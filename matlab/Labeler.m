@@ -6316,6 +6316,9 @@ classdef Labeler < handle
         tv.setShowSkeleton(tf);
       end
       dt = obj.tracker;
+      if isempty(dt)
+        return
+      end
       tv = dt.trkVizer;
       if ~isempty(tv)
         tv.setShowSkeleton(tf);

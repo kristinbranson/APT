@@ -64,7 +64,7 @@ classdef TrackerCreateInfo
   methods (Static)
     function result = fromNetTypes(netTypes, isMA)
       % A TrackerCreateInfo object specifies the exact subclass of LabelTracker to
-      % be used to create a de novo tracker, along with how many stage it has, the
+      % be used to create a de novo tracker, along with how many stages it has, the
       % DLNetTypes of each stage, and the DLNetModes of each stage.  All these
       % things can be inferred the (one- or two-element) array of DLNetTypes, and
       % whether the current project is single- or multi-animal.  This function
@@ -112,13 +112,27 @@ classdef TrackerCreateInfo
       % Create a TrackerCreateInfo object from a cell array that represents one.
       className = ca{1} ;
       if isMA
-        if strcmp(className, 'DeepTrackerBottomUp')
+        if strcmp(className, 'DeepTracker')
+          % In theory this should not happen, but there was once a buggy version of APT
+          % that sometimes used this className for MA projects.
+          % apt.tryToInferProperClassNameFromTCICellArray() will error if it can't infer
+          % a className.
+          fixedClassName = apt.tryToInferProperClassNameFromTCICellArray(ca) ;
+        elseif strcmp(className, 'DeepTrackerTopDownCustom')
+          % The class DeepTrackerTopDownCustom doesn't exist anymore, now handled by
+          % DeepTrackerTopDown.  But check for it to handle legacy projects.
+          fixedClassName = 'DeepTrackerTopDown' ;
+        elseif strcmp(className, 'DeepTrackerBottomUp') || strcmp(className, 'DeepTrackerTopDown') 
+          % These are good
+          fixedClassName = className ;
+        else
+          error('Unknown class name ''%s''', className) ;          
+        end
+        if strcmp(fixedClassName, 'DeepTrackerBottomUp')
           netType = ca{3} ;
           netMode = DLNetMode.multiAnimalBU ;
           result = TrackerCreateInfo('DeepTrackerBottomUp', netType, netMode) ;          
-        elseif strcmp(className, 'DeepTrackerTopDown') || strcmp(className, 'DeepTrackerTopDownCustom')
-          % The class DeepTrackerTopDownCustom doesn't exist anymore, now handled by
-          % DeepTrackerTopDown.  But check for it to handle legacy projects.
+        elseif strcmp(fixedClassName, 'DeepTrackerTopDown')
           stage1NetTypeAndNetMode = ca{2} ;
           stage2NetTypeAndNetMode = ca{3} ;        
           stage1NetType = stage1NetTypeAndNetMode{2} ;
@@ -129,7 +143,7 @@ classdef TrackerCreateInfo
           netModes = [ stage1NetMode stage2NetMode ] ;          
           result = TrackerCreateInfo('DeepTrackerTopDown', netTypes, netModes) ;
         else
-          error('Unknown class name ''%s''', className) ;
+          error('Internal error: Unknown class name ''%s'', despite our attempts to fix it', fixedClassName) ;
         end
       else
         % Single-animal project
