@@ -1593,8 +1593,10 @@ def setup_ma(conf):
         ntgt = cur_t['ntgt']
         cur_roi = np.array(cur_t['roi']).reshape([conf.nviews, 2, 4, ntgt])
         cur_roi = np.transpose(cur_roi[conf.view, ...], [2, 1, 0])
-        clusters = get_clusters(cur_roi)
-        n_cluster = len(np.unique(clusters))
+        # clusters = get_clusters(cur_roi)
+        # n_cluster = len(np.unique(clusters))
+        clusters = np.arange(len(cur_roi))
+        n_cluster = len(cur_roi)
         for cndx in range(n_cluster):
             idx = np.where(clusters == cndx)[0]
             cur_rois = cur_roi[idx, ...]
@@ -1719,8 +1721,9 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
             final_sel = sel
         return final_sel
 
-    clusters = get_clusters(roi)
-    n_clusters = len(np.unique(clusters))
+    # clusters = get_clusters(roi)
+    # n_clusters = len(np.unique(clusters))
+    n_clusters = len(roi)
     all_data = []
     mask_sc = 4
     mask_sz = (conf.multi_frame_sz[0]//mask_sc, conf.multi_frame_sz[1]//mask_sc)
@@ -1751,8 +1754,9 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
     #     frame = np.pad(frame, [[0, 0],[0,pad_x], [0, 0]])
 
     for cndx in range(n_clusters):
-        idx = np.where(clusters == cndx)[0]
-        cur_roi = roi[idx, ...].copy()
+        # idx = np.where(clusters == cndx)[0]
+        # cur_roi = roi[idx, ...].copy()
+        cur_roi = roi[cndx:cndx+1].copy()
 
         x_left, y_top, x_right, y_bottom = random_crop_around_roi(cur_roi)
 
@@ -5251,7 +5255,7 @@ def main(argv):
             logging.exception('APT_interface errored: {e}, {type(e)}')
 
 def remove_local_path():
-    for p in sys.path:
+    for p in sys.path[::-1]:
         if ".local" in p:
             sys.path.remove(p)
 

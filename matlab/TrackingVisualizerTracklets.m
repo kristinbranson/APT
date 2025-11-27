@@ -154,7 +154,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvmt.updatePrimary(tvmt_primary);
       
       % update tvtrx; call setShow
-      tvtrx.updatePrimaryTrx(tvtrx_primary);
+      % tvtrx.updatePrimaryTrx(tvtrx_primary);
       tvtrx.updateLiveTrx(ptrx(iTrx),frm,trxMappingChanged);
     end
     function iTrxViz = iTrx2iTrxViz(obj,iTrx)
@@ -177,7 +177,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
         nTrkletTot = numel(obj.ptrx);
         obj.hud.updateTrklet(trkletID,nTrkletTot);        
         obj.currTrklet = iTrklet;
-        obj.tvtrx.updateLiveTrx(obj.ptrx,obj.lObj.currFrame,true) %already called
+        iTrx = obj.frm2trx(obj.lObj.currFrame);
+        obj.tvtrx.updateLiveTrx(obj.ptrx(iTrx),obj.lObj.currFrame,true) %already called
         obj.tvmt.updatePrimary(iTrxViz);
         obj.lObj.gdata.labelTLInfo.updateLabels('doRecompute',true);
       end

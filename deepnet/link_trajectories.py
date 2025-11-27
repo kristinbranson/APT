@@ -34,6 +34,10 @@ import time
 import scipy.spatial.distance as ssd
 from scipy.cluster.hierarchy import linkage, dendrogram, fcluster
 from torch.utils.data import Dataset,DataLoader
+import asyncio
+import itertools
+from concurrent.futures import ProcessPoolExecutor
+
 
 
 def angle_span(pcurr,pnext):
@@ -1235,11 +1239,12 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
 
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
-    if conf1.link_id_cropsz<0:
+    if conf1.link_id_cropsz is None:
       ww = int(conf1.multi_animal_crop_sz/2*1.2)
+      hh = ww
     else:
-      ww = conf1.link_id_cropsz
-    conf1.imsz = [ww,ww]
+      ww,hh = conf1.link_id_cropsz
+    conf1.imsz = [ww,hh]
     conf1.vert_flip = False
     conf1.horz_flip = False
 
@@ -1409,6 +1414,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
 
   if id_wts is not None and os.path.exists(id_wts):
     id_classifier = load_id_wts(id_wts)
+    wt_out_file = id_wts
   else:
   # generate the training images
     train_data_args = [trks, all_trx, mov_files, conf]
@@ -1418,11 +1424,13 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
     else:
       wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
-    id_classifier, loss_history = train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size,save=conf.link_id_save_int_wts)
+    id_classifier, loss_history = asyncio.run(train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size,save=conf.link_id_save_int_wts))
 
   # link using id model
   def_params = get_default_params(conf)
-  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale)
+
+  data_out_file = wt_out_file.replace('.p','_data.p')
+  trk_out, debug_data = link_trklet_id(trks,id_classifier,mov_files,conf, all_trx,min_len_select=def_params['maxframes_sel'],keep_all_preds=conf.link_id_keep_all_preds,link_method=link_method,rescale=conf.link_id_rescale,out_file=data_out_file)
 
   if save_debug_data:
     debug_out_file = out_files[0].replace('.trk','_link_data.p')
@@ -1432,7 +1440,7 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
   return trk_out
 
 
-def get_id_train_images(linked_trks, all_trx, mov_files, conf):
+async def get_id_train_images(linked_trks, all_trx, mov_files, conf):
   '''
   Generate id training images.
   :param linked_trks:
@@ -1447,6 +1455,7 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
   :rtype:
   '''
 
+  await asyncio.sleep(2)
   MAX_MEM_USE = 10*1024*1024*1024  # 10 GB
   est_mem_per_trk = conf.imsz[0]*conf.imsz[1]*3*4*conf.link_id_tracklet_samples
   max_sel_trk = max(100, int(MAX_MEM_USE/est_mem_per_trk))
@@ -1486,7 +1495,7 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
         min_trx_len = min(1, np.percentile((ee - ss + 1), 20) - 1)
 
       rand_fr = np.random.randint(trk.T0, trk.T1 + 1) # select a random frame and find tracklets that are alive at that frame
-      trk_fr = np.where((ss <= rand_fr) & (ee >= rand_fr))[0]
+      trk_fr = (ss <= rand_fr) & (ee >= rand_fr)
       sel_trk = np.where( ((ee - ss+1)>min_trx_len)&trk_fr)[0]
       if len(sel_trk)>0:
         prev_trks = all_sel_trk[cur_trk_ndx]
@@ -1502,7 +1511,7 @@ def get_id_train_images(linked_trks, all_trx, mov_files, conf):
     mov_file = mov_files[ndx]
     sel_trk_info = all_sel_trk[ndx]
 
-    data = read_ims_par(trx, sel_trk_info, mov_file, conf)
+    data = await read_ims_par(trx, sel_trk_info, mov_file, conf)
     # data = read_data_files(data_files)
     all_data.append(data)
 
@@ -1656,9 +1665,10 @@ def process_id_ims(curims, conf, distort, rescale):
   zz = zz / im_std
   return zz
 
-def read_ims_par(trx, trk_info, mov_file, conf):
+
+def pred_ims_par(trx, trk_info, mov_file, conf, net, rescale,debug):
   '''
-  Read images in parallel because otherwise it is really slow particularly for avis
+  Read images in parallel and predict on them
   :param trx:
   :type trx:
   :param trk_info:
@@ -1696,13 +1706,80 @@ def read_ims_par(trx, trk_info, mov_file, conf):
   trk_info_batches = split_parallel(trk_info,n_batches)
   args = [(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000)) for n in range(n_batches)]
 
+  tgt_id = []
+  preds = None
+  debug_data  = []
+  with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
+    data_iter = pool.imap_unordered(read_tracklet_ims,args,chunksize=1)
+    for dat in tqdm(data_iter,desc='Reading and processing images from tracklets',total=len(args)):
+      ims = [d[0] for d in dat]
+      cur_pred = tracklet_pred(ims,net,conf,rescale)
+      if cur_pred.size > 0:
+        if preds is None:
+          preds = cur_pred
+        else:
+          preds = np.concatenate((preds,cur_pred),axis=0)
+      tgt_id.extend([d[1] for d in dat])
+      if debug:
+        debug_data.extend(dat)
+
+  tgt_id = np.array(tgt_id)
+  return preds,tgt_id, debug_data
+
+
+async def read_ims_par(trx, trk_info, mov_file, conf):
+  '''
+  Read images in parallel because otherwise it is really slow particularly for avis
+  :param trx:
+  :type trx:
+  :param trk_info:
+  :type trk_info:
+  :param mov_file:
+  :type mov_file:
+  :param conf:
+  :type conf:
+  :param n_ex:
+  :type n_ex:
+  :return:
+  :rtype:
+  '''
+
+  await asyncio.sleep(1)
+  n_ex = conf.link_id_tracklet_samples
+  n_trk = len(trk_info)
+  max_pool = len(os.sched_getaffinity(0))//2
+  if n_trk < max_pool:
+    n_pool = n_trk
+    n_batches = n_trk
+  else:
+    bytes_per_trk = n_ex*conf.imsz[0]*conf.imsz[1]*3*8*1.1
+    # 1.1 is sort of extra buffer
+    max_pkl_bytes = 1024*1024*1024
+    n_trk_per_thrd = max_pkl_bytes//bytes_per_trk
+    n_trk_per_thrd = int(max(1,n_trk_per_thrd))
+    n_batches = int(np.ceil(n_trk/n_trk_per_thrd))
+    if n_batches <max_pool:
+      n_pool = n_batches
+    else:
+      n_pool = max_pool
+
+  # for debugging
+  # out = read_tracklet_ims(trx, trk_info[::n_jobs], mov_file, conf, n_ex, np.random.randint(100000))
+  trk_info_batches = split_parallel(trk_info,n_batches)
+  args = [[(trx, trk_info_batches[n], mov_file, conf, n_ex, np.random.randint(100000))] for n in range(n_batches)]
+
   # for debugging
   # read_tracklet_ims(*args[0])
-
+  loop = asyncio.get_event_loop()
   with mp.get_context('spawn').Pool(n_pool,maxtasksperchild=10) as pool:
   # with mp.dummy.Pool() as pool:
     # remember to remove dummy after debugging
-    data = pool.starmap(read_tracklet_ims,args,chunksize=1)
+    logging.info('Starting starmap..')
+    tt = time.time()
+    async_data = pool.starmap_async(read_tracklet_ims,args,chunksize=1)
+    # data = pool.imap(read_tracklet_ims, args, chunksize=1)
+    data = await loop.run_in_executor(None,async_data.get)
+    logging.info(f'done with starmap : {time.time()-tt:.2f}..')
   data = merge_parallel(data)
   return data
 
@@ -1716,7 +1793,7 @@ def read_data_files(data_files):
   return data
 
 
-def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
+def read_tracklet_ims(input):
   '''
   Read n_ex number of random images from tracklets specified in trk_info. The number of the images that can be returned is limited by pickle to 2GB. So saving the images to temp file and returning the file. Uses existing code that extracts animal images based on trx
   :param trx:
@@ -1735,11 +1812,13 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
   :rtype:
   '''
 
+  trx, trk_info, mov_file, conf, n_ex, seed = input
   # Very important to set the seed as otherwise same set of images would be returned
   np.random.seed(seed)
   cap = movies.Movie(mov_file)
 
   # print(seed)
+  # print(f'starting reading images for {len(trk_info)} tracklets: {seed}\n')
 
   all_ims = []
   for cur_trk in trk_info:
@@ -1755,11 +1834,13 @@ def read_tracklet_ims(trx, trk_info, mov_file, conf, n_ex,seed):
     # Use trx based image patch generator
     ims = apt.create_batch_ims(cur_list, conf, cap, False, trx, None, use_bsize=False)
     all_ims.append([ims, cur_trk[0],cur_trk[1],cur_trk[2],cur_list])
+    # print(f'Done reading images for tracklet: {seed}\n')
 
   # tfile = tempfile.mkstemp()[1]
   # with open(tfile,'wb') as f:
   #   pickle.dump(all_ims,f)
-  # cap.close()
+  cap.close()
+  # print(f'Done reading images for {len(trk_info)} tracklets: {seed}\n')
   return all_ims
 
 def split_parallel(x,n_threads,is_numpy=False):
@@ -1984,7 +2065,7 @@ def get_id_net():
   net = net.cuda()
   return net
 
-def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, bsz=16):
+async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, bsz=16):
   """
   Trains the identity classifier/embedder
   :param all_data:
@@ -2065,7 +2146,7 @@ def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, 
   net.eval()
   net = net.cuda()
 
-  all_data = get_id_train_images(*train_data_args)
+  all_data = await get_id_train_images(*train_data_args)
   # Set mining distances to identical dummy values initially
   trk_data = []
   mining_dists = []
@@ -2084,7 +2165,7 @@ def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, 
   # Create the dataset and dataloaders. Again seed is important!
   distort = True
   train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=distort, debug=debug)
-  n_workers = 10 if not debug else 0
+  n_workers = len(os.sched_getaffinity(0))//2 if not debug else 0
   train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id))
   train_iter = iter(train_loader)
 
@@ -2095,13 +2176,25 @@ def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, 
   hdf5storage.savemat(im_save_file,{'example_ims':ex_ims})
   logging.info(f'Saved sampled ID training images to {im_save_file}')
 
+  load_task = None
   for epoch in tqdm(range(n_iters)):
 
-    if epoch % sampling_period == 0 and epoch > 0:
+    # if epoch % sampling_period == 0 and epoch > 0:
       # compute the mining data and recreate datasets and dataloaders with updated mining data
+
+    if load_task is None or load_task.done():
+      logging.info(f'Starting async loading task at {epoch}')
+      load_task = asyncio.create_task(get_id_train_images(*train_data_args))
+      # load_task = loop.run_in_executor(executor,get_id_train_images,*train_data_args)
+      logging.info('Launched async loading task')
+
+    await asyncio.sleep(0.1)
+    if load_task.done():
+      all_data = load_task.result()
+      # all_data = get_id_train_images(*train_data_args)
+
       net = net.eval()
       mining_dists = []
-      all_data = get_id_train_images(*train_data_args)
       trk_data = []
       for data, trk in zip(all_data, trks):
         ss, ee = trk.get_startendframes()
@@ -2156,8 +2249,18 @@ def train_id_classifier(train_data_args, conf, trks, save=False,save_file=None, 
       with open(json_file, 'w') as f:
         json.dump(json_data, f)
 
+    if epoch%conf.save_step == 0 and epoch > 0:
+      torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, save_file+'.int')
+
   wt_out_file = f'{save_file}'
   torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
+  if os.path.exists(save_file+'.int'):
+    os.remove(save_file+'.int')
+
+  try:
+    load_task.cancel()
+  except:
+    pass
 
   del train_iter, train_loader, train_dset
   return net, loss_history
@@ -2187,7 +2290,47 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
     trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
     logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
     start_t = time.time()
-    cur_data = read_ims_par(trx, trk_info, mov_file, conf)
+
+    preds,tgt_id, debug_data = pred_ims_par(trx,trk_info,mov_file,conf,net, rescale,ndx)
+
+    logging.info(f'Predicting on images took {round((time.time()-start_t)/60)} minutes')
+
+
+    # pred_map keeps track of which sample belongs to which trajectory
+    pred_map.extend([[ndx,tt] for tt in tgt_id])
+    cur_d = [debug_data, sel_tgt, tgt_id, ss, ee, sel_ss, sel_ee]
+    all_data.append(cur_d)
+
+  pred_map = np.array(pred_map)
+
+  dist_mat = get_id_dist_mat(preds)
+  return dist_mat, pred_map,all_data, preds
+
+def get_id_dist_xmat_old(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug):
+
+
+  net.eval()
+  all_data = []
+  preds = None
+  pred_map = []
+  # pred_map keeps track of which sample belongs to which trajectory
+
+
+  # sample images for each tracklet and then find the embeddings for them
+  for ndx in range(len(linked_trks)):
+    # Sample images from the tracklets
+    trk = linked_trks[ndx]
+    mov_file = mov_files[ndx]
+    trx = all_trx[ndx]
+    ss, ee = trk.get_startendframes()
+
+    # For each tracklet chose n_per_trk random examples and the find their embedding. Ignore short tracklets
+    sel_tgt = np.where((ee-ss+1)>=min_len_select)[0]
+    sel_ss = ss[sel_tgt]; sel_ee = ee[sel_tgt]
+    trk_info = list(zip(sel_tgt, sel_ss, sel_ee))
+    logging.info(f'Sampling images from {len(sel_ss)} tracklets to assign identity to the tracklets ...')
+    start_t = time.time()
+    cur_data = asyncio.run(read_ims_par(trx, trk_info, mov_file, conf))
     end_t = time.time()
     logging.info(f'Sampling images took {round((end_t-start_t)/60)} minutes')
 
@@ -2196,6 +2339,7 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
     s_sz = 200
     # find ceil
     n_split = int(np.ceil(len(cur_data)/s_sz))
+    # split data in batches to do predictions
     for idx in tqdm(range(n_split)):
 
       # data = read_data_files([curf])
@@ -2262,7 +2406,7 @@ def get_id_thresh(dist_mat, pred_map, all_data):
   return close_thresh, far_thresh
 
 
-def group_tracklets(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select):
+def group_tracklets_with_links(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select):
   '''Groups the tracklets by *first* clustering the tracklets based on id embeddings and then filling in the gaps in the group using the linking distances'''
 
   ignore_far = False
@@ -2351,6 +2495,87 @@ def group_tracklets(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,al
         rem_id_trks[gg] = False
 
     used_trks.extend(gr)
+    groups.append(gr)
+
+  return groups,pred_map,[groups_only_id,groups,pred_map]
+
+def group_tracklets(dist_mat_orig,pred_map_orig,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select,preds):
+  '''Groups the tracklets by *first* clustering the tracklets based on id embeddings and then filling in the gaps in the group using the linking distances'''
+
+  ignore_far = False
+  min_group_frac = 0.1
+
+  dist_mat = dist_mat_orig.copy()
+  n_tr = dist_mat.shape[0]
+  dist_mat[range(n_tr),range(n_tr)] = 0.
+
+  minv, maxv = linked_trks[0].get_min_max_val()
+  minv = np.min(minv, axis=0)
+  maxv = np.max(maxv, axis=0)
+  bignumber = np.sum(maxv - minv) * 2000
+
+  # st_sel = all_data[0][-2]
+  # en_sel = all_data[0][-1]
+
+  # mov_len = max(en_sel)
+  # st_all = np.concatenate([a[-2] for a in all_data],0)
+  # en_all = np.concatenate([a[-1] for a in all_data], 0)
+  # sel_len = en_all-st_all+1
+  # max_group_sz_for_filling = mov_len*min_group_frac
+
+  maxn_all = []
+  for trk in linked_trks:
+    ss, ee = trk.get_startendframes()
+    maxn_all.append(max(ee))
+
+  t_info = [d[3:5] for d in all_data]
+
+  pred_map = pred_map_orig.copy()
+  rem_id_trks = np.zeros(dist_mat.shape[0]) < 0.5
+  groups = []
+  groups_only_id = []
+  used_trks = []
+
+  # create id clusters iteratively by first finding the largest cluster. Most of the codes dirtiness is for keeping track of the id tracks and other tracks that have been used till now
+  all_gr_sz = []
+  while True:
+    rem_id_idx = np.where(rem_id_trks)[0]
+    if len(rem_id_idx)==0:
+      break
+    elif len(rem_id_idx)==1:
+      gr = rem_id_idx
+    else:
+      dist_mat_cur = dist_mat[rem_id_trks, :][:,rem_id_trks]
+      pred_map_cluster = pred_map_orig[rem_id_trks]
+      gr_cur, gr_sz = get_largest_cluster(dist_mat_cur, close_thresh, t_info, pred_map_cluster,preds)
+      all_gr_sz.append(gr_sz)
+      gr = rem_id_idx[gr_cur]
+
+    gr = gr.tolist()
+    groups_only_id.append(gr.copy())
+
+    for gg in gr:
+      if gg<len(rem_id_trks):
+        rem_id_trks[gg] = False
+
+
+  for gr_in in groups_only_id:
+    far_ids = np.array([])
+
+    # Ignore the tracklets that have been used already for the next round.
+    for mov_ndx in range(len(linked_trks)):
+      ids_ignore = []
+      for uu in itertools.chain(*groups_only_id):
+        if pred_map[uu][0] == mov_ndx:
+          ids_ignore.append(pred_map[uu][1])
+
+      for uu in itertools.chain(*groups):
+        if pred_map[uu][0] == mov_ndx:
+          ids_ignore.append(pred_map[uu][1])
+
+      gr, pred_map = add_missing_links(linked_trks, [gr_in], conf, pred_map, mov_ndx, ids_ignore, maxcosts_all[mov_ndx],maxn_all[mov_ndx], bignumber, link_costs_arr)
+      gr = gr[0]
+
     groups.append(gr)
 
   return groups,pred_map,[groups_only_id,groups,pred_map]
@@ -2777,7 +3002,7 @@ def group_tracklets_motion_all(dist_mat,pred_map_orig,linked_trks,conf,maxcosts_
   return grs, new_pred_map, debug_data
 
 
-def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion'):
+def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_len_select=5, debug=False, keep_all_preds=False,link_method='motion',out_file=None):
   '''
   Links the pure tracklets using identity
 
@@ -2793,9 +3018,18 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   '''
 
 
-  dist_mat, pred_map, all_data,pp  = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
+  dist_mat, pred_map, all_data,preds  = get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug)
   close_thresh, far_thresh = get_id_thresh(dist_mat,pred_map,all_data)
 
+  if out_file is not None:
+    var_list = ['dist_mat','pred_map','all_data','close_thresh','far_thresh','conf','preds']
+    out_dict = {}
+    for vv in var_list:
+      exec(f'out_dict["{vv}"]={vv}')
+    import pickle
+    with open(out_file,'wb') as out_file_:
+
+      pickle.dump(out_dict,out_file_)
 
   maxcosts_all = []
   params = get_default_params(conf)
@@ -2817,7 +3051,15 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   if link_method=='motion':
     groups,pred_map,debug_data = group_tracklets_motion_all(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
   else:
-    groups,pred_map,debug_data = group_tracklets(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select)
+    groups,pred_map,debug_data = group_tracklets(dist_mat,pred_map,linked_trks,conf,maxcosts_all,all_data,link_costs_arr,close_thresh,far_thresh,min_len_select,preds)
+
+  if False:
+    # to visualize the clusters
+    import itertools
+    vv = [[gxx for gxx in gg if gxx < len(pred_map_orig)] for gg in groups]
+    aa = list(itertools.chain(*vv))
+    plt.figure()
+    plt.imshow(dist_mat[aa][:, aa])
 
   # If we want to keep all the predictions, then we need to add the remaining tracklets to the groups
   if keep_all_preds:
@@ -3329,7 +3571,7 @@ def get_id_dist_mat(embed):
     processed_dist =np.array(processed_dist)
   return processed_dist
 
-def get_largest_cluster(dist_mat, thresh, t_info, pred_map):
+def get_largest_cluster(dist_mat, thresh, t_info, pred_map,preds):
   distArray = ssd.squareform( dist_mat)
   Z = linkage(distArray, 'average')
   # plt.figure()
@@ -3348,6 +3590,16 @@ def get_largest_cluster(dist_mat, thresh, t_info, pred_map):
   g_len = np.array([tr_len[F==(i+1)].sum() for i in range(max(F))])
   largest_cluster = np.argmax(g_len)
   sel_idx = np.where(F==(largest_cluster+1))[0]
+
+  # sort by distance to the mean of the cluster before checking for overlaps
+  fq = preds[sel_idx]
+  fm = np.mean(fq, axis=0)
+  dm = np.linalg.norm(fq - fm[None], axis=-1).mean(axis=-1)
+  sel_idx = sel_idx[np.argsort(dm)]
+
+  # idx_index_Z = [np.where(Z[:,:2]==ss)[0][0] for ss in sel_idx]
+  # sel_idx = sel_idx[np.argsort(idx_index_Z)]
+
   cur_group = []
   extra_groups = []
   ctline = [np.zeros(n) for n in n_fr]

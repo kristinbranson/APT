@@ -16295,6 +16295,8 @@ classdef Labeler < handle
       elseif endCause == EndCause.error
         obj.printErrorInfo_('track', pollingResultOrEmpty)
       end
+      % load the tracking results data into timeline
+      obj.infoTimelineModel.recomputeDataForCurrentMovieAndTarget_(obj);
       obj.notify('trackEnd') ;  % With a controller present, this will causes any needed dialogs to be raised
       obj.notify('updateTimelineLabels');
 

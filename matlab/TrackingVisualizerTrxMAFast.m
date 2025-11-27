@@ -51,6 +51,13 @@ classdef TrackingVisualizerTrxMAFast < handle
       obj.hTrx = [];
       deleteValidGraphicsHandles(obj.hTrxTxt);
       obj.hTrxTxt = [];
+      deleteValidGraphicsHandles(obj.hTrajPrim);
+      obj.hTrajPrim = [];
+      deleteValidGraphicsHandles(obj.hTrxPrim);
+      obj.hTrxPrim = [];
+      deleteValidGraphicsHandles(obj.hTrxTxtPrim);
+      obj.hTrxTxtPrim = [];
+      
     end
     
     function init(obj,trxSelCbk,nTrx)
@@ -161,13 +168,17 @@ classdef TrackingVisualizerTrxMAFast < handle
       xClick = clickPt(1,1);
       yClick = clickPt(1,2);
 
+      minIdx = 1;
       % Find closest point in obj.xtrj and obj.ytrj
       if ~isempty(obj.xtrj) && ~isempty(obj.ytrj)
         % Filter out NaN values
-        validIdx = ~isnan(obj.xtrj) & ~isnan(obj.ytrj);
-        xValid = obj.xtrj(validIdx);
-        yValid = obj.ytrj(validIdx);
-        idsValid = obj.ids(validIdx);
+        % validIdx = ~isnan(obj.xtrj) & ~isnan(obj.ytrj);
+        % xValid = obj.xtrj(validIdx);
+        % yValid = obj.ytrj(validIdx);
+        % idsValid = obj.ids(validIdx);
+        xValid = obj.xtrj;
+        yValid = obj.ytrj;
+        idsValid = obj.ids;
 
         if ~isempty(xValid)
           % Calculate distances
@@ -182,7 +193,7 @@ classdef TrackingVisualizerTrxMAFast < handle
       end
 
       obj.updatePrimaryTrx(iTrx);
-      obj.trxSelectCbk(iTrx);
+      obj.trxSelectCbk(minIdx);
     end
     
     function updatePrimaryTrx(obj,iTrxPrimary)
@@ -228,7 +239,7 @@ classdef TrackingVisualizerTrxMAFast < handle
       for iTrx=1:numel(trxLive)
         
         trxCurr = trxLive(iTrx);
-        if iTrx == obj.currTrx
+        if trxCurr.id == obj.currTrx
           prim = true;
         else
           prim = false;
@@ -240,14 +251,14 @@ classdef TrackingVisualizerTrxMAFast < handle
           idx = frm+trxCurr.off;
           xTrx = trxCurr.x(idx);
           yTrx = trxCurr.y(idx);
+          xtrj(end+1) = xTrx;
+          ytrj(end+1) = yTrx;
+          ids(end+1) = trxCurr.id;
+
         else
           xTrx = nan;
           yTrx = nan;
         end
-        xtrj(end+1) = xTrx;
-        ytrj(end+1) = yTrx;
-        ids(end+1) = iTrx;
-
         if prim
           xtrjPrim = xTrx; ytrjPrim = yTrx;
         end

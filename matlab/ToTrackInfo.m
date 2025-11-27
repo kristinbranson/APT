@@ -278,7 +278,7 @@ classdef ToTrackInfo < matlab.mixin.Copyable
       if isempty(obj.detecttrks),
         obj.detecttrks = repmat({''},sz);
       else
-        szassert(obj.trkfiles,sz);
+        szassert(obj.detecttrks,sz);
       end
 
       if obj.tblMFTIsSet,

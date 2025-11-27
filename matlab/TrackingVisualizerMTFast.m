@@ -271,8 +271,10 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % .YData = etc
       
       if obj.tfHideViz || ~obj.tfShowSkel 
+        set(obj.hSkel,'Visible','off');
         return
       end
+      set(obj.hSkel,'Visible','on');
       
       assert(isscalar(obj.hSkel),'Multiview support todo.');
       
@@ -299,11 +301,21 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % apply to all views. Recall currently pts in all views correspond to 
       % the same physical pts.
       
+      [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','','alpha',0.5, 'linewidth',0.5);
+
       if isempty(xy)
+        cc = get(hSkel(1),'Color');
+        if numel(cc) == 3
+          cc(end+1) = alpha;
+        else
+          cc(end) = alpha;
+        end
+
+        set(hSkel,'XData',nan,'YData',nan,'LineStyle',linestyle,...
+          'linewidth',linewidth,'Color',cc);
         return;
       end
       
-      [linestyle,alpha,linewidth] = myparse(varargin,'linestyle','','alpha',0.5, 'linewidth',0.5);
 
       se = skelEdges;
       k = size(se,1);
