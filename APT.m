@@ -148,7 +148,7 @@ classdef APT
       %   fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar'); ...
       %   fullfile('matlab','treeTable')};
       jprel = {fullfile('java','APTJava.jar')
-        fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
+               fullfile('matlab','YAMLMatlab_0.4.3','external','snakeyaml-1.9.jar')};
       jp = fullfile(aptroot,jprel);
     end
     
