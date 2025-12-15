@@ -41,7 +41,7 @@ classdef AWSec2 < handle
     remoteMovieCacheDir = apt.MetaPath('/home/ubuntu/movies', apt.PathLocale.remote, apt.FileRole.movie)
     remoteAPTSourceRootDir = apt.MetaPath('/home/ubuntu/APT', apt.PathLocale.remote, apt.FileRole.source)
     remoteTorchHomeDir = apt.MetaPath('/home/ubuntu/torch', apt.PathLocale.remote, apt.FileRole.torch)
-    instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
+    instanceType = 'g6e.4xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
   end
   
   properties

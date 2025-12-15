@@ -1911,10 +1911,6 @@ classdef DeepTracker < LabelTracker
         error('Tracking is already in progress.');
       end
       if obj.bgTrnIsRunning && backend.type==DLBackEnd.AWS
-        % second clause is really, "only have 1 GPU avail"
-        % AWS, currently we are testing with p2.xlarge and p3.2xlarge which
-        % are single-GPU EC2 instances. multi-GPU instances are avail
-        % however.
         error('Tracking while training is in progress is currently unsupported on AWS.');
       end
       if isempty(obj.trnName)  % Check that a trained tracker exists
