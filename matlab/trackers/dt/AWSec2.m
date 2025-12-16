@@ -773,7 +773,7 @@ classdef AWSec2 < handle
       
       %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
       %cmdremote = sprintf('%s %s',script,f);
-      command3 = apt.ShellCommand({'/usr/bin/test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
+      command3 = apt.ShellCommand({'test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
       [~,res] = obj.runBatchCommandOutsideContainer(command3,'failbehavior','err');  % will handle WSL->remote file path substitution
       tf = strcmp(strtrim(res),'0') ;      
     end
@@ -784,7 +784,7 @@ classdef AWSec2 < handle
       
       %script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
       %cmdremote = sprintf('%s %s',script,f);
-      command4 = apt.ShellCommand({'/usr/bin/test', '-s', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
+      command4 = apt.ShellCommand({'test', '-s', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
       [~,res] = obj.runBatchCommandOutsideContainer(command4,'failbehavior','err');  % will handle WSL->remote file path substitution
       tf = strcmp(strtrim(res),'0') ;      
     end
@@ -807,7 +807,7 @@ classdef AWSec2 < handle
       assert(isa(wslFilePath, 'apt.MetaPath'), 'wslFilePath must be an apt.MetaPath');
       
       % First check if the file exists
-      command6 = apt.ShellCommand({'/usr/bin/test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
+      command6 = apt.ShellCommand({'test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
       [st,res] = obj.runBatchCommandOutsideContainer(command6, 'failbehavior', 'silent', varargin{:}) ;
       if st==0 ,
         % Command succeeded in determining whether the file exists
