@@ -518,9 +518,11 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       % xyITgts: [nTgts] indices/labels
       %
 
-      if nargin < 4
         [npts,~,ntgts] = size(xy);
+      if nargin < 3
         tfeo = false(npts,ntgts);
+      end
+      if nargin < 4
         xyITgts = (1:ntgts)';
       end
       
