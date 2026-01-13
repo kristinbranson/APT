@@ -1390,6 +1390,55 @@ def test_preproc(lbl_file=None, cachedir=None):
     ax[1].scatter(locs2[ndx, :, 0], locs2[ndx, :, 1])
 
 
+def read_trx_file_h5py(trx_file_name):
+    """Read trx data from v7.3 MAT file using h5py"""
+    trx = []
+    with h5py.File(trx_file_name, 'r') as f:
+        trx0 = f['trx']
+        # For v7.3 files, determine number of trajectories from x field
+        x_data = trx0['x']
+        if x_data.shape[0] == 1:
+            # Single trajectory - data is in shape (1, n_frames) 
+            n_trx = 1
+            cur_trx = {}
+            for k in trx0.keys():
+                data = np.array(trx0[k])
+                if k in ['moviefile', 'moviename', 'sex']:
+                    # String fields - decode if needed
+                    if data.dtype.kind in ['U', 'S'] or data.dtype == np.uint16:
+                        if data.dtype == np.uint16:
+                            # Convert uint16 to string
+                            cur_trx[k] = ''.join(chr(x) for x in data.flatten() if x != 0)
+                        else:
+                            cur_trx[k] = str(data.flatten()[0])
+                    else:
+                        cur_trx[k] = data
+                else:
+                    # Numeric fields - ensure proper orientation for compatibility
+                    if data.shape == (1, 1):
+                        # Scalar values like firstframe, endframe
+                        cur_trx[k] = data
+                    elif len(data.shape) == 2 and data.shape[0] == 1:
+                        # Time series data in shape (1, n_frames)
+                        cur_trx[k] = data
+                    elif len(data.shape) == 2 and data.shape[1] == 1:
+                        # Time series data in shape (n_frames, 1) - transpose
+                        cur_trx[k] = data.T
+                    else:
+                        cur_trx[k] = data
+            trx.append(cur_trx)
+        else:
+            # Multiple trajectories
+            n_trx = x_data.shape[0]
+            for trx_ndx in range(n_trx):
+                cur_trx = {}
+                for k in trx0.keys():
+                    # Extract data for this trajectory
+                    cur_trx[k] = np.array(trx0[k][trx_ndx:trx_ndx+1])
+                trx.append(cur_trx)
+    return trx
+
+
 def read_trx_file(trx_file):
 
     trx = []
@@ -1397,17 +1446,10 @@ def read_trx_file(trx_file):
         return [], 1
     try:
         trx = sio.loadmat(trx_file)['trx'][0]
-        n_trx = len(trx)
     except NotImplementedError:
         # trx file in v7.3 format
-        # print('Trx file is in v7.3 format. Loading using h5py')
-        trx0 = h5py.File(trx_file, 'r')['trx']
-        n_trx = trx0['x'].shape[0]
-        for trx_ndx in range(n_trx):
-            cur_trx = {}
-            for k in trx0.keys():
-                cur_trx[k] = np.array(trx0[trx0[k][trx_ndx, 0]]).T
-            trx.append(cur_trx)
+        trx = read_trx_file_h5py(trx_file)
+    n_trx = len(trx)
     return trx, n_trx
 
 
