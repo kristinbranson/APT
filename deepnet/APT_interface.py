@@ -1484,6 +1484,52 @@ def _process_field_data(field_name, data):
             return data
 
 
+def normalize_trx_shapes_inplace(trx):
+    """Normalize trx field shapes in-place to ensure consistency across mat file versions.
+    
+    Modifies the input trx array to ensure:
+    - Scalar fields (firstframe, endframe, nframes, id) have shape (1,1)  
+    - Time series fields (x, y, theta, a, b, etc.) have shape (1, n_frames)
+    """
+    if len(trx) == 0:
+        return
+    
+    for i in range(len(trx)):
+        for field_name in trx[i].dtype.names:
+            data = trx[i][field_name]
+            
+            # Skip non-numeric fields
+            if isinstance(data, str) or (hasattr(data, 'dtype') and data.dtype.kind in ['U', 'S']):
+                continue
+                
+            # Scalar fields should be (1,1)
+            if field_name in ['firstframe', 'endframe', 'nframes', 'id']:
+                if hasattr(data, 'shape'):
+                    if data.shape == ():
+                        # Scalar -> (1,1)
+                        trx[i][field_name] = np.array([[data.item()]])
+                    elif data.shape == (1,):
+                        # (1,) -> (1,1) 
+                        trx[i][field_name] = data.reshape(1, 1)
+                    elif len(data.shape) == 2 and data.shape[1] == 1:
+                        # (n,1) -> take first element and make (1,1)
+                        trx[i][field_name] = np.array([[data[0,0]]])
+                    elif len(data.shape) == 2 and data.shape[0] == 1:
+                        # (1,n) -> take first element and make (1,1)
+                        trx[i][field_name] = np.array([[data[0,0]]])
+            
+            # Time series fields should be (1, n_frames)  
+            else:
+                if hasattr(data, 'shape') and len(data.shape) >= 1:
+                    if len(data.shape) == 1:
+                        # 1D -> (1, n)
+                        trx[i][field_name] = data.reshape(1, -1)
+                    elif len(data.shape) == 2 and data.shape[1] == 1:
+                        # (n, 1) -> (1, n)
+                        trx[i][field_name] = data.T
+                    # (1, n) cases are already correct, no change needed
+
+
 def read_trx_file(trx_file):
 
     if trx_file is None:
@@ -1493,6 +1539,11 @@ def read_trx_file(trx_file):
     except NotImplementedError:
         # trx file in v7.3 format
         trx = read_trx_file_h5py(trx_file)
+    
+    # Normalize field shapes to ensure consistency regardless of mat file version
+    # Scalars should be (1,1), time series should be (1, n_frames)
+    normalize_trx_shapes_inplace(trx)
+    
     n_trx = len(trx)
     return trx, n_trx
 
