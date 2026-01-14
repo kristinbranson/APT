@@ -1390,24 +1390,161 @@ def test_preproc(lbl_file=None, cachedir=None):
     ax[1].scatter(locs2[ndx, :, 0], locs2[ndx, :, 1])
 
 
+def read_trx_file_h5py(trx_file_name):
+    """Read trx data from v7.3 MAT file using h5py, return numpy structured array like scipy"""
+    with h5py.File(trx_file_name, 'r') as f:
+        trx0 = f['trx']
+        
+        # Determine if this is single or multi-trajectory format
+        # Check first field to understand the data structure
+        sample_key = list(trx0.keys())[0]
+        sample_data = trx0[sample_key]
+        
+        if sample_data.dtype == object and len(sample_data.shape) == 2:
+            # Multi-trajectory: fields contain references to actual data
+            n_trx = sample_data.shape[0]
+            trx_list = []
+            for trx_ndx in range(n_trx):
+                cur_trx = {}
+                for k in trx0.keys():
+                    ref = trx0[k][trx_ndx, 0]  # Extract reference from (n_trx, 1) array
+                    try:
+                        # Dereference using the file
+                        referenced_data = np.array(f[ref])
+                        cur_trx[k] = _process_field_data(k, referenced_data)
+                    except Exception:
+                        # Fallback if reference resolution fails
+                        cur_trx[k] = np.array([[np.nan]])
+                trx_list.append(cur_trx)
+        else:
+            # Single trajectory - data is directly stored
+            cur_trx = {}
+            for k in trx0.keys():
+                data = np.array(trx0[k])
+                cur_trx[k] = _process_field_data(k, data)
+            trx_list = [cur_trx]
+        
+        # Convert list of dicts to numpy structured array like scipy does
+        if len(trx_list) == 0:
+            return np.array([], dtype=object)
+        
+        # Create structured array with object dtype for each field
+        field_names = list(trx_list[0].keys())
+        dtype_list = [(name, object) for name in field_names]
+        
+        trx_structured = np.empty(len(trx_list), dtype=dtype_list)
+        for i, trx_dict in enumerate(trx_list):
+            for field_name in field_names:
+                trx_structured[i][field_name] = trx_dict[field_name]
+                
+        return trx_structured
+
+
+def _process_field_data(field_name, data):
+    """Process field data for proper format and type"""
+    if field_name in ['moviefile', 'moviename']:
+        # String fields - decode if needed
+        if data.dtype.kind in ['U', 'S'] or data.dtype == np.uint16:
+            if data.dtype == np.uint16:
+                # Convert uint16 to string
+                return ''.join(chr(x) for x in data.flatten() if x != 0)
+            else:
+                return str(data.flatten()[0])
+        else:
+            return data
+    elif field_name == 'sex':
+        # Sex field - handle as string or numeric but ensure consistent shape
+        if data.dtype.kind in ['U', 'S'] or data.dtype == np.uint16:
+            if data.dtype == np.uint16:
+                # Convert uint16 to string
+                return ''.join(chr(x) for x in data.flatten() if x != 0)
+            else:
+                return str(data.flatten()[0])
+        else:
+            # Numeric sex data - ensure (1, n_frames) orientation like scipy
+            if len(data.shape) == 2 and data.shape[1] == 1:
+                return data.T
+            else:
+                return data
+    else:
+        # Numeric fields - ensure proper orientation for compatibility with scipy
+        if data.shape == (1, 1):
+            # Scalar values like firstframe, endframe
+            return data
+        elif len(data.shape) == 2 and data.shape[0] == 1:
+            # Time series data in shape (1, n_frames) - correct format
+            return data
+        elif len(data.shape) == 2 and data.shape[1] == 1:
+            # Time series data in shape (n_frames, 1) - transpose to match scipy
+            return data.T
+        elif len(data.shape) == 1:
+            # 1D array - convert to (1, n_frames) to match scipy
+            return data.reshape(1, -1)
+        else:
+            return data
+
+
+def normalize_trx_shapes_inplace(trx):
+    """Normalize trx field shapes in-place to ensure consistency across mat file versions.
+    
+    Modifies the input trx array to ensure:
+    - Scalar fields (firstframe, endframe, nframes, id) have shape (1,1)  
+    - Time series fields (x, y, theta, a, b, etc.) have shape (1, n_frames)
+    """
+    if len(trx) == 0:
+        return
+    
+    for i in range(len(trx)):
+        for field_name in trx[i].dtype.names:
+            data = trx[i][field_name]
+            
+            # Skip non-numeric fields
+            if isinstance(data, str) or (hasattr(data, 'dtype') and data.dtype.kind in ['U', 'S']):
+                continue
+                
+            # Scalar fields should be (1,1)
+            if field_name in ['firstframe', 'endframe', 'nframes', 'id']:
+                if hasattr(data, 'shape'):
+                    if data.shape == ():
+                        # Scalar -> (1,1)
+                        trx[i][field_name] = np.array([[data.item()]])
+                    elif data.shape == (1,):
+                        # (1,) -> (1,1) 
+                        trx[i][field_name] = data.reshape(1, 1)
+                    elif len(data.shape) == 2 and data.shape[1] == 1:
+                        # (n,1) -> take first element and make (1,1)
+                        trx[i][field_name] = np.array([[data[0,0]]])
+                    elif len(data.shape) == 2 and data.shape[0] == 1:
+                        # (1,n) -> take first element and make (1,1)
+                        trx[i][field_name] = np.array([[data[0,0]]])
+            
+            # Time series fields should be (1, n_frames)  
+            else:
+                if hasattr(data, 'shape') and len(data.shape) >= 1:
+                    if len(data.shape) == 1:
+                        # 1D -> (1, n)
+                        trx[i][field_name] = data.reshape(1, -1)
+                    elif len(data.shape) == 2 and data.shape[1] == 1:
+                        # (n, 1) -> (1, n)
+                        trx[i][field_name] = data.T
+                    # (1, n) cases are already correct, no change needed
+
+
 def read_trx_file(trx_file):
 
-    trx = []
     if trx_file is None:
         return [], 1
     try:
         trx = sio.loadmat(trx_file)['trx'][0]
-        n_trx = len(trx)
     except NotImplementedError:
         # trx file in v7.3 format
-        # print('Trx file is in v7.3 format. Loading using h5py')
-        trx0 = h5py.File(trx_file, 'r')['trx']
-        n_trx = trx0['x'].shape[0]
-        for trx_ndx in range(n_trx):
-            cur_trx = {}
-            for k in trx0.keys():
-                cur_trx[k] = np.array(trx0[trx0[k][trx_ndx, 0]]).T
-            trx.append(cur_trx)
+        trx = read_trx_file_h5py(trx_file)
+    
+    # Normalize field shapes to ensure consistency regardless of mat file version
+    # Scalars should be (1,1), time series should be (1, n_frames)
+    normalize_trx_shapes_inplace(trx)
+    
+    n_trx = len(trx)
     return trx, n_trx
 
 

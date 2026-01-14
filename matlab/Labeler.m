@@ -3937,67 +3937,92 @@ classdef Labeler < handle
       end
     end
 
-    function rereadMovieInfo(obj,updatetrackers)
-      % there was a bug in ufmf movie info, reread all movie info
-      % also updates the json file for each trained tracker
+    function updateMovieInfo_(obj, iMov, iView)
+      % Update the movie info for movieset iMov, view iView by reading the movie
+      % metadata from disk.  Is savvy about normal-vs-GT mode.
+      if ~exist('iView', 'var') || isempty(iView)
+        iView = 1 ;
+      end
+      isgt = obj.gtIsGTMode ;
+      if isgt,
+        movfiles = obj.movieFilesAllGTFull;
+      else
+        movfiles = obj.movieFilesAllFull;
+      end
+      movfile = movfiles{iMov,iView};
       mr = MovieReader();
-      for isgt = [false,true],
-        if isgt,
-          movfiles = obj.movieFilesAllGTFull;
-        else
-          movfiles = obj.movieFilesAllFull;
-        end
-        nMov = numel(movfiles);
-        for iMov = 1:nMov
-          movfile = movfiles{iMov};
-          mr.open(movfile);
-          ifo = struct();
-          ifo.nframes = mr.nframes;
-          ifo.info = mr.info;
-          mr.close();
-          fprintf('Before update, movie %d info: \n',iMov);
-          if isgt,
-            disp(obj.movieInfoAllGT{iMov}.info);
-            obj.movieInfoAllGT{iMov} = ifo;
-          else
-            disp(obj.movieInfoAll{iMov}.info);
-            obj.movieInfoAll{iMov} = ifo;
-          end
-          fprintf('updated to: \n');
-          disp(ifo.info);
-        end
-      end
+      cleaner = onCleanup(@()(mr.close())) ;
+      mr.open(movfile); 
+      movieInfo = struct();
+      movieInfo.nframes = mr.nframes;
+      movieInfo.info = mr.info;
+      if isgt,
+        obj.movieInfoAllGT{iMov, iView} = movieInfo;
+      else
+        obj.movieInfoAll{iMov, iView} = movieInfo;
+      end        
+    end  % function
 
-      istracker = cellfun(@(x) ~isempty(x) && x.canTrack, obj.trackerHistory);
-      if any(istracker),
-        if nargin < 2,
-          res = questdlg('Update trackers too?','Update trackers?','Yes','No','Yes');
-          updatetrackers = strcmpi(res,'Yes');
-        end
-        if updatetrackers,
-
-          mia = cellfun(@(x)struct('NumRows',x.info.nr,...
-            'NumCols',x.info.nc),obj.movieInfoAll);
-          for ivw=1:size(mia,2)
-            nr = [mia(:,ivw).NumRows];
-            nc = [mia(:,ivw).NumCols];
-            assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);
-          end
-
-          for i = find(istracker(:)'),
-            dmc = obj.trackerHistory{i}.trnLastDMC;
-            nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
-            trainConfig = wsl_path_from_native(nativeTrainConfig) ;
-            if exist(trainConfig,'file')
-              js = TrnPack.hlpLoadJson(trainConfig);
-              js.MovieInfo = mia(1,:);
-              TrnPack.hlpSaveJson(js,trainConfig);
-            end
-          end
-        end
-      end
-
-    end
+    % function rereadMovieInfo(obj, updatetrackers)
+    %   % there was a bug in ufmf movie info, reread all movie info
+    %   % also updates the json file for each trained tracker
+    %   mr = MovieReader();
+    %   for isgt = [false,true],
+    %     if isgt,
+    %       movfiles = obj.movieFilesAllGTFull;
+    %     else
+    %       movfiles = obj.movieFilesAllFull;
+    %     end
+    %     nMov = numel(movfiles);
+    %     for iMov = 1:nMov
+    %       movfile = movfiles{iMov};
+    %       mr.open(movfile);
+    %       ifo = struct();
+    %       ifo.nframes = mr.nframes;
+    %       ifo.info = mr.info;
+    %       mr.close();
+    %       fprintf('Before update, movie %d info: \n',iMov);
+    %       if isgt,
+    %         disp(obj.movieInfoAllGT{iMov}.info);
+    %         obj.movieInfoAllGT{iMov} = ifo;
+    %       else
+    %         disp(obj.movieInfoAll{iMov}.info);
+    %         obj.movieInfoAll{iMov} = ifo;
+    %       end
+    %       fprintf('updated to: \n');
+    %       disp(ifo.info);
+    %     end
+    %   end
+    % 
+    %   istracker = cellfun(@(x) ~isempty(x) && x.canTrack, obj.trackerHistory);
+    %   if any(istracker),
+    %     if nargin < 2,
+    %       res = questdlg('Update trackers too?','Update trackers?','Yes','No','Yes');
+    %       updatetrackers = strcmpi(res,'Yes');
+    %     end
+    %     if updatetrackers,
+    % 
+    %       mia = cellfun(@(x)struct('NumRows',x.info.nr,...
+    %         'NumCols',x.info.nc),obj.movieInfoAll);
+    %       for ivw=1:size(mia,2)
+    %         nr = [mia(:,ivw).NumRows];
+    %         nc = [mia(:,ivw).NumCols];
+    %         assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);
+    %       end
+    % 
+    %       for i = find(istracker(:)'),
+    %         dmc = obj.trackerHistory{i}.trnLastDMC;
+    %         nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
+    %         trainConfig = wsl_path_from_native(nativeTrainConfig) ;
+    %         if exist(trainConfig,'file')
+    %           js = TrnPack.hlpLoadJson(trainConfig);
+    %           js.MovieInfo = mia(1,:);
+    %           TrnPack.hlpSaveJson(js,trainConfig);
+    %         end
+    %       end
+    %     end
+    %   end
+    % end  % function
 
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
@@ -4785,10 +4810,10 @@ classdef Labeler < handle
           if ~(exist(movies_done_new{mndx},'file')==0)
             movfileFull = movies_done_new{mndx};
             obj.(PROPS.MFA){iMov,iView} = movfileFull;
+            obj.updateMovieInfo_(iMov, iView) ;
             done = true;
           end
         end
-
 
         if exist(movfileFull,'file')==0 && ~done
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
@@ -4819,87 +4844,22 @@ classdef Labeler < handle
               movfileFull = obj.(PROPS.MFAF){iMov,iView};
               if exist(movfileFull,'file')==0
                 emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...
-                  movfileFull,'movie');
+                                                           movfileFull,'movie');
                 FSPath.errDlgFileNotFound(emsg);
                 return;
               end
             case 'Browse to movie'
-              pathguess = FSPath.maxExistingBasePath(movfileFull);
-              if isempty(pathguess)
-                pathguess = obj.rcGetProp('lbl_lastmovie');
+              [doReturn, movies_done, movies_done_new, movfileFull] = ...
+                obj.allowUserToFindMissingMovieUsingGUI_(PROPS, iMov, iView, movfile, movfileFull, movies_all, movies_done, movies_done_new) ;
+              if doReturn
+                return
               end
-              if isempty(pathguess)
-                pathguess = pwd;
-              end
-              oldmovfileFull = movfileFull;
-              promptstr = sprintf('Select movie for %s',movfileFull);
-              [newmovfile,newmovpath] = uigetfile('*.*',promptstr,pathguess);
-              if isequal(newmovfile,0)
-                return; % Cancel
-              end
-              movfileFull = fullfile(newmovpath,newmovfile);              
-              if exist(movfileFull,'file')==0
-                emsg = FSPath.errStrFileNotFound(movfileFull,'movie');
-                FSPath.errDlgFileNotFound(emsg);
-                return;
-              end
-              
-              % If possible, offer macroized movFile
-              [tfCancel,macro,movfileMacroized] = ...
-                FSPath.offerMacroization(obj.projMacros,{movfileFull});
-              if tfCancel
-                return;
-              end
-              tfMacroize = ~isempty(macro);
-              if tfMacroize
-                assert(isscalar(movfileMacroized));
-                obj.(PROPS.MFA){iMov,iView} = movfileMacroized{1};
-                movfileFull = obj.(PROPS.MFAF){iMov,iView};
-              else
-                obj.(PROPS.MFA){iMov,iView} = movfileFull;
-              end
-
-              % If no macros then try to replace the movies with a simple
-              % pattern
-              
-              if ~FSPath.hasAnyMacro(movfile)
-
-                % Find the largest match from the end and see if the user
-                % wants to replace them for other movies
-                old_s = strrep(oldmovfileFull,'\',filesep);
-                old_s = strrep(old_s,'/',filesep);
-                new_s = strrep(movfileFull,'\',filesep);
-                new_s = strrep(new_s,'/',filesep);                
-                mlen = min(numel(old_s),numel(new_s));
-                matching_path = old_s(end-mlen+1:end) == new_s(end-mlen+1:end);
-                e_ndx = find(matching_path==0,1,'last');
-                old_str = old_s(1:end-mlen+e_ndx);
-                new_str = new_s(1:end-mlen+e_ndx);
-                movies_done{end+1} = oldmovfileFull;  %#ok<AGROW>
-                movies_done_new{end+1} = movfileFull;  %#ok<AGROW>
-                not_done = setdiff(movies_all,movies_done);
-                
-                if ~strcmp(old_str,old_s) && numel(not_done)>0
-                  [sel,tf] = listdlg('PromptString',{'Select movies to replace', ...
-                    sprintf('"%s"',old_str),'with', sprintf('"%s"',new_str),''},...
-                    'Name','Select movies to replace...',...
-                    'ListString',not_done);
-                  if tf
-                    for jj = sel(:)'
-                      cur_mov = strrep(not_done{jj},'\',filesep);
-                      cur_mov = strrep(cur_mov,'/',filesep);
-                      movies_done_new{end+1} = strrep(cur_mov,old_str,new_str);  %#ok<AGROW>
-                      movies_done{end+1} = not_done{jj};  %#ok<AGROW>
-                    end
-                  end
-                end
-              end
-          end
+          end  % switch
           
           % At this point, either we have i) harderrored, ii)
           % early-returned with tfsuccess=false, or iii) movfileFull is set
           assert(exist(movfileFull,'file')>0);          
-        end
+        end  % if exist(movfileFull,'file')==0 && ~done
 
         % trxfile
         %movfile = obj.(PROPS.MFA){iMov,iView};
@@ -4967,6 +4927,84 @@ classdef Labeler < handle
     end  % function
     
 
+    function [doReturn, movies_done, movies_done_new, movFileFull] = ...
+        allowUserToFindMissingMovieUsingGUI_(obj, ...
+                                             PROPS, ...
+                                             iMov, ...
+                                             iView, ...
+                                             movFile, ...
+                                             movFileFull, ...
+                                             movies_all, ...
+                                             movies_done, ...
+                                             movies_done_new)
+      doReturn = false ;  % Informs the calling method whether it should immediately return
+      pathGuess = FSPath.maxExistingBasePath(movFileFull);
+      if isempty(pathGuess)
+        pathGuess = obj.rcGetProp('lbl_lastmovie');
+      end
+      if isempty(pathGuess)
+        pathGuess = pwd;
+      end
+      oldMovFileFull = movFileFull;
+      promptStr = sprintf('Select movie for %s',movFileFull);
+      [newMovFile,newMovPath] = uigetfile('*.*',promptStr,pathGuess);
+      if isequal(newMovFile,0)
+        doReturn = true ;        
+        return  % Cancel
+      end
+      movFileFull = fullfile(newMovPath,newMovFile);              
+      if ~exist(movFileFull,'file')
+        eMsg = FSPath.errStrFileNotFound(movFileFull,'movie');
+        FSPath.errDlgFileNotFound(eMsg);
+        doReturn = true ;
+        return
+      end
+      
+      % If possible, offer macroized movFile
+      [tfCancel,macro,movfileMacroized] = ...
+        FSPath.offerMacroization(obj.projMacros,{movFileFull});
+      if tfCancel
+        doReturn = true ;
+        return
+      end
+      tfMacroize = ~isempty(macro);
+      if tfMacroize
+        assert(isscalar(movfileMacroized));
+        obj.(PROPS.MFA){iMov,iView} = movfileMacroized{1};
+        movFileFull = obj.(PROPS.MFAF){iMov,iView};
+      else
+        obj.(PROPS.MFA){iMov,iView} = movFileFull;
+      end
+      obj.updateMovieInfo_(iMov, iView) ;
+
+      % If no macros then try to replace the movies with a simple
+      % pattern.
+      if ~FSPath.hasAnyMacro(movFile)
+        % Find the largest match from the end and see if the user
+        % wants to replace them for other movies
+        [oldPrefix, newPrefix, commonSuffix] = determineCommonSuffix(oldMovFileFull, movFileFull) ;
+        movies_done{end+1} = oldMovFileFull;
+        movies_done_new{end+1} = movFileFull;
+        not_done = setdiff(movies_all,movies_done);
+
+        if ~isempty(commonSuffix) && numel(not_done)>0
+          [sel,tf] = listdlg('PromptString',{'Select movies to replace prefix', ...
+                                             sprintf('"%s"',oldPrefix),'with', sprintf('"%s"',newPrefix),''},...
+                             'Name','Select movies to replace prefix...',...
+                             'ListString',not_done, ...
+                             'ListSize', [1200 300]);
+          if tf
+            for jj = sel(:)'
+              cur_mov = standardizeFileSeparators(not_done{jj});
+              movies_done_new{end+1} = strrep(cur_mov,oldPrefix,newPrefix);  %#ok<AGROW>
+              movies_done{end+1} = not_done{jj};  %#ok<AGROW>
+            end
+          end
+        end
+      end  % if ~FSPath.hasAnyMacro(movFile)      
+    end  % function
+
+    
     function tfsuccess = movieSetGUI(obj, iMov, varargin)
       % Set the current movie to the one indicated by iMov.
       % iMov: If multiview, movieSet index (row index into .movieFilesAll)
@@ -16740,5 +16778,10 @@ classdef Labeler < handle
       obj.popBusyStatus() ;
       obj.notify('update') ;
     end  % function        
+
+    function muckAbout_(obj)  %#ok<MANU>
+      % Used while debugging to set private properties
+      nop() ;
+    end  % function
   end  % methods
 end  % classdef
