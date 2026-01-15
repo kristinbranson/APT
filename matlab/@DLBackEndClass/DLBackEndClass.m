@@ -334,34 +334,34 @@ classdef DLBackEndClass < handle
     %   end
     % end
 
-    function uploadMovies(obj, nativePathFromMovieIndex)
+    function uploadInputs(obj, nativePathFromInputIndex)
       % Upload movies to the backend, if necessary.
       
       % Validate input
-      assert(iscell(nativePathFromMovieIndex), 'nativePathFromMovieIndex must be a cell array');
+      assert(iscell(nativePathFromInputIndex), 'nativePathFromInputIndex must be a cell array');
       
       % Local function to convert char to MetaPath
       function result = convertToMetaPath(path)
         if ischar(path)
-          result = apt.MetaPath(path, apt.PathLocale.native, apt.FileRole.movie);
+          result = apt.MetaPath(path, apt.PathLocale.native, apt.FileRole.input);
         else
           result = path;
         end
       end
       
       % Convert char elements to native MetaPaths
-      nativePathFromMovieIndex = cellfun(@convertToMetaPath, nativePathFromMovieIndex, 'UniformOutput', false);
+      nativePathFromInputIndex = cellfun(@convertToMetaPath, nativePathFromInputIndex, 'UniformOutput', false);
       
       % Validate that all elements are native movie MetaPaths
       cellfun(@(path) assert(isa(path, 'apt.MetaPath') && ...
         path.locale == apt.PathLocale.native && ...
-        path.role == apt.FileRole.movie, ...
-        'All elements must be native movie MetaPaths'), nativePathFromMovieIndex);
+        path.role == apt.FileRole.input, ...
+        'All elements must be native movie MetaPaths'), nativePathFromInputIndex);
       
       if isequal(obj.type, DLBackEnd.AWS) ,
         % Convert to WSL MetaPaths
-        wslPathFromMovieIndex = cellfun(@(path) path.asWsl(), nativePathFromMovieIndex, 'UniformOutput', false);
-        obj.awsec2.uploadMovies(wslPathFromMovieIndex) ;
+        wslPathFromInputIndex = cellfun(@(path) path.asWsl(), nativePathFromInputIndex, 'UniformOutput', false);
+        obj.awsec2.uploadInputs(wslPathFromInputIndex) ;
       end
     end  % function
 

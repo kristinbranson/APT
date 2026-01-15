@@ -852,9 +852,14 @@ classdef DeepTracker < LabelTracker
       % Update code on remote filesystem, if needed
       backend.updateRepo() ;
 
-      % Upload the movies to the backend
-      nativePathFromMovieIndex = obj.lObj.movieFilesAllFull ;  % has to be *Full to get substitutions made      
-      backend.uploadMovies(nativePathFromMovieIndex) ;
+      % Upload the input files (movies and trx files) to the backend
+      nativePathFromMovieIndex = obj.lObj.movieFilesAllFull ;  % has to be *Full to get substitutions made
+      if obj.lObj.hasTrx
+        nativePathFromInputIndex = [nativePathFromMovieIndex ; obj.lObj.trxFilesAllFull] ;
+      else
+        nativePathFromInputIndex = nativePathFromMovieIndex ;
+      end
+      backend.uploadInputs(nativePathFromInputIndex) ;
     end
     
     function train(obj, varargin)
@@ -1976,9 +1981,14 @@ classdef DeepTracker < LabelTracker
       % Upload model to remote filesystem, if needed
       backend.uploadProjectCacheIfNeeded(obj.lObj.DLCacheDir) ;
 
-      % Upload the movies to the backend
+      % Upload the input files (movies and trx files) to the backend
       nativePathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
-      backend.uploadMovies(nativePathFromMovieIndex) ;
+      if obj.lObj.hasTrx
+        nativePathFromInputIndex = [nativePathFromMovieIndex ; obj.lObj.trxFilesAllFullGTaware] ;
+      else
+        nativePathFromInputIndex = nativePathFromMovieIndex ;
+      end
+      backend.uploadInputs(nativePathFromInputIndex) ;
 
       % % Update the tracker info based on the trained model
       % obj.syncInfoFromDMC_() ;

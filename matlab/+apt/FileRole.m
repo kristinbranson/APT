@@ -15,12 +15,12 @@ classdef FileRole < uint8
 
   enumeration
     cache (1)  % For files that are in the APT cache dir
-    movie (2)  % For movie files, which generally can be any darn place on the frontend machine,
-    % but for backends with a remote file system are consolidated into their own
-    % special folder.
+    input (2)  % For input files (movies, trx files), which generally can be any darn place on the
+               % frontend machine, but for backends with a remote file system are consolidated into their own
+               % special folder.
     universal (3)  % Files that are accessible at the same path natively, in the local linux subsystem, and remotely.
-    % Generally these are files that are used in the context of a linux-only backend for
-    % which isFilesystemLocal() is true.
+                   % Generally these are files that are used in the context of a linux-only backend for
+                   % which isFilesystemLocal() is true.
     source (4)  % For source code files
     immovable (5)  % For file paths that need to stay in whatever locale they started in
     torch (6)  % For PyTorch/torch cache files
@@ -34,7 +34,7 @@ classdef FileRole < uint8
       % Create FileRole enum from string
       %
       % Args:
-      %   roleStr (char): 'cache', 'movie', 'universal', 'source', 'immovable', 'torch', 'home', 'local', or 'slashhome'
+      %   roleStr (char): 'cache', 'input', 'universal', 'source', 'immovable', 'torch', 'home', 'local', or 'slashhome'
       %
       % Returns:
       %   apt.FileRole: FileRole enumeration value
@@ -42,8 +42,8 @@ classdef FileRole < uint8
       switch lower(roleStr)
         case 'cache'
           result = apt.FileRole.cache;
-        case 'movie'
-          result = apt.FileRole.movie;
+        case {'input', 'movie'}  % 'movie' is a legacy alias for backwards compatibility
+          result = apt.FileRole.input;
         case 'universal'
           result = apt.FileRole.universal;
         case 'source'
@@ -60,7 +60,7 @@ classdef FileRole < uint8
           result = apt.FileRole.slashhome;
         otherwise
           error('apt:FileRole:InvalidString', ...
-                'FileRole must be ''cache'', ''movie'', ''universal'', ''source'', ''immovable'', ''torch'', ''home'', ''local'', or ''slashhome'', got ''%s''', ...
+                'FileRole must be ''cache'', ''input'', ''universal'', ''source'', ''immovable'', ''torch'', ''home'', ''local'', or ''slashhome'', got ''%s''', ...
                 roleStr);
       end
     end
@@ -79,8 +79,8 @@ classdef FileRole < uint8
       switch obj
         case apt.FileRole.cache
           result = 'cache';
-        case apt.FileRole.movie
-          result = 'movie';
+        case apt.FileRole.input
+          result = 'input';
         case apt.FileRole.universal
           result = 'universal';
         case apt.FileRole.source

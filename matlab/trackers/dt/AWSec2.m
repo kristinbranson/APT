@@ -38,7 +38,7 @@ classdef AWSec2 < handle
     autoShutdownAlarmNamePat = 'aptAutoShutdown'; 
     remoteHomeDir = apt.MetaPath('/home/ubuntu', apt.PathLocale.remote, apt.FileRole.home)
     remoteDLCacheDir = apt.MetaPath('/home/ubuntu/cacheDL', apt.PathLocale.remote, apt.FileRole.cache)
-    remoteMovieCacheDir = apt.MetaPath('/home/ubuntu/movies', apt.PathLocale.remote, apt.FileRole.movie)
+    remoteInputCacheDir = apt.MetaPath('/home/ubuntu/inputs', apt.PathLocale.remote, apt.FileRole.input)
     remoteAPTSourceRootDir = apt.MetaPath('/home/ubuntu/APT', apt.PathLocale.remote, apt.FileRole.source)
     remoteTorchHomeDir = apt.MetaPath('/home/ubuntu/torch', apt.PathLocale.remote, apt.FileRole.torch)
     defaultInstanceType = 'g6e.2xlarge'  % the default AWS EC2 machine instance type to use when creating a new instance
@@ -77,12 +77,12 @@ classdef AWSec2 < handle
 
     % Used to keep track of whether movies have been uploaded or not.
     % Transient and protected in spirit.
-    didUploadMovies_ = false
+    didUploadInputs_ = false
 
     % When we upload movies, keep track of the correspondence, so we can help the
     % consumer map between the paths.  Transient, protected in spirit.
-    wslPathFromMovieIndex_ = cell(1,0) ;
-    remotePathFromMovieIndex_ = cell(1,0) ;
+    wslPathFromInputIndex_ = cell(1,0) ;
+    remotePathFromInputIndex_ = cell(1,0) ;
   end
 
   properties (Dependent)
@@ -1376,9 +1376,9 @@ classdef AWSec2 < handle
       suitcase.isInDebugMode_ = obj.isInDebugMode_ ;
       suitcase.isProjectCacheRemote_ = obj.isProjectCacheRemote_ ;
       suitcase.wslProjectCachePath_ = obj.wslProjectCachePath_ ;
-      suitcase.didUploadMovies_ = obj.didUploadMovies_ ;
-      suitcase.localPathFromMovieIndex_ = obj.wslPathFromMovieIndex_ ;
-      suitcase.remotePathFromMovieIndex_ = obj.remotePathFromMovieIndex_ ;
+      suitcase.didUploadInputs_ = obj.didUploadInputs_ ;
+      suitcase.localPathFromInputIndex_ = obj.wslPathFromInputIndex_ ;
+      suitcase.remotePathFromInputIndex_ = obj.remotePathFromInputIndex_ ;
     end  % function
     
     function restoreAfterParfeval(obj, suitcase)
@@ -1389,9 +1389,9 @@ classdef AWSec2 < handle
       obj.isInDebugMode_ = suitcase.isInDebugMode_ ;
       obj.isProjectCacheRemote_ = suitcase.isProjectCacheRemote_ ;
       obj.wslProjectCachePath_ = suitcase.wslProjectCachePath_ ;
-      obj.didUploadMovies_ = suitcase.didUploadMovies_ ;
-      obj.wslPathFromMovieIndex_ = suitcase.localPathFromMovieIndex_ ;
-      obj.remotePathFromMovieIndex_ = suitcase.remotePathFromMovieIndex_ ;
+      obj.didUploadInputs_ = suitcase.didUploadInputs_ ;
+      obj.wslPathFromInputIndex_ = suitcase.localPathFromInputIndex_ ;
+      obj.remotePathFromInputIndex_ = suitcase.remotePathFromInputIndex_ ;
     end  % function
 
     function downloadTrackingFilesIfNecessary(obj, pollingResult, movfiles)
@@ -1656,28 +1656,28 @@ classdef AWSec2 < handle
     %   result = AWSec2.remoteDLCacheDir ;
     % end  % function
         
-    function uploadMovies(obj, wslPathFromMovieIndex)
+    function uploadInputs(obj, wslPathFromInputIndex)
       % Upload movies to the backend, if necessary.
       
       % Validate input - should be cell array of WSL MetaPaths
-      assert(iscell(wslPathFromMovieIndex), 'wslPathFromMovieIndex must be a cell array');
-      for i = 1:length(wslPathFromMovieIndex)
-        assert(isa(wslPathFromMovieIndex{i}, 'apt.MetaPath'), 'All elements of wslPathFromMovieIndex must be apt.MetaPaths');
-        assert(wslPathFromMovieIndex{i}.locale == apt.PathLocale.wsl, 'All elements must have WSL locale');
+      assert(iscell(wslPathFromInputIndex), 'wslPathFromInputIndex must be a cell array');
+      for i = 1:length(wslPathFromInputIndex)
+        assert(isa(wslPathFromInputIndex{i}, 'apt.MetaPath'), 'All elements of wslPathFromInputIndex must be apt.MetaPaths');
+        assert(wslPathFromInputIndex{i}.locale == apt.PathLocale.wsl, 'All elements must have WSL locale');
       end
       
-      if obj.didUploadMovies_ ,
+      if obj.didUploadInputs_ ,
         return
       end
-      obj.ensureRemoteFolderExists(AWSec2.remoteMovieCacheDir) ;  % throws if error
-      remotePathFromMovieIndex = AWSec2.remoteMoviePathFromWsl(wslPathFromMovieIndex) ;
-      movieCount = numel(wslPathFromMovieIndex) ;
-      fprintf('Uploading %d movie files...\n', movieCount) ;
+      obj.ensureRemoteFolderExists(AWSec2.remoteInputCacheDir) ;  % throws if error
+      remotePathFromInputIndex = AWSec2.remoteInputPathFromWsl(wslPathFromInputIndex) ;
+      inputCount = numel(wslPathFromInputIndex) ;
+      fprintf('Uploading %d movie files...\n', inputCount) ;
       % fileDescription = 'Movie file' ;
       % sidecarDescription = 'Movie sidecar file' ;
-      for i = 1:movieCount ,
-        wslPath = wslPathFromMovieIndex{i};
-        remotePath = remotePathFromMovieIndex{i};
+      for i = 1:inputCount ,
+        wslPath = wslPathFromInputIndex{i};
+        remotePath = remotePathFromInputIndex{i};
         %obj.uploadOrVerifySingleFile_(wslPath, remotePath, fileDescription) ;  % throws
         obj.rsyncUploadFile(wslPath, remotePath) ;  % throws
         % If there's a sidecar file, upload it too
@@ -1691,10 +1691,10 @@ classdef AWSec2 < handle
           end
         end
       end      
-      fprintf('Done uploading %d movie files.\n', movieCount) ;
-      obj.didUploadMovies_ = true ; 
-      obj.wslPathFromMovieIndex_ = wslPathFromMovieIndex ;
-      obj.remotePathFromMovieIndex_ = remotePathFromMovieIndex ;
+      fprintf('Done uploading %d movie files.\n', inputCount) ;
+      obj.didUploadInputs_ = true ; 
+      obj.wslPathFromInputIndex_ = wslPathFromInputIndex ;
+      obj.remotePathFromInputIndex_ = remotePathFromInputIndex ;
     end  % function
     
     % function uploadOrVerifySingleFile_(obj, localPath, remotePath, fileDescription)
@@ -1717,34 +1717,34 @@ classdef AWSec2 < handle
     % end  % function
     
     % function result = getLocalMoviePathFromRemote(obj, queryRemotePath)
-    %   if ~obj.didUploadMovies_ ,
+    %   if ~obj.didUploadInputs_ ,
     %     error('Can''t get a local movie path from a remote path if movies have not been uploaded.') ;
     %   end
-    %   movieCount = numel(obj.remotePathFromMovieIndex_) ;
-    %   for movieIndex = 1 : movieCount ,
-    %     remotePath = obj.remotePathFromMovieIndex_{movieIndex} ;
+    %   inputCount = numel(obj.remotePathFromInputIndex_) ;
+    %   for movieIndex = 1 : inputCount ,
+    %     remotePath = obj.remotePathFromInputIndex_{movieIndex} ;
     %     if strcmp(remotePath, queryRemotePath) ,
-    %       result = obj.wslPathFromMovieIndex_{movieIndex} ;
+    %       result = obj.wslPathFromInputIndex_{movieIndex} ;
     %       return
     %     end
     %   end
-    %   % If we get here, queryRemotePath did not match any path in obj.remotePathFromMovieIndex_
+    %   % If we get here, queryRemotePath did not match any path in obj.remotePathFromInputIndex_
     %   error('Query path %s does not match any remote movie path known to the backend.', queryRemotePath) ;
     % end  % function
     
     % function result = getRemoteMoviePathFromLocal(obj, queryWslPath)
-    %   if ~obj.didUploadMovies_ ,
+    %   if ~obj.didUploadInputs_ ,
     %     error('Can''t get a remote movie path from a local path if movies have not been uploaded.') ;
     %   end
-    %   movieCount = numel(obj.wslPathFromMovieIndex_) ;
-    %   for movieIndex = 1 : movieCount ,
-    %     wslPath = obj.wslPathFromMovieIndex_{movieIndex} ;
+    %   inputCount = numel(obj.wslPathFromInputIndex_) ;
+    %   for movieIndex = 1 : inputCount ,
+    %     wslPath = obj.wslPathFromInputIndex_{movieIndex} ;
     %     if strcmp(wslPath, queryWslPath) ,
-    %       result = obj.remotePathFromMovieIndex_{movieIndex} ;
+    %       result = obj.remotePathFromInputIndex_{movieIndex} ;
     %       return
     %     end
     %   end
-    %   % If we get here, queryLocalPath did not match any path in obj.localPathFromMovieIndex_
+    %   % If we get here, queryLocalPath did not match any path in obj.localPathFromInputIndex_
     %   error('Query path %s does not match any local movie path known to the backend.', queryWslPath) ;
     % end  % function
     
@@ -2002,7 +2002,7 @@ classdef AWSec2 < handle
       % Args:
       %   wslMetaPath (apt.MetaPath): WSL path to convert
       %   wslProjectCachePath (apt.MetaPath): WSL project cache path
-      %   wslPathFromMovieIndex (cell array of apt.MetaPath): WSL movie paths
+      %   wslPathFromInputIndex (cell array of apt.MetaPath): WSL movie paths
       %
       % Returns:
       %   apt.MetaPath: MetaPath with WSL prefix replaced by remote equivalent
@@ -2011,10 +2011,10 @@ classdef AWSec2 < handle
       assert(inputWslMetaPath.locale == apt.PathLocale.wsl, 'wslMetaPath must have WSL locale');
       assert(isa(wslProjectCachePath, 'apt.MetaPath'), 'wslProjectCachePath must be an apt.MetaPath');
       assert(wslProjectCachePath.locale == apt.PathLocale.wsl, 'wslProjectCachePath must have WSL locale');
-      % assert(iscell(wslPathFromMovieIndex), 'wslPathFromMovieIndex must be a cell array');
-      % if ~isempty(wslPathFromMovieIndex)
-      %   assert(isa(wslPathFromMovieIndex{1}, 'apt.MetaPath'), 'Elements of wslPathFromMovieIndex must be apt.MetaPath objects');
-      %   assert(wslPathFromMovieIndex{1}.locale == apt.PathLocale.wsl, 'Elements of wslPathFromMovieIndex must have WSL locale');
+      % assert(iscell(wslPathFromInputIndex), 'wslPathFromInputIndex must be a cell array');
+      % if ~isempty(wslPathFromInputIndex)
+      %   assert(isa(wslPathFromInputIndex{1}, 'apt.MetaPath'), 'Elements of wslPathFromInputIndex must be apt.MetaPath objects');
+      %   assert(wslPathFromInputIndex{1}.locale == apt.PathLocale.wsl, 'Elements of wslPathFromInputIndex must have WSL locale');
       % end
       
       % if contains(inputWslMetaPath.char(), '.apt/torch', 'IgnoreCase', true)
@@ -2031,9 +2031,9 @@ classdef AWSec2 < handle
           wslTorchHomePath = nativeTorchHomePath.asWsl();
           result = inputWslMetaPath.replacePrefix(wslTorchHomePath, AWSec2.remoteTorchHomeDir);
           
-        case apt.FileRole.movie
+        case apt.FileRole.input
           % Use the function for converting a wsl movie path to the remote path
-          result = AWSec2.remoteMoviePathFromWsl(inputWslMetaPath) ;
+          result = AWSec2.remoteInputPathFromWsl(inputWslMetaPath) ;
           
         case apt.FileRole.source
           nativeAptRoot = apt.MetaPath(APT.Root, apt.PathLocale.native, apt.FileRole.source);
@@ -2062,26 +2062,26 @@ classdef AWSec2 < handle
       end
     end  % function
     
-    function result = remoteMoviePathFromWsl(wslMoviePathsOrPath)
+    function result = remoteInputPathFromWsl(wslInputPathsOrPath)
       % Convert a cell array of WSL movie paths to their remote equivalents.
-      if iscell(wslMoviePathsOrPath)
-        wslMoviePaths = wslMoviePathsOrPath ;
-        result = cellfun(@(wslPath)(AWSec2.singleRemoteMoviePathFromWsl(wslPath)), wslMoviePaths, 'UniformOutput', false) ;
+      if iscell(wslInputPathsOrPath)
+        wslInputPaths = wslInputPathsOrPath ;
+        result = cellfun(@(wslPath)(AWSec2.singleRemoteInputPathFromWsl(wslPath)), wslInputPaths, 'UniformOutput', false) ;
       else
-        wslMoviePath = wslMoviePathsOrPath ;
-        result = AWSec2.singleRemoteMoviePathFromWsl(wslMoviePath) ;
+        wslInputPath = wslInputPathsOrPath ;
+        result = AWSec2.singleRemoteInputPathFromWsl(wslInputPath) ;
       end
     end
 
-    function result = singleRemoteMoviePathFromWsl(wslMoviePath)
+    function result = singleRemoteInputPathFromWsl(wslInputPath)
       % Convert a single WSL movie path to the remote equivalent.
-      assert(isa(wslMoviePath, 'apt.MetaPath'), 'wslMoviePath must be an apt.MetaPath') ;
-      assert(wslMoviePath.locale == apt.PathLocale.wsl, 'wslMoviePath must have WSL locale') ;
-      assert(wslMoviePath.tfIsAbsolute(), 'wslMoviePath must be an absolute path') ;
+      assert(isa(wslInputPath, 'apt.MetaPath'), 'wslInputPath must be an apt.MetaPath') ;
+      assert(wslInputPath.locale == apt.PathLocale.wsl, 'wslInputPath must have WSL locale') ;
+      assert(wslInputPath.tfIsAbsolute(), 'wslInputPath must be an absolute path') ;
 
-      relativizedWslMoviePath = wslMoviePath.forceRelative() ;  % Keep the full path, but within the movie cache dir, to prevent collisions
-      remoteMovieCacheDir = AWSec2.remoteMovieCacheDir ;
-      result = remoteMovieCacheDir.cat(relativizedWslMoviePath) ;
+      relativizedWslInputPath = wslInputPath.forceRelative() ;  % Keep the full path, but within the movie cache dir, to prevent collisions
+      remoteInputCacheDir = AWSec2.remoteInputCacheDir ;
+      result = remoteInputCacheDir.cat(relativizedWslInputPath) ;
     end
     
   end  % methods (Static)
@@ -2110,7 +2110,7 @@ classdef AWSec2 < handle
       end
 
       % Generate all the relocated paths
-      newmovfiles = convertCellArrayOfWslPathAsCharToRemoteAsChar(totrackinfo.movfiles, apt.FileRole.movie);
+      newmovfiles = convertCellArrayOfWslPathAsCharToRemoteAsChar(totrackinfo.movfiles, apt.FileRole.input);
       newtrkfiles = convertCellArrayOfWslPathAsCharToRemoteAsChar(totrackinfo.trkfiles, apt.FileRole.cache);
       newerrfile = convertWslPathAsCharToRemoteAsChar(totrackinfo.errfile, apt.FileRole.cache);
       newlogfile = convertWslPathAsCharToRemoteAsChar(totrackinfo.logfile, apt.FileRole.cache);
