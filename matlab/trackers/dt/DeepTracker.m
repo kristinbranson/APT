@@ -1977,7 +1977,6 @@ classdef DeepTracker < LabelTracker
       backend.uploadProjectCacheIfNeeded(obj.lObj.DLCacheDir) ;
 
       % Upload the movies to the backend
-      % localPathFromMovieIndex = obj.lObj.movieFilesAll ;      
       nativePathFromMovieIndex = obj.lObj.movieFilesAllFullGTaware ;
       backend.uploadMovies(nativePathFromMovieIndex) ;
 

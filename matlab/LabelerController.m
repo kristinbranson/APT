@@ -2517,7 +2517,7 @@ classdef LabelerController < handle
     end
 
 
-    function menu_track_backend_config_moreinfo_actuated_(obj)
+    function menu_track_backend_config_moreinfo_actuated_(obj, ~, ~)
       lObj = obj.labeler_ ;
       res = web(lObj.DLCONFIGINFOURL,'-new');
       if res ~= 0,

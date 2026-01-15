@@ -1157,7 +1157,8 @@ classdef AWSec2 < handle
       
       tokens = {'aws', 'ec2', 'describe-instances', '--filters', ...
                 sprintf('Name=image-id,Values=%s', ami), ...
-                sprintf('Name=key-name,Values=%s', keyName)} ;
+                sprintf('Name=key-name,Values=%s', keyName), ...
+                'Name=instance-state-name,Values=pending,running,stopping,stopped'} ;
       if ~isempty(instType)
         tokens{end+1} = sprintf('Name=instance-type,Values=%s', instType) ;
       end
@@ -2033,15 +2034,6 @@ classdef AWSec2 < handle
         case apt.FileRole.movie
           % Use the function for converting a wsl movie path to the remote path
           result = AWSec2.remoteMoviePathFromWsl(inputWslMetaPath) ;
-          % % Find matching movie path in wslPathFromMovieIndex
-          % remotePathFromMovieIndex = AWSec2.remoteMoviePathFromWsl(wslPathFromMovieIndex);
-          % for i = 1:numel(wslPathFromMovieIndex)
-          %   if isequal(inputWslMetaPath, wslPathFromMovieIndex{i})
-          %     result = remotePathFromMovieIndex{i};
-          %     return;
-          %   end
-          % end
-          % error('Movie path %s not found in wslPathFromMovieIndex', inputWslMetaPath.char());
           
         case apt.FileRole.source
           nativeAptRoot = apt.MetaPath(APT.Root, apt.PathLocale.native, apt.FileRole.source);
@@ -2085,10 +2077,11 @@ classdef AWSec2 < handle
       % Convert a single WSL movie path to the remote equivalent.
       assert(isa(wslMoviePath, 'apt.MetaPath'), 'wslMoviePath must be an apt.MetaPath') ;
       assert(wslMoviePath.locale == apt.PathLocale.wsl, 'wslMoviePath must have WSL locale') ;
+      assert(wslMoviePath.tfIsAbsolute(), 'wslMoviePath must be an absolute path') ;
 
-      [~,movieName] = wslMoviePath.fileparts2() ;
+      relativizedWslMoviePath = wslMoviePath.forceRelative() ;  % Keep the full path, but within the movie cache dir, to prevent collisions
       remoteMovieCacheDir = AWSec2.remoteMovieCacheDir ;
-      result = remoteMovieCacheDir.cat(movieName) ;
+      result = remoteMovieCacheDir.cat(relativizedWslMoviePath) ;
     end
     
   end  % methods (Static)

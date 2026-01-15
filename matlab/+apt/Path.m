@@ -371,6 +371,48 @@ classdef Path
       result = apt.Path(newPathList, apt.Platform.posix);
     end
 
+    function result = forceRelative(obj)
+      % Convert this path to a relative path
+      %
+      % Returns:
+      %   apt.Path: New path object that is relative
+      %
+      % Notes:
+      %   - For relative paths: returns obj unchanged
+      %   - For POSIX absolute paths: drops the first element (the empty string)
+      %   - For Windows absolute paths: removes the colon from the drive letter
+      %
+      % Example:
+      %   posixPath = apt.Path('/home/user/data', apt.Platform.posix);
+      %   relPath = posixPath.forceRelative();
+      %   % relPath will be apt.Path('home/user/data', apt.Platform.posix)
+      %
+      %   winPath = apt.Path('C:\Users\data', apt.Platform.windows);
+      %   relPath = winPath.forceRelative();
+      %   % relPath will be apt.Path('C\Users\data', apt.Platform.windows)
+
+      if ~obj.tfIsAbsolute()
+        % Already relative, return as-is
+        result = obj;
+        return
+      end
+
+      if obj.platform == apt.Platform.windows
+        % Windows: remove colon from drive letter
+        head = obj.list{1};
+        if head(end) ~= ':'
+          error('apt:Path:InvalidWindowsPath', 'Expected first element of absolute Windows path to end with '':'', got ''%s''', head);
+        end
+        newHead = head(1:end-1);
+        newList = [{newHead}, obj.list(2:end)];
+      else
+        % POSIX: drop the first element (empty string)
+        newList = obj.list(2:end);
+      end
+
+      result = apt.Path(newList, obj.platform);
+    end
+
     function result = toWindows(obj)
       % Convert this path to a Windows-compatible path
       %
@@ -513,17 +555,6 @@ classdef Path
             result = strjoin(pathList, separator);
           end
         end
-      end
-    end
-
-    function result = tfIsAbsolutePath_(pathAsString, platform)
-      % Determine if a path string is absolute
-      if platform == apt.Platform.windows
-        % Windows: absolute if starts with drive letter (e.g., "C:")
-        result = length(pathAsString) >= 2 && isstrprop(pathAsString(1), 'alpha') && pathAsString(2) == ':';
-      else
-        % Unix-style: absolute if starts with "/"
-        result = ~isempty(pathAsString) && pathAsString(1) == '/';
       end
     end
 
