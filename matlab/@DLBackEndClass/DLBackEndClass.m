@@ -1997,6 +1997,18 @@ classdef DLBackEndClass < handle
       end
     end
 
+    function resetDockerImgSpec(obj)
+      obj.didOverrideDefaultDockerImgSpec_ = false ;
+    end
+
+    function resetCondaEnv(obj)
+      obj.didOverrideDefaultCondaEnv_ = false ;
+    end
+
+    function resetSingularityImagePath(obj)
+      obj.didOverrideDefaultSingularityImagePath_ = false ;
+    end
+
     function testBackendConfig(obj, labeler)
       obj.testText_ = {''};
       labeler.notify('updateBackendTestText') ;

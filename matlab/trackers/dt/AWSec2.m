@@ -41,12 +41,14 @@ classdef AWSec2 < handle
     remoteMovieCacheDir = apt.MetaPath('/home/ubuntu/movies', apt.PathLocale.remote, apt.FileRole.movie)
     remoteAPTSourceRootDir = apt.MetaPath('/home/ubuntu/APT', apt.PathLocale.remote, apt.FileRole.source)
     remoteTorchHomeDir = apt.MetaPath('/home/ubuntu/torch', apt.PathLocale.remote, apt.FileRole.torch)
-    instanceType = 'g6e.4xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
+    defaultInstanceType = 'g6e.2xlarge'  % the default AWS EC2 machine instance type to use when creating a new instance
     secGrp = 'apt_dl'
   end
   
   properties
     instanceID_ = ''  % Durable identifier for the AWS EC2 instance.  E.g.'i-07a3a8281784d4a38'.
+    didOverrideDefaultInstanceType_ = false
+    customInstanceType_ = ''
   end
 
   properties (Dependent)
@@ -54,6 +56,7 @@ classdef AWSec2 < handle
     isInstanceIDSet    % Whether the instanceID is set or not
     areCredentialsSet  % Whether the security credentials for the instance are set
     isInDebugMode      % Whether the object is in debug mode.  See isInDebugMode_
+    instanceType       % The AWS EC2 machine instance type to use when creating a new instance
   end
 
   properties
@@ -137,6 +140,23 @@ classdef AWSec2 < handle
       obj.isInDebugMode_ = value ;
     end
 
+    function result = get.instanceType(obj)
+      if obj.didOverrideDefaultInstanceType_
+        result = obj.customInstanceType_ ;
+      else
+        result = AWSec2.defaultInstanceType ;
+      end
+    end
+
+    function set.instanceType(obj, value)
+      obj.customInstanceType_ = value ;
+      obj.didOverrideDefaultInstanceType_ = true ;
+    end
+
+    function resetInstanceType(obj)
+      obj.didOverrideDefaultInstanceType_ = false ;
+    end
+
     function result = get.instanceID(obj)
       result = obj.instanceID_ ;
     end
@@ -183,7 +203,7 @@ classdef AWSec2 < handle
     function [tfsucc, instanceID] = launchNewInstance(obj, varargin)
       % Launch a brand-new instance.
       obj.instanceID = '' ;  % This calls a setter function, which stops the original instance, if any.
-      cmd = AWSec2.launchInstanceCmd(obj.keyName,'instType',AWSec2.instanceType);
+      cmd = obj.launchInstanceCmd();
       [st,json] = AWSec2.syscmd(cmd,'isjsonout',true);
       tfsucc = (st==0) ;
       if ~tfsucc
@@ -1094,37 +1114,36 @@ classdef AWSec2 < handle
       backend.testText_{end+1,1} = 'All tests passed. AWS Backend should work for you.'; 
       labeler.notify('updateBackendTestText');
     end  % function
-  end  % methods
-  
-  methods (Static)
-    
-    function cmd = launchInstanceCmd(keyName, varargin)
-      [ami,instType,dryrun] = ...
+
+    function cmd = launchInstanceCmd(obj, varargin)
+      [ami,dryrun] = ...
         myparse(varargin,...
                 'ami',AWSec2.AMI,...
-                'instType',AWSec2.instanceType,...
                 'dryrun',false);
       date_and_time_string = char(datetime('now','TimeZone','local','Format','yyyy-MM-dd-HH-mm-ss')) ;
       name = sprintf('apt-to-the-porpoise-%s', date_and_time_string) ;
       % tag_specifications =
-      % sprintf('ResourceType=instance,Tags=[{Key=Name,Value=%s}]', name) ;  
+      % sprintf('ResourceType=instance,Tags=[{Key=Name,Value=%s}]', name) ;
       % % above not working as of 2025-12-16 (?)
       tag_specifications = sprintf('[{"ResourceType":"instance","Tags":[{"Key":"Name","Value":"%s"}]}]', name) ;
       escaped_tag_specifications = escape_string_for_bash(tag_specifications) ;
-      block_device_mapping = '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":800,"DeleteOnTermination":true,"VolumeType":"gp3"}}]' ;      
+      block_device_mapping = '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":800,"DeleteOnTermination":true,"VolumeType":"gp3"}}]' ;
       escaped_block_device_mapping = escape_string_for_bash(block_device_mapping) ;
       tokens = {'aws', 'ec2', 'run-instances', '--image-id', ami, '--count', '1', ...
-                '--instance-type', instType, '--security-groups', AWSec2.secGrp, ...
+                '--instance-type', obj.instanceType, '--security-groups', AWSec2.secGrp, ...
                 '--tag-specifications', escaped_tag_specifications, '--block-device-mappings', escaped_block_device_mapping} ;
       if dryrun
         tokens{end+1} = '--dry-run' ;
       end
-      if ~isempty(keyName)
-        tokens = [tokens, {'--key-name', keyName}] ;
+      if ~isempty(obj.keyName)
+        tokens = [tokens, {'--key-name', obj.keyName}] ;
       end
       cmd = apt.ShellCommand(tokens, apt.PathLocale.wsl, apt.Platform.posix) ;
     end  % function
-    
+  end  % methods
+
+  methods (Static)
+
     function cmd = listInstancesCmd(keyName,varargin)      
       [ami,instType] = ...
         myparse(varargin,...
