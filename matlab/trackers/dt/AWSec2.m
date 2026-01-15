@@ -422,16 +422,16 @@ classdef AWSec2 < handle
     
     function codestr = createShutdownAlarmCmd(obj,varargin)
       [periodsec,threshpct,evalperiods] = myparse(varargin,...
-        'periodsec',1000, ... % ~17 mins
+        'periodsec',17*60, ... % ~1000 sec
         'threshpct',5, ...
         'evalperiods',24 ... % 24x5mins=2hrs
       );
-    
-      % AL 20190213: Superficially pretty poor/confusing spec/api/doc for 
-      % CloudWatch alarms. CloudWatch Dash is pretty suboptimal too. Maybe 
+
+      % AL 20190213: Superficially pretty poor/confusing spec/api/doc for
+      % CloudWatch alarms. CloudWatch Dash is pretty suboptimal too. Maybe
       % it's actually really smart (maybe not).
       %
-      % 1. Prob don't want to go period<5min -- acts funny, maybe 
+      % 1. Prob don't want to go period<5min -- acts funny, maybe
       % considered "high resolution" etc and requires special treatment.
       % 2. Prob don't want period much greater than 5 min -- b/c you want
       % the instance/cpu spin-up to get the CPUutil above the thresh in the
@@ -439,12 +439,16 @@ classdef AWSec2 < handle
       % get you above that threshold. Then, due to weird history retention
       % of alarms, you may just get repeated ALARM states and kills of your
       % instance.
-      % 3. Deleting an alarm and bringing it back (with the same name) 
-      % doesn't remove the history, and in some ways the triggers/criteria 
+      % 3. Deleting an alarm and bringing it back (with the same name)
+      % doesn't remove the history, and in some ways the triggers/criteria
       % ignore the "missing gap" in time as if that interval (when the
       % alarm was deleted) was just removed from the space-time continuum.
-      
+
       assert(periodsec==round(periodsec),'Expected integral periodsec.');
+
+      % Recent versions of AWS CloudWatch require the period to be 10, 20, 30, or
+      % a multiple of 60 seconds.
+      periodsec = apt.roundToValidCloudWatchPeriod(periodsec);
       
       [tfe,~,js] = obj.inspectInstance();
       if ~tfe
