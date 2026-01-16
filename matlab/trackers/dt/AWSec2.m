@@ -1679,6 +1679,8 @@ classdef AWSec2 < handle
         wslPath = wslPathFromInputIndex{i};
         remotePath = remotePathFromInputIndex{i};
         %obj.uploadOrVerifySingleFile_(wslPath, remotePath, fileDescription) ;  % throws
+        remoteParentPath = remotePath.fileparts2() ;
+        obj.ensureRemoteFolderExists(remoteParentPath) ;
         obj.rsyncUploadFile(wslPath, remotePath) ;  % throws
         % If there's a sidecar file, upload it too
         fileExtension = wslPath.extension() ;
@@ -2077,11 +2079,10 @@ classdef AWSec2 < handle
       % Convert a single WSL movie path to the remote equivalent.
       assert(isa(wslInputPath, 'apt.MetaPath'), 'wslInputPath must be an apt.MetaPath') ;
       assert(wslInputPath.locale == apt.PathLocale.wsl, 'wslInputPath must have WSL locale') ;
-      assert(wslInputPath.tfIsAbsolute(), 'wslInputPath must be an absolute path') ;
+      % apt.MetaPath's are always absolute
 
-      relativizedWslInputPath = wslInputPath.forceRelative() ;  % Keep the full path, but within the movie cache dir, to prevent collisions
       remoteInputCacheDir = AWSec2.remoteInputCacheDir ;
-      result = remoteInputCacheDir.cat(relativizedWslInputPath) ;
+      result = remoteInputCacheDir.forceRelativeThenCat(wslInputPath) ;
     end
     
   end  % methods (Static)

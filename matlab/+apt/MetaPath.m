@@ -477,5 +477,17 @@ classdef MetaPath < apt.ShellToken
       [restPath, leaf] = path.split() ;
       rest = apt.MetaPath(restPath, obj.locale, obj.role) ;
     end    
+
+    function result = forceRelativeThenCat(obj, suffixPath)
+      % Force suffixPath's internal apt.Path to be relative, then concatenate it
+      % onto obj's internal apt.Path.  (Used to compute remote paths for movie/trx
+      % files when using AWS backend.)     
+      assert(isa(suffixPath, 'apt.MetaPath'), 'suffixPath must be an apt.MetaPath instance');
+      assert(obj.role==suffixPath.role, 'suffixPath role must match that of obj') ;      
+      oldPath = obj.path ;
+      relativizedSuffixPath = suffixPath.path.forceRelative() ;
+      newPath = oldPath.cat(relativizedSuffixPath) ;
+      result = apt.MetaPath(newPath, obj.locale, obj.role) ;  % Note that the locale of the obj 'wins'
+    end
   end  % methods
 end  % classdef
