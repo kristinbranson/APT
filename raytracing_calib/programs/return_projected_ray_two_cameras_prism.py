@@ -19,7 +19,6 @@ rotmat = 1
 #    device = 'cuda'
 #else:
 device = 'cpu'
-
 checkpoint = torch.load(PATH, weights_only=True, map_location=torch.device('cpu'))
 arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
             principal_point_pixel_cam_0=torch.tensor([0.,0.]).to(torch.float64),
@@ -37,6 +36,7 @@ arena.load_state_dict(checkpoint, strict=False)
 def get_annotations_curve(arena, user_annotation, 
                           camera_real, cam_real_dist_coeff,
                           camera_virtual, cam_virtual_dist_coeff):
+    # Deprecated
     with torch.no_grad():
         undistorted_annotations = camera_virtual.undistort_pixels_classical(user_annotation[:2],
         cam_real_dist_coeff)
@@ -143,14 +143,10 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             
 
         if "real" in projecting_cam:
-            epipolar_line_projecting_cam = projecting_cam_obj.reproject(epipolar_line_3D, R_projecting, T_projecting)
-            #epipolar_line_labelling_cam = labelling_cam_obj.reproject(epipolar_line_3D, R_labelling, T_labelling)
+            epipolar_line_projecting_cam_undistorted = projecting_cam_obj.reproject(epipolar_line_3D, R_projecting, T_projecting)
             epipolar_line_projecting_cam = projecting_cam_obj.distort_pixels_classical(
-                                                                epipolar_line_projecting_cam,
+                                                                epipolar_line_projecting_cam_undistorted,
                                                                 projecting_cam_dist_coeff)
-            #epipolar_line_labelling_cam = labelling_cam_obj.distort_pixels_classical(
-            #                                                    epipolar_line_labelling_cam,
-            #                                                    labelling_cam_dist_coeff)
     return epipolar_line_projecting_cam
 
 
