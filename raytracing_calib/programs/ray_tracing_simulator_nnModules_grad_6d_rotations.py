@@ -18,10 +18,20 @@ from pytorch3d.transforms import (
     euler_angles_to_matrix,
     matrix_to_euler_angles
 )
-try:
-    mpl.use('QtAgg') # Use this if working remotely with NoMachine
-except Exception as e:    
-    mpl.use('TkAgg') # Use this if working on the PC
+import sys
+# Check if running in headless mode or if MPLBACKEND is already set
+if os.environ.get('MPLBACKEND'):
+    # Use environment variable if set
+    mpl.use(os.environ.get('MPLBACKEND'))
+elif not os.environ.get('DISPLAY') or not hasattr(sys, 'ps1'):
+    # Headless mode or non-interactive - use Agg
+    mpl.use('Agg')
+else:
+    # Interactive mode - try GUI backends
+    try:
+        mpl.use('QtAgg') # Use this if working remotely with NoMachine
+    except Exception as e:
+        mpl.use('TkAgg') # Use this if working on the PC
 
 class Rotation6D(nn.Module):
     """
@@ -1081,8 +1091,9 @@ class EfficientCamera(Plane, nn.Module):
             # Calculate the radial distance squared
             r2 = pixels_undistorted[0, :] ** 2 + pixels_undistorted[1, :] ** 2
             r4 = r2 ** 2
+            r6 = r2 * r4
             # Calculate the radial distortion factor
-            radial_distortion = 1 + distortion_params_[0] * r2 + distortion_params_[1] * r4
+            radial_distortion = 1 + distortion_params_[0] * r2 + distortion_params_[1] * r4 + distortion_params_[2] * r6
             # Update undistorted coordinates
             pixels_undistorted_new = pixels_distorted / radial_distortion
             
@@ -1107,7 +1118,8 @@ class EfficientCamera(Plane, nn.Module):
         pixels_undistorted = self.normalize_pixels(pixels_undistorted)
         r2 = pixels_undistorted[0, :] ** 2 + pixels_undistorted[1, :] ** 2
         r4 = r2 ** 2
-        radial_distortion = 1 + distortion_params_[0] * r2 + distortion_params_[1] * r4 
+        r6 = r2 * r4
+        radial_distortion = 1 + distortion_params_[0] * r2 + distortion_params_[1] * r4 + distortion_params_[2] * r6
         return self.unnormalize_pixels(pixels_undistorted * radial_distortion)
 
 
