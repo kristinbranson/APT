@@ -8,6 +8,8 @@ import sys
 import math
 import traceback
 
+if not 'APT_path' in locals():
+    APT_path = '/groups/branson/bransonlab/aniket/APT/'    
 raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
 sys.path.append(raytracing_lib_path)
 from prism_arenas_6d_rotations import Arena_reprojection_loss_two_cameras_prism_grid_distances
@@ -19,18 +21,21 @@ rotmat = 1
 #    device = 'cuda'
 #else:
 device = 'cpu'
-checkpoint = torch.load(PATH, weights_only=True, map_location=torch.device('cpu'))
-arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
-            principal_point_pixel_cam_0=torch.tensor([0.,0.]).to(torch.float64),
-            principal_point_pixel_cam_1=torch.tensor([0.,0.]).to(torch.float64), 
-            focal_length_cam_0=torch.tensor(0.).to(torch.float64), 
-            focal_length_cam_1=torch.tensor(0.).to(torch.float64),
-            R_stereo_cam=torch.eye(3).to(torch.float64),
-            T_stereo_cam=torch.zeros(3,1).to(torch.float64), 
-            prism_angles=torch.zeros(3,).to(torch.float64), 
-            prism_center=torch.zeros(3,1).to(torch.float64), 
-            )
-arena.load_state_dict(checkpoint, strict=False)
+
+
+if 'PATH' in locals():
+    checkpoint = torch.load(PATH, weights_only=True, map_location=torch.device('cpu'))
+    arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
+                principal_point_pixel_cam_0=torch.tensor([0.,0.]).to(torch.float64),
+                principal_point_pixel_cam_1=torch.tensor([0.,0.]).to(torch.float64), 
+                focal_length_cam_0=torch.tensor(0.).to(torch.float64), 
+                focal_length_cam_1=torch.tensor(0.).to(torch.float64),
+                R_stereo_cam=torch.eye(3).to(torch.float64),
+                T_stereo_cam=torch.zeros(3,1).to(torch.float64), 
+                prism_angles=torch.zeros(3,).to(torch.float64), 
+                prism_center=torch.zeros(3,1).to(torch.float64), 
+                )
+    arena.load_state_dict(checkpoint, strict=False)
 
 # %%
 def get_annotations_curve(arena, user_annotation, 
@@ -67,13 +72,14 @@ def get_annotations_curve(arena, user_annotation,
                                                             cam_virtual_dist_coeff)
         return annotations_curve_real, annotations_curve_virtual
     
-def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
+def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam, image_width_dict):
     """
     Project epipolar line in projecting_cam given a label in labeling cam
     arena: Prism arena object
     user_annotation: 2D point in the image
     cam_label (str): ["primary_virtual", "primary_real", "secondary_virtual", "secondary_real"]    
     """
+    image_width = [image_width_dict['primary_virtual'], image_width_dict['secondary_virtual']]
     with torch.no_grad():
         num_epipolar_pts = 2 # This will only work if the calibration is highly acccurate. Else, consider adding more points for redundancy
         if "primary" in labelling_cam:
@@ -476,7 +482,7 @@ try:
             user_annotation[1, :] = -user_annotation[1, :]
     """
     user_annotation = convert_to_APT_reference_frame(user_annotation, cam_label, dividing_col_dict[cam_label], image_width_dict[cam_label], rotmat)
-    epipolar_line_projecting_cam = get_epipolar_line(arena, user_annotation, cam_label, cam_projecting)
+    epipolar_line_projecting_cam = get_epipolar_line(arena, user_annotation, cam_label, cam_projecting, image_width_dict)
     epipolar_line_projecting_cam = convert_to_raw_reference_frame(epipolar_line_projecting_cam, cam_projecting, dividing_col_dict[cam_projecting], image_width_dict[cam_projecting], rotmat).numpy()
     """
     if "virtual" in cam_projecting:
