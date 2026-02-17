@@ -638,7 +638,9 @@ classdef DLBackEndClass < handle
         
     function tfSucc = writeCmdToFile(obj, syscmds, cmdfiles, jobdesc)  % const method
       % Write each syscmds{i} to each cmdfiles{i}, on the filesystem where the
-      % commands will be executed. syscmds should be ShellCommand objects or cell array of ShellCommand objects.
+      % commands will be executed. syscmds should be a scalar ShellCommand object
+      % or a cell array of ShellCommand objects.  cmdfiles should be a MetaPath
+      % object or a cell array of MetaPath objects, all with locale wsl.
       if nargin < 4,
         jobdesc = 'job';
       end
@@ -824,7 +826,8 @@ classdef DLBackEndClass < handle
       else
         % Local filesystem - convert to native string
         nativeMetaPath = filePath.asNative();
-        fo = file_object(nativeMetaPath.char(), 'w');
+        nativeMetaPathAsChar = nativeMetaPath.charUnescaped() ;
+        fo = file_object(nativeMetaPathAsChar, 'w');
         fo.fprintf('%s', str);
       end
     end  % function
@@ -980,14 +983,15 @@ classdef DLBackEndClass < handle
                                                 'do_just_generate_db',do_just_generate_db);
       args = obj.determineArgumentsForSpawningJob_(tracker,gpuids,dmcjob,remoteAptRootAsChar,'train');
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd,args{:});
-      commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
-      commandFilePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      commandFileNativePathAsChar = DeepModelChainOnDisk.getCheckSingle(dmcjob.trainCmdfileLnx());
+      commandFileNativePath = apt.MetaPath(commandFileNativePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      commandFileWslPath = commandFileNativePath.asWsl() ;
       % logcmd = obj.generateLogCommand_('train', dmcjob) ;
 
       % Add all the commands to the registry
       obj.training_syscmds_{end+1,1} = syscmd ;
       % obj.training_logcmds_{end+1,1} = logcmd ;
-      obj.training_cmdfiles_{end+1,1} = commandFilePath ;
+      obj.training_cmdfiles_{end+1,1} = commandFileWslPath ;
       obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
@@ -1011,15 +1015,16 @@ classdef DLBackEndClass < handle
                                                 'track_type',track_type);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteAptRootAsChar, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
-      cmdfileAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
-      cmdfile = apt.MetaPath(cmdfileAsChar, apt.PathLocale.wsl, apt.FileRole.cache) ;
+      commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
+      commandFileNativePath = apt.MetaPath(commandFilePathAsChar, apt.PathLocale.native, apt.FileRole.cache) ;
+      commandFileWslPath = commandFileNativePath.asWsl() ;
       
       % logcmd = obj.generateLogCommand_('track', remotetotrackinfo) ;
     
       % Add all the commands to the registry
       obj.tracking_syscmds_{end+1,1} = syscmd ;
       % obj.tracking_logcmds_{end+1,1} = logcmd ;
-      obj.tracking_cmdfiles_{end+1,1} = cmdfile ;
+      obj.tracking_cmdfiles_{end+1,1} = commandFileWslPath ;
       obj.tracking_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
@@ -1333,7 +1338,8 @@ classdef DLBackEndClass < handle
         wslFilePath = nativeFilePath.asWsl() ;
         result = obj.awsec2.fileExists(wslFilePath) ;
       else
-        result = logical(exist(nativeFilePath.char(), 'file')) ;
+        nativeFilePathAsChar = nativeFilePath.charUnescaped() ;
+        result = logical(exist(nativeFilePathAsChar, 'file')) ;
       end
     end  % function
 
@@ -1908,7 +1914,6 @@ classdef DLBackEndClass < handle
         wrapCommandDocker(basecmd, ...
                           'dockerimg',obj.dockerimgfull,...
                           'gpuid',fallback_gpuid,...
-                          'apiver',apt.docker_api_version(), ...
                           varargin{:}) ;  % key-value pairs in varagin will override ones specified here
     
       % Wrap for ssh'ing into a remote docker host, if needed

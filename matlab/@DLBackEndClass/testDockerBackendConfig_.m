@@ -48,13 +48,13 @@ function testDockerBackendConfig_(obj, labeler)
 
   % In this conditional we assume the apiver numbering scheme continues
   % like '1.39', '1.40', ... 
-  if ~(str2double(clientapiver)>=str2double(apt.docker_api_version()))          
-    obj.testText_{end+1,1} = ...
-      sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
-        clientapiver,apt.docker_api_version());
-    labeler.notify('updateBackendTestText');
-    return;
-  end        
+  % if ~(str2double(clientapiver)>=str2double(apt.docker_api_version()))          
+  %   obj.testText_{end+1,1} = ...
+  %     sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
+  %       clientapiver,apt.docker_api_version());
+  %   labeler.notify('updateBackendTestText');
+  %   return;
+  % end        
   succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
   obj.testText_{end+1,1} = succstr; 
   labeler.notify('updateBackendTestText');      

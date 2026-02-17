@@ -1,2 +1,3 @@
 function result = dockercmd()
-result = dockercmd_from_apiver(apt.docker_api_version()) ;
+% result = dockercmd_from_apiver(apt.docker_api_version()) ;
+result = 'docker' ;

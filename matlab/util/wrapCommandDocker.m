@@ -8,7 +8,7 @@ function result = wrapCommandDocker(baseCommand, varargin)
   assert(baseCommand.tfDoesMatchLocale(apt.PathLocale.wsl), 'baseCommand must have WSL locale');
 
   % Parse keyword args
-  [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,tty,shmsize,apiver] = ...
+  [containerName,bindpath,dockerimg,isgpu,gpuid,tfDetach,tty,shmsize] = ...
     myparse(varargin,...
             'containername','apt-docker-container',...
             'bindpath',{},... % cell array of MetaPath objects, containing paths on local filesystem that must be mounted/bound within container
@@ -17,8 +17,7 @@ function result = wrapCommandDocker(baseCommand, varargin)
             'gpuid',0,... % used if isgpu
             'detach',true, ...
             'tty',false,...
-            'shmsize',[], ... optional
-            'apiver','1.40') ;
+            'shmsize',[]) ;
 
   % Check mandatory keyword args
   if isempty(dockerimg) ,
@@ -73,7 +72,7 @@ function result = wrapCommandDocker(baseCommand, varargin)
   homeDirWslPath = nativeHomeDirPath.asWsl();
   user = get_user_name() ;
   
-  dockercmd = dockercmd_from_apiver(apiver) ;
+  dockercmd = apt.dockercmd() ;
 
   if tfDetach,
     detachstr = '-d';

@@ -448,7 +448,7 @@ classdef (Abstract) LabelTracker < handle
       if ~exist('tci', 'var') || isempty(tci)
         % Use default network types
         if lObj.maIsMA
-          tci = TrackerCreateInfo('DeepTracker', DLNetType.multi_mdn_joint_torch, DLNetMode.multiAnimalBU);
+          tci = TrackerCreateInfo('DeepTrackerBottomUp', DLNetType.multi_mdn_joint_torch, DLNetMode.multiAnimalBU);
         else
           tci = TrackerCreateInfo('DeepTracker', DLNetType.mdn_joint_fpn, DLNetMode.singleAnimal);
         end

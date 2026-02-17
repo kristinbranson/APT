@@ -41,7 +41,8 @@ classdef AWSec2 < handle
     remoteMovieCacheDir = apt.MetaPath('/home/ubuntu/movies', apt.PathLocale.remote, apt.FileRole.movie)
     remoteAPTSourceRootDir = apt.MetaPath('/home/ubuntu/APT', apt.PathLocale.remote, apt.FileRole.source)
     remoteTorchHomeDir = apt.MetaPath('/home/ubuntu/torch', apt.PathLocale.remote, apt.FileRole.torch)
-    instanceType = 'p3.2xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
+    instanceType = 'g6e.4xlarge'  % the AWS EC2 machine instance type to use when creating a new instance
+    secGrp = 'apt_dl'
   end
   
   properties
@@ -772,7 +773,7 @@ classdef AWSec2 < handle
       
       %script = '/home/ubuntu/APT/matlab/misc/fileexists.sh';
       %cmdremote = sprintf('%s %s',script,f);
-      command3 = apt.ShellCommand({'/usr/bin/test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
+      command3 = apt.ShellCommand({'test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
       [~,res] = obj.runBatchCommandOutsideContainer(command3,'failbehavior','err');  % will handle WSL->remote file path substitution
       tf = strcmp(strtrim(res),'0') ;      
     end
@@ -783,7 +784,7 @@ classdef AWSec2 < handle
       
       %script = '/home/ubuntu/APT/matlab/misc/fileexistsnonempty.sh';
       %cmdremote = sprintf('%s %s',script,f);
-      command4 = apt.ShellCommand({'/usr/bin/test', '-s', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
+      command4 = apt.ShellCommand({'test', '-s', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
       [~,res] = obj.runBatchCommandOutsideContainer(command4,'failbehavior','err');  % will handle WSL->remote file path substitution
       tf = strcmp(strtrim(res),'0') ;      
     end
@@ -806,7 +807,7 @@ classdef AWSec2 < handle
       assert(isa(wslFilePath, 'apt.MetaPath'), 'wslFilePath must be an apt.MetaPath');
       
       % First check if the file exists
-      command6 = apt.ShellCommand({'/usr/bin/test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
+      command6 = apt.ShellCommand({'test', '-e', wslFilePath, ';', 'echo', '$?'}, apt.PathLocale.wsl, apt.Platform.posix);
       [st,res] = obj.runBatchCommandOutsideContainer(command6, 'failbehavior', 'silent', varargin{:}) ;
       if st==0 ,
         % Command succeeded in determining whether the file exists
@@ -1105,12 +1106,16 @@ classdef AWSec2 < handle
                 'dryrun',false);
       date_and_time_string = char(datetime('now','TimeZone','local','Format','yyyy-MM-dd-HH-mm-ss')) ;
       name = sprintf('apt-to-the-porpoise-%s', date_and_time_string) ;
-      tag_specifications = sprintf('ResourceType=instance,Tags=[{Key=Name,Value=%s}]', name) ;
-      block_device_mapping = '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":800,"DeleteOnTermination":true,"VolumeType":"gp3"}}]' ;
-      
+      % tag_specifications =
+      % sprintf('ResourceType=instance,Tags=[{Key=Name,Value=%s}]', name) ;  
+      % % above not working as of 2025-12-16 (?)
+      tag_specifications = sprintf('[{"ResourceType":"instance","Tags":[{"Key":"Name","Value":"%s"}]}]', name) ;
+      escaped_tag_specifications = escape_string_for_bash(tag_specifications) ;
+      block_device_mapping = '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":800,"DeleteOnTermination":true,"VolumeType":"gp3"}}]' ;      
+      escaped_block_device_mapping = escape_string_for_bash(block_device_mapping) ;
       tokens = {'aws', 'ec2', 'run-instances', '--image-id', ami, '--count', '1', ...
-                '--instance-type', instType, '--security-groups', secGrp, ...
-                '--tag-specifications', tag_specifications, '--block-device-mappings', block_device_mapping} ;
+                '--instance-type', instType, '--security-groups', AWSec2.secGrp, ...
+                '--tag-specifications', escaped_tag_specifications, '--block-device-mappings', escaped_block_device_mapping} ;
       if dryrun
         tokens{end+1} = '--dry-run' ;
       end
