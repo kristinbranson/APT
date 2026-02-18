@@ -55,6 +55,10 @@ classdef (Abstract) LabelTracker < handle
     % return cellstr, (deep) nets used by this tracker
     v = getNetsUsed(obj)
     tci = trackerCreateInfo(obj)
+    % Apply trained tracker to the specified frames.
+    track(obj, varargin)
+    % Track a specific list of frames, e.g. for GT performance evaluation.
+    trackList(obj, varargin)
   end
   
   methods
@@ -167,20 +171,6 @@ classdef (Abstract) LabelTracker < handle
     
     function tf = hasBeenTrained(obj)  %#ok<STOUT>
       %
-    end
-    
-    function track(obj,tblMFT,varargin)
-      % Apply trained tracker to the specified frames.
-      % 
-      % tblMFT: MFTable with cols MFTable.FLDSID
-      %
-      %
-      % DEPRECATED Legacy/Single-target API:
-      %   track(obj,iMovs,frms,...)
-      %
-      % iMovsSgned: [M] indices into .lObj.movieFilesAll to track; negative
-      %   indices are into .lObj.movieFilesAllGT.
-      % frms: [M] cell array. frms{i} is a vector of frames to track for iMovs(i).
     end
     
     function [tfhaspred,xy,tfocc] = getTrackingResultsCurrFrm(obj)
