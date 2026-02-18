@@ -1,1 +1,0 @@
-stdFtrs1(single(rand(5,5)));
