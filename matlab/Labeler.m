@@ -12543,77 +12543,6 @@ classdef Labeler < handle
       end
     end
     
-    function trackAndExportGUI(obj,mftset,varargin)
-      % Track one movie at a time, exporting results to .trk files and 
-      % clearing data in between
-      %
-      % mftset: scalar MFTSet
-
-      obj.pushBusyStatus('Tracking...');
-      cleaner = onCleanup(@()(obj.popBusyStatus())) ;
-
-      if isempty(mftset) ,
-        mftset = obj.getTrackModeMFTSet() ;
-      end
-
-      startTime = tic;
-      
-      [trackArgs,rawtrkname] = myparse(varargin,...
-        'trackArgs',{},...
-        'rawtrkname',[]...
-        );
-      
-      tObj = obj.tracker;
-      if isempty(tObj)
-        error('Labeler:track','No tracker set.');
-      end
-      if ~strcmp(tObj.algorithmName,'cpr')
-        % DeepTrackers track in bg and already export to trk
-        error('Only CPR tracking supported.');
-      end
-
-      tblMFT = mftset.getMFTable(obj);
-      
-      iMovsUn = unique(tblMFT.mov);      
-      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawnameGUI(iMovsUn,[],...
-        rawtrkname,{},'noUI',true);
-      if ~tfok
-        return;
-      end
-      
-      nMov = numel(iMovsUn);
-      nVw = obj.nview;
-      szassert(trkfiles,[nMov nVw]);
-      if obj.isMultiView
-        moviestr = 'movieset';
-      else
-        moviestr = 'movie';
-      end
-      fprintf('Preprocessing time in trackAndExport: %f\n',toc(startTime)); startTime = tic;
-      for i=1:nMov
-        iMov = iMovsUn(i);
-        fprintf('Tracking %s %d (%d/%d) -> %s\n',moviestr,double(iMov),i,...
-          nMov,trkfiles{i});
-        
-        tfMov = tblMFT.mov==iMov;
-        tblMFTmov = tblMFT(tfMov,:);
-        tObj.track(tblMFTmov,trackArgs{:});
-        fprintf('Tracking time: %f\n',toc(startTime)); startTime = tic;
-        trkFile = tObj.getTrackingResults(iMov);
-        szassert(trkFile,[1 nVw]);
-        for iVw=1:nVw
-          trkFile{iVw}.save(trkfiles{i,iVw});
-          fprintf('...saved: %s\n',trkfiles{i,iVw});
-          fprintf('Save time: %f\n',toc(startTime)); startTime = tic;
-        end
-        tObj.clearTrackingResults();
-        fprintf('Time to clear tracking results: %f\n',toc(startTime)); startTime = tic;
-        obj.preProcInitData();
-        obj.ppdbInit(); % putting this here just b/c the above line, quite possibly unnec
-        fprintf('Time to reinitialize data: %f\n',toc(startTime)); startTime = tic;
-      end
-    end  % function
-    
     function trackExportResultsGUI(obj,iMovs,varargin)
       % Export tracking results to trk files.
       %
@@ -12666,7 +12595,7 @@ classdef Labeler < handle
             moviestr,MFTable.formMultiMovieID(movfiles(iMv,:)));
         end
       end
-    end
+    end  % function
         
 %     function trackCrossValidate(obj,varargin)
 %       % Run k-fold crossvalidation. Results stored in .xvResults
@@ -16418,96 +16347,39 @@ classdef Labeler < handle
       obj.trxFilesAllGT = trxFilesAllGTNew ;      
     end  % function
 
-    function trackBatch(obj, varargin)
-      % Batch Tracking 
-      %
-      % trackBatch('lObj',lObj,'jsonfile',jsonfile)
-      % With APT open, track multiple videos (that do not have to be part of the 
-      % current project) using the currently selected tracker.
-      % Example json files are in <APT>/examples/totrack_example*.json.
-      %
-      % trackBatch('lblfile',lblfile,'net','cpr','movfiles',movfiles,...
-      %  'trkfiles',trkfiles)
-      % Track a set of movies with the CPR tracker contained in a saved project
-      % file (.lbl file).
-      %
-      % trackBatch('lblfile',lblfile,'net','cpr','movfiles',movfiles,...
-      %  'trxfiles',trxfiles,'trkfiles',trkfiles)
-      % Optionally specify trxfiles for each movie to be tracked.
+    function trackBatch(obj, toTrackRaw, varargin)
+      % Batch Tracking: Track the movies specifies by toTrackRaw.
+      % toTrackRaw seems to be essentially a struct that contains sufficient
+      % information to construct a ToTrackInfo object from it.
     
-      [jsonfile,toTrack,track_type,loargs] = ...
+      % Parse optional arguments
+      [track_type, leftoverArgs] = ...
         myparse_nocheck(varargin,...
-                        'jsonfile','',...
-                        'toTrack',[],...
-                        'track_type','track') ;
+                        'track_type','track') ;      
+
+      % Check arguments
+      assert(~isempty(toTrackRaw));
+      assert(tfIsTrackType(track_type), 'track_type not valid') ;
       
-      % tfAPTOpen = ~isempty(lObj);
-      % assert(tfAPTOpen,'Headless tracking not implemented');
+      % Make a ToTrackInfo object from toTrackRaw
+      toTrack = tidyToTrackStructForBatchTracking(toTrackRaw) ;
+      totrackinfo = ...
+        ToTrackInfo('movfiles',toTrack.movfiles,...
+                    'trxfiles',toTrack.trxfiles,...
+                    'trkfiles',toTrack.trkfiles,...
+                    'views',1:obj.nview,...
+                    'stages',1:obj.tracker.getNumStages(),...
+                    'croprois',toTrack.cropRois,...
+                    'calibrationfiles',calibrationfiles,...
+                    'frm0',f0s,...
+                    'frm1',f1s,...
+                    'trxids',toTrack.targets);
       
-      if ~isempty(jsonfile),
-        % read what to track from json file
-        toTrack = parseToTrackJSON(jsonfile,obj);
-      end
-      assert(~isempty(toTrack));
-      
-      % nmov = size(toTrack.movfiles,1);
-      
-      if iscell(toTrack.f0s),
-        f0s = ones(size(toTrack.f0s));
-        idx = ~cellfun(@isempty,toTrack.f0s);
-        f0s(idx) = cell2mat(toTrack.f0s(idx));
-      else
-        f0s = toTrack.f0s;
-      end
-      if iscell(toTrack.f1s),
-        f1s = inf(size(toTrack.f1s));
-        idx = ~cellfun(@isempty,toTrack.f1s);
-        f1s(idx) = cell2mat(toTrack.f1s(idx));
-      else
-        f1s = toTrack.f1s;
-      end
-      % if size(toTrack.cropRois,2) > 1,
-      %   cropRois = cell(size(toTrack.cropRois,1),1);
-      %   for i = 1:size(toTrack.cropRois,1),
-      %     cropRois{i} = cat(1,toTrack.cropRois{i,:});
-      %   end
-      % else
-        cropRois = toTrack.cropRois;
-      % end
-      if ~isfield(toTrack,'targets')
-        toTrack.targets = {};
-      elseif ~iscell(toTrack.targets) && size(toTrack.movfiles,1) == 1,
-        toTrack.targets = {toTrack.targets};
-      end
-      
-      if ~isfield(toTrack,'trxfiles')
-        toTrack.trxfiles = {};
-      end
-      
-      if ~isfield(toTrack,'calibrationfiles') || isempty(toTrack.calibrationfiles),
-        calibrationfiles = {};
-      elseif ischar(toTrack.calibrationfiles),
-        calibrationfiles = {toTrack.calibrationfiles};
-      else
-        calibrationfiles = toTrack.calibrationfiles;
-      end
-      assert(iscell(calibrationfiles));
-      
-      totrackinfo = ToTrackInfo('movfiles',toTrack.movfiles,...
-        'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
-        'views',1:obj.nview,...
-        'stages',1:obj.tracker.getNumStages(),'croprois',cropRois,...
-        'calibrationfiles',calibrationfiles,...
-        'frm0',f0s,'frm1',f1s,...
-        'trxids',toTrack.targets);
-      % to do: figure out how to handle linking option
-      
-      % call tracker.track to do the real tracking
-      obj.tracker.track('totrackinfo',totrackinfo,'track_type',track_type,'isexternal',true,loargs{:});
-      
-      %   lObj.tracker.track(toTrack.movfiles,'trxfiles',toTrack.trxfiles,'trkfiles',toTrack.trkfiles,...
-      %     'cropRois',cropRois,'calibrationfiles',toTrack.calibrationfiles,...
-      %     'targets',toTrack.targets,'f0',f0s,'f1',f1s); %,'track_id',lObj.track_id);
+      % Call obj.tracker.track to do the real tracking
+      obj.tracker.track('totrackinfo',totrackinfo, ...
+                        'track_type',track_type, ...
+                        'isexternal',true, ...
+                        leftoverArgs{:});
     end  % function
 
     function [didLaunchSucceed, instanceID] = launchNewAWSInstance(obj)

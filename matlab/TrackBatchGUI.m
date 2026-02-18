@@ -585,7 +585,7 @@ classdef TrackBatchGUI < handle
               end
             end
           end
-          obj.lObj.trackBatch('toTrack',obj.toTrack,'track_type',tag);
+          obj.lObj.trackBatch(obj.toTrack,'track_type',tag);
           delete(obj.gdata.fig);
         otherwise
           error('Callback for %s not implemented',tag);

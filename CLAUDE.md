@@ -69,3 +69,7 @@ test_apt('test_function_name') % Run single test for debugging
 - Classes should implement a char() method for producing a char array ("string") version of the object.
 - I sometimes use the term "charray" for "char array".  OK to use this in comments, but just use "char" in variable names.
 - When converting a custom class to a char array, write it as "char(thing)", not thing.char()
+
+## Git conventions
+- Always prepend the commit message with "<branch name>: ".  This
+  makes it much easier to understand complicated git histories.

@@ -5563,7 +5563,7 @@ classdef LabelerController < handle
       if ~dostore,
         return;
       end
-      labeler.trackBatch('toTrack',toTrackOut);
+      labeler.trackBatch(toTrackOut);
     end
 
 
