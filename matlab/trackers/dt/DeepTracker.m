@@ -590,7 +590,6 @@ classdef DeepTracker < LabelTracker
       end 
       
       % 20190214
-      % (Comment is basically C+P from CPRLabelTracker)
       % IMPORTANT philisophical note. We update/modernize .sPrmAll here,
       % but any changes should not invalidate previous trained trackers.
       % Parameters may be renamed, new parameters added, etc; but eg any 

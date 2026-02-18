@@ -377,7 +377,7 @@ classdef APTParameters
     function v = all2PreProcParams(sPrmAll)
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = CPRParam.new2old(sPrmPPandCPR,5,1); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = cprParamNew2Old(sPrmPPandCPR,5,1); % we won't use npoints or nviews
       v = sPrmPPandCPRold.PreProc;
     end
     
@@ -422,7 +422,7 @@ classdef APTParameters
       end
       sPrmPPandCPR = sPrmAll;
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      [sPrmPPandCPRold] = CPRParam.n/ew2old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
+      [sPrmPPandCPRold] = cprParamNew2Old(sPrmPPandCPR,nPhysPoints,nviews); % we won't use npoints or nviews
       v = rmfield(sPrmPPandCPRold,'PreProc');
     end
 
@@ -431,7 +431,7 @@ classdef APTParameters
     % set old format preproc parameters
     function sPrmAll = setPreProcParams(sPrmAll,sPrmPPOld)
       % convert old to new format
-      sPrmPPNew = CPRParam.old2newPPOnly(sPrmPPOld);
+      sPrmPPNew = cprParamOld2NewPPOnly(sPrmPPOld);
       sPrmAll = structoverlay(sPrmAll,sPrmPPNew);
     end
 
@@ -464,7 +464,7 @@ classdef APTParameters
     
     % set old cpr parameters
     function sPrmAll = setCPRParams(sPrmAll,sPrmCPROld)
-      [sPrmCPR,sPrmAll.ROOT.Track.ChunkSize] = CPRParam.old2newCPROnly(sPrmCPROld);
+      [sPrmCPR,sPrmAll.ROOT.Track.ChunkSize] = cprParamOld2NewCPROnly(sPrmCPROld);
       sPrmAll.ROOT.CPR = sPrmCPR;
     end
     
@@ -819,7 +819,7 @@ classdef APTParameters
       sPrm0 = tPrm0.structize();
       % Use nan for npts, nviews; default parameters do not know about any
       % model
-      sPrm0 = CPRParam.new2old(sPrm0,nan,nan);
+      sPrm0 = cprParamNew2Old(sPrm0,nan,nan);
     end
 
     function [s,deepnets] = paramFileSpecs()

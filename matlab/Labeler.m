@@ -8945,26 +8945,8 @@ classdef Labeler < handle
             '%d rows with shape out of bounds of target ROI. These rows will be discarded.',nrm);
           tblMF(tfRmrow,:) = [];
         end
-      end
-                    
-%       pRoi = nan(size(p));
-%       roi = nan(nrow,4*obj.nview);
-%       for i=1:nrow
-%         xy = Shape.vec2xy(p(i,:));
-%         xyTrx = Shape.vec2xy(pTrx(i,:));
-%          [roiCurr,tfOOBview,xyROIcurr] = ...
-%            Shape.xyAndTrx2ROI(xy,xyTrx,nphyspts,roiRadius);
-%         if rmOOB && any(tfOOBview)
-%           warningNoTrace('CPRLabelTracker:oob',...
-%             'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
-%             tblMF.mov(i),tblMF.frm(i),tblMF.iTgt(i));
-%           tfRmRow(i) = true;
-%         else
-%           pRoi(i,:) = Shape.xy2vec(xyROIcurr);
-%           roi(i,:) = roiCurr;
-%         end
-%       end
-    end
+      end                    
+    end  % function
     
     function tblMF = labelMFTableAddROICrop(obj,tblMF,varargin)
       % Add .pRoi and .roi to tblMF using crop info
@@ -9012,7 +8994,7 @@ classdef Labeler < handle
           tfOOBview(:) = false;
         end
         if any(tfOOBview)
-          warningNoTrace('CPRLabelTracker:oob',...
+          warningNoTrace('Labeler:oob',...
             'Movie(set) %d, frame %d, target %d: shape out of bounds of target ROI. Not including row.',...
             mIdx,tblMF.frm(i),tblMF.iTgt(i));
           tfRmRow(i) = true;
@@ -11732,7 +11714,7 @@ classdef Labeler < handle
       sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack'); 
       
       [sPrmPPandCPRold,trackNFramesSmall,trackNFramesLarge,...
-        trackNFramesNear] = CPRParam.new2old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
+        trackNFramesNear] = cprParamNew2Old(sPrmPPandCPR,obj.nPhysPoints,obj.nview);
       
       ppPrms = sPrmPPandCPRold.PreProc;
       sPrmCPRold = rmfield(sPrmPPandCPRold,'PreProc');
@@ -12784,13 +12766,7 @@ classdef Labeler < handle
         lposTrk = [];
         occTrk = [];
       else
-        tfcpr = isa(tObj,'CPRLabelTracker');
-        if tfcpr
-          [tfhaspred,xy] = tObj.getTrackingResultsCurrFrm(); % [nPtsx2xnTgt]
-          occ = false(obj.nLabelPoints,obj.nTargets);
-        else
-          [tfhaspred,xy,occ] = tObj.getTrackingResultsCurrFrm();
-        end
+        [tfhaspred,xy,occ] = tObj.getTrackingResultsCurrFrm();
         tf = tfhaspred(iTgt);
         szassert(xy,[obj.nLabelPoints 2 obj.nTargets]);        
         lposTrk = xy(:,:,iTgt);
@@ -12977,8 +12953,7 @@ classdef Labeler < handle
       
       prmCpr = [];
       for iTrk=1:numel(s.trackerData)
-        if     strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') ...
-            && ~isempty(s.trackerData{iTrk})
+        if strcmp(s.trackerClass{iTrk}{1},'CPRLabelTracker') && ~isempty(s.trackerData{iTrk})
           prmCpr = s.trackerData{iTrk}.sPrm;
           break;
         end
