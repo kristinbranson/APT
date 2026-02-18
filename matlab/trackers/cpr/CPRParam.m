@@ -1,4 +1,6 @@
 classdef CPRParam
+  % Note that this class is 
+  % 
   % CPR Parameter notes 20170502
   % 
   % CPRLabelTracker (CPRLT) owns the ultimately-used parameter structure 
@@ -28,17 +30,6 @@ classdef CPRParam
   % this way the old-style parameters will be gradually phased out.
   
   methods (Static)
-    
-    function [sPrmCPR,varargout] = all2cpr(sPrmAll,nPhysPoints,nview)
-      sPrmPPandCPR = sPrmAll;
-      sPrmPPandCPR.ROOT = rmfield(sPrmPPandCPR.ROOT,'DeepTrack');
-      if nargout > 1,
-        [sPrmPPandCPRold,varargout{:}] = CPRParam.new2old(sPrmPPandCPR,nPhysPoints,nview);
-      else
-        [sPrmPPandCPRold] = CPRParam.new2old(sPrmPPandCPR,nPhysPoints,nview);
-      end
-      sPrmCPR = rmfield(sPrmPPandCPRold,'PreProc');
-    end
     
     function [sOld,trkNFrmsSm,trkNFrmsLg,trkNFrmsNear] = ...
         new2old(sNew,nphyspts,nviews)
@@ -317,33 +308,6 @@ classdef CPRParam
 %       sNew.ROOT.CPR.Prune.DensitySigma = sOld.Prune.maxdensity_sigma;
 %       sNew.ROOT.CPR.Prune.PositionLambdaFactor = sOld.Prune.poslambdafac;
 %     end
-    
-    function [sNew,npts,nviews] = old2new(sOld,lObj)
-      % Convert old-style CPR parameters to APT-style parameters.
-      %
-      % lObj: Labeler instance. Need this b/c the new parameters include
-      % general tracking-related parameters that are set in lObj.
-      
-      if nargin < 2,
-        lObj = [];
-      end
-      
-      npts = sOld.Model.nfids;
-      assert(sOld.Model.d==2);
-      assert(sOld.Model.D==sOld.Model.d*sOld.Model.nfids);
-      nviews = sOld.Model.nviews;      
-      
-      sNew = CPRParam.old2newPPOnly(sOld.PreProc);
-      sNew.ROOT.Track.ChunkSize = sOld.TestInit.movChunkSize;
-      if nargin > 1 && ~isempty(lObj),
-        sNew.ROOT.Track.NFramesSmall = lObj.trackNFramesSmall;
-        sNew.ROOT.Track.NFramesLarge = lObj.trackNFramesLarge;
-        sNew.ROOT.Track.NFramesNeighborhood = lObj.trackNFramesNear;
-      end
-      sNew.ROOT.CPR = CPRParam.old2newCPROnly(sOld);
-      
-      sNew = APTParameters.enforceConsistency(sNew);
-    end
     
     function [sNew] = old2newPPOnly(sOld)
       
