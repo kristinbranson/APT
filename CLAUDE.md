@@ -73,3 +73,5 @@ test_apt('test_function_name') % Run single test for debugging
 ## Git conventions
 - Always prepend the commit message with "<branch name>: ".  This
   makes it much easier to understand complicated git histories.
+- Don't add "Co-Authored-By: Claude" line to commit messages.
+
