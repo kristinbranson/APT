@@ -829,7 +829,7 @@ classdef APTParameters
 
       s.preprocess = 'params_preprocess.yaml';
       s.track = 'params_track.yaml';
-      s.cpr = fullfile('trackers','cpr','params_cpr.yaml');
+      s.cpr = fullfile('trackers','params_cpr.yaml');
       s.deeptrack = fullfile('trackers','dt','params_deeptrack.yaml');
       s.ma = fullfile('trackers','dt','params_ma.yaml');
       s.postprocess = 'params_postprocess.yaml';
