@@ -7642,4 +7642,14 @@ classdef LabelerController < handle
 
   end  % methods
 
+  methods
+    function result = mainFigurePixelPosition(obj)
+      % Return the pixel position of the main figure as a [x y w h] vector.
+      oldUnits = obj.mainFigure_.Units;
+      obj.mainFigure_.Units = 'pixels';
+      result = obj.mainFigure_.Position;
+      obj.mainFigure_.Units = oldUnits;
+    end  % function
+  end  % methods
+
 end  % classdef
