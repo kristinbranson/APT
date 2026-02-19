@@ -2415,8 +2415,8 @@ classdef DeepTracker < LabelTracker
                                        obj.lObj,...
                                        'sPrmAll',sPrmAll,...
                                        'fortracking',true);
-      slbl = Lbl.compressStrippedLbl(s);
-      [jse] = Lbl.jsonifyStrippedLbl(slbl);
+      slbl = compressStrippedLbl(s);
+      [jse] = jsonifyStrippedLbl(slbl);
       jsen = sprintf('%s\n', jse) ;
       obj.backend.writeStringToCacheFile(configFilePathNativeAsChar, jsen) ;  % throws if unable to write file
     end  % function

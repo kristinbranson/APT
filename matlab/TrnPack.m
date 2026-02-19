@@ -298,8 +298,8 @@ classdef TrnPack
       tObj.setAllParams(lObj.trackGetTrainingParams()); % does not set skel, flipLMEdges
 
       slbl_orig = tObj.trnCreateStrippedLbl();
-      slbl = Lbl.compressStrippedLbl(slbl_orig,'ma',true);
-      [~,jslbl] = Lbl.jsonifyStrippedLbl(slbl);
+      slbl = compressStrippedLbl(slbl_orig,'ma',true);
+      [~,jslbl] = jsonifyStrippedLbl(slbl);
 
       % Commenting this out b/c the the predicate is always false.  
       % -- ALT, 2025-10-08
