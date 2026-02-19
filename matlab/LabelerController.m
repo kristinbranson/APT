@@ -2101,10 +2101,10 @@ classdef LabelerController < handle
               samcmp = labeler.movieShiftArrowNavModeThreshCmp;
               [tffound,f] = sam.seekFrame(labeler,-1,samth,samcmp);
               if tffound
-                labeler.setFrameProtectedGUI(f);
+                obj.setFrameProtectedGUI(f);
               end
             else
-              labeler.frameDownGUI(tfCtrl);
+              obj.frameDownGUI(tfCtrl);
             end
             tfKPused = true;
           case 'rightarrow'
@@ -2114,10 +2114,10 @@ classdef LabelerController < handle
               samcmp = labeler.movieShiftArrowNavModeThreshCmp;
               [tffound,f] = sam.seekFrame(labeler,1,samth,samcmp);
               if tffound
-                labeler.setFrameProtectedGUI(f);
+                obj.setFrameProtectedGUI(f);
               end
             else
-              labeler.frameUpGUI(tfCtrl);
+              obj.frameUpGUI(tfCtrl);
             end
             tfKPused = true;
         end
@@ -4247,12 +4247,12 @@ classdef LabelerController < handle
       cmod = obj.mainFigure_.CurrentModifier;
       if ~isempty(cmod) && any(strcmp(cmod{1},{'control' 'shift'}))
         if f>labeler.currFrame
-          tfSetOccurred = labeler.frameUpGUI(true);
+          tfSetOccurred = obj.frameUpGUI(true);
         else
-          tfSetOccurred = labeler.frameDownGUI(true);
+          tfSetOccurred = obj.frameDownGUI(true);
         end
       else
-        tfSetOccurred = labeler.setFrameProtectedGUI(f);
+        tfSetOccurred = obj.setFrameProtectedGUI(f);
       end
 
       if ~tfSetOccurred
@@ -6935,6 +6935,54 @@ classdef LabelerController < handle
           toTrack.detectfiles = strrep(trkfiles,'.trk','_tracklet.trk');
         end
       end
+    end  % function
+
+    function tfSetOccurred = setFrameProtectedGUI(obj, frm, varargin)
+      % Protected set against frm being out-of-bounds for current target.
+
+      labeler = obj.labeler_;
+      if labeler.hasTrx
+        iTgt = labeler.currTarget;
+        if ~labeler.frm2trx(frm, iTgt)
+          tfSetOccurred = false;
+          return;
+        end
+      end
+
+      tfSetOccurred = true;
+      labeler.setFrameGUI(frm, varargin{:});
+    end  % function
+
+    function tfSetOccurred = frameUpDFGUI(obj, df)
+      labeler = obj.labeler_;
+      f = min(labeler.currFrame+df, labeler.nframes);
+      tfSetOccurred = obj.setFrameProtectedGUI(f);
+    end  % function
+
+    function tfSetOccurred = frameDownDFGUI(obj, df)
+      labeler = obj.labeler_;
+      f = max(labeler.currFrame-df, 1);
+      tfSetOccurred = obj.setFrameProtectedGUI(f);
+    end  % function
+
+    function tfSetOccurred = frameUpGUI(obj, tfBigstep)
+      labeler = obj.labeler_;
+      if tfBigstep
+        df = labeler.movieFrameStepBig;
+      else
+        df = 1;
+      end
+      tfSetOccurred = obj.frameUpDFGUI(df);
+    end  % function
+
+    function tfSetOccurred = frameDownGUI(obj, tfBigstep)
+      labeler = obj.labeler_;
+      if tfBigstep
+        df = labeler.movieFrameStepBig;
+      else
+        df = 1;
+      end
+      tfSetOccurred = obj.frameDownDFGUI(df);
     end  % function
 
     function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes_(obj)

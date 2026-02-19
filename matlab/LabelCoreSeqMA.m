@@ -550,9 +550,9 @@ classdef LabelCoreSeqMA < LabelCore
           obj.storeLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'})) && ~tfCtrl
-        lObj.frameUpGUI(tfCtrl);
+        obj.controller.frameUpGUI(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'})) && ~tfCtrl
-        lObj.frameDownGUI(tfCtrl);
+        obj.controller.frameDownGUI(tfCtrl);
       elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)

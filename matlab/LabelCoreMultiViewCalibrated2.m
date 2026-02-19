@@ -617,9 +617,9 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        lObj.frameUpGUI(tfCtrl);
+        obj.controller.frameUpGUI(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        lObj.frameDownGUI(tfCtrl);
+        obj.controller.frameDownGUI(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
         [tfSel,iSel] = obj.projectionPointSelected();
         if tfSel

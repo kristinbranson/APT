@@ -3256,10 +3256,10 @@ classdef Labeler < handle
       s.(macro) = val;
       obj.projMacros = s;
     end
-    
+
     function projMacroSetGUI(obj)
       % Set any/all current macros with input dialog
-      
+
       s = obj.projMacros;
       macros = fieldnames(s);
       macrosdisp = cellfun(@(x)['$' x],macros,'uni',0);
@@ -3278,9 +3278,9 @@ classdef Labeler < handle
               macrosdisp{i},ME.message);
           end
         end
-      end     
+      end
     end  % function
-    
+
     function s = projMacrosGetWithAuto(obj)
       % append auto-generated macros to .projMacros
       %
@@ -12968,22 +12968,7 @@ classdef Labeler < handle
       end
       obj.setFrameAndTargetGUI(frm,iTgt);
     end
-  
-    function tfSetOccurred = setFrameProtectedGUI(obj,frm,varargin)
-      % Protected set against frm being out-of-bounds for current target.
-      
-      if obj.hasTrx 
-        iTgt = obj.currTarget;
-        if ~obj.frm2trx(frm,iTgt)
-          tfSetOccurred = false;
-          return;
-        end
-      end
-      
-      tfSetOccurred = true;
-      obj.setFrameGUI(frm,varargin{:});      
-    end
-    
+
     function setFrameGUI(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
       %
@@ -13170,38 +13155,10 @@ classdef Labeler < handle
         obj.updateTrxTable();
         obj.updateShowTrx();
       end
-    end  % function setFrameAndTargetGUI    
-    
-    function tfSetOccurred = frameUpDFGUI(obj,df)
-      f = min(obj.currFrame+df,obj.nframes);
-      tfSetOccurred = obj.setFrameProtectedGUI(f); 
-    end
-    
-    function tfSetOccurred = frameDownDFGUI(obj,df)
-      f = max(obj.currFrame-df,1);
-      tfSetOccurred = obj.setFrameProtectedGUI(f);
-    end
-    
-    function tfSetOccurred = frameUpGUI(obj,tfBigstep)
-      if tfBigstep
-        df = obj.movieFrameStepBig;
-      else
-        df = 1;
-      end
-      tfSetOccurred = obj.frameUpDFGUI(df);
-    end
+    end  % function setFrameAndTargetGUI
   end
 
   methods
-    function tfSetOccurred = frameDownGUI(obj,tfBigstep)
-      if tfBigstep
-        df = obj.movieFrameStepBig;
-      else
-        df = 1;
-      end
-      tfSetOccurred = obj.frameDownDFGUI(df);
-    end
-    
 %     function frameUpNextLbled(obj,tfback,varargin)
 %       % call obj.setFrameGUI() on next labeled frame. 
 %       % 
