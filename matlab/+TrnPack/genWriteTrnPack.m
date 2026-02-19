@@ -87,7 +87,7 @@ function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
       jsplit = tblsplit.split(tfmov);
 
       [tf,loc] = ismember(tp(imov).frm,fsplit);
-      split = zeros(size(tp(imov).frm),Labels.CLS_SPLIT);
+      split = zeros(size(tp(imov).frm),Labels.CLS_SPLIT());
       nMissing = nnz(~tf);
       if nMissing>0
         warningNoTrace('Movie %d: %d labeled rows not found in split table. These will be added to split 1.',...
@@ -109,7 +109,7 @@ function [slbl,tp,locg,ntgtstot] = genWriteTrnPack(lObj,dmc,varargin)
     summary(categorical(allsplits(tfsplitrowused)));
   else
     for imov=1:nmov
-      tp(imov).split = ones(size(tp(imov).frm),Labels.CLS_SPLIT);
+      tp(imov).split = ones(size(tp(imov).frm),Labels.CLS_SPLIT());
     end
   end
 
