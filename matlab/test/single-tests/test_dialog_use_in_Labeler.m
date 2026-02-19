@@ -9,13 +9,13 @@ function test_dialog_use_in_Labeler()
   % Check for calls to questdlg()
   does_contain_questdlg_from_line_index = cellfun(@(line)(contains(line, 'questdlg(')), labeler_source_lines) ;
   questdlg_line_count = sum(does_contain_questdlg_from_line_index) ;
-  if questdlg_line_count > 5
-    error('At most 5 calls to questdlg() are allowed in Labeler.m, but it looks like there are %d now', questdlg_line_count) ;
+  if questdlg_line_count > 4
+    error('At most 4 calls to questdlg() are allowed in Labeler.m, but it looks like there are %d now', questdlg_line_count) ;
   end
   % Check for calls to warndlg()
   does_contain_warndlg_from_line_index = cellfun(@(line)(contains(line, 'warndlg(')), labeler_source_lines) ;
   warndlg_line_count = sum(does_contain_warndlg_from_line_index) ;
-  if warndlg_line_count > 2
-    error('At most 2 calls to warndlg() are allowed in Labeler.m, but it looks like there are %d now', warndlg_line_count) ;
+  if warndlg_line_count > 1
+    error('At most 1 calls to warndlg() are allowed in Labeler.m, but it looks like there are %d now', warndlg_line_count) ;
   end
 end  % function

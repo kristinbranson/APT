@@ -4820,19 +4820,19 @@ classdef LabelerController < handle
 
 
     function menu_setup_label_overlay_montage_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;            
+      labeler = obj.labeler_ ;
       labeler.pushBusyStatus('Plotting all labels on one axes to visualize label distribution...');
       oc = onCleanup(@()(labeler.popBusyStatus())) ;
       drawnow;
       if labeler.hasTrx
-        labeler.labelOverlayMontageGUI();
-        labeler.labelOverlayMontageGUI('ctrMeth','trx');
-        labeler.labelOverlayMontageGUI('ctrMeth','trx','rotAlignMeth','trxtheta');
+        obj.labelOverlayMontage_();
+        obj.labelOverlayMontage_('ctrMeth','trx');
+        obj.labelOverlayMontage_('ctrMeth','trx','rotAlignMeth','trxtheta');
         % could also use headtail for centering/alignment but skip for now.
       else % labeler.maIsMA, or SA-non-trx
-        labeler.labelOverlayMontageGUI();
+        obj.labelOverlayMontage_();
         if ~labeler.isMultiView
-          labeler.labelOverlayMontageGUI('ctrMeth','centroid');
+          obj.labelOverlayMontage_('ctrMeth','centroid');
           if labeler.maIsMA
             prms = labeler.trackParams;
             if ~isempty(prms)
@@ -4846,16 +4846,16 @@ classdef LabelerController < handle
             tfScale = false;
           end
 %           if tfScale
-%             labeler.labelOverlayMontageGUI('ctrMeth','centroid','scale',true);          
+%             obj.labelOverlayMontage_('ctrMeth','centroid','scale',true);
 %           end
           tfHTdefined = ~isempty(labeler.skelHead) && ~isempty(labeler.skelTail);
           if tfHTdefined
-            labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail');
+            obj.labelOverlayMontage_('ctrMeth','centroid','rotAlignMeth','headtail');
             if tfScale
-              labeler.labelOverlayMontageGUI('ctrMeth','centroid','rotAlignMeth','headtail','scale',true);
+              obj.labelOverlayMontage_('ctrMeth','centroid','rotAlignMeth','headtail','scale',true);
             end
           else
-            labeler.labelOverlayMontageGUI('ctrMeth','centroid','scale',true);
+            obj.labelOverlayMontage_('ctrMeth','centroid','scale',true);
             warningNoTrace('For aligned overlays, define head/tail points in Track>Landmark Paraneters.');
           end
         end
@@ -6791,7 +6791,7 @@ classdef LabelerController < handle
         error('Labeler:track','No tracker set.');
       end
 
-      [tfok,trkfiles] = lObj.resolveTrkfilesVsTrkRawnameGUI(iMovs,trkfiles,...
+      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname_(iMovs,trkfiles,...
         rawtrkname,{});
       if ~tfok
         return;
@@ -6844,7 +6844,7 @@ classdef LabelerController < handle
         iMovs = 1:lObj.nmoviesGTaware;
       end
 
-      [tfok,trkfiles] = lObj.resolveTrkfilesVsTrkRawnameGUI(iMovs,trkfiles,...
+      [tfok,trkfiles] = obj.resolveTrkfilesVsTrkRawname_(iMovs,trkfiles,...
         rawtrkname,{'labels' true});
       if ~tfok
         return;
@@ -6877,7 +6877,7 @@ classdef LabelerController < handle
         lObj.viewCalibrationDataGT = [];
       end
 
-      lObj.viewCalCheckMovSizesGUI();
+      obj.viewCalCheckMovSizes_();
 
       lObj.viewCalProjWide = true;
       lObj.viewCalibrationData = crObj;
@@ -6928,7 +6928,7 @@ classdef LabelerController < handle
       end
 
       rawname = lObj.defaultExportTrkRawname();
-      [tfok,trkfiles] = lObj.getTrkFileNamesForExportGUI(toTrack.movfiles,rawname,'noUI',true);
+      [tfok,trkfiles] = obj.getTrkFileNamesForExport_(toTrack.movfiles,rawname,'noUI',true);
       if tfok,
         toTrack.trkfiles = trkfiles;
         if lObj.maIsMA
@@ -6937,5 +6937,661 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function [tfAllSame,movWidths,movHeights] = viewCalCheckMovSizes_(obj)
+      % Check for consistency of movie sizes in current proj. Throw
+      % warning dialog for each view where sizes differ.
+      %
+      % This considers the raw movie sizes and ignores any cropping.
+      %
+      % tfAllSame: [1 nView] logical. If true, all movies in that view
+      % have the same size. This includes both .movieInfoAll AND
+      % .movieInfoAllGT.
+      % movWidths, movHeights: [nMovSetxnView] arrays
+
+      lObj = obj.labeler_;
+      ifo = cat(1,lObj.movieInfoAll,lObj.movieInfoAllGT);
+      movWidths = cellfun(@(x)x.info.Width,ifo); % raw movie width
+      movHeights = cellfun(@(x)x.info.Height,ifo); % raw movie height
+      nrow = lObj.nmovies + lObj.nmoviesGT;
+      nView = lObj.nview;
+      szassert(movWidths,[nrow nView]);
+      szassert(movHeights,[nrow nView]);
+
+      tfAllSame = true(1,nView);
+      if nrow>0
+        for iVw=1:nView
+          tfAllSame(iVw) = ...
+            all(movWidths(:,iVw)==movWidths(1,iVw)) && ...
+            all(movHeights(:,iVw)==movHeights(1,iVw));
+        end
+        if ~all(tfAllSame)
+          warnstr = 'The movies in this project have varying view/image sizes. This probably doesn''t work well with calibrations. Proceed at your own risk.';
+          warndlg(warnstr,'Image sizes vary','modal');
+        end
+      end
+    end  % function
+
+    function toggleMovieViewBGsubbed_(obj)
+      lObj = obj.labeler_;
+      old = lObj.movieViewBGsubbed;
+      v = ~old;
+      if v
+        ppPrms = lObj.preProcParams;
+        if isempty(ppPrms) || ...
+            isempty(ppPrms.BackSub.BGType) || isempty(ppPrms.BackSub.BGReadFcn)
+          error('Background type and/or background read function are not set in tracking parameters.');
+        end
+      end
+      lObj.movieViewBGsubbed = v;
+      lObj.hlpSetCurrPrevFrameGUI(lObj.currFrame,true);
+      clim(obj.axes_curr,'auto');
+      lObj.notify('didSetMovieViewBGsubbed');
+    end  % function
+
+    function labelMakeLabelMovie_(obj,fname,varargin)
+      % Make a movie of all labeled frames for current movie
+      %
+      % fname: output filename, movie to be created.
+      % optional pvs:
+      % - framerate. defaults to 10.
+
+      lObj = obj.labeler_;
+      [frms2inc,framerate] = myparse(varargin,...
+        'frms2inc','all',... %
+        'framerate',10 ...
+      );
+
+      if ~lObj.hasMovie
+        error('Labeler:noMovie','No movie currently open.');
+      end
+      if exist(fname,'file')>0
+        error('Labeler:movie', ...
+                   'Output movie ''%s'' already exists. For safety reasons, this movie will not be overwritten. Please specify a new output moviename.',...
+                   fname);
+      end
+
+      switch frms2inc
+        case 'all'
+          frms = 1:lObj.nframes;
+        case 'lbled'
+          nTgts = lObj.labelPosLabeledFramesStats();
+          frms = find(nTgts>0);
+          if isempty(frms) ,
+            msgbox('Current movie has no labeled frames.');
+            return;
+          end
+        otherwise
+          assert(false);
+      end
+
+      nFrms = numel(frms);
+
+      ax = obj.axes_curr;
+      axlims = axis(ax);
+      vr = VideoWriter(fname);
+      vr.FrameRate = framerate;
+
+      vr.open();
+      try
+        hTxt = text(230,10,'','parent',obj.axes_curr,'Color','white','fontsize',24);
+        hWB = waitbar(0,'Writing video');
+        for i = 1:nFrms
+          f = frms(i);
+          lObj.setFrameGUI(f);
+          axis(ax,axlims);
+          hTxt.String = sprintf('%04d',f);
+          tmpFrame = getframe(ax);
+          vr.writeVideo(tmpFrame);
+          waitbar(i/nFrms,hWB,sprintf('Wrote frame %d\n',f));
+        end
+      catch ME
+        vr.close();
+        delete(hTxt);
+        ME.rethrow();
+      end
+      vr.close();
+      delete(hTxt);
+      delete(hWB);
+    end  % function
+
+    function [tfok,trkfiles] = resolveTrkfilesVsTrkRawname_(obj,iMovs,...
+        trkfiles,rawname,defaultRawNameArgs,varargin)
+      % Ugly, input arg helper. Methods that export a trkfile must have
+      % either i) the trkfilenames directly supplied, ii) a raw/base
+      % trkname supplied, or iii) nothing supplied.
+      %
+      % If i), check the sizes.
+      % If ii), generate the trkfilenames from the rawname.
+      % If iii), first generate the rawname, then generate the
+      % trkfilenames.
+      %
+      % Cases ii) and iii), are also UI/prompt if there are
+      % existing/conflicting filenames already on disk.
+      %
+      % defaultRawNameArgs: cell of PVs to pass to defaultExportTrkRawname.
+      %
+      % iMovs: vector, indices into .movieFilesAllGTAware
+      %
+      % tfok: scalar, if true then trkfiles is usable; if false then user
+      %   canceled or similar.
+      % trkfiles: [iMovs] cellstr, trkfiles (full paths) to export to
+      %
+      % This call can also throw.
+
+      lObj = obj.labeler_;
+      noUI = myparse(varargin,...
+        'noUI',false);
+
+      PROPS = lObj.gtGetSharedProps();
+
+      movfiles = lObj.(PROPS.MFAF)(iMovs,:);
+      if isempty(trkfiles)
+        if isempty(rawname)
+          rawname = lObj.defaultExportTrkRawname(defaultRawNameArgs{:});
+        end
+        [tfok,trkfiles] = obj.getTrkFileNamesForExport_(movfiles,...
+          rawname,'noUI',noUI);
+        if ~tfok
+          return;
+        end
+      end
+
+      nMov = numel(iMovs);
+      nView = lObj.nview;
+      if size(trkfiles,1)~=nMov
+        error('Labeler:argSize',...
+          'Numbers of movies and trkfiles supplied must be equal.');
+      end
+      if size(trkfiles,2)~=nView
+        error('Labeler:argSize',...
+          'Number of columns in trkfiles (%d) must equal number of views in project (%d).',...
+          size(trkfiles,2),nView);
+      end
+
+      tfok = true;
+    end  % function
+
+    function [tfok,trkfiles] = getTrkFileNamesForExport_(obj,movfiles,...
+        rawname,varargin)
+      % Concretize a raw trkfilename, then check for conflicts etc.
+
+      lObj = obj.labeler_;
+      noUI = myparse(varargin,...
+        'noUI',false);
+
+      sMacro = lObj.baseTrkFileMacros();
+      trkfiles = cellfun(@(x)Labeler.genTrkFileName(rawname,sMacro,x),...
+        movfiles,'uni',0);
+      [tfok,trkfiles] = LabelerController.checkTrkFileNamesExport_(trkfiles,'noUI',noUI);
+    end  % function
+
+    function hFgs = labelOverlayMontage_(obj,varargin)
+      lObj = obj.labeler_;
+      [ctrMeth,rotAlignMeth,roiRadius,roiPadVal,hFig0,...
+        addMarkerSizeSlider,scale] = myparse(varargin,...
+        'ctrMeth','none',... % {'none' 'trx' 'centroid'}; see hlpOverlay...
+        'rotAlignMeth','none',... % Rotational alignment method when ctrMeth is not 'none'. One of {'none','headtail','trxtheta'}.
+        ... % 'trxCtredSizeNorm',false,... True to normalize shapes by trx.a, trx.b. SKIP THIS for now. Have found that doing this normalization
+        ... % tightens shape distributions a bit (when tracking/trx is good)
+        'roiRadius',nan,... % A little unusual, used if .preProcParams.TargetCrop.Radius is not avail
+        'roiPadVal',0,...% A little unsuual, used if .preProcParams.TargetCrop.PadBkgd is not avail
+        'hFig0',[],... % Optional, previous figure to use with figurecascaded
+        'addMarkerSizeSlider',true, ...
+        'scale',false ...
+        );
+
+      if ~lObj.hasMovie
+        error('Please open a movie first.');
+      end
+      if strcmp(ctrMeth,'trx') && ~lObj.hasTrx
+        error('Project does not have trx. Cannot perform trx-centered montage.');
+      end
+      if lObj.cropProjHasCrops
+        error('Currently unsupported for projects with cropping.');
+      end
+      switch rotAlignMeth
+        case 'headtail'
+          if isempty(lObj.skelHead) || isempty(lObj.skelTail)
+            error('Please define head/tail landmarks under Track>Landmark parameters.');
+          end
+      end
+
+      nvw = lObj.nview;
+      nphyspts = lObj.nPhysPoints;
+      vwNames = lObj.viewNames;
+      mfts = MFTSetEnum.AllMovAllLabeled;
+      tMFT = mfts.getMFTable(lObj); % if GT, should get all GT labeled rows
+      tMFT = lObj.labelAddLabelsMFTable(tMFT);
+
+      [ims,p] = obj.hlpOverlayMontageGenerateImP_(tMFT,nphyspts,...
+                                                 ctrMeth,rotAlignMeth,roiRadius,roiPadVal,'scale',scale);
+      n = size(p,1);
+      if ismatrix(p)
+        % p is [n x nphyspts*nvw*2]
+        p = reshape(p',[nphyspts nvw 2 n]);
+      else
+        [p_tgt,p_mov] = meshgrid(1:size(p,2),tMFT.mov);
+        p_frm = repmat(tMFT.frm,[1,size(p,2)]);
+        p_tgt = p_tgt'; p_tgt= uint32(p_tgt(:));
+        p_mov = p_mov'; p_mov = uint32(p_mov(:));
+        p_frm = p_frm'; p_frm = p_frm(:);
+
+        p = permute(p,[2,1,3]);
+        p = permute(reshape(p,[n*size(p,1) nphyspts nvw 2]),[2,3,4,1]);
+        p_tgt = p_tgt(:);
+        remove = all(isnan(p(:,:,1,:)),1);
+        p(:,:,:,remove(1,1,1,:)) = [];
+        p_tgt(remove(1,1,1,:)) = [];
+        p_mov(remove(1,1,1,:)) = [];
+        p_frm(remove(1,1,1,:)) = [];
+        p4tbl = reshape(p,[],size(p,4))';
+        tMFT1 = table('Size',[size(p_mov,1),4],'VariableTypes',{'uint32','uint32','uint32','double'}, ...
+          'VariableNames',{'mov','frm','iTgt','p'});
+        tMFT1.mov = p_mov;
+        tMFT1.frm = p_frm;
+        tMFT1.iTgt = p_tgt;
+        tMFT1.p = p4tbl;
+        tMFT = tMFT1;
+      end
+
+      % KB 20181022 - removing references to ColorsSets
+      lppi = lObj.labelPointsPlotInfo;
+      %mrkrProps = lppi.MarkerProps;
+      clrs = lppi.Colors;
+      ec = OlyDat.ExperimentCoordinator;
+
+      tbases = cell(nvw,1);
+      hFgs = gobjects(nvw,1);
+      hAxs = gobjects(nvw,1);
+      hIms = gobjects(nvw,1);
+      clckHandlers = OlyDat.XYPlotClickHandler.empty(0,1);
+      hLns = gobjects(nvw,nphyspts); % line/plot handles
+      for ivw=1:nvw
+        if ivw==1
+          if ~isempty(hFig0)
+            hFgs(ivw) = figurecascaded(hFig0);
+          else
+            hFgs(ivw) = figure;
+          end
+        else
+          hFgs(ivw) = figurecascaded(hFgs(1));
+        end
+        hAxs(ivw) = axes;
+        hIms(ivw) = imshow(ims{ivw});
+        hIms(ivw).PickableParts = 'none';
+        set(hIms(ivw),'Tag',sprintf('image_LabelOverlayMontage_vw%d',ivw));
+%         clim('auto') ;
+        hold on;
+%         axis xy;
+        set(hAxs(ivw),'XTick',[],'YTick',[],'Visible','on');
+        if ~strcmp(ctrMeth,'none')
+          switch rotAlignMeth
+            case 'none'
+              rotStr = 'Centered, unaligned';
+            case 'headtail'
+              rotStr = 'Centered, head/tail aligned';
+            case 'trxtheta'
+              rotStr = 'Centered, trx/theta aligned';
+          end
+          if scale
+            rotStr = [rotStr ', scaled'];  %#ok<AGROW>
+          end
+        else
+          rotStr = '';
+        end
+
+        if nvw>1
+          tstr = sprintf('View: %s. %d labeled frames.',...
+            vwNames{ivw},height(tMFT));
+        else
+          tstr = sprintf('%d labeled frames.',height(tMFT));
+        end
+        if ~isempty(rotStr)
+          tstr = sprintf('%s %s.',tstr,rotStr);
+        end
+        title(tstr,'fontweight','bold');
+        tbases{ivw} = tstr;
+
+        xall = squeeze(p(:,ivw,1,:)); % [npts x nfrm]
+        yall = squeeze(p(:,ivw,2,:)); % [npts x nfrm]
+        eids = repmat(1:height(tMFT),nphyspts,1);
+        clckHandlers(ivw,1) = OlyDat.XYPlotClickHandler(hAxs(ivw),xall(:),yall(:),eids(:),ec,false);
+
+        pause(0.5); % just a breather
+        for ipts=1:nphyspts
+          x = squeeze(p(ipts,ivw,1,:));
+          y = squeeze(p(ipts,ivw,2,:));
+          hP = plot(hAxs(ivw),x,y,'.','markersize',4,'color',clrs(ipts,:));
+          hP.PickableParts = 'none';
+          hLns(ivw,ipts) = hP;
+        end
+
+        hCM = uicontextmenu('parent',hFgs(ivw),'Tag',sprintf('LabelOverlayMontages_vw%d',ivw));
+        uimenu('Parent',hCM,'Label','Clear selection',...
+               'Separator','on',...
+               'Callback',@(src,evt)ec.sendSignal([],zeros(0,1)),...
+               'Tag',sprintf('LabelOverlayMontage_vw%d_ClearSelection',ivw));
+        uimenu('Parent',hCM,'Label','Navigate APT to selected frame',...
+               'Callback',@(s,e)obj.hlpOverlayMontage_(clckHandlers(1),tMFT,s,e),...
+               'Tag',sprintf('LabelOverlayMontage_vw%d_NavigateToSelectedFrame',ivw));
+        % Need only one clickhandler; the first is set up here
+        set(hAxs(ivw),'UIContextMenu',hCM);
+      end
+
+      for ivw=1:nvw
+        hCM = hAxs(ivw).UIContextMenu;
+        hM1 = uimenu('Parent',hCM,'Label','Increase marker size',...
+          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc_(hLns,2),...
+          'Tag',sprintf('LabelOverlayMontage_vw%d_IncreaseMarkerSize',ivw));
+        hM2 = uimenu('Parent',hCM,'Label','Decrease marker size',...
+          'Callback',@(src,evt)obj.hlpOverlayMontageMarkerInc_(hLns,-2),...
+          'Tag',sprintf('LabelOverlayMontage_vw%d_DecreaseMarkerSize',ivw));
+        uistack(hM2,'bottom');
+        uistack(hM1,'bottom');
+      end
+
+      if addMarkerSizeSlider
+        % just add it to view1
+        MAXMARKERSIZE = 64;
+        SLIDERWIDTH = 0.5;
+        SLIDERHEIGHT = .03;
+
+        ax1units = hAxs(1).Units;
+        hAxs(1).Units = 'normalized';
+        ax1yposnorm = hAxs(1).Position(2);
+        hAxs(1).Units = ax1units;
+
+        hfig1 = hAxs(1).Parent;
+        hsld = uicontrol(hfig1,'style','slider');
+        hsld.Units = 'normalized';
+        hsld.Position(3) = SLIDERWIDTH;
+        hsld.Position(4) = SLIDERHEIGHT;
+        hsld.Position(1) = 0.5-hsld.Position(3)/2;
+        hsld.Position(2) = ax1yposnorm/2 - SLIDERHEIGHT/2;
+        addlistener(hsld,'ContinuousValueChange',@(s,e)set(hLns,'MarkerSize',(s.Value+.002)*MAXMARKERSIZE));
+      end
+
+      tor = TrainingOverlayReceiver(hAxs,tbases,tMFT);
+      ec.registerObject(tor,'respond');
+    end  % function
+
+    function hlpOverlayMontage_(obj,clickHandler,tMFT,~,~)
+      lObj = obj.labeler_;
+      eid = clickHandler.fSelectedEids;
+      if ~isempty(eid)
+        trow = tMFT(eid,:);
+        lObj.setMFTGUI(trow.mov,trow.frm,trow.iTgt);
+      else
+        warningNoTrace('No shape selected.');
+      end
+    end  % function
+
+    function [ims,p] = hlpOverlayMontageGenerateImP_(obj,tMFT,nphyspts,...
+                                                    ctrMeth,rotAlignMeth,~,roiPadVal,varargin)
+      % Generate images and shapes to plot
+      %
+      % tMFT: table with labeled frames
+      %
+      % ctrMeth: {'none' 'trx' 'centroid'}
+      %   - none: labels may/will wander over the image if/as targets
+      %           wander.
+      %   - trx: patches will be grabbed and labels shifted appropriately,
+      %          centered on trx. asserts lObj.hasTrx.
+      %   - centroid: patches will be centered on pose centroids. applies
+      %      to both MA and SA.
+      %
+      % if ctrMeth is not none, currently we require single-view.
+      %
+      % rotAlignMeth: One of {'none','headtail','trxtheta'}. The latter two
+      %   require ctrMeth is 'trx' or 'centroid'.
+      %  * 'none'. labels/shapes are not rotated.
+      %  * 'headtail'. shapes are aligned based on their iHead/iTail
+      %  pts (taken from tracking parameters)
+      %  * 'trxtheta'. .hasTrx must be true. shapes are aligned based on
+      %   their trx.theta. If the trx.theta is incorrect then the alignment
+      %   will be as well.
+      %
+      % roiRadius:
+      % roiPadVal:
+      %
+      % ims: [nview] cell array of images to plot
+      % p: all labels [nlbledfrm x D==(nphyspts*nvw*d)]
+
+      lObj = obj.labeler_;
+      [scale] = myparse(varargin,'scale',false);
+
+      tfCtred = true;
+      switch ctrMeth
+        case 'none', tfCtred = false;
+        case 'trx', assert(lObj.hasTrx);
+        case 'centroid' % none
+        otherwise, assert(false);
+      end
+
+      tfAlign = true;
+      switch rotAlignMeth
+        case 'none', tfAlign = false;
+        case 'headtail'
+          % already asserted that .skelHead/Tail exist
+          assert(tfCtred);
+          iptHead = lObj.skelHead;
+          iptTail = lObj.skelTail;
+        case 'trxtheta'
+          assert(tfCtred);
+          assert(lObj.hasTrx);
+        otherwise, assert(false);
+      end
+
+      nvw = lObj.nview;
+      ims = obj.images_all;
+      ims = arrayfun(@(x)x.CData,ims,'uni',0); % current ims
+
+      if tfCtred
+        assert(nvw==1,'Currently, centered montages unsupported for multiview projects.');
+
+        %%% roiRadius/roiPadVal handling %%%
+        prms = lObj.trackParams;
+        if isempty(prms)
+%           warningNoTrace('Parameters unset. Using supplied/default ROI radius and background pad value.');
+%           if ~isnan(roiRadius)
+%             % OK; user-supplied
+%           else
+%             [nr1,nc1] = size(ims{1});
+%             roiRadius = min(floor(nr1/2),floor(nc1/2)); % b/c ... why not
+%           end
+          % roiPadVal has been supplied
+        else
+          prmsTgtCrop = prms.ROOT.MultiAnimal.TargetCrop;
+          % Override roiRadius, roiPadVal with .preProcParams stuff
+          % roiRadius = lObj.maGetTgtCropRad(prmsTgtCrop);
+          roiPadVal = prmsTgtCrop.PadBkgd;
+        end
+        roiRadius = ceil(lObj.maEstimateTgtCropRad(2.0));
+        % For now, always auto-compute roi radius. User may not have
+        % set or updated parameters; for SA projects (no trx), the
+        % ROOT.MultiAnimal parameters are not even visible in tracking
+        % params UI etc
+
+        %%% xc, yc, th, base image (shown underneath labels) %%%
+        switch ctrMeth
+          case 'trx'
+            % Use image for current mov/frm/tgt
+            [xc,yc,th] = readtrx(lObj.trx,lObj.currFrame,lObj.currTarget);
+            xc = double(xc);
+            yc = double(yc);
+            switch rotAlignMeth
+              case 'none'
+                th = nan;
+              case {'headtail' 'trxtheta'}
+                % we cheat a little here; in case of 'headtail', the base
+                % image is not aligned with h/t as it may not even be
+                % labeled. it is just a base image to guide the eye.
+                th = double(th);
+            end
+            % ims unchanged; use current ims{1}
+          case 'centroid'
+            % MA or SA (non-trx)
+            lbls = lObj.labelsGTaware;
+            s = lbls{lObj.currMovie};
+            if isempty(s.frm)
+              error('Please switch movies to one with a labeled frame.');
+            end
+            frm = s.frm(1);
+            xyLbl = reshape(s.p(:,1),[],2);
+            xyc = mean(xyLbl,1,'omitnan');
+            xc = xyc(1);
+            yc = xyc(2);
+            switch rotAlignMeth
+              case 'none'
+                th = nan;
+              case 'headtail'
+                xyHead = xyLbl(iptHead,:);
+                xyTail = xyLbl(iptTail,:);
+                xyHT = xyHead-xyTail;
+                th = atan2(xyHT(2),xyHT(1));
+              case 'trxtheta'
+                itgt = s.tgt(1);
+                [~,~,th] = readtrx(lObj.trx,frm,itgt);
+            end
+            mr = lObj.movieReader; % note, nview==1
+            ims{1} = mr.readframe(frm);
+        end
+        % asserted nview==1
+        ims{1} = montageImPadGrab(ims{1},xc,yc,roiRadius,...
+                                  th,tfAlign,roiPadVal);
+
+        %%% p (Shapes) %%%
+
+        % Step 1: add central pt when appropriate
+        p = tMFT.p; % [nLbld x nphyspts*(nvw==1)*2]
+        p_dims = ndims(p);
+        nrows = size(p,1);
+        nanimals = 1;
+        if p_dims == 3
+          nanimals =  size(p,2);
+          p = reshape(permute(p,[2 1 3]),[size(p,1)*size(p,2) size(p,3)]); % remove a dimension
+        end
+
+        switch ctrMeth
+          case 'trx'
+            pc = tMFT.pTrx; % [nLbld x 2]
+            pc = permute(pc,[1 3 2]);
+          case 'centroid'
+            assert(size(p,2)==nphyspts*2);
+            pc = cat(2,mean(p(:,1:nphyspts),2, 'omitnan'),mean(p(:,nphyspts+1:end),2,'omitnan'));
+
+        end
+        % central point added as (nphyspts+1)th point, we will use it to
+        % center our aligned shapes
+        pWithCtr = cat(2,p(:,1:nphyspts),pc(:,1), p(:,nphyspts+1:end),pc(:,2));
+
+        % Step 2: rotate
+        % Step 3: subtract off center pt
+        switch rotAlignMeth
+          case 'none'
+            pWithCtrAligned = pWithCtr;
+          case 'headtail'
+
+            pWithCtrAligned = Shape.alignOrientationsOrigin(pWithCtr,iptHead,iptTail);
+            % aligned based on iHead/iTailpts, now with arbitrary offset
+            % b/c was rotated about origin. Note the presence of pc as
+            % the "last" point should not affect iptHead/iptTail defns
+          case 'trxtheta'
+            assert(p_dims==2)
+            thTrx = tMFT.thetaTrx;
+            pWithCtrAligned = Shape.rotate(pWithCtr,-thTrx,[0 0]); % could rotate about pTrx but shouldn't matter
+            % aligned based on trx.theta, now with arbitrary offset
+        end
+
+        n = size(p,1);
+        twoRadP1 = 2*roiRadius+1;
+        for i=1:n
+          xyRowWithTrx = Shape.vec2xy(pWithCtrAligned(i,:));
+          xyRowWithTrx = bsxfun(@minus,xyRowWithTrx,xyRowWithTrx(end,:));
+          % subtract off pCtr. All pts/coords now relative to origin at
+          % pCtr, with shape aligned.
+          if scale
+            sz_x = max(xyRowWithTrx(1:end-1,1),[],1,'omitnan') - min(xyRowWithTrx(1:end-1,1),[],1,'omitnan');
+            sz_y = max(xyRowWithTrx(1:end-1,2),[],1,'omitnan') - min(xyRowWithTrx(1:end-1,2),[],1,'omitnan');
+            sz = max(sz_x,sz_y);
+            xyRowWithTrx = xyRowWithTrx./sz*roiRadius;
+          end
+
+
+          xyRow = xyRowWithTrx(1:end-1,:) + roiRadius + 1; % places origin at center of roi
+          tfOOB = xyRow<1 | xyRow>twoRadP1; % [nphyspts x 2]
+          if any(tfOOB(:)) && ~all(isnan(xyRow(:)))
+            trow = tMFT(int32(i/nanimals)+1,:);
+            warningNoTrace('Shape (mov %d,frm %d,tgt %d) falls outside ROI.',...
+              trow.mov,trow.frm,trow.iTgt);
+          end
+          p(i,:) = Shape.xy2vec(xyRow); % in-place modification of p
+        end
+        if p_dims==3
+          p = permute(reshape(p,nanimals,nrows,nphyspts*2),[2,1,3]);
+        end
+      else
+        % ims: no change
+        p = tMFT.p;
+      end
+    end  % function
+
+    function hlpOverlayMontageMarkerInc_(obj,hLns,dSz) %#ok<INUSL>
+      sz = hLns(1).MarkerSize;
+      sz = max(sz+dSz,1);
+      [hLns.MarkerSize] = deal(sz);
+    end  % function
+
   end  % methods
+
+  methods (Static)
+
+    function [tfok,trkfiles] = checkTrkFileNamesExport_(trkfiles,varargin)
+      % Check/confirm trkfile names for export. If any trkfiles exist, ask
+      % whether overwriting is ok; alternatively trkfiles may be
+      % modified/uniqueified using datetimestamps.
+      %
+      % trkfiles (input): cellstr of proposed trkfile names (full paths).
+      % Can be an array.
+      %
+      % tfok: if true, trkfiles (output) is valid, and user has said it is
+      % ok to write to those files even if it is an overwrite.
+      % trkfiles (output): cellstr, same size as trkfiles. .trk filenames
+      % that are okay to write/overwrite to. Will match input if possible.
+
+      noUI = myparse(varargin,...
+        'noUI',false);
+
+      tfexist = cellfun(@(x)exist(x,'file')>0,trkfiles(:));
+      tfok = true;
+      if any(tfexist)
+        iExist = find(tfexist,1);
+        queststr = sprintf('One or more .trk files already exist, eg: %s.',trkfiles{iExist});
+        if noUI
+          btn = 'Add datetime to filenames';
+          warningNoTrace('Labeler:trkFileNamesForExport',...
+            'One or more .trk files already exist. Adding datetime to trk filenames.');
+        else
+          btn = questdlg(queststr,'Files exist','Overwrite','Add datetime to filenames',...
+            'Cancel','Add datetime to filenames');
+        end
+        if isempty(btn)
+          btn = 'Cancel';
+        end
+        switch btn
+          case 'Overwrite'
+            % none; use trkfiles as-is
+          case 'Add datetime to filenames'
+            nowstr = datestr(now,'yyyymmddTHHMMSS');
+            [trkP,trkF] = cellfun(@fileparts,trkfiles,'uni',0);
+            trkfiles = cellfun(@(x,y)fullfile(x,[y '_' nowstr '.trk']),trkP,trkF,'uni',0);
+          otherwise
+            tfok = false;
+            trkfiles = [];
+        end
+      end
+    end  % function
+
+  end  % methods
+
 end  % classdef

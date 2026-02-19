@@ -62,7 +62,6 @@ classdef APT
       
       aptroot = APT.Root;
       mlroot = fullfile(aptroot,'matlab');
-      cprroot = fullfile(mlroot,'trackers','cpr');
       if isfield(m,'jaaba')
         jaabaroot = m.jaaba;
       elseif isfield(m,'jctrax')
@@ -109,14 +108,6 @@ classdef APT
         fullfile(mlroot,'trk'); ...
         };
       
-      cprpath = { ...
-        cprroot; ...
-        fullfile(cprroot,'misc'); ...
-        fullfile(cprroot,'video_tracking'); ...
-        fullfile(cprroot,'jan'); ...
-        fullfile(cprroot,'romain'); ...
-        };
-      
       dtpath = { ...
         fullfile(mlroot,'trackers','dt'); ...
         };
@@ -140,7 +131,7 @@ classdef APT
       campath = regexp(campath,pathsep,'split');
       campath = campath(~cellfun(@isempty,campath));
      
-      p = [aptpath(:);jaabapath(:);cprpath(:);dtpath(:);pdolpath(:);campath(:)];
+      p = [aptpath(:);jaabapath(:);dtpath(:);pdolpath(:);campath(:)];
       
       % jprel = {...
       %   fullfile('java','APTJava.jar'); ...
@@ -346,14 +337,14 @@ classdef APT
         script = APT.SnapshotScript;
         cmd = sprintf('%s -nocolor -brief %s',script,APT.Root);
         [~,s] = system(cmd);
-        s = regexp(s,sprintf('\n'),'split');
+        s = regexp(s,newline(),'split');
         modules = fieldnames(manifest);        
         modules = setdiff(modules,'build');
         for i = 1:numel(modules)        
           mod = modules{i};
           cmd = sprintf('%s -nocolor -brief %s',script,manifest.(mod));
           [~,stmp] = system(cmd);
-          stmp = regexp(stmp,sprintf('\n'),'split');
+          stmp = regexp(stmp,newline(),'split');
           s = [s(:);{''};sprintf('### %s',upper(mod));stmp(:)];
         end
       elseif ispc
@@ -573,7 +564,7 @@ classdef APT
       script = FlyBubbleBaR.SnapshotScript;
       cmd = sprintf('%s -nocolor -brief %s',script,settingsdir);
       [~,s] = system(cmd);
-      s = regexp(s,sprintf('\n'),'split');
+      s = regexp(s,newline(),'split');
       s = s(:);
     end
     
