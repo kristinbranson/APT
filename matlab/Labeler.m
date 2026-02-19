@@ -12074,7 +12074,7 @@ classdef Labeler < handle
       obj.pushBusyStatus('Spawning tracking job...');
       oc = onCleanup(@()(obj.popBusyStatus())) ;
       if obj.maIsMA
-        args = horzcat({'track_type', 'detect'}, varargin) ;
+        args = horzcat({'trackType', apt.TrackType.detect}, varargin) ;
       else
         args = varargin ;
       end
@@ -16328,13 +16328,13 @@ classdef Labeler < handle
       % information to construct a ToTrackInfo object from it.
     
       % Parse optional arguments
-      [track_type, leftoverArgs] = ...
+      [trackType, leftoverArgs] = ...
         myparse_nocheck(varargin,...
-                        'track_type','track') ;      
+                        'trackType', apt.TrackType.track) ;
 
       % Check arguments
       assert(~isempty(toTrackRaw));
-      assert(tfIsBatchTrackType(track_type), 'track_type not a valid batch track type') ;
+      assert(isa(trackType, 'apt.TrackType'));
       
       % Make a ToTrackInfo object from toTrackRaw
       toTrack = tidyToTrackStructForBatchTracking(toTrackRaw) ;
@@ -16352,7 +16352,7 @@ classdef Labeler < handle
       
       % Call obj.tracker.track to do the real tracking
       obj.tracker.track('totrackinfo',totrackinfo, ...
-                        'track_type',track_type, ...
+                        'trackType', trackType, ...
                         'isexternal',true, ...
                         leftoverArgs{:});
     end  % function

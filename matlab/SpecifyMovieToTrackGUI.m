@@ -22,7 +22,7 @@ classdef SpecifyMovieToTrackGUI < handle
     defaulttrkpat = [];
     defaulttrxpat = [];
     defaultdetectpat = [];
-    track_type = 'track';
+    track_type = apt.TrackType.track;
     detailed_options = true;
   end
   methods
@@ -146,7 +146,7 @@ classdef SpecifyMovieToTrackGUI < handle
         obj.movdata.f1s = obj.movdata.f1s{1};
       end
       if ~isfield(obj.movdata,'track_type'),
-        obj.movdata.track_type = 'track';
+        obj.movdata.track_type = apt.TrackType.track;
       end
       
       obj.rowinfo = struct;
@@ -808,8 +808,9 @@ classdef SpecifyMovieToTrackGUI < handle
       end
       if obj.isma
         if ismember(lower(tag),{'track','link','detect'})
-          obj.track_type = lower(tag);
-          obj.movdata.track_type = lower(tag);
+          trackType = apt.TrackType(lower(tag));
+          obj.track_type = trackType;
+          obj.movdata.track_type = trackType;
         end
       end
       if ismember(lower(tag),{'done','cancel','track','link','detect'}),

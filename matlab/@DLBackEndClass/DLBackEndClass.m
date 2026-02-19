@@ -995,10 +995,9 @@ classdef DLBackEndClass < handle
       obj.training_jobids_{end+1,1} = [] ;  % indicates not-yet-spawned job
     end
 
-    function registerTrackingJob(obj, totrackinfo, deeptracker, gpuids, track_type)
+    function registerTrackingJob(obj, totrackinfo, deeptracker, gpuids, trackType)
       % Register a single tracking job with the backend, for later spawning via
       % spawnRegisteredJobs().
-      % track_type should be one of {'track', 'link', 'detect'}
 
       % Get the root of the remote source tree
       remoteAptRootAsChar = obj.aptSourceDirRootRemoteAsChar_() ;
@@ -1012,7 +1011,7 @@ classdef DLBackEndClass < handle
       basecmd = DLBackEndClass.trackCodeGenBase(totrackinfo,...
                                                 'ignore_local',ignore_local,...
                                                 'nativeaptroot',APT.Root,...
-                                                'track_type',track_type);
+                                                'trackType', trackType);
       args = obj.determineArgumentsForSpawningJob_(deeptracker, gpuids, remotetotrackinfo, remoteAptRootAsChar, 'track') ;
       syscmd = obj.wrapCommandToBeSpawnedForBackend_(basecmd, args{:}) ;
       commandFilePathAsChar = DeepModelChainOnDisk.getCheckSingle(remotetotrackinfo.cmdfile) ;
