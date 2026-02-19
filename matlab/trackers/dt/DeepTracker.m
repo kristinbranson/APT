@@ -2230,11 +2230,14 @@ classdef DeepTracker < LabelTracker
       tfCanTrack = true;      
     end  % function
     
-    function trkSpawn_(obj,totrackinfo,backend,varargin)
+    function trkSpawn_(obj, totrackinfo, backend, varargin)
       % Spawn tracking job(s).  Throws if something goes wrong.
 
-      [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
-        myparse(varargin,'track_type','track','do_call_apt_interface_dot_py',true,'projTempDir',[]);
+      [track_type, do_call_apt_interface_dot_py, projTempDir] = ...
+        myparse(varargin, ...
+                'track_type','track', ...
+                'do_call_apt_interface_dot_py',true, ...
+                'projTempDir',[]);
 
       % split up movies, views into jobs
       [jobs,gpuids] = obj.SplitTrackIntoJobs(backend,totrackinfo);
@@ -2274,17 +2277,20 @@ classdef DeepTracker < LabelTracker
         end
       end
 
-      obj.trkSpawnCore_(totrackinfojobs,totrackinfo,backend,...
+      obj.trkSpawnCore_(totrackinfojobs, ...
+                        totrackinfo, ...
+                        backend,...
+                        'trackingStyle',apt.TrackingStyle.movie,...
                         'do_call_apt_interface_dot_py',do_call_apt_interface_dot_py,...
                         'projTempDir',projTempDir);
     end
 
-    function trkSpawnCore_(obj,totrackinfojobs,totrackinfo,backend,varargin)
+    function trkSpawnCore_(obj, totrackinfojobs, totrackinfo, backend, varargin)
       % Spawn tracking job(s), now that the preliminaries are out of the way.
       % Throws if something goes wrong.
-      [track_type,do_call_apt_interface_dot_py,projTempDir] = ...
+      [trackingStyle, do_call_apt_interface_dot_py, projTempDir] = ...
         myparse(varargin,...
-                'track_type','movie',...
+                'trackingStyle',apt.TrackingStyle.movie,...
                 'do_call_apt_interface_dot_py',true,...
                 'projTempDir',[]);
 
@@ -2298,10 +2304,10 @@ classdef DeepTracker < LabelTracker
       assert(isempty(obj.bgTrkMonitor));
       assert(isempty(obj.bgTrackPoller));
 
-      %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, track_type);
+      %bgTrkWorkerObj = DeepTracker.createBgTrkWorkerObj(obj.lObj.nview, obj.trnLastDMC, backend, trackingStyle);
       obj.trkSysInfo = ToTrackInfoSet(totrackinfojobs);
       %bgTrkWorkerObj.initFiles(obj.trkSysInfo);
-      poller = BgTrackPoller(track_type, obj.trnLastDMC, backend, obj.trkSysInfo) ;
+      poller = BgTrackPoller(trackingStyle, obj.trnLastDMC, backend, obj.trkSysInfo) ;
 
       % KB 20190115: adding trkviz
       nFramesToTrack = totrackinfo.getNFramesTrack(obj.lObj);  
@@ -2365,7 +2371,10 @@ classdef DeepTracker < LabelTracker
       backend.prepareFilesForTracking(totrackinfo);
       obj.trkCreateConfig(totrackinfo.trackconfigfile);
 
-      obj.trkSpawnCore_(totrackinfo,totrackinfo,backend,'track_type','list');
+      obj.trkSpawnCore_(totrackinfo, ...
+                        totrackinfo, ...
+                        backend, ...
+                        'trackingStyle',apt.TrackingStyle.list);
     end
 
     function nframes = getNFramesTrack(obj,totrackinfo) %#ok<INUSL>

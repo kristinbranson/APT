@@ -126,7 +126,7 @@ classdef TrackMonitorViz < handle
       obj.htrackerInfo = handles.edit_trackerinfo;
 
       % obj.twoStgMode = dtObj.getNumStages() > 1;
-      obj.listMode = isequal(poller.trackType_,'list');
+      obj.listMode = (poller.trackingStyle_ == apt.TrackingStyle.list);
       obj.bulkAxsIsBulkMode = ( nmov > obj.BULK_NMOV_THRESHOLD ) ;
       % if obj.twoStgMode AND .bulk* are true, twoStg will take precedence
       % for now

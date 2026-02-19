@@ -16334,7 +16334,7 @@ classdef Labeler < handle
 
       % Check arguments
       assert(~isempty(toTrackRaw));
-      assert(tfIsTrackType(track_type), 'track_type not valid') ;
+      assert(tfIsBatchTrackType(track_type), 'track_type not a valid batch track type') ;
       
       % Make a ToTrackInfo object from toTrackRaw
       toTrack = tidyToTrackStructForBatchTracking(toTrackRaw) ;
