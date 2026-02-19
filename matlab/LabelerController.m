@@ -844,7 +844,7 @@ classdef LabelerController < handle
       end
 
       % Make sure we have enough GPU memory
-      if ~labeler.trackCheckGPUMemGUI()
+      if ~obj.trackCheckGPUMem_()
         return
       end
 
@@ -1568,8 +1568,7 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
       drawnow;
 
-      labeler = obj.labeler_ ;
-      labeler.suspCbkTblNavedGUI(row) ;
+      obj.suspCbkTblNaved_(row);
     end  % function
     
     function refreshTrackMonitorViz(obj)
@@ -4532,7 +4531,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.labelExportTrkGUI(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
+      obj.labelExportTrk_(1:labeler.nmoviesGTaware,'rawtrkname',rawtrkname);
     end
 
     function menu_file_export_labels_table_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5009,7 +5008,7 @@ classdef LabelerController < handle
       % Currently there is no UI for altering labeler.viewCalProjWide once it is set
 
       if tfProjWide
-        labeler.viewCalSetProjWideGUI(crObj);%,'tfSetViewSizes',tfSetViewSizes);
+        obj.viewCalSetProjWide_(crObj);%,'tfSetViewSizes',tfSetViewSizes);
       else
         labeler.viewCalSetCurrMovie(crObj);%,'tfSetViewSizes',tfSetViewSizes);
       end
@@ -5543,7 +5542,7 @@ classdef LabelerController < handle
     function menu_track_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
-      toTrackIn = labeler.mIdx2TrackListGUI(mIdx);
+      toTrackIn = obj.mIdx2TrackList_(mIdx);
       tbobj = TrackBatchGUI(labeler,'toTrack',toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
@@ -5556,7 +5555,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       mainFigure = obj.mainFigure_ ;
       mIdx = labeler.currMovIdx;
-      toTrackIn = labeler.mIdx2TrackListGUI(mIdx);
+      toTrackIn = obj.mIdx2TrackList_(mIdx);
       mdobj = SpecifyMovieToTrackGUI(labeler,mainFigure,toTrackIn);
       [toTrackOut,dostore] = mdobj.run();
       if ~dostore,
@@ -5585,7 +5584,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.trackExportResultsGUI(iMov,'rawtrkname',rawtrkname);
+      obj.trackExportResults_(iMov,'rawtrkname',rawtrkname);
     end
 
 
@@ -5994,7 +5993,7 @@ classdef LabelerController < handle
       if ~tfok
         return;
       end
-      labeler.trackExportResultsGUI(iMov,'rawtrkname',rawtrkname);
+      obj.trackExportResults_(iMov,'rawtrkname',rawtrkname);
     end
 
     function menu_file_import_export_advanced_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6673,6 +6672,270 @@ classdef LabelerController < handle
         end
       end
       fprintf('Done\n');
-    end  % function    
-  end  % methods  
+    end  % function
+
+    function suspCbkTblNaved_(obj, row_index)
+      % i: row index into .suspSelectedMFT;
+      lObj = obj.labeler_;
+      tbl = lObj.suspSelectedMFT;
+      nrow = height(tbl);
+      if row_index<1 || row_index>nrow
+        error('Labeler:susp','Row ''%d'' out of bounds.',row_index);
+      end
+      mftrow = tbl(row_index,:);
+      if lObj.currMovie~=mftrow.mov
+        lObj.movieSetGUI(mftrow.mov);
+      end
+      lObj.setFrameAndTargetGUI(mftrow.frm,mftrow.iTgt);
+    end
+
+    function dotrain = trackCheckGPUMem_(obj,varargin)
+      % Check for a GPU, and check the GPU memory against an estimate of the
+      % required GPU memory.
+      lObj = obj.labeler_;
+      silent = myparse(varargin,'silent',false) || lObj.silent;
+      dotrain = true;
+      sPrm = lObj.trackGetTrainingParams();
+      [is_ma,is2stage,is_ma_net] = ParameterVisualizationMemory.getStage(lObj,'');
+      imsz = ParameterVisualizationMemory.getProjImsz(...
+        lObj,sPrm,is_ma,is2stage,1);
+      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
+        lObj,sPrm,is_ma,is2stage,1);
+      imsz = imsz/ds;
+      mem_need = get_network_size(nettype,imsz,bsz,is_ma_net);
+      try
+        [~, freemem] = lObj.trackDLBackEnd.getFreeGPUs(1);
+      catch
+        if ~silent,
+          qstr = [ 'Unable to get information about free GPUs.  ' ....
+                   'Training will be done on the CPU, which will likely be slow.  ' ...
+                   'Do you still want to train?' ];
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
+        end
+        return
+      end
+      if ~silent,
+        if isempty(freemem),
+          qstr = [ 'There do not seem to be any GPUs available.  ' ....
+                   'Training will be done on the CPU, which will likely be slow.  ' ...
+                   'Do you still want to train?' ];
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
+        elseif (mem_need>0.9*freemem),
+          qstr = ...
+            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
+                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
+                     'to prevent training from crashing. Do you still want to train?'], ...
+                    freemem, ...
+                    round(mem_need));
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
+        end
+      end
+
+      if ~is2stage || ~dotrain,
+        return
+      end
+
+      % check for 2nd stage
+      imsz = ParameterVisualizationMemory.getProjImsz(...
+        lObj,sPrm,is_ma,is2stage,2);
+      [ds,nettype,bsz] = ParameterVisualizationMemory.getOtherProps(...
+        lObj,sPrm,is_ma,is2stage,2);
+      imsz = imsz/ds;
+      mem_need = get_network_size(nettype,imsz,bsz,false);
+      if ~silent,
+        if isempty(freemem),
+          % If we get here, we must have already told the user above that there are
+          % not GPUs available, and they must have said to proceed.  So no need to
+          % ask again.
+        elseif (mem_need>0.9*freemem),
+          qstr = ...
+            sprintf(['The GPU free memory (%d MB) is close to or less than estimated memory required for training (%d MB).  ' ...
+                     'It is recommended to reduce the memory required by decreasing the batch size or increasing the downsampling ' ...
+                     'to prevent training from crashing. Do you still want to train?'], ...
+            freemem, ...
+            round(mem_need));
+          res = questdlg(qstr,'Train?','Yes','No','Cancel','No');
+          if ~strcmpi(res,'Yes')
+            dotrain = false;
+          end
+        end
+      end
+    end  % function
+
+    function trackExportResults_(obj,iMovs,varargin)
+      % Export tracking results to trk files.
+      %
+      % iMovs: [nMov] vector of movie(set)s whose tracking should be
+      % exported. iMovs are indexed into .movieFilesAllGTAware
+      %
+      % If a movie has no current tracking results, a warning is thrown and
+      % no trkfile is created.
+      lObj = obj.labeler_;
+
+      [trkfiles,rawtrkname] = myparse(varargin,...
+        'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
+        'rawtrkname',[]... % string, basename to apply over iMovs to generate trkfiles
+        );
+
+      tObj = lObj.tracker;
+      if isempty(tObj)
+        error('Labeler:track','No tracker set.');
+      end
+
+      [tfok,trkfiles] = lObj.resolveTrkfilesVsTrkRawnameGUI(iMovs,trkfiles,...
+        rawtrkname,{});
+      if ~tfok
+        return;
+      end
+
+      movfiles = lObj.movieFilesAllFullGTaware(iMovs,:);
+      gt = lObj.gtIsGTMode;
+      mIdx = MovieIndex(iMovs,gt);
+      [trkFileObjs,tfHasRes] = tObj.getTrackingResults(mIdx);
+      nMov = numel(iMovs);
+      nVw = lObj.nview;
+      szassert(trkFileObjs,[nMov nVw]);
+      szassert(trkfiles,[nMov nVw]);
+      for iMv=1:nMov
+        if tfHasRes(iMv)
+          for iVw=1:nVw
+            tfo = trkFileObjs{iMv,iVw};
+            tfile = trkfiles{iMv,iVw};
+            tfo.save(tfile);
+            fprintf('Saved %s.\n',trkfiles{iMv,iVw});
+          end
+        else
+          if lObj.isMultiView
+            moviestr = 'movieset';
+          else
+            moviestr = 'movie';
+          end
+          warningNoTrace('Labeler:noRes','No current tracking results for %s %s.',...
+            moviestr,MFTable.formMultiMovieID(movfiles(iMv,:)));
+        end
+      end
+    end  % function
+
+    function labelExportTrk_(obj,iMovs,varargin)
+      % Export label data to trk files.
+      %
+      % iMov: optional, indices into (rows of) .movieFilesAllGTaware to
+      %   export. Defaults to 1:obj.nmoviesGTaware.
+      lObj = obj.labeler_;
+
+      lObj.pushBusyStatus('Exporting tracking results...');
+      oc = onCleanup(@()(lObj.popBusyStatus()));
+
+      [trkfiles,rawtrkname] = myparse(varargin,...
+        'trkfiles',[],... % [nMov nView] cellstr, fullpaths to trkfilenames to export to
+        'rawtrkname',[]... % string, rawname to apply over iMovs to generate trkfiles
+        );
+
+      if ~exist('iMovs','var')
+        iMovs = 1:lObj.nmoviesGTaware;
+      end
+
+      [tfok,trkfiles] = lObj.resolveTrkfilesVsTrkRawnameGUI(iMovs,trkfiles,...
+        rawtrkname,{'labels' true});
+      if ~tfok
+        return;
+      end
+
+      PROPS = lObj.gtGetSharedProps;
+      lObj.labelExportTrkGeneric(iMovs,trkfiles,PROPS.LBL);
+    end
+
+    function viewCalSetProjWide_(obj,crObj,varargin)
+      % Set project-wide calibration object.
+      %
+      % .viewCalibrationData or .viewCalibrationDataGT set depending on
+      % .gtIsGTMode.
+      lObj = obj.labeler_;
+
+      if lObj.nmovies==0 || lObj.currMovie==0
+        error('Labeler:calib',...
+          'Add/select a movie first before setting the calibration object.');
+      end
+
+      lObj.viewCalCheckCalRigObj(crObj);
+
+      vcdPW = lObj.viewCalProjWide;
+      if ~isempty(vcdPW) && ~vcdPW
+        warningNoTrace('Labeler:viewCal',...
+          'Discarding movie-specific calibration data. Calibration data will apply to all movies.');
+        lObj.viewCalProjWide = true;
+        lObj.viewCalibrationData = [];
+        lObj.viewCalibrationDataGT = [];
+      end
+
+      lObj.viewCalCheckMovSizesGUI();
+
+      lObj.viewCalProjWide = true;
+      lObj.viewCalibrationData = crObj;
+      lObj.viewCalibrationDataGT = [];
+
+      lc = lObj.lblCore;
+      if lc.supportsCalibration
+        lc.projectionSetCalRig(crObj);
+      else
+        warning('Labeler:viewCal','Current labeling mode does not utilize view calibration.');
+      end
+    end
+
+    function toTrack = mIdx2TrackList_(obj,mIdx)
+      % make a toTrack struct from selected movies in the project amenable to
+      % TrackBatchGUI
+      lObj = obj.labeler_;
+
+      if nargin < 2 || isempty(mIdx),
+        mIdx = lObj.allMovIdx();
+      end
+      nget = numel(mIdx);
+      toTrack = struct(...
+        'movfiles', {cell(nget,lObj.nview)},...
+        'trkfiles', {cell(nget,lObj.nview)},...
+        'detectfiles', {cell(nget,lObj.nview)},...
+        'trxfiles', {cell(nget,lObj.nview)},...
+        'cropRois', {cell(nget,lObj.nview)},...
+        'calibrationfiles', {cell(nget,1)},... %        'calibrationdata',{cell(nget,1)},...
+        'targets', {cell(nget,1)},...
+        'f0s', {cell(nget,1)},...
+        'f1s', {cell(nget,1)});
+      toTrack.movfiles = lObj.getMovieFilesAllFullMovIdx(mIdx);
+      toTrack.trxfiles = lObj.getTrxFilesAllFullMovIdx(mIdx);
+      for i = 1:nget,
+        if lObj.cropProjHasCrops,
+          [tfhascrop,roi] = lObj.cropGetCropMovieIdx(mIdx(i));
+          if tfhascrop,
+            for j = 1:lObj.nview,
+              toTrack.cropRois{i,j} = roi(j,:);
+            end
+          end
+        end
+        vcd = lObj.getViewCalibrationDataMovIdx(mIdx(i));
+        if ~isempty(vcd),
+          toTrack.calibrationfiles{i} = vcd.sourceFile;
+        end
+      end
+
+      rawname = lObj.defaultExportTrkRawname();
+      [tfok,trkfiles] = lObj.getTrkFileNamesForExportGUI(toTrack.movfiles,rawname,'noUI',true);
+      if tfok,
+        toTrack.trkfiles = trkfiles;
+        if lObj.maIsMA
+          toTrack.detectfiles = strrep(trkfiles,'.trk','_tracklet.trk');
+        end
+      end
+    end  % function
+
+  end  % methods
 end  % classdef
