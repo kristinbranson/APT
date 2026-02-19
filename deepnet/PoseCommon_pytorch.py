@@ -132,6 +132,14 @@ class coco_loader(torch.utils.data.Dataset):
         # Get the original image dimensions
         original_height, original_width = image.shape[:2]
 
+        if self.conf.pad_images:
+            padding_w = self.conf.imsz[1] - original_width
+            padding_h = self.conf.imsz[0] - original_height
+
+            padded_image = cv2.copyMakeBorder(image, 0, padding_h, 0, padding_w, cv2.BORDER_CONSTANT)
+            return padded_image
+
+
         # Calculate the aspect ratio of the original image
         original_aspect_ratio = original_width / original_height
 

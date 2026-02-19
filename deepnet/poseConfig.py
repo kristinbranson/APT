@@ -70,7 +70,8 @@ class config(object):
         self.nan_as_occluded = False
         self.use_openvino = False
         self.flip_test = False
-        self.imresize_expand = False
+        self.imresize_expand = False # if True, rescale the images to fit the conf.imsz. Mainly used for testing on public datasets.
+        self.pad_images = False # If the images don't match conf.imsz, whether to pad them or resize them. True is pad images, False is resize images. Default value is False here, because all the crowdpose and other experiments are done with False. This should be set to true for projects created in front-end from here on. Doesn't affect older projects because they all had same sized images.
 
         # ----- Data parameters
         # l1_cropsz = 0

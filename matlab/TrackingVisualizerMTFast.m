@@ -451,6 +451,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       if isempty(xy)
         % no data; hide x/y for all pts
         set(h,'XData',nan,'YData',nan);
+        set(h_occ,'XData',nan,'YData',nan);
       else
         npt = obj.nPts;
         for ipt=1:npt

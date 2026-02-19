@@ -3843,7 +3843,9 @@ classdef Labeler < handle
             trainConfig = wsl_path_from_native(nativeTrainConfig) ;
             if exist(trainConfig,'file')
               js = TrnPack.hlpLoadJson(trainConfig);
-              js.MovieInfo = mia(1,:);
+              js.MovieInfo.NumRows = max([mia(:).NumRows]);
+              js.MovieInfo.NumCols = max([mia(:).NumCols]);
+              %js.MovieInfo = mia(1,:);
               TrnPack.hlpSaveJson(js,trainConfig);
             end
           end
@@ -4731,18 +4733,23 @@ classdef Labeler < handle
                 movies_done{end+1} = oldmovfileFull;
                 movies_done_new{end+1} = movfileFull;
                 not_done = setdiff(movies_all,movies_done);
+                not_done = not_done(startsWith(not_done,old_str));
                 
                 if ~strcmp(old_str,old_s) && numel(not_done)>0
                   [sel,tf] = listdlg('PromptString',{'Select movies to replace', ...
                     sprintf('"%s"',old_str),'with', sprintf('"%s"',new_str),''},...
                     'Name','Select movies to replace...',...
-                    'ListString',not_done);
+                    'ListString',not_done,'ListSize', [400 300]);
                   if tf
                     for jj = sel(:)'
                       cur_mov = strrep(not_done{jj},'\',filesep);
                       cur_mov = strrep(cur_mov,'/',filesep);
                       movies_done_new{end+1} = strrep(cur_mov,old_str,new_str);
                       movies_done{end+1} = not_done{jj};
+                      m_idx = find(strcmp(movies_all,not_done(jj)));
+                      obj.(PROPS.MFA){m_idx} = movies_done_new{end};
+
+
                     end
                   end
                 end

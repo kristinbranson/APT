@@ -1577,14 +1577,16 @@ def setup_ma(conf):
     T = PoseTools.json_load(conf.json_trn_file)
     cur_t = T['locdata'][0]
     pack_dir = os.path.split(conf.json_trn_file)[0]
-    cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
-    if cur_frame.ndim>2:
-        cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
-    fr_sz = cur_frame.shape[:2]
-    conf.multi_frame_sz = fr_sz
+    # cur_frame = cv2.imread(os.path.join(pack_dir, cur_t['img'][conf.view]), cv2.IMREAD_UNCHANGED)
+    # if cur_frame.ndim>2:
+    #     cur_frame = cv2.cvtColor(cur_frame,cv2.COLOR_BGR2RGB)
+    # fr_sz = cur_frame.shape[:2]
+    # conf.multi_frame_sz = fr_sz
+    conf.multi_frame_sz = conf.imsz
+    fr_sz = conf.multi_frame_sz
 
     if not conf.multi_crop_ims:
-        conf.imsz = (fr_sz[0], fr_sz[1])
+        # conf.imsz = (fr_sz[0], fr_sz[1]) # no need to set the image size here.
         logging.info(f'--- Not cropping images for multi-animal. Using frame size {fr_sz} as image size ---')
         return
 
@@ -2448,7 +2450,10 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
         bsize = conf.batch_size
     else:
         bsize = len(to_do_list)
-    all_f = np.zeros((bsize,) + tuple(conf.imsz) + (conf.img_dim,))
+
+    hh = cap.get_height()
+    ww = cap.get_width()
+    all_f = np.zeros((bsize,hh,ww,conf.img_dim,))
     # KB 20200504: sometimes crop_loc might be specified as nans when
     # we want no cropping to happen for reasons. 
     if crop_loc is not None and np.any(np.isnan(np.array(crop_loc))):

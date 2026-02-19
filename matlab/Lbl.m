@@ -114,7 +114,7 @@ classdef Lbl
         for ivw=1:size(mia,2)
           nr = [mia(:,ivw).NumRows];
           nc = [mia(:,ivw).NumCols];
-          assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);
+%          assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie frame sizes for view %d',ivw);
         end
       end
       
@@ -129,7 +129,9 @@ classdef Lbl
         j.Config = cfg;
       end
       if isfield(s,'movieInfoAll'),
-        j.MovieInfo = mia(1,:);
+        j.MovieInfo.NumRows = max([mia(:).NumRows]);
+        j.MovieInfo.NumCols = max([mia(:).NumCols]);
+        %j.MovieInfo = mia(1,:);
       end
       if isfield(s,'cropProjHasCrops'),
         if cfg.HasCrops,

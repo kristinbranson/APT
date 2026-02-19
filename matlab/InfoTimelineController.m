@@ -352,7 +352,9 @@ classdef InfoTimelineController < handle
       else
         dxtick = nominal_dxtick ;
       end
-      obj.hAx.XTick = 0 : dxtick : obj.lObj.nframes ;
+      if ~isnan(obj.lObj.nframes)
+        obj.hAx.XTick = 0 : dxtick : obj.lObj.nframes ;
+      end
       obj.hAx.XLim = [x0 x1];
       set(obj.hCurrFrame,'XData',[currFrame currFrame],'YData',obj.hAx.YLim);
       obj.hAxL.XLim = [x0 x1];

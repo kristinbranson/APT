@@ -1366,7 +1366,10 @@ class coco_loader(torch.utils.data.Dataset):
             scale_factor = height / original_height
 
         # Resize the image
-        resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
+        if self.conf.pad_images:
+            resized_image = image
+        else:
+            resized_image = cv2.resize(image, None, fx=scale_factor, fy=scale_factor)
 
 
         # Calculate the padding sizes
