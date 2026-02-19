@@ -29,10 +29,11 @@ classdef MovieManagerController < handle
     % 3. MMC Tables can set current movie in Labeler based on user action
     % 4. MMC buttons can add/rm labeler movies
 
-    function obj = MovieManagerController(labelerController)
+    function obj = MovieManagerController(labelerController, labeler)
       assert(isa(labelerController, 'LabelerController'));
+      assert(isa(labeler, 'Labeler'));
       obj.parent_ = labelerController;
-      lObj = labelerController.labeler;
+      lObj = labeler;
       %obj.hFig = MovieManager(obj);
       obj.labeler = lObj;
       
