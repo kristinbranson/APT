@@ -1,4 +1,4 @@
-classdef TrackingStyle
+classdef TrackStyle
   % Enumeration type for the two styles of tracking.
   % movie: Track all frames in one or more movies.
   % list: Track a specific list of (movie, frame, target) tuples.

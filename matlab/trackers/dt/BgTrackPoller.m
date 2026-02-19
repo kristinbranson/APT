@@ -15,7 +15,7 @@ classdef BgTrackPoller < BgPoller
     backend_  % A scalar DlBackEndClass, owned by someone else
 
     %nViews_ = 0
-    trackingStyle_ = apt.TrackingStyle.movie
+    trackStyle_ = apt.TrackStyle.movie
     toTrackInfos_ = []
     
     % isexternal_ = false 
@@ -60,25 +60,25 @@ classdef BgTrackPoller < BgPoller
       v = size(obj.movfiles,1);
     end
     function sz = get.resultSize(obj)
-      switch obj.trackingStyle_
-        case apt.TrackingStyle.list
+      switch obj.trackStyle_
+        case apt.TrackStyle.list
           sz = [1,obj.nViews,1];
-        case apt.TrackingStyle.movie
+        case apt.TrackStyle.movie
           sz = [obj.nMovies,obj.nViews,obj.nStages];
         otherwise
-          error('Unknown apt.TrackingStyle: %s', char(obj.trackingStyle_)) ;
+          error('Unknown apt.TrackStyle: %s', char(obj.trackStyle_)) ;
       end
     end
   end    
     
   methods
-    function obj = BgTrackPoller(trackingStyle, dmc, backend, toTrackInfos)
-      assert(isa(trackingStyle, 'apt.TrackingStyle')) ;
+    function obj = BgTrackPoller(trackStyle, dmc, backend, toTrackInfos)
+      assert(isa(trackStyle, 'apt.TrackStyle')) ;
       assert(isa(dmc, 'DeepModelChainOnDisk')) ;
       assert(isa(backend, 'DLBackEndClass') && isscalar(backend)) ;
       assert(isa(toTrackInfos, 'ToTrackInfoSet')) ;
 
-      obj.trackingStyle_ = trackingStyle ;
+      obj.trackStyle_ = trackStyle ;
       obj.dmcs_ = dmc ;
       obj.backend_ = backend ;
       obj.toTrackInfos_ = toTrackInfos ;
@@ -86,17 +86,17 @@ classdef BgTrackPoller < BgPoller
 
     function result = poll(obj, logger)
       % Function that calls either compute() or computeList(), depending on
-      % value of obj.trackingStyle_
+      % value of obj.trackStyle_
       if ~exist('logger', 'var') || isempty(logger) ,
         logger = FileLogger() ;
       end
-      switch obj.trackingStyle_
-        case apt.TrackingStyle.movie
+      switch obj.trackStyle_
+        case apt.TrackStyle.movie
           result = obj.pollForMovie(logger) ;
-        case apt.TrackingStyle.list
+        case apt.TrackStyle.list
           result = obj.pollForList(logger) ;
         otherwise
-          error('Unknown apt.TrackingStyle: %s', char(obj.trackingStyle_)) ;
+          error('Unknown apt.TrackStyle: %s', char(obj.trackStyle_)) ;
       end
       assert(isstruct(result) && isscalar(result)) ;
     end
