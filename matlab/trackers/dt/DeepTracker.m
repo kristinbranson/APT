@@ -1420,7 +1420,7 @@ classdef DeepTracker < LabelTracker
                                  'iterFinal',zeros(size(stage)),...
                                  'prev_models',[] ) ;
       obj.genTrnPack(dmc,'cocoformat',true,'jsonfilename',jsonfilename);
-      imdir = fullfile(dmc.dirProjLnx,TrnPack.SUBDIRIM);
+      imdir = fullfile(dmc.dirProjLnx,TrnPack.SUBDIRIM());
       jsonfile = fullfile(dmc.dirProjLnx,jsonfilename);
       % this will zip all images in the im directory, not just those
       % generated just now
