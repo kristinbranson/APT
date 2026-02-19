@@ -313,9 +313,9 @@ classdef LabelCoreSeq < LabelCore
 %           obj.acceptLabels();
 %         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        obj.controller.frameUpGUI(tfCtrl);
+        obj.controller.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        obj.controller.frameDownGUI(tfCtrl);
+        obj.controller.frameDown(tfCtrl);
       elseif ~tfCtrl && any(strcmp(key,{'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel % && ~obj.tfOcc(iSel)

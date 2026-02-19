@@ -438,9 +438,9 @@ classdef LabelCoreTemplate < LabelCore
           obj.acceptLabels();
         end
       elseif any(strcmp(key,{'d' 'equal'}))
-        obj.controller.frameUpGUI(tfCtrl);
+        obj.controller.frameUp(tfCtrl);
       elseif any(strcmp(key,{'a' 'hyphen'}))
-        obj.controller.frameDownGUI(tfCtrl);
+        obj.controller.frameDown(tfCtrl);
       elseif strcmp(key,'o') && ~tfCtrl
         [tfSel,iSel] = obj.anyPointSelected();
         if tfSel

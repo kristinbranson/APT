@@ -279,9 +279,9 @@ classdef LabelCoreHT < LabelCore
       if strcmp(key,'space')
         obj.acceptCurrentPt();
       elseif any(strcmp(key,{'equal' 'rightarrow' 'd'})) && ~tfCtrl
-        obj.controller.frameUpDFGUI(obj.nFrameSkip);
+        obj.controller.frameUpDF(obj.nFrameSkip);
       elseif any(strcmp(key,{'hyphen' 'leftarrow' 'a'})) && ~tfCtrl
-        obj.controller.frameDownDFGUI(obj.nFrameSkip);
+        obj.controller.frameDownDF(obj.nFrameSkip);
       else
         tfKPused = false;
       end      
@@ -480,7 +480,7 @@ classdef LabelCoreHT < LabelCore
           obj.labeler.setFrameGUI(1);
         end
       else
-        obj.controller.frameUpDFGUI(dfrm);
+        obj.controller.frameUpDF(dfrm);
       end
     end
     

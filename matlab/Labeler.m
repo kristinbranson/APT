@@ -13189,7 +13189,7 @@ classdef Labeler < handle
 %       [tffound,f] = Labeler.seekBigLpos(lpos,obj.currFrame,df,...
 %         obj.currTarget);
 %       if tffound
-%         obj.setFrameProtectedGUI(f);
+%         obj.setFrameProtected(f);
 %       end
 %     end
     
