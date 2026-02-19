@@ -27,7 +27,7 @@ classdef Labeler < handle
       'labelTemplate' ...
       'trackModeIdx' 'trackDLBackEnd' ...
       'suspScore' 'suspSelectedMFT' 'suspComputeFcn' ...
-      'trackParams' 'preProcSaveData' ...
+      'trackParams' ...
       'trackAutoSetParams' ...
       'xvResults' 'xvResultsTS' ...
       'fgEmpiricalPDF'...
@@ -648,11 +648,6 @@ classdef Labeler < handle
   
   %% PreProc
   properties
-    % preProcH0  % Either [], or a struct with field .hgram which is [nbin x nview]. Conceptually, this is a preProcParam that APT updates from movies
-    preProcData  % scalar CPRData, preproc Data cache for CPR
-    preProcDataTS  % scalar timestamp  
-    preProcSaveData  % scalar logical. If true, preProcData* and ppdb are saved/loaded with project file
-    copyPreProcData = false  % scalar logical. if true, don't reread images from videos to create the PreProcDB, just copy over from preProcData    
     ppdb  % PreProcDB for DL
   end
 
@@ -2379,14 +2374,11 @@ classdef Labeler < handle
 %     end
         
     function s = projGetSaveStruct(obj,varargin)
-      % Warning: if .preProcSaveData is true, then s.preProcData is a
-      % handle (shallow copy) to obj.preProcData
-      
       [~,forceIncDataCache,forceExcDataCache,macroreplace,...
         savepropsonly,massageCropProps] = ...
         myparse(varargin,...
         'sparsify',false,...
-        'forceIncDataCache',false,... % include .preProcData* and .ppdb even if .preProcSaveData is false
+        'forceIncDataCache',false,... % include .ppdb even if normally excluded
         'forceExcDataCache',false, ... 
         'macroreplace',false, ... % if true, use mfaFull/tfaFull for mfa/tfa
         'savepropsonly',false, ... % if true, just get the .SAVEPROPS with no further massage
@@ -2463,9 +2455,7 @@ classdef Labeler < handle
       s.trackerClass = cellfun(@getTCICellArray,trackerHistory,'uni',0);
       s.trackerData = cellfun(@getSaveToken,trackerHistory,'uni',0);
       
-      if ~forceExcDataCache && ( obj.preProcSaveData || forceIncDataCache )
-        s.preProcData = obj.preProcData; % Warning: shallow copy for now, caller should not mutate
-        s.preProcDataTS = obj.preProcDataTS;
+      if ~forceExcDataCache && forceIncDataCache
         s.ppdb = obj.ppdb;
       end
     end  % function
@@ -2690,21 +2680,9 @@ classdef Labeler < handle
       obj.isinit = false;
 
       % preproc data cache
-      % s.preProcData* will be present iff s.preProcSaveData==true
-      if s.preProcSaveData 
-        if isempty(s.preProcData)
-          assert(obj.preProcData.N==0);
-        else
-          fprintf('Loading data cache: %d rows.\n',s.preProcData.N);
-          obj.preProcData = s.preProcData;
-          obj.preProcDataTS = s.preProcDataTS;
-        end
-        if isempty(s.ppdb)
-          assert(obj.ppdb.dat.N==0);
-        else
-          fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
-          obj.ppdb = s.ppdb;
-        end
+      if isfield(s, 'ppdb') && ~isempty(s.ppdb)
+        fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
+        obj.ppdb = s.ppdb;
       end
       fprintf('Initialized properties from loaded data (%f s).\n',toc(t0));
 
@@ -4523,7 +4501,6 @@ classdef Labeler < handle
         
         edata = MoviesRemappedEventData.movieRemovedEventData(...
           movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
-        obj.preProcData.movieRemap(edata.mIdxOrig2New);
         obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
         if gt
           [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
@@ -4611,7 +4588,6 @@ classdef Labeler < handle
       
       edata = MoviesRemappedEventData.moviesReorderedEventData(...
         p,nmov,obj.nmoviesGT);
-      obj.preProcData.movieRemap(edata.mIdxOrig2New);
       obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
       sendMaybe(obj.tracker, 'labelerMoviesReordered', edata) ;
       notify(obj,'moviesReordered',edata);
@@ -10683,20 +10659,9 @@ classdef Labeler < handle
     function preProcInit(obj)
       %obj.preProcParams = [];
       % obj.preProcH0 = [];
-      obj.preProcInitData();
       obj.ppdbInit();
-      obj.preProcSaveData = false;
       obj.movieFilesAllHistEqLUT = cell(obj.nmovies,obj.nview);
       obj.movieFilesAllGTHistEqLUT = cell(obj.nmoviesGT,obj.nview);
-    end
-    
-    function preProcInitData(obj)
-      % Initialize .preProcData*
-      
-      I = cell(0,1);
-      tblP = MFTable.emptyTable(MFTable.FLDSCORE);
-      obj.preProcData = CPRData(I,tblP);
-      obj.preProcDataTS = now();
     end
     
     function ppdbInit(obj)
@@ -10751,7 +10716,6 @@ classdef Labeler < handle
       % preprocessing data, trained tracker, and tracking results must also
       % be cleared.
       
-      obj.preProcInitData();
       obj.ppdbInit();
       trackers = obj.trackerHistory_ ;
       for i=1:numel(trackers)
@@ -10949,16 +10913,6 @@ classdef Labeler < handle
     % movies/labels, they should periodically retrain fully, to refresh 
     % .preProcH0 relative to the movies.
     %
-    % Note that .preProcData has its own .H0 for historical reasons. This
-    % should always coincide with .preProcH0, except possibly in edge cases
-    % where one or the other is empty.
-    % 
-    % SUMMARY MAIN OPERATIONS
-    % retrain: this updates .preProcH0 and also forces .preProcData.H0
-    % to match; .preProcData is initially cleared if necessary.
-    % inctrain: .preProcH0 is untouched. .preProcData.H0 continues to match 
-    % .preProcH0.
-    % track: same as inctrain.
     
 %     function preProcUpdateH0IfNec(obj)
 %       % Update obj.preProcH0
@@ -11655,7 +11609,6 @@ classdef Labeler < handle
       if tfPreprocesssingParamsChanged
         assert(~istrack);
         warningNoTrace('Preprocessing parameters altered; data cache cleared.');
-        obj.preProcInitData();
         obj.ppdbInit(); % AL20190123: currently only ppPrms.TargetCrop affect ppdb
         
         bgPrms = sPrm.ROOT.ImageProcessing.BackSub;
@@ -13622,10 +13575,6 @@ classdef Labeler < handle
       
       if ~obj.gtIsGTMode && obj.labelPosMovieHasLabels(iMov),
         obj.preProcNonstandardParamChanged();
-      else
-        % clear CPR cache in any case, even unlabeled movies pose a problem 
-        % as tracking frames can be cached
-        obj.preProcInitData();
       end
 
      

@@ -70,7 +70,7 @@ classdef Lbl
           GLOBS = {'movieFilesAll' 'movieInfoAll' 'trxFilesAll'};
           FLDSRM = {'projMacros'};
         else
-          GLOBS = {'labeledpos' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'preProcData'};
+          GLOBS = {'labeledpos' 'movieFilesAll' 'movieInfoAll' 'trxFilesAll'};
           FLDSRM = { ... % 'movieFilesAllCropInfo' 'movieFilesAllGTCropInfo' ...
             'movieFilesAllHistEqLUT' 'movieFilesAllGTHistEqLUT'};
         end      

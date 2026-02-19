@@ -2189,7 +2189,6 @@ classdef LabelerController < handle
       labeler.isinit = true;
       %delete(obj.lblCore);
       %obj.lblCore = [];
-      labeler.preProcData = [];
       labeler.ppdb = [];
 
       
