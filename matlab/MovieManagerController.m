@@ -1,10 +1,11 @@
 classdef MovieManagerController < handle
   properties (SetAccess=private)
+    parent_ % scalar LabelerController that created this object
     hFig % scalar handle to MovieManager fig
-    
+
     labeler % scalar labeler Obj
     listeners % cell array of listener objs
-    
+
     tblMovies
     tblMovieSet
     tabHandles % [2] "handles" struct array
@@ -28,8 +29,10 @@ classdef MovieManagerController < handle
     % 3. MMC Tables can set current movie in Labeler based on user action
     % 4. MMC buttons can add/rm labeler movies
 
-    function obj = MovieManagerController(lObj)
-      assert(isa(lObj,'Labeler'));
+    function obj = MovieManagerController(labelerController)
+      assert(isa(labelerController, 'LabelerController'));
+      obj.parent_ = labelerController;
+      lObj = labelerController.labeler;
       %obj.hFig = MovieManager(obj);
       obj.labeler = lObj;
       
