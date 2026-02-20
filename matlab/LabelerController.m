@@ -6687,8 +6687,8 @@ classdef LabelerController < handle
         figure(hfig);
       end
       nkpts = labeler.nPhysPoints;
-      d = 2;
-      htile = tiledlayout(1,nviews,'TileSpacing','none','Padding','none');
+      % d = 2;
+      % htile = tiledlayout(1,nviews,'TileSpacing','none','Padding','none');
       hax = gobjects(1,nviews);
       tbldata = labeler.labelGetMFTableLabeled('useMovNames',true);
       for i = 1:nviews,
@@ -6739,14 +6739,14 @@ classdef LabelerController < handle
               
             ti = sprintf(' ex %d, movie set %d, frame %d, tgt %d',exi,i,fr,tgt);
             if ~isempty(movieabbr),
-              ti = [ti,', ',movieabbr];
+              ti = [ti,', ',movieabbr];  %#ok<AGROW>
             end
             text(hax(1),mincoord(1,1)-border,mincoord(1,2)-border+5,ti,'HorizontalAlignment','left','VerticalAlignment','top','Color','m');
             outfile = fullfile(outimgdir,sprintf('example%03d_movieset%02d_fr%06d_tgt%02d',exi,i,fr,tgt));
             if ~isempty(movieabbr),
-              outfile = [outfile,'_',movieabbr];
+              outfile = [outfile,'_',movieabbr]; %#ok<AGROW>
             end
-            outfile = [outfile,'.png'];
+            outfile = [outfile,'.png']; %#ok<AGROW>
             saveas(hfig,outfile,'png');
           end
         end
@@ -7449,7 +7449,7 @@ classdef LabelerController < handle
     end  % function
 
     function hlpOverlayMontage_(obj,clickHandler,tMFT,~,~)
-      lObj = obj.labeler_;
+      % lObj = obj.labeler_;
       eid = clickHandler.fSelectedEids;
       if ~isempty(eid)
         trow = tMFT(eid,:);
