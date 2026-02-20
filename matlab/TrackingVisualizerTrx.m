@@ -59,14 +59,11 @@ classdef TrackingVisualizerTrx < handle
       obj.hTrxTxt = matlab.graphics.primitive.Text.empty(0,1);
       
       if islogical(click2nav)
-        if click2nav
-          obj.trxSelectCbk = @(iTrx)(lObj.clickTarget(iTrx)) ;
-          bdf = @(src,evt)obj.bdfTrx(src,evt);
-        else
-          obj.trxSelectCbk = [];
-          bdf = [];
-        end
-        obj.trxClickable = click2nav;
+        assert(~click2nav, ...
+          'Pass a function handle for click2nav, or false to disable.');
+        obj.trxSelectCbk = [];
+        bdf = [];
+        obj.trxClickable = false;
       else
         assert(isa(click2nav,'function_handle'));
         obj.trxSelectCbk = click2nav;

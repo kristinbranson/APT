@@ -193,6 +193,7 @@ classdef Labeler < handle
     updateTimelineLandmarkColors
     updateCurrImagesAllViews
     updatePrevImage
+    updateShortcuts
   end
 
   events  % used to come from labeler.tracker
@@ -2061,9 +2062,7 @@ classdef Labeler < handle
 
     function setShortcuts(obj,scs)
       obj.projPrefs.Shortcuts = scs;
-      if ~isempty(obj.controller_)
-        obj.controller_.setShortcuts_() ;
-      end
+      notify(obj, 'updateShortcuts');
     end
 
   end
@@ -7751,21 +7750,21 @@ classdef Labeler < handle
       end          
     end
     
-    function updateLandmarkLabelColors(obj,colors,colormapname)
-      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-      % colors: "setwise" colors
-
-      szassert(colors,[obj.nPhysPoints 3]);
-      lc = obj.lblCore;
-      % Colors apply to lblCore, lblPrev_*, timeline
-      
-      obj.labelPointsPlotInfo.ColorMapName = colormapname;
-      obj.labelPointsPlotInfo.Colors = colors;
-      ptcolors = obj.Set2PointColors(colors);
-      lc.updateColors(ptcolors);
-      LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
-      obj.controller_.labelTLInfo.updateLandmarkColors();
-    end
+    % function updateLandmarkLabelColors(obj,colors,colormapname)
+    %   % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
+    %   % colors: "setwise" colors
+    % 
+    %   szassert(colors,[obj.nPhysPoints 3]);
+    %   lc = obj.lblCore;
+    %   % Colors apply to lblCore, lblPrev_*, timeline
+    % 
+    %   obj.labelPointsPlotInfo.ColorMapName = colormapname;
+    %   obj.labelPointsPlotInfo.Colors = colors;
+    %   ptcolors = obj.Set2PointColors(colors);
+    %   lc.updateColors(ptcolors);
+    %   LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
+    %   obj.controller_.labelTLInfo.updateLandmarkColors();
+    % end
     
     function updateLandmarkPredictionColors(obj,colors,colormapname)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
@@ -9486,9 +9485,6 @@ classdef Labeler < handle
 
     end
     
-    function gtShowGTManager(obj) 
-      obj.controller_.gtShowGTManager();
-    end
 
     function [iMov,iMovGT] = gtCommonMoviesRegGT(obj)
       % Find movies common to both regular and GT lists
@@ -11751,6 +11747,7 @@ classdef Labeler < handle
       end
     end
   end
+
   methods (Static)
     function edges = hlpParseCommaSepGraph(str)
       % str: eg '1 2, 3 4'
@@ -12829,11 +12826,6 @@ classdef Labeler < handle
 %       obj.setTarget(iTgt);
 %     end
 
-    function clickTarget(obj, iTgt)      
-      if strcmpi(obj.controller_.mainFigure_.SelectionType,'open'),
-        obj.setTarget(iTgt);
-      end      
-    end
     
     function setTarget(obj,iTgt,varargin)
       % Set target index, maintaining current movie/frameframe.

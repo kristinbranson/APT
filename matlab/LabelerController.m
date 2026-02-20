@@ -535,6 +535,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevImage',@(s,e)(obj.updatePrevImage())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -680,7 +682,13 @@ classdef LabelerController < handle
 
     function didSetTrx(obj, ~, ~)
       trx = obj.labeler_.trx ;
-      obj.tvTrx_.init(true, numel(trx)) ;
+      obj.tvTrx_.init(@(iTgt)(obj.clickTarget(iTgt)), numel(trx)) ;
+    end
+
+    function clickTarget(obj, iTgt)
+      if strcmpi(obj.mainFigure_.SelectionType, 'open')
+        obj.labeler_.setTarget(iTgt);
+      end
     end
 
     function quitRequested(obj)
@@ -2004,7 +2012,7 @@ classdef LabelerController < handle
       % be cleared
       obj.setTblTrxData(cell(0,size(obj.tblTrx.ColumnName,2)));
       
-      obj.setShortcuts_() ;
+      obj.updateShortcuts() ;
       
       obj.labelTLInfo.updateForNewProject();
       
@@ -2113,7 +2121,7 @@ classdef LabelerController < handle
       set(obj.txMoviename,'String',str) ;
     end  % function
     
-    function setShortcuts_(obj)
+    function updateShortcuts(obj)
       labeler = obj.labeler_ ;
       main_figure = obj.mainFigure_ ;
       prefs = labeler.projPrefs;

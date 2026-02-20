@@ -224,7 +224,7 @@ classdef MovieManagerController < handle
             lObj.movieSetGUI(iMov);
           end
         case 'pbGTFrames'
-          lObj.gtShowGTManager();
+          obj.parent_.gtShowGTManager();
         otherwise
           assert(false);
       end
