@@ -116,6 +116,8 @@ classdef Labeler < handle
     updateTrxSetShowTrue
     updateTrxSetShowFalse
     updateTrxTable
+    updateFrameTableIncremental
+    updateFrameTableComplete
 
     didSetProjectName
     didSetProjFSInfo
@@ -1675,7 +1677,8 @@ classdef Labeler < handle
       obj.labels = v;
       if ~obj.isinit %#ok<MCSUP>
         obj.notify('updateTrxTable');
-        obj.updateFrameTableIncremental(); 
+        obj.syncPropsMfahl_() ;
+        obj.notify('updateFrameTableIncremental');
       end
       %obj.notify('didSetLabels') ;
       obj.notify('updateTimelineTraces') ;
@@ -1685,22 +1688,25 @@ classdef Labeler < handle
       obj.labelsGT = v;
       if ~obj.isinit %#ok<MCSUP>
         obj.notify('updateTrxTable');
-        obj.updateFrameTableIncremental();
+        obj.syncPropsMfahl_() ;
+        obj.notify('updateFrameTableIncremental');
         obj.gtUpdateSuggMFTableLbledIncremental();
       end
     end
 
-    function set.labelsRoi(obj,v)      
+    function set.labelsRoi(obj,v)
       obj.labelsRoi = v;
-      if ~obj.isinit %#ok<MCSUP> 
-        obj.updateFrameTableIncremental(); 
+      if ~obj.isinit %#ok<MCSUP>
+        obj.syncPropsMfahl_() ;
+        obj.notify('updateFrameTableIncremental');
       end
     end
 
-    function set.labelsRoiGT(obj,v)      
+    function set.labelsRoiGT(obj,v)
       obj.labelsRoiGT = v;
-      if ~obj.isinit %#ok<MCSUP> 
-        obj.updateFrameTableIncremental(); 
+      if ~obj.isinit %#ok<MCSUP>
+        obj.syncPropsMfahl_() ;
+        obj.notify('updateFrameTableIncremental');
       end
     end
 
@@ -2293,7 +2299,8 @@ classdef Labeler < handle
       
       obj.isinit = false;
       
-      obj.updateFrameTableComplete();  
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
 
@@ -2709,8 +2716,9 @@ classdef Labeler < handle
       obj.labeledposNeedsSave = false;
       obj.doesNeedSave_ = false;
 %       obj.suspScore = obj.suspScore;
-            
-      obj.updateFrameTableComplete(); % TODO don't like this, maybe move to UI
+
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
       
       if obj.currMovie>0
         obj.labelsUpdateNewFrame(true);
@@ -4862,8 +4870,8 @@ classdef Labeler < handle
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
       
-      % Not a huge fan of this, maybe move to UI
-      obj.updateFrameTableComplete();
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
       
       % Proj/Movie/LblCore initialization can maybe be improved
       % Call setFrame again now that lblCore is set up
@@ -4933,7 +4941,8 @@ classdef Labeler < handle
       edata = NewMovieEventData(false);
       sendMaybe(obj.tracker, 'newLabelerMovie') ;
       notify(obj,'newMovie',edata);
-      obj.updateFrameTableComplete();
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
 
       % Set state equivalent to obj.setFrameAndTarget();
       controller = obj.controller_;
@@ -6685,7 +6694,8 @@ classdef Labeler < handle
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LPOS){iMov}(iPt,1,frms,iTgt) = xy(1);
       obj.(PROPS.LPOS){iMov}(iPt,2,frms,iTgt) = xy(2);
-      obj.updateFrameTableComplete(); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete'); % above sets mutate .labeledpos{obj.currMovie} in more than just .currFrame
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       end
@@ -6850,8 +6860,9 @@ classdef Labeler < handle
       
       PROPS = obj.gtGetSharedProps();
       obj.(PROPS.LBL){iMov} = s;
-              
-      obj.updateFrameTableComplete();
+
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       else
@@ -7020,7 +7031,8 @@ classdef Labeler < handle
         end
       end
       obj.updateMovieFilesAllHaveLbls();
-      obj.updateFrameTableComplete();
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       else
@@ -7065,7 +7077,8 @@ classdef Labeler < handle
       mIdx = MovieIndex(iMovs,obj.gtIsGTMode);
       obj.labelImportTrkGeneric(mIdx,trkfiles,'LBL');
       obj.labelsUpdateNewFrame(true);
-      obj.updateFrameTableComplete();
+      obj.syncPropsMfahl_() ;
+      obj.notify('updateFrameTableComplete');
       if obj.gtIsGTMode
         obj.gtUpdateSuggMFTableLbledComplete('donotify',true);
       else
@@ -8940,7 +8953,8 @@ classdef Labeler < handle
           IMOV = 1; % FUTURE: remember last/previous iMov in "other" gt mode
           obj.movieSetGUI(IMOV);
         end
-        obj.updateFrameTableComplete();
+        obj.syncPropsMfahl_() ;
+        obj.notify('updateFrameTableComplete');
         obj.notify('gtIsGTModeChanged');
       end
     end
@@ -12889,7 +12903,7 @@ classdef Labeler < handle
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
         obj.notify('updateTrxTable');
-        obj.updateShowTrx();
+        obj.updateShowTrx();  % All this does is send a notification, and only in some cases
       end
     end  % function setFrameAndTargetGUI
   end
@@ -13045,105 +13059,10 @@ classdef Labeler < handle
     % end
     
     
-    % TODO: Move this into UI
-    function updateFrameTableIncremental(obj)
-      % assumes .labelpos and tblFrames differ at .currFrame at most
-      %
-      % might be unnecessary/premature optim
-      
-      tbl = obj.controller_.tblFrames;
-      dat = obj.controller_.getTblFramesData();
-      tblFrms = cell2mat(dat(:,1));
-      cfrm = obj.currFrame;
-      tfRow = (tblFrms==cfrm);
-      
-      [nTgtsCurFrm,nPtsCurFrm,nRoisCurFrm] = obj.labelPosLabeledFramesStats(cfrm);
-      if nTgtsCurFrm>0 || nRoisCurFrm>0
-        if any(tfRow)
-          assert(nnz(tfRow)==1);
-          iRow = find(tfRow);
-          if obj.maIsMA
-            dat(iRow,2:4) = {nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
-          elseif obj.hasTrx
-            dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
-          else
-            dat{iRow,2} = nPtsCurFrm;
-          end          
-          obj.controller_.setTblFramesData(dat);
-          %tbl.setDataFast([iRow iRow],2:3,{nTgtsCurFrm nPtsCurFrm},...
-          %  size(dat,1),size(dat,2));
-        else
-          if obj.maIsMA
-            dat(end+1,1:4) = {cfrm nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
-          elseif obj.hasTrx,
-            dat(end+1,1:3) = {cfrm nTgtsCurFrm nPtsCurFrm};
-          else
-            dat(end+1,1:2) = {cfrm,nPtsCurFrm};
-          end
-          %n = size(dat,1);
-          tblFrms(end+1,1) = cfrm;
-          [~,idx] = sort(tblFrms);
-          dat = dat(idx,:);
-          %iRow = find(idx==n);
-          obj.controller_.setTblFramesData(dat);
-        end
-      else
-        %iRow = [];
-        if any(tfRow)
-          assert(nnz(tfRow)==1);
-          dat(tfRow,:) = [];
-          set(tbl,'Data',dat);
-        end
-      end
-      
-      %tbl.SelectedRows = iRow;
-
-      nTgtsTot = sum(cell2mat(dat(:,2)));
-
-      % dat should equal get(tbl,'Data')
-      if obj.hasMovie
-        PROPS = obj.gtGetSharedProps();
-        %obj.controller_.labelTLInfo.setLabelsFrame();
-        obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
-      end
-      
-      tx = obj.controller_.txTotalFramesLabeled;
-      tx.String = num2str(nTgtsTot);
-    end    
-    
     function updateMovieFilesAllHaveLbls(obj)
       fcnNumLbledRows = @Labels.numLbls;
       obj.movieFilesAllHaveLbls = cellfun(fcnNumLbledRows,obj.labels);
       obj.movieFilesAllGTHaveLbls = cellfun(fcnNumLbledRows,obj.labelsGT);
-    end
-
-    function updateFrameTableComplete(obj)
-      [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
-      tfFrm = nTgts>0 | nPts>0 | nRois>0;
-      iFrm = find(tfFrm);
-
-      nTgtsLbledFrms = nTgts(tfFrm);
-      nPtsLbledFrms = nPts(tfFrm);
-      nRoisLbledFrms = nRois(tfFrm);
-      if obj.maIsMA
-        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) num2cell(nRoisLbledFrms)];
-      elseif obj.hasTrx
-        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) ];
-      else
-        dat = [num2cell(iFrm) num2cell(nPtsLbledFrms) ];
-      end
-      obj.controller_.setTblFramesData(dat);
-
-      nTgtsTot = sum(nTgtsLbledFrms);
-
-      if obj.hasMovie
-        PROPS = obj.gtGetSharedProps();
-        %obj.controller_.labelTLInfo.setLabelsFrame(1:obj.nframes);
-        obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
-      end
-      
-      tx = obj.controller_.txTotalFramesLabeled;
-      tx.String = num2str(nTgtsTot);
     end
 
     function setCurrentAndPreviousFrameData_(obj, frameIndex, tfforce)
@@ -15272,5 +15191,20 @@ classdef Labeler < handle
       % Used while debugging to set private properties
       nop() ;
     end  % function
+
+    function syncPropsMfahl_(obj)
+      [nTgts,nPts,nRois] = obj.labelPosLabeledFramesStats();
+      tfFrm = nTgts>0 | nPts>0 | nRois>0;
+
+      nTgtsLbledFrms = nTgts(tfFrm);
+
+      nTgtsTot = sum(nTgtsLbledFrms);
+
+      if obj.hasMovie
+        PROPS = obj.gtGetSharedProps();
+        obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
+      end
+    end  % function
+    
   end  % methods
 end  % classdef

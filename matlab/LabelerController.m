@@ -382,6 +382,10 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxTable', @(s,e)(obj.updateTrxTable())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateFrameTableIncremental', @(s,e)(obj.updateFrameTableIncremental())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateFrameTableComplete', @(s,e)(obj.updateFrameTableComplete())) ;
+      obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSpawnTrackingForGT', @(source,event)(obj.showDialogAfterSpawningTrackingForGT(source, event))) ;      
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didComputeGTResults', @(source,event)(obj.showGTResults(source, event))) ;
@@ -821,6 +825,94 @@ classdef LabelerController < handle
         tbldat = [num2cell(idxLive) num2cell(tfLbled)];
         obj.setTblTrxData(tbldat);
       end
+    end  % function
+
+    function updateFrameTableIncremental(obj)
+      % assumes .labelpos and tblFrames differ at .currFrame at most
+      %
+      % might be unnecessary/premature optim
+
+      labeler = obj.labeler_ ;
+      tbl = obj.tblFrames;
+      dat = obj.getTblFramesData();
+      tblFrms = cell2mat(dat(:,1));
+      cfrm = labeler.currFrame;
+      tfRow = (tblFrms==cfrm);
+
+      [nTgtsCurFrm,nPtsCurFrm,nRoisCurFrm] = labeler.labelPosLabeledFramesStats(cfrm);
+      if nTgtsCurFrm>0 || nRoisCurFrm>0
+        if any(tfRow)
+          assert(nnz(tfRow)==1);
+          iRow = find(tfRow);
+          if labeler.maIsMA
+            dat(iRow,2:4) = {nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          elseif labeler.hasTrx
+            dat(iRow,2:3) = {nTgtsCurFrm nPtsCurFrm};
+          else
+            dat{iRow,2} = nPtsCurFrm;
+          end
+          obj.setTblFramesData(dat);
+        else
+          if labeler.maIsMA
+            dat(end+1,1:4) = {cfrm nTgtsCurFrm nPtsCurFrm nRoisCurFrm};
+          elseif labeler.hasTrx
+            dat(end+1,1:3) = {cfrm nTgtsCurFrm nPtsCurFrm};
+          else
+            dat(end+1,1:2) = {cfrm,nPtsCurFrm};
+          end
+          tblFrms(end+1,1) = cfrm;
+          [~,idx] = sort(tblFrms);
+          dat = dat(idx,:);
+          obj.setTblFramesData(dat);
+        end
+      else
+        if any(tfRow)
+          assert(nnz(tfRow)==1);
+          dat(tfRow,:) = [];
+          set(tbl,'Data',dat);
+        end
+      end
+
+      nTgtsTot = sum(cell2mat(dat(:,2)));
+
+      % Moved to Labeler.syncPropsMfahl_() ;
+      % if labeler.hasMovie
+      %   PROPS = labeler.gtGetSharedProps();
+      %   labeler.(PROPS.MFAHL)(labeler.currMovie) = nTgtsTot;
+      % end
+
+      tx = obj.txTotalFramesLabeled;
+      tx.String = num2str(nTgtsTot);
+    end  % function
+
+    function updateFrameTableComplete(obj)
+      labeler = obj.labeler_ ;
+      [nTgts,nPts,nRois] = labeler.labelPosLabeledFramesStats();
+      tfFrm = nTgts>0 | nPts>0 | nRois>0;
+      iFrm = find(tfFrm);
+
+      nTgtsLbledFrms = nTgts(tfFrm);
+      nPtsLbledFrms = nPts(tfFrm);
+      nRoisLbledFrms = nRois(tfFrm);
+      if labeler.maIsMA
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) num2cell(nRoisLbledFrms)];
+      elseif labeler.hasTrx
+        dat = [num2cell(iFrm) num2cell(nTgtsLbledFrms) num2cell(nPtsLbledFrms) ];
+      else
+        dat = [num2cell(iFrm) num2cell(nPtsLbledFrms) ];
+      end
+      obj.setTblFramesData(dat);
+
+      nTgtsTot = sum(nTgtsLbledFrms);
+
+      % Moved to Labeler.syncPropsMfahl_() ;
+      % if labeler.hasMovie
+      %   PROPS = labeler.gtGetSharedProps();
+      %   labeler.(PROPS.MFAHL)(labeler.currMovie) = nTgtsTot;
+      % end
+
+      tx = obj.txTotalFramesLabeled;
+      tx.String = num2str(nTgtsTot);
     end  % function
 
     function didSetLblCore(obj, src, evt)  %#ok<INUSD>
