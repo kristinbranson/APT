@@ -188,6 +188,8 @@ classdef Labeler < handle
     updateTimelineStatThresh
     updateTimelineTraces
     updateTimelineLandmarkColors
+    updateCurrImagesAllViews
+    updatePrevImage
   end
 
   events  % used to come from labeler.tracker
@@ -721,7 +723,9 @@ classdef Labeler < handle
   
   %% Prev
   properties
-    prevIm = struct('CData',0,'XData',0,'YData',0)  % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
+    %prevIm = struct('CData',0,'XData',0,'YData',0)  % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
+    prevIm = []
+    prevImRoi = [] 
     prevAxesMode  % scalar PrevAxesMode
     prevAxesModeInfo  % "userdata" for .prevAxesMode
     lblPrev_ptsH  % [npts] gobjects. init: L
@@ -750,6 +754,7 @@ classdef Labeler < handle
   properties 
     currFrame = 1  % current frame
     currIm = []             % [nview] cell vec of image data. init: C
+    currImRoi = []
     % selectedFrames_ = []     % vector of frames currently selected frames; typically t0:t1
     drag = false 
     drag_pt = [] 
@@ -1911,6 +1916,7 @@ classdef Labeler < handle
       end
       obj.movieReader = mr;
       obj.currIm = cell(obj.nview,1);
+      obj.currImRoi = cell(obj.nview,1);
       delete(obj.currImHud);
       controller = obj.controller_;
       obj.currImHud = AxisHUD(controller.axes_curr.Parent,controller.axes_curr); 
@@ -5169,9 +5175,11 @@ classdef Labeler < handle
       imsall = controller.images_all;
       for iView=1:obj.nview
         obj.currIm{iView} = 0;
+        obj.currImRoi{iView} = [ 1 1 1 1 ] ;
         set(imsall(iView),'CData',0);
       end
-      obj.prevIm = struct('CData',0,'XData',0,'YData',0);
+      obj.prevIm = 0 ;
+      obj.prevImRoi = [ 1 1 1 1 ] ;
       imprev = controller.image_prev;
       set(imprev,'CData',0);     
       if ~obj.gtIsGTMode
@@ -12993,7 +13001,7 @@ classdef Labeler < handle
       
       % Remainder nearly identical to setFrameAndTarget()
       try
-        obj.hlpSetCurrPrevFrameGUI(frm,tfforcereadmovie);
+        obj.setCurrentAndPreviousFrameData_(frm,tfforcereadmovie);
       catch ME
         warning(ME.identifier,'Could not set previous frame:\n%s',getReport(ME));
       end
@@ -13099,7 +13107,7 @@ classdef Labeler < handle
       end
 
       try
-        obj.hlpSetCurrPrevFrameGUI(frm,tfforce);
+        obj.setCurrentAndPreviousFrameData_(frm,tfforce);
       catch ME
         warning(ME.identifier,'Could not set previous frame: %s', ME.message);
       end
@@ -13469,66 +13477,52 @@ classdef Labeler < handle
       tx = obj.controller_.txTotalFramesLabeled;
       tx.String = num2str(nTgtsTot);
     end
-  end
-  
-  methods (Hidden)
 
-    function hlpSetCurrPrevFrameGUI(obj,frm,tfforce)
+    function setCurrentAndPreviousFrameData_(obj, frameIndex, tfforce)
       % helper for setFrameGUI(), setFrameAndTargetGUI()
 
-      controller = obj.controller_;
-
-      currFrmOrig = obj.currFrame;      
-      imcurr = controller.image_curr;
-      currImOrig = struct('CData',imcurr.CData,...
-          'XData',imcurr.XData,'YData',imcurr.YData);
-        
-      nfrs = min([obj.movieReader(:).nframes]);
-      if frm>nfrs
-        s1 = sprintf('Cannot browse to frame %d because the maximum',frm);
-        s2 = sprintf('number of frames reported by matlab is %d.',nfrs);
-        s3 = sprintf('Browsing to frame %d.',nfrs);
-        s4 = sprintf('The number of frames reported in a video can differ');
-        s5 = sprintf('based on the codecs installed. We tried to make');
-        s6 = sprintf('them consistent but there are no solutions other');
-        s7 = sprintf('encoding the video using a simpler codec.');
-
-        warndlg({s1,s2,s3,s4,s5,s6,s7}, 'Frame out of limit');
-        frm = nfrs;
+      currFrameOriginal = obj.currFrame ;
+      % imcurr = controller.image_curr;
+      if isempty(obj.currIm) || isempty(obj.currIm{1})
+        currIm1Original = 0 ;
+        currImRoi1Original = [ 1 1 1 1 ] ;
+      else
+        currIm1Original = obj.currIm{1} ;
+        currImRoi1Original = obj.currImRoi{1} ;
       end
-      if obj.currFrame~=frm || tfforce
-        imsall = controller.images_all;
+
+      frameCount = min([obj.movieReader(:).nframes]);
+      if frameIndex > frameCount
+        frameIndex = frameCount ;
+      end
+
+      if obj.currFrame~=frameIndex || tfforce
         tfCropMode = obj.cropIsCropMode;        
         for iView=1:obj.nview
           if tfCropMode
-            [obj.currIm{iView},~,currImRoi] = ...
-              obj.movieReader(iView).readframe(frm,...
-              'doBGsub',obj.movieViewBGsubbed,'docrop',false);                   
+            [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
+              obj.movieReader(iView).readframe(frameIndex,...
+                                               'doBGsub',obj.movieViewBGsubbed,'docrop',false);                   
           else
-            [obj.currIm{iView},~,currImRoi] = ...
-              obj.movieReader(iView).readframe(frm,...
-              'doBGsub',obj.movieViewBGsubbed,'docrop',true);                  
+            [obj.currIm{iView},~,obj.currImRoi{iView}] = ...
+              obj.movieReader(iView).readframe(frameIndex,...
+                                               'doBGsub',obj.movieViewBGsubbed,'docrop',true);                  
           end          
-          set(imsall(iView),...
-            'CData',obj.currIm{iView},...
-            'XData',currImRoi(1:2),...
-            'YData',currImRoi(3:4));
         end
+        obj.notify('updateCurrImagesAllViews') ;
 
-        obj.currFrame = frm;
-        % obj.notify('updateAfterCurrentFrameSet') ;
+        obj.currFrame = frameIndex;
         
         if ~isempty(obj.tracker),
           obj.tracker.newLabelerFrame();
         end
       end
       
-      % AL20180619 .currIm is probably an unnec prop
-      obj.prevFrame = currFrmOrig;
+      obj.prevFrame = currFrameOriginal;
       currIm1Nr = size(obj.currIm{1},1);
       currIm1Nc = size(obj.currIm{1},2);
-      if ~isequal([size(currImOrig.CData,1) size(currImOrig.CData,2)],...
-          [currIm1Nr currIm1Nc])
+      if ~isequal([size(currIm1Original,1) size(currIm1Original,2)],...
+                  [currIm1Nr currIm1Nc])
         % In this scenario we do not use currIm1Orig b/c axes_prev and 
         % axes_curr are linked and that can force the axes into 'manual'
         % XLimMode and so on. Generally it is disruptive to view-handling.
@@ -13540,12 +13534,16 @@ classdef Labeler < handle
         % in edge cases eg when a project is loaded or changed. In this 
         % case currIm1Orig is not going to represent anything meaningful 
         % anyway.
-        obj.prevIm = struct('CData',zeros(currIm1Nr,currIm1Nc),...
-                            'XData',1:currIm1Nc,'YData',1:currIm1Nr);
+        % obj.prevIm = struct('CData',zeros(currIm1Nr,currIm1Nc),...
+        %                     'XData',1:currIm1Nc,'YData',1:currIm1Nr);
+        obj.prevIm = zeros(currIm1Nr,currIm1Nc) ;
+        obj.prevImRoi = [ 1 currIm1Nc 1 currIm1Nr ] ;
       else
-        obj.prevIm = currImOrig;
+        obj.prevIm = currIm1Original ;
+        obj.prevImRoi = currImRoi1Original ;
       end
-      obj.prevAxesImFrmUpdate(tfforce) ;      
+      % obj.prevAxesImFrmUpdate(tfforce) ;      
+      obj.notify('updatePrevImage') ;
     end  % function
   end
   
@@ -13688,7 +13686,7 @@ classdef Labeler < handle
       switch obj.prevAxesMode
         case PrevAxesMode.LASTSEEN
           controller = obj.controller_;
-          set(controller.image_prev,obj.prevIm);
+          set(controller.image_prev, 'CData', obj.prevIm, 'XData', obj.prevImRoi(1:2), 'YData', obj.prevImRoi(3:4) );
           controller.txPrevIm.String = sprintf('Frame: %d',obj.prevFrame);
           if obj.hasTrx,
             controller.txPrevIm.String = [controller.txPrevIm.String,sprintf(', Target %d',obj.currTarget)];
@@ -13699,7 +13697,7 @@ classdef Labeler < handle
             obj.prevAxesFreeze(obj.prevAxesModeInfo);
           end
       end
-    end
+    end  % function
 
     function isvalid = isPrevAxesModeInfoSet(obj)      
       % Returns true iff obj.prevAxesModeInfo contains a valid paModeInfo struct.

@@ -524,7 +524,10 @@ classdef LabelerController < handle
       %   addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateAfterCurrentFrameSet', @(s,e)(obj.updateAfterCurrentFrameSet())) ;
-
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updatePrevImage',@(s,e)(obj.updatePrevImage())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -5236,18 +5239,12 @@ classdef LabelerController < handle
 
 
     function menu_view_fit_entire_image_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
       hAxs = obj.axes_all;
       hIms = obj.images_all;
       assert(numel(hAxs)==numel(hIms));
       arrayfun(@zoomOutFullView,hAxs,hIms,true(1,numel(hAxs)));
       labeler.movieCenterOnTarget = false;
-
-
     end
 
 
@@ -7688,6 +7685,55 @@ classdef LabelerController < handle
         end
       end
     end  % function
+
+    function updateCurrImagesAllViews(obj)
+      labeler = obj.labeler_ ;
+      if ~labeler.hasMovie
+        return
+      end
+      for iView=1:labeler.nview
+        currImRoiThisView = labeler.currImRoi{iView} ;
+        set(obj.images_all(iView),...
+            'CData',labeler.currIm{iView},...
+            'XData',currImRoiThisView(1:2),...
+            'YData',currImRoiThisView(3:4));
+      end      
+    end  % function
+
+    function updatePrevImage(obj)
+      labeler = obj.labeler_ ;      
+      if ~labeler.hasMovie || isempty(labeler.prevAxesMode)
+        return
+      end      
+      % update prevaxes image and txframe based on .prevIm, .prevFrame
+      switch labeler.prevAxesMode
+        case PrevAxesMode.LASTSEEN
+          set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4) );
+          basicString = sprintf('Frame: %d',labeler.prevFrame) ;
+          if labeler.hasTrx,
+            finalString = sprintf('%s, Target %d',basicString,labeler.currTarget) ;
+          else
+            finalString = basicString ;
+          end
+          obj.txPrevIm.String = finalString ;
+        case PrevAxesMode.FROZEN,     
+          freezeInfo = labeler.prevAxesModeInfo ;
+          if ~isempty(freezeInfo)
+            obj.image_prev.XData = freezeInfo.xdata;
+            obj.image_prev.YData = freezeInfo.ydata;
+            obj.image_prev.CData = freezeInfo.im;
+            stringDraft1 = sprintf('Frame %d',freezeInfo.frm);
+            if labeler.hasTrx,
+              stringDraft2 = sprintf('%s, Target %d',stringDraft1,freezeInfo.iTgt) ;
+            else
+              stringDraft2 = stringDraft1 ;
+            end
+            finalString = sprintf('%s, Movie %d',stringDraft2,freezeInfo.iMov) ;
+            obj.txPrevIm.String = finalString ;
+          end  % if
+      end
+    end  % function
+    
   end  % methods
 
 end  % classdef
