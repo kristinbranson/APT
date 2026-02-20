@@ -4514,7 +4514,7 @@ classdef Labeler < handle
       
       tfSucc = tfProceedRm;
     end
-    
+
     function movieRmAll(obj)
       nmov = obj.nmoviesGTaware;
       obj.movieSetNoMovie();
@@ -12956,19 +12956,6 @@ classdef Labeler < handle
       NavPrefs(obj);
     end
     
-    function setMFTGUI(obj,iMov,frm,iTgt)
-      if isa(iMov,'MovieIndex')
-        if obj.currMovIdx~=iMov
-          obj.movieSetMIdx(iMov);
-        end
-      else
-        if obj.currMovie~=iMov
-          obj.movieSetGUI(iMov);
-        end
-      end
-      obj.setFrameAndTargetGUI(frm,iTgt);
-    end
-
     function setFrameGUI(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.
       %

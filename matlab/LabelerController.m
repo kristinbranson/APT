@@ -1503,8 +1503,7 @@ classdef LabelerController < handle
       oc = onCleanup(@()(obj.labeler_.popBusyStatus()));
       drawnow;
 
-      labeler = obj.labeler_ ;
-      labeler.setMFTGUI(rowdata.mov,rowdata.frm1,rowdata.iTgt) ;
+      obj.setMFTGUI(rowdata.mov, rowdata.frm1, rowdata.iTgt);
     end  % function
 
     function target_table_update_button_actuated_(obj, source, event)  %#ok<INUSD>
@@ -7368,7 +7367,7 @@ classdef LabelerController < handle
       eid = clickHandler.fSelectedEids;
       if ~isempty(eid)
         trow = tMFT(eid,:);
-        lObj.setMFTGUI(trow.mov,trow.frm,trow.iTgt);
+        obj.setMFTGUI(trow.mov, trow.frm, trow.iTgt);
       else
         warningNoTrace('No shape selected.');
       end
@@ -7649,6 +7648,20 @@ classdef LabelerController < handle
       obj.mainFigure_.Units = 'pixels';
       result = obj.mainFigure_.Position;
       obj.mainFigure_.Units = oldUnits;
+    end  % function
+
+    function setMFTGUI(obj, iMov, frm, iTgt)
+      labeler = obj.labeler_;
+      if isa(iMov, 'MovieIndex')
+        if labeler.currMovIdx ~= iMov
+          labeler.movieSetMIdx(iMov);
+        end
+      else
+        if labeler.currMovie ~= iMov
+          labeler.movieSetGUI(iMov);
+        end
+      end
+      labeler.setFrameAndTargetGUI(frm, iTgt);
     end  % function
   end  % methods
 
