@@ -13514,9 +13514,9 @@ classdef Labeler < handle
             'XData',currImRoi(1:2),...
             'YData',currImRoi(3:4));
         end
-        obj.currFrame = frm;
 
-        obj.notify('updateAfterCurrentFrameSet') ;
+        obj.currFrame = frm;
+        % obj.notify('updateAfterCurrentFrameSet') ;
         
         if ~isempty(obj.tracker),
           obj.tracker.newLabelerFrame();
@@ -13546,7 +13546,7 @@ classdef Labeler < handle
         obj.prevIm = currImOrig;
       end
       obj.prevAxesImFrmUpdate(tfforce) ;      
-    end
+    end  % function
   end
   
   %% PrevAxes
@@ -15055,6 +15055,7 @@ classdef Labeler < handle
       obj.currFrame = newValue ;
       obj.infoTimelineModel_.didSetCurrFrame(newValue) ;
       sendMaybe(obj.tracker, 'newLabelerFrame') ;
+      obj.notify('updateAfterCurrentFrameSet') ;
     end    
 
     function setPropertiesToFireCallbacksToInitializeUI_(obj)
