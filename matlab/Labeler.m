@@ -3257,30 +3257,6 @@ classdef Labeler < handle
       obj.projMacros = s;
     end
 
-    function projMacroSetGUI(obj)
-      % Set any/all current macros with input dialog
-
-      s = obj.projMacros;
-      macros = fieldnames(s);
-      macrosdisp = cellfun(@(x)['$' x],macros,'uni',0);
-      vals = struct2cell(s);
-      nmacros = numel(macros);
-      INPUTBOXWIDTH = 100;
-      resp = inputdlgWithBrowse(macrosdisp,'Project macros',...
-        repmat([1 INPUTBOXWIDTH],nmacros,1),vals);
-      if ~isempty(resp)
-        assert(isequal(numel(macros),numel(vals),numel(resp)));
-        for i=1:numel(macros)
-          try
-            obj.projMacroSet(macros{i},resp{i});
-          catch ME
-            warningNoTrace('Labeler:macro','Cannot set macro ''%s'': %s',...
-              macrosdisp{i},ME.message);
-          end
-        end
-      end
-    end  % function
-
     function s = projMacrosGetWithAuto(obj)
       % append auto-generated macros to .projMacros
       %
@@ -4800,7 +4776,7 @@ classdef Labeler < handle
             case 'Cancel'
               return;
             case 'Redefine macros'
-              obj.projMacroSetGUI();
+              obj.controller_.projMacrosSetGUI();
               movfileFull = obj.(PROPS.MFAF){iMov,iView};
               if exist(movfileFull,'file')==0
                 emsg = FSPath.errStrFileNotFoundMacroAware(movfile,...

@@ -7663,6 +7663,31 @@ classdef LabelerController < handle
       end
       labeler.setFrameAndTargetGUI(frm, iTgt);
     end  % function
+
+    function projMacrosSetGUI(obj)
+      % Set any/all current macros with input dialog
+
+      labeler = obj.labeler_;
+      s = labeler.projMacros;
+      macros = fieldnames(s);
+      macrosdisp = cellfun(@(x)['$' x], macros, 'uni', 0);
+      vals = struct2cell(s);
+      nmacros = numel(macros);
+      INPUTBOXWIDTH = 100;
+      resp = inputdlgWithBrowse(macrosdisp, 'Project macros', ...
+        repmat([1 INPUTBOXWIDTH], nmacros, 1), vals);
+      if ~isempty(resp)
+        assert(isequal(numel(macros), numel(vals), numel(resp)));
+        for i = 1:numel(macros)
+          try
+            labeler.projMacroSet(macros{i}, resp{i});
+          catch ME
+            warningNoTrace('Labeler:macro', 'Cannot set macro ''%s'': %s', ...
+              macrosdisp{i}, ME.message);
+          end
+        end
+      end
+    end  % function
   end  % methods
 
 end  % classdef
