@@ -115,6 +115,7 @@ classdef Labeler < handle
     didSetTrx
     updateTrxSetShowTrue
     updateTrxSetShowFalse
+    updateTrxTable
 
     didSetProjectName
     didSetProjFSInfo
@@ -451,7 +452,6 @@ classdef Labeler < handle
     trxCache = []             % containers.Map. Keys: fullpath. vals: lazy-loaded structs with fields: .trx and .frm2trx
     trx = []                  % trx object
     frm2trx = []              % nFrm x nTrx logical. frm2trx(iFrm,iTrx) is true if trx iTrx is live on frame iFrm (for current movie)
-    tblTrxData = []           % last-used data in tblTrx
   end
 
   properties (Dependent)
@@ -1673,8 +1673,8 @@ classdef Labeler < handle
   methods % prop access
     function set.labels(obj,v)
       obj.labels = v;
-      if ~obj.isinit %#ok<MCSUP> 
-        obj.updateTrxTable();
+      if ~obj.isinit %#ok<MCSUP>
+        obj.notify('updateTrxTable');
         obj.updateFrameTableIncremental(); 
       end
       %obj.notify('didSetLabels') ;
@@ -1683,8 +1683,8 @@ classdef Labeler < handle
 
     function set.labelsGT(obj,v)
       obj.labelsGT = v;
-      if ~obj.isinit %#ok<MCSUP> 
-        obj.updateTrxTable();
+      if ~obj.isinit %#ok<MCSUP>
+        obj.notify('updateTrxTable');
         obj.updateFrameTableIncremental();
         obj.gtUpdateSuggMFTableLbledIncremental();
       end
@@ -12790,7 +12790,7 @@ classdef Labeler < handle
       end
       
       if updateTables
-        obj.updateTrxTable();
+        obj.notify('updateTrxTable');
       end
       
       if updateTrajs
@@ -12888,7 +12888,7 @@ classdef Labeler < handle
       
       if ~obj.isinit
         obj.labelsUpdateNewFrameAndTarget(obj.prevFrame,prevTarget);
-        obj.updateTrxTable();
+        obj.notify('updateTrxTable');
         obj.updateShowTrx();
       end
     end  % function setFrameAndTargetGUI
@@ -13044,103 +13044,6 @@ classdef Labeler < handle
     %   obj.notify('updateTimelineAndFriends');
     % end
     
-    function updateTrxTable(obj)
-      if obj.hasTrx
-        obj.updateTrxTable_Trx();
-      elseif obj.maIsMA
-        obj.updateTrxTable_MA();
-      else
-        % none
-      end
-    end  % function
-
-    function updateTrxTable_Trx(obj)
-      % based on .frm2trxm, .currFrame, .labeledpos
-      
-      %starttime = tic;
-      tbl = obj.controller_.tblTrx;
-      if ~obj.hasTrx || ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
-        ischange = ~isempty(obj.tblTrxData);
-        if ischange,
-          obj.tblTrxData = zeros(0,2);
-          obj.controller_.setTblTrxData(cell(0,2));
-        end
-        %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
-        return;
-      end
-      
-      f = obj.currFrame;
-      tfLive = obj.frm2trx(f,:);
-      %lpos = obj.labeledposCurrMovie;
-      s = obj.labelsCurrMovie;      
-      %tfLbled = arrayfun(@(x)any(lpos(:,1,f,x)),idxLive); % nans counted as 0
-      itgtsLbled = Labels.isLabeledF(s,f);
-      tfLbled = false(size(tfLive));
-      tfLbled(itgtsLbled) = true;
-      tfLbled = tfLbled(:);
-      
-      idxLive = find(tfLive);
-      idxLive = idxLive(:);
-      tfLbled = tfLbled(idxLive);
-      ischange = true;
-      tblTrxData = [idxLive,tfLbled]; %#ok<*PROP>
-      if ~isempty(obj.tblTrxData),
-        ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData) || ...
-          any(size(tblTrxData) ~= size(obj.tblTrxData)) || ...
-          any(tblTrxData(:) ~= obj.tblTrxData(:));
-      end
-      if ischange,
-        
-%         [nrold,ncold] = size(obj.tblTrxData);
-%         [nrnew,ncnew] = size(tblTrxData);
-%         ischange = true([nrnew,ncnew]);
-%         nr = min(nrold,nrnew);
-%         nc = min(ncold,ncnew);
-%         ischange(1:nr,1:nc) = obj.tblTrxData(1:nr,1:nc) ~= tblTrxData(1:nr,1:nc);
-%         [is,js] = find(ischange);
-        
-        obj.controller_.setTblTrxData(tblTrxData);
-        tbldat = [num2cell(idxLive) num2cell(tfLbled)];
-        %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
-        %tbl.setDataUnsafe(tbldat);
-        set(tbl,'Data',tbldat);
-      end
-
-      %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
-    end
-
-    function updateTrxTable_MA(obj)
-      % tblTrx = obj.controller_.tblTrx;
-      if ~obj.hasMovie || obj.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
-        ischange = ~isempty(obj.tblTrxData);
-        if ischange,
-          obj.tblTrxData = zeros(0,2);
-          obj.controller_.setTblTrxData(cell(0,2));
-        end
-        return;
-      end
-      
-      f = obj.currFrame;
-      s = obj.labelsCurrMovie;      
-      [~,~,ntgts] = Labels.compact(s,f); % piggy-back off compact here, not strictly nec
-      
-      idxLive = (1:ntgts)';
-      tfLbled = true(ntgts,1);
-      tblTrxData = [idxLive tfLbled];
-      ischange = true;
-      if ~isempty(obj.tblTrxData),
-        ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData) || ...
-          any(size(tblTrxData) ~= size(obj.tblTrxData)) || ...
-          any(tblTrxData(:) ~= obj.tblTrxData(:));
-      end
-      if ischange
-        obj.tblTrxData = tblTrxData;
-        tbldat = [num2cell(idxLive) num2cell(tfLbled)];
-        %tbl.setDataFast(is,js,tbldat(ischange),nrnew,ncnew);
-        %tbl.setDataUnsafe(tbldat);
-        obj.controller_.setTblTrxData(tbldat);
-      end
-    end
     
     % TODO: Move this into UI
     function updateFrameTableIncremental(obj)

@@ -18,7 +18,8 @@ classdef LabelerController < handle
 
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
-    isInYodaMode_ = false  
+    tblTrxData_ = []  % last-used data in tblTrx, used for change-detection
+    isInYodaMode_ = false
       % Set to true to allow control actuation to happen *ouside* or a try/catch
       % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
   end
@@ -377,7 +378,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrxSetShowTrue', @(source,event)(obj.updateTrxSetShowTrue(source, event))) ;      
       obj.listeners_(end+1) = ...
-        addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;      
+        addlistener(labeler, 'updateTrxSetShowFalse', @(source,event)(obj.updateTrxSetShowFalse(source, event))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateTrxTable', @(s,e)(obj.updateTrxTable())) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSpawnTrackingForGT', @(source,event)(obj.showDialogAfterSpawningTrackingForGT(source, event))) ;      
       obj.listeners_(end+1) = ...
@@ -728,12 +731,98 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if ~labeler.hasTrx,
         return
-      end            
-      tfShow = labeler.which_trx_are_showing() ;      
+      end
+      tfShow = labeler.which_trx_are_showing() ;
       tv = obj.tvTrx_ ;
       tv.updateTrx(tfShow);
     end
-    
+
+    function updateTrxTable(obj)
+      labeler = obj.labeler_ ;
+      if labeler.hasTrx
+        obj.updateTrxTable_Trx_();
+      elseif labeler.maIsMA
+        obj.updateTrxTable_MA_();
+      else
+        % none
+      end
+    end  % function
+
+    function updateTrxTable_Trx_(obj)
+      % based on .frm2trx, .currFrame, .labeledpos
+      labeler = obj.labeler_ ;
+
+      %starttime = tic;
+      tbl = obj.tblTrx;
+      if ~labeler.hasTrx || ~labeler.hasMovie || labeler.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
+        ischange = ~isempty(obj.tblTrxData_);
+        if ischange,
+          obj.tblTrxData_ = zeros(0,2);
+          obj.setTblTrxData(cell(0,2));
+        end
+        %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
+        return;
+      end
+
+      f = labeler.currFrame;
+      tfLive = labeler.frm2trx(f,:);
+      s = labeler.labelsCurrMovie;
+      itgtsLbled = Labels.isLabeledF(s,f);
+      tfLbled = false(size(tfLive));
+      tfLbled(itgtsLbled) = true;
+      tfLbled = tfLbled(:);
+
+      idxLive = find(tfLive);
+      idxLive = idxLive(:);
+      tfLbled = tfLbled(idxLive);
+      ischange = true;
+      tblTrxData = [idxLive,tfLbled]; %#ok<*PROP>
+      if ~isempty(obj.tblTrxData_),
+        ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData_) || ...
+          any(size(tblTrxData) ~= size(obj.tblTrxData_)) || ...
+          any(tblTrxData(:) ~= obj.tblTrxData_(:));
+      end
+      if ischange,
+        obj.setTblTrxData(tblTrxData);
+        tbldat = [num2cell(idxLive) num2cell(tfLbled)];
+        set(tbl, 'Data', tbldat);
+      end
+
+      %fprintf('Time in updateTrxTable: %f\n',toc(starttime));
+    end  % function
+
+    function updateTrxTable_MA_(obj)
+      labeler = obj.labeler_ ;
+
+      if ~labeler.hasMovie || labeler.currMovie==0 % Can occur during movieSetGUI(), when invariants momentarily broken
+        ischange = ~isempty(obj.tblTrxData_);
+        if ischange,
+          obj.tblTrxData_ = zeros(0,2);
+          obj.setTblTrxData(cell(0,2));
+        end
+        return;
+      end
+
+      f = labeler.currFrame;
+      s = labeler.labelsCurrMovie;
+      [~,~,ntgts] = Labels.compact(s,f); % piggy-back off compact here, not strictly nec
+
+      idxLive = (1:ntgts)';
+      tfLbled = true(ntgts,1);
+      tblTrxData = [idxLive tfLbled];
+      ischange = true;
+      if ~isempty(obj.tblTrxData_),
+        ischange = ndims(tblTrxData) ~= ndims(obj.tblTrxData_) || ...
+          any(size(tblTrxData) ~= size(obj.tblTrxData_)) || ...
+          any(tblTrxData(:) ~= obj.tblTrxData_(:));
+      end
+      if ischange
+        obj.tblTrxData_ = tblTrxData;
+        tbldat = [num2cell(idxLive) num2cell(tfLbled)];
+        obj.setTblTrxData(tbldat);
+      end
+    end  % function
+
     function didSetLblCore(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
@@ -5706,7 +5795,7 @@ classdef LabelerController < handle
           ntgts = labeler.labelNumLabeledTgts();
           labeler.setTargetMA(ntgts+1);
           labeler.labelPosSet(xy,occ);
-          labeler.updateTrxTable();
+          obj.updateTrxTable();
           labeler.setTarget(ntgts+1);
           iTgt = labeler.currTarget;
           labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
