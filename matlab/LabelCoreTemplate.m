@@ -301,7 +301,7 @@ classdef LabelCoreTemplate < LabelCore
     
     function acceptLabels(obj)
       obj.enterAccepted(true);
-      obj.labeler.InitializePrevAxesTemplate();
+      notify(obj.labeler, 'initializePrevAxesTemplate');
     end
     
     function unAcceptLabels(obj)

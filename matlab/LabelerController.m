@@ -536,6 +536,14 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevImage',@(s,e)(obj.updatePrevImage())) ;
       obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.prevAxesLabelsUpdate())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'redrawPrevAxesLabels',@(s,e)(obj.prevAxesLabelsRedraw())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'initializePrevAxesTemplate',@(s,e)(obj.initializePrevAxesTemplate())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'movieRemoved',@(s,e)(obj.prevAxesMovieRemap(e.mIdxOrig2New))) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
 
       obj.fakeMenuTags = {
@@ -2427,7 +2435,7 @@ classdef LabelerController < handle
       labeler.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
                                        obj.axes_prev,labeler.labelPointsPlotInfo);
       if ~isempty(labeler.prevAxesModeInfo)
-        labeler.prevAxesLabelsRedraw();
+        obj.prevAxesLabelsRedraw();
       end
       
       % init info timeline
@@ -3400,9 +3408,9 @@ classdef LabelerController < handle
       end
       mnu = obj.menu_view_rotate_video_target_up;
       mnu.Checked = onIff(tf);
-      labeler.UpdatePrevAxesDirections();
+      obj.UpdatePrevAxesDirections();
     end  % function
-    
+
     function cbkMovieForceGrayscaleChanged(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;       
       tf = labeler.movieForceGrayscale;
@@ -3969,16 +3977,14 @@ classdef LabelerController < handle
     end
     
     function cbkPostZoom(obj,src,evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
       if evt.Axes == obj.axes_prev,
-        labeler.UpdatePrevAxesLimits();
+        obj.UpdatePrevAxesLimits();
       end
     end
 
     function cbkPostPan(obj,src,evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
       if evt.Axes == obj.axes_prev,
-        labeler.UpdatePrevAxesLimits();
+        obj.UpdatePrevAxesLimits();
       end
     end
 
@@ -4504,7 +4510,7 @@ classdef LabelerController < handle
         return;
       end
       labeler.lblCore.clearLabels();
-      labeler.CheckPrevAxesTemplate();
+      obj.CheckPrevAxesTemplate();
     end
 
 
@@ -5356,7 +5362,7 @@ classdef LabelerController < handle
           ax = obj.axes_all(iAx);
           ax.YDir = toggleAxisDir(ax.YDir);
         end
-        labeler.UpdatePrevAxesDirections();
+        obj.UpdatePrevAxesDirections();
         if ~labeler.isMultiView,
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
@@ -5380,7 +5386,7 @@ classdef LabelerController < handle
           %       ax2 = obj.axes_prev;
           %       ax2.XDir = toggleAxisDir(ax2.XDir);
           %     end
-          labeler.UpdatePrevAxesDirections();
+          obj.UpdatePrevAxesDirections();
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
         if ~labeler.isMultiView,
@@ -6251,19 +6257,18 @@ classdef LabelerController < handle
     end
 
     function popupmenu_prevmode_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      contents = cellstr(get(src,'String'));
-      mode = contents{get(src,'Value')};
-      if strcmpi(mode,'Reference'),
-        labeler.setPrevAxesMode(PrevAxesMode.FROZEN,labeler.prevAxesModeInfo);
+      labeler = obj.labeler_;
+      contents = cellstr(get(src, 'String'));
+      mode = contents{get(src, 'Value')};
+      if strcmpi(mode, 'Reference'),
+        obj.setPrevAxesMode(PrevAxesMode.FROZEN, labeler.prevAxesModeInfo);
       else
-        labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
+        obj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
       end
     end
 
     function pushbutton_freezetemplate_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
+      obj.setPrevAxesMode(PrevAxesMode.FROZEN);
     end
 
     function pushbutton_exitcropmode_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -8156,6 +8161,344 @@ classdef LabelerController < handle
           end
         end
       end  % if ~FSPath.hasAnyMacro(movFile)
+    end  % function
+
+  end  % methods
+
+  %% PrevAxes
+  methods
+
+    function props = getAxesCurrProps_(obj)
+      props = struct('XDir', obj.axes_curr.XDir, 'YDir', obj.axes_curr.YDir, ...
+                     'XLim', obj.axes_curr.XLim, 'YLim', obj.axes_curr.YLim);
+    end  % function
+
+    function [w,h] = GetPrevAxesSizeInPixels(obj)
+      units = get(obj.axes_prev, 'Units');
+      set(obj.axes_prev, 'Units', 'pixels');
+      pos = get(obj.axes_prev, 'Position');
+      set(obj.axes_prev, 'Units', units);
+      w = pos(3); h = pos(4);
+    end  % function
+
+    function clearPrevAxesModeInfo(obj)
+      labeler = obj.labeler_;
+      labeler.prevAxesModeInfo.iMov = [];
+      labeler.prevAxesModeInfo.iTgt = [];
+      labeler.prevAxesModeInfo.frm = [];
+      labeler.prevAxesModeInfo.im = [];
+      labeler.prevAxesModeInfo.isrotated = false;
+      if ishandle(obj.image_prev),
+        obj.image_prev.CData = 0;
+      end
+      if ishandle(obj.txPrevIm),
+        obj.txPrevIm.String = '';
+      end
+    end  % function
+
+    function prevAxesLabelsUpdate(obj)
+      % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on
+      % .prevFrame etc
+      labeler = obj.labeler_;
+      if labeler.isinit || ~labeler.hasMovie,
+        return;
+      end
+
+      islabeled = labeler.currFrameIsLabeled();
+      if islabeled,
+        set(obj.pushbutton_freezetemplate, 'Enable', 'on');
+      else
+        set(obj.pushbutton_freezetemplate, 'Enable', 'off');
+      end
+
+      if labeler.prevAxesMode == PrevAxesMode.FROZEN,
+        return;
+      end
+      if ~isnan(labeler.prevFrame) && ~isempty(labeler.lblPrev_ptsH)
+        labeler.prevAxesSetLabels_(labeler.currMovie, labeler.prevFrame, labeler.currTarget);
+      else
+        LabelCore.setPtsOffaxis(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
+      end
+    end  % function
+
+    function prevAxesLabelsRedraw(obj)
+      % Maybe should be an option to prevAxesLabelsUpdate()
+      labeler = obj.labeler_;
+
+      if labeler.prevAxesMode == PrevAxesMode.FROZEN
+        % Strictly speaking this could lead to an unexpected change in
+        % frozen reference frame if the underlying labels for that frame
+        % have changed
+        freezeInfo = labeler.prevAxesModeInfo;
+        try
+          labeler.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
+        catch
+        end
+      elseif ~isnan(labeler.prevFrame) && ~isempty(labeler.lblPrev_ptsH)
+        labeler.prevAxesSetLabels_(labeler.currMovie, labeler.prevFrame, labeler.currTarget);
+      else
+        LabelCore.setPtsOffaxis(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
+      end
+    end  % function
+
+    function prevAxesImFrmUpdate(obj, tfforce)
+      if ~exist('tfforce', 'var'),
+        tfforce = false;
+      end
+
+      labeler = obj.labeler_;
+      if ~labeler.hasMovie || isempty(labeler.prevAxesMode),
+        return;
+      end
+
+      set(obj.popupmenu_prevmode, 'Visible', 'on');
+      % update prevaxes image and txframe based on .prevIm, .prevFrame
+      switch labeler.prevAxesMode
+        case PrevAxesMode.LASTSEEN
+          set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4));
+          obj.txPrevIm.String = sprintf('Frame: %d', labeler.prevFrame);
+          if labeler.hasTrx,
+            obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', labeler.currTarget)];
+          end
+        case PrevAxesMode.FROZEN,
+          if tfforce && labeler.isPrevAxesModeInfoSet(),
+            prevAxesYDir = get(obj.axes_prev, 'YDir');
+            labeler.prevAxesModeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(labeler.prevAxesModeInfo, 1, prevAxesYDir);
+            obj.prevAxesFreeze(labeler.prevAxesModeInfo);
+          end
+        otherwise
+          error('Unknown previous axes mode');
+      end
+    end  % function
+
+    function prevAxesFreeze(obj, freezeInfo)
+      % Freeze the current frame/labels in the previous axis. Sets
+      % .prevAxesMode, .prevAxesModeInfo.
+      %
+      % freezeInfo: Optional freezeInfo to apply. If not supplied,
+      % image/labels taken from current movie/frame/etc.
+
+      labeler = obj.labeler_;
+      if ~labeler.hasMovie,
+        return;
+      end
+
+      set(obj.popupmenu_prevmode, 'Visible', 'on');
+      set(obj.pushbutton_freezetemplate, 'Visible', 'on');
+      if isempty(freezeInfo)
+        freezeInfo = struct(...
+          'iMov', labeler.currMovie, ...
+          'frm', labeler.currFrame, ...
+          'iTgt', labeler.currTarget, ...
+          'im', labeler.currIm{1}, ...
+          'isrotated', false, ...
+          'gtmode', labeler.gtIsGTMode);
+        if isfield(labeler.prevAxesModeInfo, 'dxlim'),
+          freezeInfo.dxlim = labeler.prevAxesModeInfo.dxlim;
+          freezeInfo.dylim = labeler.prevAxesModeInfo.dylim;
+        end
+        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        axesCurrProps = obj.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        freezeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, prevAxesYDir);
+        freezeInfo = labeler.getDefaultPrevAxesModeInfo(freezeInfo, prevAxesSize, axesCurrProps);
+      end
+      if ~isfield(freezeInfo, 'gtmode')
+        freezeInfo.gtmode = labeler.gtIsGTMode;
+      end
+
+      if isPrevAxesModeInfoValid(freezeInfo),
+        isFreezeInfoUnchanged = true;
+      else
+        axesCurrProps = obj.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        [isFreezeInfoUnchanged, freezeInfo] = labeler.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
+      end
+      if ~isFreezeInfoUnchanged,
+        freezeInfo.iMov = [];
+        freezeInfo.frm = [];
+        freezeInfo.iTgt = [];
+        freezeInfo.im = [];
+        freezeInfo.isrotated = false;
+        freezeInfo.gtmode = false;
+        obj.image_prev.CData = 0;
+        obj.txPrevIm.String = '';
+      else
+        obj.image_prev.XData = freezeInfo.xdata;
+        obj.image_prev.YData = freezeInfo.ydata;
+        obj.image_prev.CData = freezeInfo.im;
+        obj.txPrevIm.String = sprintf('Frame %d', freezeInfo.frm);
+        if labeler.hasTrx,
+          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', freezeInfo.iTgt)];
+        end
+        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', freezeInfo.iMov)];
+      end
+      labeler.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
+
+      obj.hLinkPrevCurr.Enabled = 'off';
+      axp = obj.axes_prev;
+      axcProps = freezeInfo.axes_curr;
+      for prop = fieldnames(axcProps)', prop = prop{1}; %#ok<FXSET>
+        axp.(prop) = axcProps.(prop);
+      end
+      if freezeInfo.isrotated,
+        axp.CameraUpVectorMode = 'auto';
+      end
+      % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but
+      % sometimes nec eg for a "refreeze"
+
+      labeler.prevAxesMode = PrevAxesMode.FROZEN;
+      labeler.prevAxesModeInfo = freezeInfo;
+    end  % function
+
+    function setPrevAxesMode(obj, pamode, pamodeinfo)
+      % Set .prevAxesMode, .prevAxesModeInfo
+      %
+      % pamode: PrevAxesMode
+      % pamodeinfo: (optional) userdata for pamode.
+
+      labeler = obj.labeler_;
+      if ~exist('pamodeinfo', 'var')
+        pamodeinfo = [];
+      end
+      contents = cellstr(get(obj.popupmenu_prevmode, 'String'));
+      v1 = get(obj.popupmenu_prevmode, 'Value');
+      switch pamode
+        case PrevAxesMode.FROZEN,
+          v2 = find(strcmpi(contents, 'Reference'));
+        case PrevAxesMode.LASTSEEN,
+          v2 = find(strcmpi(contents, 'Previous frame'));
+        otherwise
+          error('Unknown previous axes mode');
+      end
+      if v2 ~= v1,
+        set(obj.popupmenu_prevmode, 'Value', v2);
+      end
+
+      labeler.prevAxesMode = pamode;
+
+      switch pamode
+        case PrevAxesMode.LASTSEEN
+          obj.prevAxesImFrmUpdate();
+          obj.prevAxesLabelsUpdate();
+          axp = obj.axes_prev;
+          set(axp, ...
+            'CameraUpVectorMode', 'auto', ...
+            'CameraViewAngleMode', 'auto');
+          obj.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
+          obj.pushbutton_freezetemplate.Visible = 'off';
+        case PrevAxesMode.FROZEN
+          obj.prevAxesFreeze(pamodeinfo);
+          obj.pushbutton_freezetemplate.Visible = 'on';
+        otherwise
+          assert(false);
+      end
+    end  % function
+
+    function UpdatePrevAxesLimits(obj)
+      labeler = obj.labeler_;
+      if labeler.prevAxesMode == PrevAxesMode.FROZEN,
+        newxlim = get(obj.axes_prev, 'XLim');
+        newylim = get(obj.axes_prev, 'YLim');
+        dx = newxlim - labeler.prevAxesModeInfo.axes_curr.XLim;
+        dy = newylim - labeler.prevAxesModeInfo.axes_curr.YLim;
+
+        labeler.prevAxesModeInfo.axes_curr.XLim = newxlim;
+        labeler.prevAxesModeInfo.axes_curr.YLim = newylim;
+        labeler.prevAxesModeInfo.dxlim = labeler.prevAxesModeInfo.dxlim + dx;
+        labeler.prevAxesModeInfo.dylim = labeler.prevAxesModeInfo.dylim + dy;
+      end
+    end  % function
+
+    function UpdatePrevAxesDirections(obj)
+      labeler = obj.labeler_;
+      xdir = get(obj.axes_curr, 'XDir');
+      ydir = get(obj.axes_curr, 'YDir');
+
+      labeler.prevAxesModeInfo.axes_curr.XDir = xdir;
+      labeler.prevAxesModeInfo.axes_curr.YDir = ydir;
+
+      set(obj.axes_prev, 'XDir', xdir, 'YDir', ydir);
+
+      if labeler.hasTrx,
+        try
+          prevAxesYDir = get(obj.axes_prev, 'YDir');
+          labeler.prevAxesModeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(labeler.prevAxesModeInfo, 1, prevAxesYDir);
+        catch ME,
+          warning(['Error setting reference image information, clearing out reference image.\n', getReport(ME)]);
+          obj.clearPrevAxesModeInfo();
+        end
+
+        axesCurrProps = obj.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        labeler.prevAxesModeInfo = labeler.getDefaultPrevAxesModeInfo(labeler.prevAxesModeInfo, prevAxesSize, axesCurrProps);
+        obj.prevAxesFreeze(labeler.prevAxesModeInfo);
+      end
+    end  % function
+
+    function initializePrevAxesTemplate(obj)
+      labeler = obj.labeler_;
+      islabeled = labeler.currFrameIsLabeled();
+      if islabeled,
+        set(obj.pushbutton_freezetemplate, 'Enable', 'on');
+      else
+        set(obj.pushbutton_freezetemplate, 'Enable', 'off');
+      end
+
+      if labeler.prevAxesMode == PrevAxesMode.FROZEN && ~labeler.isPrevAxesModeInfoSet(),
+        if islabeled,
+          obj.prevAxesFreeze([]);
+        end
+      end
+    end  % function
+
+    function CheckPrevAxesTemplate(obj)
+      labeler = obj.labeler_;
+      if labeler.prevAxesMode ~= PrevAxesMode.FROZEN || ~labeler.isPrevAxesModeInfoSet(),
+        return;
+      end
+      if (labeler.prevAxesModeInfo.frm == labeler.currFrame && labeler.prevAxesModeInfo.iMov == labeler.currMovie && ...
+          labeler.prevAxesModeInfo.iTgt == labeler.currTarget),
+        axesCurrProps = obj.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        [isPAModelInfoUnchanged, changedPAModeInfo] = labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
+        if ~isPAModelInfoUnchanged,
+          labeler.prevAxesModeInfo = changedPAModeInfo;
+        end
+        obj.setPrevAxesMode(labeler.prevAxesMode, labeler.prevAxesModeInfo);
+      end
+      islabeled = labeler.currFrameIsLabeled();
+      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
+    end  % function
+
+    function prevAxesMovieRemap(obj, mIdxOrig2New)
+      labeler = obj.labeler_;
+      if ~labeler.isPrevAxesModeInfoSet(),
+        return
+      end
+      newIdx = mIdxOrig2New(labeler.prevAxesModeInfo.iMov);
+      if newIdx == 0,
+        obj.clearPrevAxesModeInfo();
+
+        axesCurrProps = obj.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        [isPAModelInfoUnchanged, fixedPAModeInfo] = labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
+        if ~isPAModelInfoUnchanged,
+          labeler.prevAxesModeInfo = fixedPAModeInfo;
+        end
+
+        obj.setPrevAxesMode(labeler.prevAxesMode, labeler.prevAxesModeInfo);
+      else
+        labeler.prevAxesModeInfo.iMov = newIdx;
+      end
     end  % function
 
   end  % methods

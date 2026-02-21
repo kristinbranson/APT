@@ -193,6 +193,9 @@ classdef Labeler < handle
     updateTimelineLandmarkColors
     updateCurrImagesAllViews
     updatePrevImage
+    updatePrevAxesLabels
+    redrawPrevAxesLabels
+    initializePrevAxesTemplate
     updateShortcuts
   end
 
@@ -1992,7 +1995,7 @@ classdef Labeler < handle
       obj.prevAxesModeInfo = []; 
       
       % New projs set to frozen, waiting for something to be labeled
-      obj.setPrevAxesMode(PrevAxesMode.FROZEN);
+      obj.controller_.setPrevAxesMode(PrevAxesMode.FROZEN);
       
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
@@ -2725,8 +2728,11 @@ classdef Labeler < handle
       
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
-      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode,s.cfg.PrevAxes.ModeInfo);      
-      obj.setPrevAxesMode(pamode,prevModeInfo);
+      axesCurrProps = obj.controller_.getAxesCurrProps_();
+      [prevAxesW, prevAxesH] = obj.controller_.GetPrevAxesSizeInPixels();
+      prevAxesYDir = get(obj.controller_.axes_prev, 'YDir');
+      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, axesCurrProps, [prevAxesW, prevAxesH], prevAxesYDir);
+      obj.controller_.setPrevAxesMode(pamode, prevModeInfo);
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
@@ -4487,8 +4493,8 @@ classdef Labeler < handle
           obj.notify('gtResUpdated');
         end
         
-        obj.prevAxesMovieRemap(edata.mIdxOrig2New);
-        
+        % prevAxesMovieRemap handled by controller's movieRemoved listener
+
         % Note, obj.currMovie is not yet updated when this event goes out
         sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
         notify(obj,'movieRemoved',edata);
@@ -4956,7 +4962,7 @@ classdef Labeler < handle
       imprev = controller.image_prev;
       set(imprev,'CData',0);     
       if ~obj.gtIsGTMode
-        obj.clearPrevAxesModeInfo();
+        obj.controller_.clearPrevAxesModeInfo();
       end
       obj.currTarget = 1;
       obj.currFrame = 1;
@@ -6205,7 +6211,7 @@ classdef Labeler < handle
       obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
                                    obj.controller_.axes_prev,lblPtsPlotInfo);
       if ~isempty(obj.prevAxesModeInfo)
-        obj.prevAxesLabelsRedraw();
+        notify(obj, 'redrawPrevAxesLabels');
       end
       
       if tfLblModeChange
@@ -7815,7 +7821,7 @@ classdef Labeler < handle
       end
       obj.labelPointsPlotInfo.TextOffset = textOffset;
       set(obj.lblPrev_ptsTxtH,pvText);
-      obj.prevAxesLabelsRedraw(); % should use .TextOffset
+      notify(obj, 'redrawPrevAxesLabels'); % should use .TextOffset
       lc.updateTextLabelCosmetics(pvText,textOffset);
       %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
@@ -8899,7 +8905,7 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
-      obj.prevAxesLabelsUpdate();
+      notify(obj, 'updatePrevAxesLabels');
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.labels2VizUpdate('dotrkres',true);
       %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo)); 
@@ -8909,7 +8915,7 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      obj.prevAxesLabelsUpdate();
+      notify(obj, 'updatePrevAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
     
@@ -8919,7 +8925,7 @@ classdef Labeler < handle
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      obj.prevAxesLabelsUpdate();
+      notify(obj, 'updatePrevAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
     end  % function
         
@@ -13127,238 +13133,32 @@ classdef Labeler < handle
   end
   
   %% PrevAxes
-  methods 
-    
-    function setPrevAxesMode(obj,pamode,pamodeinfo)
-      % Set .prevAxesMode, .prevAxesModeInfo
-      %
-      % pamode: PrevAxesMode
-      % pamodeinfo: (optional) userdata for pamode.
-      
-      if ~exist('pamodeinfo','var')
-        pamodeinfo = [];
-      end
-      contents = cellstr(get(obj.controller_.popupmenu_prevmode,'String'));
-      v1 = get(obj.controller_.popupmenu_prevmode,'Value');
-      switch pamode
-        case PrevAxesMode.FROZEN,
-          v2 = find(strcmpi(contents,'Reference'));
-        case PrevAxesMode.LASTSEEN,
-          v2 = find(strcmpi(contents,'Previous frame'));
-        otherwise
-          error('Unknown previous axes mode');
-      end
-      if v2 ~= v1,
-        set(obj.controller_.popupmenu_prevmode,'Value',v2);
-      end
+  methods
 
-      obj.prevAxesMode = pamode;
-      
-      switch pamode
-        case PrevAxesMode.LASTSEEN
-          %obj.prevAxesModeInfo = pamodeinfo;
-          obj.prevAxesImFrmUpdate();
-          obj.prevAxesLabelsUpdate();
-          controller = obj.controller_;
-          axp = controller.axes_prev;
-          set(axp,...
-            'CameraUpVectorMode','auto',...
-            'CameraViewAngleMode','auto');
-          controller.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
-          controller.pushbutton_freezetemplate.Visible = 'off';
-        case PrevAxesMode.FROZEN
-          obj.prevAxesFreeze(pamodeinfo);
-          obj.controller_.pushbutton_freezetemplate.Visible = 'on';
-        otherwise
-          assert(false);
-      end
-    end
-    
-    function prevAxesFreeze(obj,freezeInfo)
-      % Freeze the current frame/labels in the previous axis. Sets
-      % .prevAxesMode, .prevAxesModeInfo.
-      %
-      % freezeInfo: Optional freezeInfo to apply. If not supplied,
-      % image/labels taken from current movie/frame/etc.
-      
-      if ~obj.hasMovie,
-        return;
-      end
-      
-      set(obj.controller_.popupmenu_prevmode,'Visible','on');
-      set(obj.controller_.pushbutton_freezetemplate,'Visible','on');
-      controller = obj.controller_;
-      if isempty(freezeInfo)
-        %axc = gd.axes_curr ;
-        freezeInfo = struct(...
-          'iMov',obj.currMovie,...
-          'frm',obj.currFrame,...
-          'iTgt',obj.currTarget,...
-          'im',obj.currIm{1},...
-          'isrotated',false,...
-          'gtmode',obj.gtIsGTMode);
-        if isfield(obj.prevAxesModeInfo,'dxlim'),
-          freezeInfo.dxlim = obj.prevAxesModeInfo.dxlim;
-          freezeInfo.dylim = obj.prevAxesModeInfo.dylim;
-        end
-        freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo);
-        freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo);
-      end
-      if ~isfield(freezeInfo,'gtmode')
-        freezeInfo.gtmode = obj.gtIsGTMode;
-      end
-      
-      if isPrevAxesModeInfoValid(freezeInfo),
-        isFreezeInfoUnchanged = true;
-      else
-        [isFreezeInfoUnchanged,freezeInfo] = obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN,freezeInfo);
-      end
-      if ~isFreezeInfoUnchanged,
-        freezeInfo.iMov = [];
-        freezeInfo.frm = [];
-        freezeInfo.iTgt = [];
-        freezeInfo.im = [];
-        freezeInfo.isrotated = false;
-        freezeInfo.gtmode = false;
-        controller.image_prev.CData = 0;
-        controller.txPrevIm.String = '';
-      else
-        controller.image_prev.XData = freezeInfo.xdata;
-        controller.image_prev.YData = freezeInfo.ydata;
-        controller.image_prev.CData = freezeInfo.im;
-        controller.txPrevIm.String = sprintf('Frame %d',freezeInfo.frm);
-        if obj.hasTrx,
-          controller.txPrevIm.String = [controller.txPrevIm.String,sprintf(', Target %d',freezeInfo.iTgt)];
-        end
-        controller.txPrevIm.String = [controller.txPrevIm.String,sprintf(', Movie %d',freezeInfo.iMov)];
-      end
-      obj.prevAxesSetLabels_(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
-      
-      controller.hLinkPrevCurr.Enabled = 'off';
-      axp = controller.axes_prev;
-      axcProps = freezeInfo.axes_curr;
-      for prop=fieldnames(axcProps)',prop=prop{1}; %#ok<FXSET>
-        axp.(prop) = axcProps.(prop);
-      end
-      if freezeInfo.isrotated,
-        axp.CameraUpVectorMode = 'auto';
-      end
-      % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but 
-      % sometimes nec eg for a "refreeze"
-      
-      obj.prevAxesMode = PrevAxesMode.FROZEN;
-      obj.prevAxesModeInfo = freezeInfo;
-    end  % function
-    
-    function prevAxesImFrmUpdate(obj,tfforce)
-
-      if nargin < 2,
-        tfforce = false;
-      end
-      
-      if ~obj.hasMovie || isempty(obj.prevAxesMode),
-        return;
-      end
-      
-      set(obj.controller_.popupmenu_prevmode,'Visible','on');
-      % update prevaxes image and txframe based on .prevIm, .prevFrame
-      switch obj.prevAxesMode
-        case PrevAxesMode.LASTSEEN
-          controller = obj.controller_;
-          set(controller.image_prev, 'CData', obj.prevIm, 'XData', obj.prevImRoi(1:2), 'YData', obj.prevImRoi(3:4) );
-          controller.txPrevIm.String = sprintf('Frame: %d',obj.prevFrame);
-          if obj.hasTrx,
-            controller.txPrevIm.String = [controller.txPrevIm.String,sprintf(', Target %d',obj.currTarget)];
-          end
-        case PrevAxesMode.FROZEN,          
-          if tfforce && obj.isPrevAxesModeInfoSet(),
-            obj.prevAxesModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(obj.prevAxesModeInfo);
-            obj.prevAxesFreeze(obj.prevAxesModeInfo);
-          end
-      end
-    end  % function
-
-    function isvalid = isPrevAxesModeInfoSet(obj)      
+    function isvalid = isPrevAxesModeInfoSet(obj)
       % Returns true iff obj.prevAxesModeInfo contains a valid paModeInfo struct.
       paModeInfo = obj.prevAxesModeInfo;
-      isvalid = isPrevAxesModeInfoValid(paModeInfo) ;      
+      isvalid = isPrevAxesModeInfoValid(paModeInfo) ;
     end
     
-    function clearPrevAxesModeInfo(obj)
-      obj.prevAxesModeInfo.iMov = [];
-      obj.prevAxesModeInfo.iTgt = [];
-      obj.prevAxesModeInfo.frm = [];
-      obj.prevAxesModeInfo.im = [];
-      obj.prevAxesModeInfo.isrotated = false;
-      if isfield(obj.controller_,'image_prev') && ishandle(obj.controller_.image_prev),
-        obj.controller_.image_prev.CData = 0;
-      end
-      if isfield(obj.controller_,'txPrevIm') && ishandle(obj.controller_.txPrevIm),
-        obj.controller_.txPrevIm.String = '';
-      end
-    end  % function
-        
-    function prevAxesLabelsUpdate(obj)
-      % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on 
-      % .prevFrame etc 
-      % KB HERE
-      if obj.isinit || ~obj.hasMovie,
-        return;
-      end
-      
-      islabeled = obj.currFrameIsLabeled();
-      if islabeled,
-        set(obj.controller_.pushbutton_freezetemplate,'Enable','on');
-      else
-        set(obj.controller_.pushbutton_freezetemplate,'Enable','off');
-      end
-      
-      if obj.prevAxesMode==PrevAxesMode.FROZEN,
-        return;
-      end
-      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLabels_(obj.currMovie,obj.prevFrame,obj.currTarget);
-      else
-        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
-      end
-    end
-    
-    function prevAxesLabelsRedraw(obj)
-      % Maybe should be an option to prevAxesLabelsUpdate()
-      %
-
-      if obj.prevAxesMode==PrevAxesMode.FROZEN
-        % Strictly speaking this could lead to an unexpected change in
-        % frozen reference frame if the underlying labels for that frame
-        % have changed
-        
-        freezeInfo = obj.prevAxesModeInfo;
-        try
-          obj.prevAxesSetLabels_(freezeInfo.iMov,freezeInfo.frm,freezeInfo.iTgt,freezeInfo);
-        catch
-        end
-      elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLabels_(obj.currMovie,obj.prevFrame,obj.currTarget);
-      else
-        LabelCore.setPtsOffaxis(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH);
-      end
-    end  % function
-    
-    function [isInputPAModeInfoOK, outputPAModeInfo] = fixPrevAxesModeInfo(obj, paMode, inputPAModeInfo)
+    function [isInputPAModeInfoOK, outputPAModeInfo] = fixPrevAxesModeInfo(obj, paMode, inputPAModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir)
       % From the current labeler state, and the arguments, try to determine a new
       % paModeInfo stucture that is valid (I think).  On return, isInputModeInfoOK
       % is true iff the inputModeInfo was acceptable as-is.  If isInputModeInfoOK is
       % true, then outputModeInfo will be identical to inputModeInfo.  Otherwise,
       % outputModeInfo will (in theory) be a fixed version of inputModeInfo.
       % obj is not mutated at all.
-    
+      % axesCurrProps is a struct with fields XDir, YDir, XLim, YLim.
+      % prevAxesSize is [w, h].
+      % prevAxesYDir is 'normal' or 'reverse'.
+
       % If paMode is PrevAxesMode.LASTSEEN, nothing to do
       if paMode ~= PrevAxesMode.FROZEN ,
         isInputPAModeInfoOK = true;
-        outputPAModeInfo = inputPAModeInfo ;    
+        outputPAModeInfo = inputPAModeInfo ;
         return
       end
-        
+
       % make sure the previous frame is labeled
       isInputPAModeInfoOK = false;
       lpos = obj.labels;
@@ -13379,12 +13179,12 @@ classdef Labeler < handle
           return
         end
       end
-      
+
       outputPAModeInfo = inputPAModeInfo ;
       if ~isfield(outputPAModeInfo,'axes_curr'),
-        outputPAModeInfo.axes_curr = obj.determinePrevAxesProperties(outputPAModeInfo);
+        outputPAModeInfo.axes_curr = obj.determinePrevAxesProperties(outputPAModeInfo, axesCurrProps);
       end
-      
+
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
       if ~tffound,
         outputPAModeInfo.frm = [];
@@ -13397,12 +13197,12 @@ classdef Labeler < handle
       outputPAModeInfo.iTgt = iTgt;
       outputPAModeInfo.iMov = iMov;
       outputPAModeInfo.gtmode = obj.gtIsGTMode;
-      
-      tempPaModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(outputPAModeInfo);
-      outputPAModeInfo = obj.getDefaultPrevAxesModeInfo(tempPaModeInfo);
+
+      tempPaModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(outputPAModeInfo, 1, prevAxesYDir);
+      outputPAModeInfo = obj.getDefaultPrevAxesModeInfo(tempPaModeInfo, prevAxesSize, axesCurrProps);
     end  % function
     
-    function outputPAModeInfo = rectifyImageFieldsInPrevAxesMovieInfo(obj, inputPAModeInfo, viewi)
+    function outputPAModeInfo = rectifyImageFieldsInPrevAxesMovieInfo(obj, inputPAModeInfo, viewi, prevAxesYDir)
       % The returned outputModeInfo is like inputModeInfo, but it has the .im field
       % and associated fields populated properly based on the other values in
       % inputModeInfo.  This function does not mutate obj.
@@ -13410,11 +13210,14 @@ classdef Labeler < handle
         outputPAModeInfo = inputPAModeInfo ;
         return
       end
-      if nargin<3
+      if ~exist('viewi', 'var')
         viewi = 1;
       end
+      if ~exist('prevAxesYDir', 'var')
+        prevAxesYDir = 'reverse';
+      end
       [im,isrotated,xdata,ydata,A,tform] = ...
-        obj.readTargetImageFromMovie(inputPAModeInfo.iMov, inputPAModeInfo.frm, inputPAModeInfo.iTgt, viewi);
+        obj.readTargetImageFromMovie(inputPAModeInfo.iMov, inputPAModeInfo.frm, inputPAModeInfo.iTgt, viewi, prevAxesYDir);
       outputPAModeInfo = inputPAModeInfo ;
       outputPAModeInfo.im =  im;
       outputPAModeInfo.isrotated =  isrotated;
@@ -13424,9 +13227,12 @@ classdef Labeler < handle
       outputPAModeInfo.tform =  tform;
     end  % function
     
-    function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi)
+    function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
       % Get the image (and associated data) for the reference image pane.  Does not
       % mutate obj.
+      if ~exist('prevAxesYDir', 'var')
+        prevAxesYDir = 'reverse';
+      end
       isrotated = false;
       % if (int32(mov) == obj.currMovie) && (gtmode==obj.gtIsGTMode)
       %   mr = obj.movieReader(viewi) ;
@@ -13438,7 +13244,7 @@ classdef Labeler < handle
         mr.readframe(frm,...
                      'doBGsub',obj.movieViewBGsubbed,...
                      'docrop',~obj.cropIsCropMode);
-        
+
       % to do: figure out [~,~what to do when there are multiple views
       if ~obj.hasTrx,
         xdata = imRoi(1:2);
@@ -13446,8 +13252,7 @@ classdef Labeler < handle
         A = [];
         tform = [];
       else
-        ydir = get(obj.controller_.axes_prev,'YDir');
-        if strcmpi(ydir,'normal'),
+        if strcmpi(prevAxesYDir,'normal'),
           pi2sign = -1;
         else
           pi2sign = 1;
@@ -13504,15 +13309,16 @@ classdef Labeler < handle
 
     end
       
-    function axes_curr = determinePrevAxesProperties(obj, paModeInfo)
-      % Returns a struct containing several properties of the "prev" axes, 
+    function axes_curr = determinePrevAxesProperties(obj, paModeInfo, axesCurrProps) %#ok<INUSL>
+      % Returns a struct containing several properties of the "prev" axes,
       % determined partly from paModeInfo and partly from looking at the axes
-      % graphics handle.  This method does not mutate obj.  
-      xdir = get(obj.controller_.axes_curr,'XDir');
-      ydir = get(obj.controller_.axes_curr,'YDir');
+      % graphics handle.  This method does not mutate obj.
+      % axesCurrProps is a struct with fields XDir, YDir, XLim, YLim.
+      xdir = axesCurrProps.XDir;
+      ydir = axesCurrProps.YDir;
       if ~isfield(paModeInfo,'xlim'),
-        xlim = get(obj.controller_.axes_curr,'XLim');
-        ylim = get(obj.controller_.axes_curr,'YLim');
+        xlim = axesCurrProps.XLim;
+        ylim = axesCurrProps.YLim;
       else
         xlim = paModeInfo.xlim;
         ylim = paModeInfo.ylim;
@@ -13522,10 +13328,12 @@ classdef Labeler < handle
                          'CameraViewAngleMode','auto');
     end  % function
 
-    function paModeInfo = getDefaultPrevAxesModeInfo(obj, inputPAModeInfo)  
+    function paModeInfo = getDefaultPrevAxesModeInfo(obj, inputPAModeInfo, prevAxesSize, axesCurrProps)
       % Returns a paModeInfo that is based on inputPAModeInfo, but has its
       % xlim, ylim, and axes_curr fields set to more default values.  Does not
       % mutate obj.
+      % prevAxesSize is [w, h]. axesCurrProps is a struct with fields XDir,
+      % YDir, XLim, YLim.
 
       paModeInfo = inputPAModeInfo ;
       borderfrac = .5;
@@ -13539,7 +13347,7 @@ classdef Labeler < handle
         paModeInfo.isrotated = false;
       end
       viewi = 1;
-      ptidx = (obj.labeledposIPt2View == viewi) ;      
+      ptidx = (obj.labeledposIPt2View == viewi) ;
       [~,poscurr,~] = ...
         obj.labelPosIsLabeled(paModeInfo.frm, ...
                               paModeInfo.iTgt, ...
@@ -13550,16 +13358,17 @@ classdef Labeler < handle
         poscurr = [poscurr,ones(size(poscurr,1),1)]*paModeInfo.A;
         poscurr = poscurr(:,1:2);
       end
-      
+
       minpos = min(poscurr,[],1);
       maxpos = max(poscurr,[],1);
       centerpos = (minpos+maxpos)/2;
       % border defined by borderfrac
       r = max(1,(maxpos-minpos)/2*(1+borderfrac));
       xlim = centerpos(1)+[-1,1]*r(1);
-      ylim = centerpos(2)+[-1,1]*r(2);      
-      
-      [axw,axh] = obj.GetPrevAxesSizeInPixels();
+      ylim = centerpos(2)+[-1,1]*r(2);
+
+      axw = prevAxesSize(1);
+      axh = prevAxesSize(2);
       axszratio = axw/axh;
       dx = diff(xlim);
       dy = diff(ylim);
@@ -13595,106 +13404,9 @@ classdef Labeler < handle
       paModeInfo.xlim = xlim;
       paModeInfo.ylim = ylim;
       
-      paModeInfo.axes_curr = obj.determinePrevAxesProperties(paModeInfo);  
+      paModeInfo.axes_curr = obj.determinePrevAxesProperties(paModeInfo, axesCurrProps);
     end  % function
-    
-    function [w,h] = GetPrevAxesSizeInPixels(obj)
-      units = get(obj.controller_.axes_prev,'Units');
-      set(obj.controller_.axes_prev,'Units','pixels');
-      pos = get(obj.controller_.axes_prev,'Position');
-      set(obj.controller_.axes_prev,'Units',units);
-      w = pos(3); h = pos(4);
-    end
-    
-    function UpdatePrevAxesLimits(obj)
-      if obj.prevAxesMode == PrevAxesMode.FROZEN,
-        newxlim = get(obj.controller_.axes_prev,'XLim');
-        newylim = get(obj.controller_.axes_prev,'YLim');
-        dx = newxlim - obj.prevAxesModeInfo.axes_curr.XLim;
-        dy = newylim - obj.prevAxesModeInfo.axes_curr.YLim;
-        
-        obj.prevAxesModeInfo.axes_curr.XLim = newxlim;
-        obj.prevAxesModeInfo.axes_curr.YLim = newylim;
-        obj.prevAxesModeInfo.dxlim = obj.prevAxesModeInfo.dxlim + dx;
-        obj.prevAxesModeInfo.dylim = obj.prevAxesModeInfo.dylim + dy;
-      end
-    end
-    
-    function UpdatePrevAxesDirections(obj)
-      
-      xdir = get(obj.controller_.axes_curr,'XDir');
-      ydir = get(obj.controller_.axes_curr,'YDir');
 
-      obj.prevAxesModeInfo.axes_curr.XDir = xdir;
-      obj.prevAxesModeInfo.axes_curr.YDir = ydir;
-      
-      set(obj.controller_.axes_prev,'XDir',xdir,'YDir',ydir);
-      
-      if obj.hasTrx,
-        try
-          obj.prevAxesModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(obj.prevAxesModeInfo);
-        catch ME,
-          warning(['Error setting reference image information, clearing out reference image.\n',getReport(ME)]);
-          obj.clearPrevAxesModeInfo();
-        end
-
-        obj.prevAxesModeInfo = obj.getDefaultPrevAxesModeInfo(obj.prevAxesModeInfo) ;
-        obj.prevAxesFreeze(obj.prevAxesModeInfo);
-      end
-
-    end
-    
-    function InitializePrevAxesTemplate(obj)
-      
-      islabeled = obj.currFrameIsLabeled();
-      if islabeled,
-        set(obj.controller_.pushbutton_freezetemplate,'Enable','on');
-      else
-        set(obj.controller_.pushbutton_freezetemplate,'Enable','off');
-      end
-      
-      if obj.prevAxesMode == PrevAxesMode.FROZEN && ~obj.isPrevAxesModeInfoSet(),
-        if islabeled,
-          obj.prevAxesFreeze([]);
-        end
-      end
-      
-    end  % function
-    
-    function CheckPrevAxesTemplate(obj)      
-      if obj.prevAxesMode ~= PrevAxesMode.FROZEN || ~obj.isPrevAxesModeInfoSet(),
-        return;
-      end
-      if ( obj.prevAxesModeInfo.frm == obj.currFrame && obj.prevAxesModeInfo.iMov == obj.currMovie && ...
-           obj.prevAxesModeInfo.iTgt == obj.currTarget ) ,
-        [isPAModelInfoUnchanged, changedPAModeInfo] = obj.fixPrevAxesModeInfo(obj.prevAxesMode, obj.prevAxesModeInfo) ;
-        if ~isPAModelInfoUnchanged , 
-          obj.prevAxesModeInfo = changedPAModeInfo ;
-        end
-        obj.setPrevAxesMode(obj.prevAxesMode,obj.prevAxesModeInfo);
-      end
-      islabeled = obj.currFrameIsLabeled();
-      set(obj.controller_.pushbutton_freezetemplate,'Enable',onIff(islabeled));
-    end
-    
-    function prevAxesMovieRemap(obj,mIdxOrig2New)
-      if ~obj.isPrevAxesModeInfoSet(),
-        return
-      end
-      newIdx = mIdxOrig2New(obj.prevAxesModeInfo.iMov);
-      if newIdx == 0,
-        obj.clearPrevAxesModeInfo();
-
-        [isPAModelInfoUnchanged, fixedPAModeInfo] = obj.fixPrevAxesModeInfo(obj.prevAxesMode, obj.prevAxesModeInfo) ;
-        if ~isPAModelInfoUnchanged , 
-          obj.prevAxesModeInfo = fixedPAModeInfo ;
-        end
-
-        obj.setPrevAxesMode(obj.prevAxesMode,obj.prevAxesModeInfo);        
-      else
-        obj.prevAxesModeInfo.iMov = newIdx;
-      end
-    end  % function
   end  % methods
 
   methods  % (Access=private)
