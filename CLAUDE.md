@@ -17,9 +17,10 @@ APT supports 4 different backends for deep learning:
 - **aws/bsub**: Remote machine training and evaluation on AWS or cluster
 
 ## Development Setup
-### Matlab Setup
+### Matlab Setup and Launch
 ```matlab
 modpath();  % Sets up Matlab path for APT
+StartAPT();  % Launches APT
 ```
 
 ### Python Setup
@@ -50,6 +51,55 @@ test_apt('test_function_name') % Run single test for debugging
 - `modpath.m`: Path setup utility
 - `deepnet/APT_interface.py`: Primary Python interface for deep learning
 - `matlab/test/test_apt.m`: Main test runner
+
+## Architecture
+APT consists of a Matlab GUI application with a Python backend for
+training and tracking with deep learning models.
+
+The Matlab GUI uses a version of the model-view-controller (MVC)
+architecture.  In the running app, the main objects are the Labeler
+(model), the main window (view), and the LabelerController
+(controller).  The main window is the Matlab `figure` object,
+containing several Matlab `axes`, `uipanel`s, and `uicontrol`s.  The
+Labeler is an object of class `Labeler`, and stores the main
+domain-specific state of the application from moment to moment that is
+not directly GUI-related.  The LabelerController is an object of class
+`LabelerController`, and acts as the bridge between view objects and
+model objects.  Main window control callbacks should generally call a
+method of the LabelerController.  (This method's name should generally
+end in `_actuated`.)  In simple cases (e.g. cases requiring no dialog
+boxes), the actuation method should call a single Labeler method and
+exit.  If an application behavior requires a dialog box, this should
+be handled by a LabelerController method.  (Following the general
+principle that models do not concern themselves with matters of
+presentation.)
+
+Model methods that are called from actuation methods should mutate the
+model as needed, then call `obj.notify()` one or more times to alert
+the controller that some aspect of the GUI needs to be updated.  Each
+such notification should cause, via listeners, one or more _update_
+methods on the controller to run.  Update methods are responsible to
+bringing some aspect of the GUI into sync with the current state of
+the model.  The update events generally have names beginning with
+`update`.  The update methods also generally have names beginning with
+`update`.  Update events and the update methods they fire often have
+the same name.  A simple application might have only a single `update`
+event and a single `update()` update method in the controller, which
+causes all aspects of the GUI to be synced to the model.  And all
+controllers should probably have such a fallback method, to sync the
+GUI to the model in cases where many aspects are in need to updates.
+
+A model should never access a controller or view directly.  All
+communication from the model to the controller should be done via
+`obj.notify()` calls.  This enables the model to be instantiated
+without the controller, and without a GUI, for batch usage.  This is
+one of the major advantages of the MVC architecture.
+
+Note that for various reasons, some of them historical, not all
+aspects of APT conform to the architecture described above.  But all
+changes to APT should ideally move it closer to the goal of having it
+follow the architecture, and in all cases should move it no further
+away.
 
 ## Matlab coding conventions
 - Indents should all be two spaces.  Top-level functions should not be indented.  Never use tabs.
