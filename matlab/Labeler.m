@@ -2735,10 +2735,8 @@ classdef Labeler < handle
       
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
-      axesCurrProps = obj.controller_.getAxesCurrProps_();
-      [prevAxesW, prevAxesH] = obj.controller_.getPrevAxesSizeInPixels();
-      prevAxesYDir = get(obj.controller_.axes_prev, 'YDir');
-      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, axesCurrProps, [prevAxesW, prevAxesH], prevAxesYDir);
+      obj.notify('downdateCachedAxesProperties') ;
+      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
       obj.setPrevAxesMode(pamode, prevModeInfo);
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
