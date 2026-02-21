@@ -544,6 +544,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxesMode',@(s,e)(obj.updatePrevAxesMode())) ;
       obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'downdateCachedAxesProperties',@(s,e)(obj.downdateCachedAxesProperties())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'movieRemoved',@(s,e)(obj.prevAxesMovieRemap(e.mIdxOrig2New))) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
@@ -8176,7 +8178,7 @@ classdef LabelerController < handle
                      'XLim', obj.axes_curr.XLim, 'YLim', obj.axes_curr.YLim);
     end  % function
 
-    function [w,h] = GetPrevAxesSizeInPixels(obj)
+    function [w,h] = getPrevAxesSizeInPixels(obj)
       units = get(obj.axes_prev, 'Units');
       set(obj.axes_prev, 'Units', 'pixels');
       pos = get(obj.axes_prev, 'Position');
@@ -8302,7 +8304,7 @@ classdef LabelerController < handle
         end
         prevAxesYDir = get(obj.axes_prev, 'YDir');
         axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
         prevAxesSize = [prevAxesW, prevAxesH];
         freezeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, prevAxesYDir);
         freezeInfo = labeler.getDefaultPrevAxesModeInfo(freezeInfo, prevAxesSize, axesCurrProps);
@@ -8315,7 +8317,7 @@ classdef LabelerController < handle
         isFreezeInfoUnchanged = true;
       else
         axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
         prevAxesSize = [prevAxesW, prevAxesH];
         prevAxesYDir = get(obj.axes_prev, 'YDir');
         [isFreezeInfoUnchanged, freezeInfo] = labeler.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
@@ -8355,6 +8357,15 @@ classdef LabelerController < handle
 
       labeler.prevAxesMode = PrevAxesMode.FROZEN;
       labeler.prevAxesModeInfo = freezeInfo;
+    end  % function
+
+    function downdateCachedAxesProperties(obj)
+      labeler = obj.labeler_;
+      prevAxesYDir = get(obj.axes_prev, 'YDir');
+      currAxesProps = obj.getAxesCurrProps_();
+      [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
+      prevAxesSizeInPixels = [prevAxesW, prevAxesH];
+      labeler.setCachedAxesProperties(prevAxesYDir, currAxesProps, prevAxesSizeInPixels);
     end  % function
 
     function updatePrevAxesMode(obj)
@@ -8520,7 +8531,7 @@ classdef LabelerController < handle
         end
 
         axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
         prevAxesSize = [prevAxesW, prevAxesH];
         labeler.prevAxesModeInfo = labeler.getDefaultPrevAxesModeInfo(labeler.prevAxesModeInfo, prevAxesSize, axesCurrProps);
         obj.prevAxesFreeze(labeler.prevAxesModeInfo);
@@ -8551,7 +8562,7 @@ classdef LabelerController < handle
       if (labeler.prevAxesModeInfo.frm == labeler.currFrame && labeler.prevAxesModeInfo.iMov == labeler.currMovie && ...
           labeler.prevAxesModeInfo.iTgt == labeler.currTarget),
         axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
         prevAxesSize = [prevAxesW, prevAxesH];
         prevAxesYDir = get(obj.axes_prev, 'YDir');
         [isPAModelInfoUnchanged, changedPAModeInfo] = labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
@@ -8575,7 +8586,7 @@ classdef LabelerController < handle
         obj.clearPrevAxesModeInfo();
 
         axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.GetPrevAxesSizeInPixels();
+        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
         prevAxesSize = [prevAxesW, prevAxesH];
         prevAxesYDir = get(obj.axes_prev, 'YDir');
         [isPAModelInfoUnchanged, fixedPAModeInfo] = ...

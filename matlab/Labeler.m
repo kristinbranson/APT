@@ -197,6 +197,7 @@ classdef Labeler < handle
     redrawPrevAxesLabels
     initializePrevAxesTemplate
     updatePrevAxesMode
+    downdateCachedAxesProperties
     updateShortcuts
   end
 
@@ -736,6 +737,9 @@ classdef Labeler < handle
     prevAxesMode_  % scalar PrevAxesMode
     prevAxesModeInfo_  % "userdata" for .prevAxesMode
     isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
+    prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
+    currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
+    prevAxesSizeInPixels_ = [256 256]  % cached [w h] of prev axes in pixels
     lblPrev_ptsH  % [npts] gobjects. init: L
     lblPrev_ptsTxtH  % [npts] etc. init: L
   end
@@ -2732,7 +2736,7 @@ classdef Labeler < handle
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
       axesCurrProps = obj.controller_.getAxesCurrProps_();
-      [prevAxesW, prevAxesH] = obj.controller_.GetPrevAxesSizeInPixels();
+      [prevAxesW, prevAxesH] = obj.controller_.getPrevAxesSizeInPixels();
       prevAxesYDir = get(obj.controller_.axes_prev, 'YDir');
       [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, axesCurrProps, [prevAxesW, prevAxesH], prevAxesYDir);
       obj.setPrevAxesMode(pamode, prevModeInfo);
@@ -14906,6 +14910,12 @@ classdef Labeler < handle
       end
     end  % function
     
+    function setCachedAxesProperties(obj, prevAxesYDir, currAxesProps, prevAxesSizeInPixels)
+      obj.prevAxesYDir_ = prevAxesYDir;
+      obj.currAxesProps_ = currAxesProps;
+      obj.prevAxesSizeInPixels_ = prevAxesSizeInPixels;
+    end  % function
+
     function setPrevAxesMode(obj, pamode, pamodeinfo)
       % Set .prevAxesMode_, .prevAxesModeInfo_
       %
@@ -14933,11 +14943,7 @@ classdef Labeler < handle
         return
       end
 
-      % For now, we need the controller b/c the user can zoom/pan/rotate the axeses
-      % and we don't know about it immediately.  So we need the controller to
-      % probe the GUI controls for this info.  The computations involved 
-      controller = obj.controller_ ;  % BAD BAD BAD
-        
+      obj.notify('downdateCachedAxesProperties') ;
 
       freezeInfo = obj.prevAxesModeInfo_ ;
       if isempty(freezeInfo)
@@ -14952,12 +14958,8 @@ classdef Labeler < handle
           freezeInfo.dxlim = obj.prevAxesModeInfo_.dxlim;
           freezeInfo.dylim = obj.prevAxesModeInfo_.dylim;
         end
-        prevAxesYDir = get(controller.axes_prev, 'YDir');
-        axesCurrProps = controller.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = controller.GetPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
-        freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, prevAxesYDir);
-        freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo, prevAxesSize, axesCurrProps);
+        freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, obj.prevAxesYDir_);
+        freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
       end
       if ~isfield(freezeInfo, 'gtmode')
         freezeInfo.gtmode = obj.gtIsGTMode;
@@ -14966,11 +14968,8 @@ classdef Labeler < handle
       if isPrevAxesModeInfoValid(freezeInfo),
         isFreezeInfoUnchanged = true;
       else
-        axesCurrProps = controller.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = controller.GetPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
-        prevAxesYDir = get(controller.axes_prev, 'YDir');
-        [isFreezeInfoUnchanged, freezeInfo] = obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
+        [isFreezeInfoUnchanged, freezeInfo] = ...
+          obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
       end
       if ~isFreezeInfoUnchanged,
         freezeInfo.iMov = [];
