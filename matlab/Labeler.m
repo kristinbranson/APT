@@ -196,6 +196,7 @@ classdef Labeler < handle
     updatePrevAxesLabels
     redrawPrevAxesLabels
     initializePrevAxesTemplate
+    updatePrevAxesMode
     updateShortcuts
   end
 
@@ -732,10 +733,17 @@ classdef Labeler < handle
     %prevIm = struct('CData',0,'XData',0,'YData',0)  % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
     prevIm = []
     prevImRoi = [] 
-    prevAxesMode  % scalar PrevAxesMode
-    prevAxesModeInfo  % "userdata" for .prevAxesMode
+    prevAxesMode_  % scalar PrevAxesMode
+    prevAxesModeInfo_  % "userdata" for .prevAxesMode
+    isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
     lblPrev_ptsH  % [npts] gobjects. init: L
     lblPrev_ptsTxtH  % [npts] etc. init: L
+  end
+
+  properties (Dependent)
+    prevAxesMode
+    prevAxesModeInfo
+    isFreezeInfoUnchanged
   end
   
   %% Misc
@@ -1989,13 +1997,8 @@ classdef Labeler < handle
       obj.showMaRoiAux = obj.labelMode == LabelMode.MULTIANIMAL;
       obj.flipLandmarkMatches = zeros(0,2);
       
-      % When starting a new proj after having an existing proj open, old 
-      % state is lingering in .prevAxesModeInfo despite the next 
-      % .setPrevAxesMode call due to various initialization foolishness
-      obj.prevAxesModeInfo = []; 
-      
       % New projs set to frozen, waiting for something to be labeled
-      obj.controller_.setPrevAxesMode(PrevAxesMode.FROZEN);
+      obj.setPrevAxesMode(PrevAxesMode.FROZEN, []);
       
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
@@ -2732,7 +2735,7 @@ classdef Labeler < handle
       [prevAxesW, prevAxesH] = obj.controller_.GetPrevAxesSizeInPixels();
       prevAxesYDir = get(obj.controller_.axes_prev, 'YDir');
       [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, axesCurrProps, [prevAxesW, prevAxesH], prevAxesYDir);
-      obj.controller_.setPrevAxesMode(pamode, prevModeInfo);
+      obj.setPrevAxesMode(pamode, prevModeInfo);
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
@@ -13135,6 +13138,18 @@ classdef Labeler < handle
   %% PrevAxes
   methods
 
+    function result = get.prevAxesMode(obj)
+      result = obj.prevAxesMode_;
+    end  % function
+
+    function result = get.prevAxesModeInfo(obj)
+      result = obj.prevAxesModeInfo_;
+    end  % function
+
+    function result = get.isFreezeInfoUnchanged(obj)
+      result = obj.isFreezeInfoUnchanged_;
+    end  % function
+
     function isvalid = isPrevAxesModeInfoSet(obj)
       % Returns true iff obj.prevAxesModeInfo contains a valid paModeInfo struct.
       paModeInfo = obj.prevAxesModeInfo;
@@ -13182,7 +13197,7 @@ classdef Labeler < handle
 
       outputPAModeInfo = inputPAModeInfo ;
       if ~isfield(outputPAModeInfo,'axes_curr'),
-        outputPAModeInfo.axes_curr = obj.determinePrevAxesProperties(outputPAModeInfo, axesCurrProps);
+        outputPAModeInfo.axes_curr = determinePrevAxesProperties(outputPAModeInfo, axesCurrProps);
       end
 
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
@@ -13309,25 +13324,6 @@ classdef Labeler < handle
 
     end
       
-    function axes_curr = determinePrevAxesProperties(obj, paModeInfo, axesCurrProps) %#ok<INUSL>
-      % Returns a struct containing several properties of the "prev" axes,
-      % determined partly from paModeInfo and partly from looking at the axes
-      % graphics handle.  This method does not mutate obj.
-      % axesCurrProps is a struct with fields XDir, YDir, XLim, YLim.
-      xdir = axesCurrProps.XDir;
-      ydir = axesCurrProps.YDir;
-      if ~isfield(paModeInfo,'xlim'),
-        xlim = axesCurrProps.XLim;
-        ylim = axesCurrProps.YLim;
-      else
-        xlim = paModeInfo.xlim;
-        ylim = paModeInfo.ylim;
-      end
-      axes_curr = struct('XLim',xlim,'YLim',ylim,...
-                         'XDir',xdir','YDir',ydir,...
-                         'CameraViewAngleMode','auto');
-    end  % function
-
     function paModeInfo = getDefaultPrevAxesModeInfo(obj, inputPAModeInfo, prevAxesSize, axesCurrProps)
       % Returns a paModeInfo that is based on inputPAModeInfo, but has its
       % xlim, ylim, and axes_curr fields set to more default values.  Does not
@@ -13404,7 +13400,7 @@ classdef Labeler < handle
       paModeInfo.xlim = xlim;
       paModeInfo.ylim = ylim;
       
-      paModeInfo.axes_curr = obj.determinePrevAxesProperties(paModeInfo, axesCurrProps);
+      paModeInfo.axes_curr = determinePrevAxesProperties(paModeInfo, axesCurrProps);
     end  % function
 
   end  % methods
@@ -14908,6 +14904,87 @@ classdef Labeler < handle
         PROPS = obj.gtGetSharedProps();
         obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
       end
+    end  % function
+    
+    function setPrevAxesMode(obj, pamode, pamodeinfo)
+      % Set .prevAxesMode_, .prevAxesModeInfo_
+      %
+      % pamode: PrevAxesMode
+      % pamodeinfo: (optional) userdata for pamode.
+
+      assert(isa(pamode, 'PrevAxesMode')) ;
+      if ~exist('pamodeinfo', 'var')
+        pamodeinfo = [];
+      end
+      
+      obj.prevAxesMode_ = pamode ;
+      obj.prevAxesModeInfo_ = pamodeinfo ;
+      if pamode == PrevAxesMode.FROZEN
+        obj.revisePrevAxesModeInfoForFrozenMode_() ;
+      end
+      obj.notify('updatePrevAxesMode') ;
+    end
+
+    function revisePrevAxesModeInfoForFrozenMode_(obj)
+      % Freeze the current frame/labels in the previous axis. Sets
+      % .prevAxesMode, .prevAxesModeInfo.
+
+      if ~obj.hasMovie,
+        return
+      end
+
+      % For now, we need the controller b/c the user can zoom/pan/rotate the axeses
+      % and we don't know about it immediately.  So we need the controller to
+      % probe the GUI controls for this info.  The computations involved 
+      controller = obj.controller_ ;  % BAD BAD BAD
+        
+
+      freezeInfo = obj.prevAxesModeInfo_ ;
+      if isempty(freezeInfo)
+        freezeInfo = struct(...
+          'iMov', obj.currMovie, ...
+          'frm', obj.currFrame, ...
+          'iTgt', obj.currTarget, ...
+          'im', obj.currIm{1}, ...
+          'isrotated', false, ...
+          'gtmode', obj.gtIsGTMode);
+        if isfield(obj.prevAxesModeInfo_, 'dxlim'),
+          freezeInfo.dxlim = obj.prevAxesModeInfo_.dxlim;
+          freezeInfo.dylim = obj.prevAxesModeInfo_.dylim;
+        end
+        prevAxesYDir = get(controller.axes_prev, 'YDir');
+        axesCurrProps = controller.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = controller.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, prevAxesYDir);
+        freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo, prevAxesSize, axesCurrProps);
+      end
+      if ~isfield(freezeInfo, 'gtmode')
+        freezeInfo.gtmode = obj.gtIsGTMode;
+      end
+
+      if isPrevAxesModeInfoValid(freezeInfo),
+        isFreezeInfoUnchanged = true;
+      else
+        axesCurrProps = controller.getAxesCurrProps_();
+        [prevAxesW, prevAxesH] = controller.GetPrevAxesSizeInPixels();
+        prevAxesSize = [prevAxesW, prevAxesH];
+        prevAxesYDir = get(controller.axes_prev, 'YDir');
+        [isFreezeInfoUnchanged, freezeInfo] = obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
+      end
+      if ~isFreezeInfoUnchanged,
+        freezeInfo.iMov = [];
+        freezeInfo.frm = [];
+        freezeInfo.iTgt = [];
+        freezeInfo.im = [];
+        freezeInfo.isrotated = false;
+        freezeInfo.gtmode = false;
+      end
+      obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
+
+      % obj.prevAxesMode = PrevAxesMode.FROZEN;
+      obj.prevAxesModeInfo_ = freezeInfo;
+      obj.isFreezeInfoUnchanged_ = isFreezeInfoUnchanged ;
     end  % function
     
   end  % methods
