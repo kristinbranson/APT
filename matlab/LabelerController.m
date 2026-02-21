@@ -8188,11 +8188,11 @@ classdef LabelerController < handle
 
     function clearPrevAxesModeInfo(obj)
       labeler = obj.labeler_;
-      labeler.prevAxesModeInfo.iMov = [];
-      labeler.prevAxesModeInfo.iTgt = [];
-      labeler.prevAxesModeInfo.frm = [];
-      labeler.prevAxesModeInfo.im = [];
-      labeler.prevAxesModeInfo.isrotated = false;
+      labeler.prevAxesModeInfo_.iMov = [];
+      labeler.prevAxesModeInfo_.iTgt = [];
+      labeler.prevAxesModeInfo_.frm = [];
+      labeler.prevAxesModeInfo_.im = [];
+      labeler.prevAxesModeInfo_.isrotated = false;
       if ishandle(obj.image_prev),
         obj.image_prev.CData = 0;
       end
@@ -8504,10 +8504,10 @@ classdef LabelerController < handle
         dx = newxlim - labeler.prevAxesModeInfo.axes_curr.XLim;
         dy = newylim - labeler.prevAxesModeInfo.axes_curr.YLim;
 
-        labeler.prevAxesModeInfo.axes_curr.XLim = newxlim;
-        labeler.prevAxesModeInfo.axes_curr.YLim = newylim;
-        labeler.prevAxesModeInfo.dxlim = labeler.prevAxesModeInfo.dxlim + dx;
-        labeler.prevAxesModeInfo.dylim = labeler.prevAxesModeInfo.dylim + dy;
+        labeler.prevAxesModeInfo_.axes_curr.XLim = newxlim;
+        labeler.prevAxesModeInfo_.axes_curr.YLim = newylim;
+        labeler.prevAxesModeInfo_.dxlim = labeler.prevAxesModeInfo.dxlim + dx;
+        labeler.prevAxesModeInfo_.dylim = labeler.prevAxesModeInfo.dylim + dy;
       end
     end  % function
 
@@ -8516,15 +8516,16 @@ classdef LabelerController < handle
       xdir = get(obj.axes_curr, 'XDir');
       ydir = get(obj.axes_curr, 'YDir');
 
-      labeler.prevAxesModeInfo.axes_curr.XDir = xdir;
-      labeler.prevAxesModeInfo.axes_curr.YDir = ydir;
+
+      labeler.prevAxesModeInfo_.axes_curr.XDir = xdir;
+      labeler.prevAxesModeInfo_.axes_curr.YDir = ydir;
 
       set(obj.axes_prev, 'XDir', xdir, 'YDir', ydir);
 
       if labeler.hasTrx,
         try
           prevAxesYDir = get(obj.axes_prev, 'YDir');
-          labeler.prevAxesModeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(labeler.prevAxesModeInfo, 1, prevAxesYDir);
+          labeler.prevAxesModeInfo_ = labeler.rectifyImageFieldsInPrevAxesMovieInfo(labeler.prevAxesModeInfo, 1, prevAxesYDir);
         catch ME,
           warning(['Error setting reference image information, clearing out reference image.\n', getReport(ME)]);
           obj.clearPrevAxesModeInfo();
@@ -8533,7 +8534,7 @@ classdef LabelerController < handle
         axesCurrProps = obj.getAxesCurrProps_();
         [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
         prevAxesSize = [prevAxesW, prevAxesH];
-        labeler.prevAxesModeInfo = labeler.getDefaultPrevAxesModeInfo(labeler.prevAxesModeInfo, prevAxesSize, axesCurrProps);
+        labeler.prevAxesModeInfo_ = labeler.getDefaultPrevAxesModeInfo(labeler.prevAxesModeInfo, prevAxesSize, axesCurrProps);
         obj.prevAxesFreeze(labeler.prevAxesModeInfo);
       end
     end  % function
