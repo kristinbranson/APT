@@ -8186,6 +8186,14 @@ classdef LabelerController < handle
       w = pos(3); h = pos(4);
     end  % function
 
+    function [axesCurrProps, prevAxesSize, prevAxesYDir] = getPrevAxesAndCurrAxesProperties_(obj)
+      % Non-mutating.  Queries current axes properties needed for prev-axes operations.
+      axesCurrProps = obj.getAxesCurrProps_();
+      [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
+      prevAxesSize = [prevAxesW, prevAxesH];
+      prevAxesYDir = get(obj.axes_prev, 'YDir');
+    end  % function
+
     function clearPrevAxesModeInfo(obj)
       labeler = obj.labeler_;
       labeler.prevAxesModeInfo_.iMov = [];
@@ -8302,10 +8310,7 @@ classdef LabelerController < handle
           freezeInfo.dxlim = labeler.prevAxesModeInfo.dxlim;
           freezeInfo.dylim = labeler.prevAxesModeInfo.dylim;
         end
-        prevAxesYDir = get(obj.axes_prev, 'YDir');
-        axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
+        [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
         freezeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, prevAxesYDir);
         freezeInfo = labeler.getDefaultPrevAxesModeInfo(freezeInfo, prevAxesSize, axesCurrProps);
       end
@@ -8316,10 +8321,7 @@ classdef LabelerController < handle
       if isPrevAxesModeInfoValid(freezeInfo),
         isFreezeInfoUnchanged = true;
       else
-        axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
-        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
         [isFreezeInfoUnchanged, freezeInfo] = labeler.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
       end
       if ~isFreezeInfoUnchanged,
@@ -8361,10 +8363,7 @@ classdef LabelerController < handle
 
     function downdateCachedAxesProperties(obj)
       labeler = obj.labeler_;
-      prevAxesYDir = get(obj.axes_prev, 'YDir');
-      currAxesProps = obj.getAxesCurrProps_();
-      [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-      prevAxesSizeInPixels = [prevAxesW, prevAxesH];
+      [currAxesProps, prevAxesSizeInPixels, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
       labeler.setCachedAxesProperties(prevAxesYDir, currAxesProps, prevAxesSizeInPixels);
     end  % function
 
@@ -8531,9 +8530,7 @@ classdef LabelerController < handle
           obj.clearPrevAxesModeInfo();
         end
 
-        axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
+        [axesCurrProps, prevAxesSize] = obj.getPrevAxesAndCurrAxesProperties_();
         labeler.prevAxesModeInfo_ = labeler.getDefaultPrevAxesModeInfo(labeler.prevAxesModeInfo, prevAxesSize, axesCurrProps);
         obj.prevAxesFreeze(labeler.prevAxesModeInfo);
       end
@@ -8562,10 +8559,7 @@ classdef LabelerController < handle
       end
       if (labeler.prevAxesModeInfo.frm == labeler.currFrame && labeler.prevAxesModeInfo.iMov == labeler.currMovie && ...
           labeler.prevAxesModeInfo.iTgt == labeler.currTarget),
-        axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
-        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
         [isPAModelInfoUnchanged, changedPAModeInfo] = labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
         if ~isPAModelInfoUnchanged,
           labeler.setPrevAxesMode(labeler.prevAxesMode, changedPAModeInfo);
@@ -8586,10 +8580,7 @@ classdef LabelerController < handle
       if newIdx == 0,
         obj.clearPrevAxesModeInfo();
 
-        axesCurrProps = obj.getAxesCurrProps_();
-        [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-        prevAxesSize = [prevAxesW, prevAxesH];
-        prevAxesYDir = get(obj.axes_prev, 'YDir');
+        [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
         [isPAModelInfoUnchanged, fixedPAModeInfo] = ...
           labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
         if ~isPAModelInfoUnchanged,
