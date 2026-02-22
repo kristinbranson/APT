@@ -733,7 +733,7 @@ classdef Labeler < handle
     %prevIm = struct('CData',0,'XData',0,'YData',0)  % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
     prevIm = []
     prevImRoi = [] 
-    prevAxesMode_  % scalar PrevAxesMode
+    prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
     prevAxesModeInfo_  % "userdata" for .prevAxesMode
     isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
     prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties

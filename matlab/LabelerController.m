@@ -4512,7 +4512,8 @@ classdef LabelerController < handle
         return;
       end
       labeler.lblCore.clearLabels();
-      obj.CheckPrevAxesTemplate();
+      labeler.restorePrevAxesMode() ;
+      % obj.CheckPrevAxesTemplate();
     end
 
 
@@ -8485,26 +8486,6 @@ classdef LabelerController < handle
                'PickableParts', 'none', ...
                'Tag', sprintf('LabelerController_lblPrev_ptsTxtRealH_%d', i));
       end
-    end  % function
-
-    function CheckPrevAxesTemplate(obj)
-      labeler = obj.labeler_;
-      if labeler.prevAxesMode ~= PrevAxesMode.FROZEN || ~labeler.isPrevAxesModeInfoSet(),
-        return
-      end
-      if (labeler.prevAxesModeInfo.frm == labeler.currFrame && labeler.prevAxesModeInfo.iMov == labeler.currMovie && ...
-          labeler.prevAxesModeInfo.iTgt == labeler.currTarget),
-        [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
-        [isPAModelInfoUnchanged, changedPAModeInfo] = ...
-          labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
-        if ~isPAModelInfoUnchanged,
-          labeler.setPrevAxesModeHelper_(labeler.prevAxesMode, changedPAModeInfo);
-        else
-          labeler.restorePrevAxesMode();
-        end
-      end
-      islabeled = labeler.currFrameIsLabeled();
-      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
     end  % function
 
     function prevAxesMovieRemap(obj, mIdxOrig2New)
