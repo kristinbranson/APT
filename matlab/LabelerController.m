@@ -8200,49 +8200,22 @@ classdef LabelerController < handle
     end  % function
 
     function updatePrevAxesLabels(obj)
-      % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on
-      % .prevFrame etc
+      % Sync real prev-axes graphics to virtual label state (already
+      % updated by the model before this event fires).
       labeler = obj.labeler_;
       if labeler.isinit || ~labeler.hasMovie,
         return;
       end
 
       islabeled = labeler.currFrameIsLabeled();
-      if islabeled,
-        set(obj.pushbutton_freezetemplate, 'Enable', 'on');
-      else
-        set(obj.pushbutton_freezetemplate, 'Enable', 'off');
-      end
+      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
 
-      if labeler.prevAxesMode == PrevAxesMode.FROZEN,
-        return
-      end
-      if ~isnan(labeler.prevFrame) && ~isempty(labeler.lblPrev_ptsH)
-        labeler.prevAxesSetLabels_(labeler.currMovie, labeler.prevFrame, labeler.currTarget);
-      else
-        setPositionsOfLabelLinesAndTextsToNanBangBang(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
-      end
       obj.syncPrevAxesLabels_();
     end  % function
 
     function prevAxesLabelsRedraw(obj)
-      % Maybe should be an option to prevAxesLabelsUpdate()
-      labeler = obj.labeler_;
-
-      if labeler.prevAxesMode == PrevAxesMode.FROZEN
-        % Strictly speaking this could lead to an unexpected change in
-        % frozen reference frame if the underlying labels for that frame
-        % have changed
-        freezeInfo = labeler.prevAxesModeInfo;
-        try
-          labeler.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
-        catch
-        end
-      elseif ~isnan(labeler.prevFrame) && ~isempty(labeler.lblPrev_ptsH)
-        labeler.prevAxesSetLabels_(labeler.currMovie, labeler.prevFrame, labeler.currTarget);
-      else
-        setPositionsOfLabelLinesAndTextsToNanBangBang(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
-      end
+      % Sync real prev-axes graphics to virtual label state (already
+      % updated by the model before this event fires).
       obj.syncPrevAxesLabels_();
     end  % function
 
@@ -8533,9 +8506,6 @@ classdef LabelerController < handle
 
     function initializePrevAxesTemplate(obj)
       labeler = obj.labeler_;
-
-      obj.initRealPrevAxesLabelPointViz_();
-
       islabeled = labeler.currFrameIsLabeled();
       if islabeled,
         set(obj.pushbutton_freezetemplate, 'Enable', 'on');
@@ -8590,14 +8560,19 @@ classdef LabelerController < handle
       labeler = obj.labeler_;
       virtualPts = labeler.lblPrev_ptsH;
       virtualTxt = labeler.lblPrev_ptsTxtH;
-      realPts = obj.lblPrev_ptsRealH_;
-      realTxt = obj.lblPrev_ptsTxtRealH_;
 
-      if isempty(virtualPts) || isempty(realPts)
+      if isempty(virtualPts)
         return
       end
 
       npts = numel(virtualPts);
+
+      % Lazily create real graphics if needed
+      if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= npts
+        obj.initRealPrevAxesLabelPointViz_();
+      end
+      realPts = obj.lblPrev_ptsRealH_;
+      realTxt = obj.lblPrev_ptsTxtRealH_;
       txtOffset = labeler.labelPointsPlotInfo.TextOffset;
 
       % Extract positions from virtual objects into xy matrix

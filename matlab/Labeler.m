@@ -6214,8 +6214,8 @@ classdef Labeler < handle
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
       obj.initVirtualPrevAxesLabelPointViz_(lblPtsPlotInfo);
-      notify(obj, 'initializePrevAxesTemplate');
       if ~isempty(obj.prevAxesModeInfo)
+        obj.redrawPrevAxesVirtualLabels_();
         notify(obj, 'redrawPrevAxesLabels');
       end
       
@@ -7826,6 +7826,7 @@ classdef Labeler < handle
       end
       obj.labelPointsPlotInfo.TextOffset = textOffset;
       set(obj.lblPrev_ptsTxtH,pvText);
+      obj.redrawPrevAxesVirtualLabels_();
       notify(obj, 'redrawPrevAxesLabels'); % should use .TextOffset
       lc.updateTextLabelCosmetics(pvText,textOffset);
       %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
@@ -8910,28 +8911,61 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
+      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.labels2VizUpdate('dotrkres',true);
-      %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo)); 
+      %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo));
     end
-    
+
     function labelsUpdateNewTarget(obj,prevTarget)
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
+      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
-    
+
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
       if ~isempty(obj.lblCore)
         obj.lblCore.newFrameAndTarget(...
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
+      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
+    end  % function
+
+    function syncPrevAxesVirtualLabels_(obj)
+      % Update virtual prev-axes label positions based on current
+      % prevAxesMode.  In LASTSEEN mode, set positions from prevFrame
+      % labels.  In FROZEN mode, do nothing (positions are already set).
+      if obj.prevAxesMode ~= PrevAxesMode.LASTSEEN
+        return
+      end
+      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
+        obj.prevAxesSetLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
+      else
+        setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
+      end
+    end  % function
+
+    function redrawPrevAxesVirtualLabels_(obj)
+      % Update virtual prev-axes label positions for a full redraw
+      % (handles both FROZEN and LASTSEEN modes).
+      if obj.prevAxesMode == PrevAxesMode.FROZEN
+        freezeInfo = obj.prevAxesModeInfo;
+        try
+          obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
+        catch
+        end
+      elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
+        obj.prevAxesSetLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
+      else
+        setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
+      end
     end  % function
         
   end  % methods (Access=private)
