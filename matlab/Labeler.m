@@ -740,8 +740,8 @@ classdef Labeler < handle
     prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
     currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
     prevAxesSizeInPixels_ = [256 256]  % cached [w h] of prev axes in pixels
-    lblPrev_ptsH  % [npts] gobjects. init: L
-    lblPrev_ptsTxtH  % [npts] etc. init: L
+    lblPrev_ptsH  % [npts] VirtualLine. init: L
+    lblPrev_ptsTxtH  % [npts] VirtualText. init: L
   end
 
   properties (Dependent)
@@ -6213,8 +6213,8 @@ classdef Labeler < handle
       obj.setShowMaRoi(obj.showMaRoi);
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
-      obj.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-                                   obj.controller_.axes_prev,lblPtsPlotInfo);
+      obj.initVirtualPrevAxesLabelPointViz_(lblPtsPlotInfo);
+      notify(obj, 'initializePrevAxesTemplate');
       if ~isempty(obj.prevAxesModeInfo)
         notify(obj, 'redrawPrevAxesLabels');
       end
@@ -13899,39 +13899,39 @@ classdef Labeler < handle
       end
     end
     
-    function genericInitLabelPointViz(obj,hProp,hTxtProp,ax,plotIfo)
-      deleteValidGraphicsHandles(obj.(hProp));
-      obj.(hProp) = gobjects(obj.nLabelPoints,1);
-      if ~isempty(hTxtProp)
-        deleteValidGraphicsHandles(obj.(hTxtProp));
-        obj.(hTxtProp) = gobjects(obj.nLabelPoints,1);
-      end
-      
-      markerPVcell = struct2pvs(plotIfo.MarkerProps);
-      textPVcell = struct2pvs(plotIfo.TextProps);
-      
-      % any extra plotting parameters
-      allowedPlotParams = {'HitTest' 'PickableParts'};
-      ism = ismember(cellfun(@lower,allowedPlotParams,'Uni',0),...
-                     cellfun(@lower,fieldnames(plotIfo),'Uni',0));
-      extraParams = {};
-      for i = find(ism)
-        extraParams = [extraParams,{allowedPlotParams{i},plotIfo.(allowedPlotParams{i})}]; %#ok<AGROW>
-      end
+    function initVirtualPrevAxesLabelPointViz_(obj, plotIfo)
+      markerPVs = plotIfo.MarkerProps;
+      textPVs = plotIfo.TextProps;
 
-      for i = 1:obj.nLabelPoints
-        obj.(hProp)(i) = plot(ax,nan,nan,markerPVcell{:},...
-          'Color',plotIfo.Colors(i,:),...
-          'UserData',i,...
-          extraParams{:},...
-          'Tag',sprintf('Labeler_%s_%d',hProp,i));
-        if ~isempty(hTxtProp)
-          obj.(hTxtProp)(i) = text(nan,nan,num2str(i),'Parent',ax,...
-            textPVcell{:},'Color',plotIfo.Colors(i,:),...
-            'PickableParts','none',...
-            'Tag',sprintf('Labeler_%s_%d',hTxtProp,i));
+      % Extra plot params
+      allowedPlotParams = {'HitTest' 'PickableParts'};
+      plotIfoFields = fieldnames(plotIfo);
+      ism = ismember(cellfun(@lower, allowedPlotParams, 'Uni', 0), ...
+                     cellfun(@lower, plotIfoFields, 'Uni', 0));
+
+      npts = obj.nLabelPoints;
+      obj.lblPrev_ptsH = VirtualLine.empty(0, 1);
+      obj.lblPrev_ptsTxtH = VirtualText.empty(0, 1);
+
+      for i = 1:npts
+        vl = VirtualLine();
+        set(vl, markerPVs);
+        vl.Color = plotIfo.Colors(i, :);
+        vl.UserData = i;
+        vl.Tag = sprintf('Labeler_lblPrev_ptsH_%d', i);
+        for j = find(ism)
+          vl.(allowedPlotParams{j}) = plotIfo.(allowedPlotParams{j});
         end
-      end      
+        obj.lblPrev_ptsH(i, 1) = vl;
+
+        vt = VirtualText();
+        set(vt, textPVs);
+        vt.Color = plotIfo.Colors(i, :);
+        vt.String = num2str(i);
+        vt.PickableParts = 'none';
+        vt.Tag = sprintf('Labeler_lblPrev_ptsTxtH_%d', i);
+        obj.lblPrev_ptsTxtH(i, 1) = vt;
+      end
     end
    
     function pushBusyStatus(obj, new_raw_status_string)

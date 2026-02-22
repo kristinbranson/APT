@@ -249,6 +249,8 @@ classdef LabelerController < handle
     menu_track_backend_settings
     menu_track_backend_config_moreinfo
     menu_track_backend_config_test
+    lblPrev_ptsRealH_      % [npts] real Line gobjects on axes_prev
+    lblPrev_ptsTxtRealH_   % [npts] real Text gobjects on axes_prev
   end
 
   methods
@@ -2436,8 +2438,8 @@ classdef LabelerController < handle
       labeler.impPointsPlotInfo.Colors = feval(labeler.impPointsPlotInfo.ColorMapName,newnphyspts);
 
       % reset reference frame plotting
-      labeler.genericInitLabelPointViz('lblPrev_ptsH','lblPrev_ptsTxtH',...
-                                       obj.axes_prev,labeler.labelPointsPlotInfo);
+      labeler.initVirtualPrevAxesLabelPointViz_(labeler.labelPointsPlotInfo);
+      obj.initRealPrevAxesLabelPointViz_();
       if ~isempty(labeler.prevAxesModeInfo)
         obj.prevAxesLabelsRedraw();
       end
@@ -8220,6 +8222,7 @@ classdef LabelerController < handle
       else
         setPositionsOfLabelLinesAndTextsToNanBangBang(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
       end
+      obj.syncPrevAxesLabels_();
     end  % function
 
     function prevAxesLabelsRedraw(obj)
@@ -8240,6 +8243,7 @@ classdef LabelerController < handle
       else
         setPositionsOfLabelLinesAndTextsToNanBangBang(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
       end
+      obj.syncPrevAxesLabels_();
     end  % function
 
     function updatePrevAxesImageAndTextForLastSeenMode_(obj)
@@ -8529,6 +8533,9 @@ classdef LabelerController < handle
 
     function initializePrevAxesTemplate(obj)
       labeler = obj.labeler_;
+
+      obj.initRealPrevAxesLabelPointViz_();
+
       islabeled = labeler.currFrameIsLabeled();
       if islabeled,
         set(obj.pushbutton_freezetemplate, 'Enable', 'on');
@@ -8540,6 +8547,76 @@ classdef LabelerController < handle
         if islabeled,
           obj.prevAxesFreeze([]);
         end
+      end
+    end  % function
+
+    function initRealPrevAxesLabelPointViz_(obj)
+      deleteValidGraphicsHandles(obj.lblPrev_ptsRealH_);
+      deleteValidGraphicsHandles(obj.lblPrev_ptsTxtRealH_);
+
+      labeler = obj.labeler_;
+      plotIfo = labeler.labelPointsPlotInfo;
+      npts = labeler.nLabelPoints;
+      ax = obj.axes_prev;
+
+      markerPVcell = struct2pvs(plotIfo.MarkerProps);
+      textPVcell = struct2pvs(plotIfo.TextProps);
+
+      allowedPlotParams = {'HitTest' 'PickableParts'};
+      plotIfoFields = fieldnames(plotIfo);
+      ism = ismember(cellfun(@lower, allowedPlotParams, 'Uni', 0), ...
+                     cellfun(@lower, plotIfoFields, 'Uni', 0));
+      extraParams = {};
+      for j = find(ism)
+        extraParams = [extraParams, {allowedPlotParams{j}, plotIfo.(allowedPlotParams{j})}]; %#ok<AGROW>
+      end
+
+      obj.lblPrev_ptsRealH_ = gobjects(npts, 1);
+      obj.lblPrev_ptsTxtRealH_ = gobjects(npts, 1);
+      for i = 1:npts
+        obj.lblPrev_ptsRealH_(i) = plot(ax, nan, nan, markerPVcell{:}, ...
+          'Color', plotIfo.Colors(i, :), ...
+          'UserData', i, ...
+          extraParams{:}, ...
+          'Tag', sprintf('LabelerController_lblPrev_ptsRealH_%d', i));
+        obj.lblPrev_ptsTxtRealH_(i) = text(nan, nan, num2str(i), 'Parent', ax, ...
+          textPVcell{:}, 'Color', plotIfo.Colors(i, :), ...
+          'PickableParts', 'none', ...
+          'Tag', sprintf('LabelerController_lblPrev_ptsTxtRealH_%d', i));
+      end
+    end  % function
+
+    function syncPrevAxesLabels_(obj)
+      labeler = obj.labeler_;
+      virtualPts = labeler.lblPrev_ptsH;
+      virtualTxt = labeler.lblPrev_ptsTxtH;
+      realPts = obj.lblPrev_ptsRealH_;
+      realTxt = obj.lblPrev_ptsTxtRealH_;
+
+      if isempty(virtualPts) || isempty(realPts)
+        return
+      end
+
+      npts = numel(virtualPts);
+      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
+
+      % Extract positions from virtual objects into xy matrix
+      xy = nan(npts, 2);
+      for i = 1:npts
+        xy(i, :) = [virtualPts(i).XData, virtualPts(i).YData];
+      end
+      setPositionsOfLabelLinesAndTextsBangBang(realPts, realTxt, xy, txtOffset);
+
+      % Sync cosmetic properties
+      for i = 1:npts
+        set(realPts(i), ...
+          'Color', virtualPts(i).Color, ...
+          'Marker', virtualPts(i).Marker, ...
+          'MarkerSize', virtualPts(i).MarkerSize, ...
+          'LineWidth', virtualPts(i).LineWidth);
+        set(realTxt(i), ...
+          'Color', virtualTxt(i).Color, ...
+          'FontSize', virtualTxt(i).FontSize);
       end
     end  % function
 
