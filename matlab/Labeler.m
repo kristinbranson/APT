@@ -194,7 +194,6 @@ classdef Labeler < handle
     updateCurrImagesAllViews
     updatePrevAxesImage
     updatePrevAxesLabels
-    redrawPrevAxesLabels
     initializePrevAxesTemplate
     updatePrevAxes
     downdateCachedAxesProperties
@@ -6214,10 +6213,8 @@ classdef Labeler < handle
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
       obj.initVirtualPrevAxesLabelPointViz_(lblPtsPlotInfo);
-      if ~isempty(obj.prevAxesModeInfo)
-        obj.redrawPrevAxesVirtualLabels_();
-        notify(obj, 'redrawPrevAxesLabels');
-      end
+      obj.syncPrevAxesVirtualLabels_();
+      notify(obj, 'updatePrevAxesLabels');
       
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
@@ -7826,8 +7823,8 @@ classdef Labeler < handle
       end
       obj.labelPointsPlotInfo.TextOffset = textOffset;
       set(obj.lblPrev_ptsTxtH,pvText);
-      obj.redrawPrevAxesVirtualLabels_();
-      notify(obj, 'redrawPrevAxesLabels'); % should use .TextOffset
+      obj.syncPrevAxesVirtualLabels_();
+      notify(obj, 'updatePrevAxesLabels');
       lc.updateTextLabelCosmetics(pvText,textOffset);
       %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
@@ -8939,22 +8936,9 @@ classdef Labeler < handle
     end  % function
 
     function syncPrevAxesVirtualLabels_(obj)
-      % Update virtual prev-axes label positions based on current
-      % prevAxesMode.  In LASTSEEN mode, set positions from prevFrame
-      % labels.  In FROZEN mode, do nothing (positions are already set).
-      if obj.prevAxesMode ~= PrevAxesMode.LASTSEEN
-        return
-      end
-      if ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
-      else
-        setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
-      end
-    end  % function
-
-    function redrawPrevAxesVirtualLabels_(obj)
-      % Update virtual prev-axes label positions for a full redraw
-      % (handles both FROZEN and LASTSEEN modes).
+      % Sync virtual prev-axes label positions with labeler state.
+      % In FROZEN mode, set positions from frozen frame info.
+      % In LASTSEEN mode, set positions from prevFrame labels.
       if obj.prevAxesMode == PrevAxesMode.FROZEN
         freezeInfo = obj.prevAxesModeInfo;
         try

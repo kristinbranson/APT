@@ -540,8 +540,6 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'redrawPrevAxesLabels',@(s,e)(obj.prevAxesLabelsRedraw())) ;
-      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'initializePrevAxesTemplate',@(s,e)(obj.initializePrevAxesTemplate())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxes',@(s,e)(obj.updatePrevAxes())) ;
@@ -2439,10 +2437,8 @@ classdef LabelerController < handle
 
       % reset reference frame plotting
       labeler.initVirtualPrevAxesLabelPointViz_(labeler.labelPointsPlotInfo);
-      obj.initRealPrevAxesLabelPointViz_();
-      if ~isempty(labeler.prevAxesModeInfo)
-        obj.prevAxesLabelsRedraw();
-      end
+      labeler.syncPrevAxesVirtualLabels_();
+      obj.updatePrevAxesLabels();
       
       % init info timeline
       obj.labelTLInfo.updateForNewProject();
@@ -8203,19 +8199,15 @@ classdef LabelerController < handle
       % Sync real prev-axes graphics to virtual label state (already
       % updated by the model before this event fires).
       labeler = obj.labeler_;
-      if labeler.isinit || ~labeler.hasMovie,
+      if ~labeler.hasMovie,
         return;
       end
 
-      islabeled = labeler.currFrameIsLabeled();
-      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
+      if ~labeler.isinit
+        islabeled = labeler.currFrameIsLabeled();
+        set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
+      end
 
-      obj.syncPrevAxesLabels_();
-    end  % function
-
-    function prevAxesLabelsRedraw(obj)
-      % Sync real prev-axes graphics to virtual label state (already
-      % updated by the model before this event fires).
       obj.syncPrevAxesLabels_();
     end  % function
 
