@@ -901,15 +901,16 @@ classdef LabelCoreSeqMA < LabelCore
     
     function acceptLabels(obj)
       %fprintf(1,'accept\n');
-      lObj = obj.labeler;
+      labeler = obj.labeler;
 %       ntgts = lObj.labelNumLabeledTgts();
 %       lObj.setTargetMA(ntgts+1);
       obj.storeLabels();
-      lObj.notify('updateTrxTable');
-      notify(lObj, 'initializePrevAxesTemplate');
+      labeler.notify('updateTrxTable');
+      % notify(lObj, 'initializePrevAxesTemplate');
+      labeler.restorePrevAxesMode() ;
 
       [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
-      iTgt = lObj.currTarget;
+      iTgt = labeler.currTarget;
       obj.tv.updateTrackResI(xy,tfeo,iTgt);
       % tv.hideTarget should already be set to lObj.currTarget
       obj.tv.hittest_on_all()

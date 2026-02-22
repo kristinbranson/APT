@@ -539,8 +539,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updatePrevAxesImage',@(s,e)(obj.updatePrevAxesImage())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
-      obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'initializePrevAxesTemplate',@(s,e)(obj.initializePrevAxesTemplate())) ;
+      % obj.listeners_(end+1) = ...
+      %   addlistener(obj.labeler_,'initializePrevAxesTemplate',@(s,e)(obj.initializePrevAxesTemplate())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxes',@(s,e)(obj.updatePrevAxes())) ;
       obj.listeners_(end+1) = ...
@@ -6250,16 +6250,13 @@ classdef LabelerController < handle
       labeler = obj.labeler_;
       contents = cellstr(get(src, 'String'));
       modeAsString = contents{get(src, 'Value')};
-      if strcmpi(modeAsString, 'Reference'),
-        labeler.setPrevAxesMode(PrevAxesMode.FROZEN, labeler.prevAxesModeInfo);
-      else
-        labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
-      end
+      mode = fif(strcmpi(modeAsString, 'Reference'), PrevAxesMode.FROZEN, PrevAxesMode.LASTSEEN) ;
+      labeler.setPrevAxesMode(mode) ;
     end
 
     function pushbutton_freezetemplate_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_;
-      labeler.setPrevAxesMode(PrevAxesMode.FROZEN);
+      labeler.setPrevAxesModeTarget();
     end
 
     function pushbutton_exitcropmode_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -8530,21 +8527,21 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function initializePrevAxesTemplate(obj)
-      labeler = obj.labeler_;
-      islabeled = labeler.currFrameIsLabeled();
-      if islabeled,
-        set(obj.pushbutton_freezetemplate, 'Enable', 'on');
-      else
-        set(obj.pushbutton_freezetemplate, 'Enable', 'off');
-      end
-
-      if labeler.prevAxesMode == PrevAxesMode.FROZEN && ~labeler.isPrevAxesModeInfoSet(),
-        if islabeled,
-          obj.prevAxesFreeze([]);
-        end
-      end
-    end  % function
+    % function initializePrevAxesTemplate(obj)
+    %   labeler = obj.labeler_;
+    %   islabeled = labeler.currFrameIsLabeled();
+    %   if islabeled,
+    %     set(obj.pushbutton_freezetemplate, 'Enable', 'on');
+    %   else
+    %     set(obj.pushbutton_freezetemplate, 'Enable', 'off');
+    %   end
+    % 
+    %   if labeler.prevAxesMode == PrevAxesMode.FROZEN && ~labeler.isPrevAxesModeInfoSet(),
+    %     if islabeled,
+    %       obj.prevAxesFreeze([]);
+    %     end
+    %   end
+    % end  % function
 
     function nukeAndRepavePrevAxesLabels_(obj)
       % Delete the existing label gobjects and recreate them.
@@ -8598,9 +8595,9 @@ classdef LabelerController < handle
         [isPAModelInfoUnchanged, changedPAModeInfo] = ...
           labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
         if ~isPAModelInfoUnchanged,
-          labeler.setPrevAxesMode(labeler.prevAxesMode, changedPAModeInfo);
+          labeler.setPrevAxesModeHelper_(labeler.prevAxesMode, changedPAModeInfo);
         else
-          labeler.setPrevAxesMode(labeler.prevAxesMode, labeler.prevAxesModeInfo);
+          labeler.restorePrevAxesMode();
         end
       end
       islabeled = labeler.currFrameIsLabeled();
@@ -8620,14 +8617,14 @@ classdef LabelerController < handle
         [isPAModelInfoUnchanged, fixedPAModeInfo] = ...
           labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
         if ~isPAModelInfoUnchanged,
-          labeler.setPrevAxesMode(labeler.prevAxesMode, fixedPAModeInfo);
+          labeler.setPrevAxesModeHelper_(labeler.prevAxesMode, fixedPAModeInfo);
         else
-          labeler.setPrevAxesMode(labeler.prevAxesMode, labeler.prevAxesModeInfo);
+          labeler.restorePrevAxesMode();
         end
       else
         newPAModeInfo = labeler.prevAxesModeInfo ;
         newPAModeInfo.iMov = newIdx ;
-        labeler.setPrevAxesMode(labeler.prevAxesMode, newPAModeInfo);
+        labeler.setPrevAxesModeHelper_(labeler.prevAxesMode, newPAModeInfo);
       end
     end  % function
 

@@ -96,7 +96,8 @@ classdef LabelCoreSeqAdd < LabelCoreSeq
     
     function acceptLabels(obj)
       obj.beginAccepted(true);
-      notify(obj.labeler, 'initializePrevAxesTemplate');
+      % notify(obj.labeler, 'initializePrevAxesTemplate');
+      obj.labeler.restorePrevAxesMode() ;
     end
     
     function unAcceptLabels(obj)

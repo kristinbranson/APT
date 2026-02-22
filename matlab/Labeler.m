@@ -2000,8 +2000,9 @@ classdef Labeler < handle
       obj.showMaRoiAux = obj.labelMode == LabelMode.MULTIANIMAL;
       obj.flipLandmarkMatches = zeros(0,2);
       
-      % New projs set to frozen, waiting for something to be labeled
-      obj.setPrevAxesMode(PrevAxesMode.FROZEN, []);
+      % New projs set to LASTSEEN, since in general no reference target can have
+      % been set yet.
+      obj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
       
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
@@ -2737,7 +2738,7 @@ classdef Labeler < handle
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
       obj.notify('downdateCachedAxesProperties') ;  % Causes obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_ to be set correctly
       [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
-      obj.setPrevAxesMode(pamode, prevModeInfo);
+      obj.restorePrevAxesMode(pamode, prevModeInfo);
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
@@ -8945,6 +8946,7 @@ classdef Labeler < handle
         try
           obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
         catch
+          % do nothing
         end
       elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
         obj.prevAxesSetLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
@@ -13427,37 +13429,45 @@ classdef Labeler < handle
   end  % methods
 
   methods  % (Access=private)
-    function prevAxesSetLabels_(obj,iMov,frm,iTgt,info)
+    function prevAxesSetLabels_(obj, iMov, frm, iTgt, freezeInfo)
+      % Sets .lblPrev_ptsH and .lblPrev_ptsTxtH to reflect the labels in movie iMov,
+      % frame frm, target iTgt.  If freezeInfo is provided, then freezeInfo.gtmode,
+      % freezeInfo.isrotated, and freezeInfo.A are also used in some way to compute
+      % the values to which .lblPrev_ptsH and .lblPrev_ptsTxtH are set.
+
       persistent tfWarningThrownAlready
       
       if nargin < 5,
         hasInfo = false ;
-        info = [] ;
+        freezeInfo = [] ;
       else
         hasInfo = true ;
       end
       
       if isempty(frm),
-        lpos = nan(obj.nLabelPoints,2);
-        lpostag = false(obj.nLabelPoints,1);
+        lpos2 = nan(obj.nLabelPoints,2);
+        lpostag2 = false(obj.nLabelPoints,1);
       else
         if hasInfo ,
-          [~,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',info.gtmode);
-          if info.isrotated,
-            lpos = [lpos,ones(size(lpos,1),1)]*info.A;
-            lpos = lpos(:,1:2);
+          [~,lpos0,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',freezeInfo.gtmode);
+          if freezeInfo.isrotated,
+            lpos1 = [lpos0,ones(size(lpos0,1),1)]*freezeInfo.A;
+            lpos2 = lpos1(:,1:2);
           end
         else
-          [~,lpos,lpostag] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
+          [~,lpos2,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
         end
       end
+
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
       % if any points are nan, set them to be somewhere ...
-      lpos = apt.patch_lpos(lpos) ;
-      assignLabelCoordsHandlingOcclusionBangBang(...
-        obj.lblPrev_ptsH(ipts), obj.lblPrev_ptsTxtH(ipts), lpos(ipts,:), txtOffset);
-      if any(lpostag(ipts))
+      lpos3 = apt.patch_lpos(lpos2) ;
+      assignLabelCoordsHandlingOcclusionBangBang(obj.lblPrev_ptsH(ipts), ...
+                                                 obj.lblPrev_ptsTxtH(ipts), ...
+                                                 lpos3(ipts,:), ...
+                                                 txtOffset);
+      if any(lpostag2(ipts))
         if isempty(tfWarningThrownAlready)
           warningNoTrace('Labeler:labelsPrev',...
                          'Label tags in previous frame not visualized.');
@@ -14932,8 +14942,28 @@ classdef Labeler < handle
       obj.currAxesProps_ = currAxesProps;
       obj.prevAxesSizeInPixels_ = prevAxesSizeInPixels;
     end  % function
+    
+    function setPrevAxesModeTarget(obj)
+      % Set the target animal for the 'sidekick' axes when in mode
+      % PrevAxesMode.FROZEN.  This also switches the model to PrevAxesMode.FROZEN.
+      % This is what happens when you click the "Freeze" button in the GUI.
+      obj.setPrevAxesModeHelper_(PrevAxesMode.FROZEN, []) ;
+    end
 
-    function setPrevAxesMode(obj, pamode, pamodeinfo)
+    function setPrevAxesMode(obj, pamode)
+      % Set the mode for the 'sidekick' axes to pamode.
+      obj.setPrevAxesModeHelper_(pamode, obj.prevAxesModeInfo_) ;
+    end
+
+    function restorePrevAxesMode(obj)
+      % Set the .prevAxesMode_ and obj.prevAxesModeInfo_ to what they already are, 
+      % as a way of restoring the internal cache of the prev_axes image, lines, and
+      % texts to what they should be.  This method is a hack, and should eventually
+      % not be needed and go away.
+      obj.setPrevAxesModeHelper_(obj.prevAxesMode_, obj.prevAxesModeInfo_) ;
+    end
+
+    function setPrevAxesModeHelper_(obj, pamode, pamodeinfo)
       % Set .prevAxesMode_, .prevAxesModeInfo_
       %
       % pamode: PrevAxesMode
