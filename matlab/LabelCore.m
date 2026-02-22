@@ -784,10 +784,10 @@ classdef LabelCore < handle
       
       % FullyOccluded
       tfOccld = any(isinf(xy),2);
-      LabelCore.setPtsCoordsStc(xy(~tfOccld,:),...
-        hPts(~tfOccld),hTxt(~tfOccld),txtOffset);      
-      LabelCore.setPtsCoordsStc(nan(nnz(tfOccld),2),...
-        hPts(tfOccld),hTxt(tfOccld),txtOffset);
+      setPositionsOfLabelLinesAndTextsBangBang(...
+        hPts(~tfOccld),hTxt(~tfOccld),xy(~tfOccld,:),txtOffset);
+      setPositionsOfLabelLinesAndTextsBangBang(...
+        hPts(tfOccld),hTxt(tfOccld),nan(nnz(tfOccld),2),txtOffset);
     end
     
     function xy = getCoordsFromPts(hPts)
@@ -801,7 +801,7 @@ classdef LabelCore < handle
   methods
     function setPtsCoords(obj,xy,hPts,hTxt)
       txtOffset = obj.labeler.labelPointsPlotInfo.TextOffset; % could use .ptsPlotInfo
-      LabelCore.setPtsCoordsStc(xy,hPts,hTxt,txtOffset);
+      setPositionsOfLabelLinesAndTextsBangBang(hPts,hTxt,xy,txtOffset);
     end
     function redrawTextLabels(obj)
       % eg when text offset is updated
@@ -820,32 +820,11 @@ classdef LabelCore < handle
     end
   end
   methods (Static)
-    function setPtsCoordsStc(xy,hPts,hTxt,txtOffset)
-      %tic;
-      nPoints = size(xy,1);
-      assert(size(xy,2)==2);
-      assert(isequal(nPoints,numel(hPts),numel(hTxt)));
-      
-      for i = 1:nPoints
-        oldx = get(hPts(i),'XData');
-        oldy = get(hPts(i),'YData');
-        if isnan(oldx) && isnan(xy(i,1)) && isnan(oldy) && isnan(xy(i,2)),
-          continue;
-        end
-        if oldx==xy(i,1) && oldy==xy(i,2),
-          continue;
-        end
-        set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
-        set(hTxt(i),'Position',[xy(i,1)+txtOffset xy(i,2)+txtOffset 1]);
-      end
-      %fprintf('LabelCore.setPtsCoordsStc: %f\n',toc);
-    end
-            
     function setPtsOffAxis(hPts,hTxt)
       % Set pts/txt to be "offscreen" ie positions to NaN.
       TXTOFFSET_IRRELEVANT = 1;
-      LabelCore.setPtsCoordsStc(nan(numel(hPts),2),hPts,hTxt,...
-        TXTOFFSET_IRRELEVANT);
+      setPositionsOfLabelLinesAndTextsBangBang(hPts,hTxt,...
+        nan(numel(hPts),2),TXTOFFSET_IRRELEVANT);
     end
     
     function setPtsColor(hPts,hTxt,colors)
@@ -860,7 +839,7 @@ classdef LabelCore < handle
     end
     
     function setPtsCoordsOcc(xy,hPts,hTxt)
-      LabelCore.setPtsCoordsStc(xy,hPts,hTxt,0.25);
+      setPositionsOfLabelLinesAndTextsBangBang(hPts,hTxt,xy,0.25);
     end
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)
