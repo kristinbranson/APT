@@ -3410,7 +3410,7 @@ classdef LabelerController < handle
       end
       mnu = obj.menu_view_rotate_video_target_up;
       mnu.Checked = onIff(tf);
-      obj.UpdatePrevAxesDirections();
+      obj.syncPrevAxesDirectionsFromCurrAxes_();
     end  % function
 
     function cbkMovieForceGrayscaleChanged(obj, src, evt)  %#ok<INUSD>
@@ -5360,7 +5360,7 @@ classdef LabelerController < handle
           ax = obj.axes_all(iAx);
           ax.YDir = toggleAxisDir(ax.YDir);
         end
-        obj.UpdatePrevAxesDirections();
+        obj.syncPrevAxesDirectionsFromCurrAxes_();
         if ~labeler.isMultiView,
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
@@ -5377,7 +5377,7 @@ classdef LabelerController < handle
         for iAx = iAxApply(:)'
           ax = obj.axes_all(iAx);
           ax.XDir = toggleAxisDir(ax.XDir);
-          obj.UpdatePrevAxesDirections();
+          obj.syncPrevAxesDirectionsFromCurrAxes_();
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
         if ~labeler.isMultiView,
@@ -8501,30 +8501,10 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function UpdatePrevAxesDirections(obj)
-      labeler = obj.labeler_;
+    function syncPrevAxesDirectionsFromCurrAxes_(obj)
       xdir = get(obj.axes_curr, 'XDir');
       ydir = get(obj.axes_curr, 'YDir');
-
-
-      labeler.prevAxesModeInfo_.axes_curr.XDir = xdir;
-      labeler.prevAxesModeInfo_.axes_curr.YDir = ydir;
-
-      set(obj.axes_prev, 'XDir', xdir, 'YDir', ydir);
-
-      if labeler.hasTrx,
-        try
-          prevAxesYDir = get(obj.axes_prev, 'YDir');
-          labeler.prevAxesModeInfo_ = labeler.rectifyImageFieldsInPrevAxesMovieInfo(labeler.prevAxesModeInfo, 1, prevAxesYDir);
-        catch ME,
-          warning(['Error setting reference image information, clearing out reference image.\n', getReport(ME)]);
-          obj.clearPrevAxesModeInfo();
-        end
-
-        [axesCurrProps, prevAxesSize] = obj.getPrevAxesAndCurrAxesProperties_();
-        labeler.prevAxesModeInfo_ = labeler.getDefaultPrevAxesModeInfo(labeler.prevAxesModeInfo, prevAxesSize, axesCurrProps);
-        obj.prevAxesFreeze(labeler.prevAxesModeInfo);
-      end
+      obj.labeler_.setPrevAxesDirections(xdir, ydir);
     end  % function
 
     % function initializePrevAxesTemplate(obj)

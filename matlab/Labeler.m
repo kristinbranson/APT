@@ -13193,8 +13193,8 @@ classdef Labeler < handle
       % prevAxesYDir is 'normal' or 'reverse'.
 
       % If paMode is PrevAxesMode.LASTSEEN, nothing to do
-      if paMode ~= PrevAxesMode.FROZEN ,
-        isInputPAModeInfoOK = true;
+      if paMode == PrevAxesMode.LASTSEEN ,
+        isInputPAModeInfoOK = true ;
         outputPAModeInfo = inputPAModeInfo ;
         return
       end
@@ -15029,16 +15029,12 @@ classdef Labeler < handle
           'im', obj.currIm{1}, ...
           'isrotated', false, ...
           'gtmode', obj.gtIsGTMode);
-        if isfield(obj.prevAxesModeInfo_, 'dxlim'),
-          freezeInfo.dxlim = obj.prevAxesModeInfo_.dxlim;
-          freezeInfo.dylim = obj.prevAxesModeInfo_.dylim;
-        end
-        freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, obj.prevAxesYDir_);
-        freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
-      end
-      if ~isfield(freezeInfo, 'gtmode')
+      elseif ~isfield(freezeInfo, 'gtmode')
         freezeInfo.gtmode = obj.gtIsGTMode;
       end
+
+      freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, obj.prevAxesYDir_);
+      freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
 
       if isPrevAxesModeInfoValid(freezeInfo),
         isFreezeInfoUnchanged = true;
@@ -15069,6 +15065,12 @@ classdef Labeler < handle
       obj.prevAxesModeInfo_.axes_curr.YLim = newylim;
       obj.prevAxesModeInfo_.dxlim = obj.prevAxesModeInfo.dxlim + dx;
       obj.prevAxesModeInfo_.dylim = obj.prevAxesModeInfo.dylim + dy;
-    end  % function    
+    end  % function
+
+    function setPrevAxesDirections(obj, xdir, ydir)
+      obj.prevAxesModeInfo_.axes_curr.XDir = xdir;
+      obj.prevAxesModeInfo_.axes_curr.YDir = ydir;
+      obj.restorePrevAxesMode();
+    end  % function
   end  % methods
 end  % classdef
