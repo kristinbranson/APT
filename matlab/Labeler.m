@@ -192,11 +192,11 @@ classdef Labeler < handle
     updateTimelineTraces
     updateTimelineLandmarkColors
     updateCurrImagesAllViews
-    updatePrevImage
+    updatePrevAxesImage
     updatePrevAxesLabels
     redrawPrevAxesLabels
     initializePrevAxesTemplate
-    updatePrevAxesMode
+    updatePrevAxes
     downdateCachedAxesProperties
     updateShortcuts
   end
@@ -13133,7 +13133,7 @@ classdef Labeler < handle
         obj.prevImRoi = currImRoi1Original ;
       end
       % obj.prevAxesImFrmUpdate(tfforce) ;      
-      obj.notify('updatePrevImage') ;
+      obj.notify('updatePrevAxesImage') ;
     end  % function
   end
   
@@ -14925,12 +14925,34 @@ classdef Labeler < handle
         pamodeinfo = [];
       end
       
+      % fprintf('On setPrevAxesMode() call:\n') ;
+      % pamode
+      % pamodeinfo
+      % if ~isempty(pamodeinfo) && isfield(pamodeinfo, 'axes_curr')
+      %   pamodeinfo_axes_curr = pamodeinfo.axes_curr
+      % end
+
       obj.prevAxesMode_ = pamode ;
       obj.prevAxesModeInfo_ = pamodeinfo ;
       if pamode == PrevAxesMode.FROZEN
         obj.revisePrevAxesModeInfoForFrozenMode_() ;
       end
-      obj.notify('updatePrevAxesMode') ;
+
+      % fprintf('On setPrevAxesMode() middle:\n') ;
+      % pamode1 = obj.prevAxesMode_
+      % pamodeinfo1 = obj.prevAxesModeInfo_
+      % if ~isempty(pamodeinfo1) && isfield(pamodeinfo1, 'axes_curr')
+      %   pamodeinfo1_axes_curr = pamodeinfo1.axes_curr
+      % end
+      
+      obj.notify('updatePrevAxes') ;
+
+      % fprintf('On setPrevAxesMode() end:\n') ;
+      % pamode2 = obj.prevAxesMode_
+      % pamodeinfo2 = obj.prevAxesModeInfo_
+      % if ~isempty(pamodeinfo2) && isfield(pamodeinfo2, 'axes_curr')
+      %   pamodeinfo2_axes_curr = pamodeinfo2.axes_curr
+      % end
     end
 
     function revisePrevAxesModeInfoForFrozenMode_(obj)
@@ -14984,5 +15006,14 @@ classdef Labeler < handle
       obj.isFreezeInfoUnchanged_ = isFreezeInfoUnchanged ;
     end  % function
     
+    function setPrevAxesLimits(obj, newxlim, newylim)
+      assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
+      dx = newxlim - obj.prevAxesModeInfo.axes_curr.XLim;
+      dy = newylim - obj.prevAxesModeInfo.axes_curr.YLim;
+      obj.prevAxesModeInfo_.axes_curr.XLim = newxlim;
+      obj.prevAxesModeInfo_.axes_curr.YLim = newylim;
+      obj.prevAxesModeInfo_.dxlim = obj.prevAxesModeInfo.dxlim + dx;
+      obj.prevAxesModeInfo_.dylim = obj.prevAxesModeInfo.dylim + dy;
+    end  % function    
   end  % methods
 end  % classdef

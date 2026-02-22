@@ -534,15 +534,15 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevImage',@(s,e)(obj.updatePrevImage())) ;
+        addlistener(obj.labeler_,'updatePrevAxesImage',@(s,e)(obj.updatePrevAxesImage())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.prevAxesLabelsUpdate())) ;
+        addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'redrawPrevAxesLabels',@(s,e)(obj.prevAxesLabelsRedraw())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'initializePrevAxesTemplate',@(s,e)(obj.initializePrevAxesTemplate())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevAxesMode',@(s,e)(obj.updatePrevAxesMode())) ;
+        addlistener(obj.labeler_,'updatePrevAxes',@(s,e)(obj.updatePrevAxes())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'downdateCachedAxesProperties',@(s,e)(obj.downdateCachedAxesProperties())) ;
       obj.listeners_(end+1) = ...
@@ -3880,7 +3880,7 @@ classdef LabelerController < handle
       end
     end
 
-    function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(obj)
+    function [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt_(obj)
 
       labeler = obj.labeler_ ;
       
@@ -3982,13 +3982,13 @@ classdef LabelerController < handle
     
     function cbkPostZoom(obj,src,evt)  %#ok<INUSD>
       if evt.Axes == obj.axes_prev,
-        obj.UpdatePrevAxesLimits();
+        obj.downdatePrevAxesLimits_();
       end
     end
 
     function cbkPostPan(obj,src,evt)  %#ok<INUSD>
       if evt.Axes == obj.axes_prev,
-        obj.UpdatePrevAxesLimits();
+        obj.downdatePrevAxesLimits_();
       end
     end
 
@@ -5227,7 +5227,7 @@ classdef LabelerController < handle
 
 
 
-      [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt(obj);
+      [tfproceed,iAxRead,iAxApply] = hlpAxesAdjustPrompt_(obj);
       if tfproceed
         try
         	hConstrast = imcontrast_kb(obj.axes_all(iAxRead));
@@ -5266,7 +5266,7 @@ classdef LabelerController < handle
 
 
     function menu_view_gammacorrect_actuated_(obj, src, evt)  %#ok<INUSD>
-      [tfok,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      [tfok,~,iAxApply] = hlpAxesAdjustPrompt_(obj);
       if ~tfok
       	return;
       end
@@ -5340,7 +5340,7 @@ classdef LabelerController < handle
 
     function menu_view_flip_flipud_movie_only_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      [tfproceed,~,iAxApply] = obj.hlpAxesAdjustPrompt_();  % Prompt which views to flip if multiview
       if tfproceed
         labeler.movieInvert(iAxApply) = ~labeler.movieInvert(iAxApply);
         if labeler.hasMovie
@@ -5355,12 +5355,8 @@ classdef LabelerController < handle
 
 
     function menu_view_flip_flipud_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt_(obj);
       if tfproceed
         for iAx = iAxApply(:)'
           ax = obj.axes_all(iAx);
@@ -5371,34 +5367,26 @@ classdef LabelerController < handle
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
       end
-    end
+    end  % function
 
 
 
     function menu_view_flip_fliplr_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
 
-      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt(obj);
+      [tfproceed,~,iAxApply] = hlpAxesAdjustPrompt_(obj);
       if tfproceed
         for iAx = iAxApply(:)'
           ax = obj.axes_all(iAx);
           ax.XDir = toggleAxisDir(ax.XDir);
-          %     if ax==obj.axes_curr
-          %       ax2 = obj.axes_prev;
-          %       ax2.XDir = toggleAxisDir(ax2.XDir);
-          %     end
           obj.UpdatePrevAxesDirections();
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
         if ~labeler.isMultiView,
           toggleOnOff(obj.menu_view_flip_fliplr,'Checked');
         end
-
       end
-    end
+    end  % function
 
     function updateFlipMenus(obj)
       labeler = obj.labeler_;
@@ -6263,8 +6251,8 @@ classdef LabelerController < handle
     function popupmenu_prevmode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_;
       contents = cellstr(get(src, 'String'));
-      mode = contents{get(src, 'Value')};
-      if strcmpi(mode, 'Reference'),
+      modeAsString = contents{get(src, 'Value')};
+      if strcmpi(modeAsString, 'Reference'),
         labeler.setPrevAxesMode(PrevAxesMode.FROZEN, labeler.prevAxesModeInfo);
       else
         labeler.setPrevAxesMode(PrevAxesMode.LASTSEEN);
@@ -7899,7 +7887,7 @@ classdef LabelerController < handle
       end      
     end  % function
 
-    function updatePrevImage(obj)
+    function updatePrevAxesImage(obj)
       labeler = obj.labeler_ ;      
       if ~labeler.hasMovie || isempty(labeler.prevAxesMode)
         return
@@ -8209,7 +8197,7 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function prevAxesLabelsUpdate(obj)
+    function updatePrevAxesLabels(obj)
       % Update (if required) .lblPrev_ptsH, .lblPrev_ptsTxtH based on
       % .prevFrame etc
       labeler = obj.labeler_;
@@ -8254,14 +8242,10 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function prevAxesImFrmUpdate(obj, tfforce)
-      if ~exist('tfforce', 'var'),
-        tfforce = false;
-      end
-
+    function updatePrevAxesImageAndTextForLastSeenMode_(obj)
       labeler = obj.labeler_;
       if ~labeler.hasMovie || isempty(labeler.prevAxesMode),
-        return;
+        return
       end
 
       set(obj.popupmenu_prevmode, 'Visible', 'on');
@@ -8274,11 +8258,7 @@ classdef LabelerController < handle
             obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', labeler.currTarget)];
           end
         case PrevAxesMode.FROZEN,
-          if tfforce && labeler.isPrevAxesModeInfoSet(),
-            prevAxesYDir = get(obj.axes_prev, 'YDir');
-            labeler.prevAxesModeInfo = labeler.rectifyImageFieldsInPrevAxesMovieInfo(labeler.prevAxesModeInfo, 1, prevAxesYDir);
-            obj.prevAxesFreeze(labeler.prevAxesModeInfo);
-          end
+          % do nothing
         otherwise
           error('Unknown previous axes mode');
       end
@@ -8367,7 +8347,7 @@ classdef LabelerController < handle
       labeler.setCachedAxesProperties(prevAxesYDir, currAxesProps, prevAxesSizeInPixels);
     end  % function
 
-    function updatePrevAxesMode(obj)
+    function updatePrevAxes(obj)
       % Update the prev_axes, often after a change in the previous-axes panel mode
       labeler = obj.labeler_;
       pamode = labeler.prevAxesMode ;
@@ -8386,24 +8366,24 @@ classdef LabelerController < handle
         set(obj.popupmenu_prevmode, 'Value', v2);
       end
 
-      % labeler.prevAxesMode = pamode;
-
       switch pamode
         case PrevAxesMode.LASTSEEN
-          obj.prevAxesImFrmUpdate();
-          obj.prevAxesLabelsUpdate();
+          obj.updatePrevAxesImageAndTextForLastSeenMode_();
+          obj.updatePrevAxesLabels();
           axp = obj.axes_prev;
           set(axp, ...
             'CameraUpVectorMode', 'auto', ...
             'CameraViewAngleMode', 'auto');
           obj.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
-          obj.pushbutton_freezetemplate.Enable = 'off';
         case PrevAxesMode.FROZEN
           obj.updatePrevAxesForFrozenMode_();
-          obj.pushbutton_freezetemplate.Enable = 'on';
         otherwise
           assert(false);
       end
+
+      % Update the enablement of the "Freeze" button.
+      islabeled = labeler.currFrameIsLabeled();
+      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
     end  % function
 
     function updatePrevAxesForFrozenMode_(obj)
@@ -8495,21 +8475,30 @@ classdef LabelerController < handle
     %   end
     % end  % function
 
-    function UpdatePrevAxesLimits(obj)
+    % function UpdatePrevAxesLimits(obj)
+    %   labeler = obj.labeler_;
+    %   if labeler.prevAxesMode == PrevAxesMode.FROZEN,
+    %     newxlim = get(obj.axes_prev, 'XLim');
+    %     newylim = get(obj.axes_prev, 'YLim');
+    %     dx = newxlim - labeler.prevAxesModeInfo.axes_curr.XLim;
+    %     dy = newylim - labeler.prevAxesModeInfo.axes_curr.YLim;
+    % 
+    %     labeler.prevAxesModeInfo_.axes_curr.XLim = newxlim;
+    %     labeler.prevAxesModeInfo_.axes_curr.YLim = newylim;
+    %     labeler.prevAxesModeInfo_.dxlim = labeler.prevAxesModeInfo.dxlim + dx;
+    %     labeler.prevAxesModeInfo_.dylim = labeler.prevAxesModeInfo.dylim + dy;
+    %   end
+    % end  % function
+
+    function downdatePrevAxesLimits_(obj)
       labeler = obj.labeler_;
       if labeler.prevAxesMode == PrevAxesMode.FROZEN,
         newxlim = get(obj.axes_prev, 'XLim');
         newylim = get(obj.axes_prev, 'YLim');
-        dx = newxlim - labeler.prevAxesModeInfo.axes_curr.XLim;
-        dy = newylim - labeler.prevAxesModeInfo.axes_curr.YLim;
-
-        labeler.prevAxesModeInfo_.axes_curr.XLim = newxlim;
-        labeler.prevAxesModeInfo_.axes_curr.YLim = newylim;
-        labeler.prevAxesModeInfo_.dxlim = labeler.prevAxesModeInfo.dxlim + dx;
-        labeler.prevAxesModeInfo_.dylim = labeler.prevAxesModeInfo.dylim + dy;
+        labeler.setPrevAxesLimits(newxlim, newylim) ;
       end
     end  % function
-
+    
     function UpdatePrevAxesDirections(obj)
       labeler = obj.labeler_;
       xdir = get(obj.axes_curr, 'XDir');
@@ -8560,7 +8549,8 @@ classdef LabelerController < handle
       if (labeler.prevAxesModeInfo.frm == labeler.currFrame && labeler.prevAxesModeInfo.iMov == labeler.currMovie && ...
           labeler.prevAxesModeInfo.iTgt == labeler.currTarget),
         [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
-        [isPAModelInfoUnchanged, changedPAModeInfo] = labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
+        [isPAModelInfoUnchanged, changedPAModeInfo] = ...
+          labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
         if ~isPAModelInfoUnchanged,
           labeler.setPrevAxesMode(labeler.prevAxesMode, changedPAModeInfo);
         else
