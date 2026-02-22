@@ -8218,7 +8218,7 @@ classdef LabelerController < handle
       if ~isnan(labeler.prevFrame) && ~isempty(labeler.lblPrev_ptsH)
         labeler.prevAxesSetLabels_(labeler.currMovie, labeler.prevFrame, labeler.currTarget);
       else
-        LabelCore.setPtsOffAxis(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
+        setPositionsOfLabelLinesAndTextsToNanBangBang(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
       end
     end  % function
 
@@ -8238,7 +8238,7 @@ classdef LabelerController < handle
       elseif ~isnan(labeler.prevFrame) && ~isempty(labeler.lblPrev_ptsH)
         labeler.prevAxesSetLabels_(labeler.currMovie, labeler.prevFrame, labeler.currTarget);
       else
-        LabelCore.setPtsOffAxis(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
+        setPositionsOfLabelLinesAndTextsToNanBangBang(labeler.lblPrev_ptsH, labeler.lblPrev_ptsTxtH);
       end
     end  % function
 

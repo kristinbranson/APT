@@ -684,10 +684,10 @@ classdef LabelCore < handle
       
       if ~isempty(obj.hPtsOcc) 
         iOcc = find(tf);
-        LabelCore.setPtsCoordsOcc([iOcc(:) ones(nOcc,1)],...
-          obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf));
-        LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
-          obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
+        setPositionsOfLabelLinesAndTextsBangBang(...
+          obj.hPtsOcc(tf),obj.hPtsTxtOcc(tf),[iOcc(:) ones(nOcc,1)],0.25);
+        setPositionsOfLabelLinesAndTextsBangBang(...
+          obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf),nan(obj.nPts-nOcc,2),0.25);
       end
     end
     
@@ -820,13 +820,6 @@ classdef LabelCore < handle
     end
   end
   methods (Static)
-    function setPtsOffAxis(hPts,hTxt)
-      % Set pts/txt to be "offscreen" ie positions to NaN.
-      TXTOFFSET_IRRELEVANT = 1;
-      setPositionsOfLabelLinesAndTextsBangBang(hPts,hTxt,...
-        nan(numel(hPts),2),TXTOFFSET_IRRELEVANT);
-    end
-    
     function setPtsColor(hPts,hTxt,colors)
       assert(numel(hPts)==numel(hTxt));
       n = numel(hPts);
@@ -836,10 +829,6 @@ classdef LabelCore < handle
         set(hPts(i),'Color',clr);
         set(hTxt(i),'Color',clr);
       end      
-    end
-    
-    function setPtsCoordsOcc(xy,hPts,hTxt)
-      setPositionsOfLabelLinesAndTextsBangBang(hPts,hTxt,xy,0.25);
     end
     
     function uv = transformPtsTrx(uv0,trx0,iFrm0,trx1,iFrm1)

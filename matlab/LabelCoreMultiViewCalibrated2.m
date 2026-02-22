@@ -871,10 +871,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       obj.setPtsCoords(nan(nOcc,2),obj.hPts(tf),obj.hPtsTxt(tf));
       for iPt=iOcc(:)'
         iSet = obj.iPt2iSet(iPt);
-        LabelCore.setPtsCoordsOcc([iSet 1],obj.hPtsOcc(iPt),obj.hPtsTxtOcc(iPt));
+        setPositionsOfLabelLinesAndTextsBangBang(obj.hPtsOcc(iPt),obj.hPtsTxtOcc(iPt),[iSet 1],0.25);
       end
-      LabelCore.setPtsCoordsOcc(nan(obj.nPts-nOcc,2),...
-        obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf));
+      setPositionsOfLabelLinesAndTextsBangBang(...
+        obj.hPtsOcc(~tf),obj.hPtsTxtOcc(~tf),nan(obj.nPts-nOcc,2),0.25);
     end
         
   end
