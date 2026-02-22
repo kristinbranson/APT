@@ -841,7 +841,7 @@ classdef LabelCore < handle
       %fprintf('LabelCore.setPtsCoordsStc: %f\n',toc);
     end
             
-    function setPtsOffaxis(hPts,hTxt)
+    function setPtsOffAxis(hPts,hTxt)
       % Set pts/txt to be "offscreen" ie positions to NaN.
       TXTOFFSET_IRRELEVANT = 1;
       LabelCore.setPtsCoordsStc(nan(numel(hPts),2),hPts,hTxt,...
@@ -918,8 +918,8 @@ classdef LabelCore < handle
         set(hSkel(i),'XData',xynan(edge,1),'YData',xynan(edge,2));
       end
       
-    end
+    end  % function
     
-  end
+  end  % methods (Static)
   
-end
+end  % classdef
