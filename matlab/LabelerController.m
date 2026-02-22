@@ -8382,8 +8382,10 @@ classdef LabelerController < handle
       end
 
       % Update the enablement of the "Freeze" button.
-      islabeled = labeler.currFrameIsLabeled();
-      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
+      if labeler.hasMovie,
+        islabeled = labeler.currFrameIsLabeled();
+        set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
+      end
     end  % function
 
     function updatePrevAxesForFrozenMode_(obj)
