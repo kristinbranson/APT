@@ -8210,7 +8210,39 @@ classdef LabelerController < handle
         set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
       end
 
-      obj.syncPrevAxesLabels_();
+      virtualPts = labeler.lblPrev_ptsH;
+      virtualTxt = labeler.lblPrev_ptsTxtH;
+
+      if ~isempty(virtualPts)
+        npts = numel(virtualPts);
+
+        % Lazily create real graphics if needed
+        if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= npts
+          obj.nukeAndRepavePrevAxesLabels_();
+        end
+        realPts = obj.lblPrev_ptsRealH_;
+        realTxt = obj.lblPrev_ptsTxtRealH_;
+        txtOffset = labeler.labelPointsPlotInfo.TextOffset;
+
+        % Extract positions from virtual objects into xy matrix
+        xy = nan(npts, 2);
+        for i = 1:npts
+          xy(i, :) = [virtualPts(i).XData, virtualPts(i).YData];
+        end
+        setPositionsOfLabelLinesAndTextsBangBang(realPts, realTxt, xy, txtOffset);
+
+        % Sync cosmetic properties
+        for i = 1:npts
+          set(realPts(i), ...
+            'Color', virtualPts(i).Color, ...
+            'Marker', virtualPts(i).Marker, ...
+            'MarkerSize', virtualPts(i).MarkerSize, ...
+            'LineWidth', virtualPts(i).LineWidth);
+          set(realTxt(i), ...
+            'Color', virtualTxt(i).Color, ...
+            'FontSize', virtualTxt(i).FontSize);
+        end
+      end
     end  % function
 
     function updatePrevAxesImageAndTextForLastSeenMode_(obj)
@@ -8514,78 +8546,44 @@ classdef LabelerController < handle
       end
     end  % function
 
-    function initRealPrevAxesLabelPointViz_(obj)
+    function nukeAndRepavePrevAxesLabels_(obj)
+      % Delete the existing label gobjects and recreate them.
       deleteValidGraphicsHandles(obj.lblPrev_ptsRealH_);
       deleteValidGraphicsHandles(obj.lblPrev_ptsTxtRealH_);
 
       labeler = obj.labeler_;
-      plotIfo = labeler.labelPointsPlotInfo;
+      plotInfo = labeler.labelPointsPlotInfo;
       npts = labeler.nLabelPoints;
-      ax = obj.axes_prev;
+      axes_prev = obj.axes_prev;
 
-      markerPVcell = struct2pvs(plotIfo.MarkerProps);
-      textPVcell = struct2pvs(plotIfo.TextProps);
+      markerPVcell = struct2pvs(plotInfo.MarkerProps);
+      textPVcell = struct2pvs(plotInfo.TextProps);
 
       allowedPlotParams = {'HitTest' 'PickableParts'};
-      plotIfoFields = fieldnames(plotIfo);
+      plotInfoFieldNames = fieldnames(plotInfo);
       ism = ismember(cellfun(@lower, allowedPlotParams, 'Uni', 0), ...
-                     cellfun(@lower, plotIfoFields, 'Uni', 0));
+                     cellfun(@lower, plotInfoFieldNames, 'Uni', 0));
       extraParams = {};
       for j = find(ism)
-        extraParams = [extraParams, {allowedPlotParams{j}, plotIfo.(allowedPlotParams{j})}]; %#ok<AGROW>
+        extraParams = [extraParams, {allowedPlotParams{j}, plotInfo.(allowedPlotParams{j})}]; %#ok<AGROW>
       end
 
       obj.lblPrev_ptsRealH_ = gobjects(npts, 1);
       obj.lblPrev_ptsTxtRealH_ = gobjects(npts, 1);
       for i = 1:npts
-        obj.lblPrev_ptsRealH_(i) = plot(ax, nan, nan, markerPVcell{:}, ...
-          'Color', plotIfo.Colors(i, :), ...
-          'UserData', i, ...
-          extraParams{:}, ...
-          'Tag', sprintf('LabelerController_lblPrev_ptsRealH_%d', i));
-        obj.lblPrev_ptsTxtRealH_(i) = text(nan, nan, num2str(i), 'Parent', ax, ...
-          textPVcell{:}, 'Color', plotIfo.Colors(i, :), ...
-          'PickableParts', 'none', ...
-          'Tag', sprintf('LabelerController_lblPrev_ptsTxtRealH_%d', i));
-      end
-    end  % function
-
-    function syncPrevAxesLabels_(obj)
-      labeler = obj.labeler_;
-      virtualPts = labeler.lblPrev_ptsH;
-      virtualTxt = labeler.lblPrev_ptsTxtH;
-
-      if isempty(virtualPts)
-        return
-      end
-
-      npts = numel(virtualPts);
-
-      % Lazily create real graphics if needed
-      if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= npts
-        obj.initRealPrevAxesLabelPointViz_();
-      end
-      realPts = obj.lblPrev_ptsRealH_;
-      realTxt = obj.lblPrev_ptsTxtRealH_;
-      txtOffset = labeler.labelPointsPlotInfo.TextOffset;
-
-      % Extract positions from virtual objects into xy matrix
-      xy = nan(npts, 2);
-      for i = 1:npts
-        xy(i, :) = [virtualPts(i).XData, virtualPts(i).YData];
-      end
-      setPositionsOfLabelLinesAndTextsBangBang(realPts, realTxt, xy, txtOffset);
-
-      % Sync cosmetic properties
-      for i = 1:npts
-        set(realPts(i), ...
-          'Color', virtualPts(i).Color, ...
-          'Marker', virtualPts(i).Marker, ...
-          'MarkerSize', virtualPts(i).MarkerSize, ...
-          'LineWidth', virtualPts(i).LineWidth);
-        set(realTxt(i), ...
-          'Color', virtualTxt(i).Color, ...
-          'FontSize', virtualTxt(i).FontSize);
+        obj.lblPrev_ptsRealH_(i) = ...
+          plot(axes_prev, nan, nan, markerPVcell{:}, ...
+               'Color', plotInfo.Colors(i, :), ...
+               'UserData', i, ...
+               extraParams{:}, ...
+               'Tag', sprintf('LabelerController_lblPrev_ptsRealH_%d', i));
+        obj.lblPrev_ptsTxtRealH_(i) = ...
+          text(nan, nan, num2str(i), ...
+               'Parent', axes_prev, ...
+               textPVcell{:}, ...
+               'Color', plotInfo.Colors(i, :), ...
+               'PickableParts', 'none', ...
+               'Tag', sprintf('LabelerController_lblPrev_ptsTxtRealH_%d', i));
       end
     end  % function
 
