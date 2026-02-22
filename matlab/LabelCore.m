@@ -771,25 +771,6 @@ classdef LabelCore < handle
     
   methods (Static) % Utilities
     
-    function assignLabelCoordsStc(xy,hPts,hTxt,txtOffset)
-      % Simpler version of assignLabelCoords()
-      %
-      % xy: [nptsx2]
-      % hPts: [npts]
-      % hTxt: [npts]
-      
-      [npts,d] = size(xy);
-      assert(d==2);
-      assert(isequal(npts,numel(hPts),numel(hTxt)));
-      
-      % FullyOccluded
-      tfOccld = any(isinf(xy),2);
-      setPositionsOfLabelLinesAndTextsBangBang(...
-        hPts(~tfOccld),hTxt(~tfOccld),xy(~tfOccld,:),txtOffset);
-      setPositionsOfLabelLinesAndTextsBangBang(...
-        hPts(tfOccld),hTxt(tfOccld),nan(nnz(tfOccld),2),txtOffset);
-    end
-    
     function xy = getCoordsFromPts(hPts)
       x = get(hPts,{'XData'});
       y = get(hPts,{'YData'});

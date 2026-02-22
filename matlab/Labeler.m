@@ -2684,7 +2684,7 @@ classdef Labeler < handle
       
       obj.isinit = false;
 
-      % preproc data cache
+      % Initialize preprocessed data cache
       if isfield(s, 'ppdb') && ~isempty(s.ppdb)
         fprintf('Loading DL data cache: %d rows.\n',s.ppdb.dat.N);
         obj.ppdb = s.ppdb;
@@ -2732,9 +2732,10 @@ classdef Labeler < handle
         obj.labelsUpdateNewFrame(true);
       end
       
+      % Set up the prev_axes 
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
-      obj.notify('downdateCachedAxesProperties') ;
+      obj.notify('downdateCachedAxesProperties') ;  % Causes obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_ to be set correctly
       [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
       obj.setPrevAxesMode(pamode, prevModeInfo);
       
@@ -13454,8 +13455,8 @@ classdef Labeler < handle
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
       % if any points are nan, set them to be somewhere ...
       lpos = apt.patch_lpos(lpos) ;
-      LabelCore.assignLabelCoordsStc(lpos(ipts,:),...
-        obj.lblPrev_ptsH(ipts),obj.lblPrev_ptsTxtH(ipts),txtOffset);
+      assignLabelCoordsHandlingOcclusionBangBang(...
+        obj.lblPrev_ptsH(ipts), obj.lblPrev_ptsTxtH(ipts), lpos(ipts,:), txtOffset);
       if any(lpostag(ipts))
         if isempty(tfWarningThrownAlready)
           warningNoTrace('Labeler:labelsPrev',...
@@ -14981,6 +14982,8 @@ classdef Labeler < handle
         return
       end
 
+      % Ask the controller to populate some of our fields with
+      % values that only it knows.
       obj.notify('downdateCachedAxesProperties') ;
 
       freezeInfo = obj.prevAxesModeInfo_ ;

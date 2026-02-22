@@ -8199,11 +8199,13 @@ classdef LabelerController < handle
       % Sync real prev-axes graphics to virtual label state (already
       % updated by the model before this event fires).
       labeler = obj.labeler_;
-      if ~labeler.hasMovie,
-        return;
+      if ~labeler.hasMovie
+        return
       end
 
-      if ~labeler.isinit
+      if labeler.isinit
+        set(obj.pushbutton_freezetemplate, 'Enable', 'off');
+      else
         islabeled = labeler.currFrameIsLabeled();
         set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled));
       end

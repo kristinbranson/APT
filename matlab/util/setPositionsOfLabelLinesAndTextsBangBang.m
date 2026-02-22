@@ -1,5 +1,5 @@
 function setPositionsOfLabelLinesAndTextsBangBang(hPts, hTxt, xy, txtOffset)
-%tic;
+
 nPoints = size(xy,1);
 assert(size(xy,2)==2);
 assert(isequal(nPoints,numel(hPts),numel(hTxt)));
@@ -16,5 +16,5 @@ for i = 1:nPoints
   set(hPts(i),'XData',xy(i,1),'YData',xy(i,2));
   set(hTxt(i),'Position',[xy(i,1)+txtOffset xy(i,2)+txtOffset 1]);
 end
-%fprintf('LabelCore.setPtsCoordsStc: %f\n',toc);
+
 end % function
