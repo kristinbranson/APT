@@ -2735,10 +2735,12 @@ classdef Labeler < handle
       
       % Set up the prev_axes 
       % This needs to occur after .labeledpos etc has been set
-      pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode);
+      pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
       obj.notify('downdateCachedAxesProperties') ;  % Causes obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_ to be set correctly
-      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
-      obj.restorePrevAxesMode(pamode, prevModeInfo);
+      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_) ;
+      obj.prevAxesMode_ = pamode ;
+      obj.prevAxesModeInfo_ = prevModeInfo ;      
+      obj.restorePrevAxesMode() ;
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
@@ -13453,6 +13455,8 @@ classdef Labeler < handle
           if freezeInfo.isrotated,
             lpos1 = [lpos0,ones(size(lpos0,1),1)]*freezeInfo.A;
             lpos2 = lpos1(:,1:2);
+          else
+            lpos2 = lpos0 ;
           end
         else
           [~,lpos2,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
