@@ -13240,6 +13240,15 @@ classdef Labeler < handle
     %   outputCache = obj.getDefaultPrevAxesModeInfo(outputTarget, outputCache, prevAxesSize, axesCurrProps);
     % end  % function
     
+    function cache = computePrevAxesTargetCacheFromTarget_(obj, target)
+      % Compute a fresh PrevAxesTargetCache from a PrevAxesTarget.
+      cache = PrevAxesTargetCache();
+      if target.isValid()
+        cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
+        cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
+      end
+    end  % function
+
     function cache = rectifyImageFieldsInPrevAxesMovieInfo(obj, target, cache, viewi, prevAxesYDir)
       % Populates the image-related fields (im, isrotated, xdata, ydata, A, tform)
       % in cache based on the target identity fields.  Does not mutate obj.
@@ -14969,9 +14978,7 @@ classdef Labeler < handle
       target = PrevAxesTarget(obj.currMovie, obj.currFrame, obj.currTarget, obj.gtIsGTMode);
 
       % Initialize the cache
-      cache = PrevAxesTargetCache();
-      cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
-      cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
+      cache = obj.computePrevAxesTargetCacheFromTarget_(target);
 
       % Set obj properties
       obj.prevAxesModeTarget_ = target ;
@@ -15049,13 +15056,7 @@ classdef Labeler < handle
       target = obj.prevAxesModeTarget_ ;
 
       % Remake the cache
-      if target.isValid()
-        cache = PrevAxesTargetCache();
-        cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
-        cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
-      else
-        cache = PrevAxesTargetCache();
-      end
+      cache = obj.computePrevAxesTargetCacheFromTarget_(target);
 
       % Set obj properties
       obj.prevAxesModeTarget_ = target ;
