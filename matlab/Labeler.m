@@ -8931,10 +8931,14 @@ classdef Labeler < handle
       % Sync virtual prev-axes label positions with labeler state.
       % In FROZEN mode, set positions from frozen frame info.
       % In LASTSEEN mode, set positions from prevFrame labels.
-      if obj.prevAxesMode == PrevAxesMode.FROZEN
-        obj.prevAxesSetFrozenLabels_();
-      else
-        obj.prevAxesSetLastseenLabels_();
+      mode = obj.prevAxesMode;
+      switch mode
+        case PrevAxesMode.FROZEN
+          obj.prevAxesSetFrozenLabels_();
+        case PrevAxesMode.LASTSEEN
+          obj.prevAxesSetLastseenLabels_();
+        otherwise
+          error('Internal error: Unknown PrevAxesMode enumeration: %s', char(mode));
       end
     end  % function
         
@@ -13332,22 +13336,17 @@ classdef Labeler < handle
         allpos(:,:,view) = curl;
         allims{view} = im;
       end  % for
+    end  % function
 
-    end
-      
-
-  end  % methods
-
-  methods  % (Access=private)
     function prevAxesSetFrozenLabels_(obj)
       % Set prev-axes label positions for FROZEN mode from obj.prevAxesModeTargetSpec_.
 
       persistent tfWarningThrownAlready
 
-      spec = obj.prevAxesModeTargetSpec_;
-      [~, lpos0, lpostag2] = obj.labelPosIsLabeled(spec.frm, spec.iTgt, 'iMov', spec.iMov, 'gtmode', spec.gtmode);
-      if spec.isrotated
-        lpos2 = [lpos0, ones(size(lpos0, 1), 1)] * spec.A;
+      targetSpec = obj.prevAxesModeTargetSpec_;
+      [~, lpos0, lpostag2] = obj.labelPosIsLabeled(targetSpec.frm, targetSpec.iTgt, 'iMov', targetSpec.iMov, 'gtmode', targetSpec.gtmode);
+      if targetSpec.isrotated
+        lpos2 = [lpos0, ones(size(lpos0, 1), 1)] * targetSpec.A;
         lpos2 = lpos2(:, 1:2);
       else
         lpos2 = lpos0;
