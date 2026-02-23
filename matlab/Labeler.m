@@ -15002,42 +15002,25 @@ classdef Labeler < handle
       obj.restorePrevAxesMode();
     end  % function
 
-    function setPrevAxesMode(obj, pamode)
-      % Set the mode for the 'sidekick' axes to pamode.
-      obj.setPrevAxesModeHelper_(pamode, obj.prevAxesModeTarget_, obj.prevAxesModeTargetCache_) ;
-    end
-
     function restorePrevAxesMode(obj)
-      % Set the .prevAxesMode_ and prev axes mode info to what they already are,
+      % Set the prevAxesMode to what is already is,
       % as a way of restoring the internal cache of the prev_axes image, lines, and
       % texts to what they should be.  This method is a hack, and should eventually
       % not be needed and go away.
-      obj.setPrevAxesModeHelper_(obj.prevAxesMode_, obj.prevAxesModeTarget_, obj.prevAxesModeTargetCache_) ;
+      obj.setPrevAxesMode(obj.prevAxesMode_) ;
     end
 
-    function setPrevAxesModeHelper_(obj, pamode, target, cache)
-      % Set .prevAxesMode_, .prevAxesModeTarget_, .prevAxesModeTargetCache_
-      %
-      % pamode: PrevAxesMode
-      % target: PrevAxesTarget
-      % cache: PrevAxesTargetCache
+    function setPrevAxesMode(obj, mode)
+      % Set the mode for the 'sidekick' axes to pamode.
 
-      % Deal with args
-      assert(isa(pamode, 'PrevAxesMode')) ;
-      if ~exist('target', 'var') || isempty(target)
-        target = PrevAxesTarget() ;
-      end
-      if ~exist('cache', 'var') || isempty(cache)
-        cache = PrevAxesTargetCache() ;
-      end
+      % Check the mode is valid
+      assert(isa(mode, 'PrevAxesMode')) ;
 
-      % Set the relevant props to the passed args
-      obj.prevAxesMode_ = pamode ;
-      obj.prevAxesModeTarget_ = target ;
-      obj.prevAxesModeTargetCache_ = cache ;
+      % Set the relevant prop to the passed arg
+      obj.prevAxesMode_ = mode ;
 
-      % If frozen mode, need to record 
-      if pamode == PrevAxesMode.FROZEN
+      % If frozen mode, need to do some stuff
+      if mode == PrevAxesMode.FROZEN
         obj.revisePrevAxesModeInfoForFrozenMode_() ;
       end
 
