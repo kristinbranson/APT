@@ -13179,7 +13179,7 @@ classdef Labeler < handle
     function isvalid = isPrevAxesModeInfoSet(obj)
       % Returns true iff obj.prevAxesModeTarget contains a valid paModeInfo struct.
       paModeInfo = obj.prevAxesModeTarget;
-      isvalid = isPrevAxesModeInfoValid(paModeInfo) ;
+      isvalid = isPrevAxesTargetValid(paModeInfo) ;
     end
     
     function [isOK, outputTarget, outputCache] = fixPrevAxesModeInfo(obj, paMode, inputTarget, inputCache, axesCurrProps, prevAxesSize, prevAxesYDir)
@@ -13206,7 +13206,7 @@ classdef Labeler < handle
       if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
         lpos = obj.labelsGT;
       end
-      if isPrevAxesModeInfoValid(inputTarget),
+      if isPrevAxesTargetValid(inputTarget),
         if numel(lpos) >= inputTarget.iMov,
           if isfield(inputTarget,'iTgt'),
             iTgt = inputTarget.iTgt;
@@ -13251,7 +13251,7 @@ classdef Labeler < handle
     function cache = rectifyImageFieldsInPrevAxesMovieInfo(obj, target, cache, viewi, prevAxesYDir)
       % Populates the image-related fields (im, isrotated, xdata, ydata, A, tform)
       % in cache based on the target identity fields.  Does not mutate obj.
-      if ~obj.hasMovie || ~isPrevAxesModeInfoValid(target),
+      if ~obj.hasMovie || ~isPrevAxesTargetValid(target),
         return
       end
       if ~exist('viewi', 'var')
@@ -13353,7 +13353,7 @@ classdef Labeler < handle
     end
       
     function cache = getDefaultPrevAxesModeInfo(obj, target, cache, prevAxesSize, axesCurrProps)
-      % Sets the xlim, ylim, and axes_curr fields in cache to default values
+      % Sets the xlim, ylim, and prevAxesProps fields in cache to default values
       % based on the target identity and the current label positions.  Does not
       % mutate obj.
       % prevAxesSize is [w, h]. axesCurrProps is a struct with fields XDir,
@@ -13363,7 +13363,7 @@ classdef Labeler < handle
       if ~obj.hasMovie,
         return;
       end
-      if ~isPrevAxesModeInfoValid(target),
+      if ~isPrevAxesTargetValid(target),
         return
       end
       if ~isfield(cache,'isrotated'),
@@ -15043,7 +15043,7 @@ classdef Labeler < handle
       cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
       cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
 
-      if isPrevAxesModeInfoValid(target),
+      if isPrevAxesTargetValid(target),
         isFreezeInfoUnchanged = true;
       else
         [isFreezeInfoUnchanged, target, cache] = ...
