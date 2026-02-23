@@ -14932,40 +14932,24 @@ classdef Labeler < handle
       % Set the relevant prop to the passed arg
       obj.prevAxesMode_ = mode ;
 
-      % If frozen mode, need to do some stuff
-      if mode == PrevAxesMode.FROZEN
-        obj.revisePrevAxesModeInfoForFrozenMode_() ;
+      % If frozen mode, rebuild the cache and labels
+      if mode == PrevAxesMode.FROZEN && obj.hasMovie
+        % Ask the controller to populate some of our fields with
+        % values that only it knows.
+        obj.notify('downdateCachedAxesProperties') ;
+
+        % Remake the cache from the current target
+        target = obj.prevAxesModeTarget_ ;
+        cache = obj.computePrevAxesTargetCacheFromTarget_(target);
+        obj.prevAxesModeTargetCache_ = cache ;
+
+        % Set the virtual lines/texts to what they should be
+        obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
       end
 
       % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
     end
-
-    function revisePrevAxesModeInfoForFrozenMode_(obj)
-      % Freeze the current frame/labels in the previous axis. Sets
-      % .prevAxesMode, .prevAxesModeTarget_, .prevAxesModeTargetCache_.
-
-      if ~obj.hasMovie,
-        return
-      end
-
-      % Ask the controller to populate some of our fields with
-      % values that only it knows.
-      obj.notify('downdateCachedAxesProperties') ;
-
-      % Extract the current target
-      target = obj.prevAxesModeTarget_ ;
-
-      % Remake the cache
-      cache = obj.computePrevAxesTargetCacheFromTarget_(target);
-
-      % Set obj properties
-      obj.prevAxesModeTarget_ = target ;
-      obj.prevAxesModeTargetCache_ = cache ;
-
-      % Set the virtual lines/texts to what they should be
-      obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
-    end  % function
     
     function setPrevAxesLimits(obj, newxlim, newylim)
       assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
