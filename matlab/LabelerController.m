@@ -546,8 +546,6 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'downdateCachedAxesProperties',@(s,e)(obj.downdateCachedAxesProperties())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'movieRemoved',@(s,e)(obj.prevAxesMovieRemap(e.mIdxOrig2New))) ;
-      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
 
       obj.fakeMenuTags = {
@@ -8471,30 +8469,6 @@ classdef LabelerController < handle
                'Color', plotInfo.Colors(i, :), ...
                'PickableParts', 'none', ...
                'Tag', sprintf('LabelerController_lblPrev_ptsTxtRealH_%d', i));
-      end
-    end  % function
-
-    function prevAxesMovieRemap(obj, mIdxOrig2New)
-      labeler = obj.labeler_;
-      if ~labeler.isPrevAxesModeInfoSet(),
-        return
-      end
-      newIdx = mIdxOrig2New(labeler.prevAxesModeInfo.iMov);
-      if newIdx == 0,
-        labeler.clearPrevAxesModeTarget();
-
-        [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
-        [isPAModelInfoUnchanged, fixedPAModeInfo] = ...
-          labeler.fixPrevAxesModeInfo(labeler.prevAxesMode, labeler.prevAxesModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir);
-        if ~isPAModelInfoUnchanged,
-          labeler.setPrevAxesModeHelper_(labeler.prevAxesMode, fixedPAModeInfo);
-        else
-          labeler.restorePrevAxesMode();
-        end
-      else
-        newPAModeInfo = labeler.prevAxesModeInfo ;
-        newPAModeInfo.iMov = newIdx ;
-        labeler.setPrevAxesModeHelper_(labeler.prevAxesMode, newPAModeInfo);
       end
     end  % function
 

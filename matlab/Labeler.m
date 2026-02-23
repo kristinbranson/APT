@@ -101,11 +101,6 @@ classdef Labeler < handle
     % necessary). Listeners should not rely on the value of .currMovie at
     % event time. currMovie will be subsequently updated (in the usual way) 
     % if necessary. 
-    %
-    % The EventData for this event is a MoviesRemappedEventData which
-    % provides details on the old->new movie idx mapping.
-    movieRemoved
-    
     % EventData is a MoviesRemappedEventData
     moviesReordered
     
@@ -4501,11 +4496,9 @@ classdef Labeler < handle
           obj.notify('gtResUpdated');
         end
         
-        % prevAxesMovieRemap handled by controller's movieRemoved listener
+        obj.prevAxesMovieRemap_(edata.mIdxOrig2New);
 
-        % Note, obj.currMovie is not yet updated when this event goes out
         sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
-        obj.notify('movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
           % AL 20200511. this may be overkill, maybe can just set 
@@ -14953,6 +14946,19 @@ classdef Labeler < handle
       % This is what happens when you click the "Freeze" button in the GUI.
       obj.setPrevAxesModeHelper_(PrevAxesMode.FROZEN, []) ;
     end
+
+    function prevAxesMovieRemap_(obj, mIdxOrig2New)
+      if ~obj.isPrevAxesModeInfoSet()
+        return
+      end
+      newIdx = mIdxOrig2New(obj.prevAxesModeInfo.iMov);
+      if newIdx == 0
+        obj.clearPrevAxesModeTarget();
+      else
+        obj.prevAxesModeInfo_.iMov = newIdx;
+        obj.restorePrevAxesMode();
+      end
+    end  % function
 
     function clearPrevAxesModeTarget(obj)
       obj.prevAxesModeInfo_.iMov = [];
