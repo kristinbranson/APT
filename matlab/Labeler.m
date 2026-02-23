@@ -4505,7 +4505,7 @@ classdef Labeler < handle
 
         % Note, obj.currMovie is not yet updated when this event goes out
         sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
-        notify(obj,'movieRemoved',edata);
+        obj.notify('movieRemoved',edata);
         
         if obj.currMovie>iMov && gt==obj.gtIsGTMode
           % AL 20200511. this may be overkill, maybe can just set 
@@ -4970,7 +4970,7 @@ classdef Labeler < handle
       imprev = controller.image_prev;
       set(imprev,'CData',0);     
       if ~obj.gtIsGTMode
-        obj.controller_.clearPrevAxesModeInfo();
+        obj.clearPrevAxesModeTarget();
       end
       obj.currTarget = 1;
       obj.currFrame = 1;
@@ -14953,6 +14953,15 @@ classdef Labeler < handle
       % This is what happens when you click the "Freeze" button in the GUI.
       obj.setPrevAxesModeHelper_(PrevAxesMode.FROZEN, []) ;
     end
+
+    function clearPrevAxesModeTarget(obj)
+      obj.prevAxesModeInfo_.iMov = [];
+      obj.prevAxesModeInfo_.iTgt = [];
+      obj.prevAxesModeInfo_.frm = [];
+      obj.prevAxesModeInfo_.im = [];
+      obj.prevAxesModeInfo_.isrotated = false;
+      obj.restorePrevAxesMode();
+    end  % function
 
     function setPrevAxesMode(obj, pamode)
       % Set the mode for the 'sidekick' axes to pamode.

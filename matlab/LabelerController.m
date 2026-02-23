@@ -8178,20 +8178,6 @@ classdef LabelerController < handle
       prevAxesYDir = get(obj.axes_prev, 'YDir');
     end  % function
 
-    function clearPrevAxesModeInfo(obj)
-      labeler = obj.labeler_;
-      labeler.prevAxesModeInfo_.iMov = [];
-      labeler.prevAxesModeInfo_.iTgt = [];
-      labeler.prevAxesModeInfo_.frm = [];
-      labeler.prevAxesModeInfo_.im = [];
-      labeler.prevAxesModeInfo_.isrotated = false;
-      if ishandle(obj.image_prev),
-        obj.image_prev.CData = 0;
-      end
-      if ishandle(obj.txPrevIm),
-        obj.txPrevIm.String = '';
-      end
-    end  % function
 
     function updatePrevAxesLabels(obj)
       % Sync real prev-axes graphics to virtual label state (already
@@ -8495,7 +8481,7 @@ classdef LabelerController < handle
       end
       newIdx = mIdxOrig2New(labeler.prevAxesModeInfo.iMov);
       if newIdx == 0,
-        obj.clearPrevAxesModeInfo();
+        labeler.clearPrevAxesModeTarget();
 
         [axesCurrProps, prevAxesSize, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
         [isPAModelInfoUnchanged, fixedPAModeInfo] = ...
