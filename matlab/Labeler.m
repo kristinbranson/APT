@@ -8932,14 +8932,13 @@ classdef Labeler < handle
       % In FROZEN mode, set positions from frozen frame info.
       % In LASTSEEN mode, set positions from prevFrame labels.
       if obj.prevAxesMode == PrevAxesMode.FROZEN
-        spec = obj.prevAxesModeTargetSpec_ ;
         try
-          obj.prevAxesSetLabels_(spec.iMov, spec.frm, spec.iTgt, spec);
+          obj.prevAxesSetFrozenLabels_(obj.prevAxesModeTargetSpec_);
         catch
           % do nothing
         end
       elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
+        obj.prevAxesSetLastseenLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
       else
         setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
       end
@@ -13346,47 +13345,57 @@ classdef Labeler < handle
   end  % methods
 
   methods  % (Access=private)
-    function prevAxesSetLabels_(obj, iMov, frm, iTgt, spec)
-      % Sets .lblPrev_ptsH and .lblPrev_ptsTxtH to reflect the labels in movie iMov,
-      % frame frm, target iTgt.  If spec is provided, then spec.gtmode,
-      % spec.isrotated, and spec.A are also used to compute the label positions.
+    function prevAxesSetFrozenLabels_(obj, spec)
+      % Set prev-axes label positions for FROZEN mode from a PrevAxesTargetSpec.
 
       persistent tfWarningThrownAlready
 
-      if nargin < 5,
-        hasInfo = false ;
+      [~, lpos0, lpostag2] = obj.labelPosIsLabeled(spec.frm, spec.iTgt, 'iMov', spec.iMov, 'gtmode', spec.gtmode);
+      if spec.isrotated
+        lpos2 = [lpos0, ones(size(lpos0, 1), 1)] * spec.A;
+        lpos2 = lpos2(:, 1:2);
       else
-        hasInfo = true ;
-      end
-
-      if isempty(frm),
-        lpos2 = nan(obj.nLabelPoints,2);
-        lpostag2 = false(obj.nLabelPoints,1);
-      else
-        if hasInfo ,
-          [~,lpos0,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',spec.gtmode);
-          if spec.isrotated,
-            lpos1 = [lpos0,ones(size(lpos0,1),1)]*spec.A;
-            lpos2 = lpos1(:,1:2);
-          else
-            lpos2 = lpos0 ;
-          end
-        else
-          [~,lpos2,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov);
-        end
+        lpos2 = lpos0;
       end
 
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
-      % if any points are nan, set them to be somewhere ...
-      lpos3 = apt.patch_lpos(lpos2) ;
+      lpos3 = apt.patch_lpos(lpos2);
       assignLabelCoordsHandlingOcclusionBangBang(obj.lblPrev_ptsH(ipts), ...
                                                  obj.lblPrev_ptsTxtH(ipts), ...
-                                                 lpos3(ipts,:), ...
+                                                 lpos3(ipts, :), ...
                                                  txtOffset);
       if any(lpostag2(ipts))
         if isempty(tfWarningThrownAlready)
-          warningNoTrace('Labeler:labelsPrev',...
+          warningNoTrace('Labeler:labelsPrev', ...
+                         'Label tags in previous frame not visualized.');
+          tfWarningThrownAlready = true;
+        end
+      end
+    end  % function
+
+    function prevAxesSetLastseenLabels_(obj, iMov, frm, iTgt)
+      % Set prev-axes label positions for LASTSEEN mode.
+
+      persistent tfWarningThrownAlready
+
+      if isempty(frm)
+        lpos2 = nan(obj.nLabelPoints, 2);
+        lpostag2 = false(obj.nLabelPoints, 1);
+      else
+        [~, lpos2, lpostag2] = obj.labelPosIsLabeled(frm, iTgt, 'iMov', iMov);
+      end
+
+      ipts = 1:obj.nPhysPoints;
+      txtOffset = obj.labelPointsPlotInfo.TextOffset;
+      lpos3 = apt.patch_lpos(lpos2);
+      assignLabelCoordsHandlingOcclusionBangBang(obj.lblPrev_ptsH(ipts), ...
+                                                 obj.lblPrev_ptsTxtH(ipts), ...
+                                                 lpos3(ipts, :), ...
+                                                 txtOffset);
+      if any(lpostag2(ipts))
+        if isempty(tfWarningThrownAlready)
+          warningNoTrace('Labeler:labelsPrev', ...
                          'Label tags in previous frame not visualized.');
           tfWarningThrownAlready = true;
         end
@@ -14892,7 +14901,7 @@ classdef Labeler < handle
       obj.prevAxesModeTargetSpec_ = spec ;
 
       % Set up the virtual line and text objects
-      obj.prevAxesSetLabels_(spec.iMov, spec.frm, spec.iTgt, spec);
+      obj.prevAxesSetFrozenLabels_(spec);
 
       % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
@@ -14944,7 +14953,7 @@ classdef Labeler < handle
         obj.prevAxesModeTargetSpec_ = spec ;
 
         % Set the virtual lines/texts to what they should be
-        obj.prevAxesSetLabels_(spec.iMov, spec.frm, spec.iTgt, spec);
+        obj.prevAxesSetFrozenLabels_(spec);
       end
 
       % Fire an event to update the GUI
