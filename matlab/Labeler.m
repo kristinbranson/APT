@@ -2731,13 +2731,8 @@ classdef Labeler < handle
       % Set up the prev_axes 
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
-      % obj.notify('downdateCachedAxesProperties') ;  % Causes obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_ to be set correctly
       prevAxesTarget = PrevAxesTarget.fromStruct(s.cfg.PrevAxes.ModeInfo) ;
-      % [~, prevTarget, prevCache] = obj.fixPrevAxesModeInfo(pamode, prevAxesTargetFromDisk, [], obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_) ;
-      % obj.prevAxesMode_ = pamode ;
       obj.prevAxesModeTarget_ = prevAxesTarget ;
-      % obj.prevAxesModeTargetCache_ = prevCache ;
-      % obj.restorePrevAxesMode() ;
       obj.setPrevAxesMode(pamode) ;
 
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
@@ -13178,68 +13173,6 @@ classdef Labeler < handle
       isvalid = paModeInfo.isValid() ;
     end
     
-    % function [isOK, outputTarget, outputCache] = fixPrevAxesModeInfo(obj, paMode, inputTarget, inputCache, axesCurrProps, prevAxesSize, prevAxesYDir)
-    %   % From the current labeler state and the arguments, try to determine valid
-    %   % target and cache structs.  On return, isOK is true iff the input target was
-    %   % acceptable as-is.  If isOK is true, then outputTarget and outputCache will be
-    %   % identical to inputTarget and inputCache.  Otherwise, they will be fixed
-    %   % versions.  obj is not mutated at all.
-    %   % axesCurrProps is a struct with fields XDir, YDir, XLim, YLim.
-    %   % prevAxesSize is [w, h].
-    %   % prevAxesYDir is 'normal' or 'reverse'.
-    % 
-    %   % If paMode is PrevAxesMode.LASTSEEN, nothing to do
-    %   if paMode == PrevAxesMode.LASTSEEN ,
-    %     isOK = true ;
-    %     outputTarget = inputTarget ;
-    %     outputCache = inputCache ;
-    %     return
-    %   end
-    % 
-    %   % make sure the previous frame is labeled
-    %   isOK = false;
-    %   lpos = obj.labels;
-    %   if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
-    %     lpos = obj.labelsGT;
-    %   end
-    %   if inputTarget.isValid(),
-    %     if numel(lpos) >= inputTarget.iMov,
-    %       iTgt = inputTarget.iTgt;
-    %       isOK = Labels.isLabeledFT(lpos{inputTarget.iMov},inputTarget.frm,iTgt);
-    %     end
-    %     if isOK,
-    %       outputTarget = inputTarget ;
-    %       outputCache = inputCache ;
-    %       return
-    %     end
-    %   end
-    % 
-    %   outputTarget = inputTarget ;
-    %   outputCache = inputCache ;
-    %   if isempty(outputCache)
-    %     outputCache = PrevAxesTargetCache() ;
-    %   end
-    %   if isempty(outputCache.prevAxesProps),
-    %     outputCache.prevAxesProps = determinePrevAxesProps(outputCache, axesCurrProps);
-    %   end
-    % 
-    %   [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
-    %   if ~tffound,
-    %     outputTarget.frm = [];
-    %     outputTarget.iTgt = [];
-    %     outputTarget.iMov = [];
-    %     outputTarget.gtmode = false;
-    %     return
-    %   end
-    %   outputTarget.frm = frm;
-    %   outputTarget.iTgt = iTgt;
-    %   outputTarget.iMov = iMov;
-    %   outputTarget.gtmode = obj.gtIsGTMode;
-    % 
-    %   outputCache = obj.rectifyImageFieldsInPrevAxesMovieInfo(outputTarget, outputCache, 1, prevAxesYDir);
-    %   outputCache = obj.getDefaultPrevAxesModeInfo(outputTarget, outputCache, prevAxesSize, axesCurrProps);
-    % end  % function
-    
     function cache = computePrevAxesTargetCacheFromTarget_(obj, target)
       % Compute a fresh PrevAxesTargetCache from a PrevAxesTarget.  Does not
       % mutate obj.
@@ -14979,11 +14912,6 @@ classdef Labeler < handle
 
     function clearPrevAxesModeTarget(obj)
       obj.prevAxesModeTarget_ = PrevAxesTarget() ;
-      % obj.prevAxesModeTarget_.iMov = [];
-      % obj.prevAxesModeTarget_.iTgt = [];
-      % obj.prevAxesModeTarget_.frm = [];
-      % obj.prevAxesModeTargetCache_.im = [];
-      % obj.prevAxesModeTargetCache_.isrotated = false;
       obj.restorePrevAxesMode();
     end  % function
 
