@@ -8932,15 +8932,9 @@ classdef Labeler < handle
       % In FROZEN mode, set positions from frozen frame info.
       % In LASTSEEN mode, set positions from prevFrame labels.
       if obj.prevAxesMode == PrevAxesMode.FROZEN
-        try
-          obj.prevAxesSetFrozenLabels_();
-        catch
-          % do nothing
-        end
-      elseif ~isnan(obj.prevFrame) && ~isempty(obj.lblPrev_ptsH)
-        obj.prevAxesSetLastseenLabels_(obj.currMovie, obj.prevFrame, obj.currTarget);
+        obj.prevAxesSetFrozenLabels_();
       else
-        setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
+        obj.prevAxesSetLastseenLabels_();
       end
     end  % function
         
@@ -13375,17 +13369,17 @@ classdef Labeler < handle
       end
     end  % function
 
-    function prevAxesSetLastseenLabels_(obj, iMov, frm, iTgt)
+    function prevAxesSetLastseenLabels_(obj)
       % Set prev-axes label positions for LASTSEEN mode.
 
       persistent tfWarningThrownAlready
 
-      if isempty(frm)
-        lpos2 = nan(obj.nLabelPoints, 2);
-        lpostag2 = false(obj.nLabelPoints, 1);
-      else
-        [~, lpos2, lpostag2] = obj.labelPosIsLabeled(frm, iTgt, 'iMov', iMov);
+      if isnan(obj.prevFrame) || isempty(obj.lblPrev_ptsH)
+        setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
+        return
       end
+
+      [~, lpos2, lpostag2] = obj.labelPosIsLabeled(obj.prevFrame, obj.currTarget, 'iMov', obj.currMovie);
 
       ipts = 1:obj.nPhysPoints;
       txtOffset = obj.labelPointsPlotInfo.TextOffset;
