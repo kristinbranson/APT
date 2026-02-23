@@ -730,7 +730,7 @@ classdef Labeler < handle
     prevImRoi = [] 
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
     prevAxesModeTarget_ = PrevAxesTarget()  % core target identity: iMov, frm, iTgt, gtmode
-    prevAxesModeTargetCache_  % derived rendering data: im, xdata, ydata, prevAxesProps, etc.
+    prevAxesModeTargetCache_ = PrevAxesTargetCache()  % derived rendering data: im, xdata, ydata, prevAxesProps, etc.
     isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
     prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
     currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
@@ -13221,10 +13221,10 @@ classdef Labeler < handle
 
       outputTarget = inputTarget ;
       outputCache = inputCache ;
-      if isempty(outputCache) || ~isstruct(outputCache)
-        outputCache = struct() ;
+      if isempty(outputCache)
+        outputCache = PrevAxesTargetCache() ;
       end
-      if ~isfield(outputCache,'prevAxesProps'),
+      if isempty(outputCache.prevAxesProps),
         outputCache.prevAxesProps = determinePrevAxesProps(outputCache, axesCurrProps);
       end
 
@@ -13363,9 +13363,7 @@ classdef Labeler < handle
       if ~target.isValid(),
         return
       end
-      if ~isfield(cache,'isrotated'),
-        cache.isrotated = false;
-      end
+      % cache.isrotated defaults to false in PrevAxesTargetCache
       viewi = 1;
       ptidx = (obj.labeledposIPt2View == viewi) ;
       [~,poscurr,~] = ...
@@ -13401,7 +13399,7 @@ classdef Labeler < handle
         extendratio = limratio/axszratio;
         ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
       end
-      if isfield(cache,'dxlim'),
+      if ~isempty(cache.dxlim),
         xlim0 = xlim;
         ylim0 = ylim;
         xlim = xlim + cache.dxlim;
@@ -14948,7 +14946,38 @@ classdef Labeler < handle
       % Set the target animal for the 'sidekick' axes when in mode
       % PrevAxesMode.FROZEN.  This also switches the model to PrevAxesMode.FROZEN.
       % This is what happens when you click the "Freeze" button in the GUI.
-      obj.setPrevAxesModeHelper_(PrevAxesMode.FROZEN, [], []) ;
+
+      % Check for sanity
+      if ~obj.hasMovie
+        return
+      end
+
+      % Ask the controller to populate some of our fields with
+      % values that only it knows.
+      obj.notify('downdateCachedAxesProperties') ;
+
+      % This implicitly sets to FROZEN mode
+      obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
+
+      % Set the target
+      target = PrevAxesTarget(obj.currMovie, obj.currFrame, obj.currTarget, obj.gtIsGTMode);
+
+      % Initialize the cache
+      cache = PrevAxesTargetCache();
+      cache.im = obj.currIm{1};
+      cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
+      cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
+
+      % Set obj properties
+      obj.prevAxesModeTarget_ = target ;
+      obj.prevAxesModeTargetCache_ = cache ;
+      obj.isFreezeInfoUnchanged_ = true ;
+
+      % Set up the virtual line and text objects
+      obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
+
+      % Fire an event to update the GUI
+      obj.notify('updatePrevAxes') ;      
     end
 
     function prevAxesMovieRemap_(obj, mIdxOrig2New)
@@ -14990,18 +15019,29 @@ classdef Labeler < handle
       % Set .prevAxesMode_, .prevAxesModeTarget_, .prevAxesModeTargetCache_
       %
       % pamode: PrevAxesMode
-      % target: prevAxesModeTarget_ value (struct or [])
-      % cache: prevAxesModeTargetCache_ value (struct or [])
+      % target: PrevAxesTarget
+      % cache: PrevAxesTargetCache
 
+      % Deal with args
       assert(isa(pamode, 'PrevAxesMode')) ;
+      if ~exist('target', 'var') || isempty(target)
+        target = PrevAxesTarget() ;
+      end
+      if ~exist('cache', 'var') || isempty(cache)
+        cache = PrevAxesTargetCache() ;
+      end
 
+      % Set the relevant props to the passed args
       obj.prevAxesMode_ = pamode ;
       obj.prevAxesModeTarget_ = target ;
       obj.prevAxesModeTargetCache_ = cache ;
+
+      % If frozen mode, need to record 
       if pamode == PrevAxesMode.FROZEN
         obj.revisePrevAxesModeInfoForFrozenMode_() ;
       end
 
+      % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
     end
 
@@ -15023,12 +15063,11 @@ classdef Labeler < handle
 
       if ~target.isValid()
         target = PrevAxesTarget(obj.currMovie, obj.currFrame, obj.currTarget, obj.gtIsGTMode);
-        cache = struct(...
-          'im', obj.currIm{1}, ...
-          'isrotated', false);
+        cache = PrevAxesTargetCache();
+        cache.im = obj.currIm{1};
       end
       if isempty(cache)
-        cache = struct() ;
+        cache = PrevAxesTargetCache() ;
       end
 
       cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
