@@ -13228,7 +13228,7 @@ classdef Labeler < handle
         outputCache = struct() ;
       end
       if ~isfield(outputCache,'axes_curr'),
-        outputCache.axes_curr = determinePrevAxesProperties(outputCache, axesCurrProps);
+        outputCache.axes_curr = determineCurrAxesProperties(outputCache, axesCurrProps);
       end
 
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
@@ -13427,7 +13427,7 @@ classdef Labeler < handle
       cache.xlim = xlim;
       cache.ylim = ylim;
 
-      cache.axes_curr = determinePrevAxesProperties(cache, axesCurrProps);
+      cache.axes_curr = determineCurrAxesProperties(cache, axesCurrProps);
     end  % function
 
   end  % methods
