@@ -8933,7 +8933,7 @@ classdef Labeler < handle
       % In LASTSEEN mode, set positions from prevFrame labels.
       if obj.prevAxesMode == PrevAxesMode.FROZEN
         try
-          obj.prevAxesSetFrozenLabels_(obj.prevAxesModeTargetSpec_);
+          obj.prevAxesSetFrozenLabels_();
         catch
           % do nothing
         end
@@ -13345,11 +13345,12 @@ classdef Labeler < handle
   end  % methods
 
   methods  % (Access=private)
-    function prevAxesSetFrozenLabels_(obj, spec)
-      % Set prev-axes label positions for FROZEN mode from a PrevAxesTargetSpec.
+    function prevAxesSetFrozenLabels_(obj)
+      % Set prev-axes label positions for FROZEN mode from obj.prevAxesModeTargetSpec_.
 
       persistent tfWarningThrownAlready
 
+      spec = obj.prevAxesModeTargetSpec_;
       [~, lpos0, lpostag2] = obj.labelPosIsLabeled(spec.frm, spec.iTgt, 'iMov', spec.iMov, 'gtmode', spec.gtmode);
       if spec.isrotated
         lpos2 = [lpos0, ones(size(lpos0, 1), 1)] * spec.A;
@@ -14901,7 +14902,7 @@ classdef Labeler < handle
       obj.prevAxesModeTargetSpec_ = spec ;
 
       % Set up the virtual line and text objects
-      obj.prevAxesSetFrozenLabels_(spec);
+      obj.prevAxesSetFrozenLabels_();
 
       % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
@@ -14953,7 +14954,7 @@ classdef Labeler < handle
         obj.prevAxesModeTargetSpec_ = spec ;
 
         % Set the virtual lines/texts to what they should be
-        obj.prevAxesSetFrozenLabels_(spec);
+        obj.prevAxesSetFrozenLabels_();
       end
 
       % Fire an event to update the GUI
