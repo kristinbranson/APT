@@ -2734,9 +2734,10 @@ classdef Labeler < handle
       % This needs to occur after .labeledpos etc has been set
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
       obj.notify('downdateCachedAxesProperties') ;  % Causes obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_ to be set correctly
-      [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_) ;
+      [~, prevTarget, prevCache] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, [], obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_) ;
       obj.prevAxesMode_ = pamode ;
-      obj.setPrevAxesModeInfoFromMerged_(prevModeInfo) ;
+      obj.prevAxesModeTarget_ = prevTarget ;
+      obj.prevAxesModeTargetCache_ = prevCache ;
       obj.restorePrevAxesMode() ;
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
@@ -8939,9 +8940,10 @@ classdef Labeler < handle
       % In FROZEN mode, set positions from frozen frame info.
       % In LASTSEEN mode, set positions from prevFrame labels.
       if obj.prevAxesMode == PrevAxesMode.FROZEN
-        freezeInfo = obj.mergePrevAxesModeInfo_();
+        target = obj.prevAxesModeTarget_ ;
+        cache = obj.prevAxesModeTargetCache_ ;
         try
-          obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
+          obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
         catch
           % do nothing
         end
@@ -13180,73 +13182,76 @@ classdef Labeler < handle
       isvalid = isPrevAxesModeInfoValid(paModeInfo) ;
     end
     
-    function [isInputPAModeInfoOK, outputPAModeInfo] = fixPrevAxesModeInfo(obj, paMode, inputPAModeInfo, axesCurrProps, prevAxesSize, prevAxesYDir)
-      % From the current labeler state, and the arguments, try to determine a new
-      % paModeInfo stucture that is valid (I think).  On return, isInputModeInfoOK
-      % is true iff the inputModeInfo was acceptable as-is.  If isInputModeInfoOK is
-      % true, then outputModeInfo will be identical to inputModeInfo.  Otherwise,
-      % outputModeInfo will (in theory) be a fixed version of inputModeInfo.
-      % obj is not mutated at all.
+    function [isOK, outputTarget, outputCache] = fixPrevAxesModeInfo(obj, paMode, inputTarget, inputCache, axesCurrProps, prevAxesSize, prevAxesYDir)
+      % From the current labeler state and the arguments, try to determine valid
+      % target and cache structs.  On return, isOK is true iff the input target was
+      % acceptable as-is.  If isOK is true, then outputTarget and outputCache will be
+      % identical to inputTarget and inputCache.  Otherwise, they will be fixed
+      % versions.  obj is not mutated at all.
       % axesCurrProps is a struct with fields XDir, YDir, XLim, YLim.
       % prevAxesSize is [w, h].
       % prevAxesYDir is 'normal' or 'reverse'.
 
       % If paMode is PrevAxesMode.LASTSEEN, nothing to do
       if paMode == PrevAxesMode.LASTSEEN ,
-        isInputPAModeInfoOK = true ;
-        outputPAModeInfo = inputPAModeInfo ;
+        isOK = true ;
+        outputTarget = inputTarget ;
+        outputCache = inputCache ;
         return
       end
 
       % make sure the previous frame is labeled
-      isInputPAModeInfoOK = false;
+      isOK = false;
       lpos = obj.labels;
       if (numel(lpos)<1) && (obj.gtIsGTMode) && numel(obj.labelsGT)>0
         lpos = obj.labelsGT;
       end
-      if isPrevAxesModeInfoValid(inputPAModeInfo),
-        if numel(lpos) >= inputPAModeInfo.iMov,
-          if isfield(inputPAModeInfo,'iTgt'),
-            iTgt = inputPAModeInfo.iTgt;
+      if isPrevAxesModeInfoValid(inputTarget),
+        if numel(lpos) >= inputTarget.iMov,
+          if isfield(inputTarget,'iTgt'),
+            iTgt = inputTarget.iTgt;
           else
             iTgt = 1;
           end
-          isInputPAModeInfoOK = Labels.isLabeledFT(lpos{inputPAModeInfo.iMov},inputPAModeInfo.frm,iTgt);
+          isOK = Labels.isLabeledFT(lpos{inputTarget.iMov},inputTarget.frm,iTgt);
         end
-        if isInputPAModeInfoOK,
-          outputPAModeInfo = inputPAModeInfo ;
+        if isOK,
+          outputTarget = inputTarget ;
+          outputCache = inputCache ;
           return
         end
       end
 
-      outputPAModeInfo = inputPAModeInfo ;
-      if ~isfield(outputPAModeInfo,'axes_curr'),
-        outputPAModeInfo.axes_curr = determinePrevAxesProperties(outputPAModeInfo, axesCurrProps);
+      outputTarget = inputTarget ;
+      outputCache = inputCache ;
+      if isempty(outputCache) || ~isstruct(outputCache)
+        outputCache = struct() ;
+      end
+      if ~isfield(outputCache,'axes_curr'),
+        outputCache.axes_curr = determinePrevAxesProperties(outputCache, axesCurrProps);
       end
 
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
       if ~tffound,
-        outputPAModeInfo.frm = [];
-        outputPAModeInfo.iTgt = [];
-        outputPAModeInfo.iMov = [];
-        outputPAModeInfo.gtmode = false;
+        outputTarget.frm = [];
+        outputTarget.iTgt = [];
+        outputTarget.iMov = [];
+        outputTarget.gtmode = false;
         return
       end
-      outputPAModeInfo.frm = frm;
-      outputPAModeInfo.iTgt = iTgt;
-      outputPAModeInfo.iMov = iMov;
-      outputPAModeInfo.gtmode = obj.gtIsGTMode;
+      outputTarget.frm = frm;
+      outputTarget.iTgt = iTgt;
+      outputTarget.iMov = iMov;
+      outputTarget.gtmode = obj.gtIsGTMode;
 
-      tempPaModeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(outputPAModeInfo, 1, prevAxesYDir);
-      outputPAModeInfo = obj.getDefaultPrevAxesModeInfo(tempPaModeInfo, prevAxesSize, axesCurrProps);
+      outputCache = obj.rectifyImageFieldsInPrevAxesMovieInfo(outputTarget, outputCache, 1, prevAxesYDir);
+      outputCache = obj.getDefaultPrevAxesModeInfo(outputTarget, outputCache, prevAxesSize, axesCurrProps);
     end  % function
     
-    function outputPAModeInfo = rectifyImageFieldsInPrevAxesMovieInfo(obj, inputPAModeInfo, viewi, prevAxesYDir)
-      % The returned outputModeInfo is like inputModeInfo, but it has the .im field
-      % and associated fields populated properly based on the other values in
-      % inputModeInfo.  This function does not mutate obj.
-      if ~obj.hasMovie || ~isPrevAxesModeInfoValid(inputPAModeInfo),
-        outputPAModeInfo = inputPAModeInfo ;
+    function cache = rectifyImageFieldsInPrevAxesMovieInfo(obj, target, cache, viewi, prevAxesYDir)
+      % Populates the image-related fields (im, isrotated, xdata, ydata, A, tform)
+      % in cache based on the target identity fields.  Does not mutate obj.
+      if ~obj.hasMovie || ~isPrevAxesModeInfoValid(target),
         return
       end
       if ~exist('viewi', 'var')
@@ -13256,14 +13261,13 @@ classdef Labeler < handle
         prevAxesYDir = 'reverse';
       end
       [im,isrotated,xdata,ydata,A,tform] = ...
-        obj.readTargetImageFromMovie(inputPAModeInfo.iMov, inputPAModeInfo.frm, inputPAModeInfo.iTgt, viewi, prevAxesYDir);
-      outputPAModeInfo = inputPAModeInfo ;
-      outputPAModeInfo.im =  im;
-      outputPAModeInfo.isrotated =  isrotated;
-      outputPAModeInfo.xdata =  xdata;
-      outputPAModeInfo.ydata =  ydata;
-      outputPAModeInfo.A =  A;
-      outputPAModeInfo.tform =  tform;
+        obj.readTargetImageFromMovie(target.iMov, target.frm, target.iTgt, viewi, prevAxesYDir);
+      cache.im = im;
+      cache.isrotated = isrotated;
+      cache.xdata = xdata;
+      cache.ydata = ydata;
+      cache.A = A;
+      cache.tform = tform;
     end  % function
     
     function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
@@ -13348,34 +13352,33 @@ classdef Labeler < handle
 
     end
       
-    function paModeInfo = getDefaultPrevAxesModeInfo(obj, inputPAModeInfo, prevAxesSize, axesCurrProps)
-      % Returns a paModeInfo that is based on inputPAModeInfo, but has its
-      % xlim, ylim, and axes_curr fields set to more default values.  Does not
+    function cache = getDefaultPrevAxesModeInfo(obj, target, cache, prevAxesSize, axesCurrProps)
+      % Sets the xlim, ylim, and axes_curr fields in cache to default values
+      % based on the target identity and the current label positions.  Does not
       % mutate obj.
       % prevAxesSize is [w, h]. axesCurrProps is a struct with fields XDir,
       % YDir, XLim, YLim.
 
-      paModeInfo = inputPAModeInfo ;
       borderfrac = .5;
       if ~obj.hasMovie,
         return;
       end
-      if ~isPrevAxesModeInfoValid(paModeInfo),
+      if ~isPrevAxesModeInfoValid(target),
         return
       end
-      if ~isfield(paModeInfo,'isrotated'),
-        paModeInfo.isrotated = false;
+      if ~isfield(cache,'isrotated'),
+        cache.isrotated = false;
       end
       viewi = 1;
       ptidx = (obj.labeledposIPt2View == viewi) ;
       [~,poscurr,~] = ...
-        obj.labelPosIsLabeled(paModeInfo.frm, ...
-                              paModeInfo.iTgt, ...
-                              'iMov',paModeInfo.iMov, ...
-                              'gtmode',paModeInfo.gtmode) ;
+        obj.labelPosIsLabeled(target.frm, ...
+                              target.iTgt, ...
+                              'iMov',target.iMov, ...
+                              'gtmode',target.gtmode) ;
       poscurr = poscurr(ptidx,:);
       if obj.hasTrx,
-        poscurr = [poscurr,ones(size(poscurr,1),1)]*paModeInfo.A;
+        poscurr = [poscurr,ones(size(poscurr,1),1)]*cache.A;
         poscurr = poscurr(:,1:2);
       end
 
@@ -13393,7 +13396,7 @@ classdef Labeler < handle
       dx = diff(xlim);
       dy = diff(ylim);
       limratio = dx / dy;
-      % need to extend 
+      % need to extend
       if axszratio > limratio,
         extendratio = axszratio/limratio;
         xlim = centerpos(1)+[-1,1]*r(1)*extendratio;
@@ -13401,58 +13404,56 @@ classdef Labeler < handle
         extendratio = limratio/axszratio;
         ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
       end
-      if isfield(paModeInfo,'dxlim'),
+      if isfield(cache,'dxlim'),
         xlim0 = xlim;
         ylim0 = ylim;
-        xlim = xlim + paModeInfo.dxlim;
-        ylim = ylim + paModeInfo.dylim;
+        xlim = xlim + cache.dxlim;
+        ylim = ylim + cache.dylim;
         % make sure all parts are visible
         if minpos(1) < xlim(1) || minpos(2) < ylim(1) || ...
             maxpos(1) > xlim(2) || maxpos(2) < ylim(2),
-          paModeInfo.dxlim = [0,0];
-          paModeInfo.dylim = [0,0];
+          cache.dxlim = [0,0];
+          cache.dylim = [0,0];
           xlim = xlim0;
           ylim = ylim0;
           fprintf('Templates zoomed axes would not show all labeled points, using default axes.\n');
         end
       else
-        paModeInfo.dxlim = [0,0];
-        paModeInfo.dylim = [0,0];
+        cache.dxlim = [0,0];
+        cache.dylim = [0,0];
       end
       xlim = fixLim(xlim);
       ylim = fixLim(ylim);
-      paModeInfo.xlim = xlim;
-      paModeInfo.ylim = ylim;
-      
-      paModeInfo.axes_curr = determinePrevAxesProperties(paModeInfo, axesCurrProps);
+      cache.xlim = xlim;
+      cache.ylim = ylim;
+
+      cache.axes_curr = determinePrevAxesProperties(cache, axesCurrProps);
     end  % function
 
   end  % methods
 
   methods  % (Access=private)
-    function prevAxesSetLabels_(obj, iMov, frm, iTgt, freezeInfo)
+    function prevAxesSetLabels_(obj, iMov, frm, iTgt, target, cache)
       % Sets .lblPrev_ptsH and .lblPrev_ptsTxtH to reflect the labels in movie iMov,
-      % frame frm, target iTgt.  If freezeInfo is provided, then freezeInfo.gtmode,
-      % freezeInfo.isrotated, and freezeInfo.A are also used in some way to compute
-      % the values to which .lblPrev_ptsH and .lblPrev_ptsTxtH are set.
+      % frame frm, target iTgt.  If target and cache are provided, then target.gtmode,
+      % cache.isrotated, and cache.A are also used to compute the label positions.
 
       persistent tfWarningThrownAlready
-      
+
       if nargin < 5,
         hasInfo = false ;
-        freezeInfo = [] ;
       else
         hasInfo = true ;
       end
-      
+
       if isempty(frm),
         lpos2 = nan(obj.nLabelPoints,2);
         lpostag2 = false(obj.nLabelPoints,1);
       else
         if hasInfo ,
-          [~,lpos0,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',freezeInfo.gtmode);
-          if freezeInfo.isrotated,
-            lpos1 = [lpos0,ones(size(lpos0,1),1)]*freezeInfo.A;
+          [~,lpos0,lpostag2] = obj.labelPosIsLabeled(frm,iTgt,'iMov',iMov,'gtmode',target.gtmode);
+          if cache.isrotated,
+            lpos1 = [lpos0,ones(size(lpos0,1),1)]*cache.A;
             lpos2 = lpos1(:,1:2);
           else
             lpos2 = lpos0 ;
@@ -15019,39 +15020,48 @@ classdef Labeler < handle
       % values that only it knows.
       obj.notify('downdateCachedAxesProperties') ;
 
-      freezeInfo = obj.mergePrevAxesModeInfo_() ;
-      if isempty(freezeInfo)
-        freezeInfo = struct(...
+      % Extract the current target and cache
+      target = obj.prevAxesModeTarget_ ;
+      cache = obj.prevAxesModeTargetCache_ ;
+
+      if isempty(target)
+        target = struct(...
           'iMov', obj.currMovie, ...
           'frm', obj.currFrame, ...
           'iTgt', obj.currTarget, ...
-          'im', obj.currIm{1}, ...
-          'isrotated', false, ...
           'gtmode', obj.gtIsGTMode);
-      elseif ~isfield(freezeInfo, 'gtmode')
-        freezeInfo.gtmode = obj.gtIsGTMode;
+        cache = struct(...
+          'im', obj.currIm{1}, ...
+          'isrotated', false);
+      elseif ~isfield(target, 'gtmode')
+        target.gtmode = obj.gtIsGTMode;
+      end
+      if isempty(cache)
+        cache = struct() ;
       end
 
-      freezeInfo = obj.rectifyImageFieldsInPrevAxesMovieInfo(freezeInfo, 1, obj.prevAxesYDir_);
-      freezeInfo = obj.getDefaultPrevAxesModeInfo(freezeInfo, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
+      cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
+      cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
 
-      if isPrevAxesModeInfoValid(freezeInfo),
+      if isPrevAxesModeInfoValid(target),
         isFreezeInfoUnchanged = true;
       else
-        [isFreezeInfoUnchanged, freezeInfo] = ...
-          obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, freezeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
+        [isFreezeInfoUnchanged, target, cache] = ...
+          obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, target, cache, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
       end
       if ~isFreezeInfoUnchanged,
-        freezeInfo.iMov = [];
-        freezeInfo.frm = [];
-        freezeInfo.iTgt = [];
-        freezeInfo.im = [];
-        freezeInfo.isrotated = false;
-        freezeInfo.gtmode = false;
+        target.iMov = [];
+        target.frm = [];
+        target.iTgt = [];
+        target.gtmode = false;
+        cache.im = [];
+        cache.isrotated = false;
       end
-      obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
 
-      obj.setPrevAxesModeInfoFromMerged_(freezeInfo) ;
+      % Set obj properties
+      obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
+      obj.prevAxesModeTarget_ = target ;
+      obj.prevAxesModeTargetCache_ = cache ;
       obj.isFreezeInfoUnchanged_ = isFreezeInfoUnchanged ;
     end  % function
     
@@ -15071,44 +15081,5 @@ classdef Labeler < handle
       obj.restorePrevAxesMode();
     end  % function
 
-    function merged = mergePrevAxesModeInfo_(obj)
-      % Merge prevAxesModeTarget_ and prevAxesModeTargetCache_ into a single flat struct,
-      % for use by internal methods that operate on the combined prev-axes state.
-      % Returns [] if prevAxesModeTarget_ is empty.
-      if isempty(obj.prevAxesModeTarget_)
-        merged = [];
-        return
-      end
-      merged = obj.prevAxesModeTarget_;
-      if ~isempty(obj.prevAxesModeTargetCache_)
-        for fn = fieldnames(obj.prevAxesModeTargetCache_)'
-          merged.(fn{1}) = obj.prevAxesModeTargetCache_.(fn{1});
-        end
-      end
-    end  % function
-
-    function setPrevAxesModeInfoFromMerged_(obj, merged)
-      % Split a flat prev-axes-mode-info struct into prevAxesModeTarget_ (core identity
-      % fields) and prevAxesModeTargetCache_ (derived rendering data).
-      % When merged is empty, both properties are set to [], preserving the semantics
-      % of the original prevAxesModeInfo_ property.
-      if isempty(merged) || ~isstruct(merged)
-        obj.prevAxesModeTarget_ = [];
-        obj.prevAxesModeTargetCache_ = [];
-        return
-      end
-      coreFields = {'iMov', 'frm', 'iTgt', 'gtmode'};
-      target = struct();
-      cache = struct();
-      for fn = fieldnames(merged)'
-        if ismember(fn{1}, coreFields)
-          target.(fn{1}) = merged.(fn{1});
-        else
-          cache.(fn{1}) = merged.(fn{1});
-        end
-      end
-      obj.prevAxesModeTarget_ = target;
-      obj.prevAxesModeTargetCache_ = cache;
-    end  % function
   end  % methods
 end  % classdef
