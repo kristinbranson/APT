@@ -539,8 +539,6 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updatePrevAxesImage',@(s,e)(obj.updatePrevAxesImage())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
-      % obj.listeners_(end+1) = ...
-      %   addlistener(obj.labeler_,'initializePrevAxesTemplate',@(s,e)(obj.initializePrevAxesTemplate())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxes',@(s,e)(obj.updatePrevAxes())) ;
       obj.listeners_(end+1) = ...
@@ -4511,7 +4509,6 @@ classdef LabelerController < handle
       end
       labeler.lblCore.clearLabels();
       labeler.restorePrevAxesMode() ;
-      % obj.CheckPrevAxesTemplate();
     end
 
 
@@ -4529,10 +4526,8 @@ classdef LabelerController < handle
       switch lc.state
         case LabelState.ADJUST
           lc.acceptLabels();
-          %labeler.InitializePrevAxesTemplate();
         case LabelState.ACCEPTED
           lc.unAcceptLabels();
-          %labeler.CheckPrevAxesTemplate();
         otherwise
           assert(false);
       end
@@ -8341,65 +8336,6 @@ classdef LabelerController < handle
       % sometimes nec eg for a "refreeze"
     end  % function
     
-    % function setPrevAxesMode(obj, pamode, pamodeinfo)
-    %   % Set .prevAxesMode, .prevAxesModeInfo
-    %   %
-    %   % pamode: PrevAxesMode
-    %   % pamodeinfo: (optional) userdata for pamode.
-    % 
-    %   labeler = obj.labeler_;
-    %   if ~exist('pamodeinfo', 'var')
-    %     pamodeinfo = [];
-    %   end
-    %   contents = cellstr(get(obj.popupmenu_prevmode, 'String'));
-    %   v1 = get(obj.popupmenu_prevmode, 'Value');
-    %   switch pamode
-    %     case PrevAxesMode.FROZEN,
-    %       v2 = find(strcmpi(contents, 'Reference'));
-    %     case PrevAxesMode.LASTSEEN,
-    %       v2 = find(strcmpi(contents, 'Previous frame'));
-    %     otherwise
-    %       error('Unknown previous axes mode');
-    %   end
-    %   if v2 ~= v1,
-    %     set(obj.popupmenu_prevmode, 'Value', v2);
-    %   end
-    % 
-    %   labeler.prevAxesMode = pamode;
-    % 
-    %   switch pamode
-    %     case PrevAxesMode.LASTSEEN
-    %       obj.prevAxesImFrmUpdate();
-    %       obj.prevAxesLabelsUpdate();
-    %       axp = obj.axes_prev;
-    %       set(axp, ...
-    %         'CameraUpVectorMode', 'auto', ...
-    %         'CameraViewAngleMode', 'auto');
-    %       obj.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
-    %       obj.pushbutton_freezetemplate.Enable = 'off';
-    %     case PrevAxesMode.FROZEN
-    %       obj.prevAxesFreeze(pamodeinfo);
-    %       obj.pushbutton_freezetemplate.Enable = 'on';
-    %     otherwise
-    %       assert(false);
-    %   end
-    % end  % function
-
-    % function UpdatePrevAxesLimits(obj)
-    %   labeler = obj.labeler_;
-    %   if labeler.prevAxesMode == PrevAxesMode.FROZEN,
-    %     newxlim = get(obj.axes_prev, 'XLim');
-    %     newylim = get(obj.axes_prev, 'YLim');
-    %     dx = newxlim - labeler.prevAxesModeInfo.axes_curr.XLim;
-    %     dy = newylim - labeler.prevAxesModeInfo.axes_curr.YLim;
-    % 
-    %     labeler.prevAxesModeInfo_.axes_curr.XLim = newxlim;
-    %     labeler.prevAxesModeInfo_.axes_curr.YLim = newylim;
-    %     labeler.prevAxesModeInfo_.dxlim = labeler.prevAxesModeInfo.dxlim + dx;
-    %     labeler.prevAxesModeInfo_.dylim = labeler.prevAxesModeInfo.dylim + dy;
-    %   end
-    % end  % function
-
     function downdatePrevAxesLimits_(obj)
       labeler = obj.labeler_;
       if labeler.prevAxesMode == PrevAxesMode.FROZEN,
@@ -8414,22 +8350,6 @@ classdef LabelerController < handle
       ydir = get(obj.axes_curr, 'YDir');
       obj.labeler_.setPrevAxesDirections(xdir, ydir);
     end  % function
-
-    % function initializePrevAxesTemplate(obj)
-    %   labeler = obj.labeler_;
-    %   islabeled = labeler.currFrameIsLabeled();
-    %   if islabeled,
-    %     set(obj.pushbutton_freezetemplate, 'Enable', 'on');
-    %   else
-    %     set(obj.pushbutton_freezetemplate, 'Enable', 'off');
-    %   end
-    % 
-    %   if labeler.prevAxesMode == PrevAxesMode.FROZEN && ~labeler.isPrevAxesModeInfoSet(),
-    %     if islabeled,
-    %       obj.prevAxesFreeze([]);
-    %     end
-    %   end
-    % end  % function
 
     function nukeAndRepavePrevAxesLabels_(obj)
       % Delete the existing label gobjects and recreate them.
