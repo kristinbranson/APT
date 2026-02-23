@@ -220,7 +220,7 @@ uiwait(hFig);
     freezeInfo = lObj.prevAxesModeTargetCache;
     imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
     im = freezeInfo.im;
-    axcProps = freezeInfo.axes_curr;
+    axcProps = freezeInfo.prevAxesProps;
     axesProps = {};
     for prop=fieldnames(axcProps)',
       axesProps(end+1:end+2) = {prop{1},axcProps.(prop{1})};

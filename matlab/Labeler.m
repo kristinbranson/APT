@@ -730,7 +730,7 @@ classdef Labeler < handle
     prevImRoi = [] 
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
     prevAxesModeTarget_  % core target identity: iMov, frm, iTgt, gtmode
-    prevAxesModeTargetCache_  % derived rendering data: im, xdata, ydata, axes_curr, etc.
+    prevAxesModeTargetCache_  % derived rendering data: im, xdata, ydata, prevAxesProps, etc.
     isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
     prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
     currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
@@ -13227,8 +13227,8 @@ classdef Labeler < handle
       if isempty(outputCache) || ~isstruct(outputCache)
         outputCache = struct() ;
       end
-      if ~isfield(outputCache,'axes_curr'),
-        outputCache.axes_curr = determineCurrAxesProperties(outputCache, axesCurrProps);
+      if ~isfield(outputCache,'prevAxesProps'),
+        outputCache.prevAxesProps = determinePrevAxesProps(outputCache, axesCurrProps);
       end
 
       [tffound,iMov,frm,iTgt] = obj.labelFindOneLabeledFrameEarliest();
@@ -13427,7 +13427,7 @@ classdef Labeler < handle
       cache.xlim = xlim;
       cache.ylim = ylim;
 
-      cache.axes_curr = determineCurrAxesProperties(cache, axesCurrProps);
+      cache.prevAxesProps = determinePrevAxesProps(cache, axesCurrProps);
     end  % function
 
   end  % methods
@@ -15067,17 +15067,17 @@ classdef Labeler < handle
     
     function setPrevAxesLimits(obj, newxlim, newylim)
       assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
-      dx = newxlim - obj.prevAxesModeTargetCache_.axes_curr.XLim;
-      dy = newylim - obj.prevAxesModeTargetCache_.axes_curr.YLim;
-      obj.prevAxesModeTargetCache_.axes_curr.XLim = newxlim;
-      obj.prevAxesModeTargetCache_.axes_curr.YLim = newylim;
+      dx = newxlim - obj.prevAxesModeTargetCache_.prevAxesProps.XLim;
+      dy = newylim - obj.prevAxesModeTargetCache_.prevAxesProps.YLim;
+      obj.prevAxesModeTargetCache_.prevAxesProps.XLim = newxlim;
+      obj.prevAxesModeTargetCache_.prevAxesProps.YLim = newylim;
       obj.prevAxesModeTargetCache_.dxlim = obj.prevAxesModeTargetCache_.dxlim + dx;
       obj.prevAxesModeTargetCache_.dylim = obj.prevAxesModeTargetCache_.dylim + dy;
     end  % function
 
     function setPrevAxesDirections(obj, xdir, ydir)
-      obj.prevAxesModeTargetCache_.axes_curr.XDir = xdir;
-      obj.prevAxesModeTargetCache_.axes_curr.YDir = ydir;
+      obj.prevAxesModeTargetCache_.prevAxesProps.XDir = xdir;
+      obj.prevAxesModeTargetCache_.prevAxesProps.YDir = ydir;
       obj.restorePrevAxesMode();
     end  % function
 

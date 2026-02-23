@@ -1,7 +1,7 @@
-function result = determineCurrAxesProperties(cache, axesCurrProps)
-  % Returns a struct containing several properties of the "prev" axes,
-  % determined partly from cache and partly from looking at the axes
-  % graphics handle.  This method does not mutate obj.
+function result = determinePrevAxesProps(cache, axesCurrProps)
+  % Returns a struct containing the desired display properties for the prev
+  % axes, determined partly from cache and partly from the current axes
+  % properties.  Does not mutate obj.
   % cache is a struct with cache fields from prevAxesModeTargetCache_.
   % axesCurrProps is a struct with fields XDir, YDir, XLim, YLim.
   xdir = axesCurrProps.XDir;

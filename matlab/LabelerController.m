@@ -8152,8 +8152,10 @@ classdef LabelerController < handle
   methods
 
     function props = getAxesCurrProps_(obj)
-      props = struct('XDir', obj.axes_curr.XDir, 'YDir', obj.axes_curr.YDir, ...
-                     'XLim', obj.axes_curr.XLim, 'YLim', obj.axes_curr.YLim);
+      props = struct('XDir', obj.axes_curr.XDir, ...
+                     'YDir', obj.axes_curr.YDir, ...
+                     'XLim', obj.axes_curr.XLim, ...
+                     'YLim', obj.axes_curr.YLim);
     end  % function
 
     function [w,h] = getPrevAxesSizeInPixels(obj)
@@ -8326,7 +8328,7 @@ classdef LabelerController < handle
 
       obj.hLinkPrevCurr.Enabled = 'off';
       axp = obj.axes_prev;
-      axcProps = cache.axes_curr;
+      axcProps = cache.prevAxesProps;
       for prop = fieldnames(axcProps)', prop = prop{1}; %#ok<FXSET>
         axp.(prop) = axcProps.(prop);
       end
