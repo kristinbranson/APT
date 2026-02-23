@@ -13241,34 +13241,93 @@ classdef Labeler < handle
     % end  % function
     
     function cache = computePrevAxesTargetCacheFromTarget_(obj, target)
-      % Compute a fresh PrevAxesTargetCache from a PrevAxesTarget.
+      % Compute a fresh PrevAxesTargetCache from a PrevAxesTarget.  Does not
+      % mutate obj.
       cache = PrevAxesTargetCache();
-      if target.isValid()
-        cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
-        cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
-      end
-    end  % function
-
-    function cache = rectifyImageFieldsInPrevAxesMovieInfo(obj, target, cache, viewi, prevAxesYDir)
-      % Populates the image-related fields (im, isrotated, xdata, ydata, A, tform)
-      % in cache based on the target identity fields.  Does not mutate obj.
-      if ~obj.hasMovie || ~target.isValid(),
+      if ~target.isValid() || ~obj.hasMovie
         return
       end
-      if ~exist('viewi', 'var')
-        viewi = 1;
-      end
-      if ~exist('prevAxesYDir', 'var')
-        prevAxesYDir = 'reverse';
-      end
-      [im,isrotated,xdata,ydata,A,tform] = ...
-        obj.readTargetImageFromMovie(target.iMov, target.frm, target.iTgt, viewi, prevAxesYDir);
+
+      % Read the image and rotation info from the movie
+      [im, isrotated, xdata, ydata, A, tform] = ...
+        obj.readTargetImageFromMovie(target.iMov, target.frm, target.iTgt, 1, obj.prevAxesYDir_);
       cache.im = im;
       cache.isrotated = isrotated;
       cache.xdata = xdata;
       cache.ydata = ydata;
       cache.A = A;
       cache.tform = tform;
+
+      % Compute xlim, ylim, and prevAxesProps from the label positions
+      axesCurrProps = obj.currAxesProps_;
+      prevAxesSize = obj.prevAxesSizeInPixels_;
+      viewi = 1;
+      ptidx = (obj.labeledposIPt2View == viewi);
+      [~, poscurr, ~] = ...
+        obj.labelPosIsLabeled(target.frm, ...
+                              target.iTgt, ...
+                              'iMov', target.iMov, ...
+                              'gtmode', target.gtmode);
+      poscurr = poscurr(ptidx, :);
+      if obj.hasTrx
+        poscurr = [poscurr, ones(size(poscurr, 1), 1)] * A;
+        poscurr = poscurr(:, 1:2);
+      end
+
+      minpos = min(poscurr, [], 1);
+      maxpos = max(poscurr, [], 1);
+      centerpos = (minpos + maxpos) / 2;
+      borderfrac = .5;
+      r = max(1, (maxpos - minpos) / 2 * (1 + borderfrac));
+      xlim = centerpos(1) + [-1 1] * r(1);
+      ylim = centerpos(2) + [-1 1] * r(2);
+
+      % Adjust aspect ratio to match the prev-axes widget
+      axw = prevAxesSize(1);
+      axh = prevAxesSize(2);
+      axszratio = axw / axh;
+      limratio = diff(xlim) / diff(ylim);
+      if axszratio > limratio
+        extendratio = axszratio / limratio;
+        xlim = centerpos(1) + [-1 1] * r(1) * extendratio;
+      elseif axszratio < limratio
+        extendratio = limratio / axszratio;
+        ylim = centerpos(2) + [-1 1] * r(2) * extendratio;
+      end
+
+      % Apply any existing pan offsets
+      if ~isempty(cache.dxlim)
+        dxlim = cache.dxlim;
+        dylim = cache.dylim;
+        xlim0 = xlim;
+        ylim0 = ylim;
+        xlim = xlim + dxlim;
+        ylim = ylim + dylim;
+        % make sure all parts are visible
+        if minpos(1) < xlim(1) || minpos(2) < ylim(1) || maxpos(1) > xlim(2) || maxpos(2) < ylim(2)
+          dxlim = [0 0];
+          dylim = [0 0];
+          xlim = xlim0;
+          ylim = ylim0;
+        else
+          % xlim/ylim and dxlim/dylim are good
+        end
+      else
+        dxlim = [0 0];
+        dylim = [0 0];
+      end
+      xlim = fixLim(xlim);
+      ylim = fixLim(ylim);
+
+      % Package up prevAxesProps
+      prevAxesProps = struct('XLim', xlim, ...
+                             'YLim', ylim, ...
+                             'XDir', axesCurrProps.XDir, ...
+                             'YDir', axesCurrProps.YDir, ...
+                             'CameraViewAngleMode', 'auto');
+
+      % Set the remaining cache fields
+      cache = setprop(cache, 'xlim', xlim, 'ylim', ylim, 'dxlim', dxlim, 'dylim', dylim, 'prevAxesProps', prevAxesProps);
     end  % function
     
     function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
@@ -13353,92 +13412,6 @@ classdef Labeler < handle
 
     end
       
-    function result = getDefaultPrevAxesModeInfo(obj, target, cache, prevAxesSize, axesCurrProps)
-      % Sets the xlim, ylim, and prevAxesProps fields in cache to default values
-      % based on the target identity and the current label positions.  Does not
-      % mutate obj.
-      % prevAxesSize is [w, h]. axesCurrProps is a struct with fields XDir,
-      % YDir, XLim, YLim.
-
-      if ~obj.hasMovie,
-        result = cache ;
-        return
-      end
-      if ~target.isValid(),
-        result = cache ;
-        return
-      end
-      % cache.isrotated defaults to false in PrevAxesTargetCache
-      viewi = 1;
-      ptidx = (obj.labeledposIPt2View == viewi) ;
-      [~,poscurr,~] = ...
-        obj.labelPosIsLabeled(target.frm, ...
-                              target.iTgt, ...
-                              'iMov',target.iMov, ...
-                              'gtmode',target.gtmode) ;
-      poscurr = poscurr(ptidx,:);
-      if obj.hasTrx,
-        poscurr = [poscurr,ones(size(poscurr,1),1)]*cache.A;
-        poscurr = poscurr(:,1:2);
-      end
-
-      minpos = min(poscurr,[],1);
-      maxpos = max(poscurr,[],1);
-      centerpos = (minpos+maxpos)/2;
-      % border defined by borderfrac
-      borderfrac = .5;
-      r = max(1,(maxpos-minpos)/2*(1+borderfrac));
-      xlim = centerpos(1)+[-1,1]*r(1);
-      ylim = centerpos(2)+[-1,1]*r(2);
-
-      axw = prevAxesSize(1);
-      axh = prevAxesSize(2);
-      axszratio = axw/axh;
-      dx = diff(xlim);
-      dy = diff(ylim);
-      limratio = dx / dy;
-      % need to extend
-      if axszratio > limratio,
-        extendratio = axszratio/limratio;
-        xlim = centerpos(1)+[-1,1]*r(1)*extendratio;
-      elseif axszratio < limratio,
-        extendratio = limratio/axszratio;
-        ylim = centerpos(2)+[-1,1]*r(2)*extendratio;
-      end
-      if ~isempty(cache.dxlim),
-        dxlim = cache.dxlim ;
-        dylim = cache.dylim ;
-        xlim0 = xlim ;
-        ylim0 = ylim ;
-        xlim = xlim + dxlim;
-        ylim = ylim + dylim;
-        % make sure all parts are visible
-        if minpos(1) < xlim(1) || minpos(2) < ylim(1) || maxpos(1) > xlim(2) || maxpos(2) < ylim(2)
-          dxlim = [0 0] ;
-          dylim = [0 0] ;
-          xlim = xlim0 ;
-          ylim = ylim0 ;
-          % fprintf('Templates zoomed axes would not show all labeled points, using default axes.\n');
-        else
-          % xlim/ylim and dxlim/dylim are good
-        end
-      else
-        dxlim = [0 0] ;
-        dylim = [0 0] ;
-      end
-      xlim = fixLim(xlim);
-      ylim = fixLim(ylim);
-      
-      % Package up prevAxesProps
-      prevAxesProps = struct('XLim', xlim, ...
-                             'YLim', ylim, ...
-                             'XDir', axesCurrProps.XDir, ...
-                             'YDir', axesCurrProps.YDir, ...
-                             'CameraViewAngleMode','auto') ;
-
-      % Finally, package up the result cache
-      result = setprop(cache, 'xlim', xlim, 'ylim', ylim, 'dxlim', dxlim, 'dylim', dylim, 'prevAxesProps', prevAxesProps) ;
-    end  % function
 
   end  % methods
 
