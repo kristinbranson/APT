@@ -7893,19 +7893,18 @@ classdef LabelerController < handle
           end
           obj.txPrevIm.String = finalString ;
         case PrevAxesMode.FROZEN,
-          target = labeler.prevAxesModeTarget ;
-          cache = labeler.prevAxesModeTargetCache ;
-          if ~isempty(cache) && ~isempty(target)
-            obj.image_prev.XData = cache.xdata;
-            obj.image_prev.YData = cache.ydata;
-            obj.image_prev.CData = cache.im;
-            stringDraft1 = sprintf('Frame %d', target.frm);
+          spec = labeler.prevAxesModeTargetSpec ;
+          if spec.isValid()
+            obj.image_prev.XData = spec.xdata;
+            obj.image_prev.YData = spec.ydata;
+            obj.image_prev.CData = spec.im;
+            stringDraft1 = sprintf('Frame %d', spec.frm);
             if labeler.hasTrx,
-              stringDraft2 = sprintf('%s, Target %d', stringDraft1, target.iTgt) ;
+              stringDraft2 = sprintf('%s, Target %d', stringDraft1, spec.iTgt) ;
             else
               stringDraft2 = stringDraft1 ;
             end
-            finalString = sprintf('%s, Movie %d', stringDraft2, target.iMov) ;
+            finalString = sprintf('%s, Movie %d', stringDraft2, spec.iMov) ;
             obj.txPrevIm.String = finalString ;
           end  % if
       end
@@ -8257,7 +8256,7 @@ classdef LabelerController < handle
       % Update the prev_axes, often after a change in the previous-axes panel mode
       labeler = obj.labeler_;
       pamode = labeler.prevAxesMode ;
-      %pamodeinfo = labeler.prevAxesModeTarget ;
+      %pamodeinfo = labeler.prevAxesModeTargetSpec ;
       contents = cellstr(get(obj.popupmenu_prevmode, 'String'));
       v1 = get(obj.popupmenu_prevmode, 'Value');
       switch pamode
@@ -8296,7 +8295,7 @@ classdef LabelerController < handle
 
     function updatePrevAxesForFrozenMode_(obj)
       % Freeze the current frame/labels in the previous axis. Sets
-      % .prevAxesMode, .prevAxesModeTarget, .prevAxesModeTargetCache.
+      % .prevAxesMode, .prevAxesModeTargetSpec.
       %
       % freezeInfo: Optional freezeInfo to apply. If not supplied,
       % image/labels taken from current movie/frame/etc.
@@ -8305,21 +8304,20 @@ classdef LabelerController < handle
       if ~labeler.hasMovie,
         return;
       end
-      target = labeler.prevAxesModeTarget ;
-      cache = labeler.prevAxesModeTargetCache ;
+      spec = labeler.prevAxesModeTargetSpec ;
 
       set(obj.popupmenu_prevmode, 'Visible', 'on');
       set(obj.pushbutton_freezetemplate, 'Enable', 'on');
 
-      if labeler.prevAxesModeTarget.isValid() && labeler.prevAxesModeTargetCache.isValid()
-        obj.image_prev.XData = cache.xdata;
-        obj.image_prev.YData = cache.ydata;
-        obj.image_prev.CData = cache.im;
-        obj.txPrevIm.String = sprintf('Frame %d', target.frm);
+      if spec.isValid()
+        obj.image_prev.XData = spec.xdata;
+        obj.image_prev.YData = spec.ydata;
+        obj.image_prev.CData = spec.im;
+        obj.txPrevIm.String = sprintf('Frame %d', spec.frm);
         if labeler.hasTrx,
-          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', target.iTgt)];
+          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', spec.iTgt)];
         end
-        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', target.iMov)];
+        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', spec.iMov)];
       else
         obj.image_prev.CData = 0;
         obj.txPrevIm.String = '';

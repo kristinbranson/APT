@@ -244,7 +244,7 @@ uiwait(hFig);
   function [im,pts,imagescArgs,labelCM,axesProps,txtOffset] = ...
       parseLabelerArgs(lObj)
     
-    freezeInfo = lObj.prevAxesModeTargetCache;
+    freezeInfo = lObj.prevAxesModeTargetSpec;
     imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
     im = freezeInfo.im;
     axcProps = freezeInfo.prevAxesProps;

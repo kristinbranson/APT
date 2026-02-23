@@ -96,10 +96,7 @@ switch exptype,
     if isstruct(lObj),
       freezeInfo = lObj.cfg.PrevAxes.ModeInfo;
     else
-      freezeTarget = lObj.prevAxesModeTarget;
-      freezeCache = lObj.prevAxesModeTargetCache;
-      freezeInfo = freezeTarget;
-      for fn_ = fieldnames(freezeCache)', freezeInfo.(fn_{1}) = freezeCache.(fn_{1}); end
+      freezeInfo = lObj.prevAxesModeTargetSpec;
     end
     lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
     if freezeInfo.isrotated,
