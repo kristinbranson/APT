@@ -14950,7 +14950,7 @@ classdef Labeler < handle
       % Set the target animal for the 'sidekick' axes when in mode
       % PrevAxesMode.FROZEN.  This also switches the model to PrevAxesMode.FROZEN.
       % This is what happens when you click the "Freeze" button in the GUI.
-      obj.setPrevAxesModeHelper_(PrevAxesMode.FROZEN, []) ;
+      obj.setPrevAxesModeHelper_(PrevAxesMode.FROZEN, [], []) ;
     end
 
     function prevAxesMovieRemap_(obj, mIdxOrig2New)
@@ -14977,7 +14977,7 @@ classdef Labeler < handle
 
     function setPrevAxesMode(obj, pamode)
       % Set the mode for the 'sidekick' axes to pamode.
-      obj.setPrevAxesModeHelper_(pamode, obj.mergePrevAxesModeInfo_()) ;
+      obj.setPrevAxesModeHelper_(pamode, obj.prevAxesModeTarget_, obj.prevAxesModeTargetCache_) ;
     end
 
     function restorePrevAxesMode(obj)
@@ -14985,22 +14985,21 @@ classdef Labeler < handle
       % as a way of restoring the internal cache of the prev_axes image, lines, and
       % texts to what they should be.  This method is a hack, and should eventually
       % not be needed and go away.
-      obj.setPrevAxesModeHelper_(obj.prevAxesMode_, obj.mergePrevAxesModeInfo_()) ;
+      obj.setPrevAxesModeHelper_(obj.prevAxesMode_, obj.prevAxesModeTarget_, obj.prevAxesModeTargetCache_) ;
     end
 
-    function setPrevAxesModeHelper_(obj, pamode, pamodeinfo)
+    function setPrevAxesModeHelper_(obj, pamode, target, cache)
       % Set .prevAxesMode_, .prevAxesModeTarget_, .prevAxesModeTargetCache_
       %
       % pamode: PrevAxesMode
-      % pamodeinfo: (optional) flat merged struct for pamode.
+      % target: prevAxesModeTarget_ value (struct or [])
+      % cache: prevAxesModeTargetCache_ value (struct or [])
 
       assert(isa(pamode, 'PrevAxesMode')) ;
-      if ~exist('pamodeinfo', 'var')
-        pamodeinfo = [];
-      end
 
       obj.prevAxesMode_ = pamode ;
-      obj.setPrevAxesModeInfoFromMerged_(pamodeinfo) ;
+      obj.prevAxesModeTarget_ = target ;
+      obj.prevAxesModeTargetCache_ = cache ;
       if pamode == PrevAxesMode.FROZEN
         obj.revisePrevAxesModeInfoForFrozenMode_() ;
       end
