@@ -729,7 +729,8 @@ classdef Labeler < handle
     prevIm = []
     prevImRoi = [] 
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
-    prevAxesModeInfo_  % "userdata" for .prevAxesMode
+    prevAxesModeTarget_  % core target identity: iMov, frm, iTgt, gtmode
+    prevAxesModeTargetCache_  % derived rendering data: im, xdata, ydata, axes_curr, etc.
     isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
     prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
     currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
@@ -740,7 +741,8 @@ classdef Labeler < handle
 
   properties (Dependent)
     prevAxesMode
-    prevAxesModeInfo
+    prevAxesModeTarget
+    prevAxesModeTargetCache
     isFreezeInfoUnchanged
   end
   
@@ -2053,7 +2055,7 @@ classdef Labeler < handle
       cfg.Track.ImportPointsPlot = obj.impPointsPlotInfo;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
-      cfg.PrevAxes.ModeInfo = obj.prevAxesModeInfo;
+      cfg.PrevAxes.ModeInfo = obj.prevAxesModeTarget;
     end
 
     function shortcuts = getShortcuts(obj)
@@ -2734,7 +2736,7 @@ classdef Labeler < handle
       obj.notify('downdateCachedAxesProperties') ;  % Causes obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_ to be set correctly
       [~,prevModeInfo] = obj.fixPrevAxesModeInfo(pamode, s.cfg.PrevAxes.ModeInfo, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_) ;
       obj.prevAxesMode_ = pamode ;
-      obj.prevAxesModeInfo_ = prevModeInfo ;      
+      obj.setPrevAxesModeInfoFromMerged_(prevModeInfo) ;
       obj.restorePrevAxesMode() ;
       
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
@@ -8937,7 +8939,7 @@ classdef Labeler < handle
       % In FROZEN mode, set positions from frozen frame info.
       % In LASTSEEN mode, set positions from prevFrame labels.
       if obj.prevAxesMode == PrevAxesMode.FROZEN
-        freezeInfo = obj.prevAxesModeInfo;
+        freezeInfo = obj.mergePrevAxesModeInfo_();
         try
           obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
         catch
@@ -13160,8 +13162,12 @@ classdef Labeler < handle
       result = obj.prevAxesMode_;
     end  % function
 
-    function result = get.prevAxesModeInfo(obj)
-      result = obj.prevAxesModeInfo_;
+    function result = get.prevAxesModeTarget(obj)
+      result = obj.prevAxesModeTarget_;
+    end  % function
+
+    function result = get.prevAxesModeTargetCache(obj)
+      result = obj.prevAxesModeTargetCache_;
     end  % function
 
     function result = get.isFreezeInfoUnchanged(obj)
@@ -13169,8 +13175,8 @@ classdef Labeler < handle
     end  % function
 
     function isvalid = isPrevAxesModeInfoSet(obj)
-      % Returns true iff obj.prevAxesModeInfo contains a valid paModeInfo struct.
-      paModeInfo = obj.prevAxesModeInfo;
+      % Returns true iff obj.prevAxesModeTarget contains a valid paModeInfo struct.
+      paModeInfo = obj.prevAxesModeTarget;
       isvalid = isPrevAxesModeInfoValid(paModeInfo) ;
     end
     
@@ -14951,81 +14957,60 @@ classdef Labeler < handle
       if ~obj.isPrevAxesModeInfoSet()
         return
       end
-      newIdx = mIdxOrig2New(obj.prevAxesModeInfo.iMov);
+      newIdx = mIdxOrig2New(obj.prevAxesModeTarget.iMov);
       if newIdx == 0
         obj.clearPrevAxesModeTarget();
       else
-        obj.prevAxesModeInfo_.iMov = newIdx;
+        obj.prevAxesModeTarget_.iMov = newIdx;
         obj.restorePrevAxesMode();
       end
     end  % function
 
     function clearPrevAxesModeTarget(obj)
-      obj.prevAxesModeInfo_.iMov = [];
-      obj.prevAxesModeInfo_.iTgt = [];
-      obj.prevAxesModeInfo_.frm = [];
-      obj.prevAxesModeInfo_.im = [];
-      obj.prevAxesModeInfo_.isrotated = false;
+      obj.prevAxesModeTarget_.iMov = [];
+      obj.prevAxesModeTarget_.iTgt = [];
+      obj.prevAxesModeTarget_.frm = [];
+      obj.prevAxesModeTargetCache_.im = [];
+      obj.prevAxesModeTargetCache_.isrotated = false;
       obj.restorePrevAxesMode();
     end  % function
 
     function setPrevAxesMode(obj, pamode)
       % Set the mode for the 'sidekick' axes to pamode.
-      obj.setPrevAxesModeHelper_(pamode, obj.prevAxesModeInfo_) ;
+      obj.setPrevAxesModeHelper_(pamode, obj.mergePrevAxesModeInfo_()) ;
     end
 
     function restorePrevAxesMode(obj)
-      % Set the .prevAxesMode_ and obj.prevAxesModeInfo_ to what they already are, 
+      % Set the .prevAxesMode_ and prev axes mode info to what they already are,
       % as a way of restoring the internal cache of the prev_axes image, lines, and
       % texts to what they should be.  This method is a hack, and should eventually
       % not be needed and go away.
-      obj.setPrevAxesModeHelper_(obj.prevAxesMode_, obj.prevAxesModeInfo_) ;
+      obj.setPrevAxesModeHelper_(obj.prevAxesMode_, obj.mergePrevAxesModeInfo_()) ;
     end
 
     function setPrevAxesModeHelper_(obj, pamode, pamodeinfo)
-      % Set .prevAxesMode_, .prevAxesModeInfo_
+      % Set .prevAxesMode_, .prevAxesModeTarget_, .prevAxesModeTargetCache_
       %
       % pamode: PrevAxesMode
-      % pamodeinfo: (optional) userdata for pamode.
+      % pamodeinfo: (optional) flat merged struct for pamode.
 
       assert(isa(pamode, 'PrevAxesMode')) ;
       if ~exist('pamodeinfo', 'var')
         pamodeinfo = [];
       end
-      
-      % fprintf('On setPrevAxesMode() call:\n') ;
-      % pamode
-      % pamodeinfo
-      % if ~isempty(pamodeinfo) && isfield(pamodeinfo, 'axes_curr')
-      %   pamodeinfo_axes_curr = pamodeinfo.axes_curr
-      % end
 
       obj.prevAxesMode_ = pamode ;
-      obj.prevAxesModeInfo_ = pamodeinfo ;
+      obj.setPrevAxesModeInfoFromMerged_(pamodeinfo) ;
       if pamode == PrevAxesMode.FROZEN
         obj.revisePrevAxesModeInfoForFrozenMode_() ;
       end
 
-      % fprintf('On setPrevAxesMode() middle:\n') ;
-      % pamode1 = obj.prevAxesMode_
-      % pamodeinfo1 = obj.prevAxesModeInfo_
-      % if ~isempty(pamodeinfo1) && isfield(pamodeinfo1, 'axes_curr')
-      %   pamodeinfo1_axes_curr = pamodeinfo1.axes_curr
-      % end
-      
       obj.notify('updatePrevAxes') ;
-
-      % fprintf('On setPrevAxesMode() end:\n') ;
-      % pamode2 = obj.prevAxesMode_
-      % pamodeinfo2 = obj.prevAxesModeInfo_
-      % if ~isempty(pamodeinfo2) && isfield(pamodeinfo2, 'axes_curr')
-      %   pamodeinfo2_axes_curr = pamodeinfo2.axes_curr
-      % end
     end
 
     function revisePrevAxesModeInfoForFrozenMode_(obj)
       % Freeze the current frame/labels in the previous axis. Sets
-      % .prevAxesMode, .prevAxesModeInfo.
+      % .prevAxesMode, .prevAxesModeTarget_, .prevAxesModeTargetCache_.
 
       if ~obj.hasMovie,
         return
@@ -15035,7 +15020,7 @@ classdef Labeler < handle
       % values that only it knows.
       obj.notify('downdateCachedAxesProperties') ;
 
-      freezeInfo = obj.prevAxesModeInfo_ ;
+      freezeInfo = obj.mergePrevAxesModeInfo_() ;
       if isempty(freezeInfo)
         freezeInfo = struct(...
           'iMov', obj.currMovie, ...
@@ -15067,25 +15052,64 @@ classdef Labeler < handle
       end
       obj.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
 
-      % obj.prevAxesMode = PrevAxesMode.FROZEN;
-      obj.prevAxesModeInfo_ = freezeInfo;
+      obj.setPrevAxesModeInfoFromMerged_(freezeInfo) ;
       obj.isFreezeInfoUnchanged_ = isFreezeInfoUnchanged ;
     end  % function
     
     function setPrevAxesLimits(obj, newxlim, newylim)
       assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
-      dx = newxlim - obj.prevAxesModeInfo.axes_curr.XLim;
-      dy = newylim - obj.prevAxesModeInfo.axes_curr.YLim;
-      obj.prevAxesModeInfo_.axes_curr.XLim = newxlim;
-      obj.prevAxesModeInfo_.axes_curr.YLim = newylim;
-      obj.prevAxesModeInfo_.dxlim = obj.prevAxesModeInfo.dxlim + dx;
-      obj.prevAxesModeInfo_.dylim = obj.prevAxesModeInfo.dylim + dy;
+      dx = newxlim - obj.prevAxesModeTargetCache_.axes_curr.XLim;
+      dy = newylim - obj.prevAxesModeTargetCache_.axes_curr.YLim;
+      obj.prevAxesModeTargetCache_.axes_curr.XLim = newxlim;
+      obj.prevAxesModeTargetCache_.axes_curr.YLim = newylim;
+      obj.prevAxesModeTargetCache_.dxlim = obj.prevAxesModeTargetCache_.dxlim + dx;
+      obj.prevAxesModeTargetCache_.dylim = obj.prevAxesModeTargetCache_.dylim + dy;
     end  % function
 
     function setPrevAxesDirections(obj, xdir, ydir)
-      obj.prevAxesModeInfo_.axes_curr.XDir = xdir;
-      obj.prevAxesModeInfo_.axes_curr.YDir = ydir;
+      obj.prevAxesModeTargetCache_.axes_curr.XDir = xdir;
+      obj.prevAxesModeTargetCache_.axes_curr.YDir = ydir;
       obj.restorePrevAxesMode();
+    end  % function
+
+    function merged = mergePrevAxesModeInfo_(obj)
+      % Merge prevAxesModeTarget_ and prevAxesModeTargetCache_ into a single flat struct,
+      % for use by internal methods that operate on the combined prev-axes state.
+      % Returns [] if prevAxesModeTarget_ is empty.
+      if isempty(obj.prevAxesModeTarget_)
+        merged = [];
+        return
+      end
+      merged = obj.prevAxesModeTarget_;
+      if ~isempty(obj.prevAxesModeTargetCache_)
+        for fn = fieldnames(obj.prevAxesModeTargetCache_)'
+          merged.(fn{1}) = obj.prevAxesModeTargetCache_.(fn{1});
+        end
+      end
+    end  % function
+
+    function setPrevAxesModeInfoFromMerged_(obj, merged)
+      % Split a flat prev-axes-mode-info struct into prevAxesModeTarget_ (core identity
+      % fields) and prevAxesModeTargetCache_ (derived rendering data).
+      % When merged is empty, both properties are set to [], preserving the semantics
+      % of the original prevAxesModeInfo_ property.
+      if isempty(merged) || ~isstruct(merged)
+        obj.prevAxesModeTarget_ = [];
+        obj.prevAxesModeTargetCache_ = [];
+        return
+      end
+      coreFields = {'iMov', 'frm', 'iTgt', 'gtmode'};
+      target = struct();
+      cache = struct();
+      for fn = fieldnames(merged)'
+        if ismember(fn{1}, coreFields)
+          target.(fn{1}) = merged.(fn{1});
+        else
+          cache.(fn{1}) = merged.(fn{1});
+        end
+      end
+      obj.prevAxesModeTarget_ = target;
+      obj.prevAxesModeTargetCache_ = cache;
     end  % function
   end  % methods
 end  % classdef

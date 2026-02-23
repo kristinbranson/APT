@@ -7892,19 +7892,20 @@ classdef LabelerController < handle
             finalString = basicString ;
           end
           obj.txPrevIm.String = finalString ;
-        case PrevAxesMode.FROZEN,     
-          freezeInfo = labeler.prevAxesModeInfo ;
-          if ~isempty(freezeInfo)
-            obj.image_prev.XData = freezeInfo.xdata;
-            obj.image_prev.YData = freezeInfo.ydata;
-            obj.image_prev.CData = freezeInfo.im;
-            stringDraft1 = sprintf('Frame %d',freezeInfo.frm);
+        case PrevAxesMode.FROZEN,
+          target = labeler.prevAxesModeTarget ;
+          cache = labeler.prevAxesModeTargetCache ;
+          if ~isempty(cache) && ~isempty(target)
+            obj.image_prev.XData = cache.xdata;
+            obj.image_prev.YData = cache.ydata;
+            obj.image_prev.CData = cache.im;
+            stringDraft1 = sprintf('Frame %d', target.frm);
             if labeler.hasTrx,
-              stringDraft2 = sprintf('%s, Target %d',stringDraft1,freezeInfo.iTgt) ;
+              stringDraft2 = sprintf('%s, Target %d', stringDraft1, target.iTgt) ;
             else
               stringDraft2 = stringDraft1 ;
             end
-            finalString = sprintf('%s, Movie %d',stringDraft2,freezeInfo.iMov) ;
+            finalString = sprintf('%s, Movie %d', stringDraft2, target.iMov) ;
             obj.txPrevIm.String = finalString ;
           end  % if
       end
@@ -8254,7 +8255,7 @@ classdef LabelerController < handle
       % Update the prev_axes, often after a change in the previous-axes panel mode
       labeler = obj.labeler_;
       pamode = labeler.prevAxesMode ;
-      %pamodeinfo = labeler.prevAxesModeInfo ;
+      %pamodeinfo = labeler.prevAxesModeTarget ;
       contents = cellstr(get(obj.popupmenu_prevmode, 'String'));
       v1 = get(obj.popupmenu_prevmode, 'Value');
       switch pamode
@@ -8293,7 +8294,7 @@ classdef LabelerController < handle
 
     function updatePrevAxesForFrozenMode_(obj)
       % Freeze the current frame/labels in the previous axis. Sets
-      % .prevAxesMode, .prevAxesModeInfo.
+      % .prevAxesMode, .prevAxesModeTarget, .prevAxesModeTargetCache.
       %
       % freezeInfo: Optional freezeInfo to apply. If not supplied,
       % image/labels taken from current movie/frame/etc.
@@ -8302,34 +8303,34 @@ classdef LabelerController < handle
       if ~labeler.hasMovie,
         return;
       end
-      freezeInfo = labeler.prevAxesModeInfo ;
+      target = labeler.prevAxesModeTarget ;
+      cache = labeler.prevAxesModeTargetCache ;
 
       set(obj.popupmenu_prevmode, 'Visible', 'on');
       set(obj.pushbutton_freezetemplate, 'Enable', 'on');
 
       isFreezeInfoUnchanged = labeler.isFreezeInfoUnchanged ;
       if isFreezeInfoUnchanged,
-        obj.image_prev.XData = freezeInfo.xdata;
-        obj.image_prev.YData = freezeInfo.ydata;
-        obj.image_prev.CData = freezeInfo.im;
-        obj.txPrevIm.String = sprintf('Frame %d', freezeInfo.frm);
+        obj.image_prev.XData = cache.xdata;
+        obj.image_prev.YData = cache.ydata;
+        obj.image_prev.CData = cache.im;
+        obj.txPrevIm.String = sprintf('Frame %d', target.frm);
         if labeler.hasTrx,
-          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', freezeInfo.iTgt)];
+          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', target.iTgt)];
         end
-        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', freezeInfo.iMov)];
+        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', target.iMov)];
       else
         obj.image_prev.CData = 0;
         obj.txPrevIm.String = '';
       end
-      %labeler.prevAxesSetLabels_(freezeInfo.iMov, freezeInfo.frm, freezeInfo.iTgt, freezeInfo);
 
       obj.hLinkPrevCurr.Enabled = 'off';
       axp = obj.axes_prev;
-      axcProps = freezeInfo.axes_curr;
+      axcProps = cache.axes_curr;
       for prop = fieldnames(axcProps)', prop = prop{1}; %#ok<FXSET>
         axp.(prop) = axcProps.(prop);
       end
-      if freezeInfo.isrotated,
+      if cache.isrotated,
         axp.CameraUpVectorMode = 'auto';
       end
       % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but

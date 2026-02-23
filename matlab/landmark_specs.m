@@ -86,9 +86,9 @@ classdef landmark_specs < handle
   %#OK
   methods (Static)
     function s = parseLabelerState(lObj)
-      freezeInfo = lObj.prevAxesModeInfo;
+      freezeInfo = lObj.prevAxesModeTargetCache;
       imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
-      im = lObj.prevAxesModeInfo.im;
+      im = freezeInfo.im;
       axcProps = freezeInfo.axes_curr;
       axesProps = {};
       for prop=fieldnames(axcProps)',
