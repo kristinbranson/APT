@@ -731,7 +731,6 @@ classdef Labeler < handle
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
     prevAxesModeTarget_ = PrevAxesTarget()  % core target identity: iMov, frm, iTgt, gtmode
     prevAxesModeTargetCache_ = PrevAxesTargetCache()  % derived rendering data: im, xdata, ydata, prevAxesProps, etc.
-    isFreezeInfoUnchanged_  % set by revisePrevAxesModeInfoForFrozenMode_
     prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
     currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
     prevAxesSizeInPixels_ = [256 256]  % cached [w h] of prev axes in pixels
@@ -743,7 +742,6 @@ classdef Labeler < handle
     prevAxesMode
     prevAxesModeTarget
     prevAxesModeTargetCache
-    isFreezeInfoUnchanged
   end
   
   %% Misc
@@ -13173,10 +13171,6 @@ classdef Labeler < handle
       result = obj.prevAxesModeTargetCache_;
     end  % function
 
-    function result = get.isFreezeInfoUnchanged(obj)
-      result = obj.isFreezeInfoUnchanged_;
-    end  % function
-
     function isvalid = isPrevAxesModeInfoSet(obj)
       % Returns true iff obj.prevAxesModeTarget contains a valid paModeInfo struct.
       paModeInfo = obj.prevAxesModeTarget;
@@ -14964,14 +14958,13 @@ classdef Labeler < handle
 
       % Initialize the cache
       cache = PrevAxesTargetCache();
-      cache.im = obj.currIm{1};
+      %cache.im = obj.currIm{1};  % Think this just gets read from disk next line
       cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
       cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
 
       % Set obj properties
       obj.prevAxesModeTarget_ = target ;
       obj.prevAxesModeTargetCache_ = cache ;
-      obj.isFreezeInfoUnchanged_ = true ;
 
       % Set up the virtual line and text objects
       obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
@@ -15040,42 +15033,24 @@ classdef Labeler < handle
       % values that only it knows.
       obj.notify('downdateCachedAxesProperties') ;
 
-      % Extract the current target and cache
+      % Extract the current target
       target = obj.prevAxesModeTarget_ ;
-      cache = obj.prevAxesModeTargetCache_ ;
 
-      if ~target.isValid()
-        target = PrevAxesTarget(obj.currMovie, obj.currFrame, obj.currTarget, obj.gtIsGTMode);
+      % Remake the cache
+      if target.isValid()
         cache = PrevAxesTargetCache();
-        cache.im = obj.currIm{1};
-      end
-      if isempty(cache)
-        cache = PrevAxesTargetCache() ;
-      end
-
-      cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
-      cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
-
-      if target.isValid(),
-        isFreezeInfoUnchanged = true;
+        cache = obj.rectifyImageFieldsInPrevAxesMovieInfo(target, cache, 1, obj.prevAxesYDir_);
+        cache = obj.getDefaultPrevAxesModeInfo(target, cache, obj.prevAxesSizeInPixels_, obj.currAxesProps_);
       else
-        [isFreezeInfoUnchanged, target, cache] = ...
-          obj.fixPrevAxesModeInfo(PrevAxesMode.FROZEN, target, cache, obj.currAxesProps_, obj.prevAxesSizeInPixels_, obj.prevAxesYDir_);
-      end
-      if ~isFreezeInfoUnchanged,
-        target.iMov = [];
-        target.frm = [];
-        target.iTgt = [];
-        target.gtmode = false;
-        cache.im = [];
-        cache.isrotated = false;
+        cache = PrevAxesTargetCache();
       end
 
       % Set obj properties
-      obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
       obj.prevAxesModeTarget_ = target ;
       obj.prevAxesModeTargetCache_ = cache ;
-      obj.isFreezeInfoUnchanged_ = isFreezeInfoUnchanged ;
+
+      % Set the virtual lines/texts to what they should be
+      obj.prevAxesSetLabels_(target.iMov, target.frm, target.iTgt, target, cache);
     end  % function
     
     function setPrevAxesLimits(obj, newxlim, newylim)

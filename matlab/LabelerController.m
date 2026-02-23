@@ -8311,8 +8311,7 @@ classdef LabelerController < handle
       set(obj.popupmenu_prevmode, 'Visible', 'on');
       set(obj.pushbutton_freezetemplate, 'Enable', 'on');
 
-      isFreezeInfoUnchanged = labeler.isFreezeInfoUnchanged ;
-      if isFreezeInfoUnchanged,
+      if labeler.prevAxesModeTarget.isValid() && labeler.prevAxesModeTargetCache.isValid()
         obj.image_prev.XData = cache.xdata;
         obj.image_prev.YData = cache.ydata;
         obj.image_prev.CData = cache.im;

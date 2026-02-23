@@ -122,6 +122,8 @@ away.
   "char(thing)", not thing.char()
 - When calling `notify()` on an object, write it as
   `obj.notify(<args>)`, not `notify(obj, <args>)`.
+- All functions and methods should have a comment after the line with
+  `function` in it that says what the function does.
 
 ## Git conventions
 - Always prepend the commit message with "<branch name>: ".  This
