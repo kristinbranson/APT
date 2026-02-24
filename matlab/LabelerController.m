@@ -6203,7 +6203,7 @@ classdef LabelerController < handle
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      landmark_specs('lObj',labeler);
+      LandmarkSpecs('lObj',labeler);
     end
 
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6669,7 +6669,7 @@ classdef LabelerController < handle
       
       if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
         uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
-        landmark_specs('lObj',labeler,'waiton_ui',true);
+        LandmarkSpecs('lObj',labeler,'waiton_ui',true);
         if isempty(labeler.skelHead)
           uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
                          [], ...

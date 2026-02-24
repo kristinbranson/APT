@@ -1,4 +1,4 @@
-classdef landmark_specs < handle
+classdef LandmarkSpecs < handle
 
   % Properties that correspond to app components
   properties (Access = public)
@@ -70,7 +70,7 @@ classdef landmark_specs < handle
   
   methods (Access = public)
     
-    function obj = landmark_specs(varargin)
+    function obj = LandmarkSpecs(varargin)
       obj.createComponents();
       obj.startupFcn(varargin{:});
 %       if nargout == 0
