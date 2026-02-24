@@ -8346,7 +8346,7 @@ classdef LabelerController < handle
 
       labeler = obj.labeler_;
       plotInfo = labeler.labelPointsPlotInfo;
-      npts = labeler.nLabelPoints;
+      npts = labeler.nPhysPoints;
       axes_prev = obj.axes_prev;
 
       markerPVcell = struct2pvs(plotInfo.MarkerProps);

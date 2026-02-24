@@ -518,7 +518,7 @@ classdef Labeler < handle
   end
 
   properties (SetAccess=private)
-    nLabelPoints          % scalar integer. This is the total number of 2D labeled points across all views. Contrast with nPhysPoints. init: C
+    nLabelPoints          % scalar integer. Total number of 2D labeled points across all views, i.e. nview * nPhysPoints. init: C
     labelTemplate 
     nLabelPointsAdd = 0   % scalar integer. This is set when LabelController::projAddLandmarks() is called
     
@@ -593,7 +593,7 @@ classdef Labeler < handle
     labelsCurrMovie 
     labels2CurrMovie 
     
-    nPhysPoints  % number of physical/3D points
+    nPhysPoints  % number of physical/3D points. nLabelPoints == nview * nPhysPoints.
   end
 
   properties
@@ -735,8 +735,8 @@ classdef Labeler < handle
     currAxesYDir_ = 'reverse'  % YDir of curr axes, kept in sync by PostSet listener on axes_curr
     currAxesXLim_ = [0.5 1024.5]  % XLim of curr axes, kept in sync by PostSet listener on axes_curr
     currAxesYLim_ = [0.5 1024.5]  % YLim of curr axes, kept in sync by PostSet listener on axes_curr
-    lblPrev_ptsH  % [npts] VirtualLine. init: L
-    lblPrev_ptsTxtH  % [npts] VirtualText. init: L
+    lblPrev_ptsH  % [nPhysPoints] VirtualLine. Only first-view points, for axes_prev. init: L
+    lblPrev_ptsTxtH  % [nPhysPoints] VirtualText. Only first-view points, for axes_prev. init: L
   end
 
   properties (Dependent)
@@ -13947,7 +13947,7 @@ classdef Labeler < handle
       ism = ismember(cellfun(@lower, allowedPlotParams, 'Uni', 0), ...
                      cellfun(@lower, plotIfoFields, 'Uni', 0));
 
-      npts = obj.nLabelPoints;
+      npts = obj.nPhysPoints;
       obj.lblPrev_ptsH = VirtualLine.empty(0, 1);
       obj.lblPrev_ptsTxtH = VirtualText.empty(0, 1);
 
