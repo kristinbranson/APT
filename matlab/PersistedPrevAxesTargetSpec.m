@@ -11,7 +11,7 @@ classdef PersistedPrevAxesTargetSpec
     % Persisted fields
     iMov  % scalar positive integer movie index
     frm  % scalar positive integer frame number
-    iTgt  % scalar positive integer target index
+    iTgt = 1  % scalar positive integer target index
     gtmode = false  % scalar logical, whether in GT mode
     dxlim = [0 0]  % adjustment to xlim as a result of user panning/zooming the sidekick axes, a 2-el row vec
     dylim = [0 0]  % adjustment to ylim as a result of user panning/zooming the sidekick axes, a 2-el row vec

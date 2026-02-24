@@ -2055,7 +2055,7 @@ classdef Labeler < handle
       if isempty(spec)
         cfg.PrevAxes.ModeInfo = struct();
       else
-        cfg.PrevAxes.ModeInfo = spec.toStructForPersistence();
+        cfg.PrevAxes.ModeInfo = PersistedPrevAxesTargetSpec(spec).toStruct() ;
       end
     end
 
@@ -2736,12 +2736,13 @@ classdef Labeler < handle
       pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
       obj.prevAxesMode_ = pamode ;
       if pamode == PrevAxesMode.FROZEN
-        parsedInfo = PrevAxesTargetSpec.parsePersistedStruct(s.cfg.PrevAxes.ModeInfo) ;
-        if ~isempty(parsedInfo) && obj.hasMovie
+        modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
+        if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
+          persistedSpec = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
           obj.notify('downdateCachedAxesProperties') ;
           obj.prevAxesModeTargetSpec_ = obj.computePrevAxesTargetSpec_( ...
-            parsedInfo.iMov, parsedInfo.frm, parsedInfo.iTgt, parsedInfo.gtmode, ...
-            parsedInfo.dxlim, parsedInfo.dylim) ;
+            persistedSpec.iMov, persistedSpec.frm, persistedSpec.iTgt, persistedSpec.gtmode, ...
+            persistedSpec.dxlim, persistedSpec.dylim) ;
           obj.prevAxesSetFrozenLabels_() ;
         end
       end

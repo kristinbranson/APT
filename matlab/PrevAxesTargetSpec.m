@@ -12,7 +12,7 @@ classdef PrevAxesTargetSpec
     % Persisted fields
     iMov  % scalar positive integer movie index
     frm  % scalar positive integer frame number
-    iTgt  % scalar positive integer target index
+    iTgt = 1  % scalar positive integer target index
     gtmode = false  % scalar logical, whether in GT mode
     dxlim = [0 0]  % adjustment to xlim as a result of user panning/zooming the sidekick axes, a 2-el row vec
     dylim = [0 0]  % adjustment to ylim as a result of user panning/zooming the sidekick axes, a 2-el row vec
@@ -59,12 +59,6 @@ classdef PrevAxesTargetSpec
              'PrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
-    function s = toStructForPersistence(obj)
-      % Serialize identity fields + dxlim/dylim to a struct for saving to disk.
-      s = struct('iMov', obj.iMov, 'frm', obj.frm, 'iTgt', obj.iTgt, 'gtmode', obj.gtmode, ...
-                 'dxlim', obj.dxlim, 'dylim', obj.dylim);
-    end  % function
-
     function s = toStruct(obj)
       % Convert all properties to a scalar struct.
       s = struct('iMov', obj.iMov, 'frm', obj.frm, 'iTgt', obj.iTgt, 'gtmode', obj.gtmode, ...
@@ -78,50 +72,6 @@ classdef PrevAxesTargetSpec
   end  % methods
 
   methods (Static)
-    function parsedInfo = parsePersistedStruct(s)
-      % Parse a persisted struct into a plain struct with identity + offset fields.
-      % Returns a struct with fields: iMov, frm, iTgt, gtmode, dxlim, dylim.
-      % Returns [] for empty input.
-      % Cannot return a PrevAxesTargetSpec since rendering fields are absent.
-      if isempty(s)
-        parsedInfo = [] ;
-        return
-      end
-      parsedInfo = struct() ;
-      if isfield(s, 'iMov')
-        parsedInfo.iMov = s.iMov;
-      else
-        parsedInfo = [] ;
-        return
-      end
-      if isfield(s, 'frm')
-        parsedInfo.frm = s.frm;
-      else
-        parsedInfo = [] ;
-        return
-      end
-      if isfield(s, 'iTgt')
-        parsedInfo.iTgt = s.iTgt;
-      else
-        parsedInfo.iTgt = 1;
-      end
-      if isfield(s, 'gtmode')
-        parsedInfo.gtmode = s.gtmode;
-      else
-        parsedInfo.gtmode = false;
-      end
-      if isfield(s, 'dxlim')
-        parsedInfo.dxlim = s.dxlim;
-      else
-        parsedInfo.dxlim = [0 0];
-      end
-      if isfield(s, 'dylim')
-        parsedInfo.dylim = s.dylim;
-      else
-        parsedInfo.dylim = [0 0];
-      end
-    end  % function
-
     function result = setprop(obj, varargin)
       % Make a new, independent, object of the class by replacing some field names
       % Usage: newObj = setprop(obj, prop1, val1, prop2, val2, ...)
