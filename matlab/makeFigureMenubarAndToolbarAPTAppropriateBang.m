@@ -37,19 +37,16 @@ end
 
 % Configure a callback to keep rotations 2D
 r = rotate3d(fig) ;
-r.ActionPostCallback = @rectifyMainAxesRotation ;
+r.ActionPostCallback = @rectifyAxesRotation ;
 
 end  % function
 
 
 
-function rectifyMainAxesRotation(fig, ~)
-ax = findall(fig, 'Tag', 'axes_curr') ;
-if ~isscalar(ax)
-  % Something is wrong---just exit
-  return
-end
+function rectifyAxesRotation(~, evt)
+% Force the just-rotated axes to stay in-plane (viewed from directly above).
+ax = evt.Axes ;
 [az, ~] = view(ax) ;
-ax.View = [az 90] ;  % Force the view to be from directly above
+ax.View = [az 90] ;
 end  % function
 
