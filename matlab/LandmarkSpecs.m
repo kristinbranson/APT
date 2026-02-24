@@ -86,8 +86,9 @@ classdef LandmarkSpecs < handle
   
   %#OK
   methods
-    function s = parseLabelerState(obj, lObj)
+    function s = parseLabelerState(obj)
       % Parse labeler state for skeleton/swap/head-tail UI.
+      lObj = obj.lObj ;
       freezeInfo = lObj.prevAxesModeTargetSpec;
       imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
       im = freezeInfo.im;
@@ -433,7 +434,7 @@ classdef LandmarkSpecs < handle
         return;
       end
 
-      slbl = obj.parseLabelerState(obj.lObj);
+      slbl = obj.parseLabelerState();
       obj.pts = slbl.pts; 
       obj.ptNames = slbl.skelNames; 
 
