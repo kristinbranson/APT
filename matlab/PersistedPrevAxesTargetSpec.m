@@ -49,7 +49,7 @@ classdef PersistedPrevAxesTargetSpec
              'PersistedPrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
-    function s = toStruct(obj)
+    function s = struct(obj)
       % Serialize identity fields + dxlim/dylim to a struct for saving to disk.
       s = struct('iMov', obj.iMov, 'frm', obj.frm, 'iTgt', obj.iTgt, 'gtmode', obj.gtmode, ...
                  'dxlim', obj.dxlim, 'dylim', obj.dylim);
@@ -61,7 +61,7 @@ classdef PersistedPrevAxesTargetSpec
       % Make a new, independent, object of the class by replacing some field names
       % Usage: newObj = setprop(obj, prop1, val1, prop2, val2, ...)
       assert(mod(numel(varargin), 2) == 0, 'setprop:badArgs', 'Arguments must be property-value pairs') ;
-      oldPairs = obj.toStruct() ;
+      oldPairs = struct(obj) ;
       newPairs = struct(varargin{:}) ;
       mergedPairs = oldPairs ;
       for fieldName = fieldnames(newPairs)'

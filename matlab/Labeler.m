@@ -2055,7 +2055,7 @@ classdef Labeler < handle
       if isempty(spec)
         cfg.PrevAxes.ModeInfo = struct();
       else
-        cfg.PrevAxes.ModeInfo = PersistedPrevAxesTargetSpec(spec).toStruct() ;
+        cfg.PrevAxes.ModeInfo = struct(PersistedPrevAxesTargetSpec(spec)) ;
       end
     end
 

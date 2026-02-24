@@ -59,7 +59,7 @@ classdef PrevAxesTargetSpec
              'PrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
-    function s = toStruct(obj)
+    function s = struct(obj)
       % Convert all properties to a scalar struct.
       s = struct('iMov', obj.iMov, 'frm', obj.frm, 'iTgt', obj.iTgt, 'gtmode', obj.gtmode, ...
                  'dxlim', obj.dxlim, 'dylim', obj.dylim, ...
@@ -76,7 +76,7 @@ classdef PrevAxesTargetSpec
       % Make a new, independent, object of the class by replacing some field names
       % Usage: newObj = setprop(obj, prop1, val1, prop2, val2, ...)
       assert(mod(numel(varargin), 2) == 0, 'setprop:badArgs', 'Arguments must be property-value pairs') ;
-      oldPairs = obj.toStruct() ;
+      oldPairs = struct(obj) ;
       newPairs = struct(varargin{:}) ;
       mergedPairs = oldPairs ;
       for fieldName = fieldnames(newPairs)'
