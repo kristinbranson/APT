@@ -502,6 +502,8 @@ classdef LabelerController < handle
         addlistener(obj.axes_curr,'XDir','PostSet',@(s,e)(obj.axesCurrXDirChanged(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.axes_curr,'YDir','PostSet',@(s,e)(obj.axesCurrYDirChanged(s,e))) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.axes_prev,'YDir','PostSet',@(s,e)(obj.axesPrevYDirChanged(s,e))) ;
 
       % obj.listeners_(end+1) = ...
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
@@ -3971,7 +3973,12 @@ classdef LabelerController < handle
     function axesCurrYDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
       obj.videoRotateTargetUpAxisDirCheckWarn_() ;
     end
-    
+
+    function axesPrevYDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
+      % Keep the labeler's cached prevAxesYDir in sync with the axes_prev YDir.
+      obj.labeler_.prevAxesYDir = get(obj.axes_prev, 'YDir') ;
+    end
+
     function cbkPostZoom(obj,src,evt)  %#ok<INUSD>
       if evt.Axes == obj.axes_prev,
         obj.downdatePrevAxesLimits_();
@@ -8160,11 +8167,10 @@ classdef LabelerController < handle
       result = pos(3:4);
     end  % function
 
-    function [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSize, prevAxesYDir] = getPrevAxesAndCurrAxesProperties_(obj)
+    function [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSize] = getPrevAxesAndCurrAxesProperties_(obj)
       % Non-mutating.  Queries current axes properties needed for prev-axes operations.
       [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim] = obj.getAxesCurrProps_() ;
       prevAxesSize = obj.getPrevAxesSizeInPixels() ;
-      prevAxesYDir = get(obj.axes_prev, 'YDir') ;
     end  % function
 
     function updatePrevAxesLabels(obj)
@@ -8241,9 +8247,9 @@ classdef LabelerController < handle
 
     function downdateCachedAxesProperties(obj)
       labeler = obj.labeler_ ;
-      [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels, prevAxesYDir] = ...
+      [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels] = ...
         obj.getPrevAxesAndCurrAxesProperties_() ;
-      labeler.setCachedAxesProperties(prevAxesYDir, currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels) ;
+      labeler.setCachedAxesProperties(currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels) ;
     end  % function
 
     function updatePrevAxes(obj)
