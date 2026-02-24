@@ -358,6 +358,8 @@ classdef LabelerController < handle
       hZ.ActionPostCallback = @(s,e)(obj.cbkPostZoom(s,e)) ;
       hP = pan(mainFigure);  % hP is a "pan object"
       hP.ActionPostCallback = @(s,e)(obj.cbkPostPan(s,e)) ;
+      hR = rotate3d(mainFigure) ;
+      hR.ActionPostCallback = @(s,e)(obj.cbkPostRotate(s,e)) ;
       set(mainFigure, 'CloseRequestFcn', @(s,e)(obj.quitRequested())) ;
       obj.axes_timeline_manual.ButtonDownFcn = @(src,evt)obj.timelineButtonDown(src,evt);
       obj.axes_timeline_islabeled.ButtonDownFcn = @(src,evt)obj.timelineButtonDown(src,evt);    
@@ -3980,6 +3982,16 @@ classdef LabelerController < handle
     function cbkPostPan(obj,src,evt)  %#ok<INUSD>
       if evt.Axes == obj.axes_prev,
         obj.downdatePrevAxesLimits_();
+      end
+    end
+
+    function cbkPostRotate(obj, src, evt)  %#ok<INUSD>
+      % Force in-plane rotation (elevation = 90), then downdate azimuth.
+      ax = evt.Axes ;
+      [az, ~] = view(ax) ;
+      ax.View = [az 90] ;
+      if ax == obj.axes_prev
+        obj.downdatePrevAxesAzimuth_() ;
       end
     end
 
@@ -8166,7 +8178,8 @@ classdef LabelerController < handle
                                           prevAxesYDir, ...
                                           prevAxesSizeInPixels, ...
                                           coreTargetSpec.dxlim, ...
-                                          coreTargetSpec.dylim) ;
+                                          coreTargetSpec.dylim, ...
+                                          coreTargetSpec.azimuth) ;
     end  % function
 
     function updatePrevAxesLabels(obj)
@@ -8236,7 +8249,8 @@ classdef LabelerController < handle
       set(axes_prev, ...
           'CameraUpVectorMode', 'auto', ...
           'CameraViewAngleMode', 'auto');
-      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir      
+      axes_prev.View = [0 90] ;
+      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir
     end  % function
 
     function updatePrevPanel(obj)
@@ -8308,6 +8322,7 @@ classdef LabelerController < handle
         axes_prev.XLim = targetSpec.xlim + targetSpec.dxlim ;
         axes_prev.YLim = targetSpec.ylim + targetSpec.dylim ;
         axes_prev.CameraViewAngleMode = 'auto' ;
+        axes_prev.View = [targetSpec.azimuth 90] ;
         if targetSpec.isrotated,
           axes_prev.CameraUpVectorMode = 'auto';
         end
@@ -8333,6 +8348,22 @@ classdef LabelerController < handle
                                             'dylim', dylim) ;
       obj.prevAxesTargetSpec_ = ...
         PrevAxesTargetSpec.setprop(spec, 'dxlim', dxlim, 'dylim', dylim) ;
+    end  % function
+
+    function downdatePrevAxesAzimuth_(obj)
+      % Update the persisted azimuth from the current axes view.
+      labeler = obj.labeler_ ;
+      if labeler.prevAxesMode ~= PrevAxesMode.FROZEN, return ; end
+      if isempty(labeler.corePrevAxesTargetSpec), return ; end
+      [az, ~] = view(obj.axes_prev) ;
+      labeler.corePrevAxesTargetSpec = ...
+        CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
+                                       'azimuth', az) ;
+      spec = obj.prevAxesTargetSpec_ ;
+      if ~isempty(spec)
+        obj.prevAxesTargetSpec_ = ...
+          PrevAxesTargetSpec.setprop(spec, 'azimuth', az) ;
+      end
     end  % function
     
     function nukeAndRepavePrevAxesLabels_(obj)

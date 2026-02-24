@@ -35,18 +35,5 @@ else
   enableLegacyExplorationModes(fig) ;
 end
 
-% Configure a callback to keep rotations 2D
-r = rotate3d(fig) ;
-r.ActionPostCallback = @rectifyAxesRotation ;
-
-end  % function
-
-
-
-function rectifyAxesRotation(~, evt)
-% Force the just-rotated axes to stay in-plane (viewed from directly above).
-ax = evt.Axes ;
-[az, ~] = view(ax) ;
-ax.View = [az 90] ;
 end  % function
 

@@ -15,6 +15,7 @@ classdef CorePrevAxesTargetSpec
     gtmode = false  % scalar logical, whether in GT mode
     dxlim = [0 0]  % adjustment to xlim as a result of user panning/zooming the sidekick axes, a 2-el row vec
     dylim = [0 0]  % adjustment to ylim as a result of user panning/zooming the sidekick axes, a 2-el row vec
+    azimuth = 0  % in-plane rotation angle (degrees) of the prev axes in frozen mode
   end
 
   methods
@@ -29,6 +30,9 @@ classdef CorePrevAxesTargetSpec
         obj.gtmode = source.gtmode ;
         obj.dxlim = source.dxlim ;
         obj.dylim = source.dylim ;
+        if isprop(source, 'azimuth')
+          obj.azimuth = source.azimuth ;
+        end
       else
         if nargin == 1 && isstruct(varargin{1})
           props = varargin{1} ;
@@ -55,7 +59,7 @@ classdef CorePrevAxesTargetSpec
     function s = struct(obj)
       % Serialize identity fields + dxlim/dylim to a struct for saving to disk.
       s = struct('iMov', obj.iMov, 'frm', obj.frm, 'iTgt', obj.iTgt, 'gtmode', obj.gtmode, ...
-                 'dxlim', obj.dxlim, 'dylim', obj.dylim);
+                 'dxlim', obj.dxlim, 'dylim', obj.dylim, 'azimuth', obj.azimuth);
     end  % function
   end  % methods
 

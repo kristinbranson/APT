@@ -13148,7 +13148,8 @@ classdef Labeler < handle
                                               prevAxesYDir, ...
                                               prevAxesSizeInPixels, ...
                                               dxlim0, ...
-                                              dylim0)
+                                              dylim0, ...
+                                              azimuth0)
       % Compute a fresh, fully-populated PrevAxesTargetSpec from the given
       % identity fields, offset fields, and the current Labeler state.
       % Returns [] if ~obj.hasMovie.  Does not mutate obj.
@@ -13162,6 +13163,9 @@ classdef Labeler < handle
       else
         isNovelCase = false ;
         isLoadCase = true ;
+      end
+      if ~exist('azimuth0', 'var')
+        azimuth0 = 0 ;
       end
 
       if ~obj.hasMovie
@@ -13255,7 +13259,8 @@ classdef Labeler < handle
                                 'xlim', xlim, ...
                                 'ylim', ylim, ...
                                 'dxlim', dxlim, ...
-                                'dylim', dylim) ;
+                                'dylim', dylim, ...
+                                'azimuth', azimuth0) ;
     end  % function
     
     function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
