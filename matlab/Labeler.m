@@ -189,7 +189,6 @@ classdef Labeler < handle
     updateCurrImagesAllViews
     updatePrevAxesImage
     updatePrevAxesLabels
-    initializePrevAxesTemplate
     updatePrevAxes
     updateShortcuts
   end
@@ -728,26 +727,12 @@ classdef Labeler < handle
     prevIm = []
     prevImRoi = [] 
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
-    prevAxesModeTargetSpec_ = []  % PrevAxesTargetSpec or []; identity + rendering data for frozen/prev-axes frame
-    prevAxesYDir_ = 'reverse'  % YDir of prev axes, kept in sync by PostSet listener on axes_prev
-    prevAxesSizeInPixels_ = [256 256]  % [w h] of prev axes in pixels, kept in sync by SizeChangedFcn on main figure
-    currAxesXDir_ = 'normal'  % XDir of curr axes, kept in sync by PostSet listener on axes_curr
-    currAxesYDir_ = 'reverse'  % YDir of curr axes, kept in sync by PostSet listener on axes_curr
-    currAxesXLim_ = [0.5 1024.5]  % XLim of curr axes, kept in sync by PostSet listener on axes_curr
-    currAxesYLim_ = [0.5 1024.5]  % YLim of curr axes, kept in sync by PostSet listener on axes_curr
-    lblPrev_ptsH  % [nPhysPoints] VirtualLine. Only first-view points, for axes_prev. init: L
-    lblPrev_ptsTxtH  % [nPhysPoints] VirtualText. Only first-view points, for axes_prev. init: L
+    persistedPrevAxesTargetSpec_ = []  % PersistedPrevAxesTargetSpec or []; persisted identity + pan/zoom offsets for frozen/prev-axes frame
   end
 
   properties (Dependent)
     prevAxesMode
-    prevAxesModeTargetSpec
-    prevAxesYDir
-    currAxesXDir
-    currAxesYDir
-    currAxesXLim
-    currAxesYLim
-    prevAxesSizeInPixels
+    persistedPrevAxesTargetSpec
   end
   
   %% Misc
@@ -2059,11 +2044,11 @@ classdef Labeler < handle
       cfg.Track.ImportPointsPlot = obj.impPointsPlotInfo;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
-      spec = obj.prevAxesModeTargetSpec ;
-      if isempty(spec)
+      pSpec = obj.persistedPrevAxesTargetSpec_ ;
+      if isempty(pSpec)
         cfg.PrevAxes.ModeInfo = struct();
       else
-        cfg.PrevAxes.ModeInfo = struct(PersistedPrevAxesTargetSpec(spec)) ;
+        cfg.PrevAxes.ModeInfo = struct(pSpec) ;
       end
     end
 
@@ -2746,15 +2731,7 @@ classdef Labeler < handle
       if pamode == PrevAxesMode.FROZEN
         modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
         if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
-          persistedSpec = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
-          obj.prevAxesModeTargetSpec_ = ...
-            obj.computePrevAxesTargetSpec_(persistedSpec.iMov, ...
-                                           persistedSpec.frm, ...
-                                           persistedSpec.iTgt, ...
-                                           persistedSpec.gtmode, ...
-                                           persistedSpec.dxlim, ...
-                                           persistedSpec.dylim) ;
-          obj.syncPrevAxesVirtualLabelsForFrozen_() ;
+          obj.persistedPrevAxesTargetSpec_ = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
         end
       end
       obj.notify('updatePrevAxes') ;
@@ -6231,8 +6208,6 @@ classdef Labeler < handle
       obj.setShowMaRoi(obj.showMaRoi);
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
-      obj.initVirtualPrevAxesLabelPointViz_(lblPtsPlotInfo);
-      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       
       if tfLblModeChange
@@ -7826,26 +7801,22 @@ classdef Labeler < handle
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
 
       lc = obj.lblCore;
-      
-      % Marker cosmetics apply to lblCore, lblPrev_*
+
+      % Marker cosmetics apply to lblCore
       flds = fieldnames(pvMarker);
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         obj.labelPointsPlotInfo.MarkerProps.(f) = pvMarker.(f);
       end
-      lc.updateMarkerCosmetics(pvMarker);      
-      set(obj.lblPrev_ptsH,pvMarker);
-      
-      % Text cosmetics apply to lblCore, lblPrev_*
+      lc.updateMarkerCosmetics(pvMarker);
+
+      % Text cosmetics apply to lblCore
       flds = fieldnames(pvText);
       for f=flds(:)',f=f{1}; %#ok<FXSET>
         obj.labelPointsPlotInfo.TextProps.(f) = pvText.(f);
       end
       obj.labelPointsPlotInfo.TextOffset = textOffset;
-      set(obj.lblPrev_ptsTxtH,pvText);
-      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       lc.updateTextLabelCosmetics(pvText,textOffset);
-      %obj.labelsUpdateNewFrame(true); % should redraw prevaxes too
     end
 
     function [tfHideTxt,pvText] = hlpUpdateLandmarkCosmetics(obj,...
@@ -8927,7 +8898,6 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
-      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.labels2VizUpdate('dotrkres',true);
@@ -8938,7 +8908,6 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
@@ -8949,26 +8918,10 @@ classdef Labeler < handle
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      obj.syncPrevAxesVirtualLabels_();
       notify(obj, 'updatePrevAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
     end  % function
 
-    function syncPrevAxesVirtualLabels_(obj)
-      % Sync virtual prev-axes label positions with labeler state.
-      % In FROZEN mode, set positions from frozen frame info.
-      % In LASTSEEN mode, set positions from prevFrame labels.
-      mode = obj.prevAxesMode;
-      switch mode
-        case PrevAxesMode.FROZEN
-          obj.syncPrevAxesVirtualLabelsForFrozen_();
-        case PrevAxesMode.LASTSEEN
-          obj.syncPrevAxesVirtualLabelsForLastseen_();
-        otherwise
-          error('Internal error: Unknown PrevAxesMode enumeration: %s', char(mode));
-      end
-    end  % function
-        
   end  % methods (Access=private)
    
   %% GT mode
@@ -13179,64 +13132,16 @@ classdef Labeler < handle
       result = obj.prevAxesMode_;
     end  % function
 
-    function result = get.prevAxesModeTargetSpec(obj)
-      result = obj.prevAxesModeTargetSpec_;
+    function result = get.persistedPrevAxesTargetSpec(obj)
+      result = obj.persistedPrevAxesTargetSpec_ ;
     end  % function
 
-    function result = get.prevAxesYDir(obj)
-      result = obj.prevAxesYDir_ ;
+    function set.persistedPrevAxesTargetSpec(obj, value)
+      obj.persistedPrevAxesTargetSpec_ = value ;
     end  % function
-
-    function set.prevAxesYDir(obj, value)
-      obj.prevAxesYDir_ = value ;
-    end  % function
-
-    function result = get.currAxesXDir(obj)
-      result = obj.currAxesXDir_ ;
-    end  % function
-
-    function set.currAxesXDir(obj, value)
-      obj.currAxesXDir_ = value ;
-    end  % function
-
-    function result = get.currAxesYDir(obj)
-      result = obj.currAxesYDir_ ;
-    end  % function
-
-    function set.currAxesYDir(obj, value)
-      obj.currAxesYDir_ = value ;
-    end  % function
-
-    function result = get.currAxesXLim(obj)
-      result = obj.currAxesXLim_ ;
-    end  % function
-
-    function set.currAxesXLim(obj, value)
-      obj.currAxesXLim_ = value ;
-    end  % function
-
-    function result = get.currAxesYLim(obj)
-      result = obj.currAxesYLim_ ;
-    end  % function
-
-    function set.currAxesYLim(obj, value)
-      obj.currAxesYLim_ = value ;
-    end  % function
-
-    function result = get.prevAxesSizeInPixels(obj)
-      result = obj.prevAxesSizeInPixels_ ;
-    end  % function
-
-    function set.prevAxesSizeInPixels(obj, value)
-      obj.prevAxesSizeInPixels_ = value ;
-    end  % function
-
-    function isvalid = isPrevAxesModeInfoSet(obj)
-      % Returns true iff obj.prevAxesModeTargetSpec_ is non-empty.
-      isvalid = ~isempty(obj.prevAxesModeTargetSpec_) ;
-    end
     
-    function spec = computePrevAxesTargetSpec_(obj, iMov, frm, iTgt, gtmode, dxlim0, dylim0)
+    function spec = computePrevAxesTargetSpec_(obj, iMov, frm, iTgt, gtmode, ...
+                                                prevAxesYDir, prevAxesSizeInPixels, dxlim0, dylim0)
       % Compute a fresh, fully-populated PrevAxesTargetSpec from the given
       % identity fields, offset fields, and the current Labeler state.
       % Returns [] if ~obj.hasMovie.  Does not mutate obj.
@@ -13250,7 +13155,7 @@ classdef Labeler < handle
       else
         isNovelCase = false ;
         isLoadCase = true ;
-      end        
+      end
 
       if ~obj.hasMovie
         spec = [] ;
@@ -13259,7 +13164,7 @@ classdef Labeler < handle
 
       % Read the image and rotation info from the movie
       [im, isrotated, xdata, ydata, A, tform] = ...
-        obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, obj.prevAxesYDir_) ;
+        obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, prevAxesYDir) ;
 
       % Compute xlim, ylim, xdir, ydir from the label positions
       viewi = 1 ;
@@ -13284,8 +13189,7 @@ classdef Labeler < handle
       ylim_raw = centerpos(2) + [-1 1] * r(2) ;
 
       % Adjust aspect ratio to match the prev-axes widget
-      prevAxesSize = obj.prevAxesSizeInPixels_ ;
-      axw = prevAxesSize(1) ;
+      axw = prevAxesSizeInPixels(1) ;
       axh = prevAxesSize(2) ;
       axszratio = axw / axh ;
       limratio = diff(xlim_raw) / diff(ylim_raw) ;
@@ -13427,63 +13331,6 @@ classdef Labeler < handle
       end  % for
     end  % function
 
-    function syncPrevAxesVirtualLabelsForFrozen_(obj)
-      % Set prev-axes label positions for FROZEN mode from obj.prevAxesModeTargetSpec_.
-
-      persistent tfWarningThrownAlready
-
-      targetSpec = obj.prevAxesModeTargetSpec_;
-      [~, lpos0, lpostag2] = obj.labelPosIsLabeled(targetSpec.frm, targetSpec.iTgt, 'iMov', targetSpec.iMov, 'gtmode', targetSpec.gtmode);
-      if targetSpec.isrotated
-        lpos2 = [lpos0, ones(size(lpos0, 1), 1)] * targetSpec.A;
-        lpos2 = lpos2(:, 1:2);
-      else
-        lpos2 = lpos0;
-      end
-
-      ipts = 1:obj.nPhysPoints;
-      txtOffset = obj.labelPointsPlotInfo.TextOffset;
-      lpos3 = apt.patch_lpos(lpos2);
-      assignLabelCoordsHandlingOcclusionBangBang(obj.lblPrev_ptsH(ipts), ...
-                                                 obj.lblPrev_ptsTxtH(ipts), ...
-                                                 lpos3(ipts, :), ...
-                                                 txtOffset);
-      if any(lpostag2(ipts))
-        if isempty(tfWarningThrownAlready)
-          warningNoTrace('Labeler:labelsPrev', ...
-                         'Label tags in previous frame not visualized.');
-          tfWarningThrownAlready = true;
-        end
-      end
-    end  % function
-
-    function syncPrevAxesVirtualLabelsForLastseen_(obj)
-      % Set prev-axes label positions for LASTSEEN mode.
-
-      persistent tfWarningThrownAlready
-
-      if isnan(obj.prevFrame) || isempty(obj.lblPrev_ptsH)
-        setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsH, obj.lblPrev_ptsTxtH);
-        return
-      end
-
-      [~, lpos2, lpostag2] = obj.labelPosIsLabeled(obj.prevFrame, obj.currTarget, 'iMov', obj.currMovie);
-
-      ipts = 1:obj.nPhysPoints;
-      txtOffset = obj.labelPointsPlotInfo.TextOffset;
-      lpos3 = apt.patch_lpos(lpos2);
-      assignLabelCoordsHandlingOcclusionBangBang(obj.lblPrev_ptsH(ipts), ...
-                                                 obj.lblPrev_ptsTxtH(ipts), ...
-                                                 lpos3(ipts, :), ...
-                                                 txtOffset);
-      if any(lpostag2(ipts))
-        if isempty(tfWarningThrownAlready)
-          warningNoTrace('Labeler:labelsPrev', ...
-                         'Label tags in previous frame not visualized.');
-          tfWarningThrownAlready = true;
-        end
-      end
-    end  % function
   end  % methods
   
   %% Labels2/OtherTarget labels
@@ -13937,41 +13784,6 @@ classdef Labeler < handle
       end
     end
     
-    function initVirtualPrevAxesLabelPointViz_(obj, plotIfo)
-      markerPVs = plotIfo.MarkerProps;
-      textPVs = plotIfo.TextProps;
-
-      % Extra plot params
-      allowedPlotParams = {'HitTest' 'PickableParts'};
-      plotIfoFields = fieldnames(plotIfo);
-      ism = ismember(cellfun(@lower, allowedPlotParams, 'Uni', 0), ...
-                     cellfun(@lower, plotIfoFields, 'Uni', 0));
-
-      npts = obj.nPhysPoints;
-      obj.lblPrev_ptsH = VirtualLine.empty(0, 1);
-      obj.lblPrev_ptsTxtH = VirtualText.empty(0, 1);
-
-      for i = 1:npts
-        vl = VirtualLine();
-        set(vl, markerPVs);
-        vl.Color = plotIfo.Colors(i, :);
-        vl.UserData = i;
-        vl.Tag = sprintf('Labeler_lblPrev_ptsH_%d', i);
-        for j = find(ism)
-          vl.(allowedPlotParams{j}) = plotIfo.(allowedPlotParams{j});
-        end
-        obj.lblPrev_ptsH(i, 1) = vl;
-
-        vt = VirtualText();
-        set(vt, textPVs);
-        vt.Color = plotIfo.Colors(i, :);
-        vt.String = num2str(i);
-        vt.PickableParts = 'none';
-        vt.Tag = sprintf('Labeler_lblPrev_ptsTxtH_%d', i);
-        obj.lblPrev_ptsTxtH(i, 1) = vt;
-      end
-    end
-   
     function pushBusyStatus(obj, new_raw_status_string)
       % Called to indicate the Labeler is doing something.
       % If there's a controller, it will show the status string in the lower left,
@@ -14950,80 +14762,48 @@ classdef Labeler < handle
       % Set the target animal for the 'sidekick' axes to the current labeled target.
       % This also switches the model to PrevAxesMode.FROZEN. This is what happens
       % when you click the "Freeze" button in the GUI.
-
-      % Check for sanity
-      if ~obj.hasMovie
-        return
-      end
-
-      % This implicitly sets to FROZEN mode
+      if ~obj.hasMovie, return ; end
       obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
-
-      % Compute the full spec from current frame/target
-      obj.prevAxesModeTargetSpec_ = ...
-        obj.computePrevAxesTargetSpec_(obj.currMovie, ...
-                                       obj.currFrame, ...
-                                       obj.currTarget, ...
-                                       obj.gtIsGTMode) ;
-
-      % Set up the virtual line and text objects
-      obj.syncPrevAxesVirtualLabelsForFrozen_() ;
-
-      % Fire an event to update the GUI
+      obj.persistedPrevAxesTargetSpec_ = ...
+        PersistedPrevAxesTargetSpec('iMov', obj.currMovie, ...
+                                    'frm', obj.currFrame, ...
+                                    'iTgt', obj.currTarget, ...
+                                    'gtmode', obj.gtIsGTMode) ;
       obj.notify('updatePrevAxes') ;
     end
 
     function prevAxesMovieRemap_(obj, mIdxOrig2New)
       % Remap the movie index in the frozen prev-axes spec after movies are reordered.
-      if isempty(obj.prevAxesModeTargetSpec_)
-        return
-      end
-      newIdx = mIdxOrig2New(obj.prevAxesModeTargetSpec_.iMov) ;
+      if isempty(obj.persistedPrevAxesTargetSpec_), return ; end
+      newIdx = mIdxOrig2New(obj.persistedPrevAxesTargetSpec_.iMov) ;
       if newIdx == 0
         obj.clearPrevAxesModeTarget() ;
       else
-        obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(obj.prevAxesModeTargetSpec_, 'iMov', newIdx) ;
-        obj.restorePrevAxesMode() ;
+        obj.persistedPrevAxesTargetSpec_ = ...
+          PersistedPrevAxesTargetSpec.setprop(obj.persistedPrevAxesTargetSpec_, ...
+                                              'iMov', newIdx) ;
+        obj.notify('updatePrevAxes') ;
       end
     end  % function
 
     function clearPrevAxesModeTarget(obj)
       % Clear the frozen prev-axes target spec.
-      obj.prevAxesModeTargetSpec_ = [] ;
-      obj.restorePrevAxesMode() ;
+      obj.persistedPrevAxesTargetSpec_ = [] ;
+      obj.notify('updatePrevAxes') ;
     end  % function
 
     function restorePrevAxesMode(obj)
-      % Set the prevAxesMode to what is already is,
-      % as a way of restoring the internal cache of the prev_axes image, lines, and
-      % texts to what they should be.  This method is a hack, and should eventually
-      % not be needed and go away.
-      obj.setPrevAxesMode(obj.prevAxesMode_) ;
+      % Fire updatePrevAxes to restore the prev-axes display to match the current model state.
+      obj.notify('updatePrevAxes') ;
     end
 
     function setPrevAxesMode(obj, mode)
-      % Set the mode for the 'sidekick' axes to pamode.
-
-      % Check the mode is valid
+      % Set the mode for the 'sidekick' axes.
       assert(isa(mode, 'PrevAxesMode')) ;
-
-      % Set the relevant prop to the passed arg
       obj.prevAxesMode_ = mode ;
-
-      % Set the virtual lines/texts to what they should be
-      obj.syncPrevAxesVirtualLabels_() ;
-
-      % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
     end
     
-    function setPrevAxesLimits(obj, newxlim, newylim)
-      % Update the pan/zoom offsets for the frozen prev-axes.
-      assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
-      spec = obj.prevAxesModeTargetSpec_ ;
-      obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(spec, ...
-        'dxlim', newxlim - spec.xlim, 'dylim', newylim - spec.ylim) ;
-    end  % function
 
   end  % methods
 end  % classdef

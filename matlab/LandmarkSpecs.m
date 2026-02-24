@@ -89,7 +89,7 @@ classdef LandmarkSpecs < handle
     function s = parseLabelerState(obj)
       % Parse labeler state for skeleton/swap/head-tail UI.
       lObj = obj.lObj ;
-      freezeInfo = lObj.prevAxesModeTargetSpec;
+      freezeInfo = obj.parent_.prevAxesModeTargetSpec_ ;
       imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
       im = freezeInfo.im;
       axesProps = {'XLim', freezeInfo.xlim + freezeInfo.dxlim, ...
@@ -427,7 +427,7 @@ classdef LandmarkSpecs < handle
       obj.unselectedMarkerSize = unselMarkerSize;
       obj.unselectedLineWidth = unselLineWidth;
       
-      if ~lblObj.isPrevAxesModeInfoSet()
+      if isempty(obj.parent_) || isempty(obj.parent_.prevAxesModeTargetSpec_)
         errordlg('Please freeze a labeled reference image for use with this UI.',...
           'No Reference Image');
         return;
