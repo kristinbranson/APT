@@ -25,6 +25,7 @@ classdef LandmarkSpecs < handle
   
   properties (Access = private)
     lObj
+    parent_  % LabelerController handle, used to read axes properties
     pts % [npt x 2] xy coords for viz purposes
     ptNames % [nphyspts] cellstr; working model/data for UI, to be written to lObj
     
@@ -84,12 +85,17 @@ classdef LandmarkSpecs < handle
   end
   
   %#OK
-  methods (Static)
-    function s = parseLabelerState(lObj)
+  methods
+    function s = parseLabelerState(obj, lObj)
+      % Parse labeler state for skeleton/swap/head-tail UI.
       freezeInfo = lObj.prevAxesModeTargetSpec;
       imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
       im = freezeInfo.im;
       axcProps = freezeInfo.prevAxesProps;
+      if ~isempty(obj.parent_)
+        axcProps.XDir = obj.parent_.axes_prev.XDir ;
+        axcProps.YDir = obj.parent_.axes_prev.YDir ;
+      end
       axesProps = {};
       for prop=fieldnames(axcProps)',
         axesProps(end+1:end+2) = {prop{1},axcProps.(prop{1})};
@@ -98,11 +104,11 @@ classdef LandmarkSpecs < handle
         axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};
       end
       isrotated = freezeInfo.isrotated;
-      
+
       iMov = freezeInfo.iMov;
       frm = freezeInfo.frm;
       iTgt = freezeInfo.iTgt;
-      
+
       lpos = lObj.labelsGTaware;
       s = lpos{iMov};
       [~,p,~] = Labels.isLabeledFT(s,frm,iTgt);
@@ -117,12 +123,12 @@ classdef LandmarkSpecs < handle
         pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
         pts = pts(:,1:2);
       end
-      labelCM = lObj.LabelPointColors;            
+      labelCM = lObj.LabelPointColors;
       if isempty(labelCM)
         labelCM = jet(size(pts,1));
       end
       txtOffset = lObj.labelPointsPlotInfo.TextOffset;
-      
+
       s = struct();
       s.skelEdges = lObj.skeletonEdges;
       if isempty(s.skelEdges)
@@ -147,14 +153,17 @@ classdef LandmarkSpecs < handle
       s.axesProps = axesProps;
       s.txtOffset = txtOffset;
     end
+  end
+  methods (Static)
     function hIm = initImage(hAx,slbl)
+      % Initialize image display in an axes.
       hold(hAx,'off');
       hIm = imagesc(slbl.im,'Parent',hAx,slbl.imagescArgs{:});
       hold(hAx,'on');
       axis(hAx,'off','image');
       set(hAx,slbl.axesProps{:});
       colormap(hAx,'gray');
-    end    
+    end
   end
   methods (Access=private) % cbks
     function edgeClicked(app,h,e)
@@ -381,12 +390,13 @@ classdef LandmarkSpecs < handle
     
     %#OK
     function startupFcn(obj, varargin)
-      [lblObj,edges,plotptsArgs,textArgs,...
+      [lblObj,parent,edges,plotptsArgs,textArgs,...
         txtOffset,selMarkerSize,unselMarkerSize,...
         selMarker,unselMarker,...
         unselColor,selColor,...
         unselLineWidth,selLineWidth,waiton_ui] = myparse(varargin,...
         'lObj',[],...
+        'parent',[],...
         'edges',[], ...
         'plotptsArgs',{'linewidth',2},...
         'textArgs',{'fontsize',16}, ...
@@ -398,14 +408,15 @@ classdef LandmarkSpecs < handle
         'unselectedLineWidth',2,'selectedLineWidth',4, ...
         'waiton_ui',false ...
         );
-      
+
       if ~isempty(lblObj)
         centerOnParentFigure(obj.hFig,lblObj.hFig,'setParentFixUnitsPx',true);
       else
         centerfig(obj.hFig);
       end
-      
+
       obj.lObj = lblObj;
+      obj.parent_ = parent ;
       
       obj.selectedColor = selColor;
       obj.selectedMarker = selMarker;

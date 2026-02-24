@@ -6203,7 +6203,7 @@ classdef LabelerController < handle
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      LandmarkSpecs('lObj',labeler);
+      LandmarkSpecs('parent', obj, 'lObj', labeler) ;
     end
 
     function menu_track_viz_dataaug_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6669,7 +6669,7 @@ classdef LabelerController < handle
       
       if labeler.trackerIsTwoStage && ~labeler.trackerIsObjDet && isempty(labeler.skelHead)
         uiwait(warndlg('For head-tail based tracking method please select the head and tail landmarks', [], 'modal')) ;
-        LandmarkSpecs('lObj',labeler,'waiton_ui',true);
+        LandmarkSpecs('parent', obj, 'lObj', labeler, 'waiton_ui', true) ;
         if isempty(labeler.skelHead)
           uiwait(warndlg('Head Tail landmarks are not specified to enable auto setting of training parameters. Using the default parameters', ...
                          [], ...
@@ -8170,7 +8170,6 @@ classdef LabelerController < handle
       prevAxesSize = [prevAxesW, prevAxesH];
       prevAxesYDir = get(obj.axes_prev, 'YDir');
     end  % function
-
 
     function updatePrevAxesLabels(obj)
       % Sync real prev-axes graphics to virtual label state (already
