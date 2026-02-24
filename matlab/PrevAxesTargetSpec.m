@@ -4,9 +4,9 @@ classdef PrevAxesTargetSpec
   % Rendering fields: im, isrotated, xdata, ydata, A, tform, xlim, ylim, dxlim, dylim, prevAxesProps.
   %
   % Every PrevAxesTargetSpec in existence is fully valid: the constructor
-  % takes name-value pairs for all properties and asserts isValid() before
-  % returning.  The "unset" state is represented by [] rather than an
-  % invalid object.
+  % takes either a single struct or name-value pairs for all properties, and
+  % asserts isValid() before returning.  The "unset" state is represented by
+  % [] rather than an invalid object.
 
   properties (SetAccess=immutable)
     % Persisted fields
@@ -33,8 +33,12 @@ classdef PrevAxesTargetSpec
 
   methods
     function obj = PrevAxesTargetSpec(varargin)
-      % Construct from name-value pairs.  Asserts validity before returning.
-      props = struct(varargin{:});
+      % Construct from a single struct or from name-value pairs.  Asserts validity before returning.
+      if nargin == 1 && isstruct(varargin{1})
+        props = varargin{1} ;
+      else
+        props = struct(varargin{:}) ;
+      end
       for fieldName = fieldnames(props)'
         obj.(fieldName{1}) = props.(fieldName{1});
       end
@@ -70,12 +74,6 @@ classdef PrevAxesTargetSpec
                  'A', obj.A, 'tform', obj.tform, ...
                  'xlim', obj.xlim, 'ylim', obj.ylim, ...
                  'prevAxesProps', obj.prevAxesProps) ;
-    end  % function
-
-    function result = char(obj)
-      % Return a char array representation of this object.
-      result = sprintf('PrevAxesTargetSpec(iMov=%d, frm=%d, iTgt=%d, gtmode=%d)', ...
-                       obj.iMov, obj.frm, obj.iTgt, obj.gtmode);
     end  % function
   end  % methods
 
@@ -134,8 +132,7 @@ classdef PrevAxesTargetSpec
       for fieldName = fieldnames(newPairs)'
         mergedPairs.(fieldName{1}) = newPairs.(fieldName{1});
       end
-      mergedPairsAsList = struct2pvs(mergedPairs) ;      
-      result = PrevAxesTargetSpec(mergedPairsAsList{:}) ;
+      result = PrevAxesTargetSpec(mergedPairs) ;
     end  % function
 
   end  % methods
