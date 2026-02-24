@@ -191,7 +191,6 @@ classdef Labeler < handle
     updatePrevAxesLabels
     initializePrevAxesTemplate
     updatePrevAxes
-    downdateCachedAxesProperties
     updateShortcuts
   end
 
@@ -731,7 +730,7 @@ classdef Labeler < handle
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
     prevAxesModeTargetSpec_ = []  % PrevAxesTargetSpec or []; identity + rendering data for frozen/prev-axes frame
     prevAxesYDir_ = 'reverse'  % YDir of prev axes, kept in sync by PostSet listener on axes_prev
-    prevAxesSizeInPixels_ = [256 256]  % [w h] of prev axes in pixels
+    prevAxesSizeInPixels_ = [256 256]  % [w h] of prev axes in pixels, kept in sync by SizeChangedFcn on main figure
     currAxesXDir_ = 'normal'  % XDir of curr axes, kept in sync by PostSet listener on axes_curr
     currAxesYDir_ = 'reverse'  % YDir of curr axes, kept in sync by PostSet listener on axes_curr
     currAxesXLim_ = [0.5 1024.5]  % XLim of curr axes, kept in sync by PostSet listener on axes_curr
@@ -748,6 +747,7 @@ classdef Labeler < handle
     currAxesYDir
     currAxesXLim
     currAxesYLim
+    prevAxesSizeInPixels
   end
   
   %% Misc
@@ -2747,7 +2747,6 @@ classdef Labeler < handle
         modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
         if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
           persistedSpec = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
-          obj.notify('downdateCachedAxesProperties') ;
           obj.prevAxesModeTargetSpec_ = ...
             obj.computePrevAxesTargetSpec_(persistedSpec.iMov, ...
                                            persistedSpec.frm, ...
@@ -13224,6 +13223,14 @@ classdef Labeler < handle
       obj.currAxesYLim_ = value ;
     end  % function
 
+    function result = get.prevAxesSizeInPixels(obj)
+      result = obj.prevAxesSizeInPixels_ ;
+    end  % function
+
+    function set.prevAxesSizeInPixels(obj, value)
+      obj.prevAxesSizeInPixels_ = value ;
+    end  % function
+
     function isvalid = isPrevAxesModeInfoSet(obj)
       % Returns true iff obj.prevAxesModeTargetSpec_ is non-empty.
       isvalid = ~isempty(obj.prevAxesModeTargetSpec_) ;
@@ -14938,11 +14945,7 @@ classdef Labeler < handle
         obj.(PROPS.MFAHL)(obj.currMovie) = nTgtsTot;
       end
     end  % function
-    
-    function setCachedAxesProperties(obj, prevAxesSizeInPixels)
-      obj.prevAxesSizeInPixels_ = prevAxesSizeInPixels ;
-    end  % function
-    
+
     function setPrevAxesModeTarget(obj)
       % Set the target animal for the 'sidekick' axes to the current labeled target.
       % This also switches the model to PrevAxesMode.FROZEN. This is what happens
@@ -14952,10 +14955,6 @@ classdef Labeler < handle
       if ~obj.hasMovie
         return
       end
-
-      % Ask the controller to populate some of our fields with
-      % values that only it knows.
-      obj.notify('downdateCachedAxesProperties') ;
 
       % This implicitly sets to FROZEN mode
       obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
@@ -15010,10 +15009,6 @@ classdef Labeler < handle
 
       % Set the relevant prop to the passed arg
       obj.prevAxesMode_ = mode ;
-
-      % Ask the controller to populate some of our fields with
-      % values that only it knows.
-      obj.notify('downdateCachedAxesProperties') ;
 
       % Set the virtual lines/texts to what they should be
       obj.syncPrevAxesVirtualLabels_() ;

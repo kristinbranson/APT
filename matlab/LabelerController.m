@@ -546,8 +546,6 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxes',@(s,e)(obj.updatePrevAxes())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'downdateCachedAxesProperties',@(s,e)(obj.downdateCachedAxesProperties())) ;
-      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
 
       obj.fakeMenuTags = {
@@ -3691,6 +3689,9 @@ classdef LabelerController < handle
       hTx.Units = hTxUnits0;
       hPnlPrev.Units = hPnlPrevUnits0;
       obj.resizeTblFramesTrx_();
+
+      % Keep the labeler's cached prevAxesSizeInPixels in sync.
+      obj.labeler_.prevAxesSizeInPixels = obj.computePrevAxesSizeInPixels_() ;
 
       %obj.updateStatus() ;  % do we need this here?
     end
@@ -8165,7 +8166,8 @@ classdef LabelerController < handle
   %% PrevAxes
   methods
 
-    function result = getPrevAxesSizeInPixels(obj)
+    function result = computePrevAxesSizeInPixels_(obj)
+      % Compute the [w h] of the prev axes in pixels.
       units = get(obj.axes_prev, 'Units');
       set(obj.axes_prev, 'Units', 'pixels');
       pos = get(obj.axes_prev, 'Position');
@@ -8243,12 +8245,6 @@ classdef LabelerController < handle
         otherwise
           error('Unknown previous axes mode');
       end
-    end  % function
-
-    function downdateCachedAxesProperties(obj)
-      labeler = obj.labeler_ ;
-      prevAxesSizeInPixels = obj.getPrevAxesSizeInPixels() ;
-      labeler.setCachedAxesProperties(prevAxesSizeInPixels) ;
     end  % function
 
     function updatePrevAxes(obj)
