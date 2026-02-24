@@ -97,6 +97,7 @@ classdef LandmarkSpecs < handle
         axcProps.XDir = obj.parent_.axes_prev.XDir ;
         axcProps.YDir = obj.parent_.axes_prev.YDir ;
       end
+      axcProps.CameraViewAngleMode = 'auto' ;
       axesProps = {};
       for prop=fieldnames(axcProps)',
         axesProps(end+1:end+2) = {prop{1},axcProps.(prop{1})};

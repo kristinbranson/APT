@@ -31,7 +31,7 @@ classdef PrevAxesTargetSpec
   end  % properties
 
   properties (Dependent)
-    prevAxesProps  % scalar struct holding desired XLim/YLim/CameraViewAngleMode for the sidekick axes
+    prevAxesProps  % scalar struct holding desired XLim/YLim for the sidekick axes
   end  % properties
 
   methods
@@ -67,8 +67,7 @@ classdef PrevAxesTargetSpec
     function result = get.prevAxesProps(obj)
       % Compute the prevAxesProps struct from the stored xlim, ylim, dxlim, dylim.
       result = struct('XLim', obj.xlim + obj.dxlim, ...
-                      'YLim', obj.ylim + obj.dylim, ...
-                      'CameraViewAngleMode', 'auto') ;
+                      'YLim', obj.ylim + obj.dylim) ;
     end  % function
 
     function s = struct(obj)

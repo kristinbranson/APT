@@ -8323,6 +8323,7 @@ classdef LabelerController < handle
       for prop = fieldnames(axcProps)', prop = prop{1}; %#ok<FXSET>
         axp.(prop) = axcProps.(prop);
       end
+      axp.CameraViewAngleMode = 'auto' ;
       if targetSpec.isrotated,
         axp.CameraUpVectorMode = 'auto';
       end
