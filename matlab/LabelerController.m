@@ -249,9 +249,9 @@ classdef LabelerController < handle
     menu_track_backend_settings
     menu_track_backend_config_moreinfo
     menu_track_backend_config_test
-    lblPrev_ptsRealH_      % [npts] real Line gobjects on axes_prev
-    lblPrev_ptsTxtRealH_   % [npts] real Text gobjects on axes_prev
-    prevAxesModeTargetSpec_ = []  % PrevAxesTargetSpec or []; full rendering spec for frozen prev-axes, owned by controller
+    lblPrev_ptsRealH_      % [nPhysPoints] real Line gobjects on axes_prev
+    lblPrev_ptsTxtRealH_   % [nPhysPoints] real Text gobjects on axes_prev
+    prevAxesTargetSpec_ = []  % PrevAxesTargetSpec or []; full rendering spec for frozen prev-axes
   end
 
   methods
@@ -540,7 +540,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevAxes',@(s,e)(obj.updatePrevAxes())) ;
+        addlistener(obj.labeler_,'updatePrevPanel',@(s,e)(obj.updatePrevPanel())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
 
@@ -7887,7 +7887,7 @@ classdef LabelerController < handle
           end
           obj.txPrevIm.String = finalString ;
         case PrevAxesMode.FROZEN,
-          spec = obj.prevAxesModeTargetSpec_ ;
+          spec = obj.prevAxesTargetSpec_ ;
           if ~isempty(spec)
             obj.image_prev.XData = spec.xdata;
             obj.image_prev.YData = spec.ydata;
@@ -8139,11 +8139,6 @@ classdef LabelerController < handle
       end  % if ~FSPath.hasAnyMacro(movFile)
     end  % function
 
-  end  % methods
-
-  %% PrevAxes
-  methods
-
     function result = computePrevAxesSizeInPixels_(obj)
       % Compute the [w h] of the prev axes in pixels.
       units = get(obj.axes_prev, 'Units');
@@ -8156,38 +8151,30 @@ classdef LabelerController < handle
     function recomputePrevAxesSpec_(obj)
       % Recompute the full PrevAxesTargetSpec from the labeler's persisted spec.
       labeler = obj.labeler_ ;
-      pSpec = labeler.persistedPrevAxesTargetSpec ;
-      if isempty(pSpec)
-        obj.prevAxesModeTargetSpec_ = [] ;
+      coreTargetSpec = labeler.persistedPrevAxesTargetSpec ;
+      if isempty(coreTargetSpec)
+        obj.prevAxesTargetSpec_ = [] ;
         return
       end
       prevAxesYDir = get(obj.axes_prev, 'YDir') ;
       prevAxesSizeInPixels = obj.computePrevAxesSizeInPixels_() ;
-      obj.prevAxesModeTargetSpec_ = ...
-        labeler.computePrevAxesTargetSpec(pSpec.iMov, ...
-                                           pSpec.frm, ...
-                                           pSpec.iTgt, ...
-                                           pSpec.gtmode, ...
-                                           prevAxesYDir, ...
-                                           prevAxesSizeInPixels, ...
-                                           pSpec.dxlim, ...
-                                           pSpec.dylim) ;
+      obj.prevAxesTargetSpec_ = ...
+        labeler.computePrevAxesTargetSpec(coreTargetSpec.iMov, ...
+                                          coreTargetSpec.frm, ...
+                                          coreTargetSpec.iTgt, ...
+                                          coreTargetSpec.gtmode, ...
+                                          prevAxesYDir, ...
+                                          prevAxesSizeInPixels, ...
+                                          coreTargetSpec.dxlim, ...
+                                          coreTargetSpec.dylim) ;
     end  % function
 
     function updatePrevAxesLabels(obj)
       % Update the prev-axes label graphics directly from labeler data.
       labeler = obj.labeler_ ;
-      if ~labeler.hasMovie, return ; end
-
-      if labeler.isinit
-        set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
-      else
-        set(obj.pushbutton_freezetemplate, ...
-            'Enable', onIff(labeler.currFrameIsLabeled())) ;
-      end
 
       npts = labeler.nPhysPoints ;
-      if npts == 0, return ; end
+      % if npts == 0, return ; end
 
       if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= npts
         obj.nukeAndRepavePrevAxesLabels_() ;
@@ -8195,7 +8182,7 @@ classdef LabelerController < handle
 
       switch labeler.prevAxesMode
         case PrevAxesMode.FROZEN
-          spec = obj.prevAxesModeTargetSpec_ ;
+          spec = obj.prevAxesTargetSpec_ ;
           if isempty(spec)
             setPositionsOfLabelLinesAndTextsToNanBangBang(...
               obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
@@ -8212,14 +8199,14 @@ classdef LabelerController < handle
           end
         case PrevAxesMode.LASTSEEN
           if isnan(labeler.prevFrame)
-            setPositionsOfLabelLinesAndTextsToNanBangBang(...
-              obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
+            setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
             return
+          else
+            [~, lpos, ~] = ...
+              labeler.labelPosIsLabeled(labeler.prevFrame, ...
+                                        labeler.currTarget, ...
+                                        'iMov', labeler.currMovie) ;
           end
-          [~, lpos, ~] = ...
-            labeler.labelPosIsLabeled(labeler.prevFrame, ...
-                                      labeler.currTarget, ...
-                                      'iMov', labeler.currMovie) ;
         otherwise
           error('Unknown PrevAxesMode') ;
       end
@@ -8233,13 +8220,11 @@ classdef LabelerController < handle
         txtOffset) ;
     end  % function
 
-    function updatePrevAxesImageAndTextForLastSeenMode_(obj)
+    function updatePrevAxesForLastSeenMode_(obj)
       labeler = obj.labeler_;
-      if ~labeler.hasMovie || isempty(labeler.prevAxesMode),
-        return
-      end
 
-      set(obj.popupmenu_prevmode, 'Visible', 'on');
+      obj.prevAxesTargetSpec_ = [] ;
+      
       % update prevaxes image and txframe based on .prevIm, .prevFrame
       switch labeler.prevAxesMode
         case PrevAxesMode.LASTSEEN
@@ -8253,61 +8238,67 @@ classdef LabelerController < handle
         otherwise
           error('Unknown previous axes mode');
       end
+
+      axes_prev = obj.axes_prev;
+      set(axes_prev, ...
+          'CameraUpVectorMode', 'auto', ...
+          'CameraViewAngleMode', 'auto');
+      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir      
     end  % function
 
-    function updatePrevAxes(obj)
-      % Update the prev_axes, often after a change in the previous-axes panel mode
+    function updatePrevPanel(obj)
+      % Update the prev panel, including the controls and the prev_axes, and the
+      % things in the prev_axes (the image, the lines, the texts)
       labeler = obj.labeler_;
-      pamode = labeler.prevAxesMode ;
-      contents = cellstr(get(obj.popupmenu_prevmode, 'String'));
-      v1 = get(obj.popupmenu_prevmode, 'Value');
-      switch pamode
+
+      % Handle various degenerate cases
+      if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
+        set(obj.popupmenu_prevmode, 'Enable', 'off') ;
+        set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
+        set(obj.axes_prev, 'Visible', 'off') ;
+        return
+      end
+
+      % Update the enablement of the "Freeze" button.
+      islabeled = labeler.currFrameIsLabeled();
+      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
+
+      % Get the current mode
+      mode = labeler.prevAxesMode ;
+      
+      % Update the popup menu
+      stringFromMenuIndex = cellstr(get(obj.popupmenu_prevmode, 'String'));
+      switch mode
         case PrevAxesMode.FROZEN,
-          v2 = find(strcmpi(contents, 'Reference'));
+          menuIndex = find(strcmpi(stringFromMenuIndex, 'Reference'));
         case PrevAxesMode.LASTSEEN,
-          v2 = find(strcmpi(contents, 'Previous frame'));
+          menuIndex = find(strcmpi(stringFromMenuIndex, 'Previous frame'));
         otherwise
           error('Unknown previous axes mode');
       end
-      if v2 ~= v1,
-        set(obj.popupmenu_prevmode, 'Value', v2);
-      end
+      set(obj.popupmenu_prevmode, 'Value', menuIndex);
 
-      switch pamode
+      % Update the axes and things in it, except for the label gobjects
+      switch mode
         case PrevAxesMode.LASTSEEN
-          obj.prevAxesModeTargetSpec_ = [] ;
-          obj.updatePrevAxesImageAndTextForLastSeenMode_();
-          axp = obj.axes_prev;
-          set(axp, ...
-            'CameraUpVectorMode', 'auto', ...
-            'CameraViewAngleMode', 'auto');
-          obj.hLinkPrevCurr.Enabled = 'on'; % links X/Ylim, X/YDir
+          obj.updatePrevAxesForLastSeenMode_();
         case PrevAxesMode.FROZEN
-          obj.recomputePrevAxesSpec_() ;
           obj.updatePrevAxesForFrozenMode_();
         otherwise
-          assert(false);
-      end
+          error('Internal error: Unhandled PrevAxesMode level') ;
+      end  % switch
+
+      % Update the label line, text gobjects
       obj.updatePrevAxesLabels() ;
 
-      % Update the enablement of the "Freeze" button.
-      if labeler.hasMovie,
-        islabeled = labeler.currFrameIsLabeled();
-        set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
-      end
     end  % function
 
     function updatePrevAxesForFrozenMode_(obj)
       % Update the prev-axes display for FROZEN mode using the controller's full spec.
-
+      
       labeler = obj.labeler_;
-      if ~labeler.hasMovie,
-        return;
-      end
-      targetSpec = obj.prevAxesModeTargetSpec_ ;
-
-      set(obj.popupmenu_prevmode, 'Visible', 'on');
-      set(obj.pushbutton_freezetemplate, 'Enable', 'on');
+      obj.recomputePrevAxesSpec_() ;
+      targetSpec = obj.prevAxesTargetSpec_ ;
 
       obj.hLinkPrevCurr.Enabled = 'off';
 
@@ -8320,12 +8311,12 @@ classdef LabelerController < handle
           obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', targetSpec.iTgt)];
         end
         obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', targetSpec.iMov)];
-        axp = obj.axes_prev;
-        axp.XLim = targetSpec.xlim + targetSpec.dxlim ;
-        axp.YLim = targetSpec.ylim + targetSpec.dylim ;
-        axp.CameraViewAngleMode = 'auto' ;
+        axes_prev = obj.axes_prev;
+        axes_prev.XLim = targetSpec.xlim + targetSpec.dxlim ;
+        axes_prev.YLim = targetSpec.ylim + targetSpec.dylim ;
+        axes_prev.CameraViewAngleMode = 'auto' ;
         if targetSpec.isrotated,
-          axp.CameraUpVectorMode = 'auto';
+          axes_prev.CameraUpVectorMode = 'auto';
         end
       else
         obj.image_prev.CData = 0;
@@ -8337,7 +8328,7 @@ classdef LabelerController < handle
       % Update the persisted pan/zoom offsets from the current axes limits.
       labeler = obj.labeler_ ;
       if labeler.prevAxesMode ~= PrevAxesMode.FROZEN, return ; end
-      spec = obj.prevAxesModeTargetSpec_ ;
+      spec = obj.prevAxesTargetSpec_ ;
       if isempty(spec), return ; end
       newxlim = get(obj.axes_prev, 'XLim') ;
       newylim = get(obj.axes_prev, 'YLim') ;
@@ -8347,7 +8338,7 @@ classdef LabelerController < handle
         PersistedPrevAxesTargetSpec.setprop(labeler.persistedPrevAxesTargetSpec, ...
                                             'dxlim', dxlim, ...
                                             'dylim', dylim) ;
-      obj.prevAxesModeTargetSpec_ = ...
+      obj.prevAxesTargetSpec_ = ...
         PrevAxesTargetSpec.setprop(spec, 'dxlim', dxlim, 'dylim', dylim) ;
     end  % function
     

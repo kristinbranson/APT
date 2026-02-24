@@ -89,25 +89,25 @@ classdef LandmarkSpecs < handle
     function s = parseLabelerState(obj)
       % Parse labeler state for skeleton/swap/head-tail UI.
       lObj = obj.lObj ;
-      freezeInfo = obj.parent_.prevAxesModeTargetSpec_ ;
-      imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
-      im = freezeInfo.im;
-      axesProps = {'XLim', freezeInfo.xlim + freezeInfo.dxlim, ...
-                   'YLim', freezeInfo.ylim + freezeInfo.dylim, ...
+      targetSpec = obj.parent_.prevAxesTargetSpec_ ;
+      imagescArgs = {'XData',targetSpec.xdata,'YData',targetSpec.ydata};
+      im = targetSpec.im;
+      axesProps = {'XLim', targetSpec.xlim + targetSpec.dxlim, ...
+                   'YLim', targetSpec.ylim + targetSpec.dylim, ...
                    'CameraViewAngleMode', 'auto'} ;
       if ~isempty(obj.parent_)
         axesProps = [axesProps, ...
                      {'XDir', obj.parent_.axes_prev.XDir, ...
                       'YDir', obj.parent_.axes_prev.YDir}] ;
       end
-      if freezeInfo.isrotated,
+      if targetSpec.isrotated,
         axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};
       end
-      isrotated = freezeInfo.isrotated;
+      isrotated = targetSpec.isrotated;
 
-      iMov = freezeInfo.iMov;
-      frm = freezeInfo.frm;
-      iTgt = freezeInfo.iTgt;
+      iMov = targetSpec.iMov;
+      frm = targetSpec.frm;
+      iTgt = targetSpec.iTgt;
 
       lpos = lObj.labelsGTaware;
       s = lpos{iMov};
@@ -120,7 +120,7 @@ classdef LandmarkSpecs < handle
       pts(nan_pts,:) = rp(nan_pts,:);
       %pts = lpos{iMov}(:,:,frm,iTgt);
       if isrotated,
-        pts = [pts,ones(size(pts,1),1)]*freezeInfo.A;
+        pts = [pts,ones(size(pts,1),1)]*targetSpec.A;
         pts = pts(:,1:2);
       end
       labelCM = lObj.LabelPointColors;
@@ -427,7 +427,7 @@ classdef LandmarkSpecs < handle
       obj.unselectedMarkerSize = unselMarkerSize;
       obj.unselectedLineWidth = unselLineWidth;
       
-      if isempty(obj.parent_) || isempty(obj.parent_.prevAxesModeTargetSpec_)
+      if isempty(obj.parent_) || isempty(obj.parent_.prevAxesTargetSpec_)
         errordlg('Please freeze a labeled reference image for use with this UI.',...
           'No Reference Image');
         return;

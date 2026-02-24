@@ -160,7 +160,7 @@ classdef Labeler < handle
     didSetTrackDLBackEnd
     didSetTrackNFramesSmall
     didSetTrackNFramesLarge
-    didSetTrackNFramesNear
+    didSetTrackNFramesNearfreezeInfo
     didSetTrackParams
     didSpawnTrackingForGT
     didComputeGTResults
@@ -189,7 +189,7 @@ classdef Labeler < handle
     updateCurrImagesAllViews
     updatePrevAxesImage
     updatePrevAxesLabels
-    updatePrevAxes
+    updatePrevPanel
     updateShortcuts
   end
 
@@ -2734,7 +2734,7 @@ classdef Labeler < handle
           obj.persistedPrevAxesTargetSpec_ = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
         end
       end
-      obj.notify('updatePrevAxes') ;
+      obj.notify('updatePrevPanel') ;
 
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
@@ -14769,7 +14769,7 @@ classdef Labeler < handle
                                     'frm', obj.currFrame, ...
                                     'iTgt', obj.currTarget, ...
                                     'gtmode', obj.gtIsGTMode) ;
-      obj.notify('updatePrevAxes') ;
+      obj.notify('updatePrevPanel') ;
     end
 
     function prevAxesMovieRemap_(obj, mIdxOrig2New)
@@ -14782,26 +14782,26 @@ classdef Labeler < handle
         obj.persistedPrevAxesTargetSpec_ = ...
           PersistedPrevAxesTargetSpec.setprop(obj.persistedPrevAxesTargetSpec_, ...
                                               'iMov', newIdx) ;
-        obj.notify('updatePrevAxes') ;
+        obj.notify('updatePrevPanel') ;
       end
     end  % function
 
     function clearPrevAxesModeTarget(obj)
       % Clear the frozen prev-axes target spec.
       obj.persistedPrevAxesTargetSpec_ = [] ;
-      obj.notify('updatePrevAxes') ;
+      obj.notify('updatePrevPanel') ;
     end  % function
 
     function restorePrevAxesMode(obj)
-      % Fire updatePrevAxes to restore the prev-axes display to match the current model state.
-      obj.notify('updatePrevAxes') ;
+      % Fire updatePrevPanel to restore the prev-axes display to match the current model state.
+      obj.notify('updatePrevPanel') ;
     end
 
     function setPrevAxesMode(obj, mode)
       % Set the mode for the 'sidekick' axes.
       assert(isa(mode, 'PrevAxesMode')) ;
       obj.prevAxesMode_ = mode ;
-      obj.notify('updatePrevAxes') ;
+      obj.notify('updatePrevPanel') ;
     end
     
 
