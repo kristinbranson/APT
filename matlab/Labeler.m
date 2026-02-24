@@ -730,9 +730,12 @@ classdef Labeler < handle
     prevImRoi = [] 
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
     prevAxesModeTargetSpec_ = []  % PrevAxesTargetSpec or []; identity + rendering data for frozen/prev-axes frame
-    prevAxesYDir_ = 'reverse'  % cached YDir of prev axes, set by downdateCachedAxesProperties
-    currAxesProps_ = struct('XDir', 'normal', 'YDir', 'reverse', 'XLim', [0.5 1024.5], 'YLim', [0.5 1024.5])  % cached props of curr axes
-    prevAxesSizeInPixels_ = [256 256]  % cached [w h] of prev axes in pixels
+    prevAxesYDir_ = 'reverse'  % YDir of prev axes, set by downdateCachedAxesProperties
+    prevAxesSizeInPixels_ = [256 256]  % [w h] of prev axes in pixels
+    currAxesXDir_ = 'normal'  % XDir of curr axes
+    currAxesYDir_ = 'reverse'  % YDir of curr axes
+    currAxesXLim_ = [0.5 1024.5]  % XLim of curr axes
+    currAxesYLim_ = [0.5 1024.5]  % YLim of curr axes
     lblPrev_ptsH  % [npts] VirtualLine. init: L
     lblPrev_ptsTxtH  % [npts] VirtualText. init: L
   end
@@ -13207,7 +13210,6 @@ classdef Labeler < handle
         obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, obj.prevAxesYDir_) ;
 
       % Compute xlim, ylim, xdir, ydir from the label positions
-      axesCurrProps = obj.currAxesProps_ ;
       prevAxesSize = obj.prevAxesSizeInPixels_ ;
       viewi = 1 ;
       ptidx = (obj.labeledposIPt2View == viewi) ;
@@ -14892,10 +14894,13 @@ classdef Labeler < handle
       end
     end  % function
     
-    function setCachedAxesProperties(obj, prevAxesYDir, currAxesProps, prevAxesSizeInPixels)
-      obj.prevAxesYDir_ = prevAxesYDir;
-      obj.currAxesProps_ = currAxesProps;
-      obj.prevAxesSizeInPixels_ = prevAxesSizeInPixels;
+    function setCachedAxesProperties(obj, prevAxesYDir, currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels)
+      obj.prevAxesYDir_ = prevAxesYDir ;
+      obj.currAxesXDir_ = currAxesXDir ;
+      obj.currAxesYDir_ = currAxesYDir ;
+      obj.currAxesXLim_ = currAxesXLim ;
+      obj.currAxesYLim_ = currAxesYLim ;
+      obj.prevAxesSizeInPixels_ = prevAxesSizeInPixels ;
     end  % function
     
     function setPrevAxesModeTarget(obj)

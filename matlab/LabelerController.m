@@ -8145,11 +8145,11 @@ classdef LabelerController < handle
   %% PrevAxes
   methods
 
-    function props = getAxesCurrProps_(obj)
-      props = struct('XDir', obj.axes_curr.XDir, ...
-                     'YDir', obj.axes_curr.YDir, ...
-                     'XLim', obj.axes_curr.XLim, ...
-                     'YLim', obj.axes_curr.YLim);
+    function [xdir, ydir, xlim, ylim] = getAxesCurrProps_(obj)
+      xdir = obj.axes_curr.XDir ;
+      ydir = obj.axes_curr.YDir ;
+      xlim = obj.axes_curr.XLim ;
+      ylim = obj.axes_curr.YLim ;
     end  % function
 
     function result = getPrevAxesSizeInPixels(obj)
@@ -8160,11 +8160,11 @@ classdef LabelerController < handle
       result = pos(3:4);
     end  % function
 
-    function [axesCurrProps, prevAxesSize, prevAxesYDir] = getPrevAxesAndCurrAxesProperties_(obj)
+    function [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSize, prevAxesYDir] = getPrevAxesAndCurrAxesProperties_(obj)
       % Non-mutating.  Queries current axes properties needed for prev-axes operations.
-      axesCurrProps = obj.getAxesCurrProps_();
-      prevAxesSize = obj.getPrevAxesSizeInPixels();
-      prevAxesYDir = get(obj.axes_prev, 'YDir');
+      [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim] = obj.getAxesCurrProps_() ;
+      prevAxesSize = obj.getPrevAxesSizeInPixels() ;
+      prevAxesYDir = get(obj.axes_prev, 'YDir') ;
     end  % function
 
     function updatePrevAxesLabels(obj)
@@ -8240,9 +8240,10 @@ classdef LabelerController < handle
     end  % function
 
     function downdateCachedAxesProperties(obj)
-      labeler = obj.labeler_;
-      [currAxesProps, prevAxesSizeInPixels, prevAxesYDir] = obj.getPrevAxesAndCurrAxesProperties_();
-      labeler.setCachedAxesProperties(prevAxesYDir, currAxesProps, prevAxesSizeInPixels);
+      labeler = obj.labeler_ ;
+      [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels, prevAxesYDir] = ...
+        obj.getPrevAxesAndCurrAxesProperties_() ;
+      labeler.setCachedAxesProperties(prevAxesYDir, currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels) ;
     end  % function
 
     function updatePrevAxes(obj)
