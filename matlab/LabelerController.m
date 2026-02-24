@@ -5370,9 +5370,8 @@ classdef LabelerController < handle
         for iAx = iAxApply(:)'
           ax = obj.axes_all(iAx);
           ax.XDir = toggleAxisDir(ax.XDir);
-          obj.syncPrevAxesDirectionsFromCurrAxes_();
-          toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
+        obj.syncPrevAxesDirectionsFromCurrAxes_();
         if ~labeler.isMultiView,
           toggleOnOff(obj.menu_view_flip_fliplr,'Checked');
         end
