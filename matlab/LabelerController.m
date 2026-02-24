@@ -3967,6 +3967,8 @@ classdef LabelerController < handle
     end
 
     function axesCurrXDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
+      % Keep the labeler's cached currAxesXDir in sync with the axes_curr XDir.
+      obj.labeler_.currAxesXDir = get(obj.axes_curr, 'XDir') ;
       obj.videoRotateTargetUpAxisDirCheckWarn_() ;
     end
 
@@ -8152,8 +8154,7 @@ classdef LabelerController < handle
   %% PrevAxes
   methods
 
-    function [xdir, ydir, xlim, ylim] = getAxesCurrProps_(obj)
-      xdir = obj.axes_curr.XDir ;
+    function [ydir, xlim, ylim] = getAxesCurrProps_(obj)
       ydir = obj.axes_curr.YDir ;
       xlim = obj.axes_curr.XLim ;
       ylim = obj.axes_curr.YLim ;
@@ -8167,9 +8168,9 @@ classdef LabelerController < handle
       result = pos(3:4);
     end  % function
 
-    function [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSize] = getPrevAxesAndCurrAxesProperties_(obj)
+    function [currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSize] = getPrevAxesAndCurrAxesProperties_(obj)
       % Non-mutating.  Queries current axes properties needed for prev-axes operations.
-      [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim] = obj.getAxesCurrProps_() ;
+      [currAxesYDir, currAxesXLim, currAxesYLim] = obj.getAxesCurrProps_() ;
       prevAxesSize = obj.getPrevAxesSizeInPixels() ;
     end  % function
 
@@ -8247,9 +8248,9 @@ classdef LabelerController < handle
 
     function downdateCachedAxesProperties(obj)
       labeler = obj.labeler_ ;
-      [currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels] = ...
+      [currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels] = ...
         obj.getPrevAxesAndCurrAxesProperties_() ;
-      labeler.setCachedAxesProperties(currAxesXDir, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels) ;
+      labeler.setCachedAxesProperties(currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels) ;
     end  % function
 
     function updatePrevAxes(obj)
