@@ -1,7 +1,7 @@
 classdef PrevAxesTargetSpec
   % Value class holding both the identity and rendering data for the frozen/prev-axes frame.
   % Identity fields: iMov, frm, iTgt, gtmode.
-  % Rendering fields: im, isrotated, xdata, ydata, A, tform, xlim, ylim, dxlim, dylim, xdir, ydir.
+  % Rendering fields: im, isrotated, xdata, ydata, A, tform, xlim, ylim, dxlim, dylim.
   %
   % Every PrevAxesTargetSpec in existence is fully valid: the constructor
   % takes either a single struct or name-value pairs for all properties, and
@@ -28,12 +28,10 @@ classdef PrevAxesTargetSpec
     tform  % a transformation object related to A, or []
     xlim  % the computed x-axis limits to use when showing the target, a 2-el row vec
     ylim  % the computed y-axis limits to use when showing the target, a 2-el row vec
-    xdir  % charray, 'normal' or 'reverse', the x-axis direction for the sidekick axes
-    ydir  % charray, 'normal' or 'reverse', the y-axis direction for the sidekick axes
   end  % properties
 
-  properties (Dependent, Transient)
-    prevAxesProps  % scalar struct holding desired XDir/YDir/XLim/YLim/CameraViewAngleMode for the sidekick axes
+  properties (Dependent)
+    prevAxesProps  % scalar struct holding desired XLim/YLim/CameraViewAngleMode for the sidekick axes
   end  % properties
 
   methods
@@ -61,17 +59,14 @@ classdef PrevAxesTargetSpec
                 ~isempty(obj.xdata) && ...
                 ~isempty(obj.ydata) && ...
                 ~isempty(obj.xlim) && ...
-                ~isempty(obj.ylim) && ...
-                ~isempty(obj.xdir) && ~isempty(obj.ydir) ;
+                ~isempty(obj.ylim) ;
       assert(isValid, ...
              'PrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
     function result = get.prevAxesProps(obj)
-      % Compute the prevAxesProps struct from the stored xdir, ydir, xlim, ylim, dxlim, dylim.
-      result = struct('XDir', obj.xdir, ...
-                      'YDir', obj.ydir, ...
-                      'XLim', obj.xlim + obj.dxlim, ...
+      % Compute the prevAxesProps struct from the stored xlim, ylim, dxlim, dylim.
+      result = struct('XLim', obj.xlim + obj.dxlim, ...
                       'YLim', obj.ylim + obj.dylim, ...
                       'CameraViewAngleMode', 'auto') ;
     end  % function
@@ -83,8 +78,7 @@ classdef PrevAxesTargetSpec
                  'im', obj.im, 'isrotated', obj.isrotated, ...
                  'xdata', obj.xdata, 'ydata', obj.ydata, ...
                  'A', obj.A, 'tform', obj.tform, ...
-                 'xlim', obj.xlim, 'ylim', obj.ylim, ...
-                 'xdir', obj.xdir, 'ydir', obj.ydir) ;
+                 'xlim', obj.xlim, 'ylim', obj.ylim) ;
     end  % function
   end  % methods
 

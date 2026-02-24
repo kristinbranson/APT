@@ -13289,9 +13289,7 @@ classdef Labeler < handle
                                 'xlim', xlim, ...
                                 'ylim', ylim, ...
                                 'dxlim', dxlim, ...
-                                'dylim', dylim, ...
-                                'xdir', axesCurrProps.XDir, ...
-                                'ydir', axesCurrProps.YDir) ;
+                                'dylim', dylim) ;
     end  % function
     
     function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
@@ -14985,16 +14983,6 @@ classdef Labeler < handle
       spec = obj.prevAxesModeTargetSpec_ ;
       obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(spec, ...
         'dxlim', newxlim - spec.xlim, 'dylim', newylim - spec.ylim) ;
-    end  % function
-
-    function setPrevAxesDirections(obj, xdir, ydir)
-      % Set the axis directions for the frozen prev-axes.
-      if isempty(obj.prevAxesModeTargetSpec_)
-        return
-      end
-      obj.prevAxesModeTargetSpec_ = ...
-        PrevAxesTargetSpec.setprop(obj.prevAxesModeTargetSpec_, 'xdir', xdir, 'ydir', ydir) ;
-      obj.restorePrevAxesMode() ;
     end  % function
 
   end  % methods

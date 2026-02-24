@@ -3406,7 +3406,6 @@ classdef LabelerController < handle
       end
       mnu = obj.menu_view_rotate_video_target_up;
       mnu.Checked = onIff(tf);
-      obj.syncPrevAxesDirectionsFromCurrAxes_();
     end  % function
 
     function cbkMovieForceGrayscaleChanged(obj, src, evt)  %#ok<INUSD>
@@ -5353,7 +5352,6 @@ classdef LabelerController < handle
           ax = obj.axes_all(iAx);
           ax.YDir = toggleAxisDir(ax.YDir);
         end
-        obj.syncPrevAxesDirectionsFromCurrAxes_();
         if ~labeler.isMultiView,
           toggleOnOff(obj.menu_view_flip_flipud,'Checked');
         end
@@ -5371,7 +5369,6 @@ classdef LabelerController < handle
           ax = obj.axes_all(iAx);
           ax.XDir = toggleAxisDir(ax.XDir);
         end
-        obj.syncPrevAxesDirectionsFromCurrAxes_();
         if ~labeler.isMultiView,
           toggleOnOff(obj.menu_view_flip_fliplr,'Checked');
         end
@@ -8342,12 +8339,6 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function syncPrevAxesDirectionsFromCurrAxes_(obj)
-      xdir = get(obj.axes_curr, 'XDir');
-      ydir = get(obj.axes_curr, 'YDir');
-      obj.labeler_.setPrevAxesDirections(xdir, ydir);
-    end  % function
-
     function nukeAndRepavePrevAxesLabels_(obj)
       % Delete the existing label gobjects and recreate them.
       deleteValidGraphicsHandles(obj.lblPrev_ptsRealH_);
