@@ -497,11 +497,11 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetShowMaRoiAux',@(s,e)(obj.cbkShowMaRoiAuxChanged(s,e)));
 
       obj.listeners_(end+1) = ...
-        addlistener(obj.axes_curr,'XLim','PostSet',@(s,e)(obj.axescurrXLimChanged(s,e))) ;
+        addlistener(obj.axes_curr,'XLim','PostSet',@(s,e)(obj.axesCurrXLimChanged(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.axes_curr,'XDir','PostSet',@(s,e)(obj.axescurrXDirChanged(s,e))) ;
+        addlistener(obj.axes_curr,'XDir','PostSet',@(s,e)(obj.axesCurrXDirChanged(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.axes_curr,'YDir','PostSet',@(s,e)(obj.axescurrYDirChanged(s,e))) ;
+        addlistener(obj.axes_curr,'YDir','PostSet',@(s,e)(obj.axesCurrYDirChanged(s,e))) ;
 
       % obj.listeners_(end+1) = ...
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
@@ -3942,8 +3942,7 @@ classdef LabelerController < handle
       obj.hlpRemoveFocus_() ;
     end
 
-    function axescurrXLimChanged(obj, hObject, eventdata)  %#ok<INUSD>
-      %labeler = obj.labeler_ ;
+    function axesCurrXLimChanged(obj, hObject, eventdata)  %#ok<INUSD>
       ax = eventdata.AffectedObject;
       radius = diff(ax.XLim)/2;
       hSld = obj.sldZoom;
@@ -3966,11 +3965,11 @@ classdef LabelerController < handle
       end
     end
 
-    function axescurrXDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
+    function axesCurrXDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
       obj.videoRotateTargetUpAxisDirCheckWarn_() ;
     end
 
-    function axescurrYDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
+    function axesCurrYDirChanged(obj, hObject, eventdata)  %#ok<INUSD>
       obj.videoRotateTargetUpAxisDirCheckWarn_() ;
     end
     

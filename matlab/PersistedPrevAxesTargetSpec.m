@@ -35,8 +35,11 @@ classdef PersistedPrevAxesTargetSpec
         else
           props = struct(varargin{:}) ;
         end
+        myProps = properties(obj) ;
         for fieldName = fieldnames(props)'
-          obj.(fieldName{1}) = props.(fieldName{1}) ;
+          if ismember(fieldName{1}, myProps)
+            obj.(fieldName{1}) = props.(fieldName{1}) ;
+          end
         end
       end
       isValid = isScalarFiniteNonneg(obj.iMov) && ...
