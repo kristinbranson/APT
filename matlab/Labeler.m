@@ -160,7 +160,7 @@ classdef Labeler < handle
     didSetTrackDLBackEnd
     didSetTrackNFramesSmall
     didSetTrackNFramesLarge
-    didSetTrackNFramesNearfreezeInfo
+    didSetTrackNFramesNear
     didSetTrackParams
     didSpawnTrackingForGT
     didComputeGTResults
