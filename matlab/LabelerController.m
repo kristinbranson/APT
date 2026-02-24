@@ -7894,7 +7894,7 @@ classdef LabelerController < handle
           obj.txPrevIm.String = finalString ;
         case PrevAxesMode.FROZEN,
           spec = labeler.prevAxesModeTargetSpec ;
-          if spec.isValid()
+          if ~isempty(spec)
             obj.image_prev.XData = spec.xdata;
             obj.image_prev.YData = spec.ydata;
             obj.image_prev.CData = spec.im;
@@ -8309,7 +8309,7 @@ classdef LabelerController < handle
       set(obj.popupmenu_prevmode, 'Visible', 'on');
       set(obj.pushbutton_freezetemplate, 'Enable', 'on');
 
-      if spec.isValid()
+      if ~isempty(spec)
         obj.image_prev.XData = spec.xdata;
         obj.image_prev.YData = spec.ydata;
         obj.image_prev.CData = spec.im;
