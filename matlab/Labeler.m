@@ -13140,7 +13140,7 @@ classdef Labeler < handle
       obj.persistedPrevAxesTargetSpec_ = value ;
     end  % function
     
-    function spec = computePrevAxesTargetSpec_(obj, iMov, frm, iTgt, gtmode, ...
+    function spec = computePrevAxesTargetSpec(obj, iMov, frm, iTgt, gtmode, ...
                                                 prevAxesYDir, prevAxesSizeInPixels, dxlim0, dylim0)
       % Compute a fresh, fully-populated PrevAxesTargetSpec from the given
       % identity fields, offset fields, and the current Labeler state.
@@ -13190,7 +13190,7 @@ classdef Labeler < handle
 
       % Adjust aspect ratio to match the prev-axes widget
       axw = prevAxesSizeInPixels(1) ;
-      axh = prevAxesSize(2) ;
+      axh = prevAxesSizeInPixels(2) ;
       axszratio = axw / axh ;
       limratio = diff(xlim_raw) / diff(ylim_raw) ;
       if axszratio > limratio
