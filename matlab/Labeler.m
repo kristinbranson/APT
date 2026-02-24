@@ -2740,10 +2740,14 @@ classdef Labeler < handle
         if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
           persistedSpec = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
           obj.notify('downdateCachedAxesProperties') ;
-          obj.prevAxesModeTargetSpec_ = obj.computePrevAxesTargetSpec_( ...
-            persistedSpec.iMov, persistedSpec.frm, persistedSpec.iTgt, persistedSpec.gtmode, ...
-            persistedSpec.dxlim, persistedSpec.dylim) ;
-          obj.prevAxesSetFrozenLabels_() ;
+          obj.prevAxesModeTargetSpec_ = ...
+            obj.computePrevAxesTargetSpec_(persistedSpec.iMov, ...
+                                           persistedSpec.frm, ...
+                                           persistedSpec.iTgt, ...
+                                           persistedSpec.gtmode, ...
+                                           persistedSpec.dxlim, ...
+                                           persistedSpec.dylim) ;
+          obj.syncPrevAxesVirtualLabelsForFrozen_() ;
         end
       end
       obj.notify('updatePrevAxes') ;
@@ -8950,15 +8954,9 @@ classdef Labeler < handle
       mode = obj.prevAxesMode;
       switch mode
         case PrevAxesMode.FROZEN
-          if ~isempty(obj.prevAxesModeTargetSpec_)
-            try
-              obj.prevAxesSetFrozenLabels_();
-            catch
-              % do nothing
-            end
-          end
+          obj.syncPrevAxesVirtualLabelsForFrozen_();
         case PrevAxesMode.LASTSEEN
-          obj.prevAxesSetLastseenLabels_();
+          obj.syncPrevAxesVirtualLabelsForLastseen_();
         otherwise
           error('Internal error: Unknown PrevAxesMode enumeration: %s', char(mode));
       end
@@ -13217,40 +13215,40 @@ classdef Labeler < handle
       centerpos = (minpos + maxpos) / 2 ;
       borderfrac = .5 ;
       r = max(1, (maxpos - minpos) / 2 * (1 + borderfrac)) ;
-      computedXlim = centerpos(1) + [-1 1] * r(1) ;
-      computedYlim = centerpos(2) + [-1 1] * r(2) ;
+      xlim = centerpos(1) + [-1 1] * r(1) ;
+      ylim = centerpos(2) + [-1 1] * r(2) ;
 
       % Adjust aspect ratio to match the prev-axes widget
       axw = prevAxesSize(1) ;
       axh = prevAxesSize(2) ;
       axszratio = axw / axh ;
-      limratio = diff(computedXlim) / diff(computedYlim) ;
+      limratio = diff(xlim) / diff(ylim) ;
       if axszratio > limratio
         extendratio = axszratio / limratio ;
-        computedXlim = centerpos(1) + [-1 1] * r(1) * extendratio ;
+        xlim = centerpos(1) + [-1 1] * r(1) * extendratio ;
       elseif axszratio < limratio
         extendratio = limratio / axszratio ;
-        computedYlim = centerpos(2) + [-1 1] * r(2) * extendratio ;
+        ylim = centerpos(2) + [-1 1] * r(2) * extendratio ;
       end
 
       % Apply the pan offsets
-      computedXlim0 = computedXlim ;
-      computedYlim0 = computedYlim ;
-      computedXlim = computedXlim + dxlim ;
-      computedYlim = computedYlim + dylim ;
+      xlim0 = xlim ;
+      ylim0 = ylim ;
+      xlim = xlim + dxlim ;
+      ylim = ylim + dylim ;
       % Make sure all parts are visible
-      if minpos(1) < computedXlim(1) || minpos(2) < computedYlim(1) || maxpos(1) > computedXlim(2) || maxpos(2) < computedYlim(2)
+      if minpos(1) < xlim(1) || minpos(2) < ylim(1) || maxpos(1) > xlim(2) || maxpos(2) < ylim(2)
         dxlim = [0 0] ;
         dylim = [0 0] ;
-        computedXlim = computedXlim0 ;
-        computedYlim = computedYlim0 ;
+        xlim = xlim0 ;
+        ylim = ylim0 ;
       end
-      computedXlim = fixLim(computedXlim) ;
-      computedYlim = fixLim(computedYlim) ;
+      xlim = fixLim(xlim) ;
+      ylim = fixLim(ylim) ;
 
       % Package up prevAxesProps
-      prevAxesProps = struct('XLim', computedXlim, ...
-                             'YLim', computedYlim, ...
+      prevAxesProps = struct('XLim', xlim, ...
+                             'YLim', ylim, ...
                              'XDir', axesCurrProps.XDir, ...
                              'YDir', axesCurrProps.YDir, ...
                              'CameraViewAngleMode', 'auto') ;
@@ -13260,7 +13258,7 @@ classdef Labeler < handle
         'iMov', iMov, 'frm', frm, 'iTgt', iTgt, 'gtmode', gtmode, ...
         'im', im, 'isrotated', isrotated, 'xdata', xdata, 'ydata', ydata, ...
         'A', A, 'tform', tform, ...
-        'xlim', computedXlim, 'ylim', computedYlim, ...
+        'xlim', xlim, 'ylim', ylim, ...
         'dxlim', dxlim, 'dylim', dylim, ...
         'prevAxesProps', prevAxesProps) ;
     end  % function
@@ -13346,7 +13344,7 @@ classdef Labeler < handle
       end  % for
     end  % function
 
-    function prevAxesSetFrozenLabels_(obj)
+    function syncPrevAxesVirtualLabelsForFrozen_(obj)
       % Set prev-axes label positions for FROZEN mode from obj.prevAxesModeTargetSpec_.
 
       persistent tfWarningThrownAlready
@@ -13376,7 +13374,7 @@ classdef Labeler < handle
       end
     end  % function
 
-    function prevAxesSetLastseenLabels_(obj)
+    function syncPrevAxesVirtualLabelsForLastseen_(obj)
       % Set prev-axes label positions for LASTSEEN mode.
 
       persistent tfWarningThrownAlready
@@ -14889,11 +14887,16 @@ classdef Labeler < handle
       obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
 
       % Compute the full spec from current frame/target, with zero pan offsets
-      obj.prevAxesModeTargetSpec_ = obj.computePrevAxesTargetSpec_( ...
-        obj.currMovie, obj.currFrame, obj.currTarget, obj.gtIsGTMode, [0 0], [0 0]) ;
+      obj.prevAxesModeTargetSpec_ = ...
+        obj.computePrevAxesTargetSpec_(obj.currMovie, ...
+                                       obj.currFrame, ...
+                                       obj.currTarget, ...
+                                       obj.gtIsGTMode, ...
+                                       [0 0], ...
+                                       [0 0]) ;
 
       % Set up the virtual line and text objects
-      obj.prevAxesSetFrozenLabels_() ;
+      obj.syncPrevAxesVirtualLabelsForFrozen_() ;
 
       % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
@@ -14936,21 +14939,12 @@ classdef Labeler < handle
       % Set the relevant prop to the passed arg
       obj.prevAxesMode_ = mode ;
 
-      % If frozen mode with existing spec, rebuild
-      if mode == PrevAxesMode.FROZEN && obj.hasMovie && ~isempty(obj.prevAxesModeTargetSpec_)
-        % Ask the controller to populate some of our fields with
-        % values that only it knows.
-        obj.notify('downdateCachedAxesProperties') ;
+      % Ask the controller to populate some of our fields with
+      % values that only it knows.
+      obj.notify('downdateCachedAxesProperties') ;
 
-        % Recompute the full spec from the existing identity + dxlim/dylim
-        existingSpec = obj.prevAxesModeTargetSpec_ ;
-        obj.prevAxesModeTargetSpec_ = obj.computePrevAxesTargetSpec_( ...
-          existingSpec.iMov, existingSpec.frm, existingSpec.iTgt, existingSpec.gtmode, ...
-          existingSpec.dxlim, existingSpec.dylim) ;
-
-        % Set the virtual lines/texts to what they should be
-        obj.prevAxesSetFrozenLabels_() ;
-      end
+      % Set the virtual lines/texts to what they should be
+      obj.syncPrevAxesVirtualLabels_() ;
 
       % Fire an event to update the GUI
       obj.notify('updatePrevAxes') ;
@@ -14965,9 +14959,11 @@ classdef Labeler < handle
       newPrevAxesProps = spec.prevAxesProps ;
       newPrevAxesProps.XLim = newxlim ;
       newPrevAxesProps.YLim = newylim ;
-      obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(spec, ...
-        'dxlim', spec.dxlim + dx, 'dylim', spec.dylim + dy, ...
-        'prevAxesProps', newPrevAxesProps) ;
+      obj.prevAxesModeTargetSpec_ = ...
+        PrevAxesTargetSpec.setprop(spec, ...
+                                   'dxlim', spec.dxlim + dx, ...
+                                   'dylim', spec.dylim + dy, ...
+                                   'prevAxesProps', newPrevAxesProps) ;
     end  % function
 
     function setPrevAxesDirections(obj, xdir, ydir)
