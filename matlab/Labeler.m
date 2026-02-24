@@ -733,7 +733,7 @@ classdef Labeler < handle
     prevAxesYDir_ = 'reverse'  % YDir of prev axes, kept in sync by PostSet listener on axes_prev
     prevAxesSizeInPixels_ = [256 256]  % [w h] of prev axes in pixels
     currAxesXDir_ = 'normal'  % XDir of curr axes, kept in sync by PostSet listener on axes_curr
-    currAxesYDir_ = 'reverse'  % YDir of curr axes
+    currAxesYDir_ = 'reverse'  % YDir of curr axes, kept in sync by PostSet listener on axes_curr
     currAxesXLim_ = [0.5 1024.5]  % XLim of curr axes
     currAxesYLim_ = [0.5 1024.5]  % YLim of curr axes
     lblPrev_ptsH  % [npts] VirtualLine. init: L
@@ -745,6 +745,7 @@ classdef Labeler < handle
     prevAxesModeTargetSpec
     prevAxesYDir
     currAxesXDir
+    currAxesYDir
   end
   
   %% Misc
@@ -13197,6 +13198,14 @@ classdef Labeler < handle
       obj.currAxesXDir_ = value ;
     end  % function
 
+    function result = get.currAxesYDir(obj)
+      result = obj.currAxesYDir_ ;
+    end  % function
+
+    function set.currAxesYDir(obj, value)
+      obj.currAxesYDir_ = value ;
+    end  % function
+
     function isvalid = isPrevAxesModeInfoSet(obj)
       % Returns true iff obj.prevAxesModeTargetSpec_ is non-empty.
       isvalid = ~isempty(obj.prevAxesModeTargetSpec_) ;
@@ -14912,8 +14921,7 @@ classdef Labeler < handle
       end
     end  % function
     
-    function setCachedAxesProperties(obj, currAxesYDir, currAxesXLim, currAxesYLim, prevAxesSizeInPixels)
-      obj.currAxesYDir_ = currAxesYDir ;
+    function setCachedAxesProperties(obj, currAxesXLim, currAxesYLim, prevAxesSizeInPixels)
       obj.currAxesXLim_ = currAxesXLim ;
       obj.currAxesYLim_ = currAxesYLim ;
       obj.prevAxesSizeInPixels_ = prevAxesSizeInPixels ;
