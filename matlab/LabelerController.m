@@ -8198,15 +8198,8 @@ classdef LabelerController < handle
             lpos = lpos(:, 1:2) ;
           end
         case PrevAxesMode.LASTSEEN
-          if isnan(labeler.prevFrame)
-            setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-            return
-          else
-            [~, lpos, ~] = ...
-              labeler.labelPosIsLabeled(labeler.prevFrame, ...
-                                        labeler.currTarget, ...
-                                        'iMov', labeler.currMovie) ;
-          end
+          setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
+          return
         otherwise
           error('Unknown PrevAxesMode') ;
       end
