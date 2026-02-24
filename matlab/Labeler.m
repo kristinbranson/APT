@@ -727,12 +727,12 @@ classdef Labeler < handle
     prevIm = []
     prevImRoi = [] 
     prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
-    persistedPrevAxesTargetSpec_ = []  % PersistedPrevAxesTargetSpec or []; persisted identity + pan/zoom offsets for frozen/prev-axes frame
+    corePrevAxesTargetSpec_ = []  % CorePrevAxesTargetSpec or []; persisted identity + pan/zoom offsets for frozen/prev-axes frame
   end
 
   properties (Dependent)
     prevAxesMode
-    persistedPrevAxesTargetSpec
+    corePrevAxesTargetSpec
   end
   
   %% Misc
@@ -2044,7 +2044,7 @@ classdef Labeler < handle
       cfg.Track.ImportPointsPlot = obj.impPointsPlotInfo;
       
       cfg.PrevAxes.Mode = char(obj.prevAxesMode);
-      pSpec = obj.persistedPrevAxesTargetSpec_ ;
+      pSpec = obj.corePrevAxesTargetSpec_ ;
       if isempty(pSpec)
         cfg.PrevAxes.ModeInfo = struct();
       else
@@ -2731,7 +2731,7 @@ classdef Labeler < handle
       if pamode == PrevAxesMode.FROZEN
         modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
         if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
-          obj.persistedPrevAxesTargetSpec_ = PersistedPrevAxesTargetSpec(modeInfoStruct) ;
+          obj.corePrevAxesTargetSpec_ = CorePrevAxesTargetSpec(modeInfoStruct) ;
         end
       end
       obj.notify('updatePrevPanel') ;
@@ -13132,12 +13132,12 @@ classdef Labeler < handle
       result = obj.prevAxesMode_;
     end  % function
 
-    function result = get.persistedPrevAxesTargetSpec(obj)
-      result = obj.persistedPrevAxesTargetSpec_ ;
+    function result = get.corePrevAxesTargetSpec(obj)
+      result = obj.corePrevAxesTargetSpec_ ;
     end  % function
 
-    function set.persistedPrevAxesTargetSpec(obj, value)
-      obj.persistedPrevAxesTargetSpec_ = value ;
+    function set.corePrevAxesTargetSpec(obj, value)
+      obj.corePrevAxesTargetSpec_ = value ;
     end  % function
     
     function spec = computePrevAxesTargetSpec(obj, iMov, frm, iTgt, gtmode, ...
@@ -14764,8 +14764,8 @@ classdef Labeler < handle
       % when you click the "Freeze" button in the GUI.
       if ~obj.hasMovie, return ; end
       obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
-      obj.persistedPrevAxesTargetSpec_ = ...
-        PersistedPrevAxesTargetSpec('iMov', obj.currMovie, ...
+      obj.corePrevAxesTargetSpec_ = ...
+        CorePrevAxesTargetSpec('iMov', obj.currMovie, ...
                                     'frm', obj.currFrame, ...
                                     'iTgt', obj.currTarget, ...
                                     'gtmode', obj.gtIsGTMode) ;
@@ -14774,13 +14774,13 @@ classdef Labeler < handle
 
     function prevAxesMovieRemap_(obj, mIdxOrig2New)
       % Remap the movie index in the frozen prev-axes spec after movies are reordered.
-      if isempty(obj.persistedPrevAxesTargetSpec_), return ; end
-      newIdx = mIdxOrig2New(obj.persistedPrevAxesTargetSpec_.iMov) ;
+      if isempty(obj.corePrevAxesTargetSpec_), return ; end
+      newIdx = mIdxOrig2New(obj.corePrevAxesTargetSpec_.iMov) ;
       if newIdx == 0
         obj.clearPrevAxesModeTarget() ;
       else
-        obj.persistedPrevAxesTargetSpec_ = ...
-          PersistedPrevAxesTargetSpec.setprop(obj.persistedPrevAxesTargetSpec_, ...
+        obj.corePrevAxesTargetSpec_ = ...
+          CorePrevAxesTargetSpec.setprop(obj.corePrevAxesTargetSpec_, ...
                                               'iMov', newIdx) ;
         obj.notify('updatePrevPanel') ;
       end
@@ -14788,7 +14788,7 @@ classdef Labeler < handle
 
     function clearPrevAxesModeTarget(obj)
       % Clear the frozen prev-axes target spec.
-      obj.persistedPrevAxesTargetSpec_ = [] ;
+      obj.corePrevAxesTargetSpec_ = [] ;
       obj.notify('updatePrevPanel') ;
     end  % function
 

@@ -1,8 +1,8 @@
-classdef PersistedPrevAxesTargetSpec
+classdef CorePrevAxesTargetSpec
   % Value class holding just the parts of PrevAxesTargetSpec that are persisted:
   % iMov, frm, iTgt, gtmode, dxlim, and dylim.
   %
-  % Every PersistedPrevAxesTargetSpec in existence is fully valid: the constructor
+  % Every CorePrevAxesTargetSpec in existence is fully valid: the constructor
   % takes a PrevAxesTargetSpec, a single struct, or name-value pairs, and
   % asserts isValid() before returning.  The "unset" state is represented by
   % [] rather than an invalid object.
@@ -18,7 +18,7 @@ classdef PersistedPrevAxesTargetSpec
   end
 
   methods
-    function obj = PersistedPrevAxesTargetSpec(varargin)
+    function obj = CorePrevAxesTargetSpec(varargin)
       % Construct from a PrevAxesTargetSpec, a single struct, or name-value pairs.
       % Asserts validity before returning.
       if nargin == 1 && isa(varargin{1}, 'PrevAxesTargetSpec')
@@ -49,7 +49,7 @@ classdef PersistedPrevAxesTargetSpec
                 ~isempty(obj.dxlim) && ...
                 ~isempty(obj.dylim) ;
       assert(isValid, ...
-             'PersistedPrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
+             'CorePrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
     function s = struct(obj)
@@ -70,7 +70,7 @@ classdef PersistedPrevAxesTargetSpec
       for fieldName = fieldnames(newPairs)'
         mergedPairs.(fieldName{1}) = newPairs.(fieldName{1});
       end
-      result = PersistedPrevAxesTargetSpec(mergedPairs) ;
+      result = CorePrevAxesTargetSpec(mergedPairs) ;
     end  % function
 
   end  % methods

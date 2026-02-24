@@ -8151,7 +8151,7 @@ classdef LabelerController < handle
     function recomputePrevAxesSpec_(obj)
       % Recompute the full PrevAxesTargetSpec from the labeler's persisted spec.
       labeler = obj.labeler_ ;
-      coreTargetSpec = labeler.persistedPrevAxesTargetSpec ;
+      coreTargetSpec = labeler.corePrevAxesTargetSpec ;
       if isempty(coreTargetSpec)
         obj.prevAxesTargetSpec_ = [] ;
         return
@@ -8334,8 +8334,8 @@ classdef LabelerController < handle
       newylim = get(obj.axes_prev, 'YLim') ;
       dxlim = newxlim - spec.xlim ;
       dylim = newylim - spec.ylim ;
-      labeler.persistedPrevAxesTargetSpec = ...
-        PersistedPrevAxesTargetSpec.setprop(labeler.persistedPrevAxesTargetSpec, ...
+      labeler.corePrevAxesTargetSpec = ...
+        CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
                                             'dxlim', dxlim, ...
                                             'dylim', dylim) ;
       obj.prevAxesTargetSpec_ = ...
