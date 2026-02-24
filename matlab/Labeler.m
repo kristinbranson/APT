@@ -13140,8 +13140,15 @@ classdef Labeler < handle
       obj.corePrevAxesTargetSpec_ = value ;
     end  % function
     
-    function spec = computePrevAxesTargetSpec(obj, iMov, frm, iTgt, gtmode, ...
-                                                prevAxesYDir, prevAxesSizeInPixels, dxlim0, dylim0)
+    function spec = computePrevAxesTargetSpec(obj, ...
+                                              iMov, ...
+                                              frm, ...
+                                              iTgt, ...
+                                              gtmode, ...
+                                              prevAxesYDir, ...
+                                              prevAxesSizeInPixels, ...
+                                              dxlim0, ...
+                                              dylim0)
       % Compute a fresh, fully-populated PrevAxesTargetSpec from the given
       % identity fields, offset fields, and the current Labeler state.
       % Returns [] if ~obj.hasMovie.  Does not mutate obj.
@@ -13174,19 +13181,19 @@ classdef Labeler < handle
                               iTgt, ...
                               'iMov', iMov, ...
                               'gtmode', gtmode) ;
-      poscurr = poscurr(ptidx, :) ;
+      poscurr = poscurr(ptidx, :) ;  % 2x2, row 1 in lower bounds row 2 is upper bounds, col 1 is x, col 2 is y
       if obj.hasTrx
         poscurr = [poscurr, ones(size(poscurr, 1), 1)] * A ;
         poscurr = poscurr(:, 1:2) ;
       end
 
-      minpos = min(poscurr, [], 1) ;
-      maxpos = max(poscurr, [], 1) ;
-      centerpos = (minpos + maxpos) / 2 ;
+      minpos = min(poscurr, [], 1) ;  % 1x2, x then y
+      maxpos = max(poscurr, [], 1) ;  % 1x2, x then y
+      centerpos = (minpos + maxpos) / 2 ;  % 1x2, x then y
       borderfrac = .5 ;
-      r = max(1, (maxpos - minpos) / 2 * (1 + borderfrac)) ;
-      xlim_raw = centerpos(1) + [-1 1] * r(1) ;
-      ylim_raw = centerpos(2) + [-1 1] * r(2) ;
+      r = max(1, (maxpos - minpos) / 2 * (1 + borderfrac)) ;  % 1x2, x then y
+      xlim_raw = centerpos(1) + [-1 1] * r(1) ;  % 1x2, lower then upper
+      ylim_raw = centerpos(2) + [-1 1] * r(2) ;  % 1x2, lower then upper
 
       % Adjust aspect ratio to match the prev-axes widget
       axw = prevAxesSizeInPixels(1) ;
@@ -13212,17 +13219,18 @@ classdef Labeler < handle
         % Apply the pan offsets
         xlim_full_maybe = xlim_AR_adjusted + dxlim0 ;
         ylim_full_maybe = ylim_AR_adjusted + dylim0 ;
-        % Make sure all parts are visible
-        if minpos(1) < xlim_full_maybe(1) || minpos(2) < ylim_full_maybe(1) || maxpos(1) > xlim_full_maybe(2) || maxpos(2) < ylim_full_maybe(2)
-          % In this case, seems like the given dxlim0 and dylim0 are weird, since the
-          % reference animal is not entirely in view with them taken into account.
-          % So we clear them.
-          dxlim = [0 0] ;
-          dylim = [0 0] ;
-        else
+        % Make sure all parts are visible---the minpos-maxpos bounding box should be
+        % entirely within the box defined by xlim_full_maybe and ylim_full_maybe
+        if xlim_full_maybe(1) <= minpos(1) && maxpos(1) <= xlim_full_maybe(2) && ylim_full_maybe(1) <= minpos(2) && maxpos(2) <= ylim_full_maybe(2)
           % In this case dxlim0 and dylim0 seem reasonable
           dxlim = dxlim0 ;
           dylim = dylim0 ;          
+        else
+          % In this case, seems like the given dxlim0 and dylim0 are weird, since the
+          % reference animal is not entirely in view with them taken into account.
+          % So we just ignore them and use the defaults.
+          dxlim = [0 0] ;
+          dylim = [0 0] ;
         end
       else
         error('Internal error: Unhandled case') ;
