@@ -14907,7 +14907,7 @@ classdef Labeler < handle
       if newIdx == 0
         obj.clearPrevAxesModeTarget() ;
       else
-        obj.prevAxesModeTargetSpec_.iMov = newIdx ;
+        obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(obj.prevAxesModeTargetSpec_, 'iMov', newIdx) ;
         obj.restorePrevAxesMode() ;
       end
     end  % function
@@ -14956,19 +14956,28 @@ classdef Labeler < handle
     end
     
     function setPrevAxesLimits(obj, newxlim, newylim)
+      % Update the axis limits and pan/zoom offsets for the frozen prev-axes.
       assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
-      dx = newxlim - obj.prevAxesModeTargetSpec_.prevAxesProps.XLim;
-      dy = newylim - obj.prevAxesModeTargetSpec_.prevAxesProps.YLim;
-      obj.prevAxesModeTargetSpec_.prevAxesProps.XLim = newxlim;
-      obj.prevAxesModeTargetSpec_.prevAxesProps.YLim = newylim;
-      obj.prevAxesModeTargetSpec_.dxlim = obj.prevAxesModeTargetSpec_.dxlim + dx;
-      obj.prevAxesModeTargetSpec_.dylim = obj.prevAxesModeTargetSpec_.dylim + dy;
+      spec = obj.prevAxesModeTargetSpec_ ;
+      dx = newxlim - spec.prevAxesProps.XLim ;
+      dy = newylim - spec.prevAxesProps.YLim ;
+      newPrevAxesProps = spec.prevAxesProps ;
+      newPrevAxesProps.XLim = newxlim ;
+      newPrevAxesProps.YLim = newylim ;
+      obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(spec, ...
+        'dxlim', spec.dxlim + dx, 'dylim', spec.dylim + dy, ...
+        'prevAxesProps', newPrevAxesProps) ;
     end  % function
 
     function setPrevAxesDirections(obj, xdir, ydir)
-      obj.prevAxesModeTargetSpec_.prevAxesProps.XDir = xdir;
-      obj.prevAxesModeTargetSpec_.prevAxesProps.YDir = ydir;
-      obj.restorePrevAxesMode();
+      % Set the axis directions for the frozen prev-axes.
+      spec = obj.prevAxesModeTargetSpec_ ;
+      newPrevAxesProps = spec.prevAxesProps ;
+      newPrevAxesProps.XDir = xdir ;
+      newPrevAxesProps.YDir = ydir ;
+      obj.prevAxesModeTargetSpec_ = ...
+        PrevAxesTargetSpec.setprop(spec, 'prevAxesProps', newPrevAxesProps) ;
+      obj.restorePrevAxesMode() ;
     end  % function
 
   end  % methods
