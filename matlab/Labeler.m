@@ -13262,7 +13262,6 @@ classdef Labeler < handle
         obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, obj.prevAxesYDir_) ;
 
       % Compute xlim, ylim, xdir, ydir from the label positions
-      prevAxesSize = obj.prevAxesSizeInPixels_ ;
       viewi = 1 ;
       ptidx = (obj.labeledposIPt2View == viewi) ;
       [~, poscurr, ~] = ...
@@ -13285,6 +13284,7 @@ classdef Labeler < handle
       ylim_raw = centerpos(2) + [-1 1] * r(2) ;
 
       % Adjust aspect ratio to match the prev-axes widget
+      prevAxesSize = obj.prevAxesSizeInPixels_ ;
       axw = prevAxesSize(1) ;
       axh = prevAxesSize(2) ;
       axszratio = axw / axh ;
@@ -13364,7 +13364,7 @@ classdef Labeler < handle
                      'doBGsub',obj.movieViewBGsubbed,...
                      'docrop',~obj.cropIsCropMode);
 
-      % to do: figure out [~,~what to do when there are multiple views
+      % to do: figure out what to do when there are multiple views
       if ~obj.hasTrx,
         xdata = imRoi(1:2);
         ydata = imRoi(3:4);
@@ -14959,7 +14959,7 @@ classdef Labeler < handle
       % This implicitly sets to FROZEN mode
       obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
 
-      % Compute the full spec from current frame/target, with zero pan offsets
+      % Compute the full spec from current frame/target
       obj.prevAxesModeTargetSpec_ = ...
         obj.computePrevAxesTargetSpec_(obj.currMovie, ...
                                        obj.currFrame, ...
