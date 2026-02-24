@@ -8152,19 +8152,18 @@ classdef LabelerController < handle
                      'YLim', obj.axes_curr.YLim);
     end  % function
 
-    function [w,h] = getPrevAxesSizeInPixels(obj)
+    function result = getPrevAxesSizeInPixels(obj)
       units = get(obj.axes_prev, 'Units');
       set(obj.axes_prev, 'Units', 'pixels');
       pos = get(obj.axes_prev, 'Position');
       set(obj.axes_prev, 'Units', units);
-      w = pos(3); h = pos(4);
+      result = pos(3:4);
     end  % function
 
     function [axesCurrProps, prevAxesSize, prevAxesYDir] = getPrevAxesAndCurrAxesProperties_(obj)
       % Non-mutating.  Queries current axes properties needed for prev-axes operations.
       axesCurrProps = obj.getAxesCurrProps_();
-      [prevAxesW, prevAxesH] = obj.getPrevAxesSizeInPixels();
-      prevAxesSize = [prevAxesW, prevAxesH];
+      prevAxesSize = obj.getPrevAxesSizeInPixels();
       prevAxesYDir = get(obj.axes_prev, 'YDir');
     end  % function
 
