@@ -13181,10 +13181,22 @@ classdef Labeler < handle
       isvalid = ~isempty(obj.prevAxesModeTargetSpec_) ;
     end
     
-    function spec = computePrevAxesTargetSpec_(obj, iMov, frm, iTgt, gtmode, dxlim, dylim)
+    function spec = computePrevAxesTargetSpec_(obj, iMov, frm, iTgt, gtmode, dxlim0, dylim0)
       % Compute a fresh, fully-populated PrevAxesTargetSpec from the given
       % identity fields, offset fields, and the current Labeler state.
       % Returns [] if ~obj.hasMovie.  Does not mutate obj.
+
+      % This is called in two scenarios: the creation of a novel target spec and the
+      % the loading of a target sepc from disk.  The absense/presense of the dxlim
+      % and dylim args is how we tell one from the other.
+      if ~exist('dxlim0', 'var')
+        isNovelCase = true ;
+        isLoadCase = false ;
+      else
+        isNovelCase = false ;
+        isLoadCase = true ;
+      end        
+
       if ~obj.hasMovie
         spec = [] ;
         return
@@ -13194,7 +13206,7 @@ classdef Labeler < handle
       [im, isrotated, xdata, ydata, A, tform] = ...
         obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, obj.prevAxesYDir_) ;
 
-      % Compute xlim, ylim, and prevAxesProps from the label positions
+      % Compute xlim, ylim, xdir, ydir from the label positions
       axesCurrProps = obj.currAxesProps_ ;
       prevAxesSize = obj.prevAxesSizeInPixels_ ;
       viewi = 1 ;
@@ -13215,52 +13227,71 @@ classdef Labeler < handle
       centerpos = (minpos + maxpos) / 2 ;
       borderfrac = .5 ;
       r = max(1, (maxpos - minpos) / 2 * (1 + borderfrac)) ;
-      xlim = centerpos(1) + [-1 1] * r(1) ;
-      ylim = centerpos(2) + [-1 1] * r(2) ;
+      xlim_raw = centerpos(1) + [-1 1] * r(1) ;
+      ylim_raw = centerpos(2) + [-1 1] * r(2) ;
 
       % Adjust aspect ratio to match the prev-axes widget
       axw = prevAxesSize(1) ;
       axh = prevAxesSize(2) ;
       axszratio = axw / axh ;
-      limratio = diff(xlim) / diff(ylim) ;
+      limratio = diff(xlim_raw) / diff(ylim_raw) ;
       if axszratio > limratio
         extendratio = axszratio / limratio ;
-        xlim = centerpos(1) + [-1 1] * r(1) * extendratio ;
+        xlim_AR_adjusted = centerpos(1) + [-1 1] * r(1) * extendratio ;
+        ylim_AR_adjusted = ylim_raw ;
       elseif axszratio < limratio
         extendratio = limratio / axszratio ;
-        ylim = centerpos(2) + [-1 1] * r(2) * extendratio ;
+        ylim_AR_adjusted = centerpos(2) + [-1 1] * r(2) * extendratio ;
+        xlim_AR_adjusted = xlim_raw ;
       end
 
-      % Apply the pan offsets
-      xlim0 = xlim ;
-      ylim0 = ylim ;
-      xlim = xlim + dxlim ;
-      ylim = ylim + dylim ;
-      % Make sure all parts are visible
-      if minpos(1) < xlim(1) || minpos(2) < ylim(1) || maxpos(1) > xlim(2) || maxpos(2) < ylim(2)
+      % Determine dxlim, dylim
+      if isNovelCase
+        % This means no dxlimMaybe nor dylimMaybe are given.
         dxlim = [0 0] ;
         dylim = [0 0] ;
-        xlim = xlim0 ;
-        ylim = ylim0 ;
+      elseif isLoadCase        
+        % Apply the pan offsets
+        xlim_full_maybe = xlim_AR_adjusted + dxlim0 ;
+        ylim_full_maybe = ylim_AR_adjusted + dylim0 ;
+        % Make sure all parts are visible
+        if minpos(1) < xlim_full_maybe(1) || minpos(2) < ylim_full_maybe(1) || maxpos(1) > xlim_full_maybe(2) || maxpos(2) < ylim_full_maybe(2)
+          % In this case, seems like the given dxlim0 and dylim0 are weird, since the
+          % reference animal is not entirely in view with them taken into account.
+          % So we clear them.
+          dxlim = [0 0] ;
+          dylim = [0 0] ;
+        else
+          % In this case dxlim0 and dylim0 seem reasonable
+          dxlim = dxlim0 ;
+          dylim = dylim0 ;          
+        end
+      else
+        error('Internal error: Unhandled case') ;
       end
-      xlim = fixLim(xlim) ;
-      ylim = fixLim(ylim) ;
 
-      % Package up prevAxesProps
-      prevAxesProps = struct('XLim', xlim, ...
-                             'YLim', ylim, ...
-                             'XDir', axesCurrProps.XDir, ...
-                             'YDir', axesCurrProps.YDir, ...
-                             'CameraViewAngleMode', 'auto') ;
+      % Fix those limits.  Fix 'em good.
+      % (Turns lower-limit nans to -inf, upper-limit nans to +inf.)
+      xlim = fixLim(xlim_AR_adjusted) ;
+      ylim = fixLim(ylim_AR_adjusted) ;
 
       % Construct the spec
-      spec = PrevAxesTargetSpec( ...
-        'iMov', iMov, 'frm', frm, 'iTgt', iTgt, 'gtmode', gtmode, ...
-        'im', im, 'isrotated', isrotated, 'xdata', xdata, 'ydata', ydata, ...
-        'A', A, 'tform', tform, ...
-        'xlim', xlim, 'ylim', ylim, ...
-        'dxlim', dxlim, 'dylim', dylim, ...
-        'prevAxesProps', prevAxesProps) ;
+      spec = PrevAxesTargetSpec('iMov', iMov, ...
+                                'frm', frm, ...
+                                'iTgt', iTgt, ...
+                                'gtmode', gtmode, ...
+                                'im', im, ...
+                                'isrotated', isrotated, ...
+                                'xdata', xdata, ...
+                                'ydata', ydata, ...
+                                'A', A, ...
+                                'tform', tform, ...
+                                'xlim', xlim, ...
+                                'ylim', ylim, ...
+                                'dxlim', dxlim, ...
+                                'dylim', dylim, ...
+                                'xdir', axesCurrProps.XDir, ...
+                                'ydir', axesCurrProps.YDir) ;
     end  % function
     
     function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
@@ -14891,9 +14922,7 @@ classdef Labeler < handle
         obj.computePrevAxesTargetSpec_(obj.currMovie, ...
                                        obj.currFrame, ...
                                        obj.currTarget, ...
-                                       obj.gtIsGTMode, ...
-                                       [0 0], ...
-                                       [0 0]) ;
+                                       obj.gtIsGTMode) ;
 
       % Set up the virtual line and text objects
       obj.syncPrevAxesVirtualLabelsForFrozen_() ;
@@ -14951,19 +14980,11 @@ classdef Labeler < handle
     end
     
     function setPrevAxesLimits(obj, newxlim, newylim)
-      % Update the axis limits and pan/zoom offsets for the frozen prev-axes.
+      % Update the pan/zoom offsets for the frozen prev-axes.
       assert(obj.prevAxesMode == PrevAxesMode.FROZEN) ;
       spec = obj.prevAxesModeTargetSpec_ ;
-      dx = newxlim - spec.prevAxesProps.XLim ;
-      dy = newylim - spec.prevAxesProps.YLim ;
-      newPrevAxesProps = spec.prevAxesProps ;
-      newPrevAxesProps.XLim = newxlim ;
-      newPrevAxesProps.YLim = newylim ;
-      obj.prevAxesModeTargetSpec_ = ...
-        PrevAxesTargetSpec.setprop(spec, ...
-                                   'dxlim', spec.dxlim + dx, ...
-                                   'dylim', spec.dylim + dy, ...
-                                   'prevAxesProps', newPrevAxesProps) ;
+      obj.prevAxesModeTargetSpec_ = PrevAxesTargetSpec.setprop(spec, ...
+        'dxlim', newxlim - spec.xlim, 'dylim', newylim - spec.ylim) ;
     end  % function
 
     function setPrevAxesDirections(obj, xdir, ydir)
@@ -14971,12 +14992,8 @@ classdef Labeler < handle
       if isempty(obj.prevAxesModeTargetSpec_)
         return
       end
-      spec = obj.prevAxesModeTargetSpec_ ;
-      newPrevAxesProps = spec.prevAxesProps ;
-      newPrevAxesProps.XDir = xdir ;
-      newPrevAxesProps.YDir = ydir ;
       obj.prevAxesModeTargetSpec_ = ...
-        PrevAxesTargetSpec.setprop(spec, 'prevAxesProps', newPrevAxesProps) ;
+        PrevAxesTargetSpec.setprop(obj.prevAxesModeTargetSpec_, 'xdir', xdir, 'ydir', ydir) ;
       obj.restorePrevAxesMode() ;
     end  % function
 
