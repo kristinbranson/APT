@@ -3988,7 +3988,7 @@ classdef LabelerController < handle
     function cbkPostRotate(obj, src, evt)  %#ok<INUSD>
       % Force in-plane rotation (elevation = 90), then downdate azimuth.
       ax = evt.Axes ;
-      [az, ~] = view(ax) ;
+      az = ax.View(1) ;
       ax.View = [az 90] ;
       if ax == obj.axes_prev
         obj.downdatePrevAxesAzimuth_() ;
@@ -8344,8 +8344,8 @@ classdef LabelerController < handle
       dylim = newylim - spec.ylim ;
       labeler.corePrevAxesTargetSpec = ...
         CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
-                                            'dxlim', dxlim, ...
-                                            'dylim', dylim) ;
+                                       'dxlim', dxlim, ...
+                                       'dylim', dylim) ;
       obj.prevAxesTargetSpec_ = ...
         PrevAxesTargetSpec.setprop(spec, 'dxlim', dxlim, 'dylim', dylim) ;
     end  % function
@@ -8355,7 +8355,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if labeler.prevAxesMode ~= PrevAxesMode.FROZEN, return ; end
       if isempty(labeler.corePrevAxesTargetSpec), return ; end
-      [az, ~] = view(obj.axes_prev) ;
+      az = obj.axes_prev.View(1) ;
       labeler.corePrevAxesTargetSpec = ...
         CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
                                        'azimuth', az) ;

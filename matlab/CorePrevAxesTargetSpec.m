@@ -30,9 +30,7 @@ classdef CorePrevAxesTargetSpec
         obj.gtmode = source.gtmode ;
         obj.dxlim = source.dxlim ;
         obj.dylim = source.dylim ;
-        if isprop(source, 'azimuth')
-          obj.azimuth = source.azimuth ;
-        end
+        obj.azimuth = source.azimuth ;
       else
         if nargin == 1 && isstruct(varargin{1})
           props = varargin{1} ;
