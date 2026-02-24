@@ -14971,6 +14971,9 @@ classdef Labeler < handle
 
     function setPrevAxesDirections(obj, xdir, ydir)
       % Set the axis directions for the frozen prev-axes.
+      if isempty(obj.prevAxesModeTargetSpec_)
+        return
+      end
       spec = obj.prevAxesModeTargetSpec_ ;
       newPrevAxesProps = spec.prevAxesProps ;
       newPrevAxesProps.XDir = xdir ;

@@ -8304,20 +8304,20 @@ classdef LabelerController < handle
       if ~labeler.hasMovie,
         return;
       end
-      spec = labeler.prevAxesModeTargetSpec ;
+      targetSpec = labeler.prevAxesModeTargetSpec ;
 
       set(obj.popupmenu_prevmode, 'Visible', 'on');
       set(obj.pushbutton_freezetemplate, 'Enable', 'on');
 
-      if ~isempty(spec)
-        obj.image_prev.XData = spec.xdata;
-        obj.image_prev.YData = spec.ydata;
-        obj.image_prev.CData = spec.im;
-        obj.txPrevIm.String = sprintf('Frame %d', spec.frm);
+      if ~isempty(targetSpec)
+        obj.image_prev.XData = targetSpec.xdata;
+        obj.image_prev.YData = targetSpec.ydata;
+        obj.image_prev.CData = targetSpec.im;
+        obj.txPrevIm.String = sprintf('Frame %d', targetSpec.frm);
         if labeler.hasTrx,
-          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', spec.iTgt)];
+          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', targetSpec.iTgt)];
         end
-        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', spec.iMov)];
+        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', targetSpec.iMov)];
       else
         obj.image_prev.CData = 0;
         obj.txPrevIm.String = '';
@@ -8325,11 +8325,11 @@ classdef LabelerController < handle
 
       obj.hLinkPrevCurr.Enabled = 'off';
       axp = obj.axes_prev;
-      axcProps = cache.prevAxesProps;
+      axcProps = targetSpec.prevAxesProps;
       for prop = fieldnames(axcProps)', prop = prop{1}; %#ok<FXSET>
         axp.(prop) = axcProps.(prop);
       end
-      if cache.isrotated,
+      if targetSpec.isrotated,
         axp.CameraUpVectorMode = 'auto';
       end
       % Setting XLim/XDir etc unnec coming from PrevAxesMode.LASTSEEN, but

@@ -127,13 +127,13 @@ classdef PrevAxesTargetSpec
     function result = setprop(obj, varargin)
       % Make a new, independent, object of the class by replacing some field names
       % Usage: newObj = setprop(obj, prop1, val1, prop2, val2, ...)
-      assert(mod(numel(varargin), 2) == 0, 'setprop:badArgs', 'Arguments must be property-value pairs');
+      assert(mod(numel(varargin), 2) == 0, 'setprop:badArgs', 'Arguments must be property-value pairs') ;
       oldPairs = obj.toStruct() ;
-      newPairs = struct(varargin{:});
+      newPairs = struct(varargin{:}) ;
       mergedPairs = oldPairs ;
-      for fieldName = fieldnames(newPairs)'                                                                                                                              │
-        mergedPairs.(fieldName{1}) = newPairs.(fieldName{1});                                                                                                                    │
-      end       
+      for fieldName = fieldnames(newPairs)'
+        mergedPairs.(fieldName{1}) = newPairs.(fieldName{1});
+      end
       mergedPairsAsList = struct2pvs(mergedPairs) ;      
       result = PrevAxesTargetSpec(mergedPairsAsList{:}) ;
     end  % function
