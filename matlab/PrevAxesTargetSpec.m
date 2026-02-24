@@ -30,10 +30,6 @@ classdef PrevAxesTargetSpec
     ylim  % the computed y-axis limits to use when showing the target, a 2-el row vec
   end  % properties
 
-  properties (Dependent)
-    prevAxesProps  % scalar struct holding desired XLim/YLim for the sidekick axes
-  end  % properties
-
   methods
     function obj = PrevAxesTargetSpec(varargin)
       % Construct from a single struct or from name-value pairs.  Asserts validity before returning.
@@ -62,12 +58,6 @@ classdef PrevAxesTargetSpec
                 ~isempty(obj.ylim) ;
       assert(isValid, ...
              'PrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
-    end  % function
-
-    function result = get.prevAxesProps(obj)
-      % Compute the prevAxesProps struct from the stored xlim, ylim, dxlim, dylim.
-      result = struct('XLim', obj.xlim + obj.dxlim, ...
-                      'YLim', obj.ylim + obj.dylim) ;
     end  % function
 
     function s = struct(obj)

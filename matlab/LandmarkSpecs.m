@@ -92,15 +92,13 @@ classdef LandmarkSpecs < handle
       freezeInfo = lObj.prevAxesModeTargetSpec;
       imagescArgs = {'XData',freezeInfo.xdata,'YData',freezeInfo.ydata};
       im = freezeInfo.im;
-      axcProps = freezeInfo.prevAxesProps;
+      axesProps = {'XLim', freezeInfo.xlim + freezeInfo.dxlim, ...
+                   'YLim', freezeInfo.ylim + freezeInfo.dylim, ...
+                   'CameraViewAngleMode', 'auto'} ;
       if ~isempty(obj.parent_)
-        axcProps.XDir = obj.parent_.axes_prev.XDir ;
-        axcProps.YDir = obj.parent_.axes_prev.YDir ;
-      end
-      axcProps.CameraViewAngleMode = 'auto' ;
-      axesProps = {};
-      for prop=fieldnames(axcProps)',
-        axesProps(end+1:end+2) = {prop{1},axcProps.(prop{1})};
+        axesProps = [axesProps, ...
+                     {'XDir', obj.parent_.axes_prev.XDir, ...
+                      'YDir', obj.parent_.axes_prev.YDir}] ;
       end
       if freezeInfo.isrotated,
         axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};

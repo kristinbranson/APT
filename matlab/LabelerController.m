@@ -8318,10 +8318,8 @@ classdef LabelerController < handle
 
       obj.hLinkPrevCurr.Enabled = 'off';
       axp = obj.axes_prev;
-      axcProps = targetSpec.prevAxesProps;
-      for prop = fieldnames(axcProps)', prop = prop{1}; %#ok<FXSET>
-        axp.(prop) = axcProps.(prop);
-      end
+      axp.XLim = targetSpec.xlim + targetSpec.dxlim ;
+      axp.YLim = targetSpec.ylim + targetSpec.dylim ;
       axp.CameraViewAngleMode = 'auto' ;
       if targetSpec.isrotated,
         axp.CameraUpVectorMode = 'auto';
