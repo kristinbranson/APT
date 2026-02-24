@@ -124,6 +124,20 @@ away.
   `obj.notify(<args>)`, not `notify(obj, <args>)`.
 - All functions and methods should have a comment after the line with
   `function` in it that says what the function does.
+- If a line is to long, and it's of the form `w = f(x, y, z) ;`, break
+  it across lines like this:
+  ```
+  w = f(x, ...
+        y, ...
+        z) ;
+  ```
+  If that is still too long, do this:
+  ```
+  w = ...
+    f(x, ...
+      y, ...
+      z) ;
+  ```  
 
 ## Git conventions
 - Always prepend the commit message with "<branch name>: ".  This
