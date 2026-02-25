@@ -187,8 +187,8 @@ classdef Labeler < handle
     updateTimelineTraces
     updateTimelineLandmarkColors
     updateCurrImagesAllViews
-    updatePrevAxesImageAndFrameText
-    updatePrevAxesLabels
+    updateKickAxesImageAndFrameText
+    updateKickAxesLabels
     updatePrevPanel
     updateShortcuts
   end
@@ -726,13 +726,13 @@ classdef Labeler < handle
     %prevIm = struct('CData',0,'XData',0,'YData',0)  % struct, like a stripped image handle (.CData, .XData, .YData). 'primary' view only
     prevIm = []
     prevImRoi = [] 
-    prevAxesMode_ = PrevAxesMode.LASTSEEN  % scalar PrevAxesMode
-    corePrevAxesTargetSpec_ = []  % CorePrevAxesTargetSpec or []; persisted identity + pan/zoom offsets for frozen/prev-axes frame
+    kickAxesMode_ = KickAxesMode.LASTSEEN  % scalar KickAxesMode
+    coreKickAxesTargetSpec_ = []  % CoreKickAxesTargetSpec or []; persisted identity + pan/zoom offsets for frozen/kick-axes frame
   end
 
   properties (Dependent)
-    prevAxesMode
-    corePrevAxesTargetSpec
+    kickAxesMode
+    coreKickAxesTargetSpec
   end
   
   %% Misc
@@ -1988,7 +1988,7 @@ classdef Labeler < handle
       
       % New projs set to LASTSEEN, since in general no reference target can have
       % been set yet.
-      obj.setPrevAxesMode(PrevAxesMode.LASTSEEN);
+      obj.setKickAxesMode(KickAxesMode.LASTSEEN);
       
       % maybe useful to clear/reinit and shouldn't hurt
       obj.trxCache = containers.Map();
@@ -2043,12 +2043,12 @@ classdef Labeler < handle
       cfg.Track.PredictPointsPlot = obj.predPointsPlotInfo;
       cfg.Track.ImportPointsPlot = obj.impPointsPlotInfo;
       
-      cfg.PrevAxes.Mode = char(obj.prevAxesMode);
-      pSpec = obj.corePrevAxesTargetSpec_ ;
+      cfg.KickAxes.Mode = char(obj.kickAxesMode);
+      pSpec = obj.coreKickAxesTargetSpec_ ;
       if isempty(pSpec)
-        cfg.PrevAxes.ModeInfo = struct();
+        cfg.KickAxes.ModeInfo = struct();
       else
-        cfg.PrevAxes.ModeInfo = struct(pSpec) ;
+        cfg.KickAxes.ModeInfo = struct(pSpec) ;
       end
     end
 
@@ -2724,14 +2724,14 @@ classdef Labeler < handle
         obj.labelsUpdateNewFrame(true);
       end
       
-      % Set up the prev_axes
+      % Set up the kick_axes
       % This needs to occur after .labeledpos etc has been set
-      pamode = PrevAxesMode.(s.cfg.PrevAxes.Mode) ;
-      obj.prevAxesMode_ = pamode ;
-      if pamode == PrevAxesMode.FROZEN
-        modeInfoStruct = s.cfg.PrevAxes.ModeInfo ;
+      pamode = KickAxesMode.(s.cfg.KickAxes.Mode) ;
+      obj.kickAxesMode_ = pamode ;
+      if pamode == KickAxesMode.FROZEN
+        modeInfoStruct = s.cfg.KickAxes.ModeInfo ;
         if ~isempty(fieldnames(modeInfoStruct)) && obj.hasMovie
-          obj.corePrevAxesTargetSpec_ = CorePrevAxesTargetSpec(modeInfoStruct) ;
+          obj.coreKickAxesTargetSpec_ = CoreKickAxesTargetSpec(modeInfoStruct) ;
         end
       end
       obj.notify('updatePrevPanel') ;
@@ -4495,7 +4495,7 @@ classdef Labeler < handle
           obj.notify('gtResUpdated');
         end
         
-        obj.prevAxesMovieRemap_(edata.mIdxOrig2New);
+        obj.kickAxesMovieRemap_(edata.mIdxOrig2New);
 
         sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
         
@@ -4842,7 +4842,7 @@ classdef Labeler < handle
           ud = obj.gdata.axes_all(i).UserData;
           if isstruct(ud) && isfield(ud,'gamma') && ~isempty(ud.gamma),
             gam = ud.gamma;
-            ViewConfig.applyGammaCorrection(obj.gdata.images_all,obj.gdata.axes_all,obj.gdata.axes_prev,i,gam);
+            ViewConfig.applyGammaCorrection(obj.gdata.images_all,obj.gdata.axes_all,obj.gdata.axes_kick,i,gam);
           end
         end
 
@@ -4962,7 +4962,7 @@ classdef Labeler < handle
       imprev = controller.image_prev;
       set(imprev,'CData',0);     
       if ~obj.gtIsGTMode
-        obj.clearPrevAxesModeTarget();
+        obj.clearKickAxesModeTarget();
       end
       obj.currTarget = 1;
       obj.currFrame = 1;
@@ -6208,7 +6208,7 @@ classdef Labeler < handle
       obj.setShowMaRoi(obj.showMaRoi);
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updateKickAxesLabels');
       
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
@@ -7815,7 +7815,7 @@ classdef Labeler < handle
         obj.labelPointsPlotInfo.TextProps.(f) = pvText.(f);
       end
       obj.labelPointsPlotInfo.TextOffset = textOffset;
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updateKickAxesLabels');
       lc.updateTextLabelCosmetics(pvText,textOffset);
     end
 
@@ -8898,7 +8898,7 @@ classdef Labeler < handle
         obj.lblCore.newFrame(obj.prevFrame,obj.currFrame,obj.currTarget);
       end
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updateKickAxesLabels');
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
       obj.labels2VizUpdate('dotrkres',true);
       %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo));
@@ -8908,7 +8908,7 @@ classdef Labeler < handle
       if ~isempty(obj.lblCore)
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updateKickAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
     end
 
@@ -8918,7 +8918,7 @@ classdef Labeler < handle
           prevFrm,obj.currFrame,...
           prevTgt,obj.currTarget);
       end
-      notify(obj, 'updatePrevAxesLabels');
+      notify(obj, 'updateKickAxesLabels');
       obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
     end  % function
 
@@ -13101,7 +13101,7 @@ classdef Labeler < handle
       currIm1Nc = size(obj.currIm{1},2);
       if ~isequal([size(currIm1Original,1) size(currIm1Original,2)],...
                   [currIm1Nr currIm1Nc])
-        % In this scenario we do not use currIm1Orig b/c axes_prev and 
+        % In this scenario we do not use currIm1Orig b/c axes_kick and 
         % axes_curr are linked and that can force the axes into 'manual'
         % XLimMode and so on. Generally it is disruptive to view-handling.
         % Ideally maybe we would prefer to catch/handle this in view code,
@@ -13120,37 +13120,37 @@ classdef Labeler < handle
         obj.prevIm = currIm1Original ;
         obj.prevImRoi = currImRoi1Original ;
       end
-      % obj.prevAxesImFrmUpdate(tfforce) ;      
-      obj.notify('updatePrevAxesImageAndFrameText') ;
+      % obj.kickAxesImFrmUpdate(tfforce) ;      
+      obj.notify('updateKickAxesImageAndFrameText') ;
     end  % function
   end
   
-  %% PrevAxes
+  %% KickAxes
   methods
 
-    function result = get.prevAxesMode(obj)
-      result = obj.prevAxesMode_;
+    function result = get.kickAxesMode(obj)
+      result = obj.kickAxesMode_;
     end  % function
 
-    function result = get.corePrevAxesTargetSpec(obj)
-      result = obj.corePrevAxesTargetSpec_ ;
+    function result = get.coreKickAxesTargetSpec(obj)
+      result = obj.coreKickAxesTargetSpec_ ;
     end  % function
 
-    function set.corePrevAxesTargetSpec(obj, value)
-      obj.corePrevAxesTargetSpec_ = value ;
+    function set.coreKickAxesTargetSpec(obj, value)
+      obj.coreKickAxesTargetSpec_ = value ;
     end  % function
     
-    function spec = computePrevAxesTargetSpec(obj, ...
+    function spec = computeKickAxesTargetSpec(obj, ...
                                               iMov, ...
                                               frm, ...
                                               iTgt, ...
                                               gtmode, ...
-                                              prevAxesYDir, ...
-                                              prevAxesSizeInPixels, ...
+                                              kickAxesYDir, ...
+                                              kickAxesSizeInPixels, ...
                                               dxlim0, ...
                                               dylim0, ...
                                               azimuth0)
-      % Compute a fresh, fully-populated PrevAxesTargetSpec from the given
+      % Compute a fresh, fully-populated KickAxesTargetSpec from the given
       % identity fields, offset fields, and the current Labeler state.
       % Returns [] if ~obj.hasMovie.  Does not mutate obj.
 
@@ -13175,7 +13175,7 @@ classdef Labeler < handle
 
       % Read the image and rotation info from the movie
       [im, isrotated, xdata, ydata, A, tform] = ...
-        obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, prevAxesYDir) ;
+        obj.readTargetImageFromMovie(iMov, frm, iTgt, 1, kickAxesYDir) ;
 
       % Compute xlim, ylim, xdir, ydir from the label positions
       viewi = 1 ;
@@ -13199,9 +13199,9 @@ classdef Labeler < handle
       xlim_raw = centerpos(1) + [-1 1] * r(1) ;  % 1x2, lower then upper
       ylim_raw = centerpos(2) + [-1 1] * r(2) ;  % 1x2, lower then upper
 
-      % Adjust aspect ratio to match the prev-axes widget
-      axw = prevAxesSizeInPixels(1) ;
-      axh = prevAxesSizeInPixels(2) ;
+      % Adjust aspect ratio to match the kick-axes widget
+      axw = kickAxesSizeInPixels(1) ;
+      axh = kickAxesSizeInPixels(2) ;
       axszratio = axw / axh ;
       limratio = diff(xlim_raw) / diff(ylim_raw) ;
       if axszratio > limratio
@@ -13246,7 +13246,7 @@ classdef Labeler < handle
       ylim = fixLim(ylim_AR_adjusted) ;
 
       % Construct the spec
-      spec = PrevAxesTargetSpec('iMov', iMov, ...
+      spec = KickAxesTargetSpec('iMov', iMov, ...
                                 'frm', frm, ...
                                 'iTgt', iTgt, ...
                                 'gtmode', gtmode, ...
@@ -13263,11 +13263,11 @@ classdef Labeler < handle
                                 'azimuth', azimuth0) ;
     end  % function
     
-    function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,prevAxesYDir)
+    function [im,isrotated,xdata,ydata,A,tform] = readTargetImageFromMovie(obj,mov,frm,tgt,viewi,kickAxesYDir)
       % Get the image (and associated data) for the reference image pane.  Does not
       % mutate obj.
-      if ~exist('prevAxesYDir', 'var')
-        prevAxesYDir = 'reverse';
+      if ~exist('kickAxesYDir', 'var')
+        kickAxesYDir = 'reverse';
       end
       isrotated = false;
       % if (int32(mov) == obj.currMovie) && (gtmode==obj.gtIsGTMode)
@@ -13288,7 +13288,7 @@ classdef Labeler < handle
         A = [];
         tform = [];
       else
-        if strcmpi(prevAxesYDir,'normal'),
+        if strcmpi(kickAxesYDir,'normal'),
           pi2sign = -1;
         else
           pi2sign = 1;
@@ -14771,49 +14771,49 @@ classdef Labeler < handle
       end
     end  % function
 
-    function setPrevAxesModeTarget(obj)
+    function setKickAxesModeTarget(obj)
       % Set the target animal for the 'sidekick' axes to the current labeled target.
-      % This also switches the model to PrevAxesMode.FROZEN. This is what happens
+      % This also switches the model to KickAxesMode.FROZEN. This is what happens
       % when you click the "Freeze" button in the GUI.
       if ~obj.hasMovie, return ; end
-      obj.prevAxesMode_ = PrevAxesMode.FROZEN ;
-      obj.corePrevAxesTargetSpec_ = ...
-        CorePrevAxesTargetSpec('iMov', obj.currMovie, ...
+      obj.kickAxesMode_ = KickAxesMode.FROZEN ;
+      obj.coreKickAxesTargetSpec_ = ...
+        CoreKickAxesTargetSpec('iMov', obj.currMovie, ...
                                     'frm', obj.currFrame, ...
                                     'iTgt', obj.currTarget, ...
                                     'gtmode', obj.gtIsGTMode) ;
       obj.notify('updatePrevPanel') ;
     end
 
-    function prevAxesMovieRemap_(obj, mIdxOrig2New)
-      % Remap the movie index in the frozen prev-axes spec after movies are reordered.
-      if isempty(obj.corePrevAxesTargetSpec_), return ; end
-      newIdx = mIdxOrig2New(obj.corePrevAxesTargetSpec_.iMov) ;
+    function kickAxesMovieRemap_(obj, mIdxOrig2New)
+      % Remap the movie index in the frozen kick-axes spec after movies are reordered.
+      if isempty(obj.coreKickAxesTargetSpec_), return ; end
+      newIdx = mIdxOrig2New(obj.coreKickAxesTargetSpec_.iMov) ;
       if newIdx == 0
-        obj.clearPrevAxesModeTarget() ;
+        obj.clearKickAxesModeTarget() ;
       else
-        obj.corePrevAxesTargetSpec_ = ...
-          CorePrevAxesTargetSpec.setprop(obj.corePrevAxesTargetSpec_, ...
+        obj.coreKickAxesTargetSpec_ = ...
+          CoreKickAxesTargetSpec.setprop(obj.coreKickAxesTargetSpec_, ...
                                               'iMov', newIdx) ;
         obj.notify('updatePrevPanel') ;
       end
     end  % function
 
-    function clearPrevAxesModeTarget(obj)
-      % Clear the frozen prev-axes target spec.
-      obj.corePrevAxesTargetSpec_ = [] ;
+    function clearKickAxesModeTarget(obj)
+      % Clear the frozen kick-axes target spec.
+      obj.coreKickAxesTargetSpec_ = [] ;
       obj.notify('updatePrevPanel') ;
     end  % function
 
-    function restorePrevAxesMode(obj)
-      % Fire updatePrevPanel to restore the prev-axes display to match the current model state.
+    function restoreKickAxesMode(obj)
+      % Fire updatePrevPanel to restore the kick-axes display to match the current model state.
       obj.notify('updatePrevPanel') ;
     end
 
-    function setPrevAxesMode(obj, mode)
+    function setKickAxesMode(obj, mode)
       % Set the mode for the 'sidekick' axes.
-      assert(isa(mode, 'PrevAxesMode')) ;
-      obj.prevAxesMode_ = mode ;
+      assert(isa(mode, 'KickAxesMode')) ;
+      obj.kickAxesMode_ = mode ;
       obj.notify('updatePrevPanel') ;
     end
     

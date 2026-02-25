@@ -1,9 +1,9 @@
-classdef PrevAxesTargetSpec
-  % Value class holding both the identity and rendering data for the frozen/prev-axes frame.
+classdef KickAxesTargetSpec
+  % Value class holding both the identity and rendering data for the frozen/kick-axes frame.
   % Identity fields: iMov, frm, iTgt, gtmode.
   % Rendering fields: im, isrotated, xdata, ydata, A, tform, xlim, ylim, dxlim, dylim.
   %
-  % Every PrevAxesTargetSpec in existence is fully valid: the constructor
+  % Every KickAxesTargetSpec in existence is fully valid: the constructor
   % takes either a single struct or name-value pairs for all properties, and
   % asserts isValid() before returning.  The "unset" state is represented by
   % [] rather than an invalid object.
@@ -16,7 +16,7 @@ classdef PrevAxesTargetSpec
     gtmode = false  % scalar logical, whether in GT mode
     dxlim = [0 0]  % adjustment to xlim as a result of user panning/zooming the sidekick axes, a 2-el row vec
     dylim = [0 0]  % adjustment to ylim as a result of user panning/zooming the sidekick axes, a 2-el row vec
-    azimuth = 0  % in-plane rotation angle (degrees) of the prev axes in frozen mode
+    azimuth = 0  % in-plane rotation angle (degrees) of the kick axes in frozen mode
   end
 
   properties (SetAccess=immutable, Transient)
@@ -32,7 +32,7 @@ classdef PrevAxesTargetSpec
   end  % properties
 
   methods
-    function obj = PrevAxesTargetSpec(varargin)
+    function obj = KickAxesTargetSpec(varargin)
       % Construct from a single struct or from name-value pairs.  Asserts validity before returning.
       if nargin == 1 && isstruct(varargin{1})
         props = varargin{1} ;
@@ -58,7 +58,7 @@ classdef PrevAxesTargetSpec
                 ~isempty(obj.xlim) && ...
                 ~isempty(obj.ylim) ;
       assert(isValid, ...
-             'PrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
+             'KickAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
     function s = struct(obj)
@@ -83,7 +83,7 @@ classdef PrevAxesTargetSpec
       for fieldName = fieldnames(newPairs)'
         mergedPairs.(fieldName{1}) = newPairs.(fieldName{1});
       end
-      result = PrevAxesTargetSpec(mergedPairs) ;
+      result = KickAxesTargetSpec(mergedPairs) ;
     end  % function
 
   end  % methods

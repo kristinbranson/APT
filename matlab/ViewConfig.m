@@ -75,7 +75,7 @@ classdef ViewConfig
         dar,darm,pbarm);
     end
         
-    function tfAxLimSpecifiedInCfg = setCfgOnViews(viewCfg,hFig,hAx,hIm,hAxPrev)
+    function tfAxLimSpecifiedInCfg = setCfgOnViews(viewCfg,hFig,hAx,hIm,hAxKick)
       % viewCfg: currently just a struct array
       %
       % tfAxLimSpecifiedInCfg: [nviewx1] logical
@@ -122,15 +122,15 @@ classdef ViewConfig
         hlpAxDir(ax,'XDir',vCfg.XDir);
         hlpAxDir(ax,'YDir',vCfg.YDir);
         if iView==1
-          hlpAxDir(hAxPrev,'XDir',vCfg.XDir);
-          hlpAxDir(hAxPrev,'YDir',vCfg.YDir);
+          hlpAxDir(hAxKick,'XDir',vCfg.XDir);
+          hlpAxDir(hAxKick,'YDir',vCfg.YDir);
         end
                 
         clim = vCfg.CLim;
         if isempty(clim.Min) && isempty(clim.Max)
           caxis(ax,'auto');
           if iView==1
-            caxis(hAxPrev,'auto');
+            caxis(hAxKick,'auto');
           end
         else
           climset = [0 inf]; % using inf seems to work as "auto-scale-maximum"
@@ -142,13 +142,13 @@ classdef ViewConfig
           end
           ax.CLim = climset;
           if iView==1
-            hAxPrev.CLim = climset;
+            hAxKick.CLim = climset;
           end
         end
         
         gam = vCfg.Gamma;
         if ~isempty(gam)
-          ViewConfig.applyGammaCorrection(hIm,hAx,hAxPrev,iView,gam);
+          ViewConfig.applyGammaCorrection(hIm,hAx,hAxKick,iView,gam);
         else
           cm = gray(ViewConfig.GAMMA_CORRECT_CMAP_LEN);
           colormap(ax,cm);
@@ -187,32 +187,32 @@ classdef ViewConfig
           grid(ax,'off');
         end
         if iView==1
-          hAxPrev.XAxisLocation = 'top';
-          hAxPrev.XColor = axColor ;
-          hAxPrev.YColor = axColor ;
-          hAxPrev.Box = 'on';
-          hAxPrev.FontUnits = 'pixels';
-          hAxPrev.FontSize = vCfg.AxFontSize;
+          hAxKick.XAxisLocation = 'top';
+          hAxKick.XColor = axColor ;
+          hAxKick.YColor = axColor ;
+          hAxKick.Box = 'on';
+          hAxKick.FontUnits = 'pixels';
+          hAxKick.FontSize = vCfg.AxFontSize;
           ax.TickDir = 'in' ;
-          hAxPrev.TickDir = 'in' ;
+          hAxKick.TickDir = 'in' ;
           if vCfg.ShowAxTicks || vCfg.ShowGrid
-            hAxPrev.XTickMode = 'auto';
-            hAxPrev.YTickMode = 'auto';
+            hAxKick.XTickMode = 'auto';
+            hAxKick.YTickMode = 'auto';
           else
-            hAxPrev.XTick = [];
-            hAxPrev.YTick = [];
+            hAxKick.XTick = [];
+            hAxKick.YTick = [];
           end
           if vCfg.ShowAxTicks
-            hAxPrev.XTickLabelMode = 'auto';
-            hAxPrev.YTickLabelMode = 'auto';
+            hAxKick.XTickLabelMode = 'auto';
+            hAxKick.YTickLabelMode = 'auto';
           else
-            hAxPrev.XTickLabel = [];
-            hAxPrev.YTickLabel = [];
+            hAxKick.XTickLabel = [];
+            hAxKick.YTickLabel = [];
           end
           if vCfg.ShowGrid
-            grid(hAxPrev,'on');
+            grid(hAxKick,'on');
           else
-            grid(hAxPrev,'off');
+            grid(hAxKick,'off');
           end
         end
       end
@@ -263,7 +263,7 @@ classdef ViewConfig
       end
     end
     
-    function applyGammaCorrection(hIms,hAxs,hAxPrev,iAxApply,gamma)
+    function applyGammaCorrection(hIms,hAxs,hAxKick,iAxApply,gamma)
       assert(numel(hIms)==numel(hAxs));
 
       for iAx = iAxApply(:)'
@@ -281,7 +281,7 @@ classdef ViewConfig
         colormap(hAxs(iAx),m1);
         hAxs(iAx).UserData.gamma = gamma; % store gamma value that was applied
         if iAx==1 % axes_curr
-          colormap(hAxPrev,m1);
+          colormap(hAxKick,m1);
         end
       end
     end

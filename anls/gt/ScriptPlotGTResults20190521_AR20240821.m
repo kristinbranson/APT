@@ -98,9 +98,9 @@ for exptypei = 1%:numel(allexptypes),
             switch exptype,
                 case {'FlyBubble','FlyBubbleMDNvsDLC','Roian'},
                     if isstruct(lObj),
-                        freezeInfo = lObj.cfg.PrevAxes.ModeInfo;
+                        freezeInfo = lObj.cfg.KickAxes.ModeInfo;
                     else
-                        freezeInfo = lObj.prevAxesModeTargetSpec;
+                        freezeInfo = lObj.kickAxesModeTargetSpec;
                     end
                     lpos = lObj.labeledpos{freezeInfo.iMov}(:,:,freezeInfo.frm,freezeInfo.iTgt);
                     if freezeInfo.isrotated,

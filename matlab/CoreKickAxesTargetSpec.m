@@ -1,9 +1,9 @@
-classdef CorePrevAxesTargetSpec
-  % Value class holding just the parts of PrevAxesTargetSpec that are persisted:
+classdef CoreKickAxesTargetSpec
+  % Value class holding just the parts of KickAxesTargetSpec that are persisted:
   % iMov, frm, iTgt, gtmode, dxlim, and dylim.
   %
-  % Every CorePrevAxesTargetSpec in existence is fully valid: the constructor
-  % takes a PrevAxesTargetSpec, a single struct, or name-value pairs, and
+  % Every CoreKickAxesTargetSpec in existence is fully valid: the constructor
+  % takes a KickAxesTargetSpec, a single struct, or name-value pairs, and
   % asserts isValid() before returning.  The "unset" state is represented by
   % [] rather than an invalid object.
 
@@ -15,14 +15,14 @@ classdef CorePrevAxesTargetSpec
     gtmode = false  % scalar logical, whether in GT mode
     dxlim = [0 0]  % adjustment to xlim as a result of user panning/zooming the sidekick axes, a 2-el row vec
     dylim = [0 0]  % adjustment to ylim as a result of user panning/zooming the sidekick axes, a 2-el row vec
-    azimuth = 0  % in-plane rotation angle (degrees) of the prev axes in frozen mode
+    azimuth = 0  % in-plane rotation angle (degrees) of the kick axes in frozen mode
   end
 
   methods
-    function obj = CorePrevAxesTargetSpec(varargin)
-      % Construct from a PrevAxesTargetSpec, a single struct, or name-value pairs.
+    function obj = CoreKickAxesTargetSpec(varargin)
+      % Construct from a KickAxesTargetSpec, a single struct, or name-value pairs.
       % Asserts validity before returning.
-      if nargin == 1 && isa(varargin{1}, 'PrevAxesTargetSpec')
+      if nargin == 1 && isa(varargin{1}, 'KickAxesTargetSpec')
         source = varargin{1} ;
         obj.iMov = source.iMov ;
         obj.frm = source.frm ;
@@ -51,7 +51,7 @@ classdef CorePrevAxesTargetSpec
                 ~isempty(obj.dxlim) && ...
                 ~isempty(obj.dylim) ;
       assert(isValid, ...
-             'CorePrevAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
+             'CoreKickAxesTargetSpec: constructed object is not valid.  All required fields must be set.') ;
     end  % function
 
     function s = struct(obj)
@@ -72,7 +72,7 @@ classdef CorePrevAxesTargetSpec
       for fieldName = fieldnames(newPairs)'
         mergedPairs.(fieldName{1}) = newPairs.(fieldName{1});
       end
-      result = CorePrevAxesTargetSpec(mergedPairs) ;
+      result = CoreKickAxesTargetSpec(mergedPairs) ;
     end  % function
 
   end  % methods

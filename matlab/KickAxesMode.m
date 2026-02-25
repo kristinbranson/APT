@@ -1,4 +1,4 @@
-classdef PrevAxesMode
+classdef KickAxesMode
   enumeration
     FROZEN
     LASTSEEN

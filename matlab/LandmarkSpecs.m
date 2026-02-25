@@ -89,7 +89,7 @@ classdef LandmarkSpecs < handle
     function s = parseLabelerState(obj)
       % Parse labeler state for skeleton/swap/head-tail UI.
       lObj = obj.lObj ;
-      targetSpec = obj.parent_.prevAxesTargetSpec_ ;
+      targetSpec = obj.parent_.kickAxesTargetSpec_ ;
       imagescArgs = {'XData',targetSpec.xdata,'YData',targetSpec.ydata};
       im = targetSpec.im;
       axesProps = {'XLim', targetSpec.xlim + targetSpec.dxlim, ...
@@ -97,8 +97,8 @@ classdef LandmarkSpecs < handle
                    'CameraViewAngleMode', 'auto'} ;
       if ~isempty(obj.parent_)
         axesProps = [axesProps, ...
-                     {'XDir', obj.parent_.axes_prev.XDir, ...
-                      'YDir', obj.parent_.axes_prev.YDir}] ;
+                     {'XDir', obj.parent_.axes_kick.XDir, ...
+                      'YDir', obj.parent_.axes_kick.YDir}] ;
       end
       if targetSpec.isrotated,
         axesProps(end+1:end+2) = {'CameraUpVectorMode','auto'};
@@ -427,7 +427,7 @@ classdef LandmarkSpecs < handle
       obj.unselectedMarkerSize = unselMarkerSize;
       obj.unselectedLineWidth = unselLineWidth;
       
-      if isempty(obj.parent_) || isempty(obj.parent_.prevAxesTargetSpec_)
+      if isempty(obj.parent_) || isempty(obj.parent_.kickAxesTargetSpec_)
         errordlg('Please freeze a labeled reference image for use with this UI.',...
           'No Reference Image');
         return;

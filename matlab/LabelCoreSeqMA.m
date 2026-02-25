@@ -906,8 +906,8 @@ classdef LabelCoreSeqMA < LabelCore
 %       lObj.setTargetMA(ntgts+1);
       obj.storeLabels();
       labeler.notify('updateTrxTable');
-      % notify(lObj, 'initializePrevAxesTemplate');
-      labeler.restorePrevAxesMode() ;
+      % notify(lObj, 'initializeKickAxesTemplate');
+      labeler.restoreKickAxesMode() ;
 
       [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
       iTgt = labeler.currTarget;
@@ -992,7 +992,7 @@ classdef LabelCoreSeqMA < LabelCore
 %       lObj = obj.labeler;
 %       obj.storeLabels();
 %       lObj.updateTrxTable();
-%       lObj.InitializePrevAxesTemplate();
+%       lObj.InitializeKickAxesTemplate();
 % 
 %       [xy,tfeo] = obj.getLabelCoords();
 %       iTgt = lObj.currTarget;

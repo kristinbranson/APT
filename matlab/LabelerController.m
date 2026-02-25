@@ -40,7 +40,7 @@ classdef LabelerController < handle
   properties  % these are all the things that used to be in the main figure's guidata
     axes_curr
     axes_occ
-    axes_prev
+    axes_kick  % "kick" is short for "sidekick".  This is the small reference/previous-frame axes in the upper left.
     axes_timeline_islabeled
     axes_timeline_manual
     cropHRect
@@ -249,9 +249,9 @@ classdef LabelerController < handle
     menu_track_backend_settings
     menu_track_backend_config_moreinfo
     menu_track_backend_config_test
-    prevAxesLabelLine         % [nPhysPoints] Line gobjects on axes_prev
-    prevAxesLabelText         % [nPhysPoints] Text gobjects on axes_prev
-    prevAxesTargetSpec_ = []  % PrevAxesTargetSpec or []; full rendering spec for frozen prev-axes
+    kickAxesLabelLine         % [nPhysPoints] Line gobjects on axes_kick
+    kickAxesLabelText         % [nPhysPoints] Text gobjects on axes_kick
+    kickAxesTargetSpec_ = []  % KickAxesTargetSpec or []; full rendering spec for frozen kick-axes
   end
 
   methods
@@ -538,9 +538,9 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevAxesImageAndFrameText',@(s,e)(obj.updatePrevAxesImageAndFrameText())) ;
+        addlistener(obj.labeler_,'updateKickAxesImageAndFrameText',@(s,e)(obj.updateKickAxesImageAndFrameText())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
+        addlistener(obj.labeler_,'updateKickAxesLabels',@(s,e)(obj.updateKickAxesLabels())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanel',@(s,e)(obj.updatePrevPanel())) ;
       obj.listeners_(end+1) = ...
@@ -1999,7 +1999,7 @@ classdef LabelerController < handle
                                  viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
       AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'View'};
       obj.hLinkPrevCurr = ...
-        linkprop([obj.axes_curr,obj.axes_prev], AX_LINKPROPS) ;
+        linkprop([obj.axes_curr,obj.axes_kick], AX_LINKPROPS) ;
       
       arrayfun(@(x)(colormap(x,gray())),figs);
       obj.updateGUIFigureNames() ;
@@ -2432,7 +2432,7 @@ classdef LabelerController < handle
       labeler.impPointsPlotInfo.Colors = feval(labeler.impPointsPlotInfo.ColorMapName,newnphyspts);
 
       % reset reference frame plotting
-      obj.updatePrevAxesLabels();
+      obj.updateKickAxesLabels();
       
       % init info timeline
       obj.labelTLInfo.updateForNewProject();
@@ -3118,7 +3118,7 @@ classdef LabelerController < handle
                                  obj.figs_all, ...
                                  axes_all, ...
                                  obj.images_all, ...
-                                 obj.axes_prev) ;
+                                 obj.axes_kick) ;
       if ~centerOnTarget
         [axes_all.CameraUpVectorMode] = deal('auto');
         [axes_all.CameraViewAngleMode] = deal('auto');
@@ -3855,7 +3855,7 @@ classdef LabelerController < handle
       axAll = obj.axes_all;
       axRead = axAll(iAxRead);
       axApply = axAll(iAxApply);
-      tfApplyAxPrev = any(iAxApply==1); % axes_prev mirrors axes_curr
+      tfApplyAxKick = any(iAxApply==1); % axes_kick mirrors axes_curr
 
       clim = get(axRead,'CLim');
       if isempty(clim)
@@ -3865,8 +3865,8 @@ classdef LabelerController < handle
         warnst = warning('off','MATLAB:graphicsversion:GraphicsVersionRemoval');
       	set(axApply,'CLim',clim);
       	warning(warnst);
-      	if tfApplyAxPrev
-      		set(obj.axes_prev,'CLim',clim);
+      	if tfApplyAxKick
+      		set(obj.axes_kick,'CLim',clim);
       	end
       end
     end
@@ -3974,14 +3974,14 @@ classdef LabelerController < handle
     end
 
     function cbkPostZoom(obj,src,evt)  %#ok<INUSD>
-      if evt.Axes == obj.axes_prev,
-        obj.downdatePrevAxesLimits_();
+      if evt.Axes == obj.axes_kick,
+        obj.downdateKickAxesLimits_();
       end
     end
 
     function cbkPostPan(obj,src,evt)  %#ok<INUSD>
-      if evt.Axes == obj.axes_prev,
-        obj.downdatePrevAxesLimits_();
+      if evt.Axes == obj.axes_kick,
+        obj.downdateKickAxesLimits_();
       end
     end
 
@@ -3990,8 +3990,8 @@ classdef LabelerController < handle
       ax = evt.Axes ;
       az = ax.View(1) ;
       ax.View = [az 90] ;
-      if ax == obj.axes_prev
-        obj.downdatePrevAxesAzimuth_() ;
+      if ax == obj.axes_kick
+        obj.downdateKickAxesAzimuth_() ;
       end
     end
 
@@ -4517,7 +4517,7 @@ classdef LabelerController < handle
         return;
       end
       labeler.lblCore.clearLabels();
-      labeler.restorePrevAxesMode() ;
+      labeler.restoreKickAxesMode() ;
     end
 
 
@@ -5287,7 +5287,7 @@ classdef LabelerController < handle
         return;
       end
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
-                                      obj.axes_prev,iAxApply,gamma);
+                                      obj.axes_kick,iAxApply,gamma);
     end
 
     function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5540,7 +5540,7 @@ classdef LabelerController < handle
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
-      hlpTickGridBang([obj.axes_all ; obj.axes_prev], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
+      hlpTickGridBang([obj.axes_all ; obj.axes_kick], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
     end
 
 
@@ -5548,7 +5548,7 @@ classdef LabelerController < handle
     function menu_view_show_grid_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
-      hlpTickGridBang([obj.axes_all ; obj.axes_prev], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
+      hlpTickGridBang([obj.axes_all ; obj.axes_kick], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
     end
 
 
@@ -6250,13 +6250,13 @@ classdef LabelerController < handle
       labeler = obj.labeler_;
       contents = cellstr(get(src, 'String'));
       modeAsString = contents{get(src, 'Value')};
-      mode = fif(strcmpi(modeAsString, 'Reference'), PrevAxesMode.FROZEN, PrevAxesMode.LASTSEEN) ;
-      labeler.setPrevAxesMode(mode) ;
+      mode = fif(strcmpi(modeAsString, 'Reference'), KickAxesMode.FROZEN, KickAxesMode.LASTSEEN) ;
+      labeler.setKickAxesMode(mode) ;
     end
 
     function pushbutton_freezetemplate_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_;
-      labeler.setPrevAxesModeTarget();
+      labeler.setKickAxesModeTarget();
     end
 
     function pushbutton_exitcropmode_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -7882,11 +7882,11 @@ classdef LabelerController < handle
       end      
     end  % function
 
-    function updatePrevAxesImageAndFrameText(obj)
+    function updateKickAxesImageAndFrameText(obj)
       labeler = obj.labeler_ ;   
 
       % In degenerate cases, make all invisible
-      if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie || isempty(labeler.prevAxesMode)
+      if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie || isempty(labeler.kickAxesMode)
         set(obj.image_prev, 'Visible', 'off') ;
         set(obj.txPrevIm, 'Visible', 'off') ;
         return
@@ -7896,9 +7896,9 @@ classdef LabelerController < handle
       set(obj.image_prev, 'Visible', 'on') ;
       set(obj.txPrevIm, 'Visible', 'on') ;
 
-      % update prevaxes image and txframe based on .prevIm, .prevFrame
-      switch labeler.prevAxesMode
-        case PrevAxesMode.LASTSEEN
+      % update kickaxes image and txframe based on .prevIm, .prevFrame
+      switch labeler.kickAxesMode
+        case KickAxesMode.LASTSEEN
           set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4) );
           basicString = sprintf('Frame: %d',labeler.prevFrame) ;
           if labeler.hasTrx,
@@ -7907,8 +7907,8 @@ classdef LabelerController < handle
             finalString = basicString ;
           end
           obj.txPrevIm.String = finalString ;
-        case PrevAxesMode.FROZEN,
-          spec = obj.prevAxesTargetSpec_ ;
+        case KickAxesMode.FROZEN,
+          spec = obj.kickAxesTargetSpec_ ;
           if ~isempty(spec)
             set(obj.image_prev, 'CData', spec.im, 'XData', spec.xdata, 'YData', spec.ydata );
             stringDraft1 = sprintf('Frame %d', spec.frm);
@@ -8158,45 +8158,45 @@ classdef LabelerController < handle
       end  % if ~FSPath.hasAnyMacro(movFile)
     end  % function
 
-    function result = computePrevAxesSizeInPixels_(obj)
-      % Compute the [w h] of the prev axes in pixels.
-      units = get(obj.axes_prev, 'Units');
-      set(obj.axes_prev, 'Units', 'pixels');
-      pos = get(obj.axes_prev, 'Position');
-      set(obj.axes_prev, 'Units', units);
+    function result = computeKickAxesSizeInPixels_(obj)
+      % Compute the [w h] of the kick axes in pixels.
+      units = get(obj.axes_kick, 'Units');
+      set(obj.axes_kick, 'Units', 'pixels');
+      pos = get(obj.axes_kick, 'Position');
+      set(obj.axes_kick, 'Units', units);
       result = pos(3:4);
     end  % function
 
-    function recomputePrevAxesSpec_(obj)
-      % Recompute the full PrevAxesTargetSpec from the labeler's persisted spec.
+    function recomputeKickAxesSpec_(obj)
+      % Recompute the full KickAxesTargetSpec from the labeler's persisted spec.
       labeler = obj.labeler_ ;
-      coreTargetSpec = labeler.corePrevAxesTargetSpec ;
+      coreTargetSpec = labeler.coreKickAxesTargetSpec ;
       if isempty(coreTargetSpec)
-        obj.prevAxesTargetSpec_ = [] ;
+        obj.kickAxesTargetSpec_ = [] ;
         return
       end
-      prevAxesYDir = get(obj.axes_prev, 'YDir') ;
-      prevAxesSizeInPixels = obj.computePrevAxesSizeInPixels_() ;
-      obj.prevAxesTargetSpec_ = ...
-        labeler.computePrevAxesTargetSpec(coreTargetSpec.iMov, ...
+      kickAxesYDir = get(obj.axes_kick, 'YDir') ;
+      kickAxesSizeInPixels = obj.computeKickAxesSizeInPixels_() ;
+      obj.kickAxesTargetSpec_ = ...
+        labeler.computeKickAxesTargetSpec(coreTargetSpec.iMov, ...
                                           coreTargetSpec.frm, ...
                                           coreTargetSpec.iTgt, ...
                                           coreTargetSpec.gtmode, ...
-                                          prevAxesYDir, ...
-                                          prevAxesSizeInPixels, ...
+                                          kickAxesYDir, ...
+                                          kickAxesSizeInPixels, ...
                                           coreTargetSpec.dxlim, ...
                                           coreTargetSpec.dylim, ...
                                           coreTargetSpec.azimuth) ;
     end  % function
 
-    function updatePrevAxesLabels(obj)
-      % Update the prev-axes label graphics directly from labeler data.
+    function updateKickAxesLabels(obj)
+      % Update the kick-axes label graphics directly from labeler data.
       labeler = obj.labeler_ ;
 
       % In degenerate cases, make all invisible
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
-        set(obj.prevAxesLabelLine, 'Visible', 'off') ;
-        set(obj.prevAxesLabelText, 'Visible', 'off') ;
+        set(obj.kickAxesLabelLine, 'Visible', 'off') ;
+        set(obj.kickAxesLabelText, 'Visible', 'off') ;
         return
       end
 
@@ -8208,19 +8208,19 @@ classdef LabelerController < handle
       nPhysPoints = labeler.nPhysPoints ;
 
       % If the two gobject arrays are the wrong size, make new arrays
-      if isempty(obj.prevAxesLabelLine) || numel(obj.prevAxesLabelLine) ~= nPhysPoints
-        obj.nukeAndRepavePrevAxesLabels_() ;
+      if isempty(obj.kickAxesLabelLine) || numel(obj.kickAxesLabelLine) ~= nPhysPoints
+        obj.nukeAndRepaveKickAxesLabels_() ;
       end
 
-      switch labeler.prevAxesMode
-        case PrevAxesMode.FROZEN
-          spec = obj.prevAxesTargetSpec_ ;
+      switch labeler.kickAxesMode
+        case KickAxesMode.FROZEN
+          spec = obj.kickAxesTargetSpec_ ;
           if isempty(spec)
             % Make all the labels invisible
             % setPositionsOfLabelLinesAndTextsToNanBangBang(...
             %   obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-            set(obj.prevAxesLabelLine, 'Visible', 'off') ;
-            set(obj.prevAxesLabelText, 'Visible', 'off') ;
+            set(obj.kickAxesLabelLine, 'Visible', 'off') ;
+            set(obj.kickAxesLabelText, 'Visible', 'off') ;
           else
             [~, lpos, ~] = ...
               labeler.labelPosIsLabeled(spec.frm, ...
@@ -8235,79 +8235,79 @@ classdef LabelerController < handle
             txtOffset = labeler.labelPointsPlotInfo.TextOffset ;
             lpos = apt.patch_lpos(lpos) ;
             assignLabelCoordsHandlingOcclusionBangBang(...
-              obj.prevAxesLabelLine(ipts), ...
-              obj.prevAxesLabelText(ipts), ...
+              obj.kickAxesLabelLine(ipts), ...
+              obj.kickAxesLabelText(ipts), ...
               lpos(ipts, :), ...
               txtOffset) ;
-            set(obj.prevAxesLabelLine, 'Visible', 'on') ;
-            set(obj.prevAxesLabelText, 'Visible', 'on') ;
+            set(obj.kickAxesLabelLine, 'Visible', 'on') ;
+            set(obj.kickAxesLabelText, 'Visible', 'on') ;
           end
-        case PrevAxesMode.LASTSEEN
+        case KickAxesMode.LASTSEEN
           % In this case just set everything to nan, so invisible
           % setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-          set(obj.prevAxesLabelLine, 'Visible', 'off') ;
-          set(obj.prevAxesLabelText, 'Visible', 'off') ;
+          set(obj.kickAxesLabelLine, 'Visible', 'off') ;
+          set(obj.kickAxesLabelText, 'Visible', 'off') ;
         otherwise
-          error('Unknown PrevAxesMode') ;
+          error('Unknown KickAxesMode') ;
       end
     end  % function
 
-    function updatePrevAxesForLastSeenMode_(obj)
+    function updateKickAxesForLastSeenMode_(obj)
       labeler = obj.labeler_;
 
-      obj.prevAxesTargetSpec_ = [] ;
+      obj.kickAxesTargetSpec_ = [] ;
       
-      % update prevaxes image and txframe based on .prevIm, .prevFrame
-      switch labeler.prevAxesMode
-        case PrevAxesMode.LASTSEEN
+      % update kickaxes image and txframe based on .prevIm, .prevFrame
+      switch labeler.kickAxesMode
+        case KickAxesMode.LASTSEEN
           set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4));
           obj.txPrevIm.String = sprintf('Frame: %d', labeler.prevFrame);
           if labeler.hasTrx,
             obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', labeler.currTarget)];
           end
-        case PrevAxesMode.FROZEN,
+        case KickAxesMode.FROZEN,
           % do nothing
         otherwise
           error('Unknown previous axes mode');
       end
 
-      axes_prev = obj.axes_prev;
-      set(axes_prev, ...
+      axes_kick = obj.axes_kick;
+      set(axes_kick, ...
           'CameraUpVectorMode', 'auto', ...
           'CameraViewAngleMode', 'auto');
-      axes_prev.View = obj.axes_curr.View ;
+      axes_kick.View = obj.axes_curr.View ;
       obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir, View
     end  % function
 
     function updatePrevPanel(obj)
-      % Update the prev panel, including the controls and the prev_axes, and the
-      % things in the prev_axes (the image, the lines, the texts)
+      % Update the prev panel, including the controls and the kick_axes, and the
+      % things in the kick_axes (the image, the lines, the texts)
       labeler = obj.labeler_;
 
       % Handle various degenerate cases
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
         set(obj.popupmenu_prevmode, 'Enable', 'off') ;
         set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
-        setAxesAndChildrenVisibleBang(obj.axes_prev, false) ;
+        setAxesAndChildrenVisibleBang(obj.axes_kick, false) ;
         return
       end
 
       % Make the axes and children visible
-      setAxesAndChildrenVisibleBang(obj.axes_prev, true) ;
+      setAxesAndChildrenVisibleBang(obj.axes_kick, true) ;
 
       % Update the enablement of the "Freeze" button.
       islabeled = labeler.currFrameIsLabeled();
       set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
 
       % Get the current mode
-      mode = labeler.prevAxesMode ;
+      mode = labeler.kickAxesMode ;
       
       % Update the popup menu
       stringFromMenuIndex = cellstr(get(obj.popupmenu_prevmode, 'String'));
       switch mode
-        case PrevAxesMode.FROZEN,
+        case KickAxesMode.FROZEN,
           menuIndex = find(strcmpi(stringFromMenuIndex, 'Reference'));
-        case PrevAxesMode.LASTSEEN,
+        case KickAxesMode.LASTSEEN,
           menuIndex = find(strcmpi(stringFromMenuIndex, 'Previous frame'));
         otherwise
           error('Unknown previous axes mode');
@@ -8316,25 +8316,25 @@ classdef LabelerController < handle
 
       % Update the axes and things in it, except for the label gobjects
       switch mode
-        case PrevAxesMode.LASTSEEN
-          obj.updatePrevAxesForLastSeenMode_();
-        case PrevAxesMode.FROZEN
-          obj.updatePrevAxesForFrozenMode_();
+        case KickAxesMode.LASTSEEN
+          obj.updateKickAxesForLastSeenMode_();
+        case KickAxesMode.FROZEN
+          obj.updateKickAxesForFrozenMode_();
         otherwise
-          error('Internal error: Unhandled PrevAxesMode level') ;
+          error('Internal error: Unhandled KickAxesMode level') ;
       end  % switch
 
       % Update the label line, text gobjects
-      obj.updatePrevAxesLabels() ;
+      obj.updateKickAxesLabels() ;
 
     end  % function
 
-    function updatePrevAxesForFrozenMode_(obj)
-      % Update the prev-axes display for FROZEN mode using the controller's full spec.
+    function updateKickAxesForFrozenMode_(obj)
+      % Update the kick-axes display for FROZEN mode using the controller's full spec.
       
       labeler = obj.labeler_;
-      obj.recomputePrevAxesSpec_() ;
-      targetSpec = obj.prevAxesTargetSpec_ ;
+      obj.recomputeKickAxesSpec_() ;
+      targetSpec = obj.kickAxesTargetSpec_ ;
 
       obj.hLinkPrevCurr.Enabled = 'off';
 
@@ -8347,13 +8347,13 @@ classdef LabelerController < handle
           obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', targetSpec.iTgt)];
         end
         obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', targetSpec.iMov)];
-        axes_prev = obj.axes_prev;
-        axes_prev.XLim = targetSpec.xlim + targetSpec.dxlim ;
-        axes_prev.YLim = targetSpec.ylim + targetSpec.dylim ;
-        axes_prev.CameraViewAngleMode = 'auto' ;
-        axes_prev.View = [targetSpec.azimuth 90] ;
+        axes_kick = obj.axes_kick;
+        axes_kick.XLim = targetSpec.xlim + targetSpec.dxlim ;
+        axes_kick.YLim = targetSpec.ylim + targetSpec.dylim ;
+        axes_kick.CameraViewAngleMode = 'auto' ;
+        axes_kick.View = [targetSpec.azimuth 90] ;
         if targetSpec.isrotated,
-          axes_prev.CameraUpVectorMode = 'auto';
+          axes_kick.CameraUpVectorMode = 'auto';
         end
       else
         obj.image_prev.CData = 0;
@@ -8361,49 +8361,49 @@ classdef LabelerController < handle
       end
     end  % function
     
-    function downdatePrevAxesLimits_(obj)
+    function downdateKickAxesLimits_(obj)
       % Update the persisted pan/zoom offsets from the current axes limits.
       labeler = obj.labeler_ ;
-      if labeler.prevAxesMode ~= PrevAxesMode.FROZEN, return ; end
-      spec = obj.prevAxesTargetSpec_ ;
+      if labeler.kickAxesMode ~= KickAxesMode.FROZEN, return ; end
+      spec = obj.kickAxesTargetSpec_ ;
       if isempty(spec), return ; end
-      newxlim = get(obj.axes_prev, 'XLim') ;
-      newylim = get(obj.axes_prev, 'YLim') ;
+      newxlim = get(obj.axes_kick, 'XLim') ;
+      newylim = get(obj.axes_kick, 'YLim') ;
       dxlim = newxlim - spec.xlim ;
       dylim = newylim - spec.ylim ;
-      labeler.corePrevAxesTargetSpec = ...
-        CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
+      labeler.coreKickAxesTargetSpec = ...
+        CoreKickAxesTargetSpec.setprop(labeler.coreKickAxesTargetSpec, ...
                                        'dxlim', dxlim, ...
                                        'dylim', dylim) ;
-      obj.prevAxesTargetSpec_ = ...
-        PrevAxesTargetSpec.setprop(spec, 'dxlim', dxlim, 'dylim', dylim) ;
+      obj.kickAxesTargetSpec_ = ...
+        KickAxesTargetSpec.setprop(spec, 'dxlim', dxlim, 'dylim', dylim) ;
     end  % function
 
-    function downdatePrevAxesAzimuth_(obj)
+    function downdateKickAxesAzimuth_(obj)
       % Update the persisted azimuth from the current axes view.
       labeler = obj.labeler_ ;
-      if labeler.prevAxesMode ~= PrevAxesMode.FROZEN, return ; end
-      if isempty(labeler.corePrevAxesTargetSpec), return ; end
-      az = obj.axes_prev.View(1) ;
-      labeler.corePrevAxesTargetSpec = ...
-        CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
+      if labeler.kickAxesMode ~= KickAxesMode.FROZEN, return ; end
+      if isempty(labeler.coreKickAxesTargetSpec), return ; end
+      az = obj.axes_kick.View(1) ;
+      labeler.coreKickAxesTargetSpec = ...
+        CoreKickAxesTargetSpec.setprop(labeler.coreKickAxesTargetSpec, ...
                                        'azimuth', az) ;
-      spec = obj.prevAxesTargetSpec_ ;
+      spec = obj.kickAxesTargetSpec_ ;
       if ~isempty(spec)
-        obj.prevAxesTargetSpec_ = ...
-          PrevAxesTargetSpec.setprop(spec, 'azimuth', az) ;
+        obj.kickAxesTargetSpec_ = ...
+          KickAxesTargetSpec.setprop(spec, 'azimuth', az) ;
       end
     end  % function
     
-    function nukeAndRepavePrevAxesLabels_(obj)
+    function nukeAndRepaveKickAxesLabels_(obj)
       % Delete the existing label gobjects and recreate them.
-      deleteValidGraphicsHandles(obj.prevAxesLabelLine);
-      deleteValidGraphicsHandles(obj.prevAxesLabelText);
+      deleteValidGraphicsHandles(obj.kickAxesLabelLine);
+      deleteValidGraphicsHandles(obj.kickAxesLabelText);
 
       labeler = obj.labeler_;
       plotInfo = labeler.labelPointsPlotInfo;
       npts = labeler.nPhysPoints;
-      axes_prev = obj.axes_prev;
+      axes_kick = obj.axes_kick;
 
       markerPVcell = struct2pvs(plotInfo.MarkerProps);
       textPVcell = struct2pvs(plotInfo.TextProps);
@@ -8417,22 +8417,22 @@ classdef LabelerController < handle
         extraParams = [extraParams, {allowedPlotParams{j}, plotInfo.(allowedPlotParams{j})}]; %#ok<AGROW>
       end
 
-      obj.prevAxesLabelLine = gobjects(npts, 1);
-      obj.prevAxesLabelText = gobjects(npts, 1);
+      obj.kickAxesLabelLine = gobjects(npts, 1);
+      obj.kickAxesLabelText = gobjects(npts, 1);
       for i = 1:npts
-        obj.prevAxesLabelLine(i) = ...
-          plot(axes_prev, nan, nan, markerPVcell{:}, ...
+        obj.kickAxesLabelLine(i) = ...
+          plot(axes_kick, nan, nan, markerPVcell{:}, ...
                'Color', plotInfo.Colors(i, :), ...
                'UserData', i, ...
                extraParams{:}, ...
-               'Tag', sprintf('prevAxesLabelLine_%d', i));
-        obj.prevAxesLabelText(i) = ...
+               'Tag', sprintf('kickAxesLabelLine_%d', i));
+        obj.kickAxesLabelText(i) = ...
           text(nan, nan, num2str(i), ...
-               'Parent', axes_prev, ...
+               'Parent', axes_kick, ...
                textPVcell{:}, ...
                'Color', plotInfo.Colors(i, :), ...
                'PickableParts', 'none', ...
-               'Tag', sprintf('prevAxesLabelText_%d', i));
+               'Tag', sprintf('kickAxesLabelText_%d', i));
       end
     end  % function
 

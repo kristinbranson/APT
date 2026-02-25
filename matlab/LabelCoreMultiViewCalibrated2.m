@@ -424,8 +424,8 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
     
     function acceptLabels(obj)
       obj.enterAccepted(true);
-      % notify(obj.labeler, 'initializePrevAxesTemplate');
-      obj.labeler.restorePrevAxesMode() ;
+      % notify(obj.labeler, 'initializeKickAxesTemplate');
+      obj.labeler.restoreKickAxesMode() ;
     end
     
     function unAcceptLabels(obj)
