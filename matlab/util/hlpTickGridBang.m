@@ -16,6 +16,3 @@ if tfGridOn
 else
   arrayfun(@(x)grid(x,'off'),axes_all);
 end
-
-
-

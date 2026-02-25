@@ -538,7 +538,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevAxesImage',@(s,e)(obj.updatePrevAxesImage())) ;
+        addlistener(obj.labeler_,'updatePrevAxesImageAndFrameText',@(s,e)(obj.updatePrevAxesImageAndFrameText())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevAxesLabels',@(s,e)(obj.updatePrevAxesLabels())) ;
       obj.listeners_(end+1) = ...
@@ -7882,11 +7882,20 @@ classdef LabelerController < handle
       end      
     end  % function
 
-    function updatePrevAxesImage(obj)
-      labeler = obj.labeler_ ;      
-      if ~labeler.hasMovie || isempty(labeler.prevAxesMode)
+    function updatePrevAxesImageAndFrameText(obj)
+      labeler = obj.labeler_ ;   
+
+      % In degenerate cases, make all invisible
+      if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie || isempty(labeler.prevAxesMode)
+        set(obj.image_prev, 'Visible', 'off') ;
+        set(obj.txPrevIm, 'Visible', 'off') ;
         return
-      end      
+      end
+
+      % Make things visible
+      set(obj.image_prev, 'Visible', 'on') ;
+      set(obj.txPrevIm, 'Visible', 'on') ;
+
       % update prevaxes image and txframe based on .prevIm, .prevFrame
       switch labeler.prevAxesMode
         case PrevAxesMode.LASTSEEN
@@ -7901,9 +7910,7 @@ classdef LabelerController < handle
         case PrevAxesMode.FROZEN,
           spec = obj.prevAxesTargetSpec_ ;
           if ~isempty(spec)
-            obj.image_prev.XData = spec.xdata;
-            obj.image_prev.YData = spec.ydata;
-            obj.image_prev.CData = spec.im;
+            set(obj.image_prev, 'CData', spec.im, 'XData', spec.xdata, 'YData', spec.ydata );
             stringDraft1 = sprintf('Frame %d', spec.frm);
             if labeler.hasTrx,
               stringDraft2 = sprintf('%s, Target %d', stringDraft1, spec.iTgt) ;
@@ -8186,10 +8193,22 @@ classdef LabelerController < handle
       % Update the prev-axes label graphics directly from labeler data.
       labeler = obj.labeler_ ;
 
-      npts = labeler.nPhysPoints ;
-      % if npts == 0, return ; end
+      % In degenerate cases, make all invisible
+      if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
+        set(obj.lblPrev_ptsRealH_, 'Visible', 'off') ;
+        set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'off') ;
+        return
+      end
 
-      if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= npts
+      % % Make things visible
+      % set(obj.lblPrev_ptsRealH_, 'Visible', 'on') ;
+      % set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'on') ;
+
+      % Get the number of (physical) landmark points
+      nPhysPoints = labeler.nPhysPoints ;
+
+      % If the two gobject arrays are the wrong size, make new arrays
+      if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= nPhysPoints
         obj.nukeAndRepavePrevAxesLabels_() ;
       end
 
@@ -8197,33 +8216,40 @@ classdef LabelerController < handle
         case PrevAxesMode.FROZEN
           spec = obj.prevAxesTargetSpec_ ;
           if isempty(spec)
-            setPositionsOfLabelLinesAndTextsToNanBangBang(...
-              obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-            return
-          end
-          [~, lpos, ~] = ...
-            labeler.labelPosIsLabeled(spec.frm, ...
-                                      spec.iTgt, ...
-                                      'iMov', spec.iMov, ...
-                                      'gtmode', spec.gtmode) ;
-          if spec.isrotated
-            lpos = [lpos, ones(size(lpos, 1), 1)] * spec.A ;
-            lpos = lpos(:, 1:2) ;
+            % Make all the labels invisible
+            % setPositionsOfLabelLinesAndTextsToNanBangBang(...
+            %   obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
+            set(obj.lblPrev_ptsRealH_, 'Visible', 'off') ;
+            set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'off') ;
+          else
+            [~, lpos, ~] = ...
+              labeler.labelPosIsLabeled(spec.frm, ...
+                                        spec.iTgt, ...
+                                        'iMov', spec.iMov, ...
+                                        'gtmode', spec.gtmode) ;
+            if spec.isrotated
+              lpos = [lpos, ones(size(lpos, 1), 1)] * spec.A ;
+              lpos = lpos(:, 1:2) ;
+            end
+            ipts = 1:nPhysPoints ;
+            txtOffset = labeler.labelPointsPlotInfo.TextOffset ;
+            lpos = apt.patch_lpos(lpos) ;
+            assignLabelCoordsHandlingOcclusionBangBang(...
+              obj.lblPrev_ptsRealH_(ipts), ...
+              obj.lblPrev_ptsTxtRealH_(ipts), ...
+              lpos(ipts, :), ...
+              txtOffset) ;
+            set(obj.lblPrev_ptsRealH_, 'Visible', 'on') ;
+            set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'on') ;
           end
         case PrevAxesMode.LASTSEEN
-          setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-          return
+          % In this case just set everything to nan, so invisible
+          % setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
+          set(obj.lblPrev_ptsRealH_, 'Visible', 'off') ;
+          set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'off') ;
         otherwise
           error('Unknown PrevAxesMode') ;
       end
-      ipts = 1:npts ;
-      txtOffset = labeler.labelPointsPlotInfo.TextOffset ;
-      lpos = apt.patch_lpos(lpos) ;
-      assignLabelCoordsHandlingOcclusionBangBang(...
-        obj.lblPrev_ptsRealH_(ipts), ...
-        obj.lblPrev_ptsTxtRealH_(ipts), ...
-        lpos(ipts, :), ...
-        txtOffset) ;
     end  % function
 
     function updatePrevAxesForLastSeenMode_(obj)
@@ -8262,9 +8288,12 @@ classdef LabelerController < handle
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
         set(obj.popupmenu_prevmode, 'Enable', 'off') ;
         set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
-        set(obj.axes_prev, 'Visible', 'off') ;
+        setAxesAndChildrenVisibleBang(obj.axes_prev, false) ;
         return
       end
+
+      % Make the axes and children visible
+      setAxesAndChildrenVisibleBang(obj.axes_prev, true) ;
 
       % Update the enablement of the "Freeze" button.
       islabeled = labeler.currFrameIsLabeled();

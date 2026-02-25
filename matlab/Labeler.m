@@ -187,7 +187,7 @@ classdef Labeler < handle
     updateTimelineTraces
     updateTimelineLandmarkColors
     updateCurrImagesAllViews
-    updatePrevAxesImage
+    updatePrevAxesImageAndFrameText
     updatePrevAxesLabels
     updatePrevPanel
     updateShortcuts
@@ -13121,7 +13121,7 @@ classdef Labeler < handle
         obj.prevImRoi = currImRoi1Original ;
       end
       % obj.prevAxesImFrmUpdate(tfforce) ;      
-      obj.notify('updatePrevAxesImage') ;
+      obj.notify('updatePrevAxesImageAndFrameText') ;
     end  % function
   end
   
