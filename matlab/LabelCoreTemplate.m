@@ -754,7 +754,7 @@ classdef LabelCoreTemplate < LabelCore
       tt.pts = obj.getLabelCoords();
       lbler = obj.labeler;
       if lbler.hasTrx
-        [x,y,th] = lbler.currentTargetLocationAndHeading();
+        [x,y,th] = lbler.currentTargetLoc();
         tt.loc = [x y];
         tt.theta = th;
       else
@@ -781,7 +781,7 @@ classdef LabelCoreTemplate < LabelCore
       end
         
       if tfTemplateHasTarget
-        [x1,y1,th1] = lbler.currentTargetLocationAndHeading;
+        [x1,y1,th1] = lbler.currentTargetLoc;
         if isnan(th1-tt.theta)
           xys = transformPoints(tt.pts,tt.loc,0,[x1 y1],0);
         else
@@ -797,7 +797,7 @@ classdef LabelCoreTemplate < LabelCore
     
     function setRandomTemplate(obj)
       lbler = obj.labeler;
-      [x0,y0] = lbler.currentTargetLocationAndHeading('nowarn',true);
+      [x0,y0] = lbler.currentTargetLoc('nowarn',true);
       nr = lbler.movienr;
       nc = lbler.movienc;
       r = round(max(nr,nc)/6);
