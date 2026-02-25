@@ -1997,7 +1997,7 @@ classdef LabelerController < handle
       obj.newProjAxLimsSetInConfig = ...
         obj.hlpSetConfigOnViews_(viewCfg, ...
                                  viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
-      AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir'};
+      AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'View'};
       obj.hLinkPrevCurr = ...
         linkprop([obj.axes_curr,obj.axes_prev], AX_LINKPROPS) ;
       
@@ -8249,8 +8249,8 @@ classdef LabelerController < handle
       set(axes_prev, ...
           'CameraUpVectorMode', 'auto', ...
           'CameraViewAngleMode', 'auto');
-      axes_prev.View = [0 90] ;
-      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir
+      axes_prev.View = obj.axes_curr.View ;
+      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir, View
     end  % function
 
     function updatePrevPanel(obj)
