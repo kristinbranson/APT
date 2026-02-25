@@ -14816,12 +14816,13 @@ classdef Labeler < handle
     end
 
     function setPrevAxesMode(obj, mode)
-      % Set the mode for the 'sidekick' axes.
+      % Set the mode for the 'sidekick' axes (axes_prev).
+      obj.pushBusyStatus('Setting sidekick panel mode...') ;
+      oc = onCleanup(@()(obj.popBusyStatus())) ;      
       assert(isa(mode, 'PrevAxesMode')) ;
       obj.prevAxesMode_ = mode ;
       obj.notify('updatePrevPanel') ;
     end
-    
 
   end  % methods
 end  % classdef

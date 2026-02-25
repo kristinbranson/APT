@@ -6247,7 +6247,7 @@ classdef LabelerController < handle
     end
 
     function popupmenu_prevmode_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_;
+      labeler = obj.labeler_;      
       contents = cellstr(get(src, 'String'));
       modeAsString = contents{get(src, 'Value')};
       mode = fif(strcmpi(modeAsString, 'Reference'), PrevAxesMode.FROZEN, PrevAxesMode.LASTSEEN) ;
@@ -8314,7 +8314,7 @@ classdef LabelerController < handle
         case PrevAxesMode.FROZEN,
           menuIndex = find(strcmpi(stringFromMenuIndex, 'Reference'));
         case PrevAxesMode.LASTSEEN,
-          menuIndex = find(strcmpi(stringFromMenuIndex, 'Previous frame'));
+          menuIndex = find(strcmpi(stringFromMenuIndex, 'Previous Frame'));
         otherwise
           error('Unknown previous axes mode');
       end
