@@ -249,8 +249,8 @@ classdef LabelerController < handle
     menu_track_backend_settings
     menu_track_backend_config_moreinfo
     menu_track_backend_config_test
-    lblPrev_ptsRealH_      % [nPhysPoints] real Line gobjects on axes_prev
-    lblPrev_ptsTxtRealH_   % [nPhysPoints] real Text gobjects on axes_prev
+    prevAxesLabelLine         % [nPhysPoints] Line gobjects on axes_prev
+    prevAxesLabelText         % [nPhysPoints] Text gobjects on axes_prev
     prevAxesTargetSpec_ = []  % PrevAxesTargetSpec or []; full rendering spec for frozen prev-axes
   end
 
@@ -8195,8 +8195,8 @@ classdef LabelerController < handle
 
       % In degenerate cases, make all invisible
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
-        set(obj.lblPrev_ptsRealH_, 'Visible', 'off') ;
-        set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'off') ;
+        set(obj.prevAxesLabelLine, 'Visible', 'off') ;
+        set(obj.prevAxesLabelText, 'Visible', 'off') ;
         return
       end
 
@@ -8208,7 +8208,7 @@ classdef LabelerController < handle
       nPhysPoints = labeler.nPhysPoints ;
 
       % If the two gobject arrays are the wrong size, make new arrays
-      if isempty(obj.lblPrev_ptsRealH_) || numel(obj.lblPrev_ptsRealH_) ~= nPhysPoints
+      if isempty(obj.prevAxesLabelLine) || numel(obj.prevAxesLabelLine) ~= nPhysPoints
         obj.nukeAndRepavePrevAxesLabels_() ;
       end
 
@@ -8219,8 +8219,8 @@ classdef LabelerController < handle
             % Make all the labels invisible
             % setPositionsOfLabelLinesAndTextsToNanBangBang(...
             %   obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-            set(obj.lblPrev_ptsRealH_, 'Visible', 'off') ;
-            set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'off') ;
+            set(obj.prevAxesLabelLine, 'Visible', 'off') ;
+            set(obj.prevAxesLabelText, 'Visible', 'off') ;
           else
             [~, lpos, ~] = ...
               labeler.labelPosIsLabeled(spec.frm, ...
@@ -8235,18 +8235,18 @@ classdef LabelerController < handle
             txtOffset = labeler.labelPointsPlotInfo.TextOffset ;
             lpos = apt.patch_lpos(lpos) ;
             assignLabelCoordsHandlingOcclusionBangBang(...
-              obj.lblPrev_ptsRealH_(ipts), ...
-              obj.lblPrev_ptsTxtRealH_(ipts), ...
+              obj.prevAxesLabelLine(ipts), ...
+              obj.prevAxesLabelText(ipts), ...
               lpos(ipts, :), ...
               txtOffset) ;
-            set(obj.lblPrev_ptsRealH_, 'Visible', 'on') ;
-            set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'on') ;
+            set(obj.prevAxesLabelLine, 'Visible', 'on') ;
+            set(obj.prevAxesLabelText, 'Visible', 'on') ;
           end
         case PrevAxesMode.LASTSEEN
           % In this case just set everything to nan, so invisible
           % setPositionsOfLabelLinesAndTextsToNanBangBang(obj.lblPrev_ptsRealH_, obj.lblPrev_ptsTxtRealH_) ;
-          set(obj.lblPrev_ptsRealH_, 'Visible', 'off') ;
-          set(obj.lblPrev_ptsTxtRealH_, 'Visible', 'off') ;
+          set(obj.prevAxesLabelLine, 'Visible', 'off') ;
+          set(obj.prevAxesLabelText, 'Visible', 'off') ;
         otherwise
           error('Unknown PrevAxesMode') ;
       end
@@ -8397,8 +8397,8 @@ classdef LabelerController < handle
     
     function nukeAndRepavePrevAxesLabels_(obj)
       % Delete the existing label gobjects and recreate them.
-      deleteValidGraphicsHandles(obj.lblPrev_ptsRealH_);
-      deleteValidGraphicsHandles(obj.lblPrev_ptsTxtRealH_);
+      deleteValidGraphicsHandles(obj.prevAxesLabelLine);
+      deleteValidGraphicsHandles(obj.prevAxesLabelText);
 
       labeler = obj.labeler_;
       plotInfo = labeler.labelPointsPlotInfo;
@@ -8417,22 +8417,22 @@ classdef LabelerController < handle
         extraParams = [extraParams, {allowedPlotParams{j}, plotInfo.(allowedPlotParams{j})}]; %#ok<AGROW>
       end
 
-      obj.lblPrev_ptsRealH_ = gobjects(npts, 1);
-      obj.lblPrev_ptsTxtRealH_ = gobjects(npts, 1);
+      obj.prevAxesLabelLine = gobjects(npts, 1);
+      obj.prevAxesLabelText = gobjects(npts, 1);
       for i = 1:npts
-        obj.lblPrev_ptsRealH_(i) = ...
+        obj.prevAxesLabelLine(i) = ...
           plot(axes_prev, nan, nan, markerPVcell{:}, ...
                'Color', plotInfo.Colors(i, :), ...
                'UserData', i, ...
                extraParams{:}, ...
-               'Tag', sprintf('LabelerController_lblPrev_ptsRealH_%d', i));
-        obj.lblPrev_ptsTxtRealH_(i) = ...
+               'Tag', sprintf('prevAxesLabelLine_%d', i));
+        obj.prevAxesLabelText(i) = ...
           text(nan, nan, num2str(i), ...
                'Parent', axes_prev, ...
                textPVcell{:}, ...
                'Color', plotInfo.Colors(i, :), ...
                'PickableParts', 'none', ...
-               'Tag', sprintf('LabelerController_lblPrev_ptsTxtRealH_%d', i));
+               'Tag', sprintf('prevAxesLabelText_%d', i));
       end
     end  % function
 
