@@ -5540,7 +5540,7 @@ classdef LabelerController < handle
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
-      hlpTickGridBang(obj.axes_all, obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
+      hlpTickGridBang([obj.axes_all ; obj.axes_prev], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
     end
 
 
@@ -5548,7 +5548,7 @@ classdef LabelerController < handle
     function menu_view_show_grid_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
-      hlpTickGridBang(obj.axes_all, obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
+      hlpTickGridBang([obj.axes_all ; obj.axes_prev], obj.menu_view_show_tick_labels, obj.menu_view_show_grid) ;
     end
 
 

@@ -2,7 +2,7 @@ function hlpTickGridBang(axes_all, menu_view_show_tick_labels, menu_view_show_gr
 tfTickOn = strcmp(menu_view_show_tick_labels.Checked,'on');
 tfGridOn = strcmp(menu_view_show_grid.Checked,'on');
 if tfTickOn || tfGridOn
-  set(axes_all,'XTickMode','auto','YTickMode','auto');
+  set(axes_all, 'XTickMode', 'auto', 'YTickMode', 'auto', 'TickDir', 'in') ;
 else
   set(axes_all,'XTick',[],'YTick',[]);
 end

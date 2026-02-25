@@ -180,7 +180,31 @@ classdef ViewConfig
           grid(ax,'on');
         else
           grid(ax,'off');
-        end        
+        end
+        if iView==1
+          hAxPrev.XAxisLocation = 'top';
+          hAxPrev.XColor = axColor ;
+          hAxPrev.YColor = axColor ;
+          hAxPrev.Box = 'on';
+          hAxPrev.FontUnits = 'pixels';
+          hAxPrev.FontSize = vCfg.AxFontSize;
+          ax.TickDir = 'in' ;
+          hAxPrev.TickDir = 'in' ;
+          if vCfg.ShowAxTicks
+            hAxPrev.XTickMode = 'auto';
+            hAxPrev.YTickMode = 'auto';
+            hAxPrev.XTickLabelMode = 'auto';
+            hAxPrev.YTickLabelMode = 'auto';
+          else
+            hAxPrev.XTickLabel = [];
+            hAxPrev.YTickLabel = [];
+          end
+          if vCfg.ShowGrid
+            grid(hAxPrev,'on');
+          else
+            grid(hAxPrev,'off');
+          end
+        end
       end
     end  % function
     
