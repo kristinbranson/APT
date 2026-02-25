@@ -2726,6 +2726,11 @@ classdef Labeler < handle
       
       % Set up the kick_axes
       % This needs to occur after .labeledpos etc has been set
+      % Migrate old config field name
+      if isfield(s.cfg, 'PrevAxes') && ~isfield(s.cfg, 'KickAxes')
+        s.cfg.KickAxes = s.cfg.PrevAxes ;
+        s.cfg = rmfield(s.cfg, 'PrevAxes') ;
+      end
       pamode = KickAxesMode.(s.cfg.KickAxes.Mode) ;
       obj.kickAxesMode_ = pamode ;
       if pamode == KickAxesMode.FROZEN
