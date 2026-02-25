@@ -187,7 +187,7 @@ classdef Labeler < handle
     updateTimelineTraces
     updateTimelineLandmarkColors
     updateCurrImagesAllViews
-    updatePrevAxesImageAndFrameText
+    updatePrevPanelAfterFrameChange
     updatePrevAxesLabels
     updatePrevPanel
     updateShortcuts
@@ -12794,7 +12794,9 @@ classdef Labeler < handle
       if updateLabels
         obj.labelsUpdateNewFrame(tfforcelabelupdate);
       end
-      
+
+      obj.notify('updatePrevPanelAfterFrameChange') ;
+
       if debugtiming,
         fprintf('setFrame %d, updatelabels took %f seconds\n',frm,toc(setframetic)); setframetic = tic;
       end
@@ -12896,6 +12898,8 @@ classdef Labeler < handle
         obj.notify('updateTrxTable');
         obj.updateShowTrx();  % All this does is send a notification, and only in some cases
       end
+
+      obj.notify('updatePrevPanelAfterFrameChange') ;
     end  % function setFrameAndTargetGUI
   end
 
@@ -13120,8 +13124,9 @@ classdef Labeler < handle
         obj.prevIm = currIm1Original ;
         obj.prevImRoi = currImRoi1Original ;
       end
-      % obj.prevAxesImFrmUpdate(tfforce) ;      
-      obj.notify('updatePrevAxesImageAndFrameText') ;
+      % obj.prevAxesImFrmUpdate(tfforce) ;
+      % Note: updatePrevPanelAfterFrameChange is fired by callers (setFrameGUI,
+      % setFrameAndTargetGUI) after currTarget etc. have settled.
     end  % function
   end
   
