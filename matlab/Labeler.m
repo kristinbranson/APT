@@ -371,7 +371,9 @@ classdef Labeler < handle
   properties
     moviename  % short 'pretty' name, cosmetic purposes only. For multiview, primary movie name.
     movieCenterOnTarget = false  % scalar logical.
-    movieRotateTargetUp = false
+    movieRotateTargetUp = false  
+      % scalar logical; when true, the target is kept in center of axes_curr, and
+      % view is rotated so target is heading up (toward top of screen)
   end
 
   properties (Transient)
@@ -1748,6 +1750,8 @@ classdef Labeler < handle
     function set.movieCenterOnTarget(obj,v)
       obj.movieCenterOnTarget = v;
       if ~v && obj.movieRotateTargetUp %#ok<MCSUP>
+        % If we are turning center-on-target mode off, then rotate-target-up mode must
+        % also be off.
         obj.movieRotateTargetUp = false; %#ok<MCSUP>
       end
       obj.notify('updateTargetCentrationAndZoom') ;
@@ -1759,7 +1763,8 @@ classdef Labeler < handle
         warningNoTrace('Labeler:MA', 'No labeled target selected. Not rotating');
       else
         if v && ~obj.movieCenterOnTarget %#ok<MCSUP>
-          %warningNoTrace('Labeler:prop','Setting .movieCenterOnTarget to true.');
+          % If we are turning rotate-target-up mode on, then center-on-target mode must
+          % also be on.
           obj.movieCenterOnTarget = true; %#ok<MCSUP>
         end
         obj.movieRotateTargetUp = v;
@@ -12938,7 +12943,7 @@ classdef Labeler < handle
 %       end
 %     end
     
-    function [x,y,th] = currentTargetLoc(obj,varargin)
+    function [x,y,theta] = currentTargetLocationAndHeading(obj,varargin)
       % Return current target loc, or movie center if no target
       
       nowarn = myparse(varargin,...
@@ -12962,19 +12967,19 @@ classdef Labeler < handle
           movroictr = obj.movieroictr; % [1x2]
           x = round(movroictr(1));
           y = round(movroictr(2));
-          th = 0;
+          theta = 0;
         else
           i = cfrm - ctrx.firstframe + 1;
           x = ctrx.x(i);
           y = ctrx.y(i);
-          th = ctrx.theta(i);
+          theta = ctrx.theta(i);
         end
       elseif obj.maIsMA
         cfrm = obj.currFrame;
         imov = obj.currMovie;
         itgt = obj.currTarget;
         if itgt==0
-          x=NaN; y=NaN; th=NaN;
+          x=NaN; y=NaN; theta=NaN;
           return 
         end
         lpos = obj.labelsGTaware;
@@ -12995,21 +13000,21 @@ classdef Labeler < handle
               warningNoTrace('No tail point defined; using centroid.');
             end
             vmuhead = phead-ptail;
-            th = atan2(vmuhead(2),vmuhead(1));
+            theta = atan2(vmuhead(2),vmuhead(1));
           else
-            th = 0;
+            theta = 0;
           end
         else
           movroictr = obj.movieroictr; % [1x2]
           x = round(movroictr(1));
           y = round(movroictr(2));
-          th = 0;
+          theta = 0;
         end
       else
         movroictr = obj.movieroictr; % [1x2]
         x = round(movroictr(1));
         y = round(movroictr(2));
-        th = 0;
+        theta = 0;
       end
     end
     

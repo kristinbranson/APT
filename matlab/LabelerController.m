@@ -1997,7 +1997,7 @@ classdef LabelerController < handle
       obj.newProjAxLimsSetInConfig = ...
         obj.hlpSetConfigOnViews_(viewCfg, ...
                                  viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
-      AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'View'};
+      AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'CameraUpVector'};
       obj.hLinkPrevCurr = ...
         linkprop([obj.axes_curr,obj.axes_prev], AX_LINKPROPS) ;
       
@@ -3395,11 +3395,11 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;       
       tf = labeler.movieRotateTargetUp;
       if tf
-        ax = obj.axes_curr;
+        axex_curr = obj.axes_curr;
         warnst = warning('off','LabelerGUI:axDir');
         % When axis is in image mode, ydir should be reversed!
-        ax.XDir = 'normal';
-        ax.YDir = 'reverse';
+        axex_curr.XDir = 'normal';
+        axex_curr.YDir = 'reverse';
         warning(warnst);
       end
       mnu = obj.menu_view_rotate_video_target_up;
@@ -3989,7 +3989,7 @@ classdef LabelerController < handle
       % Force in-plane rotation (elevation = 90), then downdate azimuth.
       ax = evt.Axes ;
       az = ax.View(1) ;
-      ax.View = [az 90] ;
+      ax.CameraUpVector = [-sind(az), cosd(az), 0] ;
       if ax == obj.axes_prev
         obj.downdatePrevAxesAzimuth_() ;
       end
@@ -4284,7 +4284,7 @@ classdef LabelerController < handle
       end
     end  
     
-    function videoCenterOnCurrTarget(obj, x, y, th)
+    function videoCenterOnCurrTarget(obj, x, y, theta)
       % Shift axis center/target and CameraUpVector without touching zoom.
       % 
       % Potential TODO: CamViewAngle treatment looks a little bizzare but
@@ -4297,22 +4297,22 @@ classdef LabelerController < handle
       [x0,y0] = obj.videoCurrentCenter();
       tfexternal = nargin>1;
       if ~tfexternal
-        [x,y,th] = labeler.currentTargetLoc();
+        [x,y,theta] = labeler.currentTargetLocationAndHeading();
       end
       if isnan(x)
         warningNoTrace('No target selected');
-        return;
+        return
       end
 
       dx = x-x0;
       dy = y-y0;
-      ax = obj.axes_curr;
-      axisshift(ax,dx,dy);
-      ax.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
-      ax.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
+      axes_curr = obj.axes_curr;
+      axisshift(axes_curr,dx,dy);
+      axes_curr.CameraPositionMode = 'auto'; % issue #86, behavior differs between 16b and 15b. Use of manual zoom toggles .CPM into manual mode
+      axes_curr.CameraTargetMode = 'auto'; % issue #86, etc Use of manual zoom toggles .CTM into manual mode
       %ax.CameraViewAngleMode = 'auto';
       if labeler.movieRotateTargetUp || tfexternal
-        ax.CameraUpVector = [cos(th) sin(th) 0];
+        axes_curr.CameraUpVector = [cos(theta) sin(theta) 0];
         % if verLessThan('matlab','R2016a')
         %   % See iss#86. In R2016a, the zoom/pan behavior of axes in 3D mode
         %   % (currently, any axis with CameraViewAngleMode manually set)
@@ -4334,12 +4334,12 @@ classdef LabelerController < handle
         %     setappdata(mainFigure,'manualZoomOccured',false);
         %   end
         % end
-        if strcmp(ax.CameraViewAngleMode,'auto')
-          cva = ax.CameraViewAngle;
-          ax.CameraViewAngle = cva/2;
+        if strcmp(axes_curr.CameraViewAngleMode,'auto')
+          cva = axes_curr.CameraViewAngle;
+          axes_curr.CameraViewAngle = cva/2;
         end
       else
-        ax.CameraUpVectorMode = 'auto';
+        axes_curr.CameraUpVectorMode = 'auto';
       end
     end
     
@@ -8281,8 +8281,8 @@ classdef LabelerController < handle
       set(axes_prev, ...
           'CameraUpVectorMode', 'auto', ...
           'CameraViewAngleMode', 'auto');
-      axes_prev.View = obj.axes_curr.View ;
-      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir, View
+      axes_prev.CameraUpVector = obj.axes_curr.CameraUpVector ;
+      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir, CameraUpVector
     end  % function
 
     function updatePrevPanel(obj)
@@ -8357,10 +8357,7 @@ classdef LabelerController < handle
         axes_prev.XLim = targetSpec.xlim + targetSpec.dxlim ;
         axes_prev.YLim = targetSpec.ylim + targetSpec.dylim ;
         axes_prev.CameraViewAngleMode = 'auto' ;
-        axes_prev.View = [targetSpec.azimuth 90] ;
-        if targetSpec.isrotated,
-          axes_prev.CameraUpVectorMode = 'auto';
-        end
+        axes_prev.CameraUpVector = [-sind(targetSpec.azimuth), cosd(targetSpec.azimuth), 0] ;
       else
         obj.image_prev.CData = 0;
         obj.txPrevIm.String = '';
@@ -8390,7 +8387,8 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if labeler.prevAxesMode ~= PrevAxesMode.FROZEN, return ; end
       if isempty(labeler.corePrevAxesTargetSpec), return ; end
-      az = obj.axes_prev.View(1) ;
+      cuv = obj.axes_prev.CameraUpVector ;
+      az = atan2d(-cuv(1), cuv(2)) ;
       labeler.corePrevAxesTargetSpec = ...
         CorePrevAxesTargetSpec.setprop(labeler.corePrevAxesTargetSpec, ...
                                        'azimuth', az) ;
