@@ -538,7 +538,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateKickAxesImageAndFrameText',@(s,e)(obj.updateKickAxesImageAndFrameText())) ;
+        addlistener(obj.labeler_,'updateKickPanelAfterFrameChange',@(s,e)(obj.updateKickPanelAfterFrameChange())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateKickAxesLabels',@(s,e)(obj.updateKickAxesLabels())) ;
       obj.listeners_(end+1) = ...
@@ -7882,13 +7882,15 @@ classdef LabelerController < handle
       end      
     end  % function
 
-    function updateKickAxesImageAndFrameText(obj)
-      labeler = obj.labeler_ ;   
+    function updateKickPanelAfterFrameChange(obj)
+      % Update the kick-axes image, frame text, and Freeze button after a frame change.
+      labeler = obj.labeler_ ;
 
       % In degenerate cases, make all invisible
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie || isempty(labeler.kickAxesMode)
         set(obj.image_prev, 'Visible', 'off') ;
         set(obj.txPrevIm, 'Visible', 'off') ;
+        set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
         return
       end
 
@@ -7896,7 +7898,11 @@ classdef LabelerController < handle
       set(obj.image_prev, 'Visible', 'on') ;
       set(obj.txPrevIm, 'Visible', 'on') ;
 
-      % update kickaxes image and txframe based on .prevIm, .prevFrame
+      % Update the enablement of the "Freeze" button
+      islabeled = labeler.currFrameIsLabeled() ;
+      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
+
+      % Update kickaxes image and txframe based on .prevIm, .prevFrame
       switch labeler.kickAxesMode
         case KickAxesMode.LASTSEEN
           set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4) );
