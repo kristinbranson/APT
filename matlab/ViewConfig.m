@@ -167,9 +167,14 @@ classdef ViewConfig
         ax.Box = 'on';
         ax.FontUnits = 'pixels';
         ax.FontSize = vCfg.AxFontSize;
-        if vCfg.ShowAxTicks
+        if vCfg.ShowAxTicks || vCfg.ShowGrid
           ax.XTickMode = 'auto';
           ax.YTickMode = 'auto';
+        else
+          ax.XTick = [];
+          ax.YTick = [];
+        end
+        if vCfg.ShowAxTicks
           ax.XTickLabelMode = 'auto';
           ax.YTickLabelMode = 'auto';
         else
@@ -190,9 +195,14 @@ classdef ViewConfig
           hAxPrev.FontSize = vCfg.AxFontSize;
           ax.TickDir = 'in' ;
           hAxPrev.TickDir = 'in' ;
-          if vCfg.ShowAxTicks
+          if vCfg.ShowAxTicks || vCfg.ShowGrid
             hAxPrev.XTickMode = 'auto';
             hAxPrev.YTickMode = 'auto';
+          else
+            hAxPrev.XTick = [];
+            hAxPrev.YTick = [];
+          end
+          if vCfg.ShowAxTicks
             hAxPrev.XTickLabelMode = 'auto';
             hAxPrev.YTickLabelMode = 'auto';
           else
