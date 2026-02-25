@@ -51,7 +51,7 @@ classdef LabelerController < handle
     % h_nonma_only
     % h_singleview_only
     image_curr
-    image_prev
+    image_kick
     labelMode2SetupMenu
     menu_debug
     menu_debug_generate_db
@@ -189,12 +189,12 @@ classdef LabelerController < handle
     pbTrack
     pbTrain
     pnlStatus
-    popupmenu_prevmode
+    popupmenu_kick_mode
     pumTimelineProp
     pumTimelinePropType
     pumTrack
     pushbutton_exitcropmode
-    pushbutton_freezetemplate
+    pushbutton_freeze_template
     scribeOverlay
     setupMenu2LabelMode
     sldZoom
@@ -218,7 +218,7 @@ classdef LabelerController < handle
     txGTMode
     txLblCoreAux
     txMoviename
-    txPrevIm
+    txKickIm
     txStatus
     txTotalFramesLabeled
     txTotalFramesLabeledLabel
@@ -229,12 +229,12 @@ classdef LabelerController < handle
     uipanel_frames
     uipanel_cropcontrols
     uipanel_curr
-    uipanel_prev
+    uipanel_kick
   end
 
   properties
     axesesHighlightManager_
-    hLinkPrevCurr
+    hLinkKickCurr
     newProjAxLimsSetInConfig
     h_ignore_arrows
     GTManagerFigure  % the ground truth manager *figure*
@@ -542,7 +542,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateKickAxesLabels',@(s,e)(obj.updateKickAxesLabels())) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updatePrevPanel',@(s,e)(obj.updatePrevPanel())) ;
+        addlistener(obj.labeler_,'updateKickPanel',@(s,e)(obj.updateKickPanel())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
 
@@ -1597,8 +1597,8 @@ classdef LabelerController < handle
       set(obj.pbPlay,'Enable',onIff(hasProject));
       set(obj.slider_frame,'Enable',onIff(hasProject));
       set(obj.edit_frame,'Enable',onIff(hasProject));
-      set(obj.popupmenu_prevmode,'Enable',onIff(hasProject));
-      set(obj.pushbutton_freezetemplate,'Enable',onIff(hasProject));
+      set(obj.popupmenu_kick_mode,'Enable',onIff(hasProject));
+      set(obj.pushbutton_freeze_template,'Enable',onIff(hasProject));
       %set(obj.toolbar,'Visible',onIff(hasProject)) ;
       
       obj.menu_track.Enable = onIff(hasTracker);
@@ -1987,9 +1987,9 @@ classdef LabelerController < handle
       
       % Delete obj.hLinkPrevCurr
       % The link destruction/recreation may not be necessary
-      if ~isempty(obj.hLinkPrevCurr) && isvalid(obj.hLinkPrevCurr)
-        delete(obj.hLinkPrevCurr);
-        obj.hLinkPrevCurr = [] ;
+      if ~isempty(obj.hLinkKickCurr) && isvalid(obj.hLinkKickCurr)
+        delete(obj.hLinkKickCurr);
+        obj.hLinkKickCurr = [] ;
       end
 
       % Configure the non-primary view windows
@@ -1998,7 +1998,7 @@ classdef LabelerController < handle
         obj.hlpSetConfigOnViews_(viewCfg, ...
                                  viewCfg(1).CenterOnTarget) ;  % lObj.CenterOnTarget is not set yet
       AX_LINKPROPS = {'XLim' 'YLim' 'XDir' 'YDir' 'View'};
-      obj.hLinkPrevCurr = ...
+      obj.hLinkKickCurr = ...
         linkprop([obj.axes_curr,obj.axes_kick], AX_LINKPROPS) ;
       
       arrayfun(@(x)(colormap(x,gray())),figs);
@@ -3655,15 +3655,15 @@ classdef LabelerController < handle
 
       % Record the width of txUnsavedChanges, so we can keep it fixed
       hTx = obj.txUnsavedChanges;
-      hPnlPrev = obj.uipanel_prev;
+      hPnlKick = obj.uipanel_kick;
       
       hTxUnits0 = hTx.Units;
-      hPnlPrevUnits0 = hPnlPrev.Units;
+      hPnlKickUnits0 = hPnlKick.Units;
       hTx.Units = 'pixels';
-      hPnlPrev.Units = 'pixels';
+      hPnlKick.Units = 'pixels';
       pxTxUnsavedChangesWidth = hTx.Position(3);
       hTx.Units = hTxUnits0;
-      hPnlPrev.Units = hPnlPrevUnits0;
+      hPnlKick.Units = hPnlKickUnits0;
 
       obj.pxTxUnsavedChangesWidth_ = pxTxUnsavedChangesWidth ;
     end
@@ -3674,16 +3674,16 @@ classdef LabelerController < handle
       % edge of the previous/reference frame panel
       pxTxUnsavedChangesWidth = obj.pxTxUnsavedChangesWidth_ ;
       hTx = obj.txUnsavedChanges;
-      hPnlPrev = obj.uipanel_prev;
+      hPnlKick = obj.uipanel_kick;
       hTxUnits0 = hTx.Units;
-      hPnlPrevUnits0 = hPnlPrev.Units;
+      hPnlKickUnits0 = hPnlKick.Units;
       hTx.Units = 'pixels';
-      hPnlPrev.Units = 'pixels';
-      uiPnlPrevRightEdge = hPnlPrev.Position(1) + hPnlPrev.Position(3) ;
-      hTx.Position(1) = uiPnlPrevRightEdge - pxTxUnsavedChangesWidth ;
+      hPnlKick.Units = 'pixels';
+      uiPnlKickRightEdge = hPnlKick.Position(1) + hPnlKick.Position(3) ;
+      hTx.Position(1) = uiPnlKickRightEdge - pxTxUnsavedChangesWidth ;
       hTx.Position(3) = pxTxUnsavedChangesWidth ;
       hTx.Units = hTxUnits0;
-      hPnlPrev.Units = hPnlPrevUnits0;
+      hPnlKick.Units = hPnlKickUnits0;
       obj.resizeTblFramesTrx_();
 
       %obj.updateStatus() ;  % do we need this here?
@@ -6246,7 +6246,7 @@ classdef LabelerController < handle
       labeler.setShowMaRoiAux(tf);
     end
 
-    function popupmenu_prevmode_actuated_(obj, src, evt)  %#ok<INUSD>
+    function popupmenu_kick_mode_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_;
       contents = cellstr(get(src, 'String'));
       modeAsString = contents{get(src, 'Value')};
@@ -6254,7 +6254,7 @@ classdef LabelerController < handle
       labeler.setKickAxesMode(mode) ;
     end
 
-    function pushbutton_freezetemplate_actuated_(obj, src, evt)  %#ok<INUSD>
+    function pushbutton_freeze_template_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_;
       labeler.setKickAxesModeTarget();
     end
@@ -7209,7 +7209,7 @@ classdef LabelerController < handle
         end
       end
       lObj.movieViewBGsubbed = v;
-      lObj.hlpSetCurrPrevFrameGUI(lObj.currFrame,true);
+      % lObj.hlpSetCurrPrevFrameGUI(lObj.currFrame,true);
       clim(obj.axes_curr,'auto');
       lObj.notify('didSetMovieViewBGsubbed');
     end  % function
@@ -7888,35 +7888,35 @@ classdef LabelerController < handle
 
       % In degenerate cases, make all invisible
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie || isempty(labeler.kickAxesMode)
-        set(obj.image_prev, 'Visible', 'off') ;
-        set(obj.txPrevIm, 'Visible', 'off') ;
-        set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
+        set(obj.image_kick, 'Visible', 'off') ;
+        set(obj.txKickIm, 'Visible', 'off') ;
+        set(obj.pushbutton_freeze_template, 'Enable', 'off') ;
         return
       end
 
       % Make things visible
-      set(obj.image_prev, 'Visible', 'on') ;
-      set(obj.txPrevIm, 'Visible', 'on') ;
+      set(obj.image_kick, 'Visible', 'on') ;
+      set(obj.txKickIm, 'Visible', 'on') ;
 
       % Update the enablement of the "Freeze" button
       islabeled = labeler.currFrameIsLabeled() ;
-      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
+      set(obj.pushbutton_freeze_template, 'Enable', onIff(islabeled)) ;
 
       % Update kickaxes image and txframe based on .prevIm, .prevFrame
       switch labeler.kickAxesMode
         case KickAxesMode.LASTSEEN
-          set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4) );
+          set(obj.image_kick, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4) );
           basicString = sprintf('Frame: %d',labeler.prevFrame) ;
           if labeler.hasTrx,
             finalString = sprintf('%s, Target %d',basicString,labeler.currTarget) ;
           else
             finalString = basicString ;
           end
-          obj.txPrevIm.String = finalString ;
+          obj.txKickIm.String = finalString ;
         case KickAxesMode.FROZEN,
           spec = obj.kickAxesTargetSpec_ ;
           if ~isempty(spec)
-            set(obj.image_prev, 'CData', spec.im, 'XData', spec.xdata, 'YData', spec.ydata );
+            set(obj.image_kick, 'CData', spec.im, 'XData', spec.xdata, 'YData', spec.ydata );
             stringDraft1 = sprintf('Frame %d', spec.frm);
             if labeler.hasTrx,
               stringDraft2 = sprintf('%s, Target %d', stringDraft1, spec.iTgt) ;
@@ -7924,7 +7924,7 @@ classdef LabelerController < handle
               stringDraft2 = stringDraft1 ;
             end
             finalString = sprintf('%s, Movie %d', stringDraft2, spec.iMov) ;
-            obj.txPrevIm.String = finalString ;
+            obj.txKickIm.String = finalString ;
           end  % if
       end
     end  % function
@@ -8266,10 +8266,10 @@ classdef LabelerController < handle
       % update kickaxes image and txframe based on .prevIm, .prevFrame
       switch labeler.kickAxesMode
         case KickAxesMode.LASTSEEN
-          set(obj.image_prev, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4));
-          obj.txPrevIm.String = sprintf('Frame: %d', labeler.prevFrame);
+          set(obj.image_kick, 'CData', labeler.prevIm, 'XData', labeler.prevImRoi(1:2), 'YData', labeler.prevImRoi(3:4));
+          obj.txKickIm.String = sprintf('Frame: %d', labeler.prevFrame);
           if labeler.hasTrx,
-            obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', labeler.currTarget)];
+            obj.txKickIm.String = [obj.txKickIm.String, sprintf(', Target %d', labeler.currTarget)];
           end
         case KickAxesMode.FROZEN,
           % do nothing
@@ -8282,18 +8282,18 @@ classdef LabelerController < handle
           'CameraUpVectorMode', 'auto', ...
           'CameraViewAngleMode', 'auto');
       axes_kick.View = obj.axes_curr.View ;
-      obj.hLinkPrevCurr.Enabled = 'on'; % links X/YLim, X/YDir, View
+      obj.hLinkKickCurr.Enabled = 'on'; % links X/YLim, X/YDir, View
     end  % function
 
-    function updatePrevPanel(obj)
+    function updateKickPanel(obj)
       % Update the prev panel, including the controls and the kick_axes, and the
       % things in the kick_axes (the image, the lines, the texts)
       labeler = obj.labeler_;
 
       % Handle various degenerate cases
       if labeler.isinit || ~labeler.hasProject || ~labeler.hasMovie
-        set(obj.popupmenu_prevmode, 'Enable', 'off') ;
-        set(obj.pushbutton_freezetemplate, 'Enable', 'off') ;
+        set(obj.popupmenu_kick_mode, 'Enable', 'off') ;
+        set(obj.pushbutton_freeze_template, 'Enable', 'off') ;
         setAxesAndChildrenVisibleBang(obj.axes_kick, false) ;
         return
       end
@@ -8303,22 +8303,22 @@ classdef LabelerController < handle
 
       % Update the enablement of the "Freeze" button.
       islabeled = labeler.currFrameIsLabeled();
-      set(obj.pushbutton_freezetemplate, 'Enable', onIff(islabeled)) ;
+      set(obj.pushbutton_freeze_template, 'Enable', onIff(islabeled)) ;
 
       % Get the current mode
       mode = labeler.kickAxesMode ;
       
       % Update the popup menu
-      stringFromMenuIndex = cellstr(get(obj.popupmenu_prevmode, 'String'));
+      stringFromMenuIndex = cellstr(get(obj.popupmenu_kick_mode, 'String'));
       switch mode
         case KickAxesMode.FROZEN,
           menuIndex = find(strcmpi(stringFromMenuIndex, 'Reference'));
         case KickAxesMode.LASTSEEN,
-          menuIndex = find(strcmpi(stringFromMenuIndex, 'Previous frame'));
+          menuIndex = find(strcmpi(stringFromMenuIndex, 'Previous Frame'));
         otherwise
-          error('Unknown previous axes mode');
+          error('Internal error: Unhandled KickAxesMode level') ;
       end
-      set(obj.popupmenu_prevmode, 'Value', menuIndex);
+      set(obj.popupmenu_kick_mode, 'Value', menuIndex);
 
       % Update the axes and things in it, except for the label gobjects
       switch mode
@@ -8342,17 +8342,17 @@ classdef LabelerController < handle
       obj.recomputeKickAxesSpec_() ;
       targetSpec = obj.kickAxesTargetSpec_ ;
 
-      obj.hLinkPrevCurr.Enabled = 'off';
+      obj.hLinkKickCurr.Enabled = 'off';
 
       if ~isempty(targetSpec)
-        obj.image_prev.XData = targetSpec.xdata;
-        obj.image_prev.YData = targetSpec.ydata;
-        obj.image_prev.CData = targetSpec.im;
-        obj.txPrevIm.String = sprintf('Frame %d', targetSpec.frm);
+        obj.image_kick.XData = targetSpec.xdata;
+        obj.image_kick.YData = targetSpec.ydata;
+        obj.image_kick.CData = targetSpec.im;
+        obj.txKickIm.String = sprintf('Frame %d', targetSpec.frm);
         if labeler.hasTrx,
-          obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Target %d', targetSpec.iTgt)];
+          obj.txKickIm.String = [obj.txKickIm.String, sprintf(', Target %d', targetSpec.iTgt)];
         end
-        obj.txPrevIm.String = [obj.txPrevIm.String, sprintf(', Movie %d', targetSpec.iMov)];
+        obj.txKickIm.String = [obj.txKickIm.String, sprintf(', Movie %d', targetSpec.iMov)];
         axes_kick = obj.axes_kick;
         axes_kick.XLim = targetSpec.xlim + targetSpec.dxlim ;
         axes_kick.YLim = targetSpec.ylim + targetSpec.dylim ;
@@ -8362,8 +8362,8 @@ classdef LabelerController < handle
           axes_kick.CameraUpVectorMode = 'auto';
         end
       else
-        obj.image_prev.CData = 0;
-        obj.txPrevIm.String = '';
+        obj.image_kick.CData = 0;
+        obj.txKickIm.String = '';
       end
     end  % function
     

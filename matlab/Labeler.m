@@ -189,7 +189,7 @@ classdef Labeler < handle
     updateCurrImagesAllViews
     updateKickPanelAfterFrameChange
     updateKickAxesLabels
-    updatePrevPanel
+    updateKickPanel
     updateShortcuts
   end
 
@@ -2739,7 +2739,7 @@ classdef Labeler < handle
           obj.coreKickAxesTargetSpec_ = CoreKickAxesTargetSpec(modeInfoStruct) ;
         end
       end
-      obj.notify('updatePrevPanel') ;
+      obj.notify('updateKickPanel') ;
 
       % Make sure the AWS debug mode of the backend is consistent with the Labeler AWS debug
       % mode
@@ -4964,8 +4964,6 @@ classdef Labeler < handle
       end
       obj.prevIm = 0 ;
       obj.prevImRoi = [ 1 1 1 1 ] ;
-      imprev = controller.image_prev;
-      set(imprev,'CData',0);     
       if ~obj.gtIsGTMode
         obj.clearKickAxesModeTarget();
       end
@@ -14787,7 +14785,7 @@ classdef Labeler < handle
                                     'frm', obj.currFrame, ...
                                     'iTgt', obj.currTarget, ...
                                     'gtmode', obj.gtIsGTMode) ;
-      obj.notify('updatePrevPanel') ;
+      obj.notify('updateKickPanel') ;
     end
 
     function kickAxesMovieRemap_(obj, mIdxOrig2New)
@@ -14800,26 +14798,26 @@ classdef Labeler < handle
         obj.coreKickAxesTargetSpec_ = ...
           CoreKickAxesTargetSpec.setprop(obj.coreKickAxesTargetSpec_, ...
                                               'iMov', newIdx) ;
-        obj.notify('updatePrevPanel') ;
+        obj.notify('updateKickPanel') ;
       end
     end  % function
 
     function clearKickAxesModeTarget(obj)
       % Clear the frozen kick-axes target spec.
       obj.coreKickAxesTargetSpec_ = [] ;
-      obj.notify('updatePrevPanel') ;
+      obj.notify('updateKickPanel') ;
     end  % function
 
     function restoreKickAxesMode(obj)
-      % Fire updatePrevPanel to restore the kick-axes display to match the current model state.
-      obj.notify('updatePrevPanel') ;
+      % Fire updateKickPanel to restore the kick-axes display to match the current model state.
+      obj.notify('updateKickPanel') ;
     end
 
     function setKickAxesMode(obj, mode)
       % Set the mode for the 'sidekick' axes.
       assert(isa(mode, 'KickAxesMode')) ;
       obj.kickAxesMode_ = mode ;
-      obj.notify('updatePrevPanel') ;
+      obj.notify('updateKickPanel') ;
     end
     
 
