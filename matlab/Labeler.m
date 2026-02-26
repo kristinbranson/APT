@@ -10340,6 +10340,8 @@ classdef Labeler < handle
       if ~isempty(newCurrentTracker),
         newCurrentTracker.activate() ;
         newCurrentTracker.setHideViz(false);
+        newCurrentTracker.trackCurrResUpdate() ;
+        newCurrentTracker.newLabelerFrame() ;
       end
       
       % What is this doing, exactly?  -- ALT, 2025-02-05
