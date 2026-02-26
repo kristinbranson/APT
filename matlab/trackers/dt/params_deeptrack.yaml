@@ -52,8 +52,8 @@ ROOT:
       - brange: ['Brightness range',float,true,'Augment by adjusting image brightness by a random amount less than this number. 0 indicates no brightness adjustment, 1 indicates maximum brightness adjustment.',0.1,'','Advanced','isDeepTrack',true]
       - horz_flip: ['Flip horizontally',boolean,true,'Augment by flipping the training image and labels horizontally (left to right). Set pairs of corresponding landmarks by selecting "Select landmark flip pairings" from the Track menu. ',0,'','Important','isDeepTrack',true]
       - vert_flip: ['Flip vertically',boolean,true,'Augment by flipping the training image ang labels vertically (bottom to top). Set pairs of corresponding landmarks by selecting "Select landmark flip pairings" from the Track menu. ',0,'','Important','isDeepTrack',true]
-      - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',0,'','Advanced','isDeepTrack',true]
-      - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',1,'','Advanced','isDeepTrack',true]
+      - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',1,'','Advanced','isDeepTrack',true]
+      - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',0,'','Advanced','isDeepTrack',true]
     - LossFunction:
       - ['Loss Function','',false,'Parameters related to the deep-learning error criterion minimized.','','','','']
       - label_blur_rad: ['Label uncertainty radius',float,true,'Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location. Only applicable to heatmap based methods. Not applicable to DeepLabCut and LEAP.',3.,'','Advanced','isDeepTrack',true]
