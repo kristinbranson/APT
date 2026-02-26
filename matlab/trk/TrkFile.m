@@ -1,5 +1,12 @@
 classdef TrkFile < dynamicprops
-  
+  % Represents the contents of a .trk file, which stores tracking results
+  % (predicted positions, confidence scores, timestamps, etc.) for one or
+  % more targets across frames of a movie.  Inherits from dynamicprops
+  % (and therefore handle) because .trk files produced by the Python
+  % backends can contain variable sets of fields that are not known a
+  % priori.  Dynamic properties allow these extra fields to be absorbed at
+  % load time and round-tripped through save without data loss.
+
   properties (Constant,Hidden)
     unsetVal = '__UNSET__';
     listfile_fns = {'pred_locs','to_track','pred_tag','list_file',...
@@ -1991,7 +1998,8 @@ classdef TrkFile < dynamicprops
       propsDim1Only = {'pTrkFull'};
       
       props = properties(obj);
-      for p=props(:)',p=p{1};
+      for i = 1 : numel(props)
+        p = props{i} ;
         
         v = obj.(p);
         szv = size(v);

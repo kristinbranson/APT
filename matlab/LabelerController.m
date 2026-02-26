@@ -4693,7 +4693,6 @@ classdef LabelerController < handle
     end
 
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
-
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
         error('LabelerGUI:noMovie','No movie is loaded.');
