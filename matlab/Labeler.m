@@ -182,7 +182,7 @@ classdef Labeler < handle
     updateAfterCurrentFrameSet
     update
     updateTimelineSelection
-    updateTimelineProps
+    updateTimelinePopupMenus
     updateTimelineStatThresh
     updateTimelineTraces
     updateTimelineLandmarkColors
@@ -4852,7 +4852,7 @@ classdef Labeler < handle
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelinePopupMenus');
       obj.notify('updateTimelineSelection');
 
       % AL20160615: omg this is the plague.
@@ -4940,7 +4940,7 @@ classdef Labeler < handle
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
       obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelinePopupMenus');
       obj.notify('updateTimelineSelection');
 
       edata = NewMovieEventData(false);
@@ -10354,7 +10354,7 @@ classdef Labeler < handle
         propList = [] ;
       end      
       obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
-      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelinePopupMenus');
       % obj.notify('updateTimelineSelection');
 
       % Send the notifications
@@ -10548,7 +10548,7 @@ classdef Labeler < handle
         propList = [] ;
       end
       obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
-      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelinePopupMenus');
       % obj.notify('updateTimelineSelection');
       
       % Send the needed notifications
@@ -14607,7 +14607,7 @@ classdef Labeler < handle
       %   selectedFrames = find(itm.isSelectedFromFrameIndex) ;
       %   obj.selectedFrames_ = selectedFrames ;
       % end
-      % obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelinePopupMenus');
       obj.notify('updateTimelineSelection');
     end
 
@@ -14686,21 +14686,21 @@ classdef Labeler < handle
       
       obj.infoTimelineModel.addCustomFeatureGivenFileName(fileName);
       obj.notify('updateTimelineTraces') ;
-      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelinePopupMenus');
       % obj.notify('updateTimelineSelection');
     end
 
     function clearBoutInTimeline(obj)
       frameIndex = obj.currFrame ;
       obj.infoTimelineModel_.clearBout(frameIndex) ;
-      % obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelinePopupMenus');
       obj.notify('updateTimelineSelection');
     end    
 
     function clearSelectedFrames(obj)
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.clearSelection(obj.nframes) ;
-      % obj.notify('updateTimelineProps');
+      % obj.notify('updateTimelinePopupMenus');
       obj.notify('updateTimelineSelection');
     end
 
@@ -14748,7 +14748,7 @@ classdef Labeler < handle
       itm.setCurrentPropertyType(iproptype, iprop) ;
       obj.notify('updateTimelineTraces');
       obj.notify('updateTimelineLandmarkColors');
-      obj.notify('updateTimelineProps');
+      obj.notify('updateTimelinePopupMenus');
       % obj.notify('updateTimelineSelection');
     end  % function    
 

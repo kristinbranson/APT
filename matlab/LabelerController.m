@@ -508,7 +508,7 @@ classdef LabelerController < handle
       % obj.listeners_(end+1) = ...
       %   addlistener(obj.labeler_,'didSetTimelineSelectMode',@(s,e)(obj.cbklabelTLInfoSelectOn(s,e))) ;
       obj.listeners_(end+1) = ...
-        addlistener(obj.labeler_,'updateTimelineProps',@(s,e)(obj.updateTimelineProps())) ;
+        addlistener(obj.labeler_,'updateTimelinePopupMenus',@(s,e)(obj.updateTimelinePopupMenus())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateTimelineSelection',@(s,e)(obj.updateTimelineSelection())) ;
       obj.listeners_(end+1) = ...
@@ -1583,7 +1583,7 @@ classdef LabelerController < handle
       set(obj.uipanel_cropcontrols,'Visible',onIff(hasProject && isInCropMode)) ;
       set(obj.text_trackerinfo,'Visible',onIff(hasProject && ~isInCropMode)) ;
 
-      obj.updateTimelineProps() ;
+      obj.updateTimelinePopupMenus() ;
       obj.updateTimelineSelection() ;
 
       set(obj.pbClear,'Enable',onIff(hasProject));
@@ -4021,7 +4021,7 @@ classdef LabelerController < handle
       %set(obj.pumTimelineProp,'String',props,'Value',itm.curprop,'Enable',onIff(hasProject));
     end
 
-    function updateTimelineProps(obj)
+    function updateTimelinePopupMenus(obj)
       % Update the props dropdown menu and timeline.
       labeler = obj.labeler_ ;
       hasProject = labeler.hasProject ;

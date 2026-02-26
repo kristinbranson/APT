@@ -32,6 +32,7 @@ classdef InfoTimelineModel < handle
     tldata_pcode_  % the pcode used when tldata_ was last computed
     tldata_iMov_  % the iMov used when tldata_ was last computed
     tldata_iTgt_  % the iTgt used when tldata_ was last computed
+    tldata_trnNameLbl_  % the tracker train ID used when tldata_ was last computed
   end
   
   properties (Dependent)
@@ -144,10 +145,17 @@ classdef InfoTimelineModel < handle
         [ptype,pcode] = obj.getCurPropSmart();
         iMov = labeler.currMovie;
         iTgt = labeler.currTarget;
+        tracker = labeler.tracker ;
+        if ~isempty(tracker)
+          trnNameLbl = tracker.trnNameLbl ;
+        else
+          trnNameLbl = '' ;
+        end
         doRecompute = ~isequal(ptype, obj.tldata_ptype_) || ...
                       ~isequal(pcode, obj.tldata_pcode_) || ...
                       ~isequal(iMov, obj.tldata_iMov_) || ...
-                      ~isequal(iTgt, obj.tldata_iTgt_);
+                      ~isequal(iTgt, obj.tldata_iTgt_) || ...
+                      ~isequal(trnNameLbl, obj.tldata_trnNameLbl_) ;
       end
       if doRecompute
         obj.recomputeDataForCurrentMovieAndTarget_(labeler) ;
@@ -431,6 +439,12 @@ classdef InfoTimelineModel < handle
       obj.tldata_pcode_ = pcode ;
       obj.tldata_iMov_ = iMov ;
       obj.tldata_iTgt_ = iTgt ;
+      tracker = labeler.tracker ;
+      if ~isempty(tracker)
+        obj.tldata_trnNameLbl_ = tracker.trnNameLbl ;
+      else
+        obj.tldata_trnNameLbl_ = '' ;
+      end
     end  % function
     
     function setCurrentPropertyType(obj, iproptype, iprop)
