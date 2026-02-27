@@ -272,7 +272,9 @@ class config(object):
         self.link_strict_match_thres = 2.
 
         self.link_id = False
-        self.link_id_cropsz = None
+        # self.link_id_cropsz = None
+        self.link_id_cropsz_width = None
+        self.link_id_cropsz_height = None
         self.link_id_training_iters = 100000
         self.link_id_tracklet_samples = 25
         self.link_id_rescale = 1

@@ -950,6 +950,11 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tcInit();
       lObj = obj.labeler;
       lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0];
+      if obj.tcOn && ~isempty(obj.tc_prev_axis)
+        lObj.controller_.videoSetAxis(obj.tc_prev_axis);
+        obj.tc_prev_axis = [];
+      end
+
       obj.state = LabelState.ACCEPTED;
       obj.enableControls();
 

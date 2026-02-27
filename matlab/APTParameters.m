@@ -669,6 +669,9 @@ classdef APTParameters
         prev_val = nd.Data.Value;
         cur_val = autoparams(kk{ndx});
         reldiff = (cur_val-prev_val)/(prev_val+0.001);
+        if numel(reldiff)>1
+          reldiff = max(reldiff);
+        end
         if isempty(reldiff) || abs(reldiff)>0.1 % first clause if eg prev_val empty
           diff = true;
         end
@@ -686,8 +689,12 @@ classdef APTParameters
             extra_str = ' (second stage)';
           end
         end
-        dstr = sprintf('%s%s%s %d -> %d\n',dstr,nd.Data.DispName, extra_str,...
-                    prev_val,cur_val);
+        v1 = sprintf('%d,',prev_val);
+        v1 = v1(1:end-1);
+        v2 = sprintf('%d,',cur_val);
+        v2 = v2(1:end-1);
+        dstr = sprintf('%s%s%s %s -> %s\n',dstr,nd.Data.DispName, extra_str,...
+                    v1,v2);
 
       end
 
@@ -745,7 +752,7 @@ classdef APTParameters
 
       dstr = strtrim(dstr) ;
       fig = figure('units','pixels', ...
-                   'position',[300,300,min_w,150],...
+                   'position',[300,300,min_w,250],...
                    'toolbar','none', ...
                    'menu','none', ...
                    'name', 'Auto-update parameters?', ...
@@ -756,7 +763,7 @@ classdef APTParameters
       textbox = uicontrol('style','text', ...
                           'String',cellstr(dstr), ...
                           'units','pixels',...
-                          'position',[0,0,250,100], ...
+                          'position',[0,0,250,200], ...
                           'horizontalalignment','left',...
                           'Parent',fig);
       textbox_extent = get(textbox,'Extent');
@@ -770,9 +777,9 @@ classdef APTParameters
       centerOnParentFigure(fig,parentFig);
 
       % Position the textbox
-      textbox.Position(2) = side_margin+margin+button_height;
+      textbox.Position(2) = margin+margin+button_height;
       textbox.Position(1) = side_margin;
-      textbox.Position(3:4) = textbox.Extent(3:4);
+      textbox.Position(3:4) = textbox.Extent(3:4)+4;
 
       % Create the buttons
 

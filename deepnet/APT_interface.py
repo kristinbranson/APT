@@ -2445,14 +2445,18 @@ def create_cv_split_files(conf, n_splits=3):
     return all_train, splits, split_files
 
 
-def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True):
+def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True,use_conf_imsz=False):
     if use_bsize:
         bsize = conf.batch_size
     else:
         bsize = len(to_do_list)
 
-    hh = cap.get_height()
-    ww = cap.get_width()
+    if use_conf_imsz:
+        hh = conf.imsz[0]
+        ww = conf.imsz[1]
+    else:
+        hh = cap.get_height()
+        ww = cap.get_width()
     all_f = np.zeros((bsize,hh,ww,conf.img_dim,))
     # KB 20200504: sometimes crop_loc might be specified as nans when
     # we want no cropping to happen for reasons. 

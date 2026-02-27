@@ -13,6 +13,7 @@ import json
 # when/if the format of trk files changes, then this will need to get fancier
 
 from tqdm import tqdm
+from tqdm.asyncio import tqdm_asyncio
 import torch
 from torchvision import models
 from torch import optim
@@ -1239,12 +1240,12 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
 
   if conf.link_id:
     conf1 = copy.deepcopy(conf)
-    if conf1.link_id_cropsz is None:
+    if conf1.link_id_cropsz_width is None:
       ww = int(conf1.multi_animal_crop_sz/2*1.2)
       hh = ww
     else:
-      ww,hh = conf1.link_id_cropsz
-    conf1.imsz = [ww,hh]
+      ww,hh = conf1.link_id_cropsz_width, conf1.link_id_cropsz_height
+    conf1.imsz = [hh,ww]
     conf1.vert_flip = False
     conf1.horz_flip = False
 
@@ -1832,7 +1833,7 @@ def read_tracklet_ims(input):
     cur_list = [[fr, cur_trk[0]] for fr in rand_frs]
 
     # Use trx based image patch generator
-    ims = apt.create_batch_ims(cur_list, conf, cap, False, trx, None, use_bsize=False)
+    ims = apt.create_batch_ims(cur_list, conf, cap, False, trx, None, use_bsize=False,use_conf_imsz=True)
     all_ims.append([ims, cur_trk[0],cur_trk[1],cur_trk[2],cur_list])
     # print(f'Done reading images for tracklet: {seed}\n')
 
@@ -2177,7 +2178,8 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   logging.info(f'Saved sampled ID training images to {im_save_file}')
 
   load_task = None
-  for epoch in tqdm(range(n_iters)):
+  # for epoch in tqdm_asyncio(range(n_iters)):
+  for epoch in range(n_iters):
 
     # if epoch % sampling_period == 0 and epoch > 0:
       # compute the mining data and recreate datasets and dataloaders with updated mining data
@@ -2257,12 +2259,14 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
   if os.path.exists(save_file+'.int'):
     os.remove(save_file+'.int')
 
+  del train_iter, train_loader, train_dset
+
+  load_task.cancel()
   try:
-    load_task.cancel()
-  except:
+    await load_task
+  except asyncio.CancelledError:
     pass
 
-  del train_iter, train_loader, train_dset
   return net, loss_history
 
 
@@ -3045,7 +3049,14 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
 
   # Cluster the embedding using linkage. each group in groups specifies which tracklets belong to the same animal
   logging.info('Stitching tracklets based on identity ...')
+  if debug and out_file is not None:
+    dict_keys = ['dist_mat', 'pred_map', 'all_data', 'close_thresh', 'far_thresh', 'conf', 'preds']
+    A = dict()
+    for kk in dict_keys:
+      exec(f"A['{kk}']={kk}")
 
+    with open(out_file.replace('.p','_iddata.pkl'),'wb') as f:
+      pickle.dump(A, f)
 
   pred_map_orig = pred_map.copy()
   if link_method=='motion':

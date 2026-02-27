@@ -86,6 +86,9 @@ ROOT:
           - link_id_rescale: ['Identity tracker downsampling factor',float,true,'Amount to downsample the cropped animal images for identity tracking.',1,'','Important',['ma'],true]
           - link_id_batch_size: ['Identity tracker batch size',unsigned,true,'Batch size to use for training identity network.',16,'','Beginner',['ma'],true]
           - link_id_mining_steps: ['Identity tracker mining steps',unsigned,true,'Number of times to do hard triplet mining during identity tracking.',10,'','Advanced',['ma'],true]
-          - link_id_cropsz: ['Crop size to use for ID Linking',signed,true,'Crop size to use ID linking. If less than 0, the automatically computed crop size is used',-1,'','Beginner',['ma'],true]
+# we need height and width separately because the GUI can only show scalar values. Once we move to the new UI, we can switch back to single array
+          - link_id_cropsz_height: ['Crop height for ID Linking',signed,true,'Height of the crop to use for ID linking after the animal is aligned to face up',-1,'ParameterVisualizationTgtCropRadiusID','Beginner',['ma'],true]
+          - link_id_cropsz_width: ['Crop width for ID Linking',signed,true,'Width of the crop to use for ID linking after the animal is aligned to face up',-1,'ParameterVisualizationTgtCropRadiusID','Beginner',['ma'],true]
+
           - link_id_motion_link: ['Use motion linking before grouping by identity',signed,true,'Crop size to use ID linking. If less than 0, the automatically computed crop size is used',false,'','Advanced',['ma'],true]
 
