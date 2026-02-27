@@ -18,7 +18,6 @@ classdef APTParameters
       
       if nargin==0
         trees = APTParameters.PARAM_FILES_TREES;
-       % trees = APTParameters.paramFilesTrees();
         for f=fieldnames(trees)',f=f{1}; %#ok<FXSET>
           trees.(f).tree = trees.(f).tree.copy();
         end
@@ -583,9 +582,6 @@ classdef APTParameters
           if isfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch'),
             sPrmAll.ROOT.MultiAnimal.Track.TrackletStitch = sPrmAll.ROOT.MultiAnimal.TrackletStitch;
             sPrmAll.ROOT.MultiAnimal = rmfield(sPrmAll.ROOT.MultiAnimal,'TrackletStitch');
-          end
-          if ~isfield(sPrmAll.ROOT.MultiAnimal.Track,'max_n_animals_user'),
-            sPrmAll.ROOT.MultiAnimal.Track.max_n_animals_user = sPrmAll.ROOT.MultiAnimal.Track.max_n_animals;
           end
         end
         

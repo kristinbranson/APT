@@ -58,7 +58,7 @@ class config(object):
         # otherwise, if scale_range is read in, use that
         self.use_scale_factor_range = True
         self.imax = 255.
-        self.check_bounds_distort = False
+        self.check_bounds_distort = True
         self.adjust_contrast = False
         self.clahe_grid_size = 20
         self.normalize_img_mean = False
@@ -222,8 +222,7 @@ class config(object):
 
         # ============== MULTIANIMAL ==========
         self.is_multi = False
-        self.max_n_animals_user = 1 # this is the maximum number of animals that the user enters in the front-end.
-        self.max_n_animals = 1 # this is the actual number of detections to do while doing inference. this is set to 1.25 times the max_n_animals_user
+        self.max_n_animals = 1
         self.min_n_animals = 0
         self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
         self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
@@ -231,7 +230,7 @@ class config(object):
         # actual frame size
         self.multi_frame_sz = []
         self.multi_animal_crop_sz = None
-        # multi_use_mask is whether to mask the image or not. Shouldn't be used anymore
+        # multi_use_mask is whether to mask the image or not
         self.multi_use_mask = False
         # whether to mask the loss or not
         self.multi_loss_mask = True
@@ -241,8 +240,6 @@ class config(object):
         self.multi_match_dist_factor = .2
         self.multi_scale_by_bbox = False
         self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
-        self.multi_background_coverage_ratio = 0.5 # ratio of the background to cover while training
-        self.multi_background_sample_ratio = 0.5 # ratio of the background samples to training samples
 
         # ============= TOP-DOWN =================
 
@@ -282,7 +279,6 @@ class config(object):
         self.link_id_batch_size = 16
         self.link_id_ignore_far = False
         self.link_id_motion_link = False
-        self.link_id_save_int_wts = False
 
         # ============= MMPOSE =================
         self.mmpose_net = 'multi_hrnet'
@@ -340,13 +336,11 @@ class config(object):
     def getexplist(self, L):
         return L['movieFilesAll'][self.view,:]
 
-    def get(self,name,default,silent=False):
+    def get(self,name,default):
         if hasattr(self,name):
-            if not silent:
-                logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
+            logging.info('OVERRIDE: Using {} with value {} from config '.format(name,getattr(self,name)))
         else:
-            if not silent:
-                logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
+            logging.info('DEFAULT: For {} using with default value {}'.format(name, default))
             setattr(self,name,default)
         return getattr(self,name,default)
 
