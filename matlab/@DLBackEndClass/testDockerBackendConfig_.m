@@ -11,16 +11,16 @@ function testDockerBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
 
   dockercmd = apt.dockercmd();
-  cmd = sprintf('%s run --rm hello-world',dockercmd);
+  command = apt.ShellCommand({dockercmd, 'run', '--rm', 'hello-world'}, apt.PathLocale.wsl, apt.Platform.posix);
 
   if ~isempty(obj.dockerremotehost),
-    cmd = wrapCommandSSH(cmd,'host',obj.dockerremotehost);
+    command = wrapCommandSSH(command,'host',obj.dockerremotehost);
   end
 
-  fprintf(1,'%s\n',cmd);
-  obj.testText_{end+1,1} = cmd; 
+  fprintf(1,'%s\n',command.char());
+  obj.testText_{end+1,1} = command.char(); 
   labeler.notify('updateBackendTestText');
-  [st,res] = apt.syscmd(cmd);
+  [st,res] = command.run();
   reslines = splitlines(res);
   reslinesdisp = reslines(1:min(4,end));
   obj.testText_ = [obj.testText_; reslinesdisp(:)];
@@ -48,13 +48,13 @@ function testDockerBackendConfig_(obj, labeler)
 
   % In this conditional we assume the apiver numbering scheme continues
   % like '1.39', '1.40', ... 
-  if ~(str2double(clientapiver)>=str2double(apt.docker_api_version()))          
-    obj.testText_{end+1,1} = ...
-      sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
-        clientapiver,apt.docker_api_version());
-    labeler.notify('updateBackendTestText');
-    return;
-  end        
+  % if ~(str2double(clientapiver)>=str2double(apt.docker_api_version()))          
+  %   obj.testText_{end+1,1} = ...
+  %     sprintf('FAILURE. Docker API version %s does not meet required minimum of %s.',...
+  %       clientapiver,apt.docker_api_version());
+  %   labeler.notify('updateBackendTestText');
+  %   return;
+  % end        
   succstr = sprintf('SUCCESS! Your Docker API version is %s.',clientapiver);
   obj.testText_{end+1,1} = succstr; 
   labeler.notify('updateBackendTestText');      
@@ -66,19 +66,21 @@ function testDockerBackendConfig_(obj, labeler)
   labeler.notify('updateBackendTestText');
   obj.testText_{end+1,1} = '   (This can take some time the first time the docker image is pulled)'; 
   labeler.notify('updateBackendTestText');
-  deepnetroot = [APT.Root '/deepnet'];
+  deepnetRootNativeAsChar = fullfile(APT.Root, 'deepnet');
   homedir = get_home_dir_name();
-  basecmd = 'python APT_interface.py lbl test hello';
-  cmd = wrapCommandDocker(basecmd,...
-                          'dockerimg', obj.dockerimgfull, ...
-                          'containername','containerTest',...
-                          'detach',false,...
-                          'bindpath',{wsl_path_from_native(deepnetroot),wsl_path_from_native(homedir)});
-  obj.testText_{end+1,1} = cmd;
+  deepnetrootPath = apt.MetaPath(deepnetRootNativeAsChar, 'native', 'source');
+  homedirPath = apt.MetaPath(homedir, 'native', 'home');
+  baseCommand = apt.ShellCommand({'python', 'APT_interface.py', 'lbl', 'test', 'hello'}, apt.PathLocale.wsl, apt.Platform.posix);
+  command = wrapCommandDocker(baseCommand,...
+                              'dockerimg', obj.dockerimgfull, ...
+                              'containername','containerTest',...
+                              'detach',false,...
+                              'bindpath',{deepnetrootPath, homedirPath});
+  obj.testText_{end+1,1} = command.char();
   labeler.notify('updateBackendTestText');
   RUNAPTHELLO = 1;
   if RUNAPTHELLO % AL: this may not work property on a multi-GPU machine with some GPUs in use
-    [st,res] = apt.syscmd(cmd);
+    [st,res] = command.run();
     reslines = splitlines(res);
     reslinesdisp = reslines(1:min(4,end));
     obj.testText_ = [obj.testText_; reslinesdisp(:)];

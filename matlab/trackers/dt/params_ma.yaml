@@ -48,7 +48,7 @@ ROOT:
           - horz_flip: ['Flip horizontally',boolean,true,'Augment by flipping the training image and labels horizontally (left to right). Set pairs of corresponding landmarks by selecting "Select landmark flip pairings" from the Track menu. ',0,'','Important','isHeadTail',true]
           - vert_flip: ['Flip vertically',boolean,true,'Augment by flipping the training image ang labels vertically (bottom to top). Set pairs of corresponding landmarks by selecting "Select landmark flip pairings" from the Track menu. ',0,'','Important','isHeadTail',true]
           - perturb_color: ['Perturb color',boolean,true,'Augment by perturbing image color.',0,'','Advanced','isHeadTail',true]
-          - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',0,'','Advanced','isHeadTail',true]
+          - check_bounds_distort: ['Check landmarks during augmentation',boolean,true,'Check that landmarks remain within the image during augmentation.',1,'','Advanced','isHeadTail',true]
         - LossFunction:
           - ['Loss Function','',false,'Parameters related to the deep-learning error criterion minimized.','','','','']
           - label_blur_rad: ['Label uncertainty radius',float,true,'Standard deviation, in pixels, of the landmark location. In the label heatmap used for training, a Gaussian with this std-dev is placed at each landmark location. Only applicable to heatmap based methods. Not applicable to DeepLabCut and LEAP.',3.,'','Advanced','isTopDown',true]
@@ -68,9 +68,8 @@ ROOT:
       - AlignHeadTail: ['Align mask using head/tail landmark specifications',boolean,true,'If true, align masks to animal using head/tail landmarks',false,'','Beginner','ma',true]
     - Track:
         - ['Multi-animal tracking parameters','',false,Multi-animal tracking parameters,'','']
-        - min_n_animals: ['Minimum number of animals',unsigned,false,'APT will detect at least this many animals in each frame.',0,'','Developer','ma',true]
-        - max_n_animals_user: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','ma',true]
-        - max_n_animals: ['Maximum number of animals to detect',unsigned,false,'APT will detect at most this many animals in each frame.',30,'','Developer','ma',true]
+        - min_n_animals: ['Minimum number of animals',unsigned,true,'APT will detect at least this many animals in each frame.',0,'','Important','ma',true]
+        - max_n_animals: ['Maximum number of animals',unsigned,true,'APT will detect at most this many animals in each frame.',30,'','Important','ma',true]
         - TrackletStitch:
           - ['Tracklet Stitching','',false,Parameters for stitching tracked targets into tracklets,'','']
           - link_stage: ['Stitching stage',['first','second','none'],true,'Whether to stitch detections into tracklets at the first (detection) stage, or the second (pose-tracking) stage.','second','','Advanced',['ma'],true]

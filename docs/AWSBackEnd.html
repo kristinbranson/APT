@@ -51,7 +51,7 @@ The steps below will walk you through obtaining the following:
   <li><b>Windows-only: <a href="https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/certutil">certUtil</a></b>. This should come with your OS.</li>
   <li><b>Linux-only: ssh and scp</b>. These should come with your OS.</li>
 -->
-  <li>An <a href="#EC2"><b>AWS EC2 account</b></a> with access to <code>p2.xlarge</code> instances. Instructions to set this up are <a href="#EC2Setup">below</a>.</li>
+  <li>An <a href="#EC2"><b>AWS EC2 account</b></a> with access to <code>g6e.4xlarge</code> instances. Instructions to set this up are <a href="#EC2Setup">below</a>.</li>
   <li><b>AWS Command Line Interface (CLI)</b>: install instructions <a href="https://docs.aws.amazon.com/cli/latest/userguide/installing.html">here</a>. We used the following:
     <ul>
       <li>Windows: <a href="https://docs.aws.amazon.com/cli/latest/userguide/install-windows.html#install-msi-on-windows">MSI installer</a>.</li>
@@ -80,7 +80,7 @@ You can think of an <b>EC2 instance</b> (as configured below) as a computer with
 <li>A (public) <b>IP address</b> so you can connect to it via <a href="https://en.wikipedia.org/wiki/Secure_Shell">ssh</a>, examine its processes and filesystem contents. </li>
 <li>A <b>state</b> that is either <code>RUNNING</code>, <code>STOPPED</code>, or <code>TERMINATED</code>:
   <ul>
-    <li>If the state is <code>RUNNING</code>, your instance is either actively computing or ready to do so. You are paying about $1/hour.</li>
+    <li>If the state is <code>RUNNING</code>, your instance is either actively computing or ready to do so. You are paying about $3/hour.</li>
     <li>A state of <code>STOPPED</code> is analogous to having your desktop workstation in "hibernation" or "sleep" mode. No computations are being carried out, but any previous computations (trained models) etc are saved in the remote filesystem. You are paying a very low price based on the amount of disk storage ("EBS" storage in AWS-speak) that has been allocated for your instance. For 50GB of storage (the current default), you are paying $5/month.</li>
     <li>A state of <code>TERMINATED</code> means your that instance has ceased to exist and returned to the ephemeral protoplasm of the cloud! Any and all state is destroyed at termination, so before you terminate an instance, make sure you tell APT to download all your trained models. As you might guess, terminated instances do not cost anything.</li>
   </ul>
@@ -105,7 +105,7 @@ You can think of an <b>EC2 instance</b> (as configured below) as a computer with
       <li>Choose a <b>user name</b> and set the <b>Access type</b> to <b>Programmatic Access</b>.
 	<center><a href="aws_setup_screenshots/Add%20user%201%20Screenshot%20from%202018-09-25%2013_45_06.png"><img width=50% src="aws_setup_screenshots/Add%20user%201%20Screenshot%20from%202018-09-25%2013_45_06.png"/></a></center>
       </li>
-      <li>To set permissions, select <b>Attach existing policies directly</b>, and add <b>Administrator Access</b> and <b>IAMUserChangePassword</b> permissions.
+      <li>To set permissions, select <b>Attach existing policies directly</b>, and add <b>AdministratorAccess</b> and <b>IAMUserChangePassword</b> permissions.
 	<center><a href="aws_setup_screenshots/Add%20user%203%20Screenshot%20from%202018-09-25%2013_49_25.png"><img width=50% src="aws_setup_screenshots/Add%20user%203%20Screenshot%20from%202018-09-25%2013_49_25.png"/></a></center>
       </li>
     </ul>
@@ -130,7 +130,7 @@ You can think of an <b>EC2 instance</b> (as configured below) as a computer with
       <li>On Linux, change the permissions to read-only using <code>chmod 400 ~/.ssh/key_pair.pem</code>.</li>
     </ul>
   <li>Alternatively, if you already have an <a href="https://www.ssh.com/ssh/public-key-authentication"><b>ssh key pair</b></a>, you can <b>import your public key</b> by clicking <b>Import Key Pair</b>. Make note of the name and stored location of your key pair, you will need to refer to it when using APT. </li>
-  <li>Increase the number of instances you can create of type <code>p2.xlarge</code>. <code>p2.xlarge</code> is the basic instance type that has a GPU useful for training APT trackers. Using <code>p2.xlarge</code> costs $0.90/hr. To do this, in the <a href="https://console.aws.amazon.com/ec2">EC2 console</a>, use the <b>Limits</b> option on the left and request a limit increase for p2.xlarge. We suggest increasing the limit to at least 2 instances so that you can train on one instance and track on the other. Note that this step seems to take a day or so because Amazon does verifications. You can, however, continue with the rest of the set up while you wait for this increase to be verified.</li>
+  <li>Increase the number of instances you can create of type <code>g6e.4xlarge</code>. <code>g6e.4xlarge</code> is the recommended instance type that has a GPU useful for training APT trackers. Using <code>g6e.4xlarge</code> costs $3.004/hr. To do this, in the <a href="https://console.aws.amazon.com/ec2">EC2 console</a>, use the <b>Service Quotas</b> option and request a limit increase for g6e.4xlarge. We suggest increasing the limit to at least 2 instances so that you can train on one instance and track on the other. Note that this step may take a day or so because Amazon does verifications. You can, however, continue with the rest of the set up while you wait for this increase to be verified.</li>
   <li>Install the <b>AWS Command Line Interface (CLI)</b> following the instructions <a href="https://docs.aws.amazon.com/cli/latest/userguide/installing.html">here</a>.
     <ul>
       <li>Windows: I installed <a href="https://docs.aws.amazon.com/cli/latest/userguide/install-windows.html#install-msi-on-windows">using the MSI installer</a>.</li>
@@ -214,7 +214,7 @@ To launch an instance:
       <center><a href="aws_setup_screenshots/Find%20AMI%20Screenshot%20from%202018-09-25%2017_29_13.png"><img width=50% src="aws_setup_screenshots/Find%20AMI%20Screenshot%20from%202018-09-25%2017_29_13.png"/></a></center>
   </li>
   <li>
-    Select <b>p2.xlarge</b> as the instance type.
+    Select <b>g6e.4xlarge</b> as the instance type.
     <center><a href="aws_setup_screenshots/AMI%20Instance%20Type%20Screenshot%20from%202018-09-25%2016_39_11.png"><img width=50% src="aws_setup_screenshots/AMI%20Instance%20Type%20Screenshot%20from%202018-09-25%2016_39_11.png"/></a></center>
   </li>
   <li>Click <b>Review and launch</b>. It will then prompt you for a key pair. Select the <b>ssh key pair</b> you created/uploaded previously.
@@ -254,7 +254,7 @@ Depending on your platform, APT also requires some utilities in order to communi
 <footer>
 <hr class="h1-divider">
 <center>
-<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated December 20, 2019</i>
+<a href="index.html">APT Documentation Home</a> | <a href="https://www.janelia.org/lab/branson-lab">Branson Lab</a> | <i>Last Updated December 15, 2025</i>
 </center>
 </footer>
 

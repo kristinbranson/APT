@@ -6,36 +6,42 @@ import os
 from matplotlib.widgets import Cursor
 import sys
 import math
+import traceback
 
+if not 'APT_path' in locals():
+    APT_path = '/groups/branson/bransonlab/aniket/APT/'    
 raytracing_lib_path = os.path.join(APT_path, 'raytracing_calib', 'programs')
 sys.path.append(raytracing_lib_path)
-#from prism_arenas_6d_rotations import Arena_reprojection_loss_two_cameras_prism_grid_distances
-from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
-#from ray_tracing_simulator_nnModules_grad_6d_rotations import get_rot_mat
-from ray_tracing_simulator_nnModules_grad import get_rot_mat
+from prism_arenas_6d_rotations import Arena_reprojection_loss_two_cameras_prism_grid_distances
+#from prism_arenas import Arena_reprojection_loss_two_cameras_prism_grid_distances
+from ray_tracing_simulator_nnModules_grad_6d_rotations import get_rot_mat
+#from ray_tracing_simulator_nnModules_grad import get_rot_mat
 rotmat = 1
-if torch.cuda.is_available():
-    device = 'cuda'
-else:
-    device = 'cpu'
+#if torch.cuda.is_available():
+#    device = 'cuda'
+#else:
+device = 'cpu'
 
-checkpoint = torch.load(PATH, weights_only=True, map_location=torch.device('cpu'))
-arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
-            principal_point_pixel_cam_0=torch.tensor([0.,0.]).to(torch.float64),
-            principal_point_pixel_cam_1=torch.tensor([0.,0.]).to(torch.float64), 
-            focal_length_cam_0=torch.tensor(0.).to(torch.float64), 
-            focal_length_cam_1=torch.tensor(0.).to(torch.float64),
-            R_stereo_cam=torch.eye(3).to(torch.float64),
-            T_stereo_cam=torch.zeros(3,1).to(torch.float64), 
-            prism_angles=torch.zeros(3,).to(torch.float64), 
-            prism_center=torch.zeros(3,1).to(torch.float64), 
-            )
-arena.load_state_dict(checkpoint, strict=False)
+
+if 'PATH' in locals():
+    checkpoint = torch.load(PATH, weights_only=True, map_location=torch.device('cpu'))
+    arena = Arena_reprojection_loss_two_cameras_prism_grid_distances(
+                principal_point_pixel_cam_0=torch.tensor([0.,0.]).to(torch.float64),
+                principal_point_pixel_cam_1=torch.tensor([0.,0.]).to(torch.float64), 
+                focal_length_cam_0=torch.tensor(0.).to(torch.float64), 
+                focal_length_cam_1=torch.tensor(0.).to(torch.float64),
+                R_stereo_cam=torch.eye(3).to(torch.float64),
+                T_stereo_cam=torch.zeros(3,1).to(torch.float64), 
+                prism_angles=torch.zeros(3,).to(torch.float64), 
+                prism_center=torch.zeros(3,1).to(torch.float64), 
+                )
+    arena.load_state_dict(checkpoint, strict=False)
 
 # %%
 def get_annotations_curve(arena, user_annotation, 
                           camera_real, cam_real_dist_coeff,
                           camera_virtual, cam_virtual_dist_coeff):
+    # Deprecated
     with torch.no_grad():
         undistorted_annotations = camera_virtual.undistort_pixels_classical(user_annotation[:2],
         cam_real_dist_coeff)
@@ -66,13 +72,14 @@ def get_annotations_curve(arena, user_annotation,
                                                             cam_virtual_dist_coeff)
         return annotations_curve_real, annotations_curve_virtual
     
-def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
+def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam, image_width_dict):
     """
     Project epipolar line in projecting_cam given a label in labeling cam
     arena: Prism arena object
     user_annotation: 2D point in the image
     cam_label (str): ["primary_virtual", "primary_real", "secondary_virtual", "secondary_real"]    
     """
+    image_width = [image_width_dict['primary_virtual'], image_width_dict['secondary_virtual']]
     with torch.no_grad():
         num_epipolar_pts = 2 # This will only work if the calibration is highly acccurate. Else, consider adding more points for redundancy
         if "primary" in labelling_cam:
@@ -142,14 +149,10 @@ def get_epipolar_line(arena, user_annotation, labelling_cam, projecting_cam):
             
 
         if "real" in projecting_cam:
-            epipolar_line_projecting_cam = projecting_cam_obj.reproject(epipolar_line_3D, R_projecting, T_projecting)
-            #epipolar_line_labelling_cam = labelling_cam_obj.reproject(epipolar_line_3D, R_labelling, T_labelling)
+            epipolar_line_projecting_cam_undistorted = projecting_cam_obj.reproject(epipolar_line_3D, R_projecting, T_projecting)
             epipolar_line_projecting_cam = projecting_cam_obj.distort_pixels_classical(
-                                                                epipolar_line_projecting_cam,
+                                                                epipolar_line_projecting_cam_undistorted,
                                                                 projecting_cam_dist_coeff)
-            #epipolar_line_labelling_cam = labelling_cam_obj.distort_pixels_classical(
-            #                                                    epipolar_line_labelling_cam,
-            #                                                    labelling_cam_dist_coeff)
     return epipolar_line_projecting_cam
 
 
@@ -350,8 +353,8 @@ def pseudo_reprojection_to_virtual_view(arena, point, image_width, image_height=
         for i in range(num_views):
             center[i*2:(i+1)*2, 0] = torch.tensor([width[i] / 2, height[i] / 2]).to(dtype=torch.float64, device=device)
         
-        x = torch.linspace(-0.5 + 1/grid_factor/2, 0.5 - 1/grid_factor/2, grid_factor)
-        y = torch.linspace(-0.5 + 1/grid_factor/2, 0.5 - 1/grid_factor/2, grid_factor) 
+        x = torch.linspace(-0.5 + 1/grid_factor/2, 0.5 - 1/grid_factor/2, grid_factor, device=device)
+        y = torch.linspace(-0.5 + 1/grid_factor/2, 0.5 - 1/grid_factor/2, grid_factor, device=device) 
         [xx, yy] = torch.meshgrid(x, y)
         xx = xx.flatten().unsqueeze(-1).T
         yy = yy.flatten().unsqueeze(-1).T
@@ -448,49 +451,56 @@ def convert_to_raw_reference_frame(pt, cam_label, dividing_col, image_width, rot
         pt[0, :] *= -1  # Invert y-coordinates for real cameras
     return pt
 
-dividing_col_dict = {}
-dividing_col_dict['primary_real'] = dividing_col[0]
-dividing_col_dict['primary_virtual'] = dividing_col[0]
-dividing_col_dict['secondary_real'] = dividing_col[1]
-dividing_col_dict['secondary_virtual'] = dividing_col[1]
+try:
 
-image_width_dict = {}
-image_width_dict['primary_real'] = image_width[0]
-image_width_dict['primary_virtual'] = image_width[0]
-image_width_dict['secondary_real'] = image_width[1]
-image_width_dict['secondary_virtual'] = image_width[1]
+    dividing_col_dict = {}
+    dividing_col_dict['primary_real'] = dividing_col[0]
+    dividing_col_dict['primary_virtual'] = dividing_col[0]
+    dividing_col_dict['secondary_real'] = dividing_col[1]
+    dividing_col_dict['secondary_virtual'] = dividing_col[1]
 
-if not(type(user_annotation) == torch.Tensor):
-    user_annotation = torch.tensor(user_annotation).to(torch.float64)[:, None]
+    image_width_dict = {}
+    image_width_dict['primary_real'] = image_width[0]
+    image_width_dict['primary_virtual'] = image_width[0]
+    image_width_dict['secondary_real'] = image_width[1]
+    image_width_dict['secondary_virtual'] = image_width[1]
 
-"""
-if rotmat:
-    theta = torch.tensor(torch.pi / 2)
-    R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
-    R_theta = torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]).to(torch.float64)
-    user_annotation = R_theta_inv @ user_annotation
-    if "virtual" in cam_label:
-        user_annotation[0, :] = -user_annotation[0, :] + dividing_col_dict[cam_label] - 1  # 1-based indexing for dividing_col 
-        user_annotation[1, :] = -user_annotation[1, :]
-    if "real" in cam_label:
-        user_annotation[0, :] = -user_annotation[0, :] + image_width_dict[cam_label] - 1
-        user_annotation[1, :] = -user_annotation[1, :]
-"""
-user_annotation = convert_to_APT_reference_frame(user_annotation, cam_label, dividing_col_dict[cam_label], image_width_dict[cam_label], rotmat)
-epipolar_line_projecting_cam = get_epipolar_line(arena, user_annotation, cam_label, cam_projecting)
-epipolar_line_projecting_cam = convert_to_raw_reference_frame(epipolar_line_projecting_cam, cam_projecting, dividing_col_dict[cam_projecting], image_width_dict[cam_projecting], rotmat).numpy()
-"""
-if "virtual" in cam_projecting:
+    if not(type(user_annotation) == torch.Tensor):
+        user_annotation = torch.tensor(user_annotation).to(torch.float64)[:, None]
+
+    """
     if rotmat:
-        epipolar_line_projecting_cam = R_theta @ epipolar_line_projecting_cam
-        epipolar_line_projecting_cam[1, :] = -epipolar_line_projecting_cam[1, :] + dividing_col_dict[cam_projecting] - 1
-        epipolar_line_projecting_cam[0, :] *= -1
-    epipolar_line_projecting_cam = epipolar_line_projecting_cam.numpy()
+        theta = torch.tensor(torch.pi / 2)
+        R_theta_inv = torch.tensor([[torch.cos(-theta), -torch.sin(-theta)], [torch.sin(-theta), torch.cos(-theta)]]).to(torch.float64)
+        R_theta = torch.tensor([[torch.cos(theta), -torch.sin(theta)], [torch.sin(theta), torch.cos(theta)]]).to(torch.float64)
+        user_annotation = R_theta_inv @ user_annotation
+        if "virtual" in cam_label:
+            user_annotation[0, :] = -user_annotation[0, :] + dividing_col_dict[cam_label] - 1  # 1-based indexing for dividing_col 
+            user_annotation[1, :] = -user_annotation[1, :]
+        if "real" in cam_label:
+            user_annotation[0, :] = -user_annotation[0, :] + image_width_dict[cam_label] - 1
+            user_annotation[1, :] = -user_annotation[1, :]
+    """
+    user_annotation = convert_to_APT_reference_frame(user_annotation, cam_label, dividing_col_dict[cam_label], image_width_dict[cam_label], rotmat)
+    epipolar_line_projecting_cam = get_epipolar_line(arena, user_annotation, cam_label, cam_projecting, image_width_dict)
+    epipolar_line_projecting_cam = convert_to_raw_reference_frame(epipolar_line_projecting_cam, cam_projecting, dividing_col_dict[cam_projecting], image_width_dict[cam_projecting], rotmat).numpy()
+    """
+    if "virtual" in cam_projecting:
+        if rotmat:
+            epipolar_line_projecting_cam = R_theta @ epipolar_line_projecting_cam
+            epipolar_line_projecting_cam[1, :] = -epipolar_line_projecting_cam[1, :] + dividing_col_dict[cam_projecting] - 1
+            epipolar_line_projecting_cam[0, :] *= -1
+        epipolar_line_projecting_cam = epipolar_line_projecting_cam.numpy()
 
-elif "real" in cam_projecting:
-    if rotmat:
-        epipolar_line_projecting_cam = R_theta @ epipolar_line_projecting_cam
-        epipolar_line_projecting_cam[1, :] = -epipolar_line_projecting_cam[1, :] + image_width_dict[cam_projecting] - 1
-        epipolar_line_projecting_cam[0, :] *= -1
-    epipolar_line_projecting_cam = epipolar_line_projecting_cam.numpy()
-"""
+    elif "real" in cam_projecting:
+        if rotmat:
+            epipolar_line_projecting_cam = R_theta @ epipolar_line_projecting_cam
+            epipolar_line_projecting_cam[1, :] = -epipolar_line_projecting_cam[1, :] + image_width_dict[cam_projecting] - 1
+            epipolar_line_projecting_cam[0, :] *= -1
+        epipolar_line_projecting_cam = epipolar_line_projecting_cam.numpy()
+    """
+
+except Exception as e:
+    # print full stack trace of exception
+    traceback.print_exc()
+    print(f"Error in {sys.argv[0]}: {e}")

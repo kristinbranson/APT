@@ -217,30 +217,7 @@ rae.all_models = [m for m in rae.all_models if 'orig' not in m]
 rae.all_models = [m for m in rae.all_models if 'hrformer' not in m]
 # rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
 dstr = '20231207' #'20200804' #'20200428'
-rae.get_cv_results(dstr=dstr,db_from_mdn_dir=True) #,queue='gpu_rtx8000'
-
-## Sam Mice Jump
-
-from importlib import reload
-import run_apt_expts_2 as rae
-reload(rae)
-rae.setup('mice_jump','')
-rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-
-dstr = '20231207' # '20200804' #'20200714' # '20200428'
-rae.cv_train_from_mat(dstr=dstr,queue='gpu_a100',nslots=11) # skip_db=False,run_type='submit'
-# rae.cv_train_from_mat(dstr=dstr,queue='gpu_tesla_large') # skip_db=False,run_type='submit'
-
-## results
-import run_apt_expts_2 as rae
-from importlib import reload
-reload(rae)
-rae.setup('mice_jump')
-rae.all_models = [m for m in rae.all_models if 'orig' not in m]
-# rae.all_models = [m for m in rae.all_models if 'hrformer' not in m]
-# rae.get_cv_results(dstr='20200428',db_from_mdn_dir=True) # skip_db=False,run_type='submit'
-dstr = '20231207' #'20200804' #'20200428'
-rae.get_cv_results(dstr=dstr,queue='gpu_a100',db_from_mdn_dir=True) #
+rae.get_cv_results(dstr=dstr,queue='gpu_rtx8000',db_from_mdn_dir=True) #
 
 ## LEAP
 import run_apt_expts_2 as rae
@@ -291,7 +268,7 @@ from scipy import io as sio
 import multiResData
 import matplotlib
 matplotlib.use('TkAgg')
-import run_apt_expts_2 as ra
+import run_apt_expts_2 as rae
 ss = sio.loadmat(out_file)['out']
 db =['/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/mdn/view_0/apt_expt/train_TF.tfrecords',
 '/nrs/branson/mayank/apt_cache/sh_trn4992_gtcomplete_cacheddata_updatedAndPpdbManuallyCopied20190402/mdn/view_1/apt_expt/train_TF.tfrecords']

@@ -1,5 +1,5 @@
-function result = parse_string_for_cmd_dot_exe(str)
-  % Designed to mimic the parsing of strings by cmd.exe, in the context of a
+function result = lex_string_for_cmd_dot_exe(str)
+  % Designed to mimic the lexing of strings by cmd.exe, in the context of a
   % wsl --exec bash -c <commmand-string> call.  That is, if str is the
   % <command-string>, this function outputs the command string as it will be
   % received by bash.
@@ -26,13 +26,13 @@ function result = parse_string_for_cmd_dot_exe(str)
   %   https://learn.microsoft.com/en-us/cpp/cpp/main-function-command-line-args?view=msvc-170&redirectedfrom=MSDN#parsing-c-command-line-arguments
 
   % Set the initial state for processing str.
-  % See documentation of parse1(), below, for what these fields mean.
+  % See documentation of lex1(), below, for what these fields mean.
   state0 = struct('i', {0} , ...
                   'is_done', {false}, ...
                   'bs_count',{0}) ;  
   % Run str through a state machine that will consume one input character at a
   % time and output the result string.
-  preresult = crank(@parse1, str, state0) ;
+  preresult = crank(@lex1, str, state0) ;
   if isempty(preresult) ,
     result = '' ;  % this is 0x0 instead of 1x0, which e.g. strcmp() cares about.
   else
@@ -42,7 +42,7 @@ end
 
 
 
-function [yi, statei] = parse1(xi, statelast)
+function [yi, statei] = lex1(xi, statelast)
   % Evolution function to be used with crank() to parse strings like cmd.exe in
   % wsl --exec bash -c <command-string>.  In what follows, "dq" means the
   % doublequote character, and "bs" means the backslash character.

@@ -1,4 +1,4 @@
-classdef DLNetType < handle
+classdef DLNetType < handle 
   % Deep Learning Network
   %
   % A DLNetType represents a particular deep net. It has a particular
@@ -58,6 +58,8 @@ classdef DLNetType < handle
   
   methods 
     function obj = DLNetType(key)
+      % Use information in .NETS to populate all the properties for the given member
+      % of the enumeration.
       q = DLNetType.NETS;
       s = q.(key);
       fns = fieldnames(s);
