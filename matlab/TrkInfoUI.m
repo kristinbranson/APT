@@ -121,7 +121,6 @@ function update_movie(f)
 h = guidata(f);
 idx = h.curmov;
 lobj = h.lobj;
-imp_trk = lobj.labels2GTaware{idx};   
 if ~isempty(lobj.tracker)
   pred_trk = lobj.tracker.getTrackingResults(MovieIndex(idx));
   pred_trk = pred_trk{1};
@@ -129,15 +128,9 @@ else
   pred_trk = [];
 end
 
-has_imp = imp_trk.hasdata;
 has_pred = ~isempty(pred_trk) && pred_trk.hasdata;
 
-if has_imp && has_pred
-  h.sel_btn.Enable = 'on';
-elseif has_imp
-  h.sel_btn.Enable = 'off';
-  h.sel_btn.Value = 'Imported';
-elseif has_pred
+if has_pred
   h.sel_btn.Enable = 'off';
   h.sel_btn.Value = 'Predicted';
 else
@@ -148,11 +141,7 @@ else
   return;
 end
 
-if strcmp(h.sel_btn.Value,'Imported')
-  trk = imp_trk;
-else
-  trk = pred_trk;
-end
+trk = pred_trk;
 
 [dat,sf,ef,breaks,top_links] = get_data(trk);
 h.tbl.Data = dat;
@@ -256,24 +245,15 @@ else
   end
 end
 
-if strcmp(h.sel_btn.Value, 'Predicted')
-  lobj.tracker.trkVizer.trxSelectedTrxID(tgt,true);
-  lobj.tracker.trkVizer.centerPrimary;
-else
-  lobj.labeledpos2trkViz.trxSelectedTrxID(tgt,true);
-  lobj.labeledpos2trkViz.centerPrimary;
-end
+lobj.tracker.trkVizer.trxSelectedTrxID(tgt,true);
+lobj.tracker.trkVizer.centerPrimary;
 h.curtrk = tgt;
 guidata(h.fig,h);
 end
 
 function centerPrimary(h)
 lobj = h.lobj;
-if strcmp(h.sel_btn.Value, 'Predicted')
-  lobj.tracker.trkVizer.centerPrimary;
-else
-  lobj.labeledpos2trkViz.centerPrimary;
-end
+lobj.tracker.trkVizer.centerPrimary;
 
 end
 function prev_btn_callback(handles,event,~)

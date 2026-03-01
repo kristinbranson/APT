@@ -24,7 +24,7 @@ save(PENDMV,'-mat','-struct','lblmv');
 fprintf('Saved %s.\n',PENDMV);
 
 FLDS = {'movieFilesAll' 'movieInfoAll' 'trxFilesAll' 'labeledpos' 'labeledpostag' ...
-  'labeledposTS' 'labeledposMarked' 'labeledpos2' 'suspScore'};
+  'labeledposTS' 'labeledposMarked' 'suspScore'};
 for ivw=1:2
   lblnew = lbl;
   for f=FLDS,f=f{1}; %#ok<FXSET>

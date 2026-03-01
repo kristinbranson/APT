@@ -3045,6 +3045,7 @@ classdef DeepTracker < LabelTracker
         trkfiles = cell(0, obj.lObj.nview) ;
       end
     end
+
     function trackResSetTrkfiles(obj,mIdx,trkfiles)
       % Set known .trk file paths for the given MovieIndex, replacing any existing.
       [iMov, gt] = mIdx.get() ;
@@ -3067,6 +3068,7 @@ classdef DeepTracker < LabelTracker
         obj.trackResAddTrkfile(mIdx, trkfiles) ;
       end
     end
+
     function removeMissingTrkFiles(obj,mIdx)
       % Remove entries for .trk files that no longer exist on disk.
       [iMov, gt] = mIdx.get() ;
@@ -3092,6 +3094,7 @@ classdef DeepTracker < LabelTracker
         obj.adhocTrkFilePathsFromMidx(id) = trkfiles(tfexists) ;
       end
     end
+
     function [tfhasdata,xy,occ,sf,ef,aux,auxlbl] = ...
                             getTrackingResultsCurrMovieTgt(obj)
       lo = obj.lObj;
@@ -3127,6 +3130,7 @@ classdef DeepTracker < LabelTracker
         auxlbl = cell(0,1);
       end      
     end
+    
     function [trkfileObjs,tfHasRes] = getTrackingResults(obj,mIdx)
       % Get tracking results for MovieIndices mIdx
       %

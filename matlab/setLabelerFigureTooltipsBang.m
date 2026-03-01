@@ -55,11 +55,8 @@ end
 if isfield(handles,'menu_file_import_labels_trk_curr_mov'),
   SetTooltip(handles.menu_file_import_labels_trk_curr_mov,'Import predictions from .trk file as LABELS for current movie',jobjs,jobjnames);
 end
-if isfield(handles,'menu_file_import_labels2_trk_curr_mov'),
-  SetTooltip(handles.menu_file_import_labels2_trk_curr_mov,'Import predictions from .trk file for current movie',jobjs,jobjnames);
-end
-if isfield(handles,'menu_file_export_labels2_trk_curr_mov'),
-  SetTooltip(handles.menu_file_export_labels2_trk_curr_mov,'Export predictions to .trk file for current movie',jobjs,jobjnames);
+if isfield(handles,'menu_file_import_tracking_results'),
+  SetTooltip(handles.menu_file_import_tracking_results,'Import tracking results from .trk file for current movie',jobjs,jobjnames);
 end
 if isfield(handles,'menu_file_export_labels_trks'),
   SetTooltip(handles.menu_file_export_labels_trks,'Export LABELS to .trk files for all movies',jobjs,jobjnames);
@@ -140,7 +137,7 @@ end
 %   SetTooltip(handles.menu_track_track_and_export,'Track current selection of videos, targets, and frames, and export results to .trk files.',jobjs,jobjnames);
 % end
 if isfield(handles,'menu_track_clear_tracking_results'),
-  SetTooltip(handles.menu_track_clear_tracking_results,'Remove all tracking results from the current project.',jobjs,jobjnames);
+  SetTooltip(handles.menu_track_clear_tracking_results,'Remove tracking results for the current tracker, for all movies',jobjs,jobjnames);
 end
 
 if isfield(handles,'menu_track_set_labels'),

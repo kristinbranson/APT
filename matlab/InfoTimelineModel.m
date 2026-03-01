@@ -367,7 +367,7 @@ classdef InfoTimelineModel < handle
         tldata = nan(labeler.nLabelPoints,1);
       else
         switch ptype
-          case {'Labels','Imported'}
+          case 'Labels'
             needtrx = labeler.hasTrx && strcmpi(pcode.coordsystem,'Body');
             if needtrx,
               trxFile = labeler.trxFilesAllFullGTaware{iMov,1};
@@ -376,28 +376,11 @@ classdef InfoTimelineModel < handle
             else
               bodytrx = [];
             end
-            
+
             nfrmtot = labeler.nframes;
-            if strcmp(ptype,'Labels'),
-              s = labeler.labelsGTaware{iMov};
-              [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
-              lpos = reshape(lpos,size(lpos,1)/2,2,[]);
-            else
-              s = labeler.labels2GTaware{iMov};
-              if labeler.maIsMA
-                % Use "current Tracklet" for imported data
-                if ~isempty(labeler.labeledpos2trkViz)
-                  iTgt = labeler.labeledpos2trkViz.currTrklet;
-                  if isnan(iTgt)
-                    warningNoTrace('No Tracklet currently selected; showing timeline data for first tracklet.');
-                    iTgt = 1;
-                  end
-                else
-                  iTgt = 1;
-                end
-              end  
-              [tfhasdata,lpos,lposocc,lpost0,lpost1] = s.getPTrkTgt2(iTgt);
-            end
+            s = labeler.labelsGTaware{iMov};
+            [tfhasdata,lpos,lposocc,lpost0,lpost1] = Labels.getLabelsT(s,iTgt);
+            lpos = reshape(lpos,size(lpos,1)/2,2,[]);
             if tfhasdata
               tldata = ComputeLandmarkFeatureFromPos(...
                 lpos,lposocc,lpost0,lpost1,nfrmtot,bodytrx,pcode);

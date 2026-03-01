@@ -68,16 +68,16 @@ classdef LabelerController < handle
     menu_file
     menu_file_bundle_tempdir
     menu_file_clean_tempdir
-    menu_file_clear_imported
+    menu_file_import_tracking_results
     menu_file_crop_mode
     menu_file_export_all_movies
-    menu_file_export_labels2_trk_curr_mov
+    % menu_file_export_labels2_trk_curr_mov  % removed with labels2 infrastructure
     menu_file_export_labels_table
     menu_file_export_labels_cocojson
     menu_file_import_labels_cocojson
     menu_file_export_labels_trks
     menu_file_import_export_advanced
-    menu_file_import_labels2_trk_curr_mov
+    % menu_file_import_labels2_trk_curr_mov  % removed with labels2 infrastructure
     menu_file_import_labels_table
     menu_file_import_labels_trk_curr_mov
     menu_file_import
@@ -144,11 +144,11 @@ classdef LabelerController < handle
     menu_view_flip_flipud
     menu_view_flip_flipud_movie_only
     menu_view_gammacorrect
-    menu_view_showhide_imported_predictions
-    menu_view_showhide_imported_preds_all
-    menu_view_showhide_imported_preds_curr_target_only
-    menu_view_showhide_imported_preds_none
-    menu_view_hide_imported_predictions
+    % menu_view_showhide_imported_predictions  % removed with labels2 infrastructure
+    % menu_view_showhide_imported_preds_all
+    % menu_view_showhide_imported_preds_curr_target_only
+    % menu_view_showhide_imported_preds_none
+    % menu_view_hide_imported_predictions
     menu_view_hide_labels
     menu_view_showhide_predictions
     menu_view_showhide_trajectories
@@ -452,10 +452,6 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetCurrTarget',@(s,e)(obj.cbkCurrTargetChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetLabelMode',@(s,e)(obj.cbkLabelModeChanged()));
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetLabels2Hide',@(s,e)(obj.cbkLabels2HideChanged(s,e)));
-      obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetLabels2ShowCurrTargetOnly',@(s,e)(obj.cbkLabels2ShowCurrTargetOnlyChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowTrx',@(s,e)(obj.cbkShowTrxChanged(s,e)));
       obj.listeners_(end+1) = ...
@@ -2438,10 +2434,6 @@ classdef LabelerController < handle
       obj.labelTLInfo.updateForNewProject();
       obj.labelTLInfo.updateTraces();
       
-      % clear tracking data
-      cellfun(@(x)x.clearTracklet(),labeler.labels2);
-      cellfun(@(x)x.clearTracklet(),labeler.labels2GT);
-            
       % Clear all the trained trackers
       labeler.clearAllTrackers();
       % Trackers created/initted in projLoad and projNew; eg when loading,
@@ -2855,36 +2847,6 @@ classdef LabelerController < handle
       obj.menu_view_showhide_preds_none.Checked = onIff(tracker.hideViz) ;
     end
 
-    function updateShowImportedPredMenus(obj,src,evt) %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      if nargin < 2,
-        src = nan;
-      end
-      % during initiatialization, these have not been set to bools yet
-      if isempty(labeler.labels2ShowCurrTargetOnly),
-        showcurrent = false;
-      else
-        showcurrent = labeler.labels2ShowCurrTargetOnly;
-      end
-      if isempty(labeler.labels2Hide),
-        hide = false;
-      else
-        hide = labeler.labels2Hide;
-      end
-      if src ~= obj.menu_view_showhide_imported_preds_all,
-        obj.menu_view_showhide_imported_preds_all.Checked = onIff(~hide && ~showcurrent) ;
-      end
-      if src ~= obj.menu_view_showhide_imported_preds_curr_target_only,
-        obj.menu_view_showhide_imported_preds_curr_target_only.Checked = onIff(~hide && showcurrent);
-      end
-      if src ~= obj.menu_view_showhide_imported_preds_none
-        obj.menu_view_showhide_imported_preds_none.Checked = onIff(hide) ;
-      end
-      
-    end
-
-
-
     function cbkTrackerHideVizChanged(obj)
       % lObj = obj.labeler_ ;
       % tracker = lObj.tracker ;
@@ -3291,16 +3253,6 @@ classdef LabelerController < handle
           obj.menu_view_pan_toggle.Visible = 'off';
           obj.menu_view_showhide_labelrois.Visible = 'off';
       end
-    end  % function
-
-    function cbkLabels2HideChanged(obj, varargin)  
-      % labeler = obj.labeler_ ;
-      obj.updateShowImportedPredMenus(varargin{:});
-    end  % function
-
-    function cbkLabels2ShowCurrTargetOnlyChanged(obj, varargin)  
-      % labeler = obj.labeler_ ;       
-      obj.updateShowImportedPredMenus(varargin{:});
     end  % function
 
     function updateTrxMenuCheckEnable(obj,src,evt) %#ok<INUSD>
@@ -4720,10 +4672,11 @@ classdef LabelerController < handle
       labeler.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
     end
 
-    function menu_file_import_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
+    function menu_file_import_tracking_results_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Import tracking results from .trk file(s) for the current movie
       labeler = obj.labeler_ ;
-      iMov = labeler.currMovie; % gt-aware
-      labeler.labelImportTrkPromptGenericSimple(iMov,'labels2ImportTrk','gtok',true);
+      iMov = labeler.currMovie ;
+      labeler.labelImportTrkPromptGenericSimple(iMov, 'importTrackingResults') ;
     end
 
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -5490,52 +5443,6 @@ classdef LabelerController < handle
     end  % function
 
 
-    function menu_view_showhide_imported_preds_all_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizShow();
-      labeler.labels2VizSetShowCurrTargetOnly(false);
-      obj.updateShowImportedPredMenus(src);
-
-
-    end
-
-
-
-    function menu_view_showhide_imported_preds_curr_target_only_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizShow();
-      labeler.labels2VizSetShowCurrTargetOnly(true);
-      obj.updateShowImportedPredMenus(src);
-
-
-    end
-
-
-    function menu_view_showhide_imported_preds_none_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizHide();
-      obj.updateShowImportedPredMenus(src);
-
-
-    end
-
-    function menu_view_hide_imported_predictions_actuated_(obj,src,evt)  %#ok<INUSD>
-
-      labeler = obj.labeler_ ;
-      labeler.labels2VizToggle();
-      obj.updateShowImportedPredMenus(src);      
-
-    end
-
     function menu_view_show_tick_labels_actuated_(obj, src, evt)  %#ok<INUSD>
       % just use checked state of menu for now, no other state
       toggleOnOff(src,'Checked');
@@ -5702,7 +5609,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       % legacy behavior not sure why; maybe b/c the user is prob wanting to increase avail mem
       %labeler.preProcInitData();
-      res = questdlg('Are you sure you want to clear tracking results?');
+      res = questdlg('Clear tracking results for the current tracker, for all movies?', 'Clear All Tracking Results?');
       if ~strcmpi(res,'yes'),
         return;
       end
@@ -5746,13 +5653,6 @@ classdef LabelerController < handle
 
 
 
-    function menu_file_clear_imported_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.labels2Clear();
-    end
-
-
-
     function menu_file_export_all_movies_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       nMov = labeler.nmoviesGTaware;
@@ -5770,6 +5670,7 @@ classdef LabelerController < handle
 
 
     function menu_track_set_labels_actuated_(obj, src, evt)  %#ok<INUSD>
+      % Set labels from tracker predictions for current frame
       labeler = obj.labeler_ ;
 
       tracker = labeler.tracker;
@@ -5777,143 +5678,50 @@ classdef LabelerController < handle
         error('LabelerGUI:gt','Unsupported in GT mode.');
       end
 
+      iMov = labeler.currMovie ;
+      if iMov==0
+        error('LabelerGUI:setLabels','No movie open.');
+      end
+
       frm = labeler.currFrame;
-      if ~isempty(tracker) && tracker.hasBeenTrained() && (~labeler.maIsMA)
-        % single animal. Use prediction if available else use imported below
+
+      if labeler.maIsMA
+        % MA: use tracker predictions
+        if isempty(tracker) || isempty(tracker.trkVizer)
+          msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
+          return
+        end
+        [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm();
+        iTgt = tracker.trkVizer.currTrklet;
+        if isnan(iTgt) || ~tfhaspred(iTgt)
+          msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
+          return
+        end
+        xy = xy(:,:,iTgt) ;
+        occ = tfocc(:,iTgt);
+        ntgts = labeler.labelNumLabeledTgts();
+        labeler.setTargetMA(ntgts+1);
+        labeler.labelPosSet(xy,occ);
+        obj.updateTrxTable();
+        labeler.setTarget(ntgts+1);
+        iTgt = labeler.currTarget;
+        labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
+      else
+        % SA: use tracker predictions
+        if isempty(tracker)
+          msgbox('No predictions for current frame.');
+          return
+        end
         [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
         itgt = labeler.currTarget;
-
         if ~tfhaspred(itgt)
-          if (labeler.nTrx>1)
-            msgbox('No predictions for current frame.');
-            return;
-          else % for single animal use imported predictions if available
-            iMov = labeler.currMovie;
-            [tfhaspred,xy] = labeler.labels2{iMov}.getPTrkFrame(frm);
-            if ~tfhaspred
-              msgbox('No predictions for current frame.');
-              return;
-            end
-          end
-        else
-          xy = xy(:,:,itgt); % "targets" treatment differs from below
+          msgbox('No predictions for current frame.');
+          return
         end
-
-        disp(xy);
-
-        % AL20161219: possibly dangerous, assignLabelCoords prob was intended
-        % only as a util method for subclasses rather than public API. This may
-        % not do the right thing for some concrete LabelCores.
-        %   labeler.lblCore.assignLabelCoords(xy);
-
+        xy = xy(:,:,itgt) ;
         lpos2xy = reshape(xy,labeler.nLabelPoints,2);
-        %assert(size(lpos2,4)==1); % "targets" treatment differs from above
-        %lpos2xy = lpos2(:,:,frm);
         labeler.labelPosSet(lpos2xy);
-
         labeler.lblCore.newFrame(frm,frm,1,true);
-
-      else
-        iMov = labeler.currMovie;
-        frm = labeler.currFrame;
-        if iMov==0
-          error('LabelerGUI:setLabels','No movie open.');
-        end
-
-        if labeler.maIsMA
-          % We need to be smart about which to use.
-          % If only one of imported or prediction exist for the current frame then use whichever exists
-          % If both exist for current frame, then don't do anything and error.
-
-          useImported = true;
-          usePred = true;
-          % getting imported info old sytle. Doesn't work anymore
-
-          %     s = labeler.labels2{iMov};
-          %     itgtsImported = Labels.isLabeledF(s,frm);
-          %     ntgtsImported = numel(itgtsImported);
-
-          % check if we can use imported
-          imp_trk = labeler.labeledpos2trkViz;
-          if isempty(imp_trk)
-            useImported=false;
-          elseif isnan(imp_trk.currTrklet)
-            useImported=false;
-          else
-            s = labeler.labels2{iMov};
-            iTgtImp = imp_trk.currTrklet;
-            if isnan(iTgtImp)
-              useImported = false;
-            else
-              [tfhaspred,~,~] = s.getPTrkFrame(frm,'collapse',true);
-              if ~tfhaspred(iTgtImp)
-                useImported = false;
-              end
-            end
-          end
-
-          % check if we can use pred
-          if isempty(tracker)
-            usePred = false;
-          elseif isempty(tracker.trkVizer)
-            usePred = false;
-          else
-            [tfhaspred,xy,tfocc] = tracker.getTrackingResultsCurrFrm(); %#ok<ASGLU>
-            iTgtPred = tracker.trkVizer.currTrklet;
-            if isnan(iTgtPred)
-              usePred = false;
-            elseif ~tfhaspred(iTgtPred)
-              usePred = false;
-            end
-          end
-
-          if usePred && useImported
-            msgbox('Both imported and prediction exist for current frame. Cannot decide which to use. Skipping');
-            return
-          end
-
-          if (~usePred) && (~useImported)
-            msgbox('No predictions for current frame or no valid tracklet selected. Nothing to use as a label');
-            return
-          end
-
-          if useImported
-            s = labeler.labels2{iMov};
-            iTgt = imp_trk.currTrklet;
-            [~,xy,tfocc] = s.getPTrkFrame(frm,'collapse',true);
-          else
-            iTgt = tracker.trkVizer.currTrklet;
-            [~,xy,tfocc] = tracker.getTrackingResultsCurrFrm();
-          end
-          xy = xy(:,:,iTgt); % "targets" treatment differs from below
-          occ = tfocc(:,iTgt);
-          ntgts = labeler.labelNumLabeledTgts();
-          labeler.setTargetMA(ntgts+1);
-          labeler.labelPosSet(xy,occ);
-          obj.updateTrxTable();
-          labeler.setTarget(ntgts+1);
-          iTgt = labeler.currTarget;
-          labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
-
-        else
-          if labeler.nTrx>1
-            error('LabelerGUI:setLabels','Unsupported for multiple targets.');
-          end
-          %lpos2 = labeler.labeledpos2{iMov};
-          %MK 20230728, labels2 now should always be TrkFile, but keeping other
-          %logic around just in case. Needs work for multiview though.
-          if isa(labeler.labels2{iMov} ,'TrkFile')
-            [~,p] = labeler.labels2{iMov}.getPTrkFrame(frm);
-          else
-            p = Labels.getLabelsF(labeler.labels2{iMov},frm,1);
-          end
-          lpos2xy = reshape(p,labeler.nLabelPoints,2);
-          %assert(size(lpos2,4)==1); % "targets" treatment differs from above
-          %lpos2xy = lpos2(:,:,frm);
-          labeler.labelPosSet(lpos2xy);
-
-          labeler.lblCore.newFrame(frm,frm,1);
-        end
       end
     end  % function
 
@@ -6026,16 +5834,9 @@ classdef LabelerController < handle
     end  % function
 
     function menu_evaluate_gtcomputeperfimported_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      assert(labeler.gtIsGTMode);
-
-      response = obj.askAboutUnrequestedGTLabelsIfNeeded_() ;
-      if strcmp(response, 'cancel')
-        return
-      end      
-      whichlabels = response ;
-
-      labeler.gtComputeGTPerformance('whichlabels',whichlabels,'useLabels2',true);
+      % No longer supported (labels2 infrastructure removed)
+      error('LabelerGUI:removed', ...
+            'GT performance from imported predictions is no longer supported. Import tracking results and use regular GT computation.') ;
     end
 
     function menu_evaluate_gtexportresults_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -6162,19 +5963,6 @@ classdef LabelerController < handle
     end
 
 
-
-    function menu_file_export_labels2_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      iMov = labeler.currMovie;
-      if iMov==0
-        error('LabelerGUI:noMov','No movie currently set.');
-      end
-      [tfok,rawtrkname] = obj.getExportTrkRawNameUI();
-      if ~tfok
-        return;
-      end
-      obj.trackExportResults_(iMov,'rawtrkname',rawtrkname);
-    end
 
     function menu_file_import_export_advanced_actuated_(obj, src, evt)  %#ok<INUSD>
     end
@@ -6359,7 +6147,6 @@ classdef LabelerController < handle
         obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
       obj.updateShowPredMenus();
-      obj.updateShowImportedPredMenus();
       obj.updateFlipMenus();
       obj.update_menu_track_tracker_history() ;
       obj.update_menu_track_backend_config();
@@ -6422,17 +6209,6 @@ classdef LabelerController < handle
 
       labeler.projSave(lblFilePath) ;
     end  % function
-    
-    function labels2ImportTrkPromptAuto(obj, iMovs)
-      % See labelImportTrkPromptAuto().
-      % iMovs: works per current GT mode
-      
-      labeler = obj.labeler_ ;      
-      if exist('iMovs','var')==0
-        iMovs = 1:labeler.nmoviesGTaware;
-      end      
-      obj.labelImportTrkPromptGenericAuto(iMovs,'labels2ImportTrk');
-    end
     
     function labelImportTrkPromptGenericAuto(obj,iMovs,importFcn)
       % Come up with trkfiles based on iMovs and then call importFcn.
