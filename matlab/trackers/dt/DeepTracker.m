@@ -638,6 +638,12 @@ classdef DeepTracker < LabelTracker
 %         end
       end
 
+      % 2026-03-01: movIdx2trkfile renamed to adhocTrkFilePathsFromMidx
+      if isfield(s, 'movIdx2trkfile')
+        s.adhocTrkFilePathsFromMidx = s.movIdx2trkfile ;
+        s = rmfield(s, 'movIdx2trkfile') ;
+      end
+
       % % 2026-02-25: Took adhocTrkFilePathsFromMidx out of SAVEPROPS
       % % 20190415
       % % remove .adhocTrkFilePathsFromMidx for now, with bundle-save we don't save
@@ -3357,7 +3363,7 @@ classdef DeepTracker < LabelTracker
       end
 
       if nargin < 2 || isequal(mIdxs,[])
-        adhocMIdxs = cell2mat(m.keys(:)) ;
+        adhocMIdxs = cell2mat(m.keys()) ;
         mIdxs = union(adhocMIdxs, persistedMIdxs(:)) ;
       end
       if ~isa(mIdxs,'MovieIndex'),
