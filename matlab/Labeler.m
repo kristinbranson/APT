@@ -3476,7 +3476,7 @@ classdef Labeler < handle
       %                                              defaultTrackersInfo);
       fakeTrackPrefs = struct('PredictInterpolate', {false}) ;
       fakeProjPrefs = struct('Track', fakeTrackPrefs) ;
-      fakeLabeler = struct('maIsMA', {s.maIsMA}, 'projectHasTrx', {s.projectHasTrx}, 'projPrefs', {fakeProjPrefs}) ;
+      fakeLabeler = struct('maIsMA', {s.maIsMA}, 'projectHasTrx', {s.projectHasTrx}, 'projPrefs', {fakeProjPrefs}, 'nmovies', {0}) ;
       tfDoKeep = true(size(s.trackerClass)) ;
       for i = 1 : numel(s.trackerClass)
         trackerCreateInfoAsCellArray = s.trackerClass{i} ;
