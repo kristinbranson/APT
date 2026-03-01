@@ -34,7 +34,7 @@ classdef Labeler < handle
       'projectHasTrx'...
       'skeletonEdges' 'showSkeleton' 'showMaRoi' 'showMaRoiAux' 'flipLandmarkMatches' 'skelHead' 'skelTail' 'skelNames' ...
       'isTwoClickAlign'...
-      'trkResIDs' 'trkRes' 'trkResGT' 'trkResViz' 'saveVersionInfo' ...
+      'trkResIDs' 'trkRes' 'trkResGT' 'saveVersionInfo' ...
       'nLabelPointsAdd' 'track_id'};
     
      % props to update when replace path is given during initialization
@@ -704,7 +704,6 @@ classdef Labeler < handle
     trkResIDs  % [nTR x 1] cellstr unique IDs
     trkRes  % [nMov x nview x nTR] cell. cell array of TrkFile objs
     trkResGT  % [nMovGT x nview x nTR] cell. etc
-    trkResViz  % [nTR x 1] cell. TrackingVisualizer vector
     track_id = false
   end
 
@@ -3695,6 +3694,9 @@ classdef Labeler < handle
 
       
       % 20190429 TrkRes
+      if isfield(s,'trkResViz')
+        s = rmfield(s,'trkResViz');
+      end
       if ~isfield(s,'trkRes')
         s = Labeler.resetTrkResFieldsStruct(s);
       end
@@ -3852,7 +3854,6 @@ classdef Labeler < handle
       s.trkResIDs = cell(0,1);
       s.trkRes = cell(nmov,nvw,0);
       s.trkResGT = cell(nmovGT,nvw,0);
-      s.trkResViz = cell(0,1);
     end
     
     function [data,tname] = stcLoadLblFile(fname,dodelete)
@@ -4801,10 +4802,9 @@ classdef Labeler < handle
       obj.labelingInit('dosettemplate',false);
       if isFirstMovie,
         % KB 20161213: moved this up here so that we could redo in initHook
-        obj.trkResVizInit();
-        % we set template below as it requires .trx to be set correctly. 
+        % we set template below as it requires .trx to be set correctly.
         % see below
-        % obj.labelingInit('dosettemplate',false); 
+        % obj.labelingInit('dosettemplate',false);
       end
       
       trxFile = obj.trxFilesAllFullGTaware{iMov,1};
@@ -4934,7 +4934,6 @@ classdef Labeler < handle
       obj.isinit = isInitOrig;
       
       obj.labels2TrkVizInit();
-      obj.trkResVizInit();
       obj.labelingInit('dosettemplate',false);
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;
@@ -7660,7 +7659,7 @@ classdef Labeler < handle
     % independently toggleable.
     
     % Prediction Cosmetics notes
-    % 
+    %
     % - Cosmetics live in PV pairs on .predPointsPlotInfo
     % - These props include: Color, Marker-related, Text-related
     % - The .Color prop currently is *per-set*, ie corresponding points in
@@ -7671,40 +7670,9 @@ classdef Labeler < handle
     %   TrackingVisualizer for visualization. All trackers have their TVs
     %   initted from pppi and thus all trackers' tracking results currently
     %   will look the same. Nothing stops the user from individually
-    %   massaging a trackers' TV, but for now there is no facility to 
+    %   massaging a trackers' TV, but for now there is no facility to
     %   display preds from multiple tracker objs at the same time, and
     %   any such changes are not currently serialized.
-    %   iii) PPPI serves as an initialization point for aux tracking 
-    %   results in .trkResViz, but it is expected that the user will mutate
-    %   the cosmetics for .trkResViz to facilitate comparison of multiple
-    %   tracking results.
-    %      a) User-mutations of .trkResViz cosmetic state IS SERIALIZED
-    %      with the project. Note in contrast, TrackingVisualizers for
-    %      LabelTrackers (in i) currently are NOT serialized at all.
-    %
-    % Use cases.
-    %  1. Comparison across multiple "live" tracking results. 
-    %     - Currently this can't really be done, since results from
-    %     multiple LabelTrackers cannot be displayed simultaneously, not to
-    %     mention that all LabelTrackers share the same cosmetics.
-    %  2. Comparison between one "live" tracking result and one imported.
-    %     - This is at least possible, but imported results share the same 
-    %     cosmetics as "live" results so it's not great.
-    %  3. Comparison between multiple imported tracking results.
-    %     - This works well as the .trkRes* infrastruture is explicitly 
-    %     designed for this (currently cmdline only).
-    %
-    % Future 20190603.
-    %  A. The state of 1. above is unclear as we currently do not even save
-    %  tracking results with the project at all. In the meantime, use case
-    %  3. does meet the basic need provided tracking results are first
-    %  exported. This also serves more general purposes eg when a single
-    %  tracker is run across a parameter sweep, or with differing training
-    %  data etc.
-    %  B. Re 2. above, imported results quite likely should just be a 
-    %  special case of the aux (.trkRes*) tracking results. This would
-    %  simplify the code a bit, cosmetics would be mutable, and cosmetics
-    %  settings would be saved with the project.
     
     function updateLandmarkColors(obj,colorSpecs)
       for i=1:numel(colorSpecs)
@@ -7789,11 +7757,8 @@ classdef Labeler < handle
       ptcolors = obj.Set2PointColors(colors);
       
       lpos2tv = obj.labeledpos2trkViz;
-      if ~isempty(lpos2tv)        
+      if ~isempty(lpos2tv)
         lpos2tv.updateLandmarkColors(ptcolors);
-      end
-      for i=1:numel(obj.trkResViz)
-        obj.trkResViz{i}.updateLandmarkColors(ptcolors);
       end
     end
 
@@ -8900,7 +8865,7 @@ classdef Labeler < handle
       %fprintf('labelsUpdateNewFrame 2: %f\n',toc(ticinfo)); ticinfo = tic;
       notify(obj, 'updatePrevAxesLabels');
       %fprintf('labelsUpdateNewFrame 3: %f\n',toc(ticinfo)); ticinfo = tic;
-      obj.labels2VizUpdate('dotrkres',true);
+      obj.labels2VizUpdate();
       %fprintf('labelsUpdateNewFrame 4: %f\n',toc(ticinfo));
     end
 
@@ -8909,7 +8874,7 @@ classdef Labeler < handle
         obj.lblCore.newTarget(prevTarget,obj.currTarget,obj.currFrame);
       end
       notify(obj, 'updatePrevAxesLabels');
-      obj.labels2VizUpdate('dotrkres',true,'setlbls',false,'setprimarytgt',true);
+      obj.labels2VizUpdate('setlbls',false,'setprimarytgt',true);
     end
 
     function labelsUpdateNewFrameAndTarget(obj,prevFrm,prevTgt)
@@ -8919,7 +8884,7 @@ classdef Labeler < handle
           prevTgt,obj.currTarget);
       end
       notify(obj, 'updatePrevAxesLabels');
-      obj.labels2VizUpdate('dotrkres',true,'setprimarytgt',true);
+      obj.labels2VizUpdate('setprimarytgt',true);
     end  % function
 
   end  % methods (Access=private)
@@ -12105,13 +12070,10 @@ classdef Labeler < handle
   methods % TrackRes
     
     function trackResInit(obj)
+      % Reset trkRes data fields to empty state.
       obj.trkResIDs = cell(0,1);
       obj.trkRes = cell(obj.nmovies,obj.nview,0);
       obj.trkResGT = cell(obj.nmoviesGT,obj.nview,0);
-      for i=1:numel(obj.trkResViz)
-        delete(obj.trkResViz{i});
-      end
-      obj.trkResViz = cell(0,1);
     end
     
     function [tf,iTrkRes] = trackResFindID(obj,id)
@@ -12120,116 +12082,6 @@ classdef Labeler < handle
       tf = ~isempty(iTrkRes);      
     end
     
-    function tv = trackResFindTV(obj,id) % throws
-      % Return TrackingVisualizer object for id, or err
-      [tf,iTR] = obj.trackResFindID(id);
-      if ~tf
-        error('Tracking results ''%s'' not found in project.',id);
-      end
-      tv = obj.trkResViz{iTR};
-    end
-    
-    function iTrkRes = trackResEnsureID(obj,id)
-      iTrkRes = find(strcmp(obj.trkResIDs,id));
-      if isempty(iTrkRes)
-        handleTagPfix = ['handletag_' id];
-        tv = TrackingVisualizer(obj,handleTagPfix);
-        tv.vizInit();
-        
-        fprintf(1,'Adding new tracking results set ''%s''.\n',id);
-        obj.trkResIDs{end+1,1} = id;
-        obj.trkRes(:,:,end+1) = {[]};
-        obj.trkResGT(:,:,end+1) = {[]};
-        obj.trkResViz{end+1,1} = tv;
-        iTrkRes = numel(obj.trkResIDs);
-      end
-    end
-    
-    function trackResRmID(obj,id)
-      iTR = find(strcmp(obj.trkResIDs,id));
-      if isempty(iTR)
-        error('Tracking results ID ''%s'' not found in project',id);
-      end
-
-      assert(isscalar(iTR));
-      obj.trkResIDs(iTR,:) = [];
-      obj.trkRes(:,:,iTR) = [];
-      obj.trkResGT(:,:,iTR) = [];
-      tv = obj.trkResViz(iTR);
-      delete(tv);
-      obj.trkResViz(iTR,:) = [];
-    end
-    
-    function trackResAddCurrMov(obj,id,trkfiles)
-      if ~obj.hasMovie
-        error('No movie is open.');
-      end
-      mIdx = obj.currMovIdx;
-      obj.trackResAdd(id,mIdx,trkfiles);
-    end
-    
-    function trackResAdd(obj,id,mIdx,trkfiles)
-      % id: trackRes ID
-      % mIdx: [n] MovieIndex vector
-      % trkfiles: [nxnview] cell of trkfile objects or fullpaths
-
-      assert(isa(mIdx,'MovieIndex'));
-      n = numel(mIdx);
-      if ischar(trkfiles)
-        trkfiles = cellstr(trkfiles);
-      end
-      assert(iscell(trkfiles));
-      szassert(trkfiles,[n obj.nview]);
-      
-      iTR = obj.trackResEnsureID(id);
-      [iMovs,gt] = mIdx.get();
-      if gt
-        TRFLD = 'trkResGT';
-      else
-        TRFLD = 'trkRes';
-      end
-      
-      if iscellstr(trkfiles) || isstring(trkfiles)
-        trkfileobjs = cellfun(@TrkFile.load,trkfiles,'uni',0);
-      else
-        assert(isa(trkfiles{1},'TrkFile'));
-        trkfileobjs = trkfiles;
-      end
-      
-      for iMov = iMovs(:)'
-        v = obj.(TRFLD){iMov,1,iTR};
-        if ~isempty(v)
-          warningNoTrace('Overwriting existing tracking results for ''%s'' at movie index %d.',...
-            id,iMov);
-        end
-      end
-      obj.(TRFLD)(iMovs,:,iTR) = trkfileobjs;      
-    end
-    
-    function hlpTrackResSetViz(obj,tvMeth,id,varargin)
-      if isempty(id)
-        cellfun(@(x)x.(tvMeth)(varargin{:}),obj.trkResViz);
-      else
-        tv = obj.trackResFindTV(id); % throws
-        tv.(tvMeth)(varargin{:});
-      end
-    end
-    
-    function trackResSetHideViz(obj,id,tf)
-      obj.hlpTrackResSetViz('setHideViz',id,tf);
-    end
-    
-    function trackResSetHideTextLbls(obj,id,tf)
-      obj.hlpTrackResSetViz('setHideTextLbls',id,tf);
-    end    
-    
-    function trackResSetMarkerCosmetics(obj,id,varargin)
-      obj.hlpTrackResSetViz('setMarkerCosmetics',id,varargin);
-    end
-
-    function trackResSetTextCosmetics(obj,id,varargin)
-      obj.hlpTrackResSetViz('setTextCosmetics',id,varargin);
-    end
   end  % methods
    
   %% Video
@@ -13464,7 +13316,7 @@ classdef Labeler < handle
     end
     
     function labels2TrkVizInit(obj,varargin)
-      % Initialize trkViz for .labeledpos2, .trkRes*
+      % Initialize trkViz for .labeledpos2
 %       
 %       vizNtrxMax = myparse(varargin,...
 %         'vizNtrxMax',20 ...
@@ -13503,32 +13355,20 @@ classdef Labeler < handle
       obj.labeledpos2trkViz = tv;
     end
     
-    function trkResVizInit(obj)
-      for i=1:numel(obj.trkResViz)
-        tv = obj.trkResViz{i};
-        if isempty(tv.lObj)
-          tv.postLoadInit(obj);
-        else
-          tv.vizInit('postload',true);
-        end
-      end
-    end
-    
     function labels2VizUpdate(obj,varargin)
-      % update trkres from lObj.labeledpos
-      
-      [dotrkres,setlbls,setprimarytgt] = myparse(varargin,...
-        'dotrkres',false,...
+      % Update imported-labels viz from lObj.labeledpos2.
+
+      [setlbls,setprimarytgt] = myparse(varargin,...
         'setlbls',true,...
         'setprimarytgt',false ...
         );
-            
+
       iTgt = obj.currTarget;
       tv = obj.labeledpos2trkViz;
       if isempty(tv)
         return;
       end
-      
+
       if setlbls
         iMov = obj.currMovie;
         frm = obj.currFrame;
@@ -13542,45 +13382,7 @@ classdef Labeler < handle
         end
       end
       if setprimarytgt
-        tv.updatePrimary(iTgt);        
-      end
-      
-      if dotrkres && ~obj.maIsMA
-        %assert(~obj.maIsMA,'Unsupported for multi-animal projects.');
-        trkres = obj.trkResGTaware;
-        trvs = obj.trkResViz;
-        nTR = numel(trvs);
-        for iTR=1:nTR
-          if ~isempty(trkres{iMov,1,iTR})
-            tObjsAll = trkres(iMov,:,iTR);
-            
-            trkP = cell(obj.nview,1);
-            tfHasRes = true;
-            for ivw=1:obj.nview
-              tObj = tObjsAll{ivw};
-              ifrm = find(frm==tObj.pTrkFrm);
-              iitgt = find(iTgt==tObj.pTrkiTgt);
-              if ~isempty(ifrm) && ~isempty(iitgt)
-                trkP{ivw} = tObj.pTrk(:,:,ifrm,iitgt);
-              else
-                tfHasRes = false;
-                break;
-              end
-            end
-            if tfHasRes            
-              trkP = cat(1,trkP{:}); % [nlabelpoints x 2 x nfrm x ntgt]
-              trv = trvs{iTR};
-              trv.updateTrackRes(trkP);
-                  % % From DeepTracker.getTrackingResultsCurrFrm
-                  % AL20160502: When changing movies, order of updates to
-                  % % lObj.currMovie and lObj.currFrame is unspecified. currMovie can
-                  % % be updated first, resulting in an OOB currFrame; protect against
-                  % % this.
-                  % frm = min(frm,size(xyPCM,3));
-                  % xy = squeeze(xyPCM(:,:,frm,:)); % [npt x d x ntgt]
-            end
-          end
-        end
+        tv.updatePrimary(iTgt);
       end
     end
     
