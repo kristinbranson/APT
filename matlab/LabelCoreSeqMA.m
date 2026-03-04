@@ -84,9 +84,9 @@ classdef LabelCoreSeqMA < LabelCore
 
       obj.roiAddButtons();
       obj.addMAbuttons();
-      obj.tv = TrackingVisualizerMT(obj.labeler,'labelPointsPlotInfo',...
-        'lblCoreSeqMA');
-      obj.tv.doPch = true;
+      tvm = TrackingVisualizerMTModel(obj.labeler, 'labelPointsPlotInfo', 'lblCoreSeqMA') ;
+      tvm.doPch = true ;
+      obj.tv = TrackingVisualizerMT(obj.controller, tvm) ;
       obj.tv.vizInit('ntgts',obj.maxNumTgts);
 
       obj.roiInit();
