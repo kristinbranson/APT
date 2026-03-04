@@ -198,6 +198,9 @@ classdef Labeler < handle
 
     didSetTrackerHideViz
     didSetTrackerShowPredsCurrTargetOnly
+
+    updateTrkPredViz  % fired when trkVizer (TVM) is created/destroyed;
+                      % LabelerController should create/destroy the TV
   end
   
   %% Project
@@ -5925,17 +5928,16 @@ classdef Labeler < handle
       obj.lblCore.updateSkeletonEdges();
     end
 
-    function setShowSkeleton(obj,tf)
-      tf = logical(tf);
-      obj.showSkeleton = tf;
-      obj.lblCore.updateShowSkeleton();
-      dt = obj.tracker;
-      if isempty(dt)
-        return
-      end
-      tv = dt.trkVizer;
-      if ~isempty(tv)
-        tv.setShowSkeleton(tf);
+    function setShowSkeleton(obj, tf)
+      tf = logical(tf) ;
+      obj.showSkeleton = tf ;
+      obj.lblCore.updateShowSkeleton() ;
+      % The controller owns the TV; forward skeleton visibility to it
+      if ~isempty(obj.controller_)
+        tv = obj.controller_.tvTrkPred_ ;
+        if ~isempty(tv)
+          tv.setShowSkeleton(tf) ;
+        end
       end
     end
 
@@ -7558,10 +7560,11 @@ classdef Labeler < handle
             lc = obj.lblCore;
             lc.skeletonCosmeticsUpdated();
           case LandmarkSetType.Prediction
-            dt = obj.tracker;
-            tv = dt.trkVizer;
-            if ~isempty(tv)              
-              tv.skeletonCosmeticsUpdated();
+            if ~isempty(obj.controller_)
+              tv = obj.controller_.tvTrkPred_ ;
+              if ~isempty(tv)
+                tv.skeletonCosmeticsUpdated() ;
+              end
             end
         end
       end          
@@ -7592,6 +7595,14 @@ classdef Labeler < handle
       obj.predPointsPlotInfo.Colors = colors;
       obj.predPointsPlotInfo.ColorMapName = colormapname;
       cellfun(@(t)(t.updateLandmarkColors()), obj.trackerHistory_ ) ;
+      % Forward to TV
+      if ~isempty(obj.controller_)
+        tv = obj.controller_.tvTrkPred_ ;
+        if ~isempty(tv)
+          ptsClrs = obj.Set2PointColors(colors) ;
+          tv.updateLandmarkColors(ptsClrs) ;
+        end
+      end
     end
     
     function updateLandmarkImportedColors(obj,colors,colormapname)
@@ -7645,24 +7656,21 @@ classdef Labeler < handle
       pvText = rmfield(pvText,'Visible');
     end 
 
-    function updateLandmarkPredictionCosmetics(obj,pvMarker,pvText,textOffset)
+    function updateLandmarkPredictionCosmetics(obj, pvMarker, pvText, textOffset)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-      
-      [tfHideTxt,pvText] = obj.hlpUpdateLandmarkCosmetics(...
-        pvMarker,pvText,textOffset,'predPointsPlotInfo');
-      trackers = obj.trackerHistory_ ;
-      for i=1:numel(trackers)
-        if ~isempty(trackers{i})
-          tracker = trackers{i} ;
-          tv = tracker.trkVizer;
-          if ~isempty(tv)
-            tv.setMarkerCosmetics(pvMarker);
-            tv.setTextCosmetics(pvText);
-            tv.setTextOffset(textOffset);
-            tv.setHideTextLbls(tfHideTxt);
-          end
+
+      [tfHideTxt, pvText] = obj.hlpUpdateLandmarkCosmetics(...
+        pvMarker, pvText, textOffset, 'predPointsPlotInfo') ;
+      % Forward cosmetics to the controller's TV
+      if ~isempty(obj.controller_)
+        tv = obj.controller_.tvTrkPred_ ;
+        if ~isempty(tv)
+          tv.setMarkerCosmetics(pvMarker) ;
+          tv.setTextCosmetics(pvText) ;
+          tv.setTextOffset(textOffset) ;
+          tv.setHideTextLbls(tfHideTxt) ;
         end
-      end      
+      end
     end  % function
     
     function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
@@ -11450,24 +11458,44 @@ classdef Labeler < handle
       end
     end
     
-    function tv = createTrackingVisualizer(obj,ptsPlotInfoFld,gfxTagPfix)
-      % Create TV appropriate to this proj
+    function tvm = createTrackingVisualizerModel(obj, ptsPlotInfoFld, gfxTagPfix)
+      % Create TVM (model) appropriate to this proj.
       %
       % gfxTagPfix: arbitrary id/prefix for graphics handle tags
-      
+
       if obj.maIsMA
-        tv = TrackingVisualizerTracklets(obj,ptsPlotInfoFld,gfxTagPfix);
+        tvm = TrackingVisualizerTrackletsModel(obj, ptsPlotInfoFld, gfxTagPfix) ;
       elseif obj.hasTrx
-        tfadvanced = true; %RC.getpropdefault('optimizeImportedViz',false);
+        tfadvanced = true ;
         if tfadvanced
-          tv = TrackingVisualizerMTFast(obj,ptsPlotInfoFld,gfxTagPfix);
+          tvm = TrackingVisualizerMTFastModel(obj, ptsPlotInfoFld, gfxTagPfix) ;
         else
-          tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
+          tvm = TrackingVisualizerMTModel(obj, ptsPlotInfoFld, gfxTagPfix) ;
         end
       else
-        tv = TrackingVisualizerMT(obj,ptsPlotInfoFld,gfxTagPfix);
+        tvm = TrackingVisualizerMTModel(obj, ptsPlotInfoFld, gfxTagPfix) ;
       end
-    end
+    end  % function
+
+    function tv = createTrackingVisualizer(obj, parent, tvm)
+      % Create TV (view) appropriate to this proj.
+      %
+      % parent: LabelerController
+      % tvm: TrackingVisualizerModel subclass
+
+      if obj.maIsMA
+        tv = TrackingVisualizerTracklets(parent, tvm) ;
+      elseif obj.hasTrx
+        tfadvanced = true ;
+        if tfadvanced
+          tv = TrackingVisualizerMTFast(parent, tvm) ;
+        else
+          tv = TrackingVisualizerMT(parent, tvm) ;
+        end
+      else
+        tv = TrackingVisualizerMT(parent, tvm) ;
+      end
+    end  % function
   end
 
   methods (Static)

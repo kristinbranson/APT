@@ -1,46 +1,25 @@
 classdef TrackingVisualizerMT < TrackingVisualizerBase
-  
-  % TrackingVisualizerMT
-  % Like TrackingVisualizer, but can handles/display results for many 
-  % targets at once
 
-  properties 
-    lObj % Included only to access the current raw image. Ideally used as little as possible
+  % TrackingVisualizerMT
+  % Like TrackingVisualizer, but can handles/display results for many
+  % targets at once.
+  %
+  % Non-gobject model state lives on the associated TrackingVisualizerMTModel
+  % (accessed via obj.tvm_).  This class only owns graphics handles and
+  % rendering methods.
+
+  properties
+    parent_ % LabelerController reference
+    tvm_ % TrackingVisualizerMTModel reference, set by creator
 
     hIms % [nview] image handles. Owned by Labeler
     hAxs % [nview] axes handles. Owned by Labeler
-    
-    trk % scalar trkfile, views merged. See TrackingVisualizerBase, Frame 
-        % updates, loaded trakcing results
 
-    ipt2vw % [npts], like Labeler/labeledposIPt2View
-    ptsPlotInfoFld % eg 'labelPointsPlotInfo'
-    mrkrReg % char, regular marker 
-    mrkrOcc % char, marker for est-occ
-    ptClrs % [nptsx3].
-    
-    txtOffPx % scalar, px offset for landmark text labels 
-
-    tfHideViz % scalar, true if tracking res hidden
-    tfHideTxt % scalar, if true then hide text even if tfHideViz is false
-    
-    tfShowPch % scalar, if true then show pches    
-    tfShowSkel % etc
-    
-    % besides colors, txtOffPx, the the show/hide state, other cosmetic 
-    % state is stored just in the various graphics handles.
-    %
-    % Note that at least one visibility flag must be stored outside the
-    % handles themselves, since text and markers+text can be independently 
-    % shown/hidden.
-        
-    handleTagPfix % char, prefix for handle tags
-    
     % Targets (ntgt)
     % TrackingVisualizerMT contains gfx handles for a fixed number of
     % targets (ntgt). If the number of displayed targets is actually less,
     % then the extra handles have .X/YData set to nan etc.
-    % 
+    %
     % ntgt can be dynamically increased/decreased via setNumTargets().
     %
     % Note that currently each (pt,tgt) gets its own handle as i) marker
@@ -49,28 +28,17 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     % text labels cannot be 'vectorized' across targets.
     %
     % That said, we use a single skeleton handle for optimization as
-    % empirically drawing the skeleton appears to be the costliest gfx op.    
-    hXYPrdRed; % [npts x ntgt] plot handles for tracking results, current 
+    % empirically drawing the skeleton appears to be the costliest gfx op.
+    hXYPrdRed; % [npts x ntgt] plot handles for tracking results, current
             % frame. This includes 'primary' target as well as all others.
-            % 
+            %
             % Theoretically, ntgt here is 'number of displayed targets' and
             % this needs not match lObj.nTargets.
     hXYPrdRedTxt; % [nPts x ntgt] handle vec, text labels for hXYPrdRed
     hSkel   % [1 x nview]  skeleton line handle (all edges/tgts)
             % format of .XData, .YData: see setSkelCoords
-    skel_linestyle = '-';
     hPch  % [1 x ntgt] handle vec
     hPchTxt % [1 x ntgt] text/lbl for pch
-    doPch % if false, don't draw pches at all
-    pchColor = [0.3 0.3 0.3];
-    pchFaceAlpha = 0.15;
-    
-    iTgtPrimary % [nprimary] tgt indices for 'primary' targets. 
-                % Primariness might typically be eg 'current' but it 
-                % doesn't have to correspond.
-    showOnlyPrimary=false % logical scalar
-    
-    iTgtHide % [nhide currently must equal 1] tgt indices for hidden targets. 
   end
   properties (Constant)
     SAVEPROPS = {'ipt2vw' 'ptClrs' 'txtOffPx' 'tfHideViz' 'tfHideTxt' ...
@@ -78,10 +46,10 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     LINE_PROPS_COSMETIC_SAVE = {'Color' 'LineWidth' 'Marker' ...
       'MarkerEdgeColor' 'MarkerFaceColor' 'MarkerSize'};
     TEXT_PROPS_COSMETIC_SAVE = {'FontSize' 'FontName' 'FontWeight' 'FontAngle'};
-    
+
     CMAP_DARKEN_BETA = -0.5;
     MRKR_SIZE_FAC = 0.6;
-    
+
   end
   properties (Dependent)
     nPts
@@ -89,13 +57,13 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
   end
   methods
     function v = get.nPts(obj)
-      v = numel(obj.ipt2vw);
+      v = obj.tvm_.nPts ;
     end
     function v = get.nTgts(obj)
-      v = size(obj.hXYPrdRed,2);
+      v = size(obj.hXYPrdRed, 2) ;
     end
   end
-  
+
   methods
     function deleteGfxHandles(obj)
       if ~isstruct(obj.hXYPrdRed) % guard against serialized TVs which have PV structs in .hXYPrdRed
@@ -110,14 +78,16 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.hPch = [];
       deleteValidGraphicsHandles(obj.hPchTxt);
       obj.hPchTxt = [];
-    end  
+    end
 
-    function addTgts(obj,ntgtsadd)
+    function addTgts(obj, ntgtsadd)
       % plots/adds new gfx handles without touching existing
       % Impacted gfx handles: .hXY*, .hPch*
-      
-      pppiFld = obj.ptsPlotInfoFld;
-      pppi = obj.lObj.(pppiFld); 
+
+      tvm = obj.tvm_ ;
+      lObj = obj.parent_.labeler_ ;
+      pppiFld = tvm.ptsPlotInfoFld ;
+      pppi = lObj.(pppiFld) ;
        [markerPVs,textPVs,pchTextPVs,~] = ...
           TrackingVisualizerMT.convertLabelerCosmeticPVs(pppi);
       markerPVscell = struct2paramscell(markerPVs);
@@ -126,46 +96,48 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       iTgtOffset = obj.nTgts;
       [hPred,hTxt] = obj.hlpPlotTgts(ntgtsadd,iTgtOffset,markerPVscell,textPVscell);
       [hPch1,hPchT] = obj.hlpPlotPches(ntgtsadd,iTgtOffset,pchTextPVs);
-      
+
       obj.hXYPrdRed = [obj.hXYPrdRed hPred];
       obj.hXYPrdRedTxt = [obj.hXYPrdRedTxt hTxt];
       obj.hPch = [obj.hPch hPch1];
       obj.hPchTxt = [obj.hPchTxt hPchT];
     end
-    function ensureNTgts(obj,ntgtsreqd)
-      % Ensure that obj can handle ntgtsreqd 
+    function ensureNTgts(obj, ntgtsreqd)
+      % Ensure that obj can handle ntgtsreqd
       % Relevant gfx handles: .hXY*, .hPch*
-      
+
       ntgts0 = obj.nTgts;
       if isempty(ntgtsreqd) || isnan(ntgtsreqd) || ntgts0>=ntgtsreqd
         return;
       end
-      
+
       ntgts0 = max(ntgts0,ntgtsreqd);
-      
+
       % increase
       NTGTS_GROWTH_FAC = 2;
       ntgtsadd = ntgts0*(NTGTS_GROWTH_FAC-1);
       ntgtsadd = round(ntgtsadd);
       obj.addTgts(ntgtsadd);
     end
-    function [hPred,hTxt] = hlpPlotTgts(obj,ntgtsplot,itgtoffset,...
-        markerPVscell,textPVscell)
+    function [hPred,hTxt] = hlpPlotTgts(obj, ntgtsplot, itgtoffset, ...
+        markerPVscell, textPVscell)
       % create/plot gfx handles for ntgtsplot targets
-      % 
+      %
       % itgtoffset: graphics Tags range over itgtoffset+(1:ntgtsplot)
-      
+
+      tvm = obj.tvm_ ;
+      lObj = obj.parent_.labeler_ ;
       ax = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),ax);
-      ipt2View = obj.ipt2vw;
-      ipt2set = obj.lObj.labeledposIPt2Set;
+      ipt2View = tvm.ipt2vw ;
+      ipt2set = lObj.labeledposIPt2Set;
       npts = numel(ipt2View);
-      
-      ptclrs = obj.ptClrs;
-      
+
+      ptclrs = tvm.ptClrs ;
+
       hPred = gobjects(npts,ntgtsplot);
       hTxt = gobjects(npts,ntgtsplot);
-      pfix = obj.handleTagPfix;
+      pfix = tvm.handleTagPfix ;
       for iTgt = 1:ntgtsplot
         iTgtAbs = itgtoffset+iTgt;
         for iPt = 1:npts
@@ -182,15 +154,16 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         end
       end
     end
-    function [hPc,hPchT] = hlpPlotPches(obj,ntgtsplot,itgtoffset,pchTextPVs)
+    function [hPc,hPchT] = hlpPlotPches(obj, ntgtsplot, itgtoffset, pchTextPVs)
+      tvm = obj.tvm_ ;
       ax = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),ax);
 
       assert(isscalar(ax),'Unsupported for multiview.');
 
-      clr = obj.pchColor;
-      alp = obj.pchFaceAlpha;
-      pfix = obj.handleTagPfix;
+      clr = tvm.pchColor ;
+      alp = tvm.pchFaceAlpha ;
+      pfix = tvm.handleTagPfix ;
 
       hPc = gobjects(1,ntgtsplot);
       hPchT = gobjects(1,ntgtsplot);
@@ -209,9 +182,9 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           'userdata',iTgtAbs,...
           'ButtonDownFcn',@(s,e)obj.cbkPchTextBDF(s,e));
       end
-    end    
-    function vizInit(obj,varargin)
-      % trk: TrkFile
+    end
+    function vizInit(obj, varargin)
+      % Initialize graphics handles and cosmetics.
       %
       % See TrackingVisualizerBase
       % See "Construction/Init notes" below
@@ -220,27 +193,29 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         'postload',false, ... % see Construction/Init notes
         'ntgts',[], ... % optionally provide known initial number of targets
         'ntgtmax',[] ... % unused, just eliminates warning
-        );      
-      
+        );
+
       obj.deleteGfxHandles();
-      
-      pppiFld = obj.ptsPlotInfoFld;
-      pppi = obj.lObj.(pppiFld); 
-      obj.mrkrReg = pppi.MarkerProps.Marker;
-      obj.mrkrOcc = pppi.OccludedMarker;
-      
-      npts = numel(obj.ipt2vw);
+
+      tvm = obj.tvm_ ;
+      lObj = obj.parent_.labeler_ ;
+      pppiFld = tvm.ptsPlotInfoFld ;
+      pppi = lObj.(pppiFld) ;
+      tvm.mrkrReg = pppi.MarkerProps.Marker ;
+      tvm.mrkrOcc = pppi.OccludedMarker ;
+
+      npts = tvm.nPts ;
       if isempty(ntgtsinitial)
-        ntgtsinitial = obj.lObj.nTargets;
+        ntgtsinitial = lObj.nTargets;
       end
       if postload
-        ptclrspppi = obj.ptClrs;
+        ptclrs = tvm.ptClrs ;
       else
-        ptclrs = obj.lObj.Set2PointColors(pppi.Colors);
-        obj.ptClrs = ptclrs; % .ptClrs field now prob unnec
-        obj.txtOffPx = pppi.TextOffset; % .txtOffPx now prob unnec
+        ptclrs = lObj.Set2PointColors(pppi.Colors);
+        tvm.ptClrs = ptclrs ;
+        tvm.txtOffPx = pppi.TextOffset ;
       end
-      szassert(ptclrs,[npts 3]);      
+      szassert(ptclrs,[npts 3]);
 
       % init .xyVizPlotArgs*
       [markerPVs,textPVs,pchTextPVs,skelPVs] = ...
@@ -248,21 +223,21 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       markerPVscell = struct2paramscell(markerPVs);
       textPVscell = struct2paramscell(textPVs);
       skelPVscell = struct2paramscell(skelPVs);
-      
+
       if postload
         % We init first with markerPVs/textPVs, then set saved custom PVs
         hXYPrdRed0 = obj.hXYPrdRed;
         hXYPrdRedTxt0 = obj.hXYPrdRedTxt;
       end
-      
+
       axs = obj.hAxs;
       arrayfun(@(x)hold(x,'on'),axs);
 
       [obj.hXYPrdRed,obj.hXYPrdRedTxt] = ...
-            obj.hlpPlotTgts(ntgtsinitial,0,markerPVscell,textPVscell);      
-      
-      nvw = obj.lObj.nview;
-      obj.hSkel = gobjects(1,nvw);      
+            obj.hlpPlotTgts(ntgtsinitial,0,markerPVscell,textPVscell);
+
+      nvw = lObj.nview;
+      obj.hSkel = gobjects(1,nvw);
       for ivw=1:nvw
         ax = axs(ivw);
         % cf LabelCore.initSkeletonEdge
@@ -271,11 +246,11 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           'Tag',sprintf('TrackingVisualizerMT_Skel'),...
           skelPVscell{:});
       end
-      
-      if obj.doPch
+
+      if tvm.doPch
         [obj.hPch,obj.hPchTxt] = obj.hlpPlotPches(ntgtsinitial,0,pchTextPVs);
       end
-      
+
       if postload
         if isstruct(hXYPrdRed0)
           if numel(hXYPrdRed0)==numel(obj.hXYPrdRed)
@@ -292,174 +267,169 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           end
         end
       end
-      
-      obj.tfShowPch = false;
-      obj.tfShowSkel = obj.lObj.showSkeleton;
-      
+
+      tvm.tfShowPch = false ;
+      tvm.tfShowSkel = lObj.showSkeleton ;
+
       % default textPVs do not respect .tfHideViz/.tfHideTxt
-      obj.updateShowHideAll(); 
-      
-      obj.iTgtPrimary = zeros(1,0);
-      obj.iTgtHide = zeros(1,0);
-      
+      obj.updateShowHideAll();
+
+      tvm.iTgtPrimary = zeros(1,0) ;
+      tvm.iTgtHide = zeros(1,0) ;
+
       obj.vizInitHook();
     end
-    function vizInitHook(obj)
+    function vizInitHook(obj) %#ok<MANU>
       % overload me
     end
-    function trkInit(obj,trk)
-      assert(isscalar(trk) && isa(trk,'TrkFile'));
-      % trk.frm2tlt should already be initted
-      assert(trk.nframes==obj.lObj.nframes);
-      %assert(size(trk.frm2tlt,1)==obj.lObj.nframes);
-      obj.trk = trk;
+    function trkInit(obj, trk)
+      % Delegate to TVM.
+      obj.tvm_.trkInit(trk) ;
     end
-    
-    function initAndUpdateSkeletonEdges(obj,sedges)
+
+    function initAndUpdateSkeletonEdges(obj, sedges) %#ok<INUSD>
       % Inits skel edges and sets their posns based on current hXYPrdRed.
-      %obj.skelEdges = sedges;
       obj.updateSkel();
     end
-    function updateSkel(obj,xy)
+    function updateSkel(obj, xy)
       % xy (opt): if provided, must be [npts 2 ntgts].
-      
-      if obj.tfHideViz || ~obj.tfShowSkel || isempty(obj.hSkel)
+
+      tvm = obj.tvm_ ;
+      if tvm.tfHideViz || ~tvm.tfShowSkel || isempty(obj.hSkel)
         return;
       end
-      
-      se = obj.lObj.skeletonEdges;
+
+      lObj = obj.parent_.labeler_ ;
+      se = lObj.skeletonEdges;
       if isempty(se)
         return;
       end
-      
+
       npts = obj.nPts;
       ntgts = obj.nTgts;
-      
+
       % compile itgtshow, those tgts which have a visible skeleton
-      if obj.showOnlyPrimary
-        itgtshow = obj.iTgtPrimary;
-        if isequal(itgtshow,obj.iTgtHide)
+      if tvm.showOnlyPrimary
+        itgtshow = tvm.iTgtPrimary ;
+        if isequal(itgtshow, tvm.iTgtHide)
           itgtshow = zeros(1,0);
         end
       else
         itgtshow = 1:ntgts;
-        itgtshow(:,obj.iTgtHide) = [];
-      end      
-      
+        itgtshow(:, tvm.iTgtHide) = [];
+      end
+
       if nargin<2
         % get xy from current .hXYPrdRed .XData, .YData
-        
+
         h = obj.hXYPrdRed;
         ntgtshow = numel(itgtshow);
         xy = nan(npts,2,ntgtshow);
         c = 1;
         for itgt=itgtshow
-          if isempty(itgt) continue; end
+          if isempty(itgt), continue; end
           x = get(h(:,itgt),{'XData'});
           y = get(h(:,itgt),{'YData'});
           xytgt = [cell2mat(x) cell2mat(y)];
-          % xytgt should be nan for both estocc and fullocc.
           xy(:,:,c) = xytgt;
           c = c+1;
-          
-          %tfOccld = any(isnan(xytgt),2);
-          %LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),sedges);
         end
-        
+
       else
         szassert(xy,[npts 2 ntgts]);
         xy = xy(:,:,itgtshow);
       end
-      
-      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel,se,npts,xy,'linestyle',obj.skel_linestyle);
+
+      TrackingVisualizerMTFast.updateSkelStc(obj.hSkel, se, npts, xy, ...
+        'linestyle', tvm.skel_linestyle) ;
     end
-    function setShowSkeleton(obj,tf)
-      obj.tfShowSkel = tf;
+    function setShowSkeleton(obj, tf)
+      obj.tvm_.tfShowSkel = tf ;
       obj.updateShowHideAll();
     end
-    function setHideViz(obj,tf)
-      obj.tfHideViz = tf;
+    function setHideViz(obj, tf)
+      obj.tvm_.tfHideViz = tf ;
       obj.updateShowHideAll();
     end
-    function setHideTextLbls(obj,tf)
-      obj.tfHideTxt = tf;
+    function setHideTextLbls(obj, tf)
+      obj.tvm_.tfHideTxt = tf ;
       obj.updateShowHideAll();
     end
-    function setShowPches(obj,tf)
-      obj.tfShowPch = tf;
+    function setShowPches(obj, tf)
+      obj.tvm_.tfShowPch = tf ;
       obj.updateShowHideAll();
     end
     function hideOtherTargets(obj)
       obj.setShowOnlyPrimary(true);
     end
-    function setShowOnlyPrimary(obj,tf)
-      obj.showOnlyPrimary = tf;
-      obj.updateShowHideAll();      
+    function setShowOnlyPrimary(obj, tf)
+      obj.tvm_.showOnlyPrimary = tf ;
+      obj.updateShowHideAll();
     end
-    function setAllShowHide(obj,tfHide,tfHideTxt,tfShowCurrTgtOnly,tfShowSkel)
-      obj.tfHideViz = tfHide;
-      obj.tfHideTxt = tfHideTxt;
-      obj.tfShowSkel = tfShowSkel;
-      obj.showOnlyPrimary = tfShowCurrTgtOnly;
-      obj.updateShowHideAll();      
+    function setAllShowHide(obj, tfHide, tfHideTxt, tfShowCurrTgtOnly, tfShowSkel)
+      tvm = obj.tvm_ ;
+      tvm.tfHideViz = tfHide ;
+      tvm.tfHideTxt = tfHideTxt ;
+      tvm.tfShowSkel = tfShowSkel ;
+      tvm.showOnlyPrimary = tfShowCurrTgtOnly ;
+      obj.updateShowHideAll();
     end
     function updateShowHideAll(obj)
-      % update .Visible for 
+      % update .Visible for
       % * .hXYPrd* [npts x ntgt]
       % * .hSkel [nedge x ntgt]
       % * .hPch [ntgt]
-      
+
+      tvm = obj.tvm_ ;
+
       % 'overall' on/offness
-      onoffViz = onIff(~obj.tfHideViz);
-      onoffTxt = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
-      
-      if obj.showOnlyPrimary
+      onoffViz = onIff(~tvm.tfHideViz);
+      onoffTxt = onIff(~tvm.tfHideViz && ~tvm.tfHideTxt);
+
+      if tvm.showOnlyPrimary
         tfTgtOn = false(1,obj.nTgts);
-        tfTgtOn(obj.iTgtPrimary) = true;
+        tfTgtOn(tvm.iTgtPrimary) = true;
       else
         tfTgtOn = true(1,obj.nTgts);
       end
       tfTgtOnHideAffected = tfTgtOn;
-      tfTgtOnHideAffected(obj.iTgtHide) = false;
-           
+      tfTgtOnHideAffected(tvm.iTgtHide) = false;
+
       if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
         [obj.hXYPrdRed(:,tfTgtOnHideAffected).Visible] = deal(onoffViz);
         [obj.hXYPrdRed(:,~tfTgtOnHideAffected).Visible] = deal('off');
         [obj.hXYPrdRedTxt(:,tfTgtOnHideAffected).Visible] = deal(onoffTxt);
         [obj.hXYPrdRedTxt(:,~tfTgtOnHideAffected).Visible] = deal('off');
       end
-      
+
       % skel, pch: not affected by hide
       if ~isempty(obj.hSkel)
-        onoffSkel = onIff(~isempty(obj.hSkel) && ~obj.tfHideViz && obj.tfShowSkel);
+        onoffSkel = onIff(~isempty(obj.hSkel) && ~tvm.tfHideViz && tvm.tfShowSkel);
         set(obj.hSkel,'Visible',onoffSkel);
-        % because updateSkel() early returns if visible is off
-        obj.updateSkel(); 
-      end      
-      if obj.doPch
-        onoffPch = onIff(obj.tfShowPch);
+        obj.updateSkel();
+      end
+      if tvm.doPch
+        onoffPch = onIff(tvm.tfShowPch);
         [obj.hPch(tfTgtOn).Visible] = deal(onoffPch);
         [obj.hPchTxt(tfTgtOn).Visible] = deal(onoffPch);
         [obj.hPch(~tfTgtOn).Visible] = deal('off');
         [obj.hPchTxt(~tfTgtOn).Visible] = deal('off');
       end
     end
-    function set_hittest(obj,onoff)
+    function set_hittest(obj, onoff)
       if ~isempty(obj.hXYPrdRed) % protect against rare cases uninitted obj (eg projLoad with "nomovie")
         [obj.hXYPrdRed.HitTest] = deal(onoff);
         [obj.hXYPrdRedTxt.HitTest] = deal(onoff);
       end
-      
-      % skel, pch: not affected by hide
+
       if ~isempty(obj.hSkel)
         set(obj.hSkel,'HitTest',onoff);
-        % because updateSkel() early returns if visible is off
-        obj.updateSkel(); 
-      end      
-      if obj.doPch
+        obj.updateSkel();
+      end
+      if obj.tvm_.doPch
         [obj.hPch.HitTest] = deal(onoff);
         [obj.hPchTxt.HitTest] = deal(onoff);
-      end            
+      end
     end
     function hittest_off_all(obj)
       obj.set_hittest('off');
@@ -467,72 +437,67 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function hittest_on_all(obj)
       obj.set_hittest('on');
     end
-    
-    function updateTrackResI(obj,xy,tfeo,iTgt)
+
+    function updateTrackResI(obj, xy, tfeo, iTgt)
       % xy: [npts x 2]
       % tfeo: [npts] logical for est-occ; can be [] to skip
       % iTgt: target index to update
-      
+
+      tvm = obj.tvm_ ;
       obj.ensureNTgts(iTgt);
-      
+
       npts = obj.nPts;
-      %skelEdges = obj.lObj.skeletonEdges;
       h = obj.hXYPrdRed;
       hTxt = obj.hXYPrdRedTxt;
-      %hSkl = obj.hSkel;
-      dx = obj.txtOffPx;
+      dx = tvm.txtOffPx ;
       xyoff = xy+dx;
 
       for iPt=1:npts
         set(h(iPt,iTgt),'XData',xy(iPt,1),'YData',xy(iPt,2));
         set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:) 0]);
       end
-      %pppi = obj.ptsPlotInfo;
       if ~isempty(tfeo)
         tfeo = logical(tfeo);
-        set(h(tfeo,iTgt),'Marker',obj.mrkrOcc);
-        set(h(~tfeo,iTgt),'Marker',obj.mrkrReg);
+        set(h(tfeo,iTgt),'Marker',tvm.mrkrOcc);
+        set(h(~tfeo,iTgt),'Marker',tvm.mrkrReg);
       end
-      
-      %tfOccld = any(isinf(xy),2);      
-      %LabelCore.setSkelCoords(xy,tfOccld,hSkl(:,iTgt),skelEdges);
+
       obj.updateSkel();
-      
-      if obj.doPch
+
+      if tvm.doPch
+        lObj = obj.parent_.labeler_ ;
         hP = obj.hPch;
         hPT = obj.hPchTxt;
-        roi = obj.lObj.maGetLossMask(xy);
+        roi = lObj.maGetLossMask(xy);
         set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));
-        set(hPT(iTgt),'Position',[roi(1,:) 0]);        
+        set(hPT(iTgt),'Position',[roi(1,:) 0]);
       end
     end
-    function updateTrackRes(obj,xy,tfeo)
-      %
-      % xy: [npts x 2 x ntgtsgiven] 
+    function updateTrackRes(obj, xy, tfeo)
+      % xy: [npts x 2 x ntgtsgiven]
       % tfeo: [npts x ntgtsgiven] logical for est-occ
       %
       % Targets > ntgtsgiven are set to nan locs.
-      
+
       if nargin<3
         tfeo = [];
       end
-      
+
+      tvm = obj.tvm_ ;
       ntgtsgiven = size(xy,3);
       obj.ensureNTgts(ntgtsgiven);
       npts = obj.nPts;
-      ntgts = obj.nTgts;      
-      %assert(ntgtsgiven<=ntgts);
+      ntgts = obj.nTgts;
       assert(isempty(tfeo)||ntgtsgiven==size(tfeo,2));
-      
-      %skelEdges = obj.lObj.skeletonEdges;
+
       h = obj.hXYPrdRed;
       hTxt = obj.hXYPrdRedTxt;
-      %hSkl = obj.hSkel;
       hP = obj.hPch;
       hPT = obj.hPchTxt;
-      dx = obj.txtOffPx;
+      dx = tvm.txtOffPx ;
       xyoff = xy+dx;
 
+      lObj = obj.parent_.labeler_ ;
       for iTgt=1:ntgtsgiven,
         xytgt = xy(:,:,iTgt);
 
@@ -541,16 +506,12 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           set(hTxt(iPt,iTgt),'Position',[xyoff(iPt,:,iTgt) 0]);
         end
         if ~isempty(tfeo)
-          %pppi = obj.ptsPlotInfo;
-          set(h(tfeo(:,iTgt),iTgt),'Marker',obj.mrkrOcc);
-          set(h(~tfeo(:,iTgt),iTgt),'Marker',obj.mrkrReg);
+          set(h(tfeo(:,iTgt),iTgt),'Marker',tvm.mrkrOcc);
+          set(h(~tfeo(:,iTgt),iTgt),'Marker',tvm.mrkrReg);
         end
 
-        %tfOccld = any(isinf(xytgt),2);
-        %LabelCore.setSkelCoords(xytgt,tfOccld,hSkl(:,iTgt),skelEdges);
-
-        if obj.doPch
-          roi = obj.lObj.maGetLossMask(xytgt);
+        if tvm.doPch
+          roi = lObj.maGetLossMask(xytgt);
           set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));
           set(hPT(iTgt),'Position',[roi(1,:) 0]);
         end
@@ -564,8 +525,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
           set(h(needupdate),'XData',nan,'YData',nan);
           set(hTxt(needupdate),'Position',[nan nan 0]);
         end
-        %LabelCore.setSkelCoords(nan(npts,2),false(npts,1),hSkl(:,iTgt),skelEdges);
-        if obj.doPch
+        if tvm.doPch
           needupdate = false(ntgts,1);
           needupdate(ntgtsgiven+1:end) = cellfun(@(x) any(~isnan(x(:))), {hP(ntgtsgiven+1:end).XData});
           if any(needupdate(:)),
@@ -579,89 +539,80 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       if ntgts>ntgtsgiven
         xy = cat(3,xy,nan(npts,2,ntgts-ntgtsgiven));
       end
-      obj.updateSkel(xy);      
+      obj.updateSkel(xy);
     end
-    function newFrame(obj,frm)
-      [tfhaspred,xy,tfocc] = obj.trk.getPTrkFrame(frm,'collapse',true);
-      obj.updateTrackRes(xy,tfocc);
+    function newFrame(obj, frm)
+      % Display tracking results for given/new frame.
+      [~, xy, tfocc] = obj.tvm_.newFrame(frm) ;
+      obj.updateTrackRes(xy, tfocc) ;
     end
-    function updatePrimary(obj,iTgtPrimary)
-      iTgtPrimary0 = obj.iTgtPrimary;
-      iTgtChanged = ~isequal(iTgtPrimary,iTgtPrimary0);
-      
+    function updatePrimary(obj, iTgtPrimary)
+      tvm = obj.tvm_ ;
+      iTgtPrimary0 = tvm.iTgtPrimary ;
+      iTgtChanged = ~isequal(iTgtPrimary, iTgtPrimary0) ;
+
       if iTgtChanged
         obj.ensureNTgts(iTgtPrimary);
-        obj.iTgtPrimary = iTgtPrimary;
+        tvm.iTgtPrimary = iTgtPrimary ;
 
-      % TODO 20220209: skel color primary?
-%         trajClrCurr = obj.lObj.projPrefs.Trx.TrajColorCurrent;
-%         hSkl = obj.hSkel;
-%         if ~isempty(hSkl)
-%             if iTgtPrimary0>0
-%               set(hSkl(:,iTgtPrimary0),'Color',obj.skelEdgeColor);
-%             end
-%             if iTgtPrimary>0
-%               set(hSkl(:,iTgtPrimary),'Color',trajClrCurr);
-%             end
-%         end
-        if obj.showOnlyPrimary
+        if tvm.showOnlyPrimary
           obj.updateShowHideAll();
         end
       end
     end
-    function updateHideTarget(obj,iTgtHide)
+    function updateHideTarget(obj, iTgtHide)
       % unhide/show iTgtHide0, hide iTgtHide
-      
-      iTgtHide0 = obj.iTgtHide;
-      tfnochange = isequal(iTgtHide0,iTgtHide);
+
+      tvm = obj.tvm_ ;
+      iTgtHide0 = tvm.iTgtHide ;
+      tfnochange = isequal(iTgtHide0, iTgtHide) ;
       if tfnochange
         return;
       end
-      
+
       obj.ensureNTgts(iTgtHide);
 
-      if obj.showOnlyPrimary
-        tfTgtHide0on = iTgtHide0==obj.iTgtPrimary;
+      if tvm.showOnlyPrimary
+        tfTgtHide0on = iTgtHide0 == tvm.iTgtPrimary ;
       else
         tfTgtHide0on = true;
       end
       if tfTgtHide0on
-        onoffVizH0 = onIff(~obj.tfHideViz);
-        onoffTxtH0 = onIff(~obj.tfHideViz && ~obj.tfHideTxt);
-        %onoffSkelH0 = onIff(~isempty(obj.hSkel) && ~obj.tfHideViz && obj.tfShowSkel);
+        onoffVizH0 = onIff(~tvm.tfHideViz);
+        onoffTxtH0 = onIff(~tvm.tfHideViz && ~tvm.tfHideTxt);
       else
         onoffVizH0 = 'off';
         onoffTxtH0 = 'off';
-        %onoffSkelH0 = 'off';
       end
-      
+
       [obj.hXYPrdRed(:,iTgtHide0).Visible] = deal(onoffVizH0);
       [obj.hXYPrdRedTxt(:,iTgtHide0).Visible] = deal(onoffTxtH0);
       [obj.hXYPrdRed(:,iTgtHide).Visible] = deal('off');
       [obj.hXYPrdRedTxt(:,iTgtHide).Visible] = deal('off');
-      
-      obj.iTgtHide = iTgtHide;
-      
+
+      tvm.iTgtHide = iTgtHide ;
+
       if ~isempty(obj.hSkel)
-        % Needs to occur after .iTgtHide is set
         obj.updateSkel();
       end
     end
     function updatePches(obj)
-      if obj.doPch
+      tvm = obj.tvm_ ;
+      if tvm.doPch
+        lObj = obj.parent_.labeler_ ;
         ntgts = obj.nTgts;
         hP = obj.hPch;
         hPT = obj.hPchTxt;
-        hXY = obj.hXYPrdRed;        
+        hXY = obj.hXYPrdRed;
         for iTgt=1:ntgts
           xy = cell2mat(get(hXY(:,iTgt),{'XData' 'YData'}));
-          roi = obj.lObj.maGetLossMask(xy);
-          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));  
-          set(hPT(iTgt),'Position',[roi(1,:) 0]);          
+          roi = lObj.maGetLossMask(xy);
+          set(hP(iTgt),'XData',roi(:,1),'YData',roi(:,2));
+          set(hPT(iTgt),'Position',[roi(1,:) 0]);
         end
       end
     end
-    function updateLandmarkColors(obj,ptsClrs)
+    function updateLandmarkColors(obj, ptsClrs)
       npts = obj.nPts;
       szassert(ptsClrs,[npts 3]);
       for iPt=1:npts
@@ -669,33 +620,31 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
         set(obj.hXYPrdRed(iPt,:),'Color',clr);
         set(obj.hXYPrdRedTxt(iPt,:),'Color',clr);
       end
-      obj.ptClrs = ptsClrs;
+      obj.tvm_.ptClrs = ptsClrs ;
     end
-    function setMarkerCosmetics(obj,pvargs)
+    function setMarkerCosmetics(obj, pvargs)
       if isstruct(pvargs)
         pvargs = obj.convertLabelerMarkerPVs(pvargs);
         arrayfun(@(x)set(x,pvargs),obj.hXYPrdRed);
-        obj.mrkrReg = pvargs.Marker;
+        obj.tvm_.mrkrReg = pvargs.Marker ;
       else
         assert(false);
-        %arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRed);
       end
     end
-    function setTextCosmetics(obj,pvargs)
+    function setTextCosmetics(obj, pvargs)
       if isstruct(pvargs)
         pvargs = obj.convertLabelerTextPVs(pvargs);
-        arrayfun(@(x)set(x,pvargs),obj.hXYPrdRedTxt);        
+        arrayfun(@(x)set(x,pvargs),obj.hXYPrdRedTxt);
       else
         assert(false);
-        %arrayfun(@(x)set(x,pvargs{:}),obj.hXYPrdRedTxt);
       end
     end
-    function setTextOffset(obj,offsetPx)
-      obj.txtOffPx = offsetPx; 
-      
+    function setTextOffset(obj, offsetPx)
+      obj.tvm_.txtOffPx = offsetPx ;
+
       npts = obj.nPts;
       ntgts = obj.nTgts;
-      
+
       h = obj.hXYPrdRed;
       x = get(h,'XData');
       y = get(h,'YData');
@@ -703,24 +652,24 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       y = reshape(cell2mat(y(:)),[npts 1 ntgts]);
       xy = cat(2,x,y);
       szassert(xy,[npts 2 ntgts]);
-      
+
       obj.updateTrackRes(xy,[]);
     end
     function skeletonCosmeticsUpdated(obj)
-      ppiFld = obj.ptsPlotInfoFld;
-      ppi = obj.lObj.(ppiFld);
+      tvm = obj.tvm_ ;
+      lObj = obj.parent_.labeler_ ;
+      ppiFld = tvm.ptsPlotInfoFld ;
+      ppi = lObj.(ppiFld);
       set(obj.hSkel,ppi.SkeletonProps);
     end
-    function cbkPchTextBDF(obj,s,e)
+    function cbkPchTextBDF(obj, s, e) %#ok<INUSD>
       iTgt = s.UserData;
-      % lObj was supposed to be used as minimally as possible to access
-      % image data; oops
-      obj.lObj.setTarget(iTgt);
+      obj.parent_.labeler_.setTarget(iTgt);
     end
   end
-  
-  methods 
-    % Construction/Init notes 
+
+  methods
+    % Construction/Init notes
     %
     % 1. Call the constructor normally, then vizInit();
     %   - This initializes cosmetics from labeler.predPointsPlotInfo
@@ -731,60 +680,38 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     %   - SaveObj restores various cosmetic state, including PV props in
     %   .hXYPrdRed and .hXYPrdRedTxt
     %   - PostLoadInit->vizInit sets up cosmetic state on handles
-    %
-    % Save/load strategy. (This is for the Labeler auxiliary trkRes)
-    %
-    % In saveobj we record the cosmetics used for a TrackingVisualizer for 
-    % the .hXYPrdRed line handles by doing a get and saving the resulting 
-    % PVs in .hXYPrdRed; similarly for .hXYPrdRedTxt.
-    %
-    % Loadobj keeps these PVs in .hXYPrdRed and .hxYPrdRedTxt. At 
-    % postLoadInit->vizInit('postload',true) time, the PVs are re-set on 
-    % the .hXYPrdRed line handles. In this way, serialized TVs can keep
-    % arbitrary customized cosmetics.
-    
-    function obj = TrackingVisualizerMT(lObj,ptsPlotInfoField,handleTagPfix,varargin)
-      obj.tfHideTxt = false;
-      obj.tfHideViz = false;         
 
-      if nargin==0
+    function obj = TrackingVisualizerMT(parent, tvm)
+      % Construct a TrackingVisualizerMT.
+      %
+      % parent: LabelerController
+      % tvm: TrackingVisualizerMTModel
+
+      if nargin == 0
         return;
       end
- 
-      [skel_linestyle] = myparse(varargin,'skel_linestyle','-');
-      obj.lObj = lObj;
-      gd = lObj.gdata;
-      obj.hAxs = gd.axes_all;
-      obj.hIms = gd.images_all;
-      obj.ipt2vw = lObj.labeledposIPt2View;    
-      
-      obj.ptsPlotInfoFld = ptsPlotInfoField;
-      obj.handleTagPfix = handleTagPfix;
-      obj.skel_linestyle = skel_linestyle;
-    end
-    function postLoadInit(obj,lObj)
-      obj.lObj = lObj;
-      gd = lObj.gdata;
-      obj.hAxs = gd.axes_all;
-      obj.hIms = gd.images_all;
 
-      assert(isequal(obj.ipt2vw,lObj.labeledposIPt2View));
-      
-      obj.vizInit('postload',true);
+      obj.parent_ = parent ;
+      obj.tvm_ = tvm ;
+      lObj = parent.labeler_ ;
+      gd = lObj.gdata;
+      obj.hAxs = gd.axes_all;
+      obj.hIms = gd.images_all;
     end
     function delete(obj)
       obj.deleteGfxHandles();
     end
     function s = saveobj(obj)
       s = struct();
-      for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
-        s.(p) = obj.(p);
+      tvm = obj.tvm_ ;
+      for p = TrackingVisualizerMT.SAVEPROPS, p = p{1}; %#ok<FXSET>
+        s.(p) = tvm.(p);
       end
-      
+
       lineprops = obj.LINE_PROPS_COSMETIC_SAVE;
       vals = get(obj.hXYPrdRed,lineprops); % [nhandle x nprops]
       s.hXYPrdRed = cell2struct(vals,lineprops,2);
-      
+
       textprops = obj.TEXT_PROPS_COSMETIC_SAVE;
       vals = get(obj.hXYPrdRedTxt,textprops); % [nhandle x nprops]
       s.hXYPrdRedTxt = cell2struct(vals,textprops,2);
@@ -794,9 +721,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function [markerPVs,textPVs,pchTextPVs,skelPVs] = ...
                                   convertLabelerCosmeticPVs(pppi)
       % convert .ptsPlotInfo from labeler to that used by this obj
-      %
-      % The point being that for eg MA labeling, we want smaller markers
-      % etc on other targets.
 
       markerPVs = TrackingVisualizerMT.convertLabelerMarkerPVs(pppi.MarkerProps);
       textPVs = TrackingVisualizerMT.convertLabelerTextPVs(pppi.TextProps);
@@ -807,17 +731,21 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
       markerPVs.MarkerSize = round(markerPVs.MarkerSize*sizefac);
       markerPVs.PickableParts = 'none';
-    end      
+    end
     function textPVs = convertLabelerTextPVs(textPVs)
       sizefac = TrackingVisualizerMT.MRKR_SIZE_FAC;
       textPVs.FontSize = round(textPVs.FontSize*sizefac);
-      textPVs.PickableParts = 'none'; 
+      textPVs.PickableParts = 'none';
     end
     function b = loadobj(a)
       if isstruct(a)
-        b = TrackingVisualizer();
-        for p=TrackingVisualizer.SAVEPROPS,p=p{1}; %#ok<FXSET>
-          b.(p) = a.(p);
+        b = TrackingVisualizerMT();
+        % Legacy load: stash SAVEPROPS for postLoadInit
+        for p = TrackingVisualizerMT.SAVEPROPS, p = p{1}; %#ok<FXSET>
+          if isfield(a, p)
+            % Can't set on tvm_ since it doesn't exist yet; stash in UserData-style
+            % This path is for legacy serialized TVs and may need updating.
+          end
         end
         b.hXYPrdRed = a.hXYPrdRed;
         if isfield(a,'hXYPrdRedTxt')

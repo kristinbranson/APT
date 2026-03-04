@@ -245,15 +245,21 @@ else
   end
 end
 
-lobj.tracker.trkVizer.trxSelectedTrxID(tgt,true);
-lobj.tracker.trkVizer.centerPrimary;
+tv = lobj.controller_.tvTrkPred_ ;
+if ~isempty(tv)
+  tv.trxSelectedTrxID(tgt, true) ;
+  tv.centerPrimary() ;
+end
 h.curtrk = tgt;
 guidata(h.fig,h);
 end
 
 function centerPrimary(h)
 lobj = h.lobj;
-lobj.tracker.trkVizer.centerPrimary;
+tv = lobj.controller_.tvTrkPred_ ;
+if ~isempty(tv)
+  tv.centerPrimary() ;
+end
 
 end
 function prev_btn_callback(handles,event,~)

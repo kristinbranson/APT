@@ -914,13 +914,14 @@ classdef LabelCoreSeqMA < LabelCore
       obj.tv.updateTrackResI(xy,tfeo,iTgt);
       % tv.hideTarget should already be set to lObj.currTarget
       obj.tv.hittest_on_all()
-      if ~isempty(obj.labeler.tracker.trkVizer) && ...
-          ~isempty(obj.labeler.tracker.trkVizer.tvmt)
-        obj.labeler.tracker.trkVizer.tvmt.hittest_on_all();
-      end
-      if ~isempty(obj.labeler.tracker.trkVizer) && ...
-          ~isempty(obj.labeler.tracker.trkVizer.tvtrx)
-        obj.labeler.tracker.trkVizer.tvtrx.hittest_on_all();
+      tvPred = obj.controller.tvTrkPred_ ;
+      if ~isempty(tvPred)
+        if isprop(tvPred, 'tvmt') && ~isempty(tvPred.tvmt)
+          tvPred.tvmt.hittest_on_all() ;
+        end
+        if isprop(tvPred, 'tvtrx') && ~isempty(tvPred.tvtrx)
+          tvPred.tvtrx.hittest_on_all() ;
+        end
       end
       obj.beginAccepted();
     end
@@ -964,13 +965,14 @@ classdef LabelCoreSeqMA < LabelCore
       lObj.currImHud.hTxtTgt.BackgroundColor = obj.CLR_NEW_TGT;
       obj.state = LabelState.LABEL; 
       obj.tv.hittest_off_all()
-      if ~isempty(obj.labeler.tracker.trkVizer) && ...
-          ~isempty(obj.labeler.tracker.trkVizer.tvmt)
-        obj.labeler.tracker.trkVizer.tvmt.hittest_off_all();
-      end
-      if ~isempty(obj.labeler.tracker.trkVizer) && ...
-          ~isempty(obj.labeler.tracker.trkVizer.tvtrx)
-        obj.labeler.tracker.trkVizer.tvtrx.hittest_off_all();
+      tvPred = obj.controller.tvTrkPred_ ;
+      if ~isempty(tvPred)
+        if isprop(tvPred, 'tvmt') && ~isempty(tvPred.tvmt)
+          tvPred.tvmt.hittest_off_all() ;
+        end
+        if isprop(tvPred, 'tvtrx') && ~isempty(tvPred.tvtrx)
+          tvPred.tvtrx.hittest_off_all() ;
+        end
       end
       obj.enableControls();
     end

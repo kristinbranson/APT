@@ -209,17 +209,20 @@ classdef DeepTracker < LabelTracker
   end
   
   properties
-    trkVizer % scalar TrackingVisualizer, or 0x0 double matrix
-    
+    trkVizer % scalar TrackingVisualizerModel (TVM), or []
+
     % *Tracking results and viz*
-    % For optimization, trkVizer is not created until/when there are
-    % tracking results (trkP) to display. Various states:
+    % For optimization, trkVizer (TVM) is not created until/when there are
+    % tracking results (trkP) to display.  The corresponding
+    % TrackingVisualizer (TV, view) is owned by LabelerController
+    % (.tvTrkPred_).  Various states:
     % - trkP=[], trkVizer=[].
     % - trkP nonempty, trkVizer=[] if DeepTracker is deactivated.
     % - trkP nonempty, trkVizer nonempty.
-    % 
-    % vizInit() create/initializes trkVizer (or deletes an existing 
-    % trkVizer) based on trkP.    
+    %
+    % vizInit() creates/initializes the TVM (or deletes an existing one)
+    % based on trkP, then fires updateTrkPredViz so the controller can
+    % create/destroy the TV.    
   end
   
   properties (Transient)
@@ -328,29 +331,33 @@ classdef DeepTracker < LabelTracker
     end  % function
 
     function delete(obj)
-      obj.trnResInit();
-      obj.bgTrkReset_();
-      delete(obj.trkVizer);
-      obj.trkVizer = [];
+      % Clean up TVM.  The TV (view) is owned by LabelerController and will
+      % be cleaned up when the controller processes the notification or is
+      % itself deleted.
+      obj.trnResInit() ;
+      obj.bgTrkReset_() ;
+      delete(obj.trkVizer) ;
+      obj.trkVizer = [] ;
     end  % function
 
     function initHook(obj)
-      obj.trnResInit();
-      obj.bgTrkReset_();
-      obj.trackResInit();
-      obj.trackCurrResInit();
-      obj.vizInit();
+      obj.trnResInit() ;
+      obj.bgTrkReset_() ;
+      obj.trackResInit() ;
+      obj.trackCurrResInit() ;
+      obj.vizInit() ;
     end  % function
 
     function deactivate(obj)
-      deactivate@LabelTracker(obj);
-      delete(obj.trkVizer);
-      obj.trkVizer = [];
+      deactivate@LabelTracker(obj) ;
+      delete(obj.trkVizer) ;
+      obj.trkVizer = [] ;
+      obj.lObj.notify('updateTrkPredViz') ;
     end  % function
 
     function activate(obj)
-      activate@LabelTracker(obj);
-      obj.vizInit(false);
+      activate@LabelTracker(obj) ;
+      obj.vizInit(false) ;
     end  % function
   end  % methods
   
@@ -2592,48 +2599,42 @@ classdef DeepTracker < LabelTracker
     end  % function
 
     function jumpToNearestTracking(obj)
-      % Jump to the startframe of the first tracklet and select it. This enables the
-      % Tracklet HUD and timeline.
-      %
-      % bit of a hack here as special-casing and end-running
-      % TrackingVisualizerBase api.
-      if ~obj.lObj.maIsMA,
-        return;
+      % Jump to the nearest tracklet and select it.  Reads tracklet data from
+      % TVM (obj.trkVizer), navigates via Labeler, and selects via the
+      % controller's TV.
+      if ~obj.lObj.maIsMA
+        return ;
       end
-      tv = obj.trkVizer;
-      if isempty(tv) || isempty(tv.ptrx)
-        return;
+      tvm = obj.trkVizer ;
+      if isempty(tvm) || isempty(tvm.ptrx)
+        return ;
       end
-      curfr = obj.lObj.currFrame;
-      ss = [tv.ptrx(:).firstframe];
-      ee = [tv.ptrx(:).endframe];
-      active = find((ss<=curfr)&(ee>=curfr),1);
+      curfr = obj.lObj.currFrame ;
+      ss = [tvm.ptrx(:).firstframe] ;
+      ee = [tvm.ptrx(:).endframe] ;
+      active = find((ss <= curfr) & (ee >= curfr), 1) ;
       if isempty(active)
         % closest tracklet
-        [min_ss,sel_ss] = min(abs(curfr-ss));
-        [min_ee,sel_ee] = min(abs(curfr-ee));
-        if min_ss < min_ee,
-          sel = sel_ss;
+        [min_ss, sel_ss] = min(abs(curfr - ss)) ;
+        [min_ee, sel_ee] = min(abs(curfr - ee)) ;
+        if min_ss < min_ee
+          sel = sel_ss ;
         else
-          sel = sel_ee;
+          sel = sel_ee ;
         end
-        f0 = tv.ptrx(sel).firstframe;
-        if f0~=obj.lObj.currFrame
-          obj.lObj.setFrameGUI(f0); % this should result in call to .newLabelerFrame();
+        f0 = tvm.ptrx(sel).firstframe ;
+        if f0 ~= obj.lObj.currFrame
+          obj.lObj.setFrameGUI(f0) ;
         end
       else
-        obj.newLabelerFrame(); % not sure what this does... 
-        %obj.lObj.setFrameGUI(curfr); % this should result in call to .newLabelerFrame();
-        % sel = tv.iTrx2iTrxViz(active);
-        sel = active ;  % active is already an index into tv.ptrx
+        sel = active ;  % active is already an index into tvm.ptrx
       end
 
-      % tv.trxSelected(sel,true); % the first tv.tvtrx trx should map to ptrx(1)
-      tv.trxSelectedTrxID(sel, true) ;  
-        % Think we want to call tv.trxSelectedTrxID() here, not tv.trxSelected().
-        % sel is an index into tv.pTrx, not an index into tv.tvtrx.  If sel was an
-        % index into tv.tvtrx, tv.trxSelected() would be the one to call.  -- ALT,
-        % 2025-05-22
+      % Select the tracklet on the TV (view) via the controller
+      tv = obj.lObj.controller_.tvTrkPred_ ;
+      if ~isempty(tv)
+        tv.trxSelectedTrxID(sel, true) ;
+      end
     end  % function
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
@@ -3491,92 +3492,94 @@ classdef DeepTracker < LabelTracker
     
   %% Viz
   methods
-    function vizInit(obj,existingTVvizInit)
-      % - if .trkP is empty, deletes .trkVizer and returns.
-      % - if .trkVizer is empty:
-      %     - creates one
-      %     - calls trkVizer.vizInit
-      % - if .trkVizer existed, call vizInit() if existingTVvizInit==true.
-      % - call trkVizer.trkInit() on current .trkP.
-      
+    function vizInit(obj, existingTVMInit)
+      % Create/destroy the TrackingVisualizerModel (TVM) based on .trkP,
+      % then notify the controller to create/destroy the TV (view).
+      %
+      % - if .trkP is empty, deletes .trkVizer (TVM) and returns.
+      % - if .trkVizer is empty, creates one.
+      % - calls trkVizer.trkInit() on current .trkP.
+      % Fires updateTrkPredViz so the controller can manage the TV.
+
       if isempty(obj.trkP)
-        delete(obj.trkVizer);
-        obj.trkVizer = [];
-        return;
+        delete(obj.trkVizer) ;
+        obj.trkVizer = [] ;
+        obj.lObj.notify('updateTrkPredViz') ;
+        return ;
       end
-      
+
       if nargin < 2
-        existingTVvizInit = true;
+        existingTVMInit = true ;
       end
-      
-      lObj = obj.lObj;
-      tv = obj.trkVizer;
-      if isempty(tv)
-        tvtagpfix = sprintf('dt_%s',obj.algorithmName);
-        tv = lObj.createTrackingVisualizer('predPointsPlotInfo',tvtagpfix);        
-        obj.trkVizer = tv;
-        tfnewTV = true;
+
+      lObj = obj.lObj ;
+      tvm = obj.trkVizer ;
+      if isempty(tvm)
+        tvtagpfix = sprintf('dt_%s', obj.algorithmName) ;
+        tvm = lObj.createTrackingVisualizerModel('predPointsPlotInfo', tvtagpfix) ;
+        obj.trkVizer = tvm ;
+        tfnewTVM = true ;
       else
-        tfnewTV = false;
+        tfnewTVM = false ;
       end
-      
-      if tfnewTV || existingTVvizInit
-        % might need to re-vizInit an existing trkVizer eg if number of trx 
-        % has changed, maxNanimals has changed, etc.      
-        if ~isempty(lObj.trackParams)
-          maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Track.max_n_animals;
-          maxNanimals = max(ceil(maxNanimals*1.5),10);
-        else
-          maxNanimals = 20;
+
+      if tfnewTVM || existingTVMInit
+        if isa(tvm, 'TrackingVisualizerTrackletsModel')
+          if ~isempty(lObj.trackParams)
+            maxNanimals = lObj.trackParams.ROOT.MultiAnimal.Track.max_n_animals ;
+            maxNanimals = max(ceil(maxNanimals * 1.5), 10) ;
+          else
+            maxNanimals = 20 ;
+          end
+          tvm.init(maxNanimals) ;
         end
-        % ntgtmax spec only used by tracklets currently
-        tv.vizInit('ntgtmax',maxNanimals);
-        tv.setHideViz(obj.hideViz);
-      end      
-      % eg don't call tv.vizInit() if i) it already existed ii) we are just
-      % updating the .trkP.
-      
-      tv.trkInit(obj.trkP);
-    end
-    function setHideViz(obj,tf)
-      if ~isempty(obj.trkVizer)
-        obj.trkVizer.setHideViz(tf);
       end
-      obj.hideViz = tf;
-    end
-    function setShowPredsCurrTargetOnly(obj,tf)
-      if ~isempty(obj.trkVizer)
-        obj.trkVizer.setShowOnlyPrimary(tf);
+
+      tvm.trkInit(obj.trkP) ;
+
+      % Notify controller to create/update TV
+      lObj.notify('updateTrkPredViz') ;
+    end  % function
+    function setHideViz(obj, tf)
+      % Set hideViz on model state.  TVM stores the flag; controller
+      % forwards to TV.
+      if ~isempty(obj.trkVizer) && isa(obj.trkVizer, 'TrackingVisualizerMTModel')
+        obj.trkVizer.tfHideViz = tf ;
+      elseif ~isempty(obj.trkVizer) && isa(obj.trkVizer, 'TrackingVisualizerTrackletsModel')
+        obj.trkVizer.tvmt.tfHideViz = tf ;
       end
-      obj.showPredsCurrTargetOnly = tf;
-    end
+      obj.hideViz = tf ;
+    end  % function
+    function setShowPredsCurrTargetOnly(obj, tf)
+      % Set showOnlyPrimary on model state.
+      if ~isempty(obj.trkVizer) && isa(obj.trkVizer, 'TrackingVisualizerMTModel')
+        obj.trkVizer.showOnlyPrimary = tf ;
+      elseif ~isempty(obj.trkVizer) && isa(obj.trkVizer, 'TrackingVisualizerMTFastModel')
+        obj.trkVizer.tfShowOnlyPrimary = tf ;
+      elseif ~isempty(obj.trkVizer) && isa(obj.trkVizer, 'TrackingVisualizerTrackletsModel')
+        obj.trkVizer.tvmt.showOnlyPrimary = tf ;
+      end
+      obj.showPredsCurrTargetOnly = tf ;
+    end  % function
     function updateLandmarkColors(obj)
-      ptsClrs = obj.lObj.predPointsPlotInfo.Colors;
-      ptsClrs = obj.lObj.Set2PointColors(ptsClrs);
-      if ~isempty(obj.trkVizer)
-        obj.trkVizer.updateLandmarkColors(ptsClrs);      
+      % Update landmark colors.  Sets on TVM; controller forwards to TV.
+      ptsClrs = obj.lObj.predPointsPlotInfo.Colors ;
+      ptsClrs = obj.lObj.Set2PointColors(ptsClrs) ;
+      if ~isempty(obj.trkVizer) && isprop(obj.trkVizer, 'ptClrs')
+        obj.trkVizer.ptClrs = ptsClrs ;
       end
-    end
-    % For updating other cosmetics, go ahead and call obj.trkVizer methods
-    % directly
+    end  % function
   end
 
   %% Labeler nav
   methods
     function newLabelerFrame(obj)
-      lObj = obj.lObj;
-      tv = obj.trkVizer;
-      if lObj.isinit || ~lObj.hasMovie || isempty(tv)
-        return
-      end
-      tv.newFrame(lObj.currFrame);
-    end
+      % Model-only: the controller handles TV.newFrame via its listener.
+      % Keep this as a no-op; the controller calls tv.newFrame directly.
+    end  % function
     function newLabelerTarget(obj)
-      if ~obj.lObj.maIsMA && ~isempty(obj.trkVizer)
-        iTgt = obj.lObj.currTarget;
-        obj.trkVizer.updatePrimary(iTgt);
-      end
-    end
+      % Model-only: the controller handles tv.updatePrimary.
+    end  % function
     function newLabelerMovie(obj)
 %       if ~obj.lObj.maIsMA && obj.lObj.hasTrx
 %         % in this case, the number of targets (trx) can vary by movie and
@@ -3585,10 +3588,9 @@ classdef DeepTracker < LabelTracker
 %         obj.vizInit(); 
 %       end
       if obj.lObj.hasMovie
-        obj.trackCurrResUpdate();
-        obj.newLabelerFrame();
+        obj.trackCurrResUpdate() ;
       end
-      obj.vizInit();
+      obj.vizInit() ;
     end
   end
   

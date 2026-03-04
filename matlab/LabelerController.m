@@ -18,6 +18,9 @@ classdef LabelerController < handle
 
   properties  % private/protected by convention
     tvTrx_  % scalar TrackingVisualizerTrx
+    tvTrkPred_ % scalar TrackingVisualizer* (view for prediction tracking results),
+               % or [].  Owned here; reads model data from
+               % labeler_.tracker.trkVizer (a TrackingVisualizerModel).
     tblTrxData_ = []  % last-used data in tblTrx, used for change-detection
     isInYodaMode_ = false
       % Set to true to allow control actuation to happen *ouside* or a try/catch
@@ -531,6 +534,8 @@ classdef LabelerController < handle
       %   addlistener(labeler, 'gtResUpdated', @(s,e)(obj.cbkGTResUpdated(s,e))) ;
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateAfterCurrentFrameSet', @(s,e)(obj.updateAfterCurrentFrameSet())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateTrkPredViz', @(s,e)(obj.updateTrkPredViz())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
@@ -3165,6 +3170,12 @@ classdef LabelerController < handle
         labeler.currImHud.updateTarget(iTgt);
         obj.labelTLInfo.updateTraces();
         obj.updateHighlightingOfAxes();
+
+        % Update prediction TV primary target
+        tv = obj.tvTrkPred_ ;
+        if ~isempty(tv) && ~labeler.maIsMA
+          tv.updatePrimary(iTgt) ;
+        end
       end
     end  % function
 
@@ -5402,6 +5413,11 @@ classdef LabelerController < handle
       if ~isempty(tracker)
         tracker.setHideViz(false); % show tracking
         tracker.setShowPredsCurrTargetOnly(false); % not only current target
+        tv = obj.tvTrkPred_ ;
+        if ~isempty(tv)
+          tv.setHideViz(false) ;
+          tv.setShowOnlyPrimary(false) ;
+        end
       end
       obj.updateShowPredMenus();
     end
@@ -5414,6 +5430,11 @@ classdef LabelerController < handle
       if ~isempty(tracker)
         tracker.setHideViz(false); % show tracking
         tracker.setShowPredsCurrTargetOnly(true);
+        tv = obj.tvTrkPred_ ;
+        if ~isempty(tv)
+          tv.setHideViz(false) ;
+          tv.setShowOnlyPrimary(true) ;
+        end
         obj.updateShowPredMenus();
       end
     end
@@ -5428,6 +5449,10 @@ classdef LabelerController < handle
       tracker = labeler.tracker;
       if ~isempty(tracker)
         tracker.setHideViz(true); % do not show tracking
+        tv = obj.tvTrkPred_ ;
+        if ~isempty(tv)
+          tv.setHideViz(true) ;
+        end
         obj.updateShowPredMenus();
       end
 
@@ -5437,7 +5462,12 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       tracker = labeler.tracker;
       if ~isempty(tracker)
-        tracker.setHideViz(~tracker.hideViz); % toggle
+        tfHide = ~tracker.hideViz ;
+        tracker.setHideViz(tfHide); % toggle
+        tv = obj.tvTrkPred_ ;
+        if ~isempty(tv)
+          tv.setHideViz(tfHide) ;
+        end
         obj.updateShowPredMenus();
       end
     end  % function
@@ -6322,9 +6352,64 @@ classdef LabelerController < handle
       end
       set(obj.slider_frame,'Value',sldval);
       hasProject = labeler.hasProject ;
-      hasMovie = labeler.hasMovie ;        
-      set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;      
-      obj.updateHighlightingOfAxes() ;      
+      hasMovie = labeler.hasMovie ;
+      set(obj.pbClearSelection,'Enable',onIff(hasProject && hasMovie && labeler.areAnyFramesSelected())) ;
+      obj.updateHighlightingOfAxes() ;
+
+      % Update prediction tracking visualizer for new frame
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv) && hasMovie && ~labeler.isinit
+        tv.newFrame(labeler.currFrame) ;
+      end
+    end  % function
+
+    function updateTrkPredViz(obj)
+      % Create/destroy the prediction TV based on the tracker's TVM state.
+      labeler = obj.labeler_ ;
+      tracker = labeler.tracker ;
+      if isempty(tracker) || isempty(tracker.trkVizer)
+        % No TVM: destroy any existing TV
+        delete(obj.tvTrkPred_) ;
+        obj.tvTrkPred_ = [] ;
+        return ;
+      end
+
+      tvm = tracker.trkVizer ;
+
+      % Destroy existing TV if present (will be recreated)
+      delete(obj.tvTrkPred_) ;
+      obj.tvTrkPred_ = [] ;
+
+      % Create new TV
+      tv = labeler.createTrackingVisualizer(obj, tvm) ;
+      obj.tvTrkPred_ = tv ;
+
+      % Initialize graphics
+      if isa(tvm, 'TrackingVisualizerTrackletsModel')
+        if ~isempty(labeler.trackParams)
+          maxNanimals = labeler.trackParams.ROOT.MultiAnimal.Track.max_n_animals ;
+          maxNanimals = max(ceil(maxNanimals * 1.5), 10) ;
+        else
+          maxNanimals = 20 ;
+        end
+        tv.vizInit('ntgtmax', maxNanimals) ;
+      else
+        tv.vizInit() ;
+      end
+
+      % Apply current show/hide state
+      tv.setHideViz(tracker.hideViz) ;
+      if tracker.showPredsCurrTargetOnly
+        tv.setShowOnlyPrimary(true) ;
+      end
+
+      % Show current frame
+      if labeler.hasMovie && ~labeler.isinit
+        tv.newFrame(labeler.currFrame) ;
+        if ~labeler.maIsMA
+          tv.updatePrimary(labeler.currTarget) ;
+        end
+      end
     end  % function
 
     function deleteSpashScreenFigureIfItExists_(obj)
