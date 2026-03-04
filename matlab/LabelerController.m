@@ -37,6 +37,8 @@ classdef LabelerController < handle
     isInYodaMode_ = false
       % Set to true to allow control actuation to happen *ouside* or a try/catch
       % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
+    doEchoControlActuation_ = false
+      % When true, controlActuated() prints the control name to the console.
   end
 
   properties  % these are all the things that used to be in the main figure's guidata, but are not simple controls
@@ -272,11 +274,12 @@ classdef LabelerController < handle
   methods
     function obj = LabelerController(varargin)
       % Process args that have to be dealt with before creating the Labeler
-      [isInDebugMode, isInAwsDebugMode, isInYodaMode] = ...
+      [isInDebugMode, isInAwsDebugMode, isInYodaMode, doEchoControlActuation] = ...
         myparse_nocheck(varargin, ...
                         'isInDebugMode',false, ...
                         'isInAwsDebugMode',false, ...
-                        'isInYodaMode', false) ;
+                        'isInYodaMode', false, ...
+                        'doEchoControlActuation', false) ;
 
       % Create the splash screen figure
       % (Do this after creation of main figure so splash screen figure is on top.)
@@ -295,9 +298,10 @@ classdef LabelerController < handle
       obj.mainFigure_ = mainFigure ;
       obj.labeler_.registerController(obj) ;  % hack
       obj.tvTrx_ = TrackingVisualizerTrx(labeler) ;
-      obj.isInYodaMode_ = isInYodaMode ;  
+      obj.isInYodaMode_ = isInYodaMode ;
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
         % Useful for debugging.
+      obj.doEchoControlActuation_ = logical(doEchoControlActuation) ;
               
       % Initialize all the instance vars that will hold references to GUI controls
       handles = guihandles(mainFigure) ;
@@ -1403,6 +1407,9 @@ classdef LabelerController < handle
       % source and event.
       % obj.labeler_.pushBusyStatus(sprintf('Control %s actuated...', controlName)) ;
       % oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
+      if obj.doEchoControlActuation_
+        fprintf('controlActuated: %s\n', controlName) ;
+      end
       if obj.isInYodaMode_ ,
         % "Do, or do not.  There is no try." --Yoda
         obj.controlActuatedCore_(controlName, source, event, varargin{:}) ;
