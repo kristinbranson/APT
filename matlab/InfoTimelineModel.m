@@ -211,7 +211,7 @@ classdef InfoTimelineModel < handle
       % .props_tracker, .curproptype. 
       ptype = obj.proptypes_{obj.curproptype_};
       switch ptype
-        case 'Predictions'
+        case {'Predictions', 'Imported'}
           tfOOB = (obj.curprop_ > numel(obj.props_tracker_));
         otherwise
           tfOOB = (obj.curprop_ > numel(obj.props_)) ;
@@ -230,9 +230,10 @@ classdef InfoTimelineModel < handle
       if nargin < 2,
         ipropType = obj.curproptype;
       end
-      if strcmpi(obj.proptypes{ipropType},'Predictions'),
+      propType = obj.proptypes{ipropType} ;
+      if strcmpi(propType, 'Predictions') || strcmpi(propType, 'Imported')
         props = {obj.props_tracker.name};
-      elseif strcmpi(obj.proptypes{ipropType},'All Frames'),
+      elseif strcmpi(propType, 'All Frames'),
         props = {obj.props_allframes.name};
       else
         props = {obj.props.name};
@@ -348,7 +349,7 @@ classdef InfoTimelineModel < handle
       
       ptype = obj.proptypes{obj.curproptype};
       switch ptype
-        case 'Predictions'
+        case {'Predictions', 'Imported'}
           prop = obj.props_tracker(obj.curprop);
         otherwise
           prop = obj.props(obj.curprop);
@@ -387,12 +388,17 @@ classdef InfoTimelineModel < handle
             else
               tldata = nan(labeler.nLabelPoints,1); % looks like we don't need 2nd dim to be nfrmtot
             end
-          case 'Predictions'
+          case {'Predictions', 'Imported'}
             % AL 20200511 hack, initialization ordering. If the timeline
             % pum has 'Predictions' selected and a new project is loaded,
             % the trackers are not updated (via
             % LabelerGUI/cbkCurrTrackerChanged) until after a movieSetGUI()
             % call which leads here.
+            %
+            % 'Imported' uses the same path as 'Predictions' as a stopgap,
+            % because imported tracks are now stored in the same place as
+            % predictions.  Ideally 'Imported' should be removed as a
+            % separate prop type entirely.
             tracker = labeler.tracker ;
             if ~isempty(tracker) && isvalid(tracker)
               tldata = tracker.getPropValues(pcode);
