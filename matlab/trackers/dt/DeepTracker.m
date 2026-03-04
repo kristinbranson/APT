@@ -2,7 +2,7 @@ classdef DeepTracker < LabelTracker
   properties (Constant,Hidden)
     SAVEPROPS = {'sPrmAll' 'containerBindPaths' ...
       'trnNetType' 'trnNetMode' 'trnLastDMC' 'hideViz' ...
-      'trkPathFromImovAndViewIndex' }
+      'trkPathFromImovAndViewIndex' 'userTag_' }
 %       'jrcgpuqueue' 'jrcnslots' 'jrcnslotstrack'}; 
     
     pretrained_weights_urls = {...
@@ -3588,9 +3588,11 @@ classdef DeepTracker < LabelTracker
       % Model-only: the controller handles TV.newFrame via its listener.
       % Keep this as a no-op; the controller calls tv.newFrame directly.
     end  % function
+
     function newLabelerTarget(obj)
       % Model-only: the controller handles tv.updatePrimary.
     end  % function
+
     function newLabelerMovie(obj)
 %       if ~obj.lObj.maIsMA && obj.lObj.hasTrx
 %         % in this case, the number of targets (trx) can vary by movie and
@@ -3602,8 +3604,8 @@ classdef DeepTracker < LabelTracker
         obj.trackCurrResUpdate() ;
       end
       obj.vizInit() ;
-    end
-  end
+    end  % function
+  end  % methods
   
   %% Labeler listeners
   methods

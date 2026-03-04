@@ -10035,7 +10035,17 @@ classdef Labeler < handle
     %   iTrk = 0;
     % end
   
-    function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)      
+    function setTrackerUserTag(obj, tag)
+      % Set the user tag on the current tracker.
+      tracker = obj.tracker ;
+      if isempty(tracker)
+        return ;
+      end
+      tracker.userTag = tag ;
+      obj.notify('update_menu_track_tracker_history') ;
+    end  % function
+
+    function trackMakeExistingTrackerCurrentGivenIndex(obj, iTrk)
       % Validate the new value
       trackers = obj.trackerHistory_ ;
       tracker_count = numel(trackers) ;

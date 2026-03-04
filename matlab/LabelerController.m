@@ -147,6 +147,7 @@ classdef LabelerController < handle
     menu_track_set_labels
     menu_track_setparametersfile
     menu_track_settrackparams
+    menu_track_tag_tracker
     menu_track_tracker_history
     menu_track_tracking_algorithm
     menu_track_trainincremental
@@ -1101,7 +1102,26 @@ classdef LabelerController < handle
 
       % Call the labeler method
       labeler = obj.labeler_ ;
-      labeler.trackMakeExistingTrackerCurrentGivenIndex(trackerHistoryIndex) ;      
+      labeler.trackMakeExistingTrackerCurrentGivenIndex(trackerHistoryIndex) ;
+    end
+
+    function menu_track_tag_tracker_actuated_(obj, source, event)  %#ok<INUSD>
+      % Raise a dialog to set a user tag on the current tracker.
+      labeler = obj.labeler_ ;
+      tracker = labeler.tracker ;
+      if isempty(tracker)
+        return ;
+      end
+      currentTag = tracker.userTag ;
+      answer = inputdlg('Enter a tag for this tracker:', ...
+                         'Tag Tracker', ...
+                         1, ...
+                         {currentTag}) ;
+      if isempty(answer)
+        return ;  % user cancelled
+      end
+      userTag = strtrim(answer{1}) ;
+      labeler.setTrackerUserTag(userTag) ;
     end
 
     function showDialogAfterSpawningTrackingForGT(obj, source, event)  %#ok<INUSD> 
@@ -1415,6 +1435,8 @@ classdef LabelerController < handle
       end
       if obj.doEchoControlActuation_
         fprintf('controlActuated: %s\n', controlName) ;
+        % source
+        % event        
       end
       if obj.isInYodaMode_ ,
         % "Do, or do not.  There is no try." --Yoda
@@ -2577,7 +2599,12 @@ classdef LabelerController < handle
         algNamePretty = tracker.algorithmNamePretty ;
         rawTrnNameLbl = tracker.trnNameLbl ;
         trnNameLbl = fif(isempty(rawTrnNameLbl), 'untrained', rawTrnNameLbl) ;
-        menuItemLabel = sprintf('%s (%s)', algNamePretty, trnNameLbl) ;
+        userTag = tracker.userTag ;
+        if isempty(userTag)
+          menuItemLabel = sprintf('%s (%s)', algNamePretty, trnNameLbl) ;
+        else
+          menuItemLabel = sprintf('%s (%s, %s)', algNamePretty, userTag, trnNameLbl) ;
+        end
         uimenu('Parent',menu_track_tracker_history, ...
                'Label',menuItemLabel, ...
                'Tag',tag, ...

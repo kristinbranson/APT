@@ -50,6 +50,23 @@ classdef (Abstract) LabelTracker < handle
     hideViz = false; % scalar logical. If true, hide visualizations
     showPredsCurrTargetOnly = false;
   end
+
+  properties
+    userTag_ = '' % char, user-assigned short name for this tracker
+  end
+  properties (Dependent)
+    userTag
+  end
+  methods
+    function v = get.userTag(obj)
+      v = obj.userTag_ ;
+    end  % function
+    function set.userTag(obj, v)
+      assert(ischar(v) && (isempty(v) || isrow(v)), ...
+        'userTag must be an empty char array or a row char array') ;
+      obj.userTag_ = v ;
+    end  % function
+  end
   
   methods (Abstract)
     % return cellstr, (deep) nets used by this tracker
