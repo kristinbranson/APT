@@ -225,6 +225,7 @@ class config(object):
         self.is_multi = False
         self.max_n_animals = 1
         self.min_n_animals = 0
+        self.max_n_animals_user = 1.
         self.multi_bb_ex = 10 # extra margin to keep around annotations while generating masks
         self.multi_n_grid = 1 # Number of cells to split the image into for multianimal
         self.multi_link_cost = 5 # cost for linking trajectory. 5 is roughly the max movement in pixels per landmark that will not lead to death and birth of new trajectories.
@@ -241,6 +242,8 @@ class config(object):
         self.multi_match_dist_factor = .2
         self.multi_scale_by_bbox = False
         self.multi_pad = 1.25 # if scaling by bbox, pad the bbox by this factor
+        self.multi_background_sample_ratio = 2 # when using multi_loss_mask, this is the number of times we add samples from each background patch roi.
+        self.multi_background_coverage_ratio = 0.5 # when using multi_loss_mask, this is the minimum fraction of the background patch roi that should be covered by the background mask to be included as a background sample.
 
         # ============= TOP-DOWN =================
 

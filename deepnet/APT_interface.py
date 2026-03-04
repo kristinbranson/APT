@@ -1347,7 +1347,10 @@ def create_conf_json(lbl_file, view, name, cache_dir=None, net_type='unet', conf
     conf.normalize_img_mean = conf.normalize
     delattr(conf,'normalize')
     conf.save_td_step = conf.display_step
-    conf.max_n_animals = int(np.ceil(conf.max_n_animals_user*1.25))
+    if conf.is_multi:
+        conf.max_n_animals = int(np.ceil(conf.max_n_animals_user*1.25))
+    else:
+        conf.max_n_animals = 1
 
     assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
 
@@ -1945,16 +1948,16 @@ def create_ma_crops(conf, frame, cur_pts, info, occ, roi, extra_roi):
         # bkg_sel_rate = conf.background_mask_sel_rate
 
         done_eroi = np.zeros(n_extra_roi)
-        while np.any(done_eroi < roi_coverage_ratio) and \
+        while np.any(done_eroi < 0.5) and \
             (roi_count < n_clusters*roi_sample_ratio):
-            # Add extra rois until we cover all rois atleast once, or we have added roi_sample_ratio times the number of clusters or we have covered at least half the area of extra rois
+            # Add extra rois until we have added roi_sample_ratio times the number of clusters or we have covered at least roi_coverage_ratio area of extra rois
 
             roi_count += 1
 
             # add examples of background not added earlier.
             for endx in range(n_extra_roi):
                 eroi_mask = create_mask(extra_roi[endx:endx + 1, ...]/mask_sc, mask_sz)
-                if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > 0.5:
+                if (eroi_mask.sum()<=4) or ((eroi_mask & done_mask).sum() / (eroi_mask.sum())) > roi_coverage_ratio:
 
                     done_eroi[endx] = 1.
                     continue
@@ -2589,10 +2592,11 @@ def create_batch_ims(to_do_list, conf, cap, flipud, trx, crop_loc,use_bsize=True
     else:
         bsize = len(to_do_list)
 
-    if use_conf_imsz:
+    if use_conf_imsz or (not conf.is_multi):
         hh = conf.imsz[0]
         ww = conf.imsz[1]
     else:
+        # use video size for multi-animal projects to support videos of different sizes
         hh = cap.get_height()
         ww = cap.get_width()
     all_f = np.zeros((bsize,hh,ww,conf.img_dim,))

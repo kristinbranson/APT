@@ -15063,9 +15063,9 @@ classdef Labeler < handle
         if isrotated
           curl = [curl,ones(nphyspt,1)]*A;
           curl = curl(:,1:2);
-          curl(:,1) = curl(:,1)-xdata(1)+1;
-          curl(:,2) = curl(:,2)-ydata(1)+1;
         end
+        curl(:,1) = curl(:,1)-xdata(1)+1;
+        curl(:,2) = curl(:,2)-ydata(1)+1;
         minpos = min(curl,[],1);
         maxpos = max(curl,[],1);
         centerpos = (minpos+maxpos)/2;

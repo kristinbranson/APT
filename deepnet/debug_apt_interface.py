@@ -1,7 +1,9 @@
+
+##
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] ='1'
 os.environ['PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION']='python'
-cmd = ['/groups/branson/home/kabram/.apt/tp4780969e_3983_4fa5_b323_8544e353e95e/RatCityFullSizeRT/20260219T042632_20260219T042635.json', '-name', '20260219T042632', '-json_trn_file', '/groups/branson/home/kabram/.apt/tp4780969e_3983_4fa5_b323_8544e353e95e/RatCityFullSizeRT/loc.json', '-conf_params', 'multi_crop_ims','False','rescale','5','-type', 'multi_mdn_joint_torch', '-model_files', '/groups/branson/home/kabram/.apt/tp4780969e_3983_4fa5_b323_8544e353e95e/RatCityFullSizeRT/multi_mdn_joint_torch/view_0/20260114T061431/deepnet-60000', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tp4780969e_3983_4fa5_b323_8544e353e95e', 'train', '-use_cache','-skip_db']
+cmd =['/groups/branson/home/kabram/.apt/tp4c5ed127_6f5f_4c77_9765_4a31bce74d95/RatCityFullSizeRT/20260304T033652_20260304T033653.json', '-name', '20260304T033652','-json_trn_file', '/groups/branson/home/kabram/.apt/tp4c5ed127_6f5f_4c77_9765_4a31bce74d95/RatCityFullSizeRT/loc.json', '-conf_params', '-type', 'multi_mdn_joint_torch', '-ignore_local', '0', '-cache', '/groups/branson/home/kabram/.apt/tp4c5ed127_6f5f_4c77_9765_4a31bce74d95', 'train', '-use_cache','-skip_db']
 
 
 if type(cmd)!=list:

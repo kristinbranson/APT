@@ -93,11 +93,11 @@ classdef BgClient < handle
       % % else
       % % Start debug code. Note the Stop button won't be active when using
       % % this for debugging
-      %   tempfilename = tempname() ;
-      %   saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
-      %   cleaner = onCleanup(@()(delete(tempfilename))) ;
-      %   poller = loadAnonymous(tempfilename) ;
-      %   feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
+        % tempfilename = tempname() ;
+        % saveAnonymous(tempfilename, poller) ;  % simulate poller as it will be on the other side of the parfeval boundary
+        % cleaner = onCleanup(@()(delete(tempfilename))) ;
+        % poller = loadAnonymous(tempfilename) ;
+        % feval(@runPollingLoop, fromPollingLoopDataQueue, poller, parfevalSuitcase, pollInterval, obj.projTempDirMaybe_) ;  %#ok<FVAL>
       % %   The feval() (not parfeval) line above is sometimes useful when debugging.
       % % End debug code
       % end

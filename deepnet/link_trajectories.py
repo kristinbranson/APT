@@ -2269,7 +2269,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
 
   return net, loss_history
 
-
+from tqdm import tqdm
 def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_select,debug):
 
 
@@ -2281,7 +2281,7 @@ def get_id_dist_xmat(linked_trks,net,mov_files,conf,all_trx,rescale,min_len_sele
 
 
   # sample images for each tracklet and then find the embeddings for them
-  for ndx in range(len(linked_trks)):
+  for ndx in tqdm(range(len(linked_trks))):
     # Sample images from the tracklets
     trk = linked_trks[ndx]
     mov_file = mov_files[ndx]

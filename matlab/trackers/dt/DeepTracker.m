@@ -142,7 +142,7 @@ classdef DeepTracker < LabelTracker
     
     % trackres: tracking results DB is in filesys
     movIdx2trkfile % map from MovieIndex.id to [ntrkxnview] cellstrs of trkfile fullpaths
-    needs_id_linking
+    needs_id_linking = false
     totrackinfo %keep tracking information if needed for linking later
     trkfiles % Store the final trk files for id linking
   end

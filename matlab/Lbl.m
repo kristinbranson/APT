@@ -129,8 +129,10 @@ classdef Lbl
         j.Config = cfg;
       end
       if isfield(s,'movieInfoAll'),
-        j.MovieInfo.NumRows = max([mia(:).NumRows]);
-        j.MovieInfo.NumCols = max([mia(:).NumCols]);
+        for ivw=1:size(mia,2)
+          j.MovieInfo(ivw).NumRows = max([mia(:,ivw).NumRows]);
+          j.MovieInfo(ivw).NumCols = max([mia(:,ivw).NumCols]);
+        end
         %j.MovieInfo = mia(1,:);
       end
       if isfield(s,'cropProjHasCrops'),
