@@ -3504,8 +3504,19 @@ classdef DeepTracker < LabelTracker
       if isempty(obj.trkP)
         delete(obj.trkVizer) ;
         obj.trkVizer = [] ;
-        obj.lObj.notify('updateTrkPredViz') ;
-        return ;
+        % The guard below is needed for somewhat crazy reasons.  When we load a
+        % project, we test whether a tracker specification is valid by instantiating a
+        % LabelTracker but handing a fake Labeler to the constructor.  We do this in a
+        % try-catch just to see if it works, and discard the LabelTracker afterwards even
+        % if it works.  The fake Labeler is just a struct with enough of the right
+        % fields to pass as a Labeler long enough for the LabelTracker to be created
+        % if the specification is valid in the current version of APT.  The guard
+        % claude below prevents us from trying to have the fake-labeler fire an event,
+        % which it can't do b/c it's just a struct.  -- ALT, 2026-03-04
+        if ~isempty(obj.lObj) && isa(obj.lObj, 'Labeler')
+          obj.lObj.notify('updateTrkPredViz') ;
+        end
+        return
       end
 
       if nargin < 2
