@@ -3984,7 +3984,7 @@ classdef Labeler < handle
         end
                 
         nlblpts = obj.nLabelPoints;
-        nfrms = ifo.nframes;
+        % nfrms = ifo.nframes;
         obj.(PROPS.MFA){end+1,1} = movFile;
         obj.(PROPS.MFAHL)(end+1,1) = 0;
         obj.(PROPS.MIA){end+1,1} = ifo;

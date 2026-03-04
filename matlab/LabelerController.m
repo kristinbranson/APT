@@ -1407,6 +1407,12 @@ classdef LabelerController < handle
       % source and event.
       % obj.labeler_.pushBusyStatus(sprintf('Control %s actuated...', controlName)) ;
       % oc = onCleanup(@()(obj.labeler_.popBusyStatus())) ;
+      if ~exist('source', 'var') || isempty(source)
+        source = [] ;
+      end
+      if ~exist('event', 'var') || isempty(event)
+        event = [] ;
+      end
       if obj.doEchoControlActuation_
         fprintf('controlActuated: %s\n', controlName) ;
       end
