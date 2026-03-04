@@ -17,10 +17,22 @@ classdef LabelerController < handle
   end
 
   properties  % private/protected by convention
-    tvTrx_  % scalar TrackingVisualizerTrx
-    tvTrkPred_ % scalar TrackingVisualizer* (view for prediction tracking results),
-               % or [].  Owned here; reads model data from
-               % labeler_.tracker.trkVizer (a TrackingVisualizerModel).
+    % The controller owns two TrackingVisualizer (TV) objects for the main
+    % axes.  Both are view-only: they hold graphics handles and rendering
+    % methods, reading model state from elsewhere.
+    %
+    % tvTrx_: Shows trx centroids/trajectories from the loaded trx file.
+    %   Always present when the project has trx.
+    %
+    % tvTrkPred_: Shows predicted landmark positions from the current
+    %   tracker.  Created/destroyed in response to the updateTrkPredViz
+    %   notification (fired when DeepTracker creates or destroys its TVM).
+    %   The corresponding model object (a TrackingVisualizerModel subclass)
+    %   lives on labeler_.tracker.trkVizer.
+    tvTrx_  % scalar TrackingVisualizerTrx, or []
+    tvTrkPred_ % scalar TrackingVisualizer* (TrackingVisualizerMT,
+               % TrackingVisualizerMTFast, or TrackingVisualizerTracklets),
+               % or []
     tblTrxData_ = []  % last-used data in tblTrx, used for change-detection
     isInYodaMode_ = false
       % Set to true to allow control actuation to happen *ouside* or a try/catch
