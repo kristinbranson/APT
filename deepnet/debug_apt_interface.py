@@ -7,12 +7,32 @@ cmd = '/groups/branson/home/kabram/.apt/tp6100b24f_de35_4e66_9a42_15e18b994d90/u
 
 # cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/conf_crop.json -name grone_crop_mask_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 link_id True link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -out /groups/branson/home/kabram/temp/temp.trk -start_frame 3810 -end_frame 10000' #
 
-cmd = ['/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/20250612T153510_20250612T153510.json', '-name', '20250612T153510', '-json_trn_file', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd/unmarkedMice/loc.json', '-stage', 'first', '-conf_params', 'mmdetect_net','"frcnn"','mmdetect_use_default_sz','False','-type', 'detect_mmdetect', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tpdb2c3173_f192_4328_9185_fab6369cb9fd', 'train', '-use_cache','-skip_db']
+cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/conf_crop.json -name grone_crop_mask_12072023 -model_files /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/multi_mdn_joint_torch/view_0/grone_crop_mask_12072023/deepnet-100000 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/grone/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 rescale 0.5 mdn_ref_scaled_noise True mdn_joint_ref_noise 0.025 -train_name noise_scaled -cache /groups/branson/bransonlab/mayank/apt_cache_2  -type multi_mdn_joint_torch train -use_cache -skip_db'
 
-cmd = '/groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/20241227T043349_20241227T043354.json -name 20241227T043349 -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/deepnet-40000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323 track -config_file /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/trkconfig_alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_id_20250916T070252.json -track_type link_id -id_wts_file /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/id_wts_alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_id_20250916T070252.p -out /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_id_20250916T070252.trk /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_2_f3c026_trn20241227T043349_view0_iter40000_id_20250916T070252.trk -mov /groups/branson/home/kabram/temp/alice_crop_1.avi /groups/branson/home/kabram/temp/alice_crop_2.avi -predict_trk_files /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_1_bcf0e4_trn20241227T043349_view0_iter40000_20250916T065959.trk /groups/branson/home/kabram/.apt/tp3a38a136_23c4_4883_b23d_f11522211323/alice_ma/multi_mdn_joint_torch/view_0/20241227T043349/trk/alice_crop_2_f3c026_trn20241227T043349_view0_iter40000_20250916T065959.trk'
+cmd = '/groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/conf_crop.json -name 2stageHT_hrnet_hrformer_crop_mask_first_12072023 -json_trn_file /groups/branson/home/kabram/temp/ma_expts/alice/trn_packdir_07122023/2stageHT/loc_neg.json -conf_params multi_loss_mask True link_id_rescale 0.5 rescale 0.5 mdn_use_hrnet True link_id False link_id_training_iters 100000 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -stage multi -model_files2 /groups/branson/bransonlab/mayank/apt_cache_2/alice_ma/mdn_joint_fpn/view_0/2stageHT_hrnet_grone_vitpose_nocrop_second_12072023/deepnet-100000 -conf_params2 rescale 0.5 mmpose_net \"hrformer\" mdn_use_hrnet True mdn_backbone \"vit\" -type2 mdn_joint_fpn -name2 2stageHT_hrnet_grone_vitpose_nocrop_second_12072023 -type multi_mdn_joint_torch track -mov /groups/branson/home/robiea/Projects_data/Labeler_APT/nochr_TrpA65F12_Unknown_RigA_20201212T163531/movie.ufmf -start_frame 10000 -end_frame 13150 -trx /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_grone_scale2_noise1.trk -out /groups/branson/home/kabram/temp/ma_expts/alice/trks/nochr_TrpA65F12_Unknown_RigA_20201212T163531_grone_scale2_noise.trk'
 
-# cmd = '/groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/20250510T113930_20250510T113932.json -name 20250510T113930 -stage multi -type detect_mmdetect -model_files /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/deepnet-40000 -type2 mdn_joint_fpn -model_files2 /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/mdn_joint_fpn/view_0/20250510T113930/deepnet-20000 -name2 20250510T113930 -ignore_local 1 -cache /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474 track -config_file /groups/branson/home/bransonk/tracking/code/DanionellaFieldTrip/apt_cache/tp9f55bce0_bf8b_4bb8_bb54_0f336b6b9474/DanionellaWild/detect_mmdetect/view_0/20250510T113930/trk/trkconfig_VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280_4f02c3_trn20250510T113930_view0_iter40000_20250510T180048.json -track_type only_predict -out /groups/branson/home/kabram/temp/a.trk -mov /groups/branson/bransonlab/projects/DanionellaFieldTrip/VID_20241211_103015_00_022JoraiRiver8K30FPS_r1280:2560_c0:1280.avi -start_frame 1378 -end_frame 1578 -trx /groups/branson/home/kabram/temp/b.trk'
+# cmd = '/groups/branson/bransonlab/apt/experiments/data/mice_jump_stripped20250617.lbl -name cv_split_0 -cache /groups/branson/bransonlab/mayank/apt_cache_2 -model_files /groups/branson/bransonlab/mayank/apt_cache_2/20231019allmice/mdn_joint_fpn/view_2/cv_split_0/scaled_noise_p25-100000 -conf_params mdn_use_unet_loss False  dl_steps 100000  decay_steps 50000  save_step 5000  batch_size 8  maxckpt 200  ignore_occluded False  pretrain_freeze_bnorm True  step_lr True  lr_drop_step 0.15  normalize_loss_batch False  use_scale_factor_range True  predict_occluded False  mdn_pred_dist True  mdn_ref_scaled_noise True mdn_joint_ref_noise 0.025 mmpose_net \"mspn\"  dlc_intermediate_supervision False  dlc_intermediate_supervision_layer 12  dlc_location_refinement True  dlc_locref_huber_loss True  dlc_locref_loss_weight 0.05  dlc_locref_stdev 7.2801  dlc_use_apt_preprocess True  db_format \"coco\"  -type mdn_joint_fpn  -train_name delete  -view 3 train -skip_db -use_cache'
 
+# ratcity id linking
+# cmd =  '/groups/branson/home/kabram/APT_projects/RatCityFullSizeRT_unbundled/RatCityFullSizeRT/20250712T224535_20250712T224540.json -conf_params link_id True ht_pts \(0,3\) link_id_save_int_wts True link_id_min_train_track_len 200 link_id_min_tracklet_len 50 -cache /groups/branson/home/kabram/APT_projects/RatCityFullSizeRT_unbundled track -mov /groups/branson/home/kabram/temp/merged_video_all_keyframes.mkv -out /groups/branson/home/kabram/temp/ratcity_id.trk -track_type only_link -predict_trk_files /groups/branson/home/kabram/temp/merged_video_all_keyframes_RatCityFullSizeRT_magrone_tracklet.trk -id_wts_file /groups/branson/home/kabram/temp/ratcity_id_idwts.p'
+
+cmd = '/groups/branson/home/kabram/.apt/tp41bc39a0_e00a_40ba_a2af_19488b27d33c/BottomViewsMA/20250804T095642_20250804T095645.json -name 20250804T095642 -json_trn_file /groups/branson/home/kabram/.apt/tp41bc39a0_e00a_40ba_a2af_19488b27d33c/BottomViewsMA/loc.json -conf_params -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tp41bc39a0_e00a_40ba_a2af_19488b27d33c/BottomViewsMA/multi_mdn_joint_torch/view_0/20250801T182953/deepnet-60000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp41bc39a0_e00a_40ba_a2af_19488b27d33c train -use_cache -skip_db'
+
+cmd = '/groups/branson/home/kabram/.apt/tp1c29b469_3c98_4ddd_a1d2_b610a734c36f/BottomViewsMA/20250805T033405_20250805T033410.json -name 20250805T033405 -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tp1c29b469_3c98_4ddd_a1d2_b610a734c36f/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T033405/deepnet-2000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp1c29b469_3c98_4ddd_a1d2_b610a734c36f track -config_file /groups/branson/home/kabram/.apt/tp1c29b469_3c98_4ddd_a1d2_b610a734c36f/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T033405/trk/trkconfig_image_cam_1_date_2025_04_08_time_18_35_20_v001_crop_col0to1331_rot90_0adecc_trn20250805T033405_view0_iter2000_20250805T050345.json -track_type only_predict -out /groups/branson/home/kabram/.apt/tp1c29b469_3c98_4ddd_a1d2_b610a734c36f/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T033405/trk/image_cam_1_date_2025_04_08_time_18_35_20_v001_crop_col0to1331_rot90_0adecc_trn20250805T033405_view0_iter2000_20250805T050345.trk -mov /groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views/exp_32/image_cam_1_date_2025_04_08_time_18_35_20_v001_crop_col0to1331_rot90.ufmf -start_frame 1 -end_frame 282'
+
+
+# Aniket bottom views
+cmd = '/groups/branson/home/kabram/.apt/tpb0ca5fd1_d8a0_46b3_a5d7_d3747ca30921/combinedSideViewMA/20250808T015629_20250808T015637.json -name 20250808T015629 -type multi_mdn_joint_torch -model_files /groups/branson/home/kabram/.apt/tpb0ca5fd1_d8a0_46b3_a5d7_d3747ca30921/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250808T015629/deepnet-51000 -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpb0ca5fd1_d8a0_46b3_a5d7_d3747ca30921 track -config_file /groups/branson/home/kabram/.apt/tpb0ca5fd1_d8a0_46b3_a5d7_d3747ca30921/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250808T015629/trk/trkconfig_image_cam_0_date_2025_06_17_time_11_20_12_v001_crop_col1167to1919_rot90_976994_trn20250808T015629_view0_iter51000_20250808T053936.json -track_type only_predict -out /groups/branson/home/kabram/.apt/tpb0ca5fd1_d8a0_46b3_a5d7_d3747ca30921/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250808T015629/trk/image_cam_0_date_2025_06_17_time_11_20_12_v001_crop_col1167to1919_rot90_976994_trn20250808T015629_view0_iter51000_20250808T053936.trk -mov /groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views/exp_43/image_cam_0_date_2025_06_17_time_11_20_12_v001_crop_col1167to1919_rot90.ufmf -start_frame 414 -end_frame 875'
+
+cmd =['/groups/branson/home/kabram//bransonlab/apt_cache_2/aniket_bottom/combinedSideViewMA/20250808T015629_20250808T015637.json', '-name', '20250808T015629', '-train_name','gaussian_noise','-json_trn_file', '/groups/branson/home/kabram/bransonlab/apt_cache_2/aniket_bottom/combinedSideViewMA/loc.json', '-conf_params', 'mdn_joint_ref_noise_type','gaussian','-type', 'multi_mdn_joint_torch', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tpb0ca5fd1_d8a0_46b3_a5d7_d3747ca30921', 'train', '-use_cache','-skip_db']
+
+cmd = ['/groups/branson/home/kabram/.apt/tp22265969_a29d_42ab_8c78_74f826decb3d/BottomViewsMA/20250805T104900_20250805T104902.json', '-name', '20250805T104900', '-type', 'multi_mdn_joint_torch', '-model_files', '/groups/branson/home/kabram/.apt/tp22265969_a29d_42ab_8c78_74f826decb3d/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T104900/deepnet-60000', '-ignore_local', '1', '-cache', '/groups/branson/home/kabram/.apt/tp22265969_a29d_42ab_8c78_74f826decb3d', 'track', '-config_file', '/groups/branson/home/kabram/.apt/tp22265969_a29d_42ab_8c78_74f826decb3d/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T104900/trk/trkconfig_image_cam_0_date_2025_06_24_time_15_43_00_v001_crop_col0to1331_rot90_2a935f_trn20250805T104900_view0_iter60000_20250819T035012.json', '-track_type', 'only_predict', '-out', '/groups/branson/home/kabram/.apt/tp22265969_a29d_42ab_8c78_74f826decb3d/BottomViewsMA/multi_mdn_joint_torch/view_0/20250805T104900/trk/image_cam_0_date_2025_06_24_time_15_43_00_v001_crop_col0to1331_rot90_2a935f_trn20250805T104900_view0_iter60000_20250819T035012.trk', '-mov', '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/movie_output_dir_combined_views/exp_45/image_cam_0_date_2025_06_24_time_15_43_00_v001_crop_col0to1331_rot90.ufmf', '-start_frame', '60200', '-end_frame', '60287']
+
+cmd = '/groups/branson/home/kabram/.apt/tpdb269bb0_d245_4b7c_a9e2_28a369d4a205/unmarkedMice/20250826T035317_20250826T035322.json -name 20250826T035317 -json_trn_file /groups/branson/home/kabram/.apt/tpdb269bb0_d245_4b7c_a9e2_28a369d4a205/unmarkedMice/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tpdb269bb0_d245_4b7c_a9e2_28a369d4a205 train -use_cache'
+
+cmd = '/groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/20250905T022700_20250905T022705.json -name 20250905T022700 -json_trn_file /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/loc.json -conf_params -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828 train -use_cache -continue -skip_db'
+
+cmd = '/groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/20250905T022700_20250905T022705.json -name 20250905T022700 -type multi_mdn_joint_torch -ignore_local 1 -cache /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828 track -config_file /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250905T022700/trk/trkconfig_image_cam_0_date_2025_06_11_time_18_40_40_v001_crop_col1167to1919_rot90_c7a992_trn20250905T022700_view0_iter51000_20250905T061458.json -track_type only_predict -out /groups/branson/home/kabram/.apt/tp0c2a761a_f5a9_42a6_9adb_790655439828/combinedSideViewMA/multi_mdn_joint_torch/view_0/20250905T022700/trk/image_cam_0_date_2025_06_11_time_18_40_40_v001_crop_col1167to1919_rot90_c7a992_trn20250905T022700_view0_iter51000_20250905T061458.trk -mov /groups/branson/bransonlab/aniket/fly_walk_imaging/prism_new_led/exp_41/fly_images/cropped_uniform_sizes/image_cam_0_date_2025_06_11_time_18_40_40_v001_crop_col1167to1919_rot90.ufmf -start_frame 21708 -end_frame 21791'
 
 if type(cmd)!=list:
     cmd = cmd.replace('\\','')
@@ -30,222 +50,6 @@ if __name__ == '__main__':
         # cmd = cmd.replace('\\', '')
         apt.main(cmd.split())
 
-
-
-
-##
-## convert ufmf to h.264
-
-import movies
-import cv2
-from reuse import *
-in_mov = '/groups/branson/home/bransonk/behavioranalysis/code/MABe2022/data/nochr_TrpA65F12_Unknown_RigA_20201212T163531//movie.ufmf'
-out_mov = '/groups/branson/home/kabram/temp/nochr_TrpA65F12_Unknown_RigA_20201212T163531.mp4'
-cap = movies.Movie(in_mov)
-
-fps = 30
-fourcc = cv2.VideoWriter_fourcc(*'X264')
-out = cv2.VideoWriter(out_mov, fourcc, fps, (1024,1024))
-
-for ndx in range(cap.get_n_frames()):
-    img = cap.get_frame(ndx)[0]
-    if img.ndim == 2:
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    else:
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-    out.write(img)
-
-out.release()
-
-##
-# 3244
-# /groups/branson/home/robiea/Projects_data/Labeler_APT/cx_GMR_SS00168_CsChr_RigD_20150909T111218/movie.ufmf
-# frame: 24687
-
-# [    7, 23048,     0]
-
-##
-cmd = '/groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/20220609T054112_20220609T054115.lbl -name 20220609T054112 -json_trn_file /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59/floss/loc.json -stage first -ignore_local 1 -type multi_mdn_joint_torch -cache /groups/branson/home/kabram/.apt/tp72b99fab_dd31_4d25_8177_821315aebd59 train -use_cache'
-
-from reuse import *
-# cmd = cmd.replace('"/','/')
-# cmd = cmd.replace('" ',' ')
-if type(cmd) == list:
-    apt.main(cmd)
-else:
-    cmd = cmd.replace('\\', '')
-    apt.main(cmd.split())
-
-## creating conf two methods
-view = 0
-cache_dir = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535'
-net_type = 'mdn_joint_fpn'
-first_stage = False
-second_stage = False
-name = 'test'
-lbl_file = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535/more_than_two_mice/20210928T151013_20210928T151036.lbl'
-json_conf_file = '/groups/branson/home/kabram/.apt/tpe983c269_9bad_4910_84ec_9f1d18bd2535/more_than_two_mice/20210928T151013_20210928T151036.json'
-json_trn_file = None
-conf_params = None
-quiet = False
-
-conf1 = apt.create_conf(lbl_file, view, name, cache_dir=cache_dir,net_type=net_type,first_stage=first_stage,second_stage=second_stage)
-
-A = pt.json_load(json_conf_file)
-net_names_dict = {'mdn':'MDN',
-                  'dpk':'DeepPoseKit',
-                  'openpose':'OpenPose',
-                  'multi_openpose':'MultiAnimalOpenPose',
-                  'sb':'',
-                  'unet':'Unet',
-                  'deeplabcut':'DeepLabCut',
-                  'leap':'LEAP',
-                  'detect_mmpose':'MMDetect',
-                  'mdn_joint_fpn':'GRONe',
-                  'multi_mdn_joint_torch':'MultiAnimalGRONe',
-                  'mmpose':'MSPN',
-                  }
-
-import poseConfig
-import re
-from APT_interface import to_py
-import ast
-
-conf = poseConfig.config()
-proj_name = A['ProjName']
-conf.set_exp_name(proj_name)
-cc = A['Config']
-conf.nviews = cc['NumViews']
-conf.n_classes = cc['NumLabelPoints']
-conf.selpts = np.arange(conf.n_classes)
-conf.project_file = ''   ## TODO
-conf.is_multi = cc['MultiAnimal']>0.5
-conf.img_dim = cc['NumChans']
-has_crops = cc['HasCrops']
-
-conf.cachedir = os.path.join(cache_dir, proj_name, net_type, 'view_{}'.format(view), name)
-if not os.path.exists(conf.cachedir):
-    os.makedirs(conf.cachedir)
-
-if first_stage:
-    conf.stage = 'first'
-elif second_stage:
-    conf.stage = 'second'
-else:
-    conf.stage = None
-
-dt_params = A['TrackerData']['sPrmAll']['ROOT']
-if second_stage:
-    # Find out whether head-tail or bbox detector
-    if dt_params['MultiAnimal']['Detect']['multi_only_ht']:
-        conf.use_ht_trx = True
-    else:
-        conf.use_bbox_trx = True
-
-# If the project has trx file then we use the crop locs
-# specified by the user. If the project doesnt have trx files
-# then we use the crop size specified by user else use the whole frame.
-if conf.has_trx_file or conf.use_ht_trx or conf.use_bbox_trx:
-    width = dt_params['MultiAnimal']['TargetCrop']['Radius']*2
-    conf.imsz = (width,width)
-elif has_crops:
-    conf.imsz = (-1,-1)   # TODO
-else:
-    conf.imsz = (A['MovieInfo']['NumRows'],A['MovieInfo']['NumCols'])
-
-conf.labelfile = json_conf_file
-conf.sel_sz = min(conf.imsz)
-conf.multi_animal_crop_sz = dt_params['MultiAnimal']['TargetCrop']['Radius']*2
-conf.trx_align_theta = dt_params['MultiAnimal']['TargetCrop']['AlignUsingTrxTheta']
-
-def set_all(conf, cur_set, flatten=False):
-    for k in cur_set:
-        if type(cur_set[k]) is not dict:
-            conf.__dict__[k] = cur_set[k]
-
-set_all(conf, dt_params['MultiAnimal'])
-set_all(conf, dt_params['DeepTrack']['Saving'])
-set_all(conf, dt_params['DeepTrack']['ImageProcessing'])
-set_all(conf, dt_params['DeepTrack']['GradientDescent'])
-set_all(conf, dt_params['DeepTrack']['DataAugmentation'])
-set_all(conf, dt_params['DeepTrack']['LossFunction'])
-set_all(conf, dt_params['MultiAnimal']['TrackletStitch'])
-
-conf.rescale = conf.scale
-conf.ht_pts = to_py(dt_params['MultiAnimal']['Detect']['ht_pts'])
-
-net_conf = dt_params['DeepTrack'][net_names_dict[net_type]]
-set_all(conf, net_conf)
-
-try:
-    conf.op_affinity_graph = poseConfig.parse_aff_graph(dt_params['DeepTrack']['OpenPose']['affinity_graph'])
-except KeyError:
-    pass
-
-f_str = conf.flipLandmarkMatches
-graph = {}
-if f_str:
-    f_str = f_str.split(',')
-    for b in f_str:
-        mm = re.search('(\d+)\s+(\d+)', b)
-        n1 = int(mm.groups()[0]) - 1
-        n2 = int(mm.groups()[1]) - 1
-        graph['{}'.format(n1)] = n2
-        graph['{}'.format(n2)] = n1
-        # The keys have to be strings so that they can be saved in the trk file
-conf.flipLandmarkMatches = graph
-conf.mdn_groups = [(i,) for i in range(conf.n_classes)]
-
-if conf_params is not None:
-    cc = conf_params
-    assert len(cc) % 2 == 0, 'Config params should be in pairs of name value'
-    for n, v in zip(cc[0::2], cc[1::2]):
-        if not quiet:
-            print('Overriding param %s <= ' % n, v)
-        setattr(conf, n, ast.literal_eval(v))
-
-# overrides for each network
-if net_type == 'sb':
-    sb.update_conf(conf)
-# elif net_type == 'openpose':
-#     op.update_conf(conf)
-elif net_type == 'dpk':
-    if conf.dpk_use_op_affinity_graph:
-        apt_dpk.update_conf_dpk_from_affgraph_flm(conf)
-    else:
-        assert conf.dpk_skel_csv is not None
-        apt_dpk.update_conf_dpk_skel_csv(conf, conf.dpk_skel_csv)
-
-# elif net_type == 'deeplabcut':
-#     conf.batch_size = 1
-elif net_type == 'unet':
-    conf.use_pretrained_weights = False
-
-conf.unet_rescale = conf.rescale
-conf.leap_rescale = conf.rescale
-
-assert not (conf.vert_flip and conf.horz_flip), 'Only one type of flipping, either horizontal or vertical is allowed for augmentation'
-
-import PoseTools as pt
-ks = list(conf1.__dict__.keys())
-for k in ks:
-    if k.startswith('DeepTrack_') or k.startswith('MultiAnimal_') or k[0].isupper():
-        conf1.__dict__.pop(k)
-
-pt.compare_conf(conf1,conf)
-
-
-
-##
-
-
-
-J = TrkFile.Trk('/groups/branson/home/kabram/temp/roian_190423_m2f0_vocpbm164564_m164564odor_m164301_f163284_ds2_grone_id_raw.trk');
-pred_locs = J.getfull()[0] ;
-pred_locs = np.transpose(pred_locs,[2,3,0,1]) ;
-pred_conf = J.pTrkConf.getdense()[0];
-pred_conf = np.transpose(pred_conf,[1,2,0]);
-pred_animal_conf = None
 
 
 ## Training with neg APT

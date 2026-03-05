@@ -95,8 +95,8 @@ def decode_augment(features, conf, distort):
     return features
 
 def dataloader_worker_init_fn(id,epoch=0):
-    np.random.seed(id + 100*epoch+int(time.time()))
-    random.seed(id+100*epoch+int(time.time()))
+    np.random.seed(id + 100*epoch)#+int(time.time()))
+    random.seed(id+100*epoch)#+int(time.time()))
 
 class coco_loader(torch.utils.data.Dataset):
 
@@ -737,7 +737,7 @@ class PoseCommon_pytorch(object):
                 start_at = 0
                 self.init_td()
             else:
-                start_at = self.restore(model_file, model, opt, sched)
+                _, start_at = self.restore(model_file, model, opt, sched)
         else:
             try:
                 if self.device=="cpu":
