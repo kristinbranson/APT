@@ -26,7 +26,7 @@ if isempty(memoized_result) ,
       else
         home_path = getenv('HOME') ;
         folders_to_check_for = {'miniforge3' 'anaconda3', 'anaconda2', 'miniconda3', 'miniconda2', '.miniconda3-blurgh'} ;
-        for i = length(folders_to_check_for) ,
+        for i = 1:length(folders_to_check_for) ,
           folder_name = folders_to_check_for{i} ;
           conda_prefix = fullfile(home_path, folder_name) ;
           if exist(conda_prefix, 'dir') ,
