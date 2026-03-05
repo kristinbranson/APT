@@ -32,6 +32,7 @@ classdef InfoTimelineModel < handle
     tldata_pcode_  % the pcode used when tldata_ was last computed
     tldata_iMov_  % the iMov used when tldata_ was last computed
     tldata_iTgt_  % the iTgt used when tldata_ was last computed
+    tldata_iTrklet_  % the tracklet index used when tldata_ was last computed (MA projects)
     tldata_trnNameLbl_  % the tracker train ID used when tldata_ was last computed
   end
   
@@ -139,12 +140,13 @@ classdef InfoTimelineModel < handle
     end
 
     function result = getTimelineDataForCurrentMovieAndTarget(obj, labeler)
-      if isempty(obj.tldata_) 
+      if isempty(obj.tldata_)
         doRecompute = true ;
       else
         [ptype,pcode] = obj.getCurPropSmart();
         iMov = labeler.currMovie;
         iTgt = labeler.currTarget;
+        iTrklet = obj.getCurrentTrackletIndex_(labeler) ;
         tracker = labeler.tracker ;
         if ~isempty(tracker)
           trnNameLbl = tracker.trnNameLbl ;
@@ -155,6 +157,7 @@ classdef InfoTimelineModel < handle
                       ~isequal(pcode, obj.tldata_pcode_) || ...
                       ~isequal(iMov, obj.tldata_iMov_) || ...
                       ~isequal(iTgt, obj.tldata_iTgt_) || ...
+                      ~isequal(iTrklet, obj.tldata_iTrklet_) || ...
                       ~isequal(trnNameLbl, obj.tldata_trnNameLbl_) ;
       end
       if doRecompute
@@ -427,6 +430,7 @@ classdef InfoTimelineModel < handle
       obj.tldata_pcode_ = pcode ;
       obj.tldata_iMov_ = iMov ;
       obj.tldata_iTgt_ = iTgt ;
+      obj.tldata_iTrklet_ = obj.getCurrentTrackletIndex_(labeler) ;
       tracker = labeler.tracker ;
       if ~isempty(tracker)
         obj.tldata_trnNameLbl_ = tracker.trnNameLbl ;
@@ -442,8 +446,21 @@ classdef InfoTimelineModel < handle
       obj.isdefault_ = false ;
     end  % function
     
+    function iTrklet = getCurrentTrackletIndex_(obj, labeler)  %#ok<INUSL>
+      % Get the current tracklet index for MA projects.
+      % Returns NaN for non-MA projects or when no tracklet visualizer exists.
+      tracker = labeler.tracker ;
+      if labeler.maIsMA && ~isempty(tracker) && ...
+          isprop(tracker, 'trkVizer') && ~isempty(tracker.trkVizer) && ...
+          isprop(tracker.trkVizer, 'currTrklet')
+        iTrklet = tracker.trkVizer.currTrklet ;
+      else
+        iTrklet = nan ;
+      end
+    end  % function
+
     function invalidateTraceCache(obj)
       obj.tldata_ = [] ;
     end  % function
-  end  % methods  
+  end  % methods
 end  % classdef
