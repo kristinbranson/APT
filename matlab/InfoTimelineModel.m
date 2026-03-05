@@ -187,25 +187,24 @@ classdef InfoTimelineModel < handle
                'file','');
     end
 
-    function didChangeCurrentTracker(obj, newTrackerPropList)
-      % Handle tracker change - update proptypes and props_tracker
+    function didChangeCurrentTracker(obj, newAuxPropList)
+      % Handle tracker change - update proptypes and props_tracker.
       % Called by the parent Labeler.
-      
-      % Set .proptypes_, .props_tracker_
-      if isempty(newTrackerPropList),
-        % AL: Probably obsolete codepath
-        % Seems to be in-use in Aug 2025.  Sometimes the tracker property list is
-        % empty...
-        tfIsPredictions = strcmpi(obj.proptypes_,'Predictions') ;
-        obj.proptypes_(tfIsPredictions) = [];
-        obj.props_tracker_ = [];
-      else
-        if ~ismember('Predictions', obj.proptypes_),
-          obj.proptypes_{end+1} = 'Predictions';
-        end
-        obj.TLPROPS_TRACKER_ = newTrackerPropList ;  %#ok<*PROPLC>
-        obj.props_tracker_ = cat(1,obj.props,obj.TLPROPS_TRACKER_);
+      %
+      % newAuxPropList: auxiliary tracker-specific properties (e.g.
+      %   confidence).  May be empty for net types with no aux labels
+      %   (like GRONe).  Even so, we keep 'Predictions' in proptypes_
+      %   and populate props_tracker_ with the base label features,
+      %   since label features can be computed on predicted positions.
+
+      % Ensure 'Predictions' is in proptypes_
+      if ~ismember('Predictions', obj.proptypes_)
+        obj.proptypes_{end+1} = 'Predictions' ;
       end
+
+      % Update tracker-specific props and rebuild props_tracker_
+      obj.TLPROPS_TRACKER_ = newAuxPropList ;  %#ok<*PROPLC>
+      obj.props_tracker_ = cat(1, obj.props, obj.TLPROPS_TRACKER_) ;
 
       % Check that .curprop is in-range for current .props,
       % .props_tracker, .curproptype. 

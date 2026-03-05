@@ -2697,6 +2697,17 @@ classdef Labeler < handle
       %   obj.tracker.updateTrackerInfo();
       % end
 
+      % Tell the InfoTimelineModel about the current tracker's prop list,
+      % so that 'Predictions' is available in the timeline popup and
+      % props_tracker_ is populated.
+      tracker = obj.tracker ;
+      if ~isempty(tracker)
+        auxPropList = tracker.auxPropList() ;
+      else
+        auxPropList = [] ;
+      end
+      obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
+
       % Send a bunch of notifications to update the UI, if present
       obj.notify('update') ;
       obj.notify('didLoadProject');  % should phase this out eventually
@@ -10088,11 +10099,11 @@ classdef Labeler < handle
 
       % Update the timeline
       if ~isempty(newCurrentTracker)
-        propList = newCurrentTracker.propList() ;
+        auxPropList = newCurrentTracker.auxPropList() ;
       else
-        propList = [] ;
+        auxPropList = [] ;
       end      
-      obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
+      obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
       obj.notify('updateTimelinePopupMenus');
       % obj.notify('updateTimelineSelection');
 
@@ -10196,11 +10207,11 @@ classdef Labeler < handle
     % 
     %   % Update the timeline
     %   if ~isempty(newTracker)
-    %     propList = newTracker.propList() ;
+    %     auxPropList = newTracker.auxPropList() ;
     %   else
-    %     propList = [] ;
+    %     auxPropList = [] ;
     %   end
-    %   obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
+    %   obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
     %   obj.notify('updateTimelineAndFriends');
     % 
     %   % Send the needed notifications
@@ -10282,11 +10293,11 @@ classdef Labeler < handle
 
       % Update the timeline
       if ~isempty(newTracker)
-        propList = newTracker.propList() ;
+        auxPropList = newTracker.auxPropList() ;
       else
-        propList = [] ;
+        auxPropList = [] ;
       end
-      obj.infoTimelineModel_.didChangeCurrentTracker(propList) ;
+      obj.infoTimelineModel_.didChangeCurrentTracker(auxPropList) ;
       obj.notify('updateTimelinePopupMenus');
       % obj.notify('updateTimelineSelection');
       

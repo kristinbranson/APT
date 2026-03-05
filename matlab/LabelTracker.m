@@ -362,8 +362,11 @@ classdef (Abstract) LabelTracker < handle
   
   methods % For infotimeline display
     
-    function props = propList(obj)
-      props = EmptyLandmarkFeatureArray();
+    function props = auxPropList(obj)
+      % Return auxiliary tracker-specific properties (e.g. confidence)
+      % for timeline display.  Base label features (displacement, etc.)
+      % are always available and need not be listed here.
+      props = EmptyLandmarkFeatureArray() ;
     end
     
     function data = getPropValues(obj,prop)
@@ -397,7 +400,7 @@ classdef (Abstract) LabelTracker < handle
         bodytrx = [];
       end      
       
-      plist = obj.propList();
+      plist = obj.auxPropList() ;
       plistcodes = {plist.code}';
       % tfaux = any(strcmp(prop.code,plistcodes)) ;  
       tfaux = any(strcmp(prop.code,plistcodes)) && ~isempty(auxlbl) ;  

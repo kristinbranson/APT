@@ -1119,8 +1119,10 @@ classdef DeepTracker < LabelTracker
       
     end
     
-    function props = propList(obj)
-      props = obj.trnNetType.timelinePropList;
+    function props = auxPropList(obj)
+      % Return auxiliary tracker-specific properties (e.g. confidence)
+      % for timeline display.
+      props = obj.trnNetType.timelinePropList ;
     end
     
     % I believe this is not working right now/obsolete

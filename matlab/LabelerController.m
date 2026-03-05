@@ -6228,6 +6228,7 @@ classdef LabelerController < handle
       if ~isempty(obj.movieManagerController_) && obj.movieManagerController_.isValid(),
         obj.movieManagerController_.lblerLstnCbkGTMode() ; % todo check if needed
       end
+      obj.updateTimelinePopupMenus() ;
       obj.updateShowPredMenus();
       obj.updateFlipMenus();
       obj.update_menu_track_tracker_history() ;
