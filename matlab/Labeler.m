@@ -11497,27 +11497,7 @@ classdef Labeler < handle
         tvm = TrackingVisualizerMTModel(obj, ptsPlotInfoFld, gfxTagPfix) ;
       end
     end  % function
-
-    function tv = createTrackingVisualizer(obj, parent, tvm)
-      % Create TV (view) appropriate to this proj.
-      %
-      % parent: LabelerController
-      % tvm: TrackingVisualizerModel subclass
-
-      if obj.maIsMA
-        tv = TrackingVisualizerTracklets(parent, tvm) ;
-      elseif obj.hasTrx
-        tfadvanced = true ;
-        if tfadvanced
-          tv = TrackingVisualizerMTFast(parent, tvm) ;
-        else
-          tv = TrackingVisualizerMT(parent, tvm) ;
-        end
-      else
-        tv = TrackingVisualizerMT(parent, tvm) ;
-      end
-    end  % function
-  end
+  end  % methods
 
   methods (Static)
     function edges = hlpParseCommaSepGraph(str)

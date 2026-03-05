@@ -6427,17 +6427,16 @@ classdef LabelerController < handle
         return ;
       end
 
-      tvm = tracker.trkVizer ;
-
       % Destroy existing TV if present (will be recreated)
       delete(obj.tvTrkPred_) ;
       obj.tvTrkPred_ = [] ;
 
       % Create new TV
-      tv = labeler.createTrackingVisualizer(obj, tvm) ;
+      tv = obj.createTrackingVisualizer_() ;
       obj.tvTrkPred_ = tv ;
 
       % Initialize graphics
+      tvm = tracker.trkVizer ;
       if isa(tvm, 'TrackingVisualizerTrackletsModel')
         if ~isempty(labeler.trackParams)
           maxNanimals = labeler.trackParams.ROOT.MultiAnimal.Track.max_n_animals ;
@@ -8355,6 +8354,30 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function tv = createTrackingVisualizer_(obj)
+      % Create TV (view) appropriate to this proj.
+      %
+      % parent: LabelerController
+      % tvm: TrackingVisualizerModel subclass
+
+      labeler = obj.labeler_ ;
+      tracker = labeler.tracker ;
+      tvm = tracker.trkVizer ;
+
+      if labeler.maIsMA
+        tv = TrackingVisualizerTracklets(obj, tvm) ;
+      elseif labeler.hasTrx
+        tfadvanced = true ;
+        if tfadvanced
+          tv = TrackingVisualizerMTFast(obj, tvm) ;
+        else
+          tv = TrackingVisualizerMT(obj, tvm) ;
+        end
+      else
+        tv = TrackingVisualizerMT(obj, tvm) ;
+      end
+    end  % function
+    
   end  % methods
 
 end  % classdef

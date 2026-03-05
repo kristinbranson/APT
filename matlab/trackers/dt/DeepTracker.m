@@ -3516,6 +3516,11 @@ classdef DeepTracker < LabelTracker
         % claude below prevents us from trying to have the fake-labeler fire an event,
         % which it can't do b/c it's just a struct.  -- ALT, 2026-03-04
         if ~isempty(obj.lObj) && isa(obj.lObj, 'Labeler')
+          % Clear the tracklet display from the HUD since there are no
+          % predictions to show tracklets for
+          if obj.lObj.maIsMA
+            obj.lObj.currImHud.updateReadoutFields('hasTrklet', false) ;
+          end
           obj.lObj.notify('updateTrkPredViz') ;
         end
         return
