@@ -2382,6 +2382,34 @@ class Trk:
     # Update ntargets to match the delinked tracklet structure
     self.ntargets = self.pTrk.ntargets
 
+  def truncate(self,T0=None,T1=None,reset=False):
+    """
+    Truncate the pTrk data to the input T0 and T1.
+    :param T0: First frame to keep, inclusive. Default = None, which means keep all frames.
+    :param T1: Last frame to keep, inclusive. Default = None, which means keep all frames.
+    """
+
+    if self.issparse:
+      self.pTrk.truncate(T0=T0,T1=T1,reset=reset)
+      for k in self.trkFields:
+        if self.__dict__[k] is not None:
+          self.__dict__[k].truncate(T0=T0,T1=T1)
+      self.ntargets = self.pTrk.ntargets
+      self.size = (self.nlandmarks, self.d, self.pTrk.T, self.ntargets)
+      self.pTrkiTgt = np.arange(self.ntargets, dtype=int)
+
+      return
+
+    if T0 is None:
+      T0 = 0
+    if T1 is None:
+      T1 = self.pTrk.shape[2]-1
+
+    self.pTrk = self.pTrk[:,:,T0:T1+1,:]
+    for k in self.trkFields:
+      if self.__dict__[k] is not None:
+        self.__dict__[k] = self.__dict__[k][:,:,T0:T1+1,:]
+
 
 
   def __repr__(self):
