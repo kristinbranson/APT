@@ -452,7 +452,6 @@ def convert_to_raw_reference_frame(pt, cam_label, dividing_col, image_width, rot
     return pt
 
 try:
-
     dividing_col_dict = {}
     dividing_col_dict['primary_real'] = dividing_col[0]
     dividing_col_dict['primary_virtual'] = dividing_col[0]

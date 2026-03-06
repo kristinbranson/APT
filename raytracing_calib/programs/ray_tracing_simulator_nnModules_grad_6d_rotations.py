@@ -1099,13 +1099,12 @@ class EfficientCamera(Plane, nn.Module):
             
             # Check for convergence (Only look at non-NaN values)
             diff = pixels_undistorted_new[nan_mask] - pixels_undistorted[nan_mask]
-            if diff.numel() > 0 and torch.max(torch.abs(diff)) < tolerance:
-                if torch.max(torch.abs(pixels_undistorted_new[nan_mask] - pixels_undistorted[nan_mask])) < tolerance:
-                    success = True
-                    break
-            else:
-                # nan_mask has filtered out all elements. Break
-                success = True # Since success flag is only used to check convergence. Detecting nans is not failure to converge
+            if diff.numel() == 0:
+                # nan_mask has filtered out all elements — nothing to converge
+                success = True
+                break
+            if torch.max(torch.abs(diff)) < tolerance:
+                success = True
                 break
             # Update for the next iteration
             pixels_undistorted = pixels_undistorted_new
@@ -1346,39 +1345,22 @@ class Prism(nn.Module):
         self.refractive_index_air = refractive_index_air
         self.prism_rotation_6d = prism_rotation_6d
 
-    def get_planes(self, prism_center, prism_rotation_6d):       
-        #prism_alpha, prism_beta, prism_gamma = prism_angles
-        #rot_mat = get_rot_mat(prism_alpha, prism_beta, prism_gamma)
+    def get_planes(self, prism_center, prism_rotation_6d):
+        # Synced with calprism PrismMirror.get_planes() to support non-isosceles prisms
+        # prism_size[1] = height (front face), prism_size[2] = depth (top face)
         rot_mat = prism_rotation_6d.matrix()
-        axes1 = torch.mm(rot_mat, 
+        axes1 = torch.mm(rot_mat,
                             torch.tensor([[1.,0.,0.], [0.,1.,0.], [0.,0.,1.]], device=self.prism_center.device, dtype=torch.float64).t()
-                            )        
+                            )
         plane1 = RefractingPlane(
                             refractive_idx_1=self.refractive_index_air,
                             refractive_idx_2=self.refractive_index_glass,
                             axes=axes1,
-                            a=self.prism_size[0], 
+                            a=self.prism_size[0],
                             b=self.prism_size[1],
                             center=prism_center,
                             ) # Plane facing the camera
 
-        rot_mat_135 = get_rot_mat(torch.tensor(0.).to(device=self.prism_center.device, dtype=torch.float64),
-                                  3*pi.to(device=self.prism_center.device) / 4,
-                                  torch.tensor(0.).to(device=self.prism_center.device, dtype=torch.float64))
-        
-        axes_135 = torch.mm(rot_mat_135, 
-                            torch.tensor([[1.,0.,0.], [0.,1.,0.], [0.,0.,1.]], device=self.prism_center.device, dtype=torch.float64).t()
-                            )
-        
-        axes2 = torch.mm(rot_mat, axes_135)
-        plane2_center = plane1.center - plane1.axes[:,0].unsqueeze(-1) * self.prism_size[1] / 2
-        plane2 = ReflectingPlane(
-                            axes=axes2,
-                            a=self.prism_size[0],
-                            b=self.prism_size[1] * torch.sqrt(torch.tensor(2.)),
-                            center=plane2_center,
-                            )
-        
         rot_90 = get_rot_mat(torch.tensor(0.).to(device=self.prism_center.device, dtype=torch.float64),
                              pi.to(device=self.prism_center.device)/2,
                              torch.tensor(0.).to(device=self.prism_center.device, dtype=torch.float64))
@@ -1386,21 +1368,36 @@ class Prism(nn.Module):
         #rot_90 = get_rot_mat(plane3_angles[0],
         #                     pi/2 + self.plane3_angles[1],
         #                     plane3_angles[2])
-        
+
         axes3 = torch.mm(rot_90,
                             torch.tensor([[1.,0.,0.], [0.,1.,0.], [0.,0.,1.]], device=self.prism_center.device, dtype=torch.float64).t()
                             )
         axes3 = torch.mm(rot_mat, axes3)
 
-        plane3_center = plane2.center + plane1.axes[:,2].unsqueeze(-1) * self.prism_size[1] / 2        
+        plane3_center = plane1.center + plane1.axes[:,2].unsqueeze(-1) * self.prism_size[1] / 2 - plane1.axes[:,0].unsqueeze(-1) * self.prism_size[2] / 2
         plane3 = RefractingPlane(
                             refractive_idx_1=self.refractive_index_glass,
                             refractive_idx_2=self.refractive_index_air,
                             axes=axes3,
                             a = self.prism_size[0],
-                            b = self.prism_size[1],
+                            b = self.prism_size[2],
                             center=plane3_center,
                             )
+
+        plane2_center = plane1.center - plane1.axes[:,0].unsqueeze(-1) * self.prism_size[2] / 2
+        axes2 = torch.zeros_like(axes1)
+        axes2[:,0] = -axes1[:,0] * self.prism_size[1] + axes3[:,0] * self.prism_size[2]
+        axes2[:,1] = axes1[:,1].clone()
+        axes2[:,2] = -axes1[:,2] * self.prism_size[1] + axes3[:,2] * self.prism_size[2]
+        axes2 = axes2 / torch.linalg.norm(axes2, dim=0)
+
+        plane2 = ReflectingPlane(
+                            axes=axes2,
+                            a=self.prism_size[0],
+                            b=torch.sqrt(self.prism_size[2]**2 + self.prism_size[1]**2),
+                            center=plane2_center,
+                            )
+
         return plane1, plane2, plane3
     
    
