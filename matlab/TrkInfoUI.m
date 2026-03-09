@@ -245,9 +245,12 @@ else
   end
 end
 
+tvm = lobj.tracker.trkVizer ;
+if ~isempty(tvm)
+  tvm.setSelectedTracklet(tgt) ;
+end
 tv = lobj.controller_.tvTrkPred_ ;
 if ~isempty(tv)
-  tv.trxSelectedTrxID(tgt, true) ;
   tv.centerPrimary() ;
 end
 h.curtrk = tgt;

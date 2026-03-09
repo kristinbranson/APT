@@ -130,6 +130,12 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       % Map a tracklet index to its visualization index.
       [~, iTrxViz] = ismember(iTrx, obj.iTrxViz2iTrx) ;
     end  % function
+
+    function setSelectedTracklet(obj, iTrklet)
+      % Set the selected tracklet index and notify the controller.
+      obj.currTrklet = iTrklet ;
+      obj.lObj.doNotify('didSetSelectedTracklet') ;
+    end  % function
   end  % methods
 
 end  % classdef

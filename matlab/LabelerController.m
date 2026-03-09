@@ -554,6 +554,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateTrkPredViz', @(s,e)(obj.updateTrkPredViz())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'didSetSelectedTracklet', @(s,e)(obj.didSetSelectedTracklet())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanelAfterFrameChange',@(s,e)(obj.updatePrevPanelAfterFrameChange())) ;
@@ -6461,6 +6463,14 @@ classdef LabelerController < handle
         if ~labeler.maIsMA
           tv.updatePrimary(labeler.currTarget) ;
         end
+      end
+    end  % function
+
+    function didSetSelectedTracklet(obj)
+      % Update the prediction TV after the model's selected tracklet changed.
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv)
+        tv.updateSelectedTrxID() ;
       end
     end  % function
 

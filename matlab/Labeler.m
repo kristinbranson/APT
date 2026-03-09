@@ -201,6 +201,7 @@ classdef Labeler < handle
 
     updateTrkPredViz  % fired when trkVizer (TVM) is created/destroyed;
                       % LabelerController should create/destroy the TV
+    didSetSelectedTracklet  % fired when trkVizer.currTrklet changes
   end
   
   %% Project

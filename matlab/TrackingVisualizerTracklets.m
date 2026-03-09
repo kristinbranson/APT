@@ -35,6 +35,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvtrx = TrackingVisualizerTrxMA(parent, tvm.tvtrx) ;
       obj.hud = lObj.currImHud ;
     end
+
     function vizInit(obj, varargin)
       % Initialize graphics handles and cosmetics.
       ntgtmax = myparse(varargin,...
@@ -48,10 +49,12 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx), tvm.ntrxmax) ;
       obj.hud.updateReadoutFields('hasTrklet', true) ;
     end
+
     function trkInit(obj, trk)
       % Delegate to TVM.
       obj.tvm_.trkInit(trk) ;
     end
+    
     function newFrame(obj, frm)
       % Display tracking results for given/new frame.
 
@@ -83,6 +86,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
     function iTrxViz = iTrx2iTrxViz(obj, iTrx)
        [~, iTrxViz] = ismember(iTrx, obj.tvm_.iTrxViz2iTrx) ;
     end
+
     function trxSelected(obj, iTrxViz, tfforce)
       % Callback when a trx marker is clicked.
       if nargin < 3
@@ -91,39 +95,26 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
 
       tvm = obj.tvm_ ;
       iTrklet = tvm.iTrxViz2iTrx(iTrxViz) ;
-      if iTrklet ~= tvm.currTrklet || tfforce
-        trkletID = tvm.ptrx(iTrklet).id ;
-        nTrkletTot = numel(tvm.ptrx) ;
-        obj.hud.updateTrklet(trkletID, nTrkletTot) ;
-        tvm.currTrklet = iTrklet ;
-        obj.tvmt.updatePrimary(iTrxViz) ;
-        lObj = obj.parent_.labeler_ ;
-        lObj.gdata.labelTLInfo.updateTraces() ;
-      end
+      tvm.setSelectedTracklet(iTrklet) ;
     end
-    function trxSelectedTrxID(obj, iTrklet, tfforce)
-      % Select a tracklet by its index into ptrx.
-      if nargin < 3
-        tfforce = false;
-      end
 
+    function updateSelectedTrxID(obj)
+      % Update the view to reflect the current tracklet selection in the model.
       tvm = obj.tvm_ ;
-      if iTrklet ~= tvm.currTrklet || tfforce
-        trkletID = tvm.ptrx(iTrklet).id ;
-        nTrkletTot = numel(tvm.ptrx) ;
-        obj.hud.updateTrklet(trkletID, nTrkletTot) ;
-        tvm.currTrklet = iTrklet ;
-        lObj = obj.parent_.labeler_ ;
-        lObj.gdata.labelTLInfo.updateTraces() ;
-        iviz = find(tvm.iTrxViz2iTrx == iTrklet) ;
-        if isempty(iviz)
-          warning('This should not happen. Not setting primary trx') ;
-        else
-          obj.tvtrx.updatePrimaryTrx(iviz) ;
-          obj.tvmt.updatePrimary(iviz) ;
-        end
+      iTrklet = tvm.currTrklet ;
+      trkletID = tvm.ptrx(iTrklet).id ;
+      nTrkletTot = numel(tvm.ptrx) ;
+      obj.hud.updateTrklet(trkletID, nTrkletTot) ;
+      obj.parent_.labelTLInfo.updateTraces() ;
+      iviz = find(tvm.iTrxViz2iTrx == iTrklet) ;
+      if isempty(iviz)
+        warning('This should not happen. Not setting primary trx') ;
+      else
+        obj.tvtrx.updatePrimaryTrx(iviz) ;
+        obj.tvmt.updatePrimary(iviz) ;
       end
     end
+
     function centerPrimary(obj)
       % Center the view on the primary target.
       lObj = obj.parent_.labeler_ ;

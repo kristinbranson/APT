@@ -2602,8 +2602,7 @@ classdef DeepTracker < LabelTracker
 
     function jumpToNearestTracking(obj)
       % Jump to the nearest tracklet and select it.  Reads tracklet data from
-      % TVM (obj.trkVizer), navigates via Labeler, and selects via the
-      % controller's TV.
+      % TVM (obj.trkVizer), navigates via Labeler, and selects via the model.
       if ~obj.lObj.maIsMA
         return ;
       end
@@ -2632,11 +2631,7 @@ classdef DeepTracker < LabelTracker
         sel = active ;  % active is already an index into tvm.ptrx
       end
 
-      % Select the tracklet on the TV (view) via the controller
-      tv = obj.lObj.controller_.tvTrkPred_ ;
-      if ~isempty(tv)
-        tv.trxSelectedTrxID(sel, true) ;
-      end
+      tvm.setSelectedTracklet(sel) ;
     end  % function
 
     function trkPostProcIfNec(obj,movfiles,trkfiles,varargin) % obj const
