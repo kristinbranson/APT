@@ -1,16 +1,16 @@
-function test_prediction_visibility()
+function test_prediction_visibility_for_MA_project()
 % Test the View > Show Predictions menu, cycling through all three modes.
 
 % Set RNG to fixed seed for reproducibility.
 originalRngState = rng() ;
 rng(42) ;
-rngCleanupObj = onCleanup(@()(rng(originalRngState))) ;  %#ok<NASGU>
+rngCleanupObj = onCleanup(@()(rng(originalRngState))) ;
 
 % Start APT with a project that has saved tracking results.
 projectFile = '/groups/branson/bransonlab/apt/unittest/htflies-10-with-saved-tracks.lbl' ;
 [labeler, controller] = StartAPT('projfile', projectFile, ...
                                   'isInDebugMode', true) ;
-cleanupObj = onCleanup(@()(delete(controller))) ;  %#ok<NASGU>
+cleanupObj = onCleanup(@()(delete(controller))) ;
 drawnow() ;
 
 % Verify prerequisites: tracker and prediction visualizer are present.
@@ -89,7 +89,7 @@ drawnow() ;
 assertModeState(tracker, controller, false, false, 'on', 'off', 'off', 'Many-target all again') ;
 
 fprintf('Section 3 passed: mode switching on frame with targets.\n') ;
-fprintf('test_prediction_visibility passed.\n') ;
+fprintf('test_prediction_visibility_for_MA_project passed.\n') ;
 
 end  % function
 
