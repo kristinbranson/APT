@@ -90,7 +90,58 @@ assert(targetCountAdded == nAnimalsToLabel, ...
        'Expected %d new targets but got %d', ...
        nAnimalsToLabel, targetCountAdded) ;
 
-fprintf('test_label_animals passed: labeled %d animals successfully.\n', ...
-        nAnimalsToLabel) ;
+fprintf('Labeled %d animals successfully.\n', nAnimalsToLabel) ;
+
+% Test that clicking Cancel during labeling returns to ACCEPTED state
+% without adding a target.  Test after 0, 1, 2, and 3 clicks (covering
+% no clicks, alignment-only clicks, and alignment + one label click).
+targetCountBeforeCancel = labeler.labelNumLabeledTgts() ;
+xLim = get(ax, 'XLim') ;
+yLim = get(ax, 'YLim') ;
+
+for nClicksBeforeCancel = 0:3
+  assert(lblCore.state == LabelState.ACCEPTED, ...
+         'Expected ACCEPTED state before cancel test with %d clicks, got %s', ...
+         nClicksBeforeCancel, char(lblCore.state)) ;
+
+  % Click "New Target" to enter LABEL state
+  fakePushbuttonClick(newTargetButton) ;
+  drawnow() ;
+  assert(lblCore.state == LabelState.LABEL, ...
+         'Expected LABEL state after New Target in cancel test with %d clicks, got %s', ...
+         nClicksBeforeCancel, char(lblCore.state)) ;
+
+  % Place some clicks
+  for iClick = 1:nClicksBeforeCancel
+    x = xLim(1) + rand() * (xLim(2) - xLim(1)) ;
+    y = yLim(1) + rand() * (yLim(2) - yLim(1)) ;
+    fakeAxesClick(ax, x, y) ;
+    drawnow() ;
+  end
+
+  % Click Cancel (same button, now in LABEL state)
+  buttonString = get(newTargetButton, 'String') ;
+  assert(strcmp(buttonString, 'Cancel'), ...
+         'Expected "Cancel" before cancel click with %d clicks, got "%s"', ...
+         nClicksBeforeCancel, buttonString) ;
+  fakePushbuttonClick(newTargetButton) ;
+  drawnow() ;
+
+  % Should be back in ACCEPTED state with no new target added
+  assert(lblCore.state == LabelState.ACCEPTED, ...
+         'Expected ACCEPTED state after cancel with %d clicks, got %s', ...
+         nClicksBeforeCancel, char(lblCore.state)) ;
+  buttonString = get(newTargetButton, 'String') ;
+  assert(strcmp(buttonString, 'New Target'), ...
+         'Expected "New Target" after cancel with %d clicks, got "%s"', ...
+         nClicksBeforeCancel, buttonString) ;
+  targetCountNow = labeler.labelNumLabeledTgts() ;
+  assert(targetCountNow == targetCountBeforeCancel, ...
+         'Target count changed from %d to %d after cancel with %d clicks', ...
+         targetCountBeforeCancel, targetCountNow, nClicksBeforeCancel) ;
+end
+
+fprintf('Cancel after 0-3 clicks passed.\n') ;
+fprintf('test_labeling_in_MA_project passed.\n') ;
 
 end  % function
