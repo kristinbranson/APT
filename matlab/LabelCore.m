@@ -367,20 +367,21 @@ classdef LabelCore < handle
     function wbuf(obj,src,evt) %#ok<INUSD>
     end
     
-    function pnlBDF(obj,src,evt) 
-      
+    function pnlBDF(obj,src,evt)
+      % Handle a click on uipanel_curr outside the axis, or on points with
+      % HitTest off plotted in overlaid axes.
       if ~obj.labeler.isReady,
         return;
       end
-      
-      % This is called when uipanel_curr is clicked outside the axis, or
-      % when points with HitTest off plotted in overlaid axes are clicked.
-      pos = get(obj.hAx(1),'CurrentPoint');
-      pos = pos(1,1:2);
-      xlim = get(obj.hAx(1),'XLim');
-      ylim = get(obj.hAx(1),'YLim');
+
+      tmp = get(obj.hAx(1), 'CurrentPoint') ;
+      pos = tmp(1, 1:2) ;
+      xlim = get(obj.hAx(1), 'XLim') ;
+      ylim = get(obj.hAx(1), 'YLim') ;
       if pos(1)>=xlim(1) && pos(1)<=xlim(2) && pos(2)>=ylim(1) && pos(2)<=ylim(2)
-        obj.axBDF(src,evt);
+        evtForAxes = struct('Button', evt.Button, ...
+                            'IntersectionPoint', [pos 0]) ;
+        obj.axBDF(src, evtForAxes) ;
       end
     end
     

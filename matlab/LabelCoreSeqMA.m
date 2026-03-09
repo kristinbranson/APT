@@ -204,7 +204,7 @@ classdef LabelCoreSeqMA < LabelCore
       assert(false,'Nonproduction codepath');
     end
     
-    function axBDF(obj,src,evt) 
+    function axBDF(obj,src,evt)
       if ~obj.labeler.isReady || evt.Button>1
         return;
       end
@@ -212,24 +212,21 @@ classdef LabelCoreSeqMA < LabelCore
         return;
       end
 
-      
+
+      pos = evt.IntersectionPoint(1:2) ;
       mod = obj.hFig.CurrentModifier;
       tfShift = any(strcmp(mod,'shift'));
       switch obj.state
         case LabelState.LABEL
           if obj.tcOn && obj.tcipt<2
-            pos = get(obj.hAx,'CurrentPoint');
-            pos = pos(1,1:2);
             obj.hlpAxBDFTwoClick(pos);
             return
           end
-          obj.hlpAxBDFLabelState(false,tfShift);          
+          obj.hlpAxBDFLabelState(false, tfShift, pos) ;
         case LabelState.ACCEPTED
           [tf,iSel] = obj.anyPointSelected();
           if tf
             lObj = obj.labeler;
-            pos = get(obj.hAx,'CurrentPoint');
-            pos = pos(1,1:2);
             obj.assignLabelCoordsIRaw(pos,iSel);
             lObj.labelPosSetI(pos,iSel);
             obj.tfEstOcc(iSel) = tfShift; % following toggleSelectPoint call will call refreshPtMarkers
@@ -238,8 +235,8 @@ classdef LabelCoreSeqMA < LabelCore
               obj.tfOcc(iSel) = false;
               obj.refreshOccludedPts();
             end
-            % estOcc status unchanged            
-            
+            % estOcc status unchanged
+
             % this is necessary to redraw any patches as appropriate
             [xy,tfeo] = obj.getLabelCoords(nan); % use nan for fully-occed so ROIs are drawn correctly
             iTgt = lObj.currTarget;
@@ -261,7 +258,7 @@ classdef LabelCoreSeqMA < LabelCore
 
       switch obj.state
         case LabelState.LABEL
-          obj.hlpAxBDFLabelState(true,tfShift);
+          obj.hlpAxBDFLabelState(true, tfShift, [nan nan]) ;
         case {LabelState.ADJUST LabelState.ACCEPTED}
           [tf,iSel] = obj.anyPointSelected();
           if tf
@@ -313,11 +310,10 @@ classdef LabelCoreSeqMA < LabelCore
       end
     end
 
-    function hlpAxBDFLabelState(obj,tfAxOcc,tfShift)
-      
-      % BDF in LabelState.LABEL. .tfOcc, .tfEstOcc, .tfSel start off as all
-      % false in beginLabel();
-      
+    function hlpAxBDFLabelState(obj, tfAxOcc, tfShift, pos)
+      % Handle a click in LABEL state.  pos is [x y].
+      % .tfOcc, .tfEstOcc, .tfSel start off as all false in beginLabel().
+
       nlbled = obj.nPtsLabeled;
       assert(nlbled<obj.nPts);
       i = nlbled+1;
@@ -325,11 +321,7 @@ classdef LabelCoreSeqMA < LabelCore
         obj.tfOcc(i) = true;
         obj.refreshOccludedPts();
       else
-        ax = obj.hAx;
-        tmp = get(ax,'CurrentPoint');
-        x = tmp(1,1);
-        y = tmp(1,2);
-        obj.assignLabelCoordsIRaw([x y],i);
+        obj.assignLabelCoordsIRaw(pos, i) ;
         if tfShift
           obj.tfEstOcc(i) = true;
         end
