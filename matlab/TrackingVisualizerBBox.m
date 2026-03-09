@@ -89,33 +89,8 @@ classdef TrackingVisualizerBBox < TrackingVisualizerBase
       end
       obj.hbox = hbox;
       obj.hscr = hscr;
-      
-%       [imnr,imnc] = size(im);
-%       obj.hfrmbox = text(10,imnr-10,'0','color',[1 1 1]*0.75,'fontsize',frmFS,...
-%         'verticalalignment','bottom');
-%       obj.hntgtbox = text(imnc*.99,imnr-10,'0',...
-%         'color',[1 1 1]*0.8,'fontsize',frmFS,...
-%         'verticalalignment','bottom',...
-%         'horizontalalignment','right' ...
-%         );
-      
-%       tfcent = ~isempty(obj.centtrk);
-%       ntgttrk = size(obj.centtrk,2);
-%       htrk = gobjects(ntgttrk,1);
-%       if tfcent
-%         for i=1:ntgttrk
-%           htrk(i) = plot(obj.hax,nan,nan);
-%           set(htrk(i),obj.centpv);
-%         end
-%         obj.hcent = htrk;
-%       end
-      
-%       obj.ntrxmax = ntgtmax;
-%       obj.iTrxViz2iTrx = zeros(obj.ntrxmax,1);
-%       obj.tvmt.vizInit('ntgts',ntgtmax);
-%       obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx),ntgtmax);
-%       obj.hud.updateReadoutFields('hasTrklet',true);
     end
+
     function trkInit(obj,trk)      
       assert(isscalar(trk) && isa(trk,'TrkFile'));
       % for tracklets, currently single-view

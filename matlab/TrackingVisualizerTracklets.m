@@ -87,12 +87,8 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
        [~, iTrxViz] = ismember(iTrx, obj.tvm_.iTrxViz2iTrx) ;
     end
 
-    function trxSelected(obj, iTrxViz, tfforce)
+    function trxSelected(obj, iTrxViz, tfforce)  %#ok<INUSD>
       % Callback when a trx marker is clicked.
-      if nargin < 3
-        tfforce = false;
-      end
-
       tvm = obj.tvm_ ;
       iTrklet = tvm.iTrxViz2iTrx(iTrxViz) ;
       tvm.setSelectedTracklet(iTrklet) ;
