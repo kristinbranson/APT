@@ -345,7 +345,7 @@ classdef DeepTracker < LabelTracker
       obj.bgTrkReset_() ;
       obj.trackResInit() ;
       obj.trackCurrResInit() ;
-      obj.vizInit() ;
+      obj.vizModelInit_() ;
     end  % function
 
     function deactivate(obj)
@@ -357,7 +357,7 @@ classdef DeepTracker < LabelTracker
 
     function activate(obj)
       activate@LabelTracker(obj) ;
-      obj.vizInit(false) ;
+      obj.vizModelInit_(false) ;
     end  % function
   end  % methods
   
@@ -3236,7 +3236,7 @@ classdef DeepTracker < LabelTracker
       obj.trackResInit();
       obj.trackCurrResInit();
       % deleting old tracking results, so can switch to new tracker info
-      obj.vizInit();
+      obj.vizModelInit_();
       % obj.syncInfoFromDMC_();      
     end
     
@@ -3439,10 +3439,10 @@ classdef DeepTracker < LabelTracker
         trk1 = trks{1};
         trk1.initFrm2Tlt(obj.lObj.nframes);
         obj.trkP = trk1;
-        obj.vizInit(false);
+        obj.vizModelInit_(false);
       else
         obj.trackCurrResInit();
-        obj.vizInit();
+        obj.vizModelInit_();
       end
       %obj.lObj.doNotify('newTrackingResults');
       obj.lObj.setCurPropTypePredictionDefault();
@@ -3489,7 +3489,7 @@ classdef DeepTracker < LabelTracker
     
   %% Viz
   methods
-    function vizInit(obj, existingTVMInit)
+    function vizModelInit_(obj, existingTVMInit)
       % Create/destroy the TrackingVisualizerModel (TVM) based on .trkP,
       % then notify the controller to create/destroy the TV (view).
       %
@@ -3586,12 +3586,12 @@ classdef DeepTracker < LabelTracker
 
   %% Labeler nav
   methods
-    function newLabelerFrame(obj)
+    function newLabelerFrame(obj)  %#ok<MANU>
       % Model-only: the controller handles TV.newFrame via its listener.
       % Keep this as a no-op; the controller calls tv.newFrame directly.
     end  % function
 
-    function newLabelerTarget(obj)
+    function newLabelerTarget(obj)  %#ok<MANU>
       % Model-only: the controller handles tv.updatePrimary.
     end  % function
 
@@ -3605,7 +3605,7 @@ classdef DeepTracker < LabelTracker
       if obj.lObj.hasMovie
         obj.trackCurrResUpdate() ;
       end
-      obj.vizInit() ;
+      obj.vizModelInit_() ;
     end  % function
   end  % methods
   
