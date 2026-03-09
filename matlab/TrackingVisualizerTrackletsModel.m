@@ -136,6 +136,10 @@ classdef TrackingVisualizerTrackletsModel < TrackingVisualizerModel
       obj.currTrklet = iTrklet ;
       obj.lObj.doNotify('didSetSelectedTracklet') ;
     end  % function
-  end  % methods
 
+    function setSelectedTrackletFromITrxViz(obj, iTrxViz)
+      iTrklet = obj.iTrxViz2iTrx(iTrxViz) ;
+      obj.setSelectedTracklet(iTrklet) ;
+    end  % function    
+  end  % methods
 end  % classdef

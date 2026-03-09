@@ -17,7 +17,6 @@ classdef TrackingVisualizerTrxMAModel < TrackingVisualizerModel
     clrTrxCurrent % [1x3] color for current trx
 
     trxClickable = true
-    trxSelectCbk % function handle
 
     tfHideViz = false
     showOnlyPrimary = false

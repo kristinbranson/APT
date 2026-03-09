@@ -46,7 +46,7 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       tvm.init(ntgtmax) ;
 
       obj.tvmt.vizInit('ntgts', ntgtmax) ;
-      obj.tvtrx.init(@(iTrx)obj.trxSelected(iTrx), tvm.ntrxmax) ;
+      obj.tvtrx.init(@(iTrx)(obj.didSelectTrx(iTrx)), tvm.ntrxmax) ;
       obj.hud.updateReadoutFields('hasTrklet', true) ;
     end
 
@@ -82,11 +82,10 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
        [~, iTrxViz] = ismember(iTrx, obj.tvm_.iTrxViz2iTrx) ;
     end
 
-    function trxSelected(obj, iTrxViz, tfforce)  %#ok<INUSD>
+    function didSelectTrx(obj, iTrxViz)
       % Callback when a trx marker is clicked.
-      tvm = obj.tvm_ ;
-      iTrklet = tvm.iTrxViz2iTrx(iTrxViz) ;
-      tvm.setSelectedTracklet(iTrklet) ;
+      tvm = obj.tvm_ ;      
+      tvm.setSelectedTrackletFromITrxViz(iTrxViz) ;
     end
 
     function updateSelectedTrxID(obj)

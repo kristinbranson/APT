@@ -7,6 +7,7 @@ classdef TrackingVisualizerTrxMA < handle
   properties
     parent_ % LabelerController reference
     tvm_ % TrackingVisualizerTrxMAModel reference, set by creator
+    trxSelectCbk % function handle
 
     hTraj;                    % nTrx x 1 vector of line handles
     hTrx;                     % nTrx x 1 vector of line handles
@@ -67,7 +68,7 @@ classdef TrackingVisualizerTrxMA < handle
       tvm.nTrxLive = 0 ;
 
       assert(isa(trxSelCbk,'function_handle'));
-      tvm.trxSelectCbk = trxSelCbk ;
+      obj.trxSelectCbk = trxSelCbk ;
       bdf = @(src,evt)obj.bdfTrx(src,evt);
       tvm.trxClickable = true ;
       clrsT = obj.setColors(nTrx);
@@ -119,7 +120,7 @@ classdef TrackingVisualizerTrxMA < handle
       prefsTrx = lObj.projPrefs.Trx;
       ptcolor = prefsTrx.TrajColor;
       if ischar(ptcolor)
-        clrsT = eval(ptcolor,nTrx);
+        clrsT = eval(ptcolor,nTrx); %#ok<EV2IN>
       else
         assert(isnumeric(ptcolor));
         nptc = size(ptcolor,1);
@@ -149,7 +150,7 @@ classdef TrackingVisualizerTrxMA < handle
     function bdfTrx(obj, src, ~)
       iTrx = src.UserData;
       obj.updatePrimaryTrx(iTrx);
-      obj.tvm_.trxSelectCbk(iTrx);
+      obj.trxSelectCbk(iTrx);
     end
 
     function updatePrimaryTrx(obj, iTrxPrimary)
