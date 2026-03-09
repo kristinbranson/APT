@@ -50,11 +50,6 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
       obj.hud.updateReadoutFields('hasTrklet', true) ;
     end
 
-    function trkInit(obj, trk)
-      % Delegate to TVM.
-      obj.tvm_.trkInit(trk) ;
-    end
-    
     function newFrame(obj, frm)
       % Display tracking results for given/new frame.
 

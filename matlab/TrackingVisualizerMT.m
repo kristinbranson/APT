@@ -282,11 +282,6 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
     function vizInitHook(obj) %#ok<MANU>
       % overload me
     end
-    function trkInit(obj, trk)
-      % Delegate to TVM.
-      obj.tvm_.trkInit(trk) ;
-    end
-
     function initAndUpdateSkeletonEdges(obj, sedges) %#ok<INUSD>
       % Inits skel edges and sets their posns based on current hXYPrdRed.
       obj.updateSkel();

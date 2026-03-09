@@ -137,11 +137,6 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       end
     end
 
-    function trkInit(obj, trk)
-      % Delegate to TVM.
-      obj.tvm_.trkInit(trk) ;
-    end
-
     function updateSkel(obj)
       % update obj.hSkel .XData, .YData appropriately
 
