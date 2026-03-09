@@ -76,7 +76,9 @@ presentation.)
 
 Model methods that are called from actuation methods should mutate the
 model as needed, then call `obj.notify()` one or more times to alert
-the controller that some aspect of the GUI needs to be updated.  Each
+the controller that some aspect of the GUI needs to be updated.
+Events should not pass EventData objects---instead, the controller's
+listener should read whatever it needs from the model's state.  Each
 such notification should cause, via listeners, one or more _update_
 methods on the controller to run.  Update methods are responsible to
 bringing some aspect of the GUI into sync with the current state of
