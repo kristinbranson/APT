@@ -630,7 +630,7 @@ kdeweights = pp.kdedata.indep(isamp,:,ipt);
 kdeweights = kdeweights(:);
 reps = squeeze(pp.sampledata.x(isamp,:,ipt,:));
 
-ax = lObj.controller_.axes_curr;
+ax = controller.axes_curr;
 deleteValidGraphicsHandles(hS);
 hS = scatter(ax,reps(:,1),reps(:,2),kdeweights*1e3,'r');
 
@@ -731,7 +731,7 @@ end
 
 assert(tv.heatMapNoRawIm);
 assert(isscalar(tv.heatMapIPtsShow));
-im = lObj.controller_.images_all.CData;
+im = controller.images_all.CData;
 size(im)
 ptclr = tv.ptClrs(tv.heatMapIPtsShow,:);
 im = im./reshape(ptclr,1,1,3); 

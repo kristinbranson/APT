@@ -5366,7 +5366,7 @@ classdef LabelerController < handle
     function menu_view_fps_actuated_(obj,src,evt)  %#ok<INUSD>
       % redundant with Go > Navigation preferences, but hard to find
       labeler = obj.labeler_ ;
-      labeler.navPrefsUI();
+      labeler.navPrefsUI(obj.mainFigure_);
     end
 
 
@@ -5663,7 +5663,7 @@ classdef LabelerController < handle
 
     function menu_go_nav_prefs_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      labeler.navPrefsUI();
+      labeler.navPrefsUI(obj.mainFigure_);
     end
 
 
@@ -5718,7 +5718,7 @@ classdef LabelerController < handle
 
     function menu_track_batch_track_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      tbobj = TrackBatchGUI(labeler);
+      tbobj = TrackBatchGUI(labeler, obj.mainFigure_);
       tbobj.run();
     end
 
@@ -5728,7 +5728,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       mIdx = labeler.allMovIdx();
       toTrackIn = obj.mIdx2TrackList_(mIdx);
-      tbobj = TrackBatchGUI(labeler,'toTrack',toTrackIn);
+      tbobj = TrackBatchGUI(labeler, obj.mainFigure_, 'toTrack', toTrackIn);
       % [toTrackOut] = tbobj.run();
       tbobj.run();
       % todo: import predictions

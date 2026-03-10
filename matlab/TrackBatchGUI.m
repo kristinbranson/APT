@@ -21,10 +21,10 @@ classdef TrackBatchGUI < handle
   end
   
   methods
-    function obj = TrackBatchGUI(lObj,varargin)
+    function obj = TrackBatchGUI(lObj,mainFigure,varargin)
       obj.lObj = lObj;
       obj.isma = lObj.maIsMA;
-      obj.hParent = obj.lObj.controller_.mainFigure_;      
+      obj.hParent = mainFigure ;
       toTrack = myparse(varargin,'toTrack',struct);
       
       obj.defaulttrkpat = lObj.defaultExportTrkRawname();

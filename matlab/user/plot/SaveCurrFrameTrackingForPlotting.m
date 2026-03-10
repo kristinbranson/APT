@@ -1,7 +1,7 @@
-function SaveCurrFrameTrackingForPlotting(lObj,savefilein)
+function SaveCurrFrameTrackingForPlotting(lObj,images_all,axes_all,savefilein)
 
 persistent savefile;
-if nargin >= 2,
+if exist('savefilein', 'var'),
   savefile = savefilein;
 end
 if isempty(savefile),
@@ -18,9 +18,9 @@ currImRoi = zeros(4,nViews);
 
 for iView = 1:nViews,
   
-  currIm{iView} = get(lObj.controller_.images_all(iView),'CData');
-  currImRoi(1:2,iView) = get(lObj.controller_.images_all(iView),'XData');
-  currImRoi(3:4,iView) = get(lObj.controller_.images_all(iView),'YData');
+  currIm{iView} = get(images_all(iView),'CData');
+  currImRoi(1:2,iView) = get(images_all(iView),'XData');
+  currImRoi(3:4,iView) = get(images_all(iView),'YData');
   
 end
 
@@ -63,11 +63,11 @@ imPropNames = {'XData','YData'};
 imProps = cell(1,nViews);
 axProps = cell(1,nViews);
 for i = 1:nViews,
-  axProps{i} = get(lObj.controller_.axes_all(i),axPropNames);
-  imProps{i} = get(lObj.controller_.images_all(i),imPropNames);
+  axProps{i} = get(axes_all(i),axPropNames);
+  imProps{i} = get(images_all(i),imPropNames);
 end
 
-if nargin < 2,
+if ~exist('savefilein', 'var'),
   [f,p] = uiputfile(savefile,'Save data to mat file');
   if ~ischar(f),
     return;

@@ -12199,8 +12199,9 @@ classdef Labeler < handle
   %% Navigation
   methods
     
-    function navPrefsUI(obj)
-      NavPrefs(obj);
+    function navPrefsUI(obj, mainFigure)
+      % Open the navigation preferences dialog.
+      NavPrefs(obj, mainFigure);
     end
     
     function setFrameGUI(obj,frm,varargin)
