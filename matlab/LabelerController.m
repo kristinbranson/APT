@@ -564,6 +564,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updateAxesCLim', @(s,e)(obj.updateAxesCLim())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'downdateViewConfig', @(s,e)(obj.downdateViewConfig())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanelAfterFrameChange',@(s,e)(obj.updatePrevPanelAfterFrameChange())) ;
@@ -6531,6 +6533,12 @@ classdef LabelerController < handle
           set(obj.axes_all(iView), 'CLim', [0, labeler.cmax_auto(iView)]) ;
         end
       end
+    end  % function
+
+    function downdateViewConfig(obj)
+      % Read view configuration off the GUI and store it in the model.
+      labeler = obj.labeler_ ;
+      labeler.viewConfig = ViewConfig.readCfgOffViews(obj.figs_all, obj.axes_all) ;
     end  % function
 
     function deleteSpashScreenFigureIfItExists_(obj)

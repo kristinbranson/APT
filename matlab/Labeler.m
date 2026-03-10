@@ -206,6 +206,7 @@ classdef Labeler < handle
     updatePredictionColors
     updatePredictionSkeletonCosmetics
     updateAxesCLim
+    downdateViewConfig
   end
   
   %% Project
@@ -506,11 +507,16 @@ classdef Labeler < handle
     flipLandmarkMatches = zeros(0,2)  % nPairs x 2 matrix containing indices of vertex landmarks    
   end
 
-  properties  
+  properties
     labelPointsPlotInfo   % struct containing cosmetic info for labelPoints. init: C
     predPointsPlotInfo   % " predicted points. init: C
-    impPointsPlotInfo 
+    impPointsPlotInfo
     isTwoClickAlign = true  % KB 20220506 store the state of whether two-click alignment is selected
+    viewConfig_ = []  % [nview] struct array, downdated from controller via downdateViewConfig event
+  end
+
+  properties (Dependent)
+    viewConfig
   end
 
   properties (SetAccess=private)
@@ -1930,9 +1936,15 @@ classdef Labeler < handle
       cfg.NumLabelPoints = obj.nPhysPoints;
       cfg.LabelPointNames = obj.skelNames;
       cfg.LabelMode = char(obj.labelMode);
-      % View stuff: read off current state of axes
-      controller = obj.controller_;
-      viewCfg = ViewConfig.readCfgOffViews(controller.figs_all,controller.axes_all);
+      % Downdate view config from controller, then overlay model-owned props
+      obj.viewConfig_ = [] ;
+      obj.notify('downdateViewConfig') ;
+      viewCfg = obj.viewConfig_ ;
+      if isempty(viewCfg)
+        % No controller present (batch mode); use defaults
+        s = yaml.ReadYaml(Labeler.DEFAULT_CFG_FILENAME);
+        viewCfg = repmat(s.View, obj.nview, 1);
+      end
       for i=1:obj.nview
         viewCfg(i).InvertMovie = obj.movieInvert(i);
         viewCfg(i).CenterOnTarget = obj.movieCenterOnTarget;
@@ -14023,6 +14035,14 @@ classdef Labeler < handle
 
     function result = get.infoTimelineModel(obj)
       result = obj.infoTimelineModel_ ;
+    end
+
+    function result = get.viewConfig(obj)
+      result = obj.viewConfig_ ;
+    end
+
+    function set.viewConfig(obj, value)
+      obj.viewConfig_ = value ;
     end
 
     function result = isCurrentFrameSelected(obj)
