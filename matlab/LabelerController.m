@@ -39,6 +39,7 @@ classdef LabelerController < handle
       % block.  Useful for debugging.  "Do, or do not.  There is no try." --Yoda
     doEchoControlActuation_ = false
       % When true, controlActuated() prints the control name to the console.
+    lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
   end
 
   properties  % these are all the things that used to be in the main figure's guidata, but are not simple controls
@@ -962,34 +963,43 @@ classdef LabelerController < handle
     end  % function
 
     function didSetLblCore(obj, src, evt)  %#ok<INUSD>
+      % Create controller for the new LabelCoreModel, register listeners.
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
-      if ~isempty(lblCore) ,
-        % Add listeners for setting lblCore props.  (At some point, these too will
-        % feel the holy fire.)
-        lblCore.addlistener('hideLabels', 'PostSet', @(src,evt)(obj.lblCoreHideLabelsChanged())) ;
-        if isprop(lblCore,'streamlined')
-          lblCore.addlistener('streamlined', 'PostSet', @(src,evt)(obj.lblCoreStreamlinedChanged())) ;
+      if ~isempty(lblCore)
+        % Delete old controller if it exists
+        if ~isempty(obj.lblCoreController_)
+          delete(obj.lblCoreController_) ;
+          obj.lblCoreController_ = [] ;
         end
-        % Trigger the callbacks 'manually' to update UI elements right now
+        % Create the matching LabelCoreController
+        obj.lblCoreController_ = LabelCoreController.create(obj, lblCore, labeler.labelMode) ;
+        obj.lblCoreController_.init() ;
+        % Update UI elements based on model state
         obj.lblCoreHideLabelsChanged() ;
-        if isprop(lblCore,'streamlined')
+        if isprop(lblCore, 'streamlined')
           obj.lblCoreStreamlinedChanged() ;
         end
-      end      
+      end
     end
 
     function lblCoreHideLabelsChanged(obj)
+      % Sync menu check to model hideLabels state.
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
-      obj.menu_view_hide_labels.Checked = onIff(~lblCore.hideLabels) ;
-    end
-    
+      if ~isempty(lblCore)
+        obj.menu_view_hide_labels.Checked = onIff(~lblCore.hideLabels) ;
+      end
+    end  % function
+
     function lblCoreStreamlinedChanged(obj)
+      % Sync menu check to model streamlined state.
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
-      obj.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
-    end
+      if ~isempty(lblCore) && isprop(lblCore, 'streamlined')
+        obj.menu_setup_streamlined.Checked = onIff(lblCore.streamlined) ;
+      end
+    end  % function
 
     function pbTrack_actuated_(obj, source, event)
       obj.track_core_(source, event) ;
@@ -2308,9 +2318,8 @@ classdef LabelerController < handle
       tfShift = any(strcmp('shift',event.Modifier));
       tfCtrl = any(strcmp('control',event.Modifier));
       
-      lcore = labeler.lblCore;
-      if ~isempty(lcore)
-        tfKPused = lcore.kpf(source,event);
+      if ~isempty(obj.lblCoreController_)
+        tfKPused = obj.lblCoreController_.kpf(source, event) ;
         if tfKPused
           return
         end
@@ -2512,7 +2521,8 @@ classdef LabelerController < handle
       labeler.labeledposNeedsSave = true;
       labeler.doesNeedSave_ = true;     
       
-      labeler.lblCore.init(newnphyspts,labeler.labelPointsPlotInfo);
+      labeler.lblCore.init(newnphyspts, labeler.labelPointsPlotInfo) ;
+      obj.lblCoreController_.init() ;
       labeler.preProcInit();
       labeler.isinit = isinit0;
       labeler.labelsUpdateNewFrame(true);
@@ -3804,19 +3814,18 @@ classdef LabelerController < handle
     end
     
     function cbkWBMF(obj, src, evt)
-      labeler = obj.labeler_ ;      
-      lcore = labeler.lblCore;
-      if ~isempty(lcore)
-        lcore.wbmf(src,evt) ;
+      % Route window-button-motion to LabelCoreController.
+      if ~isempty(obj.lblCoreController_)
+        obj.lblCoreController_.wbmf(src, evt) ;
       end
-    end
-    
+    end  % function
+
     function cbkWBUF(obj, src, evt)
-      labeler = obj.labeler_ ;      
-      if ~isempty(labeler.lblCore)
-        labeler.lblCore.wbuf(src,evt) ;
+      % Route window-button-up to LabelCoreController.
+      if ~isempty(obj.lblCoreController_)
+        obj.lblCoreController_.wbuf(src, evt) ;
       end
-    end
+    end  % function
     
     function scroll_callback(obj, hObject, eventdata)
       %labeler = obj.labeler_ ;
@@ -4998,11 +5007,10 @@ classdef LabelerController < handle
 
     function menu_help_labeling_actions_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      lblCore = labeler.lblCore;
-      if isempty(lblCore)
-        h = 'Please open a movie first.';
+      if isempty(obj.lblCoreController_)
+        h = 'Please open a movie first.' ;
       else
-        h = lblCore.getLabelingHelp();
+        h = obj.lblCoreController_.getLabelingHelp() ;
       end
       msgbox(h,'Labeling Actions','help',struct('Interpreter','tex','WindowStyle','replace'));
     end
@@ -5105,8 +5113,8 @@ classdef LabelerController < handle
 
     function menu_setup_set_nframe_skip_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      lc = labeler.lblCore;
-      assert(isa(lc,'LabelCoreHT'));
+      lc = labeler.lblCore ;
+      assert(isa(lc, 'LabelCoreHTModel')) ;
       nfs = lc.nFrameSkip;
       ret = inputdlg('Select labeling frame increment','Set increment',1,{num2str(nfs)});
       if isempty(ret)
@@ -5129,8 +5137,8 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
 
 
-      lc = labeler.lblCore;
-      assert(isa(lc,'LabelCoreMultiViewCalibrated2'));
+      lc = labeler.lblCore ;
+      assert(isa(lc, 'LabelCoreMultiViewCalibrated2Model')) ;
       lc.streamlined = ~lc.streamlined;
 
     end
@@ -5468,7 +5476,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;
       if ~isempty(lblCore)
-        lblCore.labelsHideToggle() ;
+        lblCore.labelsHideToggle() ;  % fires updateHideLabels, controller responds
       end
     end
 
@@ -5802,7 +5810,7 @@ classdef LabelerController < handle
         obj.updateTrxTable();
         labeler.setTarget(ntgts+1);
         iTgt = labeler.currTarget;
-        labeler.lblCore.tv.updateTrackResI(xy,occ,iTgt);
+        obj.lblCoreController_.tv_.updateTrackResI(xy, occ, iTgt) ;
       else
         % SA: use tracker predictions
         if isempty(tracker)
@@ -6151,10 +6159,12 @@ classdef LabelerController < handle
     function menu_view_occluded_points_box_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       labeler.setShowOccludedBox(~labeler.showOccludedBox);
-      if labeler.showOccludedBox,
-        labeler.lblCore.showOcc();
-      else
-        labeler.lblCore.hideOcc();
+      if ~isempty(obj.lblCoreController_)
+        if labeler.showOccludedBox
+          obj.lblCoreController_.showOcc() ;
+        else
+          obj.lblCoreController_.hideOcc() ;
+        end
       end
     end
 

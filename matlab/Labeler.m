@@ -5862,28 +5862,26 @@ classdef Labeler < handle
       elseif ~isempty(se) && isempty(old_se) && ~obj.showSkeleton ,
         obj.showSkeleton = true ;
       end
-      obj.lblCore.updateSkeletonEdges();
+      obj.controller_.lblCoreController_.updateSkeletonEdges() ;
     end
 
     function setShowSkeleton(obj, tf)
       tf = logical(tf) ;
       obj.showSkeleton = tf ;  % fires didSetShowSkeleton
-      obj.lblCore.updateShowSkeleton() ;
+      obj.controller_.lblCoreController_.updateShowSkeleton() ;
     end
 
     function setShowMaRoi(obj,tf)
       obj.showMaRoi = logical(tf);
       if obj.labelMode==LabelMode.MULTIANIMAL
-        lc = obj.lblCore;
-        lc.tv.setShowPches(tf); % lc should be a lblCoreSeqMA      
+        obj.controller_.lblCoreController_.tv_.setShowPches(tf) ;
       end
     end
 
     function setShowMaRoiAux(obj,tf)
       obj.showMaRoiAux = logical(tf);
       if obj.labelMode==LabelMode.MULTIANIMAL
-        lc = obj.lblCore;
-        lc.roiSetShow(tf); % lc should be a lblCoreSeqMA      
+        obj.controller_.lblCoreController_.roiSetShow(tf) ;
       end
     end
 
@@ -5964,10 +5962,10 @@ classdef Labeler < handle
       else
         hideLabelsPrev = false;
       end
-      obj.lblCore = LabelCore.createSafe(obj.controller_, lblmode) ;  % hack
-      obj.lblCore.init(nPts,lblPtsPlotInfo);
+      obj.lblCore = LabelCoreModel.createSafe(obj, lblmode) ;
+      obj.lblCore.init(nPts, lblPtsPlotInfo) ;
       if hideLabelsPrev
-        obj.lblCore.labelsHide();
+        obj.lblCore.setHideLabels(true) ;
       end
       if isprop(obj.lblCore,'streamlined') && exist('streamlinedPrev','var')>0
         obj.lblCore.streamlined = streamlinedPrev;
@@ -7487,8 +7485,7 @@ classdef Labeler < handle
       
         switch lsetType
           case LandmarkSetType.Label
-            lc = obj.lblCore;
-            lc.skeletonCosmeticsUpdated();
+            obj.controller_.lblCoreController_.skeletonCosmeticsUpdated() ;
           case LandmarkSetType.Prediction
             obj.notify('updatePredictionSkeletonCosmetics') ;
         end
@@ -10291,7 +10288,7 @@ classdef Labeler < handle
         end
         
         if obj.maIsMA && ~istrack,
-          obj.lblCore.preProcParamsChanged();          
+          obj.controller_.lblCoreController_.preProcParamsChanged() ;          
         end
       end
       

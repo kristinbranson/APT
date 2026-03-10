@@ -55,33 +55,39 @@ classdef LabelCore < handle
   end
 
   properties
-    nPts;                 % scalar integer 
+    nPts;                 % scalar integer
     state;                % scalar LabelState
+
+    xy_;                  % [nPts x 2] current label coords data array.
+                          % NaN=unlabeled, Inf=occluded. This is the
+                          % model-side coordinate storage, enabling
+                          % getLabelCoords to read from data rather than
+                          % graphics handles.
 
     nexttbl = [];         % table with which frames, targets, and movies to advance to after completing a label
     nexti = 1;            % which row of the table we are on
     panZoomMod = 'control'; % which button is used for pan-zooming and should be ignored in callbacks
 
-    % Optional logical "decorator" flags 
-    % 
+    % Optional logical "decorator" flags
+    %
     % These flags provide additional metadata/state for labeled landmarks.
-    % 
-    % Use of these flags is not mandatory in subclasses, but it occurs 
+    %
+    % Use of these flags is not mandatory in subclasses, but it occurs
     % frequently. For convenience/code-sharing purposes the state lives
     % here. LabelCore utilities can aid in the maintenance of this state;
     % and if this state is properly maintained, LabelCore utilities can be
     % utilized to write to Labeler as appropriate.
-    
+
     tfOcc;                % [nPts x 1] logical. Fully occluded.
     tfEstOcc;             % [nPts x 1] logical. Estimated-occluded.
                           %   (HT mode does not use .tfEstOcc, relies on
                           %   markers.)
     tfSel;                % [nPts x 1] logical. If true, pt is currently selected.
-    
+
     kpfIPtFor1Key; % scalar positive integer. This is the point index that
     % the '1' hotkey maps to, eg typically this will take the
     % values 1, 11, 21, ...
-    
+
   end
   
   methods
@@ -165,7 +171,8 @@ classdef LabelCore < handle
     function init(obj,nPts,ptsPlotInfo)
       obj.nPts = nPts;
       obj.ptsPlotInfo = ptsPlotInfo;
-      
+      obj.xy_ = nan(nPts,2);
+
       deleteValidGraphicsHandles(obj.hPts);
       deleteValidGraphicsHandles(obj.hPtsOcc);
       deleteValidGraphicsHandles(obj.hPtsTxt);
@@ -601,6 +608,7 @@ classdef LabelCore < handle
       
       tfMainAxis = isequal(hPoints,obj.hPts) && isequal(hPointsTxt,obj.hPtsTxt);
       if tfMainAxis
+        obj.xy_ = xy;
         obj.tfOcc = tfOccld;
         obj.refreshOccludedPts();
       else
@@ -626,9 +634,10 @@ classdef LabelCore < handle
     end
     
     function assignLabelCoordsIRaw(obj,xy,iPt)
-      % Set coords for hPts(iPt), hPtsTxt(iPt)
+      % Set coords for hPts(iPt), hPtsTxt(iPt) and update xy_
       %
       % Unlike assignLabelCoords, no clipping or occluded-handling
+      obj.xy_(iPt,:) = xy;
       hPoint = obj.hPts(iPt);
       hTxt = obj.hPtsTxt(iPt);
       obj.setPtsCoords(xy,hPoint,hTxt);
@@ -720,19 +729,19 @@ classdef LabelCore < handle
     end
         
     function [xy,tfEO] = getLabelCoords(obj,occval)
-      % occval: value to use in rows matching .tfOcc 
+      % Get current label coordinates from xy_ data array.
+      % occval: value to use in rows matching .tfOcc
       if nargin<2
         occval = nan;
       end
-      xy = nan(numel(obj.hPts),2);
-      ish = ishandle(obj.hPts);
-      xy(ish,:) = LabelCore.getCoordsFromPts(obj.hPts(ish));
+      xy = obj.xy_;
       xy(obj.tfOcc,:) = occval;
       tfEO = obj.tfEstOcc;
     end
     
     function xy = getLabelCoordsI(obj,iPt)
-      xy = LabelCore.getCoordsFromPts(obj.hPts(iPt));
+      % Get coordinates for specific point(s) from xy_ data array.
+      xy = obj.xy_(iPt,:);
     end
     
     function [tf,iSelected] = anyPointSelected(obj)
