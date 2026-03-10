@@ -536,10 +536,6 @@ classdef Labeler < handle
     lastLabelChangeTS     % last time training labels were changed
   end
 
-  properties (Dependent)
-    hFig  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
-          % It is no longer used internally by the Labeler methods.
-  end
 
   properties (Transient)  % private by convention
     controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
@@ -1491,10 +1487,6 @@ classdef Labeler < handle
 
     function v = get.currMovIdx(obj)
       v = MovieIndex(obj.currMovie,obj.gtIsGTMode);
-    end
-
-    function v = get.hFig(obj)
-      v = obj.controller_.mainFigure_ ;
     end
 
     function v = get.gtNumSugg(obj)
