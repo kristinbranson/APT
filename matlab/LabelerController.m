@@ -560,6 +560,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updatePredictionColors', @(s,e)(obj.updatePredictionColors())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updatePredictionSkeletonCosmetics', @(s,e)(obj.updatePredictionSkeletonCosmetics())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanelAfterFrameChange',@(s,e)(obj.updatePrevPanelAfterFrameChange())) ;
@@ -6502,6 +6504,14 @@ classdef LabelerController < handle
         labeler = obj.labeler_ ;
         ptsClrs = labeler.mapSetColorsToPointColors(labeler.predPointsPlotInfo.Colors) ;
         tv.updateLandmarkColors(ptsClrs) ;
+      end
+    end  % function
+
+    function updatePredictionSkeletonCosmetics(obj)
+      % Update the prediction TV skeleton cosmetics from model state.
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv)
+        tv.skeletonCosmeticsUpdated() ;
       end
     end  % function
 

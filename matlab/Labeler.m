@@ -204,6 +204,7 @@ classdef Labeler < handle
     didSetSelectedTracklet  % fired when trkVizer.currTrklet changes
     updatePredictionCosmetics
     updatePredictionColors
+    updatePredictionSkeletonCosmetics
   end
   
   %% Project
@@ -7572,12 +7573,7 @@ classdef Labeler < handle
             lc = obj.lblCore;
             lc.skeletonCosmeticsUpdated();
           case LandmarkSetType.Prediction
-            if ~isempty(obj.controller_)
-              tv = obj.controller_.tvTrkPred_ ;
-              if ~isempty(tv)
-                tv.skeletonCosmeticsUpdated() ;
-              end
-            end
+            obj.notify('updatePredictionSkeletonCosmetics') ;
         end
       end          
     end
