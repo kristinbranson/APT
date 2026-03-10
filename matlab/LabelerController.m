@@ -556,6 +556,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'didSetSelectedTracklet', @(s,e)(obj.didSetSelectedTracklet())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updatePredictionCosmetics', @(s,e)(obj.updatePredictionCosmetics())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanelAfterFrameChange',@(s,e)(obj.updatePrevPanelAfterFrameChange())) ;
@@ -6471,6 +6473,23 @@ classdef LabelerController < handle
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv)
         tv.updateSelectedTrxID() ;
+      end
+    end  % function
+
+    function updatePredictionCosmetics(obj)
+      % Update the prediction TV cosmetics from model state.
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv)
+        labeler = obj.labeler_ ;
+        pvMarker = labeler.predPointsPlotInfo.MarkerProps ;
+        pvText = labeler.predPointsPlotInfo.TextProps ;
+        textOffset = labeler.predPointsPlotInfo.TextOffset ;
+        tfHideTxt = strcmp(pvText.Visible, 'off') ;
+        pvText = rmfield(pvText, 'Visible') ;
+        tv.setMarkerCosmetics(pvMarker) ;
+        tv.setTextCosmetics(pvText) ;
+        tv.setTextOffset(textOffset) ;
+        tv.setHideTextLbls(tfHideTxt) ;
       end
     end  % function
 

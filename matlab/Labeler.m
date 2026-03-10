@@ -202,6 +202,7 @@ classdef Labeler < handle
     updateTrkPredViz  % fired when trkVizer (TVM) is created/destroyed;
                       % LabelerController should create/destroy the TV
     didSetSelectedTracklet  % fired when trkVizer.currTrklet changes
+    updatePredictionCosmetics
   end
   
   %% Project
@@ -7646,56 +7647,29 @@ classdef Labeler < handle
       lc.updateTextLabelCosmetics(pvText,textOffset);
     end
 
-    function [tfHideTxt,pvText] = hlpUpdateLandmarkCosmetics(obj,...
-        pvMarker,pvText,textOffset,ptsPlotInfoFld)
-      % set PVs on .ptsPlotInfo field; mild massage
-      
-      fns = fieldnames(pvMarker);
-      for f=fns(:)',f=f{1}; %#ok<FXSET> 
-        % this allows pvMarker to be 'incomplete'; could just set entire
-        % struct
-        obj.(ptsPlotInfoFld).MarkerProps.(f) = pvMarker.(f);
-      end
-      fns = fieldnames(pvText);
-      for f=fns(:)',f=f{1}; %#ok<FXSET>
-        obj.(ptsPlotInfoFld).TextProps.(f) = pvText.(f);
-      end
-      obj.(ptsPlotInfoFld).TextOffset = textOffset;
-      % TrackingVisualizer wants this prop broken out
-      tfHideTxt = strcmp(pvText.Visible,'off'); % could make .Visible field optional 
-      pvText = rmfield(pvText,'Visible');
-    end 
-
     function updateLandmarkPredictionCosmetics(obj, pvMarker, pvText, textOffset)
       % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
 
-      [tfHideTxt, pvText] = obj.hlpUpdateLandmarkCosmetics(...
-        pvMarker, pvText, textOffset, 'predPointsPlotInfo') ;
-      % Forward cosmetics to the controller's TV
-      if ~isempty(obj.controller_)
-        tv = obj.controller_.tvTrkPred_ ;
-        if ~isempty(tv)
-          tv.setMarkerCosmetics(pvMarker) ;
-          tv.setTextCosmetics(pvText) ;
-          tv.setTextOffset(textOffset) ;
-          tv.setHideTextLbls(tfHideTxt) ;
-        end
+      % Set PVs on .predPointsPlotInfo; mild massage
+      fns = fieldnames(pvMarker);
+      for f=fns(:)',f=f{1}; %#ok<FXSET>
+        % this allows pvMarker to be 'incomplete'; could just set entire
+        % struct
+        obj.predPointsPlotInfo.MarkerProps.(f) = pvMarker.(f);
       end
+      fns = fieldnames(pvText);
+      for f=fns(:)',f=f{1}; %#ok<FXSET>
+        obj.predPointsPlotInfo.TextProps.(f) = pvText.(f);
+      end
+      obj.predPointsPlotInfo.TextOffset = textOffset;
+      obj.notify('updatePredictionCosmetics') ;
     end  % function
     
-    function updateLandmarkImportedCosmetics(obj,pvMarker,pvText,textOffset)
-      % Probably used in conjunction with projAddLandmarks().  -- ALT, 2025-01-28
-
-      obj.hlpUpdateLandmarkCosmetics(...
-        pvMarker,pvText,textOffset,'impPointsPlotInfo') ;
-    end
-
     function updateTrajImportedColors(obj,colors,colormapname)
       obj.projPrefs.Trx.TrajColor = colors;
       obj.projPrefs.Trx.TrajColorMapName = colormapname;
-    end
-    
-  end
+    end  % function    
+  end  % methods
   
   methods (Static)
     function sMacro = movTrkFileMacroDescs()
