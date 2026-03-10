@@ -5943,15 +5943,8 @@ classdef Labeler < handle
 
     function setShowSkeleton(obj, tf)
       tf = logical(tf) ;
-      obj.showSkeleton = tf ;
+      obj.showSkeleton = tf ;  % fires didSetShowSkeleton
       obj.lblCore.updateShowSkeleton() ;
-      % The controller owns the TV; forward skeleton visibility to it
-      if ~isempty(obj.controller_)
-        tv = obj.controller_.tvTrkPred_ ;
-        if ~isempty(tv)
-          tv.setShowSkeleton(tf) ;
-        end
-      end
     end
 
     function setShowMaRoi(obj,tf)

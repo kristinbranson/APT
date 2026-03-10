@@ -3656,10 +3656,14 @@ classdef LabelerController < handle
     end  % function
 
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
+      labeler = obj.labeler_ ;
       hasSkeleton = ~isempty(labeler.skeletonEdges) ;
       isChecked = onIff(hasSkeleton && labeler.showSkeleton) ;
       set(obj.menu_view_showhide_skeleton, 'Enable', hasSkeleton, 'Checked', isChecked) ;
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv)
+        tv.setShowSkeleton(labeler.showSkeleton) ;
+      end
     end  % function
 
     function cbkShowMaRoiChanged(obj, src, evt)  %#ok<INUSD>
