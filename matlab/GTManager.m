@@ -1,18 +1,19 @@
 function hFig = GTManager(varargin)
 
-if nargin == 1 && isa(varargin{1},'Labeler'),
-  lObj = varargin{1};
+if nargin >= 2 && isa(varargin{1},'LabelerController'),
+  controller = varargin{1};
+  lObj = varargin{2};
 else
   feval(varargin{:});
   return;
 end
 
-% GTManager(labelerObj)
+% GTManager(controller, labelerObj)
 %
 % GTManager is created with Visible='off'.
 
 % GTManager<->Labeler messaging:
-% 2. GTManager sets current movie/frame/target in Labeler based on 
+% 2. GTManager sets current movie/frame/target in Labeler based on
 %   treeTable interaction
 % 3a. Labeler prop listeners completely refresh GTTable content (gtSuggMFTable)
 % 3b. Labeler prop listeners incrementally update GTTable content (gtSuggMFTableLbled)
@@ -20,15 +21,14 @@ end
 %   (frame, target etc)
 
 assert(isa(lObj,'Labeler'));
-%obj.hFig = MovieManager(obj);
 handles = struct;
 handles.labeler = lObj;
-      
+handles.controller = controller;
+
 hFig = uifigure('Units','pixels','Position',[951,1400,733,733],...
   'Name','Groundtruth Navigator','Visible','off');
-mainController = lObj.controller_ ;
-if ~isempty(mainController)
-  mainController.addSatellite(hFig) ;
+if ~isempty(controller)
+  controller.addSatellite(hFig) ;
 end
 
 handles.figure1 = hFig;
@@ -198,7 +198,7 @@ end
 
 function handles = updateAll(handles)
 
-if isfield(handles, 'labeler') && isscalar(handles.labeler) && ishghandle(handles.labeler.controller_.mainFigure_)
+if isfield(handles, 'controller') && isscalar(handles.controller) && ishghandle(handles.controller.mainFigure_)
   % All is well
 else
   % Sometimes cbkGTSuggUpdated() gets called very early on, before handles.labeler is set
@@ -501,11 +501,11 @@ lclNavToMFT(lObj,mov(1),ft(1,:));
 function pbComputeGT_Callback(hObject, src, evt)
 handles = guidata(hObject);
 lObj = handles.labeler;
-mainController = lObj.controller_ ;
-if isempty(mainController)
+controller = handles.controller ;
+if isempty(controller)
   whichlabels = 'all' ;
 else
-  response = mainController.askAboutUnrequestedGTLabelsIfNeeded_() ;
+  response = controller.askAboutUnrequestedGTLabelsIfNeeded_() ;
   if strcmp(response, 'cancel') 
     return
   end

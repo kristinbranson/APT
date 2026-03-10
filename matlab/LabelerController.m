@@ -6349,7 +6349,7 @@ classdef LabelerController < handle
         %hGTMgr.Visible = 'on';
         figure(obj.GTManagerFigure);
       else
-        obj.GTManagerFigure = GTManager(obj.labeler_);
+        obj.GTManagerFigure = GTManager(obj, obj.labeler_);
       end
     end
 
