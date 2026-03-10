@@ -1,4 +1,4 @@
-function about(lObj)
+function about(controller)
 
 %%
 PURPLE = [0.147058823529412 0.033333333333333 0.245098039215686];
@@ -9,8 +9,9 @@ h = uifigure(...
   'Name','About' ...
   );
 
-if ~isempty(lObj)
-  centerOnParentFigure(h,lObj.hFig,'setParentFixUnitsPx',true);
+if ~isempty(controller)
+  [pos, units] = controller.getMainFigurePositionAndUnits('setParentFixUnitsPx', true) ;
+  centerOnOtherFigureGivenPositionBang(h, pos, units) ;
 end
 
 ht = uitextarea(h,...

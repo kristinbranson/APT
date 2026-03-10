@@ -45,23 +45,25 @@ end
 
 
 function LandmarkColors_OpeningFcn(hObject, eventdata, handles, varargin)
-% [tfchanges,savedinfo] = LandmarkColors(lObj,cbk)
+% [tfchanges,savedinfo] = LandmarkColors(controller,lObj,cbk)
 
 % cbk sig: cbk(colorSpecs,markerSpecs,skelSpecs)
 %   colorSpecs: array of LandmarkColorSpec objs (could be nonscalar)
 %   markerSpecs: [3] struct array nested Marker/TextProps etc
-%   skelSpecs: [3] struct array 
+%   skelSpecs: [3] struct array
 
 handles.output = hObject;
 set(hObject,'MenuBar','None');
 
 hObject.CloseRequestFcn = @figure_landmarkcolors_CloseRequestFcn;
 
-lObj = varargin{1};
+controller = varargin{1};
+lObj = varargin{2};
 handles.nlandmarks = lObj.nPhysPoints;
-handles.applyCbkFcn = varargin{2}; % sig:
+handles.applyCbkFcn = varargin{3}; % sig:
 
-centerOnParentFigure(hObject,lObj.hFig);
+[pos, units] = controller.getMainFigurePositionAndUnits() ;
+centerOnOtherFigureGivenPositionBang(hObject, pos, units) ;
 
 
 % Marker State

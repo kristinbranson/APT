@@ -409,8 +409,9 @@ classdef LandmarkSpecs < handle
         'waiton_ui',false ...
         );
 
-      if ~isempty(lblObj)
-        centerOnParentFigure(obj.hFig,lblObj.hFig,'setParentFixUnitsPx',true);
+      if ~isempty(parent)
+        [pos, units] = parent.getMainFigurePositionAndUnits('setParentFixUnitsPx', true) ;
+        centerOnOtherFigureGivenPositionBang(obj.hFig, pos, units) ;
       else
         centerfig(obj.hFig);
       end

@@ -5010,8 +5010,7 @@ classdef LabelerController < handle
 
 
     function menu_help_about_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;      
-      about(labeler);
+      about(obj);
     end
 
 
@@ -6087,7 +6086,7 @@ classdef LabelerController < handle
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
-      LandmarkColors(labeler,cbkApply);
+      LandmarkColors(obj, labeler, cbkApply);
       % AL 20220217: changes now applied immediately
       % if ischange
       %   cbkApply(savedres.colorSpecs,savedres.markerSpecs,savedres.skelSpecs);
@@ -6677,7 +6676,8 @@ classdef LabelerController < handle
         end
       end
       
-      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, obj.mainFigure_) ;
+      [mainFigurePosition, mainFigureUnits] = obj.getMainFigurePositionAndUnits() ;
+      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, mainFigurePosition, mainFigureUnits) ;
       if was_canceled
         did_update = false ;
         return
@@ -8458,6 +8458,29 @@ classdef LabelerController < handle
       end
     end  % function
     
+    function [position, units] = getMainFigurePositionAndUnits(obj, varargin)
+      % Used when clients want to center a figure on the main window figure. The
+      % returned units are the units of the returned position, not necessarily the
+      % current units of the main window figure.
+
+      parentFig = obj.mainFigure_ ;
+      [setParentFigUnitsPx] = myparse(varargin,...
+        'setParentFixUnitsPx',false ... % for dealing with UIFigure/appdesigner
+        );
+
+      if setParentFigUnitsPx
+        parentUnitsOrig = get(parentFig,'Units');
+        set(parentFig,'Units','pixels');
+      end
+
+      units = get(parentFig,'Units') ;
+      position = get(parentFig,'position');
+
+      if setParentFigUnitsPx
+        set(parentFig,'Units',parentUnitsOrig);
+      end
+    end  % function
+
   end  % methods
 
 end  % classdef

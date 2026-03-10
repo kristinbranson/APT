@@ -22,7 +22,6 @@ function f = init_figure(lobj)
 
 f = uifigure('Units','pixel','Position',[250,250,1000,800],...
              'tag','TrkInfoUI','Name','Track Info');
-%     centerOnParentFigure(f,lobj.hFig)
 h = guidata(f);
 h.lobj = lobj;
 h.fig = f;

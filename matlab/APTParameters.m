@@ -592,7 +592,7 @@ classdef APTParameters
     end
     
     function [tPrm,canceled,do_update] = ...
-        autosetparamsGUI(tPrm,lobj,mainFigure)
+        autosetparamsGUI(tPrm, lobj, mainFigurePosition, mainFigureUnits)
       
       silent = lobj.silent ;
       
@@ -697,7 +697,7 @@ classdef APTParameters
           if default || silent
             res = 'Update';
           else
-            res = APTParameters.raiseAcceptAutoParamsDialog(dstr,mainFigure);
+            res = APTParameters.raiseAcceptAutoParamsDialog(dstr, mainFigurePosition, mainFigureUnits);
           end
         else
           res = 'Do not update';
@@ -722,9 +722,9 @@ classdef APTParameters
       
     end  % function
     
-    function res = raiseAcceptAutoParamsDialog(dstr, parentFig)
+    function res = raiseAcceptAutoParamsDialog(dstr, mainFigurePosition, mainFigureUnits)
       % Raise a custom modal dialog that is sized to contain dstr, and looks nice,
-      % and is centered on parentFig.  This function blocks until the user clicks
+      % and is centered on the main figure.  This function blocks until the user clicks
       % one of the dialog box buttons.  On return, res is an old-style string
       % containing the user response.  Either 'Update', 'Do not update', or
       % 'Cancel'.
@@ -763,7 +763,8 @@ classdef APTParameters
       % Size the figure, center on parent
       fig.Position(4) = fig_height ;
       fig.Position(3) = fig_width ;
-      centerOnParentFigure(fig,parentFig);
+      % centerOnParentFigure(fig,parentFig);
+      centerOnOtherFigureGivenPositionBang(fig, mainFigurePosition, mainFigureUnits) ;
 
       % Position the textbox
       textbox.Position(2) = side_margin+margin+button_height;
