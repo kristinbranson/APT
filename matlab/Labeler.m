@@ -5666,68 +5666,6 @@ classdef Labeler < handle
       tfok = ~(obj.progressMeter_.wasCanceled) ;
       % if ~tfok, tblBig indeterminate
     end
-
-    % function hlpTargetsTableUIupdate(obj,navTbl)
-    %   [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
-    %   if tfok
-    %     navTbl.setData(obj.trackGetSummaryTable(tblBig));
-    %   end
-    % end
-
-%     function targetsTableUI(obj)
-%       [tfok,tblBig] = obj.hlpTargetsTableUIgetBigTable();
-%       if ~tfok
-%         return;
-%       end
-% 
-%       tblSumm = obj.trackGetSummaryTable(tblBig);
-%       hF = figure('Name','Target Summary (click row to navigate)',...
-%         'MenuBar','none','Visible','off');
-%       hF.Position(3:4) = [1280 500];
-%       centerfig(hF,obj.controller_.mainFigure_);
-%       hPnl = uipanel('Parent',hF,'Position',[0 .08 1 .92],'Tag','uipanel_TargetsTable');
-%       BTNWIDTH = 100;
-%       DXY = 4;
-%       btnHeight = hPnl.Position(2)*hF.Position(4)-2*DXY;
-%       btnPos = [hF.Position(3)-BTNWIDTH-DXY DXY BTNWIDTH btnHeight];      
-%       hBtn = uicontrol('Style','pushbutton','Parent',hF,...
-%         'Position',btnPos,'String','Update',...
-%         'fontsize',12);
-%       FLDINFO = {
-%         'mov' 'Movie' 'integer' 30
-%         'iTgt' 'Target' 'integer' 30
-%         'trajlen' 'Traj. Length' 'integer' 45
-%         'frm1' 'Start Frm' 'integer' 30
-%         'nFrmLbl' '# Frms Lbled' 'integer' 60
-%         'nFrmTrk' '# Frms Trked' 'integer' 60
-%         'nFrmImported' '# Frms Imported' 'integer' 90
-%         'nFrmLblTrk' '# Frms Lbled&Trked' 'integer' 120
-%         'lblTrkMeanErr' 'Track Err' 'float' 60
-%         'nFrmLblImported' '# Frms Lbled&Imported' 'integer'  120
-%         'lblImportedMeanErr' 'Imported Err' 'float' 60
-%         'nFrmXV' '# Frms XV' 'integer' 40
-%         'xvMeanErr' 'XV Err' 'float' 40};
-%       tblfldsassert(tblSumm,FLDINFO(:,1));
-%       nt = NavigationTable(hPnl,[0 0 1 1],...
-%         @(row,rowdata)obj.setMFT(rowdata.mov,rowdata.frm1,rowdata.iTgt),...
-%         'ColumnName',FLDINFO(:,2)',...
-%         'ColumnFormat',FLDINFO(:,3)',...
-%         'ColumnPreferredWidth',cell2mat(FLDINFO(:,4)'));
-% %      jt = nt.jtable;
-%       nt.setData(tblSumm);
-% %      cr.setHorizontalAlignment(javax.swing.JLabel.CENTER);
-% %      h = jt.JTable.getTableHeader;
-% %      h.setPreferredSize(java.awt.Dimension(225,22));
-% %      jt.JTable.repaint;
-% 
-%       hF.UserData = nt;
-%       hBtn.Callback = @(s,e)obj.hlpTargetsTableUIupdate(nt);
-%       hF.Units = 'normalized';
-%       hBtn.Units = 'normalized';
-%       hF.Visible = 'on';
-% 
-%       obj.addDepHandle(hF);
-%     end
     
     % initTrxInfo(obj)
     % read in trx files and store number of targets and start and end
@@ -7584,7 +7522,7 @@ classdef Labeler < handle
     %   ptcolors = obj.mapSetColorsToPointColors(colors);
     %   lc.updateColors(ptcolors);
     %   LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
-    %   obj.controller_.labelTLInfo.updateLandmarkColors();
+    %   obj.notify('updateTimelineLandmarkColors');
     % end
     
     function updateLandmarkPredictionColors(obj,colors,colormapname)
