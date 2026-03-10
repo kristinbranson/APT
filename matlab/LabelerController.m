@@ -496,7 +496,7 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetMovieViewBGsubbed',@(s,e)(obj.cbkMovieViewBGsubbedChanged(s,e)));
       obj.listeners_(end+1) = ...
-        addlistener(labeler,'didSetLblCore',@(src,evt)(obj.didSetLblCore(src, evt)));
+        addlistener(labeler,'didInitLblCore',@(src,evt)(obj.didInitLblCore(src, evt)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'gtIsGTModeChanged',@(s,e)(obj.didSetGTMode())) ;
       obj.listeners_(end+1) = ...
@@ -962,7 +962,7 @@ classdef LabelerController < handle
       tx.String = num2str(nTgtsTot);
     end  % function
 
-    function didSetLblCore(obj, src, evt)  %#ok<INUSD>
+    function didInitLblCore(obj, src, evt)  %#ok<INUSD>
       % Create controller for the new LabelCoreModel, register listeners.
       labeler = obj.labeler_ ;
       lblCore = labeler.lblCore ;

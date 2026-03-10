@@ -51,6 +51,14 @@ classdef LabelCoreSeqMAController < LabelCoreController
       obj.tv_ = TrackingVisualizerMT(obj.labelerController_, tvm) ;
       obj.tv_.vizInit('ntgts', mdl.maxNumTgts_) ;
 
+      % Do this now that obj.tv_ is initialized
+      se = obj.model_.skeletonEdges() ;
+      obj.tv_.initAndUpdateSkeletonEdges(se) ;
+
+      % And this
+      tf = obj.model_.labeler_.showSkeleton ;
+      obj.tv_.setShowSkeleton(tf) ;
+      
       obj.roiInit() ;
 
       lObj.currImHud.updateReadoutFields('hasTgt', true) ;
@@ -686,14 +694,18 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Rebuild skeleton edge handles and update TV.
       updateSkeletonEdges@LabelCoreController(obj, varargin{:}) ;
       se = obj.model_.skeletonEdges() ;
-      obj.tv_.initAndUpdateSkeletonEdges(se) ;
+      if ~isempty(obj.tv_)
+        obj.tv_.initAndUpdateSkeletonEdges(se) ;
+      end
     end  % function
 
     function updateShowSkeleton(obj)
       % Show or hide skeleton edges and update TV.
       updateShowSkeleton@LabelCoreController(obj) ;
-      tf = obj.model_.labeler_.showSkeleton ;
-      obj.tv_.setShowSkeleton(tf) ;
+      if ~isempty(obj.tv_)      
+        tf = obj.model_.labeler_.showSkeleton ;
+        obj.tv_.setShowSkeleton(tf) ;
+      end
     end  % function
 
     function updateColors(obj, colors)

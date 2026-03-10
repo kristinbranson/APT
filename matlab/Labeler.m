@@ -136,7 +136,7 @@ classdef Labeler < handle
     % didSetLabels
     didSetLabelMode
     didSetLastLabelChangeTS
-    didSetLblCore
+    didInitLblCore
 
     gtIsGTModeChanged 
     gtSuggUpdated  % general update occurred of gtSuggMFTable*
@@ -5970,7 +5970,8 @@ classdef Labeler < handle
       if isprop(obj.lblCore,'streamlined') && exist('streamlinedPrev','var')>0
         obj.lblCore.streamlined = streamlinedPrev;
       end
-      
+      obj.notify('didInitLblCore') ;
+
       % labelmode-specific inits
       if dosettemplate && lblmode==LabelMode.TEMPLATE
         obj.labelingInitTemplate();
@@ -13291,10 +13292,9 @@ classdef Labeler < handle
       obj.notify('didSetLastLabelChangeTS') ;
     end
 
-    function set.lblCore(obj, newValue)
-      obj.lblCore = newValue ;
-      obj.notify('didSetLblCore') ;
-    end
+    % function set.lblCore(obj, newValue)
+    %   obj.lblCore = newValue ;
+    % end
 
     % function result = get.trackersAll(obj)
     %   result = obj.trackersAll_ ;
