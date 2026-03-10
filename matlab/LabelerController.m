@@ -7793,6 +7793,9 @@ classdef LabelerController < handle
     function updateCurrImagesAllViews(obj)
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie
+        for iView=1:labeler.nview
+          set(obj.images_all(iView), 'CData', 0) ;
+        end
         return
       end
       for iView=1:labeler.nview
@@ -7801,7 +7804,7 @@ classdef LabelerController < handle
             'CData',labeler.currIm{iView},...
             'XData',currImRoiThisView(1:2),...
             'YData',currImRoiThisView(3:4));
-      end      
+      end
     end  % function
 
     function updatePrevPanelAfterFrameChange(obj)

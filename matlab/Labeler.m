@@ -4824,19 +4824,17 @@ classdef Labeler < handle
       obj.notify('updateFrameTableComplete');
 
       % Set state equivalent to obj.setFrameAndTarget();
-      controller = obj.controller_;
-      imsall = controller.images_all;
       for iView=1:obj.nview
         obj.currIm{iView} = 0;
         obj.currImRoi{iView} = [ 1 1 1 1 ] ;
-        set(imsall(iView),'CData',0);
       end
+      obj.notify('updateCurrImagesAllViews') ;
       obj.prevIm = 0 ;
       obj.prevImRoi = [ 1 1 1 1 ] ;
-      imprev = controller.image_prev;
-      set(imprev,'CData',0);     
       if ~obj.gtIsGTMode
-        obj.clearPrevAxesModeTarget();
+        obj.clearPrevAxesModeTarget() ;  % fires updatePrevPanel
+      else
+        obj.notify('updatePrevPanel') ;
       end
       obj.currTarget = 1;
       obj.currFrame = 1;
