@@ -760,8 +760,6 @@ classdef Labeler < handle
   end
 
   properties (Dependent)
-    gdata  % handles structure for LabelerGUI.  This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
-           % It is no longer used by the Labeler internally.
     silent
   end
 
@@ -1493,10 +1491,6 @@ classdef Labeler < handle
 
     function v = get.currMovIdx(obj)
       v = MovieIndex(obj.currMovie,obj.gtIsGTMode);
-    end
-
-    function v = get.gdata(obj)
-      v = obj.controller_ ;
     end
 
     function v = get.hFig(obj)
