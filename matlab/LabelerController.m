@@ -6677,7 +6677,7 @@ classdef LabelerController < handle
         end
       end
       
-      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler) ;
+      [tPrm, was_canceled, do_update] = APTParameters.autosetparamsGUI(tPrm, labeler, obj.mainFigure_) ;
       if was_canceled
         did_update = false ;
         return

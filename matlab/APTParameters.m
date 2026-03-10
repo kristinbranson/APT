@@ -592,7 +592,7 @@ classdef APTParameters
     end
     
     function [tPrm,canceled,do_update] = ...
-        autosetparamsGUI(tPrm,lobj)
+        autosetparamsGUI(tPrm,lobj,mainFigure)
       
       silent = lobj.silent ;
       
@@ -697,7 +697,7 @@ classdef APTParameters
           if default || silent
             res = 'Update';
           else
-            res = APTParameters.raiseAcceptAutoParamsDialog(dstr,lobj.hFig);
+            res = APTParameters.raiseAcceptAutoParamsDialog(dstr,mainFigure);
           end
         else
           res = 'Do not update';
