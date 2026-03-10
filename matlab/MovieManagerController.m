@@ -147,11 +147,13 @@ classdef MovieManagerController < handle
         if numel(rows) ~= 1,
           obj.tblMovieSet.Data = cell(0,1);
           gdata.labelSet.Text = '';
+          obj.labeler.moviesSelected = obj.getSelectedMovies() ;
           return;
         end
         obj.tblMovieSet.Data = obj.labeler.movieFilesAllGTaware(rows,:)';
         gdata.labelSet.Text = sprintf('Selected set %d',rows);
-      end      
+      end
+      obj.labeler.moviesSelected = obj.getSelectedMovies() ;
       obj.notify('tableClicked');
       % iMov = obj.getSelectedMoviesTblMovies();
       % if ~isempty(iMov)
@@ -331,6 +333,7 @@ classdef MovieManagerController < handle
     end
     
     function setSelectedMovie(obj,iMov)
+      % Set the selected movie in the table and update the Labeler.
       if ~obj.labeler.isinit,
         return;
       end
@@ -344,6 +347,7 @@ classdef MovieManagerController < handle
       else
         obj.tblMovies.Selection = [iMov,1];
       end
+      obj.labeler.moviesSelected = obj.getSelectedMovies() ;
       % todo update movieset table
     end
 

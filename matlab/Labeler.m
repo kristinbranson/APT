@@ -380,6 +380,7 @@ classdef Labeler < handle
     % I don't see where either of these are ever changed -- ALT, 2023-05-14
     movieCenterOnTargetLandmark = false  % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []  % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
+    moviesSelected_ = []  % [nSel] vector of movie indices currently selected in MovieManager. Set by MovieManagerController.
   end
 
   properties
@@ -1196,28 +1197,14 @@ classdef Labeler < handle
 %       mr.close();
     end    
     
-    function v = get.moviesSelected(obj) %#%GUIREQ
+    function v = get.moviesSelected(obj)
       % Get the currently selected movies.
+      v = obj.moviesSelected_ ;
+    end  % function
 
-      % Need to restructure code s.t. the MovieManagerController sets an instance
-      % variable in Labeler when the selected movies changes.  Then this function
-      % will return the value of that instance variable.  Having the Labeller touch
-      % a controller (other than via notify()) breaks the view-independence of the
-      % Labeler.
-      
-      if ~obj.isinit,
-        v = [];
-        return;
-      end
-      
-      mmc = obj.controller_.movieManagerController_ ;  % suboptimal to have to touch obj.controller_, which is deprecated
-      if ~isempty(mmc) && isvalid(mmc)
-        v = mmc.getSelectedMovies();
-      else
-        v = [] ;
-        % error('Labeler:getMoviesSelected',...
-        %            'Cannot access Movie Manager. Make sure your desired movies are selected in the Movie Manager.');
-      end
+    function set.moviesSelected(obj, v)
+      % Set the currently selected movies.
+      obj.moviesSelected_ = v ;
     end  % function
 
     function v = get.hasTrx(obj)
