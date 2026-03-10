@@ -46,9 +46,7 @@ classdef ParameterVisualizationTgtCropRadius < ParameterVisualization
         trx = lObj.currTrx;
         [obj.xTrx,obj.yTrx] = readtrx(trx,frm,1);
         obj.xyLbl = [];
-        gdata = lObj.controller_;
-        im = gdata.image_curr;
-        im = im.CData;
+        im = lObj.currIm{1};
         tstr = 'Movie images will be cropped as shown for tracking';
       elseif lObj.maIsMA
         [tffound,mIdx,frm,~,xyLbl] = lObj.labelFindOneLabeledFrame(); %#ok<PROPLC>
