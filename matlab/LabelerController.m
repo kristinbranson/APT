@@ -5652,7 +5652,7 @@ classdef LabelerController < handle
     function menu_go_targets_summary_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if labeler.maIsMA
-        TrkInfoUI(labeler);
+        TrkInfoUI(obj, labeler);
       else
         obj.raiseTargetsTableFigure_();
       end

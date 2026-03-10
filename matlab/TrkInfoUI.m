@@ -1,9 +1,9 @@
-function TrkInfoUI(lobj)
+function TrkInfoUI(controller, lobj)
 
 assert(lobj.maIsMA,'UI is functional only for multi-animal projects');
 f = findall(groot(),'tag','TrkInfoUI');
 if isempty(f)
-  init_figure(lobj);
+  init_figure(controller, lobj);
 else
   figure(f);
   h = guidata(f);
@@ -12,18 +12,20 @@ else
     h.mov_tbl.Selection = [curmov 1];
     h.curmov = curmov;
     h.lobj = lobj;
+    h.controller = controller;
     guidata(f,h);
     update_movie(f);
   end
 end
-end
+end  % function
 
-function f = init_figure(lobj)
+function f = init_figure(controller, lobj)
 
 f = uifigure('Units','pixel','Position',[250,250,1000,800],...
              'tag','TrkInfoUI','Name','Track Info');
 h = guidata(f);
 h.lobj = lobj;
+h.controller = controller;
 h.fig = f;
 
 curmov = lobj.currMovie;
@@ -248,7 +250,7 @@ tvm = lobj.tracker.trkVizer ;
 if ~isempty(tvm)
   tvm.setSelectedTracklet(tgt) ;
 end
-tv = lobj.controller_.tvTrkPred_ ;
+tv = h.controller.tvTrkPred_ ;
 if ~isempty(tv)
   tv.centerPrimary() ;
 end
@@ -257,8 +259,7 @@ guidata(h.fig,h);
 end
 
 function centerPrimary(h)
-lobj = h.lobj;
-tv = lobj.controller_.tvTrkPred_ ;
+tv = h.controller.tvTrkPred_ ;
 if ~isempty(tv)
   tv.centerPrimary() ;
 end
