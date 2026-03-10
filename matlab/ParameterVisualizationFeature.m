@@ -83,11 +83,10 @@ classdef ParameterVisualizationFeature < ParameterVisualization
       
       % Get the image for the labeled frame, ie (mIdx,frm,iTgt)
       if lObj.currMovIdx==mIdx && lObj.currFrame==frm
-        gdata = lObj.controller_;
-        im = gdata.image_curr;
-        imxdata = im.XData;
-        imydata = im.YData;
-        im = im.CData;
+        imroi = lObj.currImRoi{1};
+        imxdata = imroi([1 2]);
+        imydata = imroi([3 4]);
+        im = lObj.currIm{1};
       else
         IVIEW = 1;
         if lObj.currMovIdx==mIdx
