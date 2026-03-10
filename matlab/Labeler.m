@@ -205,6 +205,7 @@ classdef Labeler < handle
     updatePredictionCosmetics
     updatePredictionColors
     updatePredictionSkeletonCosmetics
+    updateAxesCLim
   end
   
   %% Project
@@ -4671,13 +4672,13 @@ classdef Labeler < handle
         cmax_auto(iView) = GuessImageMaxValue(im);
         if numel(obj.cmax_auto) >= iView && cmax_auto(iView) == obj.cmax_auto(iView) && ...
             size(obj.clim_manual,1) >= iView && all(~isnan(obj.clim_manual(iView,:))),
-          set(obj.controller_.axes_all(iView),'CLim',obj.clim_manual(iView,:));
+          % keep existing clim_manual
         else
           obj.clim_manual(iView,:) = nan;
           obj.cmax_auto(iView) = cmax_auto(iView);
-          set(obj.controller_.axes_all(iView),'CLim',[0,cmax_auto(iView)]);
         end
       end
+      obj.notify('updateAxesCLim') ;
       
       isInitOrig = obj.isinit;
       obj.isinit = true; % Initialization hell, invariants momentarily broken

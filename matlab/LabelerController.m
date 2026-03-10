@@ -562,6 +562,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updatePredictionSkeletonCosmetics', @(s,e)(obj.updatePredictionSkeletonCosmetics())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updateAxesCLim', @(s,e)(obj.updateAxesCLim())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanelAfterFrameChange',@(s,e)(obj.updatePrevPanelAfterFrameChange())) ;
@@ -6516,6 +6518,18 @@ classdef LabelerController < handle
       tv = obj.tvTrkPred_ ;
       if ~isempty(tv)
         tv.skeletonCosmeticsUpdated() ;
+      end
+    end  % function
+
+    function updateAxesCLim(obj)
+      % Set CLim on each axes from the model's clim_manual and cmax_auto.
+      labeler = obj.labeler_ ;
+      for iView = 1:labeler.nview
+        if size(labeler.clim_manual, 1) >= iView && all(~isnan(labeler.clim_manual(iView,:)))
+          set(obj.axes_all(iView), 'CLim', labeler.clim_manual(iView,:)) ;
+        else
+          set(obj.axes_all(iView), 'CLim', [0, labeler.cmax_auto(iView)]) ;
+        end
       end
     end  % function
 
