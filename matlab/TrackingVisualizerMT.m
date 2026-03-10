@@ -689,7 +689,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       obj.parent_ = parent ;
       obj.tvm_ = tvm ;
       lObj = parent.labeler_ ;
-      gd = lObj.gdata;
+      gd = lObj.controller_;
       obj.hAxs = gd.axes_all;
       obj.hIms = gd.images_all;
     end

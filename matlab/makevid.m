@@ -7,7 +7,7 @@ v.FrameRate = framerate;
 v.Quality = 95;
 open(v);
 lobj.setFrameGUI(frms(1));
-ax_h = get(lobj.gdata.images_all(1),'Parent');
+ax_h = get(lobj.controller_.images_all(1),'Parent');
 x_lim = ax_h.XLim;
 y_lim = ax_h.YLim;
 for k = frms(:)'

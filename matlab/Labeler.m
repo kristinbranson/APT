@@ -4718,10 +4718,10 @@ classdef Labeler < handle
         end
 
         for i = 1:obj.nview,
-          ud = obj.gdata.axes_all(i).UserData;
+          ud = obj.controller_.axes_all(i).UserData;
           if isstruct(ud) && isfield(ud,'gamma') && ~isempty(ud.gamma),
             gam = ud.gamma;
-            ViewConfig.applyGammaCorrection(obj.gdata.images_all,obj.gdata.axes_all,obj.gdata.axes_prev,i,gam);
+            ViewConfig.applyGammaCorrection(obj.controller_.images_all,obj.controller_.axes_all,obj.controller_.axes_prev,i,gam);
           end
         end
 

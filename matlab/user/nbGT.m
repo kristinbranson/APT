@@ -182,7 +182,7 @@ for iRes=1:nRes
 end
 %%
 assert(exist('lObj','var')>0);
-axAll = lObj.gdata.axes_all;
+axAll = lObj.controller_.axes_all;
 if exist('hLine','var')>0
   deleteValidGraphicsHandles(hLine);
 end

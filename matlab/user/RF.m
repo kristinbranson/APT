@@ -462,7 +462,7 @@ classdef RF
     end
     
     function hLine = addLinesToLabelerAxis(lObj)
-      ax = lObj.gdata.axes_curr;
+      ax = lObj.controller_.axes_curr;
       if isfield(ax.UserData,'hLine')
         deleteValidGraphicsHandles(ax.UserData.hLine);
       end

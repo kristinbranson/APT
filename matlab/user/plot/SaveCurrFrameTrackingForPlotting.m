@@ -18,9 +18,9 @@ currImRoi = zeros(4,nViews);
 
 for iView = 1:nViews,
   
-  currIm{iView} = get(lObj.gdata.images_all(iView),'CData');
-  currImRoi(1:2,iView) = get(lObj.gdata.images_all(iView),'XData');
-  currImRoi(3:4,iView) = get(lObj.gdata.images_all(iView),'YData');
+  currIm{iView} = get(lObj.controller_.images_all(iView),'CData');
+  currImRoi(1:2,iView) = get(lObj.controller_.images_all(iView),'XData');
+  currImRoi(3:4,iView) = get(lObj.controller_.images_all(iView),'YData');
   
 end
 
@@ -63,8 +63,8 @@ imPropNames = {'XData','YData'};
 imProps = cell(1,nViews);
 axProps = cell(1,nViews);
 for i = 1:nViews,
-  axProps{i} = get(lObj.gdata.axes_all(i),axPropNames);
-  imProps{i} = get(lObj.gdata.images_all(i),imPropNames);
+  axProps{i} = get(lObj.controller_.axes_all(i),axPropNames);
+  imProps{i} = get(lObj.controller_.images_all(i),imPropNames);
 end
 
 if nargin < 2,

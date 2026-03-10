@@ -601,10 +601,10 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       tfKPused = true;
 
       % shortcuts in main figure will be handled by menu items themselves
-      if src == lObj.gdata.mainFigure_,
+      if src == lObj.controller_.mainFigure_,
         match = [];
       else
-        match = lObj.gdata.matchShortcut(evt);
+        match = lObj.controller_.matchShortcut(evt);
       end
 
       if strcmp(key,'space')
@@ -719,11 +719,11 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       elseif ~isempty(match),
         for i = 1:size(match,1),
           tag = match{i,1};
-          cb = lObj.gdata.(tag).Callback;
+          cb = lObj.controller_.(tag).Callback;
           if ischar(cb),
             eval(cb);
           else
-            cb(lObj.gdata.(tag),evt);
+            cb(lObj.controller_.(tag),evt);
           end
         end
 
@@ -987,7 +987,7 @@ classdef LabelCoreMultiViewCalibrated2 < LabelCore
       hLEpi = gobjects(obj.nView, obj.nView);
       hLRcn = gobjects(1,obj.nView);
       ppimvcm = obj.ptsPlotInfo.MultiViewCalibratedMode;
-      gdata = obj.labeler.gdata;
+      gdata = obj.labeler.controller_;
       for iV = 1:obj.nView
         ax = gdata.axes_all(iV);        
         

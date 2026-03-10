@@ -421,9 +421,9 @@ classdef LabelCoreTemplate < LabelCore
       % Hack iss#58. Ensure focus is not on slider_frame. In practice this
       % callback is called before slider_frame_Callback when slider_frame
       % has focus.
-      txStatus = lObj.gdata.txStatus;
+      txStatus = lObj.controller_.txStatus;
       if src~=txStatus % protect against repeated kpfs (eg scrolling vid)
-        uicontrol(lObj.gdata.txStatus);
+        uicontrol(lObj.controller_.txStatus);
       end
 
       if any(strcmp(key,{'s' 'space'})) && ~tfCtrl

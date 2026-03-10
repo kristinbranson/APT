@@ -197,9 +197,9 @@ classdef LabelCore < handle
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));      
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-      gdata = obj.labeler.gdata;
+      gdata = obj.labeler.controller_;
       set(gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
-      
+
       set(gdata.tbAccept,'Enable','on');
       set(gdata.pbClear,'Enable','on');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',false);

@@ -71,7 +71,7 @@ classdef TrackingVisualizerTrx < handle
         obj.trxClickable = true;
       end
       
-      ax = lObj.gdata.axes_curr;
+      ax = lObj.controller_.axes_curr;
       pref = lObj.projPrefs.Trx;
       for i = 1:nTrx        
         obj.hTraj(i,1) = line(...
