@@ -107,7 +107,7 @@ classdef LabelCoreHT < LabelCore
       
       set(obj.hPts,'HitTest','off');
       set(obj.hPtsTxt,'PickableParts','none');
-      set(obj.labeler.controller_.tbAccept,'Enable','off');
+      set(obj.controller.tbAccept,'Enable','off');
       obj.labeler.currImHud.updateReadoutFields('hasLblPt',true);
 
       obj.setIPoint(1);
@@ -485,7 +485,7 @@ classdef LabelCoreHT < LabelCore
     end
     
     function setupIPointContextMenu(obj)
-      c = uicontextmenu(obj.labeler.controller_.mainFigure_);
+      c = uicontextmenu(obj.controller.mainFigure_);
       hPt = obj.hPts(obj.iPoint);
       hPt.UIContextMenu = c;
       uimenu(c,'Label','Accept point for current frame',...

@@ -197,7 +197,7 @@ classdef LabelCore < handle
             
       set(obj.hAx,'ButtonDownFcn',@(s,e)obj.axBDF(s,e));      
       arrayfun(@(x)set(x,'HitTest','on','ButtonDownFcn',@(s,e)obj.ptBDF(s,e)),obj.hPts);
-      gdata = obj.labeler.controller_;
+      gdata = obj.controller;
       set(gdata.uipanel_curr,'ButtonDownFcn',@(s,e)obj.pnlBDF(s,e));
 
       set(gdata.tbAccept,'Enable','on');

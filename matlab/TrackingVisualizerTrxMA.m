@@ -73,7 +73,7 @@ classdef TrackingVisualizerTrxMA < handle
       tvm.trxClickable = true ;
       clrsT = obj.setColors(nTrx);
 
-      ax = lObj.controller_.axes_curr;
+      ax = obj.parent_.axes_curr;
       pref = lObj.projPrefs.Trx;
       for i = 1:nTrx
         clr = clrsT(i,:);
