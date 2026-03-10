@@ -86,7 +86,7 @@ classdef TrackingVisualizerMTFast < TrackingVisualizerBase
       tvm.skelEdges = lObj.skeletonEdges ;
 
       npts = tvm.nPts ;
-      ptclrs = lObj.Set2PointColors(pppi.Colors);
+      ptclrs = lObj.mapSetColorsToPointColors(pppi.Colors);
       szassert(ptclrs,[npts 3]);
 
       [markerPVs,~,~,skelPVs] = TrackingVisualizerMTFast.convertLabelerCosmeticPVs(pppi);

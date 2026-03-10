@@ -3577,7 +3577,7 @@ classdef DeepTracker < LabelTracker
     function updateLandmarkColors(obj)
       % Update landmark colors.  Sets on TVM; controller forwards to TV.
       ptsClrs = obj.lObj.predPointsPlotInfo.Colors ;
-      ptsClrs = obj.lObj.Set2PointColors(ptsClrs) ;
+      ptsClrs = obj.lObj.mapSetColorsToPointColors(ptsClrs) ;
       if ~isempty(obj.trkVizer) && isprop(obj.trkVizer, 'ptClrs')
         obj.trkVizer.ptClrs = ptsClrs ;
       end

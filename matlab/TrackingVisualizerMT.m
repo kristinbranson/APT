@@ -211,7 +211,7 @@ classdef TrackingVisualizerMT < TrackingVisualizerBase
       if postload
         ptclrs = tvm.ptClrs ;
       else
-        ptclrs = lObj.Set2PointColors(pppi.Colors);
+        ptclrs = lObj.mapSetColorsToPointColors(pppi.Colors);
         tvm.ptClrs = ptclrs ;
         tvm.txtOffPx = pppi.TextOffset ;
       end

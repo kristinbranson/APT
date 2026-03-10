@@ -558,6 +558,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler, 'updatePredictionCosmetics', @(s,e)(obj.updatePredictionCosmetics())) ;
       obj.listeners_(end+1) = ...
+        addlistener(labeler, 'updatePredictionColors', @(s,e)(obj.updatePredictionColors())) ;
+      obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateCurrImagesAllViews',@(s,e)(obj.updateCurrImagesAllViews())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePrevPanelAfterFrameChange',@(s,e)(obj.updatePrevPanelAfterFrameChange())) ;
@@ -6493,9 +6495,19 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function updatePredictionColors(obj)
+      % Update the prediction TV landmark colors from model state.
+      tv = obj.tvTrkPred_ ;
+      if ~isempty(tv)
+        labeler = obj.labeler_ ;
+        ptsClrs = labeler.mapSetColorsToPointColors(labeler.predPointsPlotInfo.Colors) ;
+        tv.updateLandmarkColors(ptsClrs) ;
+      end
+    end  % function
+
     function deleteSpashScreenFigureIfItExists_(obj)
       hfigsplash = obj.splashScreenFigureOrEmpty_ ;
-      if isempty(hfigsplash) || ~ishghandle(hfigsplash) 
+      if isempty(hfigsplash) || ~ishghandle(hfigsplash)
         obj.splashScreenFigureOrEmpty_ = [] ;
         return
       end

@@ -203,6 +203,7 @@ classdef Labeler < handle
                       % LabelerController should create/destroy the TV
     didSetSelectedTracklet  % fired when trkVizer.currTrklet changes
     updatePredictionCosmetics
+    updatePredictionColors
   end
   
   %% Project
@@ -7591,7 +7592,7 @@ classdef Labeler < handle
     % 
     %   obj.labelPointsPlotInfo.ColorMapName = colormapname;
     %   obj.labelPointsPlotInfo.Colors = colors;
-    %   ptcolors = obj.Set2PointColors(colors);
+    %   ptcolors = obj.mapSetColorsToPointColors(colors);
     %   lc.updateColors(ptcolors);
     %   LabelCore.setPtsColor(obj.lblPrev_ptsH,obj.lblPrev_ptsTxtH,ptcolors);
     %   obj.controller_.labelTLInfo.updateLandmarkColors();
@@ -7606,14 +7607,7 @@ classdef Labeler < handle
       obj.predPointsPlotInfo.Colors = colors;
       obj.predPointsPlotInfo.ColorMapName = colormapname;
       cellfun(@(t)(t.updateLandmarkColors()), obj.trackerHistory_ ) ;
-      % Forward to TV
-      if ~isempty(obj.controller_)
-        tv = obj.controller_.tvTrkPred_ ;
-        if ~isempty(tv)
-          ptsClrs = obj.Set2PointColors(colors) ;
-          tv.updateLandmarkColors(ptsClrs) ;
-        end
-      end
+      obj.notify('updatePredictionColors') ;
     end
     
     function updateLandmarkImportedColors(obj,colors,colormapname)
@@ -12941,19 +12935,19 @@ classdef Labeler < handle
   
   methods
     
-    function colors = Set2PointColors(obj,colors)
+    function colors = mapSetColorsToPointColors(obj,colors)
       colors = colors(obj.labeledposIPt2Set,:);
     end
     
     function colors = LabelPointColors(obj,idx)
-      colors = obj.Set2PointColors(obj.labelPointsPlotInfo.Colors);
+      colors = obj.mapSetColorsToPointColors(obj.labelPointsPlotInfo.Colors);
       if nargin > 1,
         colors = colors(idx,:);
       end      
     end
     
     function colors = PredictPointColors(obj)
-      colors = obj.Set2PointColors(obj.predPointsPlotInfo.Colors);
+      colors = obj.mapSetColorsToPointColors(obj.predPointsPlotInfo.Colors);
     end
     
   end
