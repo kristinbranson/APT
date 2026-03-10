@@ -2,8 +2,9 @@ classdef TrackingVisualizerTrx < handle
   % shows a trx/centroid marker, text label, trajectory traces
   
   properties
-    lObj
-    
+    parent_  % scalar LabelerController
+    lObj  % scalar Labeler, derived from parent_.labeler_
+
     hTraj;                    % nTrx x 1 vector of line handles
     hTrx;                     % nTrx x 1 vector of line handles
     hTrxTxt;                  % nTrx x 1 vector of text handles
@@ -26,7 +27,9 @@ classdef TrackingVisualizerTrx < handle
       
   methods
     
-    function obj = TrackingVisualizerTrx(labeler)
+    function obj = TrackingVisualizerTrx(labelerController, labeler)
+      % Construct a TrackingVisualizerTrx.
+      obj.parent_ = labelerController;
       obj.lObj = labeler;
     end
     function delete(obj)
@@ -50,7 +53,7 @@ classdef TrackingVisualizerTrx < handle
       obj.deleteGfxHandles();
       
       lObj = obj.lObj; %#ok<*PROPLC>
-              
+
       deleteValidGraphicsHandles(obj.hTraj);
       deleteValidGraphicsHandles(obj.hTrx);
       deleteValidGraphicsHandles(obj.hTrxTxt);
@@ -71,7 +74,7 @@ classdef TrackingVisualizerTrx < handle
         obj.trxClickable = true;
       end
       
-      ax = lObj.controller_.axes_curr;
+      ax = obj.parent_.axes_curr;
       pref = lObj.projPrefs.Trx;
       for i = 1:nTrx        
         obj.hTraj(i,1) = line(...
