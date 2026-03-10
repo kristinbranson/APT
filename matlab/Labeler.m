@@ -4165,10 +4165,10 @@ classdef Labeler < handle
         for iView=1:obj.nview
           ifos{iView}.nframes = nFrms;
         end
-      else
-        nFrms = nFrms(1);
+      % else
+      %   nFrms = nFrms(1);
       end
-      nTgt = 1;
+      % nTgt = 1;
       
       nLblPts = obj.nLabelPoints;
       obj.(PROPS.MFA)(end+1,:) = moviefiles(:)';
