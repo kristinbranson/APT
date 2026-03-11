@@ -78,6 +78,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
         addlistener(mdl, 'updateAccepted',       @(s,e)obj.onUpdateAccepted()) ; ...
         addlistener(mdl, 'updateAcceptedReset',   @(s,e)obj.onUpdateAcceptedReset()) ; ...
         addlistener(mdl, 'updateBeginLabel',     @(s,e)obj.onUpdateBeginLabel()) ; ...
+        addlistener(mdl, 'restoreVideoAxis',   @(s,e)obj.onRestoreVideoAxis()) ; ...
       ] ;
     end  % function
 
@@ -147,6 +148,12 @@ classdef LabelCoreSeqMAController < LabelCoreController
 
     function onUpdateAcceptedReset(obj) %#ok<MANU>
       % Respond to beginAcceptedReset. Currently handled by onUpdateState.
+    end  % function
+
+    function onRestoreVideoAxis(obj)
+      % Restore video axis after two-click align.
+      mdl = obj.model_ ;
+      obj.labelerController_.videoSetAxis(mdl.tc_prev_axis_) ;
     end  % function
 
     function onUpdateBeginLabel(obj)

@@ -75,6 +75,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
     updateAccepted          % entering accepted state
     updateAcceptedReset     % entering accepted state with reset
     updateBeginLabel        % entering label state
+    restoreVideoAxis        % restore video axis after two-click align
   end
 
   methods
@@ -198,7 +199,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.clearSelected() ;
       obj.tcInit() ;
       if obj.tcOn_ && ~isempty(obj.tc_prev_axis_)
-        obj.labeler_.controller_.videoSetAxis(obj.tc_prev_axis_) ;
+        obj.notify('restoreVideoAxis') ;
         obj.tc_prev_axis_ = [] ;
       end
       obj.state_ = LabelState.ACCEPTED ;
@@ -210,7 +211,7 @@ classdef LabelCoreSeqMAModel < LabelCoreModel
       obj.resetState() ;
       obj.tcInit() ;
       if obj.tcOn_ && ~isempty(obj.tc_prev_axis_)
-        obj.labeler_.controller_.videoSetAxis(obj.tc_prev_axis_) ;
+        obj.notify('restoreVideoAxis') ;
         obj.tc_prev_axis_ = [] ;
       end
       obj.state_ = LabelState.ACCEPTED ;
