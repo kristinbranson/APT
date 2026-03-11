@@ -459,11 +459,12 @@ classdef MovieManagerController < handle
       selRow = obj.getSelectedMovies();
       selRow = sort(selRow);
       n = numel(selRow);
-      lObj = obj.labeler;
+      % lObj = obj.labeler;
+      labelerController = obj.parent_ ;
       for i = n:-1:1
         row = selRow(i);
         try
-          tfSucc = lObj.movieRmGUI(row);
+          tfSucc = labelerController.movieRmGUI(row);
         catch ME,
           uiwait(errordlg(getReport(ME,'basic','hyperlinks','off'),'Error removing movie'));
           break;
@@ -473,7 +474,7 @@ classdef MovieManagerController < handle
           break;
         end
       end
-    end
+    end  % function
     
   end  % methods (Hidden)
   

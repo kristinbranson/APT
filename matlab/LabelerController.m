@@ -4751,6 +4751,66 @@ classdef LabelerController < handle
 
     end
 
+    function tfSucc = movieRmGUI(obj, iMov, varargin)
+      % Remove movie, prompting user if movie has labels.
+      % tfSucc: true if movie removed, false otherwise.
+
+      labeler = obj.labeler_ ;
+
+      [force, gt] = myparse(varargin, ...
+        'force', false, ... % if true, don't prompt even if mov has labels
+        'gt', labeler.gtIsGTMode ...
+        ) ;
+
+      assert(isscalar(iMov)) ;
+
+      nMovOrig = labeler.getnmoviesGTawareArg(gt) ;
+      assert(any(iMov==1:nMovOrig), 'Invalid movie index ''%d''.', iMov) ;
+      if iMov==labeler.currMovie
+        error('Labeler:movieRm', 'Cannot remove current movie.') ;
+      end
+
+      tfProceedRm = true ;
+      haslbls1 = labeler.labelPosMovieHasLabels(iMov, 'gt', gt) ; % TODO: method should be unnec
+      haslbls2 = labeler.getMovieFilesAllHaveLblsArg(gt) ;
+      haslbls2 = haslbls2(iMov)>0 ;
+      assert(haslbls1==haslbls2) ;
+      if haslbls1 && ~labeler.movieDontAskRmMovieWithLabels && ~force
+        str = sprintf('Movie index %d has labels. Are you sure you want to remove?', iMov) ;
+        BTN_NO = 'No, cancel' ;
+        BTN_YES = 'Yes' ;
+        BTN_YES_DAA = 'Yes, don''t ask again' ;
+        btn = questdlg(str, 'Movie has labels', BTN_NO, BTN_YES, BTN_YES_DAA, BTN_NO) ;
+        if isempty(btn)
+          btn = BTN_NO ;
+        end
+        switch btn
+          case BTN_NO
+            tfProceedRm = false ;
+          case BTN_YES
+            % none; proceed
+          case BTN_YES_DAA
+            labeler.movieDontAskRmMovieWithLabels = true ;
+        end
+      end
+
+      if tfProceedRm
+        labeler.movieRm(iMov, 'gt', gt) ;
+      end
+
+      tfSucc = tfProceedRm ;
+    end
+
+    function movieRmAllGUI(obj)
+      % Remove all movies, prompting user if movies have labels.
+      labeler = obj.labeler_ ;
+      nmov = labeler.nmoviesGTaware ;
+      labeler.movieSetNoMovie() ;
+      for imov=1:nmov
+        obj.movieRmGUI(1, 'force', true) ;
+      end
+    end
+
     function menu_file_import_labels_trk_curr_mov_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
       if ~labeler.hasMovie

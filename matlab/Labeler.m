@@ -3811,67 +3811,6 @@ classdef Labeler < handle
       end        
     end  % function
 
-    % function rereadMovieInfo(obj, updatetrackers)
-    %   % there was a bug in ufmf movie info, reread all movie info
-    %   % also updates the json file for each trained tracker
-    %   mr = MovieReader();
-    %   for isgt = [false,true],
-    %     if isgt,
-    %       movfiles = obj.movieFilesAllGTFull;
-    %     else
-    %       movfiles = obj.movieFilesAllFull;
-    %     end
-    %     nMov = numel(movfiles);
-    %     for iMov = 1:nMov
-    %       movfile = movfiles{iMov};
-    %       mr.open(movfile);
-    %       ifo = struct();
-    %       ifo.nframes = mr.nframes;
-    %       ifo.info = mr.info;
-    %       mr.close();
-    %       fprintf('Before update, movie %d info: \n',iMov);
-    %       if isgt,
-    %         disp(obj.movieInfoAllGT{iMov}.info);
-    %         obj.movieInfoAllGT{iMov} = ifo;
-    %       else
-    %         disp(obj.movieInfoAll{iMov}.info);
-    %         obj.movieInfoAll{iMov} = ifo;
-    %       end
-    %       fprintf('updated to: \n');
-    %       disp(ifo.info);
-    %     end
-    %   end
-    % 
-    %   istracker = cellfun(@(x) ~isempty(x) && x.canTrack, obj.trackerHistory);
-    %   if any(istracker),
-    %     if nargin < 2,
-    %       res = questdlg('Update trackers too?','Update trackers?','Yes','No','Yes');
-    %       updatetrackers = strcmpi(res,'Yes');
-    %     end
-    %     if updatetrackers,
-    % 
-    %       mia = cellfun(@(x)struct('NumRows',x.info.nr,...
-    %         'NumCols',x.info.nc),obj.movieInfoAll);
-    %       for ivw=1:size(mia,2)
-    %         nr = [mia(:,ivw).NumRows];
-    %         nc = [mia(:,ivw).NumCols];
-    %         assert(all(nr==nr(1) & nc==nc(1)),'Inconsistent movie dimensions for view %d',ivw);
-    %       end
-    % 
-    %       for i = find(istracker(:)'),
-    %         dmc = obj.trackerHistory{i}.trnLastDMC;
-    %         nativeTrainConfig = DeepModelChainOnDisk.getCheckSingle(dmc.trainConfigLnx());  % native path
-    %         trainConfig = wsl_path_from_native(nativeTrainConfig) ;
-    %         if exist(trainConfig,'file')
-    %           js = TrnPack.hlpLoadJson(trainConfig);
-    %           js.MovieInfo = mia(1,:);
-    %           TrnPack.hlpSaveJson(js,trainConfig);
-    %         end
-    %       end
-    %     end
-    %   end
-    % end  % function
-
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
@@ -4265,125 +4204,102 @@ classdef Labeler < handle
 %       end
 %     end
 
-    function tfSucc = movieRmGUI(obj,iMov,varargin)
-      % tfSucc: true if movie removed, false otherwise
-      
-      [force,gt] = myparse(varargin,...
-        'force',false,... % if true, don't prompt even if mov has labels
+    function movieRm(obj, iMov, varargin)
+      % Remove movie without GUI prompts.
+
+      [gt] = myparse(varargin,...
         'gt',obj.gtIsGTMode ...
         );
-      
+
       assert(isscalar(iMov));
-      
+
       nMovOrig = obj.getnmoviesGTawareArg(gt);
       assert(any(iMov==1:nMovOrig),'Invalid movie index ''%d''.',iMov);
       if iMov==obj.currMovie
         error('Labeler:movieRm','Cannot remove current movie.');
       end
-      
-      tfProceedRm = true;
-      haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
-      haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
-      haslbls2 = haslbls2(iMov)>0;
-      assert(haslbls1==haslbls2);
-      if haslbls1 && ~obj.movieDontAskRmMovieWithLabels && ~force
-        str = sprintf('Movie index %d has labels. Are you sure you want to remove?',iMov);
-        BTN_NO = 'No, cancel';
-        BTN_YES = 'Yes';
-        BTN_YES_DAA = 'Yes, don''t ask again';
-        btn = questdlg(str,'Movie has labels',BTN_NO,BTN_YES,BTN_YES_DAA,BTN_NO);
-        if isempty(btn)
-          btn = BTN_NO;
-        end
-        switch btn
-          case BTN_NO
-            tfProceedRm = false;
-          case BTN_YES
-            % none; proceed
-          case BTN_YES_DAA
-            obj.movieDontAskRmMovieWithLabels = true;
-        end
-      end
-      
+
+      % haslbls1 = obj.labelPosMovieHasLabels(iMov,'gt',gt); % TODO: method should be unnec
+      % haslbls2 = obj.getMovieFilesAllHaveLblsArg(gt);
+      % haslbls2 = haslbls2(iMov)>0;
+      % assert(haslbls1==haslbls2);
+
       obj.pushBusyStatus('Removing movie...') ;
       oc = onCleanup(@()(obj.popBusyStatus())) ;
-      
-      if tfProceedRm
-        PROPS = Labeler.gtGetSharedPropsStc(gt);
-        nMovOrigReg = obj.nmovies;
-        nMovOrigGT = obj.nmoviesGT;
 
-        if gt
-          movIdx = MovieIndex(-iMov);
-          movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov)>0;
-        else
-          movIdx = MovieIndex(iMov);
-          movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov)>0;
-        end
+      PROPS = Labeler.gtGetSharedPropsStc(gt);
+      nMovOrigReg = obj.nmovies;
+      nMovOrigGT = obj.nmoviesGT;
 
-        obj.(PROPS.MFA)(iMov,:) = [];
-        obj.(PROPS.MFAHL)(iMov,:) = [];
-        obj.(PROPS.MIA)(iMov,:) = [];
-        obj.(PROPS.MFACI)(iMov,:) = [];
-        obj.(PROPS.MFALUT)(iMov,:) = [];        
-        obj.(PROPS.TFA)(iMov,:) = [];
-        obj.(PROPS.TIA)(iMov,:) = [];
-        
-        tfOrig = obj.isinit;
-        obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
+      if gt
+        movIdx = MovieIndex(-iMov);
+        movIdxHasLbls = obj.movieFilesAllGTHaveLbls(iMov)>0;
+      else
+        movIdx = MovieIndex(iMov);
+        movIdxHasLbls = obj.movieFilesAllHaveLbls(iMov)>0;
+      end
+
+      obj.(PROPS.MFA)(iMov,:) = [];
+      obj.(PROPS.MFAHL)(iMov,:) = [];
+      obj.(PROPS.MIA)(iMov,:) = [];
+      obj.(PROPS.MFACI)(iMov,:) = [];
+      obj.(PROPS.MFALUT)(iMov,:) = [];
+      obj.(PROPS.TFA)(iMov,:) = [];
+      obj.(PROPS.TIA)(iMov,:) = [];
+
+      tfOrig = obj.isinit;
+      obj.isinit = true; % AL20160808. we do not want set.labeledpos side effects, listeners etc.
 %         obj.(PROPS.LPOS)(iMov,:) = []; % should never throw with .isinit==true
 %         obj.(PROPS.LPOSTS)(iMov,:) = [];
 %         obj.(PROPS.LPOSTAG)(iMov,:) = [];
 %         obj.(PROPS.LPOS2)(iMov,:) = [];
-        obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
-        if gt
-          obj.labelsRoiGT(iMov,:) = [];
-        else
-          obj.labelsRoi(iMov,:) = [];
-        end
-        if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
-          szassert(obj.(PROPS.VCD),[nMovOrig 1]);
-          obj.(PROPS.VCD)(iMov,:) = [];
-        end
-        obj.(PROPS.TRKRES)(iMov,:,:) = [];
-
-        obj.isinit = tfOrig;
-        
-        edata = MoviesRemappedEventData.movieRemovedEventData(...
-          movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
-        obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
-        if gt
-          [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
-            obj.gtSuggMFTable,'mov',edata.mIdxOrig2New);
-          obj.gtSuggMFTableLbled(tfRm,:) = [];
-          if ~isempty(obj.gtTblRes)
-            obj.gtTblRes = MFTable.remapIntegerKey(obj.gtTblRes,'mov',...
-                                                   edata.mIdxOrig2New);
-          end
-          obj.notify('gtSuggUpdated');
-          obj.notify('gtResUpdated');
-        end
-        
-        obj.prevAxesMovieRemap_(edata.mIdxOrig2New);
-
-        sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
-        
-        if obj.currMovie>iMov && gt==obj.gtIsGTMode
-          % AL 20200511. this may be overkill, maybe can just set 
-          % .currMovie directly as the current movie itself cannot be 
-          % rm-ed. A lot (if not all) state update here prob unnec
-          obj.movieSetGUI(obj.currMovie-1);
-        end
+      obj.(PROPS.LBL)(iMov,:) = []; % should never throw with .isinit==true
+      if gt
+        obj.labelsRoiGT(iMov,:) = [];
+      else
+        obj.labelsRoi(iMov,:) = [];
       end
-      
-      tfSucc = tfProceedRm;
-    end
+      if isscalar(obj.viewCalProjWide) && ~obj.viewCalProjWide
+        szassert(obj.(PROPS.VCD),[nMovOrig 1]);
+        obj.(PROPS.VCD)(iMov,:) = [];
+      end
+      obj.(PROPS.TRKRES)(iMov,:,:) = [];
+
+      obj.isinit = tfOrig;
+
+      edata = MoviesRemappedEventData.movieRemovedEventData(...
+        movIdx,nMovOrigReg,nMovOrigGT,movIdxHasLbls);
+      obj.ppdb.dat.movieRemap(edata.mIdxOrig2New);
+      if gt
+        [obj.gtSuggMFTable,tfRm] = MFTable.remapIntegerKey(...
+          obj.gtSuggMFTable,'mov',edata.mIdxOrig2New);
+        obj.gtSuggMFTableLbled(tfRm,:) = [];
+        if ~isempty(obj.gtTblRes)
+          obj.gtTblRes = MFTable.remapIntegerKey(obj.gtTblRes,'mov',...
+                                                 edata.mIdxOrig2New);
+        end
+        obj.notify('gtSuggUpdated');
+        obj.notify('gtResUpdated');
+      end
+
+      obj.prevAxesMovieRemap_(edata.mIdxOrig2New);
+
+      sendMaybe(obj.tracker, 'labelerMovieRemoved', edata) ;
+
+      if obj.currMovie>iMov && gt==obj.gtIsGTMode
+        % AL 20200511. this may be overkill, maybe can just set
+        % .currMovie directly as the current movie itself cannot be
+        % rm-ed. A lot (if not all) state update here prob unnec
+        obj.movieSetGUI(obj.currMovie-1);
+      end
+    end  % function
 
     function movieRmAll(obj)
-      nmov = obj.nmoviesGTaware;
-      obj.movieSetNoMovie();
+      % Remove all movies without GUI prompts.
+      nmov = obj.nmoviesGTaware ;
+      obj.movieSetNoMovie() ;
       for imov=1:nmov
-        obj.movieRmGUI(1,'force',true);
+        obj.movieRm(1) ;
       end
     end
     

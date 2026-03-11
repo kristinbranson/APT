@@ -48,7 +48,7 @@ lObj_bottom.projLoadGUI(lblfile_bottom,'nomovie',true);
 
 % remove all movies
 for iMov = lObj_bottom.nmovies:-1:1,
-  tfSucc = lObj_bottom.movieRmGUI(iMov,'force',true);
+  tfSucc = controller_bottom.movieRmGUI(iMov,'force',true);
   assert(tfSucc);
 end
 
@@ -93,7 +93,7 @@ lObj_side.projLoadGUI(lblfile_side,'nomovie',true);
 
 % remove all movies
 for iMov = lObj_side.nmovies:-1:1,
-  tfSucc = lObj_side.movieRmGUI(iMov,'force',true);
+  tfSucc = controller_side.movieRmGUI(iMov,'force',true);
   assert(tfSucc);
 end
 

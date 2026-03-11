@@ -58,7 +58,7 @@ outlblfile_combined = fullfile(outdir,'combined.lbl');
 %% open the base file
 
 inlblfile_combined = fullfile(lbldir,baselblfile);
-lObj = StartAPT;
+[lObj,controller] = StartAPT;
 lObj.projLoadGUI(inlblfile_combined);
 moviefiles_base = lObj.movieFilesAllFull;
 moviefiles_gt_base = lObj.movieFilesAllGTFull;
@@ -153,7 +153,7 @@ for i = 1:size(moviefiles_remove,1),
   moviefile = moviefiles_remove{i,1};
   imov = find(strcmp(moviefile,lObj.movieFilesAllFull(:,1)));
   assert(numel(imov) == 1);
-  tfSucc = lObj.movieRmGUI(imov,'force',true);
+  tfSucc = controller.movieRmGUI(imov,'force',true);
   assert(tfSucc);
 end
 
