@@ -510,6 +510,8 @@ classdef LabelerController < handle
       obj.listeners_(end+1) = ...
         addlistener(labeler,'dataImported',@(s,e)(obj.cbkDataImported(s,e)));
       obj.listeners_(end+1) = ...
+        addlistener(labeler,'didSetSkeletonEdges',@(s,e)(obj.cbkSkeletonEdgesChanged(s,e)));
+      obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowSkeleton',@(s,e)(obj.cbkShowSkeletonChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
@@ -3673,7 +3675,13 @@ classdef LabelerController < handle
       obj.labelTLInfo.updateTraces();  % Using this as a "refresh" for now
     end  % function
 
+    function cbkSkeletonEdgesChanged(obj, src, evt)  %#ok<INUSD>
+      % Respond to skeleton edges being set.
+      obj.lblCoreController_.updateSkeletonEdges() ;
+    end  % function
+
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
+      % Respond to showSkeleton changing.
       labeler = obj.labeler_ ;
       hasSkeleton = ~isempty(labeler.skeletonEdges) ;
       isChecked = onIff(hasSkeleton && labeler.showSkeleton) ;
@@ -3682,18 +3690,27 @@ classdef LabelerController < handle
       if ~isempty(tv)
         tv.setShowSkeleton(labeler.showSkeleton) ;
       end
+      obj.lblCoreController_.updateShowSkeleton() ;
     end  % function
 
     function cbkShowMaRoiChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
+      % Respond to showMaRoi changing.
+      labeler = obj.labeler_ ;
       onOff = onIff(labeler.showMaRoi);
       obj.menu_view_showhide_maroi.Checked = onOff;
+      if labeler.labelMode == LabelMode.MULTIANIMAL
+        obj.lblCoreController_.tv_.setShowPches(labeler.showMaRoi) ;
+      end
     end  % function
 
     function cbkShowMaRoiAuxChanged(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;       
+      % Respond to showMaRoiAux changing.
+      labeler = obj.labeler_ ;
       onOff = onIff(labeler.showMaRoiAux);
       obj.menu_view_showhide_maroiaux.Checked = onOff;
+      if labeler.labelMode == LabelMode.MULTIANIMAL
+        obj.lblCoreController_.roiSetShow(labeler.showMaRoiAux) ;
+      end
     end  % function
     
     function initializeResizeInfo_(obj)

@@ -185,6 +185,7 @@ classdef Labeler < handle
     updatePrevPanel
     updateShortcuts
     applyGammaCorrection
+    didSetSkeletonEdges
   end
 
   events  % used to come from labeler.tracker
@@ -5850,27 +5851,20 @@ classdef Labeler < handle
       elseif ~isempty(se) && isempty(old_se) && ~obj.showSkeleton ,
         obj.showSkeleton = true ;
       end
-      obj.controller_.lblCoreController_.updateSkeletonEdges() ;
+      obj.notify('didSetSkeletonEdges') ;
     end
 
     function setShowSkeleton(obj, tf)
       tf = logical(tf) ;
       obj.showSkeleton = tf ;  % fires didSetShowSkeleton
-      obj.controller_.lblCoreController_.updateShowSkeleton() ;
     end
 
     function setShowMaRoi(obj,tf)
-      obj.showMaRoi = logical(tf);
-      if obj.labelMode==LabelMode.MULTIANIMAL
-        obj.controller_.lblCoreController_.tv_.setShowPches(tf) ;
-      end
+      obj.showMaRoi = logical(tf);  % fires didSetShowMaRoi
     end
 
     function setShowMaRoiAux(obj,tf)
-      obj.showMaRoiAux = logical(tf);
-      if obj.labelMode==LabelMode.MULTIANIMAL
-        obj.controller_.lblCoreController_.roiSetShow(tf) ;
-      end
+      obj.showMaRoiAux = logical(tf);  % fires didSetShowMaRoiAux
     end
 
     function setFlipLandmarkMatches(obj,matches)
