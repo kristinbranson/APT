@@ -14,9 +14,10 @@ cleanupObj = onCleanup(@()(delete(controller))) ;
 drawnow() ;
 
 lblCore = labeler.lblCore ;
+lblCoreController = controller.lblCoreController_ ;
 ax = controller.axes_curr ;
 nPts = lblCore.nPts ;
-newTargetButton = lblCore.pbNewTgt ;
+newTargetButton = lblCoreController.pbNewTgt_ ;
 fprintf('nPts = %d\n', nPts) ;
 
 assert(lblCore.state == LabelState.ACCEPTED, ...
