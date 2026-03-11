@@ -8510,25 +8510,5 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       labeler.setFrameAndTargetGUI(frm, iTgt, tfforce) ;
     end  % function
-    
-    function movieSetGUI(obj, iMov, varargin)
-      % Set the current movie to the one indicated by iMov.
-      % iMov: If multiview, movieSet index (row index into .movieFilesAll)
-            
-      labeler = obj.labeler_ ;
-
-      assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
-      assert(any(iMov==1:labeler.nmoviesGTaware),...
-             'Invalid movie index ''%d''.',iMov);
-
-      mIdx = MovieIndex(iMov, labeler.gtIsGTMode) ;
-      tfsuccess = obj.movieCheckFilesExistGUI(mIdx) ;  % throws
-      if ~tfsuccess
-        return
-      end      
-
-      labeler.movieSetGUI(iMov, varargin{:})
-    end  % function   
   end  % methods
-
 end  % classdef

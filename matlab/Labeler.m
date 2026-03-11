@@ -4615,6 +4615,12 @@ classdef Labeler < handle
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
         ); 
       
+      mIdx = MovieIndex(iMov, labeler.gtIsGTMode) ;
+      tfsuccess = obj.controller_.movieCheckFilesExistGUI(mIdx) ;  % throws
+      if ~tfsuccess
+        return
+      end      
+      
       movsAllFull = obj.movieFilesAllFullGTaware;
       cInfo = obj.movieFilesAllCropInfoGTaware{iMov};
       tfHasCrop = ~isempty(cInfo);
