@@ -2408,37 +2408,6 @@ classdef LabelerController < handle
       end
     end  % function
           
-    % function menu_file_quick_open_actuated_(obj, source, event)  %#ok<INUSD>
-    %   lObj = obj.labeler_ ;
-    %   if obj.raiseUnsavedChangesDialogIfNeeded() ,
-    %     [tfsucc,movfile,trxfile] = promptGetMovTrxFiles(false);
-    %     if ~tfsucc
-    %       return;
-    %     end
-    % 
-    %     movfile = movfile{1};
-    %     trxfile = trxfile{1};
-    % 
-    %     cfg = Labeler.cfgGetLastProjectConfigNoView() ;
-    %     if cfg.NumViews>1
-    %       warndlg('Your last project had multiple views. Opening movie with single view.');
-    %       cfg.NumViews = 1;
-    %       cfg.ViewNames = cfg.ViewNames(1);
-    %       cfg.View = cfg.View(1);
-    %     end
-    %     lm = LabelMode.(cfg.LabelMode);
-    %     if lm.multiviewOnly
-    %       cfg.LabelMode = char(LabelMode.TEMPLATE);
-    %     end
-    % 
-    %     [~,projName,~] = fileparts(movfile);
-    %     cfg.ProjectName = projName ;
-    %     lObj.projNew(cfg);
-    %     lObj.movieAdd(movfile,trxfile);
-    %     lObj.movieSetGUI(1,'isFirstMovie',true);      
-    %   end
-    % end  % function
-    
     function projAddLandmarks(obj, nadd)
       % Function to add new kinds of landmarks to an existing project.  E.g. If you
       % had a fly .lbl file where you weren't tracking the wing tips, but then you
@@ -8542,6 +8511,24 @@ classdef LabelerController < handle
       labeler.setFrameAndTargetGUI(frm, iTgt, tfforce) ;
     end  % function
     
+    function movieSetGUI(obj, iMov, varargin)
+      % Set the current movie to the one indicated by iMov.
+      % iMov: If multiview, movieSet index (row index into .movieFilesAll)
+            
+      labeler = obj.labeler_ ;
+
+      assert(~isa(iMov,'MovieIndex')); % movieIndices, use movieSetMIdx
+      assert(any(iMov==1:labeler.nmoviesGTaware),...
+             'Invalid movie index ''%d''.',iMov);
+
+      mIdx = MovieIndex(iMov, labeler.gtIsGTMode) ;
+      tfsuccess = obj.movieCheckFilesExistGUI(mIdx) ;  % throws
+      if ~tfsuccess
+        return
+      end      
+
+      labeler.movieSetGUI(iMov, varargin{:})
+    end  % function   
   end  % methods
 
 end  % classdef

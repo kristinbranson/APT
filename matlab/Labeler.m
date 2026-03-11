@@ -4600,7 +4600,7 @@ classdef Labeler < handle
       badfile = [];
     end
     
-    function tfsuccess = movieSetGUI(obj, iMov, varargin)
+    function movieSetGUI(obj, iMov, varargin)
       % Set the current movie to the one indicated by iMov.
       % iMov: If multiview, movieSet index (row index into .movieFilesAll)
             
@@ -4614,12 +4614,6 @@ classdef Labeler < handle
       [isFirstMovie] = myparse(varargin,...
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
         ); 
-      
-      mIdx = MovieIndex(iMov,obj.gtIsGTMode);
-      tfsuccess = obj.controller_.movieCheckFilesExistGUI(mIdx); % throws
-      if ~tfsuccess
-        return
-      end
       
       movsAllFull = obj.movieFilesAllFullGTaware;
       cInfo = obj.movieFilesAllCropInfoGTaware{iMov};

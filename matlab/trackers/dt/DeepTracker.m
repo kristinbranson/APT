@@ -3574,6 +3574,7 @@ classdef DeepTracker < LabelTracker
       end
       obj.showPredsCurrTargetOnly = tf ;
     end  % function
+    
     function updateLandmarkColors(obj)
       % Update landmark colors.  Sets on TVM; controller forwards to TV.
       ptsClrs = obj.lObj.predPointsPlotInfo.Colors ;
