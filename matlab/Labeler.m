@@ -3851,7 +3851,7 @@ classdef Labeler < handle
         if offerMacroization 
           % Optionally replace movFile, tFile with macroized versions
           [tfCancel,macro,movFileMacroized] = ...
-            FSPath.offerMacroization(obj.projMacros,{movFile});
+            FSPath.offerMacroizationGUI(obj.projMacros,{movFile});
           if tfCancel
             continue;
           end
@@ -4036,7 +4036,7 @@ classdef Labeler < handle
       
       if offerMacroization
         [tfCancel,macro,moviefilesMacroized] = ...
-          FSPath.offerMacroization(obj.projMacros,moviefiles);
+          FSPath.offerMacroizationGUI(obj.projMacros,moviefiles);
         if tfCancel
           return;
         end

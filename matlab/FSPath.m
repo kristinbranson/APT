@@ -151,7 +151,7 @@ classdef FSPath
     end 
     
     function [tfCancel,macro,pathstrsMacroized] = ...
-                                    offerMacroization(sMacro,pathstrs)
+                                    offerMacroizationGUI(sMacro,pathstrs)
       % If any macros are present in all pathstrs, let user optionally
       % select macroized versions of pathstrs. Macroization can only be
       % done with a single macro that is common to all pathstrs.

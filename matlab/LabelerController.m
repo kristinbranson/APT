@@ -8203,7 +8203,7 @@ classdef LabelerController < handle
 
       % If possible, offer macroized movFile
       [tfCancel,macro,movfileMacroized] = ...
-        FSPath.offerMacroization(labeler.projMacros,{movFileFull});
+        FSPath.offerMacroizationGUI(labeler.projMacros,{movFileFull});
       if tfCancel
         doReturn = true ;
         return
