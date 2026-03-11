@@ -981,6 +981,7 @@ classdef LabelerController < handle
           obj.lblCoreStreamlinedChanged() ;
         end
       end
+      obj.updatePrevAxesLabels() ;
     end
 
     function lblCoreHideLabelsChanged(obj)
@@ -1684,7 +1685,7 @@ classdef LabelerController < handle
       set(obj.menu_setup_template_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
       set(obj.menu_setup_highthroughput_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
       set(obj.menu_setup_multiview_calibrated_mode_2,'Visible',onIff(hasMovie && isMultiView));
-      set(obj.menu_setup_multianimal_mode,'Visible',onIff(hasMovie && isMA), 'Enabled', false);  
+      set(obj.menu_setup_multianimal_mode,'Visible',onIff(hasMovie && isMA), 'Enable', 'off');
         % When visible, multianimal is the only available mode, so disable the menu
       set(obj.menu_setup_sequential_add_mode, 'Visible', onIff(hasMovie && isSingleView && nLabelPointsAdd~=0)) ;
     end  % function
@@ -8485,6 +8486,21 @@ classdef LabelerController < handle
       end
     end  % function
 
+    function setFrameAndTargetGUI(obj, frm, iTgt, tfforce)
+      % Set to new frame and target for current movie.
+      % Prefer setFrameGUI() or setTarget() if possible to
+      % provide better continuity wrt labeling etc.
+
+      % changed this to default to NOT forcing
+      if nargin < 4
+        tfforce = false;
+      end
+
+      % This is a simple pass-through to the Labeler.  For now.
+      labeler = obj.labeler_ ;
+      labeler.setFrameAndTargetGUI(frm, iTgt, tfforce) ;
+    end  % function
+    
   end  % methods
 
 end  % classdef

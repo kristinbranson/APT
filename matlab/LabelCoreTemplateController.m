@@ -104,10 +104,11 @@ classdef LabelCoreTemplateController < LabelCoreController
         return ;
       end
 
+      pos = evt.IntersectionPoint(1:2) ;
       [tf, iSel] = mdl.anyPointSelected() ;
       if tf
-        pos = get(obj.hAx_(1), 'CurrentPoint') ;
-        pos = pos(1, 1:2) ;
+        % pos = get(obj.hAx_(1), 'CurrentPoint') ;
+        % pos = pos(1, 1:2) ;
         mdl.xy_(iSel, :) = pos ;
         mdl.lastChangedIPt_ = iSel ;
         mdl.notify('updateLabelCoordsI') ;
@@ -153,18 +154,19 @@ classdef LabelCoreTemplateController < LabelCoreController
       end
     end  % function
 
-    function wbmf(obj, ~, ~)
+    function wbmf(obj, src, evt)  %#ok<INUSD>
       % Handle window button motion: drag selected point.
       mdl = obj.model_ ;
       if ~mdl.labeler_.isReady
         return ;
       end
 
+      pos = evt.IntersectionPoint(1:2) ;
       if mdl.state_ == LabelState.ADJUST || mdl.state_ == LabelState.ACCEPTED
         iPt = mdl.iPtMove_ ;
         if ~isnan(iPt)
-          tmp = get(obj.hAx_(1), 'CurrentPoint') ;
-          pos = tmp(1, 1:2) ;
+          % tmp = get(obj.hAx_(1), 'CurrentPoint') ;
+          % pos = tmp(1, 1:2) ;
           mdl.tfMoved_ = true ;
           mdl.xy_(iPt, :) = pos ;
           obj.syncPointGraphicsI(iPt) ;

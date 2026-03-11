@@ -5970,7 +5970,6 @@ classdef Labeler < handle
       if isprop(obj.lblCore,'streamlined') && exist('streamlinedPrev','var')>0
         obj.lblCore.streamlined = streamlinedPrev;
       end
-      obj.notify('didInitLblCore') ;
 
       % labelmode-specific inits
       if dosettemplate && lblmode==LabelMode.TEMPLATE
@@ -5979,8 +5978,8 @@ classdef Labeler < handle
       if obj.lblCore.supportsCalibration
         vcd = obj.viewCalibrationDataCurrent;
         if isempty(vcd)
-%           warningNoTrace('Labeler:labelingInit',...
-%             'No calibration data loaded for calibrated labeling.');
+          % warningNoTrace('Labeler:labelingInit',...
+          %                'No calibration data loaded for calibrated labeling.');
         else
           obj.lblCore.projectionSetCalRig(vcd);
         end
@@ -5990,12 +5989,13 @@ classdef Labeler < handle
       obj.setShowMaRoi(obj.showMaRoi);
       obj.setShowMaRoiAux(obj.showMaRoiAux);
       
-      notify(obj, 'updatePrevAxesLabels');
-      
       if tfLblModeChange
         % sometimes labelcore need this kick to get properly set up
         obj.labelsUpdateNewFrame(true);
       end
+
+      % Send the notification(s)
+      obj.notify('didInitLblCore') ;
     end  % function
     
     function labelingInitTemplate(obj)
