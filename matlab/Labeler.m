@@ -186,6 +186,7 @@ classdef Labeler < handle
     updateShortcuts
     applyGammaCorrection
     didSetSkeletonEdges
+    updateLabelSkeletonCosmetics
   end
 
   events  % used to come from labeler.tracker
@@ -7439,7 +7440,13 @@ classdef Labeler < handle
     %   display preds from multiple tracker objs at the same time, and
     %   any such changes are not currently serialized.
     
-    function updateLandmarkColors(obj,colorSpecs)
+    function setLandmarkAndSkeletonCosmetics(obj, colorSpecs, mrkrSpecs, skelSpecs)
+      obj.setLandmarkColors_(colorSpecs);
+      obj.setLandmarkCosmetics_(mrkrSpecs);
+      obj.setSkeletonCosmetics_(skelSpecs);
+    end
+    
+    function setLandmarkColors_(obj, colorSpecs)
       for i=1:numel(colorSpecs)
         cs = colorSpecs(i);
         lsetType = cs.landmarkSetType;
@@ -7448,7 +7455,7 @@ classdef Labeler < handle
       end
     end
     
-    function updateLandmarkCosmetics(obj,mrkrSpecs)
+    function setLandmarkCosmetics_(obj, mrkrSpecs)
       for i=1:numel(mrkrSpecs)
         ms = mrkrSpecs(i);
         lsetType = ms.landmarkSetType;
@@ -7457,7 +7464,7 @@ classdef Labeler < handle
       end
     end
     
-    function updateSkeletonCosmetics(obj,skelSpecs)
+    function setSkeletonCosmetics_(obj, skelSpecs)
       for i=1:numel(skelSpecs)
         ss = skelSpecs(i);
         lsetType = ss.landmarkSetType;
@@ -7468,7 +7475,7 @@ classdef Labeler < handle
       
         switch lsetType
           case LandmarkSetType.Label
-            obj.controller_.lblCoreController_.skeletonCosmeticsUpdated() ;
+            obj.notify('updateLabelSkeletonCosmetics') ;
           case LandmarkSetType.Prediction
             obj.notify('updatePredictionSkeletonCosmetics') ;
         end
@@ -13583,12 +13590,6 @@ classdef Labeler < handle
     %   result =strcmp(currentTrackerAlgoName, algoNameFromTrackersAllIndex) ;
     % end
     
-    function hlpApplyCosmetics(obj,colorSpecs,mrkrSpecs,skelSpecs)
-      obj.updateLandmarkColors(colorSpecs);
-      obj.updateLandmarkCosmetics(mrkrSpecs);
-      obj.updateSkeletonCosmetics(skelSpecs);
-    end
-
     function gtToggleGTMode(obj)
       gt = obj.gtIsGTMode;
       gtNew = ~gt;

@@ -580,6 +580,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'applyGammaCorrection',@(s,e)(obj.applyGammaCorrection())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updateLabelSkeletonCosmetics',@(s,e)(obj.updateLabelSkeletonCosmetics())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -3680,6 +3682,11 @@ classdef LabelerController < handle
       obj.lblCoreController_.updateSkeletonEdges() ;
     end  % function
 
+    function updateLabelSkeletonCosmetics(obj)
+      % Respond to label skeleton cosmetics being updated.
+      obj.lblCoreController_.skeletonCosmeticsUpdated() ;
+    end  % function
+
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>
       % Respond to showSkeleton changing.
       labeler = obj.labeler_ ;
@@ -6119,12 +6126,8 @@ classdef LabelerController < handle
 
     function menu_view_keypoint_appearance_actuated_(obj, src, evt)  %#ok<INUSD>
       labeler = obj.labeler_ ;
-      cbkApply = @(varargin)(labeler.hlpApplyCosmetics(varargin{:})) ;
+      cbkApply = @(varargin)(labeler.setLandmarkAndSkeletonCosmetics(varargin{:})) ;
       LandmarkColors(obj, labeler, cbkApply);
-      % AL 20220217: changes now applied immediately
-      % if ischange
-      %   cbkApply(savedres.colorSpecs,savedres.markerSpecs,savedres.skelSpecs);
-      % end
     end
 
     function menu_track_edit_skeleton_actuated_(obj, src, evt)  %#ok<INUSD>
