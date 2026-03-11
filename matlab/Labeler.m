@@ -184,6 +184,7 @@ classdef Labeler < handle
     updatePrevAxesLabels
     updatePrevPanel
     updateShortcuts
+    applyGammaCorrection
   end
 
   events  % used to come from labeler.tracker
@@ -4670,12 +4671,6 @@ classdef Labeler < handle
       obj.currMovie = iMov;
       
       obj.labelingInit('dosettemplate',false);
-      if isFirstMovie,
-        % KB 20161213: moved this up here so that we could redo in initHook
-        % we set template below as it requires .trx to be set correctly.
-        % see below
-        % obj.labelingInit('dosettemplate',false);
-      end
       
       trxFile = obj.trxFilesAllFullGTaware{iMov,1};
       tfTrx = ~isempty(trxFile);
@@ -4698,20 +4693,13 @@ classdef Labeler < handle
       if isFirstMovie
         if obj.labelMode==LabelMode.TEMPLATE
           % Setting the template requires the .trx to be appropriately set,
-          % so for template mode we redo this (it is part of labelingInit()
+          % so for template mode we redo this (it is part of labelingInit())
           % here.
           obj.labelingInitTemplate();
         end
 
-        for i = 1:obj.nview,
-          ud = obj.controller_.axes_all(i).UserData;
-          if isstruct(ud) && isfield(ud,'gamma') && ~isempty(ud.gamma),
-            gam = ud.gamma;
-            ViewConfig.applyGammaCorrection(obj.controller_.images_all,obj.controller_.axes_all,obj.controller_.axes_prev,i,gam);
-          end
-        end
-
-      end
+        obj.notify('applyGammaCorrection') ;
+      end  % if isFirstMovie
 
       % obj.selectedFrames_ = [] ;
       obj.infoTimelineModel_.initNewMovie(obj.isinit, obj.hasMovie, obj.nframes, obj.hasTrx) ;

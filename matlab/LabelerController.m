@@ -576,6 +576,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updatePrevPanel',@(s,e)(obj.updatePrevPanel())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateShortcuts',@(s,e)(obj.updateShortcuts())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'applyGammaCorrection',@(s,e)(obj.applyGammaCorrection())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -5322,6 +5324,18 @@ classdef LabelerController < handle
       ViewConfig.applyGammaCorrection(obj.images_all,obj.axes_all,...
                                       obj.axes_prev,iAxApply,gamma);
     end
+
+    function applyGammaCorrection(obj)
+      % Re-apply gamma correction to all views that have it set.
+      labeler = obj.labeler_ ;
+      for iView = 1:labeler.nview
+        ud = obj.axes_all(iView).UserData ;
+        if isstruct(ud) && isfield(ud, 'gamma') && ~isempty(ud.gamma)
+          ViewConfig.applyGammaCorrection(obj.images_all, obj.axes_all, ...
+                                          obj.axes_prev, iView, ud.gamma) ;
+        end
+      end
+    end  % function
 
     function menu_file_quit_actuated_(obj, src, evt)  %#ok<INUSD>
       obj.quitRequested() ;
