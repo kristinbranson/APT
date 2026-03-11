@@ -74,18 +74,19 @@ classdef LabelCoreSeqController < LabelCoreController
         return ;
       end
 
+      pos = evt.IntersectionPoint(1:2) ;
       mod = obj.hFig_(1).CurrentModifier ;
       tfShift = any(strcmp(mod, 'shift')) ;
       switch mdl.state_
         case LabelState.LABEL
-          pos = get(obj.hAx_(1), 'CurrentPoint') ;
-          pos = pos(1, 1:2) ;
+          % pos = get(obj.hAx_(1), 'CurrentPoint') ;
+          % pos = pos(1, 1:2) ;
           mdl.labelNextPoint(pos, false, tfShift) ;
         case {LabelState.ADJUST, LabelState.ACCEPTED}
           [tf, iSel] = mdl.anyPointSelected() ;
           if tf
-            pos = get(obj.hAx_(1), 'CurrentPoint') ;
-            pos = pos(1, 1:2) ;
+            % pos = get(obj.hAx_(1), 'CurrentPoint') ;
+            % pos = pos(1, 1:2) ;
             mdl.relocatePoint(iSel, pos, tfShift) ;
           end
         otherwise

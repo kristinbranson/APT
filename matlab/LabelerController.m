@@ -1684,7 +1684,8 @@ classdef LabelerController < handle
       set(obj.menu_setup_template_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
       set(obj.menu_setup_highthroughput_mode,'Visible',onIff(hasMovie && isSingleView && ~isMA)) ;
       set(obj.menu_setup_multiview_calibrated_mode_2,'Visible',onIff(hasMovie && isMultiView));
-      set(obj.menu_setup_multianimal_mode,'Visible',onIff( hasMovie && isMA));
+      set(obj.menu_setup_multianimal_mode,'Visible',onIff(hasMovie && isMA), 'Enabled', false);  
+        % When visible, multianimal is the only available mode, so disable the menu
       set(obj.menu_setup_sequential_add_mode, 'Visible', onIff(hasMovie && isSingleView && nLabelPointsAdd~=0)) ;
     end  % function
 
@@ -5006,7 +5007,6 @@ classdef LabelerController < handle
     end
 
     function menu_help_labeling_actions_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
       if isempty(obj.lblCoreController_)
         h = 'Please open a movie first.' ;
       else
@@ -5146,18 +5146,12 @@ classdef LabelerController < handle
 
 
     function menu_setup_ma_twoclick_align_actuated_(obj, src, evt)  %#ok<INUSD>
-
-
-
       labeler = obj.labeler_ ;
-
-
       lc = labeler.lblCore;
       tftc = ~lc.tcOn;
       labeler.isTwoClickAlign = tftc; % store the state
       lc.setTwoClickOn(tftc);
       src.Checked = onIff(tftc); % skip listener business for now
-
     end
 
 
