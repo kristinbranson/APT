@@ -299,7 +299,7 @@ classdef LabelerController < handle
       obj.labeler_ = labeler ;
       mainFigure = createLabelerMainFigure() ;
       obj.mainFigure_ = mainFigure ;
-      obj.labeler_.registerController(obj) ;  % hack
+      obj.labeler_.registerController() ;  % hack, but not as bad as before
       obj.tvTrx_ = TrackingVisualizerTrx(obj, labeler) ;
       obj.isInYodaMode_ = isInYodaMode ;
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.

@@ -546,9 +546,9 @@ classdef Labeler < handle
   end
 
 
-  properties (Transient)  % private by convention
-    controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
-  end
+  % properties (Transient)  % private by convention
+  %   controller_  % This is a temporary crutch.  Eventually it will not be needed, and then we eliminate it.
+  % end
 
   properties (Transient)  % private by convention
     doesNeedSave_ = false
@@ -791,13 +791,10 @@ classdef Labeler < handle
       end
     end
 
-    function registerController(obj, controller)
-      % This function is a temporary hack.  The long-term goal is to get rid of
-      % labeller_controller_ property b/c the model shouldn't need to talk directly
-      % to it.  It's here now as a crutch until we eliminate reliance on it, then we
-      % get rid of it. directly talk to either of those.
+    function registerController(obj)
+      % This just records that there is a GUI attached. It would be good to get rid
+      % of this.  The Labeler shouldn't care whether there's a GUI attached or not.
       obj.isgui = true ;
-      obj.controller_ = controller ;
     end
 
     function handleCreationTimeAdditionalArgumentsGUI_(obj, varargin)
@@ -811,12 +808,6 @@ classdef Labeler < handle
     end
 
     function delete(obj)
-      obj.controller_ = [] ;  % this is a weak reference (by convention), so don't delete
-      % Backend should release resources properly when deleted now
-      % be = obj.trackDLBackEnd;
-      % if ~isempty(be)
-      %   be.shutdown();
-      % end
       if ~isempty(obj.projTempDir) 
         if obj.projTempDirDontClearOnDestructor ,
           fprintf('As requested, leaving temp dir %s in place.\n', obj.projTempDir) ;
