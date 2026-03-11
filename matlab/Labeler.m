@@ -188,13 +188,10 @@ classdef Labeler < handle
     didSetSkeletonEdges
     updateLabelSkeletonCosmetics
     updatePreProcParams
+    requestMovieFilesCheckAndUserFinding    
   end
 
   events  % used to come from labeler.tracker
-    % Thrown when new tracking results are loaded for the current lObj
-    % movie
-    % newTrackingResults 
-    
     updateTrainingMonitor
     trainEnd
     updateTrackingMonitor
@@ -385,6 +382,13 @@ classdef Labeler < handle
     movieCenterOnTargetLandmark = false  % scalar logical. If true, see movieCenterOnTargetIpt. Transient, unmanaged.
     movieCenterOnTargetIpt = []  % scalar point index, used if movieCenterOnTargetLandmark=true. Transient, unmanaged
     moviesSelected_ = []  % [nSel] vector of movie indices currently selected in MovieManager. Set by MovieManagerController.
+  end
+
+  properties (Transient)
+    % These exist to allow movieSetGUI() to work without touching the controller
+    % directly.  This is a hack, admittedly.
+    mIdxToCheck_
+    didMovieCheckSucceed_
   end
 
   properties
@@ -4615,12 +4619,26 @@ classdef Labeler < handle
         'isFirstMovie',~obj.hasMovie... % passing true for the first time a movie is added to a proj helps the UI
         ); 
       
+      % Make sure all the movie files exist.  There's some hacky stuff here
+      % to allow the controller, if present, to help the user find missing movies
+      % with the GUI.  But want this method to also work in the absence of a GUI.
       mIdx = MovieIndex(iMov, labeler.gtIsGTMode) ;
-      tfsuccess = obj.controller_.movieCheckFilesExistGUI(mIdx) ;  % throws
-      if ~tfsuccess
-        return
-      end      
-      
+      obj.mIdxToCheck_ = mIdx ;
+      obj.didMovieCheckSucceed_ = [] ;
+      obj.notify('requestMovieFilesCheckAndUserFinding') ;
+      if isempty(obj.didMovieCheckSucceed_)
+        % Means there's no controller
+        tfsuccess = obj.movieCheckFilesExist(mIdx) ;
+        if ~tfsuccess
+          return
+        end
+      else
+        % Means there is a controller, it will have checked that all the movies exist.
+        if ~isequal(obj.didMovieCheckSucceed_, true)
+          return
+        end
+      end
+
       movsAllFull = obj.movieFilesAllFullGTaware;
       cInfo = obj.movieFilesAllCropInfoGTaware{iMov};
       tfHasCrop = ~isempty(cInfo);

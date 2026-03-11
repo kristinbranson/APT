@@ -584,6 +584,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updateLabelSkeletonCosmetics',@(s,e)(obj.updateLabelSkeletonCosmetics())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updatePreProcParams',@(s,e)(obj.updatePreProcParams())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'requestMovieFilesCheckAndUserFinding',@(s,e)(obj.requestMovieFilesCheckAndUserFinding())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -8510,5 +8512,13 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       labeler.setFrameAndTargetGUI(frm, iTgt, tfforce) ;
     end  % function
+
+    function requestMovieFilesCheckAndUserFinding(obj)
+      % Check that movie files exist, prompting user to find them if not.
+      mIdx = obj.labeler_.mIdxToCheck_ ;
+      tfsuccess = obj.movieCheckFilesExistGUI(mIdx) ;
+      obj.labeler_.didMovieCheckSucceed_ = tfsuccess ;
+    end  % function
+
   end  % methods
 end  % classdef
