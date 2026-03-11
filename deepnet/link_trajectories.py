@@ -1262,11 +1262,14 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
     single_animals = [is_single_animal_trk(trk) for trk in in_trks]
     trks2link_id = []
     trks2link_simple = []
+    empty_trks = []
     trk_files2link = []
     movs2link = []
     out_files2link = []
     for n in range(len(in_trks)):
-      if single_animals[n]:
+      if in_trks[n].ntargets == 0:
+        empty_trks.append(in_trks[n])
+      elif single_animals[n]:
         trks2link_simple.append(in_trks[n])
       else:
         trks2link_id.append(in_trks[n])
@@ -1284,7 +1287,9 @@ def link_trklets(trk_files, conf, movs, out_files, id_wts=None):
     count = 0
     count1 = 0
     for n in range(len(in_trks)):
-      if single_animals[n]:
+      if in_trks[n].ntargets == 0:
+        out_trks.append(in_trks[n])
+      elif single_animals[n]:
         out_trks.append(linked_trks_simple[count1])
         count1+=1
       else:
@@ -1320,6 +1325,8 @@ def simple_linking(in_trks,conf):
 
 def is_single_animal_trk(trk):
   st,en = trk.get_startendframes()
+  if len(st)==0:
+    return True # if emtpy it is not multi-animal for sure
   maxn = max(en)
   minn = min(st)
   overlap = np.zeros(maxn-minn+1)
@@ -1425,8 +1432,10 @@ def link_id(trks, trk_files, mov_files, conf, out_files, id_wts=None,link_method
     else:
       wt_out_file = out_files[0].replace('.trk','_idwts.p')
     # train the identity model
+    mp.set_start_method('spawn', force=True)
     id_classifier, loss_history = asyncio.run(train_id_classifier(train_data_args,conf, trks, save_file=wt_out_file,bsz=conf.link_id_batch_size,save=conf.link_id_save_int_wts))
 
+  logging.info('Linking trajectories using id classifier')
   # link using id model
   def_params = get_default_params(conf)
 
@@ -1779,7 +1788,11 @@ async def read_ims_par(trx, trk_info, mov_file, conf):
     tt = time.time()
     async_data = pool.starmap_async(read_tracklet_ims,args,chunksize=1)
     # data = pool.imap(read_tracklet_ims, args, chunksize=1)
-    data = await loop.run_in_executor(None,async_data.get)
+    # Poll instead of run_in_executor so no executor thread is left alive when the task is
+    # cancelled -- asyncio.run() blocks on shutdown_default_executor() until all threads finish.
+    while not async_data.ready():
+      await asyncio.sleep(0.1)
+    data = async_data.get()
     logging.info(f'done with starmap : {time.time()-tt:.2f}..')
   data = merge_parallel(data)
   return data
@@ -1892,7 +1905,9 @@ class tracklet_pred_dataset(Dataset):
 
 def tracklet_pred(ims, net, conf, rescale):
     dataset = tracklet_pred_dataset(ims, conf, rescale, False)
-    loader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=20, worker_init_fn=lambda id: np.random.seed(id * 8999))
+    # num_workers=0 since images are already in memory -- GPU is the bottleneck, not data loading.
+    # Workers would just add spawn overhead (and were previously unsafe with fork+CUDA).
+    loader = DataLoader(dataset, batch_size=1, pin_memory=True, num_workers=0)
     preds = []
     for pims in loader:
       preds.append(do_pred(pims[0],net))
@@ -2163,11 +2178,12 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
     overlap_dist = np.ones(n_tr)
     mining_dists.append([t_dist,overlap_dist, self_dist])
 
-  # Create the dataset and dataloaders. Again seed is important!
+  # Create the dataset and dataloaders. worker_init_fn is set conditionally: not needed when using spawn (workers get independent OS-seeded random states), but used with fork to ensure distinct seeds per worker.
   distort = True
   train_dset = id_dset(all_data, mining_dists, trk_data, confd, rescale, valid=False, distort=distort, debug=debug)
   n_workers = len(os.sched_getaffinity(0))//2 if not debug else 0
-  train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id))
+  worker_init_fn = None if mp.get_start_method() == 'spawn' else lambda id: np.random.seed(id)
+  train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers, worker_init_fn=worker_init_fn)
   train_iter = iter(train_loader)
 
   # Save example training images for debugging.
@@ -2188,10 +2204,11 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       logging.info(f'Starting async loading task at {epoch}')
       load_task = asyncio.create_task(get_id_train_images(*train_data_args))
       # load_task = loop.run_in_executor(executor,get_id_train_images,*train_data_args)
-      logging.info('Launched async loading task')
 
     await asyncio.sleep(0.1)
     if load_task.done():
+      # logging.info(f'Async loading task done at epoch {epoch}, updating training data ...')
+
       all_data = load_task.result()
       # all_data = get_id_train_images(*train_data_args)
 
@@ -2213,7 +2230,8 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
       net =net.eval()
       del train_iter, train_loader, train_dset
       train_dset =  id_dset(all_data,mining_dists,trk_data,confd,rescale,valid=True, distort=distort, debug=debug)
-      train_loader = torch.utils.data.DataLoader(train_dset,batch_size=bsz,pin_memory=True,num_workers=n_workers,worker_init_fn=lambda id: np.random.seed(id*epoch))
+      worker_init_fn = None if mp.get_start_method() == 'spawn' else lambda id: np.random.seed(id * epoch)
+      train_loader = torch.utils.data.DataLoader(train_dset, batch_size=bsz, pin_memory=True, num_workers=n_workers, worker_init_fn=worker_init_fn)
       train_iter = iter(train_loader)
 
 
@@ -2240,6 +2258,7 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
 
     # Update training info and save JSON every display_steps
     if epoch % conf.display_step == 0 and epoch > 0 and json_file is not None:
+      logging.info(f'Epoch {epoch}, Loss: {loss_contrastive.item()}')
       train_info['train_loss'].append(loss_contrastive.item())
       train_info['step'].append(epoch)
 
@@ -2254,10 +2273,25 @@ async def train_id_classifier(train_data_args, conf, trks, save=False,save_file=
     if epoch%conf.save_step == 0 and epoch > 0:
       torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, save_file+'.int')
 
+  # dump the final loss history
+  logging.info(f'Epoch {n_iters}, Loss: {loss_contrastive.item()}')
+  train_info['train_loss'].append(loss_contrastive.item())
+  train_info['step'].append(n_iters)
+
+  # Save JSON file with same format as PoseCommon_pytorch.py
+  json_data = {}
+  for x in train_info.keys():
+    json_data[x] = np.array(train_info[x]).astype(np.float64).tolist()
+
+  with open(json_file, 'w') as f:
+    json.dump(json_data, f)
+
   wt_out_file = f'{save_file}'
   torch.save({'model_state_params': net.state_dict(), 'loss_history': loss_history}, wt_out_file)
   if os.path.exists(save_file+'.int'):
     os.remove(save_file+'.int')
+
+  logging.info(f'Training complete, saved weights to {wt_out_file}')
 
   del train_iter, train_loader, train_dset
 
@@ -3103,7 +3137,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
   for trk, data in zip(linked_trks,all_data):
     ss, ee = data[3:5]
     cur_id = TrkFile.Tracklet(defaultval=-1, size=(1, trk.ntargets,trk.T))
-    cur_id.allocate( (1,), ss-trk.T0, ee-trk.T0)
+    cur_id.allocate( (1,), ss, ee)
     ids.append(cur_id)
 
   for ndx, gr in enumerate(groups):
@@ -3114,7 +3148,7 @@ def link_trklet_id(linked_trks, net, mov_files, conf, all_trx, rescale=1, min_le
       data = all_data[mov_ndx]
       sf,ef = data[3:5]
       cur_p = np.ones(ef[trk_ndx]-sf[trk_ndx]+1)* ndx
-      cur_id.settarget(cur_p, trk_ndx, sf[trk_ndx] -cur_trk.T0, ef[trk_ndx]-cur_trk.T0)
+      cur_id.settarget(cur_p, trk_ndx, sf[trk_ndx], ef[trk_ndx])
 
   #   cur_tgt = min(sel_tgt[gr])
   #   for gg in gr:

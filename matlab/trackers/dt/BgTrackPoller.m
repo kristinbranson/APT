@@ -217,16 +217,16 @@ classdef BgTrackPoller < BgPoller
         isRunningFromJobIndex = obj.backend_.isAliveFromRegisteredJobIndex('track') ;  % njobs x 1
         % isRunning = obj.replicateJobs_(isRunningFromJobIndex);  % nMovies x nViews x nStages
         %killFileExists = cellfun(@obj.backend_.fileExists,killfiles);
-        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.fileExists(fileName)),trkfiles); % nmovies x nviews x nstages
+        doesOutputTrkFileExistFromTripleIndex = cellfun(@(fileName)(obj.backend_.tfDoesCacheFileExist(fileName)),trkfiles); % nmovies x nviews x nstages
         tfComplete = doesOutputTrkFileExistFromTripleIndex & ~isRunningFromJobIndex ;
         %logger.log('tfComplete = %s\n',mat2str(tfComplete(:)'));
-        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
-        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
-        jsonFileExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),idjsonfiles); % njobs x 1
-        doesIDModelExist = cellfun(@(fileName)(obj.backend_.fileExistsAndIsNonempty(fileName)),idmodelfiles); % njobs x 1
+        tfErrFileErrFromJobIndex = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),errfiles); % njobs x 1
+        logFilesExistFromJobIndex = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),logfiles); % njobs x 1
+        jsonFileExist = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),idjsonfiles); % njobs x 1
+        doesIDModelExist = cellfun(@(fileName)(obj.backend_.tfCacheFileExistsAndIsNonempty(fileName)),idmodelfiles); % njobs x 1
 
         if jsonFileExist
-          jsoncurr = obj.backend_.fileContents(idjsonfiles{1});
+          jsoncurr = obj.backend_.cacheFileContents(idjsonfiles{1});
           [idloss,idstep,idlog,jsonFileExist] = obj.readIDLoss(jsoncurr);
         else
           idloss = [];

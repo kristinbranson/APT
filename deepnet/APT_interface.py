@@ -531,7 +531,7 @@ def create_coco_db(conf, split=True, split_file=None, on_gt=False, db_files=(), 
     else:
         names = ['pt_{}'.format(i) for i in range(conf.n_classes)]
 
-    if conf.use_ht_trx or conf.use_bbox_trx:
+    if conf.multi_only_ht: #for the first stage only ht points for 2 stage networks #conf.use_ht_trx or conf.use_bbox_trx:
         names = [names[i] for i in conf.ht_pts]
         skeleton = [[0,1],]
 

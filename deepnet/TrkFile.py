@@ -1119,7 +1119,7 @@ class Tracklet:
       for ndx,itgt in enumerate(aa):
         idx1 = bb==ndx
         fs = frmidx[idx1]
-        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]+T0]
+        newdata[id][...,fs-t0] = self.data[itgt][...,fs-self.startframes[itgt]]#+self.T0]
         
     self.data = newdata
     self.startframes = newstartframes
@@ -1529,7 +1529,7 @@ class Trk:
     istracklet = Tracklet.isTracklet(trk)
     self.issparse = istracklet or not isinstance(trk['pTrk'],np.ndarray)
 
-    if 'pTrkFrm' in trk.keys():
+    if 'pTrkFrm' in trk.keys() and trk['pTrkFrm'].size>0:
       assert np.all(np.diff(trk['pTrkFrm'],axis=1)==1),'pTrkFrm should be consecutive frames'
       self.T0 = to_py(int(trk['pTrkFrm'].flatten()[0]))
       T1 = to_py(int(trk['pTrkFrm'].flatten()[-1]))

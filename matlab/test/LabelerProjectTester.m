@@ -201,6 +201,63 @@ classdef LabelerProjectTester < handle
       end
     end  % function
     
+    function test_id_tracking(obj, varargin)
+      % Test ID tracking in the .lbl file specified during LabelerProjectTester construction.
+      % Runs tracking with link_type='identity' on the current movie only, limited to nframes
+      % frames, and trains the ID model for id_niters iterations.
+      [backend_type_as_string, backend_params, startframe,endframe, id_niters] = ...
+        myparse(varargin, ...
+                'backend', '', ...
+                'backend_params', struct(), ...
+                'startframe', 1, ...
+                'endframe', 500, ...
+                'id_niters', 200) ;
+
+      labeler = obj.labeler ;
+
+      % Set the ID training iterations
+      sPrm = labeler.trackGetTrackParams();
+      sPrm = sPrm.structize();
+      sPrm = structsetleaf(sPrm, struct('link_id_training_iters', {id_niters}), 'verbose', true) ;
+      labeler.setTrackingParameters(sPrm);
+
+      obj.set_backend_params_(backend_type_as_string, backend_params) ;
+
+      % Build toTrack struct for the current movie only
+      mIdx = labeler.currMovIdx ;
+      toTrack = labeler.mIdx2TrackListGUI(mIdx) ;
+      toTrack.link_type = 'identity' ;
+      toTrack.id_maintain_identity = true ;
+      toTrack.docontinue = false ;
+      toTrack.f0s = {startframe} ;
+      toTrack.f1s = {endframe} ;
+
+      % Use a distinct trkfile rawname to avoid conflicting with any existing trkfiles
+      rawname = [labeler.defaultExportTrkRawname() '_id_test'] ;
+      [tfok, trkfiles] = labeler.getTrkFileNamesForExportGUI(toTrack.movfiles, rawname, 'noUI', true) ;
+      if tfok ,
+        toTrack.trkfiles = trkfiles ;
+      end
+
+      % Run ID tracking
+      labeler.trackBatch('toTrack', toTrack) ;
+
+      % Block, waiting for tracking to finish
+      pause(2) ;
+      while labeler.bgTrkIsRunning ,
+        pause(10) ;
+      end
+      pause(10) ;
+
+      % Bring any remote artifacts back to frontend
+      labeler.downloadProjectCacheIfNeeded() ;
+
+      % Check that tracking completed successfully
+      if labeler.lastTrackEndCause ~= EndCause.complete ,
+        error('ID tracking did not complete successfully') ;
+      end
+    end  % function
+
     function set_backend_params_(obj, backend_type_as_string, raw_backend_params)
       % raw_backend_params: structure (or cell array) containing name-value pairs to be set on the backend
       labeler = obj.labeler;
