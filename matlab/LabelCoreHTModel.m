@@ -77,7 +77,8 @@ classdef LabelCoreHTModel < LabelCoreModel
       htm = ppi.HighThroughputMode ;
       obj.nFrameSkip_ = htm.NFrameSkip ;
 
-      obj.labeler_.currImHud.updateReadoutFields('hasLblPt', true) ;
+      obj.labeler_.currImHudModel.hasLblPt = true ;
+      obj.labeler_.notify('updateHudReadoutFields') ;
     end  % function
 
   end  % methods
@@ -160,11 +161,9 @@ classdef LabelCoreHTModel < LabelCoreModel
 
       obj.iPoint_ = iPt ;
 
-      lObj = obj.labeler_ ;
-      lObj.currImHud.updateLblPoint(iPt, obj.nPts_) ;
-
       obj.notify('updateIPoint') ;
 
+      lObj = obj.labeler_ ;
       if lObj.currMovie > 0
         obj.newFrame([], lObj.currFrame, lObj.currTarget) ;
       end

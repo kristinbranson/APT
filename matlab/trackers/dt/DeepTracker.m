@@ -3514,7 +3514,8 @@ classdef DeepTracker < LabelTracker
           % Clear the tracklet display from the HUD since there are no
           % predictions to show tracklets for
           if obj.lObj.maIsMA
-            obj.lObj.currImHud.updateReadoutFields('hasTrklet', false) ;
+            obj.lObj.currImHudModel.hasTrklet = false ;
+            obj.lObj.notify('updateHudReadoutFields') ;
           end
           obj.lObj.notify('updateTrkPredViz') ;
         end

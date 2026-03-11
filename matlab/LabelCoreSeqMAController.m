@@ -61,7 +61,8 @@ classdef LabelCoreSeqMAController < LabelCoreController
       
       obj.roiInit() ;
 
-      lObj.currImHud.updateReadoutFields('hasTgt', true) ;
+      lObj.currImHudModel.hasTgt = true ;
+      lObj.notify('updateHudReadoutFields') ;
       mdl.tcOn_ = lObj.isTwoClickAlign ;
 
       obj.tcInitGraphics() ;
@@ -160,8 +161,7 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Respond to entering Label state: update HUD and disable hittest.
 
       mdl = obj.model_ ;
-      lObj = mdl.labeler_ ;
-      lObj.currImHud.hTxtTgt.BackgroundColor = mdl.CLR_NEW_TGT ;
+      obj.labelerController_.currImHud.hTxtTgt.BackgroundColor = mdl.CLR_NEW_TGT ;
       obj.tv_.hittest_off_all() ;
       tvPred = obj.labelerController_.tvTrkPred_ ;
       if ~isempty(tvPred)
@@ -537,21 +537,20 @@ classdef LabelCoreSeqMAController < LabelCoreController
       % Enable or disable buttons based on model state.
 
       mdl = obj.model_ ;
-      lObj = mdl.labeler_ ;
       if mdl.state_ == LabelState.LABEL
         set(obj.pbNewTgt_, 'Enable', 'on') ;
         set(obj.pbDelTgt_, 'Enable', 'off') ;
         set(obj.pbRoiNew_, 'Enable', 'off') ;
         set(obj.pbRoiEdit_, 'Enable', 'off') ;
         set(obj.pbNewTgt_, 'String', 'Cancel') ;
-        lObj.currImHud.hTxtTgt.BackgroundColor = mdl.CLR_NEW_TGT ;
+        obj.labelerController_.currImHud.hTxtTgt.BackgroundColor = mdl.CLR_NEW_TGT ;
       else
         set(obj.pbNewTgt_, 'Enable', 'on') ;
         set(obj.pbDelTgt_, 'Enable', 'on') ;
         set(obj.pbRoiNew_, 'Enable', 'on') ;
         set(obj.pbRoiEdit_, 'Enable', 'on') ;
         set(obj.pbNewTgt_, 'String', 'New Target') ;
-        lObj.currImHud.hTxtTgt.BackgroundColor = [0 0 0] ;
+        obj.labelerController_.currImHud.hTxtTgt.BackgroundColor = [0 0 0] ;
       end
     end  % function
 

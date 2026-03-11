@@ -40,6 +40,7 @@ classdef LabelerController < handle
     doEchoControlActuation_ = false
       % When true, controlActuated() prints the control name to the console.
     lblCoreController_  % scalar LabelCoreController, or []. The controller for the label core model.
+    currImHud  % scalar AxisHUD, or []. The HUD readout for the main axis.
   end
 
   properties  % these are all the things that used to be in the main figure's guidata, but are not simple controls
@@ -517,6 +518,9 @@ classdef LabelerController < handle
         addlistener(labeler,'didSetShowMaRoi',@(s,e)(obj.cbkShowMaRoiChanged(s,e)));
       obj.listeners_(end+1) = ...
         addlistener(labeler,'didSetShowMaRoiAux',@(s,e)(obj.cbkShowMaRoiAuxChanged(s,e)));
+
+      obj.listeners_(end+1) = ...
+        addlistener(labeler,'updateHudReadoutFields',@(s,e)(obj.updateHudReadoutFields())) ;
 
       obj.listeners_(end+1) = ...
         addlistener(obj.axes_curr,'XLim','PostSet',@(s,e)(obj.axesCurrXLimChanged(s,e))) ;
@@ -1576,12 +1580,7 @@ classdef LabelerController < handle
       lObj = obj.labeler_ ;
       if (lObj.hasTrx || lObj.maIsMA) && ~lObj.isinit ,
         iTgt = lObj.currTarget;
-        lObj.currImHud.updateTarget(iTgt);
-          % lObj.currImHud is really a view object, but is stored in the Labeler for
-          % historical reasons.  It should probably be stored in obj (the
-          % LabelerController).  Someday we will move it, but right now it's referred to
-          % by so many places in Labeler, and LabelCore, etc that I don't want to start
-          % shaving that yak right now.  -- ALT, 2025-01-30
+        obj.currImHud.updateTarget(iTgt) ;
         obj.labelTLInfo.updateTraces();
         if lObj.gtIsGTMode
           tfHilite = lObj.gtCurrMovFrmTgtIsInGTSuggestions();
@@ -1590,6 +1589,20 @@ classdef LabelerController < handle
         end
         obj.axesesHighlightManager_.setHighlight(tfHilite);
       end
+    end  % function
+
+    function updateHudReadoutFields(obj)
+      % Sync the AxisHUD readout fields from the AxisHUDModel.
+      labeler = obj.labeler_ ;
+      mdl = labeler.currImHudModel ;
+      if isempty(obj.currImHud) || ~isvalid(obj.currImHud)
+        obj.currImHud = AxisHUD(obj.axes_curr.Parent, obj.axes_curr) ;
+      end
+      obj.currImHud.updateReadoutFields( ...
+        'hasTgt', mdl.hasTgt, ...
+        'hasLblPt', mdl.hasLblPt, ...
+        'hasSusp', mdl.hasSusp, ...
+        'hasTrklet', mdl.hasTrklet) ;
     end  % function
 
     function updateEnablementOfManyControls(obj)
@@ -3222,7 +3235,7 @@ classdef LabelerController < handle
       labeler = obj.labeler_ ;
       if (labeler.hasTrx || labeler.maIsMA) && ~labeler.isinit ,
         iTgt = labeler.currTarget;
-        labeler.currImHud.updateTarget(iTgt);
+        obj.currImHud.updateTarget(iTgt) ;
         obj.labelTLInfo.updateTraces();
         obj.updateHighlightingOfAxes();
 

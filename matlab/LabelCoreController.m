@@ -122,7 +122,8 @@ classdef LabelCoreController < handle
 
       set(gdata.tbAccept, 'Enable', 'on') ;
       set(gdata.pbClear, 'Enable', 'on') ;
-      mdl.labeler_.currImHud.updateReadoutFields('hasLblPt', false) ;
+      mdl.labeler_.currImHudModel.hasLblPt = false ;
+      mdl.labeler_.notify('updateHudReadoutFields') ;
 
       if mdl.labeler_.showOccludedBox
         obj.showOcc() ;

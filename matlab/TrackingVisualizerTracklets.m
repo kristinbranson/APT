@@ -29,11 +29,10 @@ classdef TrackingVisualizerTracklets < TrackingVisualizerBase
 
       obj.parent_ = parent ;
       obj.tvm_ = tvm ;
-      lObj = parent.labeler_ ;
 
       obj.tvmt = TrackingVisualizerMT(parent, tvm.tvmt) ;
       obj.tvtrx = TrackingVisualizerTrxMA(parent, tvm.tvtrx) ;
-      obj.hud = lObj.currImHud ;
+      obj.hud = parent.currImHud ;
     end
 
     function vizInit(obj, varargin)

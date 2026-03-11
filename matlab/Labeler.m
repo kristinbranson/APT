@@ -208,6 +208,7 @@ classdef Labeler < handle
     updatePredictionSkeletonCosmetics
     updateAxesCLim
     downdateViewConfig
+    updateHudReadoutFields
   end
   
   %% Project
@@ -734,7 +735,7 @@ classdef Labeler < handle
   properties
     prevFrame = nan       % last previously VISITED frame
     currTarget = 1      % always 1 if proj doesn't have trx    
-    currImHud  % scalar AxisHUD object TODO: move to LabelerGUI. init: C
+    currImHudModel  % scalar AxisHUDModel object. init: C
   end
 %   properties
 %     keyPressHandlers  % [nhandlerx1] cell array of LabelerKeyEventHandlers.
@@ -1834,9 +1835,7 @@ classdef Labeler < handle
       obj.movieReader = mr;
       obj.currIm = cell(obj.nview,1);
       obj.currImRoi = cell(obj.nview,1);
-      delete(obj.currImHud);
-      controller = obj.controller_;
-      obj.currImHud = AxisHUD(controller.axes_curr.Parent,controller.axes_curr); 
+      obj.currImHudModel = AxisHUDModel() ;
       %obj.movieSetNoMovie();
       
       obj.movieForceGrayscale = logical(cfg.Movie.ForceGrayScale);
@@ -5606,7 +5605,8 @@ classdef Labeler < handle
         obj.frm2trx = Labeler.trxHlpComputeF2t(obj.nframes,trx);
       end
       
-      obj.currImHud.updateReadoutFields('hasTgt',obj.hasTrx || obj.maIsMA);
+      obj.currImHudModel.hasTgt = obj.hasTrx || obj.maIsMA ;
+      obj.notify('updateHudReadoutFields') ;
       
       obj.notify('didSetTrx') ;
     end

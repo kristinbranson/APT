@@ -102,7 +102,8 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       obj.txLblCoreAux_.Visible = 'on' ;
       obj.refreshHotkeyDesc() ;
 
-      mdl.labeler_.currImHud.updateReadoutFields('hasLblPt', true) ;
+      mdl.labeler_.currImHudModel.hasLblPt = true ;
+      mdl.labeler_.notify('updateHudReadoutFields') ;
 
       % Set up axis BDFs for multi-view
       for iView = 1:mdl.nView
@@ -843,7 +844,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         set(h(i), 'Color', hClrs(i, :), 'FontWeight', 'normal', 'EdgeColor', 'none') ;
       end
       set(obj.hPts_, 'HitTest', 'on') ;
-      mdl.labeler_.currImHud.updateLblPoint(nan, mdl.nPointSet) ;
+      obj.labelerController_.currImHud.updateLblPoint(nan, mdl.nPointSet) ;
     end  % function
 
     function projectionWorkingSetSet_(obj, iSet)
@@ -867,7 +868,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       if isscalar(iAx)
         set(obj.hFig_(iAx), 'CurrentObject', get(hPT(iAx), 'Parent')) ;
       end
-      mdl.labeler_.currImHud.updateLblPoint(iSet, mdl.nPointSet) ;
+      obj.labelerController_.currImHud.updateLblPoint(iSet, mdl.nPointSet) ;
       obj.projectionRefresh_() ;
     end  % function
 

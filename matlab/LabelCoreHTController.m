@@ -62,6 +62,9 @@ classdef LabelCoreHTController < LabelCoreController
       mdl = obj.model_ ;
       iPt = mdl.iPoint_ ;
 
+      % Update HUD label point display
+      obj.labelerController_.currImHud.updateLblPoint(iPt, mdl.nPts_) ;
+
       % Turn off HitTest for all points, then enable for iPoint
       set(obj.hPts_, 'HitTest', 'off') ;
       set(obj.hPts_(iPt), 'HitTest', 'on') ;

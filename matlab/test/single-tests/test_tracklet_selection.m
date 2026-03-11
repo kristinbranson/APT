@@ -20,7 +20,7 @@ tvm = tracker.trkVizer ;
 ptrx = tvm.ptrx ;
 assert(~isempty(ptrx), 'Expected non-empty ptrx (tracklets)') ;
 
-hud = labeler.currImHud ;
+hud = controller.currImHud ;
 nTrkletTot = numel(ptrx) ;
 
 fprintf('Prerequisites verified: tracker, tvTrkPred_, and tracklets are present.\n') ;
