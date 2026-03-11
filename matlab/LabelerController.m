@@ -582,6 +582,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'applyGammaCorrection',@(s,e)(obj.applyGammaCorrection())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'updateLabelSkeletonCosmetics',@(s,e)(obj.updateLabelSkeletonCosmetics())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'updatePreProcParams',@(s,e)(obj.updatePreProcParams())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -3685,6 +3687,11 @@ classdef LabelerController < handle
     function updateLabelSkeletonCosmetics(obj)
       % Respond to label skeleton cosmetics being updated.
       obj.lblCoreController_.skeletonCosmeticsUpdated() ;
+    end  % function
+
+    function updatePreProcParams(obj)
+      % Respond to preprocessing parameters changing.
+      obj.lblCoreController_.preProcParamsChanged() ;
     end  % function
 
     function cbkShowSkeletonChanged(obj, src, evt)  %#ok<INUSD>

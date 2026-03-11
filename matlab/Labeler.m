@@ -187,6 +187,7 @@ classdef Labeler < handle
     applyGammaCorrection
     didSetSkeletonEdges
     updateLabelSkeletonCosmetics
+    updatePreProcParams
   end
 
   events  % used to come from labeler.tracker
@@ -10278,7 +10279,7 @@ classdef Labeler < handle
         end
         
         if obj.maIsMA && ~istrack,
-          obj.controller_.lblCoreController_.preProcParamsChanged() ;          
+          obj.notify('updatePreProcParams') ;
         end
       end
       
