@@ -791,12 +791,6 @@ classdef Labeler < handle
       end
     end
 
-    function registerController(obj)
-      % This just records that there is a GUI attached. It would be good to get rid
-      % of this.  The Labeler shouldn't care whether there's a GUI attached or not.
-      obj.isgui = true ;
-    end
-
     function handleCreationTimeAdditionalArgumentsGUI_(obj, varargin)
       [projfile, replace_path] = ...
         myparse_nocheck(varargin, ...
@@ -12097,11 +12091,6 @@ classdef Labeler < handle
   
   %% Navigation
   methods
-    
-    function navPrefsUI(obj, mainFigure)
-      % Open the navigation preferences dialog.
-      NavPrefs(obj, mainFigure);
-    end
     
     function setFrameGUI(obj,frm,varargin)
       % Set movie frame, maintaining current movie/target.

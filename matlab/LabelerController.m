@@ -299,7 +299,6 @@ classdef LabelerController < handle
       obj.labeler_ = labeler ;
       mainFigure = createLabelerMainFigure() ;
       obj.mainFigure_ = mainFigure ;
-      obj.labeler_.registerController() ;  % hack, but not as bad as before
       obj.tvTrx_ = TrackingVisualizerTrx(obj, labeler) ;
       obj.isInYodaMode_ = isInYodaMode ;
         % If in yoda mode, we don't wrap GUI-event function calls in a try..catch.
@@ -5454,10 +5453,14 @@ classdef LabelerController < handle
       labeler.movieRotateTargetUp = ~labeler.movieRotateTargetUp;
     end
 
+    function navPrefsUI(obj)
+      % Open the navigation preferences dialog.
+      NavPrefs(obj.labeler_, obj.mainFigure_) ;
+    end
+
     function menu_view_fps_actuated_(obj,src,evt)  %#ok<INUSD>
       % redundant with Go > Navigation preferences, but hard to find
-      labeler = obj.labeler_ ;
-      labeler.navPrefsUI(obj.mainFigure_);
+      obj.navPrefsUI() ;
     end
 
 
@@ -5753,8 +5756,7 @@ classdef LabelerController < handle
 
 
     function menu_go_nav_prefs_actuated_(obj, src, evt)  %#ok<INUSD>
-      labeler = obj.labeler_ ;
-      labeler.navPrefsUI(obj.mainFigure_);
+      obj.navPrefsUI() ;
     end
 
 
@@ -8061,9 +8063,6 @@ classdef LabelerController < handle
           qstr = FSPath.errStrFileNotFoundMacroAware(movfile,...
             movfileFull,'movie');
           qtitle = 'Movie not found';
-          if ~labeler.isgui, %isdeployed() ||
-            error(qstr);
-          end
 
           if FSPath.hasAnyMacro(movfile)
             qargs = {'Redefine macros','Browse to movie','Cancel','Cancel'};

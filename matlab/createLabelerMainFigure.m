@@ -3827,10 +3827,6 @@ handles = guihandles(main_figure);
 % Call the initialization function (now inlined)
 %dispatchMainFigureCallback('initialize', h1, [], handles) ;
 
-% if labeler.isgui ,
-%   hfigsplash = createSplashScreenFigure();
-% end
-
 main_figure.Name = 'APT';
 main_figure.HandleVisibility = 'on';
 
@@ -3970,18 +3966,8 @@ set(main_figure,'Units','normalized');  % Why do we do this?  -- ALT, 2025-06-05
 
 %handles.controller.enableControls_('tooltipinit');
 set(main_figure,'Visible','on');
-% if labeler.isgui ,
-%   refocusSplashScreen(hfigsplash,main_figure);
-% end
 
 setLabelerFigureTooltipsBang(main_figure) ;
-
-% if labeler.isgui,
-%   refocusSplashScreen(hfigsplash,main_figure);
-%   if ishandle(hfigsplash),
-%     delete(hfigsplash);
-%   end
-% end
 
 % Get rid of all the darn toolbars
 hs = findall(main_figure,'-property','Toolbar');
