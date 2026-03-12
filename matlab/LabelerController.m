@@ -1311,7 +1311,64 @@ classdef LabelerController < handle
 %       nmontage = min(nmontage,height(t));
 %       obj.trackLabelMontage(t,'aggOverPtsL2err','hPlot',fig_4,'nplot',nmontage);
     end  % function
-    
+
+    function trackLabelMontage(obj, tbl, errfld, varargin)
+      % Create montage figures showing tracking errors vs ground truth.
+
+      labeler = obj.labeler_ ;
+
+      [nr, nc, h, npts, nphyspts, nplot, frmlblclr, frmlblbgclr, readImgFcn] = ...
+        myparse(varargin, ...
+        'nr', 3, ...
+        'nc', 4, ...
+        'hPlot', [], ...
+        'npts', labeler.nLabelPoints, ... % hack
+        'nphyspts', labeler.nPhysPoints, ... % hack
+        'nplot', height(tbl), ... % show/include nplot worst rows
+        'frmlblclr', [1 1 1], ...
+        'frmlblbgclr', [0 0 0], ...
+        'readImgFcn', @labeler.trackLabelMontageProcessData ...
+        ) ;
+
+      if nplot>height(tbl)
+        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.', height(tbl)) ;
+        nplot = height(tbl) ;
+      end
+
+      tblSorted = sortrows(tbl, {errfld}, {'descend'}) ;
+      tblTop = tblSorted(1:nplot, :) ;
+
+      [tblProcessed, I, tfReadFailed] = readImgFcn(tblTop) ;
+
+      tblPostRead = tblProcessed(:, {'pLbl' 'pTrk' 'mov' 'frm' 'iTgt' errfld}) ;
+      tblPostRead(tfReadFailed, :) = [] ;
+
+      if labeler.hasTrx
+        frmLblsAll = arrayfun(@(zm, zf, zt, ze)sprintf('mov/frm/tgt=%d/%d/%d,err=%.2f', zm, zf, zt, ze), ...
+          abs(tblPostRead.mov), tblPostRead.frm, tblPostRead.iTgt, tblPostRead.(errfld), 'uni', 0) ;
+      else
+        frmLblsAll = arrayfun(@(zm, zf, ze)sprintf('mov/frm=%d/%d,err=%.2f', zm, zf, ze), ...
+          abs(tblPostRead.mov), tblPostRead.frm, tblPostRead.(errfld), 'uni', 0) ;
+      end
+
+      nrowsPlot = height(tblPostRead) ;
+      startIdxs = 1:nr*nc:nrowsPlot ;
+      for i=1:numel(startIdxs)
+        plotIdxs = startIdxs(i):min(startIdxs(i)+nr*nc-1, nrowsPlot) ;
+        frmLblsThis = frmLblsAll(plotIdxs) ;
+        for iView=1:labeler.nview
+          h(end+1, 1) = figure('Name', 'Tracking Error Montage', 'windowstyle', 'docked') ; %#ok<AGROW>
+          pColIdx = (1:nphyspts)+(iView-1)*nphyspts ;
+          pColIdx = [pColIdx pColIdx+npts] ; %#ok<AGROW>
+          Shape.montage(I(:, iView), tblPostRead.pLbl(:, pColIdx), 'fig', h(end), ...
+            'nr', nr, 'nc', nc, 'idxs', plotIdxs, ...
+            'framelbls', frmLblsThis, 'framelblscolor', frmlblclr, ...
+            'framelblsbgcolor', frmlblbgclr, 'p2', tblPostRead.pTrk(:, pColIdx), ...
+            'p2marker', '+', 'titlestr', 'Tracking Montage, descending err (''+'' is tracked)') ;
+        end
+      end
+    end  % function
+
     function tfsucc = selectAwsInstanceGUI_(obj, varargin)
       % Brings up the GUI to set the AWS configuration parameters and select
       % an AWS instance.

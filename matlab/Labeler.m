@@ -11212,59 +11212,6 @@ classdef Labeler < handle
       I = ppdata.I;      
     end
     
-    function trackLabelMontage(obj,tbl,errfld,varargin)
-      
-      [nr,nc,h,npts,nphyspts,nplot,frmlblclr,frmlblbgclr,readImgFcn] = ...
-        myparse(varargin,...
-        'nr',3,...
-        'nc',4,...
-        'hPlot',[],...
-        'npts',obj.nLabelPoints,... % hack
-        'nphyspts',obj.nPhysPoints,... % hack
-        'nplot',height(tbl),... % show/include nplot worst rows
-        'frmlblclr',[1 1 1], ...
-        'frmlblbgclr',[0 0 0], ...
-        'readImgFcn',@obj.trackLabelMontageProcessData ... 
-        );
-      
-      if nplot>height(tbl)
-        warningNoTrace('''nplot'' argument too large. Only %d GT rows are available.',height(tbl));
-        nplot = height(tbl);
-      end
-      
-      tbl = sortrows(tbl,{errfld},{'descend'});
-      tbl = tbl(1:nplot,:);
-      
-      [tbl,I,tfReadFailed] = readImgFcn(tbl);
-
-      tblPostRead = tbl(:,{'pLbl' 'pTrk' 'mov' 'frm' 'iTgt' errfld});
-      tblPostRead(tfReadFailed,:) = [];
-    
-      if obj.hasTrx
-        frmLblsAll = arrayfun(@(zm,zf,zt,ze)sprintf('mov/frm/tgt=%d/%d/%d,err=%.2f',zm,zf,zt,ze),...
-          abs(tblPostRead.mov),tblPostRead.frm,tblPostRead.iTgt,tblPostRead.(errfld),'uni',0);        
-      else
-        frmLblsAll = arrayfun(@(zm,zf,ze)sprintf('mov/frm=%d/%d,err=%.2f',zm,zf,ze),...
-          abs(tblPostRead.mov),tblPostRead.frm,tblPostRead.(errfld),'uni',0);
-      end
-      
-      nrowsPlot = height(tblPostRead);
-      startIdxs = 1:nr*nc:nrowsPlot;
-      for i=1:numel(startIdxs)
-        plotIdxs = startIdxs(i):min(startIdxs(i)+nr*nc-1,nrowsPlot);
-        frmLblsThis = frmLblsAll(plotIdxs);
-        for iView=1:obj.nview
-          h(end+1,1) = figure('Name','Tracking Error Montage','windowstyle','docked'); %#ok<AGROW>
-          pColIdx = (1:nphyspts)+(iView-1)*nphyspts;
-          pColIdx = [pColIdx pColIdx+npts]; %#ok<AGROW>
-          Shape.montage(I(:,iView),tblPostRead.pLbl(:,pColIdx),'fig',h(end),...
-            'nr',nr,'nc',nc,'idxs',plotIdxs,...
-            'framelbls',frmLblsThis,'framelblscolor',frmlblclr,...
-            'framelblsbgcolor',frmlblbgclr,'p2',tblPostRead.pTrk(:,pColIdx),...
-            'p2marker','+','titlestr','Tracking Montage, descending err (''+'' is tracked)');
-        end
-      end
-    end
     
     function tvm = createTrackingVisualizerModel(obj, ptsPlotInfoFld, gfxTagPfix)
       % Create TVM (model) appropriate to this proj.
