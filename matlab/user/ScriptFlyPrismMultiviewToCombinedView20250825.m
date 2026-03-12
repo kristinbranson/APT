@@ -6,7 +6,7 @@ side_views = [2,4];
 %lblfile_mv = '/groups/branson/bransonlab/aniket/APT/label_files/recroppedFourViews_trained.lbl';
 lblfile_mv = '/groups/branson/bransonlab/aniket/APT/label_files/combined_labels_from_annotators/combined_walshj_NManakov_20251028.lbl';
 [lObj_mv, controller_mv] = StartAPT;
-lObj_mv.projLoadGUI(lblfile_mv);
+lObj_mv.projLoad(lblfile_mv) ;
 
 % export labels to table
 tbl_mv = lObj_mv.labelGetMFTableLabeled('useMovNames',true);
@@ -44,7 +44,7 @@ lblfile_bottom = '/groups/branson/bransonlab/aniket/APT/label_files/trained_labe
 outlblfile_bottom = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/cross_validation_data_20251028/combinedBottomViewMA20251028.lbl';
 mkdir('/groups/branson/bransonlab/aniket/APT/3D_labeling_project/cross_validation_data_20251028/')
 [lObj_bottom, controller_bottom] = StartAPT;
-lObj_bottom.projLoadGUI(lblfile_bottom,'nomovie',true);
+lObj_bottom.projLoad(lblfile_bottom, 'nomovie', true) ;
 
 % remove all movies
 for iMov = lObj_bottom.nmovies:-1:1,
@@ -89,7 +89,7 @@ end
 lblfile_side = '/groups/branson/bransonlab/aniket/APT/label_files/trained_label_files/combinedSideViewMA20250829_v2.lbl';
 outlblfile_side = '/groups/branson/bransonlab/aniket/APT/3D_labeling_project/cross_validation_data_20251028//combinedSideViewMA20251028.lbl';
 [lObj_side, controller_side] = StartAPT;
-lObj_side.projLoadGUI(lblfile_side,'nomovie',true);
+lObj_side.projLoad(lblfile_side, 'nomovie', true) ;
 
 % remove all movies
 for iMov = lObj_side.nmovies:-1:1,

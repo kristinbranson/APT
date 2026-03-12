@@ -807,7 +807,7 @@ classdef Labeler < handle
                         'projfile',[], ...
                         'replace_path',{'',''}) ;
       if projfile ,
-        obj.projLoadGUI(projfile, 'replace_path', replace_path) ;
+        obj.projLoad(projfile, 'replace_path', replace_path) ;
       end      
     end
 
@@ -1700,15 +1700,15 @@ classdef Labeler < handle
 
   % Property init legend
   % IFC: property initted during initFromConfig_()  
-  %      (but initFromConfig_ is called from both projNew() and projLoadGUI()...
+  %      (but initFromConfig_ is called from both projNew() and projLoad()...
   %       -- ALT, 2025-02-05)
-  % PNPL: property initted during projNew() or projLoadGUI()
+  % PNPL: property initted during projNew() or projLoad()
   % L: property initted during labelingInit()
   % (todo) TI: property initted during trackingInit()
   %
   % There are only two ways to start working on a project.
   % 1. New/blank project: projNew().
-  % 2. Existing project: projLoadGUI(), which is (initFromConfig(), then
+  % 2. Existing project: projLoad(), which is (initFromConfig(), then
   %    property-initialization-equivalent-to-projNew().)
   
     function initFromConfig_(obj, cfg)
@@ -2362,8 +2362,8 @@ classdef Labeler < handle
       end
     end  % function
     
-    function currMovInfo = projLoadGUI(obj,fname,varargin)
-      % Load a lbl file
+    function currMovInfo = projLoad(obj, fname, varargin)
+      % Load a lbl file from the given filename
       %
       % currProjInfo: scalar struct containing diagnostic info. When the
       % project is loaded, APT attempts to set the movie to the last-known
@@ -2389,19 +2389,6 @@ classdef Labeler < handle
       end
 
       currMovInfo = [];
-      
-      if exist('fname','var')==0
-        lastLblFile = obj.rcGetProp('lastLblFile');
-        if isempty(lastLblFile)
-          lastLblFile = pwd;
-        end
-        filterspec = sprintf(obj.DEFAULT_LBLFILENAME,'*');
-        [fname,pth] = uigetfile(filterspec,'Load label file',lastLblFile);
-        if isequal(fname,0)
-          return;
-        end
-        fname = fullfile(pth,fname);
-      end
       
       if exist(fname,'file')==0
         error('Labeler:file','File ''%s'' not found.',fname);
@@ -2741,9 +2728,7 @@ classdef Labeler < handle
       end
       % Final sign-off
       fprintf('\nFinished loading project, elapsed time %f s.\n',toc(starttime)); 
-
-
-    end  % function projLoadGUI
+    end  % function projLoad
     
     function [movs,tgts,frms] = findPartiallyLabeledFrames(obj)
       
@@ -3846,7 +3831,7 @@ classdef Labeler < handle
         [tf,loc] = ismember(macrosMatch, macroMatchCell{1}) ;
         assert(all(tf)) ;
         pathstr1Macroized = pathstrMacroizedCell{1}(loc) ;
-        liststr = [{pathstrs{1}} ; pathstr1Macroized] ;
+        liststr = [{pathstrs{1}} ; pathstr1Macroized] ;  %#ok<CCAT1>
 
         % Ask the controller (if present) to show the selection dialog
         obj.macroizationListStr_ = liststr ;
@@ -4600,7 +4585,7 @@ classdef Labeler < handle
       % Make sure all the movie files exist.  There's some hacky stuff here
       % to allow the controller, if present, to help the user find missing movies
       % with the GUI.  But want this method to also work in the absence of a GUI.
-      mIdx = MovieIndex(iMov, labeler.gtIsGTMode) ;
+      mIdx = MovieIndex(iMov, obj.gtIsGTMode) ;
       obj.mIdxToCheck_ = mIdx ;
       obj.didMovieCheckSucceed_ = [] ;
       obj.notify('requestMovieFilesCheckAndUserFinding') ;
@@ -11511,41 +11496,7 @@ classdef Labeler < handle
         nFrmXV = nnz(hasXV);
         xvMeanErr = mean(xvErr(hasXV));
       end
-      
- 
-%     function [success,fname] = trackSaveLoadAsHelper(obj,rcprop,uifcn,...
-%         promptstr,rawMeth)
-%       % rcprop: Name of RC property for guessing path
-%       % uifcn: either 'uiputfile' or 'uigetfile'
-%       % promptstr: used in uiputfile
-%       % rawMeth: track*Raw method to call when a file is specified
-%       
-%       % Guess a path/location for save/load
-%       lastFile = obj.rcGetProp(rcprop);
-%       if isempty(lastFile)
-%         projFile = obj.projectfile;
-%         if ~isempty(projFile)
-%           savepath = fileparts(projFile);
-%         else
-%           savepath = pwd;
-%         end
-%       else
-%         savepath = fileparts(lastFile);
-%       end
-%       
-%       filterspec = fullfile(savepath,'*.mat');
-%       [fname,pth] = feval(uifcn,filterspec,promptstr);
-%       if isequal(fname,0)
-%         fname = [];
-%         success = false;
-%       else
-%         fname = fullfile(pth,fname);
-%         success = true;
-%         obj.(rawMeth)(fname);
-%       end
-%     end
-     
-  end
+  end  % methods (Static)
   
   methods % TrackRes
     

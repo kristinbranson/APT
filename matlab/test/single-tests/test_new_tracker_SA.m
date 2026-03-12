@@ -12,7 +12,7 @@ function test_new_tracker_SA()
   labeler.silent = true ;
 
   % Load the named project
-  labeler.projLoadGUI(project_file_path, 'replace_path', replace_path);
+  labeler.projLoad(project_file_path, 'replace_path', replace_path) ;
 
   % Get the list of available tracker types
   [~, ~, saposenets] = Labeler.getAllTrackerTypes();

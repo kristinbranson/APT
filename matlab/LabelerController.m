@@ -3748,7 +3748,9 @@ classdef LabelerController < handle
       if ~isempty(tv)
         tv.setShowSkeleton(labeler.showSkeleton) ;
       end
-      obj.lblCoreController_.updateShowSkeleton() ;
+      if ~isempty(obj.lblCoreController_)
+        obj.lblCoreController_.updateShowSkeleton() ;
+      end
     end  % function
 
     function cbkShowMaRoiChanged(obj, src, evt)  %#ok<INUSD>
@@ -3757,7 +3759,9 @@ classdef LabelerController < handle
       onOff = onIff(labeler.showMaRoi);
       obj.menu_view_showhide_maroi.Checked = onOff;
       if labeler.labelMode == LabelMode.MULTIANIMAL
-        obj.lblCoreController_.tv_.setShowPches(labeler.showMaRoi) ;
+        if ~isempty(obj.lblCoreController_)
+          obj.lblCoreController_.tv_.setShowPches(labeler.showMaRoi) ;
+        end
       end
     end  % function
 
@@ -3767,7 +3771,9 @@ classdef LabelerController < handle
       onOff = onIff(labeler.showMaRoiAux);
       obj.menu_view_showhide_maroiaux.Checked = onOff;
       if labeler.labelMode == LabelMode.MULTIANIMAL
-        obj.lblCoreController_.roiSetShow(labeler.showMaRoiAux) ;
+        if ~isempty(obj.lblCoreController_)
+          obj.lblCoreController_.roiSetShow(labeler.showMaRoiAux) ;
+        end
       end
     end  % function
     
@@ -4769,11 +4775,26 @@ classdef LabelerController < handle
       obj.load() ;
     end
 
-    function load(obj)
+    function projLoadGUI(obj)
+      % Prompt the user for a project file and load it
       labeler = obj.labeler_ ;
+      lastLblFile = labeler.rcGetProp('lastLblFile') ;
+      if isempty(lastLblFile)
+        lastLblFile = pwd ;
+      end
+      filterspec = sprintf(labeler.DEFAULT_LBLFILENAME, '*') ;
+      [fname, pth] = uigetfile(filterspec, 'Load label file', lastLblFile) ;
+      if isequal(fname, 0)
+        return ;
+      end
+      fname = fullfile(pth, fname) ;
+      labeler.projLoad(fname) ;
+    end  % function
+
+    function load(obj)
+      % Handle the File > Load menu item
       if obj.raiseUnsavedChangesDialogIfNeeded() ,
-        % currMovInfo = labeler.projLoadGUI();
-        labeler.projLoadGUI();
+        obj.projLoadGUI() ;
         % if ~isempty(currMovInfo)
         %   obj.movieManagerController_.setVisible(true);
         %   wstr = ...

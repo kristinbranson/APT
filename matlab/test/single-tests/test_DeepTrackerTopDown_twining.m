@@ -7,7 +7,7 @@ function test_DeepTrackerTopDown_twining()
   % Set the labeler to silent mode for batch operation
   labeler.silent = true ;
   % Load the named project
-  labeler.projLoadGUI(project_file_path, 'replace_path', replace_path) ;
+  labeler.projLoad(project_file_path, 'replace_path', replace_path) ;
   % Make the backup
   labeler.trackMakeBackupOfCurrentTrackerIfHasBeenTrained() ;
   originalTracker = labeler.tracker ;

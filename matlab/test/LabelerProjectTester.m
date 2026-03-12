@@ -19,7 +19,7 @@ classdef LabelerProjectTester < handle
       % Set the labeler to silent mode for batch operation
       obj.labeler.silent = true ;
       % Load the named project
-      obj.labeler.projLoadGUI(project_file_path, 'replace_path', replace_path) ;
+      obj.labeler.projLoad(project_file_path, 'replace_path', replace_path) ;
     end
     
     function delete(obj)
