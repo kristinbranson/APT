@@ -36,9 +36,6 @@ classdef DeepTracker < LabelTracker
     sPrm  % new-style DT params
     backend
     isTrainingSplits
-    skip_dlgs  
-      % Skip save/delete dialogs for testing.  Logical scalar.
-      % This is equal to obj.lObj.silent
     trnName
     trnNameLbl
   end
@@ -909,7 +906,7 @@ classdef DeepTracker < LabelTracker
       % Check if user is ok with their tracking results being deleted, if there are
       % any.
       if obj.isTrkFiles() ,
-        if ~obj.skip_dlgs
+        if ~obj.lObj.silent
           res = obj.lObj.questionUser_( ...
             ['Tracking results exist for previous deep trackers. ' ...
              'When training stops, these will be deleted. Continue training?'], ...
@@ -2025,7 +2022,7 @@ classdef DeepTracker < LabelTracker
       obj.trnLastDMC.iterCurr = obj.backend.getMostRecentModel(obj.trnLastDMC) ;  % make sure up-to-date
       isCurr = obj.checkTrackingResultsCurrent_();
       if willLoad && ~isCurr,
-        if ~obj.skip_dlgs
+        if ~obj.lObj.silent
           res = obj.lObj.questionUser_( ...
             'Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
             'Previous tracking results exist', ...
@@ -3845,10 +3842,6 @@ classdef DeepTracker < LabelTracker
       obj.lObj.updateTrackingMonitorRetrograde() ;
     end  % function
 
-    function result = get.skip_dlgs(obj)
-      result = obj.lObj.silent ;
-    end
-
     function [tfDoProceed, modelChainID, prev_models] = ...
         determineModelChainIDAndPreviousModels_(obj, prev_models0, dlTrnType, augOnly)
       % Determines the modelChainID for the about-to-be-trained model, and the
@@ -3863,7 +3856,7 @@ classdef DeepTracker < LabelTracker
       
       % Get a few things out out of obj
       modelChainID0 = obj.trnName ;
-      skip_dlgs = obj.skip_dlgs ;
+      skip_dlgs = obj.lObj.silent ;
 
       % Do the work
       tfDoProceed = true ;
