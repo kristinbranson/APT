@@ -1540,22 +1540,22 @@ classdef TrkFile < dynamicprops
 %       end
 %     end
     
-    function trackletViz(obj,ax,varargin)
-      plotargs = myparse(varargin,...
-        'plotargs',{'linewidth',2} ...
-        );
-      
-      axes(ax);
-      hold on;
-      %ntrx = numel(obj.pTrk);
-      for i=1:obj.ntracklets
-        t = obj.startframes(i):obj.endframes(i);
-        p1 = squeeze(obj.pTrk{i}(1,1,:));
-        plot(t,p1,plotargs{:});
-      end
-      grid on;
-    end
-  end
+    % function trackletViz(obj,ax,varargin)
+    %   plotargs = myparse(varargin,...
+    %     'plotargs',{'linewidth',2} ...
+    %     );
+    % 
+    %   axes(ax);
+    %   hold on;
+    %   %ntrx = numel(obj.pTrk);
+    %   for i=1:obj.ntracklets
+    %     t = obj.startframes(i):obj.endframes(i);
+    %     p1 = squeeze(obj.pTrk{i}(1,1,:));
+    %     plot(t,p1,plotargs{:});
+    %   end
+    %   grid on;
+    % end
+  end  % methods
 
   methods (Static)
     function v = isAliveHelper(xy)
