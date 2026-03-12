@@ -589,6 +589,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'updatePreProcParams',@(s,e)(obj.updatePreProcParams())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestMovieFilesCheckAndUserFinding',@(s,e)(obj.requestMovieFilesCheckAndUserFinding())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'requestMacroizationGUI',@(s,e)(obj.requestMacroizationGUI())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -8260,7 +8262,7 @@ classdef LabelerController < handle
 
       % If possible, offer macroized movFile
       [tfCancel,macro,movfileMacroized] = ...
-        FSPath.offerMacroizationGUI(labeler.projMacros,{movFileFull});
+        labeler.offerMacroization_({movFileFull}) ;
       if tfCancel
         doReturn = true ;
         return
@@ -8647,6 +8649,21 @@ classdef LabelerController < handle
       mIdx = obj.labeler_.mIdxToCheck_ ;
       tfsuccess = obj.movieCheckFilesExistGUI(mIdx) ;
       obj.labeler_.didMovieCheckSucceed_ = tfsuccess ;
+    end  % function
+
+    function requestMacroizationGUI(obj)
+      % Show listdlg for macroization selection and write result back to Labeler.
+      labeler = obj.labeler_ ;
+      liststr = labeler.macroizationListStr_ ;
+      [sel,ok] = listdlg('ListString', liststr, ...
+        'SelectionMode', 'single', ...
+        'ListSize', [700 200], ...
+        'Name', 'Macros Available', ...
+        'PromptString', 'Select optional macro to use for moviefile(s):') ;
+      result = struct() ;
+      result.sel = sel ;
+      result.ok = ok ;
+      labeler.macroizationSelection_ = result ;
     end  % function
 
   end  % methods

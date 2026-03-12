@@ -188,7 +188,8 @@ classdef Labeler < handle
     didSetSkeletonEdges
     updateLabelSkeletonCosmetics
     updatePreProcParams
-    requestMovieFilesCheckAndUserFinding    
+    requestMovieFilesCheckAndUserFinding
+    requestMacroizationGUI
   end
 
   events  % used to come from labeler.tracker
@@ -390,6 +391,10 @@ classdef Labeler < handle
     % directly.  This is a hack, admittedly.
     mIdxToCheck_
     didMovieCheckSucceed_
+    % These exist to allow offerMacroization_() to work without touching the
+    % controller directly.
+    macroizationListStr_
+    macroizationSelection_
   end
 
   properties
@@ -3805,6 +3810,74 @@ classdef Labeler < handle
       end        
     end  % function
 
+    function [tfCancel,macro,pathstrsMacroized] = offerMacroization_(obj, pathstrs)
+      % If any macros are present in all pathstrs, let user optionally
+      % select macroized versions of pathstrs via the controller.  If there
+      % is no controller, proceeds as if the user did not want macroization.
+      %
+      % pathstrs: cellstr (can be nonscalar)
+      %
+      % tfCancel: if true, user canceled
+      % macro: macro used/replaced, or [] if no macro found/selected.
+      % pathstrsMacroized: same size as pathstrs; macroized pathstrs (using
+      %   macro), or original pathstrs if macro is [].
+
+      assert(iscellstr(pathstrs) && isvector(pathstrs)) ; %#ok<ISCLSTR>
+
+      sMacro = obj.projMacros ;
+      [macroMatchCell,pathstrMacroizedCell] = ...
+        cellfun(@(zzP)FSPath.macrosPresent(zzP, sMacro), pathstrs, 'uni', 0) ;
+      macrosMatch = macroMatchCell{1} ;
+      npstrs = numel(pathstrs) ;
+      for i = 2:npstrs
+        macrosMatch = intersect(macrosMatch, macroMatchCell{i}) ;
+      end
+      if isempty(macrosMatch)
+        tfCancel = false ;
+        macro = [] ;
+        pathstrsMacroized = pathstrs ;
+      else
+        % 1+ macros are common to all pathstrs
+        [tf,loc] = ismember(macrosMatch, macroMatchCell{1}) ;
+        assert(all(tf)) ;
+        pathstr1Macroized = pathstrMacroizedCell{1}(loc) ;
+        liststr = [{pathstrs{1}} ; pathstr1Macroized] ;
+
+        % Ask the controller (if present) to show the selection dialog
+        obj.macroizationListStr_ = liststr ;
+        obj.macroizationSelection_ = [] ;
+        obj.notify('requestMacroizationGUI') ;
+
+        if isempty(obj.macroizationSelection_)
+          % No controller present; proceed as if user did not want macroization
+          sel = 1 ;
+          ok = true ;
+        else
+          sel = obj.macroizationSelection_.sel ;
+          ok = obj.macroizationSelection_.ok ;
+        end
+
+        tfCancel = ~ok ;
+        if ok
+          if sel == 1
+            macro = [] ;
+            pathstrsMacroized = pathstrs ;
+          else
+            macro = macrosMatch{sel-1} ;
+            pathstrsMacroized = cell(size(pathstrs)) ;
+            for i = 1:npstrs
+              [tf,loc] = ismember(macro, macroMatchCell{i}) ;
+              assert(tf) ;
+              pathstrsMacroized{i} = pathstrMacroizedCell{i}{loc} ;
+            end
+          end
+        else
+          macro = [] ;
+          pathstrsMacroized = [] ;
+        end
+      end
+    end  % function
+
     function movieAdd(obj,moviefile,trxfile,varargin)
       % Add movie/trx to end of movie/trx list.
       %
@@ -3851,7 +3924,7 @@ classdef Labeler < handle
         if offerMacroization 
           % Optionally replace movFile, tFile with macroized versions
           [tfCancel,macro,movFileMacroized] = ...
-            FSPath.offerMacroizationGUI(obj.projMacros,{movFile});
+            obj.offerMacroization_({movFile}) ;
           if tfCancel
             continue;
           end
@@ -4036,7 +4109,7 @@ classdef Labeler < handle
       
       if offerMacroization
         [tfCancel,macro,moviefilesMacroized] = ...
-          FSPath.offerMacroizationGUI(obj.projMacros,moviefiles);
+          obj.offerMacroization_(moviefiles) ;
         if tfCancel
           return;
         end
