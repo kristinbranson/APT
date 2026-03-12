@@ -947,11 +947,9 @@ classdef DeepTracker < LabelTracker
         prev_models0 = obj.trnLastDMC.trainFinalModelLnx ;
       end
       [tfDoProceed, modelChainID, prev_models] = ...
-        obj.determineModelChainIDAndPreviousModels_(obj.trnName, ...
-                                                    prev_models0, ...
+        obj.determineModelChainIDAndPreviousModels_(prev_models0, ...
                                                     dlTrnType, ...
-                                                    augOnly, ...
-                                                    obj.skip_dlgs) ;
+                                                    augOnly) ;
       if ~tfDoProceed
         return
       end
@@ -3852,19 +3850,21 @@ classdef DeepTracker < LabelTracker
     end
 
     function [tfDoProceed, modelChainID, prev_models] = ...
-        determineModelChainIDAndPreviousModels_(obj, modelChainID0, prev_models0, dlTrnType, augOnly, skip_dlgs)
+        determineModelChainIDAndPreviousModels_(obj, prev_models0, dlTrnType, augOnly)
       % Determines the modelChainID for the about-to-be-trained model, and the
       % previous models to use as a starting point, if any.
       
       % Check input types
-      assert(isOldSchoolString(modelChainID0)) ;
       assert(iscell(prev_models0)) ;
       assert(isrow(prev_models0)) ;
       assert(all(cellfun(@isOldSchoolString, prev_models0))) ;
       assert(isa(dlTrnType, 'DLTrainType') && isscalar(dlTrnType)) ;
       assert(islogical(augOnly) && isscalar(augOnly)) ;
-      assert(islogical(skip_dlgs) && isscalar(skip_dlgs)) ;
       
+      % Get a few things out out of obj
+      modelChainID0 = obj.trnName ;
+      skip_dlgs = obj.skip_dlgs ;
+
       % Do the work
       tfDoProceed = true ;
       prev_models = cell(1,0) ;
