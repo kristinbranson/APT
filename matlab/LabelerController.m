@@ -4896,14 +4896,14 @@ classdef LabelerController < handle
             assert(false);
         end
       end
-      labeler.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
+      obj.labelImportTrkPromptGenericSimple(iMov,'labelImportTrk','gtok',false) ;
     end
 
     function menu_file_import_tracking_results_actuated_(obj, src, evt)  %#ok<INUSD>
       % Import tracking results from .trk file(s) for the current movie
       labeler = obj.labeler_ ;
       iMov = labeler.currMovie ;
-      labeler.labelImportTrkPromptGenericSimple(iMov, 'importTrackingResults') ;
+      obj.labelImportTrkPromptGenericSimple(iMov, 'importTrackingResults') ;
     end
 
     function menu_file_export_labels_trks_actuated_(obj, src, evt)  %#ok<INUSD>
@@ -8674,5 +8674,53 @@ classdef LabelerController < handle
       msgbox(labeler.messageForUserText_, labeler.messageForUserTitle_) ;
     end  % function
 
+    function labelImportTrkPromptGenericSimple(obj, iMov, importFcn, varargin)
+      % Prompt user for trkfiles to import and import them with given 
+      % importFcn. User can cancel to abort
+      %
+      % iMov: scalar positive index into .movieFilesAll. GT mode not
+      %   allowed.
+
+      labeler = obj.labeler_ ;
+            
+      if ~labeler.hasMovie
+        error('Labeler:noMovie','No movie is loaded.');
+      end
+      
+      % labeler.pushBusyStatus('Importing tracking results...');
+      % oc = onCleanup(@()(labeler.popBusyStatus())) ;
+      
+      gtok = myparse(varargin,...
+        'gtok',false ... % if true, obj.gtIsGTMode can be true, and iMov 
+                  ...% refers per GT state. importFcn needs to support GT
+                  ...% state
+                  );
+      
+      assert(isscalar(iMov));      
+      if ~gtok
+        assert(~labeler.gtIsGTMode);
+      end
+      
+      movs = labeler.movieFilesAllFullGTaware(iMov,:);
+      movdirs = cellfun(@fileparts,movs,'uni',0);
+      nvw = labeler.nview;
+      trkfiles = cell(1,nvw);
+      for ivw=1:nvw
+        if nvw>1
+          promptstr = sprintf('Import trkfile for view %d',ivw);
+        else
+          promptstr = 'Import trkfile';
+        end
+        [fname,pth] = uigetfile('*.trk',promptstr,movdirs{ivw});
+        if isequal(fname,0)
+          return;
+        end
+        trkfiles{ivw} = fullfile(pth,fname);
+      end
+      
+      % Call the Labeler function to actual do stuff to the model
+      feval(importFcn, labeler, iMov, trkfiles) ;
+    end  % function
+    
   end  % methods
 end  % classdef
