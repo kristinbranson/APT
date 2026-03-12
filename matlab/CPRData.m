@@ -1177,110 +1177,110 @@ classdef CPRData < handle
   methods (Static)
     
     %#%MV
-    function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
-      % Furthest-first training set analysis
-      %
-      % tblP: table with labeled positions (p)
-      % gvar: field to use as grouping var. If empty, all rows in a single
-      % group.
-      %
-      % grps: [Ngrp] categorical, unique groups found
-      % ffd: [Ngrp] cell vec. ffd{i} contains a vector of "furthest-first"
-      % distances, sorted in decreasing order.
-      % ffdiTrl. [Ngrp] cell vec. ffdiTrl{i} is a vector of indices into 
-      % tblP for ffd{i}.
-            
-      pTrn = tblP.p;
-      if isempty(gvar)
-        g = ones(size(tblP,1),1);
-      else
-        g = tblP.(gvar);
-      end
-      g = categorical(g);
-      grps = unique(g);
-      nGrps = numel(grps);
-      ffd = cell(nGrps,1);
-      ffdiTrl = cell(nGrps,1);
-      
-      for iGrp = 1:nGrps
-        gCur = grps(iGrp);
-        tf = g==gCur;
-        iG = find(tf);
-        pG = pTrn(iG,:);
-        nG = numel(iG);
-        
-        % use furthestfirst to order shapes by decreasing distance
-        warnst = warning('off','backtrace');
-        [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[],'hWaitBar',true);  
-        warning(warnst);
-        
-        mindists(1) = inf;
-        assert(isequal(sort(mindists,'descend'),mindists));
-        
-        ffd{iGrp} = mindists;
-        ffdiTrl{iGrp} = iG(tmpidx);
-      end
-    end
+    % function [grps,ffd,ffdiTrl] = ffTrnSet(tblP,gvar)
+    %   % Furthest-first training set analysis
+    %   %
+    %   % tblP: table with labeled positions (p)
+    %   % gvar: field to use as grouping var. If empty, all rows in a single
+    %   % group.
+    %   %
+    %   % grps: [Ngrp] categorical, unique groups found
+    %   % ffd: [Ngrp] cell vec. ffd{i} contains a vector of "furthest-first"
+    %   % distances, sorted in decreasing order.
+    %   % ffdiTrl. [Ngrp] cell vec. ffdiTrl{i} is a vector of indices into 
+    %   % tblP for ffd{i}.
+    % 
+    %   pTrn = tblP.p;
+    %   if isempty(gvar)
+    %     g = ones(size(tblP,1),1);
+    %   else
+    %     g = tblP.(gvar);
+    %   end
+    %   g = categorical(g);
+    %   grps = unique(g);
+    %   nGrps = numel(grps);
+    %   ffd = cell(nGrps,1);
+    %   ffdiTrl = cell(nGrps,1);
+    % 
+    %   for iGrp = 1:nGrps
+    %     gCur = grps(iGrp);
+    %     tf = g==gCur;
+    %     iG = find(tf);
+    %     pG = pTrn(iG,:);
+    %     nG = numel(iG);
+    % 
+    %     % use furthestfirst to order shapes by decreasing distance
+    %     warnst = warning('off','backtrace');
+    %     [~,~,tmpidx,~,mindists] = furthestfirst(pG,nG,'Start',[],'hWaitBar',true);  
+    %     warning(warnst);
+    % 
+    %     mindists(1) = inf;
+    %     assert(isequal(sort(mindists,'descend'),mindists));
+    % 
+    %     ffd{iGrp} = mindists;
+    %     ffdiTrl{iGrp} = iG(tmpidx);
+    %   end
+    % end
     
     %#%MV
-    function hFig1 = ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,varargin)
-      % Display furthestfirst distances for groups in subplots; enable
-      % clicking on subplots to visualize training shape
-      
-      [fontsz,cbkFcn] = myparse(varargin,...
-        'fontsize',8,...
-        'cbkFcn',[]); % called when user clicks; signature: cbk(xSel,ySel)
-      
-      assert(isequal(numel(grps),numel(ffd),numel(ffdiTrl)));
-      cellfun(@(x,y)assert(isequal(size(x),size(y))),ffd,ffdiTrl);
-      assert(iscategorical(grps));
-      
-      nGrp = numel(grps);
-      nrc = ceil(sqrt(nGrp));
-      hFig1 = figure;
-      axs = createsubplots(nrc,nrc,.06);
-      bdfCbks = cell(nGrp,1);
-      for iGrp = 1:nGrp
-        gstr = char(grps(iGrp));
-        gstr = gstr(1:min(6,end));
-        ax = axs(iGrp);
-        plot(ax,ffd{iGrp});
-        grid(ax,'on');
-        title(ax,gstr,'interpreter','none','fontsize',fontsz);
-        if iGrp==1
-          ylabel(ax,'distance (px^2)','fontsize',fontsz);
-        end
-        if isempty(cbkFcn)
-          cbkFcn = @(x,y)nst(x,y);
-        end
-        bdfCbks{iGrp} = cbkFcn;
-        ax.YScale = 'log';
-      end
-      
-      LiveDataCursor(hFig1,axs,bdfCbks);
-      
-      function nst(xsel,ysel) %#ok<INUSL>
-        % xsel, ysel: (x,y) on ffd plot nearest to user click
-        
-        iTrnAcc = [];
-        for zGrp = 1:nGrp
-          ffdists = ffd{zGrp};
-          ffidxs = ffdiTrl{zGrp};          
-          nTot = numel(ffdists);
-          tfSel = ffdists>=ysel;
-          nSel = nnz(tfSel);
-          fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(grps(zGrp)),...
-            nSel,nTot,round(nSel/nTot*100));
-          iTrnAcc = [iTrnAcc; ffidxs(tfSel)]; %#ok<AGROW>
-        end
-        nP = size(tblP,1);
-        nTrnAcc = numel(iTrnAcc);
-        fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
-          nTrnAcc,nP,round(nTrnAcc/nP*100));  
-      end
-    end
+    % function hFig1 = ffTrnSetSelect(tblP,grps,ffd,ffdiTrl,varargin)
+    %   % Display furthestfirst distances for groups in subplots; enable
+    %   % clicking on subplots to visualize training shape
+    % 
+    %   [fontsz,cbkFcn] = myparse(varargin,...
+    %     'fontsize',8,...
+    %     'cbkFcn',[]); % called when user clicks; signature: cbk(xSel,ySel)
+    % 
+    %   assert(isequal(numel(grps),numel(ffd),numel(ffdiTrl)));
+    %   cellfun(@(x,y)assert(isequal(size(x),size(y))),ffd,ffdiTrl);
+    %   assert(iscategorical(grps));
+    % 
+    %   nGrp = numel(grps);
+    %   nrc = ceil(sqrt(nGrp));
+    %   hFig1 = figure;
+    %   axs = createsubplots(nrc,nrc,.06);
+    %   bdfCbks = cell(nGrp,1);
+    %   for iGrp = 1:nGrp
+    %     gstr = char(grps(iGrp));
+    %     gstr = gstr(1:min(6,end));
+    %     ax = axs(iGrp);
+    %     plot(ax,ffd{iGrp});
+    %     grid(ax,'on');
+    %     title(ax,gstr,'interpreter','none','fontsize',fontsz);
+    %     if iGrp==1
+    %       ylabel(ax,'distance (px^2)','fontsize',fontsz);
+    %     end
+    %     if isempty(cbkFcn)
+    %       cbkFcn = @(x,y)nst(x,y);
+    %     end
+    %     bdfCbks{iGrp} = cbkFcn;
+    %     ax.YScale = 'log';
+    %   end
+    % 
+    %   LiveDataCursor(hFig1,axs,bdfCbks);
+    % 
+    %   function nst(xsel,ysel) %#ok<INUSL>
+    %     % xsel, ysel: (x,y) on ffd plot nearest to user click
+    % 
+    %     iTrnAcc = [];
+    %     for zGrp = 1:nGrp
+    %       ffdists = ffd{zGrp};
+    %       ffidxs = ffdiTrl{zGrp};          
+    %       nTot = numel(ffdists);
+    %       tfSel = ffdists>=ysel;
+    %       nSel = nnz(tfSel);
+    %       fprintf(1,'%s: nSel/nTot=%d/%d (%d%%)\n',char(grps(zGrp)),...
+    %         nSel,nTot,round(nSel/nTot*100));
+    %       iTrnAcc = [iTrnAcc; ffidxs(tfSel)]; %#ok<AGROW>
+    %     end
+    %     nP = size(tblP,1);
+    %     nTrnAcc = numel(iTrnAcc);
+    %     fprintf(1,'Grand total of %d/%d (%d%%) shapes selected for training.\n',...
+    %       nTrnAcc,nP,round(nTrnAcc/nP*100));  
+    %   end
+    % end
 
-  end
+  end  % methods (Static)
   
   methods 
     
