@@ -591,6 +591,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'requestMovieFilesCheckAndUserFinding',@(s,e)(obj.requestMovieFilesCheckAndUserFinding())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestMacroizationGUI',@(s,e)(obj.requestMacroizationGUI())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'requestMessageBox',@(s,e)(obj.requestMessageBox())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -8664,6 +8666,12 @@ classdef LabelerController < handle
       result.sel = sel ;
       result.ok = ok ;
       labeler.macroizationSelection_ = result ;
+    end  % function
+
+    function requestMessageBox(obj)
+      % Show a message box to the user on behalf of the Labeler.
+      labeler = obj.labeler_ ;
+      msgbox(labeler.messageForUserText_, labeler.messageForUserTitle_) ;
     end  % function
 
   end  % methods

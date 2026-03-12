@@ -190,6 +190,7 @@ classdef Labeler < handle
     updatePreProcParams
     requestMovieFilesCheckAndUserFinding
     requestMacroizationGUI
+    requestMessageBox
   end
 
   events  % used to come from labeler.tracker
@@ -395,6 +396,10 @@ classdef Labeler < handle
     % controller directly.
     macroizationListStr_
     macroizationSelection_
+    % These exist to allow messageUser_() to show a message box via the
+    % controller, without touching it directly.
+    messageForUserText_
+    messageForUserTitle_
   end
 
   properties
@@ -7770,7 +7775,7 @@ classdef Labeler < handle
           fprintf('Saved labels: %s\n',outf);
         end
       end
-      msgbox(sprintf('Results for %d moviesets exported.',nMov),'Export complete');      
+      obj.messageUser_(sprintf('Results for %d moviesets exported.', nMov), 'Export Complete') ;
     end
     
     function labelImportTrkGeneric(obj, mIdx, trkfiles)
@@ -9072,7 +9077,7 @@ classdef Labeler < handle
 
       nextmft = obj.gtNextUnlabeledMFT();
       if isempty(nextmft),
-        msgbox('No more unlabeled frames in to-label list.','','modal');
+        obj.messageUser_('No more unlabeled frames in to-label list.') ;
         return;
       end
 
@@ -13989,6 +13994,21 @@ classdef Labeler < handle
       obj.prevAxesMode_ = mode ;
       obj.notify('updatePrevPanel') ;
     end
+
+    function messageUser_(obj, text, title)
+      % Show a message to the user via the controller, or print to console if
+      % no controller is present.
+      if ~exist('title', 'var') ,
+        title = 'Message' ;
+      end
+      if obj.isgui
+        obj.messageForUserText_ = text ;
+        obj.messageForUserTitle_ = title ;
+        obj.notify('requestMessageBox') ;
+      else
+        fprintf('%s\n', text) ;
+      end
+    end  % function
 
   end  % methods
 end  % classdef
