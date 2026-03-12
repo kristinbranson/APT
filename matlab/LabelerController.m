@@ -593,6 +593,8 @@ classdef LabelerController < handle
         addlistener(obj.labeler_,'requestMacroizationGUI',@(s,e)(obj.requestMacroizationGUI())) ;
       obj.listeners_(end+1) = ...
         addlistener(obj.labeler_,'requestMessageBox',@(s,e)(obj.requestMessageBox())) ;
+      obj.listeners_(end+1) = ...
+        addlistener(obj.labeler_,'requestQuestionDialog',@(s,e)(obj.requestQuestionDialog())) ;
 
       obj.fakeMenuTags = {
         'menu_view_zoom_toggle'
@@ -8693,6 +8695,20 @@ classdef LabelerController < handle
       % Show a message box to the user on behalf of the Labeler.
       labeler = obj.labeler_ ;
       msgbox(labeler.messageForUserText_, labeler.messageForUserTitle_) ;
+    end  % function
+
+    function requestQuestionDialog(obj)
+      % Show a question dialog to the user on behalf of the Labeler.
+      labeler = obj.labeler_ ;
+      buttons = labeler.questionForUserButtons_ ;
+      answer = questdlg(labeler.questionForUserText_, ...
+                         labeler.questionForUserTitle_, ...
+                         buttons{:}, ...
+                         labeler.questionForUserDefault_) ;
+      if isempty(answer)
+        answer = labeler.questionForUserDefault_ ;
+      end
+      labeler.questionForUserAnswer_ = answer ;
     end  % function
 
     function labelImportTrkPromptGenericSimple(obj, iMov, importFcn, varargin)

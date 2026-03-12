@@ -910,11 +910,12 @@ classdef DeepTracker < LabelTracker
       % any.
       if obj.isTrkFiles() ,
         if ~obj.skip_dlgs
-          res = questdlg(['Tracking results exist for previous deep trackers. ' ...
-                          'When training stops, these will be deleted. Continue training?'], ...
-                         'Continue training?', ...
-                         'Yes','No','Cancel', ...
-                         'Yes') ;
+          res = obj.lObj.questionUser_( ...
+            ['Tracking results exist for previous deep trackers. ' ...
+             'When training stops, these will be deleted. Continue training?'], ...
+            'Continue training?', ...
+            {'Yes', 'No', 'Cancel'}, ...
+            'Yes') ;
           if ~strcmpi(res,'Yes'),
             return;
           end
@@ -946,11 +947,11 @@ classdef DeepTracker < LabelTracker
         prev_models0 = obj.trnLastDMC.trainFinalModelLnx ;
       end
       [tfDoProceed, modelChainID, prev_models] = ...
-        determineModelChainIDAndPreviousModelsGUI(obj.trnName, ...
-                                                  prev_models0, ...
-                                                  dlTrnType, ...
-                                                  augOnly, ...
-                                                  obj.skip_dlgs) ;
+        obj.determineModelChainIDAndPreviousModels_(obj.trnName, ...
+                                                    prev_models0, ...
+                                                    dlTrnType, ...
+                                                    augOnly, ...
+                                                    obj.skip_dlgs) ;
       if ~tfDoProceed
         return
       end
@@ -1974,7 +1975,7 @@ classdef DeepTracker < LabelTracker
         question = sprintf(horzcat('Training in progress. Tracking will use in-progress tracker, which has been trained for %s iterations. ', ...
                                    'When training completes, these frames will need to be retracked. Continue?'),...
                            DeepTracker.printIter(iterCurr,obj.trnLastDMC.iterFinal)) ;
-        res = questdlg(question,'Use in-progress tracker?','Track','Cancel','Track');
+        res = obj.lObj.questionUser_(question, 'Use in-progress tracker?', {'Track', 'Cancel'}, 'Track') ;
         if strcmpi(res,'Cancel'),
           error('APT:cancelled', 'Tracking cancelled') ;  % This error message will not normally be shown
         end
@@ -2027,9 +2028,11 @@ classdef DeepTracker < LabelTracker
       isCurr = obj.checkTrackingResultsCurrent_();
       if willLoad && ~isCurr,
         if ~obj.skip_dlgs
-          res = questdlg('Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
-                         'Previous tracking results exist', ...
-                         'Delete','Retrack','Cancel','Delete');
+          res = obj.lObj.questionUser_( ...
+            'Tracking results exist for previous deep trackers. Delete these or retrack these frames?', ...
+            'Previous tracking results exist', ...
+            {'Delete', 'Retrack', 'Cancel'}, ...
+            'Delete') ;
           if strcmpi(res,'Cancel'),
             return;
           end
@@ -2075,7 +2078,7 @@ classdef DeepTracker < LabelTracker
           qstr = sprintf('The following output trk files (%d total) already exist. Delete them?',ndel);
           qstr = [{qstr}; trkfilesdelete(1:MAXTRKFILESDEL); {'...<snip>...'}];
         end
-        res = questdlg(qstr,'Delete existing trk files?','Delete','Cancel','Cancel');
+        res = obj.lObj.questionUser_(qstr, 'Delete existing trk files?', {'Delete', 'Cancel'}, 'Cancel') ;
         if strcmpi(res,'Delete'),
           for i = 1:numel(trkfilesdelete),
             delete(trkfilesdelete{i});
@@ -3847,6 +3850,70 @@ classdef DeepTracker < LabelTracker
     function result = get.skip_dlgs(obj)
       result = obj.lObj.silent ;
     end
+
+    function [tfDoProceed, modelChainID, prev_models] = ...
+        determineModelChainIDAndPreviousModels_(obj, modelChainID0, prev_models0, dlTrnType, augOnly, skip_dlgs)
+      % Determines the modelChainID for the about-to-be-trained model, and the
+      % previous models to use as a starting point, if any.
+      
+      % Check input types
+      assert(isOldSchoolString(modelChainID0)) ;
+      assert(iscell(prev_models0)) ;
+      assert(isrow(prev_models0)) ;
+      assert(all(cellfun(@isOldSchoolString, prev_models0))) ;
+      assert(isa(dlTrnType, 'DLTrainType') && isscalar(dlTrnType)) ;
+      assert(islogical(augOnly) && isscalar(augOnly)) ;
+      assert(islogical(skip_dlgs) && isscalar(skip_dlgs)) ;
+      
+      % Do the work
+      tfDoProceed = true ;
+      prev_models = cell(1,0) ;
+      switch dlTrnType
+        case DLTrainType.New
+          modelChainID = datestr(now(),'yyyymmddTHHMMSS');
+          if ~isempty(modelChainID0) && ~augOnly
+            assert(~strcmp(modelChainID,modelChainID0));
+            fprintf('Training new model %s.\n',modelChainID);
+            defaultans = 'Yes';
+            if ~skip_dlgs,
+              res = obj.lObj.questionUser_( ...
+                ['Current tracker has been trained already. ' ...
+                 'Use trained parameters as a starting point for this training bout?'], ...
+                'Training Initialization', ...
+                {'Yes', 'No', 'Cancel'}, ...
+                defaultans) ;
+            else
+              res = defaultans;
+            end
+            if strcmp(res,'No')
+              prev_models = cell(1,0) ;
+            elseif strcmp(res,'Yes')
+              prev_models = prev_models0;
+            else
+              tfDoProceed = false ;
+              return
+            end
+          else
+            % do nothing
+          end
+        case DLTrainType.Restart
+          % Pretty sure this path is not used in APT right now.  -- ALT, 2025-10-08
+          if isempty(modelChainID0)
+            error('Model has not been trained.');
+          end
+          modelChainID = modelChainID0;
+          fprintf('Restarting train on model %s.\n',modelChainID);
+        otherwise
+          assert(false, 'Internal error');
+      end
+      
+      % Check output types
+      assert(isOldSchoolString(modelChainID)) ;
+      assert(iscell(prev_models)) ;
+      assert(isrow(prev_models)) ;
+      assert(all(cellfun(@isOldSchoolString, prev_models))) ;      
+    end  % function
+    
   end  % methods
 end  % classdef
 

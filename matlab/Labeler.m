@@ -191,6 +191,7 @@ classdef Labeler < handle
     requestMovieFilesCheckAndUserFinding
     requestMacroizationGUI
     requestMessageBox
+    requestQuestionDialog
   end
 
   events  % used to come from labeler.tracker
@@ -400,6 +401,13 @@ classdef Labeler < handle
     % controller, without touching it directly.
     messageForUserText_
     messageForUserTitle_
+    % These exist to allow questionUser_() to ask the user a question via the
+    % controller, without touching it directly.
+    questionForUserText_
+    questionForUserTitle_
+    questionForUserButtons_
+    questionForUserDefault_
+    questionForUserAnswer_
   end
 
   properties
@@ -13874,6 +13882,22 @@ classdef Labeler < handle
         obj.notify('requestMessageBox') ;
       else
         fprintf('%s\n', text) ;
+      end
+    end  % function
+
+    function answer = questionUser_(obj, text, title, buttons, default)
+      % Ask the user a question via the controller, or return the default if
+      % no controller is present.
+      if obj.isgui
+        obj.questionForUserText_ = text ;
+        obj.questionForUserTitle_ = title ;
+        obj.questionForUserButtons_ = buttons ;
+        obj.questionForUserDefault_ = default ;
+        obj.questionForUserAnswer_ = default ;
+        obj.notify('requestQuestionDialog') ;
+        answer = obj.questionForUserAnswer_ ;
+      else
+        answer = default ;
       end
     end  % function
 
