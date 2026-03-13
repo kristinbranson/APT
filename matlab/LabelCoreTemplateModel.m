@@ -305,6 +305,63 @@ classdef LabelCoreTemplateModel < LabelCoreModel
       obj.setLabelCoords([x y]) ;
     end  % function
 
+    function jumpTo(obj, pos)
+      % Handle axis button-down: jump selected point to click location.
+      if ~obj.labeler_.isReady
+        return
+      end
+
+      [tf, iSel] = obj.anyPointSelected() ;
+      if tf
+        obj.xy(iSel, :) = pos ;
+        obj.lastChangedIPt = iSel ;
+        obj.notify('updateLabelCoordsI') ;
+        obj.setPointAdjusted(iSel) ;
+        obj.toggleSelectPoint(iSel) ;
+        if obj.tfOcc(iSel)
+          obj.tfOcc(iSel) = false ;
+          obj.notify('updateOccluded') ;
+        end
+        switch obj.state
+          case LabelState.ADJUST
+            % none
+          case LabelState.ACCEPTED
+            obj.storeLabels() ;
+          otherwise
+            error('LabelCoreTemplateController:unknownState', ...
+                  'Unknown state %s.', char(obj.state)) ;
+        end
+      end
+    end  % function
+    
+    function handleOccludedAxisButtonDown(obj)
+      % Handle occluded-axis button-down.
+      % Note: currently occluded axis hidden so this should be uncalled.
+      if ~obj.labeler_.isReady
+        return ;
+      end
+
+      [tf, iSel] = obj.anyPointSelected() ;
+      if tf
+        obj.setPointAdjusted(iSel) ;
+        obj.toggleSelectPoint(iSel) ;
+        obj.tfOcc(iSel) = true ;
+        obj.tfEstOcc(iSel) = false ;
+        obj.notify('updateOccluded') ;
+        % controller.refreshPtMarkers('iPts', iSel) ;
+          % Hopefully handled by that update above?
+        switch obj.state
+          case LabelState.ADJUST
+            % none
+          case LabelState.ACCEPTED
+            obj.enterAdjust(LabelCoreTemplateResetType.NORESET, false) ;
+          otherwise
+            error('LabelCoreTemplateController:unknownState', ...
+                  'Unknown state %s.', char(obj.state)) ;
+        end
+      end
+    end  % function
+    
   end  % methods
 
 end  % classdef

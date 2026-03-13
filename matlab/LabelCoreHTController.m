@@ -34,7 +34,7 @@ classdef LabelCoreHTController < LabelCoreController
       % Initialize HT-specific graphics state.
 
       mdl = obj.model_ ;
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = mdl.ptsPlotInfo ;
       htm = ppi.HighThroughputMode ;
       obj.unlabeledPointColor_ = htm.UnlabeledPointColor ;
       obj.otherLabeledPointColor_ = htm.OtherLabeledPointColor ;
@@ -63,7 +63,7 @@ classdef LabelCoreHTController < LabelCoreController
       iPt = mdl.iPoint_ ;
 
       % Update HUD label point display
-      obj.labelerController_.currImHud.updateLblPoint(iPt, mdl.nPts_) ;
+      obj.labelerController_.currImHud.updateLblPoint(iPt, mdl.nPts) ;
 
       % Turn off HitTest for all points, then enable for iPoint
       set(obj.hPts_, 'HitTest', 'off') ;
@@ -83,10 +83,10 @@ classdef LabelCoreHTController < LabelCoreController
 
       mdl = obj.model_ ;
       iPt = mdl.iPoint_ ;
-      xy = mdl.xy_ ;
+      xy = mdl.xy ;
       hPoints = obj.hPts_ ;
       hPointsOcc = obj.hPtsOcc_ ;
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = mdl.ptsPlotInfo ;
       colors = ppi.Colors ;
 
       % Positioning: sync all points to model xy_
@@ -144,7 +144,7 @@ classdef LabelCoreHTController < LabelCoreController
       % Handle axis button-down: set point position, colorize, write labels,
       % and advance frame.
 
-      mdl = obj.model_ ;
+      model = obj.model_ ;
       if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
@@ -157,13 +157,13 @@ classdef LabelCoreHTController < LabelCoreController
 
       pos = get(obj.hAx_(1), 'CurrentPoint') ;
       pos = pos(1, 1:2) ;
-      iPt = mdl.iPoint_ ;
+      iPt = model.iPoint_ ;
 
       % Update model coordinates
-      mdl.xy_(iPt, :) = pos ;
+      model.xy(iPt, :) = pos ;
 
       % Update point graphics
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = model.ptsPlotInfo ;
       if ~tfShift
         set(obj.hPts_(iPt), ...
           'Color', ppi.Colors(iPt, :), ...
@@ -238,12 +238,12 @@ classdef LabelCoreHTController < LabelCoreController
       end
 
       iPt = mdl.iPoint_ ;
-      mdl.tfOcc_(iPt) = true ;
-      set(obj.hPtsOcc_(iPt), 'Color', mdl.ptsPlotInfo_.Colors(iPt, :)) ;
+      mdl.tfOcc(iPt) = true ;
+      set(obj.hPtsOcc_(iPt), 'Color', mdl.ptsPlotInfo.Colors(iPt, :)) ;
       obj.refreshOccludedPts() ;
       obj.labeler_.labelPosSetOccludedI(iPt) ;
       tfOcc = obj.labeler_.labelPosIsOccluded() ;
-      assert(isequal(tfOcc, mdl.tfOcc_)) ;
+      assert(isequal(tfOcc, mdl.tfOcc)) ;
 
       obj.labeler_.labelPosTagClearI(iPt) ;
 
@@ -261,8 +261,8 @@ classdef LabelCoreHTController < LabelCoreController
 
       mdl = obj.model_ ;
       iPt = mdl.iPoint_ ;
-      pos = mdl.xy_(iPt, :) ;
-      ppi = mdl.ptsPlotInfo_ ;
+      pos = mdl.xy(iPt, :) ;
+      ppi = mdl.ptsPlotInfo ;
 
       set(obj.hPts_(iPt), 'Color', ppi.Colors(iPt, :)) ;
       lObj = obj.labeler_ ;
@@ -291,8 +291,8 @@ classdef LabelCoreHTController < LabelCoreController
 
       mdl = obj.model_ ;
       iPt = mdl.iPoint_ ;
-      pos = mdl.xy_(iPt, :) ;
-      ppi = mdl.ptsPlotInfo_ ;
+      pos = mdl.xy(iPt, :) ;
+      ppi = mdl.ptsPlotInfo ;
 
       set(obj.hPts_(iPt), 'Color', ppi.Colors(iPt, :)) ;
 
@@ -383,7 +383,7 @@ classdef LabelCoreHTController < LabelCoreController
       nf = obj.labeler_.nframes ;
       f = obj.labeler_.currFrame ;
       iPt = mdl.iPoint_ ;
-      nPt = mdl.nPts_ ;
+      nPt = mdl.nPts ;
       tfEndOfMovie = (f + dfrm > nf) ;
       if tfEndOfMovie
         if iPt == nPt

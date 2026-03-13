@@ -34,7 +34,7 @@ classdef LabelCoreSeqController < LabelCoreController
     function onUpdateState(obj)
       % Sync tbAccept appearance and point HitTest to model state.
       mdl = obj.model_ ;
-      switch mdl.state_
+      switch mdl.state
         case LabelState.LABEL
           set(obj.tbAccept_, 'BackgroundColor', [0.4 0 0], ...
             'String', 'Unlabeled', 'Enable', 'off', 'Value', 0) ;
@@ -48,14 +48,14 @@ classdef LabelCoreSeqController < LabelCoreController
             'Value', 1, 'Enable', 'off') ;
         otherwise
           error('LabelCoreSeqController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
     function onUpdateLabelCoordsI(obj)
       % Sync single-point graphics and refresh markers for changed point.
       onUpdateLabelCoordsI@LabelCoreController(obj) ;
-      iPt = obj.model_.lastChangedIPt_ ;
+      iPt = obj.model_.lastChangedIPt ;
       obj.refreshPtMarkers('iPts', iPt) ;
     end  % function
 
@@ -77,7 +77,7 @@ classdef LabelCoreSeqController < LabelCoreController
       pos = evt.IntersectionPoint(1:2) ;
       mod = obj.hFig_(1).CurrentModifier ;
       tfShift = any(strcmp(mod, 'shift')) ;
-      switch mdl.state_
+      switch mdl.state
         case LabelState.LABEL
           % pos = get(obj.hAx_(1), 'CurrentPoint') ;
           % pos = pos(1, 1:2) ;
@@ -91,7 +91,7 @@ classdef LabelCoreSeqController < LabelCoreController
           end
         otherwise
           error('LabelCoreSeqController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
@@ -108,7 +108,7 @@ classdef LabelCoreSeqController < LabelCoreController
 
       mod = obj.hFig_(1).CurrentModifier ;
       tfShift = any(strcmp(mod, 'shift')) ;
-      switch mdl.state_
+      switch mdl.state
         case LabelState.LABEL
           mdl.labelNextPoint([], true, tfShift) ;
         case {LabelState.ADJUST, LabelState.ACCEPTED}
@@ -118,7 +118,7 @@ classdef LabelCoreSeqController < LabelCoreController
           end
         otherwise
           error('LabelCoreSeqController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
@@ -131,7 +131,7 @@ classdef LabelCoreSeqController < LabelCoreController
       if ~obj.labeler_.isReady || evt.Button > 1
         return ;
       end
-      switch mdl.state_
+      switch mdl.state
         case {LabelState.ADJUST, LabelState.ACCEPTED}
           if ismember('control', obj.hFig_(1).CurrentModifier)
             return ;
@@ -143,7 +143,7 @@ classdef LabelCoreSeqController < LabelCoreController
           % No point interaction during LABEL state
         otherwise
           error('LabelCoreSeqController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
@@ -151,15 +151,15 @@ classdef LabelCoreSeqController < LabelCoreController
       % Handle window button motion: drag selected point.
       % Bypasses event system for responsiveness during continuous drag.
       mdl = obj.model_ ;
-      if isempty(mdl.state_) || ~obj.labeler_.isReady
+      if isempty(mdl.state) || ~obj.labeler_.isReady
         return ;
       end
-      if mdl.state_ == LabelState.ADJUST || mdl.state_ == LabelState.ACCEPTED
+      if mdl.state == LabelState.ADJUST || mdl.state == LabelState.ACCEPTED
         iPt = mdl.iPtMove_ ;
         if ~isnan(iPt)
           tmp = get(obj.hAx_(1), 'CurrentPoint') ;
           pos = tmp(1, 1:2) ;
-          mdl.xy_(iPt, :) = pos ;
+          mdl.xy(iPt, :) = pos ;
           obj.syncPointGraphicsI(iPt) ;
         end
       end
@@ -175,8 +175,8 @@ classdef LabelCoreSeqController < LabelCoreController
       if ismember(gco, obj.labelerController_.tvTrx_.hTrx)
         return ;
       end
-      if mdl.state_ == LabelState.ADJUST || ...
-          mdl.state_ == LabelState.ACCEPTED && ...
+      if mdl.state == LabelState.ADJUST || ...
+          mdl.state == LabelState.ACCEPTED && ...
           ~isempty(mdl.iPtMove_) && ~isnan(mdl.iPtMove_)
         mdl.iPtMove_ = nan ;
         mdl.storeLabels() ;
@@ -203,7 +203,7 @@ classdef LabelCoreSeqController < LabelCoreController
         if tfSel
           mdl.toggleEstOccPoint(iSel) ;
         end
-        if mdl.state_ == LabelState.ACCEPTED
+        if mdl.state == LabelState.ACCEPTED
           mdl.storeLabels() ;
         end
       elseif any(strcmp(key, {'d' 'equal'}))
@@ -235,30 +235,30 @@ classdef LabelCoreSeqController < LabelCoreController
             xyNew = xy + dxdy ;
           end
           xyNew = lc.videoClipToVideo(xyNew) ;
-          mdl.xy_(iSel, :) = xyNew ;
-          mdl.lastChangedIPt_ = iSel ;
+          mdl.xy(iSel, :) = xyNew ;
+          mdl.lastChangedIPt = iSel ;
           mdl.notify('updateLabelCoordsI') ;
-          if mdl.state_ == LabelState.ACCEPTED
+          if mdl.state == LabelState.ACCEPTED
             mdl.storeLabels() ;
           end
         else
           tfKPused = false ;
         end
       elseif strcmp(key, 'backquote')
-        iPt = mdl.kpfIPtFor1Key_ + 10 ;
-        if iPt > mdl.nPts_
+        iPt = mdl.kpfIPtFor1Key + 10 ;
+        if iPt > mdl.nPts
           iPt = 1 ;
         end
-        mdl.kpfIPtFor1Key_ = iPt ;
+        mdl.kpfIPtFor1Key = iPt ;
         obj.refreshTxLabelCoreAux() ;
       elseif any(strcmp(key, {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
-        if mdl.state_ ~= LabelState.LABEL
+        if mdl.state ~= LabelState.LABEL
           iPt = str2double(key) ;
           if iPt == 0
             iPt = 10 ;
           end
-          iPt = iPt + mdl.kpfIPtFor1Key_ - 1 ;
-          if iPt > mdl.nPts_
+          iPt = iPt + mdl.kpfIPtFor1Key - 1 ;
+          if iPt > mdl.nPts
             return ;
           end
           mdl.toggleSelectPoint(iPt) ;

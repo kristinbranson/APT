@@ -42,7 +42,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
     function onUpdateState(obj)
       % Sync tbAccept appearance for SeqAdd mode.
       mdl = obj.model_ ;
-      switch mdl.state_
+      switch mdl.state
         case LabelState.LABEL
           set(obj.tbAccept_, 'BackgroundColor', [0 0 0.4], ...
             'String', 'Adding', 'Enable', 'off', 'Value', 0) ;
@@ -57,7 +57,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
             'Value', 1, 'Enable', 'on') ;
         otherwise
           error('LabelCoreSeqAddController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
@@ -75,7 +75,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
         return ;
       end
       mdl = obj.model_ ;
-      switch mdl.state_
+      switch mdl.state
         case {LabelState.ADJUST, LabelState.ACCEPTED}
           iPt = get(src, 'UserData') ;
           % Only allow interaction with new points
@@ -87,11 +87,11 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
           % No point interaction during LABEL state
         otherwise
           error('LabelCoreSeqAddController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
-    function tfKPused = kpf(obj, src, evt)
+    function tfKPused = kpf(obj, src, evt)  %#ok<INUSD>
       % Handle key press. Override backquote wrapping to respect nold_.
       mdl = obj.model_ ;
       if ~obj.labeler_.isReady
@@ -111,7 +111,7 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
         if tfSel
           mdl.toggleEstOccPoint(iSel) ;
         end
-        if mdl.state_ == LabelState.ACCEPTED
+        if mdl.state == LabelState.ACCEPTED
           mdl.storeLabels() ;
         end
       elseif any(strcmp(key, {'d' 'equal'}))
@@ -143,10 +143,10 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
             xyNew = xy + dxdy ;
           end
           xyNew = lc.videoClipToVideo(xyNew) ;
-          mdl.xy_(iSel, :) = xyNew ;
-          mdl.lastChangedIPt_ = iSel ;
+          mdl.xy(iSel, :) = xyNew ;
+          mdl.lastChangedIPt = iSel ;
           mdl.notify('updateLabelCoordsI') ;
-          switch mdl.state_
+          switch mdl.state
             case LabelState.ADJUST
               % none
             case LabelState.ACCEPTED
@@ -155,26 +155,26 @@ classdef LabelCoreSeqAddController < LabelCoreSeqController
               % none
             otherwise
               error('LabelCoreSeqAddController:unknownState', ...
-                    'Unknown state %s.', char(mdl.state_)) ;
+                    'Unknown state %s.', char(mdl.state)) ;
           end
         else
           tfKPused = false ;
         end
       elseif strcmp(key, 'backquote')
-        iPt = mdl.kpfIPtFor1Key_ + 10 ;
-        if iPt > mdl.nPts_
+        iPt = mdl.kpfIPtFor1Key + 10 ;
+        if iPt > mdl.nPts
           iPt = mdl.nold_ + 1 ;
         end
-        mdl.kpfIPtFor1Key_ = iPt ;
+        mdl.kpfIPtFor1Key = iPt ;
         obj.refreshTxLabelCoreAux() ;
       elseif any(strcmp(key, {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
-        if mdl.state_ ~= LabelState.LABEL
+        if mdl.state ~= LabelState.LABEL
           iPt = str2double(key) ;
           if iPt == 0
             iPt = 10 ;
           end
-          iPt = iPt + mdl.kpfIPtFor1Key_ - 1 ;
-          if iPt > mdl.nPts_ || iPt <= mdl.nold_
+          iPt = iPt + mdl.kpfIPtFor1Key - 1 ;
+          if iPt > mdl.nPts || iPt <= mdl.nold_
             return ;
           end
           mdl.toggleSelectPoint(iPt) ;

@@ -61,7 +61,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       obj.hPtsTxt_ = gobjects(mdl.nPts, 1) ;
       obj.hSkel_ = gobjects(size(mdl.skeletonEdges(), 1), 1) ;
 
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = mdl.ptsPlotInfo ;
       obj.hPtsTxtStrs_ = cell(mdl.nPts, 1) ;
 
       obj.updateSkeletonEdges() ;
@@ -131,7 +131,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function showOccHook(obj)
       % Create occluded-box point handles per-view for multi-view.
       mdl = obj.model_ ;
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = mdl.ptsPlotInfo ;
 
       deleteValidGraphicsHandles(obj.hPtsOcc_) ;
       deleteValidGraphicsHandles(obj.hPtsTxtOcc_) ;
@@ -179,7 +179,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       end
 
       ax = obj.hAx_ ;
-      ptsPlotInfo = mdl.ptsPlotInfo_ ;
+      ptsPlotInfo = mdl.ptsPlotInfo ;
       edges = mdl.skeletonEdges() ;
 
       deleteValidGraphicsHandles(obj.hSkel_) ;
@@ -210,7 +210,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         return ;
       end
 
-      tf = mdl.tfOcc_ ;
+      tf = mdl.tfOcc ;
       assert(isvector(tf) && numel(tf) == mdl.nPts) ;
       nOcc = nnz(tf) ;
       iOcc = find(tf) ;
@@ -232,7 +232,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function onUpdateState(obj)
       % Sync tbAccept appearance to model state.
       mdl = obj.model_ ;
-      switch mdl.state_
+      switch mdl.state
         case LabelState.ADJUST
           set(obj.tbAccept_, 'BackgroundColor', [0.6, 0, 0], 'String', 'Accept', ...
             'Value', 0, 'Enable', 'on') ;
@@ -241,15 +241,15 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
             'Value', 1, 'Enable', 'on') ;
         otherwise
           error('LabelCoreMultiViewCalibrated2Controller:unknownState', ...
-            'Unknown state %s.', char(mdl.state_)) ;
+            'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
     function onUpdateAdjusted(obj)
       % Sync point colors for adjusted/unadjusted points.
       mdl = obj.model_ ;
-      ppi = mdl.ptsPlotInfo_ ;
-      iPt = mdl.lastChangedIPt_ ;
+      ppi = mdl.ptsPlotInfo ;
+      iPt = mdl.lastChangedIPt ;
       if iPt == 0
         % All points changed
         if all(mdl.tfAdjusted_)
@@ -334,27 +334,27 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         ax = obj.hAx_(iAx) ;
         pos = get(ax, 'CurrentPoint') ;
         pos = pos(1, 1:2) ;
-        mdl.xy_(iPt, :) = pos ;
-        mdl.lastChangedIPt_ = iPt ;
+        mdl.xy(iPt, :) = pos ;
+        mdl.lastChangedIPt = iPt ;
         mdl.notify('updateLabelCoordsI') ;
         mdl.setPointAdjusted(iPt) ;
 
-        if mdl.tfOcc_(iPt)
-          mdl.tfOcc_(iPt) = false ;
+        if mdl.tfOcc(iPt)
+          mdl.tfOcc(iPt) = false ;
           obj.refreshOccludedPts() ;
         end
 
         if mdl.streamlined_ && all(mdl.tfAdjusted_)
           mdl.enterAccepted(true) ;
         else
-          switch mdl.state_
+          switch mdl.state
             case LabelState.ADJUST
               % none
             case LabelState.ACCEPTED
               mdl.enterAdjust(false, false) ;
             otherwise
               error('LabelCoreMultiViewCalibrated2Controller:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
           end
         end
         obj.projectionRefresh_() ;
@@ -414,7 +414,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
 
       iPt = mdl.iPtMove_ ;
       if ~isnan(iPt)
-        if mdl.state_ == LabelState.ACCEPTED
+        if mdl.state == LabelState.ACCEPTED
           mdl.enterAdjust(false, false) ;
         end
 
@@ -423,8 +423,8 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         tmp = get(ax, 'CurrentPoint') ;
         pos = tmp(1, 1:2) ;
         mdl.tfMoved_ = true ;
-        mdl.xy_(iPt, :) = pos ;
-        mdl.lastChangedIPt_ = iPt ;
+        mdl.xy(iPt, :) = pos ;
+        mdl.lastChangedIPt = iPt ;
         mdl.notify('updateLabelCoordsI') ;
         mdl.setPointAdjusted(iPt) ;
 
@@ -471,7 +471,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       if strcmp(key, 'space')
         obj.toggleEpipolarState_() ;
       elseif strcmp(key, 's') && ~tfCtrl
-        if mdl.state_ == LabelState.ADJUST
+        if mdl.state == LabelState.ADJUST
           mdl.acceptLabels() ;
         end
       elseif any(strcmp(key, {'d' 'equal'}))
@@ -492,7 +492,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
         end
       elseif any(strcmp(key, {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel, iSel, iAx] = mdl.projectionPointSelected() ;
-        if tfSel && ~mdl.tfOcc_(iSel)
+        if tfSel && ~mdl.tfOcc(iSel)
           tfShift = any(strcmp('shift', modifier)) ;
           xy = mdl.getLabelCoordsI(iSel) ;
           ax = obj.hAx_(iAx) ;
@@ -533,17 +533,17 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
               error('LabelCoreMultiViewCalibrated2Controller:unknownKey', ...
                 'Unknown arrow key %s.', key) ;
           end
-          mdl.xy_(iSel, :) = xy ;
-          mdl.lastChangedIPt_ = iSel ;
+          mdl.xy(iSel, :) = xy ;
+          mdl.lastChangedIPt = iSel ;
           mdl.notify('updateLabelCoordsI') ;
-          switch mdl.state_
+          switch mdl.state
             case LabelState.ADJUST
               mdl.setPointAdjusted(iSel) ;
             case LabelState.ACCEPTED
               mdl.enterAdjust(false, false) ;
             otherwise
               error('LabelCoreMultiViewCalibrated2Controller:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
           end
           obj.projectionRefresh_() ;
         else
@@ -597,22 +597,22 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       mdl = obj.model_ ;
       mdl.setPointAdjusted(iPt) ;
 
-      mdl.tfOcc_(iPt) = true ;
-      mdl.tfEstOcc_(iPt) = false ;
+      mdl.tfOcc(iPt) = true ;
+      mdl.tfEstOcc(iPt) = false ;
       obj.refreshOccludedPts() ;
       obj.refreshPtMarkers('iPts', iPt) ;
 
       if mdl.streamlined_ && all(mdl.tfAdjusted_)
         mdl.enterAccepted(true) ;
       else
-        switch mdl.state_
+        switch mdl.state
           case LabelState.ADJUST
             % none
           case LabelState.ACCEPTED
             mdl.enterAdjust(false, false) ;
           otherwise
             error('LabelCoreMultiViewCalibrated2Controller:unknownState', ...
-              'Unknown state %s.', char(mdl.state_)) ;
+              'Unknown state %s.', char(mdl.state)) ;
         end
       end
       obj.projectionRefresh_() ;
@@ -626,7 +626,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
     function projectionInit_(obj)
       % Create epipolar and reconstructed point line handles.
       mdl = obj.model_ ;
-      ppimvcm = mdl.ptsPlotInfo_.MultiViewCalibratedMode ;
+      ppimvcm = mdl.ptsPlotInfo.MultiViewCalibratedMode ;
       gdata = obj.labelerController_ ;
       nView = mdl.nView ;
 
@@ -698,7 +698,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
           continue ;
         end
         iPt1 = pjtIPtsLocal(i) ;
-        xy1 = mdl.xy_(iPt1, :) ;
+        xy1 = mdl.xy(iPt1, :) ;
         iAx1 = mdl.iPt2iAx_(iPt1) ;
         clr = obj.hPts_(iPt1).Color ;
         crig = mdl.pjtCalRig_ ;
@@ -736,8 +736,8 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       iAx1 = mdl.iPt2iAx_(iPt1) ;
       iAx2 = mdl.iPt2iAx_(iPt2) ;
 
-      xy1 = mdl.xy_(iPt1, :) ;
-      xy2 = mdl.xy_(iPt2, :) ;
+      xy1 = mdl.xy(iPt1, :) ;
+      xy2 = mdl.xy(iPt2, :) ;
       clr = obj.hPts_(iPt1).Color ;
       iAxOther = setdiff(1:mdl.nView, [iAx1 iAx2]) ;
       crig = mdl.pjtCalRig_ ;
@@ -839,7 +839,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
       % Clear working set graphics: reset all point text to normal.
       mdl = obj.model_ ;
       h = obj.hPtsTxt_ ;
-      hClrs = mdl.ptsPlotInfo_.Colors ;
+      hClrs = mdl.ptsPlotInfo.Colors ;
       for i = 1:mdl.nPts
         set(h(i), 'Color', hClrs(i, :), 'FontWeight', 'normal', 'EdgeColor', 'none') ;
       end
@@ -854,7 +854,7 @@ classdef LabelCoreMultiViewCalibrated2Controller < LabelCoreController
 
       h = obj.hPts_ ;
       hPT = obj.hPtsTxt_ ;
-      hClrs = mdl.ptsPlotInfo_.Colors ;
+      hClrs = mdl.ptsPlotInfo.Colors ;
       for i = 1:mdl.nPts
         if any(i == iPtsSet)
           set(hPT(i), 'Color', hClrs(i, :), 'FontWeight', 'bold', 'EdgeColor', 'w') ;

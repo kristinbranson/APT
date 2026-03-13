@@ -63,7 +63,7 @@ classdef LabelCoreTemplateController < LabelCoreController
     function onUpdateState(obj)
       % Sync tbAccept appearance to model state.
       mdl = obj.model_ ;
-      switch mdl.state_
+      switch mdl.state
         case LabelState.ADJUST
           set(obj.tbAccept_, 'BackgroundColor', [0.6 0 0], 'String', 'Accept', ...
             'Value', 0, 'Enable', 'on') ;
@@ -72,14 +72,14 @@ classdef LabelCoreTemplateController < LabelCoreController
             'Value', 1, 'Enable', 'off') ;
         otherwise
           error('LabelCoreTemplateController:unknownState', ...
-                'Unknown state %s.', char(mdl.state_)) ;
+                'Unknown state %s.', char(mdl.state)) ;
       end
     end  % function
 
     function onUpdateAdjusted(obj)
       % Sync color/marker cosmetics for adjusted/unadjusted points.
       mdl = obj.model_ ;
-      iPt = mdl.lastChangedIPt_ ;
+      iPt = mdl.lastChangedIPt ;
       if iPt == 0
         % All points changed
         obj.refreshAdjustedCosmeticsAll() ;
@@ -96,38 +96,12 @@ classdef LabelCoreTemplateController < LabelCoreController
 
     function axBDF(obj, src, evt) %#ok<INUSL>
       % Handle axis button-down: jump selected point to click location.
-      mdl = obj.model_ ;
-      if ~obj.labeler_.isReady || evt.Button > 1
-        return ;
+      if obj.isPanZoom() || evt.Button > 1
+        return
       end
-      if obj.isPanZoom()
-        return ;
-      end
-
       pos = evt.IntersectionPoint(1:2) ;
-      [tf, iSel] = mdl.anyPointSelected() ;
-      if tf
-        % pos = get(obj.hAx_(1), 'CurrentPoint') ;
-        % pos = pos(1, 1:2) ;
-        mdl.xy_(iSel, :) = pos ;
-        mdl.lastChangedIPt_ = iSel ;
-        mdl.notify('updateLabelCoordsI') ;
-        mdl.setPointAdjusted(iSel) ;
-        mdl.toggleSelectPoint(iSel) ;
-        if mdl.tfOcc_(iSel)
-          mdl.tfOcc_(iSel) = false ;
-          mdl.notify('updateOccluded') ;
-        end
-        switch mdl.state_
-          case LabelState.ADJUST
-            % none
-          case LabelState.ACCEPTED
-            mdl.storeLabels() ;
-          otherwise
-            error('LabelCoreTemplateController:unknownState', ...
-                  'Unknown state %s.', char(mdl.state_)) ;
-        end
-      end
+      mdl = obj.model_ ;
+      mdl.jumpTo(pos) ;
     end  % function
 
     function ptBDF(obj, src, evt)
@@ -162,13 +136,13 @@ classdef LabelCoreTemplateController < LabelCoreController
       end
 
       pos = evt.IntersectionPoint(1:2) ;
-      if mdl.state_ == LabelState.ADJUST || mdl.state_ == LabelState.ACCEPTED
+      if mdl.state == LabelState.ADJUST || mdl.state == LabelState.ACCEPTED
         iPt = mdl.iPtMove_ ;
         if ~isnan(iPt)
           % tmp = get(obj.hAx_(1), 'CurrentPoint') ;
           % pos = tmp(1, 1:2) ;
           mdl.tfMoved_ = true ;
-          mdl.xy_(iPt, :) = pos ;
+          mdl.xy(iPt, :) = pos ;
           obj.syncPointGraphicsI(iPt) ;
           mdl.setPointAdjusted(iPt) ;
         end
@@ -182,7 +156,7 @@ classdef LabelCoreTemplateController < LabelCoreController
         return ;
       end
 
-      if mdl.state_ == LabelState.ADJUST || mdl.state_ == LabelState.ACCEPTED
+      if mdl.state == LabelState.ADJUST || mdl.state == LabelState.ACCEPTED
         iPt = mdl.iPtMove_ ;
         if ~isnan(iPt) && ~mdl.tfMoved_
           % point was clicked but not moved
@@ -191,7 +165,7 @@ classdef LabelCoreTemplateController < LabelCoreController
         end
 
         mdl.iPtMove_ = nan ;
-        if mdl.state_ == LabelState.ACCEPTED && ~isnan(iPt) && mdl.tfMoved_
+        if mdl.state == LabelState.ACCEPTED && ~isnan(iPt) && mdl.tfMoved_
           mdl.storeLabels() ;
         end
         mdl.tfMoved_ = false ;
@@ -221,7 +195,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       end
 
       if any(strcmp(key, {'s' 'space'})) && ~tfCtrl
-        if mdl.state_ == LabelState.ADJUST
+        if mdl.state == LabelState.ADJUST
           mdl.acceptLabels() ;
         end
       elseif any(strcmp(key, {'d' 'equal'}))
@@ -235,7 +209,7 @@ classdef LabelCoreTemplateController < LabelCoreController
         end
       elseif any(strcmp(key, {'leftarrow' 'rightarrow' 'uparrow' 'downarrow'}))
         [tfSel, iSel] = mdl.anyPointSelected() ;
-        if tfSel && ~mdl.tfOcc_(iSel)
+        if tfSel && ~mdl.tfOcc(iSel)
           tfShift = any(strcmp('shift', modifier)) ;
           xy = mdl.getLabelCoordsI(iSel) ;
           lc = obj.labelerController_ ;
@@ -258,35 +232,35 @@ classdef LabelCoreTemplateController < LabelCoreController
             xyNew = xy + dxdy ;
           end
           xyNew = lc.videoClipToVideo(xyNew) ;
-          mdl.xy_(iSel, :) = xyNew ;
-          mdl.lastChangedIPt_ = iSel ;
+          mdl.xy(iSel, :) = xyNew ;
+          mdl.lastChangedIPt = iSel ;
           mdl.notify('updateLabelCoordsI') ;
-          switch mdl.state_
+          switch mdl.state
             case LabelState.ADJUST
               mdl.setPointAdjusted(iSel) ;
             case LabelState.ACCEPTED
               mdl.enterAdjust(LabelCoreTemplateResetType.NORESET, false) ;
             otherwise
               error('LabelCoreTemplateController:unknownState', ...
-                    'Unknown state %s.', char(mdl.state_)) ;
+                    'Unknown state %s.', char(mdl.state)) ;
           end
         else
           tfKPused = false ;
         end
       elseif strcmp(key, 'backquote')
-        iPt = mdl.kpfIPtFor1Key_ + 10 ;
-        if iPt > mdl.nPts_
+        iPt = mdl.kpfIPtFor1Key + 10 ;
+        if iPt > mdl.nPts
           iPt = 1 ;
         end
-        mdl.kpfIPtFor1Key_ = iPt ;
+        mdl.kpfIPtFor1Key = iPt ;
         obj.refreshTxLabelCoreAux() ;
       elseif any(strcmp(key, {'0' '1' '2' '3' '4' '5' '6' '7' '8' '9'}))
         iPt = str2double(key) ;
         if iPt == 0
           iPt = 10 ;
         end
-        iPt = iPt + mdl.kpfIPtFor1Key_ - 1 ;
-        if iPt > mdl.nPts_
+        iPt = iPt + mdl.kpfIPtFor1Key - 1 ;
+        if iPt > mdl.nPts
           return ;
         end
         mdl.toggleSelectPoint(iPt) ;
@@ -298,32 +272,11 @@ classdef LabelCoreTemplateController < LabelCoreController
     function axOccBDF(obj, ~, ~)
       % Handle occluded-axis button-down.
       % Note: currently occluded axis hidden so this should be uncalled.
-      mdl = obj.model_ ;
-      if ~obj.labeler_.isReady
-        return ;
-      end
       if obj.isPanZoom()
-        return ;
+        return
       end
-
-      [tf, iSel] = mdl.anyPointSelected() ;
-      if tf
-        mdl.setPointAdjusted(iSel) ;
-        mdl.toggleSelectPoint(iSel) ;
-        mdl.tfOcc_(iSel) = true ;
-        mdl.tfEstOcc_(iSel) = false ;
-        mdl.notify('updateOccluded') ;
-        obj.refreshPtMarkers('iPts', iSel) ;
-        switch mdl.state_
-          case LabelState.ADJUST
-            % none
-          case LabelState.ACCEPTED
-            mdl.enterAdjust(LabelCoreTemplateResetType.NORESET, false) ;
-          otherwise
-            error('LabelCoreTemplateController:unknownState', ...
-                  'Unknown state %s.', char(mdl.state_)) ;
-        end
-      end
+      mdl = obj.model_ ;
+      mdl.handleOccludedAxisButtonDown() ;
     end  % function
 
   end  % methods
@@ -335,7 +288,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       % Update .hPts*PV*Unadjusted_ from model.ptsPlotInfo_.
       % Currently hardcoded but could change in future.
 
-      ppi = obj.model_.ptsPlotInfo_ ;
+      ppi = obj.model_.ptsPlotInfo ;
       obj.hPtsMarkerPVPredUnadjusted_ = struct( ...
         'MarkerSize', ppi.MarkerProps.MarkerSize * 1.5, ...
         'LineWidth', ppi.MarkerProps.LineWidth / 2) ;
@@ -369,12 +322,12 @@ classdef LabelCoreTemplateController < LabelCoreController
       % LabelCoreController overload: only color adjusted pts or unadj/predicted.
 
       mdl = obj.model_ ;
-      mdl.ptsPlotInfo_.Colors = colors ;
+      mdl.ptsPlotInfo.Colors = colors ;
 
       resetType = mdl.lastSetAllUnadjustedResetType_ ;
       tfSetColor = mdl.tfAdjusted_ | ...
                    resetType == LabelCoreTemplateResetType.RESETPREDICTED ;
-      for i = 1:mdl.nPts_
+      for i = 1:mdl.nPts
         if tfSetColor(i)
           if numel(obj.hPts_) >= i && ishandle(obj.hPts_(i))
             set(obj.hPts_(i), 'Color', colors(i, :)) ;
@@ -391,7 +344,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       mdl = obj.model_ ;
       flds = fieldnames(pvMarker) ;
       for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo_.MarkerProps.(f) = pvMarker.(f) ;
+        mdl.ptsPlotInfo.MarkerProps.(f) = pvMarker.(f) ;
       end
 
       obj.updatePredUnadjustedPVs() ;
@@ -409,11 +362,11 @@ classdef LabelCoreTemplateController < LabelCoreController
       mdl = obj.model_ ;
       flds = fieldnames(pvText) ;
       for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo_.TextProps.(f) = pvText.(f) ;
+        mdl.ptsPlotInfo.TextProps.(f) = pvText.(f) ;
       end
       set(obj.hPtsTxt_, pvText) ;
 
-      mdl.ptsPlotInfo_.TextOffset = txtoffset ;
+      mdl.ptsPlotInfo.TextOffset = txtoffset ;
       obj.redrawTextLabels() ;
     end  % function
 
@@ -426,13 +379,13 @@ classdef LabelCoreTemplateController < LabelCoreController
       % Refresh cosmetics for all points based on adjustedness.
       mdl = obj.model_ ;
       resetType = mdl.lastSetAllUnadjustedResetType_ ;
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = mdl.ptsPlotInfo ;
 
       if all(mdl.tfAdjusted_)
         % All adjusted: colored with normal marker props
         clrs = ppi.Colors ;
         pv = obj.hPtsMarkerPVNotPredUnadjusted_ ;
-        for i = 1:mdl.nPts_
+        for i = 1:mdl.nPts
           pv.Color = clrs(i, :) ;
           set(obj.hPts_(i), pv) ;
           if ~isempty(obj.hPtsOcc_)
@@ -452,7 +405,7 @@ classdef LabelCoreTemplateController < LabelCoreController
           case LabelCoreTemplateResetType.RESETPREDICTED
             clrs = ppi.Colors ;
             pv = obj.hPtsMarkerPVPredUnadjusted_ ;
-            for i = 1:mdl.nPts_
+            for i = 1:mdl.nPts
               pv.Color = clrs(i, :) ;
               set(obj.hPts_(i), pv) ;
               if ~isempty(obj.hPtsOcc_)
@@ -470,7 +423,7 @@ classdef LabelCoreTemplateController < LabelCoreController
       % Refresh cosmetics for a single point that just became adjusted.
       mdl = obj.model_ ;
       if mdl.tfAdjusted_(iSel)
-        clr = mdl.ptsPlotInfo_.Colors(iSel, :) ;
+        clr = mdl.ptsPlotInfo.Colors(iSel, :) ;
         pv = obj.hPtsMarkerPVNotPredUnadjusted_ ;
         pv.Color = clr ;
         set(obj.hPts_(iSel), pv) ;

@@ -48,6 +48,14 @@ classdef LabelCoreModel < handle
     nPts
     state
     hideLabels
+    xy
+    tfOcc
+    tfEstOcc
+    tfSel
+    kpfIPtFor1Key
+    lastChangedIPt
+    ptsPlotInfo
+    panZoomMod
   end
 
   methods
@@ -65,6 +73,66 @@ classdef LabelCoreModel < handle
     function result = get.hideLabels(obj)
       % Return whether labels are hidden.
       result = obj.hideLabels_ ;
+    end
+
+    function result = get.xy(obj)
+      % Return the current label coordinates.
+      result = obj.xy_ ;
+    end
+
+    function set.xy(obj, value)
+      % Set the current label coordinates.
+      obj.xy_ = value ;
+    end
+
+    function result = get.tfOcc(obj)
+      % Return the fully-occluded flags.
+      result = obj.tfOcc_ ;
+    end
+
+    function result = get.tfEstOcc(obj)
+      % Return the estimated-occluded flags.
+      result = obj.tfEstOcc_ ;
+    end
+
+    function result = get.tfSel(obj)
+      % Return the selected flags.
+      result = obj.tfSel_ ;
+    end
+
+    function result = get.kpfIPtFor1Key(obj)
+      % Return the keyboard shortcut point offset.
+      result = obj.kpfIPtFor1Key_ ;
+    end
+
+    function set.kpfIPtFor1Key(obj, value)
+      % Set the keyboard shortcut point offset.
+      obj.kpfIPtFor1Key_ = value ;
+    end
+
+    function result = get.lastChangedIPt(obj)
+      % Return the index of the last changed point.
+      result = obj.lastChangedIPt_ ;
+    end
+
+    function set.lastChangedIPt(obj, value)
+      % Set the index of the last changed point.
+      obj.lastChangedIPt_ = value ;
+    end
+
+    function result = get.ptsPlotInfo(obj)
+      % Return the points plotting cosmetic info.
+      result = obj.ptsPlotInfo_ ;
+    end
+
+    function set.ptsPlotInfo(obj, value)
+      % Set the points plotting cosmetic info.
+      obj.ptsPlotInfo_ = value ;
+    end
+
+    function result = get.panZoomMod(obj)
+      % Return the modifier key for pan-zoom.
+      result = obj.panZoomMod_ ;
     end
 
   end  % methods
@@ -241,7 +309,7 @@ classdef LabelCoreModel < handle
         tf(iExclude) = false ;
       end
       iSelPts = find(tf) ;
-      obj.toggleSelectPoint(iSelPts) ; %#ok<FNDSB>
+      obj.toggleSelectPoint(iSelPts) ;
     end  % function
 
   end  % methods
@@ -256,8 +324,8 @@ classdef LabelCoreModel < handle
       assert(~any(tfEO & obj.tfOcc_)) ;
       iPtEO = find(tfEO) ;
       iPtNO = find(~tfEO) ;
-      lObj.labelPosTagSetI(iPtEO) ; %#ok<FNDSB>
-      lObj.labelPosTagClearI(iPtNO) ; %#ok<FNDSB>
+      lObj.labelPosTagSetI(iPtEO) ;
+      lObj.labelPosTagClearI(iPtNO) ;
     end  % function
 
     function setNextTable(obj, tbl)

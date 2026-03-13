@@ -86,7 +86,7 @@ classdef LabelCoreController < handle
 
       mdl = obj.model_ ;
       nPts = mdl.nPts ;
-      ptsPlotInfo = mdl.ptsPlotInfo_ ;
+      ptsPlotInfo = mdl.ptsPlotInfo ;
 
       deleteValidGraphicsHandles(obj.hPts_) ;
       deleteValidGraphicsHandles(obj.hPtsOcc_) ;
@@ -188,7 +188,7 @@ classdef LabelCoreController < handle
 
     function onUpdateLabelCoordsI(obj)
       % Sync single point graphics to model xy_ for lastChangedIPt_.
-      iPt = obj.model_.lastChangedIPt_ ;
+      iPt = obj.model_.lastChangedIPt ;
       obj.syncPointGraphicsI(iPt) ;
     end  % function
 
@@ -213,7 +213,7 @@ classdef LabelCoreController < handle
 
     function onUpdateHideLabels(obj)
       % Hide/show labels state changed.
-      if obj.model_.hideLabels_
+      if obj.model_.hideLabels
         obj.labelsHide() ;
       else
         obj.labelsShow() ;
@@ -266,16 +266,16 @@ classdef LabelCoreController < handle
       tfKPused = false ;
     end  % function
 
-    function v = isPanZoom(obj, figi)
+    function result = isPanZoom(obj, figi)
       % Check whether the user is in pan-zoom mode (modifier key held).
       if ~exist('figi', 'var')
         figi = 1 ;
       end
       if ishandle(obj.hFig_(figi)) && ...
-          ismember(obj.model_.panZoomMod_, obj.hFig_(figi).CurrentModifier)
-        v = true ;
+          ismember(obj.model_.panZoomMod, obj.hFig_(figi).CurrentModifier)
+        result = true ;
       else
-        v = false ;
+        result = false ;
       end
     end  % function
 
@@ -289,7 +289,7 @@ classdef LabelCoreController < handle
 
       mdl = obj.model_ ;
       nPts = mdl.nPts ;
-      ptsPlotInfo = mdl.ptsPlotInfo_ ;
+      ptsPlotInfo = mdl.ptsPlotInfo ;
 
       deleteValidGraphicsHandles(obj.hPtsOcc_) ;
       deleteValidGraphicsHandles(obj.hPtsTxtOcc_) ;
@@ -347,9 +347,9 @@ classdef LabelCoreController < handle
       % Sync all point handles to model coordinates. Handles occlusion.
 
       mdl = obj.model_ ;
-      xy = mdl.xy_ ;
-      % ptsPlotInfo = mdl.ptsPlotInfo_ ;
-      tfOccld = mdl.tfOcc_ ;
+      xy = mdl.xy ;
+      % ptsPlotInfo = mdl.ptsPlotInfo ;
+      tfOccld = mdl.tfOcc ;
 
       obj.setPtsCoords(xy(~tfOccld, :), obj.hPts_(~tfOccld), obj.hPtsTxt_(~tfOccld)) ;
 
@@ -360,7 +360,7 @@ classdef LabelCoreController < handle
       obj.refreshOccludedPts() ;
 
       % Tags / estimated occluded
-      if any(mdl.tfEstOcc_)
+      if any(mdl.tfEstOcc)
         obj.refreshPtMarkers() ;
       end
     end  % function
@@ -368,7 +368,7 @@ classdef LabelCoreController < handle
     function syncPointGraphicsI(obj, iPt)
       % Sync point handle(s) for specific point index to model coordinates.
       mdl = obj.model_ ;
-      xy = mdl.xy_(iPt, :) ;
+      xy = mdl.xy(iPt, :) ;
       obj.setPtsCoords(xy, obj.hPts_(iPt), obj.hPtsTxt_(iPt)) ;
 
       % Update skeleton edges connected to this point
@@ -390,7 +390,7 @@ classdef LabelCoreController < handle
     function refreshOccludedPts(obj)
       % Set point/text locs based on model.tfOcc_.
       mdl = obj.model_ ;
-      tf = mdl.tfOcc_ ;
+      tf = mdl.tfOcc ;
       nOcc = nnz(tf) ;
 
       if nOcc > 0
@@ -410,6 +410,7 @@ classdef LabelCoreController < handle
         setPositionsOfLabelLinesAndTextsBangBang( ...
           obj.hPtsOcc_(~tf), obj.hPtsTxtOcc_(~tf), nan(mdl.nPts - nOcc, 2), 0.25) ;
       end
+      obj.refreshPtMarkers() ;
     end  % function
 
     function refreshPtMarkers(obj, varargin)
@@ -419,12 +420,12 @@ classdef LabelCoreController < handle
         'iPts', 1:mdl.nPts, ...
         'doPtsOcc', false) ;
 
-      ppi = mdl.ptsPlotInfo_ ;
+      ppi = mdl.ptsPlotInfo ;
       ppitm = ppi.TemplateMode ;
 
       hPoints = obj.hPts_(iPts) ;
-      tfSl = mdl.tfSel_(iPts) ;
-      tfEO = mdl.tfEstOcc_(iPts) ;
+      tfSl = mdl.tfSel(iPts) ;
+      tfEO = mdl.tfEstOcc(iPts) ;
 
       set(hPoints(tfSl & tfEO), 'Marker', ppitm.SelectedOccludedMarker) ;
       set(hPoints(tfSl & ~tfEO), 'Marker', ppitm.SelectedPointMarker) ;
@@ -440,7 +441,7 @@ classdef LabelCoreController < handle
 
     function refreshTxLabelCoreAux(obj)
       % Update the auxiliary text label showing hotkey mapping.
-      iPt0 = obj.model_.kpfIPtFor1Key_ ;
+      iPt0 = obj.model_.kpfIPtFor1Key ;
       iPt1 = iPt0 + 9 ;
       str = sprintf('Hotkeys 1-9,0 map to points %d-%d, ` (backquote) toggles', iPt0, iPt1) ;
       obj.txLblCoreAux_.String = str ;
@@ -468,7 +469,7 @@ classdef LabelCoreController < handle
     function labelsHideToggle(obj)
       % Toggle label visibility via the model.
       mdl = obj.model_ ;
-      mdl.setHideLabels(~mdl.hideLabels_) ;
+      mdl.setHideLabels(~mdl.hideLabels) ;
     end  % function
 
     function updateShowSkeleton(obj)
@@ -476,7 +477,7 @@ classdef LabelCoreController < handle
       if isempty(obj.hSkel_)
         return ;
       end
-      if obj.labeler_.showSkeleton && ~obj.model_.hideLabels_
+      if obj.labeler_.showSkeleton && ~obj.model_.hideLabels
         [obj.hSkel_.Visible] = deal('on') ;
       else
         [obj.hSkel_.Visible] = deal('off') ;
@@ -491,7 +492,7 @@ classdef LabelCoreController < handle
     function updateColors(obj, colors)
       % Update colors for point markers and text labels.
       mdl = obj.model_ ;
-      mdl.ptsPlotInfo_.Colors = colors ;
+      mdl.ptsPlotInfo.Colors = colors ;
 
       for i = 1:mdl.nPts
         clrI = colors(i, :) ;
@@ -515,7 +516,7 @@ classdef LabelCoreController < handle
       mdl = obj.model_ ;
       flds = fieldnames(pvMarker) ;
       for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo_.MarkerProps.(f) = pvMarker.(f) ;
+        mdl.ptsPlotInfo.MarkerProps.(f) = pvMarker.(f) ;
       end
       set(obj.hPts_, pvMarker) ;
       set(obj.hPtsOcc_, pvMarker) ;
@@ -526,10 +527,10 @@ classdef LabelCoreController < handle
       mdl = obj.model_ ;
       flds = fieldnames(pvText) ;
       for f = flds(:)' , f = f{1} ; %#ok<FXSET>
-        mdl.ptsPlotInfo_.TextProps.(f) = pvText.(f) ;
+        mdl.ptsPlotInfo.TextProps.(f) = pvText.(f) ;
       end
       set(obj.hPtsTxt_, pvText) ;
-      mdl.ptsPlotInfo_.TextOffset = txtoffset ;
+      mdl.ptsPlotInfo.TextOffset = txtoffset ;
       obj.redrawTextLabels() ;
     end  % function
 
@@ -537,7 +538,7 @@ classdef LabelCoreController < handle
       % Refresh skeleton edge cosmetics from labeler.
       lObj = obj.labeler_ ;
       ppi = lObj.labelPointsPlotInfo ;
-      obj.model_.ptsPlotInfo_.SkeletonProps = ppi.SkeletonProps ;
+      obj.model_.ptsPlotInfo.SkeletonProps = ppi.SkeletonProps ;
       set(obj.hSkel_, ppi.SkeletonProps) ;
     end  % function
 
@@ -545,7 +546,7 @@ classdef LabelCoreController < handle
       % Rebuild skeleton edge handles.
       mdl = obj.model_ ;
       ax = obj.hAx_ ;
-      ptsPlotInfo = mdl.ptsPlotInfo_ ;
+      ptsPlotInfo = mdl.ptsPlotInfo ;
       edges = mdl.skeletonEdges() ;
 
       deleteValidGraphicsHandles(obj.hSkel_) ;
